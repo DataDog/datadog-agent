@@ -493,6 +493,9 @@ func TestConfiguredMetricPriority(t *testing.T) {
 				{TimeStamp: lastTimestamp + 200, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
 			}, nvml.SUCCESS
 		}
+		device.GpmSampleGetFunc = func(_ nvml.GpmSample) nvml.Return {
+			return nvml.SUCCESS
+		}
 		return device
 	}, testutil.WithCapabilities(testutil.Capabilities{GPM: true}), testutil.WithMockAllFunctions())
 	deviceUUID := device.GetDeviceInfo().UUID
@@ -539,6 +542,24 @@ func TestConfiguredMetricPriority(t *testing.T) {
 		"sm_active":         {sampling, ebpf},
 		"gr_engine_active":  {gpm, sampling, ebpf},
 		"process.sm_active": {sampling, ebpf},
+	}
+
+	wantedCollectors := make(map[CollectorName]bool)
+	for _, collectors := range desiredMetricPriority {
+		for _, collector := range collectors {
+			wantedCollectors[collector] = true
+		}
+	}
+
+	for wantedCollector, isWanted := range wantedCollectors {
+		found := false
+		for _, collector := range collectors {
+			if collector.Name() == wantedCollector {
+				found = true
+				break
+			}
+		}
+		require.Equal(t, isWanted, found, "collector %s state is not as expected", wantedCollector)
 	}
 
 	metricsByCollector := make(map[string]map[CollectorName]Metric)
