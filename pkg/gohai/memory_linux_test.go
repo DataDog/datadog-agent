@@ -1,4 +1,4 @@
-package memory
+package verity
 
 import (
 	. "github.com/r7kamura/gospel"

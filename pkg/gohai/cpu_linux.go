@@ -1,4 +1,4 @@
-package cpu
+package verity
 
 import (
 	"bufio"
@@ -9,15 +9,15 @@ import (
 type Cpu struct{}
 
 func (self *Cpu) Collect() (result map[string]map[string]string, err error) {
-	cpuinfo, err := getCpuInfo()
+	cpuInfo, err := getcpuInfo()
 	result = map[string]map[string]string{
-		"cpu": cpuinfo,
+		"cpu": cpuInfo,
 	}
 
 	return
 }
 
-func getCpuInfo() (cpuinfo map[string]string, err error) {
+func getcpuInfo() (cpuInfo map[string]string, err error) {
 	file, err := os.Open("/proc/cpuinfo")
 
 	if err != nil {
@@ -36,7 +36,7 @@ func getCpuInfo() (cpuinfo map[string]string, err error) {
 		return
 	}
 
-	cpuinfo = make(map[string]string)
+	cpuInfo = make(map[string]string)
 	count := 0
 
 	for _, line := range lines {
@@ -44,33 +44,33 @@ func getCpuInfo() (cpuinfo map[string]string, err error) {
 
 		switch pair[0] {
 		case "processor":
-			cpuinfo["processor"] = pair[1]
+			cpuInfo["processor"] = pair[1]
 			count += 1
 		case "vendor_id":
-			cpuinfo["vendor_id"] = pair[1]
+			cpuInfo["vendor_id"] = pair[1]
 		case "family":
-			cpuinfo["family"] = pair[1]
+			cpuInfo["family"] = pair[1]
 		case "model":
-			cpuinfo["model"] = pair[1]
+			cpuInfo["model"] = pair[1]
 		case "model name":
-			cpuinfo["model_name"] = pair[1]
+			cpuInfo["model_name"] = pair[1]
 		case "stepping":
-			cpuinfo["stepping"] = pair[1]
+			cpuInfo["stepping"] = pair[1]
 		case "physical id":
-			cpuinfo["physical_id"] = pair[1]
+			cpuInfo["physical_id"] = pair[1]
 		case "core id":
-			cpuinfo["physical_id"] = pair[1]
+			cpuInfo["physical_id"] = pair[1]
 		case "cpu cores":
-			cpuinfo["cpu cores"] = pair[1]
+			cpuInfo["cpu cores"] = pair[1]
 		case "cpu MHz":
-			cpuinfo["mhz"] = pair[1]
+			cpuInfo["mhz"] = pair[1]
 		case "cache size":
-			cpuinfo["cache_size"] = pair[1]
+			cpuInfo["cache_size"] = pair[1]
 		case "flags":
-			cpuinfo["flags"] = pair[1]
+			cpuInfo["flags"] = pair[1]
 		}
 	}
 
-	cpuinfo["total"] = string(count)
+	cpuInfo["total"] = string(count)
 	return
 }
