@@ -1,4 +1,4 @@
-package cpu
+package verity
 
 import (
 	. "github.com/r7kamura/gospel"
