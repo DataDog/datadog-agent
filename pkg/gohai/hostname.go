@@ -1,4 +1,4 @@
-package hostname
+package verity
 
 import (
 	"os"
