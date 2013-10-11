@@ -1,3 +1,4 @@
 all:
-	cd hostname && gom test -x
-	cd cpu      && gom test -x
+	cd hostname && gom test
+	cd cpu      && gom test
+	cd memory   && gom test
