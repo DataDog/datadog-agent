@@ -1,7 +1,6 @@
 package cpu
 
 import (
-	"fmt"
 	. "github.com/r7kamura/gospel"
 	"testing"
 	"io/ioutil"
@@ -13,15 +12,12 @@ func TestCpu(t *testing.T) {
 		collector := &Cpu{}
 		result, _ := collector.Collect()
 
-		re := regexp.MustCompile("model name\t: (.*)")
-		cpuinfo, err := ioutil.ReadFile("/proc/cpuinfo")
-		if err != nil { panic(err) }
-		cpu := re.FindStringSubmatch(string(cpuinfo))[1]
+		It("should be able to collect CPU model name", func() {
+			Expect(result["cpu"]["model_name"]).To(NotEqual, "")
+		})
 
-		fmt.Println(cpu)
-
-		It("should be able to collect hostname", func() {
-			Expect(result["cpu"]).To(Equal, cpu)
+		It("should be able to collect the number of CPU(s)", func() {
+			Expect(result["cpu"]["total"]).To(NotEqual, "0")
 		})
 	})
 }
