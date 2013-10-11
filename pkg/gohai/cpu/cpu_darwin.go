@@ -7,7 +7,7 @@ import (
 type Cpu struct{}
 
 func (self *Cpu) Collect() (result map[string]string, err error) {
-    cpu := (&macho.FileHeader{}).Cpu
+	cpu := (&macho.FileHeader{}).Cpu
 
 	return map[string]string{
 		"cpu": cpu.String(),
