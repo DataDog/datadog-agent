@@ -9,12 +9,13 @@ import (
 type Cpu struct{}
 
 func (self *Cpu) Collect() (result map[string]map[string]string, err error) {
+	cpuinfo, err := getCpuInfo() 
 	return map[string]map[string]string{
-		"cpu": getCpuInfo(),
+		"cpu": cpuinfo,
 	}, err
 }
 
-func getCpuInfo() (cpuinfo map[string]string) {
+func getCpuInfo() (cpuinfo map[string]string, err error) {
 	contents, err := ioutil.ReadFile("/proc/cpuinfo")
 	if err != nil {
 		return
