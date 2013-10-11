@@ -14,7 +14,7 @@ func TestCpu(t *testing.T) {
 		cpu := (&macho.FileHeader{}).Cpu
         fmt.Println(cpu.String())
 
-		It("should be able to collect hostname", func() {
+		It("should be able to collect cpu", func() {
 			Expect(result["cpu"]).To(Equal, cpu.String())
 		})
 	})
