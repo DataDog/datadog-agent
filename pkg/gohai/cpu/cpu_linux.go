@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"regexp"
+	"strconv"
 )
 
 type Cpu struct{}
@@ -73,6 +74,6 @@ func getcpuInfo() (cpuInfo map[string]string, err error) {
 		}
 	}
 
-	cpuInfo["total"] = string(count)
+	cpuInfo["total"] = strconv.Itoa(count)
 	return
 }
