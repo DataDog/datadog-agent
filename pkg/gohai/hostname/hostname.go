@@ -1,4 +1,4 @@
-package verity
+package hostname
 
 import (
 	"os"
@@ -6,11 +6,15 @@ import (
 
 type Hostname struct{}
 
-func (self *Hostname) Collect() (result map[string]string, err error) {
+const name = "hostname"
+
+func (self *Hostname) Name() string {
+	return name
+}
+
+func (self *Hostname) Collect() (result interface{}, err error) {
 	hostname, err := os.Hostname()
-	result = map[string]string{
-		"hostname": hostname,
-	}
+	result = hostname
 
     return
 }
