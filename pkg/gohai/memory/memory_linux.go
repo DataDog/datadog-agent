@@ -1,4 +1,4 @@
-package verity
+package memory
 
 import (
 	"bufio"
@@ -9,12 +9,14 @@ import (
 
 type Memory struct{}
 
-func (self *Memory) Collect() (result map[string]map[string]string, err error) {
-	memoryInfo, err := getMemoryInfo()
-	result = map[string]map[string]string{
-		"memory": memoryInfo,
-	}
+const name = "memory"
 
+func (self *Memory) Name() string {
+	return name
+}
+
+func (self *Memory) Collect() (result interface{}, err error) {
+	result, err = getMemoryInfo()
 	return
 }
 

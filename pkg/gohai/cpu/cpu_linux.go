@@ -1,4 +1,4 @@
-package verity
+package cpu
 
 import (
 	"bufio"
@@ -8,12 +8,14 @@ import (
 
 type Cpu struct{}
 
-func (self *Cpu) Collect() (result map[string]map[string]string, err error) {
-	cpuInfo, err := getcpuInfo()
-	result = map[string]map[string]string{
-		"cpu": cpuInfo,
-	}
+const name = "cpu"
 
+func (self *Cpu) Name() string {
+    return name
+}
+
+func (self *Cpu) Collect() (result interface{}, err error) {
+	result, err = getcpuInfo()
 	return
 }
 
