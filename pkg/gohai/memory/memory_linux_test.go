@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"fmt"
 	. "github.com/r7kamura/gospel"
 	"testing"
 )
