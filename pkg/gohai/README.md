@@ -49,7 +49,7 @@ To test whole the project:
 ## See Also
 
   * [facter](https://github.com/puppetlabs/facter)
-  * [ohai](https://github.com/opscode/ohai).
+  * [ohai](https://github.com/opscode/ohai)
 
 ## Author
 
