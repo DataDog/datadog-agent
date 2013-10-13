@@ -1,6 +1,6 @@
 # Verity
 
-Verity is an inventory collector of a system. It aims to implement some parts of features from [facter](https://github.com/puppetlabs/facter) and/or [ohai](https://github.com/opscode/ohai).
+Verity is an inventory collector of a system. It aims to implement some parts of features from [facter](https://github.com/puppetlabs/facter) and [ohai](https://github.com/opscode/ohai).
 
 ## Usage
 
