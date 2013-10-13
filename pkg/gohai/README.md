@@ -8,7 +8,6 @@ Do `go get` from this repository:
 
 ```
 $ go get github.com/kentaro/verity/bin
-$ cd verity
 ```
 
 Notice that you have to add `bin` directory to install `verity` command.
