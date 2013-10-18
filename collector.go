@@ -3,6 +3,7 @@ package verity
 import (
 	"github.com/kentaro/verity/cpu"
 	"github.com/kentaro/verity/hostname"
+	"github.com/kentaro/verity/ipaddress"
 	"github.com/kentaro/verity/memory"
 	"log"
 )
@@ -16,6 +17,7 @@ var collectors = []Collector{
 	&hostname.Hostname{},
 	&cpu.Cpu{},
 	&memory.Memory{},
+	&ipaddress.IpAddress{},
 }
 
 func Collect() (result map[string]interface{}, err error) {
