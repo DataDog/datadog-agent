@@ -8,7 +8,7 @@ import (
 )
 
 func TestCpu(t *testing.T) {
-	Describe(t, "cpu.Name", func() {
+	Describe(t, "cpu.Name()", func() {
 		collector := &Cpu{}
 
 		It("should have its name", func() {
@@ -16,7 +16,7 @@ func TestCpu(t *testing.T) {
 		})
 	})
 
-	Describe(t, "cpu.Collect", func() {
+	Describe(t, "cpu.Collect()", func() {
 		collector := &Cpu{}
 		result, _ := collector.Collect()
 
