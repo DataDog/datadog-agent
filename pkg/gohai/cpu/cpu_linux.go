@@ -16,11 +16,11 @@ func (self *Cpu) Name() string {
 }
 
 func (self *Cpu) Collect() (result interface{}, err error) {
-	result, err = getcpuInfo()
+	result, err = getCpuInfo()
 	return
 }
 
-func getcpuInfo() (cpuInfo map[string]string, err error) {
+func getCpuInfo() (cpuInfo map[string]string, err error) {
 	file, err := os.Open("/proc/cpuinfo")
 
 	if err != nil {
