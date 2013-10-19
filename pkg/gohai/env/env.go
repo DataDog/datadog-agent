@@ -18,14 +18,14 @@ func (self *Env) Collect() (result interface{}, err error) {
 	return
 }
 
-func (self *Env) getEnvironmentVariables() (result map[string]string, err error) {
-	result = make(map[string]string)
+func (self *Env) getEnvironmentVariables() (envs map[string]string, err error) {
+	envs = make(map[string]string)
 
 	for _, env := range os.Environ() {
 		pair := strings.SplitN(env, "=", 2)
 		if strings.HasPrefix(pair[0], "VERITY_") {
 			key := strings.ToLower(strings.SplitAfterN(pair[0], "VERITY_", 2)[1])
-			result[key] = pair[1]
+			envs[key] = pair[1]
 		}
 	}
 
