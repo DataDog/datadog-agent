@@ -1,26 +1,26 @@
-package ipaddress
+package ipv6address
 
 import (
 	"errors"
 	"net"
 )
 
-type IpAddress struct{}
+type Ipv6Address struct{}
 
-const name = "ipaddress"
+const name = "ipv6address"
 
-func (self *IpAddress) Name() string {
+func (self *Ipv6Address) Name() string {
 	return name
 }
 
-func (self *IpAddress) Collect() (result interface{}, err error) {
-	ipaddress, err := externalIpAddress()
-	result = ipaddress
+func (self *Ipv6Address) Collect() (result interface{}, err error) {
+	ipv6address, err := externalIpv6Address()
+	result = ipv6address
 
 	return
 }
 
-func externalIpAddress() (string, error) {
+func externalIpv6Address() (string, error) {
 	ifaces, err := net.Interfaces()
 
 	if err != nil {
@@ -47,9 +47,8 @@ func externalIpAddress() (string, error) {
 			if ip == nil || ip.IsLoopback() {
 				continue
 			}
-			ip = ip.To4()
-			if ip == nil {
-				// not an ipv4 address
+			if ip.To4() != nil {
+				// ipv4 address
 				continue
 			}
 			return ip.String(), nil
