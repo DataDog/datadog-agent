@@ -1,26 +1,26 @@
-package ipaddress
+package macaddress
 
 import (
 	"errors"
 	"net"
 )
 
-type IpAddress struct{}
+type MacAddress struct{}
 
-const name = "ipaddress"
+const name = "macaddress"
 
-func (self *IpAddress) Name() string {
+func (self *MacAddress) Name() string {
 	return name
 }
 
-func (self *IpAddress) Collect() (result interface{}, err error) {
-	ipaddress, err := externalIpAddress()
-	result = ipaddress
+func (self *MacAddress) Collect() (result interface{}, err error) {
+	macaddress, err := macAddress()
+	result = macaddress
 
 	return
 }
 
-func externalIpAddress() (string, error) {
+func macAddress() (string, error) {
 	ifaces, err := net.Interfaces()
 
 	if err != nil {
@@ -44,15 +44,10 @@ func externalIpAddress() (string, error) {
 			case *net.IPAddr:
 				ip = v.IP
 			}
-			if ip == nil || ip.IsLoopback() {
+			if ip == nil || ip.IsLoopback() || ip.To4() == nil {
 				continue
 			}
-			ip = ip.To4()
-			if ip == nil {
-				// not an ipv4 address
-				continue
-			}
-			return ip.String(), nil
+			return iface.HardwareAddr.String(), nil
 		}
 	}
 	return "", errors.New("not connected to the network")
