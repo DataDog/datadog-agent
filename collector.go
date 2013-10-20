@@ -2,6 +2,7 @@ package verity
 
 import (
 	"github.com/kentaro/verity/cpu"
+	"github.com/kentaro/verity/env"
 	"github.com/kentaro/verity/hostname"
 	"github.com/kentaro/verity/ipaddress"
 	"github.com/kentaro/verity/memory"
@@ -14,10 +15,11 @@ type Collector interface {
 }
 
 var collectors = []Collector{
-	&hostname.Hostname{},
 	&cpu.Cpu{},
+	&env.Env{},
 	&memory.Memory{},
 	&ipaddress.IpAddress{},
+	&hostname.Hostname{},
 }
 
 func Collect() (result map[string]interface{}, err error) {
@@ -31,7 +33,14 @@ func Collect() (result map[string]interface{}, err error) {
 			continue
 		}
 
-		result[collector.Name()] = verity
+		// We put the values from environment variables on to the top level of the result.
+		if collector.Name() == "env" {
+			for key, value := range verity.(map[string]string) {
+				result[key] = value
+			}
+		} else {
+			result[collector.Name()] = verity
+		}
 	}
 
 	return
