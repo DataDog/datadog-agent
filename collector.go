@@ -5,7 +5,10 @@ import (
 	"github.com/kentaro/verity/env"
 	"github.com/kentaro/verity/hostname"
 	"github.com/kentaro/verity/ipaddress"
+	"github.com/kentaro/verity/ipv6address"
+	"github.com/kentaro/verity/macaddress"
 	"github.com/kentaro/verity/memory"
+	"github.com/kentaro/verity/network"
 	"log"
 )
 
@@ -17,9 +20,12 @@ type Collector interface {
 var collectors = []Collector{
 	&cpu.Cpu{},
 	&env.Env{},
-	&memory.Memory{},
-	&ipaddress.IpAddress{},
 	&hostname.Hostname{},
+	&ipaddress.IpAddress{},
+	&ipv6address.Ipv6Address{},
+	&macaddress.MacAddress{},
+	&memory.Memory{},
+	&network.Network{},
 }
 
 func Collect() (result map[string]interface{}, err error) {
