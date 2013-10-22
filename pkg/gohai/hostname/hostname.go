@@ -16,5 +16,5 @@ func (self *Hostname) Collect() (result interface{}, err error) {
 	hostname, err := os.Hostname()
 	result = hostname
 
-    return
+	return
 }
