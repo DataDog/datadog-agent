@@ -1,23 +1,23 @@
 package main
 
 import (
-    "encoding/json"
-    "github.com/kentaro/verity"
-    "os"
+	"encoding/json"
+	"github.com/kentaro/verity"
+	"os"
 )
 
 func main() {
-    verity, err := verity.Collect()
+	verity, err := verity.Collect()
 
-    if err != nil {
-        panic(err)
-    }
+	if err != nil {
+		panic(err)
+	}
 
-    buf, err := json.Marshal(verity)
+	buf, err := json.Marshal(verity)
 
-    if err != nil {
-        panic(err)
-    }
+	if err != nil {
+		panic(err)
+	}
 
-    os.Stdout.Write(buf)
+	os.Stdout.Write(buf)
 }
