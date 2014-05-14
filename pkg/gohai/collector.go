@@ -1,11 +1,11 @@
 package verity
 
 import (
-	"github.com/Datadog/verity/cpu"
-	"github.com/Datadog/verity/filesystem"
-	"github.com/Datadog/verity/memory"
-	"github.com/Datadog/verity/network"
-	"github.com/Datadog/verity/platform"
+	"github.com/DataDog/verity/cpu"
+	"github.com/DataDog/verity/filesystem"
+	"github.com/DataDog/verity/memory"
+	"github.com/DataDog/verity/network"
+	"github.com/DataDog/verity/platform"
 	"log"
 )
 
