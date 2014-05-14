@@ -2,5 +2,4 @@
 /.vagrant
 *.test
 /build
-verity/verity
 verity
