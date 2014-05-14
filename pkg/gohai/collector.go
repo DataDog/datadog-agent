@@ -1,14 +1,14 @@
 package verity
 
 import (
-	"github.com/kentaro/verity/cpu"
-	"github.com/kentaro/verity/env"
-	"github.com/kentaro/verity/hostname"
-	"github.com/kentaro/verity/ipaddress"
-	"github.com/kentaro/verity/ipv6address"
-	"github.com/kentaro/verity/macaddress"
-	"github.com/kentaro/verity/memory"
-	"github.com/kentaro/verity/network"
+	"github.com/Datadog/verity/cpu"
+	"github.com/Datadog/verity/env"
+	"github.com/Datadog/verity/hostname"
+	"github.com/Datadog/verity/ipaddress"
+	"github.com/Datadog/verity/ipv6address"
+	"github.com/Datadog/verity/macaddress"
+	"github.com/Datadog/verity/memory"
+	"github.com/Datadog/verity/network"
 	"log"
 )
 
