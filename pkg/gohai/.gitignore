@@ -3,3 +3,4 @@
 *.test
 /build
 verity/verity
+verity
