@@ -20,6 +20,22 @@ func (self *Cpu) Collect() (result interface{}, err error) {
 	return
 }
 
+var cpuMap = map[string]string{
+	// "processor":   "processor",
+	"vendor_id":   "vendor_id",
+	// "cpu family":  "family",
+	// "model":       "model",
+	"model name":  "model_name",
+	// "stepping":    "stepping",
+	// "physical id": "physical_id",
+	"cpu cores":   "cpu_cores",
+	"cpu MHz":     "mhz",
+	"cache size":  "cache_size",
+	// "flags":       "flags",
+}
+
+// fixme tri This collector saves only the last processor's info
+
 func getCpuInfo() (cpuInfo map[string]string, err error) {
 	file, err := os.Open("/proc/cpuinfo")
 
@@ -45,32 +61,12 @@ func getCpuInfo() (cpuInfo map[string]string, err error) {
 	for _, line := range lines {
 		pair := regexp.MustCompile("\t: ").Split(line, 2)
 
-		switch pair[0] {
-		case "processor":
-			cpuInfo["processor"] = pair[1]
-			count += 1
-		case "vendor_id":
-			cpuInfo["vendor_id"] = pair[1]
-		case "family":
-			cpuInfo["family"] = pair[1]
-		case "model":
-			cpuInfo["model"] = pair[1]
-		case "model name":
-			cpuInfo["model_name"] = pair[1]
-		case "stepping":
-			cpuInfo["stepping"] = pair[1]
-		case "physical id":
-			cpuInfo["physical_id"] = pair[1]
-		case "core id":
-			cpuInfo["physical_id"] = pair[1]
-		case "cpu cores":
-			cpuInfo["cpu cores"] = pair[1]
-		case "cpu MHz":
-			cpuInfo["mhz"] = pair[1]
-		case "cache size":
-			cpuInfo["cache_size"] = pair[1]
-		case "flags":
-			cpuInfo["flags"] = pair[1]
+		key, ok := cpuMap[pair[0]]
+		if ok {
+			cpuInfo[key] = pair[1]
+			if pair[0] == "processor" {
+				count += 1
+			}
 		}
 	}
 
