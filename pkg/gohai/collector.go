@@ -2,7 +2,6 @@ package verity
 
 import (
 	"github.com/Datadog/verity/cpu"
-	"github.com/Datadog/verity/env"
 	"github.com/Datadog/verity/hostname"
 	"github.com/Datadog/verity/ipaddress"
 	"github.com/Datadog/verity/ipv6address"
@@ -19,7 +18,6 @@ type Collector interface {
 
 var collectors = []Collector{
 	&cpu.Cpu{},
-	&env.Env{},
 	&hostname.Hostname{},
 	&ipaddress.IpAddress{},
 	&ipv6address.Ipv6Address{},
@@ -39,14 +37,7 @@ func Collect() (result map[string]interface{}, err error) {
 			continue
 		}
 
-		// We put the values from environment variables on to the top level of the result.
-		if collector.Name() == "env" {
-			for key, value := range verity.(map[string]string) {
-				result[key] = value
-			}
-		} else {
-			result[collector.Name()] = verity
-		}
+		result[collector.Name()] = verity
 	}
 
 	return
