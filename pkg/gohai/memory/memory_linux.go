@@ -75,9 +75,9 @@ func getMemoryInfo() (memoryInfo map[string]string, err error) {
 		pair := regexp.MustCompile(": +").Split(line, 2)
 		values := regexp.MustCompile(" +").Split(pair[1], 2)
 
-		mkey, ok := memMap[pair[0]]
+		key, ok := memMap[pair[0]]
 		if ok {
-			memoryInfo[mkey] = fmt.Sprintf("%s%s", values[0], values[1])
+			memoryInfo[key] = fmt.Sprintf("%s%s", values[0], values[1])
 		}
 	}
 
