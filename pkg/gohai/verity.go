@@ -1,12 +1,15 @@
-package verity
+package main
 
 import (
+	"encoding/json"
+	"log"
+	"os"
+
 	"github.com/DataDog/verity/cpu"
 	"github.com/DataDog/verity/filesystem"
 	"github.com/DataDog/verity/memory"
 	"github.com/DataDog/verity/network"
 	"github.com/DataDog/verity/platform"
-	"log"
 )
 
 type Collector interface {
@@ -26,7 +29,7 @@ func Collect() (result map[string]interface{}, err error) {
 	result = make(map[string]interface{})
 
 	for _, collector := range collectors {
-		verity, err := collector.Collect()
+		verity, err := Collect()
 
 		if err != nil {
 			log.Printf("[%s] %s", collector.Name(), err)
@@ -36,4 +39,20 @@ func Collect() (result map[string]interface{}, err error) {
 	}
 
 	return
+}
+
+func main() {
+	verity, err := Collect()
+
+	if err != nil {
+		panic(err)
+	}
+
+	buf, err := json.Marshal(verity)
+
+	if err != nil {
+		panic(err)
+	}
+
+	os.Stdout.Write(buf)
 }
