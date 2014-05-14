@@ -2,6 +2,11 @@ package platform
 
 import (
 	"os"
+    "runtime"
+    "os/exec"
+    "fmt"
+    "regexp"
+    // "strings"
 )
 
 type Platform struct{}
@@ -26,5 +31,23 @@ func getPlatformInfo() (platformInfo map[string]interface{}, err error) {
     }
     platformInfo["hostname"] = hostname
 
+    platformInfo["os"] = runtime.GOOS
+    platformInfo["goV"] = runtime.Version()
+    pythonV, err := getPythonVersion()
+    if err != nil {
+        return platformInfo, err
+    }
+    platformInfo["pythonV"] = pythonV
+
     return
+}
+
+func getPythonVersion() (string, error) {
+    out, err := exec.Command("python", "-V").CombinedOutput()
+    if err != nil {
+        return "", err
+    }
+    version := fmt.Sprintf("%s", out)
+    values := regexp.MustCompile("Python (.*)\n").FindStringSubmatch(version)
+    return values[1], nil
 }
