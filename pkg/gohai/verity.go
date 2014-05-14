@@ -29,13 +29,12 @@ func Collect() (result map[string]interface{}, err error) {
 	result = make(map[string]interface{})
 
 	for _, collector := range collectors {
-		verity, err := Collect()
-
+		c, err := collector.Collect()
 		if err != nil {
 			log.Printf("[%s] %s", collector.Name(), err)
 			continue
 		}
-		result[collector.Name()] = verity
+		result[collector.Name()] = c
 	}
 
 	return
