@@ -21,11 +21,11 @@ func (self *Cpu) Collect() (result interface{}, err error) {
 }
 
 var cpuMap = map[string]string{
-	"vendor_id":   "vendor_id",
-	"model name":  "model_name",
-	"cpu cores":   "cpu_cores",
-	"cpu MHz\t":     "mhz",
-	"cache size":  "cache_size",
+	"vendor_id":  "vendor_id",
+	"model name": "model_name",
+	"cpu cores":  "cpu_cores",
+	"cpu MHz\t":  "mhz",
+	"cache size": "cache_size",
 	// "processor":   "processor",
 	// "cpu family":  "family",
 	// "model":       "model",
