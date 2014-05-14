@@ -27,7 +27,7 @@ func getFileSystemInfo() (fileSystemInfo map[string]interface{}, err error) {
 	Filesystem  1K-blocks  Used  Available  Use%  Mounted on
 	*/
 
-	out, err := exec.Command("df").Output()
+	out, err := exec.Command("df", "-l", "-B1").Output()
 	if err != nil {
 		return
 	}
@@ -38,11 +38,7 @@ func getFileSystemInfo() (fileSystemInfo map[string]interface{}, err error) {
 		if len(values) == expectedLength {
 			name := values[5]
 			fileSystemInfo[name] = map[string]string{
-				// "kb_size": values[1],
-				// "kb_used": values[2],
-				"kb_available": values[3],
-				"percent_used": values[4],
-				// "mount": values[5],
+				"size": values[1],
 			}
 		}
 	}
