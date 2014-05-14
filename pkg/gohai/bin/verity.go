@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/kentaro/verity"
+	"github.com/Datadog/verity"
 	"os"
 )
 
