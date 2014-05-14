@@ -42,8 +42,6 @@ func getNetworkInfo() (networkInfo map[string]interface{}, err error) {
 	return
 }
 
-
-
 type Ipv6Address struct{}
 
 func externalIpv6Address() (string, error) {
@@ -82,7 +80,6 @@ func externalIpv6Address() (string, error) {
 	}
 	return "", errors.New("not connected to the network")
 }
-
 
 type IpAddress struct{}
 
@@ -124,7 +121,6 @@ func externalIpAddress() (string, error) {
 	return "", errors.New("not connected to the network")
 }
 
-
 type MacAddress struct{}
 
 func macAddress() (string, error) {
@@ -159,7 +155,6 @@ func macAddress() (string, error) {
 	}
 	return "", errors.New("not connected to the network")
 }
-
 
 /* Not currently used */
 
