@@ -2,10 +2,10 @@ package verity
 
 import (
 	"github.com/Datadog/verity/cpu"
-	"github.com/Datadog/verity/hostname"
 	"github.com/Datadog/verity/filesystem"
 	"github.com/Datadog/verity/memory"
 	"github.com/Datadog/verity/network"
+	"github.com/Datadog/verity/platform"
 	"log"
 )
 
@@ -16,10 +16,10 @@ type Collector interface {
 
 var collectors = []Collector{
 	&cpu.Cpu{},
-	&hostname.Hostname{},
 	&filesystem.FileSystem{},
 	&memory.Memory{},
 	&network.Network{},
+	&platform.Platform{},
 }
 
 func Collect() (result map[string]interface{}, err error) {
