@@ -36,13 +36,13 @@ func getFileSystemInfo() (fileSystemInfo map[string]interface{}, err error) {
 	for _, line := range lines[1:] {
 		values := regexp.MustCompile("\\s+").Split(line, expectedLength)
 		if len(values) == expectedLength {
-			name := values[0]
+			name := values[5]
 			fileSystemInfo[name] = map[string]string{
-				"kb_size": values[1],
-				"kb_used": values[2],
+				// "kb_size": values[1],
+				// "kb_used": values[2],
 				"kb_available": values[3],
 				"percent_used": values[4],
-				"mount": values[5],
+				// "mount": values[5],
 			}
 		}
 	}
