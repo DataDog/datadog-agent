@@ -2,8 +2,8 @@ package filesystem
 
 import (
 	"os/exec"
-	"strings"
 	"regexp"
+	"strings"
 )
 
 type FileSystem struct{}
