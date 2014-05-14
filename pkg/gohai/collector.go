@@ -7,7 +7,6 @@ import (
 	"github.com/Datadog/verity/ipv6address"
 	"github.com/Datadog/verity/macaddress"
 	"github.com/Datadog/verity/memory"
-	"github.com/Datadog/verity/network"
 	"log"
 )
 
@@ -23,7 +22,6 @@ var collectors = []Collector{
 	&ipv6address.Ipv6Address{},
 	&macaddress.MacAddress{},
 	&memory.Memory{},
-	&network.Network{},
 }
 
 func Collect() (result map[string]interface{}, err error) {
