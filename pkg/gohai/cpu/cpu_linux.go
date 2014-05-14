@@ -21,16 +21,16 @@ func (self *Cpu) Collect() (result interface{}, err error) {
 }
 
 var cpuMap = map[string]string{
-	// "processor":   "processor",
 	"vendor_id":   "vendor_id",
-	// "cpu family":  "family",
-	// "model":       "model",
 	"model name":  "model_name",
-	// "stepping":    "stepping",
-	// "physical id": "physical_id",
 	"cpu cores":   "cpu_cores",
 	"cpu MHz":     "mhz",
 	"cache size":  "cache_size",
+	// "processor":   "processor",
+	// "cpu family":  "family",
+	// "model":       "model",
+	// "stepping":    "stepping",
+	// "physical id": "physical_id",
 	// "flags":       "flags",
 }
 

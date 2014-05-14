@@ -22,6 +22,7 @@ func (self *Memory) Collect() (result interface{}, err error) {
 
 var memMap = map[string]string{
 	"MemTotal":     "total",
+	"SwapTotal":    "swap_total",
 	// "MemFree":      "free",
 	// "Buffers":      "buffers",
 	// "Cached":       "cached",
@@ -46,7 +47,6 @@ var memMap = map[string]string{
 	// "VmallocUsed":  "vmalloc_used",
 	// "VmallocChunk": "vmalloc_chunk",
 	// "SwapCached":   "swap_cached",
-	"SwapTotal":    "swap_total",
 	// "SwapFree":     "swap_free",
 }
 
