@@ -21,8 +21,8 @@ func (self *Memory) Collect() (result interface{}, err error) {
 }
 
 var memMap = map[string]string{
-	"MemTotal":     "total",
-	"SwapTotal":    "swap_total",
+	"MemTotal":  "total",
+	"SwapTotal": "swap_total",
 	// "MemFree":      "free",
 	// "Buffers":      "buffers",
 	// "Cached":       "cached",
