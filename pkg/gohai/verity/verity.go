@@ -7,13 +7,13 @@ import (
 )
 
 func main() {
-	verity, err := verity.Collect()
+	verity_collected, err := verity.Collect()
 
 	if err != nil {
 		panic(err)
 	}
 
-	buf, err := json.Marshal(verity)
+	buf, err := json.Marshal(verity_collected)
 
 	if err != nil {
 		panic(err)
