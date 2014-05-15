@@ -7,8 +7,8 @@ import (
 
 	"github.com/DataDog/verity/cpu"
 	"github.com/DataDog/verity/filesystem"
-	// "github.com/DataDog/verity/memory"
-	// "github.com/DataDog/verity/network"
+	"github.com/DataDog/verity/memory"
+	"github.com/DataDog/verity/network"
 	"github.com/DataDog/verity/platform"
 )
 
@@ -20,8 +20,8 @@ type Collector interface {
 var collectors = []Collector{
 	&cpu.Cpu{},
 	&filesystem.FileSystem{},
-	// &memory.Memory{},
-	// &network.Network{},
+	&memory.Memory{},
+	&network.Network{},
 	&platform.Platform{},
 }
 
