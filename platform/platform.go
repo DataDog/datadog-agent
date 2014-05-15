@@ -1,3 +1,5 @@
+// +build linux darwin
+
 package platform
 
 import (
@@ -46,7 +48,6 @@ func getArchInfo() (archInfo map[string]interface{}, err error) {
 
 	out, err := exec.Command("uname", unameOptions...).Output()
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
 	line := fmt.Sprintf("%s", out)
