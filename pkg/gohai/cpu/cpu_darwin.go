@@ -29,8 +29,6 @@ var cpuMap = map[string]string{
 	"machdep.cpu.stepping":     "stepping",
 }
 
-// fixme tri This collector saves only the last processor's info
-
 func getCpuInfo() (cpuInfo map[string]string, err error) {
 
 	cpuInfo = make(map[string]string)
