@@ -6,19 +6,6 @@ import (
 	"strings"
 )
 
-type Cpu struct{}
-
-const name = "cpu"
-
-func (self *Cpu) Name() string {
-	return name
-}
-
-func (self *Cpu) Collect() (result interface{}, err error) {
-	result, err = getCpuInfo()
-	return
-}
-
 var cpuMap = map[string]string{
 	"machdep.cpu.vendor":       "vendor_id",
 	"machdep.cpu.brand_string": "model_name",
