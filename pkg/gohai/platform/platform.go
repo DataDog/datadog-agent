@@ -35,6 +35,9 @@ func getPlatformInfo() (platformInfo map[string]interface{}, err error) {
 	}
 	platformInfo["pythonV"] = pythonV
 
+	platformInfo["GOOS"] = runtime.GOOS
+	platformInfo["GOOARCH"] = runtime.GOARCH
+
 	return
 }
 
