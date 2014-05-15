@@ -19,22 +19,21 @@ func (self *FileSystem) Collect() (result interface{}, err error) {
 	return
 }
 
-func getFileSystemInfo() (fileSystemInfo map[string]interface{}, err error) {
-
-	fileSystemInfo = make(map[string]interface{})
+func getFileSystemInfo() (interface{}, error) {
 
 	/* Grab filesystem data from df	*/
 	out, err := exec.Command("df", dfOptions...).Output()
 	if err != nil {
-		return
+		return nil, err
 	}
 	lines := strings.Split(string(out), "\n")
-	for _, line := range lines[1:] {
+	var fileSystemInfo []interface{} = make([]interface{}, len(lines)-2)
+	for i, line := range lines[1:] {
 		values := regexp.MustCompile("\\s+").Split(line, expectedLength)
 		if len(values) == expectedLength {
-			updatefileSystemInfo(fileSystemInfo, values)
+			fileSystemInfo[i] = updatefileSystemInfo(values)
 		}
 	}
 
-	return
+	return fileSystemInfo, nil
 }
