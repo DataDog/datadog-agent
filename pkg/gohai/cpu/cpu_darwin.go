@@ -40,7 +40,7 @@ func getCpuInfo() (cpuInfo map[string]string, err error) {
 		if err != nil {
 			return cpuInfo, err
 		}
-		cpuInfo[key] = strings.Replace(string(out), "\n", "", -1)
+		cpuInfo[key] = strings.Trim(string(out), "\n")
 	}
 
 	mhz, err := strconv.Atoi(cpuInfo["mhz"])
