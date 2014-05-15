@@ -41,25 +41,25 @@ func getPlatformInfo() (platformInfo map[string]interface{}, err error) {
 func getArchInfo() (archInfo map[string]interface{}, err error) {
 	archInfo = make(map[string]interface{})
 
-	out, err := exec.Command("uname", "-s", "-n", "-r", "-m", "-p", "-i", "-o").Output()
+	out, err := exec.Command("uname", "-s", "-n", "-r", "-m", "-p").Output()
 	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 	line := fmt.Sprintf("%s", out)
-	values := regexp.MustCompile(" +").Split(line, 7)
+	values := regexp.MustCompile(" +").Split(line, 5)
 	archInfo["kernel_name"] = values[0]
 	archInfo["hostname"] = values[1]
 	archInfo["kernel_release"] = values[2]
-    archInfo["machine"] = values[3]
-    archInfo["processor"] = values[4]
-    archInfo["hardware_platform"] = values[5]
-    archInfo["os"] = strings.Replace(values[6], "\n", "", -1)
+	archInfo["machine"] = values[3]
+	archInfo["processor"] = strings.Trim(values[4], "\n")
+	archInfo["os"] = values[0]
 
-    out, err = exec.Command("uname", "-v").Output()
-    if err != nil {
-        return nil, err
-    }
-    archInfo["kernel_version"] = strings.Replace(fmt.Sprintf("%s", out), "\n", "", -1)
+	out, err = exec.Command("uname", "-v").Output()
+	if err != nil {
+		return nil, err
+	}
+	archInfo["kernel_version"] = strings.Trim(string(out), "\n")
 
 	return
 }
