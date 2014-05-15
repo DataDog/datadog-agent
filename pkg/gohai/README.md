@@ -7,38 +7,22 @@ Verity is a tool/library to build an inventory of system information. It aims to
 Do `go get` from this repository:
 
 ```
-$ go get github.com/kentaro/verity/bin
+$ go get github.com/DataDog/verity
 ```
-
-Notice that you have to add `bin` directory to install `verity` command.
 
 Then execute the command:
 
 ```
 $ verity
-{"cpu":{"cache_size":"6144 KB","model_name":"Intel(R) Core(TM) i7-2677M CPU @ 1.80GHz","processor":"0","stepping":"7","total":"1","vendor_id":"GenuineIntel"},"hostname":"localhost.localdomain","memory":{"active":"59832kB","anon_pages":"10672kB","bounce":"0kB","buffers":"14156kB","cached":"81084kB","commit_limit":"2856252kB","committed_as":"331420kB","dirty":"4kB","free":"316972kB","inactive":"46080kB","mapped":"7740kB","nfs_unstable":"0kB","page_tables":"1912kB","slab":"33700kB","slab_reclaimable":"13348kB","slab_unreclaim":"20352kB","swap_cached":"0kB","swap_free":"2621432kB","swap_total":"2621432kB","total":"469644kB","vmalloc_chunk":"34359711736kB","vmalloc_total":"34359738367kB","vmalloc_used":"20736kB","writeback":"0kB"}}
+{"cpu":{"cpu_cores":"2","family":"6","mhz":"2600","model":"58","model_name":"Intel(R) Core(TM) i5-3230M CPU @ 2.60GHz","stepping":"9","vendor_id":"GenuineIntel"},"filesystem":[{"kb_size":"244277768","mounted_on":"/","name":"/dev/disk0s2"}],"memory":{"swap_total":"4096.00M","total":"8589934592"},"network":{"ipaddress":"192.168.1.6","ipaddressv6":"fe80::5626:96ff:fed3:5811","macaddress":"54:26:96:d3:58:11"},"platform":{"GOOARCH":"amd64","GOOS":"darwin","goV":"1.2.1","hostname":"new-host.home","kernel_name":"Darwin","kernel_release":"12.5.0","kernel_version":"Darwin Kernel Version 12.5.0: Sun Sep 29 13:33:47 PDT 2013; root:xnu-2050.48.12~1/RELEASE_X86_64","machine":"x86_64","os":"Darwin","processor":"i386","pythonV":"2.7.2"}}
 ```
 
-## How to Hack
+## How to build
 
-This repository provides Linux development environment with Vagrant.
-
+To build the binary file for several platforms, we use goxc
 ```
-$ vagrant up
-$ vagrant ssh
-[vagrant $] cd home/vagrant/go/src/github.com/kentaro/verity
-```
-
-To build `verity` command:
-
-```
-[vagrant $] make
-```
-
-To test whole the project:
-
-```
-[vagrant $] make test
+go get github.com/laher/goxc
+goxc -bc='linux,darwin,windows' -d=[BUILD_DIR]
 ```
 
 ## See Also
