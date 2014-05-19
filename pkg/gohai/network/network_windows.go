@@ -6,19 +6,6 @@ import (
 	"strings"
 )
 
-type Network struct{}
-
-const name = "network"
-
-func (self *Network) Name() string {
-	return name
-}
-
-func (self *Network) Collect() (result interface{}, err error) {
-	result, err = getNetworkInfo()
-	return
-}
-
 func getNetworkInfo() (networkInfo map[string]interface{}, err error) {
 	networkInfo = make(map[string]interface{})
 	var ip, mac, ipv6 string
