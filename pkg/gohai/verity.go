@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	// "github.com/DataDog/verity/cpu"
+	"github.com/DataDog/verity/cpu"
 	"github.com/DataDog/verity/filesystem"
 	"github.com/DataDog/verity/memory"
 	"github.com/DataDog/verity/network"
@@ -18,7 +18,7 @@ type Collector interface {
 }
 
 var collectors = []Collector{
-	// &cpu.Cpu{},
+	&cpu.Cpu{},
 	&filesystem.FileSystem{},
 	&memory.Memory{},
 	&network.Network{},
