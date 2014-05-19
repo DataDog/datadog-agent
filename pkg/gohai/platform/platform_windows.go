@@ -50,25 +50,57 @@ var systemMap = map[string]string{
 func getSystemInfo() (systemInfo map[string]interface{}, err error) {
 	systemInfo = make(map[string]interface{})
 
-	out, err := exec.Command("systeminfo").Output()
-	if err != nil {
-		return nil, err
-	}
-	lines := strings.Split(string(out), "\n")
+	// out, err := exec.Command("wmic.exe", "PARTITION").Output()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// println(string(out))
 
-	for i, line := range lines[1:] {
-		values := regexp.MustCompile("  +").Split(line, 30)
-		if len(values) == 2 {
-			key, ok := systemMap[values[0]]
-			if ok {
-				systemInfo[key] = strings.Trim(values[1], "\r")
-			} else if values[0] == "Processor(s):" {
-				processor := strings.Split(lines[i+2], "[01]: ")[1]
-				systemInfo["processor"] = strings.Trim(processor, "\r")
-			}
-		}
-		systemInfo["os"] = systemInfo["kernel_name"]
-	}
+	// // PLATFORM
+	// "COMPUTERSYSTEM"
+	// archInfo["hostname"] = "NAME"
+	// archInfo["machine"] = "SystemType"
+
+	// "OS"
+	// archInfo["kernel_release"] = "Version"
+	// archInfo["os"] = "Caption"
+	// archInfo["kernel_name"] = ""//"Windows"
+
+	// // MEM
+	// "COMPUTERSYSTEM"
+	// "TotalPhysicalMemory":  "total",
+
+	// // FS
+	// "VOLUME"
+	// "name":       "Name",
+	// "kb_size":    "Capacity",
+	// "mounted_on": "DriveLetter",
+
+	// // CPU
+	// "CPU"
+	// "cpu family": "Family",
+	// "cpu MHz\t":  "CurrentClockSpeed",
+	// "model name": "Name",
+	// "cpu cores":  "NumberOfCores",
+	// "stepping":   "Split Caption",
+	// "model\t":    "Split Caption",
+	// "vendor_id":  "Manufacturer",
+
+	// lines := strings.Split(string(out), "\n")
+
+	// for i, line := range lines[1:] {
+	// 	values := regexp.MustCompile("  +").Split(line, 30)
+	// 	if len(values) == 2 {
+	// 		key, ok := systemMap[values[0]]
+	// 		if ok {
+	// 			systemInfo[key] = strings.Trim(values[1], "\r")
+	// 		} else if values[0] == "Processor(s):" {
+	// 			processor := strings.Split(lines[i+2], "[01]: ")[1]
+	// 			systemInfo["processor"] = strings.Trim(processor, "\r")
+	// 		}
+	// 	}
+	// 	systemInfo["os"] = systemInfo["kernel_name"]
+	// }
 
 	return
 }
