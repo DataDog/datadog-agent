@@ -101,7 +101,9 @@ func WindowsWMIFields(headers string, values string, names []string) (results ma
 		// look for the index of " NAME "
 		headerName = fmt.Sprintf(" %s ", headerColumns[expectedColumnIndexes[i]])
 		letterIndex = strings.Index(headers, headerName) + 1
-		results[name] = nextWord(values, letterIndex)
+		columnWidth := strings.Index(headers[letterIndex:], headerColumns[expectedColumnIndexes[i]+1])
+		results[name] = strings.Trim(values[letterIndex:letterIndex+columnWidth], " ")
+		// results[name] = nextWord(values, letterIndex)
 	}
 
 	return
