@@ -1,7 +1,7 @@
 package memory
 
 import (
-	utils "github.com/DataDog/verity/windowsutils"
+	utils "github.com/DataDog/gohai/windowsutils"
 )
 
 func getMemoryInfo() (memoryInfo map[string]string, err error) {

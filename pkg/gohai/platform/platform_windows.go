@@ -1,7 +1,7 @@
 package platform
 
 import (
-	utils "github.com/DataDog/verity/windowsutils"
+	utils "github.com/DataDog/gohai/windowsutils"
 )
 
 func getArchInfo() (systemInfo map[string]interface{}, err error) {
