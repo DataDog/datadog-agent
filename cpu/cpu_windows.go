@@ -1,7 +1,7 @@
 package cpu
 
 import (
-	utils "github.com/DataDog/verity/windowsutils"
+	utils "github.com/DataDog/gohai/windowsutils"
 	// "strconv"
 	"fmt"
 	"regexp"

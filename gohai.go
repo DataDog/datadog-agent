@@ -5,11 +5,11 @@ import (
 	"log"
 	"os"
 
-	"github.com/DataDog/verity/cpu"
-	"github.com/DataDog/verity/filesystem"
-	"github.com/DataDog/verity/memory"
-	"github.com/DataDog/verity/network"
-	"github.com/DataDog/verity/platform"
+	"github.com/DataDog/gohai/cpu"
+	"github.com/DataDog/gohai/filesystem"
+	"github.com/DataDog/gohai/memory"
+	"github.com/DataDog/gohai/network"
+	"github.com/DataDog/gohai/platform"
 )
 
 type Collector interface {
@@ -41,13 +41,13 @@ func Collect() (result map[string]interface{}, err error) {
 }
 
 func main() {
-	verity, err := Collect()
+	gohai, err := Collect()
 
 	if err != nil {
 		panic(err)
 	}
 
-	buf, err := json.Marshal(verity)
+	buf, err := json.Marshal(gohai)
 
 	if err != nil {
 		panic(err)
