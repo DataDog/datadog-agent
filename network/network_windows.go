@@ -16,11 +16,11 @@ func getNetworkInfo() (networkInfo map[string]interface{}, err error) {
 	}
 	lines := strings.Split(string(out), "\n")
 	for _, line := range lines {
-		if strings.Contains(line, "IPv4") {
+		if strings.Contains(line, "IPv4") && ip == "" {
 			ip = line
-		} else if strings.Contains(line, "Physical Address") {
+		} else if strings.Contains(line, "Physical Address") && mac == "" {
 			mac = line
-		} else if strings.Contains(line, "IPv6") {
+		} else if strings.Contains(line, "IPv6") && ipv6 == "" {
 			ipv6 = line
 		}
 	}
