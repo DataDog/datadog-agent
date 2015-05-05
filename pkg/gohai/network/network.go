@@ -21,7 +21,10 @@ func getNetworkInfo() (networkInfo map[string]interface{}, err error) {
 	if err != nil {
 		return networkInfo, err
 	}
-	networkInfo["ipaddressv6"] = ipAddressV6
+	// We append an IPv6 address to the payload only if IPv6 is enabled
+	if ipAddressV6 != "" {
+		networkInfo["ipaddressv6"] = ipAddressV6
+	}
 
 	return
 }
