@@ -54,7 +54,12 @@ func externalIpv6Address() (string, error) {
 			return ip.String(), nil
 		}
 	}
-	return "", errors.New("not connected to the network")
+
+	// We don't return an error if no IPv6 interface has been found. Indeed,
+	// some orgs just don't have IPv6 enabled. If there's a network error, it
+	// will pop out when getting the Mac address and/or the IPv4 address
+	// (before this function's call; see network.go -> getNetworkInfo())
+	return "", nil
 }
 
 type IpAddress struct{}
