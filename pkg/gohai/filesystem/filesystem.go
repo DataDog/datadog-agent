@@ -39,7 +39,7 @@ func getFileSystemInfo() (interface{}, error) {
 		}
 	case err = <-errCh:
 		out = nil
-	case <-time.After(5 * time.Second):
+	case <-time.After(2 * time.Second):
 		// Kill the process if it takes too long
 		if killErr := cmd.Process.Kill(); killErr != nil {
 			log.Fatal("failed to kill:", killErr)
