@@ -2,7 +2,7 @@
 
 [![license](http://img.shields.io/badge/license-MIT-red.svg?style=flat)](http://kentaro.mit-license.org/)
 
-Gohai is a tool which collects an inventory of system information. It aims to implement some parts of features from [facter](https://github.com/puppetlabs/facter) and [ohai](https://github.com/opscode/ohai).  It's forked from Kentaro Kubayashi's [verity](https://github.com/kentaro/verity).
+Gohai is a tool which collects an inventory of system information. It aims to implement some parts of features from [facter](https://github.com/puppetlabs/facter) and [ohai](https://github.com/opscode/ohai).  It's forked from Kentaro Kuribayashi's [verity](https://github.com/kentaro/verity).
 
 ## Usage
 
