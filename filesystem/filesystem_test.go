@@ -1,19 +1,17 @@
-// +build linux darwin
-
 package filesystem
 
 import (
 	"fmt"
 	"log"
 	"os/exec"
-	"regexp"
-	"strings"
+	"reflect"
+	"testing"
 	"time"
 )
 
-func getFileSystemInfo() (interface{}, error) {
-	/* Grab filesystem data from df	*/
-	cmd := exec.Command("df", dfOptions...)
+func MockSlowGetFileSystemInfo() (interface{}, error) {
+	/* Run a command that will definitely time out */
+	cmd := exec.Command("sleep", "5")
 
 	outCh := make(chan []byte, 1)
 	errCh := make(chan error, 1)
@@ -56,14 +54,19 @@ WAIT:
 	return out, err
 }
 
-func parseDfOutput(out string) (interface{}, error) {
-	lines := strings.Split(out, "\n")
-	var fileSystemInfo []interface{} = make([]interface{}, len(lines)-2)
-	for i, line := range lines[1:] {
-		values := regexp.MustCompile("\\s+").Split(line, expectedLength)
-		if len(values) == expectedLength {
-			fileSystemInfo[i] = updatefileSystemInfo(values)
-		}
+func TestSlowGetFileSystemInfo(t *testing.T) {
+	out, err := MockSlowGetFileSystemInfo()
+	if !reflect.DeepEqual(out, nil) {
+		t.Fatalf("Failed! out should be nil. Instead it's %s", out)
 	}
-	return fileSystemInfo, nil
+	if !reflect.DeepEqual(err, fmt.Errorf("df failed to collect filesystem data: signal: killed")) {
+		t.Fatalf("Failed! Wrong error: %s", err)
+	}
+}
+
+func TestGetFileSystemInfo(t *testing.T) {
+	_, err := getFileSystemInfo()
+	if !reflect.DeepEqual(err, nil) {
+		t.Fatalf("getFileSystemInfo failed: %s", err)
+	}
 }
