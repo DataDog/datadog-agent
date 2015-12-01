@@ -30,6 +30,16 @@ $ go get github.com/laher/goxc
 $ goxc -bc='linux,darwin,windows' -d=[BUILD_DIR]
 ```
 
+## Build with version info
+
+To build Gohai with version information, use `make.go`:
+
+```sh
+$ go run make.go
+```
+
+It will build gohai using the `go build` command, with the version info passed through `-ldflags`.
+
 ## See Also
 
   * [facter](https://github.com/puppetlabs/facter)
