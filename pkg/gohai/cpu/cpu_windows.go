@@ -24,13 +24,14 @@ func getCpuInfo() (cpuInfo map[string]string, err error) {
 
 	cpu, err := utils.WindowsWMICommand("CPU",
 		"CurrentClockSpeed", "Name", "NumberOfCores",
-		"Caption", "Manufacturer")
+		"NumberOfLogicalProcessors", "Caption", "Manufacturer")
 	if err != nil {
 		return
 	}
 	cpuInfo["mhz"] = cpu["CurrentClockSpeed"]
 	cpuInfo["model_name"] = cpu["Name"]
 	cpuInfo["cpu_cores"] = cpu["NumberOfCores"]
+	cpuInfo["cpu_logical_processors"] = cpu["NumberOfLogicalProcessors"]
 	cpuInfo["vendor_id"] = cpu["Manufacturer"]
 
 	caption := fmt.Sprintf(" %s ", cpu["Caption"])

@@ -10,6 +10,7 @@ var cpuMap = map[string]string{
 	"machdep.cpu.vendor":       "vendor_id",
 	"machdep.cpu.brand_string": "model_name",
 	"hw.physicalcpu":           "cpu_cores",
+	"hw.logicalcpu":            "cpu_logical_processors",
 	"hw.cpufrequency":          "mhz",
 	"machdep.cpu.family":       "family",
 	"machdep.cpu.model":        "model",
