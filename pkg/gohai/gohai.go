@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/filesystem"
 	"github.com/DataDog/gohai/memory"
 	"github.com/DataDog/gohai/network"
 	"github.com/DataDog/gohai/platform"
+	"github.com/DataDog/gohai/processes"
 )
 
 type Collector interface {
@@ -20,16 +22,24 @@ type Collector interface {
 	Collect() (interface{}, error)
 }
 
+type SelectedCollectors map[string]bool
+
 var collectors = []Collector{
 	&cpu.Cpu{},
 	&filesystem.FileSystem{},
 	&memory.Memory{},
 	&network.Network{},
 	&platform.Platform{},
+	&processes.Processes{},
 }
 
-var options struct {
+var options = struct {
+	only    SelectedCollectors
+	exclude SelectedCollectors
 	version bool
+}{
+	only:    make(SelectedCollectors),
+	exclude: make(SelectedCollectors),
 }
 
 // version information filled in at build time
@@ -44,12 +54,14 @@ func Collect() (result map[string]interface{}, err error) {
 	result = make(map[string]interface{})
 
 	for _, collector := range collectors {
-		c, err := collector.Collect()
-		if err != nil {
-			log.Printf("[%s] %s", collector.Name(), err)
-			continue
+		if shouldCollect(collector) {
+			c, err := collector.Collect()
+			if err != nil {
+				log.Printf("[%s] %s", collector.Name(), err)
+				continue
+			}
+			result[collector.Name()] = c
 		}
-		result[collector.Name()] = c
 	}
 
 	result["gohai"] = versionMap()
@@ -87,8 +99,41 @@ func versionString() string {
 	return buf.String()
 }
 
+// Implement the flag.Value interface
+func (sc *SelectedCollectors) String() string {
+	collectorSlice := make([]string, 0)
+	for collectorName, _ := range *sc {
+		collectorSlice = append(collectorSlice, collectorName)
+	}
+	return fmt.Sprint(collectorSlice)
+}
+
+func (sc *SelectedCollectors) Set(value string) error {
+	for _, collectorName := range strings.Split(value, ",") {
+		(*sc)[collectorName] = true
+	}
+	return nil
+}
+
+// Return whether we should collect on a given collector, depending on the parsed flags
+func shouldCollect(collector Collector) bool {
+	if _, ok := options.only[collector.Name()]; len(options.only) > 0 && !ok {
+		return false
+	}
+
+	if _, ok := options.exclude[collector.Name()]; ok {
+		return false
+	}
+
+	return true
+}
+
+// Will be called after all the imported packages' init() have been called
+// Define collector-specific flags in their packages' init() function
 func init() {
 	flag.BoolVar(&options.version, "version", false, "Show version information and exit")
+	flag.Var(&options.only, "only", "Run only the listed collectors (comma-separated list of collector names)")
+	flag.Var(&options.exclude, "exclude", "Run all the collectors except those listed (comma-separated list of collector names)")
 	flag.Parse()
 }
 
