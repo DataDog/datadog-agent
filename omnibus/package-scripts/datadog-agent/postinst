@@ -1,0 +1,219 @@
+#!/bin/sh
+
+INSTALL_DIR=/opt/datadog-agent
+LOG_DIR=/var/log/datadog
+RUN_DIR=$INSTALL_DIR/run
+
+DISTRIBUTION=$(grep -Eo "(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon)" /etc/issue 2>/dev/null || uname -s)
+
+error_exit()
+{
+  echo "${PROGNAME}: ${1:-"Unknown Error"}" 1>&2
+  exit 1
+}
+
+mkdir -p ${LOG_DIR} || error_exit "Cannot create ${LOG_DIR}!"
+
+# If we are inside the Docker container, do nothing
+if [ -n "$DOCKER_DD_AGENT" ]; then
+  echo "Installation from docker-dd-agent, nothing to do in postinst"
+  exit 0
+fi
+
+# Linux installation
+if [ "$DISTRIBUTION" != "Darwin" ]; then
+  # Linus specific variables
+  CONFIG_DIR=/etc/dd-agent
+
+  # Since we now package our own supervisor config, we no longer want
+  # the old config to be loaded. Since supervisor automatically loads
+  # configs in conf.d, we have to delete the old config file.
+  if [ -f "/etc/supervisor/conf.d/ddagent.conf" ]; then
+      echo "Removing old configuration from system supervisord"
+      rm /etc/supervisor/conf.d/ddagent.conf
+  fi
+
+  if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
+      set -e
+      case "$1" in
+          configure)
+              echo "Registering service datadog-agent"
+              update-rc.d datadog-agent defaults
+              echo "Enabling service datadog-agent"
+              update-rc.d datadog-agent enable >/dev/null 2>&1
+              # Only add dd-agent user if it doesn't already exist
+              set +e
+              id -u dd-agent >/dev/null 2>&1
+              USER_EXISTS=$?
+              set -e
+              if [ ! $USER_EXISTS -eq 0 ]; then
+                  echo "Creating dd-agent user"
+                  adduser --system dd-agent --disabled-login --shell /bin/sh --no-create-home --quiet
+                  usermod -d /opt/datadog-agent dd-agent
+              fi
+              set +e
+          ;;
+          abort-upgrade|abort-remove|abort-deconfigure)
+          ;;
+
+          *)
+          ;;
+      esac
+      #DEBHELPER#
+  fi
+
+  # Set proper rights to the dd-agent user
+  chown -R dd-agent:root ${CONFIG_DIR}
+  chown -R dd-agent:root ${LOG_DIR}
+  chown root:root /etc/init.d/datadog-agent
+  chown -R root:root /opt/datadog-agent
+  chown -R dd-agent:root ${RUN_DIR}
+
+  if command -v chkconfig >/dev/null 2>&1; then
+      chkconfig --add datadog-agent
+  fi
+
+  # Create symlinks to the various agent's components
+  ln -sf $INSTALL_DIR/agent/agent.py /usr/bin/dd-agent
+  chown -R dd-agent:root /usr/bin/dd-agent
+  chmod 755 /usr/bin/dd-agent
+
+  # The configcheck call will return zero if the config is valid, which means we
+  # can restart the agent without taking the risk to trigger an error in the
+  # postinst script . If the config file doesn't exist (RETVAL=3), the user is
+  # probably using the source install script so let's consider the postinst script
+  # did its job and exist zero, otherwise, if the file exists but it's wrong we
+  # have to return a non zero exit status so that the system (and the user) are
+  # notified the installation went wrong.
+  /etc/init.d/datadog-agent configcheck
+  RETVAL=$?
+  if [ $RETVAL -eq 0 ]; then
+      echo "(Re)starting datadog-agent now..."
+      if command -v invoke-rc.d >/dev/null 2>&1; then
+          invoke-rc.d datadog-agent restart
+      else
+          /etc/init.d/datadog-agent restart
+      fi
+  fi
+
+  if [ $RETVAL -ne 0 ]; then
+      if [ $RETVAL -eq 3 ]; then
+          # No datadog.conf file is present. The user is probably following
+          # the step-by-step instructions and will add the config file next.
+          exit 0
+      else
+          exit $RETVAL
+      fi
+  fi
+# OSX installation
+elif [ "$DISTRIBUTION" = "Darwin" ]; then
+  # OSX specific variables
+  OPT_APP_DIR="$INSTALL_DIR/Datadog Agent.app"
+  APP_DIR="/Applications/Datadog Agent.app"
+  CONF_DIR=$INSTALL_DIR/etc
+  RUN_DIR=$INSTALL_DIR/run
+
+  # Let's log the standard outputs of this script
+  LOG_FILE="$LOG_DIR/postinstall.log"
+  mkdir -vp $LOG_DIR
+  exec > $LOG_FILE 2>&1
+
+  # Let's talk to our user installing the Agent a bit
+  echo "# State at the beginning"
+  echo "## Agent version"
+  grep AGENT_VERSION $INSTALL_DIR/agent/cofnig.py || echo "No config file"
+  echo "## $INSTALL_DIR"
+  ls -al $INSTALL_DIR || "No agent installed"
+  echo "## $APP_DIR/Contents/Resources"
+  ls -al "$APP_DIR/Contents/Resources" || echo "No app installed"
+
+  # Determine current user if he is using the Graphical installer
+  INSTALL_USER=$(ps aux | grep "CoreServices/Installer" | grep -v grep | awk '{print $1;}')
+
+  # Otherwise, we hope he is using the install script and try to this user
+  # If it fails, no choice but to use root :'(
+  if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" == "root" ]; then
+    SCRIPT_INSTALL="yes"
+    INSTALL_USER=`cat /tmp/datadog-install-user || echo 'root'`
+    rm -v /tmp/datadog-install-user || true
+  fi
+  echo "INSTALL_USER: $INSTALL_USER"
+
+  echo "# Prepareing log dir"
+  chown -vR $INSTALL_USER:admin $LOG_DIR
+  chmod -v 755 $LOG_DIR
+
+  echo "# Installing the app"
+  mv -v "$OPT_APP_DIR" /Applications || echo "App already installed"
+
+  # Set the run directory for the agent
+  mkdir -vp "$RUN_DIR"
+  chown -vR $INSTALL_USER:admin "$RUN_DIR"
+  chmod -v 755 "$RUN_DIR"
+
+  echo "# Creating default plist"
+  sed "s|USER_NAME|$INSTALL_USER|" "$CONF_DIR/com.datadoghq.Agent.plist.example" > "$CONF_DIR/com.datadoghq.Agent.plist"
+
+  echo "# Copying conf"
+  mkdir -vp $CONF_DIR/checks.d
+
+  if [ -e "/tmp/datadog.conf" ]; then
+    mv -vf /tmp/datadog.conf $CONF_DIR
+    mv -vf /tmp/conf.d/* $CONF_DIR/conf.d
+    cp -vn /tmp/checks.d/* $CONF_DIR/checks.d
+    rm -vrf /tmp/datadog.conf /tmp/conf.d /tmp/checks.d
+  # Or copying default
+  else
+    sed -E 's/^api_key:$/api_key: APIKEY/' $CONF_DIR/datadog.conf.example > $CONF_DIR/datadog.conf
+  fi
+
+  echo "# Setting correct rights on conf"
+  chown -v $INSTALL_USER:admin $CONF_DIR/datadog.conf
+  chown -vR $INSTALL_USER:admin $CONF_DIR/conf.d $CONF_DIR/checks.d
+
+  # `datadog-agent` command line
+  mkdir -vp /usr/local/bin
+  ln -vs $INSTALL_DIR/bin/datadog-agent /usr/local/bin/datadog-agent
+
+  # Link for conf files (let's ease the user's life)
+  USER_HOME=`sudo -Hu $INSTALL_USER sh -c 'echo $HOME'`
+  sudo -Hu $INSTALL_USER mkdir -vp "$USER_HOME/.datadog-agent"
+  rm -vf "$USER_HOME/.datadog-agent/conf.d" "$USER_HOME/.datadog-agent/datadog.conf" "$USER_HOME/.datadog-agent/checks.d"
+  sudo -Hu $INSTALL_USER ln -vs $CONF_DIR/conf.d "$USER_HOME/.datadog-agent/conf.d"
+  sudo -Hu $INSTALL_USER ln -vs $CONF_DIR/datadog.conf "$USER_HOME/.datadog-agent/datadog.conf"
+  sudo -Hu $INSTALL_USER ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
+
+  # Error if app not properly installed or root
+  if [ "$INSTALL_USER" == "root" ]; then
+    echo 'INSTALL_USER is set to root, Datadog Agent app has been installed'
+    echo 'but is not configured. Running Datadog Agent as root is not advised!'
+    exit 1
+  fi
+
+  if [ ! -e "$CONF_DIR/datadog.conf" ]; then
+    exit 1
+  fi
+
+  # Start the app only if it's not a script install
+  if [ -z "$SCRIPT_INSTALL" ]; then
+    echo "# Starting the app"
+    # -a for application, -F for fresh, do not restore old app
+    export TMPDIR=`sudo -u $INSTALL_USER getconf DARWIN_USER_TEMP_DIR`
+    sudo -u $INSTALL_USER open -Fa 'Datadog Agent'
+  fi
+
+  echo "# Configuring the login launch of the app"
+  sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to delete every login item whose name is "Datadog Agent"'
+  sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Datadog Agent", hidden:false}'
+
+  # A little debriefing won't hurt
+  echo "# State at the end"
+  echo "## AGent version"
+  grep AGENT_VERSION $INSTALL_DIR/agent/config.py || echo "No config file"
+  echo "## $INSTALL_DIR"
+  ls -al $INSTALL_DIR || echo "No agent installed :("
+  echo "## $APP_DIR/Contents/Resources"
+  ls -al "$APP_DIR/Contents/Resources" || echo "No app installed ;-("
+fi
+
+exit 0

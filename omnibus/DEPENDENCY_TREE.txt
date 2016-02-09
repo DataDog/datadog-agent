@@ -1,0 +1,66 @@
+Legend (W, M, L = windows / mac / linux only)
+
+adodbapi
+boto
+** bzip2
+** cacerts
+*** cmake
+** curl
+datadog-gohai
+* futures
+** gdbm
+gui M W
+* guidata M W
+**** homebrew
+httplib2
+kafka-python M L
+kazoo
+** libedit
+* libffi
+** libgcc
+**** libiconv
+* libpq
+** libsqlite3
+** libtool
+* libyaml
+** makedepend
+* ncurses
+ntplib
+* openssl
+paramiko
+pg8000
+* pip
+*** pkg-config
+preparation
+procps-ng L
+psutil
+psycopg2
+pycrypto
+* pycurl
+pymongo
+pymysql
+pyopenssl
+pysnmp
+* pysnmp-mibs
+* pyro4
+** pyside
+* python
+python-gearman
+python-memcached
+python-redis
+python-rrdtool
+pyyaml
+pyvmomo
+*** qtorequests
+** setuptools
+simplejson
+snakebite
+* spyderlib M W
+supervisor M L
+sysstat L
+tornado
+*** util-macros
+uuid
+version-manifest
+*** xproto
+zlib (M L ?)

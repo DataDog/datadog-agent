@@ -1,0 +1,31 @@
+#!/bin/sh
+LINUX_DISTRIBUTION=$(grep -Eo "(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon)" /etc/issue)
+
+if [ -f "/etc/debian_version" ] || [ "$LINUX_DISTRIBUTION" == "Debian" ] || [ "$LINUX_DISTRIBUTION" == "Ubuntu" ]; then
+    set -e
+
+    if [ "$1" = purge ]; then
+        deluser dd-agent
+        rm -rf /opt/datadog-agent
+        rm -rf /var/log/datadog
+        rm -rf /etc/dd-agent
+        rm -rf /var/log/datadog
+    fi
+elif [ -f "/etc/redhat-release" ] || [ "$LINUX_DISTRIBUTION" == "RedHat" ] || [ "$LINUX_DISTRIBUTION" == "CentOS" ] || [ "$LINUX_DISTRIBUTION" == "openSUSE" ] || [ "$LINUX_DISTRIBUTION" == "Amazon" ]; then
+    case "$*" in
+      0)
+        # We're uninstalling.
+        getent passwd dd-agent > /dev/null && userdel dd-agent
+        getent group dd-agent >/dev/null && groupdel dd-agent
+        ;;
+      1)
+        # We're upgrading.
+        ;;
+      *)
+        ;;
+    esac
+else
+      echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+      exit 1;
+fi
+exit 0

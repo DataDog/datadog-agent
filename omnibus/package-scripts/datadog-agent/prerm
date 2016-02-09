@@ -1,0 +1,35 @@
+#! /bin/sh
+LINUX_DISTRIBUTION=$(grep -Eo "(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon)" /etc/issue)
+
+if [ -f "/etc/debian_version" ] || [ "$LINUX_DISTRIBUTION" == "Debian" ] || [ "$LINUX_DISTRIBUTION" == "Ubuntu" ]; then
+    if command -v invoke-rc.d >/dev/null 2>&1; then
+        invoke-rc.d datadog-agent stop || true
+
+        # Removing the service form startup (since it's not there anymore)
+        update-rc.d -f datadog-agent disable >/dev/null 2>&1
+        update-rc.d -f datadog-agent remove
+    else
+        /etc/init.d/datadog-agent stop || true
+    fi
+elif [ -f "/etc/redhat-release" ] || [ "$LINUX_DISTRIBUTION" == "RedHat" ] || [ "$LINUX_DISTRIBUTION" == "CentOS" ] || [ "$LINUX_DISTRIBUTION" == "openSUSE" ] || [ "$LINUX_DISTRIBUTION" == "Amazon" ]; then
+    case "$*" in
+          0)
+            # We're uninstalling.
+            /etc/init.d/datadog-agent stop
+            ;;
+          1)
+            # We're upgrading. Do nothing.
+            ;;
+          *)
+            ;;
+    esac
+else
+    echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+    exit 1;
+fi
+
+# Delete all.pyc files
+find /opt/datadog-agent/agent -name '*.py[co]' -type f -delete || echo 'Unable to delete .pyc files'
+
+exit 0
+
