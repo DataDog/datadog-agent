@@ -1,4 +1,4 @@
-package ddagent
+package py
 
 // #cgo pkg-config: python-2.7
 // #include "Python.h"
@@ -15,7 +15,7 @@ import (
 
 	// 3rd party
 	"github.com/op/go-logging"
-	"github.com/remh/go-python"
+	"github.com/sbinet/go-python"
 )
 
 func initInterpreter() {

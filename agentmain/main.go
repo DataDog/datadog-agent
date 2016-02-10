@@ -1,12 +1,12 @@
-package main
+package ddagentmain
 
 import (
 	"time"
 
 	// project
-	"github.com/DataDog/datadog-agent"
 	"github.com/DataDog/datadog-agent/aggregator"
 	"github.com/DataDog/datadog-agent/checks/system"
+	"github.com/DataDog/datadog-agent/py"
 
 	// 3rd party
 	"github.com/op/go-logging"
@@ -18,12 +18,12 @@ const (
 
 var log = logging.MustGetLogger("datadog-agent")
 
-func main() {
+func Start() {
 
 	log.Infof("Starting Datadog Agent v%v", AGENT_VERSION)
 
 	// Start python check loop
-	go ddagent.StartLoop()
+	go py.StartLoop()
 
 	// Run memory check
 	check := system.MemoryCheck{
