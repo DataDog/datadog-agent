@@ -22,7 +22,7 @@ type Collector interface {
 	Collect() (interface{}, error)
 }
 
-type SelectedCollectors map[string]bool
+type SelectedCollectors map[string]struct{}
 
 var collectors = []Collector{
 	&cpu.Cpu{},
@@ -110,7 +110,7 @@ func (sc *SelectedCollectors) String() string {
 
 func (sc *SelectedCollectors) Set(value string) error {
 	for _, collectorName := range strings.Split(value, ",") {
-		(*sc)[collectorName] = true
+		(*sc)[collectorName] = struct{}{}
 	}
 	return nil
 }
