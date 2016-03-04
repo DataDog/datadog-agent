@@ -33,13 +33,10 @@ var collectors = []Collector{
 	&processes.Processes{},
 }
 
-var options = struct {
+var options struct {
 	only    SelectedCollectors
 	exclude SelectedCollectors
 	version bool
-}{
-	only:    make(SelectedCollectors),
-	exclude: make(SelectedCollectors),
 }
 
 // version information filled in at build time
@@ -131,6 +128,9 @@ func shouldCollect(collector Collector) bool {
 // Will be called after all the imported packages' init() have been called
 // Define collector-specific flags in their packages' init() function
 func init() {
+	options.only = make(SelectedCollectors)
+	options.exclude = make(SelectedCollectors)
+
 	flag.BoolVar(&options.version, "version", false, "Show version information and exit")
 	flag.Var(&options.only, "only", "Run only the listed collectors (comma-separated list of collector names)")
 	flag.Var(&options.exclude, "exclude", "Run all the collectors except those listed (comma-separated list of collector names)")
