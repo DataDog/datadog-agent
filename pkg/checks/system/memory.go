@@ -1,12 +1,15 @@
 package system
 
 import (
-	"github.com/DataDog/datadog-agent/aggregator"
 	"github.com/op/go-logging"
 	"github.com/shirou/gopsutil/mem"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 var log = logging.MustGetLogger("datadog-agent")
+
+const MEMORY_CHECK_INTERVAL = 5
 
 type MemoryCheck struct{}
 
@@ -16,6 +19,6 @@ func (c *MemoryCheck) String() string {
 
 func (c *MemoryCheck) Run() error {
 	v, _ := mem.VirtualMemory()
-	aggregator.Get().Gauge("system.mem.total", float64(v.Total), "", []string{})
+	aggregator.GetSender(MEMORY_CHECK_INTERVAL).Gauge("system.mem.total", float64(v.Total), "", []string{})
 	return nil
 }

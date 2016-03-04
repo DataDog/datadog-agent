@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/checks"
 	"github.com/DataDog/datadog-agent/pkg/checks/system"
 	"github.com/DataDog/datadog-agent/pkg/loader"
@@ -67,8 +66,8 @@ func Start() {
 	// `python.Initialize` acquires the GIL but we don't need it, let's release it
 	state := python.PyEval_SaveThread()
 
-	// for now, only Python needs it, build and pass it on the fly
-	py.InitApi(aggregator.NewUnbufferedAggregator())
+	// Expose `CheckAggregator` methods to Python
+	py.InitApi()
 
 	// Get a single Runner instance, i.e. we process checks sequentially
 	go checks.Runner(pending)
