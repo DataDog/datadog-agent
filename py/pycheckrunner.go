@@ -14,6 +14,7 @@ import (
 	"time"
 
 	// 3rd party
+
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
 )

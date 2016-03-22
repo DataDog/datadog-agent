@@ -1,0 +1,19 @@
+{
+  "cmd": "go",
+  "args": [ "build" ],
+  "sh": true,
+  "cwd": "{PROJECT_PATH}",
+  "env": {
+  },
+  "errorMatch": [
+    "^regexp1$",
+    "^regexp2$"
+  ],
+  "keymap": "<keymap string>",
+  "atomCommandName": "namespace:command",
+  "targets": {
+    "<name of target>": {
+      "cmd": "<command to execute>"
+    }
+  }
+}
