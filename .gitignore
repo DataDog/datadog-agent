@@ -1,2 +1,5 @@
 pkg/*
 *.pyc
+datadog-agent
+*.lock
+vendor/
