@@ -10,6 +10,7 @@ import (
 
 type ProcessInfo struct {
 	PID      int32
+	PPID     int32
 	Name     string
 	RSS      uint64
 	PctMem   float64
@@ -50,6 +51,9 @@ func GetProcesses() ([]*ProcessInfo, error) {
 		processInfos = append(processInfos, processInfo)
 	}
 
+	// platform-specific post-processing on the collected info
+	postProcess(processInfos)
+
 	return processInfos, nil
 }
 
@@ -60,7 +64,12 @@ func newProcessInfo(p *process.Process, pid int32, totalMem float64) (*ProcessIn
 		return nil, err
 	}
 
-	name, err := pickName(p)
+	ppid, err := p.Ppid()
+	if err != nil {
+		return nil, err
+	}
+
+	name, err := p.Name()
 	if err != nil {
 		return nil, err
 	}
@@ -72,5 +81,5 @@ func newProcessInfo(p *process.Process, pid int32, totalMem float64) (*ProcessIn
 		return nil, err
 	}
 
-	return &ProcessInfo{pid, name, memInfo.RSS, pctMem, memInfo.VMS, username}, nil
+	return &ProcessInfo{pid, ppid, name, memInfo.RSS, pctMem, memInfo.VMS, username}, nil
 }
