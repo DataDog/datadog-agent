@@ -26,6 +26,9 @@ class DirectoryCheck(AgentCheck):
 
     SOURCE_TYPE_NAME = 'system'
 
+    def __init__(*args, **kwargs):
+        pass
+
     def check(self, instance):
         if "directory" not in instance:
             raise Exception('DirectoryCheck: missing "directory" in config')

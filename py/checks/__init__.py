@@ -1,5 +1,7 @@
-import simplejson as json
+import json
 import traceback
+
+AGENT_METRICS_CHECK_NAME = 'agent_metrics'
 
 class AgentCheck():
 

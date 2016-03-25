@@ -17,15 +17,8 @@ import string
 import sys
 import traceback
 from urlparse import urlparse
-
-# 3p
 import yaml
-
-# project
-from util import get_os, yLoader
-from utils.platform import Platform
-from utils.proxy import get_proxy
-from utils.subprocess_output import get_subprocess_output
+from yaml import Loader as yLoader
 
 # CONSTANTS
 AGENT_VERSION = "5.7.0"
@@ -35,6 +28,7 @@ MAC_CONFIG_PATH = '/opt/datadog-agent/etc'
 DEFAULT_CHECK_FREQUENCY = 15   # seconds
 LOGGING_MAX_BYTES = 5 * 1024 * 1024
 
+logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
 
 OLD_STYLE_PARAMETERS = [
@@ -64,6 +58,11 @@ LEGACY_DATADOG_URLS = [
     "app.datad0g.com",
 ]
 
+def get_os():
+    return 'mac'
+
+def get_proxy(*args):
+    return None
 
 class PathNotFound(Exception):
     pass
@@ -203,7 +202,7 @@ def _confd_path(directory):
 
 
 def _checksd_path(directory):
-    path = os.path.join(directory, 'checks.d')
+    path = os.path.join(directory, 'checks')
     if os.path.exists(path):
         return path
     raise PathNotFound(path)
@@ -330,7 +329,7 @@ def get_config(parse_args=True, cfg_path=None, options=None):
         'utf8_decoding': False
     }
 
-    if Platform.is_mac():
+    if 'darwin' in sys.platform:
         agentConfig['additional_checksd'] = '/opt/datadog-agent/etc/checks.d'
 
     # Config handling
@@ -739,11 +738,14 @@ def check_yaml(conf_path):
         else:
             return check_config
 
-def load_check_directory(agentConfig, hostname):
+def load_check_directory(agentConfig=None, hostname='localhost'):
     ''' Return the initialized checks from checks.d, and a mapping of checks that failed to
     initialize. Only checks that have a configuration
     file in conf.d will be returned. '''
     from checks import AgentCheck, AGENT_METRICS_CHECK_NAME
+
+    if agentConfig is None:
+        agentConfig = get_config(False)
 
     initialized_checks = {}
     init_failed_checks = {}
@@ -762,6 +764,7 @@ def load_check_directory(agentConfig, hostname):
     try:
         checksd_path = get_checksd_path(osname)
         checks_paths.append(glob.glob(os.path.join(checksd_path, '*.py')))
+
     except PathNotFound, e:
         log.error(e.args[0])
         sys.exit(3)
@@ -778,6 +781,7 @@ def load_check_directory(agentConfig, hostname):
     # then we import the check
     for check in itertools.chain(*checks_paths):
         check_name = os.path.basename(check).split('.')[0]
+
         check_config = None
         if check_name in initialized_checks or check_name in init_failed_checks:
             log.debug('Skipping check %s because it has already been loaded from another location', check)
@@ -894,7 +898,7 @@ def load_check_directory(agentConfig, hostname):
     init_failed_checks.update(deprecated_checks)
     log.info('initialized checks.d checks: %s' % [k for k in initialized_checks.keys() if k != AGENT_METRICS_CHECK_NAME])
     log.info('initialization failed checks.d checks: %s' % init_failed_checks.keys())
-    return {'initialized_checks':initialized_checks.values(),
+    return {'initialized_checks':initialized_checks,
             'init_failed_checks':init_failed_checks,
             }
 

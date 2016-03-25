@@ -1,7 +1,12 @@
 package main
 
-import "github.com/DataDog/datadog-agent/agentmain"
+/*
+#cgo pkg-config: python-2.7
+#include "checks.h"
+*/
+import "C"
 
 func main() {
-	ddagentmain.Start()
+	C.get_checks(nil)
+	C.run_check(C.CString("directory"))
 }
