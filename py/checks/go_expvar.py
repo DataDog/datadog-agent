@@ -52,8 +52,8 @@ DEFAULT_METRICS = [{PATH: "memstats/%s" % path, TYPE: GAUGE} for path in DEFAULT
 
 class GoExpvar(AgentCheck):
 
-    def __init__(self, name, init_config, agentConfig, instances=None):
-        AgentCheck.__init__(self, name, init_config, agentConfig, instances)
+    def __init__(self, *args, **kwargs):
+        super(GoExpvar, self).__init__(*args, **kwargs)
         self._last_gc_count = defaultdict(int)
 
     def _get_data(self, url):

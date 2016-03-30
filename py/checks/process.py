@@ -1,13 +1,13 @@
 # stdlib
 from collections import defaultdict
 import time
+from logging import getLogger
 
 # 3p
 import psutil
 
 # project
 from checks import AgentCheck
-from config import _is_affirmative
 from utils.platform import Platform
 
 
@@ -30,10 +30,17 @@ ATTR_TO_METRIC = {
     'ctx_swtch_invol':  'involuntary_ctx_switches',  # FIXME: namespace me correctly (6.x), ctx_swt.involuntary
 }
 
+def _is_affirmative(s):
+    # int or real bool
+    if isinstance(s, int):
+        return bool(s)
+    # try string cast
+    return s.lower() in ('yes', 'true', '1')
+
 
 class ProcessCheck(AgentCheck):
-    def __init__(self, name, init_config, agentConfig, instances=None):
-        AgentCheck.__init__(self, name, init_config, agentConfig, instances)
+    def __init__(self, *args, **kwargs):
+        super(ProcessCheck, self).__init__(*args, **kwargs)
 
         # ad stands for access denied
         # We cache the PIDs getting this error and don't iterate on them
@@ -43,7 +50,7 @@ class ProcessCheck(AgentCheck):
         self.last_ad_cache_ts = {}
         self.ad_cache = set()
         self.access_denied_cache_duration = int(
-            init_config.get(
+            self.init_config.get(
                 'access_denied_cache_duration',
                 DEFAULT_AD_CACHE_DURATION
             )
@@ -55,7 +62,7 @@ class ProcessCheck(AgentCheck):
         self.last_pid_cache_ts = {}
         self.pid_cache = {}
         self.pid_cache_duration = int(
-            init_config.get(
+            self.init_config.get(
                 'pid_cache_duration',
                 DEFAULT_PID_CACHE_DURATION
             )
@@ -63,6 +70,7 @@ class ProcessCheck(AgentCheck):
 
         # Process cache, indexed by instance
         self.process_cache = defaultdict(dict)
+        self.log = getLogger(__name__)
 
     def should_refresh_ad_cache(self, name):
         now = time.time()

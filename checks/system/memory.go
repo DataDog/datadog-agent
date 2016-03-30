@@ -1,25 +1,30 @@
 package system
 
-import (
-	// stdlib
-	// project
-	"github.com/DataDog/datadog-agent/aggregator"
+import
+// stdlib
+// project
 
-	// 3rd party
+// 3rd party
+
+(
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/checks"
 	"github.com/op/go-logging"
 	"github.com/shirou/gopsutil/mem"
 )
 
 var log = logging.MustGetLogger("datadog-agent")
 
-type MemoryCheck struct {
-	Name string
+type MemoryCheck struct{}
+
+func (c *MemoryCheck) String() string {
+	return "MemoryCheck"
 }
 
-func (c *MemoryCheck) Check(agg *aggregator.DefaultAggregator) {
-	log.Info("Running memory check")
+func (c *MemoryCheck) Run() (checks.CheckResult, error) {
 	v, _ := mem.VirtualMemory()
-
-	agg.Gauge("system.mem.total", float64(v.Total), "monhost", &[]string{})
-
+	res := fmt.Sprintf(`{"gauge": [{"Name": "system.mem.total", "Value": %f, "Tags": null}]}`, float64(v.Total))
+	checkRes := checks.CheckResult{Result: res, Error: ""}
+	return checkRes, nil
 }

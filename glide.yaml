@@ -7,3 +7,4 @@ import:
 - package: github.com/shirou/gopsutil
   subpackages:
   - /mem
+- package: gopkg.in/yaml.v2

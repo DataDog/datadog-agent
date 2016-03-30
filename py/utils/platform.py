@@ -2,7 +2,7 @@
 import sys
 
 # project
-from utils.dockerutil import get_client
+# from utils.dockerutil import get_client
 
 _is_ecs = None
 
