@@ -2,8 +2,12 @@
 package gops
 
 import (
-	"log"
+	"fmt"
 
+	// 3p
+	log "github.com/cihub/seelog"
+
+	// project
 	"github.com/shirou/gopsutil/mem"
 	"github.com/shirou/gopsutil/process"
 )
@@ -24,27 +28,28 @@ func GetProcesses() ([]*ProcessInfo, error) {
 
 	virtMemStat, err := mem.VirtualMemory()
 	if err != nil {
-		log.Printf("Error fetching system memory stats: %s", err)
+		err = fmt.Errorf("Error fetching system memory stats: %s", err)
 		return nil, err
 	}
 	totalMem := float64(virtMemStat.Total)
 
 	pids, err := process.Pids()
 	if err != nil {
-		log.Printf("Error fetching PIDs: %s", err)
+		err = fmt.Errorf("Error fetching PIDs: %s", err)
 		return nil, err
 	}
 
 	for _, pid := range pids {
 		p, err := process.NewProcess(pid)
 		if err != nil {
-			log.Printf("Error fetching info for pid %d: %s", pid, err)
+			// an error can occur here only if the process has disappeared,
+			log.Debugf("Process with pid %d disappeared while scanning: %s", pid, err)
 			continue
 		}
 
 		processInfo, err := newProcessInfo(p, pid, totalMem)
 		if err != nil {
-			log.Printf("Error fetching info for pid %d: %s", pid, err)
+			log.Infof("Error fetching info for pid %d: %s", pid, err)
 			continue
 		}
 

@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
+	// 3p
+	log "github.com/cihub/seelog"
+
+	// project
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/filesystem"
 	"github.com/DataDog/gohai/memory"
@@ -34,9 +37,10 @@ var collectors = []Collector{
 }
 
 var options struct {
-	only    SelectedCollectors
-	exclude SelectedCollectors
-	version bool
+	only     SelectedCollectors
+	exclude  SelectedCollectors
+	logLevel string
+	version  bool
 }
 
 // version information filled in at build time
@@ -54,7 +58,7 @@ func Collect() (result map[string]interface{}, err error) {
 		if shouldCollect(collector) {
 			c, err := collector.Collect()
 			if err != nil {
-				log.Printf("[%s] %s", collector.Name(), err)
+				log.Warnf("[%s] %s", collector.Name(), err)
 				continue
 			}
 			result[collector.Name()] = c
@@ -134,10 +138,18 @@ func init() {
 	flag.BoolVar(&options.version, "version", false, "Show version information and exit")
 	flag.Var(&options.only, "only", "Run only the listed collectors (comma-separated list of collector names)")
 	flag.Var(&options.exclude, "exclude", "Run all the collectors except those listed (comma-separated list of collector names)")
+	flag.StringVar(&options.logLevel, "log-level", "info", "Log level (one of 'warn', 'info', 'debug')")
 	flag.Parse()
 }
 
 func main() {
+	defer log.Flush()
+
+	err := initLogging(options.logLevel)
+	if err != nil {
+		panic(fmt.Sprintf("Unable to initialize logger: %s", err))
+	}
+
 	if options.version {
 		fmt.Printf("%s", versionString())
 		os.Exit(0)

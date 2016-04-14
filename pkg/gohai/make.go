@@ -36,7 +36,7 @@ func main() {
 	// For reference see https://github.com/golang/go/issues/12338
 	ldflags := fmt.Sprintf("-X main.buildDate '%s' -X main.gitCommit '%s' -X main.gitBranch '%s' -X main.goVersion '%s'", date, commit, branch, go_version)
 
-	cmd := exec.Command(gobin, "build", "-a", "-ldflags", ldflags, "gohai.go")
+	cmd := exec.Command(gobin, []string{"build", "-a", "-ldflags", ldflags}...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
