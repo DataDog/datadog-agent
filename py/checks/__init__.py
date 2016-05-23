@@ -1,38 +1,99 @@
-import simplejson as json
+import json
 import traceback
+import re
+import time
+from collections import defaultdict
 
-class AgentCheck():
+class AgentCheck(object):
 
     RATE = "rate"
     GAUGE = "gauge"
+    OK = 0
+    WARNING = 1
+    CRITICAL = 2
 
-    def __init__(self):
-        self.metrics = []
-        self.results = []
+    def __init__(self, *args, **kwargs):
+        self.metrics = defaultdict(list)
+        self.instances = kwargs.get('instances', [])
+        self.init_config = kwargs.get('init_config') or {}  # could be set to None or be missing
 
     def gauge(self, name, value, tags=None):
-        self.metrics.append((AgentCheck.GAUGE, name, value, tags))
+        self.metrics['gauge'].append({'Name': name, 'Value': value, 'Tags': tags})
 
     def rate(self, name, value, tags=None):
-        self.metrics.append((AgentCheck.RATE, name, value, tags))
+        self.gauge(name, value, tags)
+
+    def histogram(self, name, value, tags=None, hostname=None, device_name=None):
+        self.metrics['histogram'].append({'Name': name, 'Value': value, 'Tags': tags})
+
+    def service_check(self, *args, **kwargs):
+        pass
 
     def check(self, instance):
         raise NotImplementedError
 
-    def run_instance(self, instance):
-        self.check(instance)
+    def normalize(self, metric, prefix=None, fix_case=False):
+        """
+        Turn a metric into a well-formed metric name
+        prefix.b.c
+        :param metric The metric name to normalize
+        :param prefix A prefix to to add to the normalized name, default None
+        :param fix_case A boolean, indicating whether to make sure that
+                        the metric name returned is in underscore_case
+        """
+        if isinstance(metric, unicode):
+            metric_name = unicodedata.normalize('NFKD', metric).encode('ascii','ignore')
+        else:
+            metric_name = metric
 
-    def run(self, *args):
+        if fix_case:
+            name = self.convert_to_underscore_separated(metric_name)
+            if prefix is not None:
+                prefix = self.convert_to_underscore_separated(prefix)
+        else:
+            name = re.sub(r"[,\+\*\-/()\[\]{}\s]", "_", metric_name)
+        # Eliminate multiple _
+        name = re.sub(r"__+", "_", name)
+        # Don't start/end with _
+        name = re.sub(r"^_", "", name)
+        name = re.sub(r"_$", "", name)
+        # Drop ._ and _.
+        name = re.sub(r"\._", ".", name)
+        name = re.sub(r"_\.", ".", name)
+
+        if prefix is not None:
+            return prefix + "." + name
+        else:
+            return name
+
+    FIRST_CAP_RE = re.compile('(.)([A-Z][a-z]+)')
+    ALL_CAP_RE = re.compile('([a-z0-9])([A-Z])')
+    METRIC_REPLACEMENT = re.compile(r'([^a-zA-Z0-9_.]+)|(^[^a-zA-Z]+)')
+    DOT_UNDERSCORE_CLEANUP = re.compile(r'_*\._*')
+
+    def convert_to_underscore_separated(self, name):
+        """
+        Convert from CamelCase to camel_case
+        And substitute illegal metric characters
+        """
+        metric_name = self.FIRST_CAP_RE.sub(r'\1_\2', name)
+        metric_name = self.ALL_CAP_RE.sub(r'\1_\2', metric_name).lower()
+        metric_name = self.METRIC_REPLACEMENT.sub('_', metric_name)
+        return self.DOT_UNDERSCORE_CLEANUP.sub('.', metric_name).strip('_')
+
+    def warning(self, *args, **kwargs):
+        pass
+
+    def run(self):
         try:
-            instances, init_config = args
+            for i in self.instances:
+                self.check(i)
 
-            for i in instances:
-                self.run_instance(i)
-
-            return json.dumps(self.metrics)
+            result = json.dumps(self.metrics)
+            self.metrics = defaultdict(list)
 
         except Exception, e:
-            return json.dumps(
+            result = json.dumps(
                 [
                     {
                         "message": str(e),
@@ -40,3 +101,5 @@ class AgentCheck():
                     }
                 ]
             )
+
+        return result

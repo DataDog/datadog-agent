@@ -3,3 +3,5 @@ pkg/*
 datadog-agent
 *.lock
 vendor/
+.DS_Store
+*.out

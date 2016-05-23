@@ -1,0 +1,10 @@
+init_config:
+instances:
+   -   expvar_url: http://localhost:8080/debug/vars
+       metrics:
+           - path: memstats/PauseTotalNs
+             alias: go_expvar.gc.pause_time_in_ns
+             type: rate                  # default is a gauge
+           - path: memstats/Alloc        # will be reported as go_expvar.memstats.alloc
+           - path: points_processed
+             type: rate
