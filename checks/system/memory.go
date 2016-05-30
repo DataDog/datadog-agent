@@ -1,15 +1,7 @@
 package system
 
-import
-// stdlib
-// project
-
-// 3rd party
-
-(
-	"fmt"
-
-	"github.com/DataDog/datadog-agent/checks"
+import (
+	"github.com/DataDog/datadog-agent/aggregator"
 	"github.com/op/go-logging"
 	"github.com/shirou/gopsutil/mem"
 )
@@ -22,9 +14,8 @@ func (c *MemoryCheck) String() string {
 	return "MemoryCheck"
 }
 
-func (c *MemoryCheck) Run() (checks.CheckResult, error) {
+func (c *MemoryCheck) Run() error {
 	v, _ := mem.VirtualMemory()
-	res := fmt.Sprintf(`{"gauge": [{"Name": "system.mem.total", "Value": %f, "Tags": null}]}`, float64(v.Total))
-	checkRes := checks.CheckResult{Result: res, Error: ""}
-	return checkRes, nil
+	aggregator.Get().Gauge("system.mem.total", float64(v.Total), "", []string{})
+	return nil
 }

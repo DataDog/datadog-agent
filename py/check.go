@@ -1,6 +1,7 @@
 package py
 
 import (
+	"errors"
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/checks"
@@ -46,7 +47,7 @@ func NewPythonCheck(class *python.PyObject, config CheckConfig) *PythonCheck {
 }
 
 // Run a Python check
-func (c *PythonCheck) Run() (checks.CheckResult, error) {
+func (c *PythonCheck) Run() error {
 	// Lock the GIL and release it at the end of the run
 	_gstate := python.PyGILState_Ensure()
 	runtime.LockOSThread()
@@ -61,12 +62,15 @@ func (c *PythonCheck) Run() (checks.CheckResult, error) {
 	var resultStr string
 	if result == nil {
 		python.PyErr_Print()
-	} else {
-		resultStr = python.PyString_AsString(result)
+		return errors.New("Unable to run Python check.")
 	}
 
-	checkRes := checks.CheckResult{Result: resultStr, Error: ""}
-	return checkRes, nil
+	resultStr = python.PyString_AsString(result)
+	if resultStr == "" {
+		return nil
+	}
+
+	return errors.New(resultStr)
 }
 
 // String representation (for debug and logging)
