@@ -39,16 +39,8 @@ func TestNewPythonCheck(t *testing.T) {
 
 func TestRun(t *testing.T) {
 	check := getCheckInstance()
-	result, err := check.Run()
-	if err != nil {
+	if err := check.Run(); err != nil {
 		t.Fatalf("Expected error nil, found: %s", err)
-	}
-	out := `{"gauge": [{"Name": "foo", "Value": 0, "Tags": null}, {"Name": "foo", "Value": 1, "Tags": null}]}`
-	if result.Result != out {
-		t.Fatalf("Expected %s, found: %s", out, result.Result)
-	}
-	if result.Error != "" {
-		t.Fatalf("Expected empty error string, found: %s", result.Error)
 	}
 }
 
