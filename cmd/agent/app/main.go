@@ -57,7 +57,7 @@ func Start() {
 	go checks.Runner(pending)
 
 	// Get a list of Python checks we want to run
-	checksNames := []string{"checks.directory", "checks.go_expvar", "checks.process"}
+	checksNames := []string{"checks.go_expvar", "checks.process"}
 	// Search for and import all the desired Python checks
 	checks := py.CollectChecks(checksNames, confdPath)
 
