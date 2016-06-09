@@ -1,10 +1,12 @@
 package: github.com/DataDog/datadog-agent
-homepage: https://github.com/DataDog/datadog-agent
-license: MIT
 import:
-- package: github.com/sbinet/go-python
+- package: github.com/DataDog/datadog-go
+  subpackages:
+  - statsd
+- package: github.com/mitchellh/reflectwalk
 - package: github.com/op/go-logging
+- package: github.com/sbinet/go-python
 - package: github.com/shirou/gopsutil
   subpackages:
-  - /mem
+  - mem
 - package: gopkg.in/yaml.v2
