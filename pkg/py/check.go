@@ -4,7 +4,7 @@ import (
 	"errors"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/checks"
+	"github.com/DataDog/datadog-agent/pkg/checks"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
 )

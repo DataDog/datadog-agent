@@ -5,7 +5,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/DataDog/datadog-agent/agentmain"
+	"github.com/DataDog/datadog-agent/cmd/agent/app"
 )
 
 func main() {

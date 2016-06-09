@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/aggregator"
-	"github.com/DataDog/datadog-agent/checks"
-	"github.com/DataDog/datadog-agent/checks/system"
-	"github.com/DataDog/datadog-agent/py"
+	"github.com/DataDog/datadog-agent/pkg/checks"
+	"github.com/DataDog/datadog-agent/pkg/checks/system"
+	"github.com/DataDog/datadog-agent/pkg/py"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
 )
