@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/aggregator"
 	"github.com/sbinet/go-python"
 )
 
@@ -19,9 +20,13 @@ func TestMain(m *testing.M) {
 
 	// Initialize acquires the GIL but we don't need it, release it
 	state := python.PyEval_SaveThread()
-	ret := m.Run()
-	python.PyEval_RestoreThread(state)
 
+	// for now, only Python needs it, build and pass it on the fly
+	aggregator.InitApi(aggregator.NewUnbufferedAggregator())
+
+	ret := m.Run()
+
+	python.PyEval_RestoreThread(state)
 	python.Finalize()
 
 	os.Exit(ret)

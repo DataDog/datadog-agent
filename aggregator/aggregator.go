@@ -1,65 +1,46 @@
 package aggregator
 
 import (
-
-	// stdlib
-	"bytes"
-	"sort"
-
+	"github.com/DataDog/datadog-go/statsd"
 	"github.com/op/go-logging"
 )
 
+var log = logging.MustGetLogger("datadog-agent")
+
 type Aggregator interface {
-	Gauge(metric string, value float64, hostname string, tags *[]string)
-	Rate(metric string, value float64, hostname string, tags *[]string)
+	Gauge(metric string, value float64, hostname string, tags []string)
+	Histogram(metric string, value float64, hostname string, tags []string)
 	Flush() string
 }
 
-type Point struct {
-	Timestamp int64
-	Value     float32
+// UnbufferedAggregator is special aggregator that doesn't aggregate anything,
+// it just forward metrics to DogStatsD
+type UnbufferedAggregator struct {
+	client *statsd.Client
 }
 
-type Serie struct {
-	MetricName string
-	Tags       *[]string
-	Points     *[]Point
-}
-
-type DefaultAggregator struct {
-	Series *map[string]Serie
-}
-
-var log = logging.MustGetLogger("datadog-agent")
-
-func genKey(metric string, hostname string, tags *[]string) string {
-
-	sort.Strings(*tags)
-
-	var buffer bytes.Buffer
-	buffer.WriteString(metric)
-	buffer.WriteString(hostname)
-	for _, tag := range *tags {
-		buffer.WriteString(tag)
+func NewUnbufferedAggregator() *UnbufferedAggregator {
+	c, err := statsd.New("127.0.0.1:8125")
+	if err != nil {
+		panic(err)
 	}
+	c.Namespace = "agent6."
 
-	return buffer.String()
-
+	return &UnbufferedAggregator{c}
 }
 
-func (agg DefaultAggregator) Gauge(metric string, value float64, hostname string, tags *[]string) {
-	key := genKey(metric, hostname, tags)
-	log.Infof("Submitted GAUGE: %v = %v", key, value)
-
+func (agg *UnbufferedAggregator) Gauge(metric string, value float64, hostname string, tags []string) {
+	if err := agg.client.Gauge(metric, value, tags, 1); err != nil {
+		log.Errorf("Error posting gauge %s: %v", metric, err)
+	}
 }
 
-func (agg DefaultAggregator) Rate(metric string, value float64, hostname string, tags *[]string) {
-	key := genKey(metric, hostname, tags)
-	log.Infof("Submitted RATE: %v = %v", key, value)
-
+func (agg *UnbufferedAggregator) Histogram(metric string, value float64, hostname string, tags []string) {
+	if err := agg.client.Histogram(metric, value, tags, 1); err != nil {
+		log.Errorf("Error histogram %s: %v", metric, err)
+	}
 }
 
-func (agg DefaultAggregator) Flush() string {
-	return "flushed!"
-
+func (agg UnbufferedAggregator) Flush() string {
+	return "" // noop
 }

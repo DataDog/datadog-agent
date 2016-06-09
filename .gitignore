@@ -5,3 +5,4 @@ datadog-agent
 vendor/
 .DS_Store
 *.out
+profile.cov

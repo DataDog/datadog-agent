@@ -4,6 +4,9 @@ import re
 import time
 from collections import defaultdict
 
+import aggregator
+
+
 class AgentCheck(object):
 
     RATE = "rate"
@@ -18,13 +21,13 @@ class AgentCheck(object):
         self.init_config = kwargs.get('init_config') or {}  # could be set to None or be missing
 
     def gauge(self, name, value, tags=None):
-        self.metrics['gauge'].append({'Name': name, 'Value': value, 'Tags': tags})
+        aggregator.submit_data(self, aggregator.GAUGE, name, value, tags)
 
     def rate(self, name, value, tags=None):
-        self.gauge(name, value, tags)
+        aggregator.submit_data(self, aggregator.RATE, name, value, tags)
 
     def histogram(self, name, value, tags=None, hostname=None, device_name=None):
-        self.metrics['histogram'].append({'Name': name, 'Value': value, 'Tags': tags})
+        aggregator.submit_data(self, aggregator.HISTOGRAM, name, value, tags)
 
     def service_check(self, *args, **kwargs):
         pass
@@ -89,8 +92,7 @@ class AgentCheck(object):
             for i in self.instances:
                 self.check(i)
 
-            result = json.dumps(self.metrics)
-            self.metrics = defaultdict(list)
+            result = ''
 
         except Exception, e:
             result = json.dumps(
