@@ -1,18 +1,19 @@
 package ddagentmain
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/checks"
 	"github.com/DataDog/datadog-agent/pkg/checks/system"
 	"github.com/DataDog/datadog-agent/pkg/py"
+	"github.com/kardianos/osext"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
 )
 
 const AGENT_VERSION = "6.0.0"
-const confdPath = "py/conf.d"
 
 var log = logging.MustGetLogger("datadog-agent")
 
@@ -44,8 +45,11 @@ func Start() {
 		panic(err.Error())
 	}
 	// Set the PYTHONPATH
+	here, _ := osext.ExecutableFolder()
+	distPath := fmt.Sprintf("%s/dist", here)
+	confdPath := fmt.Sprintf("%s/conf.d", distPath)
 	path := python.PySys_GetObject("path")
-	python.PyList_Append(path, python.PyString_FromString("py"))
+	python.PyList_Append(path, python.PyString_FromString(distPath))
 
 	// `python.Initialize` acquires the GIL but we don't need it, let's release it
 	state := python.PyEval_SaveThread()
