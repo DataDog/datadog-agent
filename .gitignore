@@ -1,8 +1,7 @@
-pkg/*
-*.pyc
-datadog-agent
-*.lock
 vendor/
+bin/
+
 .DS_Store
-*.out
-profile.cov
+*.cov
+*.lock
+*.pyc
