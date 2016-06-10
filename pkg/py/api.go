@@ -1,15 +1,19 @@
-package aggregator
+package py
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/aggregator"
+)
 
 // #cgo pkg-config: python2
 // #include "api.h"
 import "C"
 
-var _aggregator Aggregator
-
 //export SubmitData
 func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float, tags *C.PyObject) *C.PyObject {
+
+	agg := aggregator.Get()
 
 	// TODO: cleanup memory, C.stuff is going to stay there!!!
 
@@ -33,20 +37,16 @@ func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float,
 		fallthrough
 	case C.GAUGE:
 		fmt.Println("Submitting Gauge to the aggregator...", _name, _value, _tags)
-		_aggregator.Gauge(_name, _value, "", _tags)
+		agg.Gauge(_name, _value, "", _tags)
 	case C.HISTOGRAM:
 		fmt.Println("Submitting Histogram to the aggregator...", _name, _value, _tags)
-		_aggregator.Histogram(_name, _value, "", _tags)
+		agg.Histogram(_name, _value, "", _tags)
 	}
 
 	return C._none()
 }
 
-func Get() Aggregator {
-	return _aggregator
-}
-
-func InitApi(aggregatorInstance Aggregator) {
-	_aggregator = aggregatorInstance
+func InitApi(aggregatorInstance aggregator.Aggregator) {
+	aggregator.Set(aggregatorInstance)
 	C.initaggregator()
 }

@@ -17,12 +17,13 @@ func TestMain(m *testing.M) {
 	// Set the PYTHONPATH
 	path := python.PySys_GetObject("path")
 	python.PyList_Append(path, python.PyString_FromString("."))
+	python.PyList_Append(path, python.PyString_FromString("dist"))
 
 	// Initialize acquires the GIL but we don't need it, release it
 	state := python.PyEval_SaveThread()
 
 	// for now, only Python needs it, build and pass it on the fly
-	aggregator.InitApi(aggregator.NewUnbufferedAggregator())
+	InitApi(aggregator.NewUnbufferedAggregator())
 
 	ret := m.Run()
 

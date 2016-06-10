@@ -55,7 +55,7 @@ func Start() {
 	state := python.PyEval_SaveThread()
 
 	// for now, only Python needs it, build and pass it on the fly
-	aggregator.InitApi(aggregator.NewUnbufferedAggregator())
+	py.InitApi(aggregator.NewUnbufferedAggregator())
 
 	// Get a single Runner instance, i.e. we process checks sequentially
 	go checks.Runner(pending)
