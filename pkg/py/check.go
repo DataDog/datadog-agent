@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/checks"
+	"github.com/DataDog/datadog-agent/pkg/loader"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
 )
@@ -19,13 +20,13 @@ const agentCheckModuleName = "checks"
 type PythonCheck struct {
 	Instance   *python.PyObject
 	ModuleName string
-	Config     CheckConfig
+	Config     loader.CheckConfig
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
-func NewPythonCheck(class *python.PyObject, config CheckConfig) *PythonCheck {
+func NewPythonCheck(class *python.PyObject, config loader.CheckConfig) *PythonCheck {
 	// pack arguments
-	kwargs, _ := config.ToPythonDict()
+	kwargs, _ := ToPythonDict(&config)
 
 	// Lock the GIL and release it at the end
 	_gstate := python.PyGILState_Ensure()
@@ -82,7 +83,7 @@ func (c *PythonCheck) String() string {
 }
 
 // CollectChecks return an array of checks to be performed
-func CollectChecks(modules []string, confdPath string) []checks.Check {
+func CollectChecks(configs []loader.CheckConfig) []checks.Check {
 	// Lock the GIL and release it at the end of the run
 	_gstate := python.PyGILState_Ensure()
 	defer func() {
@@ -103,12 +104,14 @@ func CollectChecks(modules []string, confdPath string) []checks.Check {
 		return checks
 	}
 
-	for _, module := range modules {
+	for _, config := range configs {
+		moduleName := config.Name
+
 		// import python module containing the check
-		checkModule := python.PyImport_ImportModuleNoBlock(module)
+		checkModule := python.PyImport_ImportModuleNoBlock(moduleName)
 		if checkModule == nil {
-			log.Warningf("Unable to import %v", module)
-			python.PyErr_Print()
+			log.Warningf("Unable to import %v", moduleName)
+			python.PyErr_Print() // TODO: remove this or redirect to the Go logger
 			python.PyErr_Clear()
 			continue
 		}
@@ -116,19 +119,12 @@ func CollectChecks(modules []string, confdPath string) []checks.Check {
 		// Try to find a class inheriting from AgentCheck within the module
 		checkClass := findSubclassOf(agentCheckClass, checkModule)
 		if checkClass == nil {
-			log.Warningf("Unable to find a check class in the module %v", module)
-			continue
-		}
-
-		// Search for a configuration file
-		conf, err := getCheckConfig(confdPath, getModuleName(module))
-		if err != nil {
-			log.Warningf("Error reading Config file: %s. Skipping check...", err)
+			log.Warningf("Unable to find a check class in the module %v", checkModule)
 			continue
 		}
 
 		// Get an AgentCheck instance and add it to the registry
-		check := NewPythonCheck(checkClass, conf)
+		check := NewPythonCheck(checkClass, config)
 		if check != nil {
 			log.Infof("Found check: %v", python.PyString_AsString(checkClass.Str()))
 			checks = append(checks, check)

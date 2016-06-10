@@ -17,6 +17,7 @@ func TestMain(m *testing.M) {
 	// Set the PYTHONPATH
 	path := python.PySys_GetObject("path")
 	python.PyList_Append(path, python.PyString_FromString("."))
+	python.PyList_Append(path, python.PyString_FromString("tests"))
 	python.PyList_Append(path, python.PyString_FromString("dist"))
 
 	// Initialize acquires the GIL but we don't need it, release it
@@ -47,9 +48,9 @@ func TestFindSubclassOf(t *testing.T) {
 		python.PyGILState_Release(_gstate)
 	}()
 
-	fooModule := python.PyImport_ImportModuleNoBlock("tests.foo")
+	fooModule := python.PyImport_ImportModuleNoBlock("foo")
 	fooClass := fooModule.GetAttrString("Foo")
-	barModule := python.PyImport_ImportModuleNoBlock("tests.bar")
+	barModule := python.PyImport_ImportModuleNoBlock("bar")
 	barClass := barModule.GetAttrString("Bar")
 
 	// invalid input

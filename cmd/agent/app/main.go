@@ -1,12 +1,13 @@
 package ddagentmain
 
 import (
-	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/checks"
 	"github.com/DataDog/datadog-agent/pkg/checks/system"
+	"github.com/DataDog/datadog-agent/pkg/loader"
 	"github.com/DataDog/datadog-agent/pkg/py"
 	"github.com/kardianos/osext"
 	"github.com/op/go-logging"
@@ -15,6 +16,8 @@ import (
 
 const AGENT_VERSION = "6.0.0"
 
+var here, _ = osext.ExecutableFolder()
+var distPath = filepath.Join(here, "dist")
 var log = logging.MustGetLogger("datadog-agent")
 
 // schedule all the available checks for running
@@ -33,6 +36,16 @@ type metric struct {
 
 type metrics map[string][]metric
 
+func getConfigProviders() (providers []loader.ConfigProvider) {
+	confdPath := filepath.Join(distPath, "conf.d")
+	configPaths := []string{confdPath}
+
+	// File Provider
+	providers = append(providers, loader.NewFileConfigProvider(configPaths))
+
+	return providers
+}
+
 // Start the main check loop
 func Start() {
 
@@ -44,12 +57,12 @@ func Start() {
 	if err != nil {
 		panic(err.Error())
 	}
+
 	// Set the PYTHONPATH
-	here, _ := osext.ExecutableFolder()
-	distPath := fmt.Sprintf("%s/dist", here)
-	confdPath := fmt.Sprintf("%s/conf.d", distPath)
+	checksPath := filepath.Join(distPath, "checks")
 	path := python.PySys_GetObject("path")
 	python.PyList_Append(path, python.PyString_FromString(distPath))
+	python.PyList_Append(path, python.PyString_FromString(checksPath))
 
 	// `python.Initialize` acquires the GIL but we don't need it, let's release it
 	state := python.PyEval_SaveThread()
@@ -60,12 +73,20 @@ func Start() {
 	// Get a single Runner instance, i.e. we process checks sequentially
 	go checks.Runner(pending)
 
-	// Get a list of Python checks we want to run
-	checksNames := []string{"checks.go_expvar"}
+	// Get a list of config checks from the configured providers
+	var configs []loader.CheckConfig
+	for _, provider := range getConfigProviders() {
+		c, _ := provider.Collect()
+		configs = append(configs, c...)
+	}
+
 	// Search for and import all the desired Python checks
-	checks := py.CollectChecks(checksNames, confdPath)
+	// TODO: this functionality will be implemented by a generic Collector able to
+	// search for and load different checks (Python, Go, whatever...)
+	checks := py.CollectChecks(configs)
 
 	// Run memory check, this is a native check, not Python
+	// TODO: see above, this should be done elsewhere, not manually here
 	mc := system.MemoryCheck{}
 	checks = append(checks, &mc)
 
