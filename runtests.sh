@@ -1,7 +1,10 @@
-#!/bin/sh -e
+#!/bin/bash
 # Code based on https://github.com/hailiang/gosweep
 
 set -e
+
+eval $(go env)
+export GO15VENDOREXPERIMENT="1"
 
 # Run test coverage on each subdirectories and merge the coverage profile.
 echo "mode: count" > profile.cov
