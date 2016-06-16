@@ -7,6 +7,7 @@ import (
 )
 
 // #cgo pkg-config: python2
+// #cgo linux CFLAGS: -std=gnu99
 // #include "api.h"
 import "C"
 

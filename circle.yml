@@ -1,0 +1,23 @@
+machine:
+  environment:
+    IMPORT_PATH: "/home/ubuntu/.go_workspace/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME"
+    GO15VENDOREXPERIMENT: "1"
+
+dependencies:
+  pre:
+    - rm -Rf /home/ubuntu/.go_workspace/src/*
+    - go get github.com/Masterminds/glide
+    - go get github.com/jstemmer/go-junit-report
+
+  override:
+    - mkdir -p "$IMPORT_PATH"
+    - rsync -azC --delete ./ "$IMPORT_PATH"
+    - cd "$IMPORT_PATH" && glide up
+
+test:
+  override:
+    - mkdir -p $CIRCLE_TEST_REPORTS/junit/
+    - cd "$IMPORT_PATH" && ./runtests.sh | go-junit-report > $CIRCLE_TEST_REPORTS/junit/junit.xml
+
+  post:
+    - cd "$IMPORT_PATH" && go tool cover -html=profile.cov -o $CIRCLE_ARTIFACTS/coverage.html
