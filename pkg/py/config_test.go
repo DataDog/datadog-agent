@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/loader"
 	"github.com/mitchellh/reflectwalk"
 	"github.com/sbinet/go-python"
 
@@ -19,14 +20,14 @@ func TestToPythonDict(t *testing.T) {
 		t.Fatalf("Expected empty error message, found: %s", err)
 	}
 
-	c := CheckConfig{}
+	c := loader.CheckConfig{}
 
-	err = yaml.Unmarshal(yamlFile, &c.rawData)
+	err = yaml.Unmarshal(yamlFile, &c.Data)
 	if err != nil {
 		t.Fatalf("Expected empty error message, found: %s", err)
 	}
 
-	res, err := c.ToPythonDict()
+	res, err := ToPythonDict(&c)
 	if err != nil {
 		t.Fatalf("Expected empty error message, found: %s", err)
 	}
@@ -223,31 +224,5 @@ func TestSliceElem(t *testing.T) {
 	l := python.PyList_Size(w.currentContainer)
 	if l != 1 {
 		t.Fatalf("Expected list lenght 1, found %d", l)
-	}
-}
-
-func TestGetCheckConfig(t *testing.T) {
-	conf, err := getCheckConfig("foo", "bar")
-	if err == nil {
-		t.Fatal("Expecting error")
-	}
-	if len(conf.rawData) != 0 {
-		t.Fatalf("Expecting empty Config, found: %d", len(conf.rawData))
-	}
-
-	conf, err = getCheckConfig("tests", "bad")
-	if err == nil {
-		t.Fatal("Expecting error")
-	}
-	if len(conf.rawData) != 0 {
-		t.Fatalf("Expecting empty Config, found: %v", conf)
-	}
-
-	conf, err = getCheckConfig("tests", "testcheck")
-	if err != nil {
-		t.Fatalf("Error: %v", err)
-	}
-	if len(conf.rawData) != 2 {
-		t.Fatalf("Expecting 2 elem in Config, found: %d", len(conf.rawData))
 	}
 }

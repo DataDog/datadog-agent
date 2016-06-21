@@ -1,4 +1,4 @@
-from tests import foo
+import foo
 
 class Bar(foo.Foo):
     pass

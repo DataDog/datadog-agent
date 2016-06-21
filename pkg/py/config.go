@@ -1,29 +1,12 @@
 package py
 
 import (
-	"fmt"
-	"io/ioutil"
-	"os"
 	"reflect"
 
-	"gopkg.in/yaml.v2"
-
+	"github.com/DataDog/datadog-agent/pkg/loader"
 	"github.com/mitchellh/reflectwalk"
 	"github.com/sbinet/go-python"
 )
-
-// CheckConfig is a generic container for YAML configuration files
-type CheckConfig struct {
-	rawData map[string]interface{}
-}
-
-// ToPythonDict copies data into a Python dictionary
-func (c *CheckConfig) ToPythonDict() (*python.PyObject, error) {
-	w := new(walker)
-	err := reflectwalk.Walk(c.rawData, w)
-
-	return w.result, err
-}
 
 // we use this struct to walk through YAML results and convert them to Python stuff
 type walker struct {
@@ -31,6 +14,14 @@ type walker struct {
 	lastKey          string
 	containersStack  []*python.PyObject
 	currentContainer *python.PyObject
+}
+
+// ToPythonDict dumps CheckConfig data into a Python dictionary
+func ToPythonDict(c *loader.CheckConfig) (*python.PyObject, error) {
+	w := new(walker)
+	err := reflectwalk.Walk(c.Data, w)
+
+	return w.result, err
 }
 
 // push the old container to the stack and start using the new one
@@ -189,24 +180,4 @@ func (w *walker) SliceElem(i int, v reflect.Value) error {
 	}
 
 	return nil
-}
-
-// Read and parse a YAML configuration file from confDir for module `name`
-func getCheckConfig(confDir, name string) (CheckConfig, error) {
-	conf := CheckConfig{}
-
-	// Read file contents
-	fname := fmt.Sprintf("%s%c%s.yaml", confDir, os.PathSeparator, name)
-	yamlFile, err := ioutil.ReadFile(fname)
-	if err != nil {
-		return conf, err
-	}
-
-	// Parse configuration
-	err = yaml.Unmarshal(yamlFile, &conf.rawData)
-	if err != nil {
-		return conf, err
-	}
-
-	return conf, nil
 }

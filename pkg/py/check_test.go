@@ -3,6 +3,7 @@ package py
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/loader"
 	"github.com/sbinet/go-python"
 )
 
@@ -13,9 +14,9 @@ func getCheckInstance() *PythonCheck {
 		python.PyGILState_Release(_gstate)
 	}()
 
-	module := python.PyImport_ImportModuleNoBlock("tests.testcheck")
+	module := python.PyImport_ImportModuleNoBlock("testcheck")
 	checkClass := module.GetAttrString("TestCheck")
-	checkConfig, _ := getCheckConfig("tests", "testcheck")
+	checkConfig := loader.CheckConfig{Name: "testcheck"}
 	return NewPythonCheck(checkClass, checkConfig)
 }
 
@@ -27,9 +28,9 @@ func TestNewPythonCheck(t *testing.T) {
 		python.PyGILState_Release(_gstate)
 	}()
 
-	module := python.PyImport_ImportModuleNoBlock("tests.testcheck")
+	module := python.PyImport_ImportModuleNoBlock("testcheck")
 	checkClass := module.GetAttrString("TestCheck")
-	check := NewPythonCheck(checkClass, CheckConfig{})
+	check := NewPythonCheck(checkClass, loader.CheckConfig{})
 
 	if check.Instance.IsInstance(checkClass) != 1 {
 		t.Fatalf("Expected instance of class TestCheck, found: %s",
@@ -58,7 +59,13 @@ func TestStr(t *testing.T) {
 }
 
 func TestCollectChecks(t *testing.T) {
-	checks := CollectChecks([]string{"tests.testcheck", "doesnt.exist", "tests.foo", "tests.testcheck2"}, "tests")
+	configs := []loader.CheckConfig{
+		loader.CheckConfig{Name: "testcheck"},
+		loader.CheckConfig{Name: "doesnt.exist"},
+		loader.CheckConfig{Name: "foo"},
+	}
+
+	checks := CollectChecks(configs)
 	if len(checks) != 1 {
 		t.Fatalf("Expected 1 check loaded, found: %d", len(checks))
 	}
