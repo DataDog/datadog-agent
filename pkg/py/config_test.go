@@ -20,9 +20,9 @@ func TestToPythonDict(t *testing.T) {
 		t.Fatalf("Expected empty error message, found: %s", err)
 	}
 
-	c := loader.CheckConfig{}
+	c := make(loader.RawConfigMap)
 
-	err = yaml.Unmarshal(yamlFile, &c.Data)
+	err = yaml.Unmarshal(yamlFile, &c)
 	if err != nil {
 		t.Fatalf("Expected empty error message, found: %s", err)
 	}

@@ -3,7 +3,6 @@ package py
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/loader"
 	"github.com/sbinet/go-python"
 )
 
@@ -16,8 +15,7 @@ func getCheckInstance() *PythonCheck {
 
 	module := python.PyImport_ImportModuleNoBlock("testcheck")
 	checkClass := module.GetAttrString("TestCheck")
-	checkConfig := loader.CheckConfig{Name: "testcheck"}
-	return NewPythonCheck(checkClass, checkConfig)
+	return NewPythonCheck(checkClass, python.PyTuple_New(0))
 }
 
 // TODO check arguments as soon as the feature is complete
@@ -30,7 +28,7 @@ func TestNewPythonCheck(t *testing.T) {
 
 	module := python.PyImport_ImportModuleNoBlock("testcheck")
 	checkClass := module.GetAttrString("TestCheck")
-	check := NewPythonCheck(checkClass, loader.CheckConfig{})
+	check := NewPythonCheck(checkClass, python.PyTuple_New(0))
 
 	if check.Instance.IsInstance(checkClass) != 1 {
 		t.Fatalf("Expected instance of class TestCheck, found: %s",
@@ -55,19 +53,6 @@ func TestStr(t *testing.T) {
 	check.Instance = nil
 	if check.String() != "" {
 		t.Fatalf("Expected empty string, found: %v", check)
-	}
-}
-
-func TestCollectChecks(t *testing.T) {
-	configs := []loader.CheckConfig{
-		loader.CheckConfig{Name: "testcheck"},
-		loader.CheckConfig{Name: "doesnt.exist"},
-		loader.CheckConfig{Name: "foo"},
-	}
-
-	checks := CollectChecks(configs)
-	if len(checks) != 1 {
-		t.Fatalf("Expected 1 check loaded, found: %d", len(checks))
 	}
 }
 

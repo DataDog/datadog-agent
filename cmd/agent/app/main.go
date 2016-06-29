@@ -79,10 +79,15 @@ func Start() {
 		configs = append(configs, c...)
 	}
 
-	// Search for and import all the desired Python checks
-	// TODO: this functionality will be implemented by a generic Collector able to
-	// search for and load different checks (Python, Go, whatever...)
-	checks := py.CollectChecks(configs)
+	// try to import corresponding checks using the PythonCheckLoader
+	checks := []checks.Check{}
+	checksLoader := py.NewPythonCheckLoader()
+	for _, conf := range configs {
+		res, err := checksLoader.Load(conf)
+		if err == nil {
+			checks = append(checks, res...)
+		}
+	}
 
 	// Run memory check, this is a native check, not Python
 	// TODO: see above, this should be done elsewhere, not manually here
