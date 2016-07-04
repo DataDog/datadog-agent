@@ -7,8 +7,9 @@ type RawConfigMap map[interface{}]interface{}
 
 // CheckConfig is a generic container for configuration files
 type CheckConfig struct {
-	Name string       // the name of the check
-	Data RawConfigMap // raw configuration content
+	Name      string       // the name of the check
+	Data      RawConfigMap // raw configuration content
+	Instances []checks.ConfigData
 }
 
 // ConfigProvider is the interface that wraps the Collect method

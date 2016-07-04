@@ -60,7 +60,6 @@ func (cl *PythonCheckLoader) Load(config loader.CheckConfig) ([]checks.Check, er
 		log.Warningf(msg)
 		python.PyErr_Print() // TODO: remove this or redirect to the Go logger
 		python.PyErr_Clear()
-
 		return checks, errors.New(msg)
 	}
 
@@ -73,28 +72,10 @@ func (cl *PythonCheckLoader) Load(config loader.CheckConfig) ([]checks.Check, er
 	}
 
 	// Get an AgentCheck for each configuration instance and add it to the registry
-	instances, found := config.Data["instances"]
-	if !found {
-		return checks, errors.New("`instances` keyword not found in configuration data")
-	}
-
-	instancesList, _ := instances.([]interface{})
-	for _, instanceMap := range instancesList {
-		// To be retrocompatible with the Python code, still use an `instance` dictionary
-		// to contain the (now) unique instance for the check
-		conf := make(loader.RawConfigMap)
-		conf["instances"] = []interface{}{instanceMap}
-		pyConf, err := ToPythonDict(&conf)
-		if err != nil {
-			log.Errorf("Error parsing check configuration: %v", err)
-			continue
-		}
-
-		check := NewPythonCheck(checkClass, pyConf)
-		if check != nil {
-			log.Infof("Loading check: %v", python.PyString_AsString(checkClass.Str()))
-			checks = append(checks, check)
-		}
+	for _, i := range config.Instances {
+		check := NewPythonCheck(moduleName, checkClass)
+		check.Configure(i)
+		checks = append(checks, check)
 	}
 
 	return checks, nil

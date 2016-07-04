@@ -1,24 +1,18 @@
 package py
 
 import (
-	"fmt"
-	"io/ioutil"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/loader"
 	"github.com/sbinet/go-python"
-	"gopkg.in/yaml.v2"
 )
 
 func TestLoad(t *testing.T) {
 	l := NewPythonCheckLoader()
+	config := loader.CheckConfig{Name: "testcheck"}
+	config.Instances = append(config.Instances, []byte("foo: bar"))
+	config.Instances = append(config.Instances, []byte("bar: baz"))
 
-	var configData loader.RawConfigMap
-	yamlFile, err := ioutil.ReadFile("tests/testcheck.yaml")
-	yaml.Unmarshal(yamlFile, &configData)
-	fmt.Println(configData)
-
-	config := loader.CheckConfig{Name: "testcheck", Data: configData}
 	instances, err := l.Load(config)
 	if err != nil {
 		t.Fatalf("Expected nil, found: %v", err)
@@ -27,7 +21,7 @@ func TestLoad(t *testing.T) {
 		t.Fatalf("Expected len 2, found: %d", len(instances))
 	}
 
-	config = loader.CheckConfig{Name: "doesntexist", Data: configData}
+	config = loader.CheckConfig{Name: "doesntexist"}
 	instances, err = l.Load(config)
 	if err == nil {
 		t.Fatal("Expected err, found: nil")

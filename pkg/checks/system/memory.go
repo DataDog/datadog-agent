@@ -1,6 +1,7 @@
 package system
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/checks"
 	"github.com/op/go-logging"
 	"github.com/shirou/gopsutil/mem"
 
@@ -21,4 +22,9 @@ func (c *MemoryCheck) Run() error {
 	v, _ := mem.VirtualMemory()
 	aggregator.GetSender(MEMORY_CHECK_INTERVAL).Gauge("system.mem.total", float64(v.Total), "", []string{})
 	return nil
+}
+
+// Configure the Python check from YAML data
+func (c *MemoryCheck) Configure(data checks.ConfigData) {
+	// do nothing
 }

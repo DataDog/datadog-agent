@@ -15,10 +15,11 @@ func getCheckInstance() *PythonCheck {
 
 	module := python.PyImport_ImportModuleNoBlock("testcheck")
 	checkClass := module.GetAttrString("TestCheck")
-	return NewPythonCheck(checkClass, python.PyTuple_New(0))
+	check := NewPythonCheck("testcheck", checkClass)
+	check.Configure([]byte("foo: bar"))
+	return check
 }
 
-// TODO check arguments as soon as the feature is complete
 func TestNewPythonCheck(t *testing.T) {
 	// Lock the GIL and release it at the end of the run
 	_gstate := python.PyGILState_Ensure()
@@ -26,22 +27,42 @@ func TestNewPythonCheck(t *testing.T) {
 		python.PyGILState_Release(_gstate)
 	}()
 
-	module := python.PyImport_ImportModuleNoBlock("testcheck")
-	checkClass := module.GetAttrString("TestCheck")
-	check := NewPythonCheck(checkClass, python.PyTuple_New(0))
+	tuple := python.PyTuple_New(0)
+	res := NewPythonCheck("FooBar", tuple)
 
-	if check.Instance.IsInstance(checkClass) != 1 {
-		t.Fatalf("Expected instance of class TestCheck, found: %s",
-			python.PyString_AsString(check.Instance.GetAttrString("__class__")))
+	if res.Class != tuple {
+		t.Fatalf("Expected %v, found: %v", tuple, res.Class)
 	}
 
-	// this should fail b/c FooCheck constructors takes parameters
-	fooClass := module.GetAttrString("FooCheck")
-	check = NewPythonCheck(fooClass, python.PyTuple_New(0))
-
-	if check != nil {
-		t.Fatalf("nil expected, found: %v", check)
+	if res.ModuleName != "FooBar" {
+		t.Fatalf("Expected FooBar, found: %v", res.ModuleName)
 	}
+}
+
+// TODO check arguments as soon as the feature is complete
+func _TestNewPythonCheck(t *testing.T) {
+	// Lock the GIL and release it at the end of the run
+	_gstate := python.PyGILState_Ensure()
+	defer func() {
+		python.PyGILState_Release(_gstate)
+	}()
+
+	// module := python.PyImport_ImportModuleNoBlock("testcheck")
+	// checkClass := module.GetAttrString("TestCheck")
+	// check := NewPythonCheck(checkClass, python.PyTuple_New(0))
+	//
+	// if check.Instance.IsInstance(checkClass) != 1 {
+	// 	t.Fatalf("Expected instance of class TestCheck, found: %s",
+	// 		python.PyString_AsString(check.Instance.GetAttrString("__class__")))
+	// }
+	//
+	// // this should fail b/c FooCheck constructors takes parameters
+	// fooClass := module.GetAttrString("FooCheck")
+	// check = NewPythonCheck(fooClass, python.PyTuple_New(0))
+	//
+	// if check != nil {
+	// 	t.Fatalf("nil expected, found: %v", check)
+	// }
 }
 
 func TestRun(t *testing.T) {
