@@ -3,13 +3,13 @@ package py
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/loader"
+	"github.com/DataDog/datadog-agent/pkg/check"
 	"github.com/sbinet/go-python"
 )
 
 func TestLoad(t *testing.T) {
 	l := NewPythonCheckLoader()
-	config := loader.CheckConfig{Name: "testcheck"}
+	config := check.Config{Name: "testcheck"}
 	config.Instances = append(config.Instances, []byte("foo: bar"))
 	config.Instances = append(config.Instances, []byte("bar: baz"))
 
@@ -21,7 +21,7 @@ func TestLoad(t *testing.T) {
 		t.Fatalf("Expected len 2, found: %d", len(instances))
 	}
 
-	config = loader.CheckConfig{Name: "doesntexist"}
+	config = check.Config{Name: "doesntexist"}
 	instances, err = l.Load(config)
 	if err == nil {
 		t.Fatal("Expected err, found: nil")

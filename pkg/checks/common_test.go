@@ -3,6 +3,8 @@ package checks
 import (
 	"errors"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/check"
 )
 
 // FIXTURE
@@ -12,7 +14,7 @@ type TestCheck struct {
 
 func (c *TestCheck) String() string { return "TestCheck" }
 
-func (c *TestCheck) Configure(ConfigData) {}
+func (c *TestCheck) Configure(check.ConfigData) {}
 
 func (c *TestCheck) Run() error {
 	if c.doErr {
@@ -23,8 +25,8 @@ func (c *TestCheck) Run() error {
 }
 
 func TestRunner(t *testing.T) {
-	pending := make(chan Check)
-	go Runner(pending)
+	pending := make(chan check.Check)
+	go check.Runner(pending)
 
 	pending <- &TestCheck{doErr: false}
 	pending <- &TestCheck{doErr: true}

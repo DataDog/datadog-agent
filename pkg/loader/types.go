@@ -1,16 +1,6 @@
 package loader
 
-import "github.com/DataDog/datadog-agent/pkg/checks"
-
-// RawConfigMap is the generic type to hold YAML configurations
-type RawConfigMap map[interface{}]interface{}
-
-// CheckConfig is a generic container for configuration files
-type CheckConfig struct {
-	Name      string       // the name of the check
-	Data      RawConfigMap // raw configuration content
-	Instances []checks.ConfigData
-}
+import "github.com/DataDog/datadog-agent/pkg/check"
 
 // ConfigProvider is the interface that wraps the Collect method
 //
@@ -21,7 +11,7 @@ type CheckConfig struct {
 // Any type implementing the interface will take care of any dependency
 // or data needed to access the resource providing the configuration.
 type ConfigProvider interface {
-	Collect() ([]CheckConfig, error)
+	Collect() ([]check.Config, error)
 }
 
 // CheckLoader is the interface wrapping the operations to load a check from
@@ -30,5 +20,5 @@ type ConfigProvider interface {
 // A check is loaded for every `instance` found in the configuration file.
 // Load is supposed to break down instances and return different checks.
 type CheckLoader interface {
-	Load(config CheckConfig) ([]checks.Check, error)
+	Load(config check.Config) ([]check.Check, error)
 }

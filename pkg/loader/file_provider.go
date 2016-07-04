@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/check"
 	"github.com/op/go-logging"
 
 	"gopkg.in/yaml.v2"
@@ -12,7 +13,7 @@ import (
 var log = logging.MustGetLogger("datadog-agent")
 
 type configFormat struct {
-	Instances []RawConfigMap
+	Instances []check.ConfigRawMap
 }
 
 // FileConfigProvider collect configuration files from disk
@@ -29,8 +30,8 @@ func NewFileConfigProvider(paths []string) *FileConfigProvider {
 // Collect scans provided paths searching for configuration files. When found,
 // it parses the files and try to unmarshall Yaml contents into a CheckConfig
 // instance
-func (c *FileConfigProvider) Collect() ([]CheckConfig, error) {
-	configs := []CheckConfig{}
+func (c *FileConfigProvider) Collect() ([]check.Config, error) {
+	configs := []check.Config{}
 
 	for _, path := range c.paths {
 		log.Debug("Searching for yaml files at:", path)
@@ -64,10 +65,10 @@ func (c *FileConfigProvider) Collect() ([]CheckConfig, error) {
 	return configs, nil
 }
 
-// getCheckConfig returns an instance of CheckConfig if `fpath` points to a valid config file
-func getCheckConfig(name, fpath string) (CheckConfig, error) {
+// getCheckConfig returns an instance of check.Config if `fpath` points to a valid config file
+func getCheckConfig(name, fpath string) (check.Config, error) {
 	cf := configFormat{}
-	config := CheckConfig{Name: name}
+	config := check.Config{Name: name}
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications

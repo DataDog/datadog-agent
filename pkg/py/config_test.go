@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/loader"
+	"github.com/DataDog/datadog-agent/pkg/check"
 	"github.com/mitchellh/reflectwalk"
 	"github.com/sbinet/go-python"
 
@@ -20,7 +20,7 @@ func TestToPythonDict(t *testing.T) {
 		t.Fatalf("Expected empty error message, found: %s", err)
 	}
 
-	c := make(loader.RawConfigMap)
+	c := make(check.ConfigRawMap)
 
 	err = yaml.Unmarshal(yamlFile, &c)
 	if err != nil {

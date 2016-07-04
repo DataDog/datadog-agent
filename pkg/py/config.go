@@ -3,7 +3,7 @@ package py
 import (
 	"reflect"
 
-	"github.com/DataDog/datadog-agent/pkg/loader"
+	"github.com/DataDog/datadog-agent/pkg/check"
 	"github.com/mitchellh/reflectwalk"
 	"github.com/sbinet/go-python"
 )
@@ -17,7 +17,7 @@ type walker struct {
 }
 
 // ToPythonDict dumps a RawConfigMap into a Python dictionary
-func ToPythonDict(m *loader.RawConfigMap) (*python.PyObject, error) {
+func ToPythonDict(m *check.ConfigRawMap) (*python.PyObject, error) {
 	w := new(walker)
 	err := reflectwalk.Walk(m, w)
 

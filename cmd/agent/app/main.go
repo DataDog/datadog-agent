@@ -4,13 +4,16 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/check"
 	"github.com/DataDog/datadog-agent/pkg/checks"
-	"github.com/DataDog/datadog-agent/pkg/checks/system"
 	"github.com/DataDog/datadog-agent/pkg/loader"
 	"github.com/DataDog/datadog-agent/pkg/py"
 	"github.com/kardianos/osext"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
+
+	// register core checks
+	_ "github.com/DataDog/datadog-agent/pkg/checks/system"
 )
 
 const AGENT_VERSION = "6.0.0"
@@ -20,7 +23,7 @@ var distPath = filepath.Join(here, "dist")
 var log = logging.MustGetLogger("datadog-agent")
 
 // schedule all the available checks for running
-func enqueueChecks(pending chan checks.Check, checks []checks.Check) {
+func enqueueChecks(pending chan check.Check, checks []check.Check) {
 	for i := 0; i < len(checks); i++ {
 		pending <- checks[i]
 	}
@@ -45,12 +48,19 @@ func getConfigProviders() (providers []loader.ConfigProvider) {
 	return providers
 }
 
+func getCheckLoaders() []loader.CheckLoader {
+	return []loader.CheckLoader{
+		py.NewPythonCheckLoader(),
+		checks.NewGoCheckLoader(),
+	}
+}
+
 // Start the main check loop
 func Start() {
 
 	log.Infof("Starting Datadog Agent v%v", AGENT_VERSION)
 
-	pending := make(chan checks.Check, 10)
+	pending := make(chan check.Check, 10)
 
 	err := python.Initialize()
 	if err != nil {
@@ -70,29 +80,26 @@ func Start() {
 	py.InitApi()
 
 	// Get a single Runner instance, i.e. we process checks sequentially
-	go checks.Runner(pending)
+	go check.Runner(pending)
 
 	// Get a list of config checks from the configured providers
-	var configs []loader.CheckConfig
+	var configs []check.Config
 	for _, provider := range getConfigProviders() {
 		c, _ := provider.Collect()
 		configs = append(configs, c...)
 	}
 
-	// try to import corresponding checks using the PythonCheckLoader
-	checks := []checks.Check{}
-	checksLoader := py.NewPythonCheckLoader()
+	// given a list of configurations, try to load corresponding checks using different loaders
+	loaders := getCheckLoaders()
+	checks := []check.Check{}
 	for _, conf := range configs {
-		res, err := checksLoader.Load(conf)
-		if err == nil {
-			checks = append(checks, res...)
+		for _, loader := range loaders {
+			res, err := loader.Load(conf)
+			if err == nil {
+				checks = append(checks, res...)
+			}
 		}
 	}
-
-	// Run memory check, this is a native check, not Python
-	// TODO: see above, this should be done elsewhere, not manually here
-	mc := system.MemoryCheck{}
-	checks = append(checks, &mc)
 
 	// Start the scheduler
 	ticker := time.NewTicker(time.Millisecond * 5000)

@@ -6,8 +6,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/checks"
-	"github.com/DataDog/datadog-agent/pkg/loader"
+	"github.com/DataDog/datadog-agent/pkg/check"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
 )
@@ -63,9 +62,9 @@ func (c *PythonCheck) String() string {
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(data checks.ConfigData) {
+func (c *PythonCheck) Configure(data check.ConfigData) {
 	// Unmarshal ConfigData to a RawConfigMap
-	raw := loader.RawConfigMap{}
+	raw := check.ConfigRawMap{}
 	err := yaml.Unmarshal(data, &raw)
 	if err != nil {
 		// TODO log error
@@ -80,7 +79,7 @@ func (c *PythonCheck) Configure(data checks.ConfigData) {
 
 	// To be retrocompatible with the Python code, still use an `instance` dictionary
 	// to contain the (now) unique instance for the check
-	conf := make(loader.RawConfigMap)
+	conf := make(check.ConfigRawMap)
 	conf["instances"] = []interface{}{raw}
 
 	// Convert the RawConfigMap to a Python dictionary
