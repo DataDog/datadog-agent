@@ -1,16 +1,14 @@
-This package is responsible of scanning different sources searching for Agent checks' configuration files. Check
-configurations consist in one or more `instance`s, every loader must be capable to break down such `instance`s
-into distinct elements.
+## loader
 
-Check configurations may be contained within files on disk, environment variables, external databases: for
-each source, the Agent has a specific _Provider_ implementing the `ConfigProvider` interface.
+This package is responsible of scanning different sources searching for Agent checks' configuration files, extract
+configuration instances and provide the corresponding check objects.
 
-Check configurations may come in different format, for example Yaml code in the case of config files on disk, or
-environment variables following certain conventions for their names.
-
-Every configuration, regardless of the format, must specify at least one check `instance`: each instance will be
-translated to Yaml code, the common language to carry around instance configurations within the Agent code. A
- `CheckConfig` struct contains a list of Yaml configuration text elements, one per instance.
+### Configuration Providers
+Providers implement the `ConfigProvider` interface and are responsible for scanning different sources like files on
+disk, environment variables or databases, searching for check configurations. Every configuration, regardless of the
+format, must specify at least one check `instance`. Providers dump every configuration they find into a `CheckConfig`
+struct containing an array of configuration instances. Configuration instances are converted in YAML format so that a
+check object will be eventually able to convert them into the appropriate data structure.
 
 Usage example:
 ```go
@@ -19,4 +17,24 @@ for _, provider := range configProviders {
   c, _ := provider.Collect()
   configs = append(configs, c...)
 }
+```
+
+### Check Loaders
+Loaders implement the `CheckLoader` interface, they are responsible to instantiate one object of type `check.Check` for
+every configuration instance within a `CheckConfig` object. A Loader usually invokes the `Configure` method on check
+objects passing in the configuration instance in YAML format: how to use it, it's up to the check itself.
+
+Usage example:
+```go
+// given a list of configurations, try to load corresponding checks using different loaders
+checks := []check.Check{}
+for _, conf := range configs {
+  for _, loader := range loaders {
+    res, err := loader.Load(conf)
+    if err == nil {
+      checks = append(checks, res...)
+    }
+  }
+}
+// `checks` contains one check per configuration instance found.
 ```
