@@ -1,6 +1,7 @@
 package loader
 
 import (
+	"errors"
 	"io/ioutil"
 	"path/filepath"
 
@@ -83,13 +84,15 @@ func getCheckConfig(name, fpath string) (check.Config, error) {
 		return config, err
 	}
 
+	// If no valid instances were found, this is not a valid configuration file
+	if len(cf.Instances) < 1 {
+		return config, errors.New("Configuration file contains no valid instances")
+	}
+
 	// Go through instances and return corresponding []byte
 	for _, instance := range cf.Instances {
-		rawConf, e := yaml.Marshal(instance)
-		if e != nil {
-			log.Warningf("Unable to unmarshal config: %v", e)
-			continue
-		}
+		// at this point the Yaml was already parsed, no need to check the error
+		rawConf, _ := yaml.Marshal(instance)
 		config.Instances = append(config.Instances, rawConf)
 	}
 

@@ -9,24 +9,29 @@ import (
 
 var log = logging.MustGetLogger("datadog-agent")
 
-var Catalog = make(map[string]check.Check)
+// Catalog keeps track of Go checks by name
+var catalog = make(map[string]check.Check)
 
+// RegisterCheck adds a check to the catalog
 func RegisterCheck(name string, c check.Check) {
-	Catalog[name] = c
+	catalog[name] = c
 }
 
 // GoCheckLoader is a specific loader for checks living in this package
 type GoCheckLoader struct {
 }
 
+// NewGoCheckLoader creates a loader for go checks
+// for the time being it does basically nothing
 func NewGoCheckLoader() *GoCheckLoader {
 	return &GoCheckLoader{}
 }
 
+// Load returns a list of checks, one for every configuration instance found in `config`
 func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 
-	c, found := Catalog[config.Name]
+	c, found := catalog[config.Name]
 	if !found {
 		msg := fmt.Sprintf("Check %s not found in Catalog", config.Name)
 		log.Warning(msg)
