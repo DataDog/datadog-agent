@@ -13,7 +13,6 @@ type ConfigRawMap map[interface{}]interface{}
 // Config is a generic container for configuration files
 type Config struct {
 	Name      string       // the name of the check
-	Data      ConfigRawMap // raw configuration content
 	Instances []ConfigData // array of Yaml configurations
 }
 
