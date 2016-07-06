@@ -49,6 +49,6 @@ func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float,
 	return C._none()
 }
 
-func InitApi() {
+func initApi() {
 	C.initaggregator()
 }

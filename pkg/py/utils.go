@@ -6,6 +6,35 @@ import (
 	"github.com/sbinet/go-python"
 )
 
+// Initialize wraps all the operations needed to start the Python interpreter and
+// configure the environment
+func Initialize(paths ...string) *python.PyThreadState {
+	// Start the interpreter
+	err := python.Initialize()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Set the PYTHONPATH if needed
+	if len(paths) > 0 {
+		path := python.PySys_GetObject("path")
+		for _, p := range paths {
+			python.PyList_Append(path, python.PyString_FromString(p))
+		}
+	}
+
+	// `python.Initialize` acquires the GIL but from this point
+	// we don't need it anymore, let's release it
+	state := python.PyEval_SaveThread()
+
+	// inject the aggregator into global namespace
+	// (it will handle the GIL by itself)
+	initApi()
+
+	// return the state so the caller can resume
+	return state
+}
+
 // Search in module for a class deriving from baseClass and return the first match if any.
 func findSubclassOf(base, module *python.PyObject) *python.PyObject {
 	// baseClass is not a Class type

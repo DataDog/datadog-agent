@@ -52,22 +52,8 @@ func Start() {
 
 	pending := make(chan checks.Check, 10)
 
-	err := python.Initialize()
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// Set the PYTHONPATH
-	checksPath := filepath.Join(distPath, "checks")
-	path := python.PySys_GetObject("path")
-	python.PyList_Append(path, python.PyString_FromString(distPath))
-	python.PyList_Append(path, python.PyString_FromString(checksPath))
-
-	// `python.Initialize` acquires the GIL but we don't need it, let's release it
-	state := python.PyEval_SaveThread()
-
-	// Expose `CheckAggregator` methods to Python
-	py.InitApi()
+	// Initialize the CPython interpreter
+	state := py.Initialize(distPath, filepath.Join(distPath, "checks"))
 
 	// Get a single Runner instance, i.e. we process checks sequentially
 	go checks.Runner(pending)

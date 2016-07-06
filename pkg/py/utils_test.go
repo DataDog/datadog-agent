@@ -22,7 +22,7 @@ func TestMain(m *testing.M) {
 	// Initialize acquires the GIL but we don't need it, release it
 	state := python.PyEval_SaveThread()
 
-	InitApi()
+	initApi()
 
 	ret := m.Run()
 
