@@ -7,3 +7,8 @@ class TestCheck(AgentCheck):
         unit tests. Doing anything is ok here.
         """
         pass
+
+
+class FooCheck:
+    def __init__(self, foo, bar, baz):
+        pass

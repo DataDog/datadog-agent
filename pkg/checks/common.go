@@ -4,10 +4,14 @@ import "github.com/op/go-logging"
 
 var log = logging.MustGetLogger("datadog-agent")
 
+// ConfigData contains YAML code
+type ConfigData []byte
+
 // Check is an interface for types capable to run checks
 type Check interface {
 	Run() error
 	String() string
+	Configure(data ConfigData)
 }
 
 // Runner waits for checks and run them as long as they arrive on the channel

@@ -11,6 +11,10 @@ import (
 
 var log = logging.MustGetLogger("datadog-agent")
 
+type configFormat struct {
+	Instances []RawConfigMap
+}
+
 // FileConfigProvider collect configuration files from disk
 type FileConfigProvider struct {
 	paths []string
@@ -62,16 +66,31 @@ func (c *FileConfigProvider) Collect() ([]CheckConfig, error) {
 
 // getCheckConfig returns an instance of CheckConfig if `fpath` points to a valid config file
 func getCheckConfig(name, fpath string) (CheckConfig, error) {
-	conf := CheckConfig{Name: name}
+	cf := configFormat{}
+	config := CheckConfig{Name: name}
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
 	yamlFile, err := ioutil.ReadFile(fpath)
 	if err != nil {
-		return conf, err
+		return config, err
 	}
 
 	// Parse configuration
-	err = yaml.Unmarshal(yamlFile, &conf.Data)
-	return conf, err
+	err = yaml.Unmarshal(yamlFile, &cf)
+	if err != nil {
+		return config, err
+	}
+
+	// Go through instances and return corresponding []byte
+	for _, instance := range cf.Instances {
+		rawConf, e := yaml.Marshal(instance)
+		if e != nil {
+			log.Warningf("Unable to unmarshal config: %v", e)
+			continue
+		}
+		config.Instances = append(config.Instances, rawConf)
+	}
+
+	return config, err
 }

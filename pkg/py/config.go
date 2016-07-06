@@ -16,10 +16,10 @@ type walker struct {
 	currentContainer *python.PyObject
 }
 
-// ToPythonDict dumps CheckConfig data into a Python dictionary
-func ToPythonDict(c *loader.CheckConfig) (*python.PyObject, error) {
+// ToPythonDict dumps a RawConfigMap into a Python dictionary
+func ToPythonDict(m *loader.RawConfigMap) (*python.PyObject, error) {
 	w := new(walker)
-	err := reflectwalk.Walk(c.Data, w)
+	err := reflectwalk.Walk(m, w)
 
 	return w.result, err
 }
