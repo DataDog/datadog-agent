@@ -7,6 +7,7 @@ import (
 	// 3p
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
@@ -73,7 +74,7 @@ func TestParseGauge(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	util.AssertAlmostEqual(t, 666.0, parsed.Value)
-	assert.Equal(t, Gauge, parsed.Mtype)
+	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(*(parsed.Tags)))
 	util.AssertAlmostEqual(t, 1.0, parsed.SampleRate)
 }
@@ -85,7 +86,7 @@ func TestParseGaugeWithTags(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	util.AssertAlmostEqual(t, 666.0, parsed.Value)
-	assert.Equal(t, Gauge, parsed.Mtype)
+	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
 	if assert.Equal(t, 2, len(*(parsed.Tags))) {
 		assert.Equal(t, "sometag1:somevalue1", (*parsed.Tags)[0])
 		assert.Equal(t, "sometag2:somevalue2", (*parsed.Tags)[1])
@@ -100,7 +101,7 @@ func TestParseGaugeWithPoundOnly(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	util.AssertAlmostEqual(t, 666.0, parsed.Value)
-	assert.Equal(t, Gauge, parsed.Mtype)
+	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(*(parsed.Tags)))
 	util.AssertAlmostEqual(t, 1.0, parsed.SampleRate)
 }
@@ -112,7 +113,7 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 
 	assert.Equal(t, "♬†øU†øU¥ºuT0♪", parsed.Name)
 	util.AssertAlmostEqual(t, 666.0, parsed.Value)
-	assert.Equal(t, Gauge, parsed.Mtype)
+	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
 	if assert.Equal(t, 1, len(*(parsed.Tags))) {
 		assert.Equal(t, "intitulé:T0µ", (*parsed.Tags)[0])
 	}

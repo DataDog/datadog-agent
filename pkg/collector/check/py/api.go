@@ -11,13 +11,11 @@ import (
 // #include "api.h"
 import "C"
 
-const checkInterval = 5
-
 // SubmitData is the method exposed to Python scripts
 //export SubmitData
 func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float, tags *C.PyObject) *C.PyObject {
 
-	agg := aggregator.GetSender(checkInterval) // TODO: the interval should depend on the check/instance
+	agg := aggregator.GetSender()
 
 	// TODO: cleanup memory, C.stuff is going to stay there!!!
 

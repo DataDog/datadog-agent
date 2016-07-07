@@ -11,9 +11,14 @@ import (
 
 func TestGaugeSampling(t *testing.T) {
 	// Initialize a new Gauge
-	mGauge := Gauge{1}
+	mGauge := Gauge{}
 
-	// Previous value is overriden
-	mGauge.addSample(2)
-	util.AssertAlmostEqual(t, mGauge.gauge, 2)
+	// Add samples
+	mGauge.addSample(1, 50)
+	mGauge.addSample(2, 55)
+
+	value, timestamp := mGauge.flush()
+	// the last sample is flushed
+	util.AssertAlmostEqual(t, value, 2)
+	util.AssertAlmostEqual(t, timestamp, 55)
 }

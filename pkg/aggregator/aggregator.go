@@ -5,11 +5,10 @@ import (
 
 	"github.com/DataDog/datadog-go/statsd"
 	"github.com/op/go-logging"
-
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 )
 
 const defaultFlushInterval = 15 // flush interval in seconds
+const bucketSize = 10           // fixed for now
 
 var log = logging.MustGetLogger("datadog-agent")
 
@@ -21,18 +20,18 @@ type Sender interface {
 	Histogram(metric string, value float64, hostname string, tags []string)
 }
 
-// GetSender returns a Sender that aggregates according to the passed interval
-func GetSender(interval int64) Sender {
+// GetSender returns a Sender
+func GetSender() Sender {
 	if _aggregator == nil {
-		_aggregator = newBufferedAggregator(defaultFlushInterval)
+		_aggregator = newBufferedAggregator()
 	}
-	return &IntervalAggregator{_aggregator, interval}
+	return _aggregator
 }
 
 // GetChannel returns a channel which can be subsequently used to send MetricSamples
-func GetChannel() chan *dogstatsd.MetricSample {
+func GetChannel() chan *MetricSample {
 	if _aggregator == nil {
-		_aggregator = newBufferedAggregator(defaultFlushInterval)
+		_aggregator = newBufferedAggregator()
 	}
 
 	return _aggregator.in
@@ -53,20 +52,20 @@ func (agg *UnbufferedAggregator) Histogram(metric string, value float64, hostnam
 }
 
 // Gauge implements the Sender interface
-func (ia *IntervalAggregator) Gauge(metric string, value float64, hostname string, tags []string) {
-	metricSample := &dogstatsd.MetricSample{
+func (agg *BufferedAggregator) Gauge(metric string, value float64, hostname string, tags []string) {
+	metricSample := &MetricSample{
 		Name:       metric,
 		Value:      value,
-		Mtype:      dogstatsd.Gauge,
+		Mtype:      GaugeType,
 		Tags:       &tags,
 		SampleRate: 1,
-		Interval:   ia.checkInterval,
+		Timestamp:  time.Now().Unix(),
 	}
-	ia.aggregator.in <- metricSample
+	agg.in <- metricSample
 }
 
 // Histogram implements the Sender interface
-func (ia *IntervalAggregator) Histogram(metric string, value float64, hostname string, tags []string) {
+func (agg *BufferedAggregator) Histogram(metric string, value float64, hostname string, tags []string) {
 	// TODO
 }
 
@@ -81,16 +80,9 @@ type UnbufferedAggregator struct {
 // BufferedAggregator aggregates metrics in buckets which intervals are determined
 // by the checks' intervals
 type BufferedAggregator struct {
-	in            chan *dogstatsd.MetricSample
+	in            chan *MetricSample
 	sampler       Sampler
 	flushInterval int64
-}
-
-// IntervalAggregator is a wrapper around BufferedAggregator, and implements the
-// ChecksAggregator interface
-type IntervalAggregator struct {
-	aggregator    *BufferedAggregator
-	checkInterval int64
 }
 
 // NewUnbufferedAggregator returns a newly initialized UnbufferedAggregator
@@ -105,11 +97,11 @@ func NewUnbufferedAggregator() *UnbufferedAggregator {
 }
 
 // Instantiate a BufferedAggregator and run it
-func newBufferedAggregator(flushInterval int64) *BufferedAggregator {
+func newBufferedAggregator() *BufferedAggregator {
 	aggregator := &BufferedAggregator{
-		make(chan *dogstatsd.MetricSample, 100), // TODO make buffer size configurable
-		*NewSampler(),
-		flushInterval,
+		make(chan *MetricSample, 100), // TODO make buffer size configurable
+		*NewSampler(bucketSize),
+		defaultFlushInterval,
 	}
 
 	go aggregator.run()
@@ -117,17 +109,17 @@ func newBufferedAggregator(flushInterval int64) *BufferedAggregator {
 	return aggregator
 }
 
-func (a *BufferedAggregator) run() {
-	flushPeriod := time.Duration(a.flushInterval) * time.Second
+func (agg *BufferedAggregator) run() {
+	flushPeriod := time.Duration(agg.flushInterval) * time.Second
 	flushTicker := time.NewTicker(flushPeriod)
 	for {
 		select {
 		case <-flushTicker.C:
 			now := time.Now().Unix()
-			go Report(a.sampler.flush(now))
-		case sample := <-a.in:
+			go Report(agg.sampler.flush(now))
+		case sample := <-agg.in:
 			now := time.Now().Unix()
-			a.sampler.addSample(sample, now)
+			agg.sampler.addSample(sample, now)
 		}
 	}
 }

@@ -7,9 +7,6 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
-
-	// datadog
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 )
 
 // Helper(s)
@@ -18,7 +15,7 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	if expected.Tags != actual.Tags {
 		assert.NotNil(t, actual.Tags)
 		assert.NotNil(t, expected.Tags)
-		assert.Equal(t, *(expected.Tags), *(actual.Tags))
+		AssertTagsEqual(t, *(expected.Tags), *(actual.Tags))
 	}
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.DeviceName, actual.DeviceName)
@@ -30,6 +27,14 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	}
 	assert.Equal(t, expected.nameSuffix, actual.nameSuffix)
 	AssertPointsEqual(t, expected.Points, actual.Points)
+}
+
+func AssertTagsEqual(t *testing.T, expected, actual []string) {
+	if assert.Equal(t, len(expected), len(actual)) {
+		for _, tag := range expected {
+			assert.Contains(t, actual, tag)
+		}
+	}
 }
 
 func AssertPointsEqual(t *testing.T, expected, actual [][]interface{}) {
@@ -58,10 +63,10 @@ func (os OrderedSeries) Swap(i, j int) {
 
 // MetricSample
 func TestGenerateContextKey(t *testing.T) {
-	mSample := dogstatsd.MetricSample{
+	mSample := MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      dogstatsd.Gauge,
+		Mtype:      GaugeType,
 		Tags:       &[]string{"foo", "bar"},
 		SampleRate: 1,
 	}
@@ -70,23 +75,13 @@ func TestGenerateContextKey(t *testing.T) {
 	assert.Equal(t, "bar,foo,my.metric.name", context)
 }
 
-// Sampler
-
-// IntervalSampler
-func TestCalculateBucketStart(t *testing.T) {
-	sampler := IntervalSampler{10, map[int64]*Metrics{}}
-
-	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456))
-	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460))
-
-}
-
+// Metrics
 func TestMetricsGaugeSampling(t *testing.T) {
 	metrics := newMetrics()
 	contextKey := "context_key"
-	mSample := dogstatsd.MetricSample{
+	mSample := MetricSample{
 		Value: 1,
-		Mtype: dogstatsd.Gauge,
+		Mtype: GaugeType,
 	}
 
 	metrics.addSample(contextKey, mSample.Mtype, mSample.Value)
@@ -104,55 +99,62 @@ func TestMetricsGaugeSampling(t *testing.T) {
 	}
 }
 
+// Sampler
+func TestCalculateBucketStart(t *testing.T) {
+	sampler := NewSampler(10)
+
+	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456))
+	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460))
+
+}
+
 func TestBucketSampling(t *testing.T) {
-	intervalSampler := IntervalSampler{10, map[int64]*Metrics{}}
+	sampler := NewSampler(10)
 
-	mSample := dogstatsd.MetricSample{
-		Value: 1,
-		Mtype: dogstatsd.Gauge,
+	mSample := MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      GaugeType,
+		Tags:       &[]string{"foo", "bar"},
+		SampleRate: 1,
 	}
-	contextKey := "context_key"
+	sampler.addSample(&mSample, 12345)
+	sampler.addSample(&mSample, 12355)
+	sampler.addSample(&mSample, 12365)
 
-	intervalSampler.addSample(contextKey, mSample.Mtype, mSample.Value, 12345)
-	intervalSampler.addSample(contextKey, mSample.Mtype, mSample.Value, 12355)
-	intervalSampler.addSample(contextKey, mSample.Mtype, mSample.Value, 12365)
-
-	series := intervalSampler.flush(12360)
+	series := sampler.flush(12360)
 
 	expectedSerie := &Serie{
+		Name:       "my.metric.name",
+		Tags:       &[]string{"foo", "bar"},
 		Points:     [][]interface{}{{int64(12340), mSample.Value}, {int64(12350), mSample.Value}},
 		Mtype:      "gauge",
 		Interval:   10,
 		nameSuffix: "",
-		contextKey: contextKey,
 	}
 
-	assert.Equal(t, 1, len(intervalSampler.metricsByTimestamp))
+	assert.Equal(t, 1, len(sampler.metricsByTimestamp))
 	if assert.Equal(t, 1, len(series)) {
 		AssertSerieEqual(t, expectedSerie, series[0])
 	}
 }
 
-//
-//// Sampler
-func TestIntervalSampling(t *testing.T) {
-	sampler := NewSampler()
+func TestContextSampling(t *testing.T) {
+	sampler := NewSampler(10)
 
-	mSample1 := dogstatsd.MetricSample{
+	mSample1 := MetricSample{
 		Name:       "my.metric.name1",
 		Value:      1,
-		Mtype:      dogstatsd.Gauge,
+		Mtype:      GaugeType,
 		Tags:       &[]string{"foo", "bar"},
 		SampleRate: 1,
-		Interval:   10,
 	}
-	mSample2 := dogstatsd.MetricSample{
+	mSample2 := MetricSample{
 		Name:       "my.metric.name2",
 		Value:      1,
-		Mtype:      dogstatsd.Gauge,
+		Mtype:      GaugeType,
 		Tags:       &[]string{"foo", "bar"},
 		SampleRate: 1,
-		Interval:   3,
 	}
 
 	sampler.addSample(&mSample1, 12346)
@@ -172,13 +174,13 @@ func TestIntervalSampling(t *testing.T) {
 	}
 	expectedSerie2 := &Serie{
 		Name:     "my.metric.name2",
-		Points:   [][]interface{}{{int64(12345), float64(1)}},
+		Points:   [][]interface{}{{int64(12340), float64(1)}},
 		Tags:     &[]string{"bar", "foo"},
 		Mtype:    "gauge",
-		Interval: 3,
+		Interval: 10,
 	}
 
-	assert.Equal(t, 2, len(sampler.intervalSamplerByInterval))
+	assert.Equal(t, 2, len(sampler.contexts))
 	if assert.Equal(t, 2, len(series)) {
 		AssertSerieEqual(t, expectedSerie1, series[0])
 		AssertSerieEqual(t, expectedSerie2, series[1])

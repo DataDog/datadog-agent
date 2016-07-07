@@ -2,10 +2,12 @@ package dogstatsd
 
 import (
 	"net"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 // RunServer starts and run a dogstatsd server
-func RunServer(out chan *MetricSample) {
+func RunServer(out chan *aggregator.MetricSample) {
 	address, _ := net.ResolveUDPAddr("udp", "localhost:8126") // TODO: configurable bind address
 	serverConn, err := net.ListenUDP("udp", address)
 	log.Infof("listening on %s", address)

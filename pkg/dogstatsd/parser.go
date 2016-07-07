@@ -4,45 +4,20 @@ import (
 	"bytes"
 	"errors"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 // Schema of a dogstatsd packet:
 // <name>:<value>|<metric_type>|@<sample_rate>|#<tag1_name>:<tag1_value>,<tag2_name>:<tag2_value>:<value>|<metric_type>...
 
-// MetricType is the representation of a dogstatsd metric type
-type MetricType string
-
-// metric type constants
-const (
-	Gauge   MetricType = "g"
-	Counter MetricType = "c"
-)
-
-// Default metrics interval in seconds (== default bucket size)
-const dogstatsdInterval int64 = 10
-
-var metricTypes = map[MetricType]struct{}{
-	Gauge: struct{}{},
+// MetricTypes maps the dogstatsd metric types to the aggregator metric types
+var metricTypes = map[string]aggregator.MetricType{
+	"g": aggregator.GaugeType,
+	"c": aggregator.CounterType,
 }
 
-// MetricSample represents a parsed metric sample
-type MetricSample struct {
-	Name       string
-	Value      float64
-	Mtype      MetricType
-	Tags       *[]string
-	SampleRate float64
-	Interval   int64
-}
-
-// mtypes
-//  'g': BucketGauge,
-//  'c': Counter,
-//  'h': Histogram,
-//  'ms': Histogram,
-//  's': Set,
-
-func nextMetric(datagram *[]byte) (*MetricSample, error) {
+func nextMetric(datagram *[]byte) (*aggregator.MetricSample, error) {
 	// call parseMetricPacket for the first line of buffer
 	var packet []byte
 
@@ -63,7 +38,7 @@ func nextMetric(datagram *[]byte) (*MetricSample, error) {
 	return parseMetricPacket(packet)
 }
 
-func parseMetricPacket(packet []byte) (*MetricSample, error) {
+func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 	// daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2
 	// daemon:666|g|@0.1|#sometag:somevalue"
 
@@ -121,10 +96,11 @@ func parseMetricPacket(packet []byte) (*MetricSample, error) {
 		metricTags[i] = string(rawTags[i])
 	}
 
-	metricType := MetricType(rawType)
-	if _, ok := metricTypes[metricType]; !ok {
+	var metricType aggregator.MetricType
+	var ok bool
+	if metricType, ok = metricTypes[string(rawType)]; !ok {
 		return nil, errors.New("Invalid metric type")
 	}
 
-	return &MetricSample{metricName, metricValue, metricType, &metricTags, metricSampleRate, dogstatsdInterval}, nil
+	return &aggregator.MetricSample{metricName, metricValue, metricType, &metricTags, metricSampleRate, 0}, nil
 }
