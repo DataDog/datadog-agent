@@ -4,8 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/checks"
-	"github.com/DataDog/datadog-agent/pkg/loader"
+	"github.com/DataDog/datadog-agent/pkg/check"
 	"github.com/sbinet/go-python"
 )
 
@@ -43,8 +42,8 @@ func NewPythonCheckLoader() *PythonCheckLoader {
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
-func (cl *PythonCheckLoader) Load(config loader.CheckConfig) ([]checks.Check, error) {
-	checks := []checks.Check{}
+func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
+	checks := []check.Check{}
 	moduleName := config.Name
 
 	// Lock the GIL and release it at the end of the run

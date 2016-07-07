@@ -1,6 +1,7 @@
 package system
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/check"
 	"github.com/DataDog/datadog-agent/pkg/checks"
 	"github.com/op/go-logging"
 	"github.com/shirou/gopsutil/mem"
@@ -25,6 +26,10 @@ func (c *MemoryCheck) Run() error {
 }
 
 // Configure the Python check from YAML data
-func (c *MemoryCheck) Configure(data checks.ConfigData) {
+func (c *MemoryCheck) Configure(data check.ConfigData) {
 	// do nothing
+}
+
+func init() {
+	checks.RegisterCheck("memory", &MemoryCheck{})
 }

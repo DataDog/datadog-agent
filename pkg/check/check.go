@@ -1,4 +1,4 @@
-package checks
+package check
 
 import "github.com/op/go-logging"
 
@@ -6,6 +6,15 @@ var log = logging.MustGetLogger("datadog-agent")
 
 // ConfigData contains YAML code
 type ConfigData []byte
+
+// ConfigRawMap is the generic type to hold YAML configurations
+type ConfigRawMap map[interface{}]interface{}
+
+// Config is a generic container for configuration files
+type Config struct {
+	Name      string       // the name of the check
+	Instances []ConfigData // array of Yaml configurations
+}
 
 // Check is an interface for types capable to run checks
 type Check interface {

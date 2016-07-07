@@ -2,17 +2,29 @@ package loader
 
 import "testing"
 
-func Test_GetCheckConfig(t *testing.T) {
-	config, err := getCheckConfig("foo", "tests/wrong.yaml")
+func TestGetCheckConfig(t *testing.T) {
+	// file does not exist
+	config, err := getCheckConfig("foo", "")
 	if err == nil {
 		t.Fatal("Expecting error")
 	}
 
-	config, err = getCheckConfig("foo", "foo.yaml")
+	// file contains invalid Yaml
+	config, err = getCheckConfig("foo", "tests/invalid.yaml")
 	if err == nil {
 		t.Fatal("Expecting error")
 	}
 
+	// valid yaml, invalid configuration file
+	config, err = getCheckConfig("foo", "tests/notaconfig.yaml")
+	if err == nil {
+		t.Fatal("Expecting error")
+	}
+	if len(config.Instances) != 0 {
+		t.Fatalf("Expecting 0 instances, found: %d", len(config.Instances))
+	}
+
+	// valid configuration file
 	config, err = getCheckConfig("foo", "tests/testcheck.yaml")
 	if err != nil {
 		t.Fatalf("Expecting nil, found: %s", err)
