@@ -6,7 +6,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/check"
 	"github.com/DataDog/datadog-agent/pkg/checks"
-	"github.com/DataDog/datadog-agent/pkg/loader"
+	"github.com/DataDog/datadog-agent/pkg/collector/loader"
 	"github.com/DataDog/datadog-agent/pkg/py"
 	"github.com/kardianos/osext"
 	"github.com/op/go-logging"
