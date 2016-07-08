@@ -1,7 +1,7 @@
 package system
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/core"
 	"github.com/op/go-logging"
 	"github.com/shirou/gopsutil/mem"

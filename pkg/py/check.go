@@ -6,7 +6,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
 )

@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 // FIXTURE
