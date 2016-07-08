@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/sbinet/go-python"
 )
 

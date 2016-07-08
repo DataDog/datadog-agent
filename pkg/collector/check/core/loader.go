@@ -1,9 +1,9 @@
-package checks
+package core
 
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/op/go-logging"
 )
 

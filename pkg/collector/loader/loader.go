@@ -1,6 +1,6 @@
 package loader
 
-import "github.com/DataDog/datadog-agent/pkg/check"
+import "github.com/DataDog/datadog-agent/pkg/collector/check"
 
 // ConfigProvider is the interface that wraps the Collect method
 //

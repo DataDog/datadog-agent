@@ -1,8 +1,8 @@
 package system
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/check"
-	"github.com/DataDog/datadog-agent/pkg/checks"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
 	"github.com/op/go-logging"
 	"github.com/shirou/gopsutil/mem"
 
@@ -31,5 +31,5 @@ func (c *MemoryCheck) Configure(data check.ConfigData) {
 }
 
 func init() {
-	checks.RegisterCheck("memory", &MemoryCheck{})
+	core.RegisterCheck("memory", &MemoryCheck{})
 }
