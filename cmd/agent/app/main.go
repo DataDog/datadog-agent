@@ -5,15 +5,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/check"
-	"github.com/DataDog/datadog-agent/pkg/checks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
+	"github.com/DataDog/datadog-agent/pkg/core"
 	"github.com/DataDog/datadog-agent/pkg/py"
 	"github.com/kardianos/osext"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
 
 	// register core checks
-	_ "github.com/DataDog/datadog-agent/pkg/checks/system"
+	_ "github.com/DataDog/datadog-agent/pkg/core/system"
 )
 
 const AGENT_VERSION = "6.0.0"
@@ -51,7 +51,7 @@ func getConfigProviders() (providers []loader.ConfigProvider) {
 func getCheckLoaders() []loader.CheckLoader {
 	return []loader.CheckLoader{
 		py.NewPythonCheckLoader(),
-		checks.NewGoCheckLoader(),
+		core.NewGoCheckLoader(),
 	}
 }
 
