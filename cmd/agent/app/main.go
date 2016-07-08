@@ -5,15 +5,15 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
-	"github.com/DataDog/datadog-agent/pkg/core"
 	"github.com/DataDog/datadog-agent/pkg/py"
 	"github.com/kardianos/osext"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
 
 	// register core checks
-	_ "github.com/DataDog/datadog-agent/pkg/core/system"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/check/core/system"
 )
 
 const AGENT_VERSION = "6.0.0"
