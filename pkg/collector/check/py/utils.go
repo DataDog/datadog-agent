@@ -29,7 +29,7 @@ func Initialize(paths ...string) *python.PyThreadState {
 
 	// inject the aggregator into global namespace
 	// (it will handle the GIL by itself)
-	initApi()
+	initAPI()
 
 	// return the state so the caller can resume
 	return state
