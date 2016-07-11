@@ -6,7 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// AssertAlmostEqual is self explanatory
 func AssertAlmostEqual(t *testing.T, expected, actual interface{}) {
-	var delta float64 = 0.1
+	var delta = 0.1
 	assert.InDelta(t, expected, actual, delta)
 }

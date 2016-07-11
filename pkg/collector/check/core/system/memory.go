@@ -11,17 +11,19 @@ import (
 
 var log = logging.MustGetLogger("datadog-agent")
 
-const MEMORY_CHECK_INTERVAL = 5
+const checkInterval = 5
 
+// MemoryCheck doesn't need additional fields
 type MemoryCheck struct{}
 
 func (c *MemoryCheck) String() string {
 	return "MemoryCheck"
 }
 
+// Run executes the check
 func (c *MemoryCheck) Run() error {
 	v, _ := mem.VirtualMemory()
-	aggregator.GetSender(MEMORY_CHECK_INTERVAL).Gauge("system.mem.total", float64(v.Total), "", []string{})
+	aggregator.GetSender(checkInterval).Gauge("system.mem.total", float64(v.Total), "", []string{})
 	return nil
 }
 
