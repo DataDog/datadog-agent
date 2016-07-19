@@ -6,11 +6,33 @@ The Datadog Agent faithfully collects events and metrics and brings
 them to [Datadog](https://app.datadoghq.com) on your behalf so that
 you can do something useful with your monitoring and performance data.
 
+## Requirements
+To build the project you need:
+ * `go` 1.6+
+ * `rake`
+ * an `agent` version 5.x installed under `/opt/`
+
+ We use `pkg-config` to make compilers and linkers aware of CPython. If you need to adjust the build for your specific configuration, add or edit the files within the `pkg-config` folder.
+
 ## Getting started
-Binary distributions are not provided yet, to try out the Agent you can build the `master` branch.
+Binary distributions are not provided yet, to try out the Agent you can build the `master` branch. Checkout the repo within your `GOPATH`, then install `glide`:
+```
+go get github.com/Masterminds/glide
+```
 
-### Building
-Just run the `build.sh` script from the repo root
+Use `glide` to fetch project dependencies:
+```
+glide up
+```
 
-### Testing
-Just run the `runtests.sh` script from the repo root
+Build and tests are orchestrated by a `Rakefile`, write `rake -T` on a shell to see the available tasks.
+If you're using the DogBox, ask `gimme` to provide a recent version of go, like:
+```
+eval "$(gimme 1.6.2)"
+```
+
+## Executing
+For the time being, you need to put in the `PYTHONPATH` enviroment variable where is the CPython installation:
+```
+export PYTHONPATH=/opt/datadog-agent/embedded/lib/python2.7/:/opt/datadog-agent/embedded/lib/python2.7/site-packages/:/opt/datadog-agent/embedded/lib/python2.7/lib-dynload/
+```

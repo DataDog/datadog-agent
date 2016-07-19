@@ -6,7 +6,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
-// #cgo pkg-config: python2
+// #cgo pkg-config: python-2.7
 // #cgo linux CFLAGS: -std=gnu99
 // #include "api.h"
 import "C"

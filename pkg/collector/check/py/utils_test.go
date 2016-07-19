@@ -9,20 +9,7 @@ import (
 
 // Setup the test module
 func TestMain(m *testing.M) {
-	err := python.Initialize()
-	if err != nil {
-		panic(err.Error())
-	}
-	// Set the PYTHONPATH
-	path := python.PySys_GetObject("path")
-	python.PyList_Append(path, python.PyString_FromString("."))
-	python.PyList_Append(path, python.PyString_FromString("tests"))
-	python.PyList_Append(path, python.PyString_FromString("dist"))
-
-	// Initialize acquires the GIL but we don't need it, release it
-	state := python.PyEval_SaveThread()
-
-	initApi()
+	state := Initialize(".", "tests", "dist")
 
 	ret := m.Run()
 

@@ -11,3 +11,6 @@ import:
   - mem
 - package: gopkg.in/yaml.v2
 - package: github.com/kardianos/osext
+- package: github.com/golang/lint
+  subpackages:
+  - golint
