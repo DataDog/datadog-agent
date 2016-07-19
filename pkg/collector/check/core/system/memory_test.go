@@ -3,6 +3,7 @@ package system
 import (
 	"testing"
 
+	ddtesting "github.com/DataDog/datadog-agent/pkg/collector/check/testing"
 	"github.com/shirou/gopsutil/mem"
 )
 
@@ -44,7 +45,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := new(MockSender) // from common_test.go
+	mock := new(ddtesting.MockSender) // from common_test.go
 	memCheck.sender = mock
 	runtimeOS = "linux"
 
@@ -75,7 +76,7 @@ func TestMemoryCheckFreebsd(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := new(MockSender)
+	mock := new(ddtesting.MockSender)
 	memCheck.sender = mock
 	runtimeOS = "freebsd"
 
@@ -102,7 +103,7 @@ func TestMemoryCheckDarwin(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := new(MockSender)
+	mock := new(ddtesting.MockSender)
 	memCheck.sender = mock
 	runtimeOS = "darwin"
 

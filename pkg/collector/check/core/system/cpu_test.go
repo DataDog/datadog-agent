@@ -3,6 +3,7 @@ package system
 import (
 	"testing"
 
+	ddtesting "github.com/DataDog/datadog-agent/pkg/collector/check/testing"
 	"github.com/shirou/gopsutil/cpu"
 )
 
@@ -72,7 +73,7 @@ func TestCPUCheckLinux(t *testing.T) {
 	cpuCheck := new(CPUCheck)
 	cpuCheck.Configure(nil, nil)
 
-	mock := new(MockSender) // from common_test.go
+	mock := new(ddtesting.MockSender) // from common_test.go
 	cpuCheck.sender = mock
 	sample = firstSample
 	cpuCheck.Run()
