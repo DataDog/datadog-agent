@@ -4,6 +4,7 @@ import (
 	"net"
 )
 
+// RunServer starts and run a dogstatsd server
 func RunServer(out chan *MetricSample) {
 	address, _ := net.ResolveUDPAddr("udp", "localhost:8126") // TODO: configurable bind address
 	serverConn, err := net.ListenUDP("udp", address)

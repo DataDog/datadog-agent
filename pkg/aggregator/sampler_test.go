@@ -82,8 +82,8 @@ func TestCalculateBucketStart(t *testing.T) {
 }
 
 func TestMetricsGaugeSampling(t *testing.T) {
-	metrics := NewMetrics()
-	var contextKey string = "context_key"
+	metrics := newMetrics()
+	contextKey := "context_key"
 	mSample := dogstatsd.MetricSample{
 		Value: 1,
 		Mtype: dogstatsd.Gauge,
@@ -111,7 +111,7 @@ func TestBucketSampling(t *testing.T) {
 		Value: 1,
 		Mtype: dogstatsd.Gauge,
 	}
-	var contextKey string = "context_key"
+	contextKey := "context_key"
 
 	intervalSampler.addSample(contextKey, mSample.Mtype, mSample.Value, 12345)
 	intervalSampler.addSample(contextKey, mSample.Mtype, mSample.Value, 12355)

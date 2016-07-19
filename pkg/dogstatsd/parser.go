@@ -9,8 +9,10 @@ import (
 // Schema of a dogstatsd packet:
 // <name>:<value>|<metric_type>|@<sample_rate>|#<tag1_name>:<tag1_value>,<tag2_name>:<tag2_value>:<value>|<metric_type>...
 
+// MetricType is the representation of a dogstatsd metric type
 type MetricType string
 
+// metric type constants
 const (
 	Gauge   MetricType = "g"
 	Counter MetricType = "c"
@@ -19,10 +21,11 @@ const (
 // Default metrics interval in seconds (== default bucket size)
 const dogstatsdInterval int64 = 10
 
-var metricTypes map[MetricType]struct{} = map[MetricType]struct{}{
+var metricTypes = map[MetricType]struct{}{
 	Gauge: struct{}{},
 }
 
+// MetricSample represents a parsed metric sample
 type MetricSample struct {
 	Name       string
 	Value      float64
