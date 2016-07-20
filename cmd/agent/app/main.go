@@ -16,7 +16,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/check/core/system"
 )
 
-const AGENT_VERSION = "6.0.0"
+const agentVersion = "6.0.0"
 
 var here, _ = osext.ExecutableFolder()
 var distPath = filepath.Join(here, "dist")
@@ -58,7 +58,7 @@ func getCheckLoaders() []loader.CheckLoader {
 // Start the main check loop
 func Start() {
 
-	log.Infof("Starting Datadog Agent v%v", AGENT_VERSION)
+	log.Infof("Starting Datadog Agent v%v", agentVersion)
 
 	pending := make(chan check.Check, 10)
 

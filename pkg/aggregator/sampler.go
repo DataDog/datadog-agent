@@ -7,18 +7,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 )
 
+// Metrics stores all the metrics by context key
 type Metrics struct {
 	gauges   map[string]*Gauge
 	counters map[string]*Counter
 }
 
-func NewMetrics() *Metrics {
+func newMetrics() *Metrics {
 	return &Metrics{
 		make(map[string]*Gauge),
 		make(map[string]*Counter),
 	}
 }
 
+// Context holds the elements that form a context, and can be serialized into a context key
 type Context struct {
 	Name       string
 	Tags       *[]string
@@ -26,6 +28,7 @@ type Context struct {
 	DeviceName string
 }
 
+// Serie holds a timeserie
 type Serie struct {
 	Name       string          `json:"metric"`
 	Points     [][]interface{} `json:"points"`
@@ -38,27 +41,32 @@ type Serie struct {
 	nameSuffix string
 }
 
+// SerieSignature holds the elements that allow to know whether two similar `Serie`s
+// from the same bucket can be merged into one
 type SerieSignature struct {
 	mType      string
 	contextKey string
 	nameSuffix string
 }
 
+// Sampler aggregates metrics
 type Sampler struct {
 	intervalSamplerByInterval map[int64]*IntervalSampler
 	contexts                  map[string]Context
 }
 
+// IntervalSampler aggregates metrics with buckets of one given interval only
 type IntervalSampler struct {
 	interval           int64
 	metricsByTimestamp map[int64]*Metrics
 }
 
+// NewSampler returns a newly initialized Sampler
 func NewSampler() *Sampler {
 	return &Sampler{map[int64]*IntervalSampler{}, map[string]Context{}}
 }
 
-func NewIntervalSampler(interval int64) *IntervalSampler {
+func newIntervalSampler(interval int64) *IntervalSampler {
 	return &IntervalSampler{interval, map[int64]*Metrics{}}
 }
 
@@ -71,7 +79,7 @@ func (s *Sampler) addSample(metricSample *dogstatsd.MetricSample, timestamp int6
 	intervalSampler, ok := s.intervalSamplerByInterval[metricSample.Interval]
 
 	if !ok {
-		intervalSampler = NewIntervalSampler(metricSample.Interval)
+		intervalSampler = newIntervalSampler(metricSample.Interval)
 		s.intervalSamplerByInterval[metricSample.Interval] = intervalSampler
 	}
 
@@ -94,7 +102,7 @@ func (s *IntervalSampler) addSample(contextKey string, mType dogstatsd.MetricTyp
 	metrics, ok := s.metricsByTimestamp[bucketStart]
 
 	if !ok {
-		metrics = NewMetrics()
+		metrics = newMetrics()
 		s.metricsByTimestamp[bucketStart] = metrics
 	}
 

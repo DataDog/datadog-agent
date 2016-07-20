@@ -23,8 +23,8 @@ func sendGauge(gStress, gStats *godspeed.Godspeed, metric string, value float64,
 	}
 
 	gStats.Send("datadog.agent.dogstatsd_bench.sent", "c", 1, 0.01, []string{"metric_type:g"})
-	metric_tag := "metric_name:" + metric
-	context := append(tags, metric_tag)
+	metricTag := "metric_name:" + metric
+	context := append(tags, metricTag)
 	h := fnv.New32()
 	h.Write([]byte(strings.Join(context, "|")))
 	hash := h.Sum32()

@@ -9,45 +9,50 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 )
 
-const FLUSH_INTERVAL = 15 // flush interval in seconds
+const defaultFlushInterval = 15 // flush interval in seconds
 
 var log = logging.MustGetLogger("datadog-agent")
 
 var _aggregator *BufferedAggregator
 
-// Interface
+// Sender is the interface that allows sending metrics from checks
 type Sender interface {
 	Gauge(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
 }
 
+// GetSender returns a Sender that aggregates according to the passed interval
 func GetSender(interval int64) Sender {
 	if _aggregator == nil {
-		_aggregator = newBufferedAggregator(FLUSH_INTERVAL)
+		_aggregator = newBufferedAggregator(defaultFlushInterval)
 	}
 	return &IntervalAggregator{_aggregator, interval}
 }
 
+// GetChannel returns a channel which can be subsequently used to send MetricSamples
 func GetChannel() chan *dogstatsd.MetricSample {
 	if _aggregator == nil {
-		_aggregator = newBufferedAggregator(FLUSH_INTERVAL)
+		_aggregator = newBufferedAggregator(defaultFlushInterval)
 	}
 
 	return _aggregator.in
 }
 
+// Gauge implements the Sender interface
 func (agg *UnbufferedAggregator) Gauge(metric string, value float64, hostname string, tags []string) {
 	if err := agg.client.Gauge(metric, value, tags, 1); err != nil {
 		log.Errorf("Error posting gauge %s: %v", metric, err)
 	}
 }
 
+// Histogram implements the Sender interface
 func (agg *UnbufferedAggregator) Histogram(metric string, value float64, hostname string, tags []string) {
 	if err := agg.client.Histogram(metric, value, tags, 1); err != nil {
 		log.Errorf("Error histogram %s: %v", metric, err)
 	}
 }
 
+// Gauge implements the Sender interface
 func (ia *IntervalAggregator) Gauge(metric string, value float64, hostname string, tags []string) {
 	metricSample := &dogstatsd.MetricSample{
 		Name:       metric,
@@ -60,6 +65,7 @@ func (ia *IntervalAggregator) Gauge(metric string, value float64, hostname strin
 	ia.aggregator.in <- metricSample
 }
 
+// Histogram implements the Sender interface
 func (ia *IntervalAggregator) Histogram(metric string, value float64, hostname string, tags []string) {
 	// TODO
 }
@@ -87,6 +93,7 @@ type IntervalAggregator struct {
 	checkInterval int64
 }
 
+// NewUnbufferedAggregator returns a newly initialized UnbufferedAggregator
 func NewUnbufferedAggregator() *UnbufferedAggregator {
 	c, err := statsd.New("127.0.0.1:8125")
 	if err != nil {
