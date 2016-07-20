@@ -25,6 +25,11 @@ Use `glide` to fetch project dependencies:
 glide up
 ```
 
+To run the test suite `golint` has to be available on your system, if it is not, just install it with:
+```
+go get -u github.com/golang/lint/golint
+```
+
 Build and tests are orchestrated by a `Rakefile`, write `rake -T` on a shell to see the available tasks.
 If you're using the DogBox, ask `gimme` to provide a recent version of go, like:
 ```
@@ -32,7 +37,4 @@ eval "$(gimme 1.6.2)"
 ```
 
 ## Executing
-For the time being, you need to put in the `PYTHONPATH` enviroment variable where is the CPython installation:
-```
-export PYTHONPATH=/opt/datadog-agent/embedded/lib/python2.7/:/opt/datadog-agent/embedded/lib/python2.7/site-packages/:/opt/datadog-agent/embedded/lib/python2.7/lib-dynload/
-```
+Just execute the `agent` launch script within the `bin/agent` folder, it will take care of adjusting paths and run the binary.
