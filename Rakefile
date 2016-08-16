@@ -1,6 +1,7 @@
 require 'rake/clean'
 require './go'
 
+PKG_CONFIG_LIBDIR=File.join(`pwd`.strip, "pkg-config", RUBY_PLATFORM)
 ORG_PATH="github.com/DataDog"
 REPO_PATH="#{ORG_PATH}/datadog-agent"
 TARGETS = %w[./pkg ./cmd]
@@ -59,8 +60,10 @@ namespace :agent do
 
   desc "Build the agent"
   task :build do
-    system("go build -o #{BIN_PATH}/agent #{REPO_PATH}/cmd/agent")
-    FileUtils.cp_r("./pkg/collector/check/py/dist/", "#{BIN_PATH}/dist/")
+    system({"PKG_CONFIG_LIBDIR" => "#{PKG_CONFIG_LIBDIR}"}, "go build -o #{BIN_PATH}/agent.bin #{REPO_PATH}/cmd/agent")
+    FileUtils.cp_r("./pkg/collector/check/py/dist/", "#{BIN_PATH}", :remove_destination => true)
+    FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
+    FileUtils.chmod(0755, "#{BIN_PATH}/agent")
   end
 
 end
