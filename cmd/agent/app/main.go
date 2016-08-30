@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/kardianos/osext"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
@@ -38,6 +39,8 @@ type metric struct {
 
 type metrics map[string][]metric
 
+// build a list of providers for checks' configurations, the sequence defines
+// the precedence.
 func getConfigProviders() (providers []loader.ConfigProvider) {
 	confdPath := filepath.Join(distPath, "conf.d")
 	configPaths := []string{confdPath}
@@ -48,6 +51,7 @@ func getConfigProviders() (providers []loader.ConfigProvider) {
 	return providers
 }
 
+// build a list of check loaders, the sequence defines the precedence.
 func getCheckLoaders() []loader.CheckLoader {
 	return []loader.CheckLoader{
 		py.NewPythonCheckLoader(),
@@ -55,11 +59,26 @@ func getCheckLoaders() []loader.CheckLoader {
 	}
 }
 
+// define configuration data for the Agent using different providers
+func getConfiguration() *config.Config {
+	cfg := config.NewConfig()
+
+	// for now, we only load configuration from file
+	fileProvider := config.NewFileProvider(configPath)
+	fileProvider.Configure(cfg)
+
+	return cfg
+}
+
 // Start the main check loop
 func Start() {
 
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
 
+	// Global Agent configuration
+	// config := getConfiguration()
+
+	// Create a channel to enqueue the checks
 	pending := make(chan check.Check, 10)
 
 	// Initialize the CPython interpreter
