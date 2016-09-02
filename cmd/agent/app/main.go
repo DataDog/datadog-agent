@@ -2,12 +2,12 @@ package ddagentmain
 
 import (
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
+	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/kardianos/osext"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
@@ -21,13 +21,6 @@ const agentVersion = "6.0.0"
 var here, _ = osext.ExecutableFolder()
 var distPath = filepath.Join(here, "dist")
 var log = logging.MustGetLogger("datadog-agent")
-
-// schedule all the available checks for running
-func enqueueChecks(pending chan check.Check, checks []check.Check) {
-	for i := 0; i < len(checks); i++ {
-		pending <- checks[i]
-	}
-}
 
 // for testing purposes only: collect and log check results
 type metric struct {
@@ -75,25 +68,29 @@ func Start() {
 		configs = append(configs, c...)
 	}
 
+	// Instance the scheduler
+	scheduler := scheduler.NewScheduler(pending)
+
 	// given a list of configurations, try to load corresponding checks using different loaders
+	// TODO add check type to the conf file so that we avoid the inner for
 	loaders := getCheckLoaders()
-	checks := []check.Check{}
 	for _, conf := range configs {
 		for _, loader := range loaders {
 			res, err := loader.Load(conf)
 			if err == nil {
-				checks = append(checks, res...)
+				scheduler.Enter(res)
 			}
 		}
 	}
 
-	// Start the scheduler
-	ticker := time.NewTicker(time.Millisecond * 5000)
-	for t := range ticker.C {
-		log.Infof("Tick at %v", t)
-		// Schedule the checks
-		go enqueueChecks(pending, checks)
-	}
+	// Run the scheduler
+	scheduler.Run()
 
+	// indefinitely block here for now, later we'll migrate to a more sophisticated
+	// system to handle interrupts (reloads, restarts, service discovery events, etc...)
+	var c chan bool
+	<-c
+
+	// this is not called for now, sorry CPython for leaving a mess on exit!
 	python.PyEval_RestoreThread(state)
 }

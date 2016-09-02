@@ -4,6 +4,10 @@ import "github.com/op/go-logging"
 
 var log = logging.MustGetLogger("datadog-agent")
 
+// DefaultCheckInterval is the interval in seconds the scheduler should apply
+// when no value was provided in Check configuration.
+const DefaultCheckInterval = 20
+
 // ConfigData contains YAML code
 type ConfigData []byte
 
@@ -21,6 +25,7 @@ type Check interface {
 	Run() error
 	String() string
 	Configure(data ConfigData)
+	Interval() int
 }
 
 // Runner waits for checks and run them as long as they arrive on the channel
@@ -34,5 +39,6 @@ func Runner(in <-chan Check) {
 		if err != nil {
 			log.Errorf("Error running check %s: %s", check, err)
 		}
+		log.Infof("Done running check %s", check)
 	}
 }

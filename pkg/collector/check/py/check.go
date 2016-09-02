@@ -35,10 +35,9 @@ func (c *PythonCheck) Run() error {
 		python.PyGILState_Release(_gstate)
 	}()
 
-	// call run function
-	runFunc := c.Instance.GetAttrString("run")
+	// call run function, it takes no args so we pass an empty tuple
 	emptyTuple := python.PyTuple_New(0)
-	result := runFunc.CallObject(emptyTuple)
+	result := c.Instance.CallMethod("run", emptyTuple)
 	var resultStr string
 	if result == nil {
 		python.PyErr_Print()
@@ -101,4 +100,9 @@ func (c *PythonCheck) Configure(data check.ConfigData) {
 	c.Instance = instance
 	c.ModuleName = python.PyString_AsString(instance.GetAttrString("__module__"))
 	c.Config = configDict
+}
+
+// Interval returns the scheduling time for the check
+func (c *PythonCheck) Interval() int {
+	return check.DefaultCheckInterval
 }

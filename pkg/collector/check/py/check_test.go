@@ -1,9 +1,12 @@
+// FIXME migrate to testify ASAP
+
 package py
 
 import (
 	"testing"
 
 	"github.com/sbinet/go-python"
+	"github.com/stretchr/testify/assert"
 )
 
 func getCheckInstance() *PythonCheck {
@@ -83,6 +86,11 @@ func TestStr(t *testing.T) {
 	if check.String() != "" {
 		t.Fatalf("Expected empty string, found: %v", check)
 	}
+}
+
+func TestInterval(t *testing.T) {
+	check := getCheckInstance()
+	assert.Equal(t, 20, check.Interval())
 }
 
 func BenchmarkRun(b *testing.B) {

@@ -32,6 +32,11 @@ func (c *MemoryCheck) Configure(data check.ConfigData) {
 	// do nothing
 }
 
+// Interval returns the scheduling time for the check
+func (c *MemoryCheck) Interval() int {
+	return check.DefaultCheckInterval
+}
+
 func init() {
 	core.RegisterCheck("memory", &MemoryCheck{})
 }

@@ -12,6 +12,7 @@ type TestCheck struct {
 
 func (c *TestCheck) String() string       { return "TestCheck" }
 func (c *TestCheck) Configure(ConfigData) {}
+func (c *TestCheck) Interval() int        { return 1 }
 func (c *TestCheck) Run() error {
 	if c.doErr {
 		msg := "A tremendous error occurred."
