@@ -11,3 +11,5 @@ import:
   - mem
 - package: gopkg.in/yaml.v2
 - package: github.com/kardianos/osext
+- package: github.com/stretchr/testify
+  version: ^1.1.3
