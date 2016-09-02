@@ -11,7 +11,7 @@ dependencies:
 
   override:
     - mkdir -p "$IMPORT_PATH"
-    - rsync -azC --delete ./ "$IMPORT_PATH"
+    - rsync -azr --delete ./ "$IMPORT_PATH"
     - cd "$IMPORT_PATH" && glide up
 
 test:
