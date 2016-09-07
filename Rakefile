@@ -1,7 +1,18 @@
 require 'rake/clean'
 require './go'
 
-PKG_CONFIG_LIBDIR=File.join(`pwd`.strip, "pkg-config", RUBY_PLATFORM)
+def os
+  case RUBY_PLATFORM
+  when /linux/
+    "linux"
+  when /darwin/
+    "darwin"
+  else
+    fail 'Unsupported OS'
+  end
+end
+
+PKG_CONFIG_LIBDIR=File.join(`pwd`.strip, "pkg-config", os)
 ORG_PATH="github.com/DataDog"
 REPO_PATH="#{ORG_PATH}/datadog-agent"
 TARGETS = %w[./pkg ./cmd]
