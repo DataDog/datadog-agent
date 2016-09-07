@@ -51,7 +51,7 @@ task :test => %w[fmt lint vet] do
     Dir.glob("#{t}/**/*").select {|f| File.directory? f }.each do |pkg_folder|  # recursively search for go packages
       next if Dir.glob(File.join(pkg_folder, "*.go")).length == 0  # folder is a package if contains go modules
       profile_tmp = "#{pkg_folder}/profile.tmp"  # temp file to collect coverage data
-      system("go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}")
+      system({"PKG_CONFIG_LIBDIR" => "#{PKG_CONFIG_LIBDIR}"}, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}")
       if File.file?(profile_tmp)
         `cat #{profile_tmp} | tail -n +2 >> #{PROFILE}`
         File.delete(profile_tmp)
