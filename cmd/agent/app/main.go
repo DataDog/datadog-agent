@@ -59,15 +59,12 @@ func getCheckLoaders() []loader.CheckLoader {
 	}
 }
 
-// define configuration data for the Agent using different providers
-func getConfiguration() *config.Config {
-	cfg := config.NewConfig()
-
-	// for now, we only load configuration from file
-	fileProvider := config.NewFileProvider(configPath)
-	fileProvider.Configure(cfg)
-
-	return cfg
+// build a list of providers for Agent configuration, the sequence
+// define the precedence.
+func getAgentConfigProviders() (providers []config.Provider) {
+	return []config.Provider{
+		config.NewFileProvider(configPath),
+	}
 }
 
 // Start the main check loop
@@ -76,7 +73,12 @@ func Start() {
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
 
 	// Global Agent configuration
-	// config := getConfiguration()
+	cfg := config.NewConfig()
+	for _, provider := range getAgentConfigProviders() {
+		if err := provider.Configure(cfg); err != nil {
+			log.Warningf("Unable to load configuration from provider %v: %v", provider, err)
+		}
+	}
 
 	// Create a channel to enqueue the checks
 	pending := make(chan check.Check, 10)
