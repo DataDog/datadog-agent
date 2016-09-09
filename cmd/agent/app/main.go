@@ -2,12 +2,14 @@ package ddagentmain
 
 import (
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/kardianos/osext"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
@@ -31,6 +33,8 @@ type metric struct {
 
 type metrics map[string][]metric
 
+// build a list of providers for checks' configurations, the sequence defines
+// the precedence.
 func getConfigProviders() (providers []loader.ConfigProvider) {
 	confdPath := filepath.Join(distPath, "conf.d")
 	configPaths := []string{confdPath}
@@ -41,10 +45,19 @@ func getConfigProviders() (providers []loader.ConfigProvider) {
 	return providers
 }
 
+// build a list of check loaders, the sequence defines the precedence.
 func getCheckLoaders() []loader.CheckLoader {
 	return []loader.CheckLoader{
 		py.NewPythonCheckLoader(),
 		core.NewGoCheckLoader(),
+	}
+}
+
+// build a list of providers for Agent configuration, the sequence
+// define the precedence.
+func getAgentConfigProviders() (providers []config.Provider) {
+	return []config.Provider{
+		config.NewFileProvider(configPath),
 	}
 }
 
@@ -53,6 +66,15 @@ func Start() {
 
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
 
+	// Global Agent configuration
+	cfg := config.NewConfig()
+	for _, provider := range getAgentConfigProviders() {
+		if err := provider.Configure(cfg); err != nil {
+			log.Warningf("Unable to load configuration from provider %v: %v", provider, err)
+		}
+	}
+
+	// Create a channel to enqueue the checks
 	pending := make(chan check.Check, 10)
 
 	// Initialize the CPython interpreter
