@@ -2,7 +2,6 @@ package ddagentmain
 
 import (
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/core"

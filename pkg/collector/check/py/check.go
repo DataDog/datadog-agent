@@ -20,11 +20,16 @@ type PythonCheck struct {
 	Class      *python.PyObject
 	ModuleName string
 	Config     *python.PyObject
+	interval   time.Duration
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
 func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
-	return &PythonCheck{ModuleName: name, Class: class}
+	return &PythonCheck{
+		ModuleName: name,
+		Class:      class,
+		interval:   check.DefaultCheckInterval,
+	}
 }
 
 // Run a Python check
@@ -68,7 +73,18 @@ func (c *PythonCheck) Configure(data check.ConfigData) {
 	err := yaml.Unmarshal(data, &raw)
 	if err != nil {
 		// TODO log error
+		log.Error(err)
 		return
+	}
+
+	// See if a collection interval was specified
+	x, ok := raw["min_collection_interval"]
+	if ok {
+		// we should receive an int from the unmarshaller
+		if intl, ok := x.(int); ok {
+			// all good, convert to the right type
+			c.interval = time.Duration(intl)
+		}
 	}
 
 	// Lock the GIL and release it at the end
@@ -105,5 +121,5 @@ func (c *PythonCheck) Configure(data check.ConfigData) {
 
 // Interval returns the scheduling time for the check
 func (c *PythonCheck) Interval() time.Duration {
-	return check.DefaultCheckInterval
+	return c.interval
 }

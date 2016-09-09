@@ -4,6 +4,7 @@ package py
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/sbinet/go-python"
@@ -92,6 +93,8 @@ func TestStr(t *testing.T) {
 func TestInterval(t *testing.T) {
 	c := getCheckInstance()
 	assert.Equal(t, check.DefaultCheckInterval, c.Interval())
+	c.Configure([]byte("min_collection_interval: 1"))
+	assert.Equal(t, time.Duration(1), c.Interval())
 }
 
 func BenchmarkRun(b *testing.B) {
