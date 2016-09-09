@@ -16,15 +16,15 @@ const defaultTimeout = 5000
 // Scheduler keeps things rolling.
 // More docs to come...
 type Scheduler struct {
-	checksPipe chan<- check.Check // The pipe the Runner pops the checks from
-	done       chan bool          // Guard for the main loop
-	jobQueues  map[int]*jobQueue  // We have one scheduling queue for every interval
+	checksPipe chan<- check.Check          // The pipe the Runner pops the checks from
+	done       chan bool                   // Guard for the main loop
+	jobQueues  map[time.Duration]*jobQueue // We have one scheduling queue for every interval
 }
 
 // jobQueue contains a list of checks (called jobs) that need to be
 // scheduled at a certain interval.
 type jobQueue struct {
-	interval int
+	interval time.Duration
 	stop     chan bool
 	ticker   *time.Ticker
 	jobs     []check.Check
@@ -37,7 +37,7 @@ func NewScheduler(out chan<- check.Check) *Scheduler {
 	return &Scheduler{
 		checksPipe: out,
 		done:       make(chan bool),
-		jobQueues:  make(map[int]*jobQueue),
+		jobQueues:  make(map[time.Duration]*jobQueue),
 	}
 }
 
@@ -117,7 +117,7 @@ func (s *Scheduler) startQueues() {
 // newJobQueue creates a new jobQueue instance
 // the stop channel is buffered so the scheduler loop can send a message to stop
 // without blocking
-func newJobQueue(interval int) *jobQueue {
+func newJobQueue(interval time.Duration) *jobQueue {
 	return &jobQueue{
 		interval: interval,
 		ticker:   time.NewTicker(time.Second * time.Duration(interval)),

@@ -3,6 +3,7 @@ package py
 import (
 	"errors"
 	"runtime"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -103,6 +104,6 @@ func (c *PythonCheck) Configure(data check.ConfigData) {
 }
 
 // Interval returns the scheduling time for the check
-func (c *PythonCheck) Interval() int {
+func (c *PythonCheck) Interval() time.Duration {
 	return check.DefaultCheckInterval
 }

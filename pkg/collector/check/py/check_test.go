@@ -5,6 +5,7 @@ package py
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 )
@@ -89,8 +90,8 @@ func TestStr(t *testing.T) {
 }
 
 func TestInterval(t *testing.T) {
-	check := getCheckInstance()
-	assert.Equal(t, 20, check.Interval())
+	c := getCheckInstance()
+	assert.Equal(t, check.DefaultCheckInterval, c.Interval())
 }
 
 func BenchmarkRun(b *testing.B) {

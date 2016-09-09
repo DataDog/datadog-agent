@@ -9,11 +9,11 @@ import (
 )
 
 // FIXTURE
-type TestCheck struct{ intl int }
+type TestCheck struct{ intl time.Duration }
 
 func (c *TestCheck) String() string             { return "TestCheck" }
 func (c *TestCheck) Configure(check.ConfigData) {}
-func (c *TestCheck) Interval() int              { return c.intl }
+func (c *TestCheck) Interval() time.Duration    { return c.intl }
 func (c *TestCheck) Run() error                 { return nil }
 
 // wait 1s for a predicate function to return true, use polling
