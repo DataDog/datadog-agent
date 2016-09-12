@@ -8,7 +8,7 @@ require "./lib/ostools.rb"
 name 'datadog-agent'
 maintainer 'Datadog Packages <package@datadoghq.com>'
 homepage 'http://www.datadoghq.com'
-install_dir '/opt/datadog-agent'
+install_dir '/opt/datadog-agent6'
 
 build_version do
   source :git, from_dependency: 'datadog-agent'
@@ -55,7 +55,7 @@ end
 # OSX .pkg specific flags
 package :pkg do
   identifier 'com.datadoghq.agent'
-  signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
+  #signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
 end
 compress :dmg do
   window_bounds '200, 200, 750, 600'
@@ -112,11 +112,6 @@ if linux?
   dependency 'sysstat'
 end
 
-# Mac and Windows
-if osx? or windows?
-  dependency 'gui'
-end
-
 # ------------------------------------
 # Dependencies
 # ------------------------------------
@@ -125,53 +120,12 @@ end
 dependency 'preparation'
 
 # Agent dependencies
-dependency 'boto'
-dependency 'docker-py'
-dependency 'ntplib'
-dependency 'pycrypto'
-dependency 'pyopenssl'
-dependency 'python-consul'
-dependency 'python-etcd'
-dependency 'pyyaml'
-dependency 'simplejson'
-dependency 'supervisor'
-dependency 'tornado'
-dependency 'uptime'
-dependency 'uuid'
-dependency 'zlib'
 
 # Check dependencies
-dependency 'adodbapi'
-dependency 'dnspython'
-dependency 'httplib2'
-dependency 'kafka-python'
-dependency 'kazoo'
-dependency 'paramiko'
-dependency 'pg8000'
-dependency 'psutil'
-dependency 'psycopg2'
-dependency 'pymongo'
-dependency 'pymysql'
-dependency 'pysnmp'
-dependency 'python-gearman'
-dependency 'python-memcached'
-dependency 'python-redis'
-dependency 'python-rrdtool'
-dependency 'pyvmomi'
 dependency 'requests'
-dependency 'scandir'
-dependency 'snakebite'
 
 # Additional software
 dependency 'datadogpy'
-
-# datadog-gohai and datadog-metro are built last before datadog-agent since they should always
-# be rebuilt (if put above, they would dirty the cache of the dependencies below
-# and trigger a useless rebuild of many packages)
-dependency 'datadog-gohai'
-if linux? and ohai['kernel']['machine'] == 'x86_64'
-  dependency 'datadog-metro'
-end
 
 # Datadog agent
 dependency 'datadog-agent'
