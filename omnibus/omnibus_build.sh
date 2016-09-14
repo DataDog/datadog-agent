@@ -11,11 +11,12 @@ rm -rf /var/cache/omnibus/pkg/*
 
 # Clean up what we installed
 rm -f /etc/init.d/datadog-agent
-rm -rf /etc/dd-agent
+rm -rf /etc/datadog/agent
 rm -rf /opt/$PROJECT_NAME/*
 
-cd /datadog-agent/omnibus-datadog-agent
+cd /datadog-agent/omnibus
 ls -l
+
 # Install the gems we need, with stubs in bin/
 bundle update # Make sure to update to the latest version of omnibus-software
 omnibus build -l=$LOG_LEVEL $PROJECT_NAME

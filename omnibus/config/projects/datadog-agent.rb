@@ -62,18 +62,6 @@ compress :dmg do
   pkg_position '10, 10'
 end
 
-# Note: this is to try to avoid issues when upgrading from an
-# old version of the agent which shipped also a datadog-agent-base
-# package.
-if redhat?
-  replace 'datadog-agent-base < 5.0.0'
-  replace 'datadog-agent-lib < 5.0.0'
-elsif debian?
-  replace 'datadog-agent-base (<< 5.0.0)'
-  replace 'datadog-agent-lib (<< 5.0.0)'
-  conflict 'datadog-agent-base (<< 5.0.0)'
-end
-
 # ------------------------------------
 # OS specific DSLs and dependencies
 # ------------------------------------
@@ -92,20 +80,14 @@ if linux?
     extra_package_file '/etc/init.d/datadog-agent'
   end
 
-  # Supervisord config file for the agent
-  extra_package_file '/etc/dd-agent/supervisor.conf'
-
   # Example configuration files for the agent and the checks
-  extra_package_file '/etc/dd-agent/datadog.conf.example'
-  extra_package_file '/etc/dd-agent/conf.d'
-
-  # Custom checks directory
-  extra_package_file '/etc/dd-agent/checks.d'
+  extra_package_file '/etc/datadog/agent/datadog.conf.example'
+  extra_package_file '/etc/datadog/agent/conf.d'
 
   # Just a dummy file that needs to be in the RPM package list if we don't want it to be removed
   # during RPM upgrades. (the old files from the RPM file listthat are not in the new RPM file
   # list will get removed, that's why we need this one here)
-  extra_package_file '/usr/bin/dd-agent'
+  extra_package_file '/usr/bin/datadog-agent'
 
   # Linux-specific dependencies
   dependency 'procps-ng'
