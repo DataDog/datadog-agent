@@ -12,7 +12,7 @@ rm -rf /var/cache/omnibus/pkg/*
 # Clean up what we installed
 rm -f /etc/init.d/$PROJECT_NAME
 rm -rf /etc/datadog/$PROJECT_NAME
-rm -rf /opt/datadog/$PROJECT_NAME/*
+rm -rf /opt/$PROJECT_NAME/*
 
 cd /datadog-agent/omnibus
 ls -l

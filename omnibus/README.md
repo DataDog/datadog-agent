@@ -19,7 +19,7 @@ Usage
 You create a platform-specific package using the `build project` command:
 
 ```shell
-$ bin/omnibus build datadog-agent
+$ bin/omnibus build datadog-agent6
 ```
 
 The platform/architecture type of the package created will match the platform
@@ -33,15 +33,15 @@ You can clean up all temporary files generated during the build process with
 the `clean` command:
 
 ```shell
-$ omnibus clean datadog-agent
+$ omnibus clean datadog-agent6
 ```
 
 Adding the `--purge` purge option removes __ALL__ files generated during the
-build including the project install directory (`/opt/datadog-agent`) and
+build including the project install directory (`/opt/datadog-agent6`) and
 the package cache directory (`/var/cache/omnibus/pkg`):
 
 ```shell
-$ omnibus clean datadog-agent --purge
+$ omnibus clean datadog-agent6 --purge
 ```
 
 ### Publish
