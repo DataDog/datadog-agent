@@ -33,7 +33,7 @@ description 'Datadog Monitoring Agent
 
 # .deb specific flags
 package :deb do
-  vendor 'Datadog <info@datadoghq.com>'
+  vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Simplified BSD License'
   section 'utils'
@@ -68,27 +68,6 @@ end
 
 # Linux
 if linux?
-  # Debian
-  if debian?
-    extra_package_file '/lib/systemd/system/datadog-agent6.service'
-  end
-
-  # SysVInit service file
-  if redhat?
-    extra_package_file '/etc/rc.d/init.d/datadog-agent6'
-  else
-    extra_package_file '/etc/init.d/datadog-agent6'
-  end
-
-  # Example configuration files for the agent and the checks
-  extra_package_file '/etc/datadog-agent6/datadog.conf.example'
-  extra_package_file '/etc/datadog-agent6/conf.d'
-
-  # Just a dummy file that needs to be in the RPM package list if we don't want it to be removed
-  # during RPM upgrades. (the old files from the RPM file listthat are not in the new RPM file
-  # list will get removed, that's why we need this one here)
-  extra_package_file '/usr/bin/datadog-agent6'
-
   # Linux-specific dependencies
   dependency 'procps-ng'
   dependency 'sysstat'
