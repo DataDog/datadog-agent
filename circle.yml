@@ -1,7 +1,6 @@
 machine:
   environment:
     IMPORT_PATH: "/home/ubuntu/.go_workspace/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME"
-    GO15VENDOREXPERIMENT: "1"
 
 dependencies:
   pre:
