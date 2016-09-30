@@ -1,0 +1,9 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent removal steps
+# after package is uninstalled.
+#
+
+echo "datadog-agent has been uninstalled!"
+
+exit 0
