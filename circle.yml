@@ -7,7 +7,7 @@ dependencies:
   pre:
     - rm -Rf /home/ubuntu/.go_workspace/src/*
     - go get github.com/Masterminds/glide
-    - go get github.com/jstemmer/go-junit-report
+    - go get -u github.com/golang/lint/golint
 
   override:
     - mkdir -p "$IMPORT_PATH"
@@ -16,8 +16,7 @@ dependencies:
 
 test:
   override:
-    - mkdir -p $CIRCLE_TEST_REPORTS/junit/
-    - cd "$IMPORT_PATH" && ./runtests.sh | go-junit-report > $CIRCLE_TEST_REPORTS/junit/junit.xml
+    - cd "$IMPORT_PATH" && rake test
 
   post:
     - cd "$IMPORT_PATH" && go tool cover -html=profile.cov -o $CIRCLE_ARTIFACTS/coverage.html
