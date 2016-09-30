@@ -5,13 +5,11 @@ machine:
 dependencies:
   pre:
     - rm -Rf /home/ubuntu/.go_workspace/src/*
-    - go get github.com/Masterminds/glide
-    - go get -u github.com/golang/lint/golint
 
   override:
     - mkdir -p "$IMPORT_PATH"
     - rsync -azr --delete ./ "$IMPORT_PATH"
-    - cd "$IMPORT_PATH" && glide up
+    - cd "$IMPORT_PATH" && rake deps
 
 test:
   override:
