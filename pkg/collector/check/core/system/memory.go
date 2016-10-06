@@ -1,6 +1,8 @@
 package system
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
 	"github.com/op/go-logging"
@@ -30,6 +32,11 @@ func (c *MemoryCheck) Run() error {
 // Configure the Python check from YAML data
 func (c *MemoryCheck) Configure(data check.ConfigData) {
 	// do nothing
+}
+
+// Interval returns the scheduling time for the check
+func (c *MemoryCheck) Interval() time.Duration {
+	return check.DefaultCheckInterval
 }
 
 func init() {

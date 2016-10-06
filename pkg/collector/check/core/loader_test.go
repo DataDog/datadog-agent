@@ -2,6 +2,7 @@ package core
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
@@ -12,6 +13,7 @@ type TestCheck struct{}
 func (c *TestCheck) String() string             { return "TestCheck" }
 func (c *TestCheck) Configure(check.ConfigData) {}
 func (c *TestCheck) Run() error                 { return nil }
+func (c *TestCheck) Interval() time.Duration    { return 1 }
 
 func TestNewGoCheckLoader(t *testing.T) {
 	if NewGoCheckLoader() == nil {

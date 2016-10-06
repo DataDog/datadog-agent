@@ -3,6 +3,7 @@ package py
 import (
 	"errors"
 	"runtime"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -19,11 +20,16 @@ type PythonCheck struct {
 	Class      *python.PyObject
 	ModuleName string
 	Config     *python.PyObject
+	interval   time.Duration
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
 func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
-	return &PythonCheck{ModuleName: name, Class: class}
+	return &PythonCheck{
+		ModuleName: name,
+		Class:      class,
+		interval:   check.DefaultCheckInterval,
+	}
 }
 
 // Run a Python check
@@ -35,10 +41,9 @@ func (c *PythonCheck) Run() error {
 		python.PyGILState_Release(_gstate)
 	}()
 
-	// call run function
-	runFunc := c.Instance.GetAttrString("run")
+	// call run function, it takes no args so we pass an empty tuple
 	emptyTuple := python.PyTuple_New(0)
-	result := runFunc.CallObject(emptyTuple)
+	result := c.Instance.CallMethod("run", emptyTuple)
 	var resultStr string
 	if result == nil {
 		python.PyErr_Print()
@@ -68,7 +73,18 @@ func (c *PythonCheck) Configure(data check.ConfigData) {
 	err := yaml.Unmarshal(data, &raw)
 	if err != nil {
 		// TODO log error
+		log.Error(err)
 		return
+	}
+
+	// See if a collection interval was specified
+	x, ok := raw["min_collection_interval"]
+	if ok {
+		// we should receive an int from the unmarshaller
+		if intl, ok := x.(int); ok {
+			// all good, convert to the right type
+			c.interval = time.Duration(intl)
+		}
 	}
 
 	// Lock the GIL and release it at the end
@@ -101,4 +117,9 @@ func (c *PythonCheck) Configure(data check.ConfigData) {
 	c.Instance = instance
 	c.ModuleName = python.PyString_AsString(instance.GetAttrString("__module__"))
 	c.Config = configDict
+}
+
+// Interval returns the scheduling time for the check
+func (c *PythonCheck) Interval() time.Duration {
+	return c.interval
 }

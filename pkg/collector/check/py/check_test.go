@@ -1,9 +1,14 @@
+// FIXME migrate to testify ASAP
+
 package py
 
 import (
 	"testing"
+	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/sbinet/go-python"
+	"github.com/stretchr/testify/assert"
 )
 
 func getCheckInstance() *PythonCheck {
@@ -83,6 +88,13 @@ func TestStr(t *testing.T) {
 	if check.String() != "" {
 		t.Fatalf("Expected empty string, found: %v", check)
 	}
+}
+
+func TestInterval(t *testing.T) {
+	c := getCheckInstance()
+	assert.Equal(t, check.DefaultCheckInterval, c.Interval())
+	c.Configure([]byte("min_collection_interval: 1"))
+	assert.Equal(t, time.Duration(1), c.Interval())
 }
 
 func BenchmarkRun(b *testing.B) {
