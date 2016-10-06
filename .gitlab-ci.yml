@@ -1,0 +1,50 @@
+stages:
+  - test
+  - build
+
+variables:
+  DOCKER_REGISTRY: gitlab.datad0g.com:4567
+  SRC_PATH: /src/github.com/DataDog/datadog-agent
+  DEB_X64: $DOCKER_REGISTRY/datadog/datadog-agent-builders:deb_x64
+  RPM_X64: $DOCKER_REGISTRY/datadog/datadog-agent-builders:rpm_x64
+
+before_script:
+  # We need to install go deps from within the GOPATH, which is / on builder images.
+  # That's why we copy the agent repo there before bootstrapping the vendor dependencies
+  - rsync -azr --delete ./ $SRC_PATH
+  - cd $SRC_PATH && rake deps
+  - cd $CI_PROJECT_DIR
+
+# run tests and build deb package
+run_tests_deb-x64:
+  stage: test
+  image: $DEB_X64
+  tags:
+    - docker
+  script:
+    - rake test
+
+build_deb-x64:
+  stage: build
+  image: $DEB_X64
+  tags:
+    - docker
+  script:
+    - rake agent:omnibus
+  cache:
+    # cache per branch
+    key: $CI_BUILD_REF_NAME
+    paths:
+      - omnibus/var
+  artifacts:
+    paths:
+      - omnibus/pkg/
+
+# run tests and build rpm package (TODO)
+run_test_rpm-x64:
+  stage: test
+  image: $RPM_X64
+  tags:
+    - docker
+  script:
+    - rake test

@@ -21,6 +21,13 @@ CLOBBER.include("*.cov")
 
 task default: %w[agent:build]
 
+desc "Setup Go dependencies"
+task :deps do
+  system("go get github.com/Masterminds/glide")
+  system("go get -u github.com/golang/lint/golint")
+  system("glide up")
+end
+
 desc "Run go fmt on #{TARGETS}"
 task :fmt do
   TARGETS.each do |t|
@@ -51,7 +58,11 @@ task :test => %w[fmt lint vet] do
     Dir.glob("#{t}/**/*").select {|f| File.directory? f }.each do |pkg_folder|  # recursively search for go packages
       next if Dir.glob(File.join(pkg_folder, "*.go")).length == 0  # folder is a package if contains go modules
       profile_tmp = "#{pkg_folder}/profile.tmp"  # temp file to collect coverage data
-      system({"PKG_CONFIG_LIBDIR" => "#{PKG_CONFIG_LIBDIR}"}, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}")
+      # TODO: we assume the host is providing python-dev and we use standard pkg-config to access it
+      # TODO: that's not the case for the building task, where we use the omnibus provided python-dev (see below)
+      # TODO: we should make the Rakefile smarter, allowing to use the omnibus or the system python to build and test
+      # depending on rake invokation parameters
+      system({}, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}")
       if File.file?(profile_tmp)
         `cat #{profile_tmp} | tail -n +2 >> #{PROFILE}`
         File.delete(profile_tmp)
@@ -75,6 +86,15 @@ namespace :agent do
     FileUtils.cp_r("./pkg/collector/check/py/dist/", "#{BIN_PATH}", :remove_destination => true)
     FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
     FileUtils.chmod(0755, "#{BIN_PATH}/agent")
+  end
+
+  desc "Build omnibus installer"
+  task :omnibus do
+    Dir.chdir('omnibus') do
+      system("bundle install --without development")
+      # put omnibus stuff under ./var so that gitlab can cache it
+      system("omnibus build datadog-agent6 --override=base_dir:var/")
+    end
   end
 
 end
