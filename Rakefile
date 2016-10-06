@@ -92,7 +92,8 @@ namespace :agent do
   task :omnibus do
     Dir.chdir('omnibus') do
       system("bundle install --without development")
-      system("omnibus build datadog-agent6 --override=base_dir:/cache/omnibus")
+      # put omnibus stuff under ./var so that gitlab can cache it
+      system("omnibus build datadog-agent6 --override=base_dir:var/")
     end
   end
 

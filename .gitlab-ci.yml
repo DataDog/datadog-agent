@@ -31,6 +31,11 @@ build_deb-x64:
     - docker
   script:
     - rake agent:omnibus
+  cache:
+    # cache per branch
+    key: $CI_BUILD_REF_NAME
+    paths:
+      - omnibus/var
   artifacts:
     paths:
       - omnibus/pkg/
