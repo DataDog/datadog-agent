@@ -11,7 +11,7 @@ import (
 
 var log = logging.MustGetLogger("datadog-agent")
 
-const defaultTimeout = 5000
+const defaultTimeout time.Duration = 5000 * time.Millisecond
 
 // Scheduler keeps things rolling.
 // More docs to come...
