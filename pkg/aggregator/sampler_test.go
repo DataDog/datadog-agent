@@ -2,6 +2,7 @@ package aggregator
 
 import (
 	// stdlib
+	"fmt"
 	"sort"
 	"testing"
 
@@ -30,7 +31,7 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 }
 
 func AssertTagsEqual(t *testing.T, expected, actual []string) {
-	if assert.Equal(t, len(expected), len(actual)) {
+	if assert.Equal(t, len(expected), len(actual), fmt.Sprintf("Unexpected number of tags: expected %s, actual: %s", expected, actual)) {
 		for _, tag := range expected {
 			assert.Contains(t, actual, tag)
 		}
@@ -84,7 +85,7 @@ func TestMetricsGaugeSampling(t *testing.T) {
 		Mtype: GaugeType,
 	}
 
-	metrics.addSample(contextKey, mSample.Mtype, mSample.Value)
+	metrics.addSample(contextKey, mSample.Mtype, mSample.Value, mSample.Timestamp)
 	series := metrics.flush(12345)
 
 	expectedSerie := &Serie{

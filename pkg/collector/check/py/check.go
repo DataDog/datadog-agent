@@ -7,6 +7,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
@@ -44,6 +45,7 @@ func (c *PythonCheck) Run() error {
 	// call run function, it takes no args so we pass an empty tuple
 	emptyTuple := python.PyTuple_New(0)
 	result := c.Instance.CallMethod("run", emptyTuple)
+	aggregator.GetDefaultSender().Commit()
 	var resultStr string
 	if result == nil {
 		python.PyErr_Print()
@@ -117,6 +119,10 @@ func (c *PythonCheck) Configure(data check.ConfigData) {
 	c.Instance = instance
 	c.ModuleName = python.PyString_AsString(instance.GetAttrString("__module__"))
 	c.Config = configDict
+}
+
+// InitSender does nothing here because all python checks use the default sender
+func (c *PythonCheck) InitSender() {
 }
 
 // Interval returns the scheduling time for the check

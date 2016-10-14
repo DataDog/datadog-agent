@@ -6,6 +6,7 @@ type MetricType string
 // metric type constants
 const (
 	GaugeType   MetricType = "g"
+	RateType    MetricType = "rate"
 	CounterType MetricType = "c"
 )
 

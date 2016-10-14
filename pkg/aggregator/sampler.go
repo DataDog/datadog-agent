@@ -8,12 +8,14 @@ import (
 // Metrics stores all the metrics by context key
 type Metrics struct {
 	gauges   map[string]*Gauge
+	rates    map[string]*Rate
 	counters map[string]*Counter
 }
 
 func newMetrics() *Metrics {
 	return &Metrics{
 		make(map[string]*Gauge),
+		make(map[string]*Rate),
 		make(map[string]*Counter),
 	}
 }
@@ -95,7 +97,7 @@ func (s *Sampler) addSample(metricSample *MetricSample, timestamp int64) {
 	}
 
 	// Add sample to bucket
-	metrics.addSample(contextKey, metricSample.Mtype, metricSample.Value)
+	metrics.addSample(contextKey, metricSample.Mtype, metricSample.Value, metricSample.Timestamp)
 }
 
 func (s *Sampler) flush(timestamp int64) []*Serie {
@@ -140,17 +142,22 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 }
 
 // TODO: Pass a reference to *MetricSample instead
-func (m *Metrics) addSample(contextKey string, mType MetricType, value float64) {
+func (m *Metrics) addSample(contextKey string, mType MetricType, value float64, timestamp int64) {
 	switch mType {
 	case GaugeType:
 		_, ok := m.gauges[contextKey]
 		if !ok {
 			m.gauges[contextKey] = &Gauge{}
 		}
-		// Leave the timestamp to an arbitrary value, we don't use it here
-		m.gauges[contextKey].addSample(value, 0)
+		m.gauges[contextKey].addSample(value, timestamp)
 	case CounterType:
 		// pass
+	case RateType:
+		_, ok := m.rates[contextKey]
+		if !ok {
+			m.rates[contextKey] = &Rate{}
+		}
+		m.rates[contextKey].addSample(value, timestamp)
 	}
 }
 
@@ -172,6 +179,20 @@ func (m *Metrics) flush(timestamp int64) []*Serie {
 
 	// Counter
 	// ...
+
+	// Rates
+	for contextKey, rate := range m.rates {
+		value, metricTimestamp, err := rate.flush()
+
+		if err == nil {
+			serie := &Serie{
+				Points:     [][]interface{}{{metricTimestamp, value}},
+				Mtype:      "gauge",
+				contextKey: contextKey,
+			}
+			series = append(series, serie)
+		}
+	}
 
 	return series
 }

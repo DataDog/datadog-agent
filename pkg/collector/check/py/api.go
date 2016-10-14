@@ -15,7 +15,7 @@ import "C"
 //export SubmitData
 func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float, tags *C.PyObject) *C.PyObject {
 
-	agg := aggregator.GetSender()
+	agg := aggregator.GetDefaultSender()
 
 	// TODO: cleanup memory, C.stuff is going to stay there!!!
 
@@ -36,7 +36,7 @@ func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float,
 	switch mt {
 	case C.RATE:
 		fmt.Println("Submitting Rate to the aggregator...", _name, _value, _tags)
-		fallthrough
+		agg.Rate(_name, _value, "", _tags)
 	case C.GAUGE:
 		fmt.Println("Submitting Gauge to the aggregator...", _name, _value, _tags)
 		agg.Gauge(_name, _value, "", _tags)
