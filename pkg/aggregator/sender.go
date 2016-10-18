@@ -7,7 +7,7 @@ var _sender *checkSender
 // Sender allows sending metrics from checks/a check
 type Sender interface {
 	Commit()
-	Stop()
+	Destroy()
 	Gauge(metric string, value float64, hostname string, tags []string)
 	Rate(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
@@ -61,9 +61,10 @@ func (s *checkSender) Commit() {
 	s.ssOut <- senderSample{s.checkSamplerID, &MetricSample{}, true}
 }
 
-// Stop stops the metrics aggregation and deregisters the sender
+// Destroy frees up the resources used by the sender (by deregistering it from the aggregator)
+// Should be called when the sender is not used anymore
 // The metrics of this sender that haven't been flushed yet will be lost
-func (s *checkSender) Stop() {
+func (s *checkSender) Destroy() {
 	_aggregator.deregisterCheckSampler(s.checkSamplerID)
 }
 
