@@ -62,7 +62,7 @@ task :test => %w[fmt lint vet] do
       # TODO: that's not the case for the building task, where we use the omnibus provided python-dev (see below)
       # TODO: we should make the Rakefile smarter, allowing to use the omnibus or the system python to build and test
       # depending on rake invokation parameters
-      system({}, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}")
+      system({}, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
       if File.file?(profile_tmp)
         `cat #{profile_tmp} | tail -n +2 >> #{PROFILE}`
         File.delete(profile_tmp)
