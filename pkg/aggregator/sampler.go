@@ -97,7 +97,7 @@ func (s *Sampler) addSample(metricSample *MetricSample, timestamp int64) {
 	}
 
 	// Add sample to bucket
-	metrics.addSample(contextKey, metricSample.Mtype, metricSample.Value, metricSample.Timestamp)
+	metrics.addSample(contextKey, metricSample.Mtype, metricSample.Value, timestamp)
 }
 
 func (s *Sampler) flush(timestamp int64) []*Serie {
@@ -166,15 +166,17 @@ func (m *Metrics) flush(timestamp int64) []*Serie {
 
 	// Gauges
 	for contextKey, gauge := range m.gauges {
-		// discard the timestamp returned here, we use the one passed to the flush
-		value, _ := gauge.flush()
+		value, metricTimestamp := gauge.flush()
 
-		serie := &Serie{
-			Points:     [][]interface{}{{timestamp, value}},
-			Mtype:      "gauge",
-			contextKey: contextKey,
+		if metricTimestamp != 0 {
+			// we use the timestamp passed to the flush
+			serie := &Serie{
+				Points:     [][]interface{}{{timestamp, value}},
+				Mtype:      "gauge",
+				contextKey: contextKey,
+			}
+			series = append(series, serie)
 		}
-		series = append(series, serie)
 	}
 
 	// Counter

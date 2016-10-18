@@ -85,12 +85,58 @@ func TestMetricsGaugeSampling(t *testing.T) {
 		Mtype: GaugeType,
 	}
 
-	metrics.addSample(contextKey, mSample.Mtype, mSample.Value, mSample.Timestamp)
+	metrics.addSample(contextKey, mSample.Mtype, mSample.Value, 1)
 	series := metrics.flush(12345)
 
 	expectedSerie := &Serie{
 		contextKey: contextKey,
 		Points:     [][]interface{}{{int64(12345), mSample.Value}},
+		Mtype:      "gauge",
+		nameSuffix: "",
+	}
+
+	if assert.Equal(t, 1, len(series)) {
+		AssertSerieEqual(t, expectedSerie, series[0])
+	}
+}
+
+// No series should be flushed when there's no new sample btw 2 flushes
+// Important for check metrics aggregation
+func TestMetricsGaugeSamplingNoSample(t *testing.T) {
+	metrics := newMetrics()
+	contextKey := "context_key"
+	mSample := MetricSample{
+		Value: 1,
+		Mtype: GaugeType,
+	}
+
+	metrics.addSample(contextKey, mSample.Mtype, mSample.Value, 1)
+	series := metrics.flush(12345)
+
+	assert.Equal(t, 1, len(series))
+
+	series = metrics.flush(12355)
+	// No series flushed since there's no new sample since last flush
+	assert.Equal(t, 0, len(series))
+}
+
+// No series should be flushed when the rate has been sampled only once overall
+// Important for check metrics aggregation
+func TestMetricsRateSampling(t *testing.T) {
+	metrics := newMetrics()
+	contextKey := "context_key"
+
+	metrics.addSample(contextKey, RateType, 1, 12340)
+	series := metrics.flush(12345)
+
+	// No series flushed since the rate was sampled once only
+	assert.Equal(t, 0, len(series))
+
+	metrics.addSample(contextKey, RateType, 2, 12350)
+	series = metrics.flush(12351)
+	expectedSerie := &Serie{
+		contextKey: contextKey,
+		Points:     [][]interface{}{{int64(12350), 1. / 10.}},
 		Mtype:      "gauge",
 		nameSuffix: "",
 	}
