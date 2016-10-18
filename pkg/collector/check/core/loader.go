@@ -41,6 +41,7 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	for _, instance := range config.Instances {
 		newCheck := c
 		newCheck.Configure(instance)
+		newCheck.InitSender()
 		checks = append(checks, newCheck)
 	}
 

@@ -3,19 +3,19 @@ package aggregator
 import (
 	"sort"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 )
 
 // Metrics stores all the metrics by context key
 type Metrics struct {
 	gauges   map[string]*Gauge
+	rates    map[string]*Rate
 	counters map[string]*Counter
 }
 
 func newMetrics() *Metrics {
 	return &Metrics{
 		make(map[string]*Gauge),
+		make(map[string]*Rate),
 		make(map[string]*Counter),
 	}
 }
@@ -28,7 +28,7 @@ type Context struct {
 	DeviceName string
 }
 
-// Serie holds a timeserie
+// Serie holds a timeserie (w/ json serialization to DD API format)
 type Serie struct {
 	Name       string          `json:"metric"`
 	Points     [][]interface{} `json:"points"`
@@ -51,41 +51,36 @@ type SerieSignature struct {
 
 // Sampler aggregates metrics
 type Sampler struct {
-	intervalSamplerByInterval map[int64]*IntervalSampler
-	contexts                  map[string]Context
-}
-
-// IntervalSampler aggregates metrics with buckets of one given interval only
-type IntervalSampler struct {
 	interval           int64
+	contexts           map[string]Context // TODO: this map grows constantly, we need to flush old contexts from time to time
 	metricsByTimestamp map[int64]*Metrics
 }
 
 // NewSampler returns a newly initialized Sampler
-func NewSampler() *Sampler {
-	return &Sampler{map[int64]*IntervalSampler{}, map[string]Context{}}
+func NewSampler(interval int64) *Sampler {
+	return &Sampler{interval, map[string]Context{}, map[int64]*Metrics{}}
 }
 
-func newIntervalSampler(interval int64) *IntervalSampler {
-	return &IntervalSampler{interval, map[int64]*Metrics{}}
+func generateContextKey(metricSample *MetricSample) string {
+	var contextFields []string
+
+	sort.Strings(*(metricSample.Tags))
+	contextFields = append(contextFields, *(metricSample.Tags)...)
+	contextFields = append(contextFields, metricSample.Name)
+
+	return strings.Join(contextFields, ",")
 }
 
-func (s *IntervalSampler) calculateBucketStart(timestamp int64) int64 {
+func (s *Sampler) calculateBucketStart(timestamp int64) int64 {
 	return timestamp - timestamp%s.interval
 }
 
-// Resolve an IntervalSampler and add the metricSample to it
-func (s *Sampler) addSample(metricSample *dogstatsd.MetricSample, timestamp int64) {
-	intervalSampler, ok := s.intervalSamplerByInterval[metricSample.Interval]
-
-	if !ok {
-		intervalSampler = newIntervalSampler(metricSample.Interval)
-		s.intervalSamplerByInterval[metricSample.Interval] = intervalSampler
-	}
-
-	sampleContextKey := generateContextKey(metricSample)
-	if _, ok := s.contexts[sampleContextKey]; !ok {
-		s.contexts[sampleContextKey] = Context{
+// Add the metricSample to the correct bucket
+func (s *Sampler) addSample(metricSample *MetricSample, timestamp int64) {
+	// Keep track of the context
+	contextKey := generateContextKey(metricSample)
+	if _, ok := s.contexts[contextKey]; !ok {
+		s.contexts[contextKey] = Context{
 			Name:       metricSample.Name,
 			Tags:       metricSample.Tags,
 			Host:       "",
@@ -93,44 +88,21 @@ func (s *Sampler) addSample(metricSample *dogstatsd.MetricSample, timestamp int6
 		}
 	}
 
-	intervalSampler.addSample(sampleContextKey, metricSample.Mtype, metricSample.Value, timestamp)
-}
-
-// Add a metricSample to the given IntervalSampler
-func (s *IntervalSampler) addSample(contextKey string, mType dogstatsd.MetricType, value float64, timestamp int64) {
 	bucketStart := s.calculateBucketStart(timestamp)
+	// If it's a new bucket, initialize it
 	metrics, ok := s.metricsByTimestamp[bucketStart]
-
 	if !ok {
 		metrics = newMetrics()
 		s.metricsByTimestamp[bucketStart] = metrics
 	}
 
-	metrics.addSample(contextKey, mType, value)
+	// Add sample to bucket
+	metrics.addSample(contextKey, metricSample.Mtype, metricSample.Value, timestamp)
 }
 
 func (s *Sampler) flush(timestamp int64) []*Serie {
 	var result []*Serie
 
-	for _, intervalSampler := range s.intervalSamplerByInterval {
-		series := intervalSampler.flush(timestamp)
-
-		// Resolve context
-		for _, serie := range series {
-			context := s.contexts[serie.contextKey]
-			serie.Name = context.Name + serie.nameSuffix
-			serie.Tags = context.Tags
-			serie.Host = context.Host
-			serie.DeviceName = context.DeviceName
-			result = append(result, serie)
-		}
-	}
-
-	return result
-}
-
-func (s *IntervalSampler) flush(timestamp int64) []*Serie {
-	var result []*Serie
 	serieBySignature := make(map[SerieSignature]*Serie)
 
 	// Compute a limit timestamp
@@ -150,7 +122,14 @@ func (s *IntervalSampler) flush(timestamp int64) []*Serie {
 			if existingSerie, ok := serieBySignature[serieSignature]; ok {
 				existingSerie.Points = append(existingSerie.Points, serie.Points[0])
 			} else {
+				// Resolve context and populate new Serie
+				context := s.contexts[serie.contextKey]
+				serie.Name = context.Name + serie.nameSuffix
+				serie.Tags = context.Tags
+				serie.Host = context.Host
+				serie.DeviceName = context.DeviceName
 				serie.Interval = s.interval
+
 				serieBySignature[serieSignature] = serie
 				result = append(result, serie)
 			}
@@ -162,27 +141,23 @@ func (s *IntervalSampler) flush(timestamp int64) []*Serie {
 	return result
 }
 
-func generateContextKey(metricSample *dogstatsd.MetricSample) string {
-	var contextFields []string
-
-	sort.Strings(*(metricSample.Tags))
-	contextFields = append(contextFields, *(metricSample.Tags)...)
-	contextFields = append(contextFields, metricSample.Name)
-
-	return strings.Join(contextFields, ",")
-}
-
 // TODO: Pass a reference to *MetricSample instead
-func (m *Metrics) addSample(contextKey string, mType dogstatsd.MetricType, value float64) {
+func (m *Metrics) addSample(contextKey string, mType MetricType, value float64, timestamp int64) {
 	switch mType {
-	case dogstatsd.Gauge:
+	case GaugeType:
 		_, ok := m.gauges[contextKey]
 		if !ok {
 			m.gauges[contextKey] = &Gauge{}
 		}
-		m.gauges[contextKey].addSample(value)
-	case dogstatsd.Counter:
+		m.gauges[contextKey].addSample(value, timestamp)
+	case CounterType:
 		// pass
+	case RateType:
+		_, ok := m.rates[contextKey]
+		if !ok {
+			m.rates[contextKey] = &Rate{}
+		}
+		m.rates[contextKey].addSample(value, timestamp)
 	}
 }
 
@@ -191,18 +166,35 @@ func (m *Metrics) flush(timestamp int64) []*Serie {
 
 	// Gauges
 	for contextKey, gauge := range m.gauges {
-		value := gauge.flush()
+		value, metricTimestamp := gauge.flush()
 
-		serie := &Serie{
-			Points:     [][]interface{}{{timestamp, value}},
-			Mtype:      "gauge",
-			contextKey: contextKey,
+		if metricTimestamp != 0 {
+			// we use the timestamp passed to the flush
+			serie := &Serie{
+				Points:     [][]interface{}{{timestamp, value}},
+				Mtype:      "gauge",
+				contextKey: contextKey,
+			}
+			series = append(series, serie)
 		}
-		series = append(series, serie)
 	}
 
 	// Counter
 	// ...
+
+	// Rates
+	for contextKey, rate := range m.rates {
+		value, metricTimestamp, err := rate.flush()
+
+		if err == nil {
+			serie := &Serie{
+				Points:     [][]interface{}{{metricTimestamp, value}},
+				Mtype:      "gauge",
+				contextKey: contextKey,
+			}
+			series = append(series, serie)
+		}
+	}
 
 	return series
 }

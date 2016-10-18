@@ -29,6 +29,7 @@ type Check interface {
 	Run() error
 	String() string
 	Configure(data ConfigData)
+	InitSender()
 	Interval() time.Duration
 }
 

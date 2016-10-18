@@ -13,10 +13,10 @@ import (
 
 var log = logging.MustGetLogger("datadog-agent")
 
-const checkInterval = 5
-
 // MemoryCheck doesn't need additional fields
-type MemoryCheck struct{}
+type MemoryCheck struct {
+	sender aggregator.Sender
+}
 
 func (c *MemoryCheck) String() string {
 	return "MemoryCheck"
@@ -25,13 +25,19 @@ func (c *MemoryCheck) String() string {
 // Run executes the check
 func (c *MemoryCheck) Run() error {
 	v, _ := mem.VirtualMemory()
-	aggregator.GetSender(checkInterval).Gauge("system.mem.total", float64(v.Total), "", []string{})
+	c.sender.Gauge("system.mem.total", float64(v.Total), "", []string{})
+	c.sender.Commit()
 	return nil
 }
 
 // Configure the Python check from YAML data
 func (c *MemoryCheck) Configure(data check.ConfigData) {
 	// do nothing
+}
+
+// InitSender initializes a sender
+func (c *MemoryCheck) InitSender() {
+	c.sender = aggregator.GetSender()
 }
 
 // Interval returns the scheduling time for the check
