@@ -136,12 +136,12 @@ func (jq *jobQueue) addJob(c check.Check) {
 // execution pipeline
 func (jq *jobQueue) run(out chan<- check.Check) {
 	jq.started = true
-	for _ = range jq.ticker.C {
+	for {
 		select {
 		case <-jq.stop:
 			// someone asked to stop this queue
 			jq.ticker.Stop()
-		default:
+		case <-jq.ticker.C:
 			// normal case, (re)schedule the queue
 			for _, check := range jq.jobs {
 				log.Debugf("Enqueuing check %s for queue %d", check, jq.interval)
