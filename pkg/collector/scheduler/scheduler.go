@@ -70,11 +70,11 @@ func (s *Scheduler) Run() {
 }
 
 // Stop the scheduler, optionally pass an integer to specify
-// the timeout in milliseconds
-func (s *Scheduler) Stop(timeout ...int) error {
-	to := time.Duration(defaultTimeout)
+// the timeout in nanoseconds
+func (s *Scheduler) Stop(timeout ...time.Duration) error {
+	to := defaultTimeout
 	if len(timeout) == 1 {
-		to = time.Duration(timeout[0])
+		to = timeout[0]
 	}
 
 	log.Debugf("Stopping scheduler loop, timeout after %dms.", to)
@@ -87,7 +87,7 @@ func (s *Scheduler) Stop(timeout ...int) error {
 }
 
 // Reload the scheduler
-func (s *Scheduler) Reload(timeout ...int) error {
+func (s *Scheduler) Reload(timeout ...time.Duration) error {
 	log.Debug("Reloading scheduler loop...")
 	if s.Stop(timeout...) == nil {
 		log.Debug("Scheduler stopped, running again...")
