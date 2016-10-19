@@ -17,11 +17,11 @@ func (c *TestCheck) InitSender()                {}
 func (c *TestCheck) Interval() time.Duration    { return c.intl }
 func (c *TestCheck) Run() error                 { return nil }
 
-// wait 3s for a predicate function to return true, use polling
+// wait 1s for a predicate function to return true, use polling
 // instead of a giant sleep.
 // predicate f must return true if the desired condition is met
 func consistently(f func() bool) bool {
-	for i := 0; i < 300; i++ {
+	for i := 0; i < 100; i++ {
 		if f() {
 			return true
 		}
