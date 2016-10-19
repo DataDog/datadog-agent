@@ -5,6 +5,7 @@ machine:
 dependencies:
   pre:
     - rm -Rf /home/ubuntu/.go_workspace/src/*
+    - sudo apt-get update; sudo apt-get install python2.7-dev
 
   override:
     - mkdir -p "$IMPORT_PATH"
