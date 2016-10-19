@@ -19,6 +19,7 @@ type Scheduler struct {
 	checksPipe chan<- check.Check          // The pipe the Runner pops the checks from
 	done       chan bool                   // Guard for the main loop
 	jobQueues  map[time.Duration]*jobQueue // We have one scheduling queue for every interval
+	mu         sync.Mutex                  // to protect critical sections in struct's fields
 }
 
 // jobQueue contains a list of checks (called jobs) that need to be
@@ -41,8 +42,9 @@ func NewScheduler(out chan<- check.Check) *Scheduler {
 	}
 }
 
-// Enter schedules a Check for execution.
+// Enter schedules a list of `Check`s for execution.
 func (s *Scheduler) Enter(checks []check.Check) {
+	s.mu.Lock() // sync when accessing `jobQueues`
 	for _, c := range checks {
 		interval := c.Interval()
 		_, ok := s.jobQueues[interval]
@@ -51,6 +53,7 @@ func (s *Scheduler) Enter(checks []check.Check) {
 		}
 		s.jobQueues[interval].addJob(c)
 	}
+	s.mu.Unlock()
 }
 
 // Run is the Scheduler main loop
