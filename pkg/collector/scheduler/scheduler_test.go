@@ -74,7 +74,7 @@ func TestRun(t *testing.T) {
 	s.Enter([]check.Check{&TestCheck{intl: 10}})
 	s.Run()
 	assert.Equal(t, uint32(1), s.running)
-	assert.Equal(t, uint32(1), s.jobQueues[10].running)
+	assert.True(t, s.jobQueues[10].running)
 
 	// Calling Run again should be a non blocking, noop procedure
 	s.Run()
@@ -88,7 +88,7 @@ func TestStop(t *testing.T) {
 	err := s.Stop()
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(0), s.running)
-	assert.Equal(t, uint32(0), s.jobQueues[10].running)
+	assert.False(t, s.jobQueues[10].running)
 
 	// stopping again should be non blocking, noop and return nil
 	assert.Nil(t, s.Stop())
@@ -121,5 +121,5 @@ func TestReload(t *testing.T) {
 
 	// check the scheduler is up again with the new queue running
 	assert.Equal(t, uint32(1), s.running)
-	assert.Equal(t, uint32(1), s.jobQueues[1].running)
+	assert.True(t, s.jobQueues[1].running)
 }

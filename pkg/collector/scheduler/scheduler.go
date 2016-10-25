@@ -33,7 +33,7 @@ type jobQueue struct {
 	stop     chan bool
 	ticker   *time.Ticker
 	jobs     []check.Check
-	running  uint32
+	running  bool
 	mu       sync.Mutex // to protect critical sections in struct's fields
 }
 
@@ -82,7 +82,7 @@ func (s *Scheduler) Run() {
 		// notify queues are up, channel is buffered this doesn't block
 		s.started <- true
 
-		// wait here untile we're done
+		// wait here until we're done
 		<-s.done
 
 		// someone asked to stop
@@ -142,9 +142,9 @@ func (s *Scheduler) stopQueues() {
 	for _, q := range s.jobQueues {
 		// check that the queue is actually running or this blocks
 		// while posting to the channel
-		if atomic.LoadUint32(&q.running) != 0 {
+		if q.running {
 			q.stop <- true
-			atomic.StoreUint32(&q.running, 0)
+			q.running = false
 		}
 	}
 }
@@ -164,7 +164,6 @@ func newJobQueue(interval time.Duration) *jobQueue {
 		interval: interval,
 		ticker:   time.NewTicker(time.Second * time.Duration(interval)),
 		stop:     make(chan bool, 1),
-		running:  0,
 	}
 }
 
@@ -179,14 +178,14 @@ func (jq *jobQueue) addJob(c check.Check) {
 // execution pipeline.
 // This doesn't block.
 func (jq *jobQueue) run(out chan<- check.Check) {
-	atomic.StoreUint32(&jq.running, 1)
+	jq.running = true
 	go func() {
 		for {
 			select {
 			case <-jq.stop:
 				// someone asked to stop this queue
 				jq.ticker.Stop()
-				atomic.StoreUint32(&jq.running, 0)
+				jq.running = false
 			case <-jq.ticker.C:
 				// normal case, (re)schedule the queue
 				for _, check := range jq.jobs {
