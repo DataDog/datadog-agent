@@ -58,11 +58,15 @@ task :test => %w[fmt lint vet] do
     Dir.glob("#{t}/**/*").select {|f| File.directory? f }.each do |pkg_folder|  # recursively search for go packages
       next if Dir.glob(File.join(pkg_folder, "*.go")).length == 0  # folder is a package if contains go modules
       profile_tmp = "#{pkg_folder}/profile.tmp"  # temp file to collect coverage data
-      # TODO: we assume the host is providing python-dev and we use standard pkg-config to access it
-      # TODO: that's not the case for the building task, where we use the omnibus provided python-dev (see below)
-      # TODO: we should make the Rakefile smarter, allowing to use the omnibus or the system python to build and test
-      # depending on rake invokation parameters
-      system({}, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
+
+      # check if we should use Embedded or System Python
+      # default for testing is the System one, so we don't need to setup CI
+      env = {}
+      if ENV["USE_EMBEDDED_PY"]
+        env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
+      end
+
+      system(env, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
       if File.file?(profile_tmp)
         `cat #{profile_tmp} | tail -n +2 >> #{PROFILE}`
         File.delete(profile_tmp)
@@ -82,7 +86,14 @@ namespace :agent do
 
   desc "Build the agent"
   task :build do
-    system({"PKG_CONFIG_LIBDIR" => "#{PKG_CONFIG_LIBDIR}"}, "go build -o #{BIN_PATH}/agent.bin #{REPO_PATH}/cmd/agent")
+    # check if we should use Embedded or System Python
+    # default for build is the Embedded one
+    env = {}
+    if !ENV["USE_EMBEDDED_PY"]
+      env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
+    end
+
+    system(env, "go build -o #{BIN_PATH}/agent.bin #{REPO_PATH}/cmd/agent")
     FileUtils.cp_r("./pkg/collector/check/py/dist/", "#{BIN_PATH}", :remove_destination => true)
     FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
     FileUtils.chmod(0755, "#{BIN_PATH}/agent")
