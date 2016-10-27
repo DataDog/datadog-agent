@@ -153,6 +153,7 @@ func (s *Scheduler) stopQueues() {
 func (s *Scheduler) startQueues() {
 	for _, q := range s.jobQueues {
 		q.run(s.checksPipe)
+		q.running = true
 	}
 }
 
@@ -178,14 +179,12 @@ func (jq *jobQueue) addJob(c check.Check) {
 // execution pipeline.
 // This doesn't block.
 func (jq *jobQueue) run(out chan<- check.Check) {
-	jq.running = true
 	go func() {
 		for {
 			select {
 			case <-jq.stop:
 				// someone asked to stop this queue
 				jq.ticker.Stop()
-				jq.running = false
 			case <-jq.ticker.C:
 				// normal case, (re)schedule the queue
 				for _, check := range jq.jobs {
