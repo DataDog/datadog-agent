@@ -17,11 +17,11 @@ func (c *TestCheck) InitSender()                {}
 func (c *TestCheck) Interval() time.Duration    { return c.intl }
 func (c *TestCheck) Run() error                 { return nil }
 
-// wait 3s for a predicate function to return true, use polling
+// wait 1s for a predicate function to return true, use polling
 // instead of a giant sleep.
 // predicate f must return true if the desired condition is met
 func consistently(f func() bool) bool {
-	for i := 0; i < 300; i++ {
+	for i := 0; i < 100; i++ {
 		if f() {
 			return true
 		}
@@ -41,6 +41,7 @@ func TestNewScheduler(t *testing.T) {
 	s := NewScheduler(c)
 	assert.Equal(t, s.checksPipe, c)
 	assert.Equal(t, len(s.jobQueues), 0)
+	assert.Equal(t, s.running, uint32(0))
 }
 
 func TestEnter(t *testing.T) {
@@ -72,7 +73,11 @@ func TestRun(t *testing.T) {
 
 	s.Enter([]check.Check{&TestCheck{intl: 10}})
 	s.Run()
-	assert.True(t, consistently(func() bool { return s.jobQueues[10].started }))
+	assert.Equal(t, uint32(1), s.running)
+	assert.True(t, s.jobQueues[10].running)
+
+	// Calling Run again should be a non blocking, noop procedure
+	s.Run()
 }
 
 func TestStop(t *testing.T) {
@@ -82,7 +87,11 @@ func TestStop(t *testing.T) {
 
 	err := s.Stop()
 	assert.Nil(t, err)
-	assert.True(t, consistently(func() bool { return s.jobQueues[10].started == false }))
+	assert.Equal(t, uint32(0), s.running)
+	assert.False(t, s.jobQueues[10].running)
+
+	// stopping again should be non blocking, noop and return nil
+	assert.Nil(t, s.Stop())
 }
 
 func TestStopTimeout(t *testing.T) {
@@ -90,8 +99,12 @@ func TestStopTimeout(t *testing.T) {
 	s.Enter([]check.Check{&TestCheck{intl: 10}})
 	s.Run()
 	s.Stop()
-	// stopping a second time triggers the timeout, set it at 1ms
-	err := s.Stop(1)
+
+	// to trigger the timeout, fake scheduler state to `running`...
+	s.running = uint32(1)
+	// ...now, stopping should trigger the timeout, set it at 1ms
+	err := s.Stop(time.Millisecond)
+
 	assert.NotNil(t, err)
 }
 
@@ -100,9 +113,6 @@ func TestReload(t *testing.T) {
 	s.Enter([]check.Check{&TestCheck{intl: 10}})
 	s.Run()
 
-	// check the scheduler has booted
-	assert.True(t, consistently(func() bool { return s.jobQueues[10].started }))
-
 	// add a queue to check the reload picks it up
 	s.Enter([]check.Check{&TestCheck{intl: 1}})
 
@@ -110,5 +120,6 @@ func TestReload(t *testing.T) {
 	assert.Nil(t, err)
 
 	// check the scheduler is up again with the new queue running
-	assert.True(t, consistently(func() bool { return s.jobQueues[1].started }))
+	assert.Equal(t, uint32(1), s.running)
+	assert.True(t, s.jobQueues[1].running)
 }

@@ -3,6 +3,7 @@ package scheduler
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -18,7 +19,11 @@ const defaultTimeout time.Duration = 5000 * time.Millisecond
 type Scheduler struct {
 	checksPipe chan<- check.Check          // The pipe the Runner pops the checks from
 	done       chan bool                   // Guard for the main loop
+	halted     chan bool                   // Used to internally communicate all queues are done
+	started    chan bool                   // Used to internally communicate the queues are up
 	jobQueues  map[time.Duration]*jobQueue // We have one scheduling queue for every interval
+	mu         sync.Mutex                  // To protect critical sections in struct's fields
+	running    uint32                      // Flag to see if the scheduler is running
 }
 
 // jobQueue contains a list of checks (called jobs) that need to be
@@ -28,7 +33,7 @@ type jobQueue struct {
 	stop     chan bool
 	ticker   *time.Ticker
 	jobs     []check.Check
-	started  bool
+	running  bool
 	mu       sync.Mutex // to protect critical sections in struct's fields
 }
 
@@ -36,13 +41,17 @@ type jobQueue struct {
 func NewScheduler(out chan<- check.Check) *Scheduler {
 	return &Scheduler{
 		checksPipe: out,
-		done:       make(chan bool),
+		done:       make(chan bool, 1),
+		halted:     make(chan bool, 1),
+		started:    make(chan bool, 1),
 		jobQueues:  make(map[time.Duration]*jobQueue),
+		running:    0,
 	}
 }
 
-// Enter schedules a Check for execution.
+// Enter schedules a list of `Check`s for execution.
 func (s *Scheduler) Enter(checks []check.Check) {
+	s.mu.Lock() // sync when accessing `jobQueues`
 	for _, c := range checks {
 		interval := c.Interval()
 		_, ok := s.jobQueues[interval]
@@ -51,40 +60,73 @@ func (s *Scheduler) Enter(checks []check.Check) {
 		}
 		s.jobQueues[interval].addJob(c)
 	}
+	s.mu.Unlock()
 }
 
-// Run is the Scheduler main loop
+// Run is the Scheduler main loop.
+// NOTE: it doesn't block but waits for the queues to be ready before returning.
 func (s *Scheduler) Run() {
+	// Invoking Run does nothing if the Scheduler is already running
+	if atomic.LoadUint32(&s.running) != 0 {
+		log.Debug("Scheduler is already running")
+		return
+	}
+
 	go func() {
 		log.Debug("Starting scheduler loop...")
 		s.startQueues()
 
+		// set internal state
+		atomic.StoreUint32(&s.running, 1)
+
+		// notify queues are up, channel is buffered this doesn't block
+		s.started <- true
+
+		// wait here until we're done
 		<-s.done
 
-		log.Debug("Scheduler loop done, shutting down queues...")
+		// someone asked to stop
+		log.Debug("Exited Scheduler loop, shutting down queues...")
 		s.stopQueues()
+		atomic.StoreUint32(&s.running, 0)
+
+		// notify we're done, channel is buffered this doesn't block
+		s.halted <- true
 	}()
+
+	// Wait until queues are up
+	<-s.started
 }
 
 // Stop the scheduler, optionally pass an integer to specify
-// the timeout in milliseconds
-func (s *Scheduler) Stop(timeout ...int) error {
-	to := time.Duration(defaultTimeout)
-	if len(timeout) == 1 {
-		to = time.Duration(timeout[0])
+// the timeout in `time.Duration` format.
+func (s *Scheduler) Stop(timeout ...time.Duration) error {
+	// Stopping when the Scheduler is not running is a noop.
+	if atomic.LoadUint32(&s.running) == 0 {
+		log.Debug("Scheduler is already stopped")
+		return nil
 	}
 
-	log.Debugf("Stopping scheduler loop, timeout after %dms.", to)
+	to := defaultTimeout
+	if len(timeout) == 1 {
+		to = timeout[0]
+	}
+
+	// Interrupt the main loop, proceeding to shut down all the queues
+	// `done` is buffered so we can proceed and wait for shutdown (or timeout)
+	s.done <- true
+	log.Debugf("Waiting for the scheduler to shutdown, timeout after %dns.", to)
+
 	select {
-	case s.done <- true:
+	case <-s.halted:
 		return nil
-	case <-time.After(to * time.Millisecond):
+	case <-time.After(to):
 		return errors.New("Stop operation timed out.")
 	}
 }
 
 // Reload the scheduler
-func (s *Scheduler) Reload(timeout ...int) error {
+func (s *Scheduler) Reload(timeout ...time.Duration) error {
 	log.Debug("Reloading scheduler loop...")
 	if s.Stop(timeout...) == nil {
 		log.Debug("Scheduler stopped, running again...")
@@ -100,9 +142,9 @@ func (s *Scheduler) stopQueues() {
 	for _, q := range s.jobQueues {
 		// check that the queue is actually running or this blocks
 		// while posting to the channel
-		if q.started {
+		if q.running {
 			q.stop <- true
-			q.started = false
+			q.running = false
 		}
 	}
 }
@@ -110,7 +152,8 @@ func (s *Scheduler) stopQueues() {
 // startQueues loads the timer for each queue
 func (s *Scheduler) startQueues() {
 	for _, q := range s.jobQueues {
-		go q.run(s.checksPipe)
+		q.run(s.checksPipe)
+		q.running = true
 	}
 }
 
@@ -133,20 +176,22 @@ func (jq *jobQueue) addJob(c check.Check) {
 }
 
 // run schedules the checks in the queue by posting them to the
-// execution pipeline
+// execution pipeline.
+// This doesn't block.
 func (jq *jobQueue) run(out chan<- check.Check) {
-	jq.started = true
-	for {
-		select {
-		case <-jq.stop:
-			// someone asked to stop this queue
-			jq.ticker.Stop()
-		case <-jq.ticker.C:
-			// normal case, (re)schedule the queue
-			for _, check := range jq.jobs {
-				log.Debugf("Enqueuing check %s for queue %d", check, jq.interval)
-				out <- check
+	go func() {
+		for {
+			select {
+			case <-jq.stop:
+				// someone asked to stop this queue
+				jq.ticker.Stop()
+			case <-jq.ticker.C:
+				// normal case, (re)schedule the queue
+				for _, check := range jq.jobs {
+					log.Debugf("Enqueuing check %s for queue %d", check, jq.interval)
+					out <- check
+				}
 			}
 		}
-	}
+	}()
 }
