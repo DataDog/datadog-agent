@@ -59,10 +59,10 @@ task :test => %w[fmt lint vet] do
       next if Dir.glob(File.join(pkg_folder, "*.go")).length == 0  # folder is a package if contains go modules
       profile_tmp = "#{pkg_folder}/profile.tmp"  # temp file to collect coverage data
 
-      # check if we should use Embedded or System Python
-      # default for testing is the System one, so we don't need to setup CI
+      # Check if we should use Embedded or System Python,
+      # default to the embedded one.
       env = {}
-      if ENV["USE_EMBEDDED_PY"]
+      if !ENV["USE_SYSTEM_PY"]
         env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
       end
 
@@ -86,10 +86,10 @@ namespace :agent do
 
   desc "Build the agent"
   task :build do
-    # check if we should use Embedded or System Python
-    # default for build is the Embedded one
+    # Check if we should use Embedded or System Python,
+    # default to the embedded one.
     env = {}
-    if !ENV["USE_EMBEDDED_PY"]
+    if !ENV["USE_SYSTEM_PY"]
       env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
     end
 
