@@ -129,3 +129,8 @@ func (c *PythonCheck) InitSender() {
 func (c *PythonCheck) Interval() time.Duration {
 	return c.interval
 }
+
+// ID FIXME: this should return a real identifier
+func (c *PythonCheck) ID() string {
+	return c.String()
+}

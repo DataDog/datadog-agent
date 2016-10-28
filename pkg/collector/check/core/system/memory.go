@@ -45,6 +45,11 @@ func (c *MemoryCheck) Interval() time.Duration {
 	return check.DefaultCheckInterval
 }
 
+// ID FIXME: this should return a real identifier
+func (c *MemoryCheck) ID() string {
+	return c.String()
+}
+
 func init() {
 	core.RegisterCheck("memory", &MemoryCheck{})
 }

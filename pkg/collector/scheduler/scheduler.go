@@ -17,7 +17,7 @@ const defaultTimeout time.Duration = 5000 * time.Millisecond
 // Scheduler keeps things rolling.
 // More docs to come...
 type Scheduler struct {
-	checksPipe chan<- check.Check          // The pipe the Runner pops the checks from
+	checksPipe chan<- check.Check          // The pipe the Runner pops the checks from, initially set to nil
 	done       chan bool                   // Guard for the main loop
 	halted     chan bool                   // Used to internally communicate all queues are done
 	started    chan bool                   // Used to internally communicate the queues are up
@@ -38,14 +38,13 @@ type jobQueue struct {
 }
 
 // NewScheduler create a Scheduler and returns a pointer to it.
-func NewScheduler(out chan<- check.Check) *Scheduler {
+func NewScheduler() *Scheduler {
 	return &Scheduler{
-		checksPipe: out,
-		done:       make(chan bool, 1),
-		halted:     make(chan bool, 1),
-		started:    make(chan bool, 1),
-		jobQueues:  make(map[time.Duration]*jobQueue),
-		running:    0,
+		done:      make(chan bool, 1),
+		halted:    make(chan bool, 1),
+		started:   make(chan bool, 1),
+		jobQueues: make(map[time.Duration]*jobQueue),
+		running:   0,
 	}
 }
 
@@ -64,8 +63,8 @@ func (s *Scheduler) Enter(checks []check.Check) {
 }
 
 // Run is the Scheduler main loop.
-// NOTE: it doesn't block but waits for the queues to be ready before returning.
-func (s *Scheduler) Run() {
+// This doesn't block but waits for the queues to be ready before returning.
+func (s *Scheduler) Run(checksPipe chan<- check.Check) {
 	// Invoking Run does nothing if the Scheduler is already running
 	if atomic.LoadUint32(&s.running) != 0 {
 		log.Debug("Scheduler is already running")
@@ -74,6 +73,10 @@ func (s *Scheduler) Run() {
 
 	go func() {
 		log.Debug("Starting scheduler loop...")
+
+		// setup the output channel
+		s.checksPipe = checksPipe
+
 		s.startQueues()
 
 		// set internal state
@@ -130,7 +133,7 @@ func (s *Scheduler) Reload(timeout ...time.Duration) error {
 	log.Debug("Reloading scheduler loop...")
 	if s.Stop(timeout...) == nil {
 		log.Debug("Scheduler stopped, running again...")
-		s.Run()
+		s.Run(s.checksPipe)
 		return nil
 	}
 

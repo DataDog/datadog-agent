@@ -15,6 +15,7 @@ func (c *TestCheck) Configure(check.ConfigData) {}
 func (c *TestCheck) InitSender()                {}
 func (c *TestCheck) Run() error                 { return nil }
 func (c *TestCheck) Interval() time.Duration    { return 1 }
+func (c *TestCheck) ID() string                 { return c.String() }
 
 func TestNewGoCheckLoader(t *testing.T) {
 	if NewGoCheckLoader() == nil {

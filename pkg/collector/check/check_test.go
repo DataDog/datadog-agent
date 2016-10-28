@@ -2,13 +2,13 @@ package check
 
 import (
 	"errors"
-	"testing"
 	"time"
 )
 
 // FIXTURE
 type TestCheck struct {
-	doErr bool
+	doErr  bool
+	hasRun bool
 }
 
 func (c *TestCheck) String() string          { return "TestCheck" }
@@ -20,13 +20,7 @@ func (c *TestCheck) Run() error {
 		msg := "A tremendous error occurred."
 		return errors.New(msg)
 	}
+	c.hasRun = true
 	return nil
 }
-
-func TestRunner(t *testing.T) {
-	pending := make(chan Check)
-	go Runner(pending)
-
-	pending <- &TestCheck{doErr: false}
-	pending <- &TestCheck{doErr: true}
-}
+func (c *TestCheck) ID() string { return c.String() }
