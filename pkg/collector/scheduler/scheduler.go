@@ -121,7 +121,7 @@ func (s *Scheduler) Stop(timeout ...time.Duration) error {
 	case <-s.halted:
 		return nil
 	case <-time.After(to):
-		return errors.New("Stop operation timed out.")
+		return errors.New("Stop operation timed out")
 	}
 }
 
@@ -134,7 +134,7 @@ func (s *Scheduler) Reload(timeout ...time.Duration) error {
 		return nil
 	}
 
-	return errors.New("Unable to perform reload.")
+	return errors.New("Unable to perform reload")
 }
 
 // stopQueues shuts down the timers for each active queue
