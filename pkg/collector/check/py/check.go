@@ -49,7 +49,7 @@ func (c *PythonCheck) Run() error {
 	var resultStr string
 	if result == nil {
 		python.PyErr_Print()
-		return errors.New("Unable to run Python check.")
+		return errors.New("Unable to run Python check")
 	}
 
 	resultStr = python.PyString_AsString(result)

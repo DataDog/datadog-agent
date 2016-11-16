@@ -12,7 +12,8 @@ def os
   end
 end
 
-PKG_CONFIG_LIBDIR=File.join(`pwd`.strip, "pkg-config", os)
+PROJECT_DIR=`pwd`.strip
+PKG_CONFIG_LIBDIR=File.join(PROJECT_DIR, "pkg-config", os)
 ORG_PATH="github.com/DataDog"
 REPO_PATH="#{ORG_PATH}/datadog-agent"
 TARGETS = %w[./pkg ./cmd]
@@ -101,10 +102,30 @@ namespace :agent do
 
   desc "Build omnibus installer"
   task :omnibus do
+    # omnibus log level
+    log_level = ENV["AGENT_OMNIBUS_LOG_LEVEL"] || "info"
+
+    # omnibus config overrides
+    overrides_cmd = ""
+    overrides = []
+    base_dir = ENV["AGENT_OMNIBUS_BASE_DIR"]
+    if base_dir
+      overrides.push("base_dir:#{base_dir}")
+    end
+
+    package_dir = ENV["AGENT_OMNIBUS_PACKAGE_DIR"]
+    if package_dir
+      overrides.push("package_dir:#{package_dir}")
+    end
+
     Dir.chdir('omnibus') do
       system("bundle install --without development")
-      # put omnibus stuff under ./var so that gitlab can cache it
-      system("omnibus build datadog-agent6 --override=base_dir:var/")
+
+      if overrides.size > 0
+        overrides_cmd = "--override=" + overrides.join(" ")
+      end
+
+      system("omnibus build datadog-agent6 --log-level=#{log_level} #{overrides_cmd}")
     end
   end
 

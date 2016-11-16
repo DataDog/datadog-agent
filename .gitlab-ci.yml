@@ -9,42 +9,58 @@ variables:
   RPM_X64: $DOCKER_REGISTRY/datadog/datadog-agent-builders:rpm_x64
 
 before_script:
-  # We need to install go deps from within the GOPATH, which is / on builder images.
-  # That's why we copy the agent repo there before bootstrapping the vendor dependencies
+  # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
+  # GOPATH to the project folder would be too complex (we'd need to replicate the `src/github/project` scheme).
+  # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
   - rsync -azr --delete ./ $SRC_PATH
-  - cd $SRC_PATH && rake deps
-  - cd $CI_PROJECT_DIR
+  - cd $SRC_PATH
+  - rake deps
 
-# run tests and build deb package
+# run tests for deb-x64
 run_tests_deb-x64:
   stage: test
   image: $DEB_X64
   tags:
     - docker
+  variables:
+    # No need to use the embedded python built with omnibus to run tests.
+    USE_SYSTEM_PY: "1"
   script:
     - rake test
 
+# build the package for deb-x64
 build_deb-x64:
   stage: build
   image: $DEB_X64
   tags:
     - docker
+  variables:
+    # Artifacts and cache must live within project directory but we run omnibus from the GOPATH (see above).
+    # We then instrument `rake` to invoke `omnibus` with custom parameter, pointing to a gitlab-friendly location.
+    AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
+    AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
+    # Uncomment the following to see debug logs from omnibus, it defaults to info
+    # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
     - rake agent:omnibus
   cache:
     # cache per branch
     key: $CI_BUILD_REF_NAME
     paths:
-      - omnibus/var
+      - $AGENT_OMNIBUS_BASE_DIR
   artifacts:
     paths:
-      - omnibus/pkg/
+      - $AGENT_OMNIBUS_PACKAGE_DIR
 
-# run tests and build rpm package (TODO)
+# run tests for rpm-x64
 run_test_rpm-x64:
   stage: test
   image: $RPM_X64
   tags:
     - docker
+  variables:
+    USE_SYSTEM_PY: "1"
   script:
     - rake test
+
+# TODO: build the package for rpm-x64
