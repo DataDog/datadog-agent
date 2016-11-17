@@ -96,6 +96,7 @@ namespace :agent do
 
     system(env, "go build -o #{BIN_PATH}/agent.bin #{REPO_PATH}/cmd/agent")
     FileUtils.cp_r("./pkg/collector/check/py/dist/", "#{BIN_PATH}", :remove_destination => true)
+    FileUtils.cp_r("./pkg/collector/check/core/dist/conf.d", "#{BIN_PATH}/dist", :remove_destination => false)
     FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
     FileUtils.chmod(0755, "#{BIN_PATH}/agent")
   end
