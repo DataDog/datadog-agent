@@ -69,7 +69,7 @@ func Start() {
 	cfg := config.NewConfig()
 	for _, provider := range getAgentConfigProviders() {
 		if err := provider.Configure(cfg); err != nil {
-			log.Warningf("Unable to load configuration from provider %v: %v", provider, err)
+			log.Warningf("Unable to load configuration from %v: %v", provider, err)
 		}
 	}
 

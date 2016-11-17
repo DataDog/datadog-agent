@@ -2,4 +2,7 @@
 
 package ddagentmain
 
-const configPath = "/opt/datadog-agent/etc"
+var configPath = []string{
+	"/opt/datadog-agent/etc",
+	distPath,
+}
