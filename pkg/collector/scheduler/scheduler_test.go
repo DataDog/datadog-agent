@@ -16,6 +16,7 @@ func (c *TestCheck) Configure(check.ConfigData) {}
 func (c *TestCheck) InitSender()                {}
 func (c *TestCheck) Interval() time.Duration    { return c.intl }
 func (c *TestCheck) Run() error                 { return nil }
+func (c *TestCheck) ID() string                 { return c.String() }
 
 // wait 1s for a predicate function to return true, use polling
 // instead of a giant sleep.
@@ -32,14 +33,12 @@ func consistently(f func() bool) bool {
 }
 
 func getScheduler() *Scheduler {
-	c := make(chan<- check.Check)
-	return NewScheduler(c)
+	return NewScheduler()
 }
 
 func TestNewScheduler(t *testing.T) {
-	c := make(chan<- check.Check)
-	s := NewScheduler(c)
-	assert.Equal(t, s.checksPipe, c)
+	s := NewScheduler()
+	assert.Nil(t, s.checksPipe)
 	assert.Equal(t, len(s.jobQueues), 0)
 	assert.Equal(t, s.running, uint32(0))
 }
@@ -71,19 +70,22 @@ func TestRun(t *testing.T) {
 	s := getScheduler()
 	defer s.Stop()
 
+	c := make(chan<- check.Check)
+
 	s.Enter([]check.Check{&TestCheck{intl: 10}})
-	s.Run()
+	s.Run(c)
 	assert.Equal(t, uint32(1), s.running)
 	assert.True(t, s.jobQueues[10].running)
 
 	// Calling Run again should be a non blocking, noop procedure
-	s.Run()
+	s.Run(c)
 }
 
 func TestStop(t *testing.T) {
+	c := make(chan<- check.Check)
 	s := getScheduler()
 	s.Enter([]check.Check{&TestCheck{intl: 10}})
-	s.Run()
+	s.Run(c)
 
 	err := s.Stop()
 	assert.Nil(t, err)
@@ -96,8 +98,9 @@ func TestStop(t *testing.T) {
 
 func TestStopTimeout(t *testing.T) {
 	s := getScheduler()
+	c := make(chan<- check.Check)
 	s.Enter([]check.Check{&TestCheck{intl: 10}})
-	s.Run()
+	s.Run(c)
 	s.Stop()
 
 	// to trigger the timeout, fake scheduler state to `running`...
@@ -110,8 +113,9 @@ func TestStopTimeout(t *testing.T) {
 
 func TestReload(t *testing.T) {
 	s := getScheduler()
+	c := make(chan<- check.Check)
 	s.Enter([]check.Check{&TestCheck{intl: 10}})
-	s.Run()
+	s.Run(c)
 
 	// add a queue to check the reload picks it up
 	s.Enter([]check.Check{&TestCheck{intl: 1}})

@@ -73,14 +73,8 @@ func Start() {
 		}
 	}
 
-	// Create a channel to enqueue the checks
-	pending := make(chan check.Check, 10)
-
 	// Initialize the CPython interpreter
 	state := py.Initialize(distPath, filepath.Join(distPath, "checks"))
-
-	// Get a single Runner instance, i.e. we process checks sequentially
-	go check.Runner(pending)
 
 	// Get a list of config checks from the configured providers
 	var configs []check.Config
@@ -89,8 +83,11 @@ func Start() {
 		configs = append(configs, c...)
 	}
 
+	// Get a Runner instance
+	runner := check.NewRunner()
+
 	// Instance the scheduler
-	scheduler := scheduler.NewScheduler(pending)
+	scheduler := scheduler.NewScheduler()
 
 	// given a list of configurations, try to load corresponding checks using different loaders
 	// TODO add check type to the conf file so that we avoid the inner for
@@ -104,8 +101,11 @@ func Start() {
 		}
 	}
 
+	// Start the Runner using only one worker, i.e. we process checks sequentially
+	runner.Run(1)
+
 	// Run the scheduler
-	scheduler.Run()
+	scheduler.Run(runner.GetChan())
 
 	// indefinitely block here for now, later we'll migrate to a more sophisticated
 	// system to handle interrupts (reloads, restarts, service discovery events, etc...)
