@@ -15,7 +15,11 @@ import "C"
 //export SubmitData
 func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float, tags *C.PyObject) *C.PyObject {
 
-	agg := aggregator.GetDefaultSender()
+	sender, err := aggregator.GetDefaultSender()
+	if err != nil {
+		log.Errorf("Error submitting data to the Sender: %v", err)
+		return C._none()
+	}
 
 	// TODO: cleanup memory, C.stuff is going to stay there!!!
 
@@ -36,13 +40,13 @@ func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float,
 	switch mt {
 	case C.RATE:
 		fmt.Println("Submitting Rate to the aggregator...", _name, _value, _tags)
-		agg.Rate(_name, _value, "", _tags)
+		sender.Rate(_name, _value, "", _tags)
 	case C.GAUGE:
 		fmt.Println("Submitting Gauge to the aggregator...", _name, _value, _tags)
-		agg.Gauge(_name, _value, "", _tags)
+		sender.Gauge(_name, _value, "", _tags)
 	case C.HISTOGRAM:
 		fmt.Println("Submitting Histogram to the aggregator...", _name, _value, _tags)
-		agg.Histogram(_name, _value, "", _tags)
+		sender.Histogram(_name, _value, "", _tags)
 	}
 
 	return C._none()

@@ -1,8 +1,13 @@
 package aggregator
 
-import "time"
+import (
+	"errors"
+	"sync"
+	"time"
+)
 
-var _sender *checkSender
+var senderInstance *checkSender
+var senderInit sync.Once
 
 // Sender allows sending metrics from checks/a check
 type Sender interface {
@@ -33,26 +38,25 @@ func newCheckSender(checkSamplerID int64, ssOut chan<- senderSample) *checkSende
 }
 
 // GetSender returns a new Sender, properly registered with the aggregator
-func GetSender() Sender {
-	if _aggregator == nil {
-		_aggregator = newBufferedAggregator()
+func GetSender() (Sender, error) {
+	if aggregatorInstance == nil {
+		return nil, errors.New("Aggregator was not initialized")
 	}
 
-	sender := newCheckSender(_aggregator.registerNewCheckSampler(), _aggregator.checkIn)
-
-	return sender
+	return newCheckSender(aggregatorInstance.registerNewCheckSampler(), aggregatorInstance.checkIn), nil
 }
 
 // GetDefaultSender returns the default sender
-func GetDefaultSender() Sender {
-	if _aggregator == nil {
-		_aggregator = newBufferedAggregator()
-	}
-	if _sender == nil {
-		_sender = newCheckSender(_aggregator.registerNewCheckSampler(), _aggregator.checkIn)
+func GetDefaultSender() (Sender, error) {
+	if aggregatorInstance == nil {
+		return nil, errors.New("Aggregator was not initialized")
 	}
 
-	return _sender
+	senderInit.Do(func() {
+		senderInstance = newCheckSender(aggregatorInstance.registerNewCheckSampler(), aggregatorInstance.checkIn)
+	})
+
+	return senderInstance, nil
 }
 
 // Commit commits the metric samples that were added during a check run
@@ -65,7 +69,7 @@ func (s *checkSender) Commit() {
 // Should be called when the sender is not used anymore
 // The metrics of this sender that haven't been flushed yet will be lost
 func (s *checkSender) Destroy() {
-	_aggregator.deregisterCheckSampler(s.checkSamplerID)
+	aggregatorInstance.deregisterCheckSampler(s.checkSamplerID)
 }
 
 // Gauge implements the Sender interface

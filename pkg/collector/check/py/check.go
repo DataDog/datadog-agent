@@ -2,6 +2,7 @@ package py
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"time"
 
@@ -45,14 +46,19 @@ func (c *PythonCheck) Run() error {
 	// call run function, it takes no args so we pass an empty tuple
 	emptyTuple := python.PyTuple_New(0)
 	result := c.Instance.CallMethod("run", emptyTuple)
-	aggregator.GetDefaultSender().Commit()
-	var resultStr string
 	if result == nil {
 		python.PyErr_Print()
 		return errors.New("Unable to run Python check")
 	}
 
-	resultStr = python.PyString_AsString(result)
+	s, err := aggregator.GetDefaultSender()
+	if err != nil {
+		return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+	}
+
+	s.Commit()
+
+	var resultStr = python.PyString_AsString(result)
 	if resultStr == "" {
 		return nil
 	}

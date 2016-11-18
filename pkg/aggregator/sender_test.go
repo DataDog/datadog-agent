@@ -2,40 +2,57 @@ package aggregator
 
 import (
 	// stdlib
+
+	"sync"
 	"testing"
 
 	// 3p
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func resetAggregator() {
-	_aggregator = nil
-	_sender = nil
+	aggregatorInstance = nil
+	aggregatorInit = sync.Once{}
+	senderInstance = nil
+	senderInit = sync.Once{}
+
+	GetAggregator(config.NewConfig())
 }
 
 func TestGetDefaultSenderCreatesOneSender(t *testing.T) {
 	resetAggregator()
 
-	defaultSender1 := GetDefaultSender().(*checkSender)
-	assert.Len(t, _aggregator.checkSamplers, 1)
+	s, err := GetDefaultSender()
+	assert.Nil(t, err)
+	defaultSender1 := s.(*checkSender)
+	assert.Len(t, aggregatorInstance.checkSamplers, 1)
 
-	defaultSender2 := GetDefaultSender().(*checkSender)
-	assert.Len(t, _aggregator.checkSamplers, 1)
+	s, err = GetDefaultSender()
+	assert.Nil(t, err)
+	defaultSender2 := s.(*checkSender)
+	assert.Len(t, aggregatorInstance.checkSamplers, 1)
 	assert.Equal(t, defaultSender1.checkSamplerID, defaultSender2.checkSamplerID)
 }
 
 func TestGetSenderCreatesDifferentCheckSamplers(t *testing.T) {
 	resetAggregator()
 
-	sender1 := GetSender().(*checkSender)
-	assert.Len(t, _aggregator.checkSamplers, 1)
+	s, err := GetSender()
+	assert.Nil(t, err)
+	sender1 := s.(*checkSender)
+	assert.Len(t, aggregatorInstance.checkSamplers, 1)
 
-	sender2 := GetSender().(*checkSender)
-	assert.Len(t, _aggregator.checkSamplers, 2)
+	s, err = GetSender()
+	assert.Nil(t, err)
+	sender2 := s.(*checkSender)
+	assert.Len(t, aggregatorInstance.checkSamplers, 2)
 	assert.NotEqual(t, sender1.checkSamplerID, sender2.checkSamplerID)
 
-	defaultSender := GetDefaultSender().(*checkSender)
-	assert.Len(t, _aggregator.checkSamplers, 3)
+	s, err = GetDefaultSender()
+	assert.Nil(t, err)
+	defaultSender := s.(*checkSender)
+	assert.Len(t, aggregatorInstance.checkSamplers, 3)
 	assert.NotEqual(t, sender1.checkSamplerID, defaultSender.checkSamplerID)
 	assert.NotEqual(t, sender2.checkSamplerID, defaultSender.checkSamplerID)
 }

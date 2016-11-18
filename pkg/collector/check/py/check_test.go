@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,10 +20,13 @@ func getCheckInstance() *PythonCheck {
 		python.PyGILState_Release(_gstate)
 	}()
 
+	aggregator.GetAggregator(config.NewConfig())
+
 	module := python.PyImport_ImportModuleNoBlock("testcheck")
 	checkClass := module.GetAttrString("TestCheck")
 	check := NewPythonCheck("testcheck", checkClass)
 	check.Configure([]byte("foo: bar"))
+	check.InitSender()
 	return check
 }
 

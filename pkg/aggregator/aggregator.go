@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/op/go-logging"
 )
 
@@ -12,15 +13,16 @@ const bucketSize = 10           // fixed for now
 
 var log = logging.MustGetLogger("datadog-agent")
 
-var _aggregator *BufferedAggregator
+var aggregatorInstance *BufferedAggregator
+var aggregatorInit sync.Once
 
-// GetChannel returns a channel which can be subsequently used to send MetricSamples
-func GetChannel() chan *MetricSample {
-	if _aggregator == nil {
-		_aggregator = newBufferedAggregator()
-	}
+// GetAggregator returns the Singleton instance
+func GetAggregator(conf *config.Config) *BufferedAggregator {
+	aggregatorInit.Do(func() {
+		aggregatorInstance = newBufferedAggregator(conf)
+	})
 
-	return _aggregator.dogstatsdIn
+	return aggregatorInstance
 }
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
@@ -32,21 +34,28 @@ type BufferedAggregator struct {
 	currentCheckSamplerID int64
 	flushInterval         int64
 	mu                    sync.Mutex // to protect the checkSamplers field
+	config                *config.Config
 }
 
 // Instantiate a BufferedAggregator and run it
-func newBufferedAggregator() *BufferedAggregator {
+func newBufferedAggregator(conf *config.Config) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
 		dogstatsdIn:   make(chan *MetricSample, 100), // TODO make buffer size configurable
 		checkIn:       make(chan senderSample, 100),  // TODO make buffer size configurable
 		sampler:       *NewSampler(bucketSize),
 		checkSamplers: make(map[int64]*CheckSampler),
 		flushInterval: defaultFlushInterval,
+		config:        conf,
 	}
 
 	go aggregator.run()
 
 	return aggregator
+}
+
+// GetChannel returns a channel which can be subsequently used to send MetricSamples
+func (agg *BufferedAggregator) GetChannel() chan *MetricSample {
+	return agg.dogstatsdIn
 }
 
 func (agg *BufferedAggregator) registerNewCheckSampler() int64 {
@@ -77,7 +86,7 @@ func (agg *BufferedAggregator) run() {
 				series = append(series, checkSampler.flush()...)
 			}
 			agg.mu.Unlock()
-			go Report(series)
+			go Report(series, agg.config.APIKey)
 		case sample := <-agg.dogstatsdIn:
 			now := time.Now().Unix()
 			agg.sampler.addSample(sample, now)

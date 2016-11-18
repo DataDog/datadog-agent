@@ -2,4 +2,7 @@
 
 package ddagentmain
 
-const configPath = "/etc/dd-agent"
+var configPath = []string{
+	"/etc/dd-agent",
+	distPath,
+}
