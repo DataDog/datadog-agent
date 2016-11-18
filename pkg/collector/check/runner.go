@@ -49,8 +49,8 @@ func (r *Runner) Stop() {
 		return
 	}
 
-	atomic.StoreUint32(&r.running, 0)
 	close(r.pending)
+	atomic.StoreUint32(&r.running, 0)
 }
 
 // GetChan returns a write-only version of the pending channel
