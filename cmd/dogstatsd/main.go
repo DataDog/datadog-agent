@@ -7,5 +7,6 @@ import (
 )
 
 func main() {
-	dogstatsd.RunServer(aggregator.GetChannel())
+	aggregatorInstance := aggregator.GetAggregator()
+	dogstatsd.RunServer(aggregatorInstance.GetChannel())
 }

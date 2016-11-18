@@ -37,7 +37,13 @@ func (c *MemoryCheck) Configure(data check.ConfigData) {
 
 // InitSender initializes a sender
 func (c *MemoryCheck) InitSender() {
-	c.sender = aggregator.GetSender()
+	s, err := aggregator.GetSender()
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	c.sender = s
 }
 
 // Interval returns the scheduling time for the check

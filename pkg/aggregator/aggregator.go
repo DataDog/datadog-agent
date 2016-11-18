@@ -12,15 +12,16 @@ const bucketSize = 10           // fixed for now
 
 var log = logging.MustGetLogger("datadog-agent")
 
-var _aggregator *BufferedAggregator
+var aggregatorInstance *BufferedAggregator
+var aggregatorInit sync.Once
 
-// GetChannel returns a channel which can be subsequently used to send MetricSamples
-func GetChannel() chan *MetricSample {
-	if _aggregator == nil {
-		_aggregator = newBufferedAggregator()
-	}
+// GetAggregator returns the Singleton instance
+func GetAggregator() *BufferedAggregator {
+	aggregatorInit.Do(func() {
+		aggregatorInstance = newBufferedAggregator()
+	})
 
-	return _aggregator.dogstatsdIn
+	return aggregatorInstance
 }
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
@@ -47,6 +48,11 @@ func newBufferedAggregator() *BufferedAggregator {
 	go aggregator.run()
 
 	return aggregator
+}
+
+// GetChannel returns a channel which can be subsequently used to send MetricSamples
+func (agg *BufferedAggregator) GetChannel() chan *MetricSample {
+	return agg.dogstatsdIn
 }
 
 func (agg *BufferedAggregator) registerNewCheckSampler() int64 {
