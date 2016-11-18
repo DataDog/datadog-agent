@@ -9,10 +9,9 @@ import (
 )
 
 const apiHost = "http://localhost:17123"
-const apiKey = "apikey"
 
 // Report metrics to the API
-func Report(series []*Serie) {
+func Report(series []*Serie, apiKey string) {
 	if len(series) == 0 {
 		log.Info("No series to flush")
 		return

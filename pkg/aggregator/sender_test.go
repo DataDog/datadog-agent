@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	// 3p
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,7 +17,7 @@ func resetAggregator() {
 	senderInstance = nil
 	senderInit = sync.Once{}
 
-	GetAggregator()
+	GetAggregator(config.NewConfig())
 }
 
 func TestGetDefaultSenderCreatesOneSender(t *testing.T) {
