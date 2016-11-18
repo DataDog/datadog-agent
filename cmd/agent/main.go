@@ -10,7 +10,7 @@ import (
 
 func main() {
 	// go_expvar server
-	go http.ListenAndServe(":8080", http.DefaultServeMux)
+	go http.ListenAndServe("localhost:8080", http.DefaultServeMux)
 
 	ddagentmain.Start()
 }
