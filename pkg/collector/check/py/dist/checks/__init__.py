@@ -2,6 +2,7 @@ import json
 import traceback
 import re
 import time
+import copy
 from collections import defaultdict
 
 import aggregator
@@ -89,19 +90,15 @@ class AgentCheck(object):
 
     def run(self):
         try:
-            for i in self.instances:
-                self.check(i)
-
+            self.check(copy.deepcopy(self.instances[0]))
             result = ''
 
         except Exception, e:
-            result = json.dumps(
-                [
-                    {
-                        "message": str(e),
-                        "traceback": traceback.format_exc(),
-                    }
-                ]
-            )
+            result = json.dumps([
+                {
+                    "message": str(e),
+                    "traceback": traceback.format_exc(),
+                }
+            ])
 
         return result
