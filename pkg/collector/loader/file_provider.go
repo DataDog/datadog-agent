@@ -6,12 +6,10 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/op/go-logging"
+	log "github.com/cihub/seelog"
 
 	"gopkg.in/yaml.v2"
 )
-
-var log = logging.MustGetLogger("datadog-agent")
 
 type configFormat struct {
 	Instances []check.ConfigRawMap
@@ -39,13 +37,13 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 
 		files, err := ioutil.ReadDir(path)
 		if err != nil {
-			log.Warningf("Unable to access dir: %s, skipping...", err)
+			log.Warnf("Unable to access dir: %s, skipping...", err)
 			continue
 		}
 
 		for _, f := range files {
 			if f.IsDir() {
-				log.Warningf("%s is a dir, skipping...", f.Name())
+				log.Warnf("%s is a dir, skipping...", f.Name())
 				continue
 			}
 
@@ -54,7 +52,7 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 			bName := fName[:len(f.Name())-len(extName)]
 			conf, err := getCheckConfig(bName, filepath.Join(path, fName))
 			if err != nil {
-				log.Warningf("%s is not a valid config file: %s", f.Name(), err)
+				log.Warnf("%s is not a valid config file: %s", f.Name(), err)
 				continue
 			}
 

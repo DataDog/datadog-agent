@@ -5,13 +5,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
-	"github.com/op/go-logging"
+	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/mem"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
-
-var log = logging.MustGetLogger("datadog-agent")
 
 // MemoryCheck doesn't need additional fields
 type MemoryCheck struct {

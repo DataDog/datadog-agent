@@ -4,10 +4,8 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/op/go-logging"
+	log "github.com/cihub/seelog"
 )
-
-var log = logging.MustGetLogger("datadog-agent")
 
 // Catalog keeps track of Go checks by name
 var catalog = make(map[string]check.Check)
@@ -34,7 +32,7 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	c, found := catalog[config.Name]
 	if !found {
 		msg := fmt.Sprintf("Check %s not found in Catalog", config.Name)
-		log.Warning(msg)
+		log.Warn(msg)
 		return checks, fmt.Errorf(msg)
 	}
 

@@ -5,12 +5,10 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/op/go-logging"
+	log "github.com/cihub/seelog"
 )
 
 const configFileName = "datadog.yaml"
-
-var log = logging.MustGetLogger("datadog-agent")
 
 // FileProvider retrieves configuration data from text files on the
 // filesystem containing YAML code.

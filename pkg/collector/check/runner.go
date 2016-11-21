@@ -3,6 +3,8 @@ package check
 import (
 	"sync"
 	"sync/atomic"
+
+	log "github.com/cihub/seelog"
 )
 
 // Runner ...

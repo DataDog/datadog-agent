@@ -2,11 +2,7 @@ package check
 
 import (
 	"time"
-
-	"github.com/op/go-logging"
 )
-
-var log = logging.MustGetLogger("datadog-agent")
 
 // DefaultCheckInterval is the interval in seconds the scheduler should apply
 // when no value was provided in Check configuration.
