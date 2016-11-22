@@ -102,5 +102,12 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 		return nil, errors.New("Invalid metric type")
 	}
 
-	return &aggregator.MetricSample{metricName, metricValue, metricType, &metricTags, metricSampleRate, 0}, nil
+	return &aggregator.MetricSample{
+		Name:       metricName,
+		Value:      metricValue,
+		Mtype:      metricType,
+		Tags:       &metricTags,
+		SampleRate: metricSampleRate,
+		Timestamp:  0,
+	}, nil
 }
