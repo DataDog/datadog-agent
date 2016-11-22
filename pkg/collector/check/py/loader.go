@@ -6,6 +6,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/sbinet/go-python"
+
+	log "github.com/cihub/seelog"
 )
 
 // const things
@@ -56,7 +58,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checkModule := python.PyImport_ImportModuleNoBlock(moduleName)
 	if checkModule == nil {
 		msg := fmt.Sprintf("Unable to import %v", moduleName)
-		log.Warningf(msg)
+		log.Warnf(msg)
 		python.PyErr_Print() // TODO: remove this or redirect to the Go logger
 		python.PyErr_Clear()
 		return checks, errors.New(msg)
@@ -66,7 +68,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checkClass := findSubclassOf(cl.agentCheckClass, checkModule)
 	if checkClass == nil {
 		msg := fmt.Sprintf("Unable to find a check class in the module: %v", python.PyString_AS_STRING(checkModule.Str()))
-		log.Warningf(msg)
+		log.Warnf(msg)
 		return checks, errors.New(msg)
 	}
 

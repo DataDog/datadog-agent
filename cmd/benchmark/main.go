@@ -7,12 +7,10 @@ import (
 	"time"
 
 	"github.com/PagerDuty/godspeed"
-	"github.com/op/go-logging"
+	log "github.com/cihub/seelog"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-var log = logging.MustGetLogger("datadog-agent")
 
 func sendGauge(gStress, gStats *godspeed.Godspeed, metric string, value float64, tags []string) {
 	// err := gStress.Gauge("example.stat", 1, tags)

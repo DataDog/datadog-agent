@@ -11,8 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/kardianos/osext"
-	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
+
+	log "github.com/cihub/seelog"
 
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/check/core/system"
@@ -22,7 +23,6 @@ const agentVersion = "6.0.0"
 
 var here, _ = osext.ExecutableFolder()
 var distPath = filepath.Join(here, "dist")
-var log = logging.MustGetLogger("datadog-agent")
 
 // for testing purposes only: collect and log check results
 type metric struct {
@@ -63,6 +63,7 @@ func getAgentConfigProviders() (providers []config.Provider) {
 
 // Start the main check loop
 func Start() {
+	defer log.Flush()
 
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
 
@@ -70,7 +71,7 @@ func Start() {
 	cfg := config.NewConfig()
 	for _, provider := range getAgentConfigProviders() {
 		if err := provider.Configure(cfg); err != nil {
-			log.Warningf("Unable to load configuration from %v: %v", provider, err)
+			log.Warnf("Unable to load configuration from %v: %v", provider, err)
 		}
 	}
 

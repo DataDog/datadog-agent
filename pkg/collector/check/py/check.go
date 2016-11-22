@@ -10,11 +10,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/op/go-logging"
 	"github.com/sbinet/go-python"
-)
 
-var log = logging.MustGetLogger("datadog-agent")
+	log "github.com/cihub/seelog"
+)
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {

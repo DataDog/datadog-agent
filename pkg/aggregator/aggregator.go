@@ -5,13 +5,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/op/go-logging"
 )
 
 const defaultFlushInterval = 15 // flush interval in seconds
 const bucketSize = 10           // fixed for now
-
-var log = logging.MustGetLogger("datadog-agent")
 
 var aggregatorInstance *BufferedAggregator
 var aggregatorInit sync.Once

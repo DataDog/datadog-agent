@@ -4,6 +4,7 @@ import (
 	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	log "github.com/cihub/seelog"
 )
 
 // RunServer starts and run a dogstatsd server

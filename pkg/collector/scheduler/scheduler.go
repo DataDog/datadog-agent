@@ -7,10 +7,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/op/go-logging"
+	log "github.com/cihub/seelog"
 )
-
-var log = logging.MustGetLogger("datadog-agent")
 
 const defaultTimeout time.Duration = 5000 * time.Millisecond
 

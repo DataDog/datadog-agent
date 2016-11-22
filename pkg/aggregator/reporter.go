@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+
+	log "github.com/cihub/seelog"
 )
 
 const apiHost = "http://localhost:17123"
