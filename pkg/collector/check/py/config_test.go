@@ -1,3 +1,4 @@
+// NOTICE: See TestMain function in `utils_test.go` for Python initialization
 package py
 
 import (

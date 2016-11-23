@@ -7,10 +7,9 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 )
-
-const apiHost = "http://localhost:17123"
 
 // Report metrics to the API
 func Report(series []*Serie, apiKey string) {
@@ -19,7 +18,7 @@ func Report(series []*Serie, apiKey string) {
 		return
 	}
 
-	url := fmt.Sprintf("%s/api/v1/series?api_key=%s", apiHost, apiKey)
+	url := fmt.Sprintf("%s/api/v1/series?api_key=%s", config.Datadog.GetString("dd_url"), apiKey)
 	log.Infof("Flushing %d series to %s", len(series), url)
 
 	// Encode payload to JSON

@@ -38,3 +38,7 @@ eval "$(gimme 1.6.2)"
 
 ## Executing
 Just execute the `agent` launch script within the `bin/agent` folder, it will take care of adjusting paths and run the binary.
+You need to provide a valid API key, either through the config file or passing the environment variable like:
+```
+DD_API_KEY=12345678990 ./bin/agent/agent
+```

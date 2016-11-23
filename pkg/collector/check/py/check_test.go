@@ -1,3 +1,4 @@
+// NOTICE: See TestMain function in `utils_test.go` for Python initialization
 // FIXME migrate to testify ASAP
 
 package py
@@ -8,7 +9,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,7 +20,7 @@ func getCheckInstance() *PythonCheck {
 		python.PyGILState_Release(_gstate)
 	}()
 
-	aggregator.GetAggregator(config.NewConfig())
+	aggregator.GetAggregator()
 
 	module := python.PyImport_ImportModuleNoBlock("testcheck")
 	checkClass := module.GetAttrString("TestCheck")

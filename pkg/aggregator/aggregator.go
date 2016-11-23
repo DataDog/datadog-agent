@@ -14,9 +14,9 @@ var aggregatorInstance *BufferedAggregator
 var aggregatorInit sync.Once
 
 // GetAggregator returns the Singleton instance
-func GetAggregator(conf *config.Config) *BufferedAggregator {
+func GetAggregator() *BufferedAggregator {
 	aggregatorInit.Do(func() {
-		aggregatorInstance = newBufferedAggregator(conf)
+		aggregatorInstance = newBufferedAggregator()
 	})
 
 	return aggregatorInstance
@@ -31,18 +31,16 @@ type BufferedAggregator struct {
 	currentCheckSamplerID int64
 	flushInterval         int64
 	mu                    sync.Mutex // to protect the checkSamplers field
-	config                *config.Config
 }
 
 // Instantiate a BufferedAggregator and run it
-func newBufferedAggregator(conf *config.Config) *BufferedAggregator {
+func newBufferedAggregator() *BufferedAggregator {
 	aggregator := &BufferedAggregator{
 		dogstatsdIn:   make(chan *MetricSample, 100), // TODO make buffer size configurable
 		checkIn:       make(chan senderSample, 100),  // TODO make buffer size configurable
 		sampler:       *NewSampler(bucketSize),
 		checkSamplers: make(map[int64]*CheckSampler),
 		flushInterval: defaultFlushInterval,
-		config:        conf,
 	}
 
 	go aggregator.run()
@@ -83,7 +81,7 @@ func (agg *BufferedAggregator) run() {
 				series = append(series, checkSampler.flush()...)
 			}
 			agg.mu.Unlock()
-			go Report(series, agg.config.APIKey)
+			go Report(series, config.Datadog.GetString("api_key"))
 		case sample := <-agg.dogstatsdIn:
 			now := time.Now().Unix()
 			agg.sampler.addSample(sample, now)
