@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,17 +25,6 @@ type Scheduler struct {
 	running    uint32                      // Flag to see if the scheduler is running
 }
 
-// jobQueue contains a list of checks (called jobs) that need to be
-// scheduled at a certain interval.
-type jobQueue struct {
-	interval time.Duration
-	stop     chan bool
-	ticker   *time.Ticker
-	jobs     []check.Check
-	running  bool
-	mu       sync.Mutex // to protect critical sections in struct's fields
-}
-
 // NewScheduler create a Scheduler and returns a pointer to it.
 func NewScheduler() *Scheduler {
 	return &Scheduler{
@@ -46,18 +36,33 @@ func NewScheduler() *Scheduler {
 	}
 }
 
-// Enter schedules a list of `Check`s for execution.
-func (s *Scheduler) Enter(checks []check.Check) {
-	s.mu.Lock() // sync when accessing `jobQueues`
-	for _, c := range checks {
-		interval := c.Interval()
-		_, ok := s.jobQueues[interval]
-		if !ok {
-			s.jobQueues[interval] = newJobQueue(interval)
-		}
-		s.jobQueues[interval].addJob(c)
+// Enter schedules a `Check`s for execution accordingly to the `Check.Interval()` value.
+// If the interval is 0, the check is supposed to run only once.
+func (s *Scheduler) Enter(check check.Check) error {
+	if check.Interval() < 0 {
+		return fmt.Errorf("Schedule interval must be a positive integer or 0")
 	}
-	s.mu.Unlock()
+
+	// send immediately to the checks Pipe if this is a one-time schedule
+	// do not block, in case the runner has not started
+	if check.Interval() == 0 {
+		log.Info("Scheduling check for one-time execution")
+		go func() {
+			s.checksPipe <- check
+		}()
+		return nil
+	}
+
+	// sync when accessing `jobQueues`
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.jobQueues[check.Interval()]; !ok {
+		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
+	}
+	s.jobQueues[check.Interval()].addJob(check)
+
+	return nil
 }
 
 // Run is the Scheduler main loop.
@@ -156,43 +161,4 @@ func (s *Scheduler) startQueues() {
 		q.run(s.checksPipe)
 		q.running = true
 	}
-}
-
-// newJobQueue creates a new jobQueue instance
-// the stop channel is buffered so the scheduler loop can send a message to stop
-// without blocking
-func newJobQueue(interval time.Duration) *jobQueue {
-	return &jobQueue{
-		interval: interval,
-		ticker:   time.NewTicker(time.Second * time.Duration(interval)),
-		stop:     make(chan bool, 1),
-	}
-}
-
-// addJob is a convenience method to add a check to a queue
-func (jq *jobQueue) addJob(c check.Check) {
-	jq.mu.Lock()
-	jq.jobs = append(jq.jobs, c)
-	jq.mu.Unlock()
-}
-
-// run schedules the checks in the queue by posting them to the
-// execution pipeline.
-// This doesn't block.
-func (jq *jobQueue) run(out chan<- check.Check) {
-	go func() {
-		for {
-			select {
-			case <-jq.stop:
-				// someone asked to stop this queue
-				jq.ticker.Stop()
-			case <-jq.ticker.C:
-				// normal case, (re)schedule the queue
-				for _, check := range jq.jobs {
-					log.Debugf("Enqueuing check %s for queue %d", check, jq.interval)
-					out <- check
-				}
-			}
-		}
-	}()
 }

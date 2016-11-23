@@ -95,7 +95,9 @@ func Start() {
 		for _, loader := range loaders {
 			res, err := loader.Load(conf)
 			if err == nil {
-				scheduler.Enter(res)
+				for _, check := range res {
+					scheduler.Enter(check)
+				}
 			}
 		}
 	}
