@@ -1,6 +1,7 @@
 package ddagentmain
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -53,14 +54,6 @@ func getCheckLoaders() []loader.CheckLoader {
 	}
 }
 
-// build a list of providers for Agent configuration, the sequence
-// define the precedence.
-func getAgentConfigProviders() (providers []config.Provider) {
-	return []config.Provider{
-		config.NewFileProvider(configPath),
-	}
-}
-
 // Start the main check loop
 func Start() {
 	defer log.Flush()
@@ -68,11 +61,12 @@ func Start() {
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
 
 	// Global Agent configuration
-	cfg := config.NewConfig()
-	for _, provider := range getAgentConfigProviders() {
-		if err := provider.Configure(cfg); err != nil {
-			log.Warnf("Unable to load configuration from %v: %v", provider, err)
-		}
+	for _, path := range configPaths {
+		config.Datadog.AddConfigPath(path)
+	}
+	err := config.Datadog.ReadInConfig()
+	if err != nil {
+		panic(fmt.Errorf("unable to load Datadog config file: %s", err))
 	}
 
 	// Initialize the CPython interpreter
@@ -92,7 +86,7 @@ func Start() {
 	scheduler := scheduler.NewScheduler()
 
 	// Instance the Aggregator
-	_ = aggregator.GetAggregator(cfg)
+	_ = aggregator.GetAggregator()
 
 	// given a list of configurations, try to load corresponding checks using different loaders
 	// TODO add check type to the conf file so that we avoid the inner for
