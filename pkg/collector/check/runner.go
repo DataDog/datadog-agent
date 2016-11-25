@@ -3,9 +3,12 @@ package check
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 
 	log "github.com/cihub/seelog"
 )
+
+const stopCheckTimeoutMs = 500 // Time to wait for a check to stop in milliseconds
 
 // Runner ...
 type Runner struct {
@@ -51,25 +54,30 @@ func (r *Runner) Stop() {
 		return
 	}
 
+	log.Info("Runner is shutting down...")
+
 	close(r.pending)
 	atomic.StoreUint32(&r.running, 0)
 
 	// stop checks that are still running
 	r.m.Lock()
 	for _, check := range r.runningChecks {
-		check.Stop()
+		log.Infof("Stopping Check %v that is still running...", check)
+		done := make(chan struct{})
+		go func() {
+			check.Stop()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			// all good
+		case <-time.After(stopCheckTimeoutMs * time.Millisecond):
+			// check is not responding
+			log.Errorf("Check %v not responding, timing out...", check)
+		}
 	}
 	r.m.Unlock()
-}
-
-// StopCheck stops a specific check if it's currently running
-func (r *Runner) StopCheck(checkID string) {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	if _, isRunning := r.runningChecks[checkID]; isRunning {
-		r.runningChecks[checkID].Stop()
-	}
 }
 
 // GetChan returns a write-only version of the pending channel
