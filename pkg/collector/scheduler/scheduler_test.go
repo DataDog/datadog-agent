@@ -44,22 +44,35 @@ func TestNewScheduler(t *testing.T) {
 }
 
 func TestEnter(t *testing.T) {
-	c := []check.Check{&TestCheck{intl: 1}}
+	c := &TestCheck{}
 	s := getScheduler()
 
+	// schedule passing a wrong interval value
+	c.intl = -1
+	err := s.Enter(c)
+	assert.Len(t, s.jobQueues, 0)
+	assert.NotNil(t, err)
+
+	// schedule a one-time check
+	c.intl = 0
+	err = s.Enter(c)
+	assert.Nil(t, err)
+
 	// schedule one check, one interval
+	c.intl = 1
 	s.Enter(c)
 	assert.Len(t, s.jobQueues, 1)
 	assert.Len(t, s.jobQueues[1].jobs, 1)
 
 	// schedule another, same interval
-	c = []check.Check{&TestCheck{intl: 1}}
+	c = &TestCheck{intl: 1}
 	s.Enter(c)
 	assert.Len(t, s.jobQueues, 1)
 	assert.Len(t, s.jobQueues[1].jobs, 2)
 
 	// schedule again the previous plus another with different interval
-	c = append(c, &TestCheck{intl: 20})
+	s.Enter(c)
+	c = &TestCheck{intl: 20}
 	s.Enter(c)
 	assert.Len(t, s.jobQueues, 2)
 	assert.Len(t, s.jobQueues[1].jobs, 3)
@@ -72,10 +85,10 @@ func TestRun(t *testing.T) {
 
 	c := make(chan<- check.Check)
 
-	s.Enter([]check.Check{&TestCheck{intl: 10}})
+	s.Enter(&TestCheck{intl: 100})
 	s.Run(c)
 	assert.Equal(t, uint32(1), s.running)
-	assert.True(t, s.jobQueues[10].running)
+	assert.True(t, s.jobQueues[100].running)
 
 	// Calling Run again should be a non blocking, noop procedure
 	s.Run(c)
@@ -84,7 +97,7 @@ func TestRun(t *testing.T) {
 func TestStop(t *testing.T) {
 	c := make(chan<- check.Check)
 	s := getScheduler()
-	s.Enter([]check.Check{&TestCheck{intl: 10}})
+	s.Enter(&TestCheck{intl: 10})
 	s.Run(c)
 
 	err := s.Stop()
@@ -99,7 +112,7 @@ func TestStop(t *testing.T) {
 func TestStopTimeout(t *testing.T) {
 	s := getScheduler()
 	c := make(chan<- check.Check)
-	s.Enter([]check.Check{&TestCheck{intl: 10}})
+	s.Enter(&TestCheck{intl: 10})
 	s.Run(c)
 	s.Stop()
 
@@ -114,11 +127,11 @@ func TestStopTimeout(t *testing.T) {
 func TestReload(t *testing.T) {
 	s := getScheduler()
 	c := make(chan<- check.Check)
-	s.Enter([]check.Check{&TestCheck{intl: 10}})
+	s.Enter(&TestCheck{intl: 10})
 	s.Run(c)
 
 	// add a queue to check the reload picks it up
-	s.Enter([]check.Check{&TestCheck{intl: 1}})
+	s.Enter(&TestCheck{intl: 1})
 
 	err := s.Reload()
 	assert.Nil(t, err)
