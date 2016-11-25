@@ -58,9 +58,9 @@ func TestWork(t *testing.T) {
 	// fake a check is already running
 	r = NewRunner()
 	r.Run(1)
-	c3 := TestCheck{}
-	r.runningChecks[c3.String()] = struct{}{}
-	r.pending <- &c3
+	c3 := new(TestCheck)
+	r.runningChecks[c3.String()] = c3
+	r.pending <- c3
 	// wait to be sure the worker tried to run the check
 	time.Sleep(100 * time.Millisecond)
 	assert.False(t, c3.hasRun)

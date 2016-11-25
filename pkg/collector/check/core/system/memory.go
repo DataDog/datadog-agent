@@ -54,6 +54,9 @@ func (c *MemoryCheck) ID() string {
 	return c.String()
 }
 
+// Stop does nothing
+func (c *MemoryCheck) Stop() {}
+
 func init() {
 	core.RegisterCheck("memory", &MemoryCheck{})
 }

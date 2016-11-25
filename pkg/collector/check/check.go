@@ -23,6 +23,7 @@ type Config struct {
 // Check is an interface for types capable to run checks
 type Check interface {
 	Run() error                // run the check
+	Stop()                     // stop the check if it's running
 	String() string            // provide a printable version of the check name
 	Configure(data ConfigData) // configure the check from the outside
 	InitSender()               // initialize what's needed to send data to the aggregator
