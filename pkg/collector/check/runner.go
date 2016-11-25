@@ -9,11 +9,11 @@ import (
 
 // Runner ...
 type Runner struct {
-	pending       chan Check          // The channel where checks come from
-	done          chan bool           // Guard for the main loop
-	runningChecks map[string]struct{} // the list of checks running
-	m             sync.Mutex          // to control races on runningChecks
-	running       uint32              // Flag to see if the Runner is, well, running
+	pending       chan Check       // The channel where checks come from
+	done          chan bool        // Guard for the main loop
+	runningChecks map[string]Check // the list of checks running
+	m             sync.Mutex       // to control races on runningChecks
+	running       uint32           // Flag to see if the Runner is, well, running
 }
 
 // NewRunner ...
@@ -34,7 +34,7 @@ func (r *Runner) Run(numWorkers int) {
 	r.pending = make(chan Check)
 
 	// initialize the running list
-	r.runningChecks = make(map[string]struct{})
+	r.runningChecks = make(map[string]Check)
 
 	for i := 0; i < numWorkers; i++ {
 		go r.work()
@@ -53,6 +53,23 @@ func (r *Runner) Stop() {
 
 	close(r.pending)
 	atomic.StoreUint32(&r.running, 0)
+
+	// stop checks that are still running
+	r.m.Lock()
+	for _, check := range r.runningChecks {
+		check.Stop()
+	}
+	r.m.Unlock()
+}
+
+// StopCheck stops a specific check if it's currently running
+func (r *Runner) StopCheck(checkID string) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	if _, isRunning := r.runningChecks[checkID]; isRunning {
+		r.runningChecks[checkID].Stop()
+	}
 }
 
 // GetChan returns a write-only version of the pending channel
@@ -67,12 +84,11 @@ func (r *Runner) work() {
 	for check := range r.pending {
 		// see if the check is already running
 		r.m.Lock()
-		_, running := r.runningChecks[check.ID()]
-		if running {
+		if _, isRunning := r.runningChecks[check.ID()]; isRunning {
 			log.Debugf("Check %s is already running, skip execution...", check)
 			continue
 		} else {
-			r.runningChecks[check.ID()] = struct{}{}
+			r.runningChecks[check.ID()] = check
 		}
 		r.m.Unlock()
 

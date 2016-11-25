@@ -65,6 +65,9 @@ func (c *PythonCheck) Run() error {
 	return errors.New(resultStr)
 }
 
+// Stop does nothing
+func (c *PythonCheck) Stop() {}
+
 // String representation (for debug and logging)
 func (c *PythonCheck) String() string {
 	if c.Instance != nil {
