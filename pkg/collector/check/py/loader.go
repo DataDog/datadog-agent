@@ -57,10 +57,10 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	// import python module containing the check
 	checkModule := python.PyImport_ImportModuleNoBlock(moduleName)
 	if checkModule == nil {
-		msg := fmt.Sprintf("Unable to import %v", moduleName)
-		log.Warnf(msg)
-		python.PyErr_Print() // TODO: remove this or redirect to the Go logger
-		python.PyErr_Clear()
+		// we don't expect a traceback here so we use the error msg in `pvalue`
+		_, pvalue, _ := python.PyErr_Fetch()
+		msg := python.PyString_AsString(pvalue)
+		log.Warn(msg)
 		return checks, errors.New(msg)
 	}
 

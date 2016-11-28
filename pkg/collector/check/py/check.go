@@ -15,6 +15,9 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+// #include <Python.h>
+import "C"
+
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
 	Instance   *python.PyObject
@@ -82,7 +85,6 @@ func (c *PythonCheck) Configure(data check.ConfigData) {
 	raw := check.ConfigRawMap{}
 	err := yaml.Unmarshal(data, &raw)
 	if err != nil {
-		// TODO log error
 		log.Error(err)
 		return
 	}
@@ -119,8 +121,9 @@ func (c *PythonCheck) Configure(data check.ConfigData) {
 	emptyTuple := python.PyTuple_New(0)
 	instance := c.Class.Call(emptyTuple, configDict)
 	if instance == nil {
-		python.PyErr_Print()
-		// TODO: log Go error
+		_, _, ptraceback := python.PyErr_Fetch()
+		log.Error(python.PyString_AsString(ptraceback))
+		// python.PyErr_Print()
 		return
 	}
 
