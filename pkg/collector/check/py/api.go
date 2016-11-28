@@ -1,8 +1,6 @@
 package py
 
 import (
-	"fmt"
-
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -41,13 +39,13 @@ func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float,
 
 	switch mt {
 	case C.RATE:
-		fmt.Println("Submitting Rate to the aggregator...", _name, _value, _tags)
+		log.Debugf("Submitting Rate name:%v, value:%v, tags:%v", _name, _value, _tags)
 		sender.Rate(_name, _value, "", _tags)
 	case C.GAUGE:
-		fmt.Println("Submitting Gauge to the aggregator...", _name, _value, _tags)
+		log.Debugf("Submitting Gauge name:%v, value:%v, tags:%v", _name, _value, _tags)
 		sender.Gauge(_name, _value, "", _tags)
 	case C.HISTOGRAM:
-		fmt.Println("Submitting Histogram to the aggregator...", _name, _value, _tags)
+		log.Debugf("Submitting Histogram name:%v, value:%v, tags:%v", _name, _value, _tags)
 		sender.Histogram(_name, _value, "", _tags)
 	}
 
