@@ -1,4 +1,4 @@
-package ddagentmain
+package app
 
 import (
 	"fmt"
@@ -11,28 +11,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/kardianos/osext"
-	"github.com/sbinet/go-python"
-
 	log "github.com/cihub/seelog"
-
-	// register core checks
-	_ "github.com/DataDog/datadog-agent/pkg/collector/check/core/system"
+	"github.com/kardianos/osext"
+	python "github.com/sbinet/go-python"
+	"github.com/spf13/cobra"
 )
 
-const agentVersion = "6.0.0"
+var (
+	here, _  = osext.ExecutableFolder()
+	distPath = filepath.Join(here, "dist")
+	startCmd = &cobra.Command{
+		Use:   "start",
+		Short: "Start the Agent",
+		Long:  ``,
+		Run:   start,
+	}
+)
 
-var here, _ = osext.ExecutableFolder()
-var distPath = filepath.Join(here, "dist")
-
-// for testing purposes only: collect and log check results
-type metric struct {
-	Name  string
-	Value float64
-	Tags  []string
+func init() {
+	AgentCmd.AddCommand(startCmd)
 }
-
-type metrics map[string][]metric
 
 // build a list of providers for checks' configurations, the sequence defines
 // the precedence.
@@ -55,7 +53,7 @@ func getCheckLoaders() []loader.CheckLoader {
 }
 
 // Start the main check loop
-func Start() {
+func start(cmd *cobra.Command, args []string) {
 	defer log.Flush()
 
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
