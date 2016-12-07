@@ -3,8 +3,10 @@ Description="Datadog Agent"
 After=network.target
 
 [Service]
+Type=forking
+PIDFile=/var/run/datadog/agent.pid
 User=root
-ExecStart=<%= install_dir %>/bin/agent/agent
+ExecStart=<%= install_dir %>/bin/agent/agent start -p /var/run/datadog/agent.pid
 
 [Install]
 WantedBy=multi-user.target
