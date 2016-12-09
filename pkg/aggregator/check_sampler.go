@@ -1,10 +1,15 @@
 package aggregator
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
+
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	series   []*Serie
 	contexts map[string]Context // TODO: this map grows constantly, we need to flush old contexts from time to time. It should also be a shared ContextResolver
 	metrics  Metrics
+	hostname string
 }
 
 // newCheckSampler returns a newly initialized CheckSample
@@ -13,6 +18,7 @@ func newCheckSampler() *CheckSampler {
 		series:   make([]*Serie, 0),
 		contexts: map[string]Context{},
 		metrics:  *newMetrics(),
+		hostname: config.Datadog.GetString("hostname"),
 	}
 }
 
@@ -22,7 +28,7 @@ func (cs *CheckSampler) addSample(metricSample *MetricSample) {
 		cs.contexts[contextKey] = Context{
 			Name:       metricSample.Name,
 			Tags:       metricSample.Tags,
-			Host:       "",
+			Host:       cs.hostname, // FIXME: take into account hostname in the sample if provided
 			DeviceName: "",
 		}
 	}
