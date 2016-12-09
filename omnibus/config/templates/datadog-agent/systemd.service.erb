@@ -1,0 +1,10 @@
+[Unit]
+Description="Datadog Agent"
+After=network.target
+
+[Service]
+User=root
+ExecStart=<%= install_dir %>/bin/agent/agent
+
+[Install]
+WantedBy=multi-user.target

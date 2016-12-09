@@ -1,12 +1,16 @@
 stages:
   - test
   - build
+  - deploy
 
 variables:
   DOCKER_REGISTRY: gitlab.datad0g.com:4567
   SRC_PATH: /src/github.com/DataDog/datadog-agent
   DEB_X64: $DOCKER_REGISTRY/datadog/datadog-agent-builders:deb_x64
   RPM_X64: $DOCKER_REGISTRY/datadog/datadog-agent-builders:rpm_x64
+  DEPLOY: $DOCKER_REGISTRY/datadog/datadog-agent-builders:deploy # For now, just a renamed version of the image datadog/mars-jenkins-scripts
+  AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
+  DEB_S3_BUCKET: apt-agent6.datad0g.com
 
 before_script:
   # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
@@ -38,7 +42,6 @@ build_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus from the GOPATH (see above).
     # We then instrument `rake` to invoke `omnibus` with custom parameter, pointing to a gitlab-friendly location.
     AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
-    AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
     # Uncomment the following to see debug logs from omnibus, it defaults to info
     # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
@@ -64,3 +67,24 @@ run_test_rpm-x64:
     - rake test
 
 # TODO: build the package for rpm-x64
+
+
+# deploy debian packages to apt staging repo
+deploy_deb:
+  before_script:
+    - ls $AGENT_OMNIBUS_PACKAGE_DIR
+  only:
+    - master
+  stage: deploy
+  image: $DEPLOY
+  tags:
+    - docker
+  script:
+    - source ~/.rvm/scripts/rvm
+    - rvm use 2.2.2@circleci
+    - echo "$APT_SIGNING_KEY_ID"
+    - echo "$APT_SIGNING_PRIVATE_KEY" | gpg --import
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --no-tty --digest-algo SHA512" --preserve_versions $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --no-tty --digest-algo SHA512" --preserve_versions $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
+
+# TODO: deploy rpm packages
