@@ -5,6 +5,8 @@ stop on runlevel [!2345]
 
 respawn
 
+console log  # redirect daemon's outputs to `/var/log/upstart/datadog-agent6.log`
+
 script
   exec <%= install_dir %>/bin/agent/agent
 end script
