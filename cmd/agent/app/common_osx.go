@@ -4,5 +4,5 @@ package app
 
 var configPaths = []string{
 	"/opt/datadog-agent/etc",
-	distPath,
+	_distPath,
 }

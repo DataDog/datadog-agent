@@ -4,5 +4,5 @@ package app
 
 var configPaths = []string{
 	"/etc/dd-agent",
-	distPath,
+	_distPath,
 }

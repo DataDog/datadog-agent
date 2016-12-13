@@ -12,21 +12,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
-	"github.com/kardianos/osext"
 	python "github.com/sbinet/go-python"
 	"github.com/spf13/cobra"
 )
 
-var (
-	here, _  = osext.ExecutableFolder()
-	distPath = filepath.Join(here, "dist")
-	startCmd = &cobra.Command{
-		Use:   "start",
-		Short: "Start the Agent",
-		Long:  ``,
-		Run:   start,
-	}
-)
+var startCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start the Agent",
+	Long:  ``,
+	Run:   start,
+}
 
 func init() {
 	AgentCmd.AddCommand(startCmd)
@@ -35,7 +30,7 @@ func init() {
 // build a list of providers for checks' configurations, the sequence defines
 // the precedence.
 func getConfigProviders() (providers []loader.ConfigProvider) {
-	confdPath := filepath.Join(distPath, "conf.d")
+	confdPath := filepath.Join(_distPath, "conf.d")
 	configPaths := []string{confdPath}
 
 	// File Provider
@@ -68,7 +63,7 @@ func start(cmd *cobra.Command, args []string) {
 	}
 
 	// Initialize the CPython interpreter
-	state := py.Initialize(distPath, filepath.Join(distPath, "checks"))
+	state := py.Initialize(_distPath, filepath.Join(_distPath, "checks"))
 
 	// Get a list of config checks from the configured providers
 	var configs []check.Config
@@ -78,10 +73,10 @@ func start(cmd *cobra.Command, args []string) {
 	}
 
 	// Get a Runner instance
-	runner := check.NewRunner()
+	_runner = check.NewRunner()
 
 	// Instance the scheduler
-	scheduler := scheduler.NewScheduler()
+	_scheduler = scheduler.NewScheduler()
 
 	// Instance the Aggregator
 	_ = aggregator.GetAggregator()
@@ -94,17 +89,17 @@ func start(cmd *cobra.Command, args []string) {
 			res, err := loader.Load(conf)
 			if err == nil {
 				for _, check := range res {
-					scheduler.Enter(check)
+					_scheduler.Enter(check)
 				}
 			}
 		}
 	}
 
 	// Start the Runner using only one worker, i.e. we process checks sequentially
-	runner.Run(1)
+	_runner.Run(1)
 
 	// Run the scheduler
-	scheduler.Run(runner.GetChan())
+	_scheduler.Run(_runner.GetChan())
 
 	// indefinitely block here for now, later we'll migrate to a more sophisticated
 	// system to handle interrupts (reloads, restarts, service discovery events, etc...)
