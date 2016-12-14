@@ -7,17 +7,11 @@ import (
 
 // Metrics stores all the metrics by context key
 type Metrics struct {
-	gauges   map[string]*Gauge
-	rates    map[string]*Rate
-	counters map[string]*Counter
+	byContextKey map[string]Metric
 }
 
 func newMetrics() *Metrics {
-	return &Metrics{
-		make(map[string]*Gauge),
-		make(map[string]*Rate),
-		make(map[string]*Counter),
-	}
+	return &Metrics{make(map[string]Metric)}
 }
 
 // Context holds the elements that form a context, and can be serialized into a context key
@@ -143,56 +137,47 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 
 // TODO: Pass a reference to *MetricSample instead
 func (m *Metrics) addSample(contextKey string, mType MetricType, value float64, timestamp int64) {
-	switch mType {
-	case GaugeType:
-		_, ok := m.gauges[contextKey]
-		if !ok {
-			m.gauges[contextKey] = &Gauge{}
+	if _, ok := m.byContextKey[contextKey]; !ok {
+		switch mType {
+		case GaugeType:
+			m.byContextKey[contextKey] = &Gauge{}
+		case CounterType:
+			// pass
+		case RateType:
+			m.byContextKey[contextKey] = &Rate{}
 		}
-		m.gauges[contextKey].addSample(value, timestamp)
-	case CounterType:
-		// pass
-	case RateType:
-		_, ok := m.rates[contextKey]
-		if !ok {
-			m.rates[contextKey] = &Rate{}
-		}
-		m.rates[contextKey].addSample(value, timestamp)
 	}
+	m.byContextKey[contextKey].addSample(value, timestamp)
 }
 
 func (m *Metrics) flush(timestamp int64) []*Serie {
 	var series []*Serie
 
-	// Gauges
-	for contextKey, gauge := range m.gauges {
-		value, metricTimestamp := gauge.flush()
+	for contextKey, metric := range m.byContextKey {
+		switch metric := metric.(type) {
+		case *Gauge:
+			value, metricTimestamp := metric.flush()
 
-		if metricTimestamp != 0 {
-			// we use the timestamp passed to the flush
-			serie := &Serie{
-				Points:     [][]interface{}{{timestamp, value}},
-				Mtype:      "gauge",
-				contextKey: contextKey,
+			if metricTimestamp != 0 {
+				// we use the timestamp passed to the flush
+				serie := &Serie{
+					Points:     [][]interface{}{{timestamp, value}},
+					Mtype:      "gauge",
+					contextKey: contextKey,
+				}
+				series = append(series, serie)
 			}
-			series = append(series, serie)
-		}
-	}
+		case *Rate:
+			value, metricTimestamp, err := metric.flush()
 
-	// Counter
-	// ...
-
-	// Rates
-	for contextKey, rate := range m.rates {
-		value, metricTimestamp, err := rate.flush()
-
-		if err == nil {
-			serie := &Serie{
-				Points:     [][]interface{}{{metricTimestamp, value}},
-				Mtype:      "gauge",
-				contextKey: contextKey,
+			if err == nil {
+				serie := &Serie{
+					Points:     [][]interface{}{{metricTimestamp, value}},
+					Mtype:      "gauge",
+					contextKey: contextKey,
+				}
+				series = append(series, serie)
 			}
-			series = append(series, serie)
 		}
 	}
 

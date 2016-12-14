@@ -2,6 +2,11 @@ package aggregator
 
 import "errors"
 
+// Metric is the interface of all metric types
+type Metric interface {
+	addSample(sample float64, timestamp int64)
+}
+
 // Gauge stores and aggregates a gauge value
 type Gauge struct {
 	gauge     float64
