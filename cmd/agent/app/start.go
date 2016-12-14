@@ -6,6 +6,7 @@ import (
 
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -21,6 +22,9 @@ import (
 )
 
 var (
+	shouldStop chan bool
+
+	// flags variables
 	runForeground bool
 
 	startCmd = &cobra.Command{
@@ -86,6 +90,9 @@ func start(cmd *cobra.Command, args []string) {
 
 	defer log.Flush()
 
+	// setup a channel to handle stop requests
+	shouldStop = make(chan bool)
+
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
 
 	startAPIServer()
@@ -138,11 +145,21 @@ func start(cmd *cobra.Command, args []string) {
 	// Run the scheduler
 	_scheduler.Run(_runner.GetChan())
 
-	// indefinitely block here for now, later we'll migrate to a more sophisticated
-	// system to handle interrupts (reloads, restarts, service discovery events, etc...)
-	var c chan bool
-	<-c
+	// Setup a channel to catch OS signals
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt)
 
-	// this is not called for now, sorry CPython for leaving a mess on exit!
-	python.PyEval_RestoreThread(state)
+	// Block here until we receive the interrupt signal
+	select {
+	case sig := <-signalCh:
+		log.Infof("Received signal '%s', shutting down...", sig)
+		if sig == os.Interrupt {
+			// gracefully shut down any component
+			_runner.Stop()
+			_scheduler.Stop()
+			python.PyEval_RestoreThread(state)
+		}
+	}
+
+	log.Info("See ya!")
 }
