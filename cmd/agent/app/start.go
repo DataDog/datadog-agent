@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"net/http"
+
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,6 +59,15 @@ func getCheckLoaders() []loader.CheckLoader {
 	}
 }
 
+func startAPIServer() {
+	r := getRouter()
+	go http.ListenAndServe("localhost:5000", r)
+}
+
+// TODO
+// this should ideally support different execution protocols
+// so that we can go in background in a sane way. Something
+// like systemd notify or windows service
 func runBackground() {
 	args := os.Args
 	args = append(args, "-f")
@@ -66,7 +77,7 @@ func runBackground() {
 	cmd.Start()
 }
 
-// Start the main check loop
+// Start the main loop
 func start(cmd *cobra.Command, args []string) {
 	if !runForeground {
 		runBackground()
@@ -76,6 +87,8 @@ func start(cmd *cobra.Command, args []string) {
 	defer log.Flush()
 
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
+
+	startAPIServer()
 
 	// Global Agent configuration
 	for _, path := range configPaths {
