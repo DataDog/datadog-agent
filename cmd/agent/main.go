@@ -15,15 +15,16 @@ import (
 )
 
 func main() {
-	// root
+	// root HTTP router
 	r := mux.NewRouter()
 
-	// IPC REST API
+	// IPC REST API server
 
 	// go_expvar server
 	r.Handle("/debug/vars", http.DefaultServeMux)
 	go http.ListenAndServe("localhost:5000", r)
 
+	// Invoke the Agent
 	if err := app.AgentCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(-1)

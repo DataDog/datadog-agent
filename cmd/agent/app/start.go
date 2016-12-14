@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -16,15 +18,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var startCmd = &cobra.Command{
-	Use:   "start",
-	Short: "Start the Agent",
-	Long:  ``,
-	Run:   start,
-}
+var (
+	runForeground bool
+
+	startCmd = &cobra.Command{
+		Use:   "start",
+		Short: "Start the Agent",
+		Long:  ``,
+		Run:   start,
+	}
+)
 
 func init() {
+	// attach the command to the root
 	AgentCmd.AddCommand(startCmd)
+
+	// local flags
+	startCmd.Flags().BoolVarP(&runForeground, "foreground", "f", false, "run in foreground")
 }
 
 // build a list of providers for checks' configurations, the sequence defines
@@ -47,8 +57,22 @@ func getCheckLoaders() []loader.CheckLoader {
 	}
 }
 
+func runBackground() {
+	args := os.Args
+	args = append(args, "-f")
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Start()
+}
+
 // Start the main check loop
 func start(cmd *cobra.Command, args []string) {
+	if !runForeground {
+		runBackground()
+		return
+	}
+
 	defer log.Flush()
 
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
