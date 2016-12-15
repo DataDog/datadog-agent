@@ -1,9 +1,6 @@
 package aggregator
 
-import (
-	"sort"
-	"strings"
-)
+const defaultExpirySeconds = 300 // duration in seconds after which contexts are expired
 
 // Metrics stores all the metrics by context key
 type Metrics struct {
@@ -14,19 +11,11 @@ func newMetrics() *Metrics {
 	return &Metrics{make(map[string]Metric)}
 }
 
-// Context holds the elements that form a context, and can be serialized into a context key
-type Context struct {
-	Name       string
-	Tags       *[]string
-	Host       string
-	DeviceName string
-}
-
 // Serie holds a timeserie (w/ json serialization to DD API format)
 type Serie struct {
 	Name       string          `json:"metric"`
 	Points     [][]interface{} `json:"points"`
-	Tags       *[]string       `json:"tags"`
+	Tags       []string        `json:"tags"`
 	Host       string          `json:"host"`
 	DeviceName string          `json:"device_name"`
 	Mtype      string          `json:"type"`
@@ -46,23 +35,13 @@ type SerieSignature struct {
 // Sampler aggregates metrics
 type Sampler struct {
 	interval           int64
-	contexts           map[string]Context // TODO: this map grows constantly, we need to flush old contexts from time to time
+	contextResolver    *ContextResolver
 	metricsByTimestamp map[int64]*Metrics
 }
 
 // NewSampler returns a newly initialized Sampler
 func NewSampler(interval int64) *Sampler {
-	return &Sampler{interval, map[string]Context{}, map[int64]*Metrics{}}
-}
-
-func generateContextKey(metricSample *MetricSample) string {
-	var contextFields []string
-
-	sort.Strings(*(metricSample.Tags))
-	contextFields = append(contextFields, *(metricSample.Tags)...)
-	contextFields = append(contextFields, metricSample.Name)
-
-	return strings.Join(contextFields, ",")
+	return &Sampler{interval, newContextResolver(), map[int64]*Metrics{}}
 }
 
 func (s *Sampler) calculateBucketStart(timestamp int64) int64 {
@@ -72,15 +51,7 @@ func (s *Sampler) calculateBucketStart(timestamp int64) int64 {
 // Add the metricSample to the correct bucket
 func (s *Sampler) addSample(metricSample *MetricSample, timestamp int64) {
 	// Keep track of the context
-	contextKey := generateContextKey(metricSample)
-	if _, ok := s.contexts[contextKey]; !ok {
-		s.contexts[contextKey] = Context{
-			Name:       metricSample.Name,
-			Tags:       metricSample.Tags,
-			Host:       "",
-			DeviceName: "",
-		}
-	}
+	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
 
 	bucketStart := s.calculateBucketStart(timestamp)
 	// If it's a new bucket, initialize it
@@ -117,7 +88,7 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 				existingSerie.Points = append(existingSerie.Points, serie.Points[0])
 			} else {
 				// Resolve context and populate new Serie
-				context := s.contexts[serie.contextKey]
+				context, _ := s.contextResolver.lookupContext(serie.contextKey)
 				serie.Name = context.Name + serie.nameSuffix
 				serie.Tags = context.Tags
 				serie.Host = context.Host
@@ -131,6 +102,8 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 
 		delete(s.metricsByTimestamp, timestamp)
 	}
+
+	s.contextResolver.expireContexts(timestamp - defaultExpirySeconds)
 
 	return result
 }

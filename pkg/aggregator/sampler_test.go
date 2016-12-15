@@ -13,10 +13,9 @@ import (
 // Helper(s)
 func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	assert.Equal(t, expected.Name, actual.Name)
-	if expected.Tags != actual.Tags {
+	if expected.Tags != nil {
 		assert.NotNil(t, actual.Tags)
-		assert.NotNil(t, expected.Tags)
-		AssertTagsEqual(t, *(expected.Tags), *(actual.Tags))
+		AssertTagsEqual(t, expected.Tags, actual.Tags)
 	}
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.DeviceName, actual.DeviceName)
@@ -60,20 +59,6 @@ func (os OrderedSeries) Less(i, j int) bool {
 
 func (os OrderedSeries) Swap(i, j int) {
 	os.series[j], os.series[i] = os.series[i], os.series[j]
-}
-
-// MetricSample
-func TestGenerateContextKey(t *testing.T) {
-	mSample := MetricSample{
-		Name:       "my.metric.name",
-		Value:      1,
-		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
-		SampleRate: 1,
-	}
-
-	context := generateContextKey(&mSample)
-	assert.Equal(t, "bar,foo,my.metric.name", context)
 }
 
 // Metrics
@@ -173,7 +158,7 @@ func TestBucketSampling(t *testing.T) {
 
 	expectedSerie := &Serie{
 		Name:       "my.metric.name",
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		Points:     [][]interface{}{{int64(12340), mSample.Value}, {int64(12350), mSample.Value}},
 		Mtype:      "gauge",
 		Interval:   10,
@@ -215,19 +200,18 @@ func TestContextSampling(t *testing.T) {
 	expectedSerie1 := &Serie{
 		Name:     "my.metric.name1",
 		Points:   [][]interface{}{{int64(12340), float64(1)}},
-		Tags:     &[]string{"bar", "foo"},
+		Tags:     []string{"bar", "foo"},
 		Mtype:    "gauge",
 		Interval: 10,
 	}
 	expectedSerie2 := &Serie{
 		Name:     "my.metric.name2",
 		Points:   [][]interface{}{{int64(12340), float64(1)}},
-		Tags:     &[]string{"bar", "foo"},
+		Tags:     []string{"bar", "foo"},
 		Mtype:    "gauge",
 		Interval: 10,
 	}
 
-	assert.Equal(t, 2, len(sampler.contexts))
 	if assert.Equal(t, 2, len(series)) {
 		AssertSerieEqual(t, expectedSerie1, series[0])
 		AssertSerieEqual(t, expectedSerie2, series[1])

@@ -10,7 +10,7 @@ import (
 )
 
 func TestCheckGaugeSampling(t *testing.T) {
-	checkSampler := newCheckSampler()
+	checkSampler := newCheckSampler("")
 
 	mSample1 := MetricSample{
 		Name:       "my.metric.name",
@@ -48,7 +48,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 
 	expectedSerie1 := &Serie{
 		Name:       "my.metric.name",
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		Points:     [][]interface{}{{int64(12349), mSample2.Value}},
 		Mtype:      "gauge",
 		contextKey: generateContextKey(&mSample2),
@@ -57,7 +57,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 
 	expectedSerie2 := &Serie{
 		Name:       "my.metric.name",
-		Tags:       &[]string{"foo", "bar", "baz"},
+		Tags:       []string{"foo", "bar", "baz"},
 		Points:     [][]interface{}{{int64(12349), mSample3.Value}},
 		Mtype:      "gauge",
 		contextKey: generateContextKey(&mSample3),
@@ -75,7 +75,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 }
 
 func TestCheckRateSampling(t *testing.T) {
-	checkSampler := newCheckSampler()
+	checkSampler := newCheckSampler("")
 
 	mSample1 := MetricSample{
 		Name:       "my.metric.name",
@@ -111,7 +111,7 @@ func TestCheckRateSampling(t *testing.T) {
 
 	expectedSerie := &Serie{
 		Name:       "my.metric.name",
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		Points:     [][]interface{}{{int64(12347), 0.5}},
 		Mtype:      "gauge",
 		nameSuffix: "",
@@ -119,5 +119,26 @@ func TestCheckRateSampling(t *testing.T) {
 
 	if assert.Equal(t, 1, len(series)) {
 		AssertSerieEqual(t, expectedSerie, series[0])
+	}
+}
+
+func TestCheckSamplerHostname(t *testing.T) {
+	checkSampler := newCheckSampler("my.test.hostname")
+
+	mSample1 := MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      GaugeType,
+		Tags:       &[]string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12345,
+	}
+
+	checkSampler.addSample(&mSample1)
+	checkSampler.commit(12346)
+	series := checkSampler.flush()
+
+	if assert.Len(t, series, 1) {
+		assert.Equal(t, "my.test.hostname", series[0].Host)
 	}
 }
