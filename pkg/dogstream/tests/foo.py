@@ -1,4 +1,4 @@
 
 
 def parse(log, line):
-    pass
+    return "FOO!"

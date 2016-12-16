@@ -7,7 +7,8 @@ import (
 	python "github.com/sbinet/go-python"
 )
 
-func Load(parserName string) (DogstreamParser, error) {
+// Load searches and imports a Python module given the parser name
+func Load(parserName string) (Parser, error) {
 	// Lock the GIL and release it at the end of the run
 	_gstate := python.PyGILState_Ensure()
 	defer func() {
