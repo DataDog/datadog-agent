@@ -23,6 +23,7 @@ func (c *DogstreamCheck) String() string {
 
 // Run executes the check
 func (c *DogstreamCheck) Run() error {
+	log.Infof("Running dogstream check")
 	c.tailer.Run()
 	return nil
 }
@@ -62,7 +63,7 @@ func (c *DogstreamCheck) InitSender() {
 
 // Interval returns 0 since this is a long-running check
 func (c *DogstreamCheck) Interval() time.Duration {
-	return 0
+	return 15
 }
 
 // ID FIXME: this should return a real identifier

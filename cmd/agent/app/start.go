@@ -139,8 +139,8 @@ func start(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// Start the Runner using only one worker, i.e. we process checks sequentially
-	_runner.Run(2)
+	// Start the Runner with 3 workers
+	_runner.Run(3)
 
 	// Run the scheduler
 	_scheduler.Run(_runner.GetChan())

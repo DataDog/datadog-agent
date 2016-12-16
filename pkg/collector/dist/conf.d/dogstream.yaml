@@ -1,0 +1,4 @@
+instances:
+  - name: agent5log
+    file: /var/log/datadog/collector.log
+    parser: ['agent5_collector_parser']

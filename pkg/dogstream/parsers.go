@@ -28,7 +28,7 @@ func (p *PythonParse) Parse(logfile, line string) error {
 	args := python.PyTuple_New(2)
 	kwargs := python.PyDict_New()
 	python.PyTuple_SetItem(args, 0, python.PyString_FromString(logfile))
-	python.PyTuple_SetItem(args, 1, python.PyString_FromString(logfile))
+	python.PyTuple_SetItem(args, 1, python.PyString_FromString(line))
 
 	result := p.callable.Call(args, kwargs)
 	if result == nil {

@@ -46,7 +46,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 	// send immediately to the checks Pipe if this is a one-time schedule
 	// do not block, in case the runner has not started
 	if check.Interval() == 0 {
-		log.Info("Scheduling check for one-time execution")
+		log.Infof("Scheduling check %s for one-time execution", check.ID())
 		go func() {
 			s.checksPipe <- check
 		}()

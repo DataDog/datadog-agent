@@ -1,10 +1,10 @@
 package tailer
 
 import (
-	"log"
 	"os"
 	"unicode/utf8"
 
+	log "github.com/cihub/seelog"
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstream"
@@ -92,7 +92,7 @@ func (t Tailer) read(file *os.File, dispatchLine func(string)) {
 	bytesRead, err := file.Read(buffer)
 
 	if err != nil {
-		log.Println("Error reading file:", err)
+		log.Infof("Error reading file: %s", err)
 	}
 
 	// Taken from google/mtail
@@ -144,7 +144,7 @@ func (d dispatcher) run() {
 func newWatcher() *watcher {
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
-		log.Println("Can't instantiate fs watcher:", err)
+		log.Infof("Can't instantiate fs watcher: %s", err)
 	}
 	return &watcher{
 		w,
@@ -159,7 +159,7 @@ func (w *watcher) Run() {
 			select {
 			case err := <-w.Errors:
 				if err != nil {
-					log.Println("error:", err)
+					log.Infof("error: %s", err)
 				}
 			}
 		}
