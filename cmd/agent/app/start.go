@@ -1,7 +1,12 @@
-package ddagentmain
+package app
 
 import (
 	"fmt"
+	"net/http"
+
+	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -11,33 +16,37 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/kardianos/osext"
-	"github.com/sbinet/go-python"
-
 	log "github.com/cihub/seelog"
-
-	// register core checks
-	_ "github.com/DataDog/datadog-agent/pkg/collector/check/core/system"
+	python "github.com/sbinet/go-python"
+	"github.com/spf13/cobra"
 )
 
-const agentVersion = "6.0.0"
+var (
+	shouldStop chan bool
 
-var here, _ = osext.ExecutableFolder()
-var distPath = filepath.Join(here, "dist")
+	// flags variables
+	runForeground bool
 
-// for testing purposes only: collect and log check results
-type metric struct {
-	Name  string
-	Value float64
-	Tags  []string
+	startCmd = &cobra.Command{
+		Use:   "start",
+		Short: "Start the Agent",
+		Long:  ``,
+		Run:   start,
+	}
+)
+
+func init() {
+	// attach the command to the root
+	AgentCmd.AddCommand(startCmd)
+
+	// local flags
+	startCmd.Flags().BoolVarP(&runForeground, "foreground", "f", false, "run in foreground")
 }
-
-type metrics map[string][]metric
 
 // build a list of providers for checks' configurations, the sequence defines
 // the precedence.
 func getConfigProviders() (providers []loader.ConfigProvider) {
-	confdPath := filepath.Join(distPath, "conf.d")
+	confdPath := filepath.Join(_distPath, "conf.d")
 	configPaths := []string{confdPath}
 
 	// File Provider
@@ -54,11 +63,39 @@ func getCheckLoaders() []loader.CheckLoader {
 	}
 }
 
-// Start the main check loop
-func Start() {
+func startAPIServer() {
+	r := getRouter()
+	go http.ListenAndServe("localhost:5000", r)
+}
+
+// TODO
+// this should ideally support different execution protocols
+// so that we can go in background in a sane way. Something
+// like systemd notify or windows service
+func runBackground() {
+	args := os.Args
+	args = append(args, "-f")
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Start()
+}
+
+// Start the main loop
+func start(cmd *cobra.Command, args []string) {
+	if !runForeground {
+		runBackground()
+		return
+	}
+
 	defer log.Flush()
 
+	// setup a channel to handle stop requests
+	shouldStop = make(chan bool)
+
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
+
+	startAPIServer()
 
 	// Global Agent configuration
 	for _, path := range configPaths {
@@ -70,7 +107,7 @@ func Start() {
 	}
 
 	// Initialize the CPython interpreter
-	state := py.Initialize(distPath, filepath.Join(distPath, "checks"))
+	state := py.Initialize(_distPath, filepath.Join(_distPath, "checks"))
 
 	// Get a list of config checks from the configured providers
 	var configs []check.Config
@@ -80,10 +117,12 @@ func Start() {
 	}
 
 	// Get a Runner instance
-	runner := check.NewRunner()
+	_runner = check.NewRunner()
+	// Start the Runner with 3 workers
+	_runner.Run(3)
 
 	// Instance the scheduler
-	scheduler := scheduler.NewScheduler()
+	_scheduler = scheduler.NewScheduler()
 
 	// Instance the Aggregator
 	_ = aggregator.GetAggregator()
@@ -96,23 +135,36 @@ func Start() {
 			res, err := loader.Load(conf)
 			if err == nil {
 				for _, check := range res {
-					scheduler.Enter(check)
+					if check.Interval() == 0 {
+						go func() {
+							_runner.GetChan() <- check
+						}()
+					} else {
+						_scheduler.Enter(check)
+					}
 				}
 			}
 		}
 	}
 
-	// Start the Runner using only one worker, i.e. we process checks sequentially
-	runner.Run(1)
-
 	// Run the scheduler
-	scheduler.Run(runner.GetChan())
+	_scheduler.Run(_runner.GetChan())
 
-	// indefinitely block here for now, later we'll migrate to a more sophisticated
-	// system to handle interrupts (reloads, restarts, service discovery events, etc...)
-	var c chan bool
-	<-c
+	// Setup a channel to catch OS signals
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt)
 
-	// this is not called for now, sorry CPython for leaving a mess on exit!
-	python.PyEval_RestoreThread(state)
+	// Block here until we receive the interrupt signal
+	select {
+	case sig := <-signalCh:
+		log.Infof("Received signal '%s', shutting down...", sig)
+		if sig == os.Interrupt {
+			// gracefully shut down any component
+			_runner.Stop()
+			_scheduler.Stop()
+			python.PyEval_RestoreThread(state)
+		}
+	}
+
+	log.Info("See ya!")
 }

@@ -73,10 +73,7 @@ func (c *PythonCheck) Stop() {}
 
 // String representation (for debug and logging)
 func (c *PythonCheck) String() string {
-	if c.Instance != nil {
-		return python.PyString_AsString(c.Instance.GetAttrString("__class__").GetAttrString("__name__"))
-	}
-	return ""
+	return c.ModuleName
 }
 
 // Configure the Python check from YAML data

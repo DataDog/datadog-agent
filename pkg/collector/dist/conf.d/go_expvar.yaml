@@ -1,6 +1,6 @@
 init_config:
 instances:
-  - expvar_url: http://localhost:8080/debug/vars
+  - expvar_url: http://localhost:5000/debug/vars
     tags:
       - check_type:python
     metrics:

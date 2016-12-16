@@ -40,17 +40,7 @@ func NewScheduler() *Scheduler {
 // If the interval is 0, the check is supposed to run only once.
 func (s *Scheduler) Enter(check check.Check) error {
 	if check.Interval() < 0 {
-		return fmt.Errorf("Schedule interval must be a positive integer or 0")
-	}
-
-	// send immediately to the checks Pipe if this is a one-time schedule
-	// do not block, in case the runner has not started
-	if check.Interval() == 0 {
-		log.Info("Scheduling check for one-time execution")
-		go func() {
-			s.checksPipe <- check
-		}()
-		return nil
+		return fmt.Errorf("Scheduler only accepts positive integer intervals")
 	}
 
 	// sync when accessing `jobQueues`
