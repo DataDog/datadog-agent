@@ -57,7 +57,7 @@ func TestRead(t *testing.T) {
 	}
 	tailerFile, _ := os.Open(testFilePath("foo"))
 	defer tailerFile.Close()
-	tailer.read(tailerFile, dispatch)
+	tailer.read(tailerFile, "", dispatch)
 
 	assert.Len(t, readLines, 2)
 }
@@ -169,4 +169,70 @@ func TestTailerMultipleFiles(t *testing.T) {
 			assert.Contains(t, parserCommon.lines, str)
 		}
 	}
+}
+
+func TestTailerPartialLine(t *testing.T) {
+	file, _ := os.Create(testFilePath("foo"))
+	defer file.Close()
+	file.Seek(0, 2)
+	tailer := NewTailer()
+
+	parser := newFakeParser()
+	err := tailer.AddFile(testFilePath("foo"), []dogstream.Parser{parser})
+	check(err)
+
+	go tailer.Run()
+	defer tailer.Stop()
+
+	tailedContent := []byte("line1\nline2")
+	_, err = file.Write(tailedContent)
+	check(err)
+	file.Sync()
+
+	time.Sleep(100 * time.Millisecond)
+
+	tailedContent = []byte("\nline3\n")
+	_, err = file.Write(tailedContent)
+	check(err)
+	file.Sync()
+
+	time.Sleep(100 * time.Millisecond)
+
+	if assert.Len(t, parser.lines, 3) {
+		assert.Equal(t, "line1", parser.lines[0])
+		assert.Equal(t, "line2", parser.lines[1])
+		assert.Equal(t, "line3", parser.lines[2])
+	}
+}
+
+func TestTailerLargeRead(t *testing.T) {
+	file, _ := os.Create(testFilePath("foo"))
+	defer file.Close()
+	file.Seek(0, 2)
+	tailer := NewTailer()
+
+	parser := newFakeParser()
+	err := tailer.AddFile(testFilePath("foo"), []dogstream.Parser{parser})
+	check(err)
+
+	go tailer.Run()
+	defer tailer.Stop()
+
+	tailedContent := []byte("")
+	for i := 0; i < 5000; i++ {
+		tailedContent = append(tailedContent, []byte("line\n")...)
+	}
+	_, err = file.Write(tailedContent)
+	check(err)
+	file.Sync()
+
+	time.Sleep(100 * time.Millisecond)
+
+	if assert.Len(t, parser.lines, 5000) {
+		for _, line := range parser.lines {
+			assert.Equal(t, "line", line)
+		}
+	}
+
+	file.Truncate(0)
 }

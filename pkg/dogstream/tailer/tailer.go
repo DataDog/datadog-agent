@@ -1,6 +1,7 @@
 package tailer
 
 import (
+	"io"
 	"os"
 	"unicode/utf8"
 
@@ -12,9 +13,10 @@ import (
 
 // Tailer tails log files and forwards the lines to parsers
 type Tailer struct {
-	w           *watcher
-	files       map[string]*os.File
-	dispatchers map[string]*dispatcher
+	w            *watcher
+	files        map[string]*os.File
+	dispatchers  map[string]*dispatcher
+	partialLines map[string]string
 }
 
 type dispatcher struct {
@@ -30,9 +32,10 @@ type watcher struct {
 // NewTailer instantiates a new Tailer
 func NewTailer() *Tailer {
 	return &Tailer{
-		w:           newWatcher(),
-		files:       make(map[string]*os.File),
-		dispatchers: make(map[string]*dispatcher),
+		w:            newWatcher(),
+		files:        make(map[string]*os.File),
+		dispatchers:  make(map[string]*dispatcher),
+		partialLines: make(map[string]string),
 	}
 }
 
@@ -40,7 +43,7 @@ func NewTailer() *Tailer {
 func (t *Tailer) AddFile(filePath string, parsers []dogstream.Parser) error {
 	_, ok := t.files[filePath]
 	if !ok {
-		newFile, err := t.openFile(filePath)
+		newFile, err := t.openFile(filePath, true)
 		if err != nil {
 			return err
 		}
@@ -58,7 +61,7 @@ func (t *Tailer) Run() {
 	t.w.Run()
 	for fileUpdated := range t.w.fileUpdates {
 		file := t.files[fileUpdated]
-		t.read(file, t.dispatchers[fileUpdated].dispatchLine)
+		t.partialLines[fileUpdated] = t.read(file, t.partialLines[fileUpdated], t.dispatchers[fileUpdated].dispatchLine)
 	}
 }
 
@@ -67,12 +70,14 @@ func (t *Tailer) Stop() {
 	t.w.Stop()
 }
 
-func (t Tailer) openFile(filePath string) (*os.File, error) {
+func (t Tailer) openFile(filePath string, seekEnd bool) (*os.File, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
 	}
-	file.Seek(0, 2)
+	if seekEnd {
+		file.Seek(0, 2)
+	}
 	return file, nil
 }
 
@@ -86,30 +91,37 @@ func (t *Tailer) cleanUp() {
 	}
 }
 
-func (t Tailer) read(file *os.File, dispatchLine func(string)) {
+func (t Tailer) read(file *os.File, previousPartial string, dispatchLine func(string)) string {
+	partial := previousPartial
+
 	// FIXME: reads at most 4096 bytes
 	buffer := make([]byte, 4096)
-	bytesRead, err := file.Read(buffer)
+	for {
+		bytesRead, err := file.Read(buffer)
 
-	if err != nil {
-		log.Infof("Error reading file: %s", err)
-	}
+		if err != nil {
+			if err != io.EOF {
+				// EOF happens and is not an issue, any other error should be logged though
+				log.Errorf("Error reading file: %s", err)
+			}
+			return partial
+		}
 
-	// Taken from google/mtail
-	buffer = buffer[:bytesRead]
-	var line string
+		// Taken from google/mtail
+		buffer = buffer[:bytesRead]
 
-	for i, width := 0, 0; i < len(buffer) && i < bytesRead; i += width {
-		var r rune
-		r, width = utf8.DecodeRune(buffer[i:])
-		switch {
-		case r != '\n':
-			line += string(r)
-		default:
-			// dipatch line to parsers, blocks if not ready
-			dispatchLine(line)
-			// reset line
-			line = ""
+		for i, width := 0, 0; i < len(buffer) && i < bytesRead; i += width {
+			var r rune
+			r, width = utf8.DecodeRune(buffer[i:])
+			switch {
+			case r != '\n':
+				partial += string(r)
+			default:
+				// dipatch line to parsers, blocks if not ready
+				dispatchLine(partial)
+				// reset partial string
+				partial = ""
+			}
 		}
 	}
 }
