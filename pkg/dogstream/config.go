@@ -6,14 +6,15 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type streamEntry struct {
+// StreamEntry represents an instance in the config file
+type StreamEntry struct {
 	Name   string   `yaml:"name"`
 	File   string   `yaml:"file"`
 	Parser []string `yaml:"parser"`
 }
 
 type streamConfig struct {
-	Instances []streamEntry `yaml:"instances"`
+	Instances []StreamEntry `yaml:"instances"`
 }
 
 func loadConfig(filename string) (map[string][]Parser, error) {

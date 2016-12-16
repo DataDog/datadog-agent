@@ -21,7 +21,7 @@ func Load(parserName string) (Parser, error) {
 		// we don't expect a traceback here so we use the error msg in `pvalue`
 		_, pvalue, _ := python.PyErr_Fetch()
 		msg := python.PyString_AsString(pvalue)
-		log.Warn(msg)
+		log.Warnf("Failed loading python parser %s: %s", parserName, msg)
 		return nil, errors.New(msg)
 	}
 

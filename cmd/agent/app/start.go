@@ -140,7 +140,7 @@ func start(cmd *cobra.Command, args []string) {
 	}
 
 	// Start the Runner using only one worker, i.e. we process checks sequentially
-	_runner.Run(1)
+	_runner.Run(2)
 
 	// Run the scheduler
 	_scheduler.Run(_runner.GetChan())
