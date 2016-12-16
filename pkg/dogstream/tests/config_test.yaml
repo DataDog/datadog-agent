@@ -1,0 +1,39 @@
+init_config:
+  # the check will refresh the matching pid list every X seconds
+  # except if it detects a change before. You might want to set it
+  # low if you want to alert on process service checks.
+  # pid_cache_duration: 120
+  #
+  # used to override the default procfs path, e.g. for docker containers with the outside fs mounted at /host/proc
+  # procfs_path: /proc
+
+instances:
+# The `system.processes.cpu.pct` metric sent by this check is only accurate for processes that live
+# for more than 30 seconds. Do not expect its value to be accurate for shorter-lived processes.
+#
+#  - name: (required) STRING. It will be used to uniquely identify your metrics as they will be tagged with this name
+#    search_string: (required) LIST OF STRINGS. If one of the elements in the list matches,
+#                    return the counter of all the processes that contain the string
+#    exact_match: (optional) Boolean. Default to True, if you want to look for an arbitrary
+#                 string, use exact_match: False
+#    ignore_denied_access: (optional) Boolean. Default to True, when getting the number of files descriptors, dd-agent user might
+#    get a denied access. Set this to true to not issue a warning if that happens.
+#    thresholds: (optional) Two ranges: critical and warning
+#         warning: (optional) List of two values: If the number of processes found is below the first value or
+#                  above the second one, the process check will return WARNING.
+#         critical: (optional) List of two values: If the number of processes found is below the first value or
+#                   above the second one, the process check will return CRITICAL.
+#     In this example, process check will return OK for 3 to 5 process. WARNING for 1, 2, 6, 7 processes and Critical below 1 or above 7.
+#     CRITICAL is always dominant in case of overlapping.
+#
+#
+# Examples:
+#
+
+  - name: authlog
+    file: /var/log/auth.log
+    parser: ['foo']
+   
+  - name: dmesg
+    file: /var/log/dmesg.log
+    parser: ['foo']

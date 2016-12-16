@@ -6,3 +6,4 @@ bin/
 *.lock
 *.pyc
 *.swp
+.vscode/
