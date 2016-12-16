@@ -118,6 +118,8 @@ func start(cmd *cobra.Command, args []string) {
 
 	// Get a Runner instance
 	_runner = check.NewRunner()
+	// Start the Runner with 3 workers
+	_runner.Run(3)
 
 	// Instance the scheduler
 	_scheduler = scheduler.NewScheduler()
@@ -133,14 +135,17 @@ func start(cmd *cobra.Command, args []string) {
 			res, err := loader.Load(conf)
 			if err == nil {
 				for _, check := range res {
-					_scheduler.Enter(check)
+					if check.Interval() == 0 {
+						go func() {
+							_runner.GetChan() <- check
+						}()
+					} else {
+						_scheduler.Enter(check)
+					}
 				}
 			}
 		}
 	}
-
-	// Start the Runner with 3 workers
-	_runner.Run(3)
 
 	// Run the scheduler
 	_scheduler.Run(_runner.GetChan())

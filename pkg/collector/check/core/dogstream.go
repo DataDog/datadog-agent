@@ -63,7 +63,7 @@ func (c *DogstreamCheck) InitSender() {
 
 // Interval returns 0 since this is a long-running check
 func (c *DogstreamCheck) Interval() time.Duration {
-	return 15
+	return 0
 }
 
 // ID FIXME: this should return a real identifier
