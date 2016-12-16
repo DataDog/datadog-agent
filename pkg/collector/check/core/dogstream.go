@@ -23,7 +23,6 @@ func (c *DogstreamCheck) String() string {
 
 // Run executes the check
 func (c *DogstreamCheck) Run() error {
-	log.Infof("Running dogstream check")
 	c.tailer.Run()
 	return nil
 }

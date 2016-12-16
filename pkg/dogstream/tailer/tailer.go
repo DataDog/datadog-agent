@@ -94,10 +94,10 @@ func (t *Tailer) cleanUp() {
 func (t Tailer) read(file *os.File, previousPartial string, dispatchLine func(string)) string {
 	partial := previousPartial
 
-	// FIXME: reads at most 4096 bytes
-	buffer := make([]byte, 4096)
+	buffer := make([]byte, 0, 4096)
 	for {
-		bytesRead, err := file.Read(buffer)
+		bytesRead, err := file.Read(buffer[:cap(buffer)])
+		buffer = buffer[:bytesRead]
 
 		if err != nil {
 			if err != io.EOF {
