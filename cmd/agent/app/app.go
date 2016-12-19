@@ -1,7 +1,7 @@
 /*
-	Package app implements the Agent main loop, orchestrating
-	all the components, providing a command line interface and
-	a public HTTP interface implementing several functionalities.
+Package app implements the Agent main loop, orchestrating
+all the components, providing a command line interface and
+a public HTTP interface implementing several functionalities.
 */
 package app
 
