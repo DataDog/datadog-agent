@@ -22,8 +22,6 @@ import (
 )
 
 var (
-	shouldStop chan bool
-
 	// flags variables
 	runForeground bool
 
@@ -90,8 +88,11 @@ func start(cmd *cobra.Command, args []string) {
 
 	defer log.Flush()
 
-	// setup a channel to handle stop requests
-	shouldStop = make(chan bool)
+	// start the cmd server
+	go cmdListen()
+
+	// starte the cmd HTTP server
+	// TODO
 
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
 
@@ -151,15 +152,22 @@ func start(cmd *cobra.Command, args []string) {
 
 	// Block here until we receive the interrupt signal
 	select {
+	case <-shouldStop:
+		log.Info("Received stop command, shutting down...")
+		goto teardown
 	case sig := <-signalCh:
 		log.Infof("Received signal '%s', shutting down...", sig)
 		if sig == os.Interrupt {
-			// gracefully shut down any component
-			_runner.Stop()
-			_scheduler.Stop()
-			python.PyEval_RestoreThread(state)
+			goto teardown
 		}
 	}
 
+teardown:
+	// gracefully shut down any component
+	_runner.Stop()
+	_scheduler.Stop()
+	python.PyEval_RestoreThread(state)
+	cmdStopListen()
 	log.Info("See ya!")
+	os.Exit(0)
 }

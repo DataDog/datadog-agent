@@ -1,6 +1,9 @@
 package app
 
-import "github.com/spf13/cobra"
+import (
+	log "github.com/cihub/seelog"
+	"github.com/spf13/cobra"
+)
 
 var (
 	stopCmd = &cobra.Command{
@@ -11,6 +14,20 @@ var (
 	}
 )
 
-func stop(*cobra.Command, []string) {
+func init() {
+	// attach the command to the root
+	AgentCmd.AddCommand(stopCmd)
+}
 
+func stop(*cobra.Command, []string) {
+	c, err := getConn()
+	if err != nil {
+		panic(err)
+	}
+	defer c.Close()
+
+	_, err = c.Write([]byte("stop"))
+	if err != nil {
+		log.Errorf("Error sending stop command: %v", err)
+	}
 }
