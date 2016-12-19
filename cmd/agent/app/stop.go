@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/agent/app/ipc"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 )
@@ -20,7 +21,7 @@ func init() {
 }
 
 func stop(*cobra.Command, []string) {
-	c, err := getConn()
+	c, err := ipc.GetConn()
 	if err != nil {
 		panic(err)
 	}

@@ -2,13 +2,14 @@ package app
 
 import (
 	"fmt"
-	"net/http"
 
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/app/api"
+	"github.com/DataDog/datadog-agent/cmd/agent/app/ipc"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
@@ -61,12 +62,7 @@ func getCheckLoaders() []loader.CheckLoader {
 	}
 }
 
-func startAPIServer() {
-	r := getRouter()
-	go http.ListenAndServe("localhost:5000", r)
-}
-
-// TODO
+// FIXME
 // this should ideally support different execution protocols
 // so that we can go in background in a sane way. Something
 // like systemd notify or windows service
@@ -88,15 +84,13 @@ func start(cmd *cobra.Command, args []string) {
 
 	defer log.Flush()
 
-	// start the cmd server
-	go cmdListen()
-
-	// starte the cmd HTTP server
-	// TODO
-
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
 
-	startAPIServer()
+	// start the ipc server
+	ipc.Listen()
+
+	// start the cmd HTTP server
+	api.StartServer()
 
 	// Global Agent configuration
 	for _, path := range configPaths {
@@ -152,7 +146,7 @@ func start(cmd *cobra.Command, args []string) {
 
 	// Block here until we receive the interrupt signal
 	select {
-	case <-shouldStop:
+	case <-ipc.ShouldStop:
 		log.Info("Received stop command, shutting down...")
 		goto teardown
 	case sig := <-signalCh:
@@ -167,7 +161,7 @@ teardown:
 	_runner.Stop()
 	_scheduler.Stop()
 	python.PyEval_RestoreThread(state)
-	cmdStopListen()
+	ipc.StopListen()
 	log.Info("See ya!")
 	os.Exit(0)
 }

@@ -1,3 +1,8 @@
+/*
+	Package app implements the Agent main loop, orchestrating
+	all the components, providing a command line interface and
+	a public HTTP interface implementing several functionalities.
+*/
 package app
 
 import (
@@ -9,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// notable variables to be used across the package
 var (
 	// AgentCmd is the root command
 	AgentCmd = &cobra.Command{
