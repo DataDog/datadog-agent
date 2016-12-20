@@ -21,9 +21,6 @@ var (
 //  * stop
 //
 func cmdHandler(c net.Conn) {
-	// setup a channel to handle stop requests
-	ShouldStop = make(chan bool)
-
 	for {
 		buf := make([]byte, 512)
 
@@ -48,6 +45,9 @@ func cmdHandler(c net.Conn) {
 // on the operating system. It processes any string it receives by invoking
 // `cmdHandler`.
 func Listen() {
+	// setup a channel to handle stop requests
+	ShouldStop = make(chan bool)
+
 	go func() {
 		var err error
 		listener, err = getListener()
