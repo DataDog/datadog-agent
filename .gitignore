@@ -3,6 +3,5 @@ bin/
 
 .DS_Store
 *.cov
-*.lock
 *.pyc
 *.swp

@@ -1,0 +1,79 @@
+hash: 0d814a293764cd7e12dd1b18d1a613e95d40a2ffaade4a8b065c0821e99197c4
+updated: 2016-12-20T15:08:47.566119557+01:00
+imports:
+- name: github.com/cihub/seelog
+  version: d2c6e5aa9fbfdd1c624e140287063c7730654115
+- name: github.com/DataDog/datadog-go
+  version: 6ea09a7540648568ce58b3d00eb1da133c2dcdd7
+  subpackages:
+  - statsd
+- name: github.com/davecgh/go-spew
+  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
+  subpackages:
+  - spew
+- name: github.com/fsnotify/fsnotify
+  version: 629574ca2a5df945712d3079857300b5e4da0236
+- name: github.com/hashicorp/hcl
+  version: 80e628d796135357b3d2e33a985c666b9f35eee1
+  subpackages:
+  - hcl/ast
+  - hcl/parser
+  - hcl/scanner
+  - hcl/strconv
+  - hcl/token
+  - json/parser
+  - json/scanner
+  - json/token
+- name: github.com/kardianos/osext
+  version: c2c54e542fb797ad986b31721e1baedf214ca413
+- name: github.com/magiconair/properties
+  version: 9c47895dc1ce54302908ab8a43385d1f5df2c11c
+- name: github.com/mitchellh/mapstructure
+  version: bfdb1a85537d60bc7e954e600c250219ea497417
+- name: github.com/mitchellh/reflectwalk
+  version: 9ad27c461a633e32a235a061d523aefe8f18571d
+- name: github.com/PagerDuty/godspeed
+  version: 6d136386b5f291797c77764dfd2acc950dc27347
+- name: github.com/pelletier/go-buffruneio
+  version: df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d
+- name: github.com/pelletier/go-toml
+  version: 017119f7a78a0b5fc0ea39ef6be09f03acf3345d
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
+- name: github.com/sbinet/go-python
+  version: ac4579f132fff506b2f6b3eda4c9282b4be59a08
+- name: github.com/shirou/gopsutil
+  version: 09887d1cba881bda8749dacde8e67e158c136186
+  subpackages:
+  - internal/common
+  - mem
+- name: github.com/spf13/afero
+  version: 2f30b2a92c0e5700bcfe4715891adb1f2a7a406d
+  subpackages:
+  - mem
+- name: github.com/spf13/cast
+  version: 24b6558033ffe202bf42f0f3b870dcc798dd2ba8
+- name: github.com/spf13/jwalterweatherman
+  version: 33c24e77fb80341fe7130ee7c594256ff08ccc46
+- name: github.com/spf13/pflag
+  version: 25f8b5b07aece3207895bf19f7ab517eb3b22a40
+- name: github.com/spf13/viper
+  version: 5ed0fc31f7f453625df314d8e66b9791e8d13003
+- name: github.com/stretchr/testify
+  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
+  subpackages:
+  - assert
+- name: golang.org/x/sys
+  version: d75a52659825e75fff6158388dddc6a5b04f9ba5
+  subpackages:
+  - unix
+- name: golang.org/x/text
+  version: a49bea13b776691cb1b49873e5d8df96ec74831a
+  subpackages:
+  - transform
+  - unicode/norm
+- name: gopkg.in/yaml.v2
+  version: a5b47d31c556af34a302ce5d659e6fea44d90de0
+testImports: []
