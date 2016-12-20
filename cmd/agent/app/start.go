@@ -76,6 +76,23 @@ func runBackground() {
 	cmd.Start()
 }
 
+func setupConfig() {
+	// set the paths where a config file is expected
+	for _, path := range configPaths {
+		config.Datadog.AddConfigPath(path)
+	}
+
+	// load the configuration
+	err := config.Datadog.ReadInConfig()
+	if err != nil {
+		panic(fmt.Errorf("unable to load Datadog config file: %s", err))
+	}
+
+	// define defaults for the Agent
+	config.Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
+	config.Datadog.BindEnv("cmd_sock")
+}
+
 // Start the main loop
 func start(cmd *cobra.Command, args []string) {
 	if !runForeground {
@@ -94,13 +111,7 @@ func start(cmd *cobra.Command, args []string) {
 	api.StartServer()
 
 	// Global Agent configuration
-	for _, path := range configPaths {
-		config.Datadog.AddConfigPath(path)
-	}
-	err := config.Datadog.ReadInConfig()
-	if err != nil {
-		panic(fmt.Errorf("unable to load Datadog config file: %s", err))
-	}
+	setupConfig()
 
 	// Initialize the CPython interpreter
 	state := py.Initialize(_distPath, filepath.Join(_distPath, "checks"))
