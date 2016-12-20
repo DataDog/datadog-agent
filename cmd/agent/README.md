@@ -30,7 +30,12 @@ Still work in progress.
 There are a set of operations that cannot be performed through an HTTP API for
 security reasons, like asking the agent to stop or retrieve auth tokens to use 
 with the HTTP API. In such cases a [Unix Socket][0] is used on *nix platform 
-while [Named Pipes][1] are used on Windows (still WIP).
+while [Named Pipes][1] are used on Windows (still WIP). Commands are simple
+strings, for the time being clients should not expect anything back from the
+server.
+
+The commands accepted through the IPC interface:
+ * `stop` to trigger the shutdown procedure
 
 [0]: https://en.wikipedia.org/wiki/Unix_domain_socket
 [1]: https://msdn.microsoft.com/en-us/library/windows/desktop/aa365590.aspx
