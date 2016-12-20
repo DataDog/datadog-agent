@@ -5,7 +5,6 @@ def go_fmt(path)
   errors = out.split("\n")
   if errors.length > 0
     puts out
-    fail
   end
 end
 
