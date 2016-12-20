@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"syscall"
 
 	"os"
 	"os/exec"
@@ -151,7 +152,7 @@ func start(cmd *cobra.Command, args []string) {
 		goto teardown
 	case sig := <-signalCh:
 		log.Infof("Received signal '%s', shutting down...", sig)
-		if sig == os.Interrupt {
+		if sig == os.Interrupt || sig == syscall.SIGTERM {
 			goto teardown
 		}
 	}
