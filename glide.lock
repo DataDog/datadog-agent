@@ -1,5 +1,5 @@
-hash: 0d814a293764cd7e12dd1b18d1a613e95d40a2ffaade4a8b065c0821e99197c4
-updated: 2016-12-20T15:08:47.566119557+01:00
+hash: c3511ba338bcdec8d3a72d5ff8fa2113b506549e39a8e2c8688babd29fd612d9
+updated: 2016-12-22T15:37:24.335175808+01:00
 imports:
 - name: github.com/cihub/seelog
   version: d2c6e5aa9fbfdd1c624e140287063c7730654115
@@ -13,6 +13,10 @@ imports:
   - spew
 - name: github.com/fsnotify/fsnotify
   version: 629574ca2a5df945712d3079857300b5e4da0236
+- name: github.com/gorilla/context
+  version: 1ea25387ff6f684839d82767c1733ff4d4d15d0a
+- name: github.com/gorilla/mux
+  version: 0eeaf8392f5b04950925b8a69fe70f110fa7cbfc
 - name: github.com/hashicorp/hcl
   version: 80e628d796135357b3d2e33a985c666b9f35eee1
   subpackages:
@@ -24,6 +28,8 @@ imports:
   - json/parser
   - json/scanner
   - json/token
+- name: github.com/inconshreveable/mousetrap
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/kardianos/osext
   version: c2c54e542fb797ad986b31721e1baedf214ca413
 - name: github.com/magiconair/properties
@@ -45,7 +51,7 @@ imports:
 - name: github.com/sbinet/go-python
   version: ac4579f132fff506b2f6b3eda4c9282b4be59a08
 - name: github.com/shirou/gopsutil
-  version: 09887d1cba881bda8749dacde8e67e158c136186
+  version: a0f760ef63d1bbb00439d730e60e04441f0d6e65
   subpackages:
   - internal/common
   - mem
@@ -55,16 +61,23 @@ imports:
   - mem
 - name: github.com/spf13/cast
   version: 24b6558033ffe202bf42f0f3b870dcc798dd2ba8
+- name: github.com/spf13/cobra
+  version: b62566898a99f2db9c68ed0026aa0a052e59678d
+  subpackages:
+  - cobra
 - name: github.com/spf13/jwalterweatherman
   version: 33c24e77fb80341fe7130ee7c594256ff08ccc46
 - name: github.com/spf13/pflag
   version: 25f8b5b07aece3207895bf19f7ab517eb3b22a40
 - name: github.com/spf13/viper
   version: 5ed0fc31f7f453625df314d8e66b9791e8d13003
+- name: github.com/stretchr/objx
+  version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
   version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
   subpackages:
   - assert
+  - mock
 - name: golang.org/x/sys
   version: d75a52659825e75fff6158388dddc6a5b04f9ba5
   subpackages:
