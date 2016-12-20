@@ -8,6 +8,11 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+// string tokens we handle
+const (
+	STOP = "stop"
+)
+
 var (
 	// ShouldStop is the channel used to communicate with
 	// the rest of the components
@@ -32,8 +37,8 @@ func cmdHandler(c net.Conn) {
 
 		data := strings.Trim(string(buf[0:nr]), " \n\r\t")
 		switch data {
-		case "stop":
-			log.Debugf("Command `stop` received")
+		case STOP:
+			log.Debugf("Command `%v` received", STOP)
 			ShouldStop <- true
 		default:
 			log.Debugf("Unknown command: %v", data)
