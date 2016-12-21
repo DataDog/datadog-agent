@@ -1,8 +1,8 @@
 // +build darwin
 
-package ddagentmain
+package app
 
 var configPaths = []string{
 	"/opt/datadog-agent/etc",
-	distPath,
+	_distPath,
 }

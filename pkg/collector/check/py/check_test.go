@@ -84,14 +84,9 @@ func TestRun(t *testing.T) {
 
 func TestStr(t *testing.T) {
 	check := getCheckInstance()
-	name := "TestCheck"
+	name := "testcheck"
 	if check.String() != name {
 		t.Fatalf("Expected %s, found: %v", name, check)
-	}
-
-	check.Instance = nil
-	if check.String() != "" {
-		t.Fatalf("Expected empty string, found: %v", check)
 	}
 }
 

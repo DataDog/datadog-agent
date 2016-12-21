@@ -2,4 +2,4 @@
 
 BASEPATH=/opt/datadog-agent6/embedded/lib/python2.7/
 DIRPATH=`dirname $0`
-PYTHONPATH=$BASEPATH:$BASEPATH/site-packages/:$BASEPATH/lib-dynload/ $DIRPATH/agent.bin
+PYTHONPATH=$BASEPATH:$BASEPATH/site-packages/:$BASEPATH/lib-dynload/ $DIRPATH/agent.bin "$@"
