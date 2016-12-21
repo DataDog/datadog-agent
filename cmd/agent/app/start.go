@@ -104,14 +104,14 @@ func start(cmd *cobra.Command, args []string) {
 
 	log.Infof("Starting Datadog Agent v%v", agentVersion)
 
+	// Global Agent configuration
+	setupConfig()
+
 	// start the ipc server
 	ipc.Listen()
 
 	// start the cmd HTTP server
 	api.StartServer()
-
-	// Global Agent configuration
-	setupConfig()
 
 	// Initialize the CPython interpreter
 	state := py.Initialize(_distPath, filepath.Join(_distPath, "checks"))
