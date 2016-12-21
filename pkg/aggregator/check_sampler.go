@@ -13,7 +13,7 @@ func newCheckSampler(hostname string) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*Serie, 0),
 		contextResolver: newContextResolver(),
-		metrics:         *newMetrics(),
+		metrics:         makeMetrics(),
 		hostname:        hostname,
 	}
 }

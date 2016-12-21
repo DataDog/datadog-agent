@@ -3,12 +3,10 @@ package aggregator
 const defaultExpirySeconds = 300 // duration in seconds after which contexts are expired
 
 // Metrics stores all the metrics by context key
-type Metrics struct {
-	byContextKey map[string]Metric
-}
+type Metrics map[string]Metric
 
-func newMetrics() *Metrics {
-	return &Metrics{make(map[string]Metric)}
+func makeMetrics() Metrics {
+	return Metrics(make(map[string]Metric))
 }
 
 // Serie holds a timeserie (w/ json serialization to DD API format)
@@ -36,12 +34,12 @@ type SerieSignature struct {
 type Sampler struct {
 	interval           int64
 	contextResolver    *ContextResolver
-	metricsByTimestamp map[int64]*Metrics
+	metricsByTimestamp map[int64]Metrics
 }
 
 // NewSampler returns a newly initialized Sampler
 func NewSampler(interval int64) *Sampler {
-	return &Sampler{interval, newContextResolver(), map[int64]*Metrics{}}
+	return &Sampler{interval, newContextResolver(), map[int64]Metrics{}}
 }
 
 func (s *Sampler) calculateBucketStart(timestamp int64) int64 {
@@ -57,7 +55,7 @@ func (s *Sampler) addSample(metricSample *MetricSample, timestamp int64) {
 	// If it's a new bucket, initialize it
 	metrics, ok := s.metricsByTimestamp[bucketStart]
 	if !ok {
-		metrics = newMetrics()
+		metrics = makeMetrics()
 		s.metricsByTimestamp[bucketStart] = metrics
 	}
 
@@ -109,24 +107,24 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 }
 
 // TODO: Pass a reference to *MetricSample instead
-func (m *Metrics) addSample(contextKey string, mType MetricType, value float64, timestamp int64) {
-	if _, ok := m.byContextKey[contextKey]; !ok {
+func (m Metrics) addSample(contextKey string, mType MetricType, value float64, timestamp int64) {
+	if _, ok := m[contextKey]; !ok {
 		switch mType {
 		case GaugeType:
-			m.byContextKey[contextKey] = &Gauge{}
+			m[contextKey] = &Gauge{}
 		case CounterType:
 			// pass
 		case RateType:
-			m.byContextKey[contextKey] = &Rate{}
+			m[contextKey] = &Rate{}
 		}
 	}
-	m.byContextKey[contextKey].addSample(value, timestamp)
+	m[contextKey].addSample(value, timestamp)
 }
 
-func (m *Metrics) flush(timestamp int64) []*Serie {
+func (m Metrics) flush(timestamp int64) []*Serie {
 	var series []*Serie
 
-	for contextKey, metric := range m.byContextKey {
+	for contextKey, metric := range m {
 		switch metric := metric.(type) {
 		case *Gauge:
 			value, metricTimestamp := metric.flush()

@@ -63,7 +63,7 @@ func (os OrderedSeries) Swap(i, j int) {
 
 // Metrics
 func TestMetricsGaugeSampling(t *testing.T) {
-	metrics := newMetrics()
+	metrics := makeMetrics()
 	contextKey := "context_key"
 	mSample := MetricSample{
 		Value: 1,
@@ -88,7 +88,7 @@ func TestMetricsGaugeSampling(t *testing.T) {
 // No series should be flushed when there's no new sample btw 2 flushes
 // Important for check metrics aggregation
 func TestMetricsGaugeSamplingNoSample(t *testing.T) {
-	metrics := newMetrics()
+	metrics := makeMetrics()
 	contextKey := "context_key"
 	mSample := MetricSample{
 		Value: 1,
@@ -108,7 +108,7 @@ func TestMetricsGaugeSamplingNoSample(t *testing.T) {
 // No series should be flushed when the rate has been sampled only once overall
 // Important for check metrics aggregation
 func TestMetricsRateSampling(t *testing.T) {
-	metrics := newMetrics()
+	metrics := makeMetrics()
 	contextKey := "context_key"
 
 	metrics.addSample(contextKey, RateType, 1, 12340)
