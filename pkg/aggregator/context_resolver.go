@@ -2,7 +2,6 @@ package aggregator
 
 import (
 	// stdlib
-	"fmt"
 	"sort"
 	"strings"
 
@@ -56,16 +55,6 @@ func (cr *ContextResolver) trackContext(metricSample *MetricSample, currentTimes
 	cr.lastSeenByKey[contextKey] = currentTimestamp
 
 	return contextKey
-}
-
-// lookupContext returns the context associated with a contextKey
-func (cr *ContextResolver) lookupContext(contextKey string) (*Context, error) {
-	context, ok := cr.contextsByKey[contextKey]
-	if !ok {
-		return nil, fmt.Errorf("Can't find context with key '%s'", contextKey)
-	}
-
-	return context, nil
 }
 
 // expireContexts cleans up the contexts that haven't been tracked since the given timestamp

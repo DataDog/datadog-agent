@@ -51,17 +51,15 @@ func TestTrackContext(t *testing.T) {
 	contextKey2 := contextResolver.trackContext(&mSample2, 1)
 
 	// When we look up the 2 keys, they return the correct contexts
-	context1, err1 := contextResolver.lookupContext(contextKey1)
-	assert.Nil(t, err1)
+	context1 := contextResolver.contextsByKey[contextKey1]
 	assert.Equal(t, expectedContext1, *context1)
 
-	context2, err2 := contextResolver.lookupContext(contextKey2)
-	assert.Nil(t, err2)
+	context2 := contextResolver.contextsByKey[contextKey2]
 	assert.Equal(t, expectedContext2, *context2)
 
-	// Looking up a missing context key returns an error
-	_, err := contextResolver.lookupContext("missingContextKey")
-	assert.NotNil(t, err)
+	// Looking for a missing context key returns an error
+	_, ok := contextResolver.contextsByKey["missingContextKey"]
+	assert.False(t, ok)
 }
 
 func TestExpireContexts(t *testing.T) {
@@ -87,10 +85,10 @@ func TestExpireContexts(t *testing.T) {
 
 	// With an expireTimestap of 3, both contexts are still valid
 	assert.Len(t, contextResolver.expireContexts(3), 0)
-	_, err1 := contextResolver.lookupContext(contextKey1)
-	_, err2 := contextResolver.lookupContext(contextKey2)
-	assert.Nil(t, err1)
-	assert.Nil(t, err2)
+	_, ok1 := contextResolver.contextsByKey[contextKey1]
+	_, ok2 := contextResolver.contextsByKey[contextKey2]
+	assert.True(t, ok1)
+	assert.True(t, ok2)
 
 	// With an expireTimestap of 5, context 1 is expired
 	expiredContextKeys := contextResolver.expireContexts(5)
@@ -99,8 +97,8 @@ func TestExpireContexts(t *testing.T) {
 	}
 
 	// context 1 is not tracked anymore, but context 2 still is
-	_, err := contextResolver.lookupContext(contextKey1)
-	assert.NotNil(t, err)
-	_, err = contextResolver.lookupContext(contextKey2)
-	assert.Nil(t, err)
+	_, ok := contextResolver.contextsByKey[contextKey1]
+	assert.False(t, ok)
+	_, ok = contextResolver.contextsByKey[contextKey2]
+	assert.True(t, ok)
 }

@@ -27,7 +27,7 @@ func (cs *CheckSampler) addSample(metricSample *MetricSample) {
 func (cs *CheckSampler) commit(timestamp int64) {
 	for _, serie := range cs.metrics.flush(timestamp) {
 		// Resolve context and populate new []Serie
-		context, _ := cs.contextResolver.lookupContext(serie.contextKey)
+		context := cs.contextResolver.contextsByKey[serie.contextKey]
 		serie.Name = context.Name + serie.nameSuffix
 		serie.Tags = context.Tags
 		serie.Host = cs.hostname // FIXME: take into account the hostname of the context if it's specified

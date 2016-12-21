@@ -88,7 +88,7 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 				existingSerie.Points = append(existingSerie.Points, serie.Points[0])
 			} else {
 				// Resolve context and populate new Serie
-				context, _ := s.contextResolver.lookupContext(serie.contextKey)
+				context := s.contextResolver.contextsByKey[serie.contextKey]
 				serie.Name = context.Name + serie.nameSuffix
 				serie.Tags = context.Tags
 				serie.Host = context.Host
