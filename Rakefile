@@ -101,6 +101,11 @@ namespace :agent do
     FileUtils.chmod(0755, "#{BIN_PATH}/agent")
   end
 
+  desc "Run the agent"
+  task :run => %w[agent:build] do
+    sh("#{BIN_PATH}/agent start -f")
+  end
+
   desc "Build omnibus installer"
   task :omnibus do
     # omnibus log level
