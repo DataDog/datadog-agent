@@ -31,8 +31,9 @@ end
 
 desc "Run go fmt on #{TARGETS}"
 task :fmt do
+  fail_on_mod = ENV["CI"] # only fail on modification when we're running in CI env
   TARGETS.each do |t|
-    go_fmt(t)
+    go_fmt(t, fail_on_mod)
   end
 end
 
