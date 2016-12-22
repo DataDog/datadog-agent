@@ -56,7 +56,7 @@ func (agg *BufferedAggregator) GetChannel() chan *MetricSample {
 func (agg *BufferedAggregator) registerNewCheckSampler() int64 {
 	agg.mu.Lock()
 	agg.currentCheckSamplerID++
-	agg.checkSamplers[agg.currentCheckSamplerID] = newCheckSampler()
+	agg.checkSamplers[agg.currentCheckSamplerID] = newCheckSampler(config.Datadog.GetString("hostname"))
 	agg.mu.Unlock()
 
 	return agg.currentCheckSamplerID
