@@ -1,3 +1,5 @@
+// +build freebsd linux
+
 package pidfile
 
 import (
