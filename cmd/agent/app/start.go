@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	log "github.com/cihub/seelog"
 	python "github.com/sbinet/go-python"
 	"github.com/spf13/cobra"
@@ -26,6 +27,7 @@ import (
 var (
 	// flags variables
 	runForeground bool
+	pidfilePath   string
 
 	startCmd = &cobra.Command{
 		Use:   "start",
@@ -41,6 +43,7 @@ func init() {
 
 	// local flags
 	startCmd.Flags().BoolVarP(&runForeground, "foreground", "f", false, "run in foreground")
+	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 }
 
 // build a list of providers for checks' configurations, the sequence defines
@@ -63,13 +66,17 @@ func getCheckLoaders() []loader.CheckLoader {
 	}
 }
 
-// FIXME
-// this should ideally support different execution protocols
-// so that we can go in background in a sane way. Something
-// like systemd notify or windows service
+// runBackground spawns a child so that the main process can exit.
+// The forked process is started with the `-f`` option so that we don't
+// get in a fork loop. If not already present, we add the `-p` flag
+// to write the pidfile.
 func runBackground() {
 	args := os.Args
 	args = append(args, "-f")
+	if pidfilePath == "" {
+		args = append(args, "-p", pidfile.Path())
+	}
+
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -98,6 +105,13 @@ func start(cmd *cobra.Command, args []string) {
 	if !runForeground {
 		runBackground()
 		return
+	}
+
+	if pidfilePath != "" {
+		err := pidfile.WritePID(pidfilePath)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	defer log.Flush()
@@ -154,7 +168,7 @@ func start(cmd *cobra.Command, args []string) {
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 
 	// Block here until we receive the interrupt signal
 	select {
@@ -174,6 +188,7 @@ teardown:
 	_scheduler.Stop()
 	python.PyEval_RestoreThread(state)
 	ipc.StopListen()
+	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	os.Exit(0)
 }

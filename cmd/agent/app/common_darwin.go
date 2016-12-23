@@ -1,5 +1,3 @@
-// +build darwin
-
 package app
 
 var configPaths = []string{
