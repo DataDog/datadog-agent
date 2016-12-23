@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	log "github.com/cihub/seelog"
 )
 
 var senderInstance *checkSender
@@ -74,6 +76,7 @@ func (s *checkSender) Destroy() {
 
 // Gauge implements the Sender interface
 func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string) {
+	log.Debug("Gauge: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
 	metricSample := &MetricSample{
 		Name:       metric,
 		Value:      value,
@@ -88,6 +91,7 @@ func (s *checkSender) Gauge(metric string, value float64, hostname string, tags 
 
 // Rate implements the Sender interface
 func (s *checkSender) Rate(metric string, value float64, hostname string, tags []string) {
+	log.Debug("Rate: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
 	metricSample := &MetricSample{
 		Name:       metric,
 		Value:      value,
@@ -103,4 +107,5 @@ func (s *checkSender) Rate(metric string, value float64, hostname string, tags [
 // Histogram implements the Sender interface
 func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string) {
 	// TODO
+	log.Debug("Histogram: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
 }
