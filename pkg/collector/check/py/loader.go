@@ -27,7 +27,7 @@ func NewPythonCheckLoader() *PythonCheckLoader {
 		python.PyGILState_Release(_gstate)
 	}()
 
-	agentCheckModule := python.PyImport_ImportModuleNoBlock(agentCheckModuleName)
+	agentCheckModule := python.PyImport_ImportModule(agentCheckModuleName)
 	if agentCheckModule == nil {
 		log.Errorf("Unable to import Python module: %s", agentCheckModuleName)
 		return nil
@@ -55,7 +55,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	}()
 
 	// import python module containing the check
-	checkModule := python.PyImport_ImportModuleNoBlock(moduleName)
+	checkModule := python.PyImport_ImportModule(moduleName)
 	if checkModule == nil {
 		// we don't expect a traceback here so we use the error msg in `pvalue`
 		_, pvalue, _ := python.PyErr_Fetch()
