@@ -1,5 +1,6 @@
 from checks import AgentCheck
 
+
 class TestCheck(AgentCheck):
     def check(self, instance):
         """
