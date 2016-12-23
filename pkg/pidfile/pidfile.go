@@ -10,31 +10,17 @@ import (
 )
 
 // WritePID writes the current PID to a file, ensuring that the file
-// doesn't exist or doesn't contain a PID for a running process. If
-// WritePID is invoked without params, Path() is used to determine
-// the pidfile path
-func WritePID(path ...string) error {
-	var pidFilePath string
-	// default value
-	if len(path) == 0 {
-		pidFilePath = Path()
-	} else {
-		pidFilePath = path[0]
-	}
-
+// doesn't exist or doesn't contain a PID for a running process.
+func WritePID(pidFilePath string) error {
 	// check whether the pidfile exists and contains the PID for a running proc...
-	exists := false
 	if byteContent, err := ioutil.ReadFile(pidFilePath); err == nil {
 		pidStr := strings.TrimSpace(string(byteContent))
-		if pid, err := strconv.Atoi(pidStr); err == nil {
-			exists = isProcess(pid)
+		pid, err := strconv.Atoi(pidStr)
+		if err == nil && isProcess(pid) {
+			// ...and return an error in case
+			return fmt.Errorf("Pidfile already exists, please check %s isn't running or remove %s",
+				os.Args[0], pidFilePath)
 		}
-	}
-
-	// ...and return an error in case
-	if exists {
-		return fmt.Errorf("Pidfile already exists, please check %s isn't running or remove %s",
-			os.Args[0], pidFilePath)
 	}
 
 	// create the full path to the pidfile
