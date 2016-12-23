@@ -4,24 +4,7 @@ import (
 	"testing"
 
 	"github.com/shirou/gopsutil/mem"
-	"github.com/stretchr/testify/mock"
 )
-
-type MockSender struct {
-	mock.Mock
-}
-
-func (m *MockSender) Destroy()                                                               {}
-func (m *MockSender) Rate(metric string, value float64, hostname string, tags []string)      {}
-func (m *MockSender) Histogram(metric string, value float64, hostname string, tags []string) {}
-
-func (m *MockSender) Commit() {
-	m.Called()
-}
-
-func (m *MockSender) Gauge(metric string, value float64, hostname string, tags []string) {
-	m.Called(metric, value, hostname, tags)
-}
 
 func VirtualMemory() (*mem.VirtualMemoryStat, error) {
 	return &mem.VirtualMemoryStat{
@@ -61,7 +44,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := new(MockSender)
+	mock := new(MockSender) // from common_test.go
 	memCheck.sender = mock
 	runtimeOS = "linux"
 
