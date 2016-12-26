@@ -1,0 +1,49 @@
+instances:
+# The `system.processes.cpu.pct` metric sent by this check is only accurate for processes that live
+# for more than 30 seconds. Do not expect its value to be accurate for shorter-lived processes.
+#
+#  One and only one of search_string, pid or pid_file must be specified
+#  - name: (required) STRING. It will be used to uniquely identify your metrics as they will be tagged with this name
+#    search_string: LIST OF STRINGS. If one of the elements in the list matches,
+#                   return the counter of all the processes that contain the string
+#    pid: STRING. A Process id.
+#    pid_file: STRING. A Pid file.
+#    exact_match: (optional) Boolean. Default to True, if you want to look for an arbitrary
+#                 string only use search_string, use exact_match: False
+#    ignore_denied_access: (optional) Boolean. Default to True, when getting the number of files descriptors, dd-agent user might
+#    get a denied access. Set this to true to not issue a warning if that happens.
+#    thresholds: (optional) Two ranges: critical and warning
+#         warning: (optional) List of two values: If the number of processes found is below the first value or
+#                  above the second one, the process check will return WARNING.
+#         critical: (optional) List of two values: If the number of processes found is below the first value or
+#                   above the second one, the process check will return CRITICAL.
+#     In this example, process check will return OK for 3 to 5 process. WARNING for 1, 2, 6, 7 processes and Critical below 1 or above 7.
+#     CRITICAL is always dominant in case of overlapping.
+#
+# Examples:
+#
+#  - name: ssh
+#    search_string: ['ssh', 'sshd']
+#    tags:
+#      - env:staging
+#      - cluster:big-data
+#    thresholds:
+#      critical if no sshd or more than 8 sshd are running
+#      critical: [1, 7]
+#      warning if 1, 2, 6, 7 sshd processes are running
+#      warning: [3, 5]
+#      ok if 3, 4, 5 processes are running
+#
+#  - name: postgres
+#    search_string: ['postgres']
+#    ignore_denied_access: True
+#
+#  - name: nodeserver
+#    search_string: ['node server.js']
+#
+#  - name: pid_process
+#    pid: 1278
+#    Do not use search_string when searching by pid or multiple processes will be grabbed
+#
+#  - name: pid_file
+#    pid_file: /var/run/sshd.pid

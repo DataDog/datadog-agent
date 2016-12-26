@@ -3,6 +3,7 @@ import traceback
 import re
 import time
 import copy
+import logging
 from collections import defaultdict
 
 import aggregator
@@ -19,7 +20,8 @@ class AgentCheck(object):
     def __init__(self, *args, **kwargs):
         self.metrics = defaultdict(list)
         self.instances = kwargs.get('instances', [])
-        self.init_config = kwargs.get('init_config') or {}  # could be set to None or be missing
+        # the agent5 'AgentCheck' setup a log attribute.
+        self.log = logging.getLogger('%s.%s' % (__name__, kwargs.get("name", "")))
 
     def gauge(self, name, value, tags=None):
         aggregator.submit_data(self, aggregator.GAUGE, name, value, tags)
