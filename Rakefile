@@ -96,6 +96,11 @@ namespace :agent do
     end
 
     system(env, "go build -o #{BIN_PATH}/agent.bin #{REPO_PATH}/cmd/agent")
+    Rake::Task["agent:refresh_assets"].invoke
+  end
+
+  desc "Refresh the build assets"
+  task :refresh_assets do
     # Collector's assets and config files
     FileUtils.cp_r("./pkg/collector/dist/", "#{BIN_PATH}", :remove_destination => true)
     FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
