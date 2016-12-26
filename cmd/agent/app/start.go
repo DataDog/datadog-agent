@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"syscall"
 
 	"os"
@@ -17,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	log "github.com/cihub/seelog"
 	python "github.com/sbinet/go-python"
@@ -81,23 +79,6 @@ func runBackground() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Start()
-}
-
-func setupConfig() {
-	// set the paths where a config file is expected
-	for _, path := range configPaths {
-		config.Datadog.AddConfigPath(path)
-	}
-
-	// load the configuration
-	err := config.Datadog.ReadInConfig()
-	if err != nil {
-		panic(fmt.Errorf("unable to load Datadog config file: %s", err))
-	}
-
-	// define defaults for the Agent
-	config.Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
-	config.Datadog.BindEnv("cmd_sock")
 }
 
 // Start the main loop

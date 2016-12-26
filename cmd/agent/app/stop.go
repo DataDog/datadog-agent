@@ -21,6 +21,9 @@ func init() {
 }
 
 func stop(*cobra.Command, []string) {
+	// Global Agent configuration
+	setupConfig()
+
 	c, err := ipc.GetConn()
 	if err != nil {
 		panic(err)
