@@ -76,7 +76,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	for _, i := range config.Instances {
 		check := NewPythonCheck(moduleName, checkClass)
 		if err := check.Configure(i); err != nil {
-			log.Error("py.loader: could not configure check %s: %s", moduleName, err)
+			log.Errorf("py.loader: could not configure check %s : %s", moduleName, err)
 			continue
 		}
 		checks = append(checks, check)
