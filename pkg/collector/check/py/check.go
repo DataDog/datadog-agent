@@ -118,7 +118,9 @@ func (c *PythonCheck) Configure(data check.ConfigData) error {
 	instance := c.Class.Call(emptyTuple, configDict)
 	if instance == nil {
 		_, _, ptraceback := python.PyErr_Fetch()
-		log.Error(python.PyString_AsString(ptraceback))
+		if ptraceback != nil {
+			log.Error(python.PyString_AsString(ptraceback))
+		}
 		// python.PyErr_Print()
 		return fmt.Errorf("could not invoke python check constructor")
 	}
