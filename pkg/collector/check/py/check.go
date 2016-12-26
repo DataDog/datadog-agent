@@ -77,13 +77,12 @@ func (c *PythonCheck) String() string {
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(data check.ConfigData) {
+func (c *PythonCheck) Configure(data check.ConfigData) error {
 	// Unmarshal ConfigData to a RawConfigMap
 	raw := check.ConfigRawMap{}
 	err := yaml.Unmarshal(data, &raw)
 	if err != nil {
-		log.Error(err)
-		return
+		return err
 	}
 
 	// See if a collection interval was specified
@@ -110,8 +109,8 @@ func (c *PythonCheck) Configure(data check.ConfigData) {
 	// Convert the RawConfigMap to a Python dictionary
 	configDict, err := ToPythonDict(&conf)
 	if err != nil {
-		log.Errorf("Error parsing check configuration: %v", err)
-		return
+		log.Errorf("Error parsing python check configuration: %v", err)
+		return err
 	}
 
 	// invoke constructor
@@ -121,12 +120,13 @@ func (c *PythonCheck) Configure(data check.ConfigData) {
 		_, _, ptraceback := python.PyErr_Fetch()
 		log.Error(python.PyString_AsString(ptraceback))
 		// python.PyErr_Print()
-		return
+		return fmt.Errorf("could not invoke python check constructor")
 	}
 
 	c.Instance = instance
 	c.ModuleName = python.PyString_AsString(instance.GetAttrString("__module__"))
 	c.Config = configDict
+	return nil
 }
 
 // InitSender does nothing here because all python checks use the default sender

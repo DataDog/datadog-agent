@@ -77,8 +77,9 @@ func (c *MemoryCheck) Run() error {
 }
 
 // Configure the Python check from YAML data
-func (c *MemoryCheck) Configure(data check.ConfigData) {
+func (c *MemoryCheck) Configure(data check.ConfigData) error {
 	// do nothing
+	return nil
 }
 
 // InitSender initializes a sender

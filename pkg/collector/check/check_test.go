@@ -11,11 +11,11 @@ type TestCheck struct {
 	hasRun bool
 }
 
-func (c *TestCheck) String() string          { return "TestCheck" }
-func (c *TestCheck) Stop()                   {}
-func (c *TestCheck) Configure(ConfigData)    {}
-func (c *TestCheck) InitSender()             {}
-func (c *TestCheck) Interval() time.Duration { return 1 }
+func (c *TestCheck) String() string             { return "TestCheck" }
+func (c *TestCheck) Stop()                      {}
+func (c *TestCheck) Configure(ConfigData) error { return nil }
+func (c *TestCheck) InitSender()                {}
+func (c *TestCheck) Interval() time.Duration    { return 1 }
 func (c *TestCheck) Run() error {
 	if c.doErr {
 		msg := "A tremendous error occurred."
