@@ -117,8 +117,17 @@ func (c *PythonCheck) Configure(data check.ConfigData) error {
 	emptyTuple := python.PyTuple_New(0)
 	instance := c.Class.Call(emptyTuple, configDict)
 	if instance == nil {
-		_, _, ptraceback := python.PyErr_Fetch()
-		if ptraceback != nil {
+		// If the constructor is invalid we do not get a traceback but
+		// an error in pvalue.
+		_, pvalue, ptraceback := python.PyErr_Fetch()
+
+		// The internal C pointer may be nill, the only way to check is
+		// it to ask for the type, since the internal "ptr" is not
+		// exposed.
+		if pvalue.Type() != nil {
+			log.Error(python.PyString_AsString(pvalue))
+		}
+		if ptraceback.Type() != nil {
 			log.Error(python.PyString_AsString(ptraceback))
 		}
 		// python.PyErr_Print()
