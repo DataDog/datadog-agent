@@ -39,13 +39,10 @@ func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float,
 
 	switch mt {
 	case C.RATE:
-		log.Debugf("Submitting Rate name:%v, value:%v, tags:%v", _name, _value, _tags)
 		sender.Rate(_name, _value, "", _tags)
 	case C.GAUGE:
-		log.Debugf("Submitting Gauge name:%v, value:%v, tags:%v", _name, _value, _tags)
 		sender.Gauge(_name, _value, "", _tags)
 	case C.HISTOGRAM:
-		log.Debugf("Submitting Histogram name:%v, value:%v, tags:%v", _name, _value, _tags)
 		sender.Histogram(_name, _value, "", _tags)
 	}
 
