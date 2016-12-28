@@ -89,6 +89,7 @@ dependency 'preparation'
 
 # Check dependencies
 dependency 'requests'
+dependency 'psutil'
 
 # Additional software
 dependency 'datadogpy'
