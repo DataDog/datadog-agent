@@ -102,6 +102,7 @@ namespace :agent do
   desc "Refresh the build assets"
   task :refresh_assets do
     # Collector's assets and config files
+    FileUtils.rm_r("#{BIN_PATH}/dist")
     FileUtils.cp_r("./pkg/collector/dist/", "#{BIN_PATH}", :remove_destination => true)
     FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
     FileUtils.chmod(0755, "#{BIN_PATH}/agent")
