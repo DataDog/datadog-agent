@@ -47,11 +47,13 @@ func init() {
 // build a list of providers for checks' configurations, the sequence defines
 // the precedence.
 func getConfigProviders() (providers []loader.ConfigProvider) {
-	confdPath := filepath.Join(_distPath, "conf.d")
-	configPaths := []string{confdPath}
+	confSearchPaths := []string{}
+	for _, path := range configPaths {
+		confSearchPaths = append(confSearchPaths, filepath.Join(path, "conf.d"))
+	}
 
 	// File Provider
-	providers = append(providers, loader.NewFileConfigProvider(configPaths))
+	providers = append(providers, loader.NewFileConfigProvider(confSearchPaths))
 
 	return providers
 }
