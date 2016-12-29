@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package pb;
+
+message CheckRunsPayload {
+    message CheckRun {
+        string name = 1;
+        string host = 2;
+        int64 ts = 3;
+        int32 status = 4;
+        string message = 5;
+        repeated string tags = 6;
+    }
+    repeated CheckRun check_runs = 1;
+}
