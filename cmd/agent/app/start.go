@@ -132,7 +132,7 @@ func start(cmd *cobra.Command, args []string) {
 	_scheduler = scheduler.NewScheduler()
 
 	// Instance the Aggregator
-	_ = aggregator.GetAggregator()
+	_ = aggregator.GetAggregator(_forwarder)
 
 	// given a list of configurations, try to load corresponding checks using different loaders
 	// TODO add check type to the conf file so that we avoid the inner for
@@ -174,6 +174,7 @@ teardown:
 	// gracefully shut down any component
 	_runner.Stop()
 	_scheduler.Stop()
+	_forwarder.Stop()
 	python.PyEval_RestoreThread(state)
 	ipc.StopListen()
 	os.Remove(pidfilePath)

@@ -38,8 +38,8 @@ type Transaction struct {
 
 func NewMetricsTransaction() *Transaction {
 	return &Transaction{
-		Host:     "https://6-0-0.agent.datadoghq.com",
-		Endpoint: "/api/v2/series",
+		Host:     "http://requestb.in/1o05yzr1", //https://6-0-0.agent.datadoghq.com",
+		Endpoint: "",                            //"/api/v2/series",
 	}
 }
 
@@ -65,6 +65,11 @@ func (f *Forwarder) Start() {
 	go f.processRegularTransactions()
 	go f.processRequeuedTransactions()
 	log.Info("Forwarder started")
+}
+
+func (f *Forwarder) Stop() {
+
+	log.Info("STOP IS NOT IMPLEMENTED YET.")
 }
 
 func (f *Forwarder) processRegularTransactions() {
@@ -96,10 +101,15 @@ func (f *Forwarder) processTransaction(trans *Transaction) {
 
 	url := trans.Host + trans.Endpoint
 
-	req, _ := http.NewRequest("POST", url, bytes.NewReader(*trans.Payload))
+	log.Info("PAYLOAD IS")
+	log.Info(*trans.Payload)
+	log.Info("$$$$$$$$")
+	bytes.NewReader(*trans.Payload)
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(*trans.Payload))
 	req.Header = trans.Headers
 
-	log.Infof("Posting req %v", req)
+	log.Infof("Posting req %v: %v", req, err)
 
 	f.client.Do(req)
 
