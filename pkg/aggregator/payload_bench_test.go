@@ -111,6 +111,21 @@ func benchmarkProtoGoFast(nbSeries int, ptsPerSerie int, tagsPerSerie int, b *te
 
 }
 
+func benchmarkProtoGoFaster(nbSeries int, ptsPerSerie int, tagsPerSerie int, b *testing.B) {
+	payload := makePayload(nbSeries, ptsPerSerie, tagsPerSerie)
+
+	data, _ := proto.Marshal(payload)
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+
+		unmarshalledPayload := &pb.MetricsPayloadGoFaster{}
+		proto.Unmarshal(data, unmarshalledPayload)
+
+	}
+
+}
+
 type MetricsPayload struct {
 	Timeseries []*MetricsPayload_Timeserie `json:"timeseries"`
 }
@@ -165,37 +180,44 @@ func benchmarkMSGPack(nbSeries int, ptsPerSerie int, tagsPerSerie int, b *testin
 	}
 }
 
-func BenchmarkProto1_1_1(b *testing.B)       { benchmarkProto(1, 1, 1, b) }
-func BenchmarkProtoGoFast1_1_1(b *testing.B) { benchmarkProtoGoFast(1, 1, 1, b) }
-func BenchmarkJSON1_1_1(b *testing.B)        { benchmarkJSON(1, 1, 1, b) }
-func BenchmarkMSGPack1_1_1(b *testing.B)     { benchmarkMSGPack(1, 1, 1, b) }
+func BenchmarkProto1_1_1(b *testing.B)         { benchmarkProto(1, 1, 1, b) }
+func BenchmarkProtoGoFast1_1_1(b *testing.B)   { benchmarkProtoGoFast(1, 1, 1, b) }
+func BenchmarkProtoGoFaster1_1_1(b *testing.B) { benchmarkProtoGoFaster(1, 1, 1, b) }
+func BenchmarkJSON1_1_1(b *testing.B)          { benchmarkJSON(1, 1, 1, b) }
+func BenchmarkMSGPack1_1_1(b *testing.B)       { benchmarkMSGPack(1, 1, 1, b) }
 
-func BenchmarkProto10_10_10(b *testing.B)       { benchmarkProto(10, 10, 10, b) }
-func BenchmarkProtoGoFast10_10_10(b *testing.B) { benchmarkProtoGoFast(10, 10, 10, b) }
-func BenchmarkJSON10_10_10(b *testing.B)        { benchmarkJSON(10, 10, 10, b) }
-func BenchmarkMSGPack10_10_10(b *testing.B)     { benchmarkMSGPack(10, 10, 10, b) }
+func BenchmarkProto10_10_10(b *testing.B)         { benchmarkProto(10, 10, 10, b) }
+func BenchmarkProtoGoFast10_10_10(b *testing.B)   { benchmarkProtoGoFast(10, 10, 10, b) }
+func BenchmarkProtoGoFaster10_10_10(b *testing.B) { benchmarkProtoGoFaster(10, 10, 10, b) }
+func BenchmarkJSON10_10_10(b *testing.B)          { benchmarkJSON(10, 10, 10, b) }
+func BenchmarkMSGPack10_10_10(b *testing.B)       { benchmarkMSGPack(10, 10, 10, b) }
 
-func BenchmarkProto100_100_100(b *testing.B)       { benchmarkProto(100, 100, 100, b) }
-func BenchmarkProtoGoFast100_100_100(b *testing.B) { benchmarkProtoGoFast(100, 100, 100, b) }
-func BenchmarkJSON100_100_100(b *testing.B)        { benchmarkJSON(100, 100, 100, b) }
-func BenchmarkMSGPack100_100_100(b *testing.B)     { benchmarkMSGPack(100, 100, 100, b) }
+func BenchmarkProto100_100_100(b *testing.B)         { benchmarkProto(100, 100, 100, b) }
+func BenchmarkProtoGoFast100_100_100(b *testing.B)   { benchmarkProtoGoFast(100, 100, 100, b) }
+func BenchmarkProtoGoFaster100_100_100(b *testing.B) { benchmarkProtoGoFaster(100, 100, 100, b) }
+func BenchmarkJSON100_100_100(b *testing.B)          { benchmarkJSON(100, 100, 100, b) }
+func BenchmarkMSGPack100_100_100(b *testing.B)       { benchmarkMSGPack(100, 100, 100, b) }
 
-func BenchmarkProto1000_1000_1000(b *testing.B)       { benchmarkProto(1000, 1000, 1000, b) }
-func BenchmarkProtoGoFast1000_1000_1000(b *testing.B) { benchmarkProtoGoFast(1000, 1000, 1000, b) }
-func BenchmarkJSON1000_1000_1000(b *testing.B)        { benchmarkJSON(1000, 1000, 1000, b) }
-func BenchmarkMSGPack1000_1000_1000(b *testing.B)     { benchmarkMSGPack(1000, 1000, 1000, b) }
+func BenchmarkProto1000_1000_1000(b *testing.B)         { benchmarkProto(1000, 1000, 1000, b) }
+func BenchmarkProtoGoFast1000_1000_1000(b *testing.B)   { benchmarkProtoGoFast(1000, 1000, 1000, b) }
+func BenchmarkProtoGoFaster1000_1000_1000(b *testing.B) { benchmarkProtoGoFaster(1000, 1000, 1000, b) }
+func BenchmarkJSON1000_1000_1000(b *testing.B)          { benchmarkJSON(1000, 1000, 1000, b) }
+func BenchmarkMSGPack1000_1000_1000(b *testing.B)       { benchmarkMSGPack(1000, 1000, 1000, b) }
 
-func BenchmarkProto1_1_1000(b *testing.B)       { benchmarkProto(1, 1, 1000, b) }
-func BenchmarkProtoGoFast1_1_1000(b *testing.B) { benchmarkProtoGoFast(1, 1, 1000, b) }
-func BenchmarkJSON1_1_1000(b *testing.B)        { benchmarkJSON(1, 1, 1000, b) }
-func BenchmarkMSGPack1_1_1000(b *testing.B)     { benchmarkMSGPack(1, 1, 1000, b) }
+func BenchmarkProto1_1_1000(b *testing.B)         { benchmarkProto(1, 1, 1000, b) }
+func BenchmarkProtoGoFast1_1_1000(b *testing.B)   { benchmarkProtoGoFast(1, 1, 1000, b) }
+func BenchmarkProtoGoFaster1_1_1000(b *testing.B) { benchmarkProtoGoFaster(1, 1, 1000, b) }
+func BenchmarkJSON1_1_1000(b *testing.B)          { benchmarkJSON(1, 1, 1000, b) }
+func BenchmarkMSGPack1_1_1000(b *testing.B)       { benchmarkMSGPack(1, 1, 1000, b) }
 
-func BenchmarkProto1_1000_1(b *testing.B)       { benchmarkProto(1, 1000, 1, b) }
-func BenchmarkProtoGoFast1_1000_1(b *testing.B) { benchmarkProtoGoFast(1, 1000, 1, b) }
-func BenchmarkJSON1_1000_1(b *testing.B)        { benchmarkJSON(1, 1000, 1, b) }
-func BenchmarkMSGPack1_1000_1(b *testing.B)     { benchmarkMSGPack(1, 1000, 1, b) }
+func BenchmarkProto1_1000_1(b *testing.B)         { benchmarkProto(1, 1000, 1, b) }
+func BenchmarkProtoGoFast1_1000_1(b *testing.B)   { benchmarkProtoGoFast(1, 1000, 1, b) }
+func BenchmarkProtoGoFaster1_1000_1(b *testing.B) { benchmarkProtoGoFaster(1, 1000, 1, b) }
+func BenchmarkJSON1_1000_1(b *testing.B)          { benchmarkJSON(1, 1000, 1, b) }
+func BenchmarkMSGPack1_1000_1(b *testing.B)       { benchmarkMSGPack(1, 1000, 1, b) }
 
-func BenchmarkProto1000_1_0(b *testing.B)       { benchmarkProtoGoFast(1000, 1, 1, b) }
-func BenchmarkProtoGoFast1000_1_0(b *testing.B) { benchmarkProtoGoFast(1000, 1, 1, b) }
-func BenchmarkJSON1000_1_0(b *testing.B)        { benchmarkJSON(1000, 1, 1, b) }
-func BenchmarkMSGPack1000_1_1(b *testing.B)     { benchmarkMSGPack(1000, 1, 1, b) }
+func BenchmarkProto1000_1_0(b *testing.B)         { benchmarkProtoGoFast(1000, 1, 1, b) }
+func BenchmarkProtoGoFast1000_1_0(b *testing.B)   { benchmarkProtoGoFast(1000, 1, 1, b) }
+func BenchmarkProtoGoFaster1000_1_0(b *testing.B) { benchmarkProtoGoFaster(1000, 1, 1, b) }
+func BenchmarkJSON1000_1_0(b *testing.B)          { benchmarkJSON(1000, 1, 1, b) }
+func BenchmarkMSGPack1000_1_1(b *testing.B)       { benchmarkMSGPack(1000, 1, 1, b) }
