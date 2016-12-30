@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
 )
@@ -29,6 +30,9 @@ monitoring and performance data.`,
 	// utility variables
 	_here, _  = osext.ExecutableFolder()
 	_distPath = filepath.Join(_here, "dist")
+
+	// The forwarder
+	_forwarder *forwarder.Forwarder
 
 	// The checks Runner
 	_runner *check.Runner

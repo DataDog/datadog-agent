@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	log "github.com/cihub/seelog"
 	python "github.com/sbinet/go-python"
@@ -109,6 +110,10 @@ func start(cmd *cobra.Command, args []string) {
 
 	// start the cmd HTTP server
 	api.StartServer()
+
+	// start the forwarder
+	_forwarder = forwarder.NewForwarder()
+	_forwarder.Start()
 
 	// Initialize the CPython interpreter
 	state := py.Initialize(_distPath, filepath.Join(_distPath, "checks"))
