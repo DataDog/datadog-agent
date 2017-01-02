@@ -131,6 +131,50 @@ func TestMetricsRateSampling(t *testing.T) {
 	}
 }
 
+func TestMetricsHistogramSampling(t *testing.T) {
+	metrics := makeMetrics()
+	contextKey := "context_key"
+
+	metrics.addSample(contextKey, HistogramType, 1, 12340)
+	metrics.addSample(contextKey, HistogramType, 2, 12342)
+	metrics.addSample(contextKey, HistogramType, 1, 12350)
+	metrics.addSample(contextKey, HistogramType, 6, 12350)
+	series := metrics.flush(12351)
+
+	expectedSeries := []*Serie{
+		&Serie{
+			contextKey: contextKey,
+			Points:     [][]interface{}{{int64(12351), 6.}},
+			Mtype:      "gauge",
+			nameSuffix: ".max",
+		},
+		&Serie{
+			contextKey: contextKey,
+			Points:     [][]interface{}{{int64(12351), 1.}},
+			Mtype:      "gauge",
+			nameSuffix: ".median",
+		},
+		&Serie{
+			contextKey: contextKey,
+			Points:     [][]interface{}{{int64(12351), 2.5}},
+			Mtype:      "gauge",
+			nameSuffix: ".avg",
+		},
+		&Serie{
+			contextKey: contextKey,
+			Points:     [][]interface{}{{int64(12351), 4.}},
+			Mtype:      "rate",
+			nameSuffix: ".count",
+		},
+	}
+
+	if assert.Equal(t, 4, len(series)) {
+		for i := range expectedSeries {
+			AssertSerieEqual(t, expectedSeries[i], series[i])
+		}
+	}
+}
+
 // Sampler
 func TestCalculateBucketStart(t *testing.T) {
 	sampler := NewSampler(10)

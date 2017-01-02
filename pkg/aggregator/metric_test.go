@@ -86,3 +86,31 @@ func TestRateSamplingNoSampleForOneFlush(t *testing.T) {
 	assert.EqualValues(t, timestamp, 60)
 	assert.Nil(t, err)
 }
+
+func TestHistogramSampling(t *testing.T) {
+	// Initialize histogram
+	mHistogram := Histogram{}
+
+	// Empty flush
+	values, _ := mHistogram.flush()
+	assert.Empty(t, values)
+
+	// Add samples
+	mHistogram.addSample(1, 50)
+	mHistogram.addSample(10, 51)
+	mHistogram.addSample(4, 55)
+	mHistogram.addSample(5, 55)
+	mHistogram.addSample(2, 55)
+	mHistogram.addSample(2, 55)
+
+	values, _ = mHistogram.flush()
+	if assert.Len(t, values, 4) {
+		assert.InEpsilon(t, 10, values[0], epsilon)     // max
+		assert.InEpsilon(t, 2, values[1], epsilon)      // median
+		assert.InEpsilon(t, 12./3., values[2], epsilon) // avg
+		assert.InEpsilon(t, 6, values[3], epsilon)      // count
+	}
+
+	values, _ = mHistogram.flush()
+	assert.Empty(t, values)
+}

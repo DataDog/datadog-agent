@@ -90,15 +90,23 @@ func TestSenderInterface(t *testing.T) {
 	checkSender := newCheckSender(checkID1, senderSampleChan)
 	checkSender.Gauge("my.metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
+	checkSender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Commit()
 
 	gaugeSenderSample := <-senderSampleChan
 	assert.EqualValues(t, checkID1, gaugeSenderSample.id)
+	assert.Equal(t, GaugeType, gaugeSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, gaugeSenderSample.commit)
 
 	rateSenderSample := <-senderSampleChan
 	assert.EqualValues(t, checkID1, rateSenderSample.id)
+	assert.Equal(t, RateType, rateSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, rateSenderSample.commit)
+
+	histoSenderSample := <-senderSampleChan
+	assert.EqualValues(t, checkID1, histoSenderSample.id)
+	assert.Equal(t, HistogramType, histoSenderSample.metricSample.Mtype)
+	assert.Equal(t, false, histoSenderSample.commit)
 
 	commitSenderSample := <-senderSampleChan
 	assert.EqualValues(t, checkID1, commitSenderSample.id)

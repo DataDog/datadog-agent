@@ -8,6 +8,7 @@ const (
 	GaugeType MetricType = iota
 	RateType
 	CounterType
+	HistogramType
 )
 
 // MetricSample represents a raw metric sample

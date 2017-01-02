@@ -1,5 +1,7 @@
 package aggregator
 
+import log "github.com/cihub/seelog"
+
 const defaultExpirySeconds = 300 // duration in seconds after which contexts are expired
 
 // Metrics stores all the metrics by context key
@@ -112,10 +114,13 @@ func (m Metrics) addSample(contextKey string, mType MetricType, value float64, t
 		switch mType {
 		case GaugeType:
 			m[contextKey] = &Gauge{}
-		case CounterType:
-			// pass
 		case RateType:
 			m[contextKey] = &Rate{}
+		case HistogramType:
+			m[contextKey] = &Histogram{}
+		default:
+			log.Errorf("Can't add unknown sample metric type:", mType)
+			return
 		}
 	}
 	m[contextKey].addSample(value, timestamp)
@@ -148,6 +153,26 @@ func (m Metrics) flush(timestamp int64) []*Serie {
 					contextKey: contextKey,
 				}
 				series = append(series, serie)
+			}
+		case *Histogram:
+			values, metricTimestamp := metric.flush()
+
+			suffixes := [][2]string{
+				[2]string{".max", "gauge"},
+				[2]string{".median", "gauge"},
+				[2]string{".avg", "gauge"},
+				[2]string{".count", "rate"},
+			}
+			if metricTimestamp != 0 {
+				for i, value := range values {
+					serie := &Serie{
+						Points:     [][]interface{}{{timestamp, value}},
+						Mtype:      suffixes[i][1],
+						contextKey: contextKey,
+						nameSuffix: suffixes[i][0],
+					}
+					series = append(series, serie)
+				}
 			}
 		}
 	}
