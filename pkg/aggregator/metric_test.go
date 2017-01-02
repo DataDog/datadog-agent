@@ -5,12 +5,11 @@ import (
 	// stdlib
 	"testing"
 
-	// datadog
-	"github.com/DataDog/datadog-agent/pkg/util"
-
 	// 3p
 	"github.com/stretchr/testify/assert"
 )
+
+const epsilon = 0.1
 
 func TestGaugeSampling(t *testing.T) {
 	// Initialize a new Gauge
@@ -22,7 +21,7 @@ func TestGaugeSampling(t *testing.T) {
 
 	value, timestamp := mGauge.flush()
 	// the last sample is flushed
-	util.AssertAlmostEqual(t, value, 2)
+	assert.InEpsilon(t, 2, value, epsilon)
 	assert.EqualValues(t, timestamp, 55)
 }
 
@@ -38,7 +37,7 @@ func TestRateSampling(t *testing.T) {
 
 	// First rate
 	value, timestamp, err := mRate1.flush()
-	util.AssertAlmostEqual(t, value, 0.2)
+	assert.InEpsilon(t, 0.2, value, epsilon)
 	assert.EqualValues(t, timestamp, 55)
 	assert.Nil(t, err)
 
@@ -58,7 +57,7 @@ func TestRateSamplingMultipleSamplesInSameFlush(t *testing.T) {
 
 	// Should compute rate based on the last 2 samples
 	value, timestamp, err := mRate.flush()
-	util.AssertAlmostEqual(t, value, 2./5.)
+	assert.InEpsilon(t, 2./5., value, epsilon)
 	assert.EqualValues(t, timestamp, 60)
 	assert.Nil(t, err)
 }
@@ -83,7 +82,7 @@ func TestRateSamplingNoSampleForOneFlush(t *testing.T) {
 	mRate.addSample(4, 60)
 	// Should compute rate based on the last 2 samples
 	value, timestamp, err := mRate.flush()
-	util.AssertAlmostEqual(t, value, 2./5.)
+	assert.InEpsilon(t, 2./5., value, epsilon)
 	assert.EqualValues(t, timestamp, 60)
 	assert.Nil(t, err)
 }

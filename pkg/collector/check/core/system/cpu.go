@@ -28,11 +28,11 @@ func (c *CPUCheck) String() string {
 func (c *CPUCheck) Run() error {
 	t, err := times(false)
 	if err != nil {
-		log.Error("system.CPUCheck: could not retrieve cpu stats: %s", err)
+		log.Errorf("system.CPUCheck: could not retrieve cpu stats: %s", err)
 		return err
 	} else if len(t) < 1 {
 		errEmpty := fmt.Errorf("no cpu stats retrieve (empty results)")
-		log.Error("system.CPUCheck: %s", errEmpty)
+		log.Errorf("system.CPUCheck: %s", errEmpty)
 		return errEmpty
 	}
 

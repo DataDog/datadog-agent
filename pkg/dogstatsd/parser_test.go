@@ -8,8 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/util"
 )
+
+const epsilon = 0.1
 
 // Schema of a dogstatsd packet:
 // <name>:<value>|<metric_type>|@<sample_rate>|#<tag1_name>:<tag1_value>,<tag2_name>:<tag2_value>
@@ -73,10 +74,10 @@ func TestParseGauge(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
-	util.AssertAlmostEqual(t, 666.0, parsed.Value)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(*(parsed.Tags)))
-	util.AssertAlmostEqual(t, 1.0, parsed.SampleRate)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseGaugeWithTags(t *testing.T) {
@@ -85,13 +86,13 @@ func TestParseGaugeWithTags(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
-	util.AssertAlmostEqual(t, 666.0, parsed.Value)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
 	if assert.Equal(t, 2, len(*(parsed.Tags))) {
 		assert.Equal(t, "sometag1:somevalue1", (*parsed.Tags)[0])
 		assert.Equal(t, "sometag2:somevalue2", (*parsed.Tags)[1])
 	}
-	util.AssertAlmostEqual(t, 1.0, parsed.SampleRate)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseGaugeWithPoundOnly(t *testing.T) {
@@ -100,10 +101,10 @@ func TestParseGaugeWithPoundOnly(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
-	util.AssertAlmostEqual(t, 666.0, parsed.Value)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(*(parsed.Tags)))
-	util.AssertAlmostEqual(t, 1.0, parsed.SampleRate)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseGaugeWithUnicode(t *testing.T) {
@@ -112,12 +113,12 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, "♬†øU†øU¥ºuT0♪", parsed.Name)
-	util.AssertAlmostEqual(t, 666.0, parsed.Value)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
 	if assert.Equal(t, 1, len(*(parsed.Tags))) {
 		assert.Equal(t, "intitulé:T0µ", (*parsed.Tags)[0])
 	}
-	util.AssertAlmostEqual(t, 1.0, parsed.SampleRate)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
 func TestParseMonokeyBatching(t *testing.T) {

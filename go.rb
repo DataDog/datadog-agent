@@ -13,7 +13,17 @@ end
 def go_lint(path)
   out = `golint #{path}/...`
   errors = out.split("\n")
-  puts "#{errors.length} linting issues found"
+  puts "#{errors.length} linting issues found in #{path}"
+  if errors.length > 0
+    puts out
+    fail
+  end
+end
+
+def go_vet(path)
+  out = `go vet #{path}/... 2>&1`
+  errors = out.split("\n")
+  puts "vet found #{errors.length} issues in #{path}"
   if errors.length > 0
     puts out
     fail

@@ -47,7 +47,7 @@ end
 desc "Run go vet on #{TARGETS}"
 task :vet do
   TARGETS.each do |t|
-    system("go vet #{t}/...")
+    go_vet(t)
   end
 end
 

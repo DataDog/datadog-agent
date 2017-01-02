@@ -39,7 +39,7 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	for _, instance := range config.Instances {
 		newCheck := c
 		if err := newCheck.Configure(instance); err != nil {
-			log.Error("core.loader: could not configure check %s: %s", newCheck, err)
+			log.Errorf("core.loader: could not configure check %s: %s", newCheck, err)
 			continue
 		}
 		newCheck.InitSender()
