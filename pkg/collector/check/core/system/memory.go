@@ -45,12 +45,12 @@ func (c *MemoryCheck) Run() error {
 
 	v, err := virtualMemory()
 	if err != nil {
-		log.Error("system.MemoryCheck: could not retrieve virtual memory stats: %s", err)
+		log.Errorf("system.MemoryCheck: could not retrieve virtual memory stats: %s", err)
 		return err
 	}
 	s, err := swapMemory()
 	if err != nil {
-		log.Error("system.MemoryCheck: could not retrieve swap memory stats: %s", err)
+		log.Errorf("system.MemoryCheck: could not retrieve swap memory stats: %s", err)
 		return err
 	}
 
