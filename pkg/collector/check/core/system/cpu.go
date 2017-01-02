@@ -14,10 +14,12 @@ import (
 
 // For testing purpose
 var times = cpu.Times
+var cpuInfo = cpu.Info
 
 // CPUCheck doesn't need additional fields
 type CPUCheck struct {
 	sender aggregator.Sender
+	nbCPU  float64
 }
 
 func (c *CPUCheck) String() string {
@@ -36,12 +38,13 @@ func (c *CPUCheck) Run() error {
 		return errEmpty
 	}
 
-	c.sender.Gauge("system.cpu.user", t[0].User, "", nil)
-	c.sender.Gauge("system.cpu.system", t[0].System, "", nil)
-	c.sender.Gauge("system.cpu.iowait", t[0].Iowait, "", nil)
-	c.sender.Gauge("system.cpu.idle", t[0].Idle, "", nil)
-	c.sender.Gauge("system.cpu.stolen", t[0].Stolen, "", nil)
-	c.sender.Gauge("system.cpu.guest", t[0].Guest, "", nil)
+	// gopsutil return the sum of every CPU
+	c.sender.Rate("system.cpu.user", t[0].User/c.nbCPU*100.0, "", nil)
+	c.sender.Rate("system.cpu.system", t[0].System/c.nbCPU*100.0, "", nil)
+	c.sender.Rate("system.cpu.iowait", t[0].Iowait/c.nbCPU*100.0, "", nil)
+	c.sender.Rate("system.cpu.idle", t[0].Idle/c.nbCPU*100.0, "", nil)
+	c.sender.Rate("system.cpu.stolen", t[0].Stolen/c.nbCPU*100.0, "", nil)
+	c.sender.Rate("system.cpu.guest", t[0].Guest/c.nbCPU*100.0, "", nil)
 
 	c.sender.Commit()
 	return nil
@@ -50,6 +53,13 @@ func (c *CPUCheck) Run() error {
 // Configure the CPU check doesn't need configuration
 func (c *CPUCheck) Configure(data check.ConfigData) error {
 	// do nothing
+	info, err := cpuInfo()
+	if err != nil {
+		return fmt.Errorf("system.CPUCheck: could not query CPU info")
+	}
+	for _, i := range info {
+		c.nbCPU += float64(i.Cores)
+	}
 	return nil
 }
 
