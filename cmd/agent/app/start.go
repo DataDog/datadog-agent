@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 	python "github.com/sbinet/go-python"
 	"github.com/spf13/cobra"
@@ -99,7 +100,7 @@ func start(cmd *cobra.Command, args []string) {
 
 	defer log.Flush()
 
-	log.Infof("Starting Datadog Agent v%v", agentVersion)
+	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
 	// Global Agent configuration
 	setupConfig()

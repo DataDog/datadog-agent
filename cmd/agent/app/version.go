@@ -7,9 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// AgentVersion is the reference version number
-const agentVersion = "6.0.0+Χελωνη"
-
 func init() {
 	AgentCmd.AddCommand(versionCmd)
 }
@@ -19,7 +16,7 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version number",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		av, _ := version.New(agentVersion)
+		av, _ := version.New(version.AgentVersion)
 		fmt.Println(fmt.Sprintf("Agent %s - Codename: %s", av.GetNumber(), av.Meta))
 	},
 }

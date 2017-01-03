@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// AgentVersion holds SemVer infos for the agent
-type AgentVersion struct {
+// Version holds SemVer infos for the agent and friends
+type Version struct {
 	Major int64
 	Minor int64
 	Patch int64
@@ -17,12 +17,12 @@ type AgentVersion struct {
 }
 
 // New parses a version string like `0.0.0` and returns an AgentVersion instance
-func New(version string) (AgentVersion, error) {
+func New(version string) (Version, error) {
 	re := regexp.MustCompile(`(\d+\.\d+\.\d+)(\-[^\+]+)*(\+.+)*`)
 	toks := re.FindStringSubmatch(version)
 	if len(toks) == 0 || toks[0] != version {
 		// if regex didn't match or partially matched, raise an error
-		return AgentVersion{}, fmt.Errorf("Version string has wrong format")
+		return Version{}, fmt.Errorf("Version string has wrong format")
 	}
 
 	// split version info (group 1 in regexp)
@@ -37,7 +37,7 @@ func New(version string) (AgentVersion, error) {
 	// save Meta infos after removing leading `+`
 	meta := strings.Replace(toks[3], "+", "", 1)
 
-	av := AgentVersion{
+	av := Version{
 		Major: major,
 		Minor: minor,
 		Patch: patch,
@@ -48,7 +48,7 @@ func New(version string) (AgentVersion, error) {
 	return av, nil
 }
 
-func (v *AgentVersion) String() string {
+func (v *Version) String() string {
 	ver := v.GetNumber()
 	if v.Pre != "" {
 		ver = fmt.Sprintf("%s-%s", ver, v.Pre)
@@ -61,6 +61,6 @@ func (v *AgentVersion) String() string {
 }
 
 // GetNumber returns a string containing version numbers only, e.g. `0.0.0`
-func (v *AgentVersion) GetNumber() string {
+func (v *Version) GetNumber() string {
 	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
 }

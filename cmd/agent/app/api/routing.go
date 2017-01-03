@@ -11,6 +11,8 @@ func getRouter() *mux.Router {
 	r := mux.NewRouter()
 
 	// IPC REST API server
+	r.HandleFunc("/agent/version", getVersion).Methods("GET")
+	r.HandleFunc("/agent/restart", getVersion).Methods("POST")
 
 	// go_expvar server
 	r.Handle("/debug/vars", http.DefaultServeMux)
