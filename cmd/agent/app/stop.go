@@ -23,7 +23,7 @@ func init() {
 func stop(*cobra.Command, []string) {
 	// Global Agent configuration
 	setupConfig()
-
+	// get an API client
 	c := api.GetClient()
 	resp, err := c.Post("http://localhost/agent/stop", "", nil)
 	if err != nil || resp.StatusCode != 202 {

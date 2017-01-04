@@ -4,6 +4,7 @@ package api
 
 import (
 	"net"
+	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -14,9 +15,16 @@ func getListener() (net.Listener, error) {
 	return net.Listen("unix", config.Datadog.GetString("cmd_sock"))
 }
 
-// GetConn returns a dialling connection to a Unix socket
-// on non-windows platforms. This method is exported so it
-// can be used by clients.
-func GetConn() (net.Conn, error) {
+// HTTP doesn't need anything from TCP so we can use a Unix socket to dial
+func fakeDial(proto, addr string) (conn net.Conn, err error) {
 	return net.Dial("unix", config.Datadog.GetString("cmd_sock"))
+}
+
+// GetClient is a convenience function returning an http
+// client suitable to use a unix socket transport
+func GetClient() *http.Client {
+	tr := &http.Transport{
+		Dial: fakeDial,
+	}
+	return &http.Client{Transport: tr}
 }
