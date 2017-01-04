@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	log "github.com/cihub/seelog"
@@ -49,6 +50,10 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 
 			fName := f.Name()
 			extName := filepath.Ext(fName)
+			if strings.Contains(extName, ".example") {
+				continue
+			}
+
 			bName := fName[:len(f.Name())-len(extName)]
 			conf, err := getCheckConfig(bName, filepath.Join(path, fName))
 			if err != nil {

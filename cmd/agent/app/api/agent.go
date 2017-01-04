@@ -14,6 +14,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func restart(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+func stop(w http.ResponseWriter, r *http.Request) {
+	Stopper <- true
+	w.WriteHeader(202)
 }

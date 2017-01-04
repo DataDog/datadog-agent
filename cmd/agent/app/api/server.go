@@ -5,12 +5,39 @@ sending commands and receiving infos.
 */
 package api
 
-import "net/http"
+import (
+	"fmt"
+	"net"
+	"net/http"
+)
 
-// BUG(massi): make this configurable through datadog.conf
+var (
+	// Stopper is the channel used to communicate with
+	// the rest of the components
+	Stopper  chan bool
+	listener net.Listener
+)
 
 // StartServer creates the router and starts the HTTP server
 func StartServer() {
+	// init the channel where we send stop requests
+	Stopper = make(chan bool)
+	// create the HTTP router
 	r := getRouter()
-	go http.ListenAndServe("localhost:5000", r)
+	// get the transport we're going to use under HTTP
+	var err error
+	listener, err = getListener()
+	if err != nil {
+		// we use the listener to handle commands for the Agent, there's
+		// no way we can recover from this error
+		panic(fmt.Sprintf("Unable to create the api server: %v", err))
+	}
+
+	go http.Serve(listener, r)
+}
+
+// StopServer closes the connection and the server
+// stops listening to new commands.
+func StopServer() {
+	listener.Close()
 }

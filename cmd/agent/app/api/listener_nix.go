@@ -1,6 +1,6 @@
 // +build !windows
 
-package ipc
+package api
 
 import (
 	"net"

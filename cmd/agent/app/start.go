@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app/api"
-	"github.com/DataDog/datadog-agent/cmd/agent/app/ipc"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
@@ -98,15 +97,10 @@ func start(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	defer log.Flush()
-
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
 	// Global Agent configuration
 	setupConfig()
-
-	// start the ipc server
-	ipc.Listen()
 
 	// start the cmd HTTP server
 	api.StartServer()
@@ -156,7 +150,7 @@ func start(cmd *cobra.Command, args []string) {
 
 	// Block here until we receive the interrupt signal
 	select {
-	case <-ipc.ShouldStop:
+	case <-api.Stopper:
 		log.Info("Received stop command, shutting down...")
 		goto teardown
 	case sig := <-signalCh:
@@ -171,8 +165,9 @@ teardown:
 	_runner.Stop()
 	_scheduler.Stop()
 	python.PyEval_RestoreThread(state)
-	ipc.StopListen()
+	api.StopServer()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
+	log.Flush()
 	os.Exit(0)
 }
