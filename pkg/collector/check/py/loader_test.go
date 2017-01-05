@@ -2,10 +2,12 @@
 package py
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/sbinet/go-python"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLoad(t *testing.T) {
@@ -15,21 +17,28 @@ func TestLoad(t *testing.T) {
 	config.Instances = append(config.Instances, []byte("bar: baz"))
 
 	instances, err := l.Load(config)
-	if err != nil {
-		t.Fatalf("Expected nil, found: %v", err)
-	}
-	if len(instances) != 2 {
-		t.Fatalf("Expected len 2, found: %d", len(instances))
-	}
+	assert.Nil(t, err)
+	assert.Equal(t, len(instances), 2)
 
+	// the python module doesn't exist
 	config = check.Config{Name: "doesntexist"}
 	instances, err = l.Load(config)
-	if err == nil {
-		t.Fatal("Expected err, found: nil")
-	}
-	if len(instances) != 0 {
-		t.Fatalf("Expected len 0, found: %d", len(instances))
-	}
+	assert.NotNil(t, err)
+	assert.Zero(t, len(instances))
+
+	// the python module contains errors
+	config = check.Config{Name: "bad"}
+	instances, err = l.Load(config)
+	fmt.Println(err)
+	assert.NotNil(t, err)
+	assert.Zero(t, len(instances))
+
+	// the python module is good but nothing derives from AgentCheck
+	config = check.Config{Name: "foo"}
+	instances, err = l.Load(config)
+	fmt.Println(err)
+	assert.NotNil(t, err)
+	assert.Zero(t, len(instances))
 
 }
 
@@ -41,7 +50,5 @@ func TestNewPythonCheckLoader(t *testing.T) {
 	}()
 
 	loader := NewPythonCheckLoader()
-	if loader == nil {
-		t.Fatalf("Expected PythonCheckLoader instance, found nil")
-	}
+	assert.NotNil(t, loader)
 }
