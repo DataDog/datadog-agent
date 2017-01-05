@@ -30,7 +30,7 @@ func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float,
 	var seq *C.PyObject
 
 	errMsg := C.CString("expected a sequence") // this has to be freed
-	seq = C.PySequence_Fast(tags, errMsg)      // seq is a new reference, has to be deref'd
+	seq = C.PySequence_Fast(tags, errMsg)      // seq is a new reference, has to be decref'd
 	var i C.Py_ssize_t
 	for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
 		item := C.PySequence_Fast_Get_Item(seq, i)                   // `item` is borrowed, no need to decref
