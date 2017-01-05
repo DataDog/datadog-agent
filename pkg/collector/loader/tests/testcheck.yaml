@@ -1,4 +1,5 @@
 init_config:
+  - test: 21
 
 instances:
   # No configuration is needed for this check.

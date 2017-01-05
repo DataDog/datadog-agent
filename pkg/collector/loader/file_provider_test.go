@@ -1,50 +1,41 @@
 package loader
 
-import "testing"
+import (
+	"github.com/stretchr/testify/assert"
+	"testing"
+)
 
 func TestGetCheckConfig(t *testing.T) {
 	// file does not exist
 	config, err := getCheckConfig("foo", "")
-	if err == nil {
-		t.Fatal("Expecting error")
-	}
+	assert.NotNil(t, err)
 
 	// file contains invalid Yaml
 	config, err = getCheckConfig("foo", "tests/invalid.yaml")
-	if err == nil {
-		t.Fatal("Expecting error")
-	}
+	assert.NotNil(t, err)
 
 	// valid yaml, invalid configuration file
 	config, err = getCheckConfig("foo", "tests/notaconfig.yaml")
-	if err == nil {
-		t.Fatal("Expecting error")
-	}
-	if len(config.Instances) != 0 {
-		t.Fatalf("Expecting 0 instances, found: %d", len(config.Instances))
-	}
+	assert.NotNil(t, err)
+	assert.Equal(t, len(config.Instances), 0)
 
 	// valid configuration file
 	config, err = getCheckConfig("foo", "tests/testcheck.yaml")
-	if err != nil {
-		t.Fatalf("Expecting nil, found: %s", err)
-	}
-	if config.Name != "foo" {
-		t.Fatalf("Expecting `foo`, found: %s", config.Name)
-	}
+	assert.Nil(t, err)
+	assert.Equal(t, config.Name, "foo")
+
+	assert.Equal(t, []byte(config.InitConfig), []byte("- test: 21\n"))
+	assert.Equal(t, len(config.Instances), 1)
+	assert.Equal(t, []byte(config.Instances[0]), []byte("foo: bar\n"))
 }
 
 func TestNewYamlConfigProvider(t *testing.T) {
 	paths := []string{"foo", "bar", "foo/bar"}
 	provider := NewFileConfigProvider(paths)
-	if len(provider.paths) != len(paths) {
-		t.Fatalf("Expecting length %d, found: %d", len(provider.paths), len(paths))
-	}
+	assert.Equal(t, len(provider.paths), len(paths))
 
 	for i, p := range provider.paths {
-		if p != paths[i] {
-			t.Fatalf("Expecting %s, found: %s", paths[i], p)
-		}
+		assert.Equal(t, p, paths[i])
 	}
 }
 
@@ -53,16 +44,9 @@ func TestCollect(t *testing.T) {
 	provider := NewFileConfigProvider(paths)
 	configs, err := provider.Collect()
 
-	if err != nil {
-		t.Fatalf("Expecting nil, found: %s", err)
-	}
-
-	if len(configs) != 1 {
-		t.Fatalf("Expecting length 1, found: %d", len(configs))
-	}
+	assert.Nil(t, err)
+	assert.Equal(t, len(configs), 1)
 
 	config := configs[0]
-	if config.Name != "testcheck" {
-		t.Fatalf("Expecting testcheck, found: %s", config.Name)
-	}
+	assert.Equal(t, config.Name, "testcheck")
 }

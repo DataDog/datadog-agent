@@ -47,14 +47,8 @@ ATTR_TO_METRIC_RATE = {
 
 
 class ProcessCheck(AgentCheck):
-    def __init__(self, *args, **kwargs):
-        super(ProcessCheck, self).__init__(*args, **kwargs)
-
-        # For the agent6 we have merged the 'init_config' section within the
-        # instance
-        init_config = {}
-        if len(self.instances) > 0 and isinstance(self.instances[0], dict):
-            init_config = self.instances[0]
+    def __init__(self, name, init_config, agentConfig, instances=None):
+        super(ProcessCheck, self).__init__(name, init_config, agentConfig, instances)
 
         # ad stands for access denied
         # We cache the PIDs getting this error and don't iterate on them

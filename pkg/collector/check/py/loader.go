@@ -78,8 +78,8 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	// Get an AgentCheck for each configuration instance and add it to the registry
 	for _, i := range config.Instances {
 		check := NewPythonCheck(moduleName, checkClass)
-		if err := check.Configure(i); err != nil {
-			log.Errorf("py.loader: could not configure check %s : %s", moduleName, err)
+		if err := check.Configure(i, config.InitConfig); err != nil {
+			log.Errorf("py.loader: could not configure check '%s': %s", moduleName, err)
 			continue
 		}
 		checks = append(checks, check)

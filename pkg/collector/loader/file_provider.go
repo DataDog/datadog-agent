@@ -13,7 +13,8 @@ import (
 )
 
 type configFormat struct {
-	Instances []check.ConfigRawMap
+	InitConfig interface{} `yaml:"init_config"`
+	Instances  []check.ConfigRawMap
 }
 
 // FileConfigProvider collect configuration files from disk
@@ -91,6 +92,10 @@ func getCheckConfig(name, fpath string) (check.Config, error) {
 	if len(cf.Instances) < 1 {
 		return config, errors.New("Configuration file contains no valid instances")
 	}
+
+	// at this point the Yaml was already parsed, no need to check the error
+	rawInitConfig, _ := yaml.Marshal(cf.InitConfig)
+	config.InitConfig = rawInitConfig
 
 	// Go through instances and return corresponding []byte
 	for _, instance := range cf.Instances {
