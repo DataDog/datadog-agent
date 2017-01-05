@@ -2,7 +2,6 @@
 package py
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -29,14 +28,12 @@ func TestLoad(t *testing.T) {
 	// the python module contains errors
 	config = check.Config{Name: "bad"}
 	instances, err = l.Load(config)
-	fmt.Println(err)
 	assert.NotNil(t, err)
 	assert.Zero(t, len(instances))
 
 	// the python module is good but nothing derives from AgentCheck
 	config = check.Config{Name: "foo"}
 	instances, err = l.Load(config)
-	fmt.Println(err)
 	assert.NotNil(t, err)
 	assert.Zero(t, len(instances))
 
