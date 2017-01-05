@@ -11,3 +11,4 @@ typedef enum {
 void initaggregator();
 PyObject* _none();
 PyObject* PySequence_Fast_Get_Item(PyObject*, Py_ssize_t);
+Py_ssize_t PySequence_Fast_Get_Size(PyObject*);

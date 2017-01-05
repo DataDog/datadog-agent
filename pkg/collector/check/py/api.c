@@ -55,3 +55,8 @@ PyObject* PySequence_Fast_Get_Item(PyObject *o, Py_ssize_t i)
 {
   return PySequence_Fast_GET_ITEM(o, i);
 }
+
+Py_ssize_t PySequence_Fast_Get_Size(PyObject *o)
+{
+  return PySequence_Fast_GET_SIZE(o);
+}
