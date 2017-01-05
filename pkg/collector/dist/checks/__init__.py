@@ -19,9 +19,23 @@ class AgentCheck(object):
 
     def __init__(self, *args, **kwargs):
         self.metrics = defaultdict(list)
-        self.instances = kwargs.get('instances', [])
+
+        if len(args) == 0:
+            self.instances = kwargs.get('instances', [])
+            self.name = kwargs.get('name', '')
+            self.agentConfig = kwargs.get('agentConfig', {})
+        else:
+            self.name = args[0]
+            self.agentConfig = args[1]
+            # no agentConfig
+            if len(args) == 3:
+                self.instances = args[2]
+            # with agentConfig
+            else:
+                self.instances = args[3]
+
         # the agent5 'AgentCheck' setup a log attribute.
-        self.log = logging.getLogger('%s.%s' % (__name__, kwargs.get("name", "")))
+        self.log = logging.getLogger('%s.%s' % (__name__, self.name))
 
     def gauge(self, name, value, tags=None):
         aggregator.submit_data(self, aggregator.GAUGE, name, value, tags)

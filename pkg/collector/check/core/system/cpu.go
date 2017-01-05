@@ -51,7 +51,7 @@ func (c *CPUCheck) Run() error {
 }
 
 // Configure the CPU check doesn't need configuration
-func (c *CPUCheck) Configure(data check.ConfigData) error {
+func (c *CPUCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	// do nothing
 	info, err := cpuInfo()
 	if err != nil {

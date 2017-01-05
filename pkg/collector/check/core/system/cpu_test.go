@@ -48,7 +48,7 @@ func TestCPUCheckLinux(t *testing.T) {
 	times = CPUTimes
 	cpuInfo = CPUInfo
 	cpuCheck := new(CPUCheck)
-	cpuCheck.Configure(nil)
+	cpuCheck.Configure(nil, nil)
 
 	mock := new(MockSender) // from common_test.go
 	cpuCheck.sender = mock
