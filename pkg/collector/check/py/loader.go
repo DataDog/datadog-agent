@@ -3,6 +3,7 @@ package py
 import (
 	"errors"
 	"fmt"
+	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/sbinet/go-python"
@@ -49,9 +50,11 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	moduleName := config.Name
 
 	// Lock the GIL and release it at the end of the run
+	runtime.LockOSThread()
 	_gstate := python.PyGILState_Ensure()
 	defer func() {
 		python.PyGILState_Release(_gstate)
+		runtime.UnlockOSThread()
 	}()
 
 	// import python module containing the check
