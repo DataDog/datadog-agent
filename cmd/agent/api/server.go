@@ -9,21 +9,27 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
+	"github.com/gorilla/mux"
 )
 
 var (
-	// Stopper is the channel used to communicate with
-	// the rest of the components
-	Stopper  chan bool
 	listener net.Listener
 )
 
 // StartServer creates the router and starts the HTTP server
 func StartServer() {
-	// init the channel where we send stop requests
-	Stopper = make(chan bool)
-	// create the HTTP router
-	r := getRouter()
+	// create the root HTTP router
+	r := mux.NewRouter()
+
+	// IPC REST API server
+	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
+	agent.SetupHandlers(r.PathPrefix("/check").Subrouter())
+
+	// add the go_expvar server
+	r.Handle("/debug/vars", http.DefaultServeMux)
+
 	// get the transport we're going to use under HTTP
 	var err error
 	listener, err = getListener()

@@ -1,7 +1,7 @@
 package app
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/app/api"
+	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 )

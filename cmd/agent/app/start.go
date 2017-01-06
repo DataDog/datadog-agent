@@ -8,7 +8,8 @@ import (
 	"os/signal"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app/api"
+	"github.com/DataDog/datadog-agent/cmd/agent/api"
+	"github.com/DataDog/datadog-agent/cmd/agent/stopper"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
@@ -150,7 +151,7 @@ func start(cmd *cobra.Command, args []string) {
 
 	// Block here until we receive the interrupt signal
 	select {
-	case <-api.Stopper:
+	case <-stopper.Stopper:
 		log.Info("Received stop command, shutting down...")
 		goto teardown
 	case sig := <-signalCh:
