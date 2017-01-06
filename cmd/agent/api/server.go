@@ -11,6 +11,7 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
 	"github.com/gorilla/mux"
 )
 
@@ -25,7 +26,7 @@ func StartServer() {
 
 	// IPC REST API server
 	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
-	agent.SetupHandlers(r.PathPrefix("/check").Subrouter())
+	check.SetupHandlers(r.PathPrefix("/check").Subrouter())
 
 	// add the go_expvar server
 	r.Handle("/debug/vars", http.DefaultServeMux)
