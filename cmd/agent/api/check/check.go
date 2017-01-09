@@ -4,8 +4,10 @@
 package check
 
 import (
+	"encoding/json"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/gorilla/mux"
 )
 
@@ -23,5 +25,23 @@ func reloadCheck(w http.ResponseWriter, r *http.Request) {
 
 func listChecks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte("Not yet implemented."))
+
+	type CheckDetail struct {
+		Name string
+		ID   string
+	}
+	detailsList := []CheckDetail{}
+
+	if common.AgentScheduler == nil {
+		// Service Unavailable
+		w.WriteHeader(503)
+	}
+
+	for _, cPtr := range common.AgentScheduler.ScheduledChecks() {
+		check := *cPtr
+		detailsList = append(detailsList, CheckDetail{check.String(), check.ID()})
+	}
+
+	j, _ := json.Marshal(detailsList)
+	w.Write(j)
 }
