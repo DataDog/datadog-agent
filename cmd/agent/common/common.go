@@ -3,8 +3,11 @@
 package common
 
 import (
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/kardianos/osext"
 )
 
 var (
@@ -16,4 +19,9 @@ var (
 
 	// AgentScheduler is the current global Scheduler
 	AgentScheduler *scheduler.Scheduler
+
+	// utility variables
+	_here, _ = osext.ExecutableFolder()
+	// DistPath holds the path to the folder containing distribution files
+	DistPath = filepath.Join(_here, "dist")
 )

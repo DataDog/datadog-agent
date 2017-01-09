@@ -21,7 +21,7 @@ func init() {
 
 func stop(*cobra.Command, []string) {
 	// Global Agent configuration
-	setupConfig()
+	common.SetupConfig()
 	// get an API client
 	common.Stopper <- true
 }

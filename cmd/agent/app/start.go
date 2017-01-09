@@ -12,9 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
-	"github.com/DataDog/datadog-agent/pkg/collector/loader"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -43,28 +41,6 @@ func init() {
 	// local flags
 	startCmd.Flags().BoolVarP(&runForeground, "foreground", "f", false, "run in foreground")
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
-}
-
-// build a list of providers for checks' configurations, the sequence defines
-// the precedence.
-func getConfigProviders() (providers []loader.ConfigProvider) {
-	confSearchPaths := []string{}
-	for _, path := range configPaths {
-		confSearchPaths = append(confSearchPaths, filepath.Join(path, "conf.d"))
-	}
-
-	// File Provider
-	providers = append(providers, loader.NewFileConfigProvider(confSearchPaths))
-
-	return providers
-}
-
-// build a list of check loaders, the sequence defines the precedence.
-func getCheckLoaders() []loader.CheckLoader {
-	return []loader.CheckLoader{
-		py.NewPythonCheckLoader(),
-		core.NewGoCheckLoader(),
-	}
 }
 
 // runBackground spawns a child so that the main process can exit.
@@ -101,17 +77,17 @@ func start(cmd *cobra.Command, args []string) {
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
 	// Global Agent configuration
-	setupConfig()
+	common.SetupConfig()
 
 	// start the cmd HTTP server
 	api.StartServer()
 
 	// Initialize the CPython interpreter
-	state := py.Initialize(_distPath, filepath.Join(_distPath, "checks"))
+	state := py.Initialize(common.DistPath, filepath.Join(common.DistPath, "checks"))
 
 	// Get a list of config checks from the configured providers
 	var configs []check.Config
-	for _, provider := range getConfigProviders() {
+	for _, provider := range common.GetConfigProviders() {
 		c, _ := provider.Collect()
 		configs = append(configs, c...)
 	}
@@ -127,7 +103,7 @@ func start(cmd *cobra.Command, args []string) {
 
 	// given a list of configurations, try to load corresponding checks using different loaders
 	// TODO add check type to the conf file so that we avoid the inner for
-	loaders := getCheckLoaders()
+	loaders := common.GetCheckLoaders()
 	for _, conf := range configs {
 		for _, loader := range loaders {
 			res, err := loader.Load(conf)
