@@ -1,6 +1,14 @@
 machine:
   environment:
     IMPORT_PATH: "/home/ubuntu/.go_workspace/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME"
+    GIMME_GO_VERSION: 1.7.4
+    PATH: "$PATH:$HOME/bin"
+
+  post:
+    - mkdir -p ~/bin
+    - curl -sL -o ~/bin/gimme https://raw.githubusercontent.com/travis-ci/gimme/master/gimme
+    - chmod +x ~/bin/gimme
+    - sudo rm -rf /usr/local/go
 
 dependencies:
   pre:
@@ -10,13 +18,12 @@ dependencies:
   override:
     - mkdir -p "$IMPORT_PATH"
     - rsync -azr --delete ./ "$IMPORT_PATH"
-    - cd "$IMPORT_PATH" && rake deps
 
 test:
   override:
-    - cd "$IMPORT_PATH" && rake test:
+    - cd "$IMPORT_PATH" && eval "$(gimme)" && rake deps && rake test:
         environment:
           USE_SYSTEM_PY: 1
 
   post:
-    - cd "$IMPORT_PATH" && go tool cover -html=profile.cov -o $CIRCLE_ARTIFACTS/coverage.html
+    - cd "$IMPORT_PATH" && eval "$(gimme)" && go tool cover -html=profile.cov -o $CIRCLE_ARTIFACTS/coverage.html
