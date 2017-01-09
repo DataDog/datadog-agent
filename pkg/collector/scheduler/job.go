@@ -25,7 +25,7 @@ type jobQueue struct {
 func newJobQueue(interval time.Duration) *jobQueue {
 	return &jobQueue{
 		interval: interval,
-		ticker:   time.NewTicker(time.Second * time.Duration(interval)),
+		ticker:   time.NewTicker(time.Duration(interval)),
 		stop:     make(chan bool, 1),
 	}
 }
@@ -36,6 +36,21 @@ func (jq *jobQueue) addJob(c check.Check) {
 	defer jq.mu.Unlock()
 
 	jq.jobs = append(jq.jobs, c)
+}
+
+// addJob is a convenience method to add a check to a queue
+func (jq *jobQueue) setJobs(c []check.Check) {
+	jq.mu.Lock()
+	defer jq.mu.Unlock()
+
+	jq.jobs = c
+}
+
+func (jq *jobQueue) clear() {
+	jq.mu.Lock()
+	defer jq.mu.Unlock()
+
+	jq.jobs = []check.Check{}
 }
 
 // run schedules the checks in the queue by posting them to the

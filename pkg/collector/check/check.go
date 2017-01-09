@@ -6,7 +6,7 @@ import (
 
 // DefaultCheckInterval is the interval in seconds the scheduler should apply
 // when no value was provided in Check configuration.
-const DefaultCheckInterval time.Duration = 15
+const DefaultCheckInterval time.Duration = 15 * time.Second
 
 // ConfigData contains YAML code
 type ConfigData []byte

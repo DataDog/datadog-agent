@@ -144,8 +144,8 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	if ok {
 		// we should receive an int from the unmarshaller
 		if intl, ok := x.(int); ok {
-			// all good, convert to the right type
-			c.interval = time.Duration(intl)
+			// all good, convert to the right type, assuming YAML contains seconds
+			c.interval = time.Duration(intl) * time.Second
 		}
 	}
 
