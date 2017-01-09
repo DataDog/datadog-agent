@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
@@ -31,12 +29,6 @@ monitoring and performance data.`,
 	// utility variables
 	_here, _  = osext.ExecutableFolder()
 	_distPath = filepath.Join(_here, "dist")
-
-	// The checks Runner
-	_runner *check.Runner
-
-	// The Scheduler
-	_scheduler *scheduler.Scheduler
 )
 
 func setupConfig() {

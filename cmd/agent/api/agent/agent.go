@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/stopper"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
 )
@@ -26,6 +26,6 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func stop(w http.ResponseWriter, r *http.Request) {
-	stopper.Stopper <- true
+	common.Stopper <- true
 	w.WriteHeader(202)
 }
