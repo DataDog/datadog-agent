@@ -11,7 +11,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-const defaultTimeout time.Duration = 5000 * time.Millisecond
+const defaultTimeout time.Duration = 5 * time.Second
 
 // Scheduler keeps things rolling.
 // More docs to come...
@@ -23,7 +23,7 @@ type Scheduler struct {
 	jobQueues       map[time.Duration]*jobQueue // We have one scheduling queue for every interval
 	mu              sync.Mutex                  // To protect critical sections in struct's fields
 	running         uint32                      // Flag to see if the scheduler is running
-	scheduledChecks []*check.Check              // list of scheduled checks so far
+	scheduledChecks map[string]*check.Check     // list of scheduled checks so far
 }
 
 // NewScheduler create a Scheduler and returns a pointer to it.
@@ -34,7 +34,7 @@ func NewScheduler() *Scheduler {
 		started:         make(chan bool, 1),
 		jobQueues:       make(map[time.Duration]*jobQueue),
 		running:         0,
-		scheduledChecks: []*check.Check{},
+		scheduledChecks: map[string]*check.Check{},
 	}
 }
 
@@ -46,17 +46,19 @@ func (s *Scheduler) Enter(check check.Check) error {
 	}
 
 	// keep track of the scheduled checks
-	s.scheduledChecks = append(s.scheduledChecks, &check)
+	s.scheduledChecks[check.ID()] = &check
 
 	// send immediately to the checks Pipe if this is a one-time schedule
 	// do not block, in case the runner has not started
 	if check.Interval() == 0 {
-		log.Info("Scheduling check for one-time execution")
+		log.Infof("Scheduling check %v for one-time execution", check)
 		go func() {
 			s.checksPipe <- check
 		}()
 		return nil
 	}
+
+	log.Infof("Scheduling check %v with an interval of %v", check, check.Interval())
 
 	// sync when accessing `jobQueues`
 	s.mu.Lock()
@@ -126,7 +128,7 @@ func (s *Scheduler) Stop(timeout ...time.Duration) error {
 	// Interrupt the main loop, proceeding to shut down all the queues
 	// `done` is buffered so we can proceed and wait for shutdown (or timeout)
 	s.done <- true
-	log.Debugf("Waiting for the scheduler to shutdown, timeout after %dns.", to)
+	log.Debugf("Waiting for the scheduler to shutdown, timeout after %v", to)
 
 	select {
 	case <-s.halted:
@@ -170,6 +172,19 @@ func (s *Scheduler) startQueues() {
 
 // ScheduledChecks returns the list of checks that were scheduled
 // at least once
-func (s *Scheduler) ScheduledChecks() []*check.Check {
+func (s *Scheduler) ScheduledChecks() map[string]*check.Check {
 	return s.scheduledChecks
+}
+
+// Cancel removes any check matching the given name from the scheduler
+func (s *Scheduler) Cancel(checkName string) {
+	for _, q := range s.jobQueues {
+		after := []check.Check{}
+		for _, check := range q.jobs {
+			if check.String() != checkName {
+				after = append(after, check)
+			}
+		}
+		q.setJobs(after)
+	}
 }
