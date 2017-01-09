@@ -3,6 +3,7 @@ package main
 import (
 	_ "expvar"
 	"fmt"
+	"net/http"
 	_ "net/http/pprof"
 	"os"
 
@@ -13,6 +14,9 @@ import (
 )
 
 func main() {
+	// go_expvar server
+	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)
+
 	// Invoke the Agent
 	if err := app.AgentCmd.Execute(); err != nil {
 		fmt.Println(err)
