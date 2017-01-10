@@ -7,11 +7,13 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+type checkFactory func() check.Check
+
 // Catalog keeps track of Go checks by name
-var catalog = make(map[string]check.Check)
+var catalog = make(map[string]checkFactory)
 
 // RegisterCheck adds a check to the catalog
-func RegisterCheck(name string, c check.Check) {
+func RegisterCheck(name string, c checkFactory) {
 	catalog[name] = c
 }
 
@@ -29,7 +31,7 @@ func NewGoCheckLoader() *GoCheckLoader {
 func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 
-	c, found := catalog[config.Name]
+	factory, found := catalog[config.Name]
 	if !found {
 		msg := fmt.Sprintf("Check %s not found in Catalog", config.Name)
 		log.Warn(msg)
@@ -37,7 +39,7 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	}
 
 	for _, instance := range config.Instances {
-		newCheck := c
+		newCheck := factory()
 		if err := newCheck.Configure(instance); err != nil {
 			log.Errorf("core.loader: could not configure check %s: %s", newCheck, err)
 			continue

@@ -87,6 +87,10 @@ func (c *CPUCheck) ID() string {
 // Stop does nothing
 func (c *CPUCheck) Stop() {}
 
+func cpuFactory() check.Check {
+	return &CPUCheck{}
+}
+
 func init() {
-	core.RegisterCheck("cpu", &CPUCheck{})
+	core.RegisterCheck("cpu", cpuFactory)
 }
