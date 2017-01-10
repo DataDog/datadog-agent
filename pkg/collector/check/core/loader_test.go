@@ -24,8 +24,12 @@ func TestNewGoCheckLoader(t *testing.T) {
 	}
 }
 
+func testCheckFactory() check.Check {
+	return &TestCheck{}
+}
+
 func TestRegisterCheck(t *testing.T) {
-	RegisterCheck("foo", new(TestCheck))
+	RegisterCheck("foo", testCheckFactory)
 	_, found := catalog["foo"]
 	if !found {
 		t.Fatal("Check foo not found in catalog")
@@ -33,7 +37,7 @@ func TestRegisterCheck(t *testing.T) {
 }
 
 func TestLoad(t *testing.T) {
-	RegisterCheck("foo", new(TestCheck))
+	RegisterCheck("foo", testCheckFactory)
 
 	// check is in catalog, pass 2 instances
 	i := []check.ConfigData{

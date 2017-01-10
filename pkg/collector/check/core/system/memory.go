@@ -106,6 +106,9 @@ func (c *MemoryCheck) ID() string {
 // Stop does nothing
 func (c *MemoryCheck) Stop() {}
 
+func memFactory() check.Check {
+	return &MemoryCheck{}
+}
 func init() {
-	core.RegisterCheck("memory", &MemoryCheck{})
+	core.RegisterCheck("memory", memFactory)
 }
