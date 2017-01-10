@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package pb;
+
+message MetricsPayload {
+    message Sample {
+        message Point {
+            int64 ts = 1;
+            double value = 2;
+        }
+        string metric = 1;
+        string type = 2;
+        string host = 3;
+        repeated Point points = 4;
+        repeated string tags = 5;
+        int32 interval = 6;
+
+    }
+    repeated Sample samples = 1;
+}

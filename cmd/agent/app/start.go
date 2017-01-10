@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	log "github.com/cihub/seelog"
 	python "github.com/sbinet/go-python"
@@ -110,6 +111,10 @@ func start(cmd *cobra.Command, args []string) {
 	// start the cmd HTTP server
 	api.StartServer()
 
+	// start the forwarder
+	_forwarder = forwarder.NewForwarder()
+	_forwarder.Start()
+
 	// Initialize the CPython interpreter
 	state := py.Initialize(_distPath, filepath.Join(_distPath, "checks"))
 
@@ -127,7 +132,7 @@ func start(cmd *cobra.Command, args []string) {
 	_scheduler = scheduler.NewScheduler()
 
 	// Instance the Aggregator
-	_ = aggregator.GetAggregator()
+	_ = aggregator.GetAggregator(_forwarder)
 
 	// given a list of configurations, try to load corresponding checks using different loaders
 	// TODO add check type to the conf file so that we avoid the inner for
@@ -169,6 +174,7 @@ teardown:
 	// gracefully shut down any component
 	_runner.Stop()
 	_scheduler.Stop()
+	_forwarder.Stop()
 	python.PyEval_RestoreThread(state)
 	ipc.StopListen()
 	os.Remove(pidfilePath)

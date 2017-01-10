@@ -1,10 +1,12 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/pb"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 )
 
 const defaultFlushInterval = 15 // flush interval in seconds
@@ -14,9 +16,9 @@ var aggregatorInstance *BufferedAggregator
 var aggregatorInit sync.Once
 
 // GetAggregator returns the Singleton instance
-func GetAggregator() *BufferedAggregator {
+func GetAggregator(forwarder *forwarder.Forwarder) *BufferedAggregator {
 	aggregatorInit.Do(func() {
-		aggregatorInstance = newBufferedAggregator()
+		aggregatorInstance = newBufferedAggregator(forwarder)
 	})
 
 	return aggregatorInstance
@@ -31,16 +33,18 @@ type BufferedAggregator struct {
 	currentCheckSamplerID int64
 	flushInterval         int64
 	mu                    sync.Mutex // to protect the checkSamplers field
+	forwarder             *forwarder.Forwarder
 }
 
 // Instantiate a BufferedAggregator and run it
-func newBufferedAggregator() *BufferedAggregator {
+func newBufferedAggregator(forwarder *forwarder.Forwarder) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
 		dogstatsdIn:   make(chan *MetricSample, 100), // TODO make buffer size configurable
 		checkIn:       make(chan senderSample, 100),  // TODO make buffer size configurable
 		sampler:       *NewSampler(bucketSize),
 		checkSamplers: make(map[int64]*CheckSampler),
 		flushInterval: defaultFlushInterval,
+		forwarder:     forwarder,
 	}
 
 	go aggregator.run()
@@ -82,6 +86,20 @@ func (agg *BufferedAggregator) run() {
 			}
 			agg.mu.Unlock()
 			go Report(series, config.Datadog.GetString("api_key"))
+
+			p := make([]*pb.MetricsPayload_Sample, 1)
+			tags := make([]string, 2)
+			tags[0] = "BAR"
+			tags[1] = "BUZ"
+			p[0] = &pb.MetricsPayload_Sample{
+				Metric: "foo",
+				Tags:   tags,
+			}
+
+			agg.forwarder.SubmitSeries(&pb.MetricsPayload{
+				Samples: p,
+			})
+
 		case sample := <-agg.dogstatsdIn:
 			now := time.Now().Unix()
 			agg.sampler.addSample(sample, now)
