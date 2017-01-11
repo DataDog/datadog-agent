@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
@@ -49,38 +48,4 @@ func SetupConfig() {
 	// define defaults for the Agent
 	config.Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
 	config.Datadog.BindEnv("cmd_sock")
-}
-
-// ReloadCheck should reload a check but expect the worst
-func ReloadCheck(name string) {
-	// unschedule
-	AgentScheduler.Cancel(name)
-
-	// reload configs
-
-	// <shameless>
-	// Get a list of config checks from the configured providers
-	var configs []check.Config
-	for _, provider := range GetConfigProviders() {
-		c, _ := provider.Collect()
-		for _, config := range c {
-			if config.Name == name {
-				configs = append(configs, config)
-			}
-		}
-	}
-
-	// given a list of configurations, try to load corresponding checks using different loaders
-	loaders := GetCheckLoaders()
-	for _, conf := range configs {
-		for _, loader := range loaders {
-			res, err := loader.Load(conf)
-			if err == nil {
-				for _, check := range res {
-					AgentScheduler.Enter(check)
-				}
-			}
-		}
-	}
-	// </shameless>
 }
