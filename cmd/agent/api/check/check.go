@@ -4,18 +4,10 @@
 package check
 
 import (
-	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/gorilla/mux"
 )
-
-type checkDetail struct {
-	Name    string
-	ID      string
-	Running bool
-}
 
 // SetupHandlers adds the specific handlers for /check endpoints
 func SetupHandlers(r *mux.Router) {
@@ -25,46 +17,16 @@ func SetupHandlers(r *mux.Router) {
 }
 
 func reloadCheck(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	vars := mux.Vars(r)
-	checkName := vars["name"]
-	_, found := common.AgentScheduler.ScheduledChecks()[checkName]
-	if found {
-		common.ReloadCheck(checkName)
-	} else {
-		http.NotFound(w, r)
-	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte("Not yet implemented."))
 }
 
 func listChecks(w http.ResponseWriter, r *http.Request) {
-	detailsList := []checkDetail{}
-	if common.AgentScheduler == nil {
-		// Service Unavailable
-		w.WriteHeader(503)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	for _, cPtr := range common.AgentScheduler.ScheduledChecks() {
-		check := *cPtr
-		detailsList = append(detailsList, checkDetail{check.String(), check.ID(), common.AgentRunner.IsCheckRunning(check)})
-	}
-
-	j, _ := json.Marshal(detailsList)
-	w.Write(j)
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte("Not yet implemented."))
 }
 
 func listCheck(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	vars := mux.Vars(r)
-	checkName := vars["name"]
-	cPtr, found := common.AgentScheduler.ScheduledChecks()[checkName]
-	if found {
-		check := *cPtr
-		j, _ := json.Marshal(checkDetail{check.String(), check.ID(), common.AgentRunner.IsCheckRunning(check)})
-		w.Write(j)
-	} else {
-		http.NotFound(w, r)
-	}
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte("Not yet implemented."))
 }

@@ -91,7 +91,6 @@ func (r *Runner) work() {
 
 	for check := range r.pending {
 		// see if the check is already running
-		// we don't use `IsRunning` here to avoid locking/unlocking twice
 		r.m.Lock()
 		if _, isRunning := r.runningChecks[check.ID()]; isRunning {
 			log.Debugf("Check %s is already running, skip execution...", check)
@@ -117,12 +116,4 @@ func (r *Runner) work() {
 	}
 
 	log.Debug("Finished to process checks.")
-}
-
-// IsCheckRunning returns whether the check is running
-func (r *Runner) IsCheckRunning(check Check) bool {
-	r.m.Lock()
-	_, isRunning := r.runningChecks[check.ID()]
-	r.m.Unlock()
-	return isRunning
 }

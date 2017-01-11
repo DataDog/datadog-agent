@@ -38,21 +38,6 @@ func (jq *jobQueue) addJob(c check.Check) {
 	jq.jobs = append(jq.jobs, c)
 }
 
-// addJob is a convenience method to add a check to a queue
-func (jq *jobQueue) setJobs(c []check.Check) {
-	jq.mu.Lock()
-	defer jq.mu.Unlock()
-
-	jq.jobs = c
-}
-
-func (jq *jobQueue) clear() {
-	jq.mu.Lock()
-	defer jq.mu.Unlock()
-
-	jq.jobs = []check.Check{}
-}
-
 // run schedules the checks in the queue by posting them to the
 // execution pipeline.
 // This doesn't block.

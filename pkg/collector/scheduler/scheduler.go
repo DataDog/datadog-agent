@@ -16,25 +16,23 @@ const defaultTimeout time.Duration = 5 * time.Second
 // Scheduler keeps things rolling.
 // More docs to come...
 type Scheduler struct {
-	checksPipe      chan<- check.Check          // The pipe the Runner pops the checks from, initially set to nil
-	done            chan bool                   // Guard for the main loop
-	halted          chan bool                   // Used to internally communicate all queues are done
-	started         chan bool                   // Used to internally communicate the queues are up
-	jobQueues       map[time.Duration]*jobQueue // We have one scheduling queue for every interval
-	mu              sync.Mutex                  // To protect critical sections in struct's fields
-	running         uint32                      // Flag to see if the scheduler is running
-	scheduledChecks map[string]*check.Check     // list of scheduled checks so far
+	checksPipe chan<- check.Check          // The pipe the Runner pops the checks from, initially set to nil
+	done       chan bool                   // Guard for the main loop
+	halted     chan bool                   // Used to internally communicate all queues are done
+	started    chan bool                   // Used to internally communicate the queues are up
+	jobQueues  map[time.Duration]*jobQueue // We have one scheduling queue for every interval
+	mu         sync.Mutex                  // To protect critical sections in struct's fields
+	running    uint32                      // Flag to see if the scheduler is running
 }
 
 // NewScheduler create a Scheduler and returns a pointer to it.
 func NewScheduler() *Scheduler {
 	return &Scheduler{
-		done:            make(chan bool, 1),
-		halted:          make(chan bool, 1),
-		started:         make(chan bool, 1),
-		jobQueues:       make(map[time.Duration]*jobQueue),
-		running:         0,
-		scheduledChecks: map[string]*check.Check{},
+		done:      make(chan bool, 1),
+		halted:    make(chan bool, 1),
+		started:   make(chan bool, 1),
+		jobQueues: make(map[time.Duration]*jobQueue),
+		running:   0,
 	}
 }
 
@@ -44,9 +42,6 @@ func (s *Scheduler) Enter(check check.Check) error {
 	if check.Interval() < 0 {
 		return fmt.Errorf("Schedule interval must be a positive integer or 0")
 	}
-
-	// keep track of the scheduled checks
-	s.scheduledChecks[check.ID()] = &check
 
 	// send immediately to the checks Pipe if this is a one-time schedule
 	// do not block, in case the runner has not started
@@ -167,24 +162,5 @@ func (s *Scheduler) startQueues() {
 	for _, q := range s.jobQueues {
 		q.run(s.checksPipe)
 		q.running = true
-	}
-}
-
-// ScheduledChecks returns the list of checks that were scheduled
-// at least once
-func (s *Scheduler) ScheduledChecks() map[string]*check.Check {
-	return s.scheduledChecks
-}
-
-// Cancel removes any check matching the given name from the scheduler
-func (s *Scheduler) Cancel(checkName string) {
-	for _, q := range s.jobQueues {
-		after := []check.Check{}
-		for _, check := range q.jobs {
-			if check.String() != checkName {
-				after = append(after, check)
-			}
-		}
-		q.setJobs(after)
 	}
 }
