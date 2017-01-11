@@ -1,8 +1,7 @@
 package app
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/api"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/spf13/cobra"
 )
 
@@ -24,9 +23,5 @@ func stop(*cobra.Command, []string) {
 	// Global Agent configuration
 	setupConfig()
 	// get an API client
-	c := api.GetClient()
-	resp, err := c.Post("http://localhost/agent/stop", "", nil)
-	if err != nil || resp.StatusCode != 202 {
-		log.Errorf("Error sending stop command: %v", err)
-	}
+	common.Stopper <- true
 }

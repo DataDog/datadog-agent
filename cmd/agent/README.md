@@ -26,7 +26,6 @@ is delegated to the filesystem.
 
 Endpoints implemented so far (this list should be killed in favor of [swagger][2] at some point):
     * [GET] http://localhost/agent/version
-    * [POST] http://localhost/agent/stop
 
 [0]: https://en.wikipedia.org/wiki/Unix_domain_socket
 [1]: https://msdn.microsoft.com/en-us/library/windows/desktop/aa365590.aspx
