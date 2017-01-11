@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/app/api"
-	"github.com/DataDog/datadog-agent/cmd/agent/app/ipc"
+	"github.com/DataDog/datadog-agent/cmd/agent/api"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loader"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 	python "github.com/sbinet/go-python"
 	"github.com/spf13/cobra"
@@ -97,15 +98,10 @@ func start(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	defer log.Flush()
-
-	log.Infof("Starting Datadog Agent v%v", agentVersion)
+	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
 	// Global Agent configuration
 	setupConfig()
-
-	// start the ipc server
-	ipc.Listen()
 
 	// start the cmd HTTP server
 	api.StartServer()
@@ -121,10 +117,10 @@ func start(cmd *cobra.Command, args []string) {
 	}
 
 	// Get a Runner instance
-	_runner = check.NewRunner()
+	common.AgentRunner = check.NewRunner()
 
 	// Instance the scheduler
-	_scheduler = scheduler.NewScheduler()
+	common.AgentScheduler = scheduler.NewScheduler()
 
 	// Instance the Aggregator
 	_ = aggregator.GetAggregator()
@@ -137,17 +133,17 @@ func start(cmd *cobra.Command, args []string) {
 			res, err := loader.Load(conf)
 			if err == nil {
 				for _, check := range res {
-					_scheduler.Enter(check)
+					common.AgentScheduler.Enter(check)
 				}
 			}
 		}
 	}
 
 	// Start the Runner using only one worker, i.e. we process checks sequentially
-	_runner.Run(1)
+	common.AgentRunner.Run(1)
 
 	// Run the scheduler
-	_scheduler.Run(_runner.GetChan())
+	common.AgentScheduler.Run(common.AgentRunner.GetChan())
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -155,7 +151,7 @@ func start(cmd *cobra.Command, args []string) {
 
 	// Block here until we receive the interrupt signal
 	select {
-	case <-ipc.ShouldStop:
+	case <-common.Stopper:
 		log.Info("Received stop command, shutting down...")
 		goto teardown
 	case sig := <-signalCh:
@@ -167,11 +163,12 @@ func start(cmd *cobra.Command, args []string) {
 
 teardown:
 	// gracefully shut down any component
-	_runner.Stop()
-	_scheduler.Stop()
+	common.AgentRunner.Stop()
+	common.AgentScheduler.Stop()
 	python.PyEval_RestoreThread(state)
-	ipc.StopListen()
+	api.StopServer()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
+	log.Flush()
 	os.Exit(0)
 }

@@ -1,8 +1,7 @@
 package app
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/app/ipc"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/spf13/cobra"
 )
 
@@ -23,15 +22,6 @@ func init() {
 func stop(*cobra.Command, []string) {
 	// Global Agent configuration
 	setupConfig()
-
-	c, err := ipc.GetConn()
-	if err != nil {
-		panic(err)
-	}
-	defer c.Close()
-
-	_, err = c.Write([]byte("stop"))
-	if err != nil {
-		log.Errorf("Error sending stop command: %v", err)
-	}
+	// get an API client
+	common.Stopper <- true
 }
