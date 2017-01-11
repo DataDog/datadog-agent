@@ -6,6 +6,8 @@ After=network.target
 Type=forking
 PIDFile=/var/run/datadog/agent.pid
 User=root
+Restart=on-failure
+ExecStartPre=/bin/rm -f /tmp/agent.sock
 ExecStart=<%= install_dir %>/bin/agent/agent start -p /var/run/datadog/agent.pid
 
 [Install]
