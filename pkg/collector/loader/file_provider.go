@@ -3,8 +3,8 @@ package loader
 import (
 	"errors"
 	"io/ioutil"
+	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	log "github.com/cihub/seelog"
@@ -35,39 +35,77 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 	configs := []check.Config{}
 
 	for _, path := range c.paths {
-		log.Debug("Searching for yaml files at:", path)
+		log.Infof("Searching for configuration files at: %s", path)
 
-		files, err := ioutil.ReadDir(path)
+		entries, err := ioutil.ReadDir(path)
 		if err != nil {
-			log.Warnf("Unable to access dir: %s, skipping...", err)
+			log.Warnf("Skipping, %s", err)
 			continue
 		}
 
-		for _, f := range files {
-			if f.IsDir() {
-				log.Warnf("%s is a dir, skipping...", f.Name())
+		for _, entry := range entries {
+			ext := filepath.Ext(entry.Name())
+
+			// skip config files of type check.yaml.example
+			if ext == ".example" {
+				log.Debugf("Skipping file: %s", entry.Name())
 				continue
 			}
 
-			fName := f.Name()
-			extName := filepath.Ext(fName)
-			if strings.Contains(extName, ".example") {
-				continue
+			if entry.IsDir() {
+				configs = append(configs, collectDir(path, entry)...)
+			} else {
+				checkName := entry.Name()[:len(entry.Name())-len(ext)]
+				conf, err := getCheckConfig(checkName, filepath.Join(path, entry.Name()))
+				if err != nil {
+					log.Warnf("%s is not a valid config file: %s", entry.Name(), err)
+					continue
+				}
+				log.Debug("Found valid configuration in file:", entry.Name())
+				configs = append(configs, conf)
 			}
-
-			bName := fName[:len(f.Name())-len(extName)]
-			conf, err := getCheckConfig(bName, filepath.Join(path, fName))
-			if err != nil {
-				log.Warnf("%s is not a valid config file: %s", f.Name(), err)
-				continue
-			}
-
-			log.Debug("Found valid configuration in file:", f.Name())
-			configs = append(configs, conf)
 		}
 	}
 
 	return configs, nil
+}
+
+func collectDir(parentPath string, folder os.FileInfo) []check.Config {
+	configs := []check.Config{}
+
+	if filepath.Ext(folder.Name()) != ".d" {
+		// the name of this directory isn't in the form `checkname.d`, skip it
+		log.Debugf("Not a config folder, skipping directory: %s", folder.Name())
+		return configs
+	}
+
+	dirPath := filepath.Join(parentPath, folder.Name())
+
+	// search for yaml files within this directory
+	subEntries, err := ioutil.ReadDir(dirPath)
+	if err != nil {
+		log.Warnf("Skipping config directory: %s", err)
+		return configs
+	}
+
+	// strip the trailing `.d`
+	checkName := folder.Name()[:len(folder.Name())-2]
+
+	// try to load any config file in it
+	for _, sEntry := range subEntries {
+		if !sEntry.IsDir() {
+			filePath := filepath.Join(dirPath, sEntry.Name())
+			conf, err := getCheckConfig(checkName, filePath)
+			if err != nil {
+				log.Warnf("%s is not a valid config file: %s", sEntry.Name(), err)
+				continue
+			}
+			log.Debug("Found valid configuration in file:", filePath)
+			configs = append(configs, conf)
+		}
+	}
+
+	return configs
 }
 
 // getCheckConfig returns an instance of check.Config if `fpath` points to a valid config file
