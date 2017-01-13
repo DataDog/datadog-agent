@@ -10,6 +10,11 @@ import (
 	"github.com/kardianos/osext"
 )
 
+const (
+	// RunnerNumWorkers is the number of workers the Runner should spawn
+	RunnerNumWorkers = 4
+)
+
 var (
 	// Stopper is the channel used by other packages to ask for stopping the agent
 	Stopper = make(chan bool)
