@@ -25,7 +25,7 @@ type jobQueue struct {
 func newJobQueue(interval time.Duration) *jobQueue {
 	return &jobQueue{
 		interval: interval,
-		ticker:   time.NewTicker(time.Second * time.Duration(interval)),
+		ticker:   time.NewTicker(time.Duration(interval)),
 		stop:     make(chan bool, 1),
 	}
 }

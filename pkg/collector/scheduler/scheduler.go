@@ -11,7 +11,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-const defaultTimeout time.Duration = 5000 * time.Millisecond
+const defaultTimeout time.Duration = 5 * time.Second
 
 // Scheduler keeps things rolling.
 // More docs to come...
@@ -46,12 +46,14 @@ func (s *Scheduler) Enter(check check.Check) error {
 	// send immediately to the checks Pipe if this is a one-time schedule
 	// do not block, in case the runner has not started
 	if check.Interval() == 0 {
-		log.Info("Scheduling check for one-time execution")
+		log.Infof("Scheduling check %v for one-time execution", check)
 		go func() {
 			s.checksPipe <- check
 		}()
 		return nil
 	}
+
+	log.Infof("Scheduling check %v with an interval of %v", check, check.Interval())
 
 	// sync when accessing `jobQueues`
 	s.mu.Lock()
@@ -121,7 +123,7 @@ func (s *Scheduler) Stop(timeout ...time.Duration) error {
 	// Interrupt the main loop, proceeding to shut down all the queues
 	// `done` is buffered so we can proceed and wait for shutdown (or timeout)
 	s.done <- true
-	log.Debugf("Waiting for the scheduler to shutdown, timeout after %dns.", to)
+	log.Debugf("Waiting for the scheduler to shutdown, timeout after %v", to)
 
 	select {
 	case <-s.halted:

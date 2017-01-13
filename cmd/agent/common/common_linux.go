@@ -1,6 +1,6 @@
-package app
+package common
 
 var configPaths = []string{
 	"/etc/dd-agent",
-	_distPath,
+	DistPath,
 }

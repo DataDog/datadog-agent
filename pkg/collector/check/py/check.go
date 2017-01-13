@@ -127,7 +127,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	rawInstances := check.ConfigRawMap{}
 	err := yaml.Unmarshal(data, &rawInstances)
 	if err != nil {
-		log.Error("error in yaml %s", err)
+		log.Errorf("error in yaml %s", err)
 		return err
 	}
 
@@ -135,7 +135,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	rawInitConfig := check.ConfigRawMap{}
 	err = yaml.Unmarshal(initConfig, &rawInitConfig)
 	if err != nil {
-		log.Error("error in yaml %s", err)
+		log.Errorf("error in yaml %s", err)
 		return err
 	}
 
@@ -144,8 +144,8 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	if ok {
 		// we should receive an int from the unmarshaller
 		if intl, ok := x.(int); ok {
-			// all good, convert to the right type
-			c.interval = time.Duration(intl)
+			// all good, convert to the right type, assuming YAML contains seconds
+			c.interval = time.Duration(intl) * time.Second
 		}
 	}
 

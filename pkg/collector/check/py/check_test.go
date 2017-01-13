@@ -83,7 +83,7 @@ func TestInterval(t *testing.T) {
 	c, _ := getCheckInstance(true, "testcheck", "TestCheck")
 	assert.Equal(t, check.DefaultCheckInterval, c.Interval())
 	c.Configure([]byte("min_collection_interval: 1"), []byte("foo: bar"))
-	assert.Equal(t, time.Duration(1), c.Interval())
+	assert.Equal(t, time.Duration(1)*time.Second, c.Interval())
 }
 
 func TestInitKwargsCheck(t *testing.T) {

@@ -28,9 +28,6 @@ func StartServer() {
 	agent.SetupHandlers(r.PathPrefix("/agent").Subrouter())
 	check.SetupHandlers(r.PathPrefix("/check").Subrouter())
 
-	// add the go_expvar server
-	r.Handle("/debug/vars", http.DefaultServeMux)
-
 	// get the transport we're going to use under HTTP
 	var err error
 	listener, err = getListener()
