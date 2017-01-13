@@ -127,7 +127,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	rawInstances := check.ConfigRawMap{}
 	err := yaml.Unmarshal(data, &rawInstances)
 	if err != nil {
-		log.Error("error in yaml %s", err)
+		log.Errorf("error in yaml %s", err)
 		return err
 	}
 
@@ -135,7 +135,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	rawInitConfig := check.ConfigRawMap{}
 	err = yaml.Unmarshal(initConfig, &rawInitConfig)
 	if err != nil {
-		log.Error("error in yaml %s", err)
+		log.Errorf("error in yaml %s", err)
 		return err
 	}
 
