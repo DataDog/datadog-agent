@@ -1,8 +1,9 @@
 package loader
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetCheckConfig(t *testing.T) {
@@ -45,8 +46,9 @@ func TestCollect(t *testing.T) {
 	configs, err := provider.Collect()
 
 	assert.Nil(t, err)
-	assert.Equal(t, len(configs), 1)
+	assert.Equal(t, 3, len(configs))
 
-	config := configs[0]
-	assert.Equal(t, config.Name, "testcheck")
+	for _, c := range configs {
+		assert.Equal(t, c.Name, "testcheck")
+	}
 }
