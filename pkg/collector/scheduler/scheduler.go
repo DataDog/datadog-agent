@@ -26,13 +26,14 @@ type Scheduler struct {
 }
 
 // NewScheduler create a Scheduler and returns a pointer to it.
-func NewScheduler() *Scheduler {
+func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
 	return &Scheduler{
-		done:      make(chan bool, 1),
-		halted:    make(chan bool, 1),
-		started:   make(chan bool, 1),
-		jobQueues: make(map[time.Duration]*jobQueue),
-		running:   0,
+		checksPipe: checksPipe,
+		done:       make(chan bool, 1),
+		halted:     make(chan bool, 1),
+		started:    make(chan bool, 1),
+		jobQueues:  make(map[time.Duration]*jobQueue),
+		running:    0,
 	}
 }
 
@@ -69,7 +70,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 
 // Run is the Scheduler main loop.
 // This doesn't block but waits for the queues to be ready before returning.
-func (s *Scheduler) Run(checksPipe chan<- check.Check) {
+func (s *Scheduler) Run() {
 	// Invoking Run does nothing if the Scheduler is already running
 	if atomic.LoadUint32(&s.running) != 0 {
 		log.Debug("Scheduler is already running")
@@ -78,9 +79,6 @@ func (s *Scheduler) Run(checksPipe chan<- check.Check) {
 
 	go func() {
 		log.Debug("Starting scheduler loop...")
-
-		// setup the output channel
-		s.checksPipe = checksPipe
 
 		s.startQueues()
 
@@ -138,7 +136,7 @@ func (s *Scheduler) Reload(timeout ...time.Duration) error {
 	log.Debug("Reloading scheduler loop...")
 	if s.Stop(timeout...) == nil {
 		log.Debug("Scheduler stopped, running again...")
-		s.Run(s.checksPipe)
+		s.Run()
 		return nil
 	}
 

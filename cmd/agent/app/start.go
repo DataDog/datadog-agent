@@ -96,7 +96,7 @@ func start(cmd *cobra.Command, args []string) {
 	common.AgentRunner = check.NewRunner()
 
 	// Instance the scheduler
-	common.AgentScheduler = scheduler.NewScheduler()
+	common.AgentScheduler = scheduler.NewScheduler(common.AgentRunner.GetChan())
 
 	// Instance the Aggregator
 	_ = aggregator.GetAggregator()
@@ -116,10 +116,10 @@ func start(cmd *cobra.Command, args []string) {
 	}
 
 	// Start the Runner using only one worker, i.e. we process checks sequentially
-	common.AgentRunner.Run(1)
+	common.AgentRunner.Run(common.RunnerNumWorkers)
 
 	// Run the scheduler
-	common.AgentScheduler.Run(common.AgentRunner.GetChan())
+	common.AgentScheduler.Run()
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
