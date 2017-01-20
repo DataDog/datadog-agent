@@ -19,32 +19,20 @@ type Runner struct {
 	running       uint32           // Flag to see if the Runner is, well, running
 }
 
-// NewRunner ...
-func NewRunner() *Runner {
-	return &Runner{}
-}
-
-// Run takes the number of desired goroutines processing incoming checks.
-// It's designed to be stopped and restarted, that's why some of the initialization is
-// done here.
-func (r *Runner) Run(numWorkers int) {
-	if atomic.LoadUint32(&r.running) != 0 {
-		log.Debug("Runner was already started, nothing to do here...")
-		return
+// NewRunner takes the number of desired goroutines processing incoming checks.
+func NewRunner(numWorkers int) *Runner {
+	r := &Runner{
+		// initialize the channel
+		pending:       make(chan Check),
+		runningChecks: make(map[string]Check),
+		running:       1,
 	}
-
-	// initialize the channel
-	r.pending = make(chan Check)
-
-	// initialize the running list
-	r.runningChecks = make(map[string]Check)
 
 	for i := 0; i < numWorkers; i++ {
 		go r.work()
 	}
-
 	log.Infof("Runner started with %d workers.", numWorkers)
-	atomic.StoreUint32(&r.running, 1)
+	return r
 }
 
 // Stop closes the pending channel so all workers will exit their loop and terminate

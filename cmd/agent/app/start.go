@@ -93,7 +93,7 @@ func start(cmd *cobra.Command, args []string) {
 	}
 
 	// Get a Runner instance
-	common.AgentRunner = check.NewRunner()
+	common.AgentRunner = check.NewRunner(common.RunnerNumWorkers)
 
 	// Instance the scheduler
 	common.AgentScheduler = scheduler.NewScheduler(common.AgentRunner.GetChan())
@@ -114,9 +114,6 @@ func start(cmd *cobra.Command, args []string) {
 			}
 		}
 	}
-
-	// Start the Runner using only one worker, i.e. we process checks sequentially
-	common.AgentRunner.Run(common.RunnerNumWorkers)
 
 	// Run the scheduler
 	common.AgentScheduler.Run()
