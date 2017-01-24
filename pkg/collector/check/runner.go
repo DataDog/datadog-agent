@@ -82,6 +82,7 @@ func (r *Runner) work() {
 		r.m.Lock()
 		if _, isRunning := r.runningChecks[check.ID()]; isRunning {
 			log.Debugf("Check %s is already running, skip execution...", check)
+			r.m.Unlock()
 			continue
 		} else {
 			r.runningChecks[check.ID()] = check
