@@ -1,7 +1,7 @@
 package aggregator
 
 import (
-	// "errors"
+	"fmt"
 	"sort"
 
 	log "github.com/cihub/seelog"
@@ -98,9 +98,10 @@ func (r *Rate) flush(timestamp int64) ([]*Serie, error) {
 
 // Histogram tracks the distribution of samples added over one flush period
 type Histogram struct {
-	aggregates []string // aggregates configured on this histogram
-	samples    []float64
-	configured bool
+	aggregates  []string // aggregates configured on this histogram
+	percentiles []int    // percentiles configured on this histogram, each in the 1-100 range
+	samples     []float64
+	configured  bool
 }
 
 type histogramAggregator struct {
@@ -135,9 +136,10 @@ var histogramAggregators = map[string]histogramAggregator{
 	"count": {func(s []float64) float64 { return float64(len(s)) }, "rate"},
 }
 
-func (h *Histogram) configure(aggregates []string) {
+func (h *Histogram) configure(aggregates []string, percentiles []int) {
 	h.configured = true
 	h.aggregates = aggregates
+	h.percentiles = percentiles
 }
 
 func (h *Histogram) addSample(sample float64, timestamp int64) {
@@ -152,6 +154,7 @@ func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
 	if !h.configured {
 		// Set default aggregates if configure() hasn't been called
 		h.aggregates = []string{"max", "median", "avg", "count"}
+		h.percentiles = []int{95}
 	}
 
 	sort.Float64s(h.samples)
@@ -167,6 +170,15 @@ func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
 		} else {
 			log.Infof("Configured aggregate '%s' is not implemented, skipping", aggregate)
 		}
+	}
+
+	for _, percentile := range h.percentiles {
+		value := h.samples[(percentile*len(h.samples)-1)/100]
+		series = append(series, &Serie{
+			Points:     points{{timestamp, value}},
+			Mtype:      "gauge",
+			nameSuffix: fmt.Sprintf(".%dpercentile", percentile),
+		})
 	}
 
 	h.samples = []float64{}

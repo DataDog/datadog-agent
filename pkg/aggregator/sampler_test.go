@@ -166,9 +166,15 @@ func TestMetricsHistogramSampling(t *testing.T) {
 			Mtype:      "rate",
 			nameSuffix: ".count",
 		},
+		&Serie{
+			contextKey: contextKey,
+			Points:     [][]interface{}{{int64(12351), 6.}},
+			Mtype:      "gauge",
+			nameSuffix: ".95percentile",
+		},
 	}
 
-	if assert.Equal(t, 4, len(series)) {
+	if assert.Len(t, series, len(expectedSeries)) {
 		for i := range expectedSeries {
 			AssertSerieEqual(t, expectedSeries[i], series[i])
 		}
