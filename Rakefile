@@ -26,7 +26,7 @@ desc "Setup Go dependencies"
 task :deps do
   system("go get github.com/Masterminds/glide")
   system("go get -u github.com/golang/lint/golint")
-  system("glide up")
+  system("glide install")
 end
 
 desc "Run go fmt on #{TARGETS}"
