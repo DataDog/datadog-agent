@@ -7,13 +7,32 @@ def os
     "linux"
   when /darwin/
     "darwin"
+  when /x64-mingw32/
+    "windows"
   else
     fail 'Unsupported OS'
   end
 end
 
-PROJECT_DIR=`pwd`.strip
-PKG_CONFIG_LIBDIR=File.join(PROJECT_DIR, "pkg-config", os)
+def pwd
+  case os
+  when "windows"
+    `%cd%`.strip
+  else
+    `pwd`.strip
+  end
+end
+
+def exe_name
+  case os
+  when "windows"
+    "agent.exe"
+  else
+    "agent.bin"
+  end
+end
+
+PKG_CONFIG_LIBDIR=File.join(pwd, "pkg-config", os)
 ORG_PATH="github.com/DataDog"
 REPO_PATH="#{ORG_PATH}/datadog-agent"
 TARGETS = %w[./pkg ./cmd]
@@ -95,7 +114,7 @@ namespace :agent do
       env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
     end
 
-    system(env, "go build -o #{BIN_PATH}/agent.bin #{REPO_PATH}/cmd/agent")
+    system(env, "go build -o #{BIN_PATH}/#{exe_name} #{REPO_PATH}/cmd/agent")
     Rake::Task["agent:refresh_assets"].invoke
   end
 
