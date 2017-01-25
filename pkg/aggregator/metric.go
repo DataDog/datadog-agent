@@ -1,31 +1,65 @@
 package aggregator
 
 import (
-	"errors"
+	// "errors"
 	"sort"
 )
+
+type points [][]interface{}
+
+// Serie holds a timeseries (w/ json serialization to DD API format)
+type Serie struct {
+	Name       string   `json:"metric"`
+	Points     points   `json:"points"`
+	Tags       []string `json:"tags"`
+	Host       string   `json:"host"`
+	DeviceName string   `json:"device_name"`
+	Mtype      string   `json:"type"`
+	Interval   int64    `json:"interval"`
+	contextKey string
+	nameSuffix string
+}
 
 // Metric is the interface of all metric types
 type Metric interface {
 	addSample(sample float64, timestamp int64)
+	flush(timestamp int64) ([]*Serie, error)
+}
+
+// NoSerieError is the error returned by a metric when not enough samples have been
+// submitted to generate a serie
+type NoSerieError struct{}
+
+func (e NoSerieError) Error() string {
+	return "Not enough samples to generate points"
 }
 
 // Gauge tracks the value of a metric
 type Gauge struct {
-	gauge     float64
-	timestamp int64
+	gauge   float64
+	sampled bool
 }
 
 func (g *Gauge) addSample(sample float64, timestamp int64) {
 	g.gauge = sample
-	g.timestamp = timestamp
+	g.sampled = true
 }
 
-func (g *Gauge) flush() (value float64, timestamp int64) {
-	value, timestamp = g.gauge, g.timestamp
-	g.gauge, g.timestamp = 0, 0
+func (g *Gauge) flush(timestamp int64) ([]*Serie, error) {
+	value, sampled := g.gauge, g.sampled
+	g.gauge, g.sampled = 0, false
 
-	return
+	if !sampled {
+		return []*Serie{}, NoSerieError{}
+	}
+
+	return []*Serie{
+		&Serie{
+			// we use the timestamp passed to the flush
+			Points: points{{timestamp, value}},
+			Mtype:  "gauge",
+		},
+	}, nil
 }
 
 // Rate tracks the rate of a metric over 2 successive flushes
@@ -43,31 +77,36 @@ func (r *Rate) addSample(sample float64, timestamp int64) {
 	r.sample, r.timestamp = sample, timestamp
 }
 
-func (r *Rate) flush() (value float64, timestamp int64, err error) {
-	value, timestamp, err = 0, 0, errors.New("No value sampled at this check run or at previous check run, no rate value can be computed")
-	if r.previousTimestamp != 0 && r.timestamp != 0 {
-		value, timestamp, err = (r.sample-r.previousSample)/float64(r.timestamp-r.previousTimestamp), r.timestamp, nil
-		r.previousSample, r.previousTimestamp = r.sample, r.timestamp
-		r.sample, r.timestamp = 0, 0
+func (r *Rate) flush(timestamp int64) ([]*Serie, error) {
+	if r.previousTimestamp == 0 || r.timestamp == 0 {
+		return []*Serie{}, NoSerieError{}
 	}
-	return
+
+	value, ts := (r.sample-r.previousSample)/float64(r.timestamp-r.previousTimestamp), r.timestamp
+	r.previousSample, r.previousTimestamp = r.sample, r.timestamp
+	r.sample, r.timestamp = 0, 0
+
+	return []*Serie{
+		&Serie{
+			Points: points{{ts, value}},
+			Mtype:  "gauge",
+		},
+	}, nil
 }
 
 // Histogram tracks the distribution of samples added over one flush period
 type Histogram struct {
-	samples   []float64
-	timestamp int64
+	samples []float64
 }
 
 func (h *Histogram) addSample(sample float64, timestamp int64) {
 	h.samples = append(h.samples, sample)
-	h.timestamp = timestamp
 }
 
-func (h *Histogram) flush() ([]float64, int64) {
+func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
 	count := len(h.samples)
 	if count == 0 {
-		return []float64{}, 0
+		return []*Serie{}, NoSerieError{}
 	}
 
 	sort.Float64s(h.samples)
@@ -79,20 +118,28 @@ func (h *Histogram) flush() ([]float64, int64) {
 	}
 	avg /= float64(len(h.samples))
 
-	timestamp := h.timestamp
-
 	h.samples = []float64{}
-	h.timestamp = 0
 
-	return []float64{max, med, avg, float64(count)}, timestamp
-}
-
-// Counter stores and aggregates a counter values
-type Counter struct {
-	count     int
-	timestamp int64
-}
-
-func (c *Counter) addSample(sample float64, timestamp int64) {
-	// TODO
+	return []*Serie{
+		&Serie{
+			Points:     points{{timestamp, max}},
+			Mtype:      "gauge",
+			nameSuffix: ".max",
+		},
+		&Serie{
+			Points:     points{{timestamp, med}},
+			Mtype:      "gauge",
+			nameSuffix: ".median",
+		},
+		&Serie{
+			Points:     points{{timestamp, avg}},
+			Mtype:      "gauge",
+			nameSuffix: ".avg",
+		},
+		&Serie{
+			Points:     points{{timestamp, float64(count)}},
+			Mtype:      "rate",
+			nameSuffix: ".count",
+		},
+	}, nil
 }

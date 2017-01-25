@@ -19,10 +19,12 @@ func TestGaugeSampling(t *testing.T) {
 	mGauge.addSample(1, 50)
 	mGauge.addSample(2, 55)
 
-	value, timestamp := mGauge.flush()
+	series, _ := mGauge.flush(60)
 	// the last sample is flushed
-	assert.InEpsilon(t, 2, value, epsilon)
-	assert.EqualValues(t, timestamp, 55)
+	assert.Len(t, series, 1)
+	assert.Len(t, series[0].Points, 1)
+	assert.InEpsilon(t, 2, series[0].Points[0][1], epsilon)
+	assert.EqualValues(t, series[0].Points[0][0], 60)
 }
 
 func TestRateSampling(t *testing.T) {
@@ -36,13 +38,15 @@ func TestRateSampling(t *testing.T) {
 	mRate2.addSample(1, 50)
 
 	// First rate
-	value, timestamp, err := mRate1.flush()
-	assert.InEpsilon(t, 0.2, value, epsilon)
-	assert.EqualValues(t, timestamp, 55)
+	series, err := mRate1.flush(60)
 	assert.Nil(t, err)
+	assert.Len(t, series, 1)
+	assert.Len(t, series[0].Points, 1)
+	assert.InEpsilon(t, 0.2, series[0].Points[0][1], epsilon)
+	assert.EqualValues(t, series[0].Points[0][0], 55)
 
 	// Second rate (should return error)
-	_, _, err = mRate2.flush()
+	_, err = mRate2.flush(60)
 	assert.NotNil(t, err)
 }
 
@@ -53,13 +57,15 @@ func TestRateSamplingMultipleSamplesInSameFlush(t *testing.T) {
 	// Add samples
 	mRate.addSample(1, 50)
 	mRate.addSample(2, 55)
-	mRate.addSample(4, 60)
+	mRate.addSample(4, 61)
 
 	// Should compute rate based on the last 2 samples
-	value, timestamp, err := mRate.flush()
-	assert.InEpsilon(t, 2./5., value, epsilon)
-	assert.EqualValues(t, timestamp, 60)
+	series, err := mRate.flush(65)
 	assert.Nil(t, err)
+	assert.Len(t, series, 1)
+	assert.Len(t, series[0].Points, 1)
+	assert.InEpsilon(t, 2./6., series[0].Points[0][1], epsilon)
+	assert.EqualValues(t, series[0].Points[0][0], 61)
 }
 
 func TestRateSamplingNoSampleForOneFlush(t *testing.T) {
@@ -71,20 +77,22 @@ func TestRateSamplingNoSampleForOneFlush(t *testing.T) {
 	mRate.addSample(2, 55)
 
 	// First flush: no error
-	_, _, err := mRate.flush()
+	_, err := mRate.flush(60)
 	assert.Nil(t, err)
 
 	// Second flush w/o sample: error
-	_, _, err = mRate.flush()
+	_, err = mRate.flush(60)
 	assert.NotNil(t, err)
 
 	// Third flush w/ sample
 	mRate.addSample(4, 60)
 	// Should compute rate based on the last 2 samples
-	value, timestamp, err := mRate.flush()
-	assert.InEpsilon(t, 2./5., value, epsilon)
-	assert.EqualValues(t, timestamp, 60)
+	series, err := mRate.flush(60)
 	assert.Nil(t, err)
+	assert.Len(t, series, 1)
+	assert.Len(t, series[0].Points, 1)
+	assert.InEpsilon(t, 2./5., series[0].Points[0][1], epsilon)
+	assert.EqualValues(t, series[0].Points[0][0], 60)
 }
 
 func TestHistogramSampling(t *testing.T) {
@@ -92,8 +100,8 @@ func TestHistogramSampling(t *testing.T) {
 	mHistogram := Histogram{}
 
 	// Empty flush
-	values, _ := mHistogram.flush()
-	assert.Empty(t, values)
+	_, err := mHistogram.flush(50)
+	assert.NotNil(t, err)
 
 	// Add samples
 	mHistogram.addSample(1, 50)
@@ -103,14 +111,23 @@ func TestHistogramSampling(t *testing.T) {
 	mHistogram.addSample(2, 55)
 	mHistogram.addSample(2, 55)
 
-	values, _ = mHistogram.flush()
-	if assert.Len(t, values, 4) {
-		assert.InEpsilon(t, 10, values[0], epsilon)     // max
-		assert.InEpsilon(t, 2, values[1], epsilon)      // median
-		assert.InEpsilon(t, 12./3., values[2], epsilon) // avg
-		assert.InEpsilon(t, 6, values[3], epsilon)      // count
+	series, err := mHistogram.flush(60)
+	assert.Nil(t, err)
+	for _, serie := range series {
+		assert.Len(t, serie.Points, 1)
+		assert.EqualValues(t, serie.Points[0][0], 60)
+	}
+	if assert.Len(t, series, 4) {
+		assert.InEpsilon(t, 10, series[0].Points[0][1], epsilon)     // max
+		assert.Equal(t, ".max", series[0].nameSuffix)                // max
+		assert.InEpsilon(t, 2, series[1].Points[0][1], epsilon)      // median
+		assert.Equal(t, ".median", series[1].nameSuffix)             // median
+		assert.InEpsilon(t, 12./3., series[2].Points[0][1], epsilon) // avg
+		assert.Equal(t, ".avg", series[2].nameSuffix)                // avg
+		assert.InEpsilon(t, 6, series[3].Points[0][1], epsilon)      // count
+		assert.Equal(t, ".count", series[3].nameSuffix)              // count
 	}
 
-	values, _ = mHistogram.flush()
-	assert.Empty(t, values)
+	_, err = mHistogram.flush(61)
+	assert.NotNil(t, err)
 }

@@ -11,19 +11,6 @@ func makeMetrics() Metrics {
 	return Metrics(make(map[string]Metric))
 }
 
-// Serie holds a timeserie (w/ json serialization to DD API format)
-type Serie struct {
-	Name       string          `json:"metric"`
-	Points     [][]interface{} `json:"points"`
-	Tags       []string        `json:"tags"`
-	Host       string          `json:"host"`
-	DeviceName string          `json:"device_name"`
-	Mtype      string          `json:"type"`
-	Interval   int64           `json:"interval"`
-	contextKey string
-	nameSuffix string
-}
-
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
 // from the same bucket can be merged into one
 type SerieSignature struct {
@@ -119,7 +106,7 @@ func (m Metrics) addSample(contextKey string, mType MetricType, value float64, t
 		case HistogramType:
 			m[contextKey] = &Histogram{}
 		default:
-			log.Errorf("Can't add unknown sample metric type:", mType)
+			log.Error("Can't add unknown sample metric type:", mType)
 			return
 		}
 	}
@@ -130,49 +117,19 @@ func (m Metrics) flush(timestamp int64) []*Serie {
 	var series []*Serie
 
 	for contextKey, metric := range m {
-		switch metric := metric.(type) {
-		case *Gauge:
-			value, metricTimestamp := metric.flush()
+		metricSeries, err := metric.flush(timestamp)
 
-			if metricTimestamp != 0 {
-				// we use the timestamp passed to the flush
-				serie := &Serie{
-					Points:     [][]interface{}{{timestamp, value}},
-					Mtype:      "gauge",
-					contextKey: contextKey,
-				}
+		if err == nil {
+			for _, serie := range metricSeries {
+				serie.contextKey = contextKey
 				series = append(series, serie)
 			}
-		case *Rate:
-			value, metricTimestamp, err := metric.flush()
-
-			if err == nil {
-				serie := &Serie{
-					Points:     [][]interface{}{{metricTimestamp, value}},
-					Mtype:      "gauge",
-					contextKey: contextKey,
-				}
-				series = append(series, serie)
-			}
-		case *Histogram:
-			values, metricTimestamp := metric.flush()
-
-			suffixes := [][2]string{
-				[2]string{".max", "gauge"},
-				[2]string{".median", "gauge"},
-				[2]string{".avg", "gauge"},
-				[2]string{".count", "rate"},
-			}
-			if metricTimestamp != 0 {
-				for i, value := range values {
-					serie := &Serie{
-						Points:     [][]interface{}{{timestamp, value}},
-						Mtype:      suffixes[i][1],
-						contextKey: contextKey,
-						nameSuffix: suffixes[i][0],
-					}
-					series = append(series, serie)
-				}
+		} else {
+			switch err.(type) {
+			case NoSerieError:
+				log.Debugf("%s on context key %s", err, contextKey)
+			default:
+				log.Info(err)
 			}
 		}
 	}
