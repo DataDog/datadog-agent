@@ -95,7 +95,7 @@ func TestRateSamplingNoSampleForOneFlush(t *testing.T) {
 	assert.EqualValues(t, series[0].Points[0][0], 60)
 }
 
-func TestHistogramSampling(t *testing.T) {
+func TestDefaultHistogramSampling(t *testing.T) {
 	// Initialize histogram
 	mHistogram := Histogram{}
 
@@ -113,11 +113,11 @@ func TestHistogramSampling(t *testing.T) {
 
 	series, err := mHistogram.flush(60)
 	assert.Nil(t, err)
-	for _, serie := range series {
-		assert.Len(t, serie.Points, 1)
-		assert.EqualValues(t, serie.Points[0][0], 60)
-	}
 	if assert.Len(t, series, 4) {
+		for _, serie := range series {
+			assert.Len(t, serie.Points, 1)
+			assert.EqualValues(t, serie.Points[0][0], 60)
+		}
 		assert.InEpsilon(t, 10, series[0].Points[0][1], epsilon)     // max
 		assert.Equal(t, ".max", series[0].nameSuffix)                // max
 		assert.InEpsilon(t, 2, series[1].Points[0][1], epsilon)      // median
@@ -126,6 +126,40 @@ func TestHistogramSampling(t *testing.T) {
 		assert.Equal(t, ".avg", series[2].nameSuffix)                // avg
 		assert.InEpsilon(t, 6, series[3].Points[0][1], epsilon)      // count
 		assert.Equal(t, ".count", series[3].nameSuffix)              // count
+	}
+
+	_, err = mHistogram.flush(61)
+	assert.NotNil(t, err)
+}
+
+func TestCustomHistogramSampling(t *testing.T) {
+	// Initialize custom histogram
+	mHistogram := Histogram{}
+	mHistogram.configure([]string{"min", "sum"})
+
+	// Empty flush
+	_, err := mHistogram.flush(50)
+	assert.NotNil(t, err)
+
+	// Add samples
+	mHistogram.addSample(1, 50)
+	mHistogram.addSample(10, 51)
+	mHistogram.addSample(4, 55)
+	mHistogram.addSample(5, 55)
+	mHistogram.addSample(2, 55)
+	mHistogram.addSample(2, 55)
+
+	series, err := mHistogram.flush(60)
+	assert.Nil(t, err)
+	if assert.Len(t, series, 2) {
+		for _, serie := range series {
+			assert.Len(t, serie.Points, 1)
+			assert.EqualValues(t, serie.Points[0][0], 60)
+		}
+		assert.InEpsilon(t, 1, series[0].Points[0][1], epsilon)            // min
+		assert.Equal(t, ".min", series[0].nameSuffix)                      // min
+		assert.InEpsilon(t, 1+10+4+5+2+2, series[1].Points[0][1], epsilon) // sum
+		assert.Equal(t, ".sum", series[1].nameSuffix)                      // sum
 	}
 
 	_, err = mHistogram.flush(61)

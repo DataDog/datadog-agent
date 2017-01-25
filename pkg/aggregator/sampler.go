@@ -104,7 +104,7 @@ func (m Metrics) addSample(contextKey string, mType MetricType, value float64, t
 		case RateType:
 			m[contextKey] = &Rate{}
 		case HistogramType:
-			m[contextKey] = &Histogram{}
+			m[contextKey] = &Histogram{} // default histogram configuration for now
 		default:
 			log.Error("Can't add unknown sample metric type:", mType)
 			return

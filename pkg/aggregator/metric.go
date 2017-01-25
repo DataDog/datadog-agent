@@ -3,6 +3,8 @@ package aggregator
 import (
 	// "errors"
 	"sort"
+
+	log "github.com/cihub/seelog"
 )
 
 type points [][]interface{}
@@ -96,7 +98,46 @@ func (r *Rate) flush(timestamp int64) ([]*Serie, error) {
 
 // Histogram tracks the distribution of samples added over one flush period
 type Histogram struct {
-	samples []float64
+	aggregates []string // aggregates configured on this histogram
+	samples    []float64
+	configured bool
+}
+
+type histogramAggregator struct {
+	fn    func([]float64) float64 // takes a non-empty list of ordered samples and returns the aggregate value
+	mType string
+}
+
+// map of all the available histogram aggregators
+var histogramAggregators = map[string]histogramAggregator{
+	"min":    {func(s []float64) float64 { return s[0] }, "gauge"},
+	"max":    {func(s []float64) float64 { return s[len(s)-1] }, "gauge"},
+	"median": {func(s []float64) float64 { return s[(len(s)-1)/2] }, "gauge"},
+	"avg": {
+		func(s []float64) (avg float64) {
+			for _, sample := range s {
+				avg += sample
+			}
+			avg /= float64(len(s))
+			return avg
+		},
+		"gauge",
+	},
+	"sum": {
+		func(s []float64) (sum float64) {
+			for _, sample := range s {
+				sum += sample
+			}
+			return sum
+		},
+		"gauge",
+	},
+	"count": {func(s []float64) float64 { return float64(len(s)) }, "rate"},
+}
+
+func (h *Histogram) configure(aggregates []string) {
+	h.configured = true
+	h.aggregates = aggregates
 }
 
 func (h *Histogram) addSample(sample float64, timestamp int64) {
@@ -104,42 +145,31 @@ func (h *Histogram) addSample(sample float64, timestamp int64) {
 }
 
 func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
-	count := len(h.samples)
-	if count == 0 {
+	if len(h.samples) == 0 {
 		return []*Serie{}, NoSerieError{}
 	}
 
-	sort.Float64s(h.samples)
-	max := h.samples[count-1]
-	med := h.samples[(count-1)/2]
-	var avg float64
-	for _, sample := range h.samples {
-		avg += sample
+	if !h.configured {
+		// Set default aggregates if configure() hasn't been called
+		h.aggregates = []string{"max", "median", "avg", "count"}
 	}
-	avg /= float64(len(h.samples))
+
+	sort.Float64s(h.samples)
+
+	series := make([]*Serie, 0, len(h.aggregates))
+	for _, aggregate := range h.aggregates {
+		if aggregator, ok := histogramAggregators[aggregate]; ok {
+			series = append(series, &Serie{
+				Points:     points{{timestamp, aggregator.fn(h.samples)}},
+				Mtype:      aggregator.mType,
+				nameSuffix: "." + aggregate,
+			})
+		} else {
+			log.Infof("Configured aggregate '%s' is not implemented, skipping", aggregate)
+		}
+	}
 
 	h.samples = []float64{}
 
-	return []*Serie{
-		&Serie{
-			Points:     points{{timestamp, max}},
-			Mtype:      "gauge",
-			nameSuffix: ".max",
-		},
-		&Serie{
-			Points:     points{{timestamp, med}},
-			Mtype:      "gauge",
-			nameSuffix: ".median",
-		},
-		&Serie{
-			Points:     points{{timestamp, avg}},
-			Mtype:      "gauge",
-			nameSuffix: ".avg",
-		},
-		&Serie{
-			Points:     points{{timestamp, float64(count)}},
-			Mtype:      "rate",
-			nameSuffix: ".count",
-		},
-	}, nil
+	return series, nil
 }
