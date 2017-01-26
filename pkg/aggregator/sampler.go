@@ -14,7 +14,7 @@ func makeMetrics() Metrics {
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
 // from the same bucket can be merged into one
 type SerieSignature struct {
-	mType      string
+	mType      APIMetricType
 	contextKey string
 	nameSuffix string
 }
@@ -69,7 +69,7 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 
 		series := metrics.flush(timestamp)
 		for _, serie := range series {
-			serieSignature := SerieSignature{serie.Mtype, serie.contextKey, serie.nameSuffix}
+			serieSignature := SerieSignature{serie.MType, serie.contextKey, serie.nameSuffix}
 
 			if existingSerie, ok := serieBySignature[serieSignature]; ok {
 				existingSerie.Points = append(existingSerie.Points, serie.Points[0])

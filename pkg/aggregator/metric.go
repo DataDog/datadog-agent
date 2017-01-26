@@ -11,15 +11,37 @@ type points [][]interface{}
 
 // Serie holds a timeseries (w/ json serialization to DD API format)
 type Serie struct {
-	Name       string   `json:"metric"`
-	Points     points   `json:"points"`
-	Tags       []string `json:"tags"`
-	Host       string   `json:"host"`
-	DeviceName string   `json:"device_name"`
-	Mtype      string   `json:"type"`
-	Interval   int64    `json:"interval"`
+	Name       string        `json:"metric"`
+	Points     points        `json:"points"`
+	Tags       []string      `json:"tags"`
+	Host       string        `json:"host"`
+	DeviceName string        `json:"device_name"`
+	MType      APIMetricType `json:"type"`
+	Interval   int64         `json:"interval"`
 	contextKey string
 	nameSuffix string
+}
+
+// APIMetricType represents an API metric type
+type APIMetricType int
+
+// Enumeration of the existing API metric types
+const (
+	APIGaugeType APIMetricType = iota
+	APIRateType
+)
+
+// MarshalText implements the encoding.TextMarshal interface to marshal
+// an APIMetricType to a serialized byte slice
+func (a APIMetricType) MarshalText() ([]byte, error) {
+	switch a {
+	case APIGaugeType:
+		return []byte("gauge"), nil
+	case APIRateType:
+		return []byte("rate"), nil
+	default:
+		return []byte{}, fmt.Errorf("Can't marshal unknown metric type %d", a)
+	}
 }
 
 // Metric is the interface of all metric types
@@ -59,7 +81,7 @@ func (g *Gauge) flush(timestamp int64) ([]*Serie, error) {
 		&Serie{
 			// we use the timestamp passed to the flush
 			Points: points{{timestamp, value}},
-			Mtype:  "gauge",
+			MType:  APIGaugeType,
 		},
 	}, nil
 }
@@ -91,7 +113,7 @@ func (r *Rate) flush(timestamp int64) ([]*Serie, error) {
 	return []*Serie{
 		&Serie{
 			Points: points{{ts, value}},
-			Mtype:  "gauge",
+			MType:  APIGaugeType,
 		},
 	}, nil
 }
@@ -106,14 +128,14 @@ type Histogram struct {
 
 type histogramAggregator struct {
 	fn    func([]float64) float64 // takes a non-empty list of ordered samples and returns the aggregate value
-	mType string
+	mType APIMetricType
 }
 
 // map of all the available histogram aggregators
 var histogramAggregators = map[string]histogramAggregator{
-	"min":    {func(s []float64) float64 { return s[0] }, "gauge"},
-	"max":    {func(s []float64) float64 { return s[len(s)-1] }, "gauge"},
-	"median": {func(s []float64) float64 { return s[(len(s)-1)/2] }, "gauge"},
+	"min":    {func(s []float64) float64 { return s[0] }, APIGaugeType},
+	"max":    {func(s []float64) float64 { return s[len(s)-1] }, APIGaugeType},
+	"median": {func(s []float64) float64 { return s[(len(s)-1)/2] }, APIGaugeType},
 	"avg": {
 		func(s []float64) (avg float64) {
 			for _, sample := range s {
@@ -122,7 +144,7 @@ var histogramAggregators = map[string]histogramAggregator{
 			avg /= float64(len(s))
 			return avg
 		},
-		"gauge",
+		APIGaugeType,
 	},
 	"sum": {
 		func(s []float64) (sum float64) {
@@ -131,9 +153,9 @@ var histogramAggregators = map[string]histogramAggregator{
 			}
 			return sum
 		},
-		"gauge",
+		APIGaugeType,
 	},
-	"count": {func(s []float64) float64 { return float64(len(s)) }, "rate"},
+	"count": {func(s []float64) float64 { return float64(len(s)) }, APIRateType},
 }
 
 func (h *Histogram) configure(aggregates []string, percentiles []int) {
@@ -164,7 +186,7 @@ func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
 		if aggregator, ok := histogramAggregators[aggregate]; ok {
 			series = append(series, &Serie{
 				Points:     points{{timestamp, aggregator.fn(h.samples)}},
-				Mtype:      aggregator.mType,
+				MType:      aggregator.mType,
 				nameSuffix: "." + aggregate,
 			})
 		} else {
@@ -176,7 +198,7 @@ func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
 		value := h.samples[(percentile*len(h.samples)-1)/100]
 		series = append(series, &Serie{
 			Points:     points{{timestamp, value}},
-			Mtype:      "gauge",
+			MType:      APIGaugeType,
 			nameSuffix: fmt.Sprintf(".%dpercentile", percentile),
 		})
 	}

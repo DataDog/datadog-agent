@@ -50,7 +50,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 		Name:       "my.metric.name",
 		Tags:       []string{"foo", "bar"},
 		Points:     [][]interface{}{{int64(12349), mSample2.Value}},
-		Mtype:      "gauge",
+		MType:      APIGaugeType,
 		contextKey: generateContextKey(&mSample2),
 		nameSuffix: "",
 	}
@@ -59,7 +59,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 		Name:       "my.metric.name",
 		Tags:       []string{"foo", "bar", "baz"},
 		Points:     [][]interface{}{{int64(12349), mSample3.Value}},
-		Mtype:      "gauge",
+		MType:      APIGaugeType,
 		contextKey: generateContextKey(&mSample3),
 		nameSuffix: "",
 	}
@@ -113,7 +113,7 @@ func TestCheckRateSampling(t *testing.T) {
 		Name:       "my.metric.name",
 		Tags:       []string{"foo", "bar"},
 		Points:     [][]interface{}{{int64(12347), 0.5}},
-		Mtype:      "gauge",
+		MType:      APIGaugeType,
 		nameSuffix: "",
 	}
 
