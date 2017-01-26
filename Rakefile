@@ -14,15 +14,6 @@ def os
   end
 end
 
-def pwd
-  case os
-  when "windows"
-    `%cd%`.strip
-  else
-    `pwd`.strip
-  end
-end
-
 def exe_name
   case os
   when "windows"
@@ -32,7 +23,7 @@ def exe_name
   end
 end
 
-PKG_CONFIG_LIBDIR=File.join(pwd, "pkg-config", os)
+PKG_CONFIG_LIBDIR=File.join(Dir.pwd, "pkg-config", os)
 ORG_PATH="github.com/DataDog"
 REPO_PATH="#{ORG_PATH}/datadog-agent"
 TARGETS = %w[./pkg ./cmd]
