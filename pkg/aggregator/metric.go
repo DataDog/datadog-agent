@@ -174,9 +174,8 @@ func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
 	}
 
 	if !h.configured {
-		// Set default aggregates if configure() hasn't been called
-		h.aggregates = []string{"max", "median", "avg", "count"}
-		h.percentiles = []int{95}
+		// Set default aggregates/percentiles if configure() hasn't been called beforehand
+		h.configure([]string{"max", "median", "avg", "count"}, []int{95})
 	}
 
 	sort.Float64s(h.samples)
