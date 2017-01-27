@@ -3,6 +3,7 @@ package loader
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -49,22 +50,24 @@ func TestCollect(t *testing.T) {
 	assert.Equal(t, 5, len(configs))
 
 	// count how many configs were found for a given check
-	count := func(name string) int {
-		i := 0
+	get := func(name string) []check.Config {
+		out := []check.Config{}
 		for _, c := range configs {
 			if c.Name == name {
-				i++
+				out = append(out, c)
 			}
 		}
-		return i
+		return out
 	}
 
 	// the regular config
-	assert.Equal(t, 3, count("testcheck"))
+	assert.Equal(t, 3, len(get("testcheck")))
 
 	// default configs must be picked up
-	assert.Equal(t, 1, count("bar"))
+	assert.Equal(t, 1, len(get("bar")))
 
 	// regular configs override default ones
-	assert.Equal(t, 1, count("foo"))
+	rc := get("foo")
+	assert.Equal(t, 1, len(rc))
+	assert.Contains(t, string(rc[0].InitConfig), "IsNotOnTheDefaultFile")
 }

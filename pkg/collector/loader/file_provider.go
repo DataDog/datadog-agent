@@ -82,8 +82,7 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 	// add all the default enabled checks unless another regular
 	// configuration file was already provided for the same check
 	for _, conf := range defaultConfigs {
-		_, isThere := configNames[conf.Name]
-		if !isThere {
+		if _, isThere := configNames[conf.Name]; !isThere {
 			configs = append(configs, conf)
 		}
 	}
