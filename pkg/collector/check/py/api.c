@@ -44,7 +44,8 @@ void initaggregator()
 
   PyObject *m = Py_InitModule("aggregator", AggMethods);
 
-  for (int i=MT_FIRST; i<=MT_LAST; i++) {
+  int i;
+  for (i=MT_FIRST; i<=MT_LAST; i++) {
     PyModule_AddIntConstant(m, MetricTypeNames[i], i);
   }
 
