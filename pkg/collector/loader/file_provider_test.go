@@ -24,7 +24,6 @@ func TestGetCheckConfig(t *testing.T) {
 	config, err = getCheckConfig("foo", "tests/testcheck.yaml")
 	assert.Nil(t, err)
 	assert.Equal(t, config.Name, "foo")
-
 	assert.Equal(t, []byte(config.InitConfig), []byte("- test: 21\n"))
 	assert.Equal(t, len(config.Instances), 1)
 	assert.Equal(t, []byte(config.Instances[0]), []byte("foo: bar\n"))
@@ -46,9 +45,26 @@ func TestCollect(t *testing.T) {
 	configs, err := provider.Collect()
 
 	assert.Nil(t, err)
-	assert.Equal(t, 3, len(configs))
+	// total number of configurations found
+	assert.Equal(t, 5, len(configs))
 
-	for _, c := range configs {
-		assert.Equal(t, c.Name, "testcheck")
+	// count how many configs were found for a given check
+	count := func(name string) int {
+		i := 0
+		for _, c := range configs {
+			if c.Name == name {
+				i++
+			}
+		}
+		return i
 	}
+
+	// the regular config
+	assert.Equal(t, 3, count("testcheck"))
+
+	// default configs must be picked up
+	assert.Equal(t, 1, count("bar"))
+
+	// regular configs override default ones
+	assert.Equal(t, 1, count("foo"))
 }

@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	log "github.com/cihub/seelog"
@@ -33,6 +34,8 @@ func NewFileConfigProvider(paths []string) *FileConfigProvider {
 // instance
 func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 	configs := []check.Config{}
+	configNames := map[string]interface{}{}
+	defaultConfigs := []check.Config{}
 
 	for _, path := range c.paths {
 		log.Infof("Searching for configuration files at: %s", path)
@@ -62,8 +65,26 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 					continue
 				}
 				log.Debug("Found valid configuration in file:", entry.Name())
-				configs = append(configs, conf)
+				// determine if a check has to be run by default by
+				// searching for check.yaml.default files
+				if ext == ".default" {
+					// get the real name of the check
+					conf.Name = strings.Split(checkName, ".")[0]
+					defaultConfigs = append(defaultConfigs, conf)
+				} else {
+					configNames[conf.Name] = nil
+					configs = append(configs, conf)
+				}
 			}
+		}
+	}
+
+	// add all the default enabled checks unless another regular
+	// configuration file was already provided for the same check
+	for _, conf := range defaultConfigs {
+		_, isThere := configNames[conf.Name]
+		if !isThere {
+			configs = append(configs, conf)
 		}
 	}
 
