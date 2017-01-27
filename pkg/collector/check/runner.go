@@ -1,6 +1,7 @@
 package check
 
 import (
+	"expvar"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -9,6 +10,14 @@ import (
 )
 
 const stopCheckTimeoutMs = 500 // Time to wait for a check to stop in milliseconds
+
+var (
+	expvarMetrics *expvar.Map
+)
+
+func init() {
+	expvarMetrics = expvar.NewMap("Runner")
+}
 
 // Runner ...
 type Runner struct {
@@ -32,6 +41,7 @@ func NewRunner(numWorkers int) *Runner {
 		go r.work()
 	}
 	log.Infof("Runner started with %d workers.", numWorkers)
+	expvarMetrics.Add("Workers", int64(numWorkers))
 	return r
 }
 
@@ -66,6 +76,8 @@ func (r *Runner) Stop() {
 		}
 	}
 	r.m.Unlock()
+
+	expvarMetrics.Add("Workers", 0)
 }
 
 // GetChan returns a write-only version of the pending channel
@@ -86,6 +98,7 @@ func (r *Runner) work() {
 			continue
 		} else {
 			r.runningChecks[check.ID()] = check
+			expvarMetrics.Add("RunningChecks", 1)
 		}
 		r.m.Unlock()
 
@@ -99,6 +112,8 @@ func (r *Runner) work() {
 		// remove the check from the running list
 		r.m.Lock()
 		delete(r.runningChecks, check.ID())
+		expvarMetrics.Add("RunningChecks", -1)
+		expvarMetrics.Add("Runs", 1)
 		r.m.Unlock()
 
 		log.Infof("Done running check %s", check)
