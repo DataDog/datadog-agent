@@ -3,6 +3,7 @@ package loader
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +25,6 @@ func TestGetCheckConfig(t *testing.T) {
 	config, err = getCheckConfig("foo", "tests/testcheck.yaml")
 	assert.Nil(t, err)
 	assert.Equal(t, config.Name, "foo")
-
 	assert.Equal(t, []byte(config.InitConfig), []byte("- test: 21\n"))
 	assert.Equal(t, len(config.Instances), 1)
 	assert.Equal(t, []byte(config.Instances[0]), []byte("foo: bar\n"))
@@ -46,9 +46,28 @@ func TestCollect(t *testing.T) {
 	configs, err := provider.Collect()
 
 	assert.Nil(t, err)
-	assert.Equal(t, 3, len(configs))
+	// total number of configurations found
+	assert.Equal(t, 5, len(configs))
 
-	for _, c := range configs {
-		assert.Equal(t, c.Name, "testcheck")
+	// count how many configs were found for a given check
+	get := func(name string) []check.Config {
+		out := []check.Config{}
+		for _, c := range configs {
+			if c.Name == name {
+				out = append(out, c)
+			}
+		}
+		return out
 	}
+
+	// the regular config
+	assert.Equal(t, 3, len(get("testcheck")))
+
+	// default configs must be picked up
+	assert.Equal(t, 1, len(get("bar")))
+
+	// regular configs override default ones
+	rc := get("foo")
+	assert.Equal(t, 1, len(rc))
+	assert.Contains(t, string(rc[0].InitConfig), "IsNotOnTheDefaultFile")
 }
