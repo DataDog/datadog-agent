@@ -4,7 +4,7 @@
 
 For more informations about the single components, see the README files for:
  * [Agent](cmd/agent/README.md)
- * Dogstatsd
+ * [Dogstatsd](cmd/dogstatsd/README.md)
 
 ## Requirements
 To build the project you need:
