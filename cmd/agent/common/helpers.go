@@ -12,10 +12,14 @@ import (
 
 // GetConfigProviders builds a list of providers for checks' configurations, the sequence defines
 // the precedence.
-func GetConfigProviders() (providers []loader.ConfigProvider) {
-	confSearchPaths := []string{}
-	for _, path := range configPaths {
-		confSearchPaths = append(confSearchPaths, filepath.Join(path, "conf.d"))
+func GetConfigProviders(confdPath string) (providers []loader.ConfigProvider) {
+	if confdPath == "" {
+		confdPath = defaultConfdPath
+	}
+
+	confSearchPaths := []string{
+		confdPath,
+		filepath.Join(DistPath, "conf.d"),
 	}
 
 	// File Provider
@@ -35,9 +39,8 @@ func GetCheckLoaders() []loader.CheckLoader {
 // SetupConfig fires up the configuration system
 func SetupConfig() {
 	// set the paths where a config file is expected
-	for _, path := range configPaths {
-		config.Datadog.AddConfigPath(path)
-	}
+	config.Datadog.AddConfigPath(defaultConfPath)
+	config.Datadog.AddConfigPath(DistPath)
 
 	// load the configuration
 	err := config.Datadog.ReadInConfig()

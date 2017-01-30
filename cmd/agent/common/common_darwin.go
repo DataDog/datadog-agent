@@ -1,6 +1,4 @@
 package common
 
-var configPaths = []string{
-	"/opt/datadog-agent/etc",
-	DistPath,
-}
+const defaultConfPath = "/opt/datadog-agent/etc"
+const defaultConfdPath = "/opt/datadog-agent/etc/conf.d"
