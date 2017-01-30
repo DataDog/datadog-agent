@@ -1,6 +1,4 @@
 package common
 
-var configPaths = []string{
-	"/etc/dd-agent",
-	DistPath,
-}
+const defaultConfPath = "/etc/dd-agent"
+const defaultConfdPath = "/etc/dd-agent/conf.d"

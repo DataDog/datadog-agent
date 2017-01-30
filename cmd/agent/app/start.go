@@ -25,6 +25,7 @@ var (
 	// flags variables
 	runForeground bool
 	pidfilePath   string
+	confdPath     string
 
 	startCmd = &cobra.Command{
 		Use:   "start",
@@ -41,6 +42,7 @@ func init() {
 	// local flags
 	startCmd.Flags().BoolVarP(&runForeground, "foreground", "f", false, "run in foreground")
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	startCmd.Flags().StringVarP(&confdPath, "confd", "c", "", "path to the confd folder")
 }
 
 // runBackground spawns a child so that the main process can exit.
@@ -87,7 +89,7 @@ func start(cmd *cobra.Command, args []string) {
 
 	// Get a list of config checks from the configured providers
 	var configs []check.Config
-	for _, provider := range common.GetConfigProviders() {
+	for _, provider := range common.GetConfigProviders(confdPath) {
 		c, _ := provider.Collect()
 		configs = append(configs, c...)
 	}
