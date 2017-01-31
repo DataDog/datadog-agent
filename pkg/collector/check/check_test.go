@@ -9,6 +9,7 @@ import (
 type TestCheck struct {
 	doErr  bool
 	hasRun bool
+	id     ID
 }
 
 func (c *TestCheck) String() string                         { return "TestCheck" }
@@ -24,4 +25,5 @@ func (c *TestCheck) Run() error {
 	c.hasRun = true
 	return nil
 }
-func (c *TestCheck) ID() string { return c.String() }
+func (c *TestCheck) SetID(id ID) { c.id = id }
+func (c *TestCheck) ID() ID      { return c.id }

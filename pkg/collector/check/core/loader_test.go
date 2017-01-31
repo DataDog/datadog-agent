@@ -8,7 +8,7 @@ import (
 )
 
 // FIXTURE
-type TestCheck struct{}
+type TestCheck struct{ id check.ID }
 
 func (c *TestCheck) String() string                                     { return "TestCheck" }
 func (c *TestCheck) Configure(check.ConfigData, check.ConfigData) error { return nil }
@@ -16,7 +16,8 @@ func (c *TestCheck) InitSender()                                        {}
 func (c *TestCheck) Run() error                                         { return nil }
 func (c *TestCheck) Stop()                                              {}
 func (c *TestCheck) Interval() time.Duration                            { return 1 }
-func (c *TestCheck) ID() string                                         { return c.String() }
+func (c *TestCheck) SetID(id check.ID)                                  { c.id = id }
+func (c *TestCheck) ID() check.ID                                       { return c.id }
 
 func TestNewGoCheckLoader(t *testing.T) {
 	if NewGoCheckLoader() == nil {

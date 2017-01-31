@@ -17,6 +17,7 @@ const agentCheckModuleName = "checks"
 
 // PythonCheckLoader is a specific loader for checks living in Python modules
 type PythonCheckLoader struct {
+	check.Identifier
 	agentCheckClass *python.PyObject
 }
 
@@ -40,7 +41,7 @@ func NewPythonCheckLoader() *PythonCheckLoader {
 		return nil
 	}
 
-	return &PythonCheckLoader{agentCheckClass}
+	return &PythonCheckLoader{*check.NewIdentifier(), agentCheckClass}
 }
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
@@ -82,6 +83,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 			log.Errorf("py.loader: could not configure check '%s': %s", moduleName, err)
 			continue
 		}
+		check.SetID(cl.Identify(check, i, config.InitConfig))
 		checks = append(checks, check)
 	}
 

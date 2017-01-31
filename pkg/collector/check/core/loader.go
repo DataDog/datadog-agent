@@ -19,12 +19,12 @@ func RegisterCheck(name string, c checkFactory) {
 
 // GoCheckLoader is a specific loader for checks living in this package
 type GoCheckLoader struct {
+	check.Identifier
 }
 
 // NewGoCheckLoader creates a loader for go checks
-// for the time being it does basically nothing
 func NewGoCheckLoader() *GoCheckLoader {
-	return &GoCheckLoader{}
+	return &GoCheckLoader{*check.NewIdentifier()}
 }
 
 // Load returns a list of checks, one for every configuration instance found in `config`
@@ -44,6 +44,7 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 			log.Errorf("core.loader: could not configure check %s: %s", newCheck, err)
 			continue
 		}
+		newCheck.SetID(gl.Identify(newCheck, instance, config.InitConfig))
 		newCheck.InitSender()
 		checks = append(checks, newCheck)
 	}

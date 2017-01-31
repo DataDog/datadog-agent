@@ -19,6 +19,7 @@ var runtimeOS = runtime.GOOS
 
 // MemoryCheck doesn't need additional fields
 type MemoryCheck struct {
+	id     check.ID
 	sender aggregator.Sender
 }
 
@@ -84,7 +85,7 @@ func (c *MemoryCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 
 // InitSender initializes a sender
 func (c *MemoryCheck) InitSender() {
-	s, err := aggregator.GetSender()
+	s, err := aggregator.GetSender(c.id)
 	if err != nil {
 		log.Error(err)
 		return
@@ -98,9 +99,14 @@ func (c *MemoryCheck) Interval() time.Duration {
 	return check.DefaultCheckInterval
 }
 
-// ID FIXME: this should return a real identifier
-func (c *MemoryCheck) ID() string {
-	return c.String()
+// SetID sets the ID of the check
+func (c *MemoryCheck) SetID(id check.ID) {
+	c.id = id
+}
+
+// ID returns the ID of the check
+func (c *MemoryCheck) ID() check.ID {
+	return c.id
 }
 
 // Stop does nothing

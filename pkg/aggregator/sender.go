@@ -6,6 +6,8 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 var senderInstance *checkSender
@@ -14,7 +16,6 @@ var senderInit sync.Once
 // Sender allows sending metrics from checks/a check
 type Sender interface {
 	Commit()
-	Destroy()
 	Gauge(metric string, value float64, hostname string, tags []string)
 	Rate(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
@@ -22,30 +23,40 @@ type Sender interface {
 
 // checkSender implements Sender
 type checkSender struct {
-	checkSamplerID int64
-	ssOut          chan<- senderSample
+	id    check.ID
+	ssOut chan<- senderSample
 }
 
 type senderSample struct {
-	checkSamplerID int64
-	metricSample   *MetricSample
-	commit         bool
+	id           check.ID
+	metricSample *MetricSample
+	commit       bool
 }
 
-func newCheckSender(checkSamplerID int64, ssOut chan<- senderSample) *checkSender {
+func newCheckSender(id check.ID, ssOut chan<- senderSample) *checkSender {
 	return &checkSender{
-		checkSamplerID: checkSamplerID,
-		ssOut:          ssOut,
+		id:    id,
+		ssOut: ssOut,
 	}
 }
 
-// GetSender returns a new Sender, properly registered with the aggregator
-func GetSender() (Sender, error) {
+// GetSender returns a Sender with passed ID, properly registered with the aggregator
+// If no error is returned here, DestroySender must be called with the same ID
+// once the sender is not used anymore
+func GetSender(id check.ID) (Sender, error) {
 	if aggregatorInstance == nil {
 		return nil, errors.New("Aggregator was not initialized")
 	}
 
-	return newCheckSender(aggregatorInstance.registerNewCheckSampler(), aggregatorInstance.checkIn), nil
+	err := aggregatorInstance.registerSender(id)
+	return newCheckSender(id, aggregatorInstance.checkIn), err
+}
+
+// DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
+// Should be called when no sender with this ID is used anymore
+// The metrics of this (these) sender(s) that haven't been flushed yet will be lost
+func DestroySender(id check.ID) {
+	aggregatorInstance.deregisterSender(id)
 }
 
 // GetDefaultSender returns the default sender
@@ -55,7 +66,8 @@ func GetDefaultSender() (Sender, error) {
 	}
 
 	senderInit.Do(func() {
-		senderInstance = newCheckSender(aggregatorInstance.registerNewCheckSampler(), aggregatorInstance.checkIn)
+		aggregatorInstance.registerSender(0)
+		senderInstance = newCheckSender(0, aggregatorInstance.checkIn)
 	})
 
 	return senderInstance, nil
@@ -64,14 +76,7 @@ func GetDefaultSender() (Sender, error) {
 // Commit commits the metric samples that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
-	s.ssOut <- senderSample{s.checkSamplerID, &MetricSample{}, true}
-}
-
-// Destroy frees up the resources used by the sender (by deregistering it from the aggregator)
-// Should be called when the sender is not used anymore
-// The metrics of this sender that haven't been flushed yet will be lost
-func (s *checkSender) Destroy() {
-	aggregatorInstance.deregisterCheckSampler(s.checkSamplerID)
+	s.ssOut <- senderSample{s.id, &MetricSample{}, true}
 }
 
 // Gauge implements the Sender interface
@@ -86,7 +91,7 @@ func (s *checkSender) Gauge(metric string, value float64, hostname string, tags 
 		Timestamp:  time.Now().Unix(),
 	}
 
-	s.ssOut <- senderSample{s.checkSamplerID, metricSample, false}
+	s.ssOut <- senderSample{s.id, metricSample, false}
 }
 
 // Rate implements the Sender interface
@@ -101,7 +106,7 @@ func (s *checkSender) Rate(metric string, value float64, hostname string, tags [
 		Timestamp:  time.Now().Unix(),
 	}
 
-	s.ssOut <- senderSample{s.checkSamplerID, metricSample, false}
+	s.ssOut <- senderSample{s.id, metricSample, false}
 }
 
 // Histogram implements the Sender interface

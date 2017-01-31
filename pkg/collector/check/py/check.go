@@ -21,6 +21,7 @@ import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
+	id         check.ID
 	Instance   *python.PyObject
 	Class      *python.PyObject
 	ModuleName string
@@ -189,7 +190,12 @@ func (c *PythonCheck) Interval() time.Duration {
 	return c.interval
 }
 
-// ID FIXME: this should return a real identifier
-func (c *PythonCheck) ID() string {
-	return c.String()
+// SetID sets the ID of the check
+func (c *PythonCheck) SetID(id check.ID) {
+	c.id = id
+}
+
+// ID returns the ID of the check
+func (c *PythonCheck) ID() check.ID {
+	return c.id
 }

@@ -1,9 +1,13 @@
 package aggregator
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
+	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -24,13 +28,12 @@ func GetAggregator() *BufferedAggregator {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	dogstatsdIn           chan *MetricSample
-	checkIn               chan senderSample
-	sampler               Sampler
-	checkSamplers         map[int64]*CheckSampler
-	currentCheckSamplerID int64
-	flushInterval         int64
-	mu                    sync.Mutex // to protect the checkSamplers field
+	dogstatsdIn   chan *MetricSample
+	checkIn       chan senderSample
+	sampler       Sampler
+	checkSamplers map[check.ID]*CheckSampler
+	flushInterval int64
+	mu            sync.Mutex // to protect the checkSamplers field
 }
 
 // Instantiate a BufferedAggregator and run it
@@ -39,7 +42,7 @@ func newBufferedAggregator() *BufferedAggregator {
 		dogstatsdIn:   make(chan *MetricSample, 100), // TODO make buffer size configurable
 		checkIn:       make(chan senderSample, 100),  // TODO make buffer size configurable
 		sampler:       *NewSampler(bucketSize),
-		checkSamplers: make(map[int64]*CheckSampler),
+		checkSamplers: make(map[check.ID]*CheckSampler),
 		flushInterval: defaultFlushInterval,
 	}
 
@@ -53,19 +56,36 @@ func (agg *BufferedAggregator) GetChannel() chan *MetricSample {
 	return agg.dogstatsdIn
 }
 
-func (agg *BufferedAggregator) registerNewCheckSampler() int64 {
+func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	agg.mu.Lock()
-	agg.currentCheckSamplerID++
-	agg.checkSamplers[agg.currentCheckSamplerID] = newCheckSampler(config.Datadog.GetString("hostname"))
-	agg.mu.Unlock()
-
-	return agg.currentCheckSamplerID
+	defer agg.mu.Unlock()
+	if _, ok := agg.checkSamplers[id]; ok {
+		return fmt.Errorf("Sender with check ID %d has already been registered", id)
+	}
+	agg.checkSamplers[id] = newCheckSampler(config.Datadog.GetString("hostname"))
+	return nil
 }
 
-func (agg *BufferedAggregator) deregisterCheckSampler(checkSamplerID int64) {
+func (agg *BufferedAggregator) deregisterSender(id check.ID) {
 	agg.mu.Lock()
-	delete(agg.checkSamplers, checkSamplerID)
+	delete(agg.checkSamplers, id)
 	agg.mu.Unlock()
+}
+
+func (agg *BufferedAggregator) handleSenderSample(ss senderSample) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
+	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
+		if ss.commit {
+			now := time.Now().Unix()
+			checkSampler.commit(now)
+		} else {
+			checkSampler.addSample(ss.metricSample)
+		}
+	} else {
+		log.Debugf("CheckSampler with ID %d doesn't exist, can't handle senderSample", ss.id)
+	}
 }
 
 func (agg *BufferedAggregator) run() {
@@ -86,12 +106,7 @@ func (agg *BufferedAggregator) run() {
 			now := time.Now().Unix()
 			agg.sampler.addSample(sample, now)
 		case ss := <-agg.checkIn:
-			if ss.commit {
-				now := time.Now().Unix()
-				agg.checkSamplers[ss.checkSamplerID].commit(now)
-			} else {
-				agg.checkSamplers[ss.checkSamplerID].addSample(ss.metricSample)
-			}
+			agg.handleSenderSample(ss)
 		}
 	}
 }
