@@ -82,8 +82,6 @@ func (r *Runner) Stop() {
 		}
 	}
 	r.m.Unlock()
-
-	runnerStats.Add("Workers", 0)
 }
 
 // GetChan returns a write-only version of the pending channel
