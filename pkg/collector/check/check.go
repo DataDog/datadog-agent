@@ -2,7 +2,6 @@ package check
 
 import (
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -36,12 +35,13 @@ type Check interface {
 
 // Stats holds basic runtime statistics about check instances
 type Stats struct {
-	CheckName      string
-	CheckID        string
-	TotalRuns      uint64
-	ExecutionTimes [32]int64
-	index          uint64
-	m              sync.Mutex
+	CheckName         string
+	CheckID           string
+	TotalRuns         uint64
+	ExecutionTimes    [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
+	LastExecutionTime int64     // most recent run duration, provided for convenience
+	UpdateTimestamp   int64     // latest update to this instance, unix timestamp in seconds
+	m                 sync.Mutex
 }
 
 func newStats(c Check) *Stats {
@@ -51,15 +51,14 @@ func newStats(c Check) *Stats {
 	}
 }
 
-func (cs *Stats) addExecutionTime(t time.Duration) {
+func (cs *Stats) add(t time.Duration) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 
 	// store execution times in Milliseconds
-	cs.ExecutionTimes[cs.index] = t.Nanoseconds() / 1e6
-	cs.index = (cs.index + 1) % 32
-}
-
-func (cs *Stats) addRun() {
-	atomic.AddUint64(&cs.TotalRuns, 1)
+	tms := t.Nanoseconds() / 1e6
+	cs.LastExecutionTime = tms
+	cs.ExecutionTimes[cs.TotalRuns] = tms
+	cs.TotalRuns = (cs.TotalRuns + 1) % 32
+	cs.UpdateTimestamp = time.Now().Unix()
 }

@@ -143,8 +143,7 @@ func addWorkStats(c Check, execTime time.Duration) {
 	}
 	checkStatsM.Unlock()
 
-	s.addRun()
-	s.addExecutionTime(execTime)
+	s.add(execTime)
 }
 
 func expCheckStats() interface{} {
