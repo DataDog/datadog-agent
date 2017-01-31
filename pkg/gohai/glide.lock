@@ -1,0 +1,23 @@
+hash: 216dd078481fd32eb2b836482b037a7981140ce74eff1bf9521088a8499609a4
+updated: 2017-01-30T19:02:28.682536314-05:00
+imports:
+- name: github.com/cihub/seelog
+  version: d2c6e5aa9fbfdd1c624e140287063c7730654115
+- name: github.com/go-ole/go-ole
+  version: 5e9c030faf78847db7aa77e3661b9cc449de29b7
+  subpackages:
+  - oleutil
+- name: github.com/shirou/gopsutil
+  version: e8f7a95747d711f34ddfe9dd9b825a84bd059dec
+  subpackages:
+  - cpu
+  - host
+  - internal/common
+  - mem
+  - net
+  - process
+- name: github.com/shirou/w32
+  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
+- name: github.com/StackExchange/wmi
+  version: e54cbda6595d7293a7a468ccf9525f6bc8887f99
+testImports: []
