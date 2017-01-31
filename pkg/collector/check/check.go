@@ -34,7 +34,7 @@ type Check interface {
 	ID() string                                             // provide a unique identifier for every check instance
 }
 
-// Stats ...
+// Stats holds basic runtime statistics about check instances
 type Stats struct {
 	CheckName      string
 	CheckID        string
