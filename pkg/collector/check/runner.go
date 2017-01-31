@@ -113,6 +113,7 @@ func (r *Runner) work() {
 		err := check.Run()
 		if err != nil {
 			log.Errorf("Error running check %s: %s", check, err)
+			runnerStats.Add("Errors", 1)
 		}
 
 		// remove the check from the running list
@@ -123,7 +124,7 @@ func (r *Runner) work() {
 		// publish statistics about this run
 		runnerStats.Add("RunningChecks", -1)
 		runnerStats.Add("Runs", 1)
-		addWorkStats(check, time.Since(t0))
+		addWorkStats(check, time.Since(t0), err)
 
 		log.Infof("Done running check %s", check)
 	}
@@ -131,7 +132,7 @@ func (r *Runner) work() {
 	log.Debug("Finished to process checks.")
 }
 
-func addWorkStats(c Check, execTime time.Duration) {
+func addWorkStats(c Check, execTime time.Duration, err error) {
 	var s *Stats
 	var found bool
 
@@ -143,7 +144,7 @@ func addWorkStats(c Check, execTime time.Duration) {
 	}
 	checkStatsM.Unlock()
 
-	s.add(execTime)
+	s.add(execTime, err == nil)
 }
 
 func expCheckStats() interface{} {

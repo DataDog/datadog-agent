@@ -38,6 +38,7 @@ type Stats struct {
 	CheckName         string
 	CheckID           string
 	TotalRuns         uint64
+	TotalErrors       uint64
 	ExecutionTimes    [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
 	LastExecutionTime int64     // most recent run duration, provided for convenience
 	UpdateTimestamp   int64     // latest update to this instance, unix timestamp in seconds
@@ -51,7 +52,7 @@ func newStats(c Check) *Stats {
 	}
 }
 
-func (cs *Stats) add(t time.Duration) {
+func (cs *Stats) add(t time.Duration, success bool) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 
@@ -60,5 +61,8 @@ func (cs *Stats) add(t time.Duration) {
 	cs.LastExecutionTime = tms
 	cs.ExecutionTimes[cs.TotalRuns] = tms
 	cs.TotalRuns = (cs.TotalRuns + 1) % 32
+	if !success {
+		cs.TotalErrors++
+	}
 	cs.UpdateTimestamp = time.Now().Unix()
 }
