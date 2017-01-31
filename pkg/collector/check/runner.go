@@ -12,11 +12,15 @@ import (
 const stopCheckTimeoutMs = 500 // Time to wait for a check to stop in milliseconds
 
 var (
-	expvarMetrics *expvar.Map
+	runnerStats *expvar.Map
+	checkStats  map[string]*Stats
+	checkStatsM sync.Mutex
 )
 
 func init() {
-	expvarMetrics = expvar.NewMap("Runner")
+	runnerStats = expvar.NewMap("runner")
+	runnerStats.Set("Checks", expvar.Func(expCheckStats))
+	checkStats = make(map[string]*Stats)
 }
 
 // Runner ...
@@ -37,11 +41,13 @@ func NewRunner(numWorkers int) *Runner {
 		running:       1,
 	}
 
+	// start the workers
 	for i := 0; i < numWorkers; i++ {
 		go r.work()
 	}
+
 	log.Infof("Runner started with %d workers.", numWorkers)
-	expvarMetrics.Add("Workers", int64(numWorkers))
+	runnerStats.Add("Workers", int64(numWorkers))
 	return r
 }
 
@@ -77,7 +83,7 @@ func (r *Runner) Stop() {
 	}
 	r.m.Unlock()
 
-	expvarMetrics.Add("Workers", 0)
+	runnerStats.Add("Workers", 0)
 }
 
 // GetChan returns a write-only version of the pending channel
@@ -98,12 +104,14 @@ func (r *Runner) work() {
 			continue
 		} else {
 			r.runningChecks[check.ID()] = check
-			expvarMetrics.Add("RunningChecks", 1)
+			runnerStats.Add("RunningChecks", 1)
 		}
 		r.m.Unlock()
 
 		log.Infof("Running check %s", check)
+
 		// run the check
+		t0 := time.Now()
 		err := check.Run()
 		if err != nil {
 			log.Errorf("Error running check %s: %s", check, err)
@@ -112,12 +120,35 @@ func (r *Runner) work() {
 		// remove the check from the running list
 		r.m.Lock()
 		delete(r.runningChecks, check.ID())
-		expvarMetrics.Add("RunningChecks", -1)
-		expvarMetrics.Add("Runs", 1)
 		r.m.Unlock()
+
+		// publish statistics about this run
+		runnerStats.Add("RunningChecks", -1)
+		runnerStats.Add("Runs", 1)
+		addWorkStats(check, time.Since(t0))
 
 		log.Infof("Done running check %s", check)
 	}
 
 	log.Debug("Finished to process checks.")
+}
+
+func addWorkStats(c Check, execTime time.Duration) {
+	var s *Stats
+	var found bool
+
+	checkStatsM.Lock()
+	s, found = checkStats[c.ID()]
+	if !found {
+		s = newStats(c)
+		checkStats[c.ID()] = s
+	}
+	checkStatsM.Unlock()
+
+	s.addRun()
+	s.addExecutionTime(execTime)
+}
+
+func expCheckStats() interface{} {
+	return checkStats
 }

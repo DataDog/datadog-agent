@@ -1,6 +1,8 @@
 package check
 
 import (
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -30,4 +32,34 @@ type Check interface {
 	InitSender()                                            // initialize what's needed to send data to the aggregator
 	Interval() time.Duration                                // return the interval time for the check
 	ID() string                                             // provide a unique identifier for every check instance
+}
+
+// Stats ...
+type Stats struct {
+	CheckName      string
+	CheckID        string
+	TotalRuns      uint64
+	ExecutionTimes [32]int64
+	index          uint64
+	m              sync.Mutex
+}
+
+func newStats(c Check) *Stats {
+	return &Stats{
+		CheckID:   c.ID(),
+		CheckName: c.String(),
+	}
+}
+
+func (cs *Stats) addExecutionTime(t time.Duration) {
+	cs.m.Lock()
+	defer cs.m.Unlock()
+
+	// store execution times in Milliseconds
+	cs.ExecutionTimes[cs.index] = t.Nanoseconds() / 1e6
+	cs.index = (cs.index + 1) % 32
+}
+
+func (cs *Stats) addRun() {
+	atomic.AddUint64(&cs.TotalRuns, 1)
 }
