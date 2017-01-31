@@ -1,0 +1,9 @@
+package: github.com/DataDog/gohai
+import:
+- package: github.com/cihub/seelog
+  version: v2.6
+- package: github.com/shirou/gopsutil
+  version: v2.0.0
+  subpackages:
+  - mem
+  - process

@@ -21,8 +21,14 @@ $ gohai
 
 Pipe it through eg. `python -m json.tool` for pretty output.
 
-## How to cross build
+## How to build
 
+We use [glide](https://github.com/Masterminds/glide) to pin our dependencies.
+```sh
+$ go get github.com/Masterminds/glide
+$ glide install
+$ go build
+```
 To build the binary file for several platforms, we use goxc:
 
 ```sh
