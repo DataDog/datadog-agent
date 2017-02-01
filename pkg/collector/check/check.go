@@ -41,6 +41,7 @@ type Stats struct {
 	TotalErrors       uint64
 	ExecutionTimes    [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
 	LastExecutionTime int64     // most recent run duration, provided for convenience
+	LastError         string    // last occurred error message, if any
 	UpdateTimestamp   int64     // latest update to this instance, unix timestamp in seconds
 	m                 sync.Mutex
 }
@@ -52,7 +53,7 @@ func newStats(c Check) *Stats {
 	}
 }
 
-func (cs *Stats) add(t time.Duration, success bool) {
+func (cs *Stats) add(t time.Duration, err error) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 
@@ -61,8 +62,9 @@ func (cs *Stats) add(t time.Duration, success bool) {
 	cs.LastExecutionTime = tms
 	cs.ExecutionTimes[cs.TotalRuns] = tms
 	cs.TotalRuns = (cs.TotalRuns + 1) % 32
-	if !success {
+	if err != nil {
 		cs.TotalErrors++
+		cs.LastError = err.Error()
 	}
 	cs.UpdateTimestamp = time.Now().Unix()
 }
