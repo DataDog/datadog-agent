@@ -14,7 +14,7 @@ const stopCheckTimeoutMs = 500 // Time to wait for a check to stop in millisecon
 var (
 	runnerStats *expvar.Map
 	checkStats  map[string]*Stats
-	checkStatsM sync.Mutex
+	checkStatsM sync.RWMutex
 )
 
 func init() {
@@ -148,5 +148,8 @@ func addWorkStats(c Check, execTime time.Duration, err error) {
 }
 
 func expCheckStats() interface{} {
+	checkStatsM.RLock()
+	defer checkStatsM.RUnlock()
+
 	return checkStats
 }
