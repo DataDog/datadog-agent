@@ -24,3 +24,7 @@ import:
   version: ^1.1.0
 - package: github.com/gorilla/context
   version: ^1.1.0
+- package: github.com/docker/docker
+  version: ^1.13.1-rc1
+  subpackages:
+  - client
