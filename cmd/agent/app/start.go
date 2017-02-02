@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
@@ -39,10 +40,14 @@ func init() {
 	// attach the command to the root
 	AgentCmd.AddCommand(startCmd)
 
+	// Global Agent configuration
+	common.SetupConfig()
+
 	// local flags
 	startCmd.Flags().BoolVarP(&runForeground, "foreground", "f", false, "run in foreground")
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	startCmd.Flags().StringVarP(&confdPath, "confd", "c", "", "path to the confd folder")
+	config.Datadog.BindPFlag("confd_path", startCmd.Flags().Lookup("confd"))
 }
 
 // runBackground spawns a child so that the main process can exit.
@@ -78,9 +83,6 @@ func start(cmd *cobra.Command, args []string) {
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
-	// Global Agent configuration
-	common.SetupConfig()
-
 	// start the cmd HTTP server
 	api.StartServer()
 
@@ -89,7 +91,7 @@ func start(cmd *cobra.Command, args []string) {
 
 	// Get a list of config checks from the configured providers
 	var configs []check.Config
-	for _, provider := range common.GetConfigProviders(confdPath) {
+	for _, provider := range common.GetConfigProviders(config.Datadog.GetString("confd_path")) {
 		c, _ := provider.Collect()
 		configs = append(configs, c...)
 	}

@@ -13,10 +13,6 @@ import (
 // GetConfigProviders builds a list of providers for checks' configurations, the sequence defines
 // the precedence.
 func GetConfigProviders(confdPath string) (providers []loader.ConfigProvider) {
-	if confdPath == "" {
-		confdPath = defaultConfdPath
-	}
-
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(DistPath, "conf.d"),
