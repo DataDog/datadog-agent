@@ -1,6 +1,7 @@
 package check
 
 import (
+	"expvar"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -9,6 +10,18 @@ import (
 )
 
 const stopCheckTimeoutMs = 500 // Time to wait for a check to stop in milliseconds
+
+var (
+	runnerStats *expvar.Map
+	checkStats  map[string]*Stats
+	checkStatsM sync.RWMutex
+)
+
+func init() {
+	runnerStats = expvar.NewMap("runner")
+	runnerStats.Set("Checks", expvar.Func(expCheckStats))
+	checkStats = make(map[string]*Stats)
+}
 
 // Runner ...
 type Runner struct {
@@ -28,10 +41,13 @@ func NewRunner(numWorkers int) *Runner {
 		running:       1,
 	}
 
+	// start the workers
 	for i := 0; i < numWorkers; i++ {
 		go r.work()
 	}
+
 	log.Infof("Runner started with %d workers.", numWorkers)
+	runnerStats.Add("Workers", int64(numWorkers))
 	return r
 }
 
@@ -86,14 +102,18 @@ func (r *Runner) work() {
 			continue
 		} else {
 			r.runningChecks[check.ID()] = check
+			runnerStats.Add("RunningChecks", 1)
 		}
 		r.m.Unlock()
 
 		log.Infof("Running check %s", check)
+
 		// run the check
+		t0 := time.Now()
 		err := check.Run()
 		if err != nil {
 			log.Errorf("Error running check %s: %s", check, err)
+			runnerStats.Add("Errors", 1)
 		}
 
 		// remove the check from the running list
@@ -101,8 +121,35 @@ func (r *Runner) work() {
 		delete(r.runningChecks, check.ID())
 		r.m.Unlock()
 
+		// publish statistics about this run
+		runnerStats.Add("RunningChecks", -1)
+		runnerStats.Add("Runs", 1)
+		addWorkStats(check, time.Since(t0), err)
+
 		log.Infof("Done running check %s", check)
 	}
 
 	log.Debug("Finished to process checks.")
+}
+
+func addWorkStats(c Check, execTime time.Duration, err error) {
+	var s *Stats
+	var found bool
+
+	checkStatsM.Lock()
+	s, found = checkStats[c.ID()]
+	if !found {
+		s = newStats(c)
+		checkStats[c.ID()] = s
+	}
+	checkStatsM.Unlock()
+
+	s.add(execTime, err)
+}
+
+func expCheckStats() interface{} {
+	checkStatsM.RLock()
+	defer checkStatsM.RUnlock()
+
+	return checkStats
 }
