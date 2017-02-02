@@ -13,6 +13,7 @@ func init() {
 	// configuration defaults
 	Datadog.SetDefault("dd_url", "http://localhost:17123")
 	Datadog.SetDefault("hostname", "")
+	Datadog.SetDefault("confd_path", defaultConfdPath)
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
