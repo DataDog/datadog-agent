@@ -131,7 +131,9 @@ func TestForwarderRetry(t *testing.T) {
 
 	ready.On("Process", forwarder.workers[0].Client).Return(nil).Times(1)
 	ready.On("GetNextFlush").Return(time.Now()).Times(1)
+	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetNextFlush").Return(time.Now().Add(10 * time.Minute)).Times(1)
+	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)
 
 	forwarder.retryTransactions(time.Now())
 	<-ready.processed
@@ -141,4 +143,33 @@ func TestForwarderRetry(t *testing.T) {
 	notReady.AssertNumberOfCalls(t, "Process", 0)
 	assert.Equal(t, len(forwarder.retryQueue), 1)
 	assert.Equal(t, forwarder.retryQueue[0], notReady)
+}
+
+func TestForwarderRetryLifo(t *testing.T) {
+	forwarder := NewForwarder([]string{"http://localhost"})
+	forwarder.init()
+
+	transaction1 := newTestTransaction()
+	transaction2 := newTestTransaction()
+
+	forwarder.requeueTransaction(transaction1)
+	forwarder.requeueTransaction(transaction2)
+
+	transaction1.On("GetNextFlush").Return(time.Now()).Times(1)
+	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
+
+	transaction2.On("GetNextFlush").Return(time.Now()).Times(1)
+	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
+
+	forwarder.retryTransactions(time.Now())
+
+	firstOut := <-forwarder.waitingPipe
+	assert.Equal(t, firstOut, transaction2)
+
+	secondOut := <-forwarder.waitingPipe
+	assert.Equal(t, secondOut, transaction1)
+
+	transaction1.AssertExpectations(t)
+	transaction2.AssertExpectations(t)
+	assert.Equal(t, len(forwarder.retryQueue), 0)
 }
