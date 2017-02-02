@@ -3,6 +3,7 @@ package forwarder
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -63,8 +64,17 @@ func NewForwarder(domains []string) *Forwarder {
 	}
 }
 
+type byCreatedTime []Transaction
+
+func (v byCreatedTime) Len() int           { return len(v) }
+func (v byCreatedTime) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
+func (v byCreatedTime) Less(i, j int) bool { return v[i].GetCreatedAt().After(v[j].GetCreatedAt()) }
+
 func (f *Forwarder) retryTransactions(tickTime time.Time) {
 	newQueue := []Transaction{}
+
+	sort.Sort(byCreatedTime(f.retryQueue))
+
 	for _, t := range f.retryQueue {
 		if t.GetNextFlush().Before(tickTime) {
 			f.waitingPipe <- t
