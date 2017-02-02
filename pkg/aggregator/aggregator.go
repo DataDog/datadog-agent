@@ -60,7 +60,7 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	if _, ok := agg.checkSamplers[id]; ok {
-		return fmt.Errorf("Sender with check ID %d has already been registered", id)
+		return fmt.Errorf("Sender with ID '%s' has already been registered, will use existing sampler", id)
 	}
 	agg.checkSamplers[id] = newCheckSampler(config.Datadog.GetString("hostname"))
 	return nil
@@ -84,7 +84,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderSample) {
 			checkSampler.addSample(ss.metricSample)
 		}
 	} else {
-		log.Debugf("CheckSampler with ID %d doesn't exist, can't handle senderSample", ss.id)
+		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderSample", ss.id)
 	}
 }
 

@@ -29,6 +29,5 @@ type Check interface {
 	Configure(data ConfigData, initConfig ConfigData) error // configure the check from the outside
 	InitSender()                                            // initialize what's needed to send data to the aggregator
 	Interval() time.Duration                                // return the interval time for the check
-	SetID(ID)                                               // set the ID of the check, should be done only once
 	ID() ID                                                 // provide a unique identifier for every check instance
 }

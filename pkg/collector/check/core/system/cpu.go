@@ -18,7 +18,6 @@ var cpuInfo = cpu.Info
 
 // CPUCheck doesn't need additional fields
 type CPUCheck struct {
-	id     check.ID
 	sender aggregator.Sender
 	nbCPU  float64
 }
@@ -66,7 +65,7 @@ func (c *CPUCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 
 // InitSender initializes a sender
 func (c *CPUCheck) InitSender() {
-	s, err := aggregator.GetSender(c.id)
+	s, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		log.Error(err)
 		return
@@ -80,14 +79,9 @@ func (c *CPUCheck) Interval() time.Duration {
 	return check.DefaultCheckInterval
 }
 
-// SetID sets the ID of the check
-func (c *CPUCheck) SetID(id check.ID) {
-	c.id = id
-}
-
-// ID returns the ID of the check
+// ID returns the name of the check since there should be only one instance running
 func (c *CPUCheck) ID() check.ID {
-	return c.id
+	return check.ID(c.String())
 }
 
 // Stop does nothing

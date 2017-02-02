@@ -66,8 +66,9 @@ func GetDefaultSender() (Sender, error) {
 	}
 
 	senderInit.Do(func() {
-		aggregatorInstance.registerSender(0)
-		senderInstance = newCheckSender(0, aggregatorInstance.checkIn)
+		var defaultCheckID check.ID // the default value is the zero value
+		aggregatorInstance.registerSender(defaultCheckID)
+		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.checkIn)
 	})
 
 	return senderInstance, nil

@@ -38,12 +38,12 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	resetAggregator()
 
-	s, err := GetSender(1)
+	s, err := GetSender(checkID1)
 	assert.Nil(t, err)
 	sender1 := s.(*checkSender)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
 
-	s, err = GetSender(2)
+	s, err = GetSender(checkID2)
 	assert.Nil(t, err)
 	sender2 := s.(*checkSender)
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
@@ -60,11 +60,11 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 func TestGetSenderWithSameIDsReturnsError(t *testing.T) {
 	resetAggregator()
 
-	_, err := GetSender(1)
+	_, err := GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
 
-	_, err = GetSender(1)
+	_, err = GetSender(checkID1)
 	assert.NotNil(t, err)
 
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
@@ -73,34 +73,34 @@ func TestGetSenderWithSameIDsReturnsError(t *testing.T) {
 func TestDestroySender(t *testing.T) {
 	resetAggregator()
 
-	_, err := GetSender(1)
+	_, err := GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
 
-	_, err = GetSender(2)
+	_, err = GetSender(checkID2)
 	assert.Nil(t, err)
 
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
-	DestroySender(1)
+	DestroySender(checkID1)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
 }
 
 func TestSenderInterface(t *testing.T) {
 	senderSampleChan := make(chan senderSample, 10)
-	checkSender := newCheckSender(1, senderSampleChan)
+	checkSender := newCheckSender(checkID1, senderSampleChan)
 	checkSender.Gauge("my.metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Commit()
 
 	gaugeSenderSample := <-senderSampleChan
-	assert.EqualValues(t, 1, gaugeSenderSample.id)
+	assert.EqualValues(t, checkID1, gaugeSenderSample.id)
 	assert.Equal(t, false, gaugeSenderSample.commit)
 
 	rateSenderSample := <-senderSampleChan
-	assert.EqualValues(t, 1, rateSenderSample.id)
+	assert.EqualValues(t, checkID1, rateSenderSample.id)
 	assert.Equal(t, false, rateSenderSample.commit)
 
 	commitSenderSample := <-senderSampleChan
-	assert.EqualValues(t, 1, commitSenderSample.id)
+	assert.EqualValues(t, checkID1, commitSenderSample.id)
 	assert.Equal(t, true, commitSenderSample.commit)
 }

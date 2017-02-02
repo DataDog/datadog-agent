@@ -9,10 +9,7 @@ import (
 )
 
 // FIXTURE
-type TestCheck struct {
-	intl time.Duration
-	id   check.ID
-}
+type TestCheck struct{ intl time.Duration }
 
 func (c *TestCheck) String() string                                     { return "TestCheck" }
 func (c *TestCheck) Configure(check.ConfigData, check.ConfigData) error { return nil }
@@ -20,8 +17,7 @@ func (c *TestCheck) InitSender()                                        {}
 func (c *TestCheck) Interval() time.Duration                            { return c.intl }
 func (c *TestCheck) Run() error                                         { return nil }
 func (c *TestCheck) Stop()                                              {}
-func (c *TestCheck) SetID(id check.ID)                                  { c.id = id }
-func (c *TestCheck) ID() check.ID                                       { return c.id }
+func (c *TestCheck) ID() check.ID                                       { return check.ID(c.String()) }
 
 // wait 1s for a predicate function to return true, use polling
 // instead of a giant sleep.

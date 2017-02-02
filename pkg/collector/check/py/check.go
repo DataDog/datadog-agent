@@ -124,6 +124,9 @@ func (c *PythonCheck) instantiateCheck(constructorParameters *python.PyObject, f
 
 // Configure the Python check from YAML data
 func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+	// Generate check ID
+	c.id = check.Identify(c, data, initConfig)
+
 	// Unmarshal instances config to a RawConfigMap
 	rawInstances := check.ConfigRawMap{}
 	err := yaml.Unmarshal(data, &rawInstances)
@@ -188,11 +191,6 @@ func (c *PythonCheck) InitSender() {
 // Interval returns the scheduling time for the check
 func (c *PythonCheck) Interval() time.Duration {
 	return c.interval
-}
-
-// SetID sets the ID of the check
-func (c *PythonCheck) SetID(id check.ID) {
-	c.id = id
 }
 
 // ID returns the ID of the check
