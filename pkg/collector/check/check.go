@@ -36,7 +36,7 @@ type Check interface {
 // Stats holds basic runtime statistics about check instances
 type Stats struct {
 	CheckName         string
-	CheckID           string
+	CheckID           ID
 	TotalRuns         uint64
 	TotalErrors       uint64
 	ExecutionTimes    [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
