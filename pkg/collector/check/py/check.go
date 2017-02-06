@@ -21,6 +21,7 @@ import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
+	id         check.ID
 	Instance   *python.PyObject
 	Class      *python.PyObject
 	ModuleName string
@@ -123,6 +124,9 @@ func (c *PythonCheck) instantiateCheck(constructorParameters *python.PyObject, f
 
 // Configure the Python check from YAML data
 func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+	// Generate check ID
+	c.id = check.Identify(c, data, initConfig)
+
 	// Unmarshal instances config to a RawConfigMap
 	rawInstances := check.ConfigRawMap{}
 	err := yaml.Unmarshal(data, &rawInstances)
@@ -189,7 +193,7 @@ func (c *PythonCheck) Interval() time.Duration {
 	return c.interval
 }
 
-// ID FIXME: this should return a real identifier
-func (c *PythonCheck) ID() string {
-	return c.String()
+// ID returns the ID of the check
+func (c *PythonCheck) ID() check.ID {
+	return c.id
 }

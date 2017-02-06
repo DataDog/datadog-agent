@@ -65,7 +65,7 @@ func (c *CPUCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 
 // InitSender initializes a sender
 func (c *CPUCheck) InitSender() {
-	s, err := aggregator.GetSender()
+	s, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		log.Error(err)
 		return
@@ -79,9 +79,9 @@ func (c *CPUCheck) Interval() time.Duration {
 	return check.DefaultCheckInterval
 }
 
-// ID FIXME: this should return a real identifier
-func (c *CPUCheck) ID() string {
-	return c.String()
+// ID returns the name of the check since there should be only one instance running
+func (c *CPUCheck) ID() check.ID {
+	return check.ID(c.String())
 }
 
 // Stop does nothing

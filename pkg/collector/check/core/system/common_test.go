@@ -8,10 +8,6 @@ type MockSender struct {
 	mock.Mock
 }
 
-func (m *MockSender) Destroy() {
-	m.Called()
-}
-
 func (m *MockSender) Rate(metric string, value float64, hostname string, tags []string) {
 	m.Called(metric, value, hostname, tags)
 }

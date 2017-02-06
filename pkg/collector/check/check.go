@@ -30,7 +30,7 @@ type Check interface {
 	Configure(data ConfigData, initConfig ConfigData) error // configure the check from the outside
 	InitSender()                                            // initialize what's needed to send data to the aggregator
 	Interval() time.Duration                                // return the interval time for the check
-	ID() string                                             // provide a unique identifier for every check instance
+	ID() ID                                                 // provide a unique identifier for every check instance
 }
 
 // Stats holds basic runtime statistics about check instances

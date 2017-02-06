@@ -25,11 +25,11 @@ func init() {
 
 // Runner ...
 type Runner struct {
-	pending       chan Check       // The channel where checks come from
-	done          chan bool        // Guard for the main loop
-	runningChecks map[string]Check // the list of checks running
-	m             sync.Mutex       // to control races on runningChecks
-	running       uint32           // Flag to see if the Runner is, well, running
+	pending       chan Check   // The channel where checks come from
+	done          chan bool    // Guard for the main loop
+	runningChecks map[ID]Check // the list of checks running
+	m             sync.Mutex   // to control races on runningChecks
+	running       uint32       // Flag to see if the Runner is, well, running
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
@@ -37,7 +37,7 @@ func NewRunner(numWorkers int) *Runner {
 	r := &Runner{
 		// initialize the channel
 		pending:       make(chan Check),
-		runningChecks: make(map[string]Check),
+		runningChecks: make(map[ID]Check),
 		running:       1,
 	}
 

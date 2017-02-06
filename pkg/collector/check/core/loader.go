@@ -18,11 +18,9 @@ func RegisterCheck(name string, c checkFactory) {
 }
 
 // GoCheckLoader is a specific loader for checks living in this package
-type GoCheckLoader struct {
-}
+type GoCheckLoader struct{}
 
 // NewGoCheckLoader creates a loader for go checks
-// for the time being it does basically nothing
 func NewGoCheckLoader() *GoCheckLoader {
 	return &GoCheckLoader{}
 }

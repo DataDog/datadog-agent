@@ -17,7 +17,7 @@ func (c *TestCheck) InitSender()                                        {}
 func (c *TestCheck) Interval() time.Duration                            { return c.intl }
 func (c *TestCheck) Run() error                                         { return nil }
 func (c *TestCheck) Stop()                                              {}
-func (c *TestCheck) ID() string                                         { return c.String() }
+func (c *TestCheck) ID() check.ID                                       { return check.ID(c.String()) }
 
 // wait 1s for a predicate function to return true, use polling
 // instead of a giant sleep.

@@ -24,4 +24,4 @@ func (c *TestCheck) Run() error {
 	c.hasRun = true
 	return nil
 }
-func (c *TestCheck) ID() string { return c.String() }
+func (c *TestCheck) ID() ID { return ID(c.String()) }

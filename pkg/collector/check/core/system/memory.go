@@ -84,7 +84,7 @@ func (c *MemoryCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 
 // InitSender initializes a sender
 func (c *MemoryCheck) InitSender() {
-	s, err := aggregator.GetSender()
+	s, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		log.Error(err)
 		return
@@ -98,9 +98,9 @@ func (c *MemoryCheck) Interval() time.Duration {
 	return check.DefaultCheckInterval
 }
 
-// ID FIXME: this should return a real identifier
-func (c *MemoryCheck) ID() string {
-	return c.String()
+// ID returns the name of the check since there should be only one instance running
+func (c *MemoryCheck) ID() check.ID {
+	return check.ID(c.String())
 }
 
 // Stop does nothing
