@@ -11,12 +11,12 @@ import (
 )
 
 func TestNewForwarder(t *testing.T) {
-	domains := []string{"a", "b", "c"}
-	forwarder := NewForwarder(domains)
+	keysPerDomains := map[string][]string{"domainsA": []string{"key1", "key2"}, "domainsB": nil}
+	forwarder := NewForwarder(keysPerDomains)
 
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, forwarder.NumberOfWorkers, 4)
-	assert.Equal(t, forwarder.Domains, domains)
+	assert.Equal(t, forwarder.KeysPerDomains, keysPerDomains)
 
 	assert.Nil(t, forwarder.waitingPipe)
 	assert.Nil(t, forwarder.requeuedTransaction)
@@ -65,11 +65,25 @@ func TestSubmitInStopMode(t *testing.T) {
 func TestSubmit(t *testing.T) {
 	expectedEndpoint := ""
 	expectedPayload := []byte{}
+
+	firstKey := "api_key1"
+	secondKey := "api_key2"
+	expectedAPIKey := firstKey
+
 	wait := make(chan bool)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() { wait <- true }()
 		assert.Equal(t, r.Method, "POST")
 		assert.Equal(t, r.URL.Path, expectedEndpoint)
+		assert.Equal(t, r.Header.Get(apiHTTPHeaderKey), expectedAPIKey)
+
+		// We switch expected keys as the forwarder should create one
+		// transaction per keys
+		if expectedAPIKey == firstKey {
+			expectedAPIKey = secondKey
+		} else {
+			expectedAPIKey = firstKey
+		}
 
 		body, err := ioutil.ReadAll(r.Body)
 		assert.Nil(t, err)
@@ -79,16 +93,18 @@ func TestSubmit(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	forwarder := NewForwarder([]string{ts.URL})
+	forwarder := NewForwarder(map[string][]string{ts.URL: []string{firstKey, secondKey}})
 	// delay next retry cycle so we can inspect retry queue
 	flushInterval = 5 * time.Hour
+	forwarder.NumberOfWorkers = 1
 	forwarder.Start()
 	defer forwarder.Stop()
 
 	expectedPayload = []byte("SubmitTimeseries payload")
 	expectedEndpoint = "/api/v2/series"
 	assert.Nil(t, forwarder.SubmitTimeseries(&expectedPayload))
-	// wait for the query to complete before changing expected value
+	// wait for the queries to complete before changing expected value
+	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
@@ -96,11 +112,13 @@ func TestSubmit(t *testing.T) {
 	expectedEndpoint = "/api/v2/events"
 	assert.Nil(t, forwarder.SubmitEvent(&expectedPayload))
 	<-wait
+	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
 	expectedPayload = []byte("SubmitCheckRun payload")
 	expectedEndpoint = "/api/v2/check_runs"
 	assert.Nil(t, forwarder.SubmitCheckRun(&expectedPayload))
+	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
@@ -108,17 +126,19 @@ func TestSubmit(t *testing.T) {
 	expectedEndpoint = "/api/v2/host_metadata"
 	assert.Nil(t, forwarder.SubmitHostMetadata(&expectedPayload))
 	<-wait
+	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
 	expectedPayload = []byte("SubmitMetadata payload")
 	expectedEndpoint = "/api/v2/metadata"
 	assert.Nil(t, forwarder.SubmitMetadata(&expectedPayload))
 	<-wait
+	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 }
 
 func TestForwarderRetry(t *testing.T) {
-	forwarder := NewForwarder([]string{"http://localhost"})
+	forwarder := NewForwarder(nil)
 	forwarder.Start()
 	defer forwarder.Stop()
 
@@ -146,7 +166,7 @@ func TestForwarderRetry(t *testing.T) {
 }
 
 func TestForwarderRetryLifo(t *testing.T) {
-	forwarder := NewForwarder([]string{"http://localhost"})
+	forwarder := NewForwarder(nil)
 	forwarder.init()
 
 	transaction1 := newTestTransaction()
