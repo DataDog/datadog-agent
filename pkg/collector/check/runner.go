@@ -13,14 +13,14 @@ const stopCheckTimeoutMs = 500 // Time to wait for a check to stop in millisecon
 
 var (
 	runnerStats *expvar.Map
-	checkStats  map[string]*Stats
+	checkStats  map[ID]*Stats
 	checkStatsM sync.RWMutex
 )
 
 func init() {
 	runnerStats = expvar.NewMap("runner")
 	runnerStats.Set("Checks", expvar.Func(expCheckStats))
-	checkStats = make(map[string]*Stats)
+	checkStats = make(map[ID]*Stats)
 }
 
 // Runner ...
