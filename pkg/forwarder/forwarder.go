@@ -22,6 +22,8 @@ const (
 	checkRunsEndpoint    = "/api/v2/check_runs"
 	hostMetadataEndpoint = "/api/v2/host_metadata"
 	metadataEndpoint     = "/api/v2/metadata"
+
+	apiHTTPHeaderKey = "DD-Api-Key"
 )
 
 const (
@@ -51,15 +53,15 @@ type Forwarder struct {
 
 	// NumberOfWorkers Number of concurrent HTTP request made by the Forwarder (default 4).
 	NumberOfWorkers int
-	// Endpoints are the different endpoints use to send Transaction.
-	Domains []string
+	// KeysPerDomains are the different keys to use per domain when sending transactions.
+	KeysPerDomains map[string][]string
 }
 
 // NewForwarder returns a new Forwarder.
-func NewForwarder(domains []string) *Forwarder {
+func NewForwarder(KeysPerDomains map[string][]string) *Forwarder {
 	return &Forwarder{
 		NumberOfWorkers: defaultNumberOfWorkers,
-		Domains:         domains,
+		KeysPerDomains:  KeysPerDomains,
 		internalState:   Stopped,
 	}
 }
@@ -170,14 +172,17 @@ func (f *Forwarder) createTransaction(endpoint string, payload *[]byte) error {
 		return fmt.Errorf("the forwarder is not started")
 	}
 
-	for _, domain := range f.Domains {
-		t := NewHTTPTransaction()
+	for domain, apiKeys := range f.KeysPerDomains {
+		for _, apiKey := range apiKeys {
+			t := NewHTTPTransaction()
 
-		t.Domain = domain
-		t.Endpoint = endpoint
-		t.Payload = payload
+			t.Domain = domain
+			t.Endpoint = endpoint
+			t.Payload = payload
+			t.Headers.Set(apiHTTPHeaderKey, apiKey)
 
-		f.waitingPipe <- t
+			f.waitingPipe <- t
+		}
 	}
 	return nil
 }
