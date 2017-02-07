@@ -47,3 +47,31 @@ func TestWork(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	assert.False(t, c3.hasRun)
 }
+
+type TimingoutCheck struct {
+	TestCheck
+}
+
+func (tc *TimingoutCheck) Stop() {
+	for {
+	}
+}
+
+func TestStopCheck(t *testing.T) {
+	r := NewRunner(1)
+	ok, err := r.StopCheck("")
+	assert.False(t, ok)
+	assert.Nil(t, err)
+
+	c1 := &TestCheck{}
+	r.runningChecks[c1.ID()] = c1
+	ok, err = r.StopCheck(c1.ID())
+	assert.True(t, ok)
+	assert.Nil(t, err)
+
+	c2 := &TimingoutCheck{}
+	r.runningChecks[c2.ID()] = c2
+	ok, err = r.StopCheck(c2.ID())
+	assert.False(t, ok)
+	assert.NotNil(t, err)
+}
