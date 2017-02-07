@@ -8,46 +8,46 @@ import (
 	"time"
 )
 
-const (
-	metadataURL               = "http://169.254.169.254/latest/meta-data/"
-	timeout     time.Duration = 100 * time.Millisecond
-)
-
+// declare these as vars not const to ease testing
 var (
+	metadataURL     = "http://169.254.169.254/latest/meta-data"
+	timeout         = 100 * time.Millisecond
 	defaultPrefixes = []string{"ip-", "domu"}
 )
 
 // GetInstanceID returns the EC2 instance id for this host
 func GetInstanceID() (string, error) {
-	return getInstanceID(metadataURL + "instance-id")
+	res, err := getResponse(metadataURL + "/instance-id")
+
+	defer res.Body.Close()
+	all, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve Instance ID, %s", err)
+	}
+
+	return string(all), nil
 }
 
-func getInstanceID(url string) (string, error) {
+func getResponse(url string) (*http.Response, error) {
 	client := http.Client{
 		Timeout: timeout,
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	res, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	defer res.Body.Close()
 	if res.StatusCode != 200 {
-		return "", fmt.Errorf("status code %d trying to fetch %s", res.StatusCode, url)
+		return nil, fmt.Errorf("status code %d trying to fetch %s", res.StatusCode, url)
 	}
 
-	responseData, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return "", fmt.Errorf("error reading response body, %s", err)
-	}
-
-	return string(responseData), nil
+	return res, nil
 }
 
 // IsDefaultHostname returns whether the given hostname is a default one for EC2

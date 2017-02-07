@@ -1,4 +1,4 @@
-package ec2
+package gce
 
 import (
 	"io"
@@ -9,14 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsDefaultHostname(t *testing.T) {
-	assert.True(t, IsDefaultHostname("IP-FOO"))
-	assert.True(t, IsDefaultHostname("domuarigato"))
-	assert.False(t, IsDefaultHostname(""))
-}
-
-func TestGetInstanceID(t *testing.T) {
-	expected := "i-0123456789abcdef0"
+func TestGetHostname(t *testing.T) {
+	expected := "gke-cluster-massi-agent59-default-pool-6087cc76-9cfa"
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -26,8 +20,8 @@ func TestGetInstanceID(t *testing.T) {
 	defer ts.Close()
 	metadataURL = ts.URL
 
-	val, err := GetInstanceID()
+	val, err := GetHostname()
 	assert.Nil(t, err)
 	assert.Equal(t, expected, val)
-	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
+	assert.Equal(t, lastRequest.URL.Path, "/instance/hostname")
 }
