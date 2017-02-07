@@ -82,6 +82,7 @@ func start(cmd *cobra.Command, args []string) {
 	}
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
+	log.Infof("Hostname is: %s", common.GetHostname())
 
 	// start the cmd HTTP server
 	api.StartServer()
