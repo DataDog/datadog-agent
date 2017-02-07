@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -36,6 +37,20 @@ func (jq *jobQueue) addJob(c check.Check) {
 	defer jq.mu.Unlock()
 
 	jq.jobs = append(jq.jobs, c)
+}
+
+func (jq *jobQueue) removeJob(id check.ID) error {
+	jq.mu.Lock()
+	defer jq.mu.Unlock()
+
+	for i, c := range jq.jobs {
+		if c.ID() == id {
+			jq.jobs = append(jq.jobs[:i], jq.jobs[i+1:]...)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("check with id %s is not in this Job Queue", id)
 }
 
 // run schedules the checks in the queue by posting them to the

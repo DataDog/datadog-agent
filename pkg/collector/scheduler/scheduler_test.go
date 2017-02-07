@@ -81,6 +81,17 @@ func TestEnter(t *testing.T) {
 	assert.Len(t, s.jobQueues[20].jobs, 1)
 }
 
+func TestCancel(t *testing.T) {
+	c := &TestCheck{intl: 1}
+	s := getScheduler()
+	defer s.Stop()
+
+	s.Enter(c)
+	s.Run()
+	s.Cancel(c.ID())
+	assert.Len(t, s.jobQueues[1].jobs, 0)
+}
+
 func TestRun(t *testing.T) {
 	s := getScheduler()
 	defer s.Stop()
