@@ -1,0 +1,195 @@
+package collector
+
+import (
+	"fmt"
+	"sync"
+	"sync/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
+	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	python "github.com/sbinet/go-python"
+)
+
+const (
+	// NumRunnerWorkers is the number of workers the Runner should spawn
+	NumRunnerWorkers = 4
+)
+
+const (
+	stopped uint32 = iota
+	started
+)
+
+// Collector abstract common operations about running a Check
+type Collector struct {
+	scheduler  *scheduler.Scheduler
+	runner     *check.Runner
+	aggregator *aggregator.BufferedAggregator
+	pyState    *python.PyThreadState
+	checks     map[check.ID]check.Check
+	state      uint32
+	m          sync.RWMutex
+}
+
+// NewCollector create a Collector instance and sets up the Python Environment
+func NewCollector() *Collector {
+	return &Collector{
+		checks: make(map[check.ID]check.Check),
+		state:  stopped,
+	}
+}
+
+// Start begins the loop finalized to run Checks
+func (c *Collector) Start(paths ...string) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	if c.state == started {
+		return
+	}
+
+	runner := check.NewRunner(NumRunnerWorkers)
+	c.scheduler = scheduler.NewScheduler(runner.GetChan())
+	c.runner = runner
+	c.pyState = py.Initialize(paths...)
+	c.aggregator = aggregator.GetAggregator()
+
+	c.scheduler.Run()
+	c.state = started
+}
+
+// Stop halts any component involved in running a Check and shuts down
+// the Python Environment
+func (c *Collector) Stop() {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	if c.state == stopped {
+		return
+	}
+
+	c.runner.Stop()
+	c.runner = nil
+	c.scheduler.Stop()
+	c.scheduler = nil
+	python.PyEval_RestoreThread(c.pyState)
+	c.pyState = nil
+	// aggregator has no stop/shutdown function
+	c.aggregator = nil
+	c.state = stopped
+}
+
+// RunCheck sends a Check in the execution queue
+func (c *Collector) RunCheck(check check.Check) error {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	if c.state != started {
+		return fmt.Errorf("the collector is not running")
+	}
+
+	if _, found := c.checks[check.ID()]; found {
+		return fmt.Errorf("a check with ID %s is already running", check.ID())
+	}
+
+	err := c.scheduler.Enter(check)
+	if err != nil {
+		return fmt.Errorf("unable to schedule the check for running: %s", err)
+	}
+
+	c.checks[check.ID()] = check
+	return nil
+}
+
+// ReloadCheck stops and restart a check with a new configuration
+func (c *Collector) ReloadCheck(id check.ID, config, initConfig check.ConfigData) error {
+	if !c.started() {
+		return fmt.Errorf("the collector is not running")
+	}
+
+	// do we know this check instance?
+	// BUG(massi): we could create the Check if it doesn't exist, see https://github.com/DataDog/datadog-agent/pull/148
+	// for reference
+	if !c.find(id) {
+		return fmt.Errorf("cannot find a check with ID %s", id)
+	}
+
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	// re-configure
+	check := c.checks[id]
+	err := check.Configure(config, initConfig)
+	if err != nil {
+		return fmt.Errorf("error configuring the check with ID %s", id)
+	}
+
+	// unschedule the instance
+	err = c.scheduler.Cancel(id)
+	if err != nil {
+		return fmt.Errorf("an error occurred while cancelling the check schedule: %s", err)
+	}
+
+	// stop the instance
+	err = c.runner.StopCheck(id)
+	if err != nil {
+		return fmt.Errorf("an error occurred while stopping the check: %s", err)
+	}
+
+	// re-schedule
+	c.scheduler.Enter(check)
+
+	return nil
+}
+
+// StopCheck halts a check and remove the instance
+func (c *Collector) StopCheck(id check.ID) error {
+	if !c.started() {
+		return fmt.Errorf("the collector is not running")
+	}
+
+	if !c.find(id) {
+		return fmt.Errorf("cannot find a check with ID %s", id)
+	}
+
+	// unschedule the instance
+	err := c.scheduler.Cancel(id)
+	if err != nil {
+		return fmt.Errorf("an error occurred while cancelling the check schedule: %s", err)
+	}
+
+	// stop the instance
+	err = c.runner.StopCheck(id)
+	if err != nil {
+		return fmt.Errorf("an error occurred while stopping the check: %s", err)
+	}
+
+	// vaporize the check
+	c.delete(id)
+
+	return nil
+}
+
+// check if the check is on the list
+func (c *Collector) find(id check.ID) bool {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	_, found := c.checks[id]
+	return found
+}
+
+// remove the check from the list
+func (c *Collector) delete(id check.ID) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	delete(c.checks, id)
+}
+
+// lightweight shortcut to see if the collector has started
+func (c *Collector) started() bool {
+	return atomic.LoadUint32(&(c.state)) == started
+}

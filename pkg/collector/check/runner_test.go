@@ -59,19 +59,16 @@ func (tc *TimingoutCheck) Stop() {
 
 func TestStopCheck(t *testing.T) {
 	r := NewRunner(1)
-	ok, err := r.StopCheck("")
-	assert.False(t, ok)
+	err := r.StopCheck("foo")
 	assert.Nil(t, err)
 
 	c1 := &TestCheck{}
 	r.runningChecks[c1.ID()] = c1
-	ok, err = r.StopCheck(c1.ID())
-	assert.True(t, ok)
+	err = r.StopCheck(c1.ID())
 	assert.Nil(t, err)
 
 	c2 := &TimingoutCheck{}
 	r.runningChecks[c2.ID()] = c2
-	ok, err = r.StopCheck(c2.ID())
-	assert.False(t, ok)
-	assert.NotNil(t, err)
+	err = r.StopCheck(c2.ID())
+	assert.Equal(t, "timeout during stop operation on check id TestCheck", err.Error())
 }

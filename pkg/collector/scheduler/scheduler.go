@@ -72,22 +72,23 @@ func (s *Scheduler) Enter(check check.Check) error {
 	return nil
 }
 
-// Cancel remove a Check from the scheduled queue
-func (s *Scheduler) Cancel(id check.ID) (bool, error) {
+// Cancel remove a Check from the scheduled queue. If the check is not
+// in the scheduler, this is a noop.
+func (s *Scheduler) Cancel(id check.ID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, ok := s.checkToQueue[id]; !ok {
-		return false, fmt.Errorf("check %s is not scheduled", id)
+		return nil
 	}
 
 	// remove it from the queue
 	err := s.checkToQueue[id].removeJob(id)
 	if err != nil {
-		return false, fmt.Errorf("unable to remove the Job from the queue: %s", err)
+		return fmt.Errorf("unable to remove the Job from the queue: %s", err)
 	}
 
-	return true, nil
+	return nil
 }
 
 // Run is the Scheduler main loop.

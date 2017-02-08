@@ -24,13 +24,13 @@ type Config struct {
 
 // Check is an interface for types capable to run checks
 type Check interface {
-	Run() error                                             // run the check
-	Stop()                                                  // stop the check if it's running
-	String() string                                         // provide a printable version of the check name
-	Configure(data ConfigData, initConfig ConfigData) error // configure the check from the outside
-	InitSender()                                            // initialize what's needed to send data to the aggregator
-	Interval() time.Duration                                // return the interval time for the check
-	ID() ID                                                 // provide a unique identifier for every check instance
+	Run() error                                    // run the check
+	Stop()                                         // stop the check if it's running
+	String() string                                // provide a printable version of the check name
+	Configure(config, initConfig ConfigData) error // configure the check from the outside
+	InitSender()                                   // initialize what's needed to send data to the aggregator
+	Interval() time.Duration                       // return the interval time for the check
+	ID() ID                                        // provide a unique identifier for every check instance
 }
 
 // Stats holds basic runtime statistics about check instances
