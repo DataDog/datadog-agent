@@ -2,6 +2,7 @@ package check
 
 import (
 	"expvar"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -9,7 +10,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-const stopCheckTimeoutMs = 500 // Time to wait for a check to stop in milliseconds
+const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
 
 var (
 	runnerStats *expvar.Map
@@ -76,7 +77,7 @@ func (r *Runner) Stop() {
 		select {
 		case <-done:
 			// all good
-		case <-time.After(stopCheckTimeoutMs * time.Millisecond):
+		case <-time.After(stopCheckTimeout):
 			// check is not responding
 			log.Errorf("Check %v not responding, timing out...", check)
 		}
@@ -89,7 +90,32 @@ func (r *Runner) GetChan() chan<- Check {
 	return r.pending
 }
 
-// Run waits for checks and run them as long as they arrive on the channel
+// StopCheck invokes the `Stop` method on a check if it's running
+func (r *Runner) StopCheck(id ID) (stopped bool, err error) {
+	done := make(chan bool)
+
+	r.m.Lock()
+	if c, isRunning := r.runningChecks[id]; isRunning {
+		log.Debugf("Stopping check %s", c)
+		go func() {
+			c.Stop()
+			close(done)
+		}()
+		r.m.Unlock()
+	} else {
+		r.m.Unlock()
+		return false, nil
+	}
+
+	select {
+	case <-done:
+		return true, nil
+	case <-time.After(stopCheckTimeout):
+		return false, fmt.Errorf("timeout during stop operation on check id %s", id)
+	}
+}
+
+// work waits for checks and run them as long as they arrive on the channel
 func (r *Runner) work() {
 	log.Debug("Ready to process checks...")
 
