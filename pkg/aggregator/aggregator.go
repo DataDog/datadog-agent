@@ -9,6 +9,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 )
 
 const defaultFlushInterval = 15 // flush interval in seconds
@@ -34,6 +35,7 @@ type BufferedAggregator struct {
 	checkSamplers map[check.ID]*CheckSampler
 	flushInterval int64
 	mu            sync.Mutex // to protect the checkSamplers field
+	forwarder     *forwarder.Forwarder
 }
 
 // Instantiate a BufferedAggregator and run it
@@ -45,6 +47,11 @@ func newBufferedAggregator() *BufferedAggregator {
 		checkSamplers: make(map[check.ID]*CheckSampler),
 		flushInterval: defaultFlushInterval,
 	}
+
+	// for now we handle only one key and one domain
+	keysPerDomain := map[string][]string{config.Datadog.GetString("dd_url"): []string{config.Datadog.GetString("api_key")}}
+	aggregator.forwarder = forwarder.NewForwarder(keysPerDomain)
+	aggregator.forwarder.Start()
 
 	go aggregator.run()
 
@@ -101,7 +108,17 @@ func (agg *BufferedAggregator) run() {
 				series = append(series, checkSampler.flush()...)
 			}
 			agg.mu.Unlock()
-			go Report(series, config.Datadog.GetString("api_key"))
+
+			if len(series) == 0 {
+				continue
+			}
+
+			payload, err := MarshalJSONSeries(series)
+			if err != nil {
+				log.Error("could not serialize series, droping it: %s", err)
+				continue
+			}
+			agg.forwarder.SubmitV1Series(config.Datadog.GetString("api_key"), &payload)
 		case sample := <-agg.dogstatsdIn:
 			now := time.Now().Unix()
 			agg.sampler.addSample(sample, now)

@@ -49,7 +49,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 	expectedSerie1 := &Serie{
 		Name:       "my.metric.name",
 		Tags:       []string{"foo", "bar"},
-		Points:     [][]interface{}{{int64(12349), mSample2.Value}},
+		Points:     []Point{{int64(12349), mSample2.Value}},
 		MType:      APIGaugeType,
 		contextKey: generateContextKey(&mSample2),
 		nameSuffix: "",
@@ -58,7 +58,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 	expectedSerie2 := &Serie{
 		Name:       "my.metric.name",
 		Tags:       []string{"foo", "bar", "baz"},
-		Points:     [][]interface{}{{int64(12349), mSample3.Value}},
+		Points:     []Point{{int64(12349), mSample3.Value}},
 		MType:      APIGaugeType,
 		contextKey: generateContextKey(&mSample3),
 		nameSuffix: "",
@@ -112,7 +112,7 @@ func TestCheckRateSampling(t *testing.T) {
 	expectedSerie := &Serie{
 		Name:       "my.metric.name",
 		Tags:       []string{"foo", "bar"},
-		Points:     [][]interface{}{{int64(12347), 0.5}},
+		Points:     []Point{{int64(12347), 0.5}},
 		MType:      APIGaugeType,
 		nameSuffix: "",
 	}

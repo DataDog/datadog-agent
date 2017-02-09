@@ -1,8 +1,12 @@
-hash: ec60fe17401b638250d2b622f98dcad551cb524b09a14f95a05b6e28a3cbc8c6
-updated: 2017-02-13T13:51:43.748715533+01:00
+hash: 7239603a0736c0475ad9d62140d73414d3c5365e9440e4fc71522702819bfece
+updated: 2017-02-15T14:13:19.586416096+01:00
 imports:
 - name: github.com/cihub/seelog
   version: d2c6e5aa9fbfdd1c624e140287063c7730654115
+- name: github.com/DataDog/agent-payload
+  version: d185e425fded4bdda8495d072e811a686d8ef20d
+  subpackages:
+  - go
 - name: github.com/DataDog/datadog-go
   version: 6fa3e39b86f8cbb638a971f2a90b9ebd98074c6b
   subpackages:
@@ -51,6 +55,14 @@ imports:
   version: 5e9c030faf78847db7aa77e3661b9cc449de29b7
   subpackages:
   - oleutil
+- name: github.com/gogo/protobuf
+  version: 9c5b7bafbfccf2b40d274e0496f3a09418a87af4
+  subpackages:
+  - proto
+- name: github.com/golang/protobuf
+  version: 8ee79997227bf9b34611aee7946ae64735e6fd93
+  subpackages:
+  - proto
 - name: github.com/gorilla/context
   version: 1ea25387ff6f684839d82767c1733ff4d4d15d0a
 - name: github.com/gorilla/mux
