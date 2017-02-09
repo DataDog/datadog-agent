@@ -17,4 +17,5 @@ func init() {
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
+	Datadog.BindEnv("dd_url")
 }
