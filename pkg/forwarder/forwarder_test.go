@@ -66,6 +66,7 @@ func TestSubmitInStopMode(t *testing.T) {
 
 func TestSubmit(t *testing.T) {
 	expectedEndpoint := ""
+	expectedQuery := ""
 	expectedPayload := []byte{}
 
 	firstKey := "api_key1"
@@ -77,6 +78,7 @@ func TestSubmit(t *testing.T) {
 		defer func() { wait <- true }()
 		assert.Equal(t, r.Method, "POST")
 		assert.Equal(t, r.URL.Path, expectedEndpoint)
+		assert.Equal(t, r.URL.RawQuery, expectedQuery)
 		assert.Equal(t, r.Header.Get(apiHTTPHeaderKey), expectedAPIKey)
 
 		// We switch expected keys as the forwarder should create one
@@ -144,7 +146,8 @@ func TestSubmit(t *testing.T) {
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
 	expectedPayload = []byte("SubmitV1Series payload")
-	expectedEndpoint = "/api/v1/series?api_key=test_api_key"
+	expectedEndpoint = "/api/v1/series"
+	expectedQuery = "api_key=test_api_key"
 	assert.Nil(t, forwarder.SubmitV1Series("test_api_key", &expectedPayload))
 	<-wait
 	<-wait

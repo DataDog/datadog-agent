@@ -38,7 +38,7 @@ func AssertTagsEqual(t *testing.T, expected, actual []string) {
 	}
 }
 
-func AssertPointsEqual(t *testing.T, expected, actual [][]interface{}) {
+func AssertPointsEqual(t *testing.T, expected, actual []Point) {
 	if assert.Equal(t, len(expected), len(actual)) {
 		for _, point := range expected {
 			assert.Contains(t, actual, point)
@@ -76,7 +76,7 @@ func TestMetricsGaugeSampling(t *testing.T) {
 
 	expectedSerie := &Serie{
 		contextKey: contextKey,
-		Points:     [][]interface{}{{int64(12345), mSample.Value}},
+		Points:     []Point{{int64(12345), mSample.Value}},
 		MType:      APIGaugeType,
 		nameSuffix: "",
 	}
@@ -143,7 +143,7 @@ func TestMetricsRateSampling(t *testing.T) {
 	series = metrics.flush(12351)
 	expectedSerie := &Serie{
 		contextKey: contextKey,
-		Points:     [][]interface{}{{int64(12350), 1. / 10.}},
+		Points:     []Point{{int64(12350), 1. / 10.}},
 		MType:      APIGaugeType,
 		nameSuffix: "",
 	}
@@ -166,31 +166,31 @@ func TestMetricsHistogramSampling(t *testing.T) {
 	expectedSeries := []*Serie{
 		&Serie{
 			contextKey: contextKey,
-			Points:     [][]interface{}{{int64(12351), 6.}},
+			Points:     []Point{{int64(12351), 6.}},
 			MType:      APIGaugeType,
 			nameSuffix: ".max",
 		},
 		&Serie{
 			contextKey: contextKey,
-			Points:     [][]interface{}{{int64(12351), 1.}},
+			Points:     []Point{{int64(12351), 1.}},
 			MType:      APIGaugeType,
 			nameSuffix: ".median",
 		},
 		&Serie{
 			contextKey: contextKey,
-			Points:     [][]interface{}{{int64(12351), 2.5}},
+			Points:     []Point{{int64(12351), 2.5}},
 			MType:      APIGaugeType,
 			nameSuffix: ".avg",
 		},
 		&Serie{
 			contextKey: contextKey,
-			Points:     [][]interface{}{{int64(12351), 4.}},
+			Points:     []Point{{int64(12351), 4.}},
 			MType:      APIRateType,
 			nameSuffix: ".count",
 		},
 		&Serie{
 			contextKey: contextKey,
-			Points:     [][]interface{}{{int64(12351), 6.}},
+			Points:     []Point{{int64(12351), 6.}},
 			MType:      APIGaugeType,
 			nameSuffix: ".95percentile",
 		},
@@ -231,7 +231,7 @@ func TestBucketSampling(t *testing.T) {
 	expectedSerie := &Serie{
 		Name:       "my.metric.name",
 		Tags:       []string{"foo", "bar"},
-		Points:     [][]interface{}{{int64(12340), mSample.Value}, {int64(12350), mSample.Value}},
+		Points:     []Point{{int64(12340), mSample.Value}, {int64(12350), mSample.Value}},
 		MType:      APIGaugeType,
 		Interval:   10,
 		nameSuffix: "",
@@ -271,14 +271,14 @@ func TestContextSampling(t *testing.T) {
 
 	expectedSerie1 := &Serie{
 		Name:     "my.metric.name1",
-		Points:   [][]interface{}{{int64(12340), float64(1)}},
+		Points:   []Point{{int64(12340), float64(1)}},
 		Tags:     []string{"bar", "foo"},
 		MType:    APIGaugeType,
 		Interval: 10,
 	}
 	expectedSerie2 := &Serie{
 		Name:     "my.metric.name2",
-		Points:   [][]interface{}{{int64(12340), float64(1)}},
+		Points:   []Point{{int64(12340), float64(1)}},
 		Tags:     []string{"bar", "foo"},
 		MType:    APIGaugeType,
 		Interval: 10,

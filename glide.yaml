@@ -29,3 +29,6 @@ import:
   subpackages:
   - client
 - package: github.com/DataDog/zstd
+- package: github.com/gogo/protobuf/proto
+- package: github.com/DataDog/agent-payload
+  version: ^1.0

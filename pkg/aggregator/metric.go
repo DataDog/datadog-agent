@@ -7,12 +7,22 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-type points [][]interface{}
+// Point represents a metric value at a specific time
+type Point struct {
+	Ts    int64
+	Value float64
+}
+
+// MarshalJSON return a Point as an array of value (to be compatible with v1 API)
+// FIXME(maxime): to be removed when v2 endpoints are available
+func (p *Point) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf("[%v, %v]", p.Ts, p.Value)), nil
+}
 
 // Serie holds a timeseries (w/ json serialization to DD API format)
 type Serie struct {
 	Name       string        `json:"metric"`
-	Points     points        `json:"points"`
+	Points     []Point       `json:"points"`
 	Tags       []string      `json:"tags"`
 	Host       string        `json:"host"`
 	DeviceName string        `json:"device_name"`
@@ -31,17 +41,27 @@ const (
 	APIRateType
 )
 
+// String returns a string representation of APIMetricType
+func (a APIMetricType) String() string {
+	switch a {
+	case APIGaugeType:
+		return "gauge"
+	case APIRateType:
+		return "rate"
+	default:
+		return ""
+	}
+}
+
 // MarshalText implements the encoding.TextMarshal interface to marshal
 // an APIMetricType to a serialized byte slice
 func (a APIMetricType) MarshalText() ([]byte, error) {
-	switch a {
-	case APIGaugeType:
-		return []byte("gauge"), nil
-	case APIRateType:
-		return []byte("rate"), nil
-	default:
+	str := a.String()
+	if str == "" {
 		return []byte{}, fmt.Errorf("Can't marshal unknown metric type %d", a)
 	}
+
+	return []byte(str), nil
 }
 
 // Metric is the interface of all metric types
@@ -80,7 +100,7 @@ func (g *Gauge) flush(timestamp int64) ([]*Serie, error) {
 	return []*Serie{
 		&Serie{
 			// we use the timestamp passed to the flush
-			Points: points{{timestamp, value}},
+			Points: []Point{{Ts: timestamp, Value: value}},
 			MType:  APIGaugeType,
 		},
 	}, nil
@@ -116,7 +136,7 @@ func (r *Rate) flush(timestamp int64) ([]*Serie, error) {
 
 	return []*Serie{
 		&Serie{
-			Points: points{{ts, value}},
+			Points: []Point{{Ts: ts, Value: value}},
 			MType:  APIGaugeType,
 		},
 	}, nil
@@ -196,7 +216,7 @@ func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
 		}
 
 		series = append(series, &Serie{
-			Points:     points{{timestamp, value}},
+			Points:     []Point{{Ts: timestamp, Value: value}},
 			MType:      mType,
 			nameSuffix: "." + aggregate,
 		})
@@ -206,7 +226,7 @@ func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
 	for _, percentile := range h.percentiles {
 		value := h.samples[(percentile*len(h.samples)-1)/100]
 		series = append(series, &Serie{
-			Points:     points{{timestamp, value}},
+			Points:     []Point{{Ts: timestamp, Value: value}},
 			MType:      APIGaugeType,
 			nameSuffix: fmt.Sprintf(".%dpercentile", percentile),
 		})
