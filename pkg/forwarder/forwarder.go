@@ -19,6 +19,8 @@ const (
 	defaultNumberOfWorkers = 4
 	chanBufferSize         = 100
 
+	v1SeriesEndpoint = "/api/v1/series?api_key=%s"
+
 	seriesEndpoint       = "/api/v2/series"
 	eventsEndpoint       = "/api/v2/events"
 	checkRunsEndpoint    = "/api/v2/check_runs"
@@ -220,4 +222,11 @@ func (f *Forwarder) SubmitHostMetadata(payload *[]byte) error {
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *Forwarder) SubmitMetadata(payload *[]byte) error {
 	return f.createTransaction(metadataEndpoint, payload, true)
+}
+
+// SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
+// the backend will handle v2 endpoints).
+func (f *Forwarder) SubmitV1Series(apiKey string, payload *[]byte) error {
+	endpoint := fmt.Sprintf(v1SeriesEndpoint, apiKey)
+	return f.createTransaction(endpoint, payload, false)
 }
