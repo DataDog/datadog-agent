@@ -23,7 +23,24 @@ def exe_name
   end
 end
 
-PKG_CONFIG_LIBDIR=File.join(Dir.pwd, "pkg-config", os)
+def pkg_config_libdir
+  dir = ""
+  lines = `conda env list`
+  lines.split("\n").each do |line|
+    toks = line.split()
+    if toks[0] == "datadog-agent"
+      dir = toks[1] + "/lib/pkgconfig"
+      break
+    end
+  end
+
+  if dir == ""
+    fail "A conda enviroment named 'datadog-agent' must be created before building the Agent"
+  end
+
+  dir
+end
+
 ORG_PATH="github.com/DataDog"
 REPO_PATH="#{ORG_PATH}/datadog-agent"
 TARGETS = %w[./pkg ./cmd]
@@ -71,13 +88,7 @@ task :test => %w[fmt lint vet] do
       next if Dir.glob(File.join(pkg_folder, "*.go")).length == 0  # folder is a package if contains go modules
       profile_tmp = "#{pkg_folder}/profile.tmp"  # temp file to collect coverage data
 
-      # Check if we should use Embedded or System Python,
-      # default to the embedded one.
-      env = {}
-      if !ENV["USE_SYSTEM_PY"]
-        env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
-      end
-
+      env = {"PKG_CONFIG_LIBDIR" => "#{pkg_config_libdir}"}
       system(env, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
       if File.file?(profile_tmp)
         `cat #{profile_tmp} | tail -n +2 >> #{PROFILE}`
@@ -100,20 +111,32 @@ namespace :agent do
   task :build do
     # Check if we should use Embedded or System Python,
     # default to the embedded one.
-    env = {}
-    if !ENV["USE_SYSTEM_PY"]
-      env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
-    end
-
+    env = {"PKG_CONFIG_LIBDIR" => "#{pkg_config_libdir}"}
     system(env, "go build -o #{BIN_PATH}/#{exe_name} #{REPO_PATH}/cmd/agent")
     Rake::Task["agent:refresh_assets"].invoke
   end
 
-  desc "Refresh the build assets"
+  desc "Refresh build assets for the Agent"
   task :refresh_assets do
-    # Collector's assets and config files
+    # Create target dist folder from scratch
     FileUtils.rm_rf("#{BIN_PATH}/dist")
     FileUtils.cp_r("./pkg/collector/dist/", "#{BIN_PATH}", :remove_destination => true)
+
+    # Unless it's omnibus calling, embed the Python environment from conda
+    if ENV["copyenv"] != "false"
+      env_path = ''
+      output = `conda env list`
+      output.split("\n").each do |line|      
+        toks = line.split()
+        if toks[0] == "datadog-agent"
+          env_path = toks[1]
+          break
+        end
+      end
+      FileUtils.cp_r("#{env_path}", "#{BIN_PATH}/dist/python")
+    end
+
+    # setup the entrypoint script at the root bin folder
     FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
     FileUtils.chmod(0755, "#{BIN_PATH}/agent")
   end
@@ -140,6 +163,9 @@ namespace :agent do
     if package_dir
       overrides.push("package_dir:#{package_dir}")
     end
+
+    # clean up any partial build
+    system("rm -rf ./bin/*")
 
     Dir.chdir('omnibus') do
       system("bundle install --without development")

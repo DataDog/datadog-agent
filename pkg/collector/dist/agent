@@ -1,7 +1,9 @@
 #! /bin/sh
 
-PYTHONHOME=/opt/datadog-agent6/embedded/miniconda
 DIRPATH=`dirname $0`
+PYTHONHOME=$DIRPATH/dist/python
+
 export LD_LIBRARY_PATH=$PYTHONHOME/lib:$LD_LIBRARY_PATH
 export PYTHONHOME=$PYTHONHOME
+
 $DIRPATH/agent.bin "$@"
