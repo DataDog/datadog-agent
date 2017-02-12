@@ -1,6 +1,6 @@
 name 'datadog-agent'
 
-dependency 'python'
+dependency 'conda'
 
 source path: '..'
 

@@ -5,7 +5,7 @@
 #
 require "./lib/ostools.rb"
 
-name 'datadog-agent6'
+name 'agent'
 maintainer 'Datadog Packages <package@datadoghq.com>'
 homepage 'http://www.datadoghq.com'
 install_dir '/opt/datadog-agent6'
@@ -86,15 +86,9 @@ end
 dependency 'preparation'
 
 # Agent dependencies
+# TODO
 
-# Check dependencies
-dependency 'requests'
-dependency 'psutil'
-
-# Additional software
-dependency 'datadogpy'
-
-# Datadog agent
+# The Agent itself
 dependency 'datadog-agent'
 
 # version manifest file
