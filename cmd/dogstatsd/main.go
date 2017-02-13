@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 )
 
 func main() {
@@ -16,6 +17,15 @@ func main() {
 		panic(fmt.Errorf("unable to load Datadog config file: %s", err))
 	}
 
-	aggregatorInstance := aggregator.GetAggregator()
+	// for now we handle only one key and one domain
+	keysPerDomain := map[string][]string{
+		config.Datadog.GetString("dd_url"): {
+			config.Datadog.GetString("api_key"),
+		},
+	}
+	f := forwarder.NewForwarder(keysPerDomain)
+	f.Start()
+
+	aggregatorInstance := aggregator.InitAggregator(f)
 	dogstatsd.RunServer(aggregatorInstance.GetChannel())
 }

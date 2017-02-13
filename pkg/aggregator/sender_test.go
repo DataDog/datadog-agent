@@ -17,7 +17,7 @@ func resetAggregator() {
 	senderInstance = nil
 	senderInit = sync.Once{}
 
-	GetAggregator()
+	InitAggregator(nil)
 }
 
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
