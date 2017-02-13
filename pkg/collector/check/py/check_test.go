@@ -25,7 +25,7 @@ func getCheckInstance(initAggregator bool, moduleName string, className string) 
 	}()
 
 	if initAggregator {
-		aggregator.GetAggregator()
+		aggregator.InitAggregator(nil)
 	}
 
 	module := python.PyImport_ImportModule(moduleName)

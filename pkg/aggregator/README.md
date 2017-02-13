@@ -7,7 +7,7 @@ histograms, then it passes the ball to the Forwarder.
 ### Aggregator
 For now the package provides only one Aggregator implementation, the `BufferedAggregator`,
 named after its capabilities of storing in memory the samples it receives. The Aggregator
-should be used as a singleton, the function `GetAggregator` takes care of this and should be
+should be used as a singleton, the function `InitAggregator` takes care of this and should be
 considered the right way to get an Aggregator instance at any time. An Aggregator has its own
 loop that needs to be started with the `run` method, in the case of the `BufferedAggregator`
 the buffer is flushed at defined intervals. An Aggregator receives metric samples using one 

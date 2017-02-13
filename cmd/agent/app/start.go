@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
@@ -103,8 +104,18 @@ func start(cmd *cobra.Command, args []string) {
 	// Instance the scheduler
 	common.AgentScheduler = scheduler.NewScheduler(common.AgentRunner.GetChan())
 
+	// for now we handle only one key and one domain
+	keysPerDomain := map[string][]string{
+		config.Datadog.GetString("dd_url"): {
+			config.Datadog.GetString("api_key"),
+		},
+	}
+
+	f := forwarder.NewForwarder(keysPerDomain)
+	f.Start()
+
 	// Instance the Aggregator
-	_ = aggregator.GetAggregator()
+	_ = aggregator.InitAggregator(f)
 
 	// given a list of configurations, try to load corresponding checks using different loaders
 	// TODO add check type to the conf file so that we avoid the inner for
@@ -143,6 +154,7 @@ teardown:
 	// gracefully shut down any component
 	common.AgentRunner.Stop()
 	common.AgentScheduler.Stop()
+	f.Stop()
 	python.PyEval_RestoreThread(state)
 	api.StopServer()
 	os.Remove(pidfilePath)

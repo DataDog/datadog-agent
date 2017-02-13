@@ -18,10 +18,10 @@ const bucketSize = 10           // fixed for now
 var aggregatorInstance *BufferedAggregator
 var aggregatorInit sync.Once
 
-// GetAggregator returns the Singleton instance
-func GetAggregator() *BufferedAggregator {
+// InitAggregator returns the Singleton instance
+func InitAggregator(f *forwarder.Forwarder) *BufferedAggregator {
 	aggregatorInit.Do(func() {
-		aggregatorInstance = newBufferedAggregator()
+		aggregatorInstance = newBufferedAggregator(f)
 	})
 
 	return aggregatorInstance
@@ -39,19 +39,15 @@ type BufferedAggregator struct {
 }
 
 // Instantiate a BufferedAggregator and run it
-func newBufferedAggregator() *BufferedAggregator {
+func newBufferedAggregator(f *forwarder.Forwarder) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
 		dogstatsdIn:   make(chan *MetricSample, 100), // TODO make buffer size configurable
 		checkIn:       make(chan senderSample, 100),  // TODO make buffer size configurable
 		sampler:       *NewSampler(bucketSize),
 		checkSamplers: make(map[check.ID]*CheckSampler),
 		flushInterval: defaultFlushInterval,
+		forwarder:     f,
 	}
-
-	// for now we handle only one key and one domain
-	keysPerDomain := map[string][]string{config.Datadog.GetString("dd_url"): []string{config.Datadog.GetString("api_key")}}
-	aggregator.forwarder = forwarder.NewForwarder(keysPerDomain)
-	aggregator.forwarder.Start()
 
 	go aggregator.run()
 
