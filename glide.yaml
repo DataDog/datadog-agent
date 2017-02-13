@@ -28,3 +28,4 @@ import:
   version: ^1.13.1-rc1
   subpackages:
   - client
+- package: github.com/DataDog/zstd

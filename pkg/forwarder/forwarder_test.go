@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/zstd"
 )
 
 func TestNewForwarder(t *testing.T) {
@@ -100,38 +102,43 @@ func TestSubmit(t *testing.T) {
 	forwarder.Start()
 	defer forwarder.Stop()
 
-	expectedPayload = []byte("SubmitTimeseries payload")
+	payload := []byte("SubmitTimeseries payload")
+	expectedPayload, _ = zstd.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/series"
-	assert.Nil(t, forwarder.SubmitTimeseries(&expectedPayload))
+	assert.Nil(t, forwarder.SubmitTimeseries(&payload))
 	// wait for the queries to complete before changing expected value
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
-	expectedPayload = []byte("SubmitEvent payload")
+	payload = []byte("SubmitEvent payload")
+	expectedPayload, _ = zstd.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/events"
-	assert.Nil(t, forwarder.SubmitEvent(&expectedPayload))
+	assert.Nil(t, forwarder.SubmitEvent(&payload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
-	expectedPayload = []byte("SubmitCheckRun payload")
+	payload = []byte("SubmitCheckRun payload")
+	expectedPayload, _ = zstd.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/check_runs"
-	assert.Nil(t, forwarder.SubmitCheckRun(&expectedPayload))
+	assert.Nil(t, forwarder.SubmitCheckRun(&payload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
-	expectedPayload = []byte("SubmitHostMetadata payload")
+	payload = []byte("SubmitHostMetadata payload")
+	expectedPayload, _ = zstd.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/host_metadata"
-	assert.Nil(t, forwarder.SubmitHostMetadata(&expectedPayload))
+	assert.Nil(t, forwarder.SubmitHostMetadata(&payload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
-	expectedPayload = []byte("SubmitMetadata payload")
+	payload = []byte("SubmitMetadata payload")
+	expectedPayload, _ = zstd.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/metadata"
-	assert.Nil(t, forwarder.SubmitMetadata(&expectedPayload))
+	assert.Nil(t, forwarder.SubmitMetadata(&payload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
