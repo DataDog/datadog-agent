@@ -1,7 +1,5 @@
 name 'datadog-agent'
 
-dependency 'conda'
-
 source path: '..'
 
 relative_path 'datadog-agent'

@@ -35,7 +35,7 @@ def pkg_config_libdir
   end
 
   if dir == ""
-    fail "A conda enviroment named 'datadog-agent' must be created before building the Agent"
+    fail "A conda enviroment named 'datadog-agent' must be created before building the Agent, try running 'rake py'"
   end
 
   dir
@@ -48,6 +48,12 @@ TARGETS = %w[./pkg ./cmd]
 CLOBBER.include("*.cov")
 
 task default: %w[agent:build]
+
+desc "Setup the UPE with Conda"
+task :py do
+  system("curl -sSO https://gist.githubusercontent.com/masci/6351be014f6950e0f9918c3337034e40/raw/537a53f0ac072c180eca8e475fb6f3ef5bd735e5/datadog-agent.yaml")
+  system("conda env create --force -q -f datadog-agent.yaml")
+end
 
 desc "Setup Go dependencies"
 task :deps do
