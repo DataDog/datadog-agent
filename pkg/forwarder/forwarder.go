@@ -9,6 +9,8 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/zstd"
 )
 
 var flushInterval = 5 * time.Second
@@ -167,9 +169,17 @@ func (f *Forwarder) Stop() {
 	log.Info("Forwarder stopped")
 }
 
-func (f *Forwarder) createTransaction(endpoint string, payload *[]byte) error {
+func (f *Forwarder) createTransaction(endpoint string, payload *[]byte, compress bool) error {
 	if atomic.LoadUint32(&f.internalState) == Stopped {
 		return fmt.Errorf("the forwarder is not started")
+	}
+
+	if compress {
+		compressPayload, err := zstd.Compress(nil, *payload)
+		if err != nil {
+			return err
+		}
+		payload = &compressPayload
 	}
 
 	for domain, apiKeys := range f.KeysPerDomains {
@@ -189,25 +199,25 @@ func (f *Forwarder) createTransaction(endpoint string, payload *[]byte) error {
 
 // SubmitTimeseries will send a timeserie type payload to Datadog backend.
 func (f *Forwarder) SubmitTimeseries(payload *[]byte) error {
-	return f.createTransaction(seriesEndpoint, payload)
+	return f.createTransaction(seriesEndpoint, payload, true)
 }
 
 // SubmitEvent will send a event type payload to Datadog backend.
 func (f *Forwarder) SubmitEvent(payload *[]byte) error {
-	return f.createTransaction(eventsEndpoint, payload)
+	return f.createTransaction(eventsEndpoint, payload, true)
 }
 
 // SubmitCheckRun will send a check_run type payload to Datadog backend.
 func (f *Forwarder) SubmitCheckRun(payload *[]byte) error {
-	return f.createTransaction(checkRunsEndpoint, payload)
+	return f.createTransaction(checkRunsEndpoint, payload, true)
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *Forwarder) SubmitHostMetadata(payload *[]byte) error {
-	return f.createTransaction(hostMetadataEndpoint, payload)
+	return f.createTransaction(hostMetadataEndpoint, payload, true)
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *Forwarder) SubmitMetadata(payload *[]byte) error {
-	return f.createTransaction(metadataEndpoint, payload)
+	return f.createTransaction(metadataEndpoint, payload, true)
 }
