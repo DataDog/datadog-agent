@@ -98,7 +98,7 @@ func start(cmd *cobra.Command, args []string) {
 	}
 
 	// Get a Runner instance
-	common.AgentRunner = check.NewRunner(common.RunnerNumWorkers)
+	common.AgentRunner = check.NewRunner(config.Datadog.GetInt("run_workers"))
 
 	// Instance the scheduler
 	common.AgentScheduler = scheduler.NewScheduler(common.AgentRunner.GetChan())

@@ -54,6 +54,7 @@ func SetupConfig() {
 	// define defaults for the Agent
 	config.Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
 	config.Datadog.BindEnv("cmd_sock")
+	config.Datadog.SetDefault("run_workers", int64(4))
 }
 
 // GetHostname retrieve the host name for the Agent, trying to query these
