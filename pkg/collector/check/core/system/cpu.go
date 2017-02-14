@@ -18,8 +18,10 @@ var cpuInfo = cpu.Info
 
 // CPUCheck doesn't need additional fields
 type CPUCheck struct {
-	sender aggregator.Sender
-	nbCPU  float64
+	sender      aggregator.Sender
+	nbCPU       float64
+	lastNbCycle float64
+	lastTimes   cpu.TimesStat
 }
 
 func (c *CPUCheck) String() string {
@@ -28,25 +30,41 @@ func (c *CPUCheck) String() string {
 
 // Run executes the check
 func (c *CPUCheck) Run() error {
-	t, err := times(false)
+	cpuTimes, err := times(false)
 	if err != nil {
 		log.Errorf("system.CPUCheck: could not retrieve cpu stats: %s", err)
 		return err
-	} else if len(t) < 1 {
+	} else if len(cpuTimes) < 1 {
 		errEmpty := fmt.Errorf("no cpu stats retrieve (empty results)")
 		log.Errorf("system.CPUCheck: %s", errEmpty)
 		return errEmpty
 	}
+	t := cpuTimes[0]
 
-	// gopsutil return the sum of every CPU
-	c.sender.Rate("system.cpu.user", t[0].User/c.nbCPU*100.0, "", nil)
-	c.sender.Rate("system.cpu.system", t[0].System/c.nbCPU*100.0, "", nil)
-	c.sender.Rate("system.cpu.iowait", t[0].Iowait/c.nbCPU*100.0, "", nil)
-	c.sender.Rate("system.cpu.idle", t[0].Idle/c.nbCPU*100.0, "", nil)
-	c.sender.Rate("system.cpu.stolen", t[0].Stolen/c.nbCPU*100.0, "", nil)
-	c.sender.Rate("system.cpu.guest", t[0].Guest/c.nbCPU*100.0, "", nil)
+	nbCycle := t.Total() / c.nbCPU
 
-	c.sender.Commit()
+	if c.lastNbCycle != 0 {
+		// gopsutil return the sum of every CPU
+		toPercent := 100 / (nbCycle - c.lastNbCycle)
+
+		user := ((t.User + t.Nice) - (c.lastTimes.User + c.lastTimes.Nice)) / c.nbCPU
+		system := ((t.System + t.Irq + t.Softirq) - (c.lastTimes.System + c.lastTimes.Irq + c.lastTimes.Softirq)) / c.nbCPU
+		iowait := (t.Iowait - c.lastTimes.Iowait) / c.nbCPU
+		idle := (t.Idle - c.lastTimes.Idle) / c.nbCPU
+		stolen := (t.Stolen - c.lastTimes.Stolen) / c.nbCPU
+		guest := (t.Guest - c.lastTimes.Guest) / c.nbCPU
+
+		c.sender.Gauge("system.cpu.user", user*toPercent, "", nil)
+		c.sender.Gauge("system.cpu.system", system*toPercent, "", nil)
+		c.sender.Gauge("system.cpu.iowait", iowait*toPercent, "", nil)
+		c.sender.Gauge("system.cpu.idle", idle*toPercent, "", nil)
+		c.sender.Gauge("system.cpu.stolen", stolen*toPercent, "", nil)
+		c.sender.Gauge("system.cpu.guest", guest*toPercent, "", nil)
+		c.sender.Commit()
+	}
+
+	c.lastNbCycle = nbCycle
+	c.lastTimes = t
 	return nil
 }
 

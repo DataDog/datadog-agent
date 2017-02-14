@@ -6,8 +6,8 @@ import (
 	"github.com/shirou/gopsutil/cpu"
 )
 
-func CPUTimes(bool) ([]cpu.TimesStat, error) {
-	return []cpu.TimesStat{
+var (
+	firstSample = []cpu.TimesStat{
 		{
 			CPU:       "cpu-total",
 			User:      1229386,
@@ -15,14 +15,36 @@ func CPUTimes(bool) ([]cpu.TimesStat, error) {
 			System:    263584,
 			Idle:      25496761,
 			Iowait:    12113,
-			Irq:       0,
+			Irq:       10,
 			Softirq:   1151,
 			Steal:     0,
 			Guest:     0,
 			GuestNice: 0,
 			Stolen:    0,
 		},
-	}, nil
+	}
+	secondSample = []cpu.TimesStat{
+		{
+			CPU:       "cpu-total",
+			User:      1229586,
+			Nice:      627,
+			System:    268584,
+			Idle:      25596761,
+			Iowait:    12153,
+			Irq:       15,
+			Softirq:   1451,
+			Steal:     0,
+			Guest:     0,
+			GuestNice: 0,
+			Stolen:    0,
+		},
+	}
+)
+
+var sample = firstSample
+
+func CPUTimes(bool) ([]cpu.TimesStat, error) {
+	return sample, nil
 }
 
 func CPUInfo() ([]cpu.InfoStat, error) {
@@ -52,17 +74,24 @@ func TestCPUCheckLinux(t *testing.T) {
 
 	mock := new(MockSender) // from common_test.go
 	cpuCheck.sender = mock
+	sample = firstSample
+	cpuCheck.Run()
 
-	mock.On("Rate", "system.cpu.user", 1.229386e+08, "", []string(nil)).Return().Times(1)
-	mock.On("Rate", "system.cpu.system", 2.63584e+07, "", []string(nil)).Return().Times(1)
-	mock.On("Rate", "system.cpu.iowait", 1.2113e+06, "", []string(nil)).Return().Times(1)
-	mock.On("Rate", "system.cpu.idle", 2.5496761e+09, "", []string(nil)).Return().Times(1)
-	mock.On("Rate", "system.cpu.stolen", 0.0, "", []string(nil)).Return().Times(1)
-	mock.On("Rate", "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
+	mock.AssertExpectations(t)
+	mock.AssertNumberOfCalls(t, "Gauge", 0)
+	mock.AssertNumberOfCalls(t, "Commit", 0)
+
+	sample = secondSample
+	mock.On("Gauge", "system.cpu.user", 0.19327516129949124, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.cpu.system", 5.026101621048045, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.cpu.iowait", 0.03789709045088063, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.cpu.idle", 94.74272612720159, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.cpu.stolen", 0.0, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 	cpuCheck.Run()
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Rate", 6)
+	mock.AssertNumberOfCalls(t, "Gauge", 6)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
