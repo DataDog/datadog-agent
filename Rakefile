@@ -24,21 +24,12 @@ def exe_name
 end
 
 def pkg_config_libdir
-  dir = ""
-  lines = `conda env list`
-  lines.split("\n").each do |line|
-    toks = line.split()
-    if toks[0] == "datadog-agent"
-      dir = toks[1] + "/lib/pkgconfig"
-      break
-    end
+  path = ENV["CONDA_PREFIX"]
+  if path.to_s == ""
+    fail "No active conda enviroment detected. You can create one running 'rake py'."
   end
 
-  if dir == ""
-    fail "A conda enviroment named 'datadog-agent' must be created before building the Agent, try running 'rake py'"
-  end
-
-  dir
+  return path + "/lib/pkgconfig"
 end
 
 ORG_PATH="github.com/DataDog"

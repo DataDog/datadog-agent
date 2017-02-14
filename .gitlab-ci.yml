@@ -19,6 +19,7 @@ before_script:
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
   - rake py
+  - source activate datadog-agent
   - rake deps
 
 # run tests for deb-x64

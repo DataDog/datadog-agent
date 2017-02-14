@@ -5,7 +5,7 @@ source path: '..'
 relative_path 'datadog-agent'
 
 build do
-  ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'  
+  ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
   command 'rake build copyenv=false'
   copy('bin', install_dir)
 
