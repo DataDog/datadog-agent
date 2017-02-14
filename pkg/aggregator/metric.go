@@ -126,37 +126,14 @@ type Histogram struct {
 	configured  bool
 }
 
-type histogramAggregator struct {
-	fn    func([]float64) float64 // takes a non-empty list of ordered samples and returns the aggregate value
-	mType APIMetricType
-}
-
-// map of all the available histogram aggregators
-var histogramAggregators = map[string]histogramAggregator{
-	"min":    {func(s []float64) float64 { return s[0] }, APIGaugeType},
-	"max":    {func(s []float64) float64 { return s[len(s)-1] }, APIGaugeType},
-	"median": {func(s []float64) float64 { return s[(len(s)-1)/2] }, APIGaugeType},
-	"avg": {
-		func(s []float64) (avg float64) {
-			for _, sample := range s {
-				avg += sample
-			}
-			avg /= float64(len(s))
-			return avg
-		},
-		APIGaugeType,
-	},
-	"sum": {
-		func(s []float64) (sum float64) {
-			for _, sample := range s {
-				sum += sample
-			}
-			return sum
-		},
-		APIGaugeType,
-	},
-	"count": {func(s []float64) float64 { return float64(len(s)) }, APIRateType},
-}
+const (
+	maxAgg    = "max"
+	minAgg    = "min"
+	medianAgg = "median"
+	avgAgg    = "avg"
+	sumAgg    = "sum"
+	countAgg  = "count"
+)
 
 func (h *Histogram) configure(aggregates []string, percentiles []int) {
 	h.configured = true
@@ -168,6 +145,13 @@ func (h *Histogram) addSample(sample float64, timestamp int64) {
 	h.samples = append(h.samples, sample)
 }
 
+func (h *Histogram) sum() (sum float64) {
+	for _, sample := range h.samples {
+		sum += sample
+	}
+	return sum
+}
+
 func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
 	if len(h.samples) == 0 {
 		return []*Serie{}, NoSerieError{}
@@ -175,24 +159,46 @@ func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
 
 	if !h.configured {
 		// Set default aggregates/percentiles if configure() hasn't been called beforehand
-		h.configure([]string{"max", "median", "avg", "count"}, []int{95})
+		h.configure([]string{maxAgg, medianAgg, avgAgg, countAgg}, []int{95})
 	}
 
 	sort.Float64s(h.samples)
 
-	series := make([]*Serie, 0, len(h.aggregates))
+	series := make([]*Serie, 0, len(h.aggregates)+len(h.percentiles))
+
+	// Compute aggregates
+	sum := h.sum()
+	count := len(h.samples)
 	for _, aggregate := range h.aggregates {
-		if aggregator, ok := histogramAggregators[aggregate]; ok {
-			series = append(series, &Serie{
-				Points:     points{{timestamp, aggregator.fn(h.samples)}},
-				MType:      aggregator.mType,
-				nameSuffix: "." + aggregate,
-			})
-		} else {
+		var value float64
+		mType := APIGaugeType
+		switch aggregate {
+		case maxAgg:
+			value = h.samples[count-1]
+		case minAgg:
+			value = h.samples[0]
+		case medianAgg:
+			value = h.samples[(count-1)/2]
+		case avgAgg:
+			value = sum / float64(count)
+		case sumAgg:
+			value = sum
+		case countAgg:
+			value = float64(count)
+			mType = APIRateType
+		default:
 			log.Infof("Configured aggregate '%s' is not implemented, skipping", aggregate)
+			continue
 		}
+
+		series = append(series, &Serie{
+			Points:     points{{timestamp, value}},
+			MType:      mType,
+			nameSuffix: "." + aggregate,
+		})
 	}
 
+	// Compute percentiles
 	for _, percentile := range h.percentiles {
 		value := h.samples[(percentile*len(h.samples)-1)/100]
 		series = append(series, &Serie{

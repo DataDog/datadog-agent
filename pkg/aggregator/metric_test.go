@@ -136,9 +136,9 @@ func TestDefaultHistogramSampling(t *testing.T) {
 }
 
 func TestCustomHistogramSampling(t *testing.T) {
-	// Initialize custom histogram
+	// Initialize custom histogram, with an invalid aggregate
 	mHistogram := Histogram{}
-	mHistogram.configure([]string{"min", "sum"}, []int{})
+	mHistogram.configure([]string{"min", "sum", "invalid"}, []int{})
 
 	// Empty flush
 	_, err := mHistogram.flush(50)
@@ -155,6 +155,7 @@ func TestCustomHistogramSampling(t *testing.T) {
 	series, err := mHistogram.flush(60)
 	assert.Nil(t, err)
 	if assert.Len(t, series, 2) {
+		// Only 2 series are returned (the invalid aggregate is ignored)
 		for _, serie := range series {
 			assert.Len(t, serie.Points, 1)
 			assert.EqualValues(t, serie.Points[0][0], 60)
