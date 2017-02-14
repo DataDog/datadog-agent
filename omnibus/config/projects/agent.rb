@@ -72,10 +72,6 @@ if linux?
     extra_package_file '/etc/init/datadog-agent6.conf'
     extra_package_file '/lib/systemd/system/datadog-agent6.service'
   end
-
-  # Linux-specific dependencies
-  dependency 'procps-ng'
-  dependency 'sysstat'
 end
 
 # ------------------------------------
