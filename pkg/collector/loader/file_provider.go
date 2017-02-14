@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	log "github.com/cihub/seelog"
@@ -47,34 +46,45 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 		}
 
 		for _, entry := range entries {
-			ext := filepath.Ext(entry.Name())
+			if entry.IsDir() {
+				configs = append(configs, collectDir(path, entry)...)
+				continue
+			}
 
-			// skip config files of type check.yaml.example
-			if ext == ".example" {
+			entryName := entry.Name()
+			checkName := entryName
+			ext := filepath.Ext(entryName)
+			isDefault := false
+
+			// skip config files that are not of type:
+			//  * check.yaml, check.yml
+			//  * check.yaml.default, check.yml.default
+			if ext == ".default" {
+				// trim the .default suffix but preserve the real filename
+				checkName = entryName[:len(entryName)-8]
+				ext = filepath.Ext(checkName)
+				isDefault = true
+			}
+
+			if ext != ".yaml" && ext != ".yml" {
 				log.Debugf("Skipping file: %s", entry.Name())
 				continue
 			}
 
-			if entry.IsDir() {
-				configs = append(configs, collectDir(path, entry)...)
+			checkName = checkName[:len(checkName)-len(ext)]
+			conf, err := getCheckConfig(checkName, filepath.Join(path, entry.Name()))
+			if err != nil {
+				log.Warnf("%s is not a valid config file: %s", entry.Name(), err)
+				continue
+			}
+			log.Debug("Found valid configuration in file:", entry.Name())
+			// determine if a check has to be run by default by
+			// searching for check.yaml.default files
+			if isDefault {
+				defaultConfigs = append(defaultConfigs, conf)
 			} else {
-				checkName := entry.Name()[:len(entry.Name())-len(ext)]
-				conf, err := getCheckConfig(checkName, filepath.Join(path, entry.Name()))
-				if err != nil {
-					log.Warnf("%s is not a valid config file: %s", entry.Name(), err)
-					continue
-				}
-				log.Debug("Found valid configuration in file:", entry.Name())
-				// determine if a check has to be run by default by
-				// searching for check.yaml.default files
-				if ext == ".default" {
-					// get the real name of the check
-					conf.Name = strings.Split(checkName, ".")[0]
-					defaultConfigs = append(defaultConfigs, conf)
-				} else {
-					configNames[conf.Name] = nil
-					configs = append(configs, conf)
-				}
+				configNames[conf.Name] = nil // use this map as a python set, value doesn't matter
+				configs = append(configs, conf)
 			}
 		}
 	}
