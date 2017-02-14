@@ -1,0 +1,23 @@
+name: datadog-agent
+channels: !!python/tuple
+- !!python/unicode
+  'defaults'
+dependencies:
+- enum34=1.1.6=py27_0
+- openssl=1.0.2j=0
+- pip=8.1.2=py27_0
+- pycosat=0.6.1=py27_1
+- pycrypto=2.6.1=py27_4
+- python=2.7.12=1
+- readline=6.2=2
+- requests=2.11.1=py27_0
+- ruamel_yaml=0.11.14=py27_0
+- setuptools=27.2.0=py27_0
+- sqlite=3.13.0=0
+- tk=8.5.18=0
+- wheel=0.29.0=py27_0
+- yaml=0.1.6=0
+- zlib=1.2.8=3
+- pip:
+  - datadog==0.15.0
+prefix: /Users/massi/miniconda2/envs/datadog-agent

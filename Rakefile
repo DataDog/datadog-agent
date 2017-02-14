@@ -32,6 +32,18 @@ def pkg_config_libdir
   return path + "/lib/pkgconfig"
 end
 
+def build_env
+  env = {"PKG_CONFIG_LIBDIR" => "#{pkg_config_libdir}"}
+  case os
+  when "linux"
+    env["LD_LIBRARY_PATH"] = ENV["CONDA_PREFIX"] + '/lib'
+  when "darwin"
+    env["DYLD_LIBRARY_PATH"] = ENV["CONDA_PREFIX"] + '/lib'
+  end
+
+  env
+end
+
 ORG_PATH="github.com/DataDog"
 REPO_PATH="#{ORG_PATH}/datadog-agent"
 TARGETS = %w[./pkg ./cmd]
@@ -85,8 +97,7 @@ task :test => %w[fmt lint vet] do
       next if Dir.glob(File.join(pkg_folder, "*.go")).length == 0  # folder is a package if contains go modules
       profile_tmp = "#{pkg_folder}/profile.tmp"  # temp file to collect coverage data
 
-      env = {"PKG_CONFIG_LIBDIR" => "#{pkg_config_libdir}"}
-      system(env, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
+      system(build_env, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
       if File.file?(profile_tmp)
         `cat #{profile_tmp} | tail -n +2 >> #{PROFILE}`
         File.delete(profile_tmp)
@@ -108,8 +119,7 @@ namespace :agent do
   task :build do
     # Check if we should use Embedded or System Python,
     # default to the embedded one.
-    env = {"PKG_CONFIG_LIBDIR" => "#{pkg_config_libdir}"}
-    system(env, "go build -o #{BIN_PATH}/#{exe_name} #{REPO_PATH}/cmd/agent")
+    system(build_env, "go build -o #{BIN_PATH}/#{exe_name} #{REPO_PATH}/cmd/agent")
     Rake::Task["agent:refresh_assets"].invoke
   end
 
