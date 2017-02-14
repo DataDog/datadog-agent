@@ -1,8 +1,12 @@
 package aggregator
 
-import log "github.com/cihub/seelog"
+import (
+	"time"
 
-const defaultExpirySeconds = 300 // duration in seconds after which contexts are expired
+	log "github.com/cihub/seelog"
+)
+
+const defaultExpiry = 300 * time.Second // duration after which contexts are expired
 
 // Metrics stores all the metrics by context key
 type Metrics map[string]Metric
@@ -90,7 +94,7 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 		delete(s.metricsByTimestamp, timestamp)
 	}
 
-	s.contextResolver.expireContexts(timestamp - defaultExpirySeconds)
+	s.contextResolver.expireContexts(timestamp - int64(defaultExpiry/time.Second))
 
 	return result
 }

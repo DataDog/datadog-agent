@@ -1,5 +1,7 @@
 package aggregator
 
+import "time"
+
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	series          []*Serie
@@ -36,7 +38,7 @@ func (cs *CheckSampler) commit(timestamp int64) {
 		cs.series = append(cs.series, serie)
 	}
 
-	cs.contextResolver.expireContexts(timestamp - defaultExpirySeconds)
+	cs.contextResolver.expireContexts(timestamp - int64(defaultExpiry/time.Second))
 }
 
 func (cs *CheckSampler) flush() []*Serie {
