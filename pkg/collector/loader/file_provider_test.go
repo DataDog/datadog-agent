@@ -47,7 +47,7 @@ func TestCollect(t *testing.T) {
 
 	assert.Nil(t, err)
 	// total number of configurations found
-	assert.Equal(t, 5, len(configs))
+	assert.Equal(t, 6, len(configs))
 
 	// count how many configs were found for a given check
 	get := func(name string) []check.Config {
@@ -70,4 +70,10 @@ func TestCollect(t *testing.T) {
 	rc := get("foo")
 	assert.Equal(t, 1, len(rc))
 	assert.Contains(t, string(rc[0].InitConfig), "IsNotOnTheDefaultFile")
+
+	// nested configs override default ones
+	nc := get("baz")
+	if assert.Equal(t, 1, len(nc)) {
+		assert.Contains(t, string(nc[0].InitConfig), "IsNotOnTheDefaultFile")
+	}
 }

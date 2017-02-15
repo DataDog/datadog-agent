@@ -33,7 +33,7 @@ func NewFileConfigProvider(paths []string) *FileConfigProvider {
 // instance
 func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 	configs := []check.Config{}
-	configNames := map[string]interface{}{}
+	configNames := make(map[string]struct{}) // use this map as a python set
 	defaultConfigs := []check.Config{}
 
 	for _, path := range c.paths {
@@ -47,7 +47,11 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 
 		for _, entry := range entries {
 			if entry.IsDir() {
-				configs = append(configs, collectDir(path, entry)...)
+				dirConfigs := collectDir(path, entry)
+				if len(dirConfigs) > 0 {
+					configs = append(configs, dirConfigs...)
+					configNames[dirConfigs[0].Name] = struct{}{}
+				}
 				continue
 			}
 
@@ -83,7 +87,7 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 			if isDefault {
 				defaultConfigs = append(defaultConfigs, conf)
 			} else {
-				configNames[conf.Name] = nil // use this map as a python set, value doesn't matter
+				configNames[conf.Name] = struct{}{}
 				configs = append(configs, conf)
 			}
 		}
@@ -94,6 +98,8 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 	for _, conf := range defaultConfigs {
 		if _, isThere := configNames[conf.Name]; !isThere {
 			configs = append(configs, conf)
+		} else {
+			log.Debugf("Ignoring default config file '%s' because non-default config was found", conf.Name)
 		}
 	}
 
