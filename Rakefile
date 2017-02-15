@@ -23,22 +23,34 @@ def exe_name
   end
 end
 
-def pkg_config_libdir
+def condapath 
   path = ENV["CONDA_PREFIX"]
   if path.to_s == ""
     fail "No active conda enviroment detected. You can create one running 'rake py'."
   end
 
-  return path + "/lib/pkgconfig"
+  path
+end
+
+def libdir
+  return condapath + "/lib"
+end
+
+def pkg_config_libdir
+  return libdir + "/pkgconfig"
 end
 
 def build_env
   env = {"PKG_CONFIG_LIBDIR" => "#{pkg_config_libdir}"}
+
   case os
   when "linux"
-    env["LD_LIBRARY_PATH"] = ENV["CONDA_PREFIX"] + '/lib'
+    env["LD_LIBRARY_PATH"] = condapath + '/lib'
   when "darwin"
-    env["DYLD_LIBRARY_PATH"] = ENV["CONDA_PREFIX"] + '/lib'
+    # not sure if we need to instrument the dynamic linker on OSX
+    # let's use the fallback env var so we don't interfere with the
+    # system
+    env["DYLD_FALLBACK_LIBRARY_PATH"] = libdir
   end
 
   env
@@ -131,16 +143,7 @@ namespace :agent do
 
     # Unless it's omnibus calling, embed the Python environment from conda
     if ENV["copyenv"] != "false"
-      env_path = ''
-      output = `conda env list`
-      output.split("\n").each do |line|      
-        toks = line.split()
-        if toks[0] == "datadog-agent"
-          env_path = toks[1]
-          break
-        end
-      end
-      FileUtils.cp_r("#{env_path}", "#{BIN_PATH}/dist/python")
+      FileUtils.cp_r(condapath, "#{BIN_PATH}/dist/python")
     end
 
     # setup the entrypoint script at the root bin folder
