@@ -2,10 +2,13 @@ package network
 
 /*
 #cgo linux CFLAGS: -I/usr/include/net-snmp/library -DNETSNMP_NO_LEGACY_DEFINITIONS
-//linux LDFLAGS: /usr/lib/libnetsnmp.a /usr/lib/x86_64-linux-gnu/libcrypto.a /usr/lib/x86_64-linux-gnu/libz.a -L/usr/lib/ -L/usr/lib/x86_64-linux-gnu/ -static-libgcc -ldl
+//Dynamic linking (enabled)
 #cgo linux LDFLAGS: -L/usr/lib/ -L/usr/lib/x86_64-linux-gnu/ -static-libgcc -lnetsnmp -lcrypto -ldl -lz
-// dynamic linking would be something like: #cgo LDFLAGS: -L . -lnetsnmp
+//STATIC link for netsnmp (disabled)
+//linux LDFLAGS: /usr/lib/libnetsnmp.a /usr/lib/x86_64-linux-gnu/libcrypto.a /usr/lib/x86_64-linux-gnu/libz.a -L/usr/lib/ -L/usr/lib/x86_64-linux-gnu/ -static-libgcc -ldl
+
 #cgo darwin CFLAGS: -I/usr/local/Cellar/net-snmp/5.7.3/include -DNETSNMP_NO_LEGACY_DEFINITIONS
+//Dynamic linking (enabled)
 #cgo darwin LDFLAGS: -L/usr/local/Cellar/net-snmp/5.7.3/lib/ -lnetsnmp
 
 #include <stdlib.h>
