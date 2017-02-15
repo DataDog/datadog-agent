@@ -98,6 +98,7 @@ type snmpConfig struct {
 
 // SNMPCheck grabs SNMP metrics
 type SNMPCheck struct {
+	id     check.ID
 	cfg    *snmpConfig
 	sender aggregator.Sender
 }
@@ -623,6 +624,7 @@ func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData
 		log.Criticalf("Error parsing configuration file: %s ", err)
 		return err
 	}
+	c.id = check.Identify(c, data, initConfig)
 	c.cfg = cfg
 
 	//init SNMP - will fail if missing snmp libs.
@@ -673,7 +675,7 @@ func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData
 
 // InitSender initializes a sender
 func (c *SNMPCheck) InitSender() {
-	s, err := aggregator.GetSender()
+	s, err := aggregator.GetSender(c.id)
 	if err != nil {
 		log.Error(err)
 		return
@@ -688,8 +690,8 @@ func (c *SNMPCheck) Interval() time.Duration {
 }
 
 // ID FIXME: this should return a real identifier
-func (c *SNMPCheck) ID() string {
-	return c.String()
+func (c *SNMPCheck) ID() check.ID {
+	return c.id
 }
 
 // Stop does nothing
