@@ -1,6 +1,12 @@
 package aggregator
 
-const defaultExpirySeconds = 300 // duration in seconds after which contexts are expired
+import (
+	"time"
+
+	log "github.com/cihub/seelog"
+)
+
+const defaultExpiry = 300 * time.Second // duration after which contexts are expired
 
 // Metrics stores all the metrics by context key
 type Metrics map[string]Metric
@@ -9,23 +15,10 @@ func makeMetrics() Metrics {
 	return Metrics(make(map[string]Metric))
 }
 
-// Serie holds a timeserie (w/ json serialization to DD API format)
-type Serie struct {
-	Name       string          `json:"metric"`
-	Points     [][]interface{} `json:"points"`
-	Tags       []string        `json:"tags"`
-	Host       string          `json:"host"`
-	DeviceName string          `json:"device_name"`
-	Mtype      string          `json:"type"`
-	Interval   int64           `json:"interval"`
-	contextKey string
-	nameSuffix string
-}
-
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
 // from the same bucket can be merged into one
 type SerieSignature struct {
-	mType      string
+	mType      APIMetricType
 	contextKey string
 	nameSuffix string
 }
@@ -80,7 +73,7 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 
 		series := metrics.flush(timestamp)
 		for _, serie := range series {
-			serieSignature := SerieSignature{serie.Mtype, serie.contextKey, serie.nameSuffix}
+			serieSignature := SerieSignature{serie.MType, serie.contextKey, serie.nameSuffix}
 
 			if existingSerie, ok := serieBySignature[serieSignature]; ok {
 				existingSerie.Points = append(existingSerie.Points, serie.Points[0])
@@ -101,7 +94,7 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 		delete(s.metricsByTimestamp, timestamp)
 	}
 
-	s.contextResolver.expireContexts(timestamp - defaultExpirySeconds)
+	s.contextResolver.expireContexts(timestamp - int64(defaultExpiry/time.Second))
 
 	return result
 }
@@ -112,10 +105,13 @@ func (m Metrics) addSample(contextKey string, mType MetricType, value float64, t
 		switch mType {
 		case GaugeType:
 			m[contextKey] = &Gauge{}
-		case CounterType:
-			// pass
 		case RateType:
 			m[contextKey] = &Rate{}
+		case HistogramType:
+			m[contextKey] = &Histogram{} // default histogram configuration for now
+		default:
+			log.Error("Can't add unknown sample metric type:", mType)
+			return
 		}
 	}
 	m[contextKey].addSample(value, timestamp)
@@ -125,29 +121,19 @@ func (m Metrics) flush(timestamp int64) []*Serie {
 	var series []*Serie
 
 	for contextKey, metric := range m {
-		switch metric := metric.(type) {
-		case *Gauge:
-			value, metricTimestamp := metric.flush()
+		metricSeries, err := metric.flush(timestamp)
 
-			if metricTimestamp != 0 {
-				// we use the timestamp passed to the flush
-				serie := &Serie{
-					Points:     [][]interface{}{{timestamp, value}},
-					Mtype:      "gauge",
-					contextKey: contextKey,
-				}
+		if err == nil {
+			for _, serie := range metricSeries {
+				serie.contextKey = contextKey
 				series = append(series, serie)
 			}
-		case *Rate:
-			value, metricTimestamp, err := metric.flush()
-
-			if err == nil {
-				serie := &Serie{
-					Points:     [][]interface{}{{metricTimestamp, value}},
-					Mtype:      "gauge",
-					contextKey: contextKey,
-				}
-				series = append(series, serie)
+		} else {
+			switch err.(type) {
+			case NoSerieError:
+				log.Debugf("%s on context key %s", err, contextKey)
+			default:
+				log.Info(err)
 			}
 		}
 	}

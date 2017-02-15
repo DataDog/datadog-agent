@@ -80,38 +80,31 @@ func (s *checkSender) Commit() {
 	s.ssOut <- senderSample{s.id, &MetricSample{}, true}
 }
 
-// Gauge implements the Sender interface
-func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string) {
-	log.Debug("Gauge: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+func (s *checkSender) sendSample(metric string, value float64, hostname string, tags []string, mType MetricType, logMtype string) {
+	log.Debug(logMtype, " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
 	metricSample := &MetricSample{
 		Name:       metric,
 		Value:      value,
-		Mtype:      GaugeType,
+		Mtype:      mType,
 		Tags:       &tags,
 		SampleRate: 1,
 		Timestamp:  time.Now().Unix(),
 	}
 
 	s.ssOut <- senderSample{s.id, metricSample, false}
+}
+
+// Gauge implements the Sender interface
+func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string) {
+	s.sendSample(metric, value, hostname, tags, GaugeType, "Gauge")
 }
 
 // Rate implements the Sender interface
 func (s *checkSender) Rate(metric string, value float64, hostname string, tags []string) {
-	log.Debug("Rate: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
-	metricSample := &MetricSample{
-		Name:       metric,
-		Value:      value,
-		Mtype:      RateType,
-		Tags:       &tags,
-		SampleRate: 1,
-		Timestamp:  time.Now().Unix(),
-	}
-
-	s.ssOut <- senderSample{s.id, metricSample, false}
+	s.sendSample(metric, value, hostname, tags, RateType, "Rate")
 }
 
 // Histogram implements the Sender interface
 func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string) {
-	// TODO
-	log.Debug("Histogram: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+	s.sendSample(metric, value, hostname, tags, HistogramType, "Histogram")
 }

@@ -1,13 +1,14 @@
 package aggregator
 
-// MetricType is the representation of a dogstatsd metric type
-type MetricType string
+// MetricType is the representation of an aggregator metric type
+type MetricType int
 
-// metric type constants
+// metric type constants enumeration
 const (
-	GaugeType   MetricType = "g"
-	RateType    MetricType = "rate"
-	CounterType MetricType = "c"
+	GaugeType MetricType = iota
+	RateType
+	CounterType
+	HistogramType
 )
 
 // MetricSample represents a raw metric sample
