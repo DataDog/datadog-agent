@@ -153,6 +153,25 @@ func TestMetricsRateSampling(t *testing.T) {
 	}
 }
 
+func TestMetricsMonotonicCountSampling(t *testing.T) {
+	metrics := makeMetrics()
+	contextKey := "context_key"
+
+	metrics.addSample(contextKey, MonotonicCountType, 1, 12340)
+	metrics.addSample(contextKey, MonotonicCountType, 5, 12345)
+	series := metrics.flush(12350)
+	expectedSerie := &Serie{
+		contextKey: contextKey,
+		Points:     []Point{{int64(12350), 4.}},
+		MType:      APICountType,
+		nameSuffix: "",
+	}
+
+	if assert.Equal(t, 1, len(series)) {
+		AssertSerieEqual(t, expectedSerie, series[0])
+	}
+}
+
 func TestMetricsHistogramSampling(t *testing.T) {
 	metrics := makeMetrics()
 	contextKey := "context_key"

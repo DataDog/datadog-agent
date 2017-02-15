@@ -39,6 +39,7 @@ type APIMetricType int
 const (
 	APIGaugeType APIMetricType = iota
 	APIRateType
+	APICountType
 )
 
 // String returns a string representation of APIMetricType
@@ -48,6 +49,8 @@ func (a APIMetricType) String() string {
 		return "gauge"
 	case APIRateType:
 		return "rate"
+	case APICountType:
+		return "count"
 	default:
 		return ""
 	}
@@ -138,6 +141,52 @@ func (r *Rate) flush(timestamp int64) ([]*Serie, error) {
 		&Serie{
 			Points: []Point{{Ts: ts, Value: value}},
 			MType:  APIGaugeType,
+		},
+	}, nil
+}
+
+// MonotonicCount tracks a raw counter, based on increasing counter values.
+// Samples that have a lower value than the previous sample are ignored (since it usually
+// means that the underlying raw count has been reset).
+// Example:
+// * samples 2, 3, 6, 7 returns 5 (i.e. 7-2) on 1st flush, then sample 11 returns 4 (i.e. 11-7) on 2nd flush
+type MonotonicCount struct {
+	previousSample        float64
+	currentSample         float64
+	sampledSinceLastFlush bool
+	hasPreviousSample     bool
+	value                 float64
+}
+
+func (mc *MonotonicCount) addSample(sample float64, timestamp int64) {
+	if !mc.sampledSinceLastFlush {
+		mc.currentSample = sample
+		mc.sampledSinceLastFlush = true
+	} else {
+		mc.previousSample, mc.currentSample = mc.currentSample, sample
+		mc.hasPreviousSample = true
+	}
+
+	diff := mc.currentSample - mc.previousSample
+	if mc.sampledSinceLastFlush && mc.hasPreviousSample && diff > 0. {
+		mc.value += diff
+	}
+}
+
+func (mc *MonotonicCount) flush(timestamp int64) ([]*Serie, error) {
+	if !mc.sampledSinceLastFlush || !mc.hasPreviousSample {
+		return []*Serie{}, NoSerieError{}
+	}
+
+	value := mc.value
+	mc.previousSample, mc.currentSample, mc.value = mc.currentSample, 0., 0.
+	mc.sampledSinceLastFlush = false
+
+	return []*Serie{
+		&Serie{
+			// we use the timestamp passed to the flush
+			Points: []Point{{Ts: timestamp, Value: value}},
+			MType:  APICountType,
 		},
 	}, nil
 }

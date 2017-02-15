@@ -4,6 +4,7 @@ typedef enum {
   MT_FIRST = 0,
   GAUGE = MT_FIRST,
   RATE,
+  MONOTONIC_COUNT,
   HISTOGRAM,
   MT_LAST = HISTOGRAM
 } MetricType;

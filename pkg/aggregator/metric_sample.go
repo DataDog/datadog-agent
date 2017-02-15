@@ -7,6 +7,7 @@ type MetricType int
 const (
 	GaugeType MetricType = iota
 	RateType
+	MonotonicCountType
 	CounterType
 	HistogramType
 )
