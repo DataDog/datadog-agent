@@ -3,6 +3,7 @@ package aggregator
 import (
 	// stdlib
 	"fmt"
+	"math"
 	"sort"
 	"testing"
 
@@ -102,6 +103,27 @@ func TestMetricsGaugeSamplingNoSample(t *testing.T) {
 
 	series = metrics.flush(12355)
 	// No series flushed since there's no new sample since last flush
+	assert.Equal(t, 0, len(series))
+}
+
+// No series should be flushed when the samples have values of +Inf/-Inf
+func TestMetricsGaugeSamplingInfinity(t *testing.T) {
+	metrics := makeMetrics()
+	contextKey1 := "context_key1"
+	contextKey2 := "context_key2"
+	mSample1 := MetricSample{
+		Value: math.Inf(1),
+		Mtype: GaugeType,
+	}
+	mSample2 := MetricSample{
+		Value: math.Inf(-1),
+		Mtype: GaugeType,
+	}
+
+	metrics.addSample(contextKey1, mSample1.Mtype, mSample1.Value, 1)
+	metrics.addSample(contextKey2, mSample2.Mtype, mSample2.Value, 1)
+	series := metrics.flush(12345)
+
 	assert.Equal(t, 0, len(series))
 }
 

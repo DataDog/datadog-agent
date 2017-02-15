@@ -96,6 +96,20 @@ func TestRateSamplingNoSampleForOneFlush(t *testing.T) {
 	assert.EqualValues(t, series[0].Points[0][0], 60)
 }
 
+func TestRateSamplingSamplesAtSameTimestamp(t *testing.T) {
+	// Initialize rate
+	mRate := Rate{}
+
+	// Add samples
+	mRate.addSample(1, 50)
+	mRate.addSample(2, 50)
+
+	series, err := mRate.flush(60)
+
+	assert.NotNil(t, err)
+	assert.Len(t, series, 0)
+}
+
 func TestDefaultHistogramSampling(t *testing.T) {
 	// Initialize default histogram
 	mHistogram := Histogram{}
