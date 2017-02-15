@@ -106,6 +106,10 @@ func (r *Rate) flush(timestamp int64) ([]*Serie, error) {
 		return []*Serie{}, NoSerieError{}
 	}
 
+	if r.timestamp-r.previousTimestamp == 0 {
+		return []*Serie{}, fmt.Errorf("Rate was sampled twice at the same timestamp, can't compute a rate")
+	}
+
 	value, ts := (r.sample-r.previousSample)/float64(r.timestamp-r.previousTimestamp), r.timestamp
 	r.previousSample, r.previousTimestamp = r.sample, r.timestamp
 	r.sample, r.timestamp = 0, 0

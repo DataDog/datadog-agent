@@ -1,6 +1,7 @@
 package aggregator
 
 import (
+	"math"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -101,6 +102,10 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 
 // TODO: Pass a reference to *MetricSample instead
 func (m Metrics) addSample(contextKey string, mType MetricType, value float64, timestamp int64) {
+	if math.IsInf(value, 0) {
+		log.Warn("Ignoring sample with +/-Inf value on context key:", contextKey)
+		return
+	}
 	if _, ok := m[contextKey]; !ok {
 		switch mType {
 		case GaugeType:
