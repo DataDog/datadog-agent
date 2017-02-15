@@ -119,15 +119,8 @@ func (c *Collector) ReloadCheck(id check.ID, config, initConfig check.ConfigData
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	// re-configure
-	check := c.checks[id]
-	err := check.Configure(config, initConfig)
-	if err != nil {
-		return fmt.Errorf("error configuring the check with ID %s", id)
-	}
-
 	// unschedule the instance
-	err = c.scheduler.Cancel(id)
+	err := c.scheduler.Cancel(id)
 	if err != nil {
 		return fmt.Errorf("an error occurred while cancelling the check schedule: %s", err)
 	}
@@ -136,6 +129,13 @@ func (c *Collector) ReloadCheck(id check.ID, config, initConfig check.ConfigData
 	err = c.runner.StopCheck(id)
 	if err != nil {
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
+	}
+
+	// re-configure
+	check := c.checks[id]
+	err = check.Configure(config, initConfig)
+	if err != nil {
+		return fmt.Errorf("error configuring the check with ID %s", id)
 	}
 
 	// re-schedule
