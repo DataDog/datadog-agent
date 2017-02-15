@@ -42,7 +42,6 @@ import (
 const (
 	maxOIDLen   = 128
 	defaultPort = 161
-	hardMibPath = "/etc/dd-agent/mibs"
 )
 
 var once sync.Once
@@ -121,17 +120,13 @@ func initCNetSnmpLib(cfg *initCfg) (err error) {
 	once.Do(func() {
 		C.netsnmp_init_mib()
 
-		_, e := os.Stat(hardMibPath)
-		if e == nil || !os.IsNotExist(e) {
-			mibdir := C.CString(hardMibPath)
-			defer C.free(unsafe.Pointer(mibdir))
-			C.add_mibdir(mibdir)
-		}
-
 		if cfg != nil && cfg.MibsDir != "" {
-			mibdir := C.CString(cfg.MibsDir)
-			defer C.free(unsafe.Pointer(mibdir))
-			C.add_mibdir(mibdir)
+			_, e := os.Stat(cfg.MibsDir)
+			if e == nil || !os.IsNotExist(e) {
+				mibdir := C.CString(cfg.MibsDir)
+				defer C.free(unsafe.Pointer(mibdir))
+				C.add_mibdir(mibdir)
+			}
 		}
 	})
 
