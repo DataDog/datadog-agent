@@ -136,7 +136,7 @@ func (m Metrics) flush(timestamp int64) []*Serie {
 		} else {
 			switch err.(type) {
 			case NoSerieError:
-				log.Debugf("%s on context key %s", err, contextKey)
+				// this error happens in nominal conditions and shouldn't be logged
 			default:
 				log.Info(err)
 			}
