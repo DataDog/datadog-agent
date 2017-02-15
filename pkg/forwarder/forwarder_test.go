@@ -1,6 +1,8 @@
 package forwarder
 
 import (
+	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/zstd"
 )
 
@@ -152,6 +155,71 @@ func TestSubmit(t *testing.T) {
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
+}
+
+func TestSubmitWithProxy(t *testing.T) {
+	targetURL := "http://test:2121"
+	firstKey := "api_key1"
+	wait := make(chan bool)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() { wait <- true }()
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, targetURL, fmt.Sprintf("%s://%s", r.URL.Scheme, r.URL.Host))
+		assert.Equal(t, firstKey, r.Header.Get(apiHTTPHeaderKey))
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	config.Datadog.Set("proxy", ts.URL)
+	defer config.Datadog.Set("proxy", nil)
+
+	forwarder := NewForwarder(map[string][]string{targetURL: []string{firstKey}})
+	// delay next retry cycle so we can inspect retry queue
+	flushInterval = 5 * time.Hour
+	forwarder.NumberOfWorkers = 1
+	forwarder.Start()
+	defer forwarder.Stop()
+
+	payload := []byte("SubmitTimeseries payload")
+	assert.Nil(t, forwarder.SubmitTimeseries(&payload))
+	// wait for the queries to complete before changing expected value
+	<-wait
+	assert.Equal(t, 0, len(forwarder.retryQueue))
+}
+
+func TestSubmitWithProxyAndPassword(t *testing.T) {
+	targetURL := "http://test:2121"
+	userInfo := "testuser:password123456"
+	expectedAuth := fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(userInfo)))
+	firstKey := "api_key1"
+	wait := make(chan bool)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() { wait <- true }()
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, targetURL, fmt.Sprintf("%s://%s", r.URL.Scheme, r.URL.Host))
+		assert.Equal(t, firstKey, r.Header.Get(apiHTTPHeaderKey))
+		assert.Equal(t, expectedAuth, r.Header.Get("Proxy-Authorization"))
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	config.Datadog.Set("proxy", fmt.Sprintf("http://%s@%s", userInfo, ts.URL[7:]))
+	defer config.Datadog.Set("proxy", nil)
+
+	forwarder := NewForwarder(map[string][]string{targetURL: []string{firstKey}})
+	// delay next retry cycle so we can inspect retry queue
+	flushInterval = 5 * time.Hour
+	forwarder.NumberOfWorkers = 1
+	forwarder.Start()
+	defer forwarder.Stop()
+
+	payload := []byte("SubmitTimeseries payload")
+	assert.Nil(t, forwarder.SubmitTimeseries(&payload))
+	// wait for the queries to complete before changing expected value
+	<-wait
+	assert.Equal(t, 0, len(forwarder.retryQueue))
 }
 
 func TestForwarderRetry(t *testing.T) {
