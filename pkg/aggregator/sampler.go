@@ -138,7 +138,7 @@ func (m Metrics) flush(timestamp int64) []*Serie {
 			case NoSerieError:
 				// this error happens in nominal conditions and shouldn't be logged
 			default:
-				log.Info(err)
+				log.Infof("An error occurred while flushing metric on context key '%s': %s", contextKey, err)
 			}
 		}
 	}
