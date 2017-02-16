@@ -30,6 +30,8 @@ run_tests_deb-x64:
     # No need to use the embedded python built with omnibus to run tests.
     USE_SYSTEM_PY: "1"
   script:
+    - echo "deb http://deb.debian.org/debian wheezy contrib non-free" >> /etc/apt/sources.list
+    - apt-get update && apt-get install -y -qq libsnmp-base libsnmp-dev snmp-mibs-downloader  # required by snmp check
     - rake test
 
 # build the package for deb-x64
@@ -89,6 +91,7 @@ run_test_rpm-x64:
   variables:
     USE_SYSTEM_PY: "1"
   script:
+    - yum install -y net-snmp net-snmp-devel  # required by snmp check
     - rake test
 
 # TODO: build the package for rpm-x64

@@ -296,7 +296,7 @@ func TestHistogramPercentiles(t *testing.T) {
 
 	// Sample 20 times all numbers between 1 and 100.
 	// This means our percentiles should be relatively close to themselves.
-	percentiles := make([]float64, 0)
+	var percentiles []float64
 	for i := 1; i <= 100; i++ {
 		percentiles = append(percentiles, float64(i))
 	}

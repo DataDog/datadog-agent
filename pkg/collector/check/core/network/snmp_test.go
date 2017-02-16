@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	ddtesting "github.com/DataDog/datadog-agent/pkg/collector/check/testing"
+	ddtesting "github.com/DataDog/datadog-agent/pkg/collector/check/core/testing"
 	"github.com/k-sone/snmpgo"
 )
 

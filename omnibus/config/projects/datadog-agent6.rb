@@ -87,6 +87,11 @@ dependency 'preparation'
 
 # Checks core dependencies
 dependency 'requests'
+dependency 'psutil'
+dependency 'net-snmp'
+
+# Additional software
+dependency 'datadogpy'
 
 # Datadog agent
 dependency 'datadog-agent'

@@ -43,8 +43,10 @@ import (
 )
 
 const (
-	maxOIDLen   = 128
-	defaultPort = 161
+	maxOIDLen      = 128
+	defaultPort    = 161
+	nonRepeaters   = 0
+	maxRepetitions = 10
 )
 
 var once sync.Once
@@ -584,7 +586,8 @@ func (c *SNMPCheck) getSNMP() error {
 
 	if len(missingOIDs) > 0 {
 		log.Debugf("SNMP Walking...")
-		pdu, err := c.cfg.instance.snmp.GetBulkWalk(missingOIDs, 0, 10)
+		// See: https://www.snmpsharpnet.com/?page_id=30
+		pdu, err := c.cfg.instance.snmp.GetBulkWalk(missingOIDs, nonRepeaters, maxRepetitions)
 		if err != nil {
 			// Failed to request
 			log.Warnf("Error performing snmpget: %v", err)

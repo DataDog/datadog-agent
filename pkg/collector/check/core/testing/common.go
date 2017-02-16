@@ -11,6 +11,7 @@ type MockSender struct {
 	mock.Mock
 }
 
+//Rate adds a rate type to the mock calls.
 func (m *MockSender) Rate(metric string, value float64, hostname string, tags []string) {
 	m.Called(metric, value, hostname, tags)
 }
@@ -26,11 +27,6 @@ func (m *MockSender) MonotonicCount(metric string, value float64, hostname strin
 //Histogram adds a histogram type to the mock calls.
 func (m *MockSender) Histogram(metric string, value float64, hostname string, tags []string) {
 	m.Called(metric, value, hostname, tags)
-}
-
-//Commit checks if the mock got called
-func (m *MockSender) Commit() {
-	m.Called()
 }
 
 //Gauge adds a gauge type to the mock calls.
