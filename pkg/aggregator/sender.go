@@ -18,6 +18,7 @@ type Sender interface {
 	Commit()
 	Gauge(metric string, value float64, hostname string, tags []string)
 	Rate(metric string, value float64, hostname string, tags []string)
+	Count(metric string, value float64, hostname string, tags []string)
 	MonotonicCount(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
 }
@@ -103,6 +104,11 @@ func (s *checkSender) Gauge(metric string, value float64, hostname string, tags 
 // Rate implements the Sender interface
 func (s *checkSender) Rate(metric string, value float64, hostname string, tags []string) {
 	s.sendSample(metric, value, hostname, tags, RateType, "Rate")
+}
+
+// Count implements the Sender interface
+func (s *checkSender) Count(metric string, value float64, hostname string, tags []string) {
+	s.sendSample(metric, value, hostname, tags, CountType, "Count")
 }
 
 // MonotonicCount implements the Sender interface

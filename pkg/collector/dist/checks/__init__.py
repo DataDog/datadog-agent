@@ -40,6 +40,9 @@ class AgentCheck(object):
     def gauge(self, name, value, tags=None):
         aggregator.submit_data(self, aggregator.GAUGE, name, value, tags)
 
+    def count(self, name, value, tags=None):
+        aggregator.submit_data(self, aggregator.COUNT, name, value, tags)
+
     def monotonic_count(self, name, value, tags=None):
         aggregator.submit_data(self, aggregator.MONOTONIC_COUNT, name, value, tags)
 

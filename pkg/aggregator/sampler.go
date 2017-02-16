@@ -112,6 +112,8 @@ func (m Metrics) addSample(contextKey string, mType MetricType, value float64, t
 			m[contextKey] = &Gauge{}
 		case RateType:
 			m[contextKey] = &Rate{}
+		case CountType:
+			m[contextKey] = &Count{}
 		case MonotonicCountType:
 			m[contextKey] = &MonotonicCount{}
 		case HistogramType:

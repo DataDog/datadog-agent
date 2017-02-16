@@ -42,6 +42,8 @@ func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float,
 		sender.Gauge(_name, _value, "", _tags)
 	case C.RATE:
 		sender.Rate(_name, _value, "", _tags)
+	case C.COUNT:
+		sender.Count(_name, _value, "", _tags)
 	case C.MONOTONIC_COUNT:
 		sender.MonotonicCount(_name, _value, "", _tags)
 	case C.HISTOGRAM:
