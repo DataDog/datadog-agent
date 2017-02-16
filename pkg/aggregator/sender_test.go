@@ -90,6 +90,7 @@ func TestSenderInterface(t *testing.T) {
 	checkSender := newCheckSender(checkID1, senderSampleChan)
 	checkSender.Gauge("my.metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
+	checkSender.MonotonicCount("my.monotonic_count_metric", 12.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Commit()
 
@@ -102,6 +103,11 @@ func TestSenderInterface(t *testing.T) {
 	assert.EqualValues(t, checkID1, rateSenderSample.id)
 	assert.Equal(t, RateType, rateSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, rateSenderSample.commit)
+
+	monotonicCountSenderSample := <-senderSampleChan
+	assert.EqualValues(t, checkID1, monotonicCountSenderSample.id)
+	assert.Equal(t, MonotonicCountType, monotonicCountSenderSample.metricSample.Mtype)
+	assert.Equal(t, false, monotonicCountSenderSample.commit)
 
 	histoSenderSample := <-senderSampleChan
 	assert.EqualValues(t, checkID1, histoSenderSample.id)

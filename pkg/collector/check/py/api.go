@@ -38,10 +38,12 @@ func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float,
 	}
 
 	switch mt {
-	case C.RATE:
-		sender.Rate(_name, _value, "", _tags)
 	case C.GAUGE:
 		sender.Gauge(_name, _value, "", _tags)
+	case C.RATE:
+		sender.Rate(_name, _value, "", _tags)
+	case C.MONOTONIC_COUNT:
+		sender.MonotonicCount(_name, _value, "", _tags)
 	case C.HISTOGRAM:
 		sender.Histogram(_name, _value, "", _tags)
 	}

@@ -5,6 +5,7 @@ PyObject* SubmitData(PyObject*, MetricType, char*, float, PyObject*);
 char* MetricTypeNames[] = {
   "GAUGE",
   "RATE",
+  "MONOTONIC_COUNT",
   "HISTOGRAM"
 };
 

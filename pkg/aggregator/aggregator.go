@@ -111,7 +111,7 @@ func (agg *BufferedAggregator) run() {
 
 			payload, err := MarshalJSONSeries(series)
 			if err != nil {
-				log.Error("could not serialize series, droping it: %s", err)
+				log.Error("could not serialize series, dropping it:", err)
 				continue
 			}
 			agg.forwarder.SubmitV1Series(config.Datadog.GetString("api_key"), &payload)
