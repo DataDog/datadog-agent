@@ -25,7 +25,7 @@ func TestGaugeSampling(t *testing.T) {
 	assert.Len(t, series, 1)
 	assert.Len(t, series[0].Points, 1)
 	assert.InEpsilon(t, 2, series[0].Points[0].Value, epsilon)
-	assert.EqualValues(t, series[0].Points[0].Ts, 60)
+	assert.EqualValues(t, 60, series[0].Points[0].Ts)
 }
 
 func TestRateSampling(t *testing.T) {
@@ -44,7 +44,7 @@ func TestRateSampling(t *testing.T) {
 	assert.Len(t, series, 1)
 	assert.Len(t, series[0].Points, 1)
 	assert.InEpsilon(t, 0.2, series[0].Points[0].Value, epsilon)
-	assert.EqualValues(t, series[0].Points[0].Ts, 55)
+	assert.EqualValues(t, 55, series[0].Points[0].Ts)
 
 	// Second rate (should return error)
 	_, err = mRate2.flush(60)
@@ -66,7 +66,7 @@ func TestRateSamplingMultipleSamplesInSameFlush(t *testing.T) {
 	assert.Len(t, series, 1)
 	assert.Len(t, series[0].Points, 1)
 	assert.InEpsilon(t, 2./6., series[0].Points[0].Value, epsilon)
-	assert.EqualValues(t, series[0].Points[0].Ts, 61)
+	assert.EqualValues(t, 61, series[0].Points[0].Ts)
 }
 
 func TestRateSamplingNoSampleForOneFlush(t *testing.T) {
@@ -93,7 +93,7 @@ func TestRateSamplingNoSampleForOneFlush(t *testing.T) {
 	assert.Len(t, series, 1)
 	assert.Len(t, series[0].Points, 1)
 	assert.InEpsilon(t, 2./5., series[0].Points[0].Value, epsilon)
-	assert.EqualValues(t, series[0].Points[0].Ts, 60)
+	assert.EqualValues(t, 60, series[0].Points[0].Ts)
 }
 
 func TestRateSamplingSamplesAtSameTimestamp(t *testing.T) {
@@ -132,7 +132,7 @@ func TestMonotonicCountSampling(t *testing.T) {
 	assert.Nil(t, err)
 	if assert.Len(t, series, 1) && assert.Len(t, series[0].Points, 1) {
 		assert.InEpsilon(t, 6, series[0].Points[0].Value, epsilon)
-		assert.EqualValues(t, series[0].Points[0].Ts, 60)
+		assert.EqualValues(t, 60, series[0].Points[0].Ts)
 	}
 
 	// Flush w/o samples: error
@@ -160,7 +160,7 @@ func TestMonotonicCountSampling(t *testing.T) {
 		// should skip when counter is reset, i.e. between 12 and 10, and btw 20 and 13
 		// 15 = (12 - 11) + (20 - 10) + (17 - 13)
 		assert.InEpsilon(t, 15, series[0].Points[0].Value, epsilon)
-		assert.EqualValues(t, series[0].Points[0].Ts, 90)
+		assert.EqualValues(t, 90, series[0].Points[0].Ts)
 	}
 }
 
@@ -185,7 +185,7 @@ func TestDefaultHistogramSampling(t *testing.T) {
 	if assert.Len(t, series, 5) {
 		for _, serie := range series {
 			assert.Len(t, serie.Points, 1)
-			assert.EqualValues(t, serie.Points[0].Ts, 60)
+			assert.EqualValues(t, 60, serie.Points[0].Ts)
 		}
 		assert.InEpsilon(t, 10, series[0].Points[0].Value, epsilon)     // max
 		assert.Equal(t, ".max", series[0].nameSuffix)                   // max
@@ -226,7 +226,7 @@ func TestCustomHistogramSampling(t *testing.T) {
 		// Only 2 series are returned (the invalid aggregate is ignored)
 		for _, serie := range series {
 			assert.Len(t, serie.Points, 1)
-			assert.EqualValues(t, serie.Points[0].Ts, 60)
+			assert.EqualValues(t, 60, serie.Points[0].Ts)
 		}
 		assert.InEpsilon(t, 1, series[0].Points[0].Value, epsilon)            // min
 		assert.Equal(t, ".min", series[0].nameSuffix)                         // min
@@ -275,7 +275,7 @@ func TestHistogramPercentiles(t *testing.T) {
 	if assert.Len(t, series, 7) {
 		for _, serie := range series {
 			assert.Len(t, serie.Points, 1)
-			assert.EqualValues(t, serie.Points[0].Ts, 60)
+			assert.EqualValues(t, 60, serie.Points[0].Ts)
 		}
 		assert.InEpsilon(t, 100, series[0].Points[0].Value, epsilon)    // max
 		assert.Equal(t, ".max", series[0].nameSuffix)                   // max
