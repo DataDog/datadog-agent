@@ -82,8 +82,8 @@ func (s *checkSender) Commit() {
 	s.ssOut <- senderSample{s.id, &MetricSample{}, true}
 }
 
-func (s *checkSender) sendSample(metric string, value float64, hostname string, tags []string, mType MetricType, logMtype string) {
-	log.Debug(logMtype, " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+func (s *checkSender) sendSample(metric string, value float64, hostname string, tags []string, mType MetricType) {
+	log.Debug(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
 	metricSample := &MetricSample{
 		Name:       metric,
 		Value:      value,
@@ -98,25 +98,25 @@ func (s *checkSender) sendSample(metric string, value float64, hostname string, 
 
 // Gauge implements the Sender interface
 func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string) {
-	s.sendSample(metric, value, hostname, tags, GaugeType, "Gauge")
+	s.sendSample(metric, value, hostname, tags, GaugeType)
 }
 
 // Rate implements the Sender interface
 func (s *checkSender) Rate(metric string, value float64, hostname string, tags []string) {
-	s.sendSample(metric, value, hostname, tags, RateType, "Rate")
+	s.sendSample(metric, value, hostname, tags, RateType)
 }
 
 // Count implements the Sender interface
 func (s *checkSender) Count(metric string, value float64, hostname string, tags []string) {
-	s.sendSample(metric, value, hostname, tags, CountType, "Count")
+	s.sendSample(metric, value, hostname, tags, CountType)
 }
 
 // MonotonicCount implements the Sender interface
 func (s *checkSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
-	s.sendSample(metric, value, hostname, tags, MonotonicCountType, "MonotonicCount")
+	s.sendSample(metric, value, hostname, tags, MonotonicCountType)
 }
 
 // Histogram implements the Sender interface
 func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string) {
-	s.sendSample(metric, value, hostname, tags, HistogramType, "Histogram")
+	s.sendSample(metric, value, hostname, tags, HistogramType)
 }
