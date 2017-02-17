@@ -7,7 +7,7 @@ whitelist_file "bin/agent"
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  command 'rake build copyenv=false'
+  command 'rake build'
   copy('bin', install_dir)
 
   if debian?
