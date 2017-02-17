@@ -96,27 +96,28 @@ func (s *checkSender) sendSample(metric string, value float64, hostname string, 
 	s.ssOut <- senderSample{s.id, metricSample, false}
 }
 
-// Gauge implements the Sender interface
+// Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
 func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string) {
 	s.sendSample(metric, value, hostname, tags, GaugeType)
 }
 
-// Rate implements the Sender interface
+// Rate should be used to track the rate of a metric over each check run
 func (s *checkSender) Rate(metric string, value float64, hostname string, tags []string) {
 	s.sendSample(metric, value, hostname, tags, RateType)
 }
 
-// Count implements the Sender interface
+// Count should be used to count a number of events that occurred during the check run
 func (s *checkSender) Count(metric string, value float64, hostname string, tags []string) {
 	s.sendSample(metric, value, hostname, tags, CountType)
 }
 
-// MonotonicCount implements the Sender interface
+// MonotonicCount should be used to track the increase of a monotonic raw counter
 func (s *checkSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
 	s.sendSample(metric, value, hostname, tags, MonotonicCountType)
 }
 
-// Histogram implements the Sender interface
+// Histogram should be used to track the statistical distribution of a set of values during a check run
+// Should be called multiple times on the same (metric, hostname, tags) so that a distribution can be computed
 func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string) {
 	s.sendSample(metric, value, hostname, tags, HistogramType)
 }
