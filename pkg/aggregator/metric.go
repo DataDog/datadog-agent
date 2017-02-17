@@ -145,6 +145,35 @@ func (r *Rate) flush(timestamp int64) ([]*Serie, error) {
 	}, nil
 }
 
+// Count is used to count the number of events that occur between 2 flushes. Each sample's value is added
+// to the value that's flushed
+type Count struct {
+	value   float64
+	sampled bool
+}
+
+func (c *Count) addSample(sample float64, timestamp int64) {
+	c.value += sample
+	c.sampled = true
+}
+
+func (c *Count) flush(timestamp int64) ([]*Serie, error) {
+	value, sampled := c.value, c.sampled
+	c.value, c.sampled = 0, false
+
+	if !sampled {
+		return []*Serie{}, NoSerieError{}
+	}
+
+	return []*Serie{
+		&Serie{
+			// we use the timestamp passed to the flush
+			Points: []Point{{Ts: timestamp, Value: value}},
+			MType:  APICountType,
+		},
+	}, nil
+}
+
 // MonotonicCount tracks a raw counter, based on increasing counter values.
 // Samples that have a lower value than the previous sample are ignored (since it usually
 // means that the underlying raw counter has been reset).

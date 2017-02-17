@@ -85,11 +85,12 @@ func TestDestroySender(t *testing.T) {
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
 }
 
-func TestSenderInterface(t *testing.T) {
+func TestCheckSenderInterface(t *testing.T) {
 	senderSampleChan := make(chan senderSample, 10)
 	checkSender := newCheckSender(checkID1, senderSampleChan)
 	checkSender.Gauge("my.metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
+	checkSender.Count("my.count_metric", 123.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.MonotonicCount("my.monotonic_count_metric", 12.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Commit()
@@ -103,6 +104,11 @@ func TestSenderInterface(t *testing.T) {
 	assert.EqualValues(t, checkID1, rateSenderSample.id)
 	assert.Equal(t, RateType, rateSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, rateSenderSample.commit)
+
+	countSenderSample := <-senderSampleChan
+	assert.EqualValues(t, checkID1, countSenderSample.id)
+	assert.Equal(t, CountType, countSenderSample.metricSample.Mtype)
+	assert.Equal(t, false, countSenderSample.commit)
 
 	monotonicCountSenderSample := <-senderSampleChan
 	assert.EqualValues(t, checkID1, monotonicCountSenderSample.id)
