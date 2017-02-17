@@ -184,7 +184,7 @@ namespace :agent do
         overrides_cmd = "--override=" + overrides.join(" ")
       end
 
-      system("omnibus build agent --log-level=#{log_level} #{overrides_cmd}")
+      system(build_env, "omnibus build agent --log-level=#{log_level} #{overrides_cmd}")
     end
   end
 
