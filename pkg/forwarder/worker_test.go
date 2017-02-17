@@ -2,8 +2,10 @@ package forwarder
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -14,6 +16,17 @@ func TestNewWorker(t *testing.T) {
 	w := NewWorker(input, requeue)
 	assert.NotNil(t, w)
 	assert.Equal(t, w.Client.Timeout, httpTimeout)
+}
+
+func TestNewNoSSLWorker(t *testing.T) {
+	input := make(chan Transaction)
+	requeue := make(chan Transaction)
+
+	config.Datadog.Set("skip_ssl_validation", true)
+	defer config.Datadog.Set("skip_ssl_validation", false)
+
+	w := NewWorker(input, requeue)
+	assert.True(t, w.Client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 }
 
 func TestWorkerStart(t *testing.T) {

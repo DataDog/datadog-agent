@@ -1,6 +1,7 @@
 package forwarder
 
 import (
+	"crypto/tls"
 	"net/http"
 	"net/url"
 	"time"
@@ -30,8 +31,10 @@ type Worker struct {
 // and push back erroneous ones into requeueChan.
 func NewWorker(inputChan chan Transaction, requeueChan chan Transaction) *Worker {
 
-	httpClient := &http.Client{
-		Timeout: httpTimeout,
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
+		},
 	}
 
 	if confProxy := config.Datadog.GetString("proxy"); confProxy != "" {
@@ -48,8 +51,13 @@ func NewWorker(inputChan chan Transaction, requeueChan chan Transaction) *Worker
 			}
 
 			log.Infof("Using proxy from configuration over ENV: %s://%s%s", proxyURL.Scheme, userInfo, proxyURL.Host)
-			httpClient.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+			transport.Proxy = http.ProxyURL(proxyURL)
 		}
+	}
+
+	httpClient := &http.Client{
+		Timeout:   httpTimeout,
+		Transport: transport,
 	}
 
 	return &Worker{
