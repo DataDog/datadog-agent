@@ -1,10 +1,9 @@
-name 'datadog-agent'
+name "datadog-agent"
 
-dependency 'python'
+source path: ".."
 
-source path: '..'
-
-relative_path 'datadog-agent'
+relative_path "datadog-agent"
+whitelist_file "bin/agent"
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'

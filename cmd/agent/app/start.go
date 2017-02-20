@@ -90,6 +90,7 @@ func start(cmd *cobra.Command, args []string) {
 
 	// Initialize the CPython interpreter
 	state := py.Initialize(common.DistPath, filepath.Join(common.DistPath, "checks"))
+	log.Infof("Python interpreter: %s", py.GetInterpreterVersion())
 
 	// Get a list of config checks from the configured providers
 	var configs []check.Config

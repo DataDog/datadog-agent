@@ -1,5 +1,9 @@
 #! /bin/sh
 
-BASEPATH=/opt/datadog-agent6/embedded/lib/python2.7/
 DIRPATH=`dirname $0`
-PYTHONPATH=$BASEPATH:$BASEPATH/site-packages/:$BASEPATH/lib-dynload/ $DIRPATH/agent.bin "$@"
+PYTHONHOME=$DIRPATH/dist/python
+
+export LD_LIBRARY_PATH=$PYTHONHOME/lib:$LD_LIBRARY_PATH
+export PYTHONHOME=$PYTHONHOME
+
+$DIRPATH/agent.bin "$@"

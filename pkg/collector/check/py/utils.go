@@ -87,3 +87,19 @@ func getModuleName(modulePath string) string {
 	// no need to check toks length, worst case it contains only an empty string
 	return toks[len(toks)-1]
 }
+
+// GetInterpreterVersion should go in `go-python`, TODO.
+func GetInterpreterVersion() string {
+	// Lock the GIL and release it at the end of the run
+	_gstate := python.PyGILState_Ensure()
+	defer func() {
+		python.PyGILState_Release(_gstate)
+	}()
+
+	res := C.Py_GetVersion()
+	if res == nil {
+		return ""
+	}
+	versionStr := C.GoString(res)
+	return versionStr
+}

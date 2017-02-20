@@ -1,6 +1,6 @@
-prefix=C:/Python27
+prefix=C:/Users/massi/Miniconda2/envs/datadog-agent
 exec_prefix=${prefix}
-libdir=${exec_prefix}/libs
+libdir=${exec_prefix}
 includedir=${prefix}/include
 
 Name: Python

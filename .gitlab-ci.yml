@@ -18,6 +18,8 @@ before_script:
   # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
+  - rake py
+  - source activate datadog-agent
   - rake deps
 
 # run tests for deb-x64
@@ -26,10 +28,8 @@ run_tests_deb-x64:
   image: $DEB_X64
   tags:
     - docker
-  variables:
-    # No need to use the embedded python built with omnibus to run tests.
-    USE_SYSTEM_PY: "1"
   script:
+    - source activate datadog-agent
     - rake test
 
 # build the package for deb-x64
@@ -61,9 +61,8 @@ run_test_rpm-x64:
   image: $RPM_X64
   tags:
     - docker
-  variables:
-    USE_SYSTEM_PY: "1"
   script:
+    - source activate datadog-agent
     - rake test
 
 # TODO: build the package for rpm-x64
