@@ -48,7 +48,7 @@ end
 def env_definition_path
   case os
   when "windows"
-    "https://gist.githubusercontent.com/masci/d6413e9f501d7fecad52b8fdbf80117b/raw/81c45dab04b2975e9ec9850cb6c9942d592bf003/datadog-agent-win.yaml"
+    "https://gist.githubusercontent.com/masci/d6413e9f501d7fecad52b8fdbf80117b/raw/ce8cea77dc1b3a1399ac3ba5d2b2c87ed7904dab/datadog-agent.yaml"
   else
     "https://gist.githubusercontent.com/masci/6351be014f6950e0f9918c3337034e40/raw/537a53f0ac072c180eca8e475fb6f3ef5bd735e5/datadog-agent.yaml"
   end
@@ -80,7 +80,11 @@ task default: %w[agent:build]
 
 desc "Setup the UPE with Conda"
 task :py do
-  system("curl -sSO #{env_definition_path}")
+  res = system("curl -sSO #{env_definition_path}")
+  puts "curl -sSO #{env_definition_path}"
+  if res != true
+    fail "Unable to download definition file at #{env_definition_path}"
+  end
   system("conda env create --force -q -f datadog-agent.yaml")
 end
 
