@@ -1,5 +1,6 @@
 @echo off
-set PYTHONHOME=dist\python
+set DIRNAME=%~dp0%
+set PYTHONHOME=%DIRNAME%\dist\python
 set PATH=%PYTHONHOME%;%PATH%
 
-agent.exe  %*
+%DIRNAME%\agent.exe  %*

@@ -39,7 +39,7 @@ end
 def pkg_config_libdir
   case os
   when "windows"
-    "./cmd/agent/build/win"
+    Dir.pwd + '/cmd/agent/build/win'
   else
     return libdir + "/pkgconfig"
   end
@@ -81,7 +81,6 @@ task default: %w[agent:build]
 desc "Setup the UPE with Conda"
 task :py do
   res = system("curl -sSO #{env_definition_path}")
-  puts "curl -sSO #{env_definition_path}"
   if res != true
     fail "Unable to download definition file at #{env_definition_path}"
   end
@@ -165,8 +164,13 @@ namespace :agent do
     end
 
     # setup the entrypoint script at the root bin folder
-    FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
-    FileUtils.chmod(0755, "#{BIN_PATH}/agent")
+    case os
+    when "windows"
+      FileUtils.mv("#{BIN_PATH}/dist/agent.bat", "#{BIN_PATH}/agent.bat")
+    else
+      FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
+      FileUtils.chmod(0755, "#{BIN_PATH}/agent")
+    end
   end
 
   desc "Run the agent"
