@@ -9,6 +9,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	python "github.com/sbinet/go-python"
 )
 
@@ -27,6 +29,7 @@ type Collector struct {
 	scheduler  *scheduler.Scheduler
 	runner     *check.Runner
 	aggregator *aggregator.BufferedAggregator
+	forwarder  *forwarder.Forwarder
 	pyState    *python.PyThreadState
 	checks     map[check.ID]check.Check
 	state      uint32
@@ -50,11 +53,20 @@ func (c *Collector) Start(paths ...string) {
 		return
 	}
 
+	// for now we handle only one key and one domain
+	keysPerDomain := map[string][]string{
+		config.Datadog.GetString("dd_url"): {
+			config.Datadog.GetString("api_key"),
+		},
+	}
+	c.forwarder = forwarder.NewForwarder(keysPerDomain)
+	c.forwarder.Start()
+
 	runner := check.NewRunner(NumRunnerWorkers)
 	c.scheduler = scheduler.NewScheduler(runner.GetChan())
 	c.runner = runner
 	c.pyState = py.Initialize(paths...)
-	c.aggregator = aggregator.GetAggregator()
+	c.aggregator = aggregator.InitAggregator(c.forwarder)
 
 	c.scheduler.Run()
 	c.state = started
@@ -74,6 +86,8 @@ func (c *Collector) Stop() {
 	c.runner = nil
 	c.scheduler.Stop()
 	c.scheduler = nil
+	c.forwarder.Stop()
+	c.forwarder = nil
 	python.PyEval_RestoreThread(c.pyState)
 	c.pyState = nil
 	// aggregator has no stop/shutdown function
