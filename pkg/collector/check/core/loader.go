@@ -32,7 +32,6 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	factory, found := catalog[config.Name]
 	if !found {
 		msg := fmt.Sprintf("Check %s not found in Catalog", config.Name)
-		log.Warn(msg)
 		return checks, fmt.Errorf(msg)
 	}
 

@@ -10,9 +10,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
@@ -84,8 +86,22 @@ func start(cmd *cobra.Command, args []string) {
 	// start the cmd HTTP server
 	api.StartServer()
 
-	// create the Collector instance
-	common.Collector = collector.NewCollector()
+	// setup the forwarder
+	// for now we handle only one key and one domain
+	keysPerDomain := map[string][]string{
+		config.Datadog.GetString("dd_url"): {
+			config.Datadog.GetString("api_key"),
+		},
+	}
+	fwd := forwarder.NewForwarder(keysPerDomain)
+	fwd.Start()
+
+	// setup the aggregator
+	aggregator.InitAggregator(fwd)
+
+	// create the Collector instance and start all the components
+	// NOTICE: this will also setup the Python environment
+	common.Collector = collector.NewCollector(common.DistPath, filepath.Join(common.DistPath, "checks"))
 
 	// Get a list of config checks from the configured providers
 	var configs []check.Config
@@ -100,17 +116,19 @@ func start(cmd *cobra.Command, args []string) {
 	for _, conf := range configs {
 		for _, loader := range loaders {
 			res, err := loader.Load(conf)
-			if err == nil {
-				for _, check := range res {
-					common.Collector.RunCheck(check)
+			if err != nil {
+				log.Warnf("Unable to load the check '%s' from the configuration: %s", conf.Name, err)
+				continue
+			}
+
+			for _, check := range res {
+				err := common.Collector.RunCheck(check)
+				if err != nil {
+					log.Warnf("Unable to run check %v: %s", check, err)
 				}
 			}
 		}
 	}
-
-	// Start collecting metrics
-	// this will also setup the Python environment
-	common.Collector.Start(common.DistPath, filepath.Join(common.DistPath, "checks"))
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
