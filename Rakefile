@@ -121,12 +121,14 @@ task :test => %w[fmt lint vet] do
   PROFILE = "profile.cov"  # collect global coverage data in this file
   `echo "mode: count" > #{PROFILE}`
 
+  test_env = build_env
+  test_env["PYTHONHOME"] = condapath
   TARGETS.each do |t|
     Dir.glob("#{t}/**/*").select {|f| File.directory? f }.each do |pkg_folder|  # recursively search for go packages
       next if Dir.glob(File.join(pkg_folder, "*.go")).length == 0  # folder is a package if contains go modules
       profile_tmp = "#{pkg_folder}/profile.tmp"  # temp file to collect coverage data
 
-      system(build_env, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
+      system(test_env, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
       if File.file?(profile_tmp)
         `cat #{profile_tmp} | tail -n +2 >> #{PROFILE}`
         File.delete(profile_tmp)
