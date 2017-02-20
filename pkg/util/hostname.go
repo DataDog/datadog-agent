@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"net"
 	"regexp"
 	"strings"
 )
@@ -42,4 +43,27 @@ func isLocal(name string) bool {
 		}
 	}
 	return false
+}
+
+// Fqdn returns the FQDN for the host if any
+func Fqdn(hostname string) string {
+	addrs, err := net.LookupIP(hostname)
+	if err != nil {
+		return hostname
+	}
+
+	for _, addr := range addrs {
+		if ipv4 := addr.To4(); ipv4 != nil {
+			ip, err := ipv4.MarshalText()
+			if err != nil {
+				return hostname
+			}
+			hosts, err := net.LookupAddr(string(ip))
+			if err != nil || len(hosts) == 0 {
+				return hostname
+			}
+			return hosts[0]
+		}
+	}
+	return hostname
 }
