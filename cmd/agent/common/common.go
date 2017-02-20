@@ -5,20 +5,15 @@ package common
 import (
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/kardianos/osext"
 )
 
 var (
+	// Collector is the global object orchestrating check runs
+	Collector *collector.Collector
 	// Stopper is the channel used by other packages to ask for stopping the agent
 	Stopper = make(chan bool)
-
-	// AgentRunner is the current global checks Runner
-	AgentRunner *check.Runner
-
-	// AgentScheduler is the current global Scheduler
-	AgentScheduler *scheduler.Scheduler
 
 	// utility variables
 	_here, _ = osext.ExecutableFolder()

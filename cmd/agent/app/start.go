@@ -1,25 +1,21 @@
 package app
 
 import (
+	"path/filepath"
 	"syscall"
 
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
-	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
-	python "github.com/sbinet/go-python"
 	"github.com/spf13/cobra"
 )
 
@@ -88,8 +84,8 @@ func start(cmd *cobra.Command, args []string) {
 	// start the cmd HTTP server
 	api.StartServer()
 
-	// Initialize the CPython interpreter
-	state := py.Initialize(common.DistPath, filepath.Join(common.DistPath, "checks"))
+	// create the Collector instance
+	common.Collector = collector.NewCollector()
 
 	// Get a list of config checks from the configured providers
 	var configs []check.Config
@@ -97,25 +93,6 @@ func start(cmd *cobra.Command, args []string) {
 		c, _ := provider.Collect()
 		configs = append(configs, c...)
 	}
-
-	// Get a Runner instance
-	common.AgentRunner = check.NewRunner(config.Datadog.GetInt("check_runners"))
-
-	// Instance the scheduler
-	common.AgentScheduler = scheduler.NewScheduler(common.AgentRunner.GetChan())
-
-	// for now we handle only one key and one domain
-	keysPerDomain := map[string][]string{
-		config.Datadog.GetString("dd_url"): {
-			config.Datadog.GetString("api_key"),
-		},
-	}
-
-	f := forwarder.NewForwarder(keysPerDomain)
-	f.Start()
-
-	// Instance the Aggregator
-	_ = aggregator.InitAggregator(f)
 
 	// given a list of configurations, try to load corresponding checks using different loaders
 	// TODO add check type to the conf file so that we avoid the inner for
@@ -125,14 +102,15 @@ func start(cmd *cobra.Command, args []string) {
 			res, err := loader.Load(conf)
 			if err == nil {
 				for _, check := range res {
-					common.AgentScheduler.Enter(check)
+					common.Collector.RunCheck(check)
 				}
 			}
 		}
 	}
 
-	// Run the scheduler
-	common.AgentScheduler.Run()
+	// Start collecting metrics
+	// this will also setup the Python environment
+	common.Collector.Start(common.DistPath, filepath.Join(common.DistPath, "checks"))
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -152,10 +130,7 @@ func start(cmd *cobra.Command, args []string) {
 
 teardown:
 	// gracefully shut down any component
-	common.AgentRunner.Stop()
-	common.AgentScheduler.Stop()
-	f.Stop()
-	python.PyEval_RestoreThread(state)
+	common.Collector.Stop()
 	api.StopServer()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")

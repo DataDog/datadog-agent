@@ -90,28 +90,29 @@ func (r *Runner) GetChan() chan<- Check {
 	return r.pending
 }
 
-// StopCheck invokes the `Stop` method on a check if it's running
-func (r *Runner) StopCheck(id ID) (stopped bool, err error) {
+// StopCheck invokes the `Stop` method on a check if it's running. If the check
+// is not running, this is a noop
+func (r *Runner) StopCheck(id ID) error {
 	done := make(chan bool)
 
 	r.m.Lock()
+	defer r.m.Unlock()
+
 	if c, isRunning := r.runningChecks[id]; isRunning {
 		log.Debugf("Stopping check %s", c)
 		go func() {
 			c.Stop()
 			close(done)
 		}()
-		r.m.Unlock()
 	} else {
-		r.m.Unlock()
-		return false, nil
+		return nil
 	}
 
 	select {
 	case <-done:
-		return true, nil
+		return nil
 	case <-time.After(stopCheckTimeout):
-		return false, fmt.Errorf("timeout during stop operation on check id %s", id)
+		return fmt.Errorf("timeout during stop operation on check id %s", id)
 	}
 }
 
