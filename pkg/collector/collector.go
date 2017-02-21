@@ -8,12 +8,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	python "github.com/sbinet/go-python"
-)
-
-const (
-	// NumRunnerWorkers is the number of workers the Runner should spawn
-	NumRunnerWorkers = 4
 )
 
 const (
@@ -33,7 +29,7 @@ type Collector struct {
 
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
-	run := check.NewRunner(NumRunnerWorkers)
+	run := check.NewRunner(config.Datadog.GetInt("check_runners"))
 	sched := scheduler.NewScheduler(run.GetChan())
 	sched.Run()
 
