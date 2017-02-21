@@ -70,10 +70,20 @@ task :vet do
   end
 end
 
-desc "Run testsuite"
+desc "Run testsuite, pass 'race=true' to invoke the race detector"
 task :test => %w[fmt lint vet] do
   PROFILE = "profile.cov"  # collect global coverage data in this file
   `echo "mode: count" > #{PROFILE}`
+  covermode_opt = "-covermode=count"
+
+  # -race option
+  race_opt = ENV['race'] == "true" ? "-race" : ""
+  if race_opt != ""
+    # atomic is quite expensive but it's the only way to run
+    # both the coverage and the race detector at the same time
+    # without getting false positives from the cover counter
+    covermode_opt = "-covermode=atomic"
+  end
 
   TARGETS.each do |t|
     Dir.glob("#{t}/**/*").select {|f| File.directory? f }.each do |pkg_folder|  # recursively search for go packages
@@ -87,7 +97,7 @@ task :test => %w[fmt lint vet] do
         env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
       end
 
-      system(env, "go test -short -covermode=count -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
+      system(env, "go test #{race_opt} -short #{covermode_opt} -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
       if File.file?(profile_tmp)
         `cat #{profile_tmp} | tail -n +2 >> #{PROFILE}`
         File.delete(profile_tmp)
@@ -121,8 +131,11 @@ namespace :agent do
   BIN_PATH="./bin/agent"
   CLOBBER.include(BIN_PATH)
 
-  desc "Build the agent"
+  desc "Build the agent, pass 'race=true' to invoke the race detector"
   task :build do
+    # -race option
+    race_opt = ENV['race'] == "true" ? "-race" : ""
+
     # Check if we should use Embedded or System Python,
     # default to the embedded one.
     env = {}
@@ -130,7 +143,7 @@ namespace :agent do
       env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
     end
 
-    system(env, "go build -o #{BIN_PATH}/#{agent_bin_name} #{REPO_PATH}/cmd/agent")
+    system(env, "go build #{race_opt} -o #{BIN_PATH}/#{exe_name} #{REPO_PATH}/cmd/agent")
     Rake::Task["agent:refresh_assets"].invoke
   end
 
