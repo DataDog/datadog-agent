@@ -16,3 +16,19 @@ api_key:
 
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
+
+# ========================================================================== #
+# DogStatsd configuration                                                    #
+# ========================================================================== #
+
+# If you don't want to enable the DogStatsd server, set this option to no
+# use_dogstatsd: yes
+
+# DogStatsd is a small server that aggregates your custom app metrics. For
+# usage information, check out http://api.datadoghq.com
+
+# Make sure your client is sending to the same port.
+# dogstatsd_port : 8125
+#
+# The buffer size use to receive statsd packet (defaults 1024)
+# dogstatsd_buffer_size: 1024

@@ -1,45 +1,76 @@
 package dogstatsd
 
 import (
+	"fmt"
 	"net"
+	"strings"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// RunServer starts and run a dogstatsd server
-func RunServer(out chan *aggregator.MetricSample) {
-	address, _ := net.ResolveUDPAddr("udp", "localhost:8126") // TODO: configurable bind address
-	serverConn, err := net.ListenUDP("udp", address)
-	log.Infof("listening on %s", address)
-	defer serverConn.Close()
+// Server represent a Dogstatsd server
+type Server struct {
+	conn    *net.UDPConn
+	Started bool
+}
 
+// NewServer returns a running Dogstatsd server
+func NewServer(out chan *aggregator.MetricSample) *Server {
+	url := fmt.Sprintf("localhost:%d", config.Datadog.GetInt("dogstatsd_port"))
+	address, _ := net.ResolveUDPAddr("udp", url)
+	conn, err := net.ListenUDP("udp", address)
 	if err != nil {
-		log.Criticalf("Can't listen: %s", err)
+		log.Criticalf("dogstatsd: can't listen: %s", err)
 	}
 
+	s := &Server{
+		Started: true,
+		conn:    conn,
+	}
+	go s.handleMessages(out)
+	log.Infof("dogstatsd: listening on %s", address)
+	return s
+}
+
+func (s *Server) handleMessages(out chan *aggregator.MetricSample) {
 	for {
-		buf := make([]byte, 1024) // TODO: configurable
-		n, _, err := serverConn.ReadFromUDP(buf)
+		buf := make([]byte, config.Datadog.GetInt("dogstatsd_buffer_size"))
+		n, _, err := s.conn.ReadFromUDP(buf)
 		if err != nil {
-			log.Error("Error reading packet")
+			// connection has been closed
+			if strings.HasSuffix(err.Error(), " use of closed network connection") {
+				return
+			}
+
+			log.Error("dogstatsd: error reading packet: %v", err)
 			continue
 		}
 
 		datagram := buf[:n]
 
-		for {
-			sample, err := nextMetric(&datagram)
-			if err != nil {
-				log.Errorf("Error parsing datagram: %s", err)
-				continue
-			}
+		go func() {
+			for {
+				sample, err := nextMetric(&datagram)
+				if err != nil {
+					log.Errorf("dogstatsd: error parsing datagram: %s", err)
+					continue
+				}
 
-			if sample == nil {
-				break
-			}
+				if sample == nil {
+					break
+				}
 
-			out <- sample
-		}
+				out <- sample
+			}
+		}()
 	}
+}
+
+// Stop stops a running Dogstatsd server
+func (s *Server) Stop() {
+	s.conn.Close()
+	s.Started = false
 }

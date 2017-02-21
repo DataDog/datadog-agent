@@ -1,8 +1,12 @@
 package main
 
 import (
-	// "fmt"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -27,5 +31,17 @@ func main() {
 	f.Start()
 
 	aggregatorInstance := aggregator.InitAggregator(f)
-	dogstatsd.RunServer(aggregatorInstance.GetChannel())
+	statsd := dogstatsd.NewServer(aggregatorInstance.GetChannel())
+
+	// Setup a channel to catch OS signals
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+
+	// Block here until we receive the interrupt signal
+	<-signalCh
+
+	statsd.Stop()
+	log.Info("See ya!")
+	log.Flush()
+	os.Exit(0)
 }
