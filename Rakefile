@@ -14,12 +14,21 @@ def os
   end
 end
 
-def exe_name
+def agent_bin_name
   case os
   when "windows"
     "agent.exe"
   else
     "agent.bin"
+  end
+end
+
+def dogstatsd_bin_name
+  case os
+  when "windows"
+    "dogstatsd.exe"
+  else
+    "dogstatsd"
   end
 end
 
@@ -90,7 +99,23 @@ task :test => %w[fmt lint vet] do
 end
 
 desc "Build allthethings"
-task build: %w[agent:build]
+task build: %w[agent:build dogstatsd:build]
+
+namespace :dogstatsd do
+  DOGSTATSD_BIN_PATH="./bin/dogstatsd"
+  CLOBBER.include(DOGSTATSD_BIN_PATH)
+
+  desc "Build Dogstatsd"
+  task :build do
+    system("go build -o #{DOGSTATSD_BIN_PATH}/#{dogstatsd_bin_name} #{REPO_PATH}/cmd/dogstatsd/")
+  end
+
+  desc "Run Dogstatsd"
+  task :run => %w[dogstatsd:build] do
+    system("#{DOGSTATSD_BIN_PATH}/dogstatsd")
+  end
+end
+
 
 namespace :agent do
   BIN_PATH="./bin/agent"
@@ -105,7 +130,7 @@ namespace :agent do
       env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
     end
 
-    system(env, "go build -o #{BIN_PATH}/#{exe_name} #{REPO_PATH}/cmd/agent")
+    system(env, "go build -o #{BIN_PATH}/#{agent_bin_name} #{REPO_PATH}/cmd/agent")
     Rake::Task["agent:refresh_assets"].invoke
   end
 
