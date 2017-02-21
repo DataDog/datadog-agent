@@ -14,6 +14,9 @@ func init() {
 	Datadog.SetDefault("dd_url", "http://localhost:17123")
 	Datadog.SetDefault("hostname", "")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
+	Datadog.SetDefault("use_dogstatsd", true)
+	Datadog.SetDefault("dogstatsd_port", 8125)
+	Datadog.SetDefault("dogstatsd_buffer_size", 1024)
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")

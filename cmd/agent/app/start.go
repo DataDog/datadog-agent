@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -97,7 +98,13 @@ func start(cmd *cobra.Command, args []string) {
 	fwd.Start()
 
 	// setup the aggregator
-	aggregator.InitAggregator(fwd)
+	agg := aggregator.InitAggregator(fwd)
+
+	// start dogstatsd
+	var statsd *dogstatsd.Server
+	if config.Datadog.GetBool("use_dogstatsd") {
+		statsd = dogstatsd.NewServer(agg.GetChannel())
+	}
 
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment
@@ -143,6 +150,9 @@ func start(cmd *cobra.Command, args []string) {
 	}
 
 	// gracefully shut down any component
+	if statsd != nil {
+		statsd.Stop()
+	}
 	common.Collector.Stop()
 	api.StopServer()
 	os.Remove(pidfilePath)
