@@ -29,6 +29,10 @@ import:
   subpackages:
   - client
 - package: github.com/DataDog/zstd
-- package: github.com/gogo/protobuf/proto
+- package: github.com/gogo/protobuf
+  subpackages:
+  - proto
 - package: github.com/DataDog/agent-payload
   version: ^1.0
+- package: github.com/patrickmn/go-cache
+  version: ^2.0.0

@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	cache "github.com/patrickmn/go-cache"
 	python "github.com/sbinet/go-python"
 )
 
@@ -16,6 +18,14 @@ const (
 	stopped uint32 = iota
 	started
 )
+
+const (
+	defaultCacheExpire = 5 * time.Minute
+	defaultCachePurge  = 30 * time.Second
+)
+
+// Cache provides an in-memory key:value store similar to memcached
+var Cache = cache.New(defaultCacheExpire, defaultCachePurge)
 
 // Collector abstract common operations about running a Check
 type Collector struct {
