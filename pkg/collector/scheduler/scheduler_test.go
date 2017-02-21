@@ -61,45 +61,46 @@ func TestEnter(t *testing.T) {
 	assert.Nil(t, err)
 
 	// schedule one check, one interval
-	c.intl = 1
+	c.intl = 1 * time.Second
 	s.Enter(c)
 	assert.Len(t, s.jobQueues, 1)
-	assert.Len(t, s.jobQueues[1].jobs, 1)
+	assert.Len(t, s.jobQueues[c.intl].jobs, 1)
 
 	// schedule another, same interval
-	c = &TestCheck{intl: 1}
+	c = &TestCheck{intl: c.intl}
 	s.Enter(c)
 	assert.Len(t, s.jobQueues, 1)
-	assert.Len(t, s.jobQueues[1].jobs, 2)
+	assert.Len(t, s.jobQueues[c.intl].jobs, 2)
 
 	// schedule again the previous plus another with different interval
 	s.Enter(c)
-	c = &TestCheck{intl: 20}
+	c = &TestCheck{intl: 20 * time.Second}
 	s.Enter(c)
 	assert.Len(t, s.jobQueues, 2)
-	assert.Len(t, s.jobQueues[1].jobs, 3)
-	assert.Len(t, s.jobQueues[20].jobs, 1)
+	assert.Len(t, s.jobQueues[1*time.Second].jobs, 3)
+	assert.Len(t, s.jobQueues[c.intl].jobs, 1)
 }
 
 func TestCancel(t *testing.T) {
-	c := &TestCheck{intl: 1}
+	c := &TestCheck{intl: 1 * time.Second}
 	s := getScheduler()
 	defer s.Stop()
 
 	s.Enter(c)
 	s.Run()
 	s.Cancel(c.ID())
-	assert.Len(t, s.jobQueues[1].jobs, 0)
+	assert.Len(t, s.jobQueues[c.intl].jobs, 0)
 }
 
 func TestRun(t *testing.T) {
 	s := getScheduler()
 	defer s.Stop()
 
-	s.Enter(&TestCheck{intl: 100})
+	intl := 1 * time.Second
+	s.Enter(&TestCheck{intl: intl})
 	s.Run()
 	assert.Equal(t, uint32(1), s.running)
-	assert.True(t, s.jobQueues[100].running)
+	assert.True(t, s.jobQueues[intl].running)
 
 	// Calling Run again should be a non blocking, noop procedure
 	s.Run()
@@ -107,13 +108,13 @@ func TestRun(t *testing.T) {
 
 func TestStop(t *testing.T) {
 	s := getScheduler()
-	s.Enter(&TestCheck{intl: 10})
+	s.Enter(&TestCheck{intl: 10 * time.Second})
 	s.Run()
 
 	err := s.Stop()
 	assert.Nil(t, err)
 	assert.Equal(t, uint32(0), s.running)
-	assert.False(t, s.jobQueues[10].running)
+	assert.False(t, s.jobQueues[10*time.Second].running)
 
 	// stopping again should be non blocking, noop and return nil
 	assert.Nil(t, s.Stop())
@@ -135,16 +136,22 @@ func TestStopTimeout(t *testing.T) {
 
 func TestReload(t *testing.T) {
 	s := getScheduler()
-	s.Enter(&TestCheck{intl: 10})
+	s.Enter(&TestCheck{intl: 10 * time.Second})
 	s.Run()
 
 	// add a queue to check the reload picks it up
-	s.Enter(&TestCheck{intl: 1})
+	s.Enter(&TestCheck{intl: 1 * time.Second})
 
 	err := s.Reload()
 	assert.Nil(t, err)
 
 	// check the scheduler is up again with the new queue running
 	assert.Equal(t, uint32(1), s.running)
-	assert.True(t, s.jobQueues[1].running)
+	assert.True(t, s.jobQueues[1*time.Second].running)
+}
+
+func TestTinyInterval(t *testing.T) {
+	s := getScheduler()
+	err := s.Enter(&TestCheck{intl: 1 * time.Millisecond})
+	assert.NotNil(t, err)
 }

@@ -12,6 +12,7 @@ import (
 )
 
 const defaultTimeout time.Duration = 5 * time.Second
+const minAllowedInterval time.Duration = 1 * time.Second
 
 // Scheduler keeps things rolling.
 // More docs to come...
@@ -42,10 +43,6 @@ func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
 // Enter schedules a `Check`s for execution accordingly to the `Check.Interval()` value.
 // If the interval is 0, the check is supposed to run only once.
 func (s *Scheduler) Enter(check check.Check) error {
-	if check.Interval() < 0 {
-		return fmt.Errorf("Schedule interval must be a positive integer or 0")
-	}
-
 	// send immediately to the checks Pipe if this is a one-time schedule
 	// do not block, in case the runner has not started
 	if check.Interval() == 0 {
@@ -54,6 +51,10 @@ func (s *Scheduler) Enter(check check.Check) error {
 			s.checksPipe <- check
 		}()
 		return nil
+	}
+
+	if check.Interval() < minAllowedInterval {
+		return fmt.Errorf("Schedule interval must be greater than %v or 0", minAllowedInterval)
 	}
 
 	log.Infof("Scheduling check %v with an interval of %v", check, check.Interval())
