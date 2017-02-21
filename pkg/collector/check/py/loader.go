@@ -63,7 +63,6 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		// we don't expect a traceback here so we use the error msg in `pvalue`
 		_, pvalue, _ := python.PyErr_Fetch()
 		msg := python.PyString_AsString(pvalue)
-		log.Warn(msg)
 		return checks, errors.New(msg)
 	}
 
@@ -71,7 +70,6 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checkClass := findSubclassOf(cl.agentCheckClass, checkModule)
 	if checkClass == nil {
 		msg := fmt.Sprintf("Unable to find a check class in the module: %v", python.PyString_AS_STRING(checkModule.Str()))
-		log.Warnf(msg)
 		return checks, errors.New(msg)
 	}
 

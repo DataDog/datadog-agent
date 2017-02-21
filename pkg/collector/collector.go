@@ -5,12 +5,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	python "github.com/sbinet/go-python"
 )
 
@@ -26,50 +23,27 @@ const (
 
 // Collector abstract common operations about running a Check
 type Collector struct {
-	scheduler  *scheduler.Scheduler
-	runner     *check.Runner
-	aggregator *aggregator.BufferedAggregator
-	forwarder  *forwarder.Forwarder
-	pyState    *python.PyThreadState
-	checks     map[check.ID]check.Check
-	state      uint32
-	m          sync.RWMutex
+	scheduler *scheduler.Scheduler
+	runner    *check.Runner
+	pyState   *python.PyThreadState
+	checks    map[check.ID]check.Check
+	state     uint32
+	m         sync.RWMutex
 }
 
 // NewCollector create a Collector instance and sets up the Python Environment
-func NewCollector() *Collector {
+func NewCollector(paths ...string) *Collector {
+	run := check.NewRunner(NumRunnerWorkers)
+	sched := scheduler.NewScheduler(run.GetChan())
+	sched.Run()
+
 	return &Collector{
-		checks: make(map[check.ID]check.Check),
-		state:  stopped,
+		scheduler: sched,
+		runner:    run,
+		pyState:   py.Initialize(paths...),
+		checks:    make(map[check.ID]check.Check),
+		state:     started,
 	}
-}
-
-// Start begins the loop finalized to run Checks
-func (c *Collector) Start(paths ...string) {
-	c.m.Lock()
-	defer c.m.Unlock()
-
-	if c.state == started {
-		return
-	}
-
-	// for now we handle only one key and one domain
-	keysPerDomain := map[string][]string{
-		config.Datadog.GetString("dd_url"): {
-			config.Datadog.GetString("api_key"),
-		},
-	}
-	c.forwarder = forwarder.NewForwarder(keysPerDomain)
-	c.forwarder.Start()
-
-	runner := check.NewRunner(NumRunnerWorkers)
-	c.scheduler = scheduler.NewScheduler(runner.GetChan())
-	c.runner = runner
-	c.pyState = py.Initialize(paths...)
-	c.aggregator = aggregator.InitAggregator(c.forwarder)
-
-	c.scheduler.Run()
-	c.state = started
 }
 
 // Stop halts any component involved in running a Check and shuts down
@@ -82,16 +56,12 @@ func (c *Collector) Stop() {
 		return
 	}
 
-	c.runner.Stop()
-	c.runner = nil
 	c.scheduler.Stop()
 	c.scheduler = nil
-	c.forwarder.Stop()
-	c.forwarder = nil
+	c.runner.Stop()
+	c.runner = nil
 	python.PyEval_RestoreThread(c.pyState)
 	c.pyState = nil
-	// aggregator has no stop/shutdown function
-	c.aggregator = nil
 	c.state = stopped
 }
 
@@ -110,7 +80,7 @@ func (c *Collector) RunCheck(check check.Check) error {
 
 	err := c.scheduler.Enter(check)
 	if err != nil {
-		return fmt.Errorf("unable to schedule the check for running: %s", err)
+		return fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
 	c.checks[check.ID()] = check

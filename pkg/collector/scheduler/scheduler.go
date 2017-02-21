@@ -64,6 +64,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 
 	if _, ok := s.jobQueues[check.Interval()]; !ok {
 		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
+		s.startQueue(s.jobQueues[check.Interval()])
 	}
 	s.jobQueues[check.Interval()].addJob(check)
 	// map each check to the Job Queue it was assigned to
@@ -181,7 +182,12 @@ func (s *Scheduler) stopQueues() {
 // startQueues loads the timer for each queue
 func (s *Scheduler) startQueues() {
 	for _, q := range s.jobQueues {
-		q.run(s.checksPipe)
-		q.running = true
+		s.startQueue(q)
 	}
+}
+
+// simple wrapper to have this in just one place
+func (s *Scheduler) startQueue(q *jobQueue) {
+	q.run(s.checksPipe)
+	q.running = true
 }
