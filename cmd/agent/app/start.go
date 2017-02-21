@@ -138,15 +138,10 @@ func start(cmd *cobra.Command, args []string) {
 	select {
 	case <-common.Stopper:
 		log.Info("Received stop command, shutting down...")
-		goto teardown
 	case sig := <-signalCh:
 		log.Infof("Received signal '%s', shutting down...", sig)
-		if sig == os.Interrupt || sig == syscall.SIGTERM {
-			goto teardown
-		}
 	}
 
-teardown:
 	// gracefully shut down any component
 	common.Collector.Stop()
 	api.StopServer()
