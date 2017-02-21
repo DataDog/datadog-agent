@@ -1,8 +1,18 @@
 # The host of the Datadog intake server to send Agent data to
 dd_url: https://foo.datadoghq.com
 
-# If you need a proxy to connect to the Internet, provide the settings here
+# The Datadog api key to associate your Agent's data with your organization.
+# Can be found here:
+# https://app.datadoghq.com/account/settings
+# This can be a comma-separated list of api keys.
+# (default: None, the agent doesn't start without it)
+api_key:
+
+# If you need a proxy to connect to the Internet, provide it here (default: disabled)
 # proxy: http://user:password@host:port
 
 # If you run the agent behind haproxy, you might want to set this to yes
 # skip_ssl_validation: no
+
+# Force the hostname to whatever you want. (default: auto-detected)
+# hostname: mymachine.mydomain
