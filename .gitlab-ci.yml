@@ -29,7 +29,6 @@ run_tests_deb-x64:
   tags:
     - docker
   script:
-    - source activate datadog-agent
     - rake test
 
 # build the package for deb-x64

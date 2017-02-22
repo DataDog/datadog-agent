@@ -81,9 +81,6 @@ end
 # creates required build directories
 dependency 'preparation'
 
-# Agent dependencies
-dependency 'conda'
-
 # The Agent itself
 dependency 'datadog-agent'
 
