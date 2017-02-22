@@ -82,7 +82,7 @@ end
 dependency 'preparation'
 
 # Agent dependencies
-# TODO
+dependency 'conda'
 
 # The Agent itself
 dependency 'datadog-agent'
