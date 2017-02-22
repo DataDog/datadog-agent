@@ -21,7 +21,7 @@ dependencies:
 
 test:
   override:
-    - cd "$IMPORT_PATH" && eval "$(gimme)" && rake deps && rake test:
+    - cd "$IMPORT_PATH" && eval "$(gimme)" && rake deps && rake test race=true:
         environment:
           USE_SYSTEM_PY: 1
 

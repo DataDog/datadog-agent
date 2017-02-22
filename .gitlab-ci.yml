@@ -30,7 +30,7 @@ run_tests_deb-x64:
     # No need to use the embedded python built with omnibus to run tests.
     USE_SYSTEM_PY: "1"
   script:
-    - rake test
+    - rake test race=true
 
 # build the package for deb-x64
 build_deb-x64:
@@ -64,7 +64,7 @@ run_test_rpm-x64:
   variables:
     USE_SYSTEM_PY: "1"
   script:
-    - rake test
+    - rake test race=true
 
 # TODO: build the package for rpm-x64
 
