@@ -17,7 +17,7 @@ type jobQueue struct {
 	ticker   *time.Ticker
 	jobs     []check.Check
 	running  bool
-	mu       sync.Mutex // to protect critical sections in struct's fields
+	mu       sync.RWMutex // to protect critical sections in struct's fields
 }
 
 // newJobQueue creates a new jobQueue instance
@@ -65,10 +65,12 @@ func (jq *jobQueue) run(out chan<- check.Check) {
 				jq.ticker.Stop()
 			case <-jq.ticker.C:
 				// normal case, (re)schedule the queue
+				jq.mu.RLock()
 				for _, check := range jq.jobs {
 					log.Debugf("Enqueuing check %s for queue %d", check, jq.interval)
 					out <- check
 				}
+				jq.mu.RUnlock()
 			}
 		}
 	}()
