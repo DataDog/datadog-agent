@@ -1,23 +1,21 @@
-name 'datadog-agent'
-
-dependency 'python'
+name 'dogstatsd'
 
 source path: '..'
 
-relative_path 'datadog-agent'
+relative_path 'dogstatsd'
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  command 'rake agent:build'
+  command 'rake dogstatsd:build'
   copy('bin', install_dir)
 
   if debian?
     erb source: "upstart.conf.erb",
-        dest: "/etc/init/datadog-agent6.conf",
+        dest: "/etc/init/dogstatsd.conf",
         mode: 0755,
         vars: { install_dir: install_dir }
     erb source: "systemd.service.erb",
-        dest: "/lib/systemd/system/datadog-agent6.service",
+        dest: "/lib/systemd/system/dogstatsd.service",
         mode: 0755,
         vars: { install_dir: install_dir }
   end
