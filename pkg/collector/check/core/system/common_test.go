@@ -2,6 +2,8 @@ package system
 
 import (
 	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 type MockSender struct {
@@ -30,4 +32,8 @@ func (m *MockSender) Commit() {
 
 func (m *MockSender) Gauge(metric string, value float64, hostname string, tags []string) {
 	m.Called(metric, value, hostname, tags)
+}
+
+func (m *MockSender) ServiceCheck(checkName string, status aggregator.ServiceCheckStatus, hostname string, tags []string, message string) {
+	m.Called(checkName, status, hostname, tags, message)
 }

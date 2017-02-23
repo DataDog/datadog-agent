@@ -62,3 +62,19 @@ func TestMarshalJSONSeries(t *testing.T) {
 	assert.NotNil(t, payload)
 	assert.Equal(t, payload, []byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device_name\":\"\",\"type\":\"gauge\",\"interval\":0}]}\n"))
 }
+
+func TestMarshalJSONServiceChecks(t *testing.T) {
+	serviceChecks := []ServiceCheck{{
+		CheckName: "my_service.can_connect",
+		Host:      "my-hostname",
+		Ts:        int64(12345),
+		Status:    ServiceCheckOK,
+		Message:   "my_service is up",
+		Tags:      []string{"tag1", "tag2:yes"},
+	}}
+
+	payload, err := MarshalJSONServiceChecks(serviceChecks)
+	assert.Nil(t, err)
+	assert.NotNil(t, payload)
+	assert.Equal(t, payload, []byte("[{\"check\":\"my_service.can_connect\",\"host_name\":\"my-hostname\",\"timestamp\":12345,\"status\":0,\"message\":\"my_service is up\",\"tags\":[\"tag1\",\"tag2:yes\"]}]\n"))
+}

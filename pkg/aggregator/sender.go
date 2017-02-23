@@ -21,12 +21,14 @@ type Sender interface {
 	Count(metric string, value float64, hostname string, tags []string)
 	MonotonicCount(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
+	ServiceCheck(checkName string, status ServiceCheckStatus, hostname string, tags []string, message string)
 }
 
 // checkSender implements Sender
 type checkSender struct {
-	id    check.ID
-	ssOut chan<- senderSample
+	id              check.ID
+	ssOut           chan<- senderSample
+	serviceCheckOut chan<- ServiceCheck
 }
 
 type senderSample struct {
@@ -35,10 +37,11 @@ type senderSample struct {
 	commit       bool
 }
 
-func newCheckSender(id check.ID, ssOut chan<- senderSample) *checkSender {
+func newCheckSender(id check.ID, ssOut chan<- senderSample, serviceCheckOut chan<- ServiceCheck) *checkSender {
 	return &checkSender{
-		id:    id,
-		ssOut: ssOut,
+		id:              id,
+		ssOut:           ssOut,
+		serviceCheckOut: serviceCheckOut,
 	}
 }
 
@@ -51,7 +54,7 @@ func GetSender(id check.ID) (Sender, error) {
 	}
 
 	err := aggregatorInstance.registerSender(id)
-	return newCheckSender(id, aggregatorInstance.checkIn), err
+	return newCheckSender(id, aggregatorInstance.checkIn, aggregatorInstance.serviceCheckIn), err
 }
 
 // DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
@@ -70,7 +73,7 @@ func GetDefaultSender() (Sender, error) {
 	senderInit.Do(func() {
 		var defaultCheckID check.ID // the default value is the zero value
 		aggregatorInstance.registerSender(defaultCheckID)
-		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.checkIn)
+		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.checkIn, aggregatorInstance.serviceCheckIn)
 	})
 
 	return senderInstance, nil
@@ -82,7 +85,7 @@ func (s *checkSender) Commit() {
 	s.ssOut <- senderSample{s.id, &MetricSample{}, true}
 }
 
-func (s *checkSender) sendSample(metric string, value float64, hostname string, tags []string, mType MetricType) {
+func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType MetricType) {
 	log.Debug(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
 	metricSample := &MetricSample{
 		Name:       metric,
@@ -98,26 +101,41 @@ func (s *checkSender) sendSample(metric string, value float64, hostname string, 
 
 // Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
 func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string) {
-	s.sendSample(metric, value, hostname, tags, GaugeType)
+	s.sendMetricSample(metric, value, hostname, tags, GaugeType)
 }
 
 // Rate should be used to track the rate of a metric over each check run
 func (s *checkSender) Rate(metric string, value float64, hostname string, tags []string) {
-	s.sendSample(metric, value, hostname, tags, RateType)
+	s.sendMetricSample(metric, value, hostname, tags, RateType)
 }
 
 // Count should be used to count a number of events that occurred during the check run
 func (s *checkSender) Count(metric string, value float64, hostname string, tags []string) {
-	s.sendSample(metric, value, hostname, tags, CountType)
+	s.sendMetricSample(metric, value, hostname, tags, CountType)
 }
 
 // MonotonicCount should be used to track the increase of a monotonic raw counter
 func (s *checkSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
-	s.sendSample(metric, value, hostname, tags, MonotonicCountType)
+	s.sendMetricSample(metric, value, hostname, tags, MonotonicCountType)
 }
 
 // Histogram should be used to track the statistical distribution of a set of values during a check run
 // Should be called multiple times on the same (metric, hostname, tags) so that a distribution can be computed
 func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string) {
-	s.sendSample(metric, value, hostname, tags, HistogramType)
+	s.sendMetricSample(metric, value, hostname, tags, HistogramType)
+}
+
+// ServiceCheck submits a service check
+func (s *checkSender) ServiceCheck(checkName string, status ServiceCheckStatus, hostname string, tags []string, message string) {
+	log.Debug("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
+	serviceCheck := ServiceCheck{
+		CheckName: checkName,
+		Status:    status,
+		Host:      hostname,
+		Ts:        time.Now().Unix(),
+		Tags:      tags,
+		Message:   message,
+	}
+
+	s.serviceCheckOut <- serviceCheck
 }
