@@ -31,7 +31,11 @@ func main() {
 	f.Start()
 
 	aggregatorInstance := aggregator.InitAggregator(f)
-	statsd := dogstatsd.NewServer(aggregatorInstance.GetChannel())
+	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannel())
+	if err != nil {
+		log.Error(err.Error())
+		return
+	}
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)

@@ -103,7 +103,11 @@ func start(cmd *cobra.Command, args []string) {
 	// start dogstatsd
 	var statsd *dogstatsd.Server
 	if config.Datadog.GetBool("use_dogstatsd") {
-		statsd = dogstatsd.NewServer(agg.GetChannel())
+		var err error
+		statsd, err = dogstatsd.NewServer(agg.GetChannel())
+		if err != nil {
+			log.Errorf("Could not start dogstatsd: %s", err)
+		}
 	}
 
 	// create the Collector instance and start all the components
