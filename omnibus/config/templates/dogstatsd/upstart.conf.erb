@@ -1,0 +1,12 @@
+description "Datadog statsd server"
+
+start on started networking
+stop on runlevel [!2345]
+
+respawn
+
+console log  # redirect daemon's outputs to `/var/log/upstart/dogstatsd.log`
+
+script
+  exec <%= install_dir %>/bin/dogstatsd/dogstatsd
+end script
