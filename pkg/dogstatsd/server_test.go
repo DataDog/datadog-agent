@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -39,6 +40,11 @@ func TestUPDReceive(t *testing.T) {
 	defer conn.Close()
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 
-	res := <-output
-	assert.NotNil(t, res)
+	select {
+	case res := <-output:
+		assert.NotNil(t, res)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+
 }
