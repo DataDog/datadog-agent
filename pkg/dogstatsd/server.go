@@ -18,12 +18,16 @@ type Server struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(out chan *aggregator.MetricSample) *Server {
+func NewServer(out chan *aggregator.MetricSample) (*Server, error) {
 	url := fmt.Sprintf("localhost:%d", config.Datadog.GetInt("dogstatsd_port"))
-	address, _ := net.ResolveUDPAddr("udp", url)
+	address, addrErr := net.ResolveUDPAddr("udp", url)
+	if addrErr != nil {
+		return nil, fmt.Errorf("dogstatsd: can't ResolveUDPAddr %s: %v", url, addrErr)
+	}
+
 	conn, err := net.ListenUDP("udp", address)
 	if err != nil {
-		log.Criticalf("dogstatsd: can't listen: %s", err)
+		return nil, fmt.Errorf("dogstatsd: can't listen: %s", err)
 	}
 
 	s := &Server{
@@ -32,7 +36,7 @@ func NewServer(out chan *aggregator.MetricSample) *Server {
 	}
 	go s.handleMessages(out)
 	log.Infof("dogstatsd: listening on %s", address)
-	return s
+	return s, nil
 }
 
 func (s *Server) handleMessages(out chan *aggregator.MetricSample) {
@@ -45,7 +49,7 @@ func (s *Server) handleMessages(out chan *aggregator.MetricSample) {
 				return
 			}
 
-			log.Error("dogstatsd: error reading packet: %v", err)
+			log.Errorf("dogstatsd: error reading packet: %v", err)
 			continue
 		}
 
