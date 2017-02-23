@@ -143,7 +143,7 @@ namespace :agent do
       env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
     end
 
-    system(env, "go build #{race_opt} -o #{BIN_PATH}/#{exe_name} #{REPO_PATH}/cmd/agent")
+    system(env, "go build #{race_opt} -o #{BIN_PATH}/#{agent_bin_name} #{REPO_PATH}/cmd/agent")
     Rake::Task["agent:refresh_assets"].invoke
   end
 
