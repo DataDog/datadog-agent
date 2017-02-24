@@ -14,7 +14,7 @@ import (
 // #include "stdlib.h"
 import "C"
 
-// SubmitMetric is the method exposed to Python scripts
+// SubmitMetric is the method exposed to Python scripts to submit metrics
 //export SubmitMetric
 func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.float, tags *C.PyObject) *C.PyObject {
 

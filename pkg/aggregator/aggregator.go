@@ -30,7 +30,7 @@ func InitAggregator(f *forwarder.Forwarder) *BufferedAggregator {
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
 	dogstatsdIn    chan *MetricSample
-	checkIn        chan senderSample
+	checkMetricIn  chan senderMetricSample
 	serviceCheckIn chan ServiceCheck
 	sampler        Sampler
 	checkSamplers  map[check.ID]*CheckSampler
@@ -43,9 +43,9 @@ type BufferedAggregator struct {
 // Instantiate a BufferedAggregator and run it
 func newBufferedAggregator(f *forwarder.Forwarder) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
-		dogstatsdIn:    make(chan *MetricSample, 100), // TODO make buffer size configurable
-		checkIn:        make(chan senderSample, 100),  // TODO make buffer size configurable
-		serviceCheckIn: make(chan ServiceCheck, 100),  // TODO make buffer size configurable
+		dogstatsdIn:    make(chan *MetricSample, 100),      // TODO make buffer size configurable
+		checkMetricIn:  make(chan senderMetricSample, 100), // TODO make buffer size configurable
+		serviceCheckIn: make(chan ServiceCheck, 100),       // TODO make buffer size configurable
 		sampler:        *NewSampler(bucketSize),
 		checkSamplers:  make(map[check.ID]*CheckSampler),
 		flushInterval:  defaultFlushInterval,
@@ -78,7 +78,7 @@ func (agg *BufferedAggregator) deregisterSender(id check.ID) {
 	agg.mu.Unlock()
 }
 
-func (agg *BufferedAggregator) handleSenderSample(ss senderSample) {
+func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
@@ -90,7 +90,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderSample) {
 			checkSampler.addSample(ss.metricSample)
 		}
 	} else {
-		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderSample", ss.id)
+		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderMetricSample", ss.id)
 	}
 }
 
@@ -161,7 +161,7 @@ func (agg *BufferedAggregator) run() {
 		case sample := <-agg.dogstatsdIn:
 			now := time.Now().Unix()
 			agg.sampler.addSample(sample, now)
-		case ss := <-agg.checkIn:
+		case ss := <-agg.checkMetricIn:
 			agg.handleSenderSample(ss)
 		case sc := <-agg.serviceCheckIn:
 			agg.addServiceCheck(sc)

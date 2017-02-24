@@ -27,20 +27,20 @@ type Sender interface {
 // checkSender implements Sender
 type checkSender struct {
 	id              check.ID
-	ssOut           chan<- senderSample
+	smsOut          chan<- senderMetricSample
 	serviceCheckOut chan<- ServiceCheck
 }
 
-type senderSample struct {
+type senderMetricSample struct {
 	id           check.ID
 	metricSample *MetricSample
 	commit       bool
 }
 
-func newCheckSender(id check.ID, ssOut chan<- senderSample, serviceCheckOut chan<- ServiceCheck) *checkSender {
+func newCheckSender(id check.ID, smsOut chan<- senderMetricSample, serviceCheckOut chan<- ServiceCheck) *checkSender {
 	return &checkSender{
 		id:              id,
-		ssOut:           ssOut,
+		smsOut:          smsOut,
 		serviceCheckOut: serviceCheckOut,
 	}
 }
@@ -54,7 +54,7 @@ func GetSender(id check.ID) (Sender, error) {
 	}
 
 	err := aggregatorInstance.registerSender(id)
-	return newCheckSender(id, aggregatorInstance.checkIn, aggregatorInstance.serviceCheckIn), err
+	return newCheckSender(id, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn), err
 }
 
 // DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
@@ -73,7 +73,7 @@ func GetDefaultSender() (Sender, error) {
 	senderInit.Do(func() {
 		var defaultCheckID check.ID // the default value is the zero value
 		aggregatorInstance.registerSender(defaultCheckID)
-		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.checkIn, aggregatorInstance.serviceCheckIn)
+		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn)
 	})
 
 	return senderInstance, nil
@@ -82,7 +82,7 @@ func GetDefaultSender() (Sender, error) {
 // Commit commits the metric samples that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
-	s.ssOut <- senderSample{s.id, &MetricSample{}, true}
+	s.smsOut <- senderMetricSample{s.id, &MetricSample{}, true}
 }
 
 func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType MetricType) {
@@ -96,7 +96,7 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 		Timestamp:  time.Now().Unix(),
 	}
 
-	s.ssOut <- senderSample{s.id, metricSample, false}
+	s.smsOut <- senderMetricSample{s.id, metricSample, false}
 }
 
 // Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
