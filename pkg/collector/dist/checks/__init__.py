@@ -52,8 +52,8 @@ class AgentCheck(object):
     def histogram(self, name, value, tags=None, hostname=None, device_name=None):
         aggregator.submit_metric(self, aggregator.HISTOGRAM, name, value, tags)
 
-    def service_check(self, *args, **kwargs):
-        pass
+    def service_check(self, name, status, tags=None, message=""):
+        aggregator.submit_service_check(self, name, status, tags, message)
 
     def check(self, instance):
         raise NotImplementedError
