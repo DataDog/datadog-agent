@@ -55,3 +55,11 @@ func MarshalJSONSeries(series []*Serie) ([]byte, error) {
 	err := json.NewEncoder(reqBody).Encode(data)
 	return reqBody.Bytes(), err
 }
+
+// MarshalJSONServiceChecks serializes service checks to JSON so it can be sent to V1 endpoints
+//FIXME(olivier): to be removed when v2 endpoints are available
+func MarshalJSONServiceChecks(serviceChecks []ServiceCheck) ([]byte, error) {
+	reqBody := &bytes.Buffer{}
+	err := json.NewEncoder(reqBody).Encode(serviceChecks)
+	return reqBody.Bytes(), err
+}

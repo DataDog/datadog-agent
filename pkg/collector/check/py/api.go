@@ -14,9 +14,9 @@ import (
 // #include "stdlib.h"
 import "C"
 
-// SubmitData is the method exposed to Python scripts
-//export SubmitData
-func SubmitData(check *C.PyObject, mt C.MetricType, name *C.char, value C.float, tags *C.PyObject) *C.PyObject {
+// SubmitMetric is the method exposed to Python scripts to submit metrics
+//export SubmitMetric
+func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.float, tags *C.PyObject) *C.PyObject {
 
 	sender, err := aggregator.GetDefaultSender()
 	if err != nil {

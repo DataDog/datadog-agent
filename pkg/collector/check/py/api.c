@@ -1,6 +1,6 @@
 #include "api.h"
 
-PyObject* SubmitData(PyObject*, MetricType, char*, float, PyObject*);
+PyObject* SubmitMetric(PyObject*, MetricType, char*, float, PyObject*);
 
 char* MetricTypeNames[] = {
   "GAUGE",
@@ -10,7 +10,7 @@ char* MetricTypeNames[] = {
   "HISTOGRAM"
 };
 
-static PyObject *submit_data(PyObject *self, PyObject *args) {
+static PyObject *submit_metric(PyObject *self, PyObject *args) {
     PyObject *check = NULL;
     int mt;
     char *name;
@@ -20,18 +20,18 @@ static PyObject *submit_data(PyObject *self, PyObject *args) {
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
 
-    // aggregator.submit_data(self, aggregator.metric_type.GAUGE, name, value, tags)
+    // aggregator.submit_metric(self, aggregator.metric_type.GAUGE, name, value, tags)
     if (!PyArg_ParseTuple(args, "OisfO", &check, &mt, &name, &value, &tags)) {
       PyGILState_Release(gstate);
       Py_RETURN_NONE;
     }
 
     PyGILState_Release(gstate);
-    return SubmitData(check, mt, name, value, tags);
+    return SubmitMetric(check, mt, name, value, tags);
 }
 
 static PyMethodDef AggMethods[] = {
-  {"submit_data", (PyCFunction)submit_data, METH_VARARGS, "Submit metrics to the aggregator."},
+  {"submit_metric", (PyCFunction)submit_metric, METH_VARARGS, "Submit metrics to the aggregator."},
   {NULL, NULL}  // guards
 };
 

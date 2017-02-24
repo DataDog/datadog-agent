@@ -38,19 +38,19 @@ class AgentCheck(object):
         self.log = logging.getLogger('%s.%s' % (__name__, self.name))
 
     def gauge(self, name, value, tags=None):
-        aggregator.submit_data(self, aggregator.GAUGE, name, value, tags)
+        aggregator.submit_metric(self, aggregator.GAUGE, name, value, tags)
 
     def count(self, name, value, tags=None):
-        aggregator.submit_data(self, aggregator.COUNT, name, value, tags)
+        aggregator.submit_metric(self, aggregator.COUNT, name, value, tags)
 
     def monotonic_count(self, name, value, tags=None):
-        aggregator.submit_data(self, aggregator.MONOTONIC_COUNT, name, value, tags)
+        aggregator.submit_metric(self, aggregator.MONOTONIC_COUNT, name, value, tags)
 
     def rate(self, name, value, tags=None):
-        aggregator.submit_data(self, aggregator.RATE, name, value, tags)
+        aggregator.submit_metric(self, aggregator.RATE, name, value, tags)
 
     def histogram(self, name, value, tags=None, hostname=None, device_name=None):
-        aggregator.submit_data(self, aggregator.HISTOGRAM, name, value, tags)
+        aggregator.submit_metric(self, aggregator.HISTOGRAM, name, value, tags)
 
     def service_check(self, *args, **kwargs):
         pass

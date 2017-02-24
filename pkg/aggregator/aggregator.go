@@ -29,24 +29,27 @@ func InitAggregator(f *forwarder.Forwarder) *BufferedAggregator {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	dogstatsdIn   chan *MetricSample
-	checkIn       chan senderSample
-	sampler       Sampler
-	checkSamplers map[check.ID]*CheckSampler
-	flushInterval int64
-	mu            sync.Mutex // to protect the checkSamplers field
-	forwarder     *forwarder.Forwarder
+	dogstatsdIn    chan *MetricSample
+	checkMetricIn  chan senderMetricSample
+	serviceCheckIn chan ServiceCheck
+	sampler        Sampler
+	checkSamplers  map[check.ID]*CheckSampler
+	serviceChecks  []ServiceCheck
+	flushInterval  int64
+	mu             sync.Mutex // to protect the checkSamplers field
+	forwarder      *forwarder.Forwarder
 }
 
 // Instantiate a BufferedAggregator and run it
 func newBufferedAggregator(f *forwarder.Forwarder) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
-		dogstatsdIn:   make(chan *MetricSample, 100), // TODO make buffer size configurable
-		checkIn:       make(chan senderSample, 100),  // TODO make buffer size configurable
-		sampler:       *NewSampler(bucketSize),
-		checkSamplers: make(map[check.ID]*CheckSampler),
-		flushInterval: defaultFlushInterval,
-		forwarder:     f,
+		dogstatsdIn:    make(chan *MetricSample, 100),      // TODO make buffer size configurable
+		checkMetricIn:  make(chan senderMetricSample, 100), // TODO make buffer size configurable
+		serviceCheckIn: make(chan ServiceCheck, 100),       // TODO make buffer size configurable
+		sampler:        *NewSampler(bucketSize),
+		checkSamplers:  make(map[check.ID]*CheckSampler),
+		flushInterval:  defaultFlushInterval,
+		forwarder:      f,
 	}
 
 	go aggregator.run()
@@ -75,7 +78,7 @@ func (agg *BufferedAggregator) deregisterSender(id check.ID) {
 	agg.mu.Unlock()
 }
 
-func (agg *BufferedAggregator) handleSenderSample(ss senderSample) {
+func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
@@ -87,8 +90,69 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderSample) {
 			checkSampler.addSample(ss.metricSample)
 		}
 	} else {
-		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderSample", ss.id)
+		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderMetricSample", ss.id)
 	}
+}
+
+// addServiceCheck adds the service check to the slice of current service checks
+// FIXME: the default hostname should be the one that's resolved by the Agent logic instead of the one pulled from the main config
+func (agg *BufferedAggregator) addServiceCheck(sc ServiceCheck) {
+	if sc.Host == "" {
+		sc.Host = config.Datadog.GetString("hostname")
+	}
+	if sc.Ts == 0 {
+		sc.Ts = time.Now().Unix()
+	}
+
+	agg.serviceChecks = append(agg.serviceChecks, sc)
+}
+
+func (agg *BufferedAggregator) flushSeries() {
+	now := time.Now().Unix()
+	series := agg.sampler.flush(now)
+	agg.mu.Lock()
+	for _, checkSampler := range agg.checkSamplers {
+		series = append(series, checkSampler.flush()...)
+	}
+	agg.mu.Unlock()
+
+	if len(series) == 0 {
+		return
+	}
+
+	// Serialize and forward in a separate goroutine
+	go func() {
+		log.Debug("Flushing ", len(series), " series to the forwarder")
+		payload, err := MarshalJSONSeries(series)
+		if err != nil {
+			log.Error("could not serialize series, dropping it:", err)
+			return
+		}
+		agg.forwarder.SubmitV1Series(config.Datadog.GetString("api_key"), &payload)
+	}()
+}
+
+func (agg *BufferedAggregator) flushServiceChecks() {
+	// Add a simple service check for the Agent status
+	agg.addServiceCheck(ServiceCheck{
+		CheckName: "datadog.agent.up",
+		Status:    ServiceCheckOK,
+	})
+
+	// Clear the current service check slice
+	serviceChecks := agg.serviceChecks
+	agg.serviceChecks = nil
+
+	// Serialize and forward in a separate goroutine
+	go func() {
+		log.Debug("Flushing ", len(serviceChecks), " service checks to the forwarder")
+		payload, err := MarshalJSONServiceChecks(serviceChecks)
+		if err != nil {
+			log.Error("could not serialize service checks, dropping them: ", err)
+			return
+		}
+		agg.forwarder.SubmitV1CheckRuns(config.Datadog.GetString("api_key"), &payload)
+	}()
 }
 
 func (agg *BufferedAggregator) run() {
@@ -97,29 +161,15 @@ func (agg *BufferedAggregator) run() {
 	for {
 		select {
 		case <-flushTicker.C:
-			now := time.Now().Unix()
-			series := agg.sampler.flush(now)
-			agg.mu.Lock()
-			for _, checkSampler := range agg.checkSamplers {
-				series = append(series, checkSampler.flush()...)
-			}
-			agg.mu.Unlock()
-
-			if len(series) == 0 {
-				continue
-			}
-
-			payload, err := MarshalJSONSeries(series)
-			if err != nil {
-				log.Error("could not serialize series, dropping it:", err)
-				continue
-			}
-			agg.forwarder.SubmitV1Series(config.Datadog.GetString("api_key"), &payload)
+			agg.flushSeries()
+			agg.flushServiceChecks()
 		case sample := <-agg.dogstatsdIn:
 			now := time.Now().Unix()
 			agg.sampler.addSample(sample, now)
-		case ss := <-agg.checkIn:
+		case ss := <-agg.checkMetricIn:
 			agg.handleSenderSample(ss)
+		case sc := <-agg.serviceCheckIn:
+			agg.addServiceCheck(sc)
 		}
 	}
 }

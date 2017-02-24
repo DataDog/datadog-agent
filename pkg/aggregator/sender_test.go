@@ -2,12 +2,10 @@ package aggregator
 
 import (
 	// stdlib
-
 	"sync"
 	"testing"
 
 	// 3p
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -86,41 +84,50 @@ func TestDestroySender(t *testing.T) {
 }
 
 func TestCheckSenderInterface(t *testing.T) {
-	senderSampleChan := make(chan senderSample, 10)
-	checkSender := newCheckSender(checkID1, senderSampleChan)
+	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	serviceCheckChan := make(chan ServiceCheck, 10)
+	checkSender := newCheckSender(checkID1, senderMetricSampleChan, serviceCheckChan)
 	checkSender.Gauge("my.metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Count("my.count_metric", 123.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.MonotonicCount("my.monotonic_count_metric", 12.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Commit()
+	checkSender.ServiceCheck("my_service.can_connect", ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
 
-	gaugeSenderSample := <-senderSampleChan
+	gaugeSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, gaugeSenderSample.id)
 	assert.Equal(t, GaugeType, gaugeSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, gaugeSenderSample.commit)
 
-	rateSenderSample := <-senderSampleChan
+	rateSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, rateSenderSample.id)
 	assert.Equal(t, RateType, rateSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, rateSenderSample.commit)
 
-	countSenderSample := <-senderSampleChan
+	countSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, countSenderSample.id)
 	assert.Equal(t, CountType, countSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, countSenderSample.commit)
 
-	monotonicCountSenderSample := <-senderSampleChan
+	monotonicCountSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, monotonicCountSenderSample.id)
 	assert.Equal(t, MonotonicCountType, monotonicCountSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, monotonicCountSenderSample.commit)
 
-	histoSenderSample := <-senderSampleChan
+	histoSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, histoSenderSample.id)
 	assert.Equal(t, HistogramType, histoSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, histoSenderSample.commit)
 
-	commitSenderSample := <-senderSampleChan
+	commitSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, commitSenderSample.id)
 	assert.Equal(t, true, commitSenderSample.commit)
+
+	serviceCheck := <-serviceCheckChan
+	assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
+	assert.Equal(t, ServiceCheckOK, serviceCheck.Status)
+	assert.Equal(t, "my-hostname", serviceCheck.Host)
+	assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
+	assert.Equal(t, "message", serviceCheck.Message)
 }

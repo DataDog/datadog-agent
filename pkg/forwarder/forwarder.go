@@ -19,7 +19,8 @@ const (
 	defaultNumberOfWorkers = 4
 	chanBufferSize         = 100
 
-	v1SeriesEndpoint = "/api/v1/series?api_key=%s"
+	v1SeriesEndpoint    = "/api/v1/series?api_key=%s"
+	v1CheckRunsEndpoint = "/api/v1/check_run?api_key=%s"
 
 	seriesEndpoint       = "/api/v2/series"
 	eventsEndpoint       = "/api/v2/events"
@@ -225,8 +226,15 @@ func (f *Forwarder) SubmitMetadata(payload *[]byte) error {
 }
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
-// the backend will handle v2 endpoints).
+// the backend handles v2 endpoints).
 func (f *Forwarder) SubmitV1Series(apiKey string, payload *[]byte) error {
 	endpoint := fmt.Sprintf(v1SeriesEndpoint, apiKey)
+	return f.createTransaction(endpoint, payload, false)
+}
+
+// SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
+// the backend handles v2 endpoints).
+func (f *Forwarder) SubmitV1CheckRuns(apiKey string, payload *[]byte) error {
+	endpoint := fmt.Sprintf(v1CheckRunsEndpoint, apiKey)
 	return f.createTransaction(endpoint, payload, false)
 }
