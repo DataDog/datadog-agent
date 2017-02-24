@@ -120,13 +120,16 @@ func (agg *BufferedAggregator) flushSeries() {
 		return
 	}
 
-	log.Debug("Flushing ", len(series), " series to the forwarder")
-	payload, err := MarshalJSONSeries(series)
-	if err != nil {
-		log.Error("could not serialize series, dropping it:", err)
-		return
-	}
-	agg.forwarder.SubmitV1Series(config.Datadog.GetString("api_key"), &payload)
+	// Serialize and forward in a separate goroutine
+	go func() {
+		log.Debug("Flushing ", len(series), " series to the forwarder")
+		payload, err := MarshalJSONSeries(series)
+		if err != nil {
+			log.Error("could not serialize series, dropping it:", err)
+			return
+		}
+		agg.forwarder.SubmitV1Series(config.Datadog.GetString("api_key"), &payload)
+	}()
 }
 
 func (agg *BufferedAggregator) flushServiceChecks() {
@@ -140,14 +143,16 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 	serviceChecks := agg.serviceChecks
 	agg.serviceChecks = nil
 
-	log.Debug("Flushing ", len(serviceChecks), " service checks to the forwarder")
-	// Serialize and forward
-	payload, err := MarshalJSONServiceChecks(serviceChecks)
-	if err != nil {
-		log.Error("could not serialize service checks, dropping them: ", err)
-		return
-	}
-	agg.forwarder.SubmitV1CheckRuns(config.Datadog.GetString("api_key"), &payload)
+	// Serialize and forward in a separate goroutine
+	go func() {
+		log.Debug("Flushing ", len(serviceChecks), " service checks to the forwarder")
+		payload, err := MarshalJSONServiceChecks(serviceChecks)
+		if err != nil {
+			log.Error("could not serialize service checks, dropping them: ", err)
+			return
+		}
+		agg.forwarder.SubmitV1CheckRuns(config.Datadog.GetString("api_key"), &payload)
+	}()
 }
 
 func (agg *BufferedAggregator) run() {
