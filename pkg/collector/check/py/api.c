@@ -61,6 +61,10 @@ PyObject* _none() {
 	Py_RETURN_NONE;
 }
 
+bool _is_none(PyObject *o) {
+  return o == Py_None;
+}
+
 void initaggregator()
 {
   PyGILState_STATE gstate;

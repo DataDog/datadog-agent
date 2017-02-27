@@ -31,10 +31,12 @@ func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.floa
 
 	errMsg := C.CString("expected a sequence") // this has to be freed
 	seq = C.PySequence_Fast(tags, errMsg)      // seq is a new reference, has to be decref'd
-	var i C.Py_ssize_t
-	for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
-		item := C.PySequence_Fast_Get_Item(seq, i)                   // `item` is borrowed, no need to decref
-		_tags = append(_tags, C.GoString(C.PyString_AsString(item))) // TODO: YOLO! Please add error checking
+	if !C._is_none(tags) {
+		var i C.Py_ssize_t
+		for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
+			item := C.PySequence_Fast_Get_Item(seq, i)                   // `item` is borrowed, no need to decref
+			_tags = append(_tags, C.GoString(C.PyString_AsString(item))) // TODO: YOLO! Please add error checking
+		}
 	}
 
 	switch mt {
@@ -75,10 +77,12 @@ func SubmitServiceCheck(check *C.PyObject, name *C.char, status C.int, tags *C.P
 
 	errMsg := C.CString("expected a sequence") // this has to be freed
 	seq = C.PySequence_Fast(tags, errMsg)      // seq is a new reference, has to be decref'd
-	var i C.Py_ssize_t
-	for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
-		item := C.PySequence_Fast_Get_Item(seq, i)                   // `item` is borrowed, no need to decref
-		_tags = append(_tags, C.GoString(C.PyString_AsString(item))) // TODO: YOLO! Please add error checking
+	if !C._is_none(tags) {
+		var i C.Py_ssize_t
+		for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
+			item := C.PySequence_Fast_Get_Item(seq, i)                   // `item` is borrowed, no need to decref
+			_tags = append(_tags, C.GoString(C.PyString_AsString(item))) // TODO: YOLO! Please add error checking
+		}
 	}
 
 	sender.ServiceCheck(_name, _status, "", _tags, _message)
