@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/sbinet/go-python"
 
 	log "github.com/cihub/seelog"
@@ -103,12 +104,18 @@ func (c *PythonCheck) instantiateCheck(constructorParameters *python.PyObject, f
 		// user custom check expect the argument but don't use
 		// it).
 		if fixInitError && strings.HasPrefix(pvalueError, "__init__() takes ") {
+			conf := config.Datadog.AllSettings()
+			agentConfig, err := ToPythonDict(conf)
+			if err != nil {
+				return nil, fmt.Errorf("could not convert agent configuration to python: %s", err)
+			}
+
 			// Add new 'agentConfig' key to the dict and retry instantiateCheck
 			key := python.PyString_FromString("agentConfig")
-			python.PyDict_SetItem(constructorParameters, key, python.PyDict_New())
+			python.PyDict_SetItem(constructorParameters, key, agentConfig)
 			instance, err := c.instantiateCheck(constructorParameters, false)
 			if instance != nil {
-				log.Warnf("'agentConfig' parameter in the '__init__' method is not supported anymore: an empty dict is given for now (%s).", c.ModuleName)
+				log.Warnf("'agentConfig' parameter in the '__init__' method is deprecated, please use the agent_config python package (%s).", c.ModuleName)
 			}
 			return instance, err
 		}
