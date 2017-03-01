@@ -9,6 +9,7 @@ import (
 )
 
 // #cgo pkg-config: python-2.7
+// #cgo windows LDFLAGS: -Wl,--allow-multiple-definition
 // #include "api.h"
 // #include "stdlib.h"
 import "C"
