@@ -9,7 +9,6 @@ import (
 )
 
 // #cgo pkg-config: python-2.7
-// #cgo linux CFLAGS: -std=gnu99
 // #include "api.h"
 // #include "stdlib.h"
 import "C"
@@ -31,7 +30,7 @@ func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.floa
 
 	errMsg := C.CString("expected a sequence") // this has to be freed
 	seq = C.PySequence_Fast(tags, errMsg)      // seq is a new reference, has to be decref'd
-	if !C._is_none(tags) {
+	if !isNone(tags) {
 		var i C.Py_ssize_t
 		for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
 			item := C.PySequence_Fast_Get_Item(seq, i)                   // `item` is borrowed, no need to decref
@@ -77,7 +76,7 @@ func SubmitServiceCheck(check *C.PyObject, name *C.char, status C.int, tags *C.P
 
 	errMsg := C.CString("expected a sequence") // this has to be freed
 	seq = C.PySequence_Fast(tags, errMsg)      // seq is a new reference, has to be decref'd
-	if !C._is_none(tags) {
+	if !isNone(tags) {
 		var i C.Py_ssize_t
 		for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
 			item := C.PySequence_Fast_Get_Item(seq, i)                   // `item` is borrowed, no need to decref
@@ -92,6 +91,10 @@ func SubmitServiceCheck(check *C.PyObject, name *C.char, status C.int, tags *C.P
 	C.free(unsafe.Pointer(errMsg))
 
 	return C._none()
+}
+
+func isNone(o *C.PyObject) bool {
+	return int(C._is_none(o)) != 0
 }
 
 func initAPI() {
