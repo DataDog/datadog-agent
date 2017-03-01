@@ -1,6 +1,7 @@
 #include "api.h"
 
 PyObject* SubmitMetric(PyObject*, MetricType, char*, float, PyObject*);
+PyObject* SubmitServiceCheck(PyObject*, char*, int, PyObject*, char*);
 
 char* MetricTypeNames[] = {
   "GAUGE",
@@ -30,13 +31,38 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
     return SubmitMetric(check, mt, name, value, tags);
 }
 
+static PyObject *submit_service_check(PyObject *self, PyObject *args) {
+    PyObject *check = NULL;
+    char *name;
+    int status;
+    PyObject *tags = NULL;
+    char *message = NULL;
+
+    PyGILState_STATE gstate;
+    gstate = PyGILState_Ensure();
+
+    // aggregator.submit_service_check(self, name, status, tags, message)
+    if (!PyArg_ParseTuple(args, "OsiOs", &check, &name, &status, &tags, &message)) {
+      PyGILState_Release(gstate);
+      Py_RETURN_NONE;
+    }
+
+    PyGILState_Release(gstate);
+    return SubmitServiceCheck(check, name, status, tags, message);
+}
+
 static PyMethodDef AggMethods[] = {
   {"submit_metric", (PyCFunction)submit_metric, METH_VARARGS, "Submit metrics to the aggregator."},
+  {"submit_service_check", (PyCFunction)submit_service_check, METH_VARARGS, "Submit service checks to the aggregator."},
   {NULL, NULL}  // guards
 };
 
 PyObject* _none() {
 	Py_RETURN_NONE;
+}
+
+int _is_none(PyObject *o) {
+  return o == Py_None;
 }
 
 void initaggregator()
