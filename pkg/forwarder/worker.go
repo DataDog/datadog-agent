@@ -11,8 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-const httpTimeout = 20 * time.Second
-
 // Worker comsumes Transaction (aka transactions) from the Forwarder and
 // process them. If the transaction fail to be processed the Worker will send
 // it back to the Forwarder to be retried later.
@@ -56,7 +54,7 @@ func NewWorker(inputChan chan Transaction, requeueChan chan Transaction) *Worker
 	}
 
 	httpClient := &http.Client{
-		Timeout:   httpTimeout,
+		Timeout:   config.Datadog.GetDuration("forwarder_timeout") * time.Second,
 		Transport: transport,
 	}
 
