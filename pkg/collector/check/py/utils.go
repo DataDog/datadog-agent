@@ -47,6 +47,10 @@ func Initialize(paths ...string) *python.PyThreadState {
 	// (it will handle the GIL by itself)
 	initAPI()
 
+	// inject the datadog_agent package into global namespace
+	// (it will handle the GIL by itself)
+	initDatadogAgent()
+
 	// return the state so the caller can resume
 	return state
 }

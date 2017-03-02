@@ -1,3 +1,6 @@
+#ifndef API
+#define API
+
 #include <Python.h>
 
 typedef enum {
@@ -15,3 +18,5 @@ PyObject* _none();
 int _is_none(PyObject*);
 PyObject* PySequence_Fast_Get_Item(PyObject*, Py_ssize_t);
 Py_ssize_t PySequence_Fast_Get_Size(PyObject*);
+
+#endif /* API */
