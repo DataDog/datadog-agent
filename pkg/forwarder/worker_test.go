@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,7 @@ func TestNewWorker(t *testing.T) {
 
 	w := NewWorker(input, requeue)
 	assert.NotNil(t, w)
-	assert.Equal(t, w.Client.Timeout, httpTimeout)
+	assert.Equal(t, w.Client.Timeout, config.Datadog.GetDuration("forwarder_timeout")*time.Second)
 }
 
 func TestNewNoSSLWorker(t *testing.T) {

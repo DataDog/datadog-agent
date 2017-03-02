@@ -17,6 +17,7 @@ func init() {
 	Datadog.SetDefault("use_dogstatsd", true)
 	Datadog.SetDefault("dogstatsd_port", 8125)
 	Datadog.SetDefault("dogstatsd_buffer_size", 1024)
+	Datadog.SetDefault("forwarder_timeout", 20)
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
