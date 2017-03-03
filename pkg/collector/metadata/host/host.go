@@ -16,6 +16,8 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+const packageCachePrefix = "host"
+
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
 func GetPayload(hostname string) *Payload {
@@ -34,7 +36,7 @@ func GetPayload(hostname string) *Payload {
 
 func getSystemStats() *systemStats {
 	var stats *systemStats
-	key := path.Join(metadata.CachePrefix, "systemStats")
+	key := buildKey("systemStats")
 	if x, found := util.Cache.Get(key); found {
 		stats = x.(*systemStats)
 	} else {
@@ -59,7 +61,7 @@ func getSystemStats() *systemStats {
 
 func getPythonVersion() string {
 	var pythonVersion string
-	key := path.Join(metadata.CachePrefix, "python")
+	key := buildKey("python")
 	if x, found := util.Cache.Get(key); found {
 		pythonVersion = x.(string)
 	} else {
@@ -72,7 +74,7 @@ func getPythonVersion() string {
 
 // getCPUInfo returns InfoStat for the first CPU gopsutil found
 func getCPUInfo() *cpu.InfoStat {
-	key := path.Join(metadata.CachePrefix, "cpuInfo")
+	key := buildKey("cpuInfo")
 	if x, found := util.Cache.Get(key); found {
 		return x.(*cpu.InfoStat)
 	}
@@ -89,7 +91,7 @@ func getCPUInfo() *cpu.InfoStat {
 }
 
 func getHostInfo() *host.InfoStat {
-	key := path.Join(metadata.CachePrefix, "hostInfo")
+	key := buildKey("hostInfo")
 	if x, found := util.Cache.Get(key); found {
 		return x.(*host.InfoStat)
 	}
@@ -114,4 +116,8 @@ func getMeta() *meta {
 		SocketFqdn:     util.Fqdn(hostname),
 		EC2Hostname:    "", // TODO
 	}
+}
+
+func buildKey(key string) string {
+	return path.Join(metadata.CachePrefix, packageCachePrefix, key)
 }
