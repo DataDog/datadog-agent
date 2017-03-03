@@ -1,5 +1,5 @@
 hash: 05b941ad03b7ad7d55eda3f7cabda42c83cadf889c9430f34d8329da084a45ce
-updated: 2017-02-21T15:29:07.723066381+01:00
+updated: 2017-02-27T10:08:49.505256266+01:00
 imports:
 - name: github.com/cihub/seelog
   version: d2c6e5aa9fbfdd1c624e140287063c7730654115
@@ -12,13 +12,13 @@ imports:
   subpackages:
   - statsd
 - name: github.com/DataDog/zstd
-  version: add9e2ca52c03c1f6f8deffa22fcc7667dcb4ae2
+  version: b95200223de728296c3bd0609039cbcb57e15223
 - name: github.com/davecgh/go-spew
   version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
   subpackages:
   - spew
 - name: github.com/docker/distribution
-  version: df5327f76fb6468b84a87771e361762b8be23fdb
+  version: 50133d63723f8fa376e632a853739990a133be16
   subpackages:
   - reference
   - digestset
@@ -42,7 +42,7 @@ imports:
   - api/types/blkiodev
   - api/types/strslice
 - name: github.com/docker/go-connections
-  version: 7da10c8c50cad14494ec818dcdfb6506265c0086
+  version: 1b14b2d192e2f91cdc2bc6bf9aee0b0e116eed42
   subpackages:
   - sockets
   - tlsconfig
@@ -56,7 +56,7 @@ imports:
   subpackages:
   - oleutil
 - name: github.com/gogo/protobuf
-  version: 3ea128ab69017b2bb9720f38a32e2dcfc22c0546
+  version: 83faaee7bbbdf0c59310ec67d340bc0cbe77053f
   subpackages:
   - proto
 - name: github.com/golang/protobuf
@@ -109,11 +109,16 @@ imports:
 - name: github.com/sbinet/go-python
   version: a2acb64fbdf8703949837e5ebf50c71319fe03a4
 - name: github.com/shirou/gopsutil
-  version: c14b242c603c1fc5e2dc92a90d65a2c1da935407
+  version: d371ba1293cb48fedc6850526ea48b3846c54f2c
   subpackages:
   - mem
   - cpu
+  - host
   - internal/common
+  - process
+  - net
+- name: github.com/shirou/w32
+  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/Sirupsen/logrus
   version: 7f4b1adc791766938c29457bed0703fb9134421a
 - name: github.com/spf13/afero
@@ -121,9 +126,9 @@ imports:
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: d1139bab1c07d5ad390a65e7305876b3c1a8370b
+  version: f820543c3592e283e311a60d2a600a664e39f6f7
 - name: github.com/spf13/cobra
-  version: ee4055870c2d5f7ce112642377e32c9929c3bbaf
+  version: 92ea23a837e66f46ac9e7d04fa826602b7b0a42d
   subpackages:
   - cobra
 - name: github.com/spf13/jwalterweatherman
@@ -144,18 +149,18 @@ imports:
   - suite
   - require
 - name: golang.org/x/net
-  version: 6b27048ae5e6ad1ef927e72e437531493de612fe
+  version: 10c134ea0df15f7e34d789338c7a2d76cc7a3ab9
   subpackages:
   - context
   - context/ctxhttp
   - proxy
 - name: golang.org/x/sys
-  version: 075e574b89e4c2d22f2286a7e2b919519c6f3547
+  version: e4594059fe4cde2daf423055a596c2cd1e6c9adf
   subpackages:
   - unix
   - windows
 - name: golang.org/x/text
-  version: 85c29909967d7f171f821e7a42e7b7af76fb9598
+  version: 0ad425fe45e885577bef05dc1c50f72e33188b16
   subpackages:
   - transform
   - unicode/norm
