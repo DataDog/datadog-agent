@@ -21,6 +21,7 @@ const (
 
 	v1SeriesEndpoint    = "/api/v1/series?api_key=%s"
 	v1CheckRunsEndpoint = "/api/v1/check_run?api_key=%s"
+	v1IntakeEndpoint    = "/intake/?api_key=%s"
 
 	seriesEndpoint       = "/api/v2/series"
 	eventsEndpoint       = "/api/v2/events"
@@ -236,5 +237,11 @@ func (f *Forwarder) SubmitV1Series(apiKey string, payload *[]byte) error {
 // the backend handles v2 endpoints).
 func (f *Forwarder) SubmitV1CheckRuns(apiKey string, payload *[]byte) error {
 	endpoint := fmt.Sprintf(v1CheckRunsEndpoint, apiKey)
+	return f.createTransaction(endpoint, payload, false)
+}
+
+// SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
+func (f *Forwarder) SubmitV1Intake(apiKey string, payload *[]byte) error {
+	endpoint := fmt.Sprintf(v1IntakeEndpoint, apiKey)
 	return f.createTransaction(endpoint, payload, false)
 }
