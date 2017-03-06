@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
 )
@@ -14,11 +15,19 @@ import (
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
+	r.HandleFunc("/hostname", getHostname).Methods("GET")
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.New(version.AgentVersion)
 	j, _ := json.Marshal(av)
+	w.Write(j)
+}
+
+func getHostname(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	hname := common.GetHostname()
+	j, _ := json.Marshal(hname)
 	w.Write(j)
 }
