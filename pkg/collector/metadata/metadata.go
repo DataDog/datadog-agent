@@ -77,8 +77,6 @@ func (c *Collector) loop() {
 }
 
 func (c *Collector) firstRun() {
-	// Send the agent startup event
-	// TODO
 	// Alway send host metadata at the first run
 	c.sendHost()
 }
