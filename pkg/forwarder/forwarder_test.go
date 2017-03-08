@@ -163,6 +163,14 @@ func TestSubmit(t *testing.T) {
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
+
+	expectedPayload = []byte("SubmitV1Intake payload")
+	expectedEndpoint = "/intake/"
+	expectedQuery = "api_key=test_api_key"
+	assert.Nil(t, forwarder.SubmitV1Intake("test_api_key", &expectedPayload))
+	<-wait
+	<-wait
+	assert.Equal(t, len(forwarder.retryQueue), 0)
 }
 
 func TestSubmitWithProxy(t *testing.T) {

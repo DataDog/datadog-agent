@@ -33,6 +33,9 @@ func NewCollector(paths ...string) *Collector {
 	sched := scheduler.NewScheduler(run.GetChan())
 	sched.Run()
 
+	// Send the agent startup event
+	// TODO
+
 	return &Collector{
 		scheduler: sched,
 		runner:    run,

@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/metadata"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -81,8 +82,10 @@ func start(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	hostname := common.GetHostname()
+
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
-	log.Infof("Hostname is: %s", common.GetHostname())
+	log.Infof("Hostname is: %s", hostname)
 
 	// start the cmd HTTP server
 	api.StartServer()
@@ -113,6 +116,9 @@ func start(cmd *cobra.Command, args []string) {
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment
 	common.Collector = collector.NewCollector(common.DistPath, filepath.Join(common.DistPath, "checks"))
+
+	// setup the metadata collector, this needs a working Python env to function
+	metaCollector := metadata.NewCollector(fwd, config.Datadog.GetString("api_key"), hostname)
 
 	// Get a list of config checks from the configured providers
 	var configs []check.Config
@@ -158,7 +164,9 @@ func start(cmd *cobra.Command, args []string) {
 		statsd.Stop()
 	}
 	common.Collector.Stop()
+	metaCollector.Stop()
 	api.StopServer()
+	fwd.Stop()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()

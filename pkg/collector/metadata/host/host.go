@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
-	"github.com/DataDog/datadog-agent/pkg/collector/metadata"
+	"github.com/DataDog/datadog-agent/pkg/collector/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
@@ -119,5 +119,5 @@ func getMeta() *meta {
 }
 
 func buildKey(key string) string {
-	return path.Join(metadata.CachePrefix, packageCachePrefix, key)
+	return path.Join(common.CachePrefix, packageCachePrefix, key)
 }

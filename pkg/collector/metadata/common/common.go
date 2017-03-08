@@ -11,6 +11,10 @@ var (
 	apiKey string
 )
 
+// CachePrefix is the common root to use to prefix all the cache
+// keys for any metadata value
+const CachePrefix = "metadata"
+
 // GetPayload fills and return the common metadata payload
 func GetPayload() *Payload {
 	return &Payload{
