@@ -159,7 +159,7 @@ func (f *Forwarder) Stop() {
 		log.Errorf("the forwarder is already stopped")
 		return
 	}
-	// using atomic to stop createTransaction
+	// using atomic to stop createTransactions
 	atomic.StoreUint32(&f.internalState, Stopped)
 
 	f.stopRetry <- true
@@ -173,19 +173,20 @@ func (f *Forwarder) Stop() {
 	log.Info("Forwarder stopped")
 }
 
-func (f *Forwarder) createTransaction(endpoint string, payload *[]byte, compress bool) error {
+func (f *Forwarder) createTransactions(endpoint string, payload *[]byte, compress bool) ([]Transaction, error) {
 	if atomic.LoadUint32(&f.internalState) == Stopped {
-		return fmt.Errorf("the forwarder is not started")
+		return nil, fmt.Errorf("the forwarder is not started")
 	}
 
 	if compress {
 		compressPayload, err := zstd.Compress(nil, *payload)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		payload = &compressPayload
 	}
 
+	transactions := []Transaction{}
 	for domain, apiKeys := range f.KeysPerDomains {
 		for _, apiKey := range apiKeys {
 			t := NewHTTPTransaction()
@@ -195,53 +196,99 @@ func (f *Forwarder) createTransaction(endpoint string, payload *[]byte, compress
 			t.Payload = payload
 			t.Headers.Set(apiHTTPHeaderKey, apiKey)
 
-			f.waitingPipe <- t
+			transactions = append(transactions, t)
 		}
 	}
-	return nil
+	return transactions, nil
+}
+
+func (f *Forwarder) sendTransactions(transactions []Transaction) {
+	for _, t := range transactions {
+		f.waitingPipe <- t
+	}
 }
 
 // SubmitTimeseries will send a timeserie type payload to Datadog backend.
 func (f *Forwarder) SubmitTimeseries(payload *[]byte) error {
-	return f.createTransaction(seriesEndpoint, payload, true)
+	transactions, err := f.createTransactions(seriesEndpoint, payload, true)
+	if err != nil {
+		return err
+	}
+	f.sendTransactions(transactions)
+	return nil
 }
 
 // SubmitEvent will send a event type payload to Datadog backend.
 func (f *Forwarder) SubmitEvent(payload *[]byte) error {
-	return f.createTransaction(eventsEndpoint, payload, true)
+	transactions, err := f.createTransactions(eventsEndpoint, payload, true)
+	if err != nil {
+		return err
+	}
+	f.sendTransactions(transactions)
+	return nil
 }
 
 // SubmitCheckRun will send a check_run type payload to Datadog backend.
 func (f *Forwarder) SubmitCheckRun(payload *[]byte) error {
-	return f.createTransaction(checkRunsEndpoint, payload, true)
+	transactions, err := f.createTransactions(checkRunsEndpoint, payload, true)
+	if err != nil {
+		return err
+	}
+	f.sendTransactions(transactions)
+	return nil
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *Forwarder) SubmitHostMetadata(payload *[]byte) error {
-	return f.createTransaction(hostMetadataEndpoint, payload, true)
+	transactions, err := f.createTransactions(hostMetadataEndpoint, payload, true)
+	if err != nil {
+		return err
+	}
+	f.sendTransactions(transactions)
+	return nil
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *Forwarder) SubmitMetadata(payload *[]byte) error {
-	return f.createTransaction(metadataEndpoint, payload, true)
+	transactions, err := f.createTransactions(metadataEndpoint, payload, true)
+	if err != nil {
+		return err
+	}
+	f.sendTransactions(transactions)
+	return nil
 }
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
 func (f *Forwarder) SubmitV1Series(apiKey string, payload *[]byte) error {
 	endpoint := fmt.Sprintf(v1SeriesEndpoint, apiKey)
-	return f.createTransaction(endpoint, payload, false)
+	transactions, err := f.createTransactions(endpoint, payload, false)
+	if err != nil {
+		return err
+	}
+	f.sendTransactions(transactions)
+	return nil
 }
 
 // SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
 // the backend handles v2 endpoints).
 func (f *Forwarder) SubmitV1CheckRuns(apiKey string, payload *[]byte) error {
 	endpoint := fmt.Sprintf(v1CheckRunsEndpoint, apiKey)
-	return f.createTransaction(endpoint, payload, false)
+	transactions, err := f.createTransactions(endpoint, payload, false)
+	if err != nil {
+		return err
+	}
+	f.sendTransactions(transactions)
+	return nil
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
 func (f *Forwarder) SubmitV1Intake(apiKey string, payload *[]byte) error {
 	endpoint := fmt.Sprintf(v1IntakeEndpoint, apiKey)
-	return f.createTransaction(endpoint, payload, false)
+	transactions, err := f.createTransactions(endpoint, payload, false)
+	if err != nil {
+		return err
+	}
+	f.sendTransactions(transactions)
+	return nil
 }
