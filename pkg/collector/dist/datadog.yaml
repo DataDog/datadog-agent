@@ -1,5 +1,5 @@
 # The host of the Datadog intake server to send Agent data to
-dd_url: https://foo.datadoghq.com
+dd_url: https://app.datadoghq.com
 
 # The Datadog api key to associate your Agent's data with your organization.
 # Can be found here:

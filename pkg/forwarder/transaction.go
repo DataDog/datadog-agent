@@ -3,6 +3,7 @@ package forwarder
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -67,12 +68,15 @@ func (t *HTTPTransaction) Process(client *http.Client) error {
 	}
 	defer resp.Body.Close()
 
+	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode == 400 || resp.StatusCode == 413 {
-		log.Errorf("Error code '%s' received while sending transaction to '%s' (dropping it)", resp.Status, t.Domain+t.Endpoint)
+		log.Errorf("Error code '%s' received while sending transaction to '%s': %s, dropping it", resp.Status, t.Domain+t.Endpoint, string(body))
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		return fmt.Errorf("Error '%s' while sending transaction, rescheduling it", resp.Status)
 	}
+
+	log.Debugf("successfully posted payload to '%s': %s", t.Domain+t.Endpoint, string(body))
 	return nil
 }
 
