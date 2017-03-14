@@ -1,6 +1,7 @@
 package app
 
 import (
+	"path"
 	"path/filepath"
 	"syscall"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
@@ -83,6 +85,9 @@ func start(cmd *cobra.Command, args []string) {
 	}
 
 	hostname := common.GetHostname()
+	// store the computed hostname in the global cache
+	key := path.Join(util.AgentCachePrefix, "hostname")
+	util.Cache.Set(key, hostname, util.NoExpiration)
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	log.Infof("Hostname is: %s", hostname)

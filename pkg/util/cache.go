@@ -9,6 +9,9 @@ import (
 const (
 	defaultCacheExpire = 5 * time.Minute
 	defaultCachePurge  = 30 * time.Second
+	// AgentCachePrefix is the common root to use to prefix all the cache
+	// keys for any value regarding the Agent
+	AgentCachePrefix = "agent"
 
 	// encapsulate the cache module for easy refactoring
 
