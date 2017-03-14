@@ -71,10 +71,11 @@ func TestSubmit(t *testing.T) {
 	expectedEndpoint := ""
 	expectedQuery := ""
 	expectedPayload := []byte{}
+	expectedHeaders := make(http.Header)
 
 	firstKey := "api_key1"
 	secondKey := "api_key2"
-	expectedAPIKey := firstKey
+	expectedHeaders.Set(apiHTTPHeaderKey, firstKey)
 
 	wait := make(chan bool)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -82,14 +83,16 @@ func TestSubmit(t *testing.T) {
 		assert.Equal(t, r.Method, "POST")
 		assert.Equal(t, r.URL.Path, expectedEndpoint)
 		assert.Equal(t, r.URL.RawQuery, expectedQuery)
-		assert.Equal(t, r.Header.Get(apiHTTPHeaderKey), expectedAPIKey)
+		for k := range expectedHeaders {
+			assert.Equal(t, expectedHeaders.Get(k), r.Header.Get(k))
+		}
 
 		// We switch expected keys as the forwarder should create one
 		// transaction per keys
-		if expectedAPIKey == firstKey {
-			expectedAPIKey = secondKey
+		if expectedHeaders.Get(apiHTTPHeaderKey) == firstKey {
+			expectedHeaders.Set(apiHTTPHeaderKey, secondKey)
 		} else {
-			expectedAPIKey = firstKey
+			expectedHeaders.Set(apiHTTPHeaderKey, firstKey)
 		}
 
 		body, err := ioutil.ReadAll(r.Body)
@@ -167,6 +170,7 @@ func TestSubmit(t *testing.T) {
 	expectedPayload = []byte("SubmitV1Intake payload")
 	expectedEndpoint = "/intake/"
 	expectedQuery = "api_key=test_api_key"
+	expectedHeaders.Set("Content-type", "application/json")
 	assert.Nil(t, forwarder.SubmitV1Intake("test_api_key", &expectedPayload))
 	<-wait
 	<-wait
