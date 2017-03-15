@@ -88,7 +88,7 @@ dependency 'preparation'
 # Checks core dependencies
 dependency 'requests'
 dependency 'psutil'
-dependency 'net-snmp'
+dependency 'net-snmp-slim'
 
 # Additional software
 dependency 'datadogpy'
