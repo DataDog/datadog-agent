@@ -1,9 +1,9 @@
 package network
 
 /*
-#cgo linux CFLAGS: -I/usr/include/net-snmp/library -DNETSNMP_NO_LEGACY_DEFINITIONS
+#cgo linux CFLAGS: -I/usr/include/net-snmp/library -I/opt/datadog-agent6/embedded/include -DNETSNMP_NO_LEGACY_DEFINITIONS
 //Dynamic linking (enabled)
-#cgo linux LDFLAGS: -L/usr/lib/ -L/usr/lib/x86_64-linux-gnu/ -static-libgcc -lnetsnmp -lcrypto -ldl -lz
+#cgo linux LDFLAGS: -L/usr/lib/ -L/usr/lib/x86_64-linux-gnu/ -L/opt/datadog-agent6/embedded/lib -L/ -static-libgcc -lnetsnmp -lcrypto -ldl -lz
 //STATIC link for netsnmp (disabled)
 //linux LDFLAGS: /usr/lib/libnetsnmp.a /usr/lib/x86_64-linux-gnu/libcrypto.a /usr/lib/x86_64-linux-gnu/libz.a -L/usr/lib/ -L/usr/lib/x86_64-linux-gnu/ -static-libgcc -ldl
 
