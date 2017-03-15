@@ -36,6 +36,12 @@ func (m *MockSender) Gauge(metric string, value float64, hostname string, tags [
 	m.Called(metric, value, hostname, tags)
 }
 
+//ServiceCheck enables the service check mock call.
 func (m *MockSender) ServiceCheck(checkName string, status aggregator.ServiceCheckStatus, hostname string, tags []string, message string) {
 	m.Called(checkName, status, hostname, tags, message)
+}
+
+//Commit enables the commit mock call.
+func (m *MockSender) Commit() {
+	m.Called()
 }
