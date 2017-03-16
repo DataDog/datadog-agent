@@ -6,9 +6,13 @@ source path: '..'
 
 relative_path 'datadog-agent'
 
+build_env = {
+  "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
+}
+
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  command 'rake agent:build'
+  command 'rake agent:build', :env => build_env
   copy('bin', install_dir)
 
   if debian?

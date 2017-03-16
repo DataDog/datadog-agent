@@ -91,7 +91,6 @@ dependency 'psutil'
 dependency 'net-snmp-slim'
 
 # Additional software
-dependency 'datadogpy'
 
 # Datadog agent
 dependency 'datadog-agent'
