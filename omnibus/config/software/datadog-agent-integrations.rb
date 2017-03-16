@@ -2,7 +2,6 @@ name 'datadog-agent-integrations'
 
 dependency 'pip'
 dependency 'datadog-agent'
-dependency 'integration-deps'
 
 relative_path 'integrations-core'
 
@@ -24,10 +23,10 @@ build do
   end
 
   # Copy the checks and generate the requriments file
-  command "rake copy_checks conf_dir=#{conf_directory} checks_dir=#{checks_dir}"
+  rake "copy_checks conf_dir=#{conf_directory} checks_dir=#{checks_dir}"
 
   # Install all the requirements
-  pip_args = "install --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\" -c #{install_dir}/agent/requirements.txt -r check_requirements.txt"
+  pip_args = "install --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\" -r check_requirements.txt"
   if windows?
     command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
   else

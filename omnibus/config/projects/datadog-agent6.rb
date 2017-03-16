@@ -85,17 +85,16 @@ end
 # creates required build directories
 dependency 'preparation'
 
-# Agent dependencies
-
-# Check dependencies
+# Checks core dependencies
 dependency 'requests'
-dependency 'psutil'
-
-# Additional software
-dependency 'datadogpy'
 
 # Datadog agent
 dependency 'datadog-agent'
+
+# Additional software
+dependency 'datadog-trace-agent'
+# disabled for now
+# dependency 'datadog-agent-integrations'
 
 # version manifest file
 dependency 'version-manifest'
