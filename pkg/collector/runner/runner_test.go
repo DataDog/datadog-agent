@@ -1,11 +1,34 @@
-package check
+package runner
 
 import (
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
 )
+
+// FIXTURE
+type TestCheck struct {
+	doErr  bool
+	hasRun bool
+}
+
+func (c *TestCheck) String() string                                     { return "TestCheck" }
+func (c *TestCheck) Stop()                                              {}
+func (c *TestCheck) Configure(check.ConfigData, check.ConfigData) error { return nil }
+func (c *TestCheck) InitSender()                                        {}
+func (c *TestCheck) Interval() time.Duration                            { return 1 }
+func (c *TestCheck) Run() error {
+	if c.doErr {
+		msg := "A tremendous error occurred."
+		return errors.New(msg)
+	}
+	c.hasRun = true
+	return nil
+}
+func (c *TestCheck) ID() check.ID { return check.ID(c.String()) }
 
 func TestNewRunner(t *testing.T) {
 	r := NewRunner(1)

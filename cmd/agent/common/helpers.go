@@ -5,9 +5,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
-	"github.com/DataDog/datadog-agent/pkg/collector/loader"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/providers"
+	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -19,21 +20,21 @@ import (
 
 // GetConfigProviders builds a list of providers for checks' configurations, the sequence defines
 // the precedence.
-func GetConfigProviders(confdPath string) (providers []loader.ConfigProvider) {
+func GetConfigProviders(confdPath string) (plist []providers.ConfigProvider) {
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(DistPath, "conf.d"),
 	}
 
 	// File Provider
-	providers = append(providers, loader.NewFileConfigProvider(confSearchPaths))
+	plist = append(plist, providers.NewFileConfigProvider(confSearchPaths))
 
-	return providers
+	return plist
 }
 
 // GetCheckLoaders builds a list of check loaders, the sequence defines the precedence.
-func GetCheckLoaders() []loader.CheckLoader {
-	return []loader.CheckLoader{
+func GetCheckLoaders() []check.Loader {
+	return []check.Loader{
 		py.NewPythonCheckLoader(),
 		core.NewGoCheckLoader(),
 	}

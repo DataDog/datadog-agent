@@ -6,7 +6,8 @@ import (
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
+	"github.com/DataDog/datadog-agent/pkg/collector/py"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	python "github.com/sbinet/go-python"
@@ -20,7 +21,7 @@ const (
 // Collector abstract common operations about running a Check
 type Collector struct {
 	scheduler *scheduler.Scheduler
-	runner    *check.Runner
+	runner    *runner.Runner
 	pyState   *python.PyThreadState
 	checks    map[check.ID]check.Check
 	state     uint32
@@ -29,7 +30,7 @@ type Collector struct {
 
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
-	run := check.NewRunner(config.Datadog.GetInt("check_runners"))
+	run := runner.NewRunner(config.Datadog.GetInt("check_runners"))
 	sched := scheduler.NewScheduler(run.GetChan())
 	sched.Run()
 
