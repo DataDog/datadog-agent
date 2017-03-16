@@ -88,7 +88,7 @@ dependency 'preparation'
 # Checks core dependencies
 dependency 'requests'
 dependency 'psutil'
-dependency 'net-snmp-slim'
+dependency 'net-snmp-lib'
 
 # Additional software
 
