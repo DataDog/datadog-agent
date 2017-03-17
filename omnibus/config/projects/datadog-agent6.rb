@@ -87,18 +87,14 @@ dependency 'preparation'
 
 # Checks core dependencies
 dependency 'requests'
-dependency 'psutil'
 dependency 'net-snmp-lib'
-
-# Additional software
 
 # Datadog agent
 dependency 'datadog-agent'
 
 # Additional software
 dependency 'datadog-trace-agent'
-# disabled for now
-# dependency 'datadog-agent-integrations'
+dependency 'datadog-agent-integrations'
 
 # version manifest file
 dependency 'version-manifest'
