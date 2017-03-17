@@ -5,17 +5,20 @@ import (
 	"io/ioutil"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/mitchellh/reflectwalk"
 	"github.com/sbinet/go-python"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"gopkg.in/yaml.v2"
 )
 
 // Check that the result of the func is the same as the dict contained in the test directory,
 // computed with PyYAML
-func TestToPythonDict(t *testing.T) {
+func TestToPython(t *testing.T) {
 	yamlFile, err := ioutil.ReadFile("tests/complex.yaml")
 	if err != nil {
 		t.Fatalf("Expected empty error message, found: %s", err)
@@ -28,7 +31,7 @@ func TestToPythonDict(t *testing.T) {
 		t.Fatalf("Expected empty error message, found: %s", err)
 	}
 
-	res, err := ToPythonDict(&c)
+	res, err := ToPython(&c)
 	if err != nil {
 		t.Fatalf("Expected empty error message, found: %s", err)
 	}
@@ -57,6 +60,88 @@ func TestToPythonDict(t *testing.T) {
 			python.PyString_AsString(res.Str()),
 			python.PyString_AsString(d.Str()))
 	}
+}
+
+func TestToPythonInt(t *testing.T) {
+	var a int
+	var b int32
+	a = 21
+	b = 32
+
+	res, err := ToPython(&a)
+	require.Nil(t, err, "Expected empty error message")
+
+	// Lock the GIL and release it at the end
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
+
+	assert.True(t, python.PyInt_Check(res), "Result is not a Python dict")
+
+	res, err = ToPython(&b)
+	require.Nil(t, err, "Expected empty error message")
+	assert.True(t, python.PyInt_Check(res), "Result is not a Python dict")
+}
+
+func TestToPythonfloat(t *testing.T) {
+	var a float64
+	var b float32
+	a = 64.0
+	b = 32.0
+
+	res, err := ToPython(&a)
+	require.Nil(t, err, "Expected empty error message")
+
+	// Lock the GIL and release it at the end
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
+
+	assert.True(t, python.PyFloat_Check(res), "Result is not a Python float")
+
+	res, err = ToPython(&b)
+	require.Nil(t, err, "Expected empty error message")
+	assert.True(t, python.PyFloat_Check(res), "Result is not a Python float")
+}
+
+func TestToPythonBool(t *testing.T) {
+	var a bool
+	a = true
+
+	res, err := ToPython(&a)
+	require.Nil(t, err, "Expected empty error message")
+
+	// Lock the GIL and release it at the end
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
+
+	assert.True(t, python.PyBool_Check(res), "Result is not a Python bool")
+}
+
+func TestToPythonString(t *testing.T) {
+	var a string
+	a = "this is a test string"
+
+	res, err := ToPython(&a)
+	require.Nil(t, err, "Expected empty error message")
+
+	// Lock the GIL and release it at the end
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
+
+	assert.True(t, python.PyString_Check(res), "Result is not a Python string")
+}
+
+func TestToPythonDuration(t *testing.T) {
+	var a time.Duration
+	a = 1 * time.Second
+
+	res, err := ToPython(&a)
+	require.Nil(t, err, "Expected empty error message")
+
+	// Lock the GIL and release it at the end
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
+
+	assert.True(t, python.PyInt_Check(res), "Result is not a Python string")
 }
 
 func TestWalkerPush(t *testing.T) {
@@ -201,12 +286,6 @@ func TestIfToPy(t *testing.T) {
 	val = ifToPy(reflect.ValueOf(i))
 	if !python.PyBool_Check(val) {
 		t.Fatalf("Return value is not bool")
-	}
-
-	var nilInt *int
-	val = ifToPy(reflect.ValueOf(nilInt))
-	if val != python.Py_None {
-		t.Fatalf("Return value is not None")
 	}
 }
 

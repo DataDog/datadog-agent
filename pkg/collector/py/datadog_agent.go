@@ -3,6 +3,9 @@ package py
 import (
 	"unsafe"
 
+	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -42,6 +45,24 @@ func Headers() *C.PyObject {
 		C.PyDict_SetItem(dict, pyKey, pyVal)
 	}
 	return dict
+}
+
+// GetConfig returns a value from the agent configuration.
+//export GetConfig
+func GetConfig(key *C.char) *C.PyObject {
+	goKey := C.GoString(key)
+	if !config.Datadog.IsSet(goKey) {
+		return C._none()
+	}
+
+	value := config.Datadog.Get(goKey)
+	pyValue, err := ToPython(value)
+	if err != nil {
+		log.Errorf("datadog_agent: could not convert configuration value (%v) to python types: %s", value, err)
+		return C._none()
+	}
+	// converting type *python.C.struct__object to *C.struct__object
+	return (*C.PyObject)(unsafe.Pointer(pyValue.GetCPointer()))
 }
 
 func initDatadogAgent() {
