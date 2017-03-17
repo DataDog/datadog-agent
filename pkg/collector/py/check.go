@@ -150,7 +150,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	conf["instances"] = []interface{}{rawInstances}
 
 	// Convert the RawConfigMap to a Python dictionary
-	kwargs, err := ToPythonDict(&conf)
+	kwargs, err := ToPython(&conf)
 	if err != nil {
 		log.Errorf("Error parsing python check configuration: %v", err)
 		return err
@@ -165,7 +165,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 		// try again, assuming the check is good but has still the old api
 		// we pass initConfig but emit a deprecation notice
 		allSettings := config.Datadog.AllSettings()
-		agentConfig, err := ToPythonDict(allSettings)
+		agentConfig, err := ToPython(allSettings)
 		if err != nil {
 			return fmt.Errorf("could not convert agent configuration to python: %s", err)
 		}
@@ -182,7 +182,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 			return fmt.Errorf("could not invoke python check constructor: %s", err)
 		}
 
-		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `agent_config` package (%s).", c.ModuleName)
+		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
 	}
 
 	c.Instance = instance

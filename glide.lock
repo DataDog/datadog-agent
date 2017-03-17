@@ -109,7 +109,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/sbinet/go-python
-  version: a2acb64fbdf8703949837e5ebf50c71319fe03a4
+  version: ba7e58341058bdefb92b359870caf2dc0a05cfcf
 - name: github.com/shirou/gopsutil
   version: d371ba1293cb48fedc6850526ea48b3846c54f2c
   subpackages:

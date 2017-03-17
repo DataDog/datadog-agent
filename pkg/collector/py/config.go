@@ -1,7 +1,9 @@
 package py
 
 import (
+	log "github.com/cihub/seelog"
 	"reflect"
+	"time"
 
 	"github.com/mitchellh/reflectwalk"
 	"github.com/sbinet/go-python"
@@ -15,12 +17,27 @@ type walker struct {
 	currentContainer *python.PyObject
 }
 
-// ToPythonDict converts a go object into a Python dictionary
-func ToPythonDict(obj interface{}) (*python.PyObject, error) {
+// ToPython converts a go object into a Python object
+func ToPython(obj interface{}) (*python.PyObject, error) {
 	w := new(walker)
 	err := reflectwalk.Walk(obj, w)
 
 	return w.result, err
+}
+
+// Primitive convert a basic type to python (int, bool, string, ...)
+func (w *walker) Primitive(v reflect.Value) error {
+	// if we are currently in a map or slice context: do nothing
+	if w.currentContainer != nil {
+		return nil
+	}
+
+	// if not: we are converting a simple type
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
+
+	w.result = ifToPy(v)
+	return nil
 }
 
 // push the old container to the stack and start using the new one
@@ -111,18 +128,31 @@ func ifToPy(v reflect.Value) *python.PyObject {
 	var pyval *python.PyObject
 	vi := v.Interface()
 
-	if s, ok := vi.(string); ok {
+	switch s := vi.(type) {
+	case string:
 		pyval = python.PyString_FromString(s)
-	} else if s, ok := vi.(int); ok {
+	case int:
 		pyval = python.PyInt_FromLong(int(s))
-	} else if s, ok := vi.(bool); ok {
+	case int32:
+		pyval = python.PyInt_FromLong(int(s))
+	case int64:
+		// This will only works on 64bit host. Since we don't offer 32bit build it's fine
+		pyval = python.PyInt_FromLong(int(s))
+	case time.Duration:
+		// This will only works on 64bit host. Since we don't offer 32bit build it's fine
+		pyval = python.PyInt_FromLong(int(s))
+	case float32:
+		pyval = python.PyFloat_FromDouble(float64(s))
+	case float64:
+		pyval = python.PyFloat_FromDouble(float64(s))
+	case bool:
 		if s {
 			pyval = python.PyBool_FromLong(1)
 		} else {
 			pyval = python.PyBool_FromLong(0)
 		}
-	} else if v.IsNil() {
-		pyval = python.Py_None
+	default:
+		log.Warnf("Could not convert type %s to python", reflect.TypeOf(vi))
 	}
 
 	return pyval
