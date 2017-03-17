@@ -87,6 +87,10 @@ dependency 'preparation'
 
 # Checks core dependencies
 dependency 'requests'
+dependency 'psutil'
+dependency 'net-snmp-lib'
+
+# Additional software
 
 # Datadog agent
 dependency 'datadog-agent'

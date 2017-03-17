@@ -1,5 +1,5 @@
-#ifndef API
-#define API
+#ifndef _PY_API_H
+#define _PY_API_H
 
 #include <Python.h>
 
@@ -19,4 +19,4 @@ int _is_none(PyObject*);
 PyObject* PySequence_Fast_Get_Item(PyObject*, Py_ssize_t);
 Py_ssize_t PySequence_Fast_Get_Size(PyObject*);
 
-#endif /* API */
+#endif //_PY_API_H

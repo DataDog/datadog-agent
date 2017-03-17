@@ -1,0 +1,718 @@
+package network
+
+/*
+#cgo linux CFLAGS: -I/opt/datadog-agent6/embedded/include -I/usr/include/net-snmp/library -DNETSNMP_NO_LEGACY_DEFINITIONS
+//Dynamic linking (enabled)
+#cgo linux LDFLAGS: -L/opt/datadog-agent6/embedded/lib -L/usr/lib/ -L/usr/lib/x86_64-linux-gnu/ -L/ -static-libgcc -lnetsnmp -lcrypto -ldl -lz
+//STATIC link for netsnmp (disabled)
+//linux LDFLAGS: /usr/lib/libnetsnmp.a /usr/lib/x86_64-linux-gnu/libcrypto.a /usr/lib/x86_64-linux-gnu/libz.a -L/usr/lib/ -L/usr/lib/x86_64-linux-gnu/ -static-libgcc -ldl
+
+#cgo darwin CFLAGS: -I/opt/datadog-agent6/embedded/include -I/usr/local/Cellar/net-snmp/5.7.3/include -DNETSNMP_NO_LEGACY_DEFINITIONS
+//Dynamic linking (enabled)
+#cgo darwin LDFLAGS: -L/opt/datadog-agent6/embedded/lib -L/usr/local/Cellar/net-snmp/5.7.3/lib/ -lnetsnmp
+
+#include <stdlib.h>
+#include <net-snmp/net-snmp-config.h>
+#include <net-snmp/net-snmp-includes.h>
+#include <net-snmp/mib_api.h>
+*/
+import "C"
+
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"math/big"
+	"net"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/check/core"
+	"github.com/DataDog/datadog-agent/pkg/util"
+
+	log "github.com/cihub/seelog"
+	"github.com/k-sone/snmpgo"
+
+	"gopkg.in/yaml.v2"
+)
+
+const (
+	maxOIDLen      = 128
+	defaultPort    = 161
+	nonRepeaters   = 0
+	maxRepetitions = 10
+)
+
+var once sync.Once
+
+type metricTag struct {
+	Tag    string `yaml:"tag"`
+	ColOID string `yaml:"tag_oid,omitempty"`
+	Column string `yaml:"column,omitempty"`
+	Index  int    `yaml:"index,omitempty"`
+}
+
+type metric struct {
+	MIB        string      `yaml:"MIB,omitempty"`
+	OID        string      `yaml:"OID,omitempty"`
+	Symbol     string      `yaml:"symbol,omitempty"`
+	Name       string      `yaml:"name,omitempty"`
+	Table      string      `yaml:"table,omitempty"`
+	ForcedType string      `yaml:"forced_type,omitempty"`
+	Symbols    []string    `yaml:"symbols,omitempty"`
+	Tags       []metricTag `yaml:"metric_tags,omitempty"`
+}
+
+type instanceCfg struct {
+	Host          string                  `yaml:"ip_address"`
+	Port          uint                    `yaml:"port"`
+	User          string                  `yaml:"user,omitempty"`
+	Community     string                  `yaml:"community_string"`
+	Version       int                     `yaml:"snmp_version"`
+	AuthKey       string                  `yaml:"authKey,omitempty"`
+	PrivKey       string                  `yaml:"privKey,omitempty"`
+	AuthProtocol  string                  `yaml:"authProtocol,omitempty"`
+	PrivProtocol  string                  `yaml:"privProtocol,omitempty"`
+	Timeout       uint                    `yaml:"timeout,omitempty"`
+	Retries       uint                    `yaml:"retries,omitempty"`
+	Metrics       []metric                `yaml:"metrics,omitempty"`
+	Tags          []string                `yaml:"tags,omitempty"`
+	OIDTranslator *util.BiMap             `yaml:",omitempty"` //will not be in yaml
+	NameLookup    map[string]string       `yaml:",omitempty"` //will not be in yaml
+	MetricMap     map[string]*metric      `yaml:",omitempty"` //will not be in yaml
+	TagMap        map[string][]*metricTag `yaml:",omitempty"` //will not be in yaml
+	snmp          *snmpgo.SNMP
+}
+
+type initCfg struct {
+	MibsDir         string `yaml:"mibs_folder,omitempty"`
+	IgnoreNonIncOID string `yaml:"ignore_nonincreasing_oid,omitempty"`
+}
+
+type snmpConfig struct {
+	instance instanceCfg
+	initConf initCfg
+}
+
+// SNMPCheck grabs SNMP metrics
+type SNMPCheck struct {
+	id     check.ID
+	cfg    *snmpConfig
+	sender aggregator.Sender
+}
+
+func (c *SNMPCheck) String() string {
+	return "SNMPCheck"
+}
+
+func initCNetSnmpLib(cfg *initCfg) (err error) {
+	err = nil
+
+	defer func() {
+		if r := recover(); r != nil {
+			log.Debugf("error initializing SNMP libraries: %v", r)
+			log.Debug("are all dependencies available?")
+			err = errors.New("Unable to initialize SNMP")
+		}
+	}()
+
+	once.Do(func() {
+		C.netsnmp_init_mib()
+
+		if cfg != nil && cfg.MibsDir != "" {
+			_, e := os.Stat(cfg.MibsDir)
+			if e == nil || !os.IsNotExist(e) {
+				mibdir := C.CString(cfg.MibsDir)
+				defer C.free(unsafe.Pointer(mibdir))
+				C.add_mibdir(mibdir)
+			}
+		}
+	})
+
+	return
+}
+
+type tagRegistryEntry struct {
+	Varbinds snmpgo.VarBinds
+	Tag      *metricTag
+}
+
+type tagRegistry map[string]tagRegistryEntry
+
+func namespaceMetric(name string) string {
+	var buffer bytes.Buffer
+
+	//build correct metric name
+	buffer.WriteString("snmp.")
+
+	tokenized := strings.Split(name, "::")
+	buffer.WriteString(tokenized[len(tokenized)-1])
+	return buffer.String()
+}
+
+func buildTextOID(oids []string) string {
+	var buffer bytes.Buffer
+	for idx, oid := range oids {
+		buffer.WriteString(oid)
+		if idx < len(oids)-1 {
+			buffer.WriteString("::")
+		}
+	}
+	return buffer.String()
+}
+
+func buildOID(holder []C.oid, idLen int) string {
+	var buffer bytes.Buffer
+	for i := 0; i < idLen; i++ {
+		buffer.WriteString(fmt.Sprintf("%v", holder[i]))
+		if i < (idLen - 1) {
+			buffer.WriteString(".")
+		}
+	}
+	return buffer.String()
+}
+
+func getTextualOID(oid string) (string, error) {
+	var cbuff [512]C.char
+	var oidHolder [maxOIDLen]C.oid
+
+	//zero out buffer
+	for i := range cbuff {
+		cbuff[i] = 0
+	}
+	_oid := strings.Split(oid, ".")
+	if _oid[0] == "." {
+		_oid = _oid[1:]
+	}
+
+	for i := range _oid {
+		id, err := strconv.Atoi(_oid[i])
+		if err != nil {
+			return "", err
+		}
+		oidHolder[i] = (C.oid)(id)
+	}
+	idLen := len(_oid)
+	cbuffLen := 511
+
+	C.snprint_objid(
+		&cbuff[0],
+		(C.size_t)(cbuffLen),
+		(*C.oid)(unsafe.Pointer(&oidHolder[0])),
+		(C.size_t)(idLen))
+
+	return C.GoString((*C.char)(unsafe.Pointer(&cbuff[0]))), nil
+
+}
+
+func getIndexTag(baseOID, OID string, idx int) (string, error) {
+
+	_base := strings.Split(baseOID, ".")
+	if _base[0] == "." {
+		_base = _base[1:]
+	}
+
+	_oid := strings.Split(OID, ".")
+	if _oid[0] == "." {
+		_oid = _oid[1:]
+	}
+	if len(_oid) < len(_base)+idx {
+		return "", errors.New("index provided unavailable in target OID")
+	}
+	_oid = _oid[:len(_base)+idx]
+
+	textOID, err := getTextualOID(strings.Join(_oid, "."))
+	if err != nil {
+		return "", err
+	}
+	sliceOID := strings.Split(textOID, ".")
+	tag := sliceOID[len(sliceOID)-1]
+
+	return tag, nil
+}
+
+func (cfg *instanceCfg) generateOIDs() error {
+
+	var textualOID string
+	var err error
+	cfg.OIDTranslator = util.NewBiMap((string)(""), (string)(""))
+	cfg.MetricMap = make(map[string]*metric)
+	cfg.NameLookup = make(map[string]string)
+
+	for i, metric := range cfg.Metrics {
+		oidHolder := make([]C.oid, maxOIDLen)
+		idLen := maxOIDLen
+
+		log.Debugf("Mapping metric: %v", metric)
+		if metric.OID != "" {
+			log.Debugf("No translation necessary for OID: %s", metric.OID)
+			err = cfg.OIDTranslator.AddKV(metric.OID, metric.OID)
+			if err != nil {
+				log.Warnf("Unable to add OID %s to translation map", metric.OID)
+			}
+			cfg.MetricMap[metric.OID] = &cfg.Metrics[i]
+		} else if metric.Table != "" {
+			for _, symbol := range metric.Symbols {
+				textualOID = buildTextOID([]string{metric.MIB, symbol})
+				ctextualOID := C.CString(textualOID)
+				log.Debugf("Translating Table OID: %s", textualOID)
+
+				C.read_objid(
+					ctextualOID,
+					(*C.oid)(unsafe.Pointer(&oidHolder[0])),
+					(*C.size_t)(unsafe.Pointer(&idLen)))
+
+				symOID := buildOID(oidHolder, idLen)
+				err = cfg.OIDTranslator.AddKV(textualOID, symOID)
+				if err != nil {
+					log.Warnf("Unable to add OID %s to translation map", textualOID)
+				}
+				cfg.MetricMap[symOID] = &cfg.Metrics[i]
+				cfg.NameLookup[textualOID] = namespaceMetric(textualOID)
+				C.free(unsafe.Pointer(ctextualOID))
+			}
+		} else {
+			textualOID = buildTextOID([]string{metric.MIB, metric.Symbol})
+			ctextualOID := C.CString(textualOID)
+			log.Debugf("Translating Symbol: %s", textualOID)
+
+			C.read_objid(
+				ctextualOID,
+				(*C.oid)(unsafe.Pointer(&oidHolder[0])),
+				(*C.size_t)(unsafe.Pointer(&idLen)))
+
+			symOID := buildOID(oidHolder, idLen)
+			err = cfg.OIDTranslator.AddKV(textualOID, symOID)
+			if err != nil {
+				log.Warnf("Unable to add OID %s to translation map", textualOID)
+			}
+			cfg.MetricMap[symOID] = &cfg.Metrics[i]
+			cfg.NameLookup[textualOID] = namespaceMetric(textualOID)
+			C.free(unsafe.Pointer(ctextualOID))
+		}
+
+		//grab tags too
+		for _, tag := range metric.Tags {
+			if tag.Column != "" {
+				textualTagOID := buildTextOID([]string{metric.MIB, tag.Column})
+				ctextualOID := C.CString(textualTagOID)
+				log.Debugf("Translating Tag OID: %s", textualTagOID)
+
+				C.read_objid(
+					ctextualOID,
+					(*C.oid)(unsafe.Pointer(&oidHolder[0])),
+					(*C.size_t)(unsafe.Pointer(&idLen)))
+
+				err = cfg.OIDTranslator.AddKV(textualTagOID, buildOID(oidHolder, idLen))
+				if err != nil {
+					log.Warnf("Unable to add OID %s to translation map", textualTagOID)
+					C.free(unsafe.Pointer(ctextualOID))
+					continue // or bail out?
+				}
+				C.free(unsafe.Pointer(ctextualOID))
+			}
+		}
+	}
+
+	return nil
+}
+
+func (cfg *instanceCfg) generateTagMap() error {
+
+	cfg.TagMap = make(map[string][]*metricTag)
+
+	for _, metric := range cfg.Metrics {
+
+		var ok bool
+		var textOID, symOID string
+
+		for idx, tag := range metric.Tags {
+			textOID = ""
+			symOID = ""
+
+			//Set column ID for lookup if it applies
+			if tag.Column != "" {
+				textOID = buildTextOID([]string{metric.MIB, tag.Column})
+				OID, err := cfg.OIDTranslator.GetKV(textOID)
+				if err != nil {
+					continue
+				}
+				symOID, ok = OID.(string)
+				if !ok {
+					continue
+				}
+
+				metric.Tags[idx].ColOID = string(symOID)
+			}
+
+			if metric.OID != "" {
+				if _, ok := cfg.TagMap[metric.OID]; ok {
+					cfg.TagMap[metric.OID] = append(cfg.TagMap[metric.OID], &metric.Tags[idx])
+				} else {
+					cfg.TagMap[metric.OID] = []*metricTag{&metric.Tags[idx]}
+				}
+			} else if metric.Table != "" {
+				for _, symbol := range metric.Symbols {
+					metricOID := buildTextOID([]string{metric.MIB, symbol})
+
+					OID, err := cfg.OIDTranslator.GetKV(metricOID)
+					if err != nil {
+						continue
+					}
+					symMetricOID, ok := OID.(string)
+					if !ok {
+						continue
+					}
+					if _, ok := cfg.TagMap[symMetricOID]; ok {
+						cfg.TagMap[symMetricOID] = append(cfg.TagMap[symMetricOID], &metric.Tags[idx])
+					} else {
+						cfg.TagMap[symMetricOID] = []*metricTag{&metric.Tags[idx]}
+					}
+				}
+			} else {
+				metricOID := buildTextOID([]string{metric.MIB, metric.Symbol})
+
+				OID, err := cfg.OIDTranslator.GetKV(metricOID)
+				if err != nil {
+					continue
+				}
+				symMetricOID, ok := OID.(string)
+				if !ok {
+					continue
+				}
+				if _, ok := cfg.TagMap[symMetricOID]; ok {
+					cfg.TagMap[symMetricOID] = append(cfg.TagMap[symMetricOID], &metric.Tags[idx])
+				} else {
+					cfg.TagMap[symMetricOID] = []*metricTag{&metric.Tags[idx]}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *snmpConfig) Parse(data []byte, initData []byte) error {
+	var tagbuff bytes.Buffer
+	var instance instanceCfg
+	var initConf initCfg
+
+	if err := yaml.Unmarshal(data, &instance); err != nil {
+		return err
+	}
+	if err := yaml.Unmarshal(initData, &initConf); err != nil {
+		return err
+	}
+
+	c.instance = instance
+	c.initConf = initConf
+
+	if c.instance.Port == 0 {
+		c.instance.Port = defaultPort
+	}
+
+	if c.instance.Host == "" {
+		return errors.New("error parsing configuration - invalid SNMP instance configuration")
+	}
+
+	//build instance tag
+	tagbuff.Reset()
+	tagbuff.WriteString("instance:")
+	tagbuff.WriteString(c.instance.Host)
+	tagbuff.WriteString(":")
+	tagbuff.WriteString(fmt.Sprintf("%d", c.instance.Port))
+
+	c.instance.Tags = append(c.instance.Tags, tagbuff.String())
+
+	return nil
+}
+
+func (c *SNMPCheck) submitSNMP(oids snmpgo.Oids, vbs snmpgo.VarBinds) error {
+
+	for _, oid := range oids {
+		varbinds := vbs.MatchBaseOids(oid)
+
+		registry := make(tagRegistry)
+		if tags, ok := c.cfg.instance.TagMap[oid.String()]; ok {
+			for _, tag := range tags {
+				if tag.Column != "" {
+					if tagOID, err := snmpgo.NewOid(tag.ColOID); err == nil {
+						registry[tag.Tag] = tagRegistryEntry{Tag: tag, Varbinds: vbs.MatchBaseOids(tagOID)}
+					}
+				} else if tag.Index > 0 {
+					registry[tag.Tag] = tagRegistryEntry{Tag: tag, Varbinds: nil}
+				}
+			}
+		}
+
+		symbolicOID, err := c.cfg.instance.OIDTranslator.GetKVReverse(oid.String())
+		if err != nil {
+			log.Warnf("unable to report OID: %s - error retrieving value.", oid.String())
+			continue
+		}
+
+		//forced type?
+		metricName := ""
+		metricType := ""
+		if m, ok := c.cfg.instance.MetricMap[oid.String()]; ok {
+			if m.ForcedType != "" {
+				log.Warnf("Detected forced type: %s - for %v.", m.ForcedType, *m)
+				metricType = m.ForcedType
+			}
+
+			if m.Name != "" {
+				metricName = namespaceMetric(m.Name)
+				log.Debugf("Overriding name: %s - for %v.", metricName, *m)
+			}
+		}
+
+		if metric, ok := symbolicOID.(string); ok {
+			for idx, collected := range varbinds {
+				tag := ""
+				var tagbuff bytes.Buffer
+				var value *big.Int
+				var err error
+
+				value, err = collected.Variable.BigInt()
+				if err != nil || value == nil {
+					continue
+				}
+
+				//set tag
+				tagbundle := append([]string(nil), c.cfg.instance.Tags...)
+				for _, entry := range registry {
+					tagbuff.Reset()
+					if entry.Tag.Column != "" && len(entry.Varbinds) > 0 {
+						tagbuff.WriteString(entry.Tag.Tag)
+						tagbuff.WriteString(":")
+						tagbuff.WriteString(entry.Varbinds[idx].Variable.String())
+						tagbundle = append(tagbundle, tagbuff.String())
+					} else if entry.Tag.Index > 0 {
+						tag, _ = getIndexTag(oid.String(), collected.Oid.String(), entry.Tag.Index)
+						tagbuff.WriteString(entry.Tag.Tag)
+						tagbuff.WriteString(":")
+						tagbuff.WriteString(tag)
+						tagbundle = append(tagbundle, tagbuff.String())
+					}
+				}
+
+				//TODO: add more types
+				log.Debugf("Variable fetched has type: %v = %v", metric, collected.Variable.Type())
+				if metricType == "" {
+					metricType = collected.Variable.Type()
+				}
+				if metricName == "" {
+					if ddMetric, ok := c.cfg.instance.NameLookup[metric]; ok {
+						metricName = ddMetric
+					} else {
+						metricName = namespaceMetric(metric)
+					}
+				}
+
+				switch metricType {
+				case "Counter64", "Counter32", "Gauge32", "Integer", "gauge":
+					log.Debugf("Submitting gauge: %v = %v tagged with: %v", metricName, value, tagbundle)
+					//should report instance has hostname
+					c.sender.Gauge(metricName, float64(value.Int64()), "", tagbundle)
+				case "OctetString":
+				default:
+					continue
+				}
+			}
+		}
+	}
+
+	c.sender.Commit()
+
+	return nil
+}
+
+func (c *SNMPCheck) getSNMP() error {
+
+	// get OIDList
+	oidvalues := c.cfg.instance.OIDTranslator.Values()
+	oidList := make([]string, len(oidvalues))
+	for i, v := range oidvalues {
+		//should be true for each v
+		if vstr, ok := v.(string); ok {
+			oidList[i] = vstr
+		}
+	}
+
+	oids, err := snmpgo.NewOids(oidList)
+	if err != nil {
+		// Failed creating Native OID list.
+		log.Warnf("Error creating Native OID list: %v", err)
+		return err
+	}
+
+	log.Debugf("Connecting to SNMP host...")
+	if err = c.cfg.instance.snmp.Open(); err != nil {
+		// Failed to open connection
+		log.Warnf("Error connecting to host: %v", err)
+		return err
+	}
+
+	log.Debugf("SNMP Getting... OIDS: %v", oids)
+	pdu, err := c.cfg.instance.snmp.GetRequest(oids)
+	if err != nil {
+		// Failed to request
+		log.Warnf("Error performing snmpget: %v", err)
+		return err
+	}
+	if pdu.ErrorStatus() != snmpgo.NoError {
+		// Received an error from the agent
+		log.Warnf("Received error from SNMP agent: %v - %v", pdu.ErrorStatus(), pdu.ErrorIndex())
+	}
+
+	var collectedVars []*snmpgo.VarBind
+	var missingOIDs []*snmpgo.Oid
+	for _, oid := range oids {
+		collected := pdu.VarBinds().MatchOid(oid)
+		if collected != nil && collected.Variable.Type() != "NoSucheInstance" {
+			log.Debugf("Collected OID: %v", oid)
+			collectedVars = append(collectedVars, collected)
+		} else {
+			log.Debugf("Missing OID: %v", oid)
+			missingOIDs = append(missingOIDs, oid)
+		}
+	}
+
+	if len(missingOIDs) > 0 {
+		log.Debugf("SNMP Walking...")
+		// See: https://www.snmpsharpnet.com/?page_id=30
+		pdu, err := c.cfg.instance.snmp.GetBulkWalk(missingOIDs, nonRepeaters, maxRepetitions)
+		if err != nil {
+			// Failed to request
+			log.Warnf("Error performing snmpget: %v", err)
+			return err
+		}
+		if pdu.ErrorStatus() != snmpgo.NoError {
+			// Received an error from the agent
+			log.Warnf("Received error from SNMP agent: %v - %v", pdu.ErrorStatus(), pdu.ErrorIndex())
+		}
+
+		for _, oid := range oids {
+			varbinds := pdu.VarBinds().MatchBaseOids(oid)
+			for _, collected := range varbinds {
+				if collected != nil && collected.Variable.Type() != "NoSucheInstance" {
+					log.Debugf("Collected OID: %v", collected.Oid.String())
+					collectedVars = append(collectedVars, collected)
+				}
+			}
+		}
+	}
+
+	log.Debugf("Submitting metrics...")
+	c.submitSNMP(oids, collectedVars)
+
+	//TODO: send service checks
+	return nil
+}
+
+// Configure the Python check from YAML data
+func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+
+	cfg := new(snmpConfig)
+	err := cfg.Parse(data, initConfig)
+	if err != nil {
+		log.Criticalf("Error parsing configuration file: %s ", err)
+		return err
+	}
+	c.id = check.Identify(c, data, initConfig)
+	c.cfg = cfg
+
+	//init SNMP - will fail if missing snmp libs.
+	if err = initCNetSnmpLib(&c.cfg.initConf); err != nil {
+		log.Criticalf("Unable to configure check: %s ", err)
+		return err
+	}
+
+	//create snmp object for instance
+	snmpver := snmpgo.V2c
+	if c.cfg.instance.Version == 3 {
+		snmpver = snmpgo.V3
+	}
+
+	c.cfg.instance.snmp, err = snmpgo.NewSNMP(snmpgo.SNMPArguments{
+		Version:      snmpver,
+		Address:      net.JoinHostPort(c.cfg.instance.Host, strconv.Itoa(int(c.cfg.instance.Port))),
+		Retries:      c.cfg.instance.Retries,
+		Timeout:      time.Duration(c.cfg.instance.Timeout) * time.Second,
+		Community:    c.cfg.instance.Community,
+		AuthPassword: c.cfg.instance.AuthKey,
+		AuthProtocol: snmpgo.AuthProtocol(c.cfg.instance.AuthProtocol),
+		PrivPassword: c.cfg.instance.PrivKey,
+		PrivProtocol: snmpgo.PrivProtocol(c.cfg.instance.PrivProtocol),
+	})
+	if err != nil {
+		// Failed to create snmpgo.SNMP object
+		log.Warnf("Error creating SNMP instance for: %s (%v) - skipping", c.cfg.instance.Host, err)
+		return err
+	}
+
+	// genereate OID Translator and TagMap - one time thing
+	if c.cfg.instance.OIDTranslator == nil {
+		log.Debugf("Generating OIDs...")
+		if err := c.cfg.instance.generateOIDs(); err != nil {
+			return err
+		}
+	}
+	if c.cfg.instance.TagMap == nil {
+		log.Debugf("Generating TagMap...")
+		if err := c.cfg.instance.generateTagMap(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// InitSender initializes a sender
+func (c *SNMPCheck) InitSender() {
+	s, err := aggregator.GetSender(c.id)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	c.sender = s
+}
+
+// Interval returns the scheduling time for the check
+func (c *SNMPCheck) Interval() time.Duration {
+	return check.DefaultCheckInterval
+}
+
+// ID FIXME: this should return a real identifier
+func (c *SNMPCheck) ID() check.ID {
+	return c.id
+}
+
+// Stop does nothing
+func (c *SNMPCheck) Stop() {}
+
+// Run runs the check
+func (c *SNMPCheck) Run() error {
+
+	log.Debugf("Grabbing SNMP variables...")
+	if err := c.getSNMP(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func snmpFactory() check.Check {
+	return &SNMPCheck{}
+}
+
+func init() {
+	core.RegisterCheck("snmp", snmpFactory)
+}

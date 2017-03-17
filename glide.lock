@@ -80,6 +80,8 @@ imports:
   - json/token
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/k-sone/snmpgo
+  version: d227fb7b907b5f3695799a3230971ebd7c414d47
 - name: github.com/kardianos/osext
   version: 9b883c5eb462dd5cb1b0a7a104fe86bc6b9bd391
 - name: github.com/magiconair/properties
