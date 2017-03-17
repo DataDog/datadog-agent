@@ -46,14 +46,16 @@ type Stats struct {
 	m                 sync.Mutex
 }
 
-func newStats(c Check) *Stats {
+// NewStats returns a new check stats instance
+func NewStats(c Check) *Stats {
 	return &Stats{
 		CheckID:   c.ID(),
 		CheckName: c.String(),
 	}
 }
 
-func (cs *Stats) add(t time.Duration, err error) {
+// Add tracks a new execution time
+func (cs *Stats) Add(t time.Duration, err error) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 

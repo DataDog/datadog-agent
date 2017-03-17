@@ -9,7 +9,7 @@ import (
 
 // Setup the test module
 func TestMain(m *testing.M) {
-	state := Initialize(".", "tests", "../../dist")
+	state := Initialize(".", "tests", "../dist")
 
 	ret := m.Run()
 

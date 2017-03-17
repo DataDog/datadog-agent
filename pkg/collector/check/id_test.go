@@ -2,9 +2,21 @@ package check
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// FIXTURE
+type TestCheck struct{}
+
+func (c *TestCheck) String() string                         { return "TestCheck" }
+func (c *TestCheck) Stop()                                  {}
+func (c *TestCheck) Configure(ConfigData, ConfigData) error { return nil }
+func (c *TestCheck) InitSender()                            {}
+func (c *TestCheck) Interval() time.Duration                { return 1 }
+func (c *TestCheck) Run() error                             { return nil }
+func (c *TestCheck) ID() ID                                 { return ID(c.String()) }
 
 func TestIdentify(t *testing.T) {
 	testCheck := &TestCheck{}

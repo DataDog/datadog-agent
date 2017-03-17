@@ -1,4 +1,4 @@
-package loader
+package providers
 
 import "github.com/DataDog/datadog-agent/pkg/collector/check"
 
@@ -12,13 +12,4 @@ import "github.com/DataDog/datadog-agent/pkg/collector/check"
 // or data needed to access the resource providing the configuration.
 type ConfigProvider interface {
 	Collect() ([]check.Config, error)
-}
-
-// CheckLoader is the interface wrapping the operations to load a check from
-// different sources, like Python modules or Go objects.
-//
-// A check is loaded for every `instance` found in the configuration file.
-// Load is supposed to break down instances and return different checks.
-type CheckLoader interface {
-	Load(config check.Config) ([]check.Check, error)
 }

@@ -1,4 +1,4 @@
-package check
+package runner
 
 import (
 	"expvar"
@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	log "github.com/cihub/seelog"
 )
 
@@ -14,31 +15,31 @@ const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait fo
 
 var (
 	runnerStats *expvar.Map
-	checkStats  map[ID]*Stats
+	checkStats  map[check.ID]*check.Stats
 	checkStatsM sync.RWMutex
 )
 
 func init() {
 	runnerStats = expvar.NewMap("runner")
 	runnerStats.Set("Checks", expvar.Func(expCheckStats))
-	checkStats = make(map[ID]*Stats)
+	checkStats = make(map[check.ID]*check.Stats)
 }
 
 // Runner ...
 type Runner struct {
-	pending       chan Check   // The channel where checks come from
-	done          chan bool    // Guard for the main loop
-	runningChecks map[ID]Check // the list of checks running
-	m             sync.Mutex   // to control races on runningChecks
-	running       uint32       // Flag to see if the Runner is, well, running
+	pending       chan check.Check         // The channel where checks come from
+	done          chan bool                // Guard for the main loop
+	runningChecks map[check.ID]check.Check // the list of checks running
+	m             sync.Mutex               // to control races on runningChecks
+	running       uint32                   // Flag to see if the Runner is, well, running
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
 func NewRunner(numWorkers int) *Runner {
 	r := &Runner{
 		// initialize the channel
-		pending:       make(chan Check),
-		runningChecks: make(map[ID]Check),
+		pending:       make(chan check.Check),
+		runningChecks: make(map[check.ID]check.Check),
 		running:       1,
 	}
 
@@ -86,13 +87,13 @@ func (r *Runner) Stop() {
 }
 
 // GetChan returns a write-only version of the pending channel
-func (r *Runner) GetChan() chan<- Check {
+func (r *Runner) GetChan() chan<- check.Check {
 	return r.pending
 }
 
 // StopCheck invokes the `Stop` method on a check if it's running. If the check
 // is not running, this is a noop
-func (r *Runner) StopCheck(id ID) error {
+func (r *Runner) StopCheck(id check.ID) error {
 	done := make(chan bool)
 
 	r.m.Lock()
@@ -159,19 +160,19 @@ func (r *Runner) work() {
 	log.Debug("Finished to process checks.")
 }
 
-func addWorkStats(c Check, execTime time.Duration, err error) {
-	var s *Stats
+func addWorkStats(c check.Check, execTime time.Duration, err error) {
+	var s *check.Stats
 	var found bool
 
 	checkStatsM.Lock()
 	s, found = checkStats[c.ID()]
 	if !found {
-		s = newStats(c)
+		s = check.NewStats(c)
 		checkStats[c.ID()] = s
 	}
 	checkStatsM.Unlock()
 
-	s.add(execTime, err)
+	s.Add(execTime, err)
 }
 
 func expCheckStats() interface{} {

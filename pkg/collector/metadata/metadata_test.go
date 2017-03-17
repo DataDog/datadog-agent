@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check/py"
+	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	python "github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
