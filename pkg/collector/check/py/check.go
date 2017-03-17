@@ -17,6 +17,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+// #include <Python.h>
 import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface

@@ -6,7 +6,7 @@ import (
 	"github.com/sbinet/go-python"
 )
 
-// #include <python2.7/Python.h>
+// #include <Python.h>
 import "C"
 
 // Initialize wraps all the operations needed to start the Python interpreter and
