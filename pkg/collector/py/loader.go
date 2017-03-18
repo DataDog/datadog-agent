@@ -3,7 +3,6 @@ package py
 import (
 	"errors"
 	"fmt"
-	"runtime"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/sbinet/go-python"
@@ -23,10 +22,8 @@ type PythonCheckLoader struct {
 // NewPythonCheckLoader creates an instance of the Python checks loader
 func NewPythonCheckLoader() *PythonCheckLoader {
 	// Lock the GIL and release it at the end of the run
-	_gstate := python.PyGILState_Ensure()
-	defer func() {
-		python.PyGILState_Release(_gstate)
-	}()
+	glock := NewStickyLock()
+	defer glock.Unlock()
 
 	agentCheckModule := python.PyImport_ImportModule(agentCheckModuleName)
 	if agentCheckModule == nil {
@@ -49,13 +46,8 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 	moduleName := config.Name
 
-	// Lock the GIL and release it at the end of the run
-	runtime.LockOSThread()
-	_gstate := python.PyGILState_Ensure()
-	defer func() {
-		python.PyGILState_Release(_gstate)
-		runtime.UnlockOSThread()
-	}()
+	// Lock the GIL while working with go-python directly
+	glock := NewStickyLock()
 
 	// import python module containing the check
 	checkModule := python.PyImport_ImportModule(moduleName)
@@ -63,13 +55,17 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		// we don't expect a traceback here so we use the error msg in `pvalue`
 		_, pvalue, _ := python.PyErr_Fetch()
 		msg := python.PyString_AsString(pvalue)
+		glock.Unlock()
 		return checks, errors.New(msg)
 	}
 
+	// release the GIL, some functions we're going to call might need it
+	glock.Unlock()
+
 	// Try to find a class inheriting from AgentCheck within the module
-	checkClass := findSubclassOf(cl.agentCheckClass, checkModule)
-	if checkClass == nil {
-		msg := fmt.Sprintf("Unable to find a check class in the module: %v", python.PyString_AS_STRING(checkModule.Str()))
+	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule)
+	if err != nil {
+		msg := fmt.Sprintf("Unable to find a check class in the module: %v", err)
 		return checks, errors.New(msg)
 	}
 

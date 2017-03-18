@@ -4,63 +4,57 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/sbinet/go-python"
+	"github.com/stretchr/testify/assert"
 )
 
 // Setup the test module
 func TestMain(m *testing.M) {
 	state := Initialize(".", "tests", "../dist")
 
+	// testing this package needs an inited aggregator
+	// to work properly
+	aggregator.InitAggregator(nil)
+
 	ret := m.Run()
 
 	python.PyEval_RestoreThread(state)
-	python.Finalize()
+	// benchmarks don't like python.Finalize() for some reason, let's just not call it
 
 	os.Exit(ret)
 }
 
-// cut down some boilerplate
-func assertNil(t *testing.T, sclass *python.PyObject) {
-	if sclass != nil {
-		t.Fatalf("Expected nil, found: %v", sclass)
-	}
-}
-
 func TestFindSubclassOf(t *testing.T) {
-	// Lock the GIL and release it at the end of the run
-	_gstate := python.PyGILState_Ensure()
-	defer func() {
-		python.PyGILState_Release(_gstate)
-	}()
-
+	gstate := NewStickyLock()
 	fooModule := python.PyImport_ImportModuleNoBlock("foo")
 	fooClass := fooModule.GetAttrString("Foo")
 	barModule := python.PyImport_ImportModuleNoBlock("bar")
 	barClass := barModule.GetAttrString("Bar")
+	gstate.Unlock()
 
 	// invalid input
-	sclass := findSubclassOf(nil, nil)
-	assertNil(t, sclass)
+	sclass, err := findSubclassOf(nil, nil)
+	assert.NotNil(t, err)
 
 	// pass something that's not a Type
-	sclass = findSubclassOf(python.PyTuple_New(0), fooModule)
-	assertNil(t, sclass)
-	sclass = findSubclassOf(fooClass, python.PyTuple_New(0))
-	assertNil(t, sclass)
+	sclass, err = findSubclassOf(python.PyTuple_New(0), fooModule)
+	assert.NotNil(t, err)
+	sclass, err = findSubclassOf(fooClass, python.PyTuple_New(0))
+	assert.NotNil(t, err)
 
 	// Foo in foo module, only Foo itself found
-	sclass = findSubclassOf(fooClass, fooModule)
-	assertNil(t, sclass)
+	sclass, err = findSubclassOf(fooClass, fooModule)
+	assert.NotNil(t, err)
 
 	// Bar in foo module, no class found
-	sclass = findSubclassOf(barClass, fooModule)
-	assertNil(t, sclass)
+	sclass, err = findSubclassOf(barClass, fooModule)
+	assert.NotNil(t, err)
 
 	// Foo in bar module, get Bar
-	sclass = findSubclassOf(fooClass, barModule)
-	if sclass == nil || sclass.RichCompareBool(barClass, python.Py_EQ) < 1 {
-		t.Fatalf("Expected Bar, found: %v", sclass)
-	}
+	sclass, err = findSubclassOf(fooClass, barModule)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, sclass.RichCompareBool(barClass, python.Py_EQ))
 }
 
 func TestGetModuleName(t *testing.T) {

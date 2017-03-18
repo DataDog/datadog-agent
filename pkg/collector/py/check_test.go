@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
@@ -17,29 +16,28 @@ var (
 	result error
 )
 
-func getCheckInstance(initAggregator bool, moduleName string, className string) (*PythonCheck, error) {
-	// Lock the GIL and release it at the end of the run
-	_gstate := python.PyGILState_Ensure()
-	defer func() {
-		python.PyGILState_Release(_gstate)
-	}()
-
-	if initAggregator {
-		aggregator.InitAggregator(nil)
-	}
+func getClass(moduleName, className string) (checkClass *python.PyObject) {
+	// Lock the GIL while operating with go-python
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
 
 	module := python.PyImport_ImportModule(moduleName)
 	if module == nil {
 		python.PyErr_Print()
-		panic("Unable to import testcheck module")
+		panic("Unable to import " + moduleName)
 	}
 
-	checkClass := module.GetAttrString(className)
+	checkClass = module.GetAttrString(className)
 	if checkClass == nil {
 		python.PyErr_Print()
 		panic("Unable to load " + className + " class")
 	}
 
+	return checkClass
+}
+
+func getCheckInstance(moduleName, className string) (*PythonCheck, error) {
+	checkClass := getClass(moduleName, className)
 	check := NewPythonCheck(moduleName, checkClass)
 	err := check.Configure([]byte("foo: bar"), []byte("foo: bar"))
 	return check, err
@@ -47,32 +45,24 @@ func getCheckInstance(initAggregator bool, moduleName string, className string) 
 
 func TestNewPythonCheck(t *testing.T) {
 	// Lock the GIL and release it at the end of the run
-	_gstate := python.PyGILState_Ensure()
-	defer func() {
-		python.PyGILState_Release(_gstate)
-	}()
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
 
 	tuple := python.PyTuple_New(0)
 	res := NewPythonCheck("FooBar", tuple)
 
-	if res.Class != tuple {
-		t.Fatalf("Expected %v, found: %v", tuple, res.Class)
-	}
-
-	if res.ModuleName != "FooBar" {
-		t.Fatalf("Expected FooBar, found: %v", res.ModuleName)
-	}
+	assert.Equal(t, tuple, res.Class)
+	assert.Equal(t, "FooBar", res.ModuleName)
 }
 
 func TestRun(t *testing.T) {
-	check, _ := getCheckInstance(true, "testcheck", "TestCheck")
-	if err := check.Run(); err != nil {
-		t.Fatalf("Expected error nil, found: %s", err)
-	}
+	check, _ := getCheckInstance("testcheck", "TestCheck")
+	err := check.Run()
+	assert.Nil(t, err)
 }
 
 func TestStr(t *testing.T) {
-	check, _ := getCheckInstance(true, "testcheck", "TestCheck")
+	check, _ := getCheckInstance("testcheck", "TestCheck")
 	name := "testcheck"
 	if check.String() != name {
 		t.Fatalf("Expected %s, found: %v", name, check)
@@ -80,48 +70,59 @@ func TestStr(t *testing.T) {
 }
 
 func TestInterval(t *testing.T) {
-	c, _ := getCheckInstance(true, "testcheck", "TestCheck")
+	c, _ := getCheckInstance("testcheck", "TestCheck")
 	assert.Equal(t, check.DefaultCheckInterval, c.Interval())
 	c.Configure([]byte("min_collection_interval: 1"), []byte("foo: bar"))
 	assert.Equal(t, time.Duration(1)*time.Second, c.Interval())
 }
 
 func TestInitKwargsCheck(t *testing.T) {
-	_, err := getCheckInstance(true, "kwargs_init_signature", "TestCheck")
+	_, err := getCheckInstance("kwargs_init_signature", "TestCheck")
 	assert.Nil(t, err)
 }
 
 func TestInitOldSignatureCheck(t *testing.T) {
-	_, err := getCheckInstance(true, "old_init_signature", "TestCheck")
+	_, err := getCheckInstance("old_init_signature", "TestCheck")
 	assert.Nil(t, err)
 }
 
 func TestInitNewSignatureCheck(t *testing.T) {
-	_, err := getCheckInstance(true, "new_init_signature", "TestCheck")
+	_, err := getCheckInstance("new_init_signature", "TestCheck")
 	assert.Nil(t, err)
 }
 
-// BenchmarkRun executes a single check, benchmark results
-// give an idea of the overhead of a CPython function call from go
+// BenchmarkRun executes a single check: benchmark results
+// give an idea of the overhead of a CPython function call from go,
+// that's why we don't care about Run's result.
 func BenchmarkRun(b *testing.B) {
 	var e error
-	check, _ := getCheckInstance(false, "testcheck", "TestCheck")
+	check, err := getCheckInstance("testcheck", "TestCheck")
+	if err != nil {
+		panic(err)
+	}
+
 	for n := 0; n < b.N; n++ {
 		// assign the return value to prevent compiler
 		// optimisations
 		e = check.Run()
 	}
+
 	// assign the error to a global var to prevent compiler
 	// optimisations
 	result = e
 }
 
 // BenchmarkRun simulates a Runner invoking `check.Run`
-// from different goroutines
+// from different goroutines on different check instances
 func BenchmarkConcurrentRun(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
+		class := getClass("testcheck", "TestCheck")
 		for pb.Next() {
-			check, _ := getCheckInstance(false, "testcheck", "TestCheck")
+			check := NewPythonCheck("testcheck", class)
+			err := check.Configure([]byte("foo: bar"), []byte("foo: bar"))
+			if err != nil {
+				panic(err)
+			}
 			check.Run()
 		}
 	})
