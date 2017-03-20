@@ -13,6 +13,7 @@ import (
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
 
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	log "github.com/cihub/seelog"
 )
 
@@ -109,12 +110,13 @@ func getHostInfo() *host.InfoStat {
 func getMeta() *meta {
 	hostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
+	ec2Hostname, _ := ec2.GetHostname()
 
 	return &meta{
 		SocketHostname: hostname,
 		Timezones:      []string{tzname},
 		SocketFqdn:     util.Fqdn(hostname),
-		EC2Hostname:    "", // TODO
+		EC2Hostname:    ec2Hostname,
 	}
 }
 
