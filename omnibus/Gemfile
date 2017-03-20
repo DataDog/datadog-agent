@@ -9,8 +9,6 @@ gem 'omnibus', git: 'https://github.com/DataDog/omnibus-ruby.git', branch: 'data
 # TODO: allow to specify the branch as an env var
 gem 'omnibus-software', git: 'https://github.com/DataDog/omnibus-software.git', branch: 'master'
 
-gem 'datadog-sdk-testing'
-
 # This development group is installed by default when you run `bundle install`,
 # but if you are using Omnibus in a CI-based infrastructure, you do not need
 # the Test Kitchen-based build lab. You can skip these unnecessary dependencies

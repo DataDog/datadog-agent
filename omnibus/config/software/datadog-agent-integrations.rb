@@ -1,7 +1,6 @@
 name 'datadog-agent-integrations'
 
 dependency 'pip'
-dependency 'datadog-agent'
 
 relative_path 'integrations-core'
 
@@ -22,8 +21,10 @@ build do
     conf_directory = "../../extra_package_files/EXAMPLECONFSLOCATION"
   end
 
-  # Copy the checks and generate the requriments file
-  rake "copy_checks conf_dir=#{conf_directory} checks_dir=#{checks_dir}"
+  # Copy the checks and generate the global requirements file
+  command 'gem install bundle'
+  command 'bundle install'
+  command "rake copy_checks conf_dir=#{conf_directory} checks_dir=#{checks_dir} merge_requirements_to=."
 
   # Install all the requirements
   pip_args = "install --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\" -r check_requirements.txt"
