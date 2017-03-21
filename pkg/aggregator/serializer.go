@@ -63,3 +63,29 @@ func MarshalJSONServiceChecks(serviceChecks []ServiceCheck) ([]byte, error) {
 	err := json.NewEncoder(reqBody).Encode(serviceChecks)
 	return reqBody.Bytes(), err
 }
+
+// MarshalJSONEvents serializes events to JSON so it can be sent to the Agent 5 intake
+// (we don't use the v1 event endpoint because it only supports 1 event per payload)
+//FIXME(olivier): to be removed when v2 endpoints are available
+func MarshalJSONEvents(events []Event, apiKey string, hostname string) ([]byte, error) {
+	// Regroup events by their source type name
+	eventsBySourceType := make(map[string][]Event)
+	for _, event := range events {
+		sourceTypeName := event.SourceTypeName
+		if sourceTypeName == "" {
+			sourceTypeName = "api"
+		}
+
+		eventsBySourceType[sourceTypeName] = append(eventsBySourceType[sourceTypeName], event)
+	}
+
+	// Build intake payload containing events and serialize
+	data := map[string]interface{}{
+		"apiKey":           apiKey,
+		"events":           eventsBySourceType,
+		"internalHostname": hostname,
+	}
+	reqBody := &bytes.Buffer{}
+	err := json.NewEncoder(reqBody).Encode(data)
+	return reqBody.Bytes(), err
+}

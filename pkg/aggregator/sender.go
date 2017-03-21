@@ -22,6 +22,7 @@ type Sender interface {
 	MonotonicCount(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status ServiceCheckStatus, hostname string, tags []string, message string)
+	Event(e Event)
 }
 
 // checkSender implements Sender
@@ -29,6 +30,7 @@ type checkSender struct {
 	id              check.ID
 	smsOut          chan<- senderMetricSample
 	serviceCheckOut chan<- ServiceCheck
+	eventOut        chan<- Event
 }
 
 type senderMetricSample struct {
@@ -37,11 +39,12 @@ type senderMetricSample struct {
 	commit       bool
 }
 
-func newCheckSender(id check.ID, smsOut chan<- senderMetricSample, serviceCheckOut chan<- ServiceCheck) *checkSender {
+func newCheckSender(id check.ID, smsOut chan<- senderMetricSample, serviceCheckOut chan<- ServiceCheck, eventOut chan<- Event) *checkSender {
 	return &checkSender{
 		id:              id,
 		smsOut:          smsOut,
 		serviceCheckOut: serviceCheckOut,
+		eventOut:        eventOut,
 	}
 }
 
@@ -54,7 +57,7 @@ func GetSender(id check.ID) (Sender, error) {
 	}
 
 	err := aggregatorInstance.registerSender(id)
-	return newCheckSender(id, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn), err
+	return newCheckSender(id, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn), err
 }
 
 // DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
@@ -73,7 +76,7 @@ func GetDefaultSender() (Sender, error) {
 	senderInit.Do(func() {
 		var defaultCheckID check.ID // the default value is the zero value
 		aggregatorInstance.registerSender(defaultCheckID)
-		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn)
+		senderInstance = newCheckSender(defaultCheckID, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn)
 	})
 
 	return senderInstance, nil
@@ -138,4 +141,11 @@ func (s *checkSender) ServiceCheck(checkName string, status ServiceCheckStatus, 
 	}
 
 	s.serviceCheckOut <- serviceCheck
+}
+
+// Event submits an event
+func (s *checkSender) Event(e Event) {
+	log.Debug("Event submitted: ", e.Title, ": for hostname: ", e.Host, " tags: ", e.Tags)
+
+	s.eventOut <- e
 }

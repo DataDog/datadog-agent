@@ -32,9 +32,11 @@ type BufferedAggregator struct {
 	dogstatsdIn    chan *MetricSample
 	checkMetricIn  chan senderMetricSample
 	serviceCheckIn chan ServiceCheck
+	eventIn        chan Event
 	sampler        Sampler
 	checkSamplers  map[check.ID]*CheckSampler
 	serviceChecks  []ServiceCheck
+	events         []Event
 	flushInterval  int64
 	mu             sync.Mutex // to protect the checkSamplers field
 	forwarder      *forwarder.Forwarder
@@ -46,6 +48,7 @@ func newBufferedAggregator(f *forwarder.Forwarder) *BufferedAggregator {
 		dogstatsdIn:    make(chan *MetricSample, 100),      // TODO make buffer size configurable
 		checkMetricIn:  make(chan senderMetricSample, 100), // TODO make buffer size configurable
 		serviceCheckIn: make(chan ServiceCheck, 100),       // TODO make buffer size configurable
+		eventIn:        make(chan Event, 100),              // TODO make buffer size configurable
 		sampler:        *NewSampler(bucketSize),
 		checkSamplers:  make(map[check.ID]*CheckSampler),
 		flushInterval:  defaultFlushInterval,
@@ -107,6 +110,18 @@ func (agg *BufferedAggregator) addServiceCheck(sc ServiceCheck) {
 	agg.serviceChecks = append(agg.serviceChecks, sc)
 }
 
+// FIXME: the default hostname should be the one that's resolved by the Agent logic instead of the one pulled from the main config
+func (agg *BufferedAggregator) addEvent(e Event) {
+	if e.Host == "" {
+		e.Host = config.Datadog.GetString("hostname")
+	}
+	if e.Ts == 0 {
+		e.Ts = time.Now().Unix()
+	}
+
+	agg.events = append(agg.events, e)
+}
+
 func (agg *BufferedAggregator) flushSeries() {
 	now := time.Now().Unix()
 	series := agg.sampler.flush(now)
@@ -155,6 +170,25 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 	}()
 }
 
+func (agg *BufferedAggregator) flushEvents() {
+	// Clear the current event slice
+	events := agg.events
+	agg.events = nil
+
+	// Serialize and forward in a separate goroutine
+	go func() {
+		log.Debug("Flushing ", len(events), " events to the forwarder")
+		// FIXME: the default hostname should be the one that's resolved by the Agent logic instead of the one pulled from the main config
+		payload, err := MarshalJSONEvents(events, config.Datadog.GetString("api_key"), config.Datadog.GetString("hostname"))
+		if err != nil {
+			log.Error("could not serialize events, dropping them: ", err)
+			return
+		}
+		// We use the agent 5 intake endpoint until the v2 events endpoint is ready
+		agg.forwarder.SubmitV1Intake(config.Datadog.GetString("api_key"), &payload)
+	}()
+}
+
 func (agg *BufferedAggregator) run() {
 	flushPeriod := time.Duration(agg.flushInterval) * time.Second
 	flushTicker := time.NewTicker(flushPeriod)
@@ -163,6 +197,7 @@ func (agg *BufferedAggregator) run() {
 		case <-flushTicker.C:
 			agg.flushSeries()
 			agg.flushServiceChecks()
+			agg.flushEvents()
 		case sample := <-agg.dogstatsdIn:
 			now := time.Now().Unix()
 			agg.sampler.addSample(sample, now)
@@ -170,6 +205,8 @@ func (agg *BufferedAggregator) run() {
 			agg.handleSenderSample(ss)
 		case sc := <-agg.serviceCheckIn:
 			agg.addServiceCheck(sc)
+		case e := <-agg.eventIn:
+			agg.addEvent(e)
 		}
 	}
 }
