@@ -85,16 +85,12 @@ end
 # creates required build directories
 dependency 'preparation'
 
-# Checks core dependencies
-dependency 'requests'
-dependency 'net-snmp-lib'
-
 # Datadog agent
 dependency 'datadog-agent'
 
 # Additional software
-dependency 'datadog-trace-agent'
 dependency 'datadog-agent-integrations'
+dependency 'datadog-trace-agent'
 
 # version manifest file
 dependency 'version-manifest'

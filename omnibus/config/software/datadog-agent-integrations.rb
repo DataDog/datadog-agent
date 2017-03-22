@@ -3,9 +3,10 @@ name 'datadog-agent-integrations'
 dependency 'pip'
 
 relative_path 'integrations-core'
+whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
-default_version 'massi/rakefile'
+default_version 'master'
 
 build do
   # The checks
@@ -25,6 +26,8 @@ build do
   command 'gem install bundle'
   command 'bundle install'
   command "rake copy_checks conf_dir=#{conf_directory} checks_dir=#{checks_dir} merge_requirements_to=."
+  # Enqueue "core" dependencies that are not listed in the checks requirements
+  command 'echo "requests==2.11.1" >> check_requirements.txt'
 
   # Install all the requirements
   pip_args = "install --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\" -r check_requirements.txt"
