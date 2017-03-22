@@ -74,6 +74,12 @@ func (c *PythonCheck) String() string {
 	return c.ModuleName
 }
 
+// getInstance invokes the constructor on the Python class stored in
+// `c.Class` passing a tuple for args and a dictionary for keyword args.
+//
+// This function contains deferred calls to go-python: when you change
+// this code, please ensure the Python thread unlock is always at the bottom
+// of  the defer calls stack.
 func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObject, error) {
 	// Lock the GIL and release it at the end
 	gstate := NewStickyLock()

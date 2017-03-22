@@ -11,13 +11,29 @@ import (
 // #include <Python.h>
 import "C"
 
-// StickyLock embeds a global state that is locked upon creation
-// and makes the current goroutine be locked to the current thread
+// StickyLock is a convenient wrapper to interact with the Python GIL
+// from go code when using `go-python`.
+//
+// We are going to call the Python C API from different goroutines that
+// in turn will be executed on mulitple, different threads, making the
+// Agent incur in this [0] sort of problems.
+//
+// In addition, the Go runtime might decide to pause a goroutine in a
+// thread and resume it later in a different one but we cannot allow this:
+// in fact, the Python interpreter will check lock/unlock requests against
+// the thread ID they are called from, raising a runtime assertion if
+// they don't match. To avoid this, even if giving up on some performance,
+// we ask the go runtime to be sure any goroutine using a `StickyLock`
+// will be always paused and resumed on the same thread.
+//
+// [0]: https://docs.python.org/2/c-api/init.html#non-python-created-threads
 type StickyLock struct {
 	gstate python.PyGILState
 }
 
-// NewStickyLock locks the GIL and sticks the goroutine to the current thread
+// NewStickyLock register the current thread with the interpreter and locks
+// the GIL. It also sticks the goroutine to the current thread so that a
+// subsequent call to `Unlock` will unregister the very same thread.
 func NewStickyLock() *StickyLock {
 	runtime.LockOSThread()
 	return &StickyLock{
@@ -25,14 +41,16 @@ func NewStickyLock() *StickyLock {
 	}
 }
 
-// Unlock unlock the GIL and detach the goroutine from the current thread
+// Unlock deregisters the current thread from the interpreter, unlocks the GIL
+// and detaches the goroutine from the current thread.
 func (sl *StickyLock) Unlock() {
 	python.PyGILState_Release(sl.gstate)
 	runtime.UnlockOSThread()
 }
 
 // Initialize wraps all the operations needed to start the Python interpreter and
-// configure the environment
+// configure the environment. This function should be called at most once in the
+// Agent lifetime.
 func Initialize(paths ...string) *python.PyThreadState {
 	// Disable Site initialization
 	C.Py_NoSiteFlag = 1
@@ -45,7 +63,10 @@ func Initialize(paths ...string) *python.PyThreadState {
 		panic("python: could not initialize the python interpreter")
 	}
 
-	// make sure the GIL is correctly initialized
+	// make sure the Python threading facilities are correctly initialized,
+	// please notice this will also lock the GIL, see [0] for reference.
+	//
+	// [0]: https://docs.python.org/2/c-api/init.html#c.PyEval_InitThreads
 	if C.PyEval_ThreadsInitialized() == 0 {
 		C.PyEval_InitThreads()
 	}
@@ -53,7 +74,9 @@ func Initialize(paths ...string) *python.PyThreadState {
 		panic("python: could not initialize the GIL")
 	}
 
-	// Set the PYTHONPATH if needed
+	// Set the PYTHONPATH if needed.
+	// We still hold a lock from calling `C.PyEval_InitThreads()` above, so we can
+	// safely use go-python here without any additional loking operation.
 	if len(paths) > 0 {
 		path := python.PySys_GetObject("path")
 		for _, p := range paths {
@@ -61,17 +84,18 @@ func Initialize(paths ...string) *python.PyThreadState {
 		}
 	}
 
-	// we acquired the GIL to initialize threads but from this point
-	// we don't need it anymore, let's release it
+	// We acquired the GIL as a side effect of threading initialization (see above)
+	// but from this point on we don't need it anymore. Let's reset the current thread
+	// state and release the GIL, meaning that from now on any piece of code needing
+	// Python needs to take care of thread state and the GIL on its own.
+	// The previous thread state is returned to the caller so it can be stored and
+	// reused when needed (e.g. to finalize the interpreter on exit).
 	state := python.PyEval_SaveThread()
 
-	// inject the aggregator into global namespace
-	// (it will handle the GIL by itself)
-	initAPI()
-
-	// inject the datadog_agent package into global namespace
-	// (it will handle the GIL by itself)
-	initDatadogAgent()
+	// inject synthetic modules into the global namespace of the embedded interpreter
+	// (all these calls will take care of the GIL)
+	initAPI()          // `aggregator` module
+	initDatadogAgent() // `datadog_agent` module
 
 	// return the state so the caller can resume
 	return state
