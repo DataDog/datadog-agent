@@ -22,6 +22,13 @@ func GetConfigProviders(confdPath string) (plist []providers.ConfigProvider) {
 	// File Provider
 	plist = append(plist, providers.NewFileConfigProvider(confSearchPaths))
 
+	// Etcd Provider
+	etcd, err := providers.NewEtcdConfigProvider()
+	if err != nil {
+		log.Errorf("Creating the etcd config provider failed: %s", err)
+	} else {
+		plist = append(plist, etcd)
+	}
 	return plist
 }
 
