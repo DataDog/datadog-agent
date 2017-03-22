@@ -15,14 +15,26 @@ var (
 	defaultPrefixes = []string{"ip-", "domu"}
 )
 
-// GetInstanceID returns the EC2 instance id for this host
+// GetInstanceID fetches the instance id for current host from the EC2 metadata API
 func GetInstanceID() (string, error) {
-	res, err := getResponse(metadataURL + "/instance-id")
+	return getMetadataItem("/instance-id")
+}
+
+// GetHostname fetches the hostname for current host from the EC2 metadata API
+func GetHostname() (string, error) {
+	return getMetadataItem("/hostname")
+}
+
+func getMetadataItem(endpoint string) (string, error) {
+	res, err := getResponse(metadataURL + endpoint)
+	if err != nil {
+		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
+	}
 
 	defer res.Body.Close()
 	all, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return "", fmt.Errorf("unable to retrieve Instance ID, %s", err)
+		return "", fmt.Errorf("unable to read response body, %s", err)
 	}
 
 	return string(all), nil
