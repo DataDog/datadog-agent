@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,16 +35,9 @@ func TestLoad(t *testing.T) {
 	instances, err = l.Load(config)
 	assert.NotNil(t, err)
 	assert.Zero(t, len(instances))
-
 }
 
 func TestNewPythonCheckLoader(t *testing.T) {
-	// Lock the GIL and release it at the end of the run
-	_gstate := python.PyGILState_Ensure()
-	defer func() {
-		python.PyGILState_Release(_gstate)
-	}()
-
 	loader := NewPythonCheckLoader()
 	assert.NotNil(t, loader)
 }

@@ -3,8 +3,6 @@ package py
 import (
 	"errors"
 	"fmt"
-	"runtime"
-	"strings"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -42,11 +40,8 @@ func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
 // Run a Python check
 func (c *PythonCheck) Run() error {
 	// Lock the GIL and release it at the end of the run
-	_gstate := python.PyGILState_Ensure()
-	runtime.LockOSThread()
-	defer func() {
-		python.PyGILState_Release(_gstate)
-	}()
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
 
 	// call run function, it takes no args so we pass an empty tuple
 	emptyTuple := python.PyTuple_New(0)
@@ -79,51 +74,38 @@ func (c *PythonCheck) String() string {
 	return c.ModuleName
 }
 
-func (c *PythonCheck) instantiateCheck(constructorParameters *python.PyObject, fixInitError bool) (*python.PyObject, error) {
-	// invoke constructor
-	emptyTuple := python.PyTuple_New(0)
-	instance := c.Class.Call(emptyTuple, constructorParameters)
+// getInstance invokes the constructor on the Python class stored in
+// `c.Class` passing a tuple for args and a dictionary for keyword args.
+//
+// This function contains deferred calls to go-python: when you change
+// this code, please ensure the Python thread unlock is always at the bottom
+// of  the defer calls stack.
+func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObject, error) {
+	// Lock the GIL and release it at the end
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
+
+	if args == nil {
+		args = python.PyTuple_New(0)
+	}
+
+	// invoke class constructor
+	instance := c.Class.Call(args, kwargs)
 	if instance != nil {
 		return instance, nil
 	}
 
-	// If the constructor is invalid we do not get a traceback but
-	// an error in pvalue.
+	// Gather infos about the Python error
 	_, pvalue, ptraceback := python.PyErr_Fetch()
+	defer python.PyErr_Clear()
 
-	// The internal C pointer may be nill, the only way to check is
-	// it to ask for the type, since the internal "ptr" is not
-	// exposed.
-	if pvalue.Type() != nil {
-		pvalueError := python.PyString_AsString(pvalue)
-
-		// 'agentConfig' has been deprecated since agent 6.0.
-		// Until it's removed we try do detect error from
-		// __init__ missing one parameter and try to load the
-		// check again with an empty 'agentConfig' (since most
-		// user custom check expect the argument but don't use
-		// it).
-		if fixInitError && strings.HasPrefix(pvalueError, "__init__() takes ") {
-			conf := config.Datadog.AllSettings()
-			agentConfig, err := ToPythonDict(conf)
-			if err != nil {
-				return nil, fmt.Errorf("could not convert agent configuration to python: %s", err)
-			}
-
-			// Add new 'agentConfig' key to the dict and retry instantiateCheck
-			key := python.PyString_FromString("agentConfig")
-			python.PyDict_SetItem(constructorParameters, key, agentConfig)
-			instance, err := c.instantiateCheck(constructorParameters, false)
-			if instance != nil {
-				log.Warnf("'agentConfig' parameter in the '__init__' method is deprecated, please use the agent_config python package (%s).", c.ModuleName)
-			}
-			return instance, err
-		}
-
-		return nil, fmt.Errorf(pvalueError)
-	}
 	if ptraceback.Type() != nil {
 		return nil, fmt.Errorf(python.PyString_AsString(ptraceback))
+	}
+
+	// If the constructor is invalid we do not get a traceback but an error in pvalue.
+	if pvalue.Type() != nil {
+		return nil, fmt.Errorf(python.PyString_AsString(pvalue))
 	}
 
 	return nil, fmt.Errorf("unknown error from python")
@@ -160,34 +142,51 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 		}
 	}
 
-	// Lock the GIL and release it at the end
-	_gstate := python.PyGILState_Ensure()
-	defer func() {
-		python.PyGILState_Release(_gstate)
-	}()
-
 	// To be retrocompatible with the Python code, still use an `instance` dictionary
 	// to contain the (now) unique instance for the check
 	conf := make(check.ConfigRawMap)
-	conf["instances"] = []interface{}{rawInstances}
-	conf["init_config"] = rawInitConfig
 	conf["name"] = c.ModuleName
+	conf["init_config"] = rawInitConfig
+	conf["instances"] = []interface{}{rawInstances}
 
 	// Convert the RawConfigMap to a Python dictionary
-	configDict, err := ToPythonDict(&conf)
+	kwargs, err := ToPythonDict(&conf)
 	if err != nil {
 		log.Errorf("Error parsing python check configuration: %v", err)
 		return err
 	}
 
-	instance, err := c.instantiateCheck(configDict, true)
-	if instance == nil {
-		return fmt.Errorf("could not invoke python check constructor: %s", err)
+	// try getting an instance with the new style api, without passing agentConfig
+	instance, err := c.getInstance(nil, kwargs)
+	if err != nil {
+		log.Warnf("could not get a check instance with the new api: %s", err)
+		log.Warn("trying to instantiate the check with the old api, passing initConfig to the constructor")
+
+		// try again, assuming the check is good but has still the old api
+		// we pass initConfig but emit a deprecation notice
+		allSettings := config.Datadog.AllSettings()
+		agentConfig, err := ToPythonDict(allSettings)
+		if err != nil {
+			return fmt.Errorf("could not convert agent configuration to python: %s", err)
+		}
+
+		// Add new 'agentConfig' key to the dict...
+		gstate := NewStickyLock()
+		key := python.PyString_FromString("agentConfig")
+		python.PyDict_SetItem(kwargs, key, agentConfig)
+		gstate.Unlock()
+
+		// ...and retry to get an instance
+		instance, err = c.getInstance(nil, kwargs)
+		if err != nil {
+			return fmt.Errorf("could not invoke python check constructor: %s", err)
+		}
+
+		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `agent_config` package (%s).", c.ModuleName)
 	}
 
 	c.Instance = instance
-	c.ModuleName = python.PyString_AsString(instance.GetAttrString("__module__"))
-	c.Config = configDict
+	c.Config = kwargs
 	return nil
 }
 

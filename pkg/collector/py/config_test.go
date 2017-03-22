@@ -34,7 +34,8 @@ func TestToPythonDict(t *testing.T) {
 	}
 
 	// Lock the GIL and release it at the end
-	_gstate := python.PyGILState_Ensure()
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
 
 	if !python.PyDict_Check(res) {
 		t.Fatalf("Result is not a Python dict")
@@ -56,11 +57,12 @@ func TestToPythonDict(t *testing.T) {
 			python.PyString_AsString(res.Str()),
 			python.PyString_AsString(d.Str()))
 	}
-
-	python.PyGILState_Release(_gstate)
 }
 
 func TestWalkerPush(t *testing.T) {
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
+
 	w := new(walker)
 	d := python.PyDict_New()
 
@@ -98,6 +100,9 @@ func TestWalkerPush(t *testing.T) {
 }
 
 func TestWalkerPop(t *testing.T) {
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
+
 	w := new(walker)
 	d := python.PyDict_New()
 	w.push(d)
@@ -161,7 +166,9 @@ func TestWalkerExit(t *testing.T) {
 	}
 
 	// fill the stack to test cleanup procedure
+	gstate := NewStickyLock()
 	w.push(python.PyDict_New())
+	gstate.Unlock()
 	w.Exit(reflectwalk.WalkLoc)
 	if w.containersStack != nil {
 		t.Fatalf("Stack should be nil, found: %v", w.containersStack)
@@ -172,6 +179,10 @@ func TestWalkerExit(t *testing.T) {
 }
 
 func TestIfToPy(t *testing.T) {
+	// ifToPy is supposed to be invoked holding the GIL
+	gstate := NewStickyLock()
+	defer gstate.Unlock()
+
 	var i interface{}
 
 	i = 42
