@@ -74,7 +74,6 @@ func TestGetMeta(t *testing.T) {
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)
-	assert.Empty(t, meta.EC2Hostname) // this is temporary
 }
 
 func TestBuildKey(t *testing.T) {
