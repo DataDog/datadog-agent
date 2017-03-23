@@ -1,6 +1,10 @@
 name 'datadog-agent'
 
 dependency 'python'
+# Core checks dependencies
+dependency 'net-snmp-lib'
+# Python check dependencies
+# none atm
 
 source path: '..'
 
