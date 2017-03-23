@@ -78,3 +78,38 @@ func TestMarshalJSONServiceChecks(t *testing.T) {
 	assert.NotNil(t, payload)
 	assert.Equal(t, payload, []byte("[{\"check\":\"my_service.can_connect\",\"host_name\":\"my-hostname\",\"timestamp\":12345,\"status\":0,\"message\":\"my_service is up\",\"tags\":[\"tag1\",\"tag2:yes\"]}]\n"))
 }
+
+func TestMarshalJSONEvents(t *testing.T) {
+	events := []Event{{
+		Title:          "An event occurred",
+		Text:           "event description",
+		Ts:             12345,
+		Priority:       EventPriorityNormal,
+		Host:           "my-hostname",
+		Tags:           []string{"tag1", "tag2:yes"},
+		AlertType:      EventAlertTypeError,
+		AggregationKey: "my_agg_key",
+		SourceTypeName: "custom_source_type",
+	}}
+
+	payload, err := MarshalJSONEvents(events, "testapikey", "test-hostname")
+	assert.Nil(t, err)
+	assert.NotNil(t, payload)
+	assert.Equal(t, payload, []byte("{\"apiKey\":\"testapikey\",\"events\":{\"custom_source_type\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"priority\":\"normal\",\"host\":\"my-hostname\",\"tags\":[\"tag1\",\"tag2:yes\"],\"alert_type\":\"error\",\"aggregation_key\":\"my_agg_key\",\"source_type_name\":\"custom_source_type\"}]},\"internalHostname\":\"test-hostname\"}\n"))
+}
+
+func TestMarshalJSONEventsOmittedFields(t *testing.T) {
+	events := []Event{{
+		// Don't populate optional fields
+		Title: "An event occurred",
+		Text:  "event description",
+		Ts:    12345,
+		Host:  "my-hostname",
+	}}
+
+	payload, err := MarshalJSONEvents(events, "testapikey", "test-hostname")
+	assert.Nil(t, err)
+	assert.NotNil(t, payload)
+	// These optional fields are not present in the serialized payload, and a default source type name is used
+	assert.Equal(t, payload, []byte("{\"apiKey\":\"testapikey\",\"events\":{\"api\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"host\":\"my-hostname\"}]},\"internalHostname\":\"test-hostname\"}\n"))
+}

@@ -6,6 +6,7 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -40,12 +41,11 @@ func TestDeregisterCheckSampler(t *testing.T) {
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
 
 	agg.deregisterSender(checkID1)
-	if assert.Len(t, aggregatorInstance.checkSamplers, 1) {
-		_, ok := agg.checkSamplers[checkID1]
-		assert.False(t, ok)
-		_, ok = agg.checkSamplers[checkID2]
-		assert.True(t, ok)
-	}
+	require.Len(t, aggregatorInstance.checkSamplers, 1)
+	_, ok := agg.checkSamplers[checkID1]
+	assert.False(t, ok)
+	_, ok = agg.checkSamplers[checkID2]
+	assert.True(t, ok)
 }
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {
@@ -71,10 +71,58 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 		Message:   "message",
 	})
 
-	if assert.Len(t, agg.serviceChecks, 2) {
-		assert.Equal(t, "config-hostname", agg.serviceChecks[0].Host)
-		assert.NotEqual(t, 0., agg.serviceChecks[0].Ts) // should be set to the current time, let's just check that it's not 0
-		assert.Equal(t, "my-hostname", agg.serviceChecks[1].Host)
-		assert.Equal(t, int64(12345), agg.serviceChecks[1].Ts)
-	}
+	require.Len(t, agg.serviceChecks, 2)
+	assert.Equal(t, "config-hostname", agg.serviceChecks[0].Host)
+	assert.NotZero(t, agg.serviceChecks[0].Ts) // should be set to the current time, let's just check that it's not 0
+	assert.Equal(t, "my-hostname", agg.serviceChecks[1].Host)
+	assert.Equal(t, int64(12345), agg.serviceChecks[1].Ts)
+}
+
+func TestAddEventDefaultValues(t *testing.T) {
+	resetAggregator()
+	agg := InitAggregator(nil)
+
+	// For now the default hostname is the one pulled from the main config
+	config.Datadog.Set("hostname", "config-hostname")
+
+	agg.addEvent(Event{
+		// only populate required fields
+		Title: "An event occurred",
+		Text:  "Event description",
+	})
+	agg.addEvent(Event{
+		// populate all fields
+		Title:          "Another event occurred",
+		Text:           "Other event description",
+		Ts:             12345,
+		Priority:       EventPriorityNormal,
+		Host:           "my-hostname",
+		Tags:           []string{"foo", "bar"},
+		AlertType:      EventAlertTypeError,
+		AggregationKey: "my_agg_key",
+		SourceTypeName: "custom_source_type",
+	})
+
+	require.Len(t, agg.events, 2)
+	// Default values are set on Host and Ts only
+	event1 := agg.events[0]
+	assert.Equal(t, "An event occurred", event1.Title)
+	assert.Equal(t, "config-hostname", event1.Host)
+	assert.NotZero(t, event1.Ts) // should be set to the current time, let's just check that it's not 0
+	assert.Zero(t, event1.Priority)
+	assert.Zero(t, event1.Tags)
+	assert.Zero(t, event1.AlertType)
+	assert.Zero(t, event1.AggregationKey)
+	assert.Zero(t, event1.SourceTypeName)
+
+	event2 := agg.events[1]
+	// No change is made
+	assert.Equal(t, "Another event occurred", event2.Title)
+	assert.Equal(t, "my-hostname", event2.Host)
+	assert.Equal(t, int64(12345), event2.Ts)
+	assert.Equal(t, EventPriorityNormal, event2.Priority)
+	assert.Equal(t, []string{"foo", "bar"}, event2.Tags)
+	assert.Equal(t, EventAlertTypeError, event2.AlertType)
+	assert.Equal(t, "my_agg_key", event2.AggregationKey)
+	assert.Equal(t, "custom_source_type", event2.SourceTypeName)
 }

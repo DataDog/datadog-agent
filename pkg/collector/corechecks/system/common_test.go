@@ -41,6 +41,11 @@ func (m *MockSender) ServiceCheck(checkName string, status aggregator.ServiceChe
 	m.Called(checkName, status, hostname, tags, message)
 }
 
+//Event enables the event mock call.
+func (m *MockSender) Event(e aggregator.Event) {
+	m.Called(e)
+}
+
 //Commit enables the commit mock call.
 func (m *MockSender) Commit() {
 	m.Called()
