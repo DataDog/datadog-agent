@@ -31,7 +31,7 @@ run_tests_deb-x64:
     USE_SYSTEM_PY: "1"
   script:
     - echo "deb http://deb.debian.org/debian wheezy contrib non-free" >> /etc/apt/sources.list
-    - apt-get update && apt-get install -y -qq libsnmp-base libsnmp-dev snmp-mibs-downloader libpq-dev
+    - apt-get update && apt-get install -y -qq libsnmp-base libsnmp-dev snmp-mibs-downloader # required by snmp check
     - rake test
 
 # build the package for deb-x64
@@ -47,6 +47,7 @@ agent_deb-x64:
     # Uncomment the following to see debug logs from omnibus, it defaults to info
     # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
+    - apt-get install -y -qq libpq-dev  # this has to be removed as soon as we upgrade to psycopg2 2.7
     - rake agent:omnibus
     - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/*.deb
   cache:
