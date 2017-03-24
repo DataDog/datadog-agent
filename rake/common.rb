@@ -1,4 +1,17 @@
+require 'rake/clean'
 
+def os
+  case RUBY_PLATFORM
+  when /linux/
+    "linux"
+  when /darwin/
+    "darwin"
+  when /x64-mingw32/
+    "windows"
+  else
+    fail 'Unsupported OS'
+  end
+end
 
 def go_fmt(path, fail_on_mod)
   out = `go fmt #{path}/...`
