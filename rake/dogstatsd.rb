@@ -1,3 +1,6 @@
+require_relative './common'
+
+
 def dogstatsd_bin_name
   case os
   when "windows"

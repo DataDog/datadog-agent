@@ -1,3 +1,6 @@
+require_relative './common'
+
+
 def agent_bin_name
   case os
   when "windows"
