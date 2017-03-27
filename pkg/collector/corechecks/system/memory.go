@@ -56,7 +56,7 @@ func (c *MemoryCheck) Run() error {
 
 	c.sender.Gauge("system.mem.total", float64(v.Total)/mbSize, "", nil)
 	c.sender.Gauge("system.mem.free", float64(v.Free)/mbSize, "", nil)
-	c.sender.Gauge("system.mem.used", float64(v.Used)/mbSize, "", nil)
+	c.sender.Gauge("system.mem.used", float64(v.Total-v.Free)/mbSize, "", nil)
 	c.sender.Gauge("system.mem.usable", float64(v.Available)/mbSize, "", nil)
 	c.sender.Gauge("system.mem.pct_usable", float64(100-v.UsedPercent)/100, "", nil)
 
