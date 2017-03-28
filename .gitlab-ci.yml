@@ -56,6 +56,7 @@ agent_deb-x64:
     paths:
       - $AGENT_OMNIBUS_BASE_DIR
   artifacts:
+    expire_in: 2 weeks
     paths:
       - $AGENT_OMNIBUS_PACKAGE_DIR
 
@@ -80,6 +81,7 @@ dogstatsd_deb-x64:
     paths:
       - $AGENT_OMNIBUS_BASE_DIR
   artifacts:
+    expire_in: 2 weeks
     paths:
       - $AGENT_OMNIBUS_PACKAGE_DIR
 
