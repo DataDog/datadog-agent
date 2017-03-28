@@ -1,5 +1,6 @@
 vendor/
 bin/
+.vscode
 
 .DS_Store
 *.cov

@@ -1,5 +1,3 @@
-// +build !windows
-
 package app
 
 import (
@@ -15,34 +13,27 @@ import (
 )
 
 var (
-	startCmd = &cobra.Command{
-		Use:   "start",
-		Short: "Start the Agent",
+	consoleCmd = &cobra.Command{
+		Use:   "console",
+		Short: "Run the agent as a console application",
 		Long:  ``,
-		Run:   start,
+		RunE:  console,
 	}
 )
 
 func init() {
 	// attach the command to the root
-	AgentCmd.AddCommand(startCmd)
+	AgentCmd.AddCommand(consoleCmd)
 
 	// Global Agent configuration
 	common.SetupConfig()
 
-	// local flags
-	startCmd.Flags().BoolVarP(&runForeground, "foreground", "f", false, "run in foreground")
-	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
-	startCmd.Flags().StringVarP(&confdPath, "confd", "c", "", "path to the confd folder")
-	config.Datadog.BindPFlag("confd_path", startCmd.Flags().Lookup("confd"))
+	consoleCmd.Flags().StringVarP(&confdPath, "confd", "c", "", "path to the confd folder")
+	config.Datadog.BindPFlag("confd_path", consoleCmd.Flags().Lookup("confd"))
 }
 
 // Start the main loop
-func start(cmd *cobra.Command, args []string) {
-	if !runForeground {
-		runBackground()
-		return
-	}
+func console(cmd *cobra.Command, args []string) error {
 	statsd, collector, forwarder := StartAgent()
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -57,5 +48,5 @@ func start(cmd *cobra.Command, args []string) {
 		log.Infof("Received signal '%s', shutting down...", sig)
 	}
 	StopAgent(statsd, collector, forwarder)
-	os.Exit(0)
+	return nil
 }
