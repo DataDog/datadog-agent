@@ -14,7 +14,10 @@ type Version struct {
 	Patch int64
 	Pre   string
 	Meta  string
+	Commit string
 }
+
+var commit string
 
 // New parses a version string like `0.0.0` and returns an AgentVersion instance
 func New(version string) (Version, error) {
@@ -43,6 +46,7 @@ func New(version string) (Version, error) {
 		Patch: patch,
 		Pre:   pre,
 		Meta:  meta,
+		Commit: commit,
 	}
 
 	return av, nil
