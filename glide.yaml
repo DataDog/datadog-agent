@@ -38,3 +38,5 @@ import:
   version: ^2.0.0
 - package: github.com/k-sone/snmpgo
   version: ^3.0.2
+- package: github.com/Microsoft/go-winio
+  version: v0.3.8
