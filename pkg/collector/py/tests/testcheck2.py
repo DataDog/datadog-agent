@@ -1,4 +1,4 @@
-from checks import AgentCheck
+from agent import AgentCheck
 
 class TestCheck(AgentCheck):
     def check(self, instance):
