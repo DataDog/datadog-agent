@@ -145,7 +145,7 @@ func (s *checkSender) ServiceCheck(checkName string, status ServiceCheckStatus, 
 
 // Event submits an event
 func (s *checkSender) Event(e Event) {
-	log.Debug("Event submitted: ", e.Title, ": for hostname: ", e.Host, " tags: ", e.Tags)
+	log.Debug("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
 
 	s.eventOut <- e
 }

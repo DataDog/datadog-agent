@@ -55,6 +55,14 @@ class AgentCheck(object):
     def service_check(self, name, status, tags=None, message=""):
         aggregator.submit_service_check(self, name, status, tags, message)
 
+    def event(self, event):
+        # Enforce types of some fields, considerably facilitates handling in go bindings downstream
+        if event.get('timestamp'):
+            event['timestamp'] = int(event['timestamp'])
+        if event.get('aggregation_key'):
+            event['aggregation_key'] = str(event['aggregation_key'])
+        aggregator.submit_event(self, event)
+
     def check(self, instance):
         raise NotImplementedError
 
