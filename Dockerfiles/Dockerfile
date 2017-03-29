@@ -23,4 +23,4 @@ EXPOSE 8125/udp
 
 ENTRYPOINT ["/entrypoint.sh"]
 
-CMD ["/opt/datadog-agent6/bin/agent/agent", "start", "-f"]
+CMD ["/opt/datadog-agent6/bin/agent/agent", "start"]

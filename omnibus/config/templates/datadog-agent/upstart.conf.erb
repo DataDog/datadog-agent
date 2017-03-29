@@ -8,7 +8,7 @@ respawn
 console log  # redirect daemon's outputs to `/var/log/upstart/datadog-agent6.log`
 
 script
-  exec <%= install_dir %>/bin/agent/agent start -p /var/run/datadog/agent.pid -f
+  exec <%= install_dir %>/bin/agent/agent start -p /var/run/datadog/agent.pid
 end script
 
 post-stop script

@@ -3,7 +3,7 @@ Description="Datadog Agent"
 After=network.target
 
 [Service]
-Type=forking
+Type=simple
 PIDFile=/var/run/datadog/agent.pid
 User=root
 Restart=on-failure
