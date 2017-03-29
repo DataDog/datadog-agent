@@ -60,6 +60,13 @@ func (v *Version) String() string {
 	if v.Meta != "" {
 		ver = fmt.Sprintf("%s+%s", ver, v.Meta)
 	}
+	if v.Commit != "" {
+		if v.Meta != "" {
+			ver = fmt.Sprintf("%s.commit.%s", ver, v.Commit)
+		} else {
+			ver = fmt.Sprintf("%s+commit.%s", ver, v.Commit)
+		}
+	}
 
 	return ver
 }

@@ -17,6 +17,6 @@ var versionCmd = &cobra.Command{
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		av, _ := version.New(version.AgentVersion)
-		fmt.Println(fmt.Sprintf("Agent %s - Codename: %s", av.GetNumber(), av.Meta))
+		fmt.Println(fmt.Sprintf("Agent %s - Codename: %s - Commit: %s", av.GetNumber(), av.Meta, av.Commit))
 	},
 }
