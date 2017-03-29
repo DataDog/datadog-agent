@@ -36,7 +36,7 @@ requirements = %{
 
 build do
   # The checks
-  checks_dir = "#{install_dir}/agent/checks.d"
+  checks_dir = "#{install_dir}/bin/agent/dist/checks.d"
   mkdir checks_dir
 
   # The confs
