@@ -1,3 +1,5 @@
+// +build !windows
+
 package main
 
 import (
@@ -8,11 +10,6 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
-
-	// register core checks
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 )
 
 func main() {
