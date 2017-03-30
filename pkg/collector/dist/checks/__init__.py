@@ -57,6 +57,14 @@ class AgentCheck(object):
 
     def event(self, event):
         # Enforce types of some fields, considerably facilitates handling in go bindings downstream
+        for key, value in event.items():
+            # transform the unicode objects to plain strings with utf-8 encoding
+            if isinstance(value, unicode):
+                try:
+                    event[key] = event[key].encode('utf-8')
+                except UnicodeError:
+                    self.log.warning("Error encoding unicode field '%s' of event to utf-8 encoded string, can't submit event", key)
+                    return
         if event.get('timestamp'):
             event['timestamp'] = int(event['timestamp'])
         if event.get('aggregation_key'):
