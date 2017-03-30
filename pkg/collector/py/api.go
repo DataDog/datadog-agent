@@ -1,6 +1,7 @@
 package py
 
 import (
+	"errors"
 	"unsafe"
 
 	log "github.com/cihub/seelog"
@@ -26,7 +27,10 @@ func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.floa
 
 	_name := C.GoString(name)
 	_value := float64(value)
-	_tags := extractTags(tags)
+	_tags, err := extractTags(tags)
+	if err != nil {
+		return nil
+	}
 
 	switch mt {
 	case C.GAUGE:
@@ -56,7 +60,10 @@ func SubmitServiceCheck(check *C.PyObject, name *C.char, status C.int, tags *C.P
 
 	_name := C.GoString(name)
 	_status := aggregator.ServiceCheckStatus(status)
-	_tags := extractTags(tags)
+	_tags, err := extractTags(tags)
+	if err != nil {
+		return nil
+	}
 	_message := C.GoString(message)
 
 	sender.ServiceCheck(_name, _status, "", _tags, _message)
@@ -79,14 +86,17 @@ func SubmitEvent(check *C.PyObject, event *C.PyObject) *C.PyObject {
 		return C._none()
 	}
 
-	_event := extractEventFromDict(event)
+	_event, err := extractEventFromDict(event)
+	if err != nil {
+		return nil
+	}
 
 	sender.Event(_event)
 
 	return C._none()
 }
 
-func extractEventFromDict(event *C.PyObject) aggregator.Event {
+func extractEventFromDict(event *C.PyObject) (aggregator.Event, error) {
 	// Extract all string values
 	// Values that should be extracted from the python event dict as strings
 	eventStringValues := map[string]string{
@@ -139,23 +149,29 @@ func extractEventFromDict(event *C.PyObject) aggregator.Event {
 
 	tags := C.PyDict_GetItemString(event, pyKey) // borrowed ref
 	if tags != nil {
-		_event.Tags = extractTags(tags)
+		_tags, err := extractTags(tags)
+		if err != nil {
+			return _event, err
+		}
+		_event.Tags = _tags
 	}
 
-	return _event
+	return _event, nil
 }
 
-func extractTags(tags *C.PyObject) []string {
-	var _tags []string
-
-	errMsg := C.CString("expected a sequence")
-	defer C.free(unsafe.Pointer(errMsg))
-
-	var seq *C.PyObject
-	seq = C.PySequence_Fast(tags, errMsg) // seq is a new reference, has to be decref'd
-	defer C.Py_DecRef(seq)
-
+func extractTags(tags *C.PyObject) (_tags []string, err error) {
 	if !isNone(tags) {
+		errMsg := C.CString("expected tags to be a sequence")
+		defer C.free(unsafe.Pointer(errMsg))
+
+		var seq *C.PyObject
+		seq = C.PySequence_Fast(tags, errMsg) // seq is a new reference, has to be decref'd
+		if seq == nil {
+			err = errors.New("not a sequence")
+			return
+		}
+		defer C.Py_DecRef(seq)
+
 		var i C.Py_ssize_t
 		for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
 			item := C.PySequence_Fast_Get_Item(seq, i)                   // `item` is borrowed, no need to decref
@@ -163,7 +179,7 @@ func extractTags(tags *C.PyObject) []string {
 		}
 	}
 
-	return _tags
+	return
 }
 
 func isNone(o *C.PyObject) bool {
