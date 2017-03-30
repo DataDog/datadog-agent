@@ -26,7 +26,9 @@ namespace :agent do
       env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
     end
 
-    system(env, "go build #{race_opt} -o #{BIN_PATH}/#{agent_bin_name} #{REPO_PATH}/cmd/agent")
+    commit = `git rev-parse --short HEAD`.strip
+    ldflags = "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
+    system(env, "go build #{race_opt} -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
     Rake::Task["agent:refresh_assets"].invoke
   end
 
