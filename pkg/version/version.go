@@ -9,11 +9,11 @@ import (
 
 // Version holds SemVer infos for the agent and friends
 type Version struct {
-	Major int64
-	Minor int64
-	Patch int64
-	Pre   string
-	Meta  string
+	Major  int64
+	Minor  int64
+	Patch  int64
+	Pre    string
+	Meta   string
 	Commit string
 }
 
@@ -41,11 +41,11 @@ func New(version string) (Version, error) {
 	meta := strings.Replace(toks[3], "+", "", 1)
 
 	av := Version{
-		Major: major,
-		Minor: minor,
-		Patch: patch,
-		Pre:   pre,
-		Meta:  meta,
+		Major:  major,
+		Minor:  minor,
+		Patch:  patch,
+		Pre:    pre,
+		Meta:   meta,
 		Commit: commit,
 	}
 
