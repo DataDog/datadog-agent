@@ -1,4 +1,3 @@
 package config
 
-// BUG(massi): which is the final destination of the DIST folder on Windows?
-const defaultConfdPath = ""
+const defaultConfdPath = "c:\\programdata\\datadog\\conf.d"
