@@ -31,6 +31,9 @@ var (
 	runForeground bool
 	pidfilePath   string
 	confdPath     string
+	// ConfFilePath holds the path to the folder containing the configuration
+	// file, for override from the command line
+	confFilePath string
 )
 
 // StartAgent Initializes the agent process
@@ -42,6 +45,8 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 			panic(err)
 		}
 	}
+	// Global Agent configuration
+	common.SetupConfig(confFilePath)
 
 	hostname := common.GetHostname()
 	// store the computed hostname in the global cache

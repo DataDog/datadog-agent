@@ -41,8 +41,13 @@ func GetCheckLoaders() []check.Loader {
 }
 
 // SetupConfig fires up the configuration system
-func SetupConfig() {
+func SetupConfig(confFilePath string) {
 	// set the paths where a config file is expected
+	if len(confFilePath) != 0 {
+		// if the configuration file path was supplied on the command line,
+		// add that first so it's first in line
+		config.Datadog.AddConfigPath(confFilePath)
+	}
 	config.Datadog.AddConfigPath(defaultConfPath)
 	config.Datadog.AddConfigPath(DistPath)
 
