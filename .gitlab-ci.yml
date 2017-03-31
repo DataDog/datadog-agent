@@ -10,6 +10,7 @@ variables:
   RPM_X64: $DOCKER_REGISTRY/datadog/datadog-agent-builders:rpm_x64
   DEPLOY: $DOCKER_REGISTRY/datadog/datadog-agent-builders:deploy # For now, just a renamed version of the image datadog/mars-jenkins-scripts
   AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
+  STATIC_BINARIES_DIR: $SRC_PATH/bin/static
   DEB_S3_BUCKET: apt-agent6.datad0g.com
 
 before_script:
@@ -84,6 +85,26 @@ dogstatsd_deb-x64:
     expire_in: 2 weeks
     paths:
       - $AGENT_OMNIBUS_PACKAGE_DIR
+
+# build dogstatsd static for deb-x64
+dogstatsd_static-x64:
+  stage: build
+  image: $DEB_X64
+  tags:
+    - docker
+  variables:
+    # Artifacts and cache must live within project directory but we run omnibus from the GOPATH (see above).
+    # We then instrument `rake` to invoke `omnibus` with custom parameter, pointing to a gitlab-friendly location.
+    AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
+    # Uncomment the following to see debug logs from omnibus, it defaults to info
+    # AGENT_OMNIBUS_LOG_LEVEL: debug
+  script:
+    - rake dogstatsd:build_static
+    - cp $STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - dogstatsd
 
 # run tests for rpm-x64
 run_test_rpm-x64:
