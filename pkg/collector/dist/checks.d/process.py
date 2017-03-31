@@ -11,7 +11,7 @@ import time
 import psutil
 
 # project
-from checks import AgentCheck
+from agent import AgentCheck
 from config import _is_affirmative
 from utils.platform import Platform
 

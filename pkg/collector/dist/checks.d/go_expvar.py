@@ -6,7 +6,7 @@ import re
 import requests
 
 # project
-from checks import AgentCheck
+from agent import AgentCheck
 
 DEFAULT_MAX_METRICS = 350
 PATH = "path"

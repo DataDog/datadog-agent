@@ -12,7 +12,7 @@ import (
 
 // const things
 const agentCheckClassName = "AgentCheck"
-const agentCheckModuleName = "checks"
+const agentCheckModuleName = "agent"
 
 // PythonCheckLoader is a specific loader for checks living in Python modules
 type PythonCheckLoader struct {
