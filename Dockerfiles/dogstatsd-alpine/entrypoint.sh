@@ -6,7 +6,7 @@
 
 touch /datadog.yaml
 
-
+echo "dogstatsd_non_local_traffic: yes" >> /datadog.yaml
 
 if [[ $DD_API_KEY ]]; then
 	echo "api_key: ${API_KEY}/" >> /datadog.yaml
