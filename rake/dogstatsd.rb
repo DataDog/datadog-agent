@@ -14,9 +14,18 @@ namespace :dogstatsd do
   DOGSTATSD_BIN_PATH="./bin/dogstatsd"
   CLOBBER.include(DOGSTATSD_BIN_PATH)
 
+  STATIC_BIN_PATH="./bin/static"
+  STATIC_GO_FLAGS="--ldflags '-extldflags \"-static\"'"
+
   desc "Build Dogstatsd"
   task :build do
     system("go build -o #{DOGSTATSD_BIN_PATH}/#{dogstatsd_bin_name} #{REPO_PATH}/cmd/dogstatsd/")
+  end
+
+  desc "Build static Dogstatsd"
+  task :build_static do
+    system("go build #{STATIC_GO_FLAGS} -o #{STATIC_BIN_PATH}/#{dogstatsd_bin_name} #{REPO_PATH}/cmd/dogstatsd/")
+    system("strip #{STATIC_BIN_PATH}/#{dogstatsd_bin_name}")
   end
 
   desc "Run Dogstatsd"
