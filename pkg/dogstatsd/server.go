@@ -19,7 +19,14 @@ type Server struct {
 
 // NewServer returns a running Dogstatsd server
 func NewServer(out chan *aggregator.MetricSample) (*Server, error) {
-	url := fmt.Sprintf("localhost:%d", config.Datadog.GetInt("dogstatsd_port"))
+	var url string
+	if config.Datadog.GetBool("dogstatsd_non_local_traffic") == true {
+		// Listen to all network interfaces
+		url = fmt.Sprintf(":%d", config.Datadog.GetInt("dogstatsd_port"))
+	} else {
+		url = fmt.Sprintf("localhost:%d", config.Datadog.GetInt("dogstatsd_port"))
+	}
+
 	address, addrErr := net.ResolveUDPAddr("udp", url)
 	if addrErr != nil {
 		return nil, fmt.Errorf("dogstatsd: can't ResolveUDPAddr %s: %v", url, addrErr)
