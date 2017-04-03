@@ -45,6 +45,30 @@ func MarshalSeries(series []*Serie) ([]byte, error) {
 	return proto.Marshal(payload)
 }
 
+// MarshalServiceChecks serialize check runs payload using agent-payload definition
+func MarshalServiceChecks(checkRuns []*ServiceCheck) ([]byte, error) {
+	payload := &agentpayload.CheckRunsPayload{
+		CheckRuns: []*agentpayload.CheckRunsPayload_CheckRun{},
+		Metadata:  &agentpayload.CommonMetadata{},
+	}
+
+	for _, c := range checkRuns {
+		payload.CheckRuns = append(payload.CheckRuns,
+			&agentpayload.CheckRunsPayload_CheckRun{
+				Name:    c.CheckName,
+				Host:    c.Host,
+				Ts:      c.Ts,
+				Status:  int32(c.Status),
+				Message: c.Message,
+				Tags:    c.Tags,
+			})
+	}
+
+	writer, _ := log.NewConsoleWriter()
+	proto.MarshalText(writer, payload)
+	return proto.Marshal(payload)
+}
+
 // MarshalJSONSeries serializea timeserie to JSON so it can be sent to V1 endpoints
 //FIXME(maxime): to be removed when v2 endpoints are available
 func MarshalJSONSeries(series []*Serie) ([]byte, error) {

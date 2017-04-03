@@ -71,7 +71,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 	var statsd *dogstatsd.Server
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		statsd, err = dogstatsd.NewServer(agg.GetChannel())
+		statsd, err = dogstatsd.NewServer(agg.GetChannels())
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}

@@ -60,9 +60,9 @@ func newBufferedAggregator(f *forwarder.Forwarder) *BufferedAggregator {
 	return aggregator
 }
 
-// GetChannel returns a channel which can be subsequently used to send MetricSamples
-func (agg *BufferedAggregator) GetChannel() chan *MetricSample {
-	return agg.dogstatsdIn
+// GetChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
+func (agg *BufferedAggregator) GetChannels() (chan *MetricSample, chan Event, chan ServiceCheck) {
+	return agg.dogstatsdIn, agg.eventIn, agg.serviceCheckIn
 }
 
 func (agg *BufferedAggregator) registerSender(id check.ID) error {

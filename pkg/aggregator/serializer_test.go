@@ -5,6 +5,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	agentpayload "github.com/DataDog/agent-payload/go"
 )
@@ -30,18 +31,47 @@ func TestMarshalSeries(t *testing.T) {
 	err = proto.Unmarshal(payload, newPayload)
 	assert.Nil(t, err)
 
-	assert.Equal(t, len(newPayload.Samples), 1)
+	require.Len(t, newPayload.Samples, 1)
 	assert.Equal(t, newPayload.Samples[0].Metric, "test.metrics")
 	assert.Equal(t, newPayload.Samples[0].Type, "gauge")
 	assert.Equal(t, newPayload.Samples[0].Host, "localHost")
-	assert.Equal(t, len(newPayload.Samples[0].Tags), 2)
+	require.Len(t, newPayload.Samples[0].Tags, 2)
 	assert.Equal(t, newPayload.Samples[0].Tags[0], "tag1")
 	assert.Equal(t, newPayload.Samples[0].Tags[1], "tag2:yes")
-	assert.Equal(t, len(newPayload.Samples[0].Points), 2)
+	require.Len(t, newPayload.Samples[0].Points, 2)
 	assert.Equal(t, newPayload.Samples[0].Points[0].Ts, int64(12345))
 	assert.Equal(t, newPayload.Samples[0].Points[0].Value, float64(21.21))
 	assert.Equal(t, newPayload.Samples[0].Points[1].Ts, int64(67890))
 	assert.Equal(t, newPayload.Samples[0].Points[1].Value, float64(12.12))
+}
+
+func TestMarshalServiceChecks(t *testing.T) {
+	serviceChecks := []*ServiceCheck{{
+		CheckName: "test.check",
+		Host:      "test.localhost",
+		Ts:        1000,
+		Status:    ServiceCheckOK,
+		Message:   "this is fine",
+		Tags:      []string{"tag1", "tag2:yes"},
+	}}
+
+	payload, err := MarshalServiceChecks(serviceChecks)
+	assert.Nil(t, err)
+	assert.NotNil(t, payload)
+
+	newPayload := &agentpayload.CheckRunsPayload{}
+	err = proto.Unmarshal(payload, newPayload)
+	assert.Nil(t, err)
+
+	require.Len(t, newPayload.CheckRuns, 1)
+	assert.Equal(t, newPayload.CheckRuns[0].Name, "test.check")
+	assert.Equal(t, newPayload.CheckRuns[0].Host, "test.localhost")
+	assert.Equal(t, newPayload.CheckRuns[0].Ts, int64(1000))
+	assert.Equal(t, newPayload.CheckRuns[0].Status, int32(ServiceCheckOK))
+	assert.Equal(t, newPayload.CheckRuns[0].Message, "this is fine")
+	require.Len(t, newPayload.CheckRuns[0].Tags, 2)
+	assert.Equal(t, newPayload.CheckRuns[0].Tags[0], "tag1")
+	assert.Equal(t, newPayload.CheckRuns[0].Tags[1], "tag2:yes")
 }
 
 func TestMarshalJSONSeries(t *testing.T) {

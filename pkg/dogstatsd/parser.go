@@ -3,6 +3,7 @@ package dogstatsd
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -17,12 +18,9 @@ var metricTypes = map[string]aggregator.MetricType{
 	"c": aggregator.CounterType,
 }
 
-func nextMetric(datagram *[]byte) (*aggregator.MetricSample, error) {
-	// call parseMetricPacket for the first line of buffer
-	var packet []byte
-
+func nextPacket(datagram *[]byte) (packet []byte) {
 	if len(*datagram) == 0 {
-		return nil, nil
+		return nil
 	}
 	split := bytes.SplitAfterN(*datagram, []byte("\n"), 2)
 
@@ -35,7 +33,65 @@ func nextMetric(datagram *[]byte) (*aggregator.MetricSample, error) {
 		packet = split[0]
 	}
 
-	return parseMetricPacket(packet)
+	return packet
+}
+
+func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
+	// _sc|name|status|(metadata|...)
+
+	splitPacket := bytes.Split(packet, []byte("|"))
+
+	if len(splitPacket) < 3 {
+		return nil, fmt.Errorf("Invalid packet format")
+	}
+
+	rawName, rawStatus := splitPacket[1], splitPacket[2]
+
+	service := aggregator.ServiceCheck{
+		CheckName: string(rawName),
+	}
+
+	if status, err := strconv.Atoi(string(rawStatus)); err != nil {
+		return nil, fmt.Errorf("dogstatsd: service check has invalid 'status': %s", err)
+	} else if serviceStatus, err := aggregator.GetServiceCheckStatus(status); err != nil {
+		return nil, fmt.Errorf("dogstatsd: unknown service check 'status': %s", err)
+	} else {
+		service.Status = serviceStatus
+	}
+
+	// Metadata
+	if len(splitPacket) > 3 {
+		rawMetadataFields := splitPacket[3:]
+
+		for i := range rawMetadataFields {
+			if bytes.HasPrefix(rawMetadataFields[i], []byte("d:")) {
+				ts, err := strconv.ParseInt(string(rawMetadataFields[i][2:]), 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("Invalid timestamp value: '%s'", err)
+				}
+				service.Ts = ts
+			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("h:")) {
+				service.Host = string(rawMetadataFields[i][2:])
+			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
+				rawTags := bytes.Split(rawMetadataFields[i][1:], []byte(","))
+				service.Tags = make([]string, len(rawTags))
+
+				for i := range rawTags {
+					service.Tags[i] = string(rawTags[i])
+				}
+			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("m:")) {
+				service.Message = string(rawMetadataFields[i][2:])
+			} else {
+				return nil, fmt.Errorf("unknown metadata type: '%s'", rawMetadataFields[i])
+			}
+		}
+	}
+
+	return &service, nil
+}
+
+func parseEventPacket(packet []byte) (*aggregator.Event, error) {
+	return nil, fmt.Errorf("Not Implemented")
 }
 
 func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {

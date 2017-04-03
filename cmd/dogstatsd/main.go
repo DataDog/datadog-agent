@@ -31,7 +31,7 @@ func main() {
 	f.Start()
 
 	aggregatorInstance := aggregator.InitAggregator(f)
-	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannel())
+	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
 		log.Error(err.Error())
 		return
