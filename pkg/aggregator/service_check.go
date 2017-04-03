@@ -1,5 +1,9 @@
 package aggregator
 
+import (
+	"fmt"
+)
+
 // ServiceCheckStatus represents the status associated with a service check
 type ServiceCheckStatus int
 
@@ -10,6 +14,22 @@ const (
 	ServiceCheckCritical ServiceCheckStatus = 2
 	ServiceCheckUnknown  ServiceCheckStatus = 3
 )
+
+// GetServiceCheckStatus returns the ServiceCheckStatus from and integer value
+func GetServiceCheckStatus(val int) (ServiceCheckStatus, error) {
+	switch val {
+	case int(ServiceCheckOK):
+		return ServiceCheckOK, nil
+	case int(ServiceCheckWarning):
+		return ServiceCheckWarning, nil
+	case int(ServiceCheckCritical):
+		return ServiceCheckCritical, nil
+	case int(ServiceCheckUnknown):
+		return ServiceCheckUnknown, nil
+	default:
+		return ServiceCheckUnknown, fmt.Errorf("invalid value for a ServiceCheckStatus")
+	}
+}
 
 // String returns a string representation of ServiceCheckStatus
 func (s ServiceCheckStatus) String() string {

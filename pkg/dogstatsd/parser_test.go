@@ -6,6 +6,7 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
@@ -17,46 +18,40 @@ const epsilon = 0.1
 
 func TestParseEmptyDatagram(t *testing.T) {
 	emptyDatagram := []byte("")
-	sample, err := nextMetric(&emptyDatagram)
+	pkt := nextPacket(&emptyDatagram)
 
-	assert.NoError(t, err)
-	assert.Nil(t, sample)
+	assert.Nil(t, pkt)
 }
 
 func TestParseOneLineDatagram(t *testing.T) {
 	datagram := []byte("daemon:666|g")
-	sample, err := nextMetric(&datagram)
+	pkt := nextPacket(&datagram)
 
-	assert.NoError(t, err)
-	assert.NotNil(t, sample)
+	assert.NotNil(t, pkt)
 	assert.Equal(t, 0, len(datagram))
 
 	// With trailing newline
 	datagram = []byte("daemon:666|g\n")
-	sample, err = nextMetric(&datagram)
+	pkt = nextPacket(&datagram)
 
-	assert.NoError(t, err)
-	assert.NotNil(t, sample)
+	assert.NotNil(t, pkt)
 	assert.Equal(t, 0, len(datagram))
 }
 
 func TestParseMultipleLineDatagram(t *testing.T) {
-	datagram := []byte("daemon:666|g\ndaemon:666|g")
+	datagram := []byte("daemon:666|g\ndaemon:667|g")
 
-	// First sample
-	sample, err := nextMetric(&datagram)
-	assert.NoError(t, err)
-	assert.NotNil(t, sample)
+	// First packet
+	pkt := nextPacket(&datagram)
+	assert.Equal(t, []byte("daemon:666|g"), pkt)
 
-	// Second sample
-	sample, err = nextMetric(&datagram)
-	assert.NoError(t, err)
-	assert.NotNil(t, sample)
+	// Second packet
+	pkt = nextPacket(&datagram)
+	assert.Equal(t, []byte("daemon:667|g"), pkt)
 
-	// Nore more samples
-	sample, err = nextMetric(&datagram)
-	assert.NoError(t, err)
-	assert.Nil(t, sample)
+	// Nore more packet
+	pkt = nextPacket(&datagram)
+	assert.Nil(t, pkt)
 	assert.Equal(t, 0, len(datagram))
 }
 
@@ -159,12 +154,108 @@ func TestEventTextUTF8(t *testing.T) {
 	assert.Equal(t, 1, 1)
 }
 
-func TestServiceCheckMessage(t *testing.T) {
-	assert.Equal(t, 1, 1)
+func TestServiceCheckMinimal(t *testing.T) {
+	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0"))
+
+	assert.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "", sc.Host)
+	assert.Equal(t, int64(0), sc.Ts)
+	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string(nil), sc.Tags)
 }
 
-func TestServiceCheckTags(t *testing.T) {
-	assert.Equal(t, 1, 1)
+func TestServiceCheckError(t *testing.T) {
+	// not enough infomation
+	_, err := parseServiceCheckPacket([]byte("_sc|agent.up"))
+	assert.Error(t, err)
+
+	// not invalid status
+	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|OK"))
+	assert.Error(t, err)
+
+	// not unknown status
+	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|21"))
+	assert.Error(t, err)
+
+	// invalid timestamp
+	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|0|d:some_time"))
+	assert.Error(t, err)
+
+	// unknown metadata
+	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|0|u:unknown"))
+	assert.Error(t, err)
+}
+
+func TestServiceCheckMetadataTimestamp(t *testing.T) {
+	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0|d:21"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "", sc.Host)
+	assert.Equal(t, int64(21), sc.Ts)
+	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string(nil), sc.Tags)
+}
+
+func TestServiceCheckMetadataHostname(t *testing.T) {
+	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0|h:localhost"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "localhost", sc.Host)
+	assert.Equal(t, int64(0), sc.Ts)
+	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string(nil), sc.Tags)
+}
+
+func TestServiceCheckMetadataTags(t *testing.T) {
+	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "", sc.Host)
+	assert.Equal(t, int64(0), sc.Ts)
+	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string{"tag1", "tag2:test", "tag3"}, sc.Tags)
+}
+
+func TestServiceCheckMetadataMessage(t *testing.T) {
+	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0|m:this is fine"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "", sc.Host)
+	assert.Equal(t, int64(0), sc.Ts)
+	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "this is fine", sc.Message)
+	assert.Equal(t, []string(nil), sc.Tags)
+}
+
+func TestServiceCheckMetadataMultiple(t *testing.T) {
+	// all type
+	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"))
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "localhost", sc.Host)
+	assert.Equal(t, int64(21), sc.Ts)
+	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "this is fine", sc.Message)
+	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.Tags)
+
+	// multiple time the same tag
+	sc, err = parseServiceCheckPacket([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"))
+	require.Nil(t, err)
+	assert.Equal(t, "agent.up", sc.CheckName)
+	assert.Equal(t, "localhost2", sc.Host)
+	assert.Equal(t, int64(22), sc.Ts)
+	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, "", sc.Message)
+	assert.Equal(t, []string(nil), sc.Tags)
 }
 
 func TestPacketStringEndings(t *testing.T) {
