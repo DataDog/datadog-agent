@@ -2,6 +2,7 @@
 
 PyObject* SubmitMetric(PyObject*, MetricType, char*, float, PyObject*);
 PyObject* SubmitServiceCheck(PyObject*, char*, int, PyObject*, char*);
+PyObject* SubmitEvent(PyObject*, PyObject*);
 
 char* MetricTypeNames[] = {
   "GAUGE",
@@ -51,9 +52,27 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
     return SubmitServiceCheck(check, name, status, tags, message);
 }
 
+static PyObject *submit_event(PyObject *self, PyObject *args) {
+    PyObject *check = NULL;
+    PyObject *event = NULL;
+
+    PyGILState_STATE gstate;
+    gstate = PyGILState_Ensure();
+
+    // aggregator.submit_event(self, event)
+    if (!PyArg_ParseTuple(args, "OO", &check, &event)) {
+      PyGILState_Release(gstate);
+      Py_RETURN_NONE;
+    }
+
+    PyGILState_Release(gstate);
+    return SubmitEvent(check, event);
+}
+
 static PyMethodDef AggMethods[] = {
   {"submit_metric", (PyCFunction)submit_metric, METH_VARARGS, "Submit metrics to the aggregator."},
   {"submit_service_check", (PyCFunction)submit_service_check, METH_VARARGS, "Submit service checks to the aggregator."},
+  {"submit_event", (PyCFunction)submit_event, METH_VARARGS, "Submit events to the aggregator."},
   {NULL, NULL}  // guards
 };
 
@@ -78,6 +97,14 @@ void initaggregator()
   }
 
   PyGILState_Release(gstate);
+}
+
+int _PyDict_Check(PyObject *o) {
+  return PyDict_Check(o);
+}
+
+int _PyString_Check(PyObject *o) {
+  return PyString_Check(o);
 }
 
 PyObject* PySequence_Fast_Get_Item(PyObject *o, Py_ssize_t i)
