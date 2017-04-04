@@ -1,4 +1,4 @@
-package autoconfig
+package autodiscovery
 
 import (
 	"sync"
