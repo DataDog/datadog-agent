@@ -1,6 +1,7 @@
 package check
 
 import (
+	"bytes"
 	"sync"
 	"time"
 )
@@ -70,4 +71,31 @@ func (cs *Stats) Add(t time.Duration, err error) {
 		cs.LastError = err.Error()
 	}
 	cs.UpdateTimestamp = time.Now().Unix()
+}
+
+// Equal determines whether the passed config is the same
+func (c *Config) Equal(config *Config) bool {
+	if config == nil {
+		return false
+	}
+
+	if c.Name != config.Name {
+		return false
+	}
+
+	if len(c.Instances) != len(config.Instances) {
+		return false
+	}
+
+	for i := range c.Instances {
+		if !bytes.Equal(c.Instances[i], config.Instances[i]) {
+			return false
+		}
+	}
+
+	if !bytes.Equal(c.InitConfig, config.InitConfig) {
+		return false
+	}
+
+	return true
 }
