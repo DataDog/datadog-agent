@@ -7,3 +7,6 @@ import:
   subpackages:
   - mem
   - process
+- package: golang.org/x/sys
+  subpackages:
+  - windows/registry
