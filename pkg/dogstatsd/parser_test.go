@@ -90,6 +90,18 @@ func TestParseGaugeWithTags(t *testing.T) {
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
+func TestParseGaugeWithSampleRate(t *testing.T) {
+	parsed, err := parseMetricPacket([]byte("daemon:666|g|@0.21"))
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
+	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.InEpsilon(t, 0.21, parsed.SampleRate, epsilon)
+}
+
 func TestParseGaugeWithPoundOnly(t *testing.T) {
 	parsed, err := parseMetricPacket([]byte("daemon:666|g|#"))
 
@@ -114,6 +126,32 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 		assert.Equal(t, "intitulé:T0µ", (*parsed.Tags)[0])
 	}
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
+func TestParseMetricError(t *testing.T) {
+	// not enough infomation
+	_, err := parseMetricPacket([]byte("daemon:666"))
+	assert.Error(t, err)
+
+	// too many value
+	_, err = parseMetricPacket([]byte("daemon:666:777|g"))
+	assert.Error(t, err)
+
+	// unknown metadata prefix
+	_, err = parseMetricPacket([]byte("daemon:666|g|m:test"))
+	assert.Error(t, err)
+
+	// invalid value
+	_, err = parseMetricPacket([]byte("daemon:abc|g"))
+	assert.Error(t, err)
+
+	// invalid metric type
+	_, err = parseMetricPacket([]byte("daemon:666|unknown"))
+	assert.Error(t, err)
+
+	// invalid sample rate
+	_, err = parseMetricPacket([]byte("daemon:666|g|@abc"))
+	assert.Error(t, err)
 }
 
 func TestParseMonokeyBatching(t *testing.T) {
