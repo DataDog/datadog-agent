@@ -19,9 +19,9 @@ var aggregatorInstance *BufferedAggregator
 var aggregatorInit sync.Once
 
 // InitAggregator returns the Singleton instance
-func InitAggregator(f *forwarder.Forwarder) *BufferedAggregator {
+func InitAggregator(f *forwarder.Forwarder, hostname string) *BufferedAggregator {
 	aggregatorInit.Do(func() {
-		aggregatorInstance = newBufferedAggregator(f)
+		aggregatorInstance = newBufferedAggregator(f, hostname)
 	})
 
 	return aggregatorInstance
@@ -29,30 +29,36 @@ func InitAggregator(f *forwarder.Forwarder) *BufferedAggregator {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	dogstatsdIn    chan *MetricSample
-	checkMetricIn  chan senderMetricSample
-	serviceCheckIn chan ServiceCheck
-	eventIn        chan Event
-	sampler        Sampler
-	checkSamplers  map[check.ID]*CheckSampler
-	serviceChecks  []ServiceCheck
-	events         []Event
-	flushInterval  int64
-	mu             sync.Mutex // to protect the checkSamplers field
-	forwarder      *forwarder.Forwarder
+	dogstatsdIn        chan *MetricSample
+	checkMetricIn      chan senderMetricSample
+	serviceCheckIn     chan ServiceCheck
+	eventIn            chan Event
+	sampler            Sampler
+	checkSamplers      map[check.ID]*CheckSampler
+	serviceChecks      []ServiceCheck
+	events             []Event
+	flushInterval      int64
+	mu                 sync.Mutex // to protect the checkSamplers field
+	forwarder          *forwarder.Forwarder
+	hostname           string
+	hostnameUpdate     chan string
+	hostnameUpdateDone chan struct{} // signals that the hostname update is finished
 }
 
 // Instantiate a BufferedAggregator and run it
-func newBufferedAggregator(f *forwarder.Forwarder) *BufferedAggregator {
+func newBufferedAggregator(f *forwarder.Forwarder, hostname string) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
-		dogstatsdIn:    make(chan *MetricSample, 100),      // TODO make buffer size configurable
-		checkMetricIn:  make(chan senderMetricSample, 100), // TODO make buffer size configurable
-		serviceCheckIn: make(chan ServiceCheck, 100),       // TODO make buffer size configurable
-		eventIn:        make(chan Event, 100),              // TODO make buffer size configurable
-		sampler:        *NewSampler(bucketSize),
-		checkSamplers:  make(map[check.ID]*CheckSampler),
-		flushInterval:  defaultFlushInterval,
-		forwarder:      f,
+		dogstatsdIn:        make(chan *MetricSample, 100),      // TODO make buffer size configurable
+		checkMetricIn:      make(chan senderMetricSample, 100), // TODO make buffer size configurable
+		serviceCheckIn:     make(chan ServiceCheck, 100),       // TODO make buffer size configurable
+		eventIn:            make(chan Event, 100),              // TODO make buffer size configurable
+		sampler:            *NewSampler(bucketSize),
+		checkSamplers:      make(map[check.ID]*CheckSampler),
+		flushInterval:      defaultFlushInterval,
+		forwarder:          f,
+		hostname:           hostname,
+		hostnameUpdate:     make(chan string),
+		hostnameUpdateDone: make(chan struct{}),
 	}
 
 	go aggregator.run()
@@ -65,13 +71,20 @@ func (agg *BufferedAggregator) GetChannels() (chan *MetricSample, chan Event, ch
 	return agg.dogstatsdIn, agg.eventIn, agg.serviceCheckIn
 }
 
+// SetHostname sets the hostname that the aggregator uses by default on all the data it sends
+// Blocks until the main aggregator goroutine has finished handling the update
+func (agg *BufferedAggregator) SetHostname(hostname string) {
+	agg.hostnameUpdate <- hostname
+	<-agg.hostnameUpdateDone
+}
+
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	if _, ok := agg.checkSamplers[id]; ok {
 		return fmt.Errorf("Sender with ID '%s' has already been registered, will use existing sampler", id)
 	}
-	agg.checkSamplers[id] = newCheckSampler(config.Datadog.GetString("hostname"))
+	agg.checkSamplers[id] = newCheckSampler(agg.hostname)
 	return nil
 }
 
@@ -98,10 +111,9 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
-// FIXME: the default hostname should be the one that's resolved by the Agent logic instead of the one pulled from the main config
 func (agg *BufferedAggregator) addServiceCheck(sc ServiceCheck) {
 	if sc.Host == "" {
-		sc.Host = config.Datadog.GetString("hostname")
+		sc.Host = agg.hostname
 	}
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
@@ -110,10 +122,10 @@ func (agg *BufferedAggregator) addServiceCheck(sc ServiceCheck) {
 	agg.serviceChecks = append(agg.serviceChecks, sc)
 }
 
-// FIXME: the default hostname should be the one that's resolved by the Agent logic instead of the one pulled from the main config
+// addEvent adds the event to the slice of current events
 func (agg *BufferedAggregator) addEvent(e Event) {
 	if e.Host == "" {
-		e.Host = config.Datadog.GetString("hostname")
+		e.Host = agg.hostname
 	}
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
@@ -176,17 +188,16 @@ func (agg *BufferedAggregator) flushEvents() {
 	agg.events = nil
 
 	// Serialize and forward in a separate goroutine
-	go func() {
+	go func(hostname string) {
 		log.Debug("Flushing ", len(events), " events to the forwarder")
-		// FIXME: the default hostname should be the one that's resolved by the Agent logic instead of the one pulled from the main config
-		payload, err := MarshalJSONEvents(events, config.Datadog.GetString("api_key"), config.Datadog.GetString("hostname"))
+		payload, err := MarshalJSONEvents(events, config.Datadog.GetString("api_key"), hostname)
 		if err != nil {
 			log.Error("could not serialize events, dropping them: ", err)
 			return
 		}
 		// We use the agent 5 intake endpoint until the v2 events endpoint is ready
 		agg.forwarder.SubmitV1Intake(config.Datadog.GetString("api_key"), &payload)
-	}()
+	}(agg.hostname)
 }
 
 func (agg *BufferedAggregator) run() {
@@ -207,6 +218,14 @@ func (agg *BufferedAggregator) run() {
 			agg.addServiceCheck(sc)
 		case e := <-agg.eventIn:
 			agg.addEvent(e)
+		case h := <-agg.hostnameUpdate:
+			agg.hostname = h
+			agg.mu.Lock()
+			for _, checkSampler := range agg.checkSamplers {
+				checkSampler.hostname = h
+			}
+			agg.mu.Unlock()
+			agg.hostnameUpdateDone <- struct{}{}
 		}
 	}
 }
