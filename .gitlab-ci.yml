@@ -118,7 +118,76 @@ run_test_rpm-x64:
     - yum install -y net-snmp net-snmp-devel  # required by snmp check
     - rake test
 
-# TODO: build the package for rpm-x64
+# build the package for deb-x64
+agent_rpm-x64:
+  stage: build
+  image: $RPM_X64
+  tags:
+    - docker
+  variables:
+    # Artifacts and cache must live within project directory but we run omnibus from the GOPATH (see above).
+    # We then instrument `rake` to invoke `omnibus` with custom parameter, pointing to a gitlab-friendly location.
+    AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
+    # Uncomment the following to see debug logs from omnibus, it defaults to info
+    # AGENT_OMNIBUS_LOG_LEVEL: debug
+  script:
+    - apt-get install -y -qq libpq-dev  # this has to be removed as soon as we upgrade to psycopg2 2.7
+    - rake agent:omnibus
+    - rpm -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
+  cache:
+    # cache per branch
+    key: $CI_BUILD_REF_NAME
+    paths:
+      - $AGENT_OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $AGENT_OMNIBUS_PACKAGE_DIR
+
+# build dogstatsd for deb-x64
+dogstatsd_rpm-x64:
+  stage: build
+  image: $RPM_X64
+  tags:
+    - docker
+  variables:
+    # Artifacts and cache must live within project directory but we run omnibus from the GOPATH (see above).
+    # We then instrument `rake` to invoke `omnibus` with custom parameter, pointing to a gitlab-friendly location.
+    AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
+    # Uncomment the following to see debug logs from omnibus, it defaults to info
+    # AGENT_OMNIBUS_LOG_LEVEL: debug
+  script:
+    - rake dogstatsd:omnibus
+    - dpkg -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
+  cache:
+    # cache per branch
+    key: $CI_BUILD_REF_NAME
+    paths:
+      - $AGENT_OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $AGENT_OMNIBUS_PACKAGE_DIR
+
+# build dogstatsd static for deb-x64
+dogstatsd_static_rpm-x64:
+  stage: build
+  image: $RPM_X64
+  tags:
+    - docker
+  variables:
+    # Artifacts and cache must live within project directory but we run omnibus from the GOPATH (see above).
+    # We then instrument `rake` to invoke `omnibus` with custom parameter, pointing to a gitlab-friendly location.
+    AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
+    # Uncomment the following to see debug logs from omnibus, it defaults to info
+    # AGENT_OMNIBUS_LOG_LEVEL: debug
+  script:
+    - rake dogstatsd:build_static
+    - cp $STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - dogstatsd
 
 
 # deploy debian packages to apt staging repo
