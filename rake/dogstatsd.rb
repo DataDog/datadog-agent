@@ -25,6 +25,7 @@ namespace :dogstatsd do
   desc "Build static Dogstatsd"
   task :build_static do
     system("go build #{STATIC_GO_FLAGS} -o #{STATIC_BIN_PATH}/#{dogstatsd_bin_name} #{REPO_PATH}/cmd/dogstatsd/")
+    system("upx-ucl --lzma #{STATIC_BIN_PATH}/#{dogstatsd_bin_name}")
   end
 
   desc "Run Dogstatsd"
