@@ -135,14 +135,21 @@
                          Type="string"
                          Value="[HOSTNAME]" />
         </RegistryKey>
+<<<<<<< HEAD
         
+=======
+>>>>>>> [Windows] Builds MSI.
       </Component>
     </DirectoryRef>
 
     <!-- Let's ship our dist folder with the service and gui executables -->
     <DirectoryRef Id="PROJECTLOCATION">
+<<<<<<< HEAD
       <!-- put the agent in the embedded folder so that it can find the python DLLS -->
       <Directory Id="DIST" Name="embedded">
+=======
+      <Directory Id="DIST" Name="dist">
+>>>>>>> [Windows] Builds MSI.
         <!-- Windows service declaration for Datadog Agent -->
         <Component Id="DATADOGAGENTSERVICE" Guid="BCFAD885-5C69-49D3-99CB-494D14E87AAE">
           <File Id="agent.exe"
@@ -150,7 +157,11 @@
                 Vital="yes"
                 KeyPath="yes"
                 DiskId="1"
+<<<<<<< HEAD
                 Source="$(var.BinFiles)/agent.exe"/>
+=======
+                Source="$(var.DistFiles)/agent.exe"/>
+>>>>>>> [Windows] Builds MSI.
           <ServiceInstall Id="DatadogServiceInstaller"
                           DisplayName="Datadog Agent"
                           Description="Send metrics to Datadog"
@@ -170,7 +181,10 @@
                           Remove="uninstall"
                           Wait="yes" />
           <RemoveFolder Id="APPLICATIONROOTDIRECTORY" On="uninstall" />
+<<<<<<< HEAD
           
+=======
+>>>>>>> [Windows] Builds MSI.
         </Component>
       </Directory>
     </DirectoryRef>
