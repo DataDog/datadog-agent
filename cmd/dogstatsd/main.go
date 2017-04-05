@@ -6,6 +6,7 @@ import (
 	"syscall"
 
 	log "github.com/cihub/seelog"
+	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -14,12 +15,48 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
-func main() {
-	config.Datadog.AddConfigPath(".")
+var (
+	// dogstatsdCmd is the root command
+	dogstatsdCmd = &cobra.Command{
+		Use:   "dogstatsd [command]",
+		Short: "Datadog dogstatsd at your service.",
+		Long: `
+DogStatsD accepts custom application metrics points over UDP, and then 
+periodically aggregates and forwards them to Datadog, where they can be graphed 
+on dashboards. DogStatsD implements the StatsD protocol, along with a few 
+extensions for special Datadog features.`,
+	}
+
+	startCmd = &cobra.Command{
+		Use:   "start",
+		Short: "Start DogStatsD",
+		Long:  `Runs DogStatsD in the foreground`,
+		RunE:  start,
+	}
+
+	confPath string
+)
+
+func init() {
+	// attach the command to the root
+	dogstatsdCmd.AddCommand(startCmd)
+
+	// ENV vars bindings
+	config.Datadog.BindEnv("conf_path")
+	config.Datadog.SetDefault("conf_path", ".")
+
+	// local flags
+	startCmd.Flags().StringVarP(&confPath, "conf", "c", "", "path to the datadog.yaml file")
+	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("conf"))
+}
+
+func start(cmd *cobra.Command, args []string) error {
+	config.Datadog.SetConfigFile(config.Datadog.GetString("conf_path"))
+
 	err := config.Datadog.ReadInConfig()
 	if err != nil {
 		log.Criticalf("unable to load Datadog config file: %s", err)
-		return
+		return nil
 	}
 
 	// for now we handle only one key and one domain
@@ -36,7 +73,7 @@ func main() {
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
 		log.Error(err.Error())
-		return
+		return nil
 	}
 
 	// Setup a channel to catch OS signals
@@ -49,5 +86,12 @@ func main() {
 	statsd.Stop()
 	log.Info("See ya!")
 	log.Flush()
-	os.Exit(0)
+	return nil
+}
+
+func main() {
+	if err := dogstatsdCmd.Execute(); err != nil {
+		log.Error(err)
+		os.Exit(-1)
+	}
 }
