@@ -71,7 +71,7 @@ namespace :agent do
         overrides_cmd = "--override=" + overrides.join(" ")
       end
 
-      system("omnibus build datadog-agent6 --log-level=#{log_level} #{overrides_cmd}")
+      system("omnibus.bat build datadog-agent6 --log-level=#{log_level} #{overrides_cmd}")
     end
   end
 

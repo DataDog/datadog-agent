@@ -1,8 +1,10 @@
 name 'datadog-agent'
-
+require './lib/ostools.rb'
 dependency 'python'
 # Core checks dependencies
-dependency 'net-snmp-lib'
+unless windows?
+  dependency 'net-snmp-lib'
+end
 # Python check dependencies
 # none atm
 
