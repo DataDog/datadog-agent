@@ -78,6 +78,16 @@ func (agg *BufferedAggregator) SetHostname(hostname string) {
 	<-agg.hostnameUpdateDone
 }
 
+// AddAgentStartupEvent adds the startup event to the events that'll be sent on the next flush
+func (agg *BufferedAggregator) AddAgentStartupEvent(agentVersion string) {
+	event := Event{
+		Text:           fmt.Sprintf("Version %s", agentVersion),
+		SourceTypeName: "System",
+		EventType:      "Agent Startup",
+	}
+	agg.eventIn <- event
+}
+
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
