@@ -1,7 +1,6 @@
 #!/bin/sh
 #set -e
 
-
 ##### Core config #####
 
 touch /datadog.yaml
@@ -22,7 +21,8 @@ else
 
 fi
 
+##### Starting up dogstatsd #####
 
-##### Starting up #####
-
-exec "$@"
+chmod +x /dogstatsd
+sync	# Fix for 'Text file busy' error
+/dogstatsd
