@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,7 +17,8 @@ func main() {
 	config.Datadog.AddConfigPath(".")
 	err := config.Datadog.ReadInConfig()
 	if err != nil {
-		panic(fmt.Errorf("unable to load Datadog config file: %s", err))
+		log.Criticalf("unable to load Datadog config file: %s", err)
+		return
 	}
 
 	// for now we handle only one key and one domain
