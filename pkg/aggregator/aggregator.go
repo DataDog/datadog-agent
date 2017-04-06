@@ -197,6 +197,10 @@ func (agg *BufferedAggregator) flushEvents() {
 	events := agg.events
 	agg.events = nil
 
+	if len(events) == 0 {
+		return
+	}
+
 	// Serialize and forward in a separate goroutine
 	go func(hostname string) {
 		log.Debug("Flushing ", len(events), " events to the forwarder")
