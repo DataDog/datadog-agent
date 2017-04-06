@@ -31,4 +31,5 @@ type Event struct {
 	AlertType      EventAlertType `json:"alert_type,omitempty"`
 	AggregationKey string         `json:"aggregation_key,omitempty"`
 	SourceTypeName string         `json:"source_type_name,omitempty"`
+	EventType      string         `json:"event_type,omitempty"`
 }

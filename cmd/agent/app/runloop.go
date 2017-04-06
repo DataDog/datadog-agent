@@ -71,6 +71,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 
 	// setup the aggregator
 	agg := aggregator.InitAggregator(fwd, hostname)
+	agg.AddAgentStartupEvent(version.AgentVersion)
 
 	// start dogstatsd
 	var statsd *dogstatsd.Server
