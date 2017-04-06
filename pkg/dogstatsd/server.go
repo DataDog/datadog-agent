@@ -62,6 +62,7 @@ func (s *Server) handleMessages(metricOut chan<- *aggregator.MetricSample, event
 		}
 
 		datagram := buf[:n]
+		log.Debugf("dogstatsd receive: %s", datagram)
 
 		go func() {
 			for {
