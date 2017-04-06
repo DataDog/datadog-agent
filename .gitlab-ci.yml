@@ -171,26 +171,6 @@ dogstatsd_rpm-x64:
     paths:
       - $AGENT_OMNIBUS_PACKAGE_DIR
 
-# build dogstatsd static for deb-x64
-dogstatsd_static_rpm-x64:
-  stage: build
-  image: $RPM_X64
-  tags:
-    - docker
-  variables:
-    # Artifacts and cache must live within project directory but we run omnibus from the GOPATH (see above).
-    # We then instrument `rake` to invoke `omnibus` with custom parameter, pointing to a gitlab-friendly location.
-    AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
-    # Uncomment the following to see debug logs from omnibus, it defaults to info
-    # AGENT_OMNIBUS_LOG_LEVEL: debug
-  script:
-    - rake dogstatsd:build_static
-    - cp $STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - dogstatsd
-
 
 # deploy debian packages to apt staging repo
 deploy_deb:
