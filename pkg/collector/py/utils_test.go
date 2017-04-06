@@ -15,7 +15,7 @@ func TestMain(m *testing.M) {
 
 	// testing this package needs an inited aggregator
 	// to work properly
-	aggregator.InitAggregator(nil)
+	aggregator.InitAggregator(nil, "")
 
 	ret := m.Run()
 

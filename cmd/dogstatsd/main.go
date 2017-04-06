@@ -30,7 +30,8 @@ func main() {
 	f := forwarder.NewForwarder(keysPerDomain)
 	f.Start()
 
-	aggregatorInstance := aggregator.InitAggregator(f)
+	// FIXME: the aggregator should probably be initialized with the resolved hostname instead
+	aggregatorInstance := aggregator.InitAggregator(f, config.Datadog.GetString("hostname"))
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
 		log.Error(err.Error())

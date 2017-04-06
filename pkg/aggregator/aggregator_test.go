@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var checkID1 check.ID = "1"
@@ -18,7 +17,7 @@ var checkID2 check.ID = "2"
 func TestRegisterCheckSampler(t *testing.T) {
 	resetAggregator()
 
-	agg := InitAggregator(nil)
+	agg := InitAggregator(nil, "")
 	err := agg.registerSender(checkID1)
 	assert.Nil(t, err)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
@@ -35,7 +34,7 @@ func TestRegisterCheckSampler(t *testing.T) {
 func TestDeregisterCheckSampler(t *testing.T) {
 	resetAggregator()
 
-	agg := InitAggregator(nil)
+	agg := InitAggregator(nil, "")
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
@@ -50,10 +49,7 @@ func TestDeregisterCheckSampler(t *testing.T) {
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil)
-
-	// For now the default hostname is the one pulled from the main config
-	config.Datadog.Set("hostname", "config-hostname")
+	agg := InitAggregator(nil, "resolved-hostname")
 
 	agg.addServiceCheck(ServiceCheck{
 		// leave Host and Ts fields blank
@@ -72,7 +68,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	})
 
 	require.Len(t, agg.serviceChecks, 2)
-	assert.Equal(t, "config-hostname", agg.serviceChecks[0].Host)
+	assert.Equal(t, "resolved-hostname", agg.serviceChecks[0].Host)
 	assert.NotZero(t, agg.serviceChecks[0].Ts) // should be set to the current time, let's just check that it's not 0
 	assert.Equal(t, "my-hostname", agg.serviceChecks[1].Host)
 	assert.Equal(t, int64(12345), agg.serviceChecks[1].Ts)
@@ -80,10 +76,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 
 func TestAddEventDefaultValues(t *testing.T) {
 	resetAggregator()
-	agg := InitAggregator(nil)
-
-	// For now the default hostname is the one pulled from the main config
-	config.Datadog.Set("hostname", "config-hostname")
+	agg := InitAggregator(nil, "resolved-hostname")
 
 	agg.addEvent(Event{
 		// only populate required fields
@@ -107,7 +100,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 	// Default values are set on Host and Ts only
 	event1 := agg.events[0]
 	assert.Equal(t, "An event occurred", event1.Title)
-	assert.Equal(t, "config-hostname", event1.Host)
+	assert.Equal(t, "resolved-hostname", event1.Host)
 	assert.NotZero(t, event1.Ts) // should be set to the current time, let's just check that it's not 0
 	assert.Zero(t, event1.Priority)
 	assert.Zero(t, event1.Tags)
@@ -125,4 +118,12 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, EventAlertTypeError, event2.AlertType)
 	assert.Equal(t, "my_agg_key", event2.AggregationKey)
 	assert.Equal(t, "custom_source_type", event2.SourceTypeName)
+}
+
+func TestSetHostname(t *testing.T) {
+	resetAggregator()
+	agg := InitAggregator(nil, "hostname")
+	assert.Equal(t, "hostname", agg.hostname)
+	agg.SetHostname("different-hostname")
+	assert.Equal(t, "different-hostname", agg.hostname)
 }
