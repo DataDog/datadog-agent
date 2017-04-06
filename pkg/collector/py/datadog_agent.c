@@ -1,7 +1,8 @@
 #include "datadog_agent.h"
 
-PyObject* GetVersion();
-PyObject* Headers();
+PyObject* GetVersion(PyObject *self, PyObject *args);
+PyObject* Headers(PyObject *self, PyObject *args);
+PyObject* GetHostname(PyObject *self, PyObject *args);
 PyObject* GetConfig(char *key);
 
 static PyObject *get_config(PyObject *self, PyObject *args) {
@@ -20,9 +21,10 @@ static PyObject *get_config(PyObject *self, PyObject *args) {
 }
 
 static PyMethodDef datadogAgentMethods[] = {
-  {"get_version", (PyCFunction)GetVersion, METH_VARARGS, "Get the Agent version."},
+  {"get_version", GetVersion, METH_VARARGS, "Get the Agent version."},
   {"get_config", get_config, METH_VARARGS, "Get value from the agent configuration."},
-  {"headers", (PyCFunction)Headers, METH_VARARGS, "Get basic HTTP headers with the right UserAgent."},
+  {"headers", Headers, METH_VARARGS, "Get basic HTTP headers with the right UserAgent."},
+  {"get_hostname", GetHostname, METH_VARARGS, "Get the agent hostname."},
   {NULL, NULL}
 };
 

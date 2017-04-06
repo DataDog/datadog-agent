@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 func main() {
@@ -31,7 +32,7 @@ func main() {
 	f.Start()
 
 	// FIXME: the aggregator should probably be initialized with the resolved hostname instead
-	aggregatorInstance := aggregator.InitAggregator(f, config.Datadog.GetString("hostname"))
+	aggregatorInstance := aggregator.InitAggregator(f, util.GetHostname())
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
 		log.Error(err.Error())
