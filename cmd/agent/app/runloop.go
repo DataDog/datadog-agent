@@ -48,7 +48,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 	// Global Agent configuration
 	common.SetupConfig(confFilePath)
 
-	hostname := common.GetHostname()
+	hostname := util.GetHostname()
 	// store the computed hostname in the global cache
 	key := path.Join(util.AgentCachePrefix, "hostname")
 	util.Cache.Set(key, hostname, util.NoExpiration)
