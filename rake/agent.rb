@@ -14,10 +14,11 @@ namespace :agent do
   BIN_PATH="./bin/agent"
   CLOBBER.include(BIN_PATH)
 
-  desc "Build the agent, pass 'race=true' to invoke the race detector"
+  desc "Build the agent, pass 'race=true' to invoke the race detector, 'incremental=true' to build incrementally"
   task :build do
     # -race option
     race_opt = ENV['race'] == "true" ? "-race" : ""
+    build_type = ENV['incremental'] == "true" ? "-i" : "-a"
 
     # Check if we should use Embedded or System Python,
     # default to the embedded one.
@@ -28,7 +29,7 @@ namespace :agent do
 
     commit = `git rev-parse --short HEAD`.strip
     ldflags = "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
-    system(env, "go build #{race_opt} -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
+    system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
     Rake::Task["agent:refresh_assets"].invoke
   end
 
