@@ -25,7 +25,7 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
     // aggregator.submit_metric(self, aggregator.metric_type.GAUGE, name, value, tags)
     if (!PyArg_ParseTuple(args, "OisfO", &check, &mt, &name, &value, &tags)) {
       PyGILState_Release(gstate);
-      Py_RETURN_NONE;
+      return NULL;
     }
 
     PyGILState_Release(gstate);
@@ -45,7 +45,7 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
     // aggregator.submit_service_check(self, name, status, tags, message)
     if (!PyArg_ParseTuple(args, "OsiOs", &check, &name, &status, &tags, &message)) {
       PyGILState_Release(gstate);
-      Py_RETURN_NONE;
+      return NULL;
     }
 
     PyGILState_Release(gstate);
@@ -62,7 +62,7 @@ static PyObject *submit_event(PyObject *self, PyObject *args) {
     // aggregator.submit_event(self, event)
     if (!PyArg_ParseTuple(args, "OO", &check, &event)) {
       PyGILState_Release(gstate);
-      Py_RETURN_NONE;
+      return NULL;
     }
 
     PyGILState_Release(gstate);
@@ -101,6 +101,10 @@ void initaggregator()
 
 int _PyDict_Check(PyObject *o) {
   return PyDict_Check(o);
+}
+
+int _PyInt_Check(PyObject *o) {
+  return PyInt_Check(o);
 }
 
 int _PyString_Check(PyObject *o) {

@@ -29,6 +29,7 @@ func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.floa
 	_value := float64(value)
 	_tags, err := extractTags(tags)
 	if err != nil {
+		log.Error(err)
 		return nil
 	}
 
@@ -62,6 +63,7 @@ func SubmitServiceCheck(check *C.PyObject, name *C.char, status C.int, tags *C.P
 	_status := aggregator.ServiceCheckStatus(status)
 	_tags, err := extractTags(tags)
 	if err != nil {
+		log.Error(err)
 		return nil
 	}
 	_message := C.GoString(message)
@@ -88,6 +90,7 @@ func SubmitEvent(check *C.PyObject, event *C.PyObject) *C.PyObject {
 
 	_event, err := extractEventFromDict(event)
 	if err != nil {
+		log.Error(err)
 		return nil
 	}
 
@@ -96,6 +99,9 @@ func SubmitEvent(check *C.PyObject, event *C.PyObject) *C.PyObject {
 	return C._none()
 }
 
+// extractEventFromDict returns an `Event` populated with the fields of the passed event py object
+// The caller needs to check the returned `error`, any non-nil value indicates that the error flag is set
+// on the python interpreter.
 func extractEventFromDict(event *C.PyObject) (aggregator.Event, error) {
 	// Extract all string values
 	// Values that should be extracted from the python event dict as strings
@@ -117,6 +123,7 @@ func extractEventFromDict(event *C.PyObject) (aggregator.Event, error) {
 		// key not in dict => nil ; value for key is None => None ; we need to check for both
 		if pyValue != nil && !isNone(pyValue) {
 			if int(C._PyString_Check(pyValue)) != 0 {
+				// at this point we're sure that `pyValue` is a string, no further error checking needed
 				eventStringValues[key] = C.GoString(C.PyString_AsString(pyValue))
 			} else {
 				log.Infof("Can't parse value for key '%s' in event submitted from python check", key)
@@ -140,7 +147,12 @@ func extractEventFromDict(event *C.PyObject) (aggregator.Event, error) {
 
 	timestamp := C.PyDict_GetItemString(event, pyKey) // borrowed ref
 	if timestamp != nil && !isNone(timestamp) {
-		_event.Ts = int64(C.PyInt_AsLong(timestamp))
+		if int(C._PyInt_Check(timestamp)) != 0 {
+			// at this point we're sure that `timestamp` an `int` so `PyInt_AsLong` won't raise an exception
+			_event.Ts = int64(C.PyInt_AsLong(timestamp))
+		} else {
+			log.Infof("Can't cast timestamp to integer in event submitted from python check")
+		}
 	}
 
 	// Extract tags
@@ -159,23 +171,36 @@ func extractEventFromDict(event *C.PyObject) (aggregator.Event, error) {
 	return _event, nil
 }
 
+// extractTags returns a slice with the contents of the passed non-nil py object.
+// The caller needs to check the returned `error`, any non-nil value indicates that the error flag is set
+// on the python interpreter.
 func extractTags(tags *C.PyObject) (_tags []string, err error) {
 	if !isNone(tags) {
+		if int(C.PySequence_Check(tags)) == 0 {
+			log.Infof("Submitted `tags` is not a sequence, ignoring tags")
+			return
+		}
+
 		errMsg := C.CString("expected tags to be a sequence")
 		defer C.free(unsafe.Pointer(errMsg))
 
 		var seq *C.PyObject
 		seq = C.PySequence_Fast(tags, errMsg) // seq is a new reference, has to be decref'd
 		if seq == nil {
-			err = errors.New("not a sequence")
+			err = errors.New("can't iterate on tags")
 			return
 		}
 		defer C.Py_DecRef(seq)
 
 		var i C.Py_ssize_t
 		for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
-			item := C.PySequence_Fast_Get_Item(seq, i)                   // `item` is borrowed, no need to decref
-			_tags = append(_tags, C.GoString(C.PyString_AsString(item))) // TODO: YOLO! Please add error checking
+			item := C.PySequence_Fast_Get_Item(seq, i) // `item` is borrowed, no need to decref
+			if int(C._PyString_Check(item)) == 0 {
+				log.Infof("One of the submitted tag is not a string, ignoring it")
+				continue
+			}
+			// at this point we're sure that `item` is a string, no further error checking needed
+			_tags = append(_tags, C.GoString(C.PyString_AsString(item)))
 		}
 	}
 
