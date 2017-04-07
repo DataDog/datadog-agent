@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 
-	log "github.com/cihub/seelog"
 	"github.com/gogo/protobuf/proto"
 
 	agentpayload "github.com/DataDog/agent-payload/go"
@@ -40,8 +39,6 @@ func MarshalSeries(series []*Serie) ([]byte, error) {
 			})
 	}
 
-	writer, _ := log.NewConsoleWriter()
-	proto.MarshalText(writer, payload)
 	return proto.Marshal(payload)
 }
 
@@ -64,8 +61,31 @@ func MarshalServiceChecks(checkRuns []*ServiceCheck) ([]byte, error) {
 			})
 	}
 
-	writer, _ := log.NewConsoleWriter()
-	proto.MarshalText(writer, payload)
+	return proto.Marshal(payload)
+}
+
+// MarshalEvents serialize events payload using agent-payload definition
+func MarshalEvents(events []*Event) ([]byte, error) {
+	payload := &agentpayload.EventsPayload{
+		Events:   []*agentpayload.EventsPayload_Event{},
+		Metadata: &agentpayload.CommonMetadata{},
+	}
+
+	for _, e := range events {
+		payload.Events = append(payload.Events,
+			&agentpayload.EventsPayload_Event{
+				Title:          e.Title,
+				Text:           e.Text,
+				Ts:             e.Ts,
+				Priority:       string(e.Priority),
+				Host:           e.Host,
+				Tags:           e.Tags,
+				AlertType:      string(e.AlertType),
+				AggregationKey: e.AggregationKey,
+				SourceTypeName: e.SourceTypeName,
+			})
+	}
+
 	return proto.Marshal(payload)
 }
 
