@@ -74,6 +74,41 @@ func TestMarshalServiceChecks(t *testing.T) {
 	assert.Equal(t, newPayload.CheckRuns[0].Tags[1], "tag2:yes")
 }
 
+func TestMarshalEvents(t *testing.T) {
+	events := []*Event{{
+		Title:          "test title",
+		Text:           "test text",
+		Ts:             12345,
+		Priority:       EventPriorityNormal,
+		Host:           "test.localhost",
+		Tags:           []string{"tag1", "tag2:yes"},
+		AlertType:      EventAlertTypeError,
+		AggregationKey: "test aggregation",
+		SourceTypeName: "test source",
+	}}
+
+	payload, err := MarshalEvents(events)
+	assert.Nil(t, err)
+	assert.NotNil(t, payload)
+
+	newPayload := &agentpayload.EventsPayload{}
+	err = proto.Unmarshal(payload, newPayload)
+	assert.Nil(t, err)
+
+	require.Len(t, newPayload.Events, 1)
+	assert.Equal(t, newPayload.Events[0].Title, "test title")
+	assert.Equal(t, newPayload.Events[0].Text, "test text")
+	assert.Equal(t, newPayload.Events[0].Ts, int64(12345))
+	assert.Equal(t, newPayload.Events[0].Priority, string(EventPriorityNormal))
+	assert.Equal(t, newPayload.Events[0].Host, "test.localhost")
+	require.Len(t, newPayload.Events[0].Tags, 2)
+	assert.Equal(t, newPayload.Events[0].Tags[0], "tag1")
+	assert.Equal(t, newPayload.Events[0].Tags[1], "tag2:yes")
+	assert.Equal(t, newPayload.Events[0].AlertType, string(EventAlertTypeError))
+	assert.Equal(t, newPayload.Events[0].AggregationKey, "test aggregation")
+	assert.Equal(t, newPayload.Events[0].SourceTypeName, "test source")
+}
+
 func TestMarshalJSONSeries(t *testing.T) {
 	series := []*Serie{{
 		contextKey: "test_context",
