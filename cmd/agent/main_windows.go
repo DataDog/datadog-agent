@@ -29,7 +29,11 @@ func main() {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
 	}
 	if !isIntSess {
+<<<<<<< HEAD
 		common.EnableLoggingToFile()
+=======
+		common.ConfigureFileWriter()
+>>>>>>> [Windows] Agent6 installation WIP.
 		runService(false)
 		return
 	}
