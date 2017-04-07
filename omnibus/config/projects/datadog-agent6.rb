@@ -74,7 +74,7 @@ if linux?
   end
 
   if redhat?
-    extra_package_file '/etc/rc.d/init.d/datadog-agent'
+    extra_package_file '/lib/systemd/system/datadog-agent6.service'
   end
 
   # Linux-specific dependencies

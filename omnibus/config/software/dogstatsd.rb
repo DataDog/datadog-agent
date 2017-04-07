@@ -20,6 +20,13 @@ build do
         vars: { install_dir: install_dir }
   end
 
+  if redhat?
+    erb source: "systemd.service.erb",
+        dest: "/lib/systemd/system/dogstatsd.service",
+        mode: 0755,
+        vars: { install_dir: install_dir }
+  end
+
   # The file below is touched by software builds that don't put anything in the installation
   # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
   # final package
