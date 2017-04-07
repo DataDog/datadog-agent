@@ -22,7 +22,7 @@ Binary distributions are not provided yet, to try out the Agent you can build th
 
    Make sure that `GOPATH/bin` is in your `PATH` otherwise this step might fail. Alternatively  you can
    install [glide](https://github.com/Masterminds/glide) manually on your system before running `rake deps`
-3. build the project: `rake build`
+3. build the project: `rake build` (use `rake build incremental=true` for incremental builds)
 
 Build and tests are orchestrated by a `Rakefile`, write `rake -T` on a shell to see the available tasks.
 If you're using the DogBox, ask `gimme` to provide a recent version of go, like:
