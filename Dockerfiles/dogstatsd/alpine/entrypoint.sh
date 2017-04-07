@@ -25,4 +25,4 @@ fi
 
 chmod +x /dogstatsd
 sync	# Fix for 'Text file busy' error
-/dogstatsd
+exec "$@"
