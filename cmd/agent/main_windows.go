@@ -15,12 +15,15 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
+var elog debug.Log
+
 func main() {
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
 	}
 	if !isIntSess {
+		common.ConfigureFileWriter()
 		runService(false)
 		return
 	}
@@ -34,15 +37,15 @@ func main() {
 	}
 }
 
-var elog debug.Log
-
 type myservice struct{}
 
 func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+
 	statsd, collector, forwarder := app.StartAgent()
+
 loop:
 	for {
 		select {
@@ -66,6 +69,7 @@ loop:
 
 		}
 	}
+	elog.Info(1, fmt.Sprintf("prestopping %s service", app.ServiceName))
 	changes <- svc.Status{State: svc.StopPending}
 	return
 }

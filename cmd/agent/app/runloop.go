@@ -62,7 +62,9 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 		},
 	}
 	fwd := forwarder.NewForwarder(keysPerDomain)
+	log.Debugf("Starting forwarder")
 	fwd.Start()
+	log.Debugf("Forwarder startered")
 
 	// setup the aggregator
 	agg := aggregator.InitAggregator(fwd)
@@ -76,14 +78,15 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}
 	}
-
+	log.Debugf("statsd started")
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment
 	common.Collector = collector.NewCollector(common.DistPath, filepath.Join(common.DistPath, "checks"))
 
+	log.Debugf("commonCollector created")
 	// setup the metadata collector, this needs a working Python env to function
 	metaCollector := metadata.NewCollector(fwd, config.Datadog.GetString("api_key"), hostname)
-
+	log.Debugf("metaCollector created")
 	// Get a list of config checks from the configured providers
 	var configs []check.Config
 	for _, provider := range common.GetConfigProviders(config.Datadog.GetString("confd_path")) {
@@ -93,6 +96,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 
 	// given a list of configurations, try to load corresponding checks using different loaders
 	// TODO add check type to the conf file so that we avoid the inner for
+	log.Debugf("before checkloaders")
 	loaders := common.GetCheckLoaders()
 	for _, conf := range configs {
 		for _, loader := range loaders {
