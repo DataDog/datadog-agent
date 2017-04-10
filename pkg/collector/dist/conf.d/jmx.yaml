@@ -1,0 +1,8 @@
+instances:
+  - files: 
+    - activemq.yaml
+    - activemq_58.yaml
+    - cassandra.yaml
+    - jmx.yaml
+    - solr.yaml
+    - tomcat.yaml
