@@ -96,16 +96,44 @@ func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObje
 	}
 
 	// Gather infos about the Python error
-	_, pvalue, ptraceback := python.PyErr_Fetch()
+	ptype, pvalue, ptraceback := python.PyErr_Fetch() // new references, have to be decref'd
 	defer python.PyErr_Clear()
+	defer ptype.DecRef()
+	defer pvalue.DecRef()
+	defer ptraceback.DecRef()
 
-	if ptraceback.Type() != nil {
-		return nil, fmt.Errorf(python.PyString_AsString(ptraceback))
+	if ptraceback != nil && ptraceback.Type() != nil {
+		// There's a traceback, try to format it nicely
+		traceback := python.PyImport_ImportModule("traceback")
+		formatExcFn := traceback.GetAttrString("format_exception")
+		if formatExcFn != nil {
+			defer formatExcFn.DecRef()
+			pyFormattedExc := formatExcFn.CallFunction(ptype, pvalue, ptraceback)
+			if pyFormattedExc != nil {
+				defer pyFormattedExc.DecRef()
+				pyStringExc := pyFormattedExc.Str()
+				if pyStringExc != nil {
+					defer pyStringExc.DecRef()
+					return nil, fmt.Errorf(python.PyString_AsString(pyStringExc))
+				}
+			}
+		}
+
+		// If we reach this point, there was an error while formatting the exception
+		return nil, fmt.Errorf("Error while formatting exception")
 	}
 
 	// If the constructor is invalid we do not get a traceback but an error in pvalue.
-	if pvalue.Type() != nil {
+	if pvalue != nil && pvalue.Type() != nil {
 		return nil, fmt.Errorf(python.PyString_AsString(pvalue))
+	}
+
+	if ptype != nil {
+		strPtype := ptype.Str()
+		if strPtype != nil {
+			defer strPtype.DecRef()
+			return nil, fmt.Errorf(python.PyString_AsString(strPtype))
+		}
 	}
 
 	return nil, fmt.Errorf("unknown error from python")
