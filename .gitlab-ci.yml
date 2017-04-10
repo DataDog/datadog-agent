@@ -118,7 +118,7 @@ run_test_rpm-x64:
     - yum install -y net-snmp net-snmp-devel  # required by snmp check
     - rake test
 
-# build the package for deb-x64
+# build the package for rpm-x64
 agent_rpm-x64:
   stage: build
   image: $RPM_X64
@@ -131,7 +131,6 @@ agent_rpm-x64:
     # Uncomment the following to see debug logs from omnibus, it defaults to info
     # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
-    - yum -y install postgresql-devel  # this has to be removed as soon as we upgrade to psycopg2 2.7
     - rake agent:omnibus
     - rpm -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
   cache:

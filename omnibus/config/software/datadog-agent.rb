@@ -24,13 +24,9 @@ build do
         dest: "/etc/init/datadog-agent6.conf",
         mode: 0755,
         vars: { install_dir: install_dir }
-    erb source: "systemd.service.erb",
-        dest: "/lib/systemd/system/datadog-agent6.service",
-        mode: 0755,
-        vars: { install_dir: install_dir }
   end
 
-  if redhat?
+  if redhat? || debian?
     erb source: "systemd.service.erb",
         dest: "/lib/systemd/system/datadog-agent6.service",
         mode: 0755,
