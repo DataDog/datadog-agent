@@ -131,6 +131,7 @@ agent_rpm-x64:
     # Uncomment the following to see debug logs from omnibus, it defaults to info
     # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
+    - yum -y install postgresql-devel  # this has to be removed as soon as we upgrade to psycopg2 2.7
     - rake agent:omnibus
     - rpm -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
   cache:
