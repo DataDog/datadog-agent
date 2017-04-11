@@ -9,8 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
-// Schema of a dogstatsd packet:
-// <name>:<value>|<metric_type>|@<sample_rate>|#<tag1_name>:<tag1_value>,<tag2_name>:<tag2_value>:<value>|<metric_type>...
+// Schema of a dogstatsd packet: see http://docs.datadoghq.com
 
 // MetricTypes maps the dogstatsd metric types to the aggregator metric types
 var metricTypes = map[string]aggregator.MetricType{
@@ -36,8 +35,18 @@ func nextPacket(datagram *[]byte) (packet []byte) {
 	return packet
 }
 
+func parseTags(rawTags []byte) []string {
+	tags := bytes.Split(rawTags[1:], []byte(","))
+	tagsList := make([]string, len(tags))
+
+	for i := range tags {
+		tagsList[i] = string(tags[i])
+	}
+	return tagsList
+}
+
 func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
-	// _sc|name|status|(metadata|...)
+	// _sc|name|status|[metadata|...]
 
 	splitPacket := bytes.Split(packet, []byte("|"))
 
@@ -46,6 +55,10 @@ func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
 	}
 
 	rawName, rawStatus := splitPacket[1], splitPacket[2]
+
+	if len(rawName) == 0 || len(rawStatus) == 0 {
+		return nil, fmt.Errorf("Invalid ServiceCheck packet format: empty 'name' or 'status' field")
+	}
 
 	service := aggregator.ServiceCheck{
 		CheckName: string(rawName),
@@ -73,12 +86,7 @@ func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("h:")) {
 				service.Host = string(rawMetadataFields[i][2:])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
-				rawTags := bytes.Split(rawMetadataFields[i][1:], []byte(","))
-				service.Tags = make([]string, len(rawTags))
-
-				for i := range rawTags {
-					service.Tags[i] = string(rawTags[i])
-				}
+				service.Tags = parseTags(rawMetadataFields[i])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("m:")) {
 				service.Message = string(rawMetadataFields[i][2:])
 			} else {
@@ -91,7 +99,95 @@ func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
 }
 
 func parseEventPacket(packet []byte) (*aggregator.Event, error) {
-	return nil, fmt.Errorf("Not Implemented")
+	// _e{title.length,text.length}:title|text
+	//  [
+	//   |d:date_happened
+	//   |p:priority
+	//   |h:hostname
+	//   |t:alert_type
+	//   |s:source_type_nam
+	//   |#tag1,tag2
+	//  ]
+
+	packetRaw := bytes.SplitN(packet, []byte(":"), 2)
+	if len(packetRaw) < 2 || len(packetRaw[0]) < 7 || len(packetRaw[1]) < 3 {
+		return nil, fmt.Errorf("Invalid packet format")
+	}
+	header := packetRaw[0]
+	packet = packetRaw[1]
+
+	rawLen := bytes.SplitN(header[3:], []byte(","), 2)
+	if len(rawLen) != 2 {
+		return nil, fmt.Errorf("Invalid packet format")
+	}
+
+	titleLen, err := strconv.ParseInt(string(rawLen[0]), 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("Invalid packet format, could not parse title.length: '%s'", rawLen[0])
+	}
+
+	textLen, err := strconv.ParseInt(string(rawLen[1][:len(rawLen[1])-1]), 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("Invalid packet format, could not parse text.length: '%s'", rawLen[0])
+	}
+	if titleLen+textLen+1 > int64(len(packet)) {
+		return nil, fmt.Errorf("Invalid packet format, title.length and text.length exceed total message length")
+	}
+
+	rawTitle := packet[:titleLen]
+	rawText := packet[titleLen+1 : titleLen+1+textLen]
+	packet = packet[titleLen+1+textLen:]
+
+	if len(rawTitle) == 0 || len(rawText) == 0 {
+		return nil, fmt.Errorf("Invalid event packet format: empty 'title' or 'text' field")
+	}
+
+	event := aggregator.Event{
+		Priority:  aggregator.EventPriorityNormal,
+		AlertType: aggregator.EventAlertTypeInfo,
+		Title:     string(rawTitle),
+		Text:      string(bytes.Replace(rawText, []byte("\\n"), []byte("\n"), -1)),
+	}
+
+	// Metadata
+	if len(packet) > 1 {
+		rawMetadataFields := bytes.Split(packet[1:], []byte("|"))
+
+		for i := range rawMetadataFields {
+			if bytes.HasPrefix(rawMetadataFields[i], []byte("d:")) {
+				ts, err := strconv.ParseInt(string(rawMetadataFields[i][2:]), 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("Invalid timestamp value: '%s'", err)
+				}
+				event.Ts = ts
+			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("p:")) {
+				priority, err := aggregator.GetEventPriorityFromString(string(rawMetadataFields[i][2:]))
+				if err != nil {
+					log.Warnf("skipping priority: %s", err)
+					continue
+				}
+				event.Priority = priority
+			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("h:")) {
+				event.Host = string(rawMetadataFields[i][2:])
+			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("t:")) {
+				t, err := aggregator.GetAlertTypeFromString(string(rawMetadataFields[i][2:]))
+				if err != nil {
+					return nil, fmt.Errorf("Invalid alert type value: '%s'", err)
+				}
+				event.AlertType = t
+			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("k:")) {
+				event.AggregationKey = string(rawMetadataFields[i][2:])
+			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("s:")) {
+				event.SourceTypeName = string(rawMetadataFields[i][2:])
+			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
+				event.Tags = parseTags(rawMetadataFields[i])
+			} else {
+				return nil, fmt.Errorf("unknown metadata type: '%s'", rawMetadataFields[i])
+			}
+		}
+	}
+
+	return &event, nil
 }
 
 func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
@@ -112,9 +208,12 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 	}
 
 	rawName, rawValue, rawType := rawNameAndValue[0], rawNameAndValue[1], splitPacket[1]
+	if len(rawName) == 0 || len(rawValue) == 0 || len(rawType) == 0 {
+		return nil, fmt.Errorf("Invalid metric packet format: empty 'name', 'value' or 'text' field")
+	}
 
 	// Metadata
-	rawTags := [][]byte{}
+	var metricTags []string
 	rawSampleRate := []byte("1")
 	if len(splitPacket) > 2 {
 		rawMetadataFields := splitPacket[2:]
@@ -125,7 +224,7 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 			}
 
 			if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
-				rawTags = bytes.Split(rawMetadataFields[i][1:], []byte(","))
+				metricTags = parseTags(rawMetadataFields[i])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("@")) {
 				rawSampleRate = rawMetadataFields[i][1:]
 			} else {
@@ -144,12 +243,6 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 	metricSampleRate, err := strconv.ParseFloat(string(rawSampleRate), 64)
 	if err != nil {
 		return nil, errors.New("Invalid sample rate value")
-	}
-
-	metricTags := make([]string, len(rawTags))
-
-	for i := range rawTags {
-		metricTags[i] = string(rawTags[i])
 	}
 
 	var metricType aggregator.MetricType

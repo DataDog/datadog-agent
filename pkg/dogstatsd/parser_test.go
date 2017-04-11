@@ -133,6 +133,15 @@ func TestParseMetricError(t *testing.T) {
 	_, err := parseMetricPacket([]byte("daemon:666"))
 	assert.Error(t, err)
 
+	_, err = parseMetricPacket([]byte("daemon:666|"))
+	assert.Error(t, err)
+
+	_, err = parseMetricPacket([]byte("daemon:|g"))
+	assert.Error(t, err)
+
+	_, err = parseMetricPacket([]byte(":666|g"))
+	assert.Error(t, err)
+
 	// too many value
 	_, err = parseMetricPacket([]byte("daemon:666:777|g"))
 	assert.Error(t, err)
@@ -192,6 +201,10 @@ func TestEventTextUTF8(t *testing.T) {
 	assert.Equal(t, 1, 1)
 }
 
+func TestPacketStringEndings(t *testing.T) {
+	assert.Equal(t, 1, 1)
+}
+
 func TestServiceCheckMinimal(t *testing.T) {
 	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0"))
 
@@ -207,6 +220,9 @@ func TestServiceCheckMinimal(t *testing.T) {
 func TestServiceCheckError(t *testing.T) {
 	// not enough infomation
 	_, err := parseServiceCheckPacket([]byte("_sc|agent.up"))
+	assert.Error(t, err)
+
+	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|"))
 	assert.Error(t, err)
 
 	// not invalid status
@@ -296,6 +312,236 @@ func TestServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, []string(nil), sc.Tags)
 }
 
-func TestPacketStringEndings(t *testing.T) {
-	assert.Equal(t, 1, 1)
+func TestEventMinimal(t *testing.T) {
+	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestEventMultilinesText(t *testing.T) {
+	e, err := parseEventPacket([]byte("_e{10,24}:test title|test\\line1\\nline2\\nline3"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test\\line1\nline2\nline3", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestEventPipeInTitle(t *testing.T) {
+	e, err := parseEventPacket([]byte("_e{10,24}:test|title|test\\line1\\nline2\\nline3"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "test|title", e.Title)
+	assert.Equal(t, "test\\line1\nline2\nline3", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestEventError(t *testing.T) {
+	// missing length header
+	_, err := parseEventPacket([]byte("_e:title|text"))
+	assert.Error(t, err)
+
+	// greater length than packet
+	_, err = parseEventPacket([]byte("_e{10,10}:title|text"))
+	assert.Error(t, err)
+
+	// zero length
+	_, err = parseEventPacket([]byte("_e{0,0}:a|a"))
+	assert.Error(t, err)
+
+	// missing title or text length
+	_, err = parseEventPacket([]byte("_e{5555:title|text"))
+	assert.Error(t, err)
+
+	// missing title or text length
+	_, err = parseEventPacket([]byte("_e{5,}:title|text"))
+	assert.Error(t, err)
+
+	_, err = parseEventPacket([]byte("_e{,4}:title|text"))
+	assert.Error(t, err)
+
+	_, err = parseEventPacket([]byte("_e{}:title|text"))
+	assert.Error(t, err)
+
+	_, err = parseEventPacket([]byte("_e{,}:title|text"))
+	assert.Error(t, err)
+
+	// not enough infomation
+	_, err = parseEventPacket([]byte("_e|text"))
+	assert.Error(t, err)
+
+	_, err = parseEventPacket([]byte("_e:|text"))
+	assert.Error(t, err)
+
+	// invalid timestamp
+	_, err = parseEventPacket([]byte("_e{5,4}:title|text|d:abc"))
+	assert.Error(t, err)
+
+	// invalid priority
+	_, err = parseEventPacket([]byte("_e{5,4}:title|text|p:urgent"))
+	assert.Error(t, err)
+
+	// invalid priority
+	_, err = parseEventPacket([]byte("_e{5,4}:title|text|p:urgent"))
+	assert.Error(t, err)
+
+	// invalid alert type
+	_, err = parseEventPacket([]byte("_e{5,4}:title|text|t:test"))
+	assert.Error(t, err)
+
+	// unknown metadata
+	_, err = parseEventPacket([]byte("_e{5,4}:title|text|x:1234"))
+	assert.Error(t, err)
+}
+
+func TestEventMetadataTimestamp(t *testing.T) {
+	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|d:21"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(21), e.Ts)
+	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestEventMetadataPriority(t *testing.T) {
+	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|p:low"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, aggregator.EventPriorityLow, e.Priority)
+	assert.Equal(t, "", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestEventMetadataHostname(t *testing.T) {
+	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|h:localhost"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "localhost", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestEventMetadataAlertType(t *testing.T) {
+	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|t:warning"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, aggregator.EventAlertTypeWarning, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestEventMetadataAggregatioKey(t *testing.T) {
+	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|k:some aggregation key"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "some aggregation key", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestEventMetadataSourceType(t *testing.T) {
+	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|s:this is the source"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "", e.Host)
+	assert.Equal(t, []string(nil), e.Tags)
+	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "this is the source", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestEventMetadataTags(t *testing.T) {
+	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|#tag1,tag2:test"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(0), e.Ts)
+	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, "", e.Host)
+	assert.Equal(t, []string{"tag1", "tag2:test"}, e.Tags)
+	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, "", e.AggregationKey)
+	assert.Equal(t, "", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
+}
+
+func TestEventMetadataMultiple(t *testing.T) {
+	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
+
+	require.Nil(t, err)
+	assert.Equal(t, "test title", e.Title)
+	assert.Equal(t, "test text", e.Text)
+	assert.Equal(t, int64(12345), e.Ts)
+	assert.Equal(t, aggregator.EventPriorityLow, e.Priority)
+	assert.Equal(t, "some.host", e.Host)
+	assert.Equal(t, []string{"tag1", "tag2:test"}, e.Tags)
+	assert.Equal(t, aggregator.EventAlertTypeWarning, e.AlertType)
+	assert.Equal(t, "aggKey", e.AggregationKey)
+	assert.Equal(t, "source test", e.SourceTypeName)
+	assert.Equal(t, "", e.EventType)
 }
