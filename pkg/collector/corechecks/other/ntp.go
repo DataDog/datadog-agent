@@ -145,6 +145,8 @@ func (c *NTPCheck) Run() error {
 
 	c.sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
 
+	c.sender.Commit()
+
 	return nil
 }
 
