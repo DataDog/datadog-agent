@@ -1,8 +1,4 @@
-package other
-
-/**
-
-**/
+package network
 
 import (
 	"fmt"
@@ -25,7 +21,7 @@ type NTPCheck struct {
 	cfg    *ntpConfig
 }
 
-type instanceCfg struct {
+type ntpInstanceConfig struct {
 	OffsetThreshold int    `yaml:"offset_threshold"`
 	Host            string `yaml:"host"`
 	Port            string `yaml:"port"`
@@ -33,11 +29,11 @@ type instanceCfg struct {
 	Version         int    `yaml:"version"`
 }
 
-type initCfg struct{}
+type ntpInitConfig struct{}
 
 type ntpConfig struct {
-	instance instanceCfg
-	initConf initCfg
+	instance ntpInstanceConfig
+	initConf ntpInitConfig
 }
 
 func (c *NTPCheck) String() string {
@@ -45,8 +41,8 @@ func (c *NTPCheck) String() string {
 }
 
 func (c *ntpConfig) Parse(data []byte, initData []byte) error {
-	var instance instanceCfg
-	var initConf initCfg
+	var instance ntpInstanceConfig
+	var initConf ntpInitConfig
 	defaultVersion := 3
 	defaultTimeout := 1
 	defaultPort := "ntp"
