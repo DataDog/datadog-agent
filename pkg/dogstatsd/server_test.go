@@ -86,4 +86,25 @@ func TestUPDReceive(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
+
+	// Test Event
+	conn.Write([]byte("_e{10,10}:test title|test\\ntext|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
+
+	select {
+	case res := <-eventOut:
+		assert.NotNil(t, res)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+
+	// Test erroneous Event
+	conn.Write([]byte("_e{10,0}:test title|\n_e{11,10}:test title2|test\\ntext|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
+
+	select {
+	case res := <-eventOut:
+		assert.NotNil(t, res)
+		assert.Equal(t, res.Title, "test title2")
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
 }

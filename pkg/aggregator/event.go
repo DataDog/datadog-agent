@@ -1,5 +1,9 @@
 package aggregator
 
+import (
+	"fmt"
+)
+
 // EventPriority represents the priority of an event
 type EventPriority string
 
@@ -8,6 +12,18 @@ const (
 	EventPriorityNormal EventPriority = "normal"
 	EventPriorityLow    EventPriority = "low"
 )
+
+// GetEventPriorityFromString returns the EventPriority from its string representation
+func GetEventPriorityFromString(val string) (EventPriority, error) {
+	switch val {
+	case string(EventPriorityNormal):
+		return EventPriorityNormal, nil
+	case string(EventPriorityLow):
+		return EventPriorityLow, nil
+	default:
+		return "", fmt.Errorf("Invalid event priority: '%s'", val)
+	}
+}
 
 // EventAlertType represents the alert type of an event
 type EventAlertType string
@@ -19,6 +35,22 @@ const (
 	EventAlertTypeInfo    EventAlertType = "info"
 	EventAlertTypeSuccess EventAlertType = "success"
 )
+
+// GetAlertTypeFromString returns the EventAlertType from its string representation
+func GetAlertTypeFromString(val string) (EventAlertType, error) {
+	switch val {
+	case string(EventAlertTypeError):
+		return EventAlertTypeError, nil
+	case string(EventAlertTypeWarning):
+		return EventAlertTypeWarning, nil
+	case string(EventAlertTypeInfo):
+		return EventAlertTypeInfo, nil
+	case string(EventAlertTypeSuccess):
+		return EventAlertTypeSuccess, nil
+	default:
+		return EventAlertTypeInfo, fmt.Errorf("unknown event alert type")
+	}
+}
 
 // Event holds an event (w/ serialization to DD agent 5 intake format)
 type Event struct {
