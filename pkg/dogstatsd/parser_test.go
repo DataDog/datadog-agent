@@ -148,7 +148,7 @@ func TestParseMetricError(t *testing.T) {
 
 	// unknown metadata prefix
 	_, err = parseMetricPacket([]byte("daemon:666|g|m:test"))
-	assert.Error(t, err)
+	assert.NoError(t, err)
 
 	// invalid value
 	_, err = parseMetricPacket([]byte("daemon:abc|g"))
@@ -235,11 +235,11 @@ func TestServiceCheckError(t *testing.T) {
 
 	// invalid timestamp
 	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|0|d:some_time"))
-	assert.Error(t, err)
+	assert.NoError(t, err)
 
 	// unknown metadata
 	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|0|u:unknown"))
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }
 
 func TestServiceCheckMetadataTimestamp(t *testing.T) {
@@ -399,23 +399,23 @@ func TestEventError(t *testing.T) {
 
 	// invalid timestamp
 	_, err = parseEventPacket([]byte("_e{5,4}:title|text|d:abc"))
-	assert.Error(t, err)
+	assert.NoError(t, err)
 
 	// invalid priority
 	_, err = parseEventPacket([]byte("_e{5,4}:title|text|p:urgent"))
-	assert.Error(t, err)
+	assert.NoError(t, err)
 
 	// invalid priority
 	_, err = parseEventPacket([]byte("_e{5,4}:title|text|p:urgent"))
-	assert.Error(t, err)
+	assert.NoError(t, err)
 
 	// invalid alert type
 	_, err = parseEventPacket([]byte("_e{5,4}:title|text|t:test"))
-	assert.Error(t, err)
+	assert.NoError(t, err)
 
 	// unknown metadata
 	_, err = parseEventPacket([]byte("_e{5,4}:title|text|x:1234"))
-	assert.Error(t, err)
+	assert.NoError(t, err)
 }
 
 func TestEventMetadataTimestamp(t *testing.T) {

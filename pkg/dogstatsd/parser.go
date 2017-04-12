@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
@@ -80,7 +82,8 @@ func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
 			if bytes.HasPrefix(rawMetadataFields[i], []byte("d:")) {
 				ts, err := strconv.ParseInt(string(rawMetadataFields[i][2:]), 10, 64)
 				if err != nil {
-					return nil, fmt.Errorf("Invalid timestamp value: '%s'", err)
+					log.Warnf("skipping timestamp: %s", err)
+					continue
 				}
 				service.Ts = ts
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("h:")) {
@@ -90,7 +93,7 @@ func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("m:")) {
 				service.Message = string(rawMetadataFields[i][2:])
 			} else {
-				return nil, fmt.Errorf("unknown metadata type: '%s'", rawMetadataFields[i])
+				log.Warnf("unknown metadata type: '%s'", rawMetadataFields[i])
 			}
 		}
 	}
@@ -157,7 +160,8 @@ func parseEventPacket(packet []byte) (*aggregator.Event, error) {
 			if bytes.HasPrefix(rawMetadataFields[i], []byte("d:")) {
 				ts, err := strconv.ParseInt(string(rawMetadataFields[i][2:]), 10, 64)
 				if err != nil {
-					return nil, fmt.Errorf("Invalid timestamp value: '%s'", err)
+					log.Warnf("skipping timestamp: %s", err)
+					continue
 				}
 				event.Ts = ts
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("p:")) {
@@ -172,7 +176,8 @@ func parseEventPacket(packet []byte) (*aggregator.Event, error) {
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("t:")) {
 				t, err := aggregator.GetAlertTypeFromString(string(rawMetadataFields[i][2:]))
 				if err != nil {
-					return nil, fmt.Errorf("Invalid alert type value: '%s'", err)
+					log.Warnf("skipping alert type: %s", err)
+					continue
 				}
 				event.AlertType = t
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("k:")) {
@@ -182,7 +187,7 @@ func parseEventPacket(packet []byte) (*aggregator.Event, error) {
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
 				event.Tags = parseTags(rawMetadataFields[i])
 			} else {
-				return nil, fmt.Errorf("unknown metadata type: '%s'", rawMetadataFields[i])
+				log.Warnf("unknown metadata type: '%s'", rawMetadataFields[i])
 			}
 		}
 	}
@@ -228,7 +233,7 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("@")) {
 				rawSampleRate = rawMetadataFields[i][1:]
 			} else {
-				return nil, errors.New("Invalid packet format")
+				log.Warnf("unknown metadata type: '%s'", rawMetadataFields[i])
 			}
 		}
 	}
