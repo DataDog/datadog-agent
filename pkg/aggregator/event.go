@@ -48,7 +48,7 @@ func GetAlertTypeFromString(val string) (EventAlertType, error) {
 	case string(EventAlertTypeSuccess):
 		return EventAlertTypeSuccess, nil
 	default:
-		return EventAlertTypeInfo, fmt.Errorf("unknown event alert type")
+		return EventAlertTypeInfo, fmt.Errorf("Invalid alert type: '%s'", val)
 	}
 }
 
