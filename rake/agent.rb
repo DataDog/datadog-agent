@@ -44,7 +44,7 @@ namespace :agent do
 
   desc "Run the agent"
   task :run => %w[agent:build] do
-    sh("#{BIN_PATH}/agent start -f")
+    sh("#{BIN_PATH}/agent start")
   end
 
   desc "Build omnibus installer"
