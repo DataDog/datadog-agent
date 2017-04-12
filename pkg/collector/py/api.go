@@ -126,7 +126,7 @@ func extractEventFromDict(event *C.PyObject) (aggregator.Event, error) {
 				// at this point we're sure that `pyValue` is a string, no further error checking needed
 				eventStringValues[key] = C.GoString(C.PyString_AsString(pyValue))
 			} else {
-				log.Infof("Can't parse value for key '%s' in event submitted from python check", key)
+				log.Errorf("Can't parse value for key '%s' in event submitted from python check", key)
 			}
 		}
 	}
@@ -148,10 +148,10 @@ func extractEventFromDict(event *C.PyObject) (aggregator.Event, error) {
 	timestamp := C.PyDict_GetItemString(event, pyKey) // borrowed ref
 	if timestamp != nil && !isNone(timestamp) {
 		if int(C._PyInt_Check(timestamp)) != 0 {
-			// at this point we're sure that `timestamp` an `int` so `PyInt_AsLong` won't raise an exception
+			// at this point we're sure that `timestamp` is an `int` so `PyInt_AsLong` won't raise an exception
 			_event.Ts = int64(C.PyInt_AsLong(timestamp))
 		} else {
-			log.Infof("Can't cast timestamp to integer in event submitted from python check")
+			log.Errorf("Can't cast timestamp to integer in event submitted from python check")
 		}
 	}
 
@@ -177,7 +177,7 @@ func extractEventFromDict(event *C.PyObject) (aggregator.Event, error) {
 func extractTags(tags *C.PyObject) (_tags []string, err error) {
 	if !isNone(tags) {
 		if int(C.PySequence_Check(tags)) == 0 {
-			log.Infof("Submitted `tags` is not a sequence, ignoring tags")
+			log.Errorf("Submitted `tags` is not a sequence, ignoring tags")
 			return
 		}
 
@@ -196,7 +196,7 @@ func extractTags(tags *C.PyObject) (_tags []string, err error) {
 		for i = 0; i < C.PySequence_Fast_Get_Size(seq); i++ {
 			item := C.PySequence_Fast_Get_Item(seq, i) // `item` is borrowed, no need to decref
 			if int(C._PyString_Check(item)) == 0 {
-				log.Infof("One of the submitted tag is not a string, ignoring it")
+				log.Errorf("One of the submitted tag is not a string, ignoring it")
 				continue
 			}
 			// at this point we're sure that `item` is a string, no further error checking needed

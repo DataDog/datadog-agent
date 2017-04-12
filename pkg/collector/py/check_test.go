@@ -91,6 +91,16 @@ func TestInitNewSignatureCheck(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestInitException(t *testing.T) {
+	_, err := getCheckInstance("init_exception", "TestCheck")
+	assert.EqualError(t, err, "could not invoke python check constructor: ['Traceback (most recent call last):\\n', '  File \"tests/init_exception.py\", line 6, in __init__\\n    raise RuntimeError(\"unexpected error\")\\n', 'RuntimeError: unexpected error\\n']")
+}
+
+func TestInitNoTracebackException(t *testing.T) {
+	_, err := getCheckInstance("init_no_traceback_exception", "TestCheck")
+	assert.EqualError(t, err, "could not invoke python check constructor: __init__() takes exactly 8 arguments (5 given)")
+}
+
 // BenchmarkRun executes a single check: benchmark results
 // give an idea of the overhead of a CPython function call from go,
 // that's why we don't care about Run's result.
