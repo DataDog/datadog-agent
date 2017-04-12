@@ -108,13 +108,13 @@ func (p *EtcdConfigProvider) getTemplates(key string) []check.Config {
 		return nil
 	}
 
-	initConfigs, err := p.getJsonValue(initKey)
+	initConfigs, err := p.getJSONValue(initKey)
 	if err != nil {
 		log.Errorf("Failed to retrieve init configs at %s. Error: %s", initKey, err)
 		return nil
 	}
 
-	instances, err := p.getJsonValue(instanceKey)
+	instances, err := p.getJSONValue(instanceKey)
 	if err != nil {
 		log.Errorf("Failed to retrieve instances at %s. Error: %s", instanceKey, err)
 		return nil
@@ -170,7 +170,7 @@ func (p *EtcdConfigProvider) getCheckNames(key string) ([]string, error) {
 	return res, nil
 }
 
-func (p *EtcdConfigProvider) getJsonValue(key string) ([]check.ConfigData, error) {
+func (p *EtcdConfigProvider) getJSONValue(key string) ([]check.ConfigData, error) {
 	rawValue, err := p.getEtcdValue(key)
 	if err != nil {
 		err := fmt.Errorf("Couldn't get key %s from etcd: %s", key, err)
@@ -193,8 +193,8 @@ func (p *EtcdConfigProvider) getJsonValue(key string) ([]check.ConfigData, error
 
 	err = yaml.Unmarshal(yamlValue, &rawRes)
 	if err != nil {
-		fmt.Println("Failed to unmarshal value at %s. Error: %s", key, err)
-
+		err := fmt.Errorf("Failed to unmarshal value at %s. Error: %s", key, err)
+		return nil, err
 	}
 
 	for _, r := range rawRes.([]interface{}) {
