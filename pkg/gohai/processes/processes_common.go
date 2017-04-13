@@ -19,6 +19,14 @@ func (self *Processes) Name() string {
 }
 
 func (self *Processes) Collect() (result interface{}, err error) {
-	result, err = getProcesses(options.limit)
-	return
+	// even if getProcesses returns nil, simply assigning to result
+	// will have a non-nil return, because it has a valid inner
+	// type (more info here: https://golang.org/doc/faq#nil_error )
+	// so, jump through the hoop of temporarily storing the return,
+	// and explicitly return nil if it fails.
+	gpresult, err := getProcesses(options.limit)
+	if gpresult == nil {
+		return nil, err
+	}
+	return gpresult, err
 }

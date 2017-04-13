@@ -23,17 +23,22 @@ func (self *Platform) Collect() (result interface{}, err error) {
 
 func getPlatformInfo() (platformInfo map[string]interface{}, err error) {
 
+	// collect each portion, and allow the parts that succeed (even if some
+	// parts fail.)  For this check, it does have the (small) liability
+	// that if both the ArchInfo() and the PythonVersion() fail, the error
+	// from the ArchInfo() will be lost
+
+	// for this, no error check.  The successful results will be added
+	// to the return value, and the error stored.
 	platformInfo, err = getArchInfo()
-	if err != nil {
-		return platformInfo, err
-	}
 
 	platformInfo["goV"] = strings.Replace(runtime.Version(), "go", "", -1)
 	pythonV, err := getPythonVersion()
-	if err != nil {
-		return platformInfo, err
+
+	// if there was no failure, add the python variables to the platformInfo
+	if err == nil {
+		platformInfo["pythonV"] = pythonV
 	}
-	platformInfo["pythonV"] = pythonV
 
 	platformInfo["GOOS"] = runtime.GOOS
 	platformInfo["GOOARCH"] = runtime.GOARCH

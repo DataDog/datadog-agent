@@ -59,9 +59,10 @@ func Collect() (result map[string]interface{}, err error) {
 			c, err := collector.Collect()
 			if err != nil {
 				log.Warnf("[%s] %s", collector.Name(), err)
-				continue
 			}
-			result[collector.Name()] = c
+			if c != nil {
+				result[collector.Name()] = c
+			}
 		}
 	}
 

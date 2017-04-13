@@ -23,17 +23,17 @@ func getCpuInfo() (cpuInfo map[string]string, err error) {
 
 	for option, key := range cpuMap {
 		out, err := exec.Command("sysctl", "-n", option).Output()
-		if err != nil {
-			return cpuInfo, err
+		if err == nil {
+			cpuInfo[key] = strings.Trim(string(out), "\n")
 		}
-		cpuInfo[key] = strings.Trim(string(out), "\n")
 	}
 
-	mhz, err := strconv.Atoi(cpuInfo["mhz"])
-	if err != nil {
-		return cpuInfo, err
+	if len(cpuInfo["mhz"]) != 0 {
+		mhz, err := strconv.Atoi(cpuInfo["mhz"])
+		if err == nil {
+			cpuInfo["mhz"] = strconv.Itoa(mhz / 1000000)
+		}
 	}
-	cpuInfo["mhz"] = strconv.Itoa(mhz / 1000000)
 
 	return
 }
