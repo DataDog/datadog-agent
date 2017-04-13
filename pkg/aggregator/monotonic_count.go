@@ -14,12 +14,12 @@ type MonotonicCount struct {
 	value                 float64
 }
 
-func (mc *MonotonicCount) addSample(sample float64, timestamp int64) {
+func (mc *MonotonicCount) addSample(sample *MetricSample, timestamp int64) {
 	if !mc.sampledSinceLastFlush {
-		mc.currentSample = sample
+		mc.currentSample = sample.Value
 		mc.sampledSinceLastFlush = true
 	} else {
-		mc.previousSample, mc.currentSample = mc.currentSample, sample
+		mc.previousSample, mc.currentSample = mc.currentSample, sample.Value
 		mc.hasPreviousSample = true
 	}
 

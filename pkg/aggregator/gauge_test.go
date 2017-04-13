@@ -15,8 +15,8 @@ func TestGaugeSampling(t *testing.T) {
 	mGauge := Gauge{}
 
 	// Add samples
-	mGauge.addSample(1, 50)
-	mGauge.addSample(2, 55)
+	mGauge.addSample(&MetricSample{Value: 1}, 50)
+	mGauge.addSample(&MetricSample{Value: 2}, 55)
 
 	series, _ := mGauge.flush(60)
 	// the last sample is flushed

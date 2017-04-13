@@ -12,11 +12,11 @@ type Rate struct {
 	timestamp         int64
 }
 
-func (r *Rate) addSample(sample float64, timestamp int64) {
+func (r *Rate) addSample(sample *MetricSample, timestamp int64) {
 	if r.timestamp != 0 {
 		r.previousSample, r.previousTimestamp = r.sample, r.timestamp
 	}
-	r.sample, r.timestamp = sample, timestamp
+	r.sample, r.timestamp = sample.Value, timestamp
 }
 
 func (r *Rate) flush(timestamp int64) ([]*Serie, error) {

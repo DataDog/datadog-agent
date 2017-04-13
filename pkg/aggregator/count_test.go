@@ -19,7 +19,8 @@ func TestCountSampling(t *testing.T) {
 	// Add samples
 	sampleValues := []float64{1, 2, 5, 0, 8, 3}
 	for _, sampleValue := range sampleValues {
-		count.addSample(sampleValue, 55)
+		sample := MetricSample{Value: sampleValue}
+		count.addSample(&sample, 55)
 	}
 	series, err := count.flush(60)
 	assert.Nil(t, err)
@@ -31,7 +32,8 @@ func TestCountSampling(t *testing.T) {
 	// Add a few new samples and flush: the count should've been reset after the previous flush
 	sampleValues = []float64{5, 3}
 	for _, sampleValue := range sampleValues {
-		count.addSample(sampleValue, 65)
+		sample := MetricSample{Value: sampleValue}
+		count.addSample(&sample, 65)
 	}
 	series, err = count.flush(70)
 	assert.Nil(t, err)

@@ -66,7 +66,7 @@ func (a APIMetricType) MarshalText() ([]byte, error) {
 
 // Metric is the interface of all metric types
 type Metric interface {
-	addSample(sample float64, timestamp int64)
+	addSample(sample *MetricSample, timestamp int64)
 	flush(timestamp int64) ([]*Serie, error)
 }
 
