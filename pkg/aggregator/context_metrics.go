@@ -1,0 +1,64 @@
+package aggregator
+
+import (
+	"math"
+
+	log "github.com/cihub/seelog"
+)
+
+// ContextMetrics stores all the metrics by context key
+type ContextMetrics map[string]Metric
+
+func makeContextMetrics() ContextMetrics {
+	return ContextMetrics(make(map[string]Metric))
+}
+
+// TODO: Pass a reference to *MetricSample instead
+func (m ContextMetrics) addSample(contextKey string, mType MetricType, value float64, timestamp int64) {
+	if math.IsInf(value, 0) {
+		log.Warn("Ignoring sample with +/-Inf value on context key:", contextKey)
+		return
+	}
+	if _, ok := m[contextKey]; !ok {
+		switch mType {
+		case GaugeType:
+			m[contextKey] = &Gauge{}
+		case RateType:
+			m[contextKey] = &Rate{}
+		case CountType:
+			m[contextKey] = &Count{}
+		case MonotonicCountType:
+			m[contextKey] = &MonotonicCount{}
+		case HistogramType:
+			m[contextKey] = &Histogram{} // default histogram configuration for now
+		default:
+			log.Error("Can't add unknown sample metric type:", mType)
+			return
+		}
+	}
+	m[contextKey].addSample(value, timestamp)
+}
+
+func (m ContextMetrics) flush(timestamp int64) []*Serie {
+	var series []*Serie
+
+	for contextKey, metric := range m {
+		metricSeries, err := metric.flush(timestamp)
+
+		if err == nil {
+			for _, serie := range metricSeries {
+				serie.contextKey = contextKey
+				series = append(series, serie)
+			}
+		} else {
+			switch err.(type) {
+			case NoSerieError:
+				// this error happens in nominal conditions and shouldn't be logged
+			default:
+				log.Infof("An error occurred while flushing metric on context key '%s': %s", contextKey, err)
+			}
+		}
+	}
+
+	return series
+}

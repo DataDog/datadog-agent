@@ -1,20 +1,10 @@
 package aggregator
 
 import (
-	"math"
 	"time"
-
-	log "github.com/cihub/seelog"
 )
 
 const defaultExpiry = 300 * time.Second // duration after which contexts are expired
-
-// Metrics stores all the metrics by context key
-type Metrics map[string]Metric
-
-func makeMetrics() Metrics {
-	return Metrics(make(map[string]Metric))
-}
 
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
 // from the same bucket can be merged into one
@@ -24,24 +14,24 @@ type SerieSignature struct {
 	nameSuffix string
 }
 
-// Sampler aggregates metrics
-type Sampler struct {
+// TimeSampler aggregates metrics by buckets of 'interval' seconds
+type TimeSampler struct {
 	interval           int64
 	contextResolver    *ContextResolver
-	metricsByTimestamp map[int64]Metrics
+	metricsByTimestamp map[int64]ContextMetrics
 }
 
-// NewSampler returns a newly initialized Sampler
-func NewSampler(interval int64) *Sampler {
-	return &Sampler{interval, newContextResolver(), map[int64]Metrics{}}
+// NewTimeSampler returns a newly initialized TimeSampler
+func NewTimeSampler(interval int64) *TimeSampler {
+	return &TimeSampler{interval, newContextResolver(), map[int64]ContextMetrics{}}
 }
 
-func (s *Sampler) calculateBucketStart(timestamp int64) int64 {
+func (s *TimeSampler) calculateBucketStart(timestamp int64) int64 {
 	return timestamp - timestamp%s.interval
 }
 
 // Add the metricSample to the correct bucket
-func (s *Sampler) addSample(metricSample *MetricSample, timestamp int64) {
+func (s *TimeSampler) addSample(metricSample *MetricSample, timestamp int64) {
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
 
@@ -49,7 +39,7 @@ func (s *Sampler) addSample(metricSample *MetricSample, timestamp int64) {
 	// If it's a new bucket, initialize it
 	metrics, ok := s.metricsByTimestamp[bucketStart]
 	if !ok {
-		metrics = makeMetrics()
+		metrics = makeContextMetrics()
 		s.metricsByTimestamp[bucketStart] = metrics
 	}
 
@@ -57,7 +47,7 @@ func (s *Sampler) addSample(metricSample *MetricSample, timestamp int64) {
 	metrics.addSample(contextKey, metricSample.Mtype, metricSample.Value, timestamp)
 }
 
-func (s *Sampler) flush(timestamp int64) []*Serie {
+func (s *TimeSampler) flush(timestamp int64) []*Serie {
 	var result []*Serie
 
 	serieBySignature := make(map[SerieSignature]*Serie)
@@ -98,54 +88,4 @@ func (s *Sampler) flush(timestamp int64) []*Serie {
 	s.contextResolver.expireContexts(timestamp - int64(defaultExpiry/time.Second))
 
 	return result
-}
-
-// TODO: Pass a reference to *MetricSample instead
-func (m Metrics) addSample(contextKey string, mType MetricType, value float64, timestamp int64) {
-	if math.IsInf(value, 0) {
-		log.Warn("Ignoring sample with +/-Inf value on context key:", contextKey)
-		return
-	}
-	if _, ok := m[contextKey]; !ok {
-		switch mType {
-		case GaugeType:
-			m[contextKey] = &Gauge{}
-		case RateType:
-			m[contextKey] = &Rate{}
-		case CountType:
-			m[contextKey] = &Count{}
-		case MonotonicCountType:
-			m[contextKey] = &MonotonicCount{}
-		case HistogramType:
-			m[contextKey] = &Histogram{} // default histogram configuration for now
-		default:
-			log.Error("Can't add unknown sample metric type:", mType)
-			return
-		}
-	}
-	m[contextKey].addSample(value, timestamp)
-}
-
-func (m Metrics) flush(timestamp int64) []*Serie {
-	var series []*Serie
-
-	for contextKey, metric := range m {
-		metricSeries, err := metric.flush(timestamp)
-
-		if err == nil {
-			for _, serie := range metricSeries {
-				serie.contextKey = contextKey
-				series = append(series, serie)
-			}
-		} else {
-			switch err.(type) {
-			case NoSerieError:
-				// this error happens in nominal conditions and shouldn't be logged
-			default:
-				log.Infof("An error occurred while flushing metric on context key '%s': %s", contextKey, err)
-			}
-		}
-	}
-
-	return series
 }

@@ -3,7 +3,6 @@ package aggregator
 import (
 	// stdlib
 	"fmt"
-	"math"
 	"sort"
 	"testing"
 
@@ -62,188 +61,9 @@ func (os OrderedSeries) Swap(i, j int) {
 	os.series[j], os.series[i] = os.series[i], os.series[j]
 }
 
-// Metrics
-func TestMetricsGaugeSampling(t *testing.T) {
-	metrics := makeMetrics()
-	contextKey := "context_key"
-	mSample := MetricSample{
-		Value: 1,
-		Mtype: GaugeType,
-	}
-
-	metrics.addSample(contextKey, mSample.Mtype, mSample.Value, 1)
-	series := metrics.flush(12345)
-
-	expectedSerie := &Serie{
-		contextKey: contextKey,
-		Points:     []Point{{int64(12345), mSample.Value}},
-		MType:      APIGaugeType,
-		nameSuffix: "",
-	}
-
-	if assert.Equal(t, 1, len(series)) {
-		AssertSerieEqual(t, expectedSerie, series[0])
-	}
-}
-
-// No series should be flushed when there's no new sample btw 2 flushes
-// Important for check metrics aggregation
-func TestMetricsGaugeSamplingNoSample(t *testing.T) {
-	metrics := makeMetrics()
-	contextKey := "context_key"
-	mSample := MetricSample{
-		Value: 1,
-		Mtype: GaugeType,
-	}
-
-	metrics.addSample(contextKey, mSample.Mtype, mSample.Value, 1)
-	series := metrics.flush(12345)
-
-	assert.Equal(t, 1, len(series))
-
-	series = metrics.flush(12355)
-	// No series flushed since there's no new sample since last flush
-	assert.Equal(t, 0, len(series))
-}
-
-// No series should be flushed when the samples have values of +Inf/-Inf
-func TestMetricsGaugeSamplingInfinity(t *testing.T) {
-	metrics := makeMetrics()
-	contextKey1 := "context_key1"
-	contextKey2 := "context_key2"
-	mSample1 := MetricSample{
-		Value: math.Inf(1),
-		Mtype: GaugeType,
-	}
-	mSample2 := MetricSample{
-		Value: math.Inf(-1),
-		Mtype: GaugeType,
-	}
-
-	metrics.addSample(contextKey1, mSample1.Mtype, mSample1.Value, 1)
-	metrics.addSample(contextKey2, mSample2.Mtype, mSample2.Value, 1)
-	series := metrics.flush(12345)
-
-	assert.Equal(t, 0, len(series))
-}
-
-// No series should be flushed when the rate has been sampled only once overall
-// Important for check metrics aggregation
-func TestMetricsRateSampling(t *testing.T) {
-	metrics := makeMetrics()
-	contextKey := "context_key"
-
-	metrics.addSample(contextKey, RateType, 1, 12340)
-	series := metrics.flush(12345)
-
-	// No series flushed since the rate was sampled once only
-	assert.Equal(t, 0, len(series))
-
-	metrics.addSample(contextKey, RateType, 2, 12350)
-	series = metrics.flush(12351)
-	expectedSerie := &Serie{
-		contextKey: contextKey,
-		Points:     []Point{{int64(12350), 1. / 10.}},
-		MType:      APIGaugeType,
-		nameSuffix: "",
-	}
-
-	if assert.Equal(t, 1, len(series)) {
-		AssertSerieEqual(t, expectedSerie, series[0])
-	}
-}
-
-func TestMetricsCountSampling(t *testing.T) {
-	metrics := makeMetrics()
-	contextKey := "context_key"
-
-	metrics.addSample(contextKey, CountType, 1, 12340)
-	metrics.addSample(contextKey, CountType, 5, 12345)
-	series := metrics.flush(12350)
-	expectedSerie := &Serie{
-		contextKey: contextKey,
-		Points:     []Point{{int64(12350), 6.}},
-		MType:      APICountType,
-		nameSuffix: "",
-	}
-
-	if assert.Len(t, series, 1) {
-		AssertSerieEqual(t, expectedSerie, series[0])
-	}
-}
-
-func TestMetricsMonotonicCountSampling(t *testing.T) {
-	metrics := makeMetrics()
-	contextKey := "context_key"
-
-	metrics.addSample(contextKey, MonotonicCountType, 1, 12340)
-	metrics.addSample(contextKey, MonotonicCountType, 5, 12345)
-	series := metrics.flush(12350)
-	expectedSerie := &Serie{
-		contextKey: contextKey,
-		Points:     []Point{{int64(12350), 4.}},
-		MType:      APICountType,
-		nameSuffix: "",
-	}
-
-	if assert.Equal(t, 1, len(series)) {
-		AssertSerieEqual(t, expectedSerie, series[0])
-	}
-}
-
-func TestMetricsHistogramSampling(t *testing.T) {
-	metrics := makeMetrics()
-	contextKey := "context_key"
-
-	metrics.addSample(contextKey, HistogramType, 1, 12340)
-	metrics.addSample(contextKey, HistogramType, 2, 12342)
-	metrics.addSample(contextKey, HistogramType, 1, 12350)
-	metrics.addSample(contextKey, HistogramType, 6, 12350)
-	series := metrics.flush(12351)
-
-	expectedSeries := []*Serie{
-		&Serie{
-			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 6.}},
-			MType:      APIGaugeType,
-			nameSuffix: ".max",
-		},
-		&Serie{
-			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 1.}},
-			MType:      APIGaugeType,
-			nameSuffix: ".median",
-		},
-		&Serie{
-			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 2.5}},
-			MType:      APIGaugeType,
-			nameSuffix: ".avg",
-		},
-		&Serie{
-			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 4.}},
-			MType:      APIRateType,
-			nameSuffix: ".count",
-		},
-		&Serie{
-			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 6.}},
-			MType:      APIGaugeType,
-			nameSuffix: ".95percentile",
-		},
-	}
-
-	if assert.Len(t, series, len(expectedSeries)) {
-		for i := range expectedSeries {
-			AssertSerieEqual(t, expectedSeries[i], series[i])
-		}
-	}
-}
-
-// Sampler
+// TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
-	sampler := NewSampler(10)
+	sampler := NewTimeSampler(10)
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460))
@@ -251,7 +71,7 @@ func TestCalculateBucketStart(t *testing.T) {
 }
 
 func TestBucketSampling(t *testing.T) {
-	sampler := NewSampler(10)
+	sampler := NewTimeSampler(10)
 
 	mSample := MetricSample{
 		Name:       "my.metric.name",
@@ -282,7 +102,7 @@ func TestBucketSampling(t *testing.T) {
 }
 
 func TestContextSampling(t *testing.T) {
-	sampler := NewSampler(10)
+	sampler := NewTimeSampler(10)
 
 	mSample1 := MetricSample{
 		Name:       "my.metric.name1",
