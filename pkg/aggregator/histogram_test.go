@@ -19,12 +19,12 @@ func TestDefaultHistogramSampling(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// Add samples
-	mHistogram.addSample(1, 50)
-	mHistogram.addSample(10, 51)
-	mHistogram.addSample(4, 55)
-	mHistogram.addSample(5, 55)
-	mHistogram.addSample(2, 55)
-	mHistogram.addSample(2, 55)
+	mHistogram.addSample(&MetricSample{Value: 1}, 50)
+	mHistogram.addSample(&MetricSample{Value: 10}, 51)
+	mHistogram.addSample(&MetricSample{Value: 4}, 55)
+	mHistogram.addSample(&MetricSample{Value: 5}, 55)
+	mHistogram.addSample(&MetricSample{Value: 2}, 55)
+	mHistogram.addSample(&MetricSample{Value: 2}, 55)
 
 	series, err := mHistogram.flush(60)
 	assert.Nil(t, err)
@@ -59,12 +59,12 @@ func TestCustomHistogramSampling(t *testing.T) {
 	assert.NotNil(t, err)
 
 	// Add samples
-	mHistogram.addSample(1, 50)
-	mHistogram.addSample(10, 51)
-	mHistogram.addSample(4, 55)
-	mHistogram.addSample(5, 55)
-	mHistogram.addSample(2, 55)
-	mHistogram.addSample(2, 55)
+	mHistogram.addSample(&MetricSample{Value: 1}, 50)
+	mHistogram.addSample(&MetricSample{Value: 10}, 51)
+	mHistogram.addSample(&MetricSample{Value: 4}, 55)
+	mHistogram.addSample(&MetricSample{Value: 5}, 55)
+	mHistogram.addSample(&MetricSample{Value: 2}, 55)
+	mHistogram.addSample(&MetricSample{Value: 2}, 55)
 
 	series, err := mHistogram.flush(60)
 	assert.Nil(t, err)
@@ -112,7 +112,7 @@ func TestHistogramPercentiles(t *testing.T) {
 	shuffle(percentiles) // in place
 	for _, p := range percentiles {
 		for j := 0; j < 20; j++ {
-			mHistogram.addSample(p, 50)
+			mHistogram.addSample(&MetricSample{Value: p}, 50)
 		}
 	}
 

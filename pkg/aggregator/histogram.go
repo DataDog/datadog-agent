@@ -30,8 +30,8 @@ func (h *Histogram) configure(aggregates []string, percentiles []int) {
 	h.percentiles = percentiles
 }
 
-func (h *Histogram) addSample(sample float64, timestamp int64) {
-	h.samples = append(h.samples, sample)
+func (h *Histogram) addSample(sample *MetricSample, timestamp int64) {
+	h.samples = append(h.samples, sample.Value)
 }
 
 func (h *Histogram) sum() (sum float64) {

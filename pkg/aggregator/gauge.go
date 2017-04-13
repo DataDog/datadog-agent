@@ -6,8 +6,8 @@ type Gauge struct {
 	sampled bool
 }
 
-func (g *Gauge) addSample(sample float64, timestamp int64) {
-	g.gauge = sample
+func (g *Gauge) addSample(sample *MetricSample, timestamp int64) {
+	g.gauge = sample.Value
 	g.sampled = true
 }
 
