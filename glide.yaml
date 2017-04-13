@@ -37,7 +37,7 @@ import:
 - package: github.com/patrickmn/go-cache
   version: ^2.0.0
 - package: github.com/k-sone/snmpgo
-  version: ~v3.0.2
+  version: ^3.0.2
 - package: github.com/Microsoft/go-winio
   version: v0.3.8
 - package: github.com/beevik/ntp
