@@ -6,7 +6,7 @@ import "time"
 type CheckSampler struct {
 	series          []*Serie
 	contextResolver *ContextResolver
-	metrics         Metrics
+	metrics         ContextMetrics
 	hostname        string
 }
 
@@ -15,7 +15,7 @@ func newCheckSampler(hostname string) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*Serie, 0),
 		contextResolver: newContextResolver(),
-		metrics:         makeMetrics(),
+		metrics:         makeContextMetrics(),
 		hostname:        hostname,
 	}
 }

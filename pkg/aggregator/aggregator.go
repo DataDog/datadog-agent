@@ -33,7 +33,7 @@ type BufferedAggregator struct {
 	checkMetricIn      chan senderMetricSample
 	serviceCheckIn     chan ServiceCheck
 	eventIn            chan Event
-	sampler            Sampler
+	sampler            TimeSampler
 	checkSamplers      map[check.ID]*CheckSampler
 	serviceChecks      []ServiceCheck
 	events             []Event
@@ -52,7 +52,7 @@ func newBufferedAggregator(f *forwarder.Forwarder, hostname string) *BufferedAgg
 		checkMetricIn:      make(chan senderMetricSample, 100), // TODO make buffer size configurable
 		serviceCheckIn:     make(chan ServiceCheck, 100),       // TODO make buffer size configurable
 		eventIn:            make(chan Event, 100),              // TODO make buffer size configurable
-		sampler:            *NewSampler(bucketSize),
+		sampler:            *NewTimeSampler(bucketSize),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
 		flushInterval:      defaultFlushInterval,
 		forwarder:          f,
