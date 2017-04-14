@@ -1,6 +1,8 @@
-hash: 05b941ad03b7ad7d55eda3f7cabda42c83cadf889c9430f34d8329da084a45ce
-updated: 2017-02-27T10:08:49.505256266+01:00
+hash: 3a476726825c2cbdbdea931162a13144d0c0539f8dbe840ced9c94a38331c8b2
+updated: 2017-04-13T12:50:46.116800579-04:00
 imports:
+- name: github.com/beevik/ntp
+  version: cb3dae3a7588ae35829eb5724df611cd75152fba
 - name: github.com/cihub/seelog
   version: d2c6e5aa9fbfdd1c624e140287063c7730654115
 - name: github.com/DataDog/agent-payload
@@ -20,37 +22,39 @@ imports:
 - name: github.com/docker/distribution
   version: 50133d63723f8fa376e632a853739990a133be16
   subpackages:
-  - reference
   - digestset
+  - reference
 - name: github.com/docker/docker
   version: 092cba3727bb9b4a2f0e922cd6c0f93ea270e363
   subpackages:
-  - client
   - api/types
+  - api/types/blkiodev
   - api/types/container
   - api/types/events
   - api/types/filters
+  - api/types/mount
   - api/types/network
   - api/types/reference
   - api/types/registry
+  - api/types/strslice
   - api/types/swarm
   - api/types/time
   - api/types/versions
   - api/types/volume
+  - client
   - pkg/tlsconfig
-  - api/types/mount
-  - api/types/blkiodev
-  - api/types/strslice
 - name: github.com/docker/go-connections
   version: 1b14b2d192e2f91cdc2bc6bf9aee0b0e116eed42
   subpackages:
+  - nat
   - sockets
   - tlsconfig
-  - nat
 - name: github.com/docker/go-units
   version: 0dadbb0345b35ec7ef35e228dabb8de89a65bf52
 - name: github.com/fsnotify/fsnotify
   version: 629574ca2a5df945712d3079857300b5e4da0236
+- name: github.com/geoffgarside/ber
+  version: 854377f11dfb81f04121879829bc53487e377739
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
   subpackages:
@@ -72,16 +76,16 @@ imports:
   subpackages:
   - hcl/ast
   - hcl/parser
-  - hcl/token
-  - json/parser
   - hcl/scanner
   - hcl/strconv
+  - hcl/token
+  - json/parser
   - json/scanner
   - json/token
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/k-sone/snmpgo
-  version: d227fb7b907b5f3695799a3230971ebd7c414d47
+  version: de09377ff34857b08afdc16ea8c7c2929eb1fc6e
 - name: github.com/kardianos/osext
   version: 9b883c5eb462dd5cb1b0a7a104fe86bc6b9bd391
 - name: github.com/magiconair/properties
@@ -113,12 +117,12 @@ imports:
 - name: github.com/shirou/gopsutil
   version: d371ba1293cb48fedc6850526ea48b3846c54f2c
   subpackages:
-  - mem
   - cpu
   - host
   - internal/common
-  - process
+  - mem
   - net
+  - process
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/Sirupsen/logrus
@@ -146,10 +150,10 @@ imports:
 - name: github.com/stretchr/testify
   version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
   subpackages:
-  - mock
   - assert
-  - suite
+  - mock
   - require
+  - suite
 - name: golang.org/x/net
   version: 10c134ea0df15f7e34d789338c7a2d76cc7a3ab9
   subpackages:
@@ -161,6 +165,11 @@ imports:
   subpackages:
   - unix
   - windows
+  - windows/registry
+  - windows/svc
+  - windows/svc/debug
+  - windows/svc/eventlog
+  - windows/svc/mgr
 - name: golang.org/x/text
   version: 0ad425fe45e885577bef05dc1c50f72e33188b16
   subpackages:
