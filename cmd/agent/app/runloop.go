@@ -42,7 +42,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 			panic(err)
 		}
 	}
-
+	common.UpdateDistPath()
 	hostname := common.GetHostname()
 	// store the computed hostname in the global cache
 	key := path.Join(util.AgentCachePrefix, "hostname")

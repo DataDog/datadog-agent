@@ -18,7 +18,9 @@ build_env = {
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
+  command "echo calling rake"
   command 'rake agent:build', :env => build_env
+  command "echo done calling rake"
   copy('bin', install_dir)
 
   if debian?
@@ -30,6 +32,10 @@ build do
         dest: "/lib/systemd/system/datadog-agent6.service",
         mode: 0755,
         vars: { install_dir: install_dir }
+  end
+
+  if windows?
+    copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
   end
 
   # The file below is touched by software builds that don't put anything in the installation
