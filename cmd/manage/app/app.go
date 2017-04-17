@@ -8,8 +8,8 @@ import "github.com/spf13/cobra"
 
 var (
 	// flags variables
-	sockname  string
-	checkname string
+	sockname    string
+	checkname   string
 	deletecheck bool
 
 	// ManageCmd is the root command
