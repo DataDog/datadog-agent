@@ -112,7 +112,7 @@ func readJMXConf(checkConf *checkCfg, filename string) (string, string, string, 
 	javaOptions := checkConf.InitConf.JavaOptions
 	toolsJarPath := checkConf.InitConf.ToolsJarPath
 	customJarPaths := checkConf.InitConf.CustomJarPaths
-	isAttachApi := false
+	isAttachAPI := false
 
 	if len(checkConf.Instances) == 0 {
 		return "", "", "", nil, errors.New("You need to have at least one instance " +
@@ -132,7 +132,7 @@ func readJMXConf(checkConf *checkCfg, filename string) (string, string, string, 
 		}
 
 		if instance.ProcessNameRegex != "" {
-			isAttachApi = true
+			isAttachAPI = true
 		} else if instance.JMXUrl != "" {
 			if instance.Name == "" {
 				return "", "", "", nil, errors.New("A name must be specified when using a jmx_url")
@@ -156,24 +156,24 @@ func readJMXConf(checkConf *checkCfg, filename string) (string, string, string, 
 				" will be collected. %s", filename)
 		} else {
 			if len(confs) == 0 {
-				return "", "", "", nil, errors.New(fmt.Sprintf("'conf' section should be a list"+
-					" of configurations %s", linkToDoc))
+				return "", "", "", nil, fmt.Errorf("'conf' section should be a list"+
+					" of configurations %s", linkToDoc)
 			}
 
 			for _, conf := range confs {
 				if len(conf.Include) == 0 {
-					return "", "", "", nil, errors.New(fmt.Sprintf("Each configuration must have an"+
-						" 'include' section. %s", linkToDoc))
+					return "", "", "", nil, fmt.Errorf("Each configuration must have an"+
+						" 'include' section. %s", linkToDoc)
 				}
 			}
 		}
 	}
 
-	if isAttachApi {
+	if isAttachAPI {
 		if toolsJarPath == "" {
-			return "", "", "", nil, errors.New(fmt.Sprintf("You must specify the path to tools.jar. %s", linkToDoc))
+			return "", "", "", nil, fmt.Errorf("You must specify the path to tools.jar. %s", linkToDoc)
 		} else if _, err := os.Open(toolsJarPath); err != nil {
-			return "", "", "", nil, errors.New(fmt.Sprintf("Unable to find tools.jar at %s", toolsJarPath))
+			return "", "", "", nil, fmt.Errorf("Unable to find tools.jar at %s", toolsJarPath)
 		}
 	} else {
 		toolsJarPath = ""
@@ -181,7 +181,7 @@ func readJMXConf(checkConf *checkCfg, filename string) (string, string, string, 
 
 	for _, path := range customJarPaths {
 		if _, err := os.Open(path); err != nil {
-			return "", "", "", nil, errors.New(fmt.Sprintf("Unable to find custom jar at %s", path))
+			return "", "", "", nil, fmt.Errorf("Unable to find custom jar at %s", path)
 		}
 	}
 
@@ -325,7 +325,7 @@ func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
 		subprocessArgs = append(subprocessArgs, "--check")
 		subprocessArgs = append(subprocessArgs, jmxChecks...)
 	} else {
-		return errors.New(fmt.Sprintf("No valid JMX configuration found in %s", jmxConfPath))
+		return fmt.Errorf("No valid JMX configuration found in %s", jmxConfPath)
 	}
 
 	if jmxExitFile != "" {
