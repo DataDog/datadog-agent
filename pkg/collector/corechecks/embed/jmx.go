@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	// "github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
 	"github.com/kardianos/osext"
 	"gopkg.in/yaml.v2"
@@ -186,8 +185,6 @@ func readJMXConf(checkConf *checkCfg, filename string) (string, string, string, 
 		}
 	}
 
-	fmt.Printf("%v\n", *checkConf)
-	fmt.Printf("%s | %s | %s | %v\n", javaBinPath, javaOptions, toolsJarPath, customJarPaths)
 	return javaBinPath, javaOptions, toolsJarPath, customJarPaths, nil
 }
 
@@ -381,11 +378,3 @@ func init() {
 	}
 	core.RegisterCheck("jmx", factory)
 }
-
-// func getHostname() string {
-// 	hname, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
-// 	if found {
-// 		return hname.(string)
-// 	}
-// 	return ""
-// }
