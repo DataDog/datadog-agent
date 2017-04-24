@@ -35,6 +35,20 @@ run_tests_deb-x64:
     - apt-get update && apt-get install -y -qq libsnmp-base libsnmp-dev snmp-mibs-downloader # required by snmp check
     - rake test
 
+# run system tests for deb-x64
+run_system_tests_deb-x64:
+  stage: test
+  image: $DEB_X64
+  tags:
+    - docker
+  variables:
+    # No need to use the embedded python built with omnibus to run tests.
+    USE_SYSTEM_PY: "1"
+  script:
+    - echo "deb http://deb.debian.org/debian wheezy contrib non-free" >> /etc/apt/sources.list
+    - apt-get update && apt-get install -y -qq libsnmp-base libsnmp-dev snmp-mibs-downloader # required by snmp check
+    - rake system_test
+
 # build the package for deb-x64
 agent_deb-x64:
   stage: build
