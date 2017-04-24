@@ -17,6 +17,7 @@ import (
 var metricTypes = map[string]aggregator.MetricType{
 	"g": aggregator.GaugeType,
 	"c": aggregator.CounterType,
+	"s": aggregator.SetType,
 }
 
 func nextPacket(datagram *[]byte) (packet []byte) {
@@ -240,15 +241,6 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 
 	// Casting
 	metricName := string(rawName)
-	metricValue, err := strconv.ParseFloat(string(rawValue), 64)
-	if err != nil {
-		return nil, errors.New("Invalid metric value")
-	}
-
-	metricSampleRate, err := strconv.ParseFloat(string(rawSampleRate), 64)
-	if err != nil {
-		return nil, errors.New("Invalid sample rate value")
-	}
 
 	var metricType aggregator.MetricType
 	var ok bool
@@ -256,12 +248,29 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 		return nil, errors.New("Invalid metric type")
 	}
 
-	return &aggregator.MetricSample{
+	metricSampleRate, err := strconv.ParseFloat(string(rawSampleRate), 64)
+	if err != nil {
+		return nil, errors.New("Invalid sample rate value")
+	}
+
+	sample := &aggregator.MetricSample{
 		Name:       metricName,
-		Value:      metricValue,
 		Mtype:      metricType,
 		Tags:       &metricTags,
 		SampleRate: metricSampleRate,
 		Timestamp:  0,
-	}, nil
+	}
+
+	if metricType == aggregator.SetType {
+		sample.RawValue = string(rawValue)
+	} else {
+		metricValue, err := strconv.ParseFloat(string(rawValue), 64)
+		if err != nil {
+			return nil, errors.New("Invalid metric value")
+		}
+		sample.RawValue = string(rawValue)
+		sample.Value = metricValue
+	}
+
+	return sample, nil
 }

@@ -11,6 +11,7 @@ const (
 	MonotonicCountType
 	CounterType
 	HistogramType
+	SetType
 )
 
 // String returns a string representation of MetricType
@@ -28,6 +29,8 @@ func (m MetricType) String() string {
 		return "Counter"
 	case HistogramType:
 		return "Histogram"
+	case SetType:
+		return "Set"
 	default:
 		return ""
 	}
@@ -37,6 +40,7 @@ func (m MetricType) String() string {
 type MetricSample struct {
 	Name       string
 	Value      float64
+	RawValue   string
 	Mtype      MetricType
 	Tags       *[]string
 	SampleRate float64

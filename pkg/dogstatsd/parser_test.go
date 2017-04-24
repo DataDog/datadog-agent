@@ -66,7 +66,32 @@ func TestParseGauge(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, "666", parsed.RawValue)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
+	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
+func TestParseSet(t *testing.T) {
+	parsed, err := parseMetricPacket([]byte("daemon:abc|s"))
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.Equal(t, "abc", parsed.RawValue)
+	assert.Equal(t, aggregator.SetType, parsed.Mtype)
+	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
+func TestParseSetUnicode(t *testing.T) {
+	parsed, err := parseMetricPacket([]byte("daemon:♬†øU†øU¥ºuT0♪|s"))
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.Equal(t, "♬†øU†øU¥ºuT0♪", parsed.RawValue)
+	assert.Equal(t, aggregator.SetType, parsed.Mtype)
 	assert.Equal(t, 0, len(*(parsed.Tags)))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
