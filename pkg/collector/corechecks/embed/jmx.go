@@ -27,10 +27,6 @@ const (
 	linkToDoc                         = "See http://docs.datadoghq.com/integrations/java/ for more information"
 )
 
-var jmxExitFilePath = ""
-
-// const jvmDefaultSDMaxMemoryAllocation = " -Xmx512m"
-
 // Structures to parse the yaml containing a list of jmx checks config files
 type instanceCfg struct {
 	Files []string `yaml:"files"`
@@ -181,7 +177,8 @@ func readJMXConf(checkConf *checkCfg, filename string) (
 
 // JMXCheck keeps track of the running command
 type JMXCheck struct {
-	cmd *exec.Cmd
+	cmd          *exec.Cmd
+	ExitFilePath string
 }
 
 func (c *JMXCheck) String() string {
@@ -193,7 +190,7 @@ func (c *JMXCheck) Run() error {
 
 	// remove the exit file trigger (windows)
 	if jmxExitFile != "" {
-		os.Remove(jmxExitFilePath)
+		os.Remove(c.ExitFilePath)
 	}
 
 	// forward the standard output to the Agent logger
@@ -282,13 +279,13 @@ func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
 	jmxJarPath := path.Join(here, "dist", "jmx", jmxJarName)
 	classpath := jmxJarPath
 	if toolsJarPath != "" {
-		classpath = fmt.Sprintf("%s:%s", classpath, jmxJarPath)
+		classpath = fmt.Sprintf("%s:%s", toolsJarPath, classpath)
 	}
 	if len(customJarPaths) > 0 {
-		classpath = fmt.Sprintf("%s:%s", classpath, strings.Join(customJarPaths, ":"))
+		classpath = fmt.Sprintf("%s:%s", strings.Join(customJarPaths, ":"), classpath)
 	}
 	bindHost := config.Datadog.GetString("bind_host")
-	if bindHost == "" {
+	if bindHost == "" || bindHost == "0.0.0.0" {
 		bindHost = "localhost"
 	}
 	reporter := fmt.Sprintf("statsd:%s:%s", bindHost, config.Datadog.GetString("dogstatsd_port"))
@@ -311,12 +308,12 @@ func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
 	subprocessArgs = append(subprocessArgs,
 		"-classpath", classpath,
 		jmxMainClass,
-		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval.Seconds()*1000)), // Period of the main loop of jmxfetch in ms
+		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
 		"--conf_directory", jmxConfPath, // Path of the conf directory that will be read by jmxfetch,
 		"--log_level", "INFO", //FIXME : Use agent log level when available
-		"--log_location", path.Join(here, "dist", "jmx", "jmxfetch.log"), // Path of the log file
+		"--log_location", path.Join(here, "dist", "jmx", "jmxfetch.log"), // FIXME : Path of the log file. At some point we should have a `run` folder
 		"--reporter", reporter, // Reporter to use
-		"--status_location", path.Join(here, "dist", "jmx", "jmx_status.yaml"), // Path to the status file to write
+		"--status_location", path.Join(here, "dist", "jmx", "jmx_status.yaml"), // FIXME : Path to the status file to write. At some point we should have a `run` folder
 		jmxCollectCommand, // Name of the command
 	)
 	if len(jmxChecks) > 0 {
@@ -327,10 +324,10 @@ func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
 	}
 
 	if jmxExitFile != "" {
-		jmxExitFilePath = path.Join(here, "dist", "jmx", jmxExitFile)
+		c.ExitFilePath = path.Join(here, "dist", "jmx", jmxExitFile)
 		// Signal handlers are not supported on Windows:
 		// use a file to trigger JMXFetch exit instead
-		subprocessArgs = append(subprocessArgs, "--exit_file_location", jmxExitFilePath)
+		subprocessArgs = append(subprocessArgs, "--exit_file_location", c.ExitFilePath)
 	}
 
 	if javaBinPath == "" {
@@ -363,7 +360,7 @@ func (c *JMXCheck) Stop() {
 			log.Errorf("unable to stop JMX check: %s", err)
 		}
 	} else {
-		if err := ioutil.WriteFile(jmxExitFilePath, nil, 0644); err != nil {
+		if err := ioutil.WriteFile(c.ExitFilePath, nil, 0644); err != nil {
 			log.Errorf("unable to stop JMX check: %s", err)
 		}
 	}
