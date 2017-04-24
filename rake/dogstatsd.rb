@@ -19,7 +19,14 @@ namespace :dogstatsd do
 
   desc "Build Dogstatsd"
   task :build do
-    system("go build -o #{DOGSTATSD_BIN_PATH}/#{dogstatsd_bin_name} #{REPO_PATH}/cmd/dogstatsd/")
+    # -race option
+    race_opt = ENV['race'] == "true" ? "-race" : ""
+    build_type = ENV['incremental'] == "true" ? "-i" : "-a"
+
+    commit = `git rev-parse --short HEAD`.strip
+    ldflags = "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
+
+    system("go build #{race_opt} #{build_type} -o #{DOGSTATSD_BIN_PATH}/#{dogstatsd_bin_name} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
   end
 
   desc "Build static Dogstatsd"
