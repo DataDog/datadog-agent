@@ -78,5 +78,8 @@ task :test => %w[fmt lint vet] do
   sh("go tool cover -func #{PROFILE}")
 end
 
+desc "Run every system tests"
+task system_test: %w[dogstatsd:system_test]
+
 desc "Build allthethings"
 task build: %w[agent:build dogstatsd:build]

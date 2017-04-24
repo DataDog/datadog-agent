@@ -34,6 +34,14 @@ namespace :dogstatsd do
 
   desc "Run Dogstatsd system tests"
   task :system_test do
+    if ENV['skip_rebuild'] == "true" then
+      puts "Skipping DogStatsD build"
+    else
+      puts "Building DogStatsD"
+      Rake::Task["dogstatsd:build"].invoke
+    end
+
+    puts "Starting DogStatsD system tests"
     root = `git rev-parse --show-toplevel`.strip
     bin_path = File.join(root, DOGSTATSD_BIN_PATH, "dogstatsd")
     system("DOGSTATSD_BIN=\"#{bin_path}\" go test -v #{REPO_PATH}/test/system/dogstatsd/")
