@@ -53,7 +53,7 @@ agent_deb-x64:
     - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/*.deb
   cache:
     # cache per branch
-    key: $CI_BUILD_REF_NAME
+    key: $CI_COMMIT_REF_NAME
     paths:
       - $AGENT_OMNIBUS_BASE_DIR
   artifacts:
@@ -78,7 +78,7 @@ dogstatsd_deb-x64:
     - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/*.deb
   cache:
     # cache per branch
-    key: $CI_BUILD_REF_NAME
+    key: $CI_COMMIT_REF_NAME
     paths:
       - $AGENT_OMNIBUS_BASE_DIR
   artifacts:
@@ -136,7 +136,7 @@ agent_rpm-x64:
     - rpm -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
   cache:
     # cache per branch
-    key: $CI_BUILD_REF_NAME
+    key: $CI_COMMIT_REF_NAME
     paths:
       - $AGENT_OMNIBUS_BASE_DIR
   artifacts:
@@ -161,7 +161,7 @@ dogstatsd_rpm-x64:
     - rpm -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
   cache:
     # cache per branch
-    key: $CI_BUILD_REF_NAME
+    key: $CI_COMMIT_REF_NAME
     paths:
       - $AGENT_OMNIBUS_BASE_DIR
   artifacts:
