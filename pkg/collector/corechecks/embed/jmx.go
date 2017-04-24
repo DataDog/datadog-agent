@@ -91,16 +91,9 @@ func (cfg *jmxCfg) Parse(data []byte) error {
 
 }
 
-func (cfg *checkCfg) Parse(fpath string) error {
+func (cfg *checkCfg) Parse(data []byte) error {
 
-	// Read file contents
-	// FIXME: ReadFile reads the entire file, possible security implications
-	yamlFile, err := ioutil.ReadFile(fpath)
-	if err != nil {
-		return err
-	}
-
-	if err := yaml.Unmarshal(yamlFile, cfg); err != nil {
+	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return err
 	}
 
@@ -154,15 +147,10 @@ func readJMXConf(checkConf *checkCfg, filename string) (
 			confs = checkConf.InitConf.Conf
 		}
 
-		if confs == nil {
+		if len(confs) == 0 {
 			log.Warnf("%s doesn't have a 'conf' section. Only basic JVM metrics"+
-				" will be collected. %s", filename)
+				" will be collected. %s", filename, linkToDoc)
 		} else {
-			if len(confs) == 0 {
-				return "", "", "", nil, fmt.Errorf("'conf' section should be a list"+
-					" of configurations %s", linkToDoc)
-			}
-
 			for _, conf := range confs {
 				if len(conf.Include) == 0 {
 					return "", "", "", nil, fmt.Errorf("Each configuration must have an"+
@@ -258,7 +246,14 @@ func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
 		checkConf := new(checkCfg)
 		fpath := path.Join(jmxConfPath, confFile)
 
-		if err := checkConf.Parse(fpath); err != nil {
+		// Read file contents
+		// FIXME: ReadFile reads the entire file, possible security implications
+		yamlFile, err := ioutil.ReadFile(fpath)
+		if err != nil {
+			return err
+		}
+
+		if err := checkConf.Parse(yamlFile); err != nil {
 			log.Errorf("Unable to parse %s: %s", confFile, err)
 			continue
 		}
@@ -341,7 +336,6 @@ func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
 	if javaBinPath == "" {
 		javaBinPath = "java"
 	}
-	fmt.Printf("%v", subprocessArgs)
 	c.cmd = exec.Command(javaBinPath, subprocessArgs...)
 
 	return nil
