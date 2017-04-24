@@ -2,7 +2,6 @@ package embed
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -19,12 +18,14 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const jmxJarName = "jmxfetch-0.13.0-jar-with-dependencies.jar"
-const jmxMainClass = "org.datadog.jmxfetch.App"
-const jmxCollectCommand = "collect"
-const jvmDefaultMaxMemoryAllocation = " -Xmx200m"
-const jvmDefaultInitialMemoryAllocation = " -Xms50m"
-const linkToDoc = "See http://docs.datadoghq.com/integrations/java/ for more information"
+const (
+	jmxJarName                        = "jmxfetch-0.13.0-jar-with-dependencies.jar"
+	jmxMainClass                      = "org.datadog.jmxfetch.App"
+	jmxCollectCommand                 = "collect"
+	jvmDefaultMaxMemoryAllocation     = " -Xmx200m"
+	jvmDefaultInitialMemoryAllocation = " -Xms50m"
+	linkToDoc                         = "See http://docs.datadoghq.com/integrations/java/ for more information"
+)
 
 var jmxExitFilePath = ""
 
@@ -83,7 +84,7 @@ func (cfg *jmxCfg) Parse(data []byte) error {
 	}
 
 	if len(cfg.instance.Files) == 0 {
-		return errors.New("Error parsing configuration: no config files")
+		return fmt.Errorf("Error parsing configuration: no config files")
 	}
 
 	return nil
@@ -107,15 +108,17 @@ func (cfg *checkCfg) Parse(fpath string) error {
 
 }
 
-func readJMXConf(checkConf *checkCfg, filename string) (string, string, string, []string, error) {
-	javaBinPath := checkConf.InitConf.JavaBinPath
-	javaOptions := checkConf.InitConf.JavaOptions
-	toolsJarPath := checkConf.InitConf.ToolsJarPath
-	customJarPaths := checkConf.InitConf.CustomJarPaths
+func readJMXConf(checkConf *checkCfg, filename string) (
+	javaBinPath string, javaOptions string, toolsJarPath string, customJarPaths []string, err error) {
+
+	javaBinPath = checkConf.InitConf.JavaBinPath
+	javaOptions = checkConf.InitConf.JavaOptions
+	toolsJarPath = checkConf.InitConf.ToolsJarPath
+	customJarPaths = checkConf.InitConf.CustomJarPaths
 	isAttachAPI := false
 
 	if len(checkConf.Instances) == 0 {
-		return "", "", "", nil, errors.New("You need to have at least one instance " +
+		return "", "", "", nil, fmt.Errorf("You need to have at least one instance " +
 			"defined in the YAML file for this check")
 	}
 
@@ -135,14 +138,14 @@ func readJMXConf(checkConf *checkCfg, filename string) (string, string, string, 
 			isAttachAPI = true
 		} else if instance.JMXUrl != "" {
 			if instance.Name == "" {
-				return "", "", "", nil, errors.New("A name must be specified when using a jmx_url")
+				return "", "", "", nil, fmt.Errorf("A name must be specified when using a jmx_url")
 			}
 		} else {
 			if instance.Host == "" {
-				return "", "", "", nil, errors.New("A host must be specified")
+				return "", "", "", nil, fmt.Errorf("A host must be specified")
 			}
 			if instance.Port == 0 {
-				return "", "", "", nil, errors.New("A numeric port must be specified")
+				return "", "", "", nil, fmt.Errorf("A numeric port must be specified")
 			}
 		}
 
@@ -315,7 +318,7 @@ func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
 		jmxMainClass,
 		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval.Seconds()*1000)), // Period of the main loop of jmxfetch in ms
 		"--conf_directory", jmxConfPath, // Path of the conf directory that will be read by jmxfetch,
-		"--log_level", "INFO",
+		"--log_level", "INFO", //FIXME : Use agent log level when available
 		"--log_location", path.Join(here, "dist", "jmx", "jmxfetch.log"), // Path of the log file
 		"--reporter", reporter, // Reporter to use
 		"--status_location", path.Join(here, "dist", "jmx", "jmx_status.yaml"), // Path to the status file to write
