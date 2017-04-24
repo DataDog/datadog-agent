@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -34,12 +36,23 @@ extensions for special Datadog features.`,
 		RunE:  start,
 	}
 
+	versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "Print the version number",
+		Long:  ``,
+		Run: func(cmd *cobra.Command, args []string) {
+			av, _ := version.New(version.AgentVersion)
+			fmt.Println(fmt.Sprintf("DogStatsD from Agent %s - Codename: %s - Commit: %s", av.GetNumber(), av.Meta, av.Commit))
+		},
+	}
+
 	confPath string
 )
 
 func init() {
 	// attach the command to the root
 	dogstatsdCmd.AddCommand(startCmd)
+	dogstatsdCmd.AddCommand(versionCmd)
 
 	// ENV vars bindings
 	config.Datadog.BindEnv("conf_path")
