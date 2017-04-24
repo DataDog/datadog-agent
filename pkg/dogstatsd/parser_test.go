@@ -55,10 +55,6 @@ func TestParseMultipleLineDatagram(t *testing.T) {
 	assert.Equal(t, 0, len(datagram))
 }
 
-func TestSubmitPacketToAggregator(t *testing.T) {
-	assert.Equal(t, 1, 1)
-}
-
 func TestGaugePacketCounter(t *testing.T) {
 	assert.Equal(t, 1, 1)
 }
@@ -83,10 +79,9 @@ func TestParseGaugeWithTags(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
-	if assert.Equal(t, 2, len(*(parsed.Tags))) {
-		assert.Equal(t, "sometag1:somevalue1", (*parsed.Tags)[0])
-		assert.Equal(t, "sometag2:somevalue2", (*parsed.Tags)[1])
-	}
+	require.Equal(t, 2, len(*(parsed.Tags)))
+	assert.Equal(t, "sometag1:somevalue1", (*parsed.Tags)[0])
+	assert.Equal(t, "sometag2:somevalue2", (*parsed.Tags)[1])
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
@@ -122,9 +117,8 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 	assert.Equal(t, "♬†øU†øU¥ºuT0♪", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
-	if assert.Equal(t, 1, len(*(parsed.Tags))) {
-		assert.Equal(t, "intitulé:T0µ", (*parsed.Tags)[0])
-	}
+	require.Equal(t, 1, len(*(parsed.Tags)))
+	assert.Equal(t, "intitulé:T0µ", (*parsed.Tags)[0])
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
@@ -173,31 +167,11 @@ func TestEnsureUTF8(t *testing.T) {
 	assert.Equal(t, 1, 1)
 }
 
-func TestTags(t *testing.T) {
-	assert.Equal(t, 1, 1)
-}
-
 func TestMagicTags(t *testing.T) { // ie host:test-b
 	assert.Equal(t, 1, 1)
 }
 
 func TestScientificNotation(t *testing.T) {
-	assert.Equal(t, 1, 1)
-}
-
-func TestEventTags(t *testing.T) {
-	assert.Equal(t, 1, 1)
-}
-
-func TestEventTitle(t *testing.T) {
-	assert.Equal(t, 1, 1)
-}
-
-func TestEventText(t *testing.T) {
-	assert.Equal(t, 1, 1)
-}
-
-func TestEventTextUTF8(t *testing.T) {
 	assert.Equal(t, 1, 1)
 }
 
@@ -375,6 +349,13 @@ func TestEventError(t *testing.T) {
 
 	// missing title or text length
 	_, err = parseEventPacket([]byte("_e{5555:title|text"))
+	assert.Error(t, err)
+
+	// missing wrong len format
+	_, err = parseEventPacket([]byte("_e{a,1}:title|text"))
+	assert.Error(t, err)
+
+	_, err = parseEventPacket([]byte("_e{1,a}:title|text"))
 	assert.Error(t, err)
 
 	// missing title or text length
