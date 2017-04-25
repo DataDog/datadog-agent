@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -18,10 +20,84 @@ var (
 	dogstatsdExpvar = expvar.NewMap("dogstatsd")
 )
 
+type Stat struct {
+	Val int64
+	Ts  time.Time
+}
+
+type StatOperator func(int64, int64) int64
+
+type Stats struct {
+	size     uint32
+	val      int64
+	operator StatOperator
+	running  uint32
+	last     time.Time
+	istream  chan int64
+	Ostream  chan Stat
+}
+
+func NewStats(op StatOperator, sz uint32) (*Stats, error) {
+	s := &Stats{
+		size:     sz,
+		val:      0,
+		operator: op,
+		running:  0,
+		last:     time.Now(),
+		istream:  make(chan int64, sz),
+		Ostream:  make(chan Stat, 2),
+	}
+
+	return s, nil
+}
+
+func (s *Stats) StatEvent(v int64) {
+	select {
+	case s.istream <- v:
+		return
+	default:
+		log.Debugf("dropping last second stasts, buffer full")
+	}
+}
+
+func (s *Stats) Process() {
+	tickChan := time.NewTicker(time.Second).C
+	atomic.StoreUint32(&s.running, 1)
+	for {
+		select {
+		case v := <-s.istream:
+			s.val = s.operator(s.val, v)
+		case <-tickChan:
+			select {
+			case s.Ostream <- Stat{
+				Val: s.val,
+				Ts:  s.last,
+			}:
+			default:
+				log.Debugf("dropping last second stasts, buffer full")
+			}
+			s.val = 0
+			s.last = time.Now()
+			if atomic.LoadUint32(&s.running) == 0 {
+				break
+			}
+		}
+	}
+}
+
+func (s *Stats) Stop() {
+	atomic.StoreUint32(&s.running, 0)
+}
+
 // Server represent a Dogstatsd server
 type Server struct {
-	conn    net.PacketConn
-	Started bool
+	conn       net.PacketConn
+	Statistics *Stats
+	Started    bool
+}
+
+func packetCounter(a, b int64) int64 {
+	return a + b
 }
 
 // NewServer returns a running Dogstatsd server
@@ -29,8 +105,17 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 	var conn net.PacketConn
 	var err error
 
-	socketPath := config.Datadog.GetString("dogstatsd_socket")
+	var stats *Stats
+	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
+		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
+		s, err := NewStats(packetCounter, uint32(buff))
+		if err != nil {
+			fmt.Errorf("dogstatsd: unable to start statistics facilities")
+		}
+		stats = s
+	}
 
+	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) == 0 {
 		var url string
 
@@ -51,8 +136,9 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 	}
 
 	s := &Server{
-		Started: true,
-		conn:    conn,
+		Started:    true,
+		Statistics: stats,
+		conn:       conn,
 	}
 	go s.handleMessages(metricOut, eventOut, serviceCheckOut)
 	log.Infof("dogstatsd: listening on %s", conn.LocalAddr())
@@ -60,6 +146,10 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 }
 
 func (s *Server) handleMessages(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggregator.Event, serviceCheckOut chan<- aggregator.ServiceCheck) {
+	if s.Statistics != nil {
+		go s.Statistics.Process()
+		defer s.Statistics.Stop()
+	}
 	for {
 		buf := make([]byte, config.Datadog.GetInt("dogstatsd_buffer_size"))
 		n, _, err := s.conn.ReadFrom(buf)
@@ -82,6 +172,10 @@ func (s *Server) handleMessages(metricOut chan<- *aggregator.MetricSample, event
 				packet := nextPacket(&datagram)
 				if packet == nil {
 					break
+				}
+
+				if s.Statistics != nil {
+					s.Statistics.StatEvent(1)
 				}
 
 				if bytes.HasPrefix(packet, []byte("_sc")) {

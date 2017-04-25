@@ -58,6 +58,13 @@ type Transaction interface {
 	GetCreatedAt() time.Time
 }
 
+// SimpleForwarder implements basic interface - useful for testing
+type SimpleForwarder interface {
+	SubmitV1Series(apiKey string, payload *[]byte) error
+	SubmitV1Intake(apiKey string, payload *[]byte) error
+	SubmitV1CheckRuns(apiKey string, payload *[]byte) error
+}
+
 // Forwarder is in charge of receiving transaction payloads and sending them to Datadog backend over HTTP.
 type Forwarder struct {
 	waitingPipe         chan Transaction
