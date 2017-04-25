@@ -33,6 +33,7 @@ func TestSetAddSample(t *testing.T) {
 	require.Len(t, series[0].Points, 1)
 	assert.EqualValues(t, 3, series[0].Points[0].Value)
 	assert.EqualValues(t, 60, series[0].Points[0].Ts)
+	assert.Equal(t, APIGaugeType, series[0].MType)
 
 	// Add a few new samples and flush: the set should've been reset after the previous flush
 	sampleValues = []string{"b", "b"}
@@ -46,6 +47,7 @@ func TestSetAddSample(t *testing.T) {
 	require.Len(t, series[0].Points, 1)
 	assert.EqualValues(t, 1, series[0].Points[0].Value)
 	assert.EqualValues(t, 70, series[0].Points[0].Ts)
+	assert.Equal(t, APIGaugeType, series[0].MType)
 
 	// Flush w/o samples: error
 	_, err = set.flush(80)

@@ -1,6 +1,7 @@
 package aggregator
 
-// Set tracks the number of unique elements in a set
+// Set tracks the number of unique elements in a set. They are only use by
+// DogStatsD
 type Set struct {
 	values map[string]bool
 }

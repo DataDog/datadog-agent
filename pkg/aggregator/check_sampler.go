@@ -23,7 +23,7 @@ func newCheckSampler(hostname string) *CheckSampler {
 func (cs *CheckSampler) addSample(metricSample *MetricSample) {
 	contextKey := cs.contextResolver.trackContext(metricSample, metricSample.Timestamp)
 
-	cs.metrics.addSample(contextKey, metricSample, metricSample.Timestamp)
+	cs.metrics.addSample(contextKey, metricSample, metricSample.Timestamp, 1)
 }
 
 func (cs *CheckSampler) commit(timestamp int64) {

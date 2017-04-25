@@ -44,7 +44,7 @@ func (s *TimeSampler) addSample(metricSample *MetricSample, timestamp int64) {
 	}
 
 	// Add sample to bucket
-	metrics.addSample(contextKey, metricSample, timestamp)
+	metrics.addSample(contextKey, metricSample, timestamp, s.interval)
 }
 
 func (s *TimeSampler) flush(timestamp int64) []*Serie {

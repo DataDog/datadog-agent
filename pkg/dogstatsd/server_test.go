@@ -58,6 +58,19 @@ func TestUPDReceive(t *testing.T) {
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 
+	conn.Write([]byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
+
+	select {
+	case res := <-metricOut:
+		assert.NotNil(t, res)
+		assert.Equal(t, res.Name, "daemon")
+		assert.EqualValues(t, res.Value, 666.0)
+		assert.Equal(t, aggregator.CounterType, res.Mtype)
+		assert.Equal(t, 0.5, res.SampleRate)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+
 	conn.Write([]byte("daemon_set:abc|s|#sometag1:somevalue1,sometag2:somevalue2"))
 
 	select {
