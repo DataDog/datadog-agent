@@ -17,7 +17,7 @@ func TestContextMetricsGaugeSampling(t *testing.T) {
 		Mtype: GaugeType,
 	}
 
-	metrics.addSample(contextKey, &mSample, 1)
+	metrics.addSample(contextKey, &mSample, 1, 10)
 	series := metrics.flush(12345)
 
 	expectedSerie := &Serie{
@@ -42,7 +42,7 @@ func TestContextMetricsGaugeSamplingNoSample(t *testing.T) {
 		Mtype: GaugeType,
 	}
 
-	metrics.addSample(contextKey, &mSample, 1)
+	metrics.addSample(contextKey, &mSample, 1, 10)
 	series := metrics.flush(12345)
 
 	assert.Equal(t, 1, len(series))
@@ -66,8 +66,8 @@ func TestContextMetricsGaugeSamplingInfinity(t *testing.T) {
 		Mtype: GaugeType,
 	}
 
-	metrics.addSample(contextKey1, &mSample1, 1)
-	metrics.addSample(contextKey2, &mSample2, 1)
+	metrics.addSample(contextKey1, &mSample1, 1, 10)
+	metrics.addSample(contextKey2, &mSample2, 1, 10)
 	series := metrics.flush(12345)
 
 	assert.Equal(t, 0, len(series))
@@ -79,13 +79,13 @@ func TestContextMetricsRateSampling(t *testing.T) {
 	metrics := makeContextMetrics()
 	contextKey := "context_key"
 
-	metrics.addSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12340)
+	metrics.addSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12340, 10)
 	series := metrics.flush(12345)
 
 	// No series flushed since the rate was sampled once only
 	assert.Equal(t, 0, len(series))
 
-	metrics.addSample(contextKey, &MetricSample{Mtype: RateType, Value: 2}, 12350)
+	metrics.addSample(contextKey, &MetricSample{Mtype: RateType, Value: 2}, 12350, 10)
 	series = metrics.flush(12351)
 	expectedSerie := &Serie{
 		contextKey: contextKey,
@@ -103,8 +103,8 @@ func TestContextMetricsCountSampling(t *testing.T) {
 	metrics := makeContextMetrics()
 	contextKey := "context_key"
 
-	metrics.addSample(contextKey, &MetricSample{Mtype: CountType, Value: 1}, 12340)
-	metrics.addSample(contextKey, &MetricSample{Mtype: CountType, Value: 5}, 12345)
+	metrics.addSample(contextKey, &MetricSample{Mtype: CountType, Value: 1}, 12340, 10)
+	metrics.addSample(contextKey, &MetricSample{Mtype: CountType, Value: 5}, 12345, 10)
 	series := metrics.flush(12350)
 	expectedSerie := &Serie{
 		contextKey: contextKey,
@@ -122,8 +122,8 @@ func TestContextMetricsMonotonicCountSampling(t *testing.T) {
 	metrics := makeContextMetrics()
 	contextKey := "context_key"
 
-	metrics.addSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 1}, 12340)
-	metrics.addSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 5}, 12345)
+	metrics.addSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 1}, 12340, 10)
+	metrics.addSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 5}, 12345, 10)
 	series := metrics.flush(12350)
 	expectedSerie := &Serie{
 		contextKey: contextKey,
@@ -141,10 +141,10 @@ func TestContextMetricsHistogramSampling(t *testing.T) {
 	metrics := makeContextMetrics()
 	contextKey := "context_key"
 
-	metrics.addSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12340)
-	metrics.addSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 2}, 12342)
-	metrics.addSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12350)
-	metrics.addSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 6}, 12350)
+	metrics.addSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12340, 10)
+	metrics.addSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 2}, 12342, 10)
+	metrics.addSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12350, 10)
+	metrics.addSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 6}, 12350, 10)
 	series := metrics.flush(12351)
 
 	expectedSeries := []*Serie{

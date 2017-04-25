@@ -14,7 +14,7 @@ func makeContextMetrics() ContextMetrics {
 }
 
 // TODO: Pass a reference to *MetricSample instead
-func (m ContextMetrics) addSample(contextKey string, sample *MetricSample, timestamp int64) {
+func (m ContextMetrics) addSample(contextKey string, sample *MetricSample, timestamp int64, interval int64) {
 	if math.IsInf(sample.Value, 0) {
 		log.Warn("Ignoring sample with +/-Inf value on context key:", contextKey)
 		return
@@ -33,6 +33,8 @@ func (m ContextMetrics) addSample(contextKey string, sample *MetricSample, times
 			m[contextKey] = &Histogram{} // default histogram configuration for now
 		case SetType:
 			m[contextKey] = NewSet()
+		case CounterType:
+			m[contextKey] = NewCounter(interval)
 		default:
 			log.Error("Can't add unknown sample metric type:", sample.Mtype)
 			return
