@@ -1,0 +1,50 @@
+# Example of a configuration file for a JMX check
+
+init_config:
+  custom_jar_paths: # optional, BREAKING CHANGE NOTICE : Agent 5.x supported a string if there was only one custom JAR. With agent 6, this MUST be a list in all cases.
+    - /path/to/custom/jarfile.jar
+
+instances:
+  - host: localhost
+    port: 7199
+    user: username
+    password: password
+
+    jmx_url: "service:jmx:rmi:///jndi/rmi://myhost.host:9999/custompath" # optional
+
+    name: jmx_instance  # optional
+      java_bin_path: /path/to/java
+      java_options: "-Xmx200m -Xms50m"
+      trust_store_path: /path/to/trustStore.jks
+      trust_store_password: password
+
+    process_name_regex: .*process_name.*
+    tools_jar_path: /usr/lib/jvm/java-7-openjdk-amd64/lib/tools.jar
+    refresh_beans: 600 # optional (in seconds)
+    tags:
+      env: stage
+      newTag: test
+
+    conf:
+      - include:
+          domain: my_domain
+          bean:
+            - my_bean
+            - my_second_bean
+          attribute:
+            attribute1:
+              metric_type: counter
+              alias: jmx.my_metric_name
+            attribute2:
+              metric_type: gauge
+              alias: jmx.my2ndattribute
+      - include:
+          domain: 2nd_domain
+        exclude:
+          bean:
+            - excluded_bean
+      - include:
+          domain_regex: regex_on_domain
+        exclude:
+          bean_regex:
+            - regex_on_excluded_bean

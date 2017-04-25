@@ -324,7 +324,7 @@ func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
 	}
 
 	if jmxExitFile != "" {
-		c.ExitFilePath = path.Join(here, "dist", "jmx", jmxExitFile)
+		c.ExitFilePath = path.Join(here, "dist", "jmx", jmxExitFile) // FIXME : At some point we should have a `run` folder
 		// Signal handlers are not supported on Windows:
 		// use a file to trigger JMXFetch exit instead
 		subprocessArgs = append(subprocessArgs, "--exit_file_location", c.ExitFilePath)
