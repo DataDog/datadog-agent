@@ -33,13 +33,35 @@ build do
         mode: 0755,
         vars: { install_dir: install_dir }
   end
-
+  
   if windows?
-    copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
+    copy('pkg/collector/dist/conf.d/*', '../../extra_package_files/EXAMPLECONFSLOCATION')
+    mkdir 'cmd/gui/checks'
+    copy('pkg/collector/dist/checks/*', 'cmd/gui/checks')
+    command "chdir cmd/gui && C:/opt/datadog-agent6/embedded/python -d setup.py py2exe"
+    copy('cmd/gui/dist/*', "#{install_dir}/bin/agent")
+    copy('cmd/gui/status.html', "#{install_dir}/bin/agent")
+    copy('cmd/gui/guidata', "#{install_dir}/bin/agent/guidata")
   end
-
   # The file below is touched by software builds that don't put anything in the installation
   # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
   # final package
   delete "#{install_dir}/uselessfile"
+end
+if windows?
+  dependency 'docker-py'
+  dependency 'gui'
+  dependency 'kazoo'
+  dependency 'ntplib'
+  dependency 'psutil'
+  dependency 'python-consul'
+  dependency 'python-etcd'
+  dependency 'pywin32'
+  dependency 'py2exe'
+  dependency 'pyyaml'
+  dependency 'requests'
+  dependency 'simplejson'
+  dependency 'tornado'
+  
+  dependency 'datadog-agent-integrations'
 end
