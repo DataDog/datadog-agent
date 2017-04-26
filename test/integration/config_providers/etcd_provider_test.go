@@ -9,43 +9,58 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (
-	etcdImg string = "quay.io/coreos/etcd:latest"
+	etcdImg       string = "quay.io/coreos/etcd:latest"
+	containerName string = "datadog-agent-etcd0"
+	etcdURL       string = "http://127.0.0.1:2379/"
 )
 
-var etcdAddr string
-
-var templates = map[string]string{
-	"/foo/nginx/check_names":  "[\"http_check\", \"nginx\"]",
-	"/foo/nginx/init_configs": "[{}, {}]",
-	"/foo/nginx/instances":    "[{\"name\": \"test\", \"url\": \"http://%25%25host%25%25/\", \"timeout\": 5}, {\"foo\": \"bar\"}]",
+type EtcdTestSuite struct {
+	suite.Suite
+	templates map[string]string
 }
 
-// pull the latest etcd image, create a standalone etcd container
-func setup() string {
+func (suite *EtcdTestSuite) SetupSuite() {
+	suite.templates = map[string]string{
+		"/foo/nginx/check_names":  `["http_check", "nginx"]`,
+		"/foo/nginx/init_configs": `[{}, {}]`,
+		"/foo/nginx/instances":    `[{"name": "test", "url": "http://%25%25host%25%25/", "timeout": 5}, {"foo": "bar"}]`,
+	}
 
-	cID := createEtcd()
-	etcdAddr := getEtcdAddr(cID)
-
-	etcdURL := "http://" + etcdAddr + ":2379/"
-	config.Datadog.Set("autoconf_template_url", etcdURL)
-	config.Datadog.Set("autoconf_template_dir", "/foo/")
+	// pull the latest etcd image, create a standalone etcd container
+	suite.createEtcd()
 
 	// wait for etcd to start
-	time.Sleep(time.Second)
-
-	populateEtcd(etcdURL)
-
-	return cID
+	time.Sleep(1 * time.Second)
 }
 
-func createEtcd() string {
+func (suite *EtcdTestSuite) TearDownSuite() {
+	cli, err := client.NewEnvClient()
+	if err != nil {
+		panic(err)
+	}
+
+	ctx := context.Background()
+
+	cli.ContainerRemove(ctx, containerName, types.ContainerRemoveOptions{Force: true})
+}
+
+// put configuration back in a known state before each test
+func (suite *EtcdTestSuite) SetupTest() {
+	config.Datadog.Set("autoconf_template_url", etcdURL)
+	config.Datadog.Set("autoconf_template_dir", "/foo/")
+	suite.populateEtcd()
+}
+
+func (suite *EtcdTestSuite) createEtcd() {
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		panic(err)
@@ -57,6 +72,7 @@ func createEtcd() string {
 	if err != nil {
 		panic(err)
 	}
+
 	match := false
 	for _, img := range l {
 		if img.RepoTags[0] == etcdImg {
@@ -64,6 +80,7 @@ func createEtcd() string {
 			break
 		}
 	}
+
 	if !match {
 		_, err = cli.ImagePull(ctx, etcdImg, types.ImagePullOptions{})
 		if err != nil {
@@ -75,46 +92,45 @@ func createEtcd() string {
 		Image: etcdImg,
 		Cmd: []string{
 			"/usr/local/bin/etcd",
-			"-name", "etcd0",
-			"-advertise-client-urls", "http://0.0.0.0:2379",
+			"-advertise-client-urls", "http://127.0.0.1:2379",
 			"-listen-client-urls", "http://0.0.0.0:2379",
-			"-initial-advertise-peer-urls", "http://127.0.0.1:2379",
-			"-listen-peer-urls", "http://0.0.0.0:2800",
-			"-initial-cluster-token", "etcd-cluster-1",
-			"-initial-cluster", "etcd0=http://127.0.0.1:2379",
-			"-initial-cluster-state", "new",
 		},
 	}
 
-	resp, err := cli.ContainerCreate(ctx, containerConfig, nil, nil, "etcd0")
+	hostConfig := &container.HostConfig{
+		PortBindings: nat.PortMap{
+			"2379/tcp": []nat.PortBinding{nat.PortBinding{HostPort: "2379"}},
+		},
+	}
+
+	_, err = cli.ContainerCreate(ctx, containerConfig, hostConfig, nil, containerName)
 	if err != nil {
-		panic(err)
-	}
-	cID := resp.ID
-
-	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
-		panic(err)
+		// containers already exists
+		suite.T().Logf("Container %s already exists, skipping creation...", containerName)
 	}
 
-	return cID
+	if err := cli.ContainerStart(ctx, containerName, types.ContainerStartOptions{}); err != nil {
+		panic(err)
+	}
 }
 
-func populateEtcd(addr string) {
+func (suite *EtcdTestSuite) populateEtcd() {
 	// get etcd client
 	clientCfg := etcd_client.Config{
-		Endpoints:               []string{addr},
+		Endpoints:               []string{etcdURL},
 		Transport:               etcd_client.DefaultTransport,
-		HeaderTimeoutPerRequest: time.Second,
+		HeaderTimeoutPerRequest: 1 * time.Second,
 	}
+
 	cl, err := etcd_client.New(clientCfg)
 	if err != nil {
 		panic(err)
 	}
-	c := etcd_client.NewKeysAPI(cl)
 
+	c := etcd_client.NewKeysAPI(cl)
 	ctx := context.Background()
 
-	for k, v := range templates {
+	for k, v := range suite.templates {
 		_, err := c.Set(ctx, k, v, nil)
 		if err != nil {
 			panic(err)
@@ -122,60 +138,33 @@ func populateEtcd(addr string) {
 	}
 }
 
-func getEtcdAddr(cID string) string {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-
-	co, err := cli.ContainerInspect(context.Background(), cID)
-	if err != nil {
-		panic(err)
-	}
-
-	return co.NetworkSettings.IPAddress
-}
-
-// TODO: handle image
-func teardown(cID string) {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-
-	ctx := context.Background()
-
-	cli.ContainerRemove(ctx, cID, types.ContainerRemoveOptions{Force: true})
-}
-
-func TestMain(m *testing.M) {
-	cID := setup()
-
-	m.Run()
-
-	teardown(cID)
-}
-
-func TestWorkingConnection(t *testing.T) {
+func (suite *EtcdTestSuite) TestWorkingConnection() {
 	p, err := providers.NewEtcdConfigProvider()
 	if err != nil {
 		panic(err)
 	}
+
 	checks, err := p.Collect()
 	if err != nil {
 		panic(err)
 	}
 
-	assert.Equal(t, len(checks), 2)
+	assert.Equal(suite.T(), 2, len(checks))
+	assert.Equal(suite.T(), "http_check", checks[0].Name)
+	assert.Equal(suite.T(), "nginx", checks[1].Name)
 }
 
-func TestBadConnection(t *testing.T) {
+func (suite *EtcdTestSuite) TestBadConnection() {
 	config.Datadog.Set("autoconf_template_url", "http://127.0.0.1:1337")
 
 	p, err := providers.NewEtcdConfigProvider()
-	assert.Nil(t, err)
+	assert.Nil(suite.T(), err)
 
 	checks, err := p.Collect()
-	assert.Nil(t, err)
-	assert.Empty(t, checks)
+	assert.Nil(suite.T(), err)
+	assert.Empty(suite.T(), checks)
+}
+
+func TestEtcdSuite(t *testing.T) {
+	suite.Run(t, new(EtcdTestSuite))
 }
