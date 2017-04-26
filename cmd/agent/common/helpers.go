@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	log "github.com/cihub/seelog"
 )
 
 // GetConfigProviders builds a list of providers for checks' configurations, the sequence defines
