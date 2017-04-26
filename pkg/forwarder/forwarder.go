@@ -1,6 +1,7 @@
 package forwarder
 
 import (
+	"expvar"
 	"fmt"
 	"net/http"
 	"sort"
@@ -13,7 +14,17 @@ import (
 	"github.com/DataDog/zstd"
 )
 
-var flushInterval = 5 * time.Second
+var (
+	flushInterval = 5 * time.Second
+
+	forwarderExpvar      = expvar.NewMap("forwarder")
+	transactionsCreation = expvar.Map{}
+)
+
+func init() {
+	transactionsCreation.Init()
+	forwarderExpvar.Set("TransactionsCreated", &transactionsCreation)
+}
 
 const (
 	defaultNumberOfWorkers = 4
@@ -86,15 +97,18 @@ func (f *Forwarder) retryTransactions(tickTime time.Time) {
 	for _, t := range f.retryQueue {
 		if t.GetNextFlush().Before(tickTime) {
 			f.waitingPipe <- t
+			transactionsCreation.Add("SuccessfullyRetried", 1)
 		} else {
 			newQueue = append(newQueue, t)
 		}
 	}
 	f.retryQueue = newQueue
+	transactionsCreation.Add("RetryQueueSize", int64(len(f.retryQueue)))
 }
 
 func (f *Forwarder) requeueTransaction(t Transaction) {
 	f.retryQueue = append(f.retryQueue, t)
+	transactionsCreation.Add("Requeued", 1)
 }
 
 func (f *Forwarder) handleFailedTransactions() {
@@ -215,6 +229,7 @@ func (f *Forwarder) SubmitTimeseries(payload *[]byte) error {
 		return err
 	}
 
+	transactionsCreation.Add("Timeseries", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -225,6 +240,7 @@ func (f *Forwarder) SubmitEvent(payload *[]byte) error {
 		return err
 	}
 
+	transactionsCreation.Add("Events", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -235,6 +251,7 @@ func (f *Forwarder) SubmitCheckRun(payload *[]byte) error {
 		return err
 	}
 
+	transactionsCreation.Add("CheckRuns", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -245,6 +262,7 @@ func (f *Forwarder) SubmitHostMetadata(payload *[]byte) error {
 		return err
 	}
 
+	transactionsCreation.Add("HostMetadata", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -255,6 +273,7 @@ func (f *Forwarder) SubmitMetadata(payload *[]byte) error {
 		return err
 	}
 
+	transactionsCreation.Add("Metadata", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -267,6 +286,7 @@ func (f *Forwarder) SubmitV1Series(apiKey string, payload *[]byte) error {
 		return err
 	}
 
+	transactionsCreation.Add("TimeseriesV1", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -279,6 +299,7 @@ func (f *Forwarder) SubmitV1CheckRuns(apiKey string, payload *[]byte) error {
 		return err
 	}
 
+	transactionsCreation.Add("CheckRunsV1", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -295,5 +316,6 @@ func (f *Forwarder) SubmitV1Intake(apiKey string, payload *[]byte) error {
 		t.Headers.Set("Content-Type", "application/json")
 	}
 
+	transactionsCreation.Add("IntakeV1", 1)
 	return f.sendHTTPTransactions(transactions)
 }
