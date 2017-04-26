@@ -1,7 +1,9 @@
 package main
 
 import (
+	_ "expvar"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -103,6 +105,9 @@ func start(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
+	// go_expvar server
+	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)
+
 	if err := dogstatsdCmd.Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
