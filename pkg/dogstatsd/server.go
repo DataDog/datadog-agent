@@ -2,6 +2,7 @@ package dogstatsd
 
 import (
 	"bytes"
+	"expvar"
 	"fmt"
 	"net"
 	"strings"
@@ -10,6 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+)
+
+var (
+	dogstatsdExpvar = expvar.NewMap("dogstatsd")
 )
 
 // Server represent a Dogstatsd server
@@ -58,6 +63,7 @@ func (s *Server) handleMessages(metricOut chan<- *aggregator.MetricSample, event
 			}
 
 			log.Errorf("dogstatsd: error reading packet: %v", err)
+			dogstatsdExpvar.Add("PacketReadingErrors", 1)
 			continue
 		}
 
@@ -75,22 +81,28 @@ func (s *Server) handleMessages(metricOut chan<- *aggregator.MetricSample, event
 					serviceCheck, err := parseServiceCheckPacket(packet)
 					if err != nil {
 						log.Errorf("dogstatsd: error parsing service check: %s", err)
+						dogstatsdExpvar.Add("ServiceCheckParseErrors", 1)
 						continue
 					}
+					dogstatsdExpvar.Add("ServiceCheckPackets", 1)
 					serviceCheckOut <- *serviceCheck
 				} else if bytes.HasPrefix(packet, []byte("_e")) {
 					event, err := parseEventPacket(packet)
 					if err != nil {
-						log.Errorf("dogstatsd: error parsing evet: %s", err)
+						log.Errorf("dogstatsd: error parsing event: %s", err)
+						dogstatsdExpvar.Add("EventParseErrors", 1)
 						continue
 					}
+					dogstatsdExpvar.Add("EventPackets", 1)
 					eventOut <- *event
 				} else {
 					sample, err := parseMetricPacket(packet)
 					if err != nil {
 						log.Errorf("dogstatsd: error parsing metrics: %s", err)
+						dogstatsdExpvar.Add("MetricParseErrors", 1)
 						continue
 					}
+					dogstatsdExpvar.Add("MetricPackets", 1)
 					metricOut <- sample
 				}
 			}
