@@ -24,8 +24,6 @@ func isProcess(pid int) bool {
 }
 
 // Path returns a suitable location for the pidfile under Windows
-//
-// BUG(massi): This needs to be implemented
 func Path() string {
 	return "c:\\ProgramData\\DataDog\\datadog-agent.pid"
 }
