@@ -42,7 +42,6 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 			panic(err)
 		}
 	}
-	common.UpdateDistPath()
 	hostname := common.GetHostname()
 	// store the computed hostname in the global cache
 	key := path.Join(util.AgentCachePrefix, "hostname")
@@ -81,7 +80,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 	log.Debugf("statsd started")
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment
-	common.Collector = collector.NewCollector(common.DistPath, filepath.Join(common.DistPath, "checks"))
+	common.Collector = collector.NewCollector(common.GetDistPath(), filepath.Join(common.GetDistPath(), "checks"))
 
 	log.Debugf("commonCollector created")
 	// setup the metadata collector, this needs a working Python env to function

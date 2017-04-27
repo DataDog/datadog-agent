@@ -18,9 +18,7 @@ build_env = {
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  command "echo calling rake"
   command 'rake agent:build', :env => build_env
-  command "echo done calling rake"
   copy('bin', install_dir)
 
   if debian?

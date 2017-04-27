@@ -2,7 +2,10 @@ package common
 
 const defaultConfPath = "/opt/datadog-agent/etc"
 
-// UpdateDistPath If necessary, change the DistPath variable to the right location
-func UpdateDistPath() {
-	return
+// DistPath holds the path to the folder containing distribution files
+const distPath = filepath.Join(_here, "dist")
+
+// GetDistPath returns the fully qualified path to the 'dist' directory
+func GetDistPath() string {
+	return distPath
 }

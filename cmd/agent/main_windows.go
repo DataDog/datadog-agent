@@ -23,7 +23,7 @@ func main() {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
 	}
 	if !isIntSess {
-		common.ConfigureFileWriter()
+		common.EnableLoggingToFile()
 		runService(false)
 		return
 	}

@@ -9,8 +9,10 @@ import (
 
 const defaultConfPath = "c:\\programdata\\datadog"
 
-// ConfigureFileWriter -- set up logging to file
-func ConfigureFileWriter() {
+var distPath string
+
+// EnableLoggingToFile -- set up logging to file
+func EnableLoggingToFile() {
 	seeConfig := `
 <seelog>
 	<outputs>
@@ -22,20 +24,28 @@ func ConfigureFileWriter() {
 }
 
 // UpdateDistPath If necessary, change the DistPath variable to the right location
-func UpdateDistPath() {
+func updateDistPath() string {
 	// fetch the installation path from the registry
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
 	if err != nil {
 		log.Warn("Failed to open registry key %s", err)
-		return
+		return ""
 	}
 	defer k.Close()
 	s, _, err := k.GetStringValue("InstallPath")
 	if err != nil {
 		log.Warn("Installpath not found in registry %s", err)
-		return
+		return ""
 	}
-	DistPath = filepath.Join(s, `bin/agent/dist`)
-	log.Debug("DisPath is now %s", DistPath)
-	return
+	newDistPath := filepath.Join(s, `bin/agent/dist`)
+	log.Debug("DisPath is now %s", newDistPath)
+	return newDistPath
+}
+
+// GetDistPath returns the fully qualified path to the 'dist' directory
+func GetDistPath() string {
+	if len(distPath) == 0 {
+		distPath = updateDistPath()
+	}
+	return distPath
 }

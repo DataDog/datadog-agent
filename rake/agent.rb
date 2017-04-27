@@ -28,7 +28,13 @@ namespace :agent do
 
     commit = `git rev-parse --short HEAD`.strip
     ldflags = "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
-    system(env, "go build #{race_opt} -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"-linkmode internal\" -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
+    if ENV["WINDOWS_DELVE"]
+      # On windows, need to build with the extra arguments -gcflags "-N -l" -ldflags="-linkmode internal" 
+      # if you want to be able to use the delve debugger.
+      system(env, "go build #{race_opt} -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"-linkmode internal\" -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
+    else
+      system(env, "go build #{race_opt} -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
+    end
     Rake::Task["agent:refresh_assets"].invoke
   end
 
@@ -71,7 +77,13 @@ namespace :agent do
         overrides_cmd = "--override=" + overrides.join(" ")
       end
 
-      system("omnibus.bat build datadog-agent6 --log-level=#{log_level} #{overrides_cmd}")
+    case os
+      when "windows"
+        system("omnibus.bat build datadog-agent6 --log-level=#{log_level} #{overrides_cmd}")
+      else
+        system("omnibus build datadog-agent6 --log-level=#{log_level} #{overrides_cmd}")
+      end
+      
     end
   end
 

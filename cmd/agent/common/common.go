@@ -3,8 +3,6 @@
 package common
 
 import (
-	"path/filepath"
-
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/kardianos/osext"
 )
@@ -17,6 +15,4 @@ var (
 
 	// utility variables
 	_here, _ = osext.ExecutableFolder()
-	// DistPath holds the path to the folder containing distribution files
-	DistPath = filepath.Join(_here, "dist")
 )
