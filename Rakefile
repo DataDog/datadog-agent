@@ -67,7 +67,7 @@ task :test => %w[fmt lint vet] do
         env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
       end
 
-      system(env, "go test #{race_opt} -short #{covermode_opt} -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
+      system(env, "go test -v #{race_opt} -short #{covermode_opt} -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
       if File.file?(profile_tmp)
         `cat #{profile_tmp} | tail -n +2 >> #{PROFILE}`
         File.delete(profile_tmp)
