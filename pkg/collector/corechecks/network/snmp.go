@@ -71,7 +71,7 @@ type metric struct {
 	Tags       []metricTag `yaml:"metric_tags,omitempty"`
 }
 
-type instanceCfg struct {
+type snmpInstanceCfg struct {
 	Host          string                  `yaml:"ip_address"`
 	Port          uint                    `yaml:"port"`
 	User          string                  `yaml:"user,omitempty"`
@@ -92,14 +92,14 @@ type instanceCfg struct {
 	snmp          *snmpgo.SNMP
 }
 
-type initCfg struct {
+type snmpInitCfg struct {
 	MibsDir         string `yaml:"mibs_folder,omitempty"`
 	IgnoreNonIncOID string `yaml:"ignore_nonincreasing_oid,omitempty"`
 }
 
 type snmpConfig struct {
-	instance instanceCfg
-	initConf initCfg
+	instance snmpInstanceCfg
+	initConf snmpInitCfg
 }
 
 // SNMPCheck grabs SNMP metrics
@@ -113,7 +113,7 @@ func (c *SNMPCheck) String() string {
 	return "SNMPCheck"
 }
 
-func initCNetSnmpLib(cfg *initCfg) (err error) {
+func initCNetSnmpLib(cfg *snmpInitCfg) (err error) {
 	err = nil
 
 	defer func() {
@@ -239,7 +239,7 @@ func getIndexTag(baseOID, OID string, idx int) (string, error) {
 	return tag, nil
 }
 
-func (cfg *instanceCfg) generateOIDs() error {
+func (cfg *snmpInstanceCfg) generateOIDs() error {
 
 	var textualOID string
 	var err error
@@ -325,7 +325,7 @@ func (cfg *instanceCfg) generateOIDs() error {
 	return nil
 }
 
-func (cfg *instanceCfg) generateTagMap() error {
+func (cfg *snmpInstanceCfg) generateTagMap() error {
 
 	cfg.TagMap = make(map[string][]*metricTag)
 
@@ -402,8 +402,8 @@ func (cfg *instanceCfg) generateTagMap() error {
 
 func (c *snmpConfig) Parse(data []byte, initData []byte) error {
 	var tagbuff bytes.Buffer
-	var instance instanceCfg
-	var initConf initCfg
+	var instance snmpInstanceCfg
+	var initConf snmpInitCfg
 
 	if err := yaml.Unmarshal(data, &instance); err != nil {
 		return err

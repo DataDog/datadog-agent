@@ -57,6 +57,7 @@ end
 package :rpm do
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
+  dist_tag ''
   license 'Simplified BSD License'
   category 'System Environment/Daemons'
   priority 'extra'
@@ -108,6 +109,10 @@ end
 if linux?
   if debian?
     extra_package_file '/etc/init/datadog-agent6.conf'
+    extra_package_file '/lib/systemd/system/datadog-agent6.service'
+  end
+
+  if redhat?
     extra_package_file '/lib/systemd/system/datadog-agent6.service'
   end
 

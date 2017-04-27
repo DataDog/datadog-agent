@@ -3,8 +3,17 @@ package util
 import (
 	"fmt"
 	"net"
+	"os"
 	"regexp"
 	"strings"
+
+	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/gce"
 )
 
 const maxLength = 255
@@ -66,4 +75,82 @@ func Fqdn(hostname string) string {
 		}
 	}
 	return hostname
+}
+
+// GetHostname retrieve the host name for the Agent, trying to query these
+// environments/api, in order:
+// * GCE
+// * Docker
+// * kubernetes
+// * os
+// * EC2
+func GetHostname() string {
+	var hostName string
+
+	// try the name provided in the configuration file
+	name := config.Datadog.GetString("hostname")
+	err := ValidHostname(name)
+	if err == nil {
+		return name
+	}
+
+	log.Warnf("unable to get the hostname from the config file: %s", err)
+	log.Warn("trying to determine a reliable host name automatically...")
+
+	// GCE metadata
+	log.Debug("GetHostname trying GCE metadata...")
+	name, err = gce.GetHostname()
+	if err == nil {
+		return name
+	}
+
+	if isContainerized() {
+		// Docker
+		log.Debug("GetHostname trying Docker API...")
+		name, err = docker.GetHostname()
+		if err == nil && ValidHostname(name) == nil {
+			hostName = name
+		} else if isKubernetes() {
+			log.Debug("GetHostname trying k8s...")
+			// TODO
+		}
+	}
+
+	if hostName == "" {
+		// os
+		log.Debug("GetHostname trying os...")
+		name, err = os.Hostname()
+		if err == nil {
+			hostName = name
+		}
+	}
+
+	/* at this point we've either the hostname from the os or an empty string */
+
+	// We use the instance id if we're on an ECS cluster or we're on EC2
+	// and the hostname is one of the default ones
+	if ecs.IsInstance() || ec2.IsDefaultHostname(hostName) {
+		log.Debug("GetHostname trying EC2 metadata...")
+		instanceID, err := ec2.GetInstanceID()
+		if err == nil {
+			hostName = instanceID
+		}
+	}
+
+	// If at this point we don't have a name, bail out
+	if hostName == "" {
+		panic(fmt.Errorf("Unable to reliably determine the host name. You can define one in the agent config file or in your hosts file"))
+	}
+
+	return hostName
+}
+
+// IsContainerized returns whether the Agent is running on a Docker container
+func isContainerized() bool {
+	return os.Getenv("DOCKER_DD_AGENT") == "yes"
+}
+
+// IsKubernetes returns whether the Agent is running on a kubernetes cluster
+func isKubernetes() bool {
+	return os.Getenv("KUBERNETES_PORT") != ""
 }

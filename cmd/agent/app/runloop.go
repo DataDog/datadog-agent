@@ -31,6 +31,9 @@ var (
 	runForeground bool
 	pidfilePath   string
 	confdPath     string
+	// ConfFilePath holds the path to the folder containing the configuration
+	// file, for override from the command line
+	confFilePath string
 )
 
 // StartAgent Initializes the agent process
@@ -42,7 +45,11 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 			panic(err)
 		}
 	}
-	hostname := common.GetHostname()
+	// Global Agent configuration
+	common.SetupConfig(confFilePath)
+
+	hostname := util.GetHostname()
+
 	// store the computed hostname in the global cache
 	key := path.Join(util.AgentCachePrefix, "hostname")
 	util.Cache.Set(key, hostname, util.NoExpiration)
@@ -66,13 +73,14 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 	log.Debugf("Forwarder startered")
 
 	// setup the aggregator
-	agg := aggregator.InitAggregator(fwd)
+	agg := aggregator.InitAggregator(fwd, hostname)
+	agg.AddAgentStartupEvent(version.AgentVersion)
 
 	// start dogstatsd
 	var statsd *dogstatsd.Server
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		statsd, err = dogstatsd.NewServer(agg.GetChannel())
+		statsd, err = dogstatsd.NewServer(agg.GetChannels())
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}

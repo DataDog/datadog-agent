@@ -44,6 +44,7 @@ end
 package :rpm do
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
+  dist_tag ''
   license 'Simplified BSD License'
   category 'System Environment/Daemons'
   priority 'extra'

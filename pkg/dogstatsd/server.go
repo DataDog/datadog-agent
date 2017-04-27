@@ -1,6 +1,7 @@
 package dogstatsd
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"strings"
@@ -18,7 +19,7 @@ type Server struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(out chan *aggregator.MetricSample) (*Server, error) {
+func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggregator.Event, serviceCheckOut chan<- aggregator.ServiceCheck) (*Server, error) {
 	var url string
 	if config.Datadog.GetBool("dogstatsd_non_local_traffic") == true {
 		// Listen to all network interfaces
@@ -41,12 +42,12 @@ func NewServer(out chan *aggregator.MetricSample) (*Server, error) {
 		Started: true,
 		conn:    conn,
 	}
-	go s.handleMessages(out)
+	go s.handleMessages(metricOut, eventOut, serviceCheckOut)
 	log.Infof("dogstatsd: listening on %s", address)
 	return s, nil
 }
 
-func (s *Server) handleMessages(out chan *aggregator.MetricSample) {
+func (s *Server) handleMessages(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggregator.Event, serviceCheckOut chan<- aggregator.ServiceCheck) {
 	for {
 		buf := make([]byte, config.Datadog.GetInt("dogstatsd_buffer_size"))
 		n, _, err := s.conn.ReadFromUDP(buf)
@@ -61,20 +62,37 @@ func (s *Server) handleMessages(out chan *aggregator.MetricSample) {
 		}
 
 		datagram := buf[:n]
+		log.Debugf("dogstatsd receive: %s", datagram)
 
 		go func() {
 			for {
-				sample, err := nextMetric(&datagram)
-				if err != nil {
-					log.Errorf("dogstatsd: error parsing datagram: %s", err)
-					continue
-				}
-
-				if sample == nil {
+				packet := nextPacket(&datagram)
+				if packet == nil {
 					break
 				}
 
-				out <- sample
+				if bytes.HasPrefix(packet, []byte("_sc")) {
+					serviceCheck, err := parseServiceCheckPacket(packet)
+					if err != nil {
+						log.Errorf("dogstatsd: error parsing service check: %s", err)
+						continue
+					}
+					serviceCheckOut <- *serviceCheck
+				} else if bytes.HasPrefix(packet, []byte("_e")) {
+					event, err := parseEventPacket(packet)
+					if err != nil {
+						log.Errorf("dogstatsd: error parsing evet: %s", err)
+						continue
+					}
+					eventOut <- *event
+				} else {
+					sample, err := parseMetricPacket(packet)
+					if err != nil {
+						log.Errorf("dogstatsd: error parsing metrics: %s", err)
+						continue
+					}
+					metricOut <- sample
+				}
 			}
 		}()
 	}

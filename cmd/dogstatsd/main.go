@@ -7,18 +7,69 @@ import (
 	"syscall"
 
 	log "github.com/cihub/seelog"
+	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func main() {
-	config.Datadog.AddConfigPath(".")
+var (
+	// dogstatsdCmd is the root command
+	dogstatsdCmd = &cobra.Command{
+		Use:   "dogstatsd [command]",
+		Short: "Datadog dogstatsd at your service.",
+		Long: `
+DogStatsD accepts custom application metrics points over UDP, and then 
+periodically aggregates and forwards them to Datadog, where they can be graphed 
+on dashboards. DogStatsD implements the StatsD protocol, along with a few 
+extensions for special Datadog features.`,
+	}
+
+	startCmd = &cobra.Command{
+		Use:   "start",
+		Short: "Start DogStatsD",
+		Long:  `Runs DogStatsD in the foreground`,
+		RunE:  start,
+	}
+
+	versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "Print the version number",
+		Long:  ``,
+		Run: func(cmd *cobra.Command, args []string) {
+			av, _ := version.New(version.AgentVersion)
+			fmt.Println(fmt.Sprintf("DogStatsD from Agent %s - Codename: %s - Commit: %s", av.GetNumber(), av.Meta, av.Commit))
+		},
+	}
+
+	confPath string
+)
+
+func init() {
+	// attach the command to the root
+	dogstatsdCmd.AddCommand(startCmd)
+	dogstatsdCmd.AddCommand(versionCmd)
+
+	// ENV vars bindings
+	config.Datadog.BindEnv("conf_path")
+	config.Datadog.SetDefault("conf_path", ".")
+
+	// local flags
+	startCmd.Flags().StringVarP(&confPath, "conf", "c", "", "path to the datadog.yaml file")
+	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("conf"))
+}
+
+func start(cmd *cobra.Command, args []string) error {
+	config.Datadog.SetConfigFile(config.Datadog.GetString("conf_path"))
+
 	err := config.Datadog.ReadInConfig()
 	if err != nil {
-		panic(fmt.Errorf("unable to load Datadog config file: %s", err))
+		log.Criticalf("unable to load Datadog config file: %s", err)
+		return nil
 	}
 
 	// for now we handle only one key and one domain
@@ -30,11 +81,12 @@ func main() {
 	f := forwarder.NewForwarder(keysPerDomain)
 	f.Start()
 
-	aggregatorInstance := aggregator.InitAggregator(f)
-	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannel())
+	// FIXME: the aggregator should probably be initialized with the resolved hostname instead
+	aggregatorInstance := aggregator.InitAggregator(f, util.GetHostname())
+	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
 		log.Error(err.Error())
-		return
+		return nil
 	}
 
 	// Setup a channel to catch OS signals
@@ -47,5 +99,12 @@ func main() {
 	statsd.Stop()
 	log.Info("See ya!")
 	log.Flush()
-	os.Exit(0)
+	return nil
+}
+
+func main() {
+	if err := dogstatsdCmd.Execute(); err != nil {
+		log.Error(err)
+		os.Exit(-1)
+	}
 }

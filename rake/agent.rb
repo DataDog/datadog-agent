@@ -14,10 +14,11 @@ namespace :agent do
   BIN_PATH="./bin/agent"
   CLOBBER.include(BIN_PATH)
 
-  desc "Build the agent, pass 'race=true' to invoke the race detector"
+  desc "Build the agent, pass 'race=true' to invoke the race detector, 'incremental=true' to build incrementally"
   task :build do
     # -race option
     race_opt = ENV['race'] == "true" ? "-race" : ""
+    build_type = ENV['incremental'] == "true" ? "-i" : "-a"
 
     # Check if we should use Embedded or System Python,
     # default to the embedded one.
@@ -31,9 +32,9 @@ namespace :agent do
     if ENV["WINDOWS_DELVE"]
       # On windows, need to build with the extra arguments -gcflags "-N -l" -ldflags="-linkmode internal" 
       # if you want to be able to use the delve debugger.
-      system(env, "go build #{race_opt} -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"-linkmode internal\" -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
+      system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"-linkmode internal\" -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
     else
-      system(env, "go build #{race_opt} -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
+      system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
     end
     Rake::Task["agent:refresh_assets"].invoke
   end
@@ -49,7 +50,7 @@ namespace :agent do
 
   desc "Run the agent"
   task :run => %w[agent:build] do
-    sh("#{BIN_PATH}/agent start -f")
+    sh("#{BIN_PATH}/agent start")
   end
 
   desc "Build omnibus installer"

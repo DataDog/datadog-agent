@@ -25,12 +25,10 @@ func init() {
 	// attach the command to the root
 	AgentCmd.AddCommand(startCmd)
 
-	// Global Agent configuration
-	common.SetupConfig()
-
 	// local flags
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	startCmd.Flags().StringVarP(&confdPath, "confd", "c", "", "path to the confd folder")
+	startCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to datadog.yaml")
 	config.Datadog.BindPFlag("confd_path", startCmd.Flags().Lookup("confd"))
 }
 

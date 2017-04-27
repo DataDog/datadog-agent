@@ -6,7 +6,7 @@ import "time"
 type CheckSampler struct {
 	series          []*Serie
 	contextResolver *ContextResolver
-	metrics         Metrics
+	metrics         ContextMetrics
 	hostname        string
 }
 
@@ -15,7 +15,7 @@ func newCheckSampler(hostname string) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*Serie, 0),
 		contextResolver: newContextResolver(),
-		metrics:         makeMetrics(),
+		metrics:         makeContextMetrics(),
 		hostname:        hostname,
 	}
 }
@@ -23,7 +23,7 @@ func newCheckSampler(hostname string) *CheckSampler {
 func (cs *CheckSampler) addSample(metricSample *MetricSample) {
 	contextKey := cs.contextResolver.trackContext(metricSample, metricSample.Timestamp)
 
-	cs.metrics.addSample(contextKey, metricSample.Mtype, metricSample.Value, metricSample.Timestamp)
+	cs.metrics.addSample(contextKey, metricSample, metricSample.Timestamp, 1)
 }
 
 func (cs *CheckSampler) commit(timestamp int64) {

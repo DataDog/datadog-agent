@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 
-	log "github.com/cihub/seelog"
 	"github.com/gogo/protobuf/proto"
 
 	agentpayload "github.com/DataDog/agent-payload/go"
@@ -40,8 +39,53 @@ func MarshalSeries(series []*Serie) ([]byte, error) {
 			})
 	}
 
-	writer, _ := log.NewConsoleWriter()
-	proto.MarshalText(writer, payload)
+	return proto.Marshal(payload)
+}
+
+// MarshalServiceChecks serialize check runs payload using agent-payload definition
+func MarshalServiceChecks(checkRuns []*ServiceCheck) ([]byte, error) {
+	payload := &agentpayload.CheckRunsPayload{
+		CheckRuns: []*agentpayload.CheckRunsPayload_CheckRun{},
+		Metadata:  &agentpayload.CommonMetadata{},
+	}
+
+	for _, c := range checkRuns {
+		payload.CheckRuns = append(payload.CheckRuns,
+			&agentpayload.CheckRunsPayload_CheckRun{
+				Name:    c.CheckName,
+				Host:    c.Host,
+				Ts:      c.Ts,
+				Status:  int32(c.Status),
+				Message: c.Message,
+				Tags:    c.Tags,
+			})
+	}
+
+	return proto.Marshal(payload)
+}
+
+// MarshalEvents serialize events payload using agent-payload definition
+func MarshalEvents(events []*Event) ([]byte, error) {
+	payload := &agentpayload.EventsPayload{
+		Events:   []*agentpayload.EventsPayload_Event{},
+		Metadata: &agentpayload.CommonMetadata{},
+	}
+
+	for _, e := range events {
+		payload.Events = append(payload.Events,
+			&agentpayload.EventsPayload_Event{
+				Title:          e.Title,
+				Text:           e.Text,
+				Ts:             e.Ts,
+				Priority:       string(e.Priority),
+				Host:           e.Host,
+				Tags:           e.Tags,
+				AlertType:      string(e.AlertType),
+				AggregationKey: e.AggregationKey,
+				SourceTypeName: e.SourceTypeName,
+			})
+	}
+
 	return proto.Marshal(payload)
 }
 

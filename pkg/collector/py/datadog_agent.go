@@ -16,9 +16,9 @@ import (
 // #include "datadog_agent.h"
 import "C"
 
-// GetVersion expose the version of the agent to python check
+// GetVersion expose the version of the agent to python check (used as a PyCFunction in the datadog_agent python module)
 //export GetVersion
-func GetVersion() *C.PyObject {
+func GetVersion(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	av, _ := version.New(version.AgentVersion)
 
 	cStr := C.CString(av.GetNumber())
@@ -27,9 +27,20 @@ func GetVersion() *C.PyObject {
 	return pyStr
 }
 
-// Headers return HTTP headers with basic information like UserAgent already set
+// GetHostname expose the current hostname of the agent to python check (used as a PyCFunction in the datadog_agent python module)
+//export GetHostname
+func GetHostname(self *C.PyObject, args *C.PyObject) *C.PyObject {
+	hostname := util.GetHostname()
+
+	cStr := C.CString(hostname)
+	pyStr := C.PyString_FromString(cStr)
+	C.free(unsafe.Pointer(cStr))
+	return pyStr
+}
+
+// Headers return HTTP headers with basic information like UserAgent already set (used as a PyCFunction in the datadog_agent python module)
 //export Headers
-func Headers() *C.PyObject {
+func Headers(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	h := util.HTTPHeaders()
 
 	dict := C.PyDict_New()

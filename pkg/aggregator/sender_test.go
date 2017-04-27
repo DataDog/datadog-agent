@@ -14,12 +14,11 @@ func resetAggregator() {
 	aggregatorInit = sync.Once{}
 	senderInstance = nil
 	senderInit = sync.Once{}
-
-	InitAggregator(nil)
 }
 
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	resetAggregator()
+	InitAggregator(nil, "")
 
 	s, err := GetDefaultSender()
 	assert.Nil(t, err)
@@ -35,6 +34,7 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 
 func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	resetAggregator()
+	InitAggregator(nil, "")
 
 	s, err := GetSender(checkID1)
 	assert.Nil(t, err)
@@ -57,6 +57,7 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 
 func TestGetSenderWithSameIDsReturnsError(t *testing.T) {
 	resetAggregator()
+	InitAggregator(nil, "")
 
 	_, err := GetSender(checkID1)
 	assert.Nil(t, err)
@@ -70,6 +71,7 @@ func TestGetSenderWithSameIDsReturnsError(t *testing.T) {
 
 func TestDestroySender(t *testing.T) {
 	resetAggregator()
+	InitAggregator(nil, "")
 
 	_, err := GetSender(checkID1)
 	assert.Nil(t, err)

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
 )
@@ -27,7 +27,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	hname := common.GetHostname()
+	hname := util.GetHostname()
 	j, _ := json.Marshal(hname)
 	w.Write(j)
 }

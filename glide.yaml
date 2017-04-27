@@ -40,3 +40,9 @@ import:
   version: ^3.0.2
 - package: github.com/Microsoft/go-winio
   version: v0.3.8
+- package: github.com/beevik/ntp
+- package: github.com/coreos/etcd
+  version: ~3.1.3
+  subpackages:
+  - client
+- package: golang.org/x/net
