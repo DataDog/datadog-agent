@@ -15,9 +15,11 @@ import (
 
 // MetricTypes maps the dogstatsd metric types to the aggregator metric types
 var metricTypes = map[string]aggregator.MetricType{
-	"g": aggregator.GaugeType,
-	"c": aggregator.CounterType,
-	"s": aggregator.SetType,
+	"g":  aggregator.GaugeType,
+	"c":  aggregator.CounterType,
+	"s":  aggregator.SetType,
+	"h":  aggregator.HistogramType,
+	"ms": aggregator.HistogramType,
 }
 
 func nextPacket(datagram *[]byte) (packet []byte) {
