@@ -84,6 +84,30 @@ func TestParseCounter(t *testing.T) {
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
+func TestParseHistogram(t *testing.T) {
+	parsed, err := parseMetricPacket([]byte("daemon:21|h"))
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.Equal(t, 21.0, parsed.Value)
+	assert.Equal(t, aggregator.HistogramType, parsed.Mtype)
+	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
+func TestParseTimer(t *testing.T) {
+	parsed, err := parseMetricPacket([]byte("daemon:21|ms"))
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.Equal(t, 21.0, parsed.Value)
+	assert.Equal(t, aggregator.HistogramType, parsed.Mtype)
+	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
 func TestParseSet(t *testing.T) {
 	parsed, err := parseMetricPacket([]byte("daemon:abc|s"))
 
