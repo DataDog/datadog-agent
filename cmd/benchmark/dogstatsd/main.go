@@ -126,6 +126,7 @@ func randomString(size int) string {
 }
 
 func main() {
+	defer log.Flush()
 	log.Infof("starting benchmarking...")
 	flag.Parse()
 	f := &forwarderBenchStub{
@@ -137,8 +138,8 @@ func main() {
 
 	aggr := aggregator.InitAggregator(f, "localhost")
 	statsd, err := dogstatsd.NewServer(aggr.GetChannels())
-	if statsd == nil || err != nil {
-		log.Errorf("ERROR")
+	if err != nil {
+		log.Errorf("Problem allocating dogstatsd server: %s", err)
 		return
 	}
 	defer statsd.Stop()
@@ -146,7 +147,7 @@ func main() {
 	uri := fmt.Sprintf("localhost:%d", config.Datadog.GetInt("dogstatsd_port"))
 	generator, err := NewStatsdGenerator(uri)
 	if err != nil {
-		log.Errorf("ERROR")
+		log.Errorf("Problem allocating statistics generator: %s", err)
 	}
 	defer generator.Close()
 
