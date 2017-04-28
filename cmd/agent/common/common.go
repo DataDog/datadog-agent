@@ -19,4 +19,6 @@ var (
 	_here, _ = osext.ExecutableFolder()
 	// DistPath holds the path to the folder containing distribution files
 	DistPath = filepath.Join(_here, "dist")
+	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
+	PyChecksPath = filepath.Join(_here, "..", "..", "agent", "checks.d")
 )
