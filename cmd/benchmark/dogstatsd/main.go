@@ -151,7 +151,8 @@ func main() {
 	}
 	defer generator.Close()
 
-	quit := make(chan bool)
+	quit_generator := make(chan bool)
+	quit_statter := make(chan bool)
 	ticker := time.NewTicker(time.Second / time.Duration(*pps))
 
 	wg.Add(1)
@@ -172,8 +173,9 @@ func main() {
 
 		for _ = range ticker.C {
 			select {
-			case <-quit:
+			case <-quit_generator
 				log.Infof("[generator] submitted %v packets", sent)
+				quit_statter <- true
 				return
 			default:
 				// Do other stuff
@@ -183,7 +185,7 @@ func main() {
 				}
 				if sent++; (*mode == p_mode) && (sent == target) {
 					log.Infof("[generator] submitted %v packets", sent)
-					quit <- true // statter
+					quit_statter <- true
 					return
 				}
 			}
@@ -200,14 +202,14 @@ func main() {
 
 			for _ = range tickChan {
 				select {
-				case <-quit:
+				case <-quit_statter:
 					log.Infof("[stats] proceesed %v in total", processed)
 					return
 				case v := <-statsd.Statistics.Ostream:
 					processed += v.Val
 					log.Infof("[stats] proceesed %v packets @%v", v.Val, v.Ts)
 				default:
-					log.Infof("[stats] nothing")
+					log.Infof("[stats] no packets were processed.")
 				}
 			}
 		}()
@@ -216,8 +218,7 @@ func main() {
 	// Do stuff
 	if *mode == t_mode {
 		time.Sleep(time.Second * time.Duration(*dur))
-		quit <- true // generator
-		quit <- true // statter
+		quit_generator <- true
 	}
 
 	wg.Wait()
