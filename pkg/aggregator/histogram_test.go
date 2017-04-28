@@ -224,3 +224,92 @@ func TestHistogramReset(t *testing.T) {
 	_, err = mHistogram.flush(71)
 	assert.NotNil(t, err)
 }
+
+//
+// Benchmark
+//
+
+func benchHistogram(b *testing.B, number int, sampleRate float64) {
+	for n := 0; n < b.N; n++ {
+		h := Histogram{}
+		h.configure([]string{"max", "min", "median", "avg", "sum", "count"}, []int{20, 95, 80})
+		m := MetricSample{Value: 21, SampleRate: sampleRate}
+
+		for i := 0; i < number; i++ {
+			h.addSample(&m, 10)
+		}
+		h.flush(10)
+	}
+}
+
+func BenchmarkHistogram2SampleRate1(b *testing.B) {
+	benchHistogram(b, 2, 1.0)
+}
+
+func BenchmarkHistogram10SampleRate1(b *testing.B) {
+	benchHistogram(b, 10, 1.0)
+}
+
+func BenchmarkHistogram100SampleRate1(b *testing.B) {
+	benchHistogram(b, 100, 1.0)
+}
+
+func BenchmarkHistogram1000SampleRate1(b *testing.B) {
+	benchHistogram(b, 1000, 1.0)
+}
+
+func BenchmarkHistogram10000SampleRate1(b *testing.B) {
+	benchHistogram(b, 10000, 1.0)
+}
+
+func BenchmarkHistogram100000SampleRate1(b *testing.B) {
+	benchHistogram(b, 100000, 1.0)
+}
+
+func BenchmarkHistogram2SampleRate05(b *testing.B) {
+	benchHistogram(b, 2, 0.5)
+}
+
+func BenchmarkHistogram10SampleRate05(b *testing.B) {
+	benchHistogram(b, 10, 0.5)
+}
+
+func BenchmarkHistogram100SampleRate05(b *testing.B) {
+	benchHistogram(b, 100, 0.5)
+}
+
+func BenchmarkHistogram1000SampleRate05(b *testing.B) {
+	benchHistogram(b, 1000, 0.5)
+}
+
+func BenchmarkHistogram10000SampleRate05(b *testing.B) {
+	benchHistogram(b, 10000, 0.5)
+}
+
+func BenchmarkHistogram100000SampleRate05(b *testing.B) {
+	benchHistogram(b, 100000, 0.5)
+}
+
+func BenchmarkHistogram2SampleRate02(b *testing.B) {
+	benchHistogram(b, 2, 0.2)
+}
+
+func BenchmarkHistogram10SampleRate02(b *testing.B) {
+	benchHistogram(b, 10, 0.2)
+}
+
+func BenchmarkHistogram100SampleRate02(b *testing.B) {
+	benchHistogram(b, 100, 0.2)
+}
+
+func BenchmarkHistogram1000SampleRate02(b *testing.B) {
+	benchHistogram(b, 1000, 0.2)
+}
+
+func BenchmarkHistogram10000SampleRate02(b *testing.B) {
+	benchHistogram(b, 10000, 0.2)
+}
+
+func BenchmarkHistogram100000SampleRate02(b *testing.B) {
+	benchHistogram(b, 100000, 0.2)
+}
