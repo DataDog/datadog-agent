@@ -137,8 +137,9 @@ func main() {
 
 	aggr := aggregator.InitAggregator(f, "localhost")
 	statsd, err := dogstatsd.NewServer(aggr.GetChannels())
-	if err != nil {
+	if statsd == nil || err != nil {
 		log.Errorf("ERROR")
+		return
 	}
 	defer statsd.Stop()
 
