@@ -74,10 +74,6 @@ func NewStatsdGenerator(uri string) (*net.UDPConn, error) {
 	return c, nil
 }
 
-func generate(s *dogstatsd.Server, rate uint32) {
-
-}
-
 // format a message from its name, value, tags and rate.  Also adds global
 // namespace and tags.
 func buildPayload(name string, value interface{}, suffix []byte, tags []string, rate float64) string {
@@ -196,14 +192,17 @@ func main() {
 		wg.Add(1)
 		go func() {
 			log.Infof("[stats] starting stats reader")
+			processed := int64(0)
 			tickChan := time.NewTicker(time.Second).C
 			defer wg.Done()
 
 			for _ = range tickChan {
 				select {
 				case <-quit:
+					log.Infof("[stats] proceesed %v in total", processed)
 					return
 				case v := <-statsd.Statistics.Ostream:
+					processed += v.Val
 					log.Infof("[stats] proceesed %v packets @%v", v.Val, v.Ts)
 				default:
 					log.Infof("[stats] nothing")
