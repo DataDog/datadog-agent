@@ -5,6 +5,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+// GetPayload builds a payload of processes metadata collected from gohai.
 func GetPayload(hostname string) *Payload {
 
 	// Get processes metadata from gohai
