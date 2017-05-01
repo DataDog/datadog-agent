@@ -8,6 +8,7 @@ import (
 
 const logFileMaxSize = 10 * 1024 * 1024 // 10MB
 
+// SetupLogger sets up the default logger
 func SetupLogger(logFile string) error {
 	configTemplate := `<seelog>
     <outputs>
