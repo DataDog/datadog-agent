@@ -25,9 +25,9 @@ var (
 		Use:   "dogstatsd [command]",
 		Short: "Datadog dogstatsd at your service.",
 		Long: `
-DogStatsD accepts custom application metrics points over UDP, and then 
-periodically aggregates and forwards them to Datadog, where they can be graphed 
-on dashboards. DogStatsD implements the StatsD protocol, along with a few 
+DogStatsD accepts custom application metrics points over UDP, and then
+periodically aggregates and forwards them to Datadog, where they can be graphed
+on dashboards. DogStatsD implements the StatsD protocol, along with a few
 extensions for special Datadog features.`,
 	}
 
@@ -59,6 +59,7 @@ func init() {
 	// ENV vars bindings
 	config.Datadog.BindEnv("conf_path")
 	config.Datadog.SetDefault("conf_path", ".")
+	config.Datadog.SetDefault("dogstatsd_log_file", defaultLogPath)
 
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "conf", "c", "", "path to the datadog.yaml file")
@@ -71,6 +72,12 @@ func start(cmd *cobra.Command, args []string) error {
 	err := config.Datadog.ReadInConfig()
 	if err != nil {
 		log.Criticalf("unable to load Datadog config file: %s", err)
+		return nil
+	}
+
+	err = config.SetupLogger(config.Datadog.GetString("dogstatsd_log_file"))
+	if err != nil {
+		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
 	}
 
