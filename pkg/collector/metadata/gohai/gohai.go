@@ -37,7 +37,7 @@ func getGohaiInfo() *gohai {
 	logError("platform", err)
 
 	return &gohai{
-		Cpu:        cpuPayload,
+		CPU:        cpuPayload,
 		FileSystem: fileSystemPayload,
 		Memory:     memoryPayload,
 		Network:    networkPayload,
