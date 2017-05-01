@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/metadata/resources"
 	"github.com/DataDog/datadog-agent/pkg/collector/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -110,6 +111,23 @@ func (c *Collector) sendAgentCheck() {
 }
 
 func (c *Collector) sendProcesses() {
-	// TODO
-	log.Info("Sending processes metadata, NYI.")
+
+	payload := map[string]interface{}{
+		"resources": resources.GetPayload(c.hostname),
+	}
+	payloadBytes, err := json.Marshal(payload)
+
+	if err != nil {
+		log.Errorf("unable to serialize processes metadata payload, %s", err)
+		return
+	}
+
+	err = c.fwd.SubmitV1Intake(c.apikey, &payloadBytes)
+	if err != nil {
+		log.Errorf("unable to submit processes metadata payload to the forwarder, %s", err)
+		return
+	}
+
+	log.Infof("Sent processes metadata payload, size: %d bytes.", len(payloadBytes))
+	log.Debugf("Sent processes metadata payload, content: %v", string(payloadBytes))
 }
