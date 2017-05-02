@@ -12,7 +12,7 @@ version "0.12.0" do
 end
 
 version "0.13.0" do
-  source sha256: "741a74e8aed6bcfd726399bf0e5094bb622f7a046004a57e3e39e11f53f72aa0"
+  source sha256: "414f02f1358477dab80d10f226972614c50ddb8a068cadc58e7d0a824fb02e0b"
 end
 
 source :url => "https://dd-jmxfetch.s3.amazonaws.com/jmxfetch-#{version}-jar-with-dependencies.jar"
