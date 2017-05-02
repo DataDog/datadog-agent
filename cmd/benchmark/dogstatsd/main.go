@@ -24,16 +24,23 @@ const (
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-var mode = flag.Int("mode", 1, "1: duration, 2: packets")
-var dur = flag.Int("dur", 60, "duration for the test in seconds")
-var num = flag.Int("num", 10000, "number of packets to submit")
-var pps = flag.Int("pps", 1000, "packets per second")
-var pad = flag.Int("pad", 2, "tag padding - determines packet size")
-var ser = flag.Int("ser", 10, "number of distinct series")
+var mode = flag.Int("mode", 1, "1: duration, 2: packets.")
+var dur = flag.Int("dur", 60, "duration for the test in seconds.")
+var num = flag.Int("num", 10000, "number of packets to submit.")
+var pps = flag.Int("pps", 1000, "packets per second.")
+var pad = flag.Int("pad", 2, "tag padding - determines packet size.")
+var ser = flag.Int("ser", 10, "number of distinct series.")
+var inc = flag.Int("inc", 1000, "pps increments per iteration.")
+var brk = flag.Bool("brk", false, "find breaking point.")
 
 type forwarderBenchStub struct {
 	received      uint64
 	receivedBytes uint64
+}
+
+func (f *forwarderBenchStub) reset() {
+	f.received = 0
+	f.receivedBytes = 0
 }
 
 func (f *forwarderBenchStub) computeStats(payload *[]byte) {
@@ -151,78 +158,87 @@ func main() {
 	}
 	defer generator.Close()
 
+	iteration := 0
+	processed := uint64(0)
 	quit_generator := make(chan bool)
 	quit_statter := make(chan bool)
-	ticker := time.NewTicker(time.Second / time.Duration(*pps))
 
-	wg.Add(1)
-	go func() {
-		sent := uint64(0)
-		target := uint64(*num)
+	for ok := true; ok; ok = (*brk && processed == f.received) {
+		rate := (*pps) + iteration*(*inc)
+		ticker := time.NewTicker(time.Second / time.Duration(rate))
 
-		// Lock generator thread. This should prevent generator and
-		// dogstatsd from sharing a thread by the go scheduler, and
-		// thus minimize the Heisenberg-effect.
-		runtime.LockOSThread()
-		defer wg.Done()
+		wg.Add(1)
+		go func() {
+			sent := uint64(0)
+			target := uint64(*num)
 
-		packets := make([]string, *ser)
-		for i := range packets {
-			packets[i] = buildPayload("foo.bar", rand.Int63n(1000), []byte("|g"), []string{randomString(*pad)}, 1)
-		}
+			// Lock generator thread. This should prevent generator and
+			// dogstatsd from sharing a thread by the go scheduler, and
+			// thus minimize the Heisenberg-effect.
+			runtime.LockOSThread()
+			defer wg.Done()
 
-		for _ = range ticker.C {
-			select {
-			case <-quit_generator
-				log.Infof("[generator] submitted %v packets", sent)
-				quit_statter <- true
-				return
-			default:
-				// Do other stuff
-				err := submitPacket([]byte(packets[rand.Int63n(int64(*ser))]), generator)
-				if err != nil {
-					log.Warnf("Problem sending packet: %v", err)
-				}
-				if sent++; (*mode == p_mode) && (sent == target) {
+			packets := make([]string, *ser)
+			for i := range packets {
+				packets[i] = buildPayload("foo.bar", rand.Int63n(1000), []byte("|g"), []string{randomString(*pad)}, 1)
+			}
+
+			for _ = range ticker.C {
+				select {
+				case <-quit_generator:
 					log.Infof("[generator] submitted %v packets", sent)
 					quit_statter <- true
 					return
-				}
-			}
-		}
-	}()
-
-	if statsd.Statistics != nil {
-		wg.Add(1)
-		go func() {
-			log.Infof("[stats] starting stats reader")
-			processed := int64(0)
-			tickChan := time.NewTicker(time.Second).C
-			defer wg.Done()
-
-			for _ = range tickChan {
-				select {
-				case <-quit_statter:
-					log.Infof("[stats] proceesed %v in total", processed)
-					return
-				case v := <-statsd.Statistics.Ostream:
-					processed += v.Val
-					log.Infof("[stats] proceesed %v packets @%v", v.Val, v.Ts)
 				default:
-					log.Infof("[stats] no packets were processed.")
+					// Do other stuff
+					err := submitPacket([]byte(packets[rand.Int63n(int64(*ser))]), generator)
+					if err != nil {
+						log.Warnf("Problem sending packet: %v", err)
+					}
+					if sent++; (*mode == p_mode) && (sent == target) {
+						log.Infof("[generator] submitted %v packets", sent)
+						quit_statter <- true
+						return
+					}
 				}
 			}
 		}()
-	}
 
-	// Do stuff
-	if *mode == t_mode {
-		time.Sleep(time.Second * time.Duration(*dur))
-		quit_generator <- true
-	}
+		if statsd.Statistics != nil {
+			wg.Add(1)
+			go func() {
+				log.Infof("[stats] starting stats reader")
+				processed = 0
+				tickChan := time.NewTicker(time.Second).C
+				defer wg.Done()
 
-	wg.Wait()
-	ticker.Stop()
-	log.Infof("[forwarder stats] packets received: %v", f.received)
-	log.Infof("[forwarder stats] bytes received: %v", f.receivedBytes)
+				for _ = range tickChan {
+					select {
+					case <-quit_statter:
+						log.Infof("[stats] proceesed %v in total", processed)
+						return
+					case v := <-statsd.Statistics.Ostream:
+						processed += uint64(v.Val)
+						log.Infof("[stats] proceesed %v packets @%v", v.Val, v.Ts)
+					default:
+						log.Infof("[stats] no packets were processed.")
+					}
+				}
+			}()
+		}
+
+		// Do stuff
+		if *mode == t_mode {
+			time.Sleep(time.Second * time.Duration(*dur))
+			quit_generator <- true
+		}
+
+		wg.Wait()
+		ticker.Stop()
+		log.Infof("[forwarder stats] packets received: %v", f.received)
+		log.Infof("[forwarder stats] bytes received: %v", f.receivedBytes)
+
+		f.reset()
+		iteration++
+	}
 }
