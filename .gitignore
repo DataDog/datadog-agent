@@ -6,3 +6,4 @@ bin/
 *.cov
 *.pyc
 *.swp
+*.exe
