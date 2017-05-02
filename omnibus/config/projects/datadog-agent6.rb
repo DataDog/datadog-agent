@@ -96,6 +96,7 @@ dependency 'datadog-agent'
 # Additional software
 dependency 'datadog-agent-integrations'
 dependency 'datadog-trace-agent'
+dependency 'jmxfetch'
 
 # version manifest file
 dependency 'version-manifest'
