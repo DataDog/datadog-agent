@@ -432,6 +432,21 @@ func (c *snmpConfig) Parse(data []byte, initData []byte) error {
 
 	c.instance.Tags = append(c.instance.Tags, tagbuff.String())
 
+	//security - make sure we're backward compatible
+	switch c.Configs[i].AuthProtocol {
+	case "usmHMACMD5AuthProtocol":
+		c.Configs[i].AuthProtocol = string(snmpgo.Md5)
+	case "usmHMACSHAAuthProtocol":
+		c.Configs[i].AuthProtocol = string(snmpgo.Sha)
+	}
+
+	switch c.Configs[i].PrivProtocol {
+	case "usmDESPrivProtocol", "usm3DESEDEPrivProtocol":
+		c.Configs[i].PrivProtocol = string(snmpgo.Des)
+	case "usmAesCfb128Protocol", "usmAesCfb192Protocol", "usmAesCfb256Protocol":
+		c.Configs[i].PrivProtocol = string(snmpgo.Aes)
+	}
+
 	return nil
 }
 
