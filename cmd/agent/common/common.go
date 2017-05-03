@@ -5,6 +5,7 @@ package common
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/kardianos/osext"
+	"path/filepath"
 )
 
 var (
@@ -17,5 +18,4 @@ var (
 	_here, _ = osext.ExecutableFolder()
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "..", "agent", "checks.d")
-
 )

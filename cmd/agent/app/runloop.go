@@ -96,7 +96,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment
 	common.Collector = collector.NewCollector(common.GetDistPath(), filepath.Join(common.GetDistPath(), "checks"),
-                                            config.Datadog.GetString("additional_checksd"), common.PyChecksPath)
+		config.Datadog.GetString("additional_checksd"), common.PyChecksPath)
 
 	log.Debugf("commonCollector created")
 	// setup the metadata collector, this needs a working Python env to function
