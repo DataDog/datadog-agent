@@ -73,6 +73,13 @@ namespace :dogstatsd do
     system("DOGSTATSD_BIN=\"#{bin_path}\" go test -v #{REPO_PATH}/test/system/dogstatsd/")
   end
 
+  desc "Run Dogstatsd Benchmark"
+  task :run_benchmark => %w[dogstatsd:build_benchmark] do
+    root = `git rev-parse --show-toplevel`.strip
+    bin_path = File.join(root, DOGSTATSD_BIN_PATH, "dogstatsd_benchmark")
+    system("#{bin_path} -pps=1000 -dur 30 -ser 5 -brk -inc 500")
+  end
+
   desc "Build omnibus installer"
   task :omnibus do
     # omnibus log level
