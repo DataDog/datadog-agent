@@ -7,16 +7,16 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// Stat type: includes a statted value and its timestamp.
+// Stat type includes a statted value and its timestamp.
 type Stat struct {
 	Val int64
 	Ts  time.Time
 }
 
-// StatOperator: function pointer/type to operate/aggregate stats.
+// StatOperator function pointer/type to operate/aggregate stats.
 type StatOperator func(int64, int64) int64
 
-// Stats type: structure enabling statting facilities.
+// Stats type structure enabling statting facilities.
 type Stats struct {
 	size       uint32
 	val        int64
@@ -27,7 +27,7 @@ type Stats struct {
 	Aggregated chan Stat
 }
 
-// NewStats: constructor for Stats
+// NewStats constructor for Stats
 func NewStats(op StatOperator, sz uint32) (*Stats, error) {
 	s := &Stats{
 		size:       sz,
@@ -42,7 +42,7 @@ func NewStats(op StatOperator, sz uint32) (*Stats, error) {
 	return s, nil
 }
 
-// StatEvent: aggregates an event with value v
+// StatEvent aggregates an event with value v
 func (s *Stats) StatEvent(v int64) {
 	select {
 	case s.incoming <- v:
@@ -52,7 +52,7 @@ func (s *Stats) StatEvent(v int64) {
 	}
 }
 
-// Process: call to start processing statistics
+// Process call to start processing statistics
 func (s *Stats) Process() {
 	tickChan := time.NewTicker(time.Second).C
 	atomic.StoreUint32(&s.running, 1)
@@ -78,7 +78,7 @@ func (s *Stats) Process() {
 	}
 }
 
-// Stop: call to stop processing statistics
+// Stop call to stop processing statistics
 func (s *Stats) Stop() {
 	atomic.StoreUint32(&s.running, 0)
 }

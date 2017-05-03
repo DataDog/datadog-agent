@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	t_mode = 1
-	p_mode = 2
+	tMode = 1
+	pMode = 2
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -44,7 +44,7 @@ func (f *forwarderBenchStub) reset() {
 }
 
 func (f *forwarderBenchStub) computeStats(payload *[]byte) {
-	f.received += 1
+	f.received++
 	f.receivedBytes += uint64(len(*payload))
 }
 func (f *forwarderBenchStub) SubmitV1Series(apiKey string, payload *[]byte) error {
@@ -60,8 +60,8 @@ func (f *forwarderBenchStub) SubmitV1CheckRuns(apiKey string, payload *[]byte) e
 	return nil
 }
 
-// We could use datadog-go, but I want as little overhead as possible.
 // NewStatsdGenerator returns a generator server
+// We could use datadog-go, but I want as little overhead as possible.
 func NewStatsdGenerator(uri string) (*net.UDPConn, error) {
 	serverAddr, addrErr := net.ResolveUDPAddr("udp", uri)
 	if addrErr != nil {
@@ -164,8 +164,8 @@ func main() {
 		iteration := 0
 		sent := uint64(0)
 		processed := uint64(0)
-		quit_generator := make(chan bool)
-		quit_statter := make(chan bool)
+		quitGenerator := make(chan bool)
+		quitStatter := make(chan bool)
 
 		for ok := true; ok; ok = (*brk && processed == sent) {
 			rate := (*pps) + iteration*(*inc)
@@ -189,8 +189,8 @@ func main() {
 
 				for _ = range ticker.C {
 					select {
-					case <-quit_generator:
-						quit_statter <- true
+					case <-quitGenerator:
+						quitStatter <- true
 						return
 					default:
 						// Do other stuff
@@ -198,8 +198,8 @@ func main() {
 						if err != nil {
 							log.Warnf("Problem sending packet: %v", err)
 						}
-						if sent++; (*mode == p_mode) && (sent == target) {
-							quit_statter <- true
+						if sent++; (*mode == pMode) && (sent == target) {
+							quitStatter <- true
 							return
 						}
 					}
@@ -216,7 +216,7 @@ func main() {
 
 				for _ = range tickChan {
 					select {
-					case <-quit_statter:
+					case <-quitStatter:
 						quit = true
 					case v := <-statsd.Statistics.Aggregated:
 						if quit && v.Val == 0 {
@@ -234,9 +234,9 @@ func main() {
 			}()
 
 			// if in timed mode: sleep to quit.
-			if *mode == t_mode {
+			if *mode == tMode {
 				time.Sleep(time.Second * time.Duration(*dur))
-				quit_generator <- true
+				quitGenerator <- true
 			}
 
 			wg.Wait()
