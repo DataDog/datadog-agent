@@ -7,92 +7,22 @@ import (
 	"net"
 	"os"
 	"strings"
-	"sync/atomic"
-	"time"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 var (
 	dogstatsdExpvar = expvar.NewMap("dogstatsd")
 )
 
-type Stat struct {
-	Val int64
-	Ts  time.Time
-}
-
-type StatOperator func(int64, int64) int64
-
-type Stats struct {
-	size     uint32
-	val      int64
-	operator StatOperator
-	running  uint32
-	last     time.Time
-	istream  chan int64
-	Ostream  chan Stat
-}
-
-func NewStats(op StatOperator, sz uint32) (*Stats, error) {
-	s := &Stats{
-		size:     sz,
-		val:      0,
-		operator: op,
-		running:  0,
-		last:     time.Now(),
-		istream:  make(chan int64, sz),
-		Ostream:  make(chan Stat, 2),
-	}
-
-	return s, nil
-}
-
-func (s *Stats) StatEvent(v int64) {
-	select {
-	case s.istream <- v:
-		return
-	default:
-		log.Debugf("dropping last second stasts, buffer full")
-	}
-}
-
-func (s *Stats) Process() {
-	tickChan := time.NewTicker(time.Second).C
-	atomic.StoreUint32(&s.running, 1)
-	for {
-		select {
-		case v := <-s.istream:
-			s.val = s.operator(s.val, v)
-		case <-tickChan:
-			select {
-			case s.Ostream <- Stat{
-				Val: s.val,
-				Ts:  s.last,
-			}:
-			default:
-				log.Debugf("dropping last second stasts, buffer full")
-			}
-			s.val = 0
-			s.last = time.Now()
-			if atomic.LoadUint32(&s.running) == 0 {
-				break
-			}
-		}
-	}
-}
-
-func (s *Stats) Stop() {
-	atomic.StoreUint32(&s.running, 0)
-}
-
 // Server represent a Dogstatsd server
 type Server struct {
 	conn       net.PacketConn
-	Statistics *Stats
+	Statistics *util.Stats
 	Started    bool
 }
 
@@ -105,10 +35,10 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 	var conn net.PacketConn
 	var err error
 
-	var stats *Stats
+	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
-		s, err := NewStats(packetCounter, uint32(buff))
+		s, err := util.NewStats(packetCounter, uint32(buff))
 		if err != nil {
 			fmt.Errorf("dogstatsd: unable to start statistics facilities")
 		}
