@@ -32,3 +32,11 @@ api_key:
 #
 # The buffer size use to receive statsd packet (defaults 1024)
 # dogstatsd_buffer_size: 1024
+
+# ========================================================================== #
+# Logging
+# ========================================================================== #
+
+# log_level: info
+
+# log_file: /var/log/datadog/agent.log
