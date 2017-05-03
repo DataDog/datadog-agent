@@ -2,7 +2,9 @@ package v5
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/metadata/gohai"
 	"github.com/DataDog/datadog-agent/pkg/collector/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/collector/metadata/resources"
 )
 
 // CommonPayload wraps Payload from the common package
@@ -15,13 +17,23 @@ type HostPayload struct {
 	host.Payload
 }
 
+// ResourcesPayload wraps Payload from the resources package
+type ResourcesPayload struct {
+	resources.Payload
+}
+
+// GohaiPayload wraps Payload from the gohai package
+type GohaiPayload struct {
+	gohai.Payload
+}
+
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	CommonPayload
 	HostPayload
-	// TODO: resources
+	ResourcesPayload
 	// TODO: host-tags
 	// TODO: external_host_tags
-	// TODO: gohai
+	GohaiPayload
 	// TODO: agent_checks
 }

@@ -1,12 +1,12 @@
-hash: 3e2fc9504907d354095dff72bbec0ec947a9065b982387fdc33b5fce8f0836c9
-updated: 2017-04-25T12:34:07.2325343-07:00
+hash: 2ce2fc3ebbd3651d2afc44b20709541211459d31b4eadc729f58810363f2d9a3
+updated: 2017-04-28T16:28:42.854272518-04:00
 imports:
 - name: github.com/beevik/ntp
   version: cb3dae3a7588ae35829eb5724df611cd75152fba
 - name: github.com/cihub/seelog
   version: d2c6e5aa9fbfdd1c624e140287063c7730654115
 - name: github.com/coreos/etcd
-  version: 20490caaf0dcd96bb4a95e40625559def8ef5b04
+  version: 43b75072bfaca5a7c35c718179defbcabd9a0886
   subpackages:
   - client
   - pkg/pathutil
@@ -19,14 +19,18 @@ imports:
   version: a9c7a9896c1847c9cc2b068a2ae68e9d74540a5d
   subpackages:
   - statsd
+- name: github.com/DataDog/gohai
+  version: 92686dde04c3c01d4b1268d21e31ecbfffd29606
+  subpackages:
+  - cpu
 - name: github.com/DataDog/zstd
-  version: b95200223de728296c3bd0609039cbcb57e15223
+  version: dcab8fb122781db546af7aa75978ae681b6085f5
 - name: github.com/davecgh/go-spew
   version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
   subpackages:
   - spew
 - name: github.com/docker/distribution
-  version: 50133d63723f8fa376e632a853739990a133be16
+  version: 1d7824702bb4763786d35b7553b18722c4afce4f
   subpackages:
   - digestset
   - reference
@@ -50,7 +54,7 @@ imports:
   - client
   - pkg/tlsconfig
 - name: github.com/docker/go-connections
-  version: 1b14b2d192e2f91cdc2bc6bf9aee0b0e116eed42
+  version: e15c02316c12de00874640cd76311849de2aeed5
   subpackages:
   - nat
   - sockets
@@ -68,11 +72,11 @@ imports:
   subpackages:
   - oleutil
 - name: github.com/gogo/protobuf
-  version: 83faaee7bbbdf0c59310ec67d340bc0cbe77053f
+  version: 30433562cfbf487fe1df7cd26c7bab168d2f14d0
   subpackages:
   - proto
 - name: github.com/golang/protobuf
-  version: 69b215d01a5606c843240eab4937eab3acee6530
+  version: 18c9bb3261723cd5401db4d0c9fbc5c3b6c70fe8
   subpackages:
   - proto
 - name: github.com/gorilla/context
@@ -80,7 +84,7 @@ imports:
 - name: github.com/gorilla/mux
   version: 392c28fe23e1c45ddba891b0320b3b5df220beea
 - name: github.com/hashicorp/hcl
-  version: 630949a3c5fa3c613328e1b8256052cbc2327c9b
+  version: 7fa7fff964d035e8a162cce3a164b3ad02ad651b
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -95,13 +99,13 @@ imports:
 - name: github.com/k-sone/snmpgo
   version: de09377ff34857b08afdc16ea8c7c2929eb1fc6e
 - name: github.com/kardianos/osext
-  version: 9b883c5eb462dd5cb1b0a7a104fe86bc6b9bd391
+  version: 9d302b58e975387d0b4d9be876622c86cefe64be
 - name: github.com/magiconair/properties
-  version: b3b15ef068fd0b17ddf408a23669f20811d194d2
+  version: 51463bfca2576e06c62a8504b5c0f06d61312647
 - name: github.com/Microsoft/go-winio
   version: fff283ad5116362ca252298cfc9b95828956d85d
 - name: github.com/mitchellh/mapstructure
-  version: db1efb556f84b25a0a13a04aad883943538ad2e0
+  version: cc8532a8e9a55ea36402aa21efdf403a60d34096
 - name: github.com/mitchellh/reflectwalk
   version: 417edcfd99a4d472c262e58f22b4bfe97580f03e
 - name: github.com/opencontainers/go-digest
@@ -111,11 +115,11 @@ imports:
 - name: github.com/patrickmn/go-cache
   version: 1881a9bccb818787f68c52bfba648c6cf34c34fa
 - name: github.com/pelletier/go-buffruneio
-  version: df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d
+  version: c37440a7cf42ac63b919c752ca73a85067e05992
 - name: github.com/pelletier/go-toml
-  version: 22139eb5469018e7374b3e7ef653de37ffb44f72
+  version: fe206efb84b2bc8e8cfafe6b4c1826622be969e3
 - name: github.com/pkg/errors
-  version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
+  version: ff09b135c25aae272398c51a07235b90a75aa4f0
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
@@ -123,7 +127,7 @@ imports:
 - name: github.com/sbinet/go-python
   version: ba7e58341058bdefb92b359870caf2dc0a05cfcf
 - name: github.com/shirou/gopsutil
-  version: 70a1b78fe69202d93d6718fc9e3a4d6f81edfd58
+  version: e49a95f3d5f824c3f9875ca49e54e4fef17f82cf
   subpackages:
   - cpu
   - host
@@ -134,25 +138,25 @@ imports:
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/Sirupsen/logrus
-  version: 7f4b1adc791766938c29457bed0703fb9134421a
+  version: 10f801ebc38b33738c9d17d50860f484a0988ff5
 - name: github.com/spf13/afero
   version: 9be650865eab0c12963d8753212f4f9c66cdcf12
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: f820543c3592e283e311a60d2a600a664e39f6f7
+  version: acbeb36b902d72a7a4c18e8f3241075e7ab763e4
 - name: github.com/spf13/cobra
-  version: 92ea23a837e66f46ac9e7d04fa826602b7b0a42d
+  version: 7b1b6e8dc027253d45fc029bc269d1c019f83a34
   subpackages:
   - cobra
 - name: github.com/spf13/jwalterweatherman
   version: fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66
 - name: github.com/spf13/pflag
-  version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
+  version: f1d95a35e132e8a1868023a08932b14f0b8b8fcb
 - name: github.com/spf13/viper
-  version: 7538d73b4eb9511d85a9f1dfef202eeb8ac260f4
+  version: 0967fc9aceab2ce9da34061253ac10fb99bba5b2
 - name: github.com/StackExchange/wmi
-  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+  version: ea383cf3ba6ec950874b8486cd72356d007c768f
 - name: github.com/stretchr/objx
   version: cbeaeb16a013161a98496fad62933b1d21786672
 - name: github.com/stretchr/testify
@@ -173,7 +177,7 @@ imports:
   - context/ctxhttp
   - proxy
 - name: golang.org/x/sys
-  version: e48874b42435b4347fc52bdee0424a52abc974d7
+  version: 9ccfe848b9db8435a24c424abbc07a921adf1df5
   subpackages:
   - unix
   - windows
@@ -183,10 +187,10 @@ imports:
   - windows/svc/eventlog
   - windows/svc/mgr
 - name: golang.org/x/text
-  version: 0ad425fe45e885577bef05dc1c50f72e33188b16
+  version: 470f45bf29f4147d6fbd7dfd0a02a848e49f5bf4
   subpackages:
   - transform
   - unicode/norm
 - name: gopkg.in/yaml.v2
-  version: a3f3340b5840cee44f372bddb5880fcbc419b46a
+  version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
 testImports: []

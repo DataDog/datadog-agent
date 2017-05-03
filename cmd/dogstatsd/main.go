@@ -1,7 +1,9 @@
 package main
 
 import (
+	_ "expvar"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -23,9 +25,9 @@ var (
 		Use:   "dogstatsd [command]",
 		Short: "Datadog dogstatsd at your service.",
 		Long: `
-DogStatsD accepts custom application metrics points over UDP, and then 
-periodically aggregates and forwards them to Datadog, where they can be graphed 
-on dashboards. DogStatsD implements the StatsD protocol, along with a few 
+DogStatsD accepts custom application metrics points over UDP, and then
+periodically aggregates and forwards them to Datadog, where they can be graphed
+on dashboards. DogStatsD implements the StatsD protocol, along with a few
 extensions for special Datadog features.`,
 	}
 
@@ -57,6 +59,7 @@ func init() {
 	// ENV vars bindings
 	config.Datadog.BindEnv("conf_path")
 	config.Datadog.SetDefault("conf_path", ".")
+	config.Datadog.SetDefault("log_file", defaultLogPath)
 
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "conf", "c", "", "path to the datadog.yaml file")
@@ -69,6 +72,13 @@ func start(cmd *cobra.Command, args []string) error {
 	err := config.Datadog.ReadInConfig()
 	if err != nil {
 		log.Criticalf("unable to load Datadog config file: %s", err)
+		return nil
+	}
+
+	// Setup logger
+	err = config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
+	if err != nil {
+		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
 	}
 
@@ -103,6 +113,9 @@ func start(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
+	// go_expvar server
+	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)
+
 	if err := dogstatsdCmd.Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)

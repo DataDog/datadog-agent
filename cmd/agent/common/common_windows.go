@@ -8,6 +8,7 @@ import (
 )
 
 const defaultConfPath = "c:\\programdata\\datadog"
+const defaultLogPath = "c:\\programdata\\datadog\\logs\\agent.log"
 
 var distPath string
 

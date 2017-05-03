@@ -13,3 +13,4 @@ var distPath = filepath.Join(_here, "dist")
 func GetDistPath() string {
 	return distPath
 }
+const defaultLogPath = "/var/log/datadog/agent.log"

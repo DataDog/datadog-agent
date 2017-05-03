@@ -133,6 +133,7 @@ dependency 'datadog-agent'
 
 # Additional software
 dependency 'datadog-agent-integrations'
+dependency 'jmxfetch'
 
 unless windows?
   dependency 'datadog-trace-agent'

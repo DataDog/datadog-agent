@@ -45,8 +45,15 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 			panic(err)
 		}
 	}
+
 	// Global Agent configuration
 	common.SetupConfig(confFilePath)
+
+	// Setup logger
+	err := config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
+	if err != nil {
+		panic(err)
+	}
 
 	hostname := util.GetHostname()
 
@@ -88,7 +95,8 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 	log.Debugf("statsd started")
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment
-	common.Collector = collector.NewCollector(common.GetDistPath(), filepath.Join(common.GetDistPath(), "checks"))
+	common.Collector = collector.NewCollector(common.GetDistPath(), filepath.Join(common.GetDistPath(), "checks"),
+                                            config.Datadog.GetString("additional_checksd"), common.PyChecksPath)
 
 	log.Debugf("commonCollector created")
 	// setup the metadata collector, this needs a working Python env to function

@@ -38,21 +38,27 @@ class AgentCheck(object):
         self.log = logging.getLogger('%s.%s' % (__name__, self.name))
 
     def gauge(self, name, value, tags=None):
+        tags = self._normalize_tags(tags)
         aggregator.submit_metric(self, aggregator.GAUGE, name, value, tags)
 
     def count(self, name, value, tags=None):
+        tags = self._normalize_tags(tags)
         aggregator.submit_metric(self, aggregator.COUNT, name, value, tags)
 
     def monotonic_count(self, name, value, tags=None):
+        tags = self._normalize_tags(tags)
         aggregator.submit_metric(self, aggregator.MONOTONIC_COUNT, name, value, tags)
 
     def rate(self, name, value, tags=None):
+        tags = self._normalize_tags(tags)
         aggregator.submit_metric(self, aggregator.RATE, name, value, tags)
 
     def histogram(self, name, value, tags=None, hostname=None, device_name=None):
+        tags = self._normalize_tags(tags)
         aggregator.submit_metric(self, aggregator.HISTOGRAM, name, value, tags)
 
     def service_check(self, name, status, tags=None, message=""):
+        tags = self._normalize_tags(tags)
         aggregator.submit_service_check(self, name, status, tags, message)
 
     def event(self, event):
@@ -65,6 +71,8 @@ class AgentCheck(object):
                 except UnicodeError:
                     self.log.warning("Error encoding unicode field '%s' of event to utf-8 encoded string, can't submit event", key)
                     return
+        if event.get('tags'):
+            event['tags'] = self._normalize_tags(event['tags'])
         if event.get('timestamp'):
             event['timestamp'] = int(event['timestamp'])
         if event.get('aggregation_key'):
@@ -122,6 +130,30 @@ class AgentCheck(object):
         metric_name = self.ALL_CAP_RE.sub(r'\1_\2', metric_name).lower()
         metric_name = self.METRIC_REPLACEMENT.sub('_', metric_name)
         return self.DOT_UNDERSCORE_CLEANUP.sub('.', metric_name).strip('_')
+
+    def _normalize_tags(self, tags):
+        """
+        Normalize all the tags to strings (type `str`) so that the go bindings can handle them easily
+        Doesn't mutate the passed list, returns a new list
+        """
+        normalized_tags = []
+        if tags is not None:
+            for tag in tags:
+                if not isinstance(tag, basestring):
+                    try:
+                        tag = str(tag)
+                    except Exception:
+                        self.log.warning("Error converting tag to string, ignoring tag")
+                        continue
+                elif isinstance(tag, unicode):
+                    try:
+                        tag = tag.encode('utf-8')
+                    except UnicodeError:
+                        self.log.warning("Error encoding unicode tag to utf-8 encoded string, ignoring tag")
+                        continue
+                normalized_tags.append(tag)
+
+        return normalized_tags
 
     def warning(self, *args, **kwargs):
         pass

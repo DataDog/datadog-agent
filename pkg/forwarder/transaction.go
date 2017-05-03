@@ -58,12 +58,14 @@ func (t *HTTPTransaction) Process(client *http.Client) error {
 	req, err := http.NewRequest("POST", t.Domain+t.Endpoint, reader)
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL '%s' (dropping transaction): %s", t.Domain+t.Endpoint, err)
+		transactionsCreation.Add("Errors", 1)
 		return nil
 	}
 	req.Header = t.Headers
 	resp, err := client.Do(req)
 	if err != nil {
 		t.ErrorCount++
+		transactionsCreation.Add("Errors", 1)
 		return fmt.Errorf("Error while sending transaction, rescheduling it: %s", err)
 	}
 	defer resp.Body.Close()
@@ -71,11 +73,15 @@ func (t *HTTPTransaction) Process(client *http.Client) error {
 	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode == 400 || resp.StatusCode == 413 {
 		log.Errorf("Error code '%s' received while sending transaction to '%s': %s, dropping it", resp.Status, t.Domain+t.Endpoint, string(body))
+		transactionsCreation.Add("Dropped", 1)
+		return nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
+		transactionsCreation.Add("Errors", 1)
 		return fmt.Errorf("Error '%s' while sending transaction, rescheduling it", resp.Status)
 	}
 
+	transactionsCreation.Add("Success", 1)
 	log.Debugf("successfully posted payload to '%s': %s", t.Domain+t.Endpoint, string(body))
 	return nil
 }

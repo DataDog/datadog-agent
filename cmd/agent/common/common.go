@@ -15,4 +15,7 @@ var (
 
 	// utility variables
 	_here, _ = osext.ExecutableFolder()
+	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
+	PyChecksPath = filepath.Join(_here, "..", "..", "agent", "checks.d")
+
 )
