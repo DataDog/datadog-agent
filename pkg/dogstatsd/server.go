@@ -40,7 +40,7 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
 		s, err := util.NewStats(packetCounter, uint32(buff))
 		if err != nil {
-			fmt.Errorf("dogstatsd: unable to start statistics facilities")
+			log.Errorf("dogstatsd: unable to start statistics facilities")
 		}
 		stats = s
 	}
