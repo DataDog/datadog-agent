@@ -50,7 +50,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 	common.SetupConfig(confFilePath)
 
 	// Setup logger
-	err := config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("agent_log_file"))
+	err := config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
 	if err != nil {
 		panic(err)
 	}
