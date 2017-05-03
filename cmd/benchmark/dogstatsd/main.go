@@ -22,7 +22,17 @@ const (
 	pMode = 2
 )
 
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const (
+	letterBytes     = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	stdOutputLogCfg = `<seelog minlevel="ddloglevel">
+	<outputs formatid="common">
+		<console />
+	</outputs>
+	<formats>
+		<format id="common" format="%Date %Time | %LEVEL | (%File:%Line) |  %Msg%n"/>
+	</formats>
+</seelog>`
+)
 
 var mode = flag.Int("mode", 1, "1: duration, 2: packets.")
 var dur = flag.Int("dur", 60, "duration for the test in seconds.")
@@ -81,6 +91,18 @@ func NewStatsdGenerator(uri string) (*net.UDPConn, error) {
 	return c, nil
 }
 
+func initLogging() error {
+	logConfig := bytes.Replace([]byte(stdOutputLogCfg), []byte("ddloglevel"), []byte("info"), 1)
+
+	logger, err := log.LoggerFromConfigAsBytes(logConfig)
+	if err != nil {
+		return fmt.Errorf("Unable to initiate logger: %s", err)
+	}
+	log.ReplaceLogger(logger)
+
+	return nil
+}
+
 // format a message from its name, value, tags and rate.  Also adds global
 // namespace and tags.
 func buildPayload(name string, value interface{}, suffix []byte, tags []string, rate float64) string {
@@ -133,7 +155,11 @@ func randomString(size int) string {
 }
 
 func main() {
+	if err := initLogging(); err != nil {
+		log.Infof("Unable to replace logger, default logging will apply (highly verbose): %s", err)
+	}
 	defer log.Flush()
+
 	log.Infof("starting benchmarking...")
 	flag.Parse()
 	f := &forwarderBenchStub{
