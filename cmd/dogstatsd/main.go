@@ -75,7 +75,7 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	err = config.SetupLogger(config.Datadog.GetString("dogstatsd_log_file"))
+	err = config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("dogstatsd_log_file"))
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
