@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	ManageCmd.AddCommand(deleteCheckCommand)
+	AgentCmd.AddCommand(deleteCheckCommand)
 	deleteCheckCommand.Flags().StringVarP(&checkname, "checkname", "c", "", "name of check")
 }
 

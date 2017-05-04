@@ -16,4 +16,12 @@ The Datadog Agent faithfully collects events and metrics and brings them
 to Datadog on your behalf so that you can do something useful with your 
 monitoring and performance data.`,
 	}
+
+	// flags variables
+	sockname  string
+	checkname string
 )
+
+func init() {
+	AgentCmd.Flags().StringVarP(&sockname, "name", "n", "agent.sock", "name of socket/pipe")
+}

@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	ManageCmd.AddCommand(getCheckCommand)
+	AgentCmd.AddCommand(getCheckCommand)
 	getCheckCommand.Flags().StringVarP(&checkname, "checkname", "c", "", "name of check")
 }
 

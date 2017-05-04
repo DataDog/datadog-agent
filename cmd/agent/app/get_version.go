@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	ManageCmd.AddCommand(getVersionCommand)
+	AgentCmd.AddCommand(getVersionCommand)
 
 }
 

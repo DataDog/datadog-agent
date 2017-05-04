@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	ManageCmd.AddCommand(listCheckCommand)
+	AgentCmd.AddCommand(listCheckCommand)
 
 }
 

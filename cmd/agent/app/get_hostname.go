@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	ManageCmd.AddCommand(getHostnameCommand)
+	AgentCmd.AddCommand(getHostnameCommand)
 
 }
 

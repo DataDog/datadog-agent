@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	ManageCmd.AddCommand(reloadCheckCommand)
+	AgentCmd.AddCommand(reloadCheckCommand)
 	reloadCheckCommand.Flags().StringVarP(&checkname, "checkname", "c", "", "name of check")
 }
 
