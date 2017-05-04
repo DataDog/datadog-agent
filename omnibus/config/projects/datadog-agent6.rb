@@ -142,6 +142,13 @@ end
 if windows?
   dependency 'datadog-upgrade-helper'
 end
+
+# Remove pyc/pyo files from package
+# should be built after all the other python-related software defs
+if linux?
+  dependency 'py-compiled-cleanup'
+end
+
 # version manifest file
 dependency 'version-manifest'
 
