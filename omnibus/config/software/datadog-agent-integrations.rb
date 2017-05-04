@@ -35,13 +35,11 @@ build do
   
     command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
   else
-    pip_args = "install --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\" -r check_requirements.txt"
-  
     build_env = {
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
       "PATH" => "/#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
-    command "pip #{pip_args}", :env => build_env
+    pip "install -r check_requirements.txt", :env => build_env
   end
 
   copy '/check_requirements.txt', "#{install_dir}/agent/"

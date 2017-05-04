@@ -77,7 +77,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 	fwd := forwarder.NewForwarder(keysPerDomain)
 	log.Debugf("Starting forwarder")
 	fwd.Start()
-	log.Debugf("Forwarder startered")
+	log.Debugf("Forwarder started")
 
 	// setup the aggregator
 	agg := aggregator.InitAggregator(fwd, hostname)
