@@ -21,6 +21,8 @@ build do
   command 'rake agent:build', :env => build_env
   copy('bin', install_dir)
 
+  mkdir "#{install_dir}/run/"
+
   if linux?
     # Config
     mkdir '/etc/dd-agent'

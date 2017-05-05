@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-PIDFile=/var/run/datadog/agent.pid
-User=root
+PIDFile=<%= install_dir %>/run/agent.pid
+User=dd-agent
 Restart=on-failure
 ExecStartPre=/bin/rm -f /tmp/agent.sock
-ExecStart=<%= install_dir %>/bin/agent/agent start -p /var/run/datadog/agent.pid
+ExecStart=<%= install_dir %>/bin/agent/agent start -p <%= install_dir %>/run/agent.pid
 
 [Install]
 WantedBy=multi-user.target
