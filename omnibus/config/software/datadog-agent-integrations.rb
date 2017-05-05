@@ -27,18 +27,19 @@ build do
   command 'bundle install'
   command "rake copy_checks conf_dir=#{conf_directory} checks_dir=#{checks_dir} merge_requirements_to=."
   # Enqueue "core" dependencies that are not listed in the checks requirements
-  command 'echo "requests==2.11.1" >> check_requirements.txt'
+  command "echo requests==2.11.1 >> check_requirements.txt"
 
   # Install all the requirements
-  pip_args = "install --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\" -r check_requirements.txt"
   if windows?
+    pip_args = "install  -r check_requirements.txt"
+  
     command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
   else
     build_env = {
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
       "PATH" => "/#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
-    command "pip #{pip_args}", :env => build_env
+    pip "install -r check_requirements.txt", :env => build_env
   end
 
   copy '/check_requirements.txt', "#{install_dir}/agent/"

@@ -17,7 +17,7 @@ import (
 func GetConfigProviders(confdPath string) (plist []providers.ConfigProvider) {
 	confSearchPaths := []string{
 		confdPath,
-		filepath.Join(DistPath, "conf.d"),
+		filepath.Join(GetDistPath(), "conf.d"),
 	}
 
 	// File Provider
@@ -50,7 +50,7 @@ func SetupConfig(confFilePath string) {
 		config.Datadog.AddConfigPath(confFilePath)
 	}
 	config.Datadog.AddConfigPath(defaultConfPath)
-	config.Datadog.AddConfigPath(DistPath)
+	config.Datadog.AddConfigPath(GetDistPath())
 
 	// load the configuration
 	err := config.Datadog.ReadInConfig()

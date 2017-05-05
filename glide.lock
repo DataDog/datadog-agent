@@ -16,7 +16,7 @@ imports:
   subpackages:
   - go
 - name: github.com/DataDog/datadog-go
-  version: 0ddda6bee21174ef6c4873647cb0d6ec9cba996f
+  version: a9c7a9896c1847c9cc2b068a2ae68e9d74540a5d
   subpackages:
   - statsd
 - name: github.com/DataDog/gohai

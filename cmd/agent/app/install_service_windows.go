@@ -10,7 +10,7 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 )
 
-const ServiceName = "ddagent"
+const ServiceName = "DatadogAgent"
 
 func init() {
 	AgentCmd.AddCommand(instsvcCommand)
@@ -28,6 +28,8 @@ func install_service(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("exepath: %s\n", exepath)
+
 	m, err := mgr.Connect()
 	if err != nil {
 		return err

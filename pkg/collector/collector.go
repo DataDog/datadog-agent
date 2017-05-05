@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	log "github.com/cihub/seelog"
 	python "github.com/sbinet/go-python"
 )
 
@@ -30,20 +31,24 @@ type Collector struct {
 
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
+	log.Debug("NewCollector")
 	run := runner.NewRunner(config.Datadog.GetInt("check_runners"))
 	sched := scheduler.NewScheduler(run.GetChan())
+	log.Debug("scheduler created")
 	sched.Run()
 
 	// Send the agent startup event
 	// TODO
-
-	return &Collector{
+	log.Debug("Creating collector")
+	c := &Collector{
 		scheduler: sched,
 		runner:    run,
 		pyState:   py.Initialize(paths...),
 		checks:    make(map[check.ID]check.Check),
 		state:     started,
 	}
+	log.Debug("created collector")
+	return c
 }
 
 // Stop halts any component involved in running a Check and shuts down

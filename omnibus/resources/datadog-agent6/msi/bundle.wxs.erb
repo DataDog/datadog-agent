@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+      xmlns:bal="http://schemas.microsoft.com/wix/BalExtension">
+  <?include "parameters.wxi" ?>
+	<Bundle Name="Datadog Agent Installer" 
+            Version="$(var.VersionNumber)" 
+            Manufacturer="Datadog Inc." 
+            UpgradeCode="$(var.UpgradeCode)" >
+		
+         <BootstrapperApplicationRef Id="WixStandardBootstrapperApplication.RtfLicense" >
+          
+          <bal:WixStandardBootstrapperApplication
+          LicenseFile="Resources\assets\license.rtf" 
+          ThemeFile="bundle_theme.xml"
+          LogoSideFile="Resources\assets\dd_logo_side.png"
+          LogoFile="Resources\assets\dd_logo_side.png"
+          LocalizationFile="localization-en-us.wxl" 
+          />
+        </BootstrapperApplicationRef>
+
+    <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
+    <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
+
+    <Variable Name="APIKEY" bal:Overridable="yes"/>
+    <Variable Name="TAGS" bal:Overridable="yes"/>
+    <Variable Name="HOSTNAME" bal:Overridable="yes"/>
+		
+    <Chain>
+      <ExePackage
+        SourceFile="$(var.HelperDir)\upgrade-helper.exe"
+        PerMachine="yes"
+        Permanent="yes"
+        LogPathVariable="UninstallRelatedProductsLogPath"
+        InstallCommand="-oldcode={$(var.PerUserUpgradeCode)} -newcode={$(var.UpgradeCode)}"
+        >
+        <!-- 0 indicates it's not installed, proceed-->
+        <ExitCode Value="0" Behavior="success"/>
+        <!-- 1 indicates was installed by this user, uninstalled, proceed-->
+        <ExitCode Value="1" Behavior="success"/>
+        <!-- -1 indicates it's installed as another user, fail -->
+        <ExitCode Value="-1" Behavior="error"/> 
+        <!-- All other values error -->
+      </ExePackage>
+      <MsiPackage SourceFile="$(var.PackageMsi)">
+        <MsiProperty Name="APIKEY" Value="[APIKEY]"/>
+        <MsiProperty Name="TAGS" Value="[TAGS]"/>
+        <MsiProperty Name="HOSTNAME" Value="[HOSTNAME]"/>
+      </MsiPackage>
+		</Chain>
+	</Bundle>
+</Wix>

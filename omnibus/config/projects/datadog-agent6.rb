@@ -6,9 +6,22 @@
 require "./lib/ostools.rb"
 
 name 'datadog-agent6'
-maintainer 'Datadog Packages <package@datadoghq.com>'
+if windows?
+  # Windows doesn't want our e-mail address :(
+  maintainer 'Datadog Inc.'
+else
+  maintainer 'Datadog Packages <package@datadoghq.com>'
+end
 homepage 'http://www.datadoghq.com'
-install_dir '/opt/datadog-agent6'
+if ohai['platform'] == "windows"
+  # Note: this is not the final install dir, not even the default one, just a convenient
+  # spaceless dir in which the agent will be built.
+  # Omnibus doesn't quote the Git commands it launches unfortunately, which makes it impossible
+  # to put a space here...
+  install_dir "C:/opt/datadog-agent6/"
+else
+  install_dir '/opt/datadog-agent6'
+end
 
 build_version do
   source :git, from_dependency: 'datadog-agent'
@@ -63,6 +76,31 @@ compress :dmg do
   pkg_position '10, 10'
 end
 
+# Windows .msi specific flags
+package :msi do
+  # previous upgrade code was used for older installs, and generated
+  # per-user installs.  Changing upgrade code, and switching to
+  # per-machine
+  per_user_upgrade_code = '82210ed1-bbe4-4051-aa15-002ea31dde15'
+
+  # For a consistent package management, please NEVER change this code
+  upgrade_code '0c50421b-aefb-4f15-a809-7af256d608a5'
+  bundle_msi true
+  bundle_theme true
+  wix_candle_extension 'WixUtilExtension'
+  wix_light_extension 'WixUtilExtension'
+  if ENV['SIGN_WINDOWS']
+    signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
+  end
+  parameters({
+    'InstallDir' => install_dir,
+    'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
+    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/datadog-agent/bin/agent",
+    'DistFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/datadog-agent/pkg/collector/dist",
+    'PerUserUpgradeCode' => per_user_upgrade_code
+  })
+end
+
 # ------------------------------------
 # OS specific DSLs and dependencies
 # ------------------------------------
@@ -95,9 +133,15 @@ dependency 'datadog-agent'
 
 # Additional software
 dependency 'datadog-agent-integrations'
-dependency 'datadog-trace-agent'
 dependency 'jmxfetch'
 
+unless windows?
+  dependency 'datadog-trace-agent'
+end
+
+if windows?
+  dependency 'datadog-upgrade-helper'
+end
 # version manifest file
 dependency 'version-manifest'
 
