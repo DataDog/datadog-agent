@@ -21,18 +21,25 @@ build do
   command 'rake agent:build', :env => build_env
   copy('bin', install_dir)
 
-  if debian?
-    erb source: "upstart.conf.erb",
-        dest: "/etc/init/datadog-agent6.conf",
-        mode: 0755,
-        vars: { install_dir: install_dir }
-  end
+  if linux?
+    # Config
+    mkdir '/etc/dd-agent'
+    move 'bin/agent/dist/datadog.yaml', '/etc/dd-agent/datadog.yaml.example'
+    mkdir '/etc/dd-agent/checks.d'
 
-  if redhat? || debian?
-    erb source: "systemd.service.erb",
-        dest: "/lib/systemd/system/datadog-agent6.service",
-        mode: 0755,
-        vars: { install_dir: install_dir }
+    if debian?
+      erb source: "upstart.conf.erb",
+          dest: "/etc/init/datadog-agent6.conf",
+          mode: 0755,
+          vars: { install_dir: install_dir }
+    end
+
+    if redhat? || debian?
+      erb source: "systemd.service.erb",
+          dest: "/lib/systemd/system/datadog-agent6.service",
+          mode: 0755,
+          vars: { install_dir: install_dir }
+    end
   end
 
   if windows?
