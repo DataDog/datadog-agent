@@ -9,7 +9,8 @@ char* MetricTypeNames[] = {
   "RATE",
   "COUNT",
   "MONOTONIC_COUNT",
-  "HISTOGRAM"
+  "HISTOGRAM",
+  "HISTORATE"
 };
 
 static PyObject *submit_metric(PyObject *self, PyObject *args) {

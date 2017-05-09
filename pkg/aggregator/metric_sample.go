@@ -11,6 +11,7 @@ const (
 	MonotonicCountType
 	CounterType
 	HistogramType
+	HistorateType
 	SetType
 )
 
@@ -29,6 +30,8 @@ func (m MetricType) String() string {
 		return "Counter"
 	case HistogramType:
 		return "Histogram"
+	case HistorateType:
+		return "Historate"
 	case SetType:
 		return "Set"
 	default:

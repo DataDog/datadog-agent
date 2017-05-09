@@ -7,6 +7,7 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestContextMetricsGaugeSampling(t *testing.T) {
@@ -185,4 +186,61 @@ func TestContextMetricsHistogramSampling(t *testing.T) {
 			AssertSerieEqual(t, expectedSeries[i], series[i])
 		}
 	}
+}
+
+func TestContextMetricsHistorateSampling(t *testing.T) {
+	metrics := makeContextMetrics()
+	contextKey := "context_key"
+
+	metrics.addSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 1}, 12340, 10)
+	metrics.addSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 2}, 12341, 10)
+	metrics.addSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 4}, 12342, 10)
+	metrics.addSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 4}, 12343, 10)
+	series := metrics.flush(12351)
+
+	require.Len(t, series, 5)
+	AssertSerieEqual(t,
+		&Serie{
+			contextKey: contextKey,
+			Points:     []Point{{int64(12351), 2.}},
+			MType:      APIGaugeType,
+			nameSuffix: ".max",
+		},
+		series[0])
+
+	AssertSerieEqual(t,
+		&Serie{
+			contextKey: contextKey,
+			Points:     []Point{{int64(12351), 1.}},
+			MType:      APIGaugeType,
+			nameSuffix: ".median",
+		},
+		series[1])
+
+	AssertSerieEqual(t,
+		&Serie{
+			contextKey: contextKey,
+			Points:     []Point{{int64(12351), 1.0}},
+			MType:      APIGaugeType,
+			nameSuffix: ".avg",
+		},
+		series[2])
+
+	AssertSerieEqual(t,
+		&Serie{
+			contextKey: contextKey,
+			Points:     []Point{{int64(12351), 3.}},
+			MType:      APIRateType,
+			nameSuffix: ".count",
+		},
+		series[3])
+
+	AssertSerieEqual(t,
+		&Serie{
+			contextKey: contextKey,
+			Points:     []Point{{int64(12351), 2.}},
+			MType:      APIGaugeType,
+			nameSuffix: ".95percentile",
+		},
+		series[4])
 }

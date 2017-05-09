@@ -57,6 +57,10 @@ class AgentCheck(object):
         tags = self._normalize_tags(tags)
         aggregator.submit_metric(self, aggregator.HISTOGRAM, name, value, tags)
 
+    def historate(self, name, value, tags=None, hostname=None, device_name=None):
+        tags = self._normalize_tags(tags)
+        aggregator.submit_metric(self, aggregator.HISTORATE, name, value, tags)
+
     def service_check(self, name, status, tags=None, message=""):
         tags = self._normalize_tags(tags)
         aggregator.submit_service_check(self, name, status, tags, message)
