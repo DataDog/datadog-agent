@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
+	log "github.com/cihub/seelog"
 )
 
 var (
@@ -28,6 +29,7 @@ type providerDescriptor struct {
 type AutoConfig struct {
 	collector         *collector.Collector
 	providers         []*providerDescriptor
+	loaders           []check.Loader
 	configsPollTicker *time.Ticker
 	stop              chan bool
 	m                 sync.RWMutex
@@ -38,7 +40,8 @@ type AutoConfig struct {
 func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 	ac := &AutoConfig{
 		collector:         collector,
-		providers:         make([]*providerDescriptor, 5),
+		providers:         make([]*providerDescriptor, 0, 5),
+		loaders:           make([]check.Loader, 0, 5),
 		configsPollTicker: time.NewTicker(configsPollIntl),
 		stop:              make(chan bool),
 	}
@@ -48,10 +51,12 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 	return ac
 }
 
-// Stop just shuts down AutoConfig in a clean way. AutoConfig is not
-// supposed to be stopped and restarted.
+// Stop just shuts down AutoConfig in a clean way.
+// AutoConfig is not supposed to be restarted, so this is expected
+// to be called only once at program exit.
 func (ac *AutoConfig) Stop() {
 	ac.stop <- true
+	ac.collector.Stop()
 }
 
 // AddProvider adds a new configuration provider to AutoConfig.
@@ -65,7 +70,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 	for _, pd := range ac.providers {
 		if pd.provider == provider {
 			// we already know this configuration provider, don't do anything
-			// TODO: log we won't add this provider
+			log.Warnf("Provider %s was already added, skipping...", provider)
 			return
 		}
 	}
@@ -77,8 +82,29 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 	}
 	ac.providers = append(ac.providers, pd)
 
-	// call Collect() at least once
-	ac.collect(pd)
+	// call Collect() now, so providers that don't need polling will be called at least once.
+	configs, _ := ac.collect(pd)
+	for _, config := range configs {
+		// load the check instances and schedule them
+		for _, check := range ac.loadChecks(config) {
+			err := ac.collector.RunCheck(check)
+			if err != nil {
+				log.Errorf("Unable to run Check %s", check)
+			}
+		}
+	}
+}
+
+// AddLoader adds a new Loader that AutoConfig can use to load a check.
+func (ac *AutoConfig) AddLoader(loader check.Loader) {
+	for _, l := range ac.loaders {
+		if l == loader {
+			log.Warnf("Loader %s was already added, skipping...", loader)
+			return
+		}
+	}
+
+	ac.loaders = append(ac.loaders, loader)
 }
 
 // pollConfigs periodically calls Collect() on all the configuration
@@ -99,8 +125,8 @@ func (ac *AutoConfig) pollConfigs() {
 						continue
 					}
 
-					ac.collect(pd)
-					// new, changed, removed := ac.collect(pd)
+					_, _ = ac.collect(pd)
+
 					// TODO tell the collector to stop/start/restart the corresponding checks
 				}
 				ac.m.RUnlock()
@@ -111,16 +137,54 @@ func (ac *AutoConfig) pollConfigs() {
 
 // collect is just a convenient wrapper to fetch configurations from a provider and
 // see what changed from the last time we called Collect().
-func (ac *AutoConfig) collect(pd *providerDescriptor) (new, changed, removed []check.Config) {
+func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []check.Config) {
 	new = []check.Config{}
-	changed = []check.Config{}
 	removed = []check.Config{}
-	configs, err := pd.provider.Collect()
+
+	fetched, err := pd.provider.Collect()
 	if err != nil {
-		// TODO log error
-		return new, changed, removed
+		log.Errorf("Unable to collect configurations from provider %s: %s", pd.provider, err)
+		return
 	}
 
-	// TODO
-	return configs, changed, removed
+	for _, c := range fetched {
+		if !pd.contains(&c) {
+			new = append(new, c)
+		}
+	}
+
+	old := pd.configs
+	pd.configs = fetched
+
+	for _, c := range old {
+		if !pd.contains(&c) {
+			removed = append(removed, c)
+		}
+	}
+
+	return
+}
+
+func (ac *AutoConfig) loadChecks(config check.Config) []check.Check {
+	for _, loader := range ac.loaders {
+		res, err := loader.Load(config)
+		if err == nil {
+			return res
+		}
+
+		log.Warnf("Unable to load the check '%s': %s", config.Name, err)
+	}
+
+	return []check.Check{}
+}
+
+// check if the descriptor contains the Config passed
+func (pd *providerDescriptor) contains(c *check.Config) bool {
+	for _, config := range pd.configs {
+		if config.Equal(c) {
+			return true
+		}
+	}
+
+	return false
 }
