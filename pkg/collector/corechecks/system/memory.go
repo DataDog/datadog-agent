@@ -1,6 +1,7 @@
 package system
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 
@@ -28,7 +29,7 @@ func (c *MemoryCheck) String() string {
 
 const mbSize float64 = 1024 * 1024
 
-func (c *MemoryCheck) linuxSpecificMemoryCheck(v *mem.VirtualMemoryStat, s *mem.SwapMemoryStat) {
+func (c *MemoryCheck) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) {
 	c.sender.Gauge("system.mem.cached", float64(v.Cached)/mbSize, "", nil)
 	c.sender.Gauge("system.mem.shared", float64(v.Shared)/mbSize, "", nil)
 	c.sender.Gauge("system.mem.slab", float64(v.Slab)/mbSize, "", nil)
@@ -36,40 +37,43 @@ func (c *MemoryCheck) linuxSpecificMemoryCheck(v *mem.VirtualMemoryStat, s *mem.
 	c.sender.Gauge("system.swap.cached", float64(v.SwapCached)/mbSize, "", nil)
 }
 
-func (c *MemoryCheck) freebsdSpecificMemoryCheck(v *mem.VirtualMemoryStat, s *mem.SwapMemoryStat) {
+func (c *MemoryCheck) freebsdSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) {
 	c.sender.Gauge("system.mem.cached", float64(v.Cached)/mbSize, "", nil)
 }
 
 // Run executes the check
 func (c *MemoryCheck) Run() error {
 
-	v, err := virtualMemory()
-	if err != nil {
-		log.Errorf("system.MemoryCheck: could not retrieve virtual memory stats: %s", err)
-		return err
+	v, errVirt := virtualMemory()
+	if errVirt == nil {
+		c.sender.Gauge("system.mem.total", float64(v.Total)/mbSize, "", nil)
+		c.sender.Gauge("system.mem.free", float64(v.Free)/mbSize, "", nil)
+		c.sender.Gauge("system.mem.used", float64(v.Total-v.Free)/mbSize, "", nil)
+		c.sender.Gauge("system.mem.usable", float64(v.Available)/mbSize, "", nil)
+		c.sender.Gauge("system.mem.pct_usable", float64(100-v.UsedPercent)/100, "", nil)
+
+		switch runtimeOS {
+		case "linux":
+			c.linuxSpecificVirtualMemoryCheck(v)
+		case "freebsd":
+			c.freebsdSpecificVirtualMemoryCheck(v)
+		}
+	} else {
+		log.Errorf("system.MemoryCheck: could not retrieve virtual memory stats: %s", errVirt)
 	}
-	s, err := swapMemory()
-	if err != nil {
-		log.Errorf("system.MemoryCheck: could not retrieve swap memory stats: %s", err)
-		return err
+
+	s, errSwap := swapMemory()
+	if errSwap == nil {
+		c.sender.Gauge("system.swap.total", float64(s.Total)/mbSize, "", nil)
+		c.sender.Gauge("system.swap.free", float64(s.Free)/mbSize, "", nil)
+		c.sender.Gauge("system.swap.used", float64(s.Used)/mbSize, "", nil)
+		c.sender.Gauge("system.swap.pct_free", float64(100-s.UsedPercent)/100, "", nil)
+	} else {
+		log.Errorf("system.MemoryCheck: could not retrieve swap memory stats: %s", errSwap)
 	}
 
-	c.sender.Gauge("system.mem.total", float64(v.Total)/mbSize, "", nil)
-	c.sender.Gauge("system.mem.free", float64(v.Free)/mbSize, "", nil)
-	c.sender.Gauge("system.mem.used", float64(v.Total-v.Free)/mbSize, "", nil)
-	c.sender.Gauge("system.mem.usable", float64(v.Available)/mbSize, "", nil)
-	c.sender.Gauge("system.mem.pct_usable", float64(100-v.UsedPercent)/100, "", nil)
-
-	c.sender.Gauge("system.swap.total", float64(s.Total)/mbSize, "", nil)
-	c.sender.Gauge("system.swap.free", float64(s.Free)/mbSize, "", nil)
-	c.sender.Gauge("system.swap.used", float64(s.Used)/mbSize, "", nil)
-	c.sender.Gauge("system.swap.pct_free", float64(100-s.UsedPercent)/100, "", nil)
-
-	switch runtimeOS {
-	case "linux":
-		c.linuxSpecificMemoryCheck(v, s)
-	case "freebsd":
-		c.freebsdSpecificMemoryCheck(v, s)
+	if errVirt != nil && errSwap != nil {
+		return fmt.Errorf("failed to gather any memory information")
 	}
 
 	c.sender.Commit()

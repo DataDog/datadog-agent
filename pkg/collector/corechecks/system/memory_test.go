@@ -1,9 +1,12 @@
 package system
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/shirou/gopsutil/mem"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func VirtualMemory() (*mem.VirtualMemoryStat, error) {
@@ -63,7 +66,8 @@ func TestMemoryCheckLinux(t *testing.T) {
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.cached", 25000000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
-	memCheck.Run()
+	err := memCheck.Run()
+	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 14)
@@ -90,7 +94,8 @@ func TestMemoryCheckFreebsd(t *testing.T) {
 	mock.On("Gauge", "system.swap.used", 40000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
-	memCheck.Run()
+	err := memCheck.Run()
+	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 10)
@@ -116,9 +121,77 @@ func TestMemoryCheckDarwin(t *testing.T) {
 	mock.On("Gauge", "system.swap.used", 40000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
-	memCheck.Run()
+	err := memCheck.Run()
+	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 9)
+	mock.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestMemoryError(t *testing.T) {
+	virtualMemory = func() (*mem.VirtualMemoryStat, error) { return nil, fmt.Errorf("some error") }
+	swapMemory = func() (*mem.SwapMemoryStat, error) { return nil, fmt.Errorf("some error") }
+	memCheck := new(MemoryCheck)
+
+	mock := new(MockSender)
+	memCheck.sender = mock
+	runtimeOS = "linux"
+
+	err := memCheck.Run()
+	assert.NotNil(t, err)
+
+	mock.AssertExpectations(t)
+	mock.AssertNumberOfCalls(t, "Gauge", 0)
+	mock.AssertNumberOfCalls(t, "Commit", 0)
+}
+
+func TestSwapMemoryError(t *testing.T) {
+	virtualMemory = VirtualMemory
+	swapMemory = func() (*mem.SwapMemoryStat, error) { return nil, fmt.Errorf("some error") }
+	memCheck := new(MemoryCheck)
+
+	mock := new(MockSender)
+	memCheck.sender = mock
+	runtimeOS = "linux"
+
+	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.free", 11554304000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.used", 791363890/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.usable", 234567890.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.pct_usable", 0.19, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.cached", 2596446142464.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.shared", 327680000000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.slab", 327680000000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.page_tables", 37790679040.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.swap.cached", 25000000000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Commit").Return().Times(1)
+	err := memCheck.Run()
+	require.Nil(t, err)
+
+	mock.AssertExpectations(t)
+	mock.AssertNumberOfCalls(t, "Gauge", 10)
+	mock.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestVirtualMemoryError(t *testing.T) {
+	virtualMemory = func() (*mem.VirtualMemoryStat, error) { return nil, fmt.Errorf("some error") }
+	swapMemory = SwapMemory
+	memCheck := new(MemoryCheck)
+
+	mock := new(MockSender)
+	memCheck.sender = mock
+	runtimeOS = "linux"
+
+	mock.On("Gauge", "system.swap.total", 100000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.swap.free", 60000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.swap.used", 40000.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
+	mock.On("Commit").Return().Times(1)
+	err := memCheck.Run()
+	require.Nil(t, err)
+
+	mock.AssertExpectations(t)
+	mock.AssertNumberOfCalls(t, "Gauge", 4)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
