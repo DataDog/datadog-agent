@@ -7,7 +7,20 @@ import logging
 from collections import defaultdict
 
 import aggregator
+import datadog_agent
 
+class AgentLogHandler(logging.Handler):
+    """
+    This handler forwards every log to the Go backend allowing python checks to
+    log message within the main agent logging system.
+    """
+
+    def emit(self, record):
+        msg =  self.format(record)
+        datadog_agent.log("(%s:%s) | %s" % (record.filename, record.lineno, msg), record.levelno)
+
+rootLoggger = logging.getLogger()
+rootLoggger.addHandler(AgentLogHandler())
 
 class AgentCheck(object):
 
@@ -36,6 +49,9 @@ class AgentCheck(object):
 
         # the agent5 'AgentCheck' setup a log attribute.
         self.log = logging.getLogger('%s.%s' % (__name__, self.name))
+        # let every log pass through and let the Go logger filter them.
+        # FIXME: get the log level from the agent global config and apply it to the python one.
+        self.log.setLevel(logging.DEBUG)
 
     def gauge(self, name, value, tags=None):
         tags = self._normalize_tags(tags)
