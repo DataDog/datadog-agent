@@ -44,6 +44,8 @@ func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.floa
 		sender.MonotonicCount(_name, _value, "", _tags)
 	case C.HISTOGRAM:
 		sender.Histogram(_name, _value, "", _tags)
+	case C.HISTORATE:
+		sender.Historate(_name, _value, "", _tags)
 	}
 
 	return C._none()

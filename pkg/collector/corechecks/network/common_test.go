@@ -31,6 +31,11 @@ func (m *MockSender) Histogram(metric string, value float64, hostname string, ta
 	m.Called(metric, value, hostname, tags)
 }
 
+//Historate adds a historate type to the mock calls.
+func (m *MockSender) Historate(metric string, value float64, hostname string, tags []string) {
+	m.Called(metric, value, hostname, tags)
+}
+
 //Gauge adds a gauge type to the mock calls.
 func (m *MockSender) Gauge(metric string, value float64, hostname string, tags []string) {
 	m.Called(metric, value, hostname, tags)

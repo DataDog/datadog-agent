@@ -21,6 +21,7 @@ type Sender interface {
 	Count(metric string, value float64, hostname string, tags []string)
 	MonotonicCount(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
+	Historate(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status ServiceCheckStatus, hostname string, tags []string, message string)
 	Event(e Event)
 }
@@ -126,6 +127,12 @@ func (s *checkSender) MonotonicCount(metric string, value float64, hostname stri
 // Should be called multiple times on the same (metric, hostname, tags) so that a distribution can be computed
 func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string) {
 	s.sendMetricSample(metric, value, hostname, tags, HistogramType)
+}
+
+// Historate should be used to create a histogram metric for "rate" like metrics.
+// Warning this doesn't use the harmonic mean, beware of what it means when using it.
+func (s *checkSender) Historate(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, HistorateType)
 }
 
 // ServiceCheck submits a service check

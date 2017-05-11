@@ -9,6 +9,7 @@ typedef enum {
   RATE,
   COUNT,
   MONOTONIC_COUNT,
+  HISTORATE,
   HISTOGRAM,
   MT_LAST = HISTOGRAM
 } MetricType;
