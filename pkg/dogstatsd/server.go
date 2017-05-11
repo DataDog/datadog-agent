@@ -19,26 +19,32 @@ var (
 
 // Server represent a Dogstatsd server
 type Server struct {
-	conn    *net.UDPConn
+	conn    net.PacketConn
 	Started bool
 }
 
 // NewServer returns a running Dogstatsd server
 func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggregator.Event, serviceCheckOut chan<- aggregator.ServiceCheck) (*Server, error) {
-	var url string
-	if config.Datadog.GetBool("dogstatsd_non_local_traffic") == true {
-		// Listen to all network interfaces
-		url = fmt.Sprintf(":%d", config.Datadog.GetInt("dogstatsd_port"))
+	var conn net.PacketConn
+	var err error
+
+	socket_path := config.Datadog.GetString("dogstatsd_socket_path")
+
+	if len(socket_path) == 0 {
+		var url string
+
+		if config.Datadog.GetBool("dogstatsd_non_local_traffic") == true {
+			// Listen to all network interfaces
+			url = fmt.Sprintf(":%d", config.Datadog.GetInt("dogstatsd_port"))
+		} else {
+			url = fmt.Sprintf("localhost:%d", config.Datadog.GetInt("dogstatsd_port"))
+		}
+
+		conn, err = net.ListenPacket("udp", url)
 	} else {
-		url = fmt.Sprintf("localhost:%d", config.Datadog.GetInt("dogstatsd_port"))
+		conn, err = net.ListenPacket("unixgram", socket_path)
 	}
 
-	address, addrErr := net.ResolveUDPAddr("udp", url)
-	if addrErr != nil {
-		return nil, fmt.Errorf("dogstatsd: can't ResolveUDPAddr %s: %v", url, addrErr)
-	}
-
-	conn, err := net.ListenUDP("udp", address)
 	if err != nil {
 		return nil, fmt.Errorf("dogstatsd: can't listen: %s", err)
 	}
@@ -48,14 +54,14 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 		conn:    conn,
 	}
 	go s.handleMessages(metricOut, eventOut, serviceCheckOut)
-	log.Infof("dogstatsd: listening on %s", address)
+	log.Infof("dogstatsd: listening on %s", conn.LocalAddr())
 	return s, nil
 }
 
 func (s *Server) handleMessages(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggregator.Event, serviceCheckOut chan<- aggregator.ServiceCheck) {
 	for {
 		buf := make([]byte, config.Datadog.GetInt("dogstatsd_buffer_size"))
-		n, _, err := s.conn.ReadFromUDP(buf)
+		n, _, err := s.conn.ReadFrom(buf)
 		if err != nil {
 			// connection has been closed
 			if strings.HasSuffix(err.Error(), " use of closed network connection") {
