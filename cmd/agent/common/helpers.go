@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector"
+	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
@@ -12,32 +13,35 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// GetConfigProviders builds a list of providers for checks' configurations, the sequence defines
-// the precedence.
-func GetConfigProviders(confdPath string) (plist []providers.ConfigProvider) {
+// SetupAutoConfig instantiate the global AutoConfig object and sets up
+// the Agent configuration providers and check loaders
+func SetupAutoConfig(confdPath string) {
+	// create the Collector instance and start all the components
+	// NOTICE: this will also setup the Python environment
+	coll := collector.NewCollector(GetDistPath(), filepath.Join(GetDistPath(), "checks"),
+		config.Datadog.GetString("additional_checksd"), PyChecksPath)
+
+	// create the Autoconfig instance
+	AC = autodiscovery.NewAutoConfig(coll)
+
+	// add the check loaders
+	AC.AddLoader(py.NewPythonCheckLoader())
+	AC.AddLoader(core.NewGoCheckLoader())
+
+	// add the configuration providers
+	// File Provider
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(GetDistPath(), "conf.d"),
 	}
-
-	// File Provider
-	plist = append(plist, providers.NewFileConfigProvider(confSearchPaths))
+	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
 
 	// Etcd Provider
 	etcd, err := providers.NewEtcdConfigProvider()
 	if err != nil {
-		log.Errorf("Creating the etcd config provider failed: %s", err)
+		log.Errorf("Cannot use the etcd config provider: %s", err)
 	} else {
-		plist = append(plist, etcd)
-	}
-	return plist
-}
-
-// GetCheckLoaders builds a list of check loaders, the sequence defines the precedence.
-func GetCheckLoaders() []check.Loader {
-	return []check.Loader{
-		py.NewPythonCheckLoader(),
-		core.NewGoCheckLoader(),
+		AC.AddProvider(etcd, true)
 	}
 }
 

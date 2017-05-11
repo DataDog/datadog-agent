@@ -46,8 +46,9 @@ func NewEtcdConfigProvider() (*EtcdConfigProvider, error) {
 	}
 	cl, err := client.New(clientCfg)
 	if err != nil {
-		return nil, fmt.Errorf("Can't reach etcd for auto config templates: %s", err)
+		return nil, fmt.Errorf("Unable to instantiate the etcd client: %s", err)
 	}
+
 	c := client.NewKeysAPI(cl)
 	return &EtcdConfigProvider{c, tplDir}, nil
 }

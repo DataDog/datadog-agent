@@ -2,15 +2,12 @@ package app
 
 import (
 	"path"
-	"path/filepath"
 
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/metadata"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -93,42 +90,13 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 		}
 	}
 	log.Debugf("statsd started")
-	// create the Collector instance and start all the components
-	// NOTICE: this will also setup the Python environment
-	common.Collector = collector.NewCollector(common.GetDistPath(), filepath.Join(common.GetDistPath(), "checks"),
-		config.Datadog.GetString("additional_checksd"), common.PyChecksPath)
 
-	log.Debugf("commonCollector created")
+	// create and setup the Autoconfig instance
+	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+
 	// setup the metadata collector, this needs a working Python env to function
 	metaCollector := metadata.NewCollector(fwd, config.Datadog.GetString("api_key"), hostname)
 	log.Debugf("metaCollector created")
-	// Get a list of config checks from the configured providers
-	var configs []check.Config
-	for _, provider := range common.GetConfigProviders(config.Datadog.GetString("confd_path")) {
-		c, _ := provider.Collect()
-		configs = append(configs, c...)
-	}
-
-	// given a list of configurations, try to load corresponding checks using different loaders
-	// TODO add check type to the conf file so that we avoid the inner for
-	log.Debugf("before checkloaders")
-	loaders := common.GetCheckLoaders()
-	for _, conf := range configs {
-		for _, loader := range loaders {
-			res, err := loader.Load(conf)
-			if err != nil {
-				log.Warnf("Unable to load the check '%s' from the configuration: %s", conf.Name, err)
-				continue
-			}
-
-			for _, check := range res {
-				err := common.Collector.RunCheck(check)
-				if err != nil {
-					log.Warnf("Unable to run check %v: %s", check, err)
-				}
-			}
-		}
-	}
 	return statsd, metaCollector, fwd
 }
 
@@ -138,12 +106,11 @@ func StopAgent(statsd *dogstatsd.Server, metaCollector *metadata.Collector, fwd 
 	if statsd != nil {
 		statsd.Stop()
 	}
-	common.Collector.Stop()
+	common.AC.Stop()
 	metaCollector.Stop()
 	api.StopServer()
 	fwd.Stop()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()
-
 }
