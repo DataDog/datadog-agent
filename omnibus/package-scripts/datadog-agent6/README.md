@@ -12,7 +12,6 @@ APT (source https://debian-handbook.info/browse/stable/sect.package-meta-informa
 
 YUM (source: https://fedoraproject.org/wiki/Packaging:Scriptlets):
 --------------------------------------------------------------
-
 * `pretrans` of new package
 * `preinst` of new package
 * Files in the list get copied
