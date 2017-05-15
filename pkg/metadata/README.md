@@ -1,6 +1,6 @@
 ## package `metadata`
 
-This package is responsible to provide Agent's metadata in the right form to be directly sent to the backend.
+This package is responsible to provide metadata in the right form to be directly sent to the backend.
 Single metadata providers are defined in the form of insulated sub packages that should expose a public
 method like:
 ```go
