@@ -1,10 +1,10 @@
 package v5
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/metadata/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/metadata/gohai"
-	"github.com/DataDog/datadog-agent/pkg/collector/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/collector/metadata/resources"
+	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
 )
 
 // CommonPayload wraps Payload from the common package

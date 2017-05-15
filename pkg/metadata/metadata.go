@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/metadata/resources"
-	"github.com/DataDog/datadog-agent/pkg/collector/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
+	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	log "github.com/cihub/seelog"
 )
 
