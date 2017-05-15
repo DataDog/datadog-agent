@@ -17,7 +17,7 @@ func init() {
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("use_dogstatsd", true)
 	Datadog.SetDefault("dogstatsd_port", 8125)
-	Datadog.SetDefault("dogstatsd_buffer_size", 1024)
+	Datadog.SetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
 	Datadog.SetDefault("forwarder_timeout", 20)
 	Datadog.SetDefault("dogstatsd_non_local_traffic", false)
 
