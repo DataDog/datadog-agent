@@ -29,6 +29,10 @@ build do
   # Enqueue "core" dependencies that are not listed in the checks requirements
   command "echo requests==2.11.1 >> check_requirements.txt"
 
+  # FIXME: when the package is renamed `datadog-agent` and replaces the agent5 pkg,
+  # ship all the '/etc/dd-agent/conf.d/*' files
+  delete '/etc/dd-agent/conf.d/*'
+
   # Install all the requirements
   if windows?
     pip_args = "install  -r check_requirements.txt"

@@ -116,6 +116,13 @@ if linux?
     extra_package_file '/lib/systemd/system/datadog-agent6.service'
   end
 
+  # Example configuration files for the agent and the checks
+  extra_package_file '/etc/dd-agent/datadog.yaml.example'
+  extra_package_file '/etc/dd-agent/conf.d'
+
+  # Custom checks directory
+  extra_package_file '/etc/dd-agent/checks.d'
+
   # Linux-specific dependencies
   dependency 'procps-ng'
   dependency 'sysstat'
@@ -142,6 +149,13 @@ end
 if windows?
   dependency 'datadog-upgrade-helper'
 end
+
+# Remove pyc/pyo files from package
+# should be built after all the other python-related software defs
+if linux?
+  dependency 'py-compiled-cleanup'
+end
+
 # version manifest file
 dependency 'version-manifest'
 
