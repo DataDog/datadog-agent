@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"os"
 
 	log "github.com/cihub/seelog"
 
@@ -46,7 +47,7 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("dogstatsd: can't listen: %s", err)
+		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
 	s := &Server{
@@ -119,5 +120,14 @@ func (s *Server) handleMessages(metricOut chan<- *aggregator.MetricSample, event
 // Stop stops a running Dogstatsd server
 func (s *Server) Stop() {
 	s.conn.Close()
+
+	// Socket cleanup on exit
+	socket_path := config.Datadog.GetString("dogstatsd_socket_path")
+	if len(socket_path) > 0 {
+		err := os.Remove(socket_path)
+		if err != nil {
+			log.Infof("dogstatsd: error removing socket file: %s", err)
+		}
+	}
 	s.Started = false
 }
