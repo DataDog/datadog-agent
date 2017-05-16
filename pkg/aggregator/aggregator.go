@@ -1,6 +1,7 @@
 package aggregator
 
 import (
+	"expvar"
 	"fmt"
 	"sync"
 	"time"
@@ -15,8 +16,23 @@ import (
 const defaultFlushInterval = 15 // flush interval in seconds
 const bucketSize = 10           // fixed for now
 
-var aggregatorInstance *BufferedAggregator
-var aggregatorInit sync.Once
+var (
+	aggregatorInstance *BufferedAggregator
+	aggregatorInit     sync.Once
+
+	aggregatorExpvar = expvar.NewMap("aggregator")
+)
+
+func setExpvarInt(exp *expvar.Map, name string, value int64) {
+	v := exp.Get(name)
+	if v != nil {
+		v.(*expvar.Int).Set(value)
+	} else {
+		i := expvar.NewInt(name)
+		i.Set(value)
+		exp.Set(name, i)
+	}
+}
 
 // InitAggregator returns the Singleton instance
 func InitAggregator(f *forwarder.Forwarder, hostname string) *BufferedAggregator {
@@ -145,8 +161,8 @@ func (agg *BufferedAggregator) addEvent(e Event) {
 }
 
 func (agg *BufferedAggregator) flushSeries() {
-	now := time.Now().Unix()
-	series := agg.sampler.flush(now)
+	start := time.Now()
+	series := agg.sampler.flush(start.Unix())
 	agg.mu.Lock()
 	for _, checkSampler := range agg.checkSamplers {
 		series = append(series, checkSampler.flush()...)
@@ -166,11 +182,14 @@ func (agg *BufferedAggregator) flushSeries() {
 			return
 		}
 		agg.forwarder.SubmitV1Series(config.Datadog.GetString("api_key"), &payload)
+		setExpvarInt(aggregatorExpvar, "ChecksMetricSampleFlushTime", int64(time.Since(start)))
+		aggregatorExpvar.Add("SeriesFlushed", int64(len(series)))
 	}()
 }
 
 func (agg *BufferedAggregator) flushServiceChecks() {
 	// Add a simple service check for the Agent status
+	start := time.Now()
 	agg.addServiceCheck(ServiceCheck{
 		CheckName: "datadog.agent.up",
 		Status:    ServiceCheckOK,
@@ -189,11 +208,14 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 			return
 		}
 		agg.forwarder.SubmitV1CheckRuns(config.Datadog.GetString("api_key"), &payload)
+		setExpvarInt(aggregatorExpvar, "ServiceCheckFlushTime", int64(time.Since(start)))
+		aggregatorExpvar.Add("ServiceCheckFlushed", int64(len(serviceChecks)))
 	}()
 }
 
 func (agg *BufferedAggregator) flushEvents() {
 	// Clear the current event slice
+	start := time.Now()
 	events := agg.events
 	agg.events = nil
 
@@ -211,6 +233,8 @@ func (agg *BufferedAggregator) flushEvents() {
 		}
 		// We use the agent 5 intake endpoint until the v2 events endpoint is ready
 		agg.forwarder.SubmitV1Intake(config.Datadog.GetString("api_key"), &payload)
+		setExpvarInt(aggregatorExpvar, "EventFlushTime", int64(time.Since(start)))
+		aggregatorExpvar.Add("EventsFlushed", int64(len(events)))
 	}(agg.hostname)
 }
 
@@ -220,19 +244,27 @@ func (agg *BufferedAggregator) run() {
 	for {
 		select {
 		case <-flushTicker.C:
+			start := time.Now()
 			agg.flushSeries()
 			agg.flushServiceChecks()
 			agg.flushEvents()
+			setExpvarInt(aggregatorExpvar, "FlushTime", int64(time.Since(start)))
+			aggregatorExpvar.Add("NumberOfFlush", 1)
 		case sample := <-agg.dogstatsdIn:
+			aggregatorExpvar.Add("DogstatsdMetricSample", 1)
 			now := time.Now().Unix()
 			agg.sampler.addSample(sample, now)
 		case ss := <-agg.checkMetricIn:
+			aggregatorExpvar.Add("ChecksMetricSample", 1)
 			agg.handleSenderSample(ss)
 		case sc := <-agg.serviceCheckIn:
+			aggregatorExpvar.Add("ServiceCheck", 1)
 			agg.addServiceCheck(sc)
 		case e := <-agg.eventIn:
+			aggregatorExpvar.Add("Event", 1)
 			agg.addEvent(e)
 		case h := <-agg.hostnameUpdate:
+			aggregatorExpvar.Add("HostnameUpdate", 1)
 			agg.hostname = h
 			agg.mu.Lock()
 			for _, checkSampler := range agg.checkSamplers {
