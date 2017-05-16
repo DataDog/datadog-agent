@@ -11,7 +11,7 @@ INSTALL_DIR=/opt/datadog-agent6
 LOG_DIR=/var/log/datadog
 CONFIG_DIR=/etc/dd-agent
 
-if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
+if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
     set -e
 
     case "$1" in
@@ -31,7 +31,7 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRI
         *)
         ;;
     esac
-elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" == "RedHat" ] || [ "$DISTRIBUTION" == "CentOS" ] || [ "$DISTRIBUTION" == "openSUSE" ] || [ "$DISTRIBUTION" == "Amazon" ] || [ "$DISTRIBUTION" == "SUSE" ] || [ "$DISTRIBUTION" == "Arista" ]; then
+elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
     case "$*" in
         0)
             # We're uninstalling.
