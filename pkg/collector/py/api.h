@@ -9,9 +9,9 @@ typedef enum {
   RATE,
   COUNT,
   MONOTONIC_COUNT,
-  HISTORATE,
   HISTOGRAM,
-  MT_LAST = HISTOGRAM
+  HISTORATE,
+  MT_LAST = HISTORATE
 } MetricType;
 
 void initaggregator();

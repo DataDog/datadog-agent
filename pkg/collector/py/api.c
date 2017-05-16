@@ -4,6 +4,7 @@ PyObject* SubmitMetric(PyObject*, MetricType, char*, float, PyObject*);
 PyObject* SubmitServiceCheck(PyObject*, char*, int, PyObject*, char*);
 PyObject* SubmitEvent(PyObject*, PyObject*);
 
+// _must_ be in the same order as the MetricType enum
 char* MetricTypeNames[] = {
   "GAUGE",
   "RATE",
