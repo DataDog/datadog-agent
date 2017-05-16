@@ -5,8 +5,8 @@ import (
 	"expvar"
 	"fmt"
 	"net"
-	"strings"
 	"os"
+	"strings"
 
 	log "github.com/cihub/seelog"
 
@@ -29,9 +29,9 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 	var conn net.PacketConn
 	var err error
 
-	socket_path := config.Datadog.GetString("dogstatsd_socket_path")
+	socketPath := config.Datadog.GetString("dogstatsd_socket_path")
 
-	if len(socket_path) == 0 {
+	if len(socketPath) == 0 {
 		var url string
 
 		if config.Datadog.GetBool("dogstatsd_non_local_traffic") == true {
@@ -43,7 +43,7 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 
 		conn, err = net.ListenPacket("udp", url)
 	} else {
-		conn, err = net.ListenPacket("unixgram", socket_path)
+		conn, err = net.ListenPacket("unixgram", socketPath)
 	}
 
 	if err != nil {
@@ -122,9 +122,9 @@ func (s *Server) Stop() {
 	s.conn.Close()
 
 	// Socket cleanup on exit
-	socket_path := config.Datadog.GetString("dogstatsd_socket_path")
-	if len(socket_path) > 0 {
-		err := os.Remove(socket_path)
+	socketPath := config.Datadog.GetString("dogstatsd_socket_path")
+	if len(socketPath) > 0 {
+		err := os.Remove(socketPath)
 		if err != nil {
 			log.Infof("dogstatsd: error removing socket file: %s", err)
 		}
