@@ -75,8 +75,8 @@ type snmpInstanceCfg struct {
 	Host          string                  `yaml:"ip_address"`
 	Port          uint                    `yaml:"port"`
 	User          string                  `yaml:"user,omitempty"`
-	Community     string                  `yaml:"community_string"`
-	Version       int                     `yaml:"snmp_version"`
+	Community     string                  `yaml:"community_string,omitempty"`
+	Version       int                     `yaml:"snmp_version,omitempty"`
 	AuthKey       string                  `yaml:"authKey,omitempty"`
 	PrivKey       string                  `yaml:"privKey,omitempty"`
 	AuthProtocol  string                  `yaml:"authProtocol,omitempty"`
@@ -433,18 +433,23 @@ func (c *snmpConfig) Parse(data []byte, initData []byte) error {
 	c.instance.Tags = append(c.instance.Tags, tagbuff.String())
 
 	//security - make sure we're backward compatible
-	switch c.Configs[i].AuthProtocol {
+	switch c.instance.AuthProtocol {
 	case "usmHMACMD5AuthProtocol":
-		c.Configs[i].AuthProtocol = string(snmpgo.Md5)
+		c.instance.AuthProtocol = string(snmpgo.Md5)
 	case "usmHMACSHAAuthProtocol":
-		c.Configs[i].AuthProtocol = string(snmpgo.Sha)
+		c.instance.AuthProtocol = string(snmpgo.Sha)
 	}
 
-	switch c.Configs[i].PrivProtocol {
+	switch c.instance.PrivProtocol {
 	case "usmDESPrivProtocol", "usm3DESEDEPrivProtocol":
-		c.Configs[i].PrivProtocol = string(snmpgo.Des)
+		c.instance.PrivProtocol = string(snmpgo.Des)
 	case "usmAesCfb128Protocol", "usmAesCfb192Protocol", "usmAesCfb256Protocol":
-		c.Configs[i].PrivProtocol = string(snmpgo.Aes)
+		c.instance.PrivProtocol = string(snmpgo.Aes)
+	}
+
+	// if version not set explicitly - infer from params.
+	if c.instance.Version == 0 && c.instance.User != "" {
+		c.instance.Version = 3
 	}
 
 	return nil
@@ -657,16 +662,28 @@ func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData
 		snmpver = snmpgo.V3
 	}
 
+	//sec level
+	seclevel := snmpgo.NoAuthNoPriv
+	if snmpver == snmpgo.V3 && c.cfg.instance.AuthKey != "" {
+		if c.cfg.instance.PrivKey != "" {
+			seclevel = snmpgo.AuthPriv
+		} else {
+			seclevel = snmpgo.AuthNoPriv
+		}
+	}
+
 	c.cfg.instance.snmp, err = snmpgo.NewSNMP(snmpgo.SNMPArguments{
-		Version:      snmpver,
-		Address:      net.JoinHostPort(c.cfg.instance.Host, strconv.Itoa(int(c.cfg.instance.Port))),
-		Retries:      c.cfg.instance.Retries,
-		Timeout:      time.Duration(c.cfg.instance.Timeout) * time.Second,
-		Community:    c.cfg.instance.Community,
-		AuthPassword: c.cfg.instance.AuthKey,
-		AuthProtocol: snmpgo.AuthProtocol(c.cfg.instance.AuthProtocol),
-		PrivPassword: c.cfg.instance.PrivKey,
-		PrivProtocol: snmpgo.PrivProtocol(c.cfg.instance.PrivProtocol),
+		Version:       snmpver,
+		Address:       net.JoinHostPort(c.cfg.instance.Host, strconv.Itoa(int(c.cfg.instance.Port))),
+		Retries:       c.cfg.instance.Retries,
+		Timeout:       time.Duration(c.cfg.instance.Timeout) * time.Second,
+		UserName:      c.cfg.instance.User,
+		Community:     c.cfg.instance.Community,
+		AuthPassword:  c.cfg.instance.AuthKey,
+		AuthProtocol:  snmpgo.AuthProtocol(c.cfg.instance.AuthProtocol),
+		PrivPassword:  c.cfg.instance.PrivKey,
+		PrivProtocol:  snmpgo.PrivProtocol(c.cfg.instance.PrivProtocol),
+		SecurityLevel: seclevel,
 	})
 	if err != nil {
 		// Failed to create snmpgo.SNMP object
