@@ -49,6 +49,7 @@ extensions for special Datadog features.`,
 	}
 
 	confPath string
+	socketPath string
 )
 
 func init() {
@@ -64,6 +65,8 @@ func init() {
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "conf", "c", "", "path to the datadog.yaml file")
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("conf"))
+	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
+	config.Datadog.BindPFlag("dogstatsd_socket_path", startCmd.Flags().Lookup("socket"))
 }
 
 func start(cmd *cobra.Command, args []string) error {
