@@ -54,3 +54,31 @@ instances:
         type: rate
       - path: dogstatsd/MetricPackets
         type: rate
+
+      # aggregator monitoring
+      - path: aggregator/ChecksMetricSampleFlushTime
+        type: gauge
+      - path: aggregator/SeriesFlushed
+        type: rate
+      - path: aggregator/ServiceCheckFlushTime
+        type: gauge
+      - path: aggregator/ServiceCheckFlushed
+        type: rate
+      - path: aggregator/EventFlushTime
+        type: gauge
+      - path: aggregator/EventsFlushed
+        type: rate
+      - path: aggregator/NumberOfFlush
+        type: rate
+      - path: aggregator/FlushTime
+        type: gauge
+      - path: aggregator/DogstatsdMetricSample
+        type: rate
+      - path: aggregator/ChecksMetricSample
+        type: rate
+      - path: aggregator/ServiceCheck
+        type: rate
+      - path: aggregator/Event
+        type: rate
+      - path: aggregator/HostnameUpdate
+        type: rate
