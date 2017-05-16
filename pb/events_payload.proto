@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package pb;
+
+message EventsPayload {
+    message Event {
+        string title = 1;
+        string text = 2;
+        int64 ts = 3;
+        string priority = 4;
+        string host = 5;
+        repeated string tags = 6;
+        string alert_type = 7;
+        string aggregation_key = 8;
+        string source_type_name = 9;
+
+    }
+    repeated Event events = 1;
+}
