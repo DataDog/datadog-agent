@@ -19,9 +19,11 @@ func init() {
 func SetupLogger(logLevel, logFile string) error {
 	configTemplate := `<seelog minlevel="%s">
     <outputs formatid="common">
-        <console />
-        <rollingfile type="size" filename="%s" maxsize="%d" maxrolls="1" />
-    </outputs>
+        <console />`
+	if logFile != "" {
+		configTemplate += `<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="1" />`
+	}
+	configTemplate += `</outputs>
     <formats>
         <format id="common" format="%%Date(%s) | %%LEVEL | (%%File:%%Line) | %%Msg%%n"/>
     </formats>

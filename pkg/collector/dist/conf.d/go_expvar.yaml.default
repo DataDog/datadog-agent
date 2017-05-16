@@ -56,22 +56,22 @@ instances:
         type: rate
 
       # aggregator monitoring
-      - path: aggregator/ChecksMetricSampleFlushTime
+      - path: aggregator/Flush/ChecksMetricSampleFlushTime/LastFlushTime
+        type: gauge
+      - path: aggregator/Flush/ServiceCheckFlushTime/LastFlushTime
+        type: gauge
+      - path: aggregator/Flush/EventFlushTime/LastFlushTime
+        type: gauge
+      - path: aggregator/Flush/MainFlushTime/LastFlushTime
         type: gauge
       - path: aggregator/SeriesFlushed
         type: rate
-      - path: aggregator/ServiceCheckFlushTime
-        type: gauge
       - path: aggregator/ServiceCheckFlushed
         type: rate
-      - path: aggregator/EventFlushTime
-        type: gauge
       - path: aggregator/EventsFlushed
         type: rate
       - path: aggregator/NumberOfFlush
         type: rate
-      - path: aggregator/FlushTime
-        type: gauge
       - path: aggregator/DogstatsdMetricSample
         type: rate
       - path: aggregator/ChecksMetricSample
