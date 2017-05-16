@@ -42,3 +42,12 @@ def go_vet(path)
     fail
   end
 end
+
+def bin_name(name)
+  case os
+  when "windows"
+    "#{name}.exe"
+  else
+    name
+  end
+end

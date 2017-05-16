@@ -16,22 +16,50 @@ import (
 const defaultFlushInterval = 15 // flush interval in seconds
 const bucketSize = 10           // fixed for now
 
+// Stats collect several flush duration allowing computation like median or percentiles
+type Stats struct {
+	FlushTime     [32]int64 // circular buffer of recent run durations
+	FlushIndex    int       // last flush time position in circular buffer
+	LastFlushTime int64     // most recent flush duration, provided for convenience
+	Name          string
+	m             sync.Mutex
+}
+
+func (s *Stats) add(duration int64) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	s.FlushIndex = (s.FlushIndex + 1) % 32
+	s.FlushTime[s.FlushIndex] = duration
+	s.LastFlushTime = duration
+}
+
+func newStats(name string) {
+	flushStats[name] = &Stats{Name: name, FlushIndex: -1}
+}
+
+func addFlushTime(name string, value int64) {
+	flushStats[name].add(value)
+}
+
+func expStats() interface{} {
+	return flushStats
+}
+
 var (
 	aggregatorInstance *BufferedAggregator
 	aggregatorInit     sync.Once
 
 	aggregatorExpvar = expvar.NewMap("aggregator")
+	flushStats       = make(map[string]*Stats)
 )
 
-func setExpvarInt(exp *expvar.Map, name string, value int64) {
-	v := exp.Get(name)
-	if v != nil {
-		v.(*expvar.Int).Set(value)
-	} else {
-		i := expvar.NewInt(name)
-		i.Set(value)
-		exp.Set(name, i)
-	}
+func init() {
+	newStats("ChecksMetricSampleFlushTime")
+	newStats("ServiceCheckFlushTime")
+	newStats("EventFlushTime")
+	newStats("MainFlushTime")
+	aggregatorExpvar.Set("Flush", expvar.Func(expStats))
 }
 
 // InitAggregator returns the Singleton instance
@@ -87,6 +115,15 @@ func NewBufferedAggregator(f *forwarder.Forwarder, hostname string) *BufferedAgg
 	}
 
 	return aggregator
+}
+
+// IsInputQueueEmpty returns true if every input channel for the aggregator are
+// empty. This is mainly usefull for tests and benchmark
+func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
+	if len(agg.checkMetricIn)+len(agg.serviceCheckIn)+len(agg.eventIn) == 0 {
+		return true
+	}
+	return false
 }
 
 // GetChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
@@ -189,7 +226,7 @@ func (agg *BufferedAggregator) flushSeries() {
 			return
 		}
 		agg.forwarder.SubmitV1Series(config.Datadog.GetString("api_key"), &payload)
-		setExpvarInt(aggregatorExpvar, "ChecksMetricSampleFlushTime", int64(time.Since(start)))
+		addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("SeriesFlushed", int64(len(series)))
 	}()
 }
@@ -215,7 +252,7 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 			return
 		}
 		agg.forwarder.SubmitV1CheckRuns(config.Datadog.GetString("api_key"), &payload)
-		setExpvarInt(aggregatorExpvar, "ServiceCheckFlushTime", int64(time.Since(start)))
+		addFlushTime("ServiceCheckFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("ServiceCheckFlushed", int64(len(serviceChecks)))
 	}()
 }
@@ -240,7 +277,7 @@ func (agg *BufferedAggregator) flushEvents() {
 		}
 		// We use the agent 5 intake endpoint until the v2 events endpoint is ready
 		agg.forwarder.SubmitV1Intake(config.Datadog.GetString("api_key"), &payload)
-		setExpvarInt(aggregatorExpvar, "EventFlushTime", int64(time.Since(start)))
+		addFlushTime("EventFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("EventsFlushed", int64(len(events)))
 	}(agg.hostname)
 }
@@ -257,7 +294,7 @@ func (agg *BufferedAggregator) run() {
 			agg.flushSeries()
 			agg.flushServiceChecks()
 			agg.flushEvents()
-			setExpvarInt(aggregatorExpvar, "FlushTime", int64(time.Since(start)))
+			addFlushTime("MainFlushTime", int64(time.Since(start)))
 			aggregatorExpvar.Add("NumberOfFlush", 1)
 		case sample := <-agg.dogstatsdIn:
 			aggregatorExpvar.Add("DogstatsdMetricSample", 1)
