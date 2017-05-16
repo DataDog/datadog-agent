@@ -37,10 +37,18 @@ func setExpvarInt(exp *expvar.Map, name string, value int64) {
 // InitAggregator returns the Singleton instance
 func InitAggregator(f *forwarder.Forwarder, hostname string) *BufferedAggregator {
 	aggregatorInit.Do(func() {
-		aggregatorInstance = newBufferedAggregator(f, hostname)
+		aggregatorInstance = NewBufferedAggregator(f, hostname)
+		go aggregatorInstance.run()
 	})
 
 	return aggregatorInstance
+}
+
+// SetDefaultAggregator allows to force a custom Aggregator as the default one and run it.
+// This is usefull for testing or benchmarking.
+func SetDefaultAggregator(agg *BufferedAggregator) {
+	aggregatorInstance = agg
+	go aggregatorInstance.run()
 }
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
@@ -58,11 +66,12 @@ type BufferedAggregator struct {
 	forwarder          *forwarder.Forwarder
 	hostname           string
 	hostnameUpdate     chan string
-	hostnameUpdateDone chan struct{} // signals that the hostname update is finished
+	hostnameUpdateDone chan struct{}    // signals that the hostname update is finished
+	TickerChan         <-chan time.Time // For test/benchmark purposes: it allows the flush to be controlled from the outside
 }
 
-// Instantiate a BufferedAggregator and run it
-func newBufferedAggregator(f *forwarder.Forwarder, hostname string) *BufferedAggregator {
+// NewBufferedAggregator instantiate a BufferedAggregator
+func NewBufferedAggregator(f *forwarder.Forwarder, hostname string) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
 		dogstatsdIn:        make(chan *MetricSample, 100),      // TODO make buffer size configurable
 		checkMetricIn:      make(chan senderMetricSample, 100), // TODO make buffer size configurable
@@ -76,8 +85,6 @@ func newBufferedAggregator(f *forwarder.Forwarder, hostname string) *BufferedAgg
 		hostnameUpdate:     make(chan string),
 		hostnameUpdateDone: make(chan struct{}),
 	}
-
-	go aggregator.run()
 
 	return aggregator
 }
@@ -239,11 +246,13 @@ func (agg *BufferedAggregator) flushEvents() {
 }
 
 func (agg *BufferedAggregator) run() {
-	flushPeriod := time.Duration(agg.flushInterval) * time.Second
-	flushTicker := time.NewTicker(flushPeriod)
+	if agg.TickerChan == nil {
+		flushPeriod := time.Duration(agg.flushInterval) * time.Second
+		agg.TickerChan = time.NewTicker(flushPeriod).C
+	}
 	for {
 		select {
-		case <-flushTicker.C:
+		case <-agg.TickerChan:
 			start := time.Now()
 			agg.flushSeries()
 			agg.flushServiceChecks()
