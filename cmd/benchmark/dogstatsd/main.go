@@ -34,14 +34,16 @@ const (
 </seelog>`
 )
 
-var mode = flag.Int("mode", 1, "1: duration, 2: packets.")
-var dur = flag.Int("dur", 60, "duration for the test in seconds.")
-var num = flag.Int("num", 10000, "number of packets to submit.")
-var pps = flag.Int("pps", 1000, "packets per second.")
-var pad = flag.Int("pad", 2, "tag padding - determines packet size.")
-var ser = flag.Int("ser", 10, "number of distinct series.")
-var inc = flag.Int("inc", 1000, "pps increments per iteration.")
-var brk = flag.Bool("brk", false, "find breaking point.")
+var (
+	mode = flag.Int("mode", 1, "1: duration, 2: packets.")
+	dur  = flag.Int("dur", 60, "duration for the test in seconds.")
+	num  = flag.Int("num", 10000, "number of packets to submit.")
+	pps  = flag.Int("pps", 1000, "packets per second.")
+	pad  = flag.Int("pad", 2, "tag padding - determines packet size.")
+	ser  = flag.Int("ser", 10, "number of distinct series.")
+	inc  = flag.Int("inc", 1000, "pps increments per iteration.")
+	brk  = flag.Bool("brk", false, "find breaking point.")
+)
 
 type forwarderBenchStub struct {
 	received      uint64
@@ -125,10 +127,8 @@ func buildPayload(name string, value interface{}, suffix []byte, tags []string, 
 	}
 	buf.Write(suffix)
 
-	if rate < 1 {
-		buf.WriteString(`|@`)
-		buf.WriteString(strconv.FormatFloat(rate, 'f', -1, 64))
-	}
+	buf.WriteString(`|@`)
+	buf.WriteString(strconv.FormatFloat(rate, 'f', -1, 64))
 
 	// let's do tags
 	buf.WriteString("|#")
@@ -169,6 +169,7 @@ func main() {
 
 	var wg sync.WaitGroup
 
+	config.Datadog.Set("dogstatsd_stats_enable", true)
 	aggr := aggregator.InitAggregator(f, "localhost")
 	statsd, err := dogstatsd.NewServer(aggr.GetChannels())
 	if err != nil {

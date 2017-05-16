@@ -1,6 +1,8 @@
 package util
 
 import (
+	"expvar"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -13,27 +15,22 @@ type Stat struct {
 	Ts  time.Time
 }
 
-// StatOperator function pointer/type to operate/aggregate stats.
-type StatOperator func(int64, int64) int64
-
 // Stats type structure enabling statting facilities.
 type Stats struct {
 	size       uint32
-	val        int64
-	operator   StatOperator
 	running    uint32
+	valExpvar  *expvar.Int
 	last       time.Time
 	incoming   chan int64
 	Aggregated chan Stat
 }
 
 // NewStats constructor for Stats
-func NewStats(op StatOperator, sz uint32) (*Stats, error) {
+func NewStats(sz uint32) (*Stats, error) {
 	s := &Stats{
 		size:       sz,
-		val:        0,
-		operator:   op,
 		running:    0,
+		valExpvar:  expvar.NewInt("pktsec"),
 		last:       time.Now(),
 		incoming:   make(chan int64, sz),
 		Aggregated: make(chan Stat, 2),
@@ -59,17 +56,24 @@ func (s *Stats) Process() {
 	for {
 		select {
 		case v := <-s.incoming:
-			s.val = s.operator(s.val, v)
+			s.valExpvar.Add(v)
 		case <-tickChan:
+			// once we're fully on 1.8 get rid of this nonesense and use Value()
+			pkts, err := strconv.ParseInt(s.valExpvar.String(), 10, 64)
+			if err != nil {
+				log.Debugf("error converting metric: %s", err)
+				continue
+			}
+
 			select {
 			case s.Aggregated <- Stat{
-				Val: s.val,
+				Val: pkts,
 				Ts:  s.last,
 			}:
 			default:
 				log.Debugf("dropping last second stasts, buffer full")
 			}
-			s.val = 0
+			s.valExpvar.Set(0)
 			s.last = time.Now()
 			if atomic.LoadUint32(&s.running) == 0 {
 				break

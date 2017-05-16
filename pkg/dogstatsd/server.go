@@ -26,10 +26,6 @@ type Server struct {
 	Started    bool
 }
 
-func packetCounter(a, b int64) int64 {
-	return a + b
-}
-
 // NewServer returns a running Dogstatsd server
 func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggregator.Event, serviceCheckOut chan<- aggregator.ServiceCheck) (*Server, error) {
 	var conn net.PacketConn
@@ -38,7 +34,7 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
-		s, err := util.NewStats(packetCounter, uint32(buff))
+		s, err := util.NewStats(uint32(buff))
 		if err != nil {
 			log.Errorf("dogstatsd: unable to start statistics facilities")
 		}
