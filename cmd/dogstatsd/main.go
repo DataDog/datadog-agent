@@ -48,7 +48,8 @@ extensions for special Datadog features.`,
 		},
 	}
 
-	confPath string
+	confPath   string
+	socketPath string
 )
 
 func init() {
@@ -64,6 +65,8 @@ func init() {
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "conf", "c", "", "path to the datadog.yaml file")
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("conf"))
+	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
+	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket"))
 }
 
 func start(cmd *cobra.Command, args []string) error {
@@ -95,7 +98,7 @@ func start(cmd *cobra.Command, args []string) error {
 	aggregatorInstance := aggregator.InitAggregator(f, util.GetHostname())
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
-		log.Error(err.Error())
+		log.Criticalf("Unable to start dogstatsd: %s", err)
 		return nil
 	}
 
