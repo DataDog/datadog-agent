@@ -21,13 +21,13 @@ fi
 
 # Linux installation
 if [ "$DISTRIBUTION" != "Darwin" ]; then
-    if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
+    if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
         DISTRIBUTION_FAMILY="Debian"
     fi
 
     CONFIG_DIR=/etc/dd-agent
 
-    if [ "$DISTRIBUTION_FAMILY" == "Debian" ]; then
+    if [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
         set -e
         case "$1" in
             configure)
@@ -74,7 +74,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
 
     # Restart the agent here on Debian platforms
     # On RHEL, the restart is done in the posttrans script
-    if [ "$DISTRIBUTION_FAMILY" == "Debian" ]; then
+    if [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
         # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
         # and avoid restarting when a check conf is invalid
         if [ -f "$CONFIG_DIR/datadog.yaml" ]; then
