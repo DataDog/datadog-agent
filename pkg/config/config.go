@@ -20,10 +20,10 @@ func init() {
 	Datadog.SetDefault("dogstatsd_buffer_size", 1024)
 	Datadog.SetDefault("forwarder_timeout", 20)
 	Datadog.SetDefault("dogstatsd_non_local_traffic", false)
-	Datadog.SetDefault("dogstatsd_socket_path", "")
+	Datadog.SetDefault("dogstatsd_socket", "")
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
-	Datadog.BindEnv("dogstatsd_socket_path")
+	Datadog.BindEnv("dogstatsd_socket")
 }

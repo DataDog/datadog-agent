@@ -29,7 +29,7 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 	var conn net.PacketConn
 	var err error
 
-	socketPath := config.Datadog.GetString("dogstatsd_socket_path")
+	socketPath := config.Datadog.GetString("dogstatsd_socket")
 
 	if len(socketPath) == 0 {
 		var url string
@@ -122,7 +122,7 @@ func (s *Server) Stop() {
 	s.conn.Close()
 
 	// Socket cleanup on exit
-	socketPath := config.Datadog.GetString("dogstatsd_socket_path")
+	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
 		err := os.Remove(socketPath)
 		if err != nil {
