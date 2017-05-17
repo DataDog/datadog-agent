@@ -59,6 +59,12 @@ func (f *forwarderBenchStub) computeStats(payload *[]byte) {
 	f.received++
 	f.receivedBytes += uint64(len(*payload))
 }
+func (f *forwarderBenchStub) Start() error {
+	return nil
+}
+func (f *forwarderBenchStub) Stop() {
+	return
+}
 func (f *forwarderBenchStub) SubmitV1Series(apiKey string, payload *[]byte) error {
 	f.computeStats(payload)
 	return nil

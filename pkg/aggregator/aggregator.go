@@ -63,7 +63,7 @@ func init() {
 }
 
 // InitAggregator returns the Singleton instance
-func InitAggregator(f forwarder.SimpleForwarder, hostname string) *BufferedAggregator {
+func InitAggregator(f forwarder.Forwarder, hostname string) *BufferedAggregator {
 	aggregatorInit.Do(func() {
 		aggregatorInstance = NewBufferedAggregator(f, hostname)
 		go aggregatorInstance.run()
@@ -91,7 +91,7 @@ type BufferedAggregator struct {
 	events             []Event
 	flushInterval      int64
 	mu                 sync.Mutex // to protect the checkSamplers field
-	forwarder          forwarder.SimpleForwarder
+	forwarder          forwarder.Forwarder
 	hostname           string
 	hostnameUpdate     chan string
 	hostnameUpdateDone chan struct{}    // signals that the hostname update is finished
@@ -99,7 +99,7 @@ type BufferedAggregator struct {
 }
 
 // Instantiate a BufferedAggregator and run it
-func NewBufferedAggregator(f forwarder.SimpleForwarder, hostname string) *BufferedAggregator {
+func NewBufferedAggregator(f forwarder.Forwarder, hostname string) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
 		dogstatsdIn:        make(chan *MetricSample, 100),      // TODO make buffer size configurable
 		checkMetricIn:      make(chan senderMetricSample, 100), // TODO make buffer size configurable

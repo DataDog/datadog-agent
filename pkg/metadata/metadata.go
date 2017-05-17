@@ -22,7 +22,7 @@ func init() {
 // Collector takes care of sending metadata at specific
 // time intervals
 type Collector struct {
-	fwd             *forwarder.Forwarder
+	fwd             forwarder.Forwarder
 	sendHostT       *time.Ticker
 	sendExtHostT    *time.Ticker
 	sendAgentCheckT *time.Ticker
@@ -33,7 +33,7 @@ type Collector struct {
 }
 
 // NewCollector builds and returns a new Metadata Collector
-func NewCollector(fwd *forwarder.Forwarder, apikey, hostname string) *Collector {
+func NewCollector(fwd forwarder.Forwarder, apikey, hostname string) *Collector {
 	collector := &Collector{
 		fwd:             fwd,
 		sendHostT:       time.NewTicker(config.Datadog.GetDuration("metadata_interval")),
