@@ -37,10 +37,12 @@ namespace :agent do
       # On windows, need to build with the extra arguments -gcflags "-N -l" -ldflags="-linkmode internal"
       # if you want to be able to use the delve debugger.
       ldflags << "-linkmode internal"
-      system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
+      build_success = system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
     else
-      system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
+      build_success = system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
     end
+    fail "Agent build failed with code #{$?.exitstatus}" if !build_success
+
     Rake::Task["agent:refresh_assets"].invoke
   end
 
