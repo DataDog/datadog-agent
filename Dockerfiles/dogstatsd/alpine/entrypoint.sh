@@ -5,8 +5,6 @@
 
 touch /datadog.yaml
 
-echo "dogstatsd_non_local_traffic: yes" >> /datadog.yaml
-
 if [[ $DD_API_KEY ]]; then
 	echo "api_key: ${API_KEY}/" >> /datadog.yaml
 else
@@ -19,6 +17,12 @@ if [[ $DD_URL ]]; then
 else
     echo "dd_url: https://app.datadoghq.com" >> /datadog.yaml
 
+fi
+
+if [[ $DD_SOCKET ]]; then
+    echo "dogstatsd_socket: ${DD_SOCKET}" >> /datadog.yaml
+else
+    echo "dogstatsd_non_local_traffic: yes" >> /datadog.yaml
 fi
 
 ##### Starting up dogstatsd #####
