@@ -149,10 +149,9 @@ func getModuleName(modulePath string) string {
 
 // getPythonError returns string-formatted info about a Python interpreter error that occurred,
 // and clears the error flag in the Python interpreter
+// WARNING: make sure a StickyLock is locked when calling this function (i.e. the GIL is locked and the goroutine
+// is locked to its thread)
 func getPythonError() (string, error) {
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
-
 	ptype, pvalue, ptraceback := python.PyErr_Fetch() // new references, have to be decref'd
 	defer python.PyErr_Clear()
 	defer ptype.DecRef()
