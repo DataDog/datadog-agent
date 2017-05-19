@@ -65,6 +65,11 @@ type Forwarder interface {
 	SubmitV1Series(apiKey string, payload *[]byte) error
 	SubmitV1Intake(apiKey string, payload *[]byte) error
 	SubmitV1CheckRuns(apiKey string, payload *[]byte) error
+	SubmitV2Series(apikey string, payload *[]byte) error
+	SubmitV2Events(apikey string, payload *[]byte) error
+	SubmitV2CheckRuns(apikey string, payload *[]byte) error
+	SubmitV2HostMeta(apikey string, payload *[]byte) error
+	SubmitV2GenericMeta(apikey string, payload *[]byte) error
 }
 
 // DefaultForwarder is in charge of receiving transaction payloads and sending them to Datadog backend over HTTP.
@@ -327,4 +332,29 @@ func (f *DefaultForwarder) SubmitV1Intake(apiKey string, payload *[]byte) error 
 
 	transactionsCreation.Add("IntakeV1", 1)
 	return f.sendHTTPTransactions(transactions)
+}
+
+// SubmitV2CheckRuns will send service checks to v2 endpoint - UNIMPLEMENTED
+func (f *DefaultForwarder) SubmitV2Series(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+
+// SubmitV2Events will send events to v2 endpoint - UNIMPLEMENTED
+func (f *DefaultForwarder) SubmitV2Events(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+
+// SubmitV2CheckRuns will send service checks to v2 endpoint - UNIMPLEMENTED
+func (f *DefaultForwarder) SubmitV2CheckRuns(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+
+// SubmitV2HostMeta will send host metadata to v2 endpoint - UNIMPLEMENTED
+func (f *DefaultForwarder) SubmitV2HostMeta(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+
+// SubmitV2GenericMeta will send generic metadata to v2 endpoint - UNIMPLEMENTED
+func (f *DefaultForwarder) SubmitV2GenericMeta(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
