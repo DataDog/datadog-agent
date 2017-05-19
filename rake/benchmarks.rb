@@ -19,4 +19,16 @@ namespace :benchmark do
     system("go build #{build_type} -o #{BENCHMARK_BIN_PATH}/#{bin_name("aggregator")} #{flags} #{REPO_PATH}/test/benchmarks/aggregator") or exit!(1)
   end
 
+  desc "Build Dogstatsd benchmark"
+  task :dogstatsd do
+    system("go build -o #{BENCHMARK_BIN_PATH}/#{bin_name("dogstatsd_benchmark")} #{REPO_PATH}/cmd/benchmark/dogstatsd/")
+  end
+
+  desc "Run Dogstatsd Benchmark"
+  task :dogstatsd_benchmark => %w[benchmark:dogstatsd] do
+    root = `git rev-parse --show-toplevel`.strip
+    bin_path = File.join(root, DOGSTATSD_BIN_PATH, "dogstatsd_benchmark")
+    system("#{bin_path} -pps=1000 -dur 30 -ser 5 -brk -inc 500")
+  end
+
 end

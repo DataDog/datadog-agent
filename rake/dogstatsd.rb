@@ -1,24 +1,6 @@
 require_relative './common'
 
 
-def dogstatsd_bin_name
-  case os
-  when "windows"
-    "dogstatsd.exe"
-  else
-    "dogstatsd"
-  end
-end
-
-def dogstatsd_benchmark_bin_name
-  case os
-  when "windows"
-    "dogstatsd_benchmark.exe"
-  else
-    "dogstatsd_benchmark"
-  end
-end
-
 namespace :dogstatsd do
   DOGSTATSD_BIN_PATH="./bin/dogstatsd"
   CLOBBER.include(DOGSTATSD_BIN_PATH)
@@ -35,22 +17,12 @@ namespace :dogstatsd do
     commit = `git rev-parse --short HEAD`.strip
     ldflags = "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
 
-    system("go build #{race_opt} #{build_type} -o #{DOGSTATSD_BIN_PATH}/#{dogstatsd_bin_name} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
+    system("go build #{race_opt} #{build_type} -o #{DOGSTATSD_BIN_PATH}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
   end
 
   desc "Build static Dogstatsd"
   task :build_static do
-    system("go build #{STATIC_GO_FLAGS} -o #{STATIC_BIN_PATH}/#{dogstatsd_bin_name} #{REPO_PATH}/cmd/dogstatsd/")
-  end
-
-  desc "Build Dogstatsd benchmark"
-  task :build_benchmark do
-    system("go build -o #{DOGSTATSD_BIN_PATH}/#{dogstatsd_benchmark_bin_name} #{REPO_PATH}/cmd/benchmark/dogstatsd/")
-  end
-
-  desc "Build static Dogstatsd benchmark"
-  task :build_static_benchmark do
-    system("go build #{STATIC_GO_FLAGS} -o #{STATIC_BIN_PATH}/#{dogstatsd_benchmark_bin_name} #{REPO_PATH}/cmd/benchmark/dogstatsd/")
+    system("go build #{STATIC_GO_FLAGS} -o #{STATIC_BIN_PATH}/#{bin_name("dogstatsd")} #{REPO_PATH}/cmd/dogstatsd/")
   end
 
   desc "Run Dogstatsd"
@@ -71,13 +43,6 @@ namespace :dogstatsd do
     root = `git rev-parse --show-toplevel`.strip
     bin_path = File.join(root, DOGSTATSD_BIN_PATH, "dogstatsd")
     system("DOGSTATSD_BIN=\"#{bin_path}\" go test -v #{REPO_PATH}/test/system/dogstatsd/")
-  end
-
-  desc "Run Dogstatsd Benchmark"
-  task :run_benchmark => %w[dogstatsd:build_benchmark] do
-    root = `git rev-parse --show-toplevel`.strip
-    bin_path = File.join(root, DOGSTATSD_BIN_PATH, "dogstatsd_benchmark")
-    system("#{bin_path} -pps=1000 -dur 30 -ser 5 -brk -inc 500")
   end
 
   desc "Build omnibus installer"
