@@ -334,7 +334,7 @@ func (f *DefaultForwarder) SubmitV1Intake(apiKey string, payload *[]byte) error 
 	return f.sendHTTPTransactions(transactions)
 }
 
-// SubmitV2CheckRuns will send service checks to v2 endpoint - UNIMPLEMENTED
+// SubmitV2Series will send service checks to v2 endpoint - UNIMPLEMENTED
 func (f *DefaultForwarder) SubmitV2Series(apikey string, payload *[]byte) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
