@@ -63,25 +63,29 @@ func init() {
 	config.Datadog.SetDefault("log_file", defaultLogPath)
 
 	// local flags
-	startCmd.Flags().StringVarP(&confPath, "conf", "c", "", "path to the datadog.yaml file")
-	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("conf"))
+	startCmd.Flags().StringVarP(&confPath, "cfgpath", "f", "", "path to datadog.yaml")
+	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath"))
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket"))
 }
 
 func start(cmd *cobra.Command, args []string) error {
 	config.Datadog.SetConfigFile(config.Datadog.GetString("conf_path"))
+	confErr := config.Datadog.ReadInConfig()
 
-	err := config.Datadog.ReadInConfig()
+	// Setup logger
+	err := config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
 	if err != nil {
-		log.Criticalf("unable to load Datadog config file: %s", err)
+		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
 	}
 
-	// Setup logger
-	err = config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
-	if err != nil {
-		log.Criticalf("Unable to setup logger: %s", err)
+	if confErr != nil {
+		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
+	}
+
+	if !config.Datadog.IsSet("api_key") {
+		log.Critical("no API key configured, exiting")
 		return nil
 	}
 

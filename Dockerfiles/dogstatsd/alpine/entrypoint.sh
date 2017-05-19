@@ -3,26 +3,17 @@
 
 ##### Core config #####
 
-touch /datadog.yaml
-
-if [[ $DD_API_KEY ]]; then
-	echo "api_key: ${API_KEY}/" >> /datadog.yaml
-else
+if [[ -z $DD_API_KEY ]]; then
 	echo "You must set DD_API_KEY environment variable to run the Datadog Agent container"
 	exit 1
 fi
 
-if [[ $DD_URL ]]; then
-    echo "dd_url: ${DD_URL}" >> /datadog.yaml
-else
-    echo "dd_url: https://app.datadoghq.com" >> /datadog.yaml
-
+if [[ -z $DD_DD_URL ]]; then
+    export DD_DD_URL="https://app.datadoghq.com"
 fi
 
-if [[ $DD_SOCKET ]]; then
-    echo "dogstatsd_socket: ${DD_SOCKET}" >> /datadog.yaml
-else
-    echo "dogstatsd_non_local_traffic: yes" >> /datadog.yaml
+if [ -z $DD_DOGSTATSD_SOCKET ]; then
+    export DD_DOGSTATSD_NON_LOCAL_TRAFFIC=1
 fi
 
 ##### Starting up dogstatsd #####

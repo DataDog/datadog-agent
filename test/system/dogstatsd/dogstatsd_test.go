@@ -63,14 +63,14 @@ func (d *dogstatsdTest) setup(t *testing.T) {
 	d.tmpDir = dir
 
 	// write temp conf
-	content := []byte("dd_url: " + d.ts.URL + "\n")
+	content := []byte("dd_url: " + d.ts.URL + "\napi_key: dummy\n")
 	tmpConf := filepath.Join(dir, "datadog.yaml")
 	err = ioutil.WriteFile(tmpConf, content, 0666)
 	require.NoError(t, err, "Could not write temp conf")
 
 	// start dogstatsd
 	d.ctx, d.cancel = context.WithCancel(context.Background())
-	e := exec.CommandContext(d.ctx, dogstatsdBin, "start", "-c", tmpConf)
+	e := exec.CommandContext(d.ctx, dogstatsdBin, "start", "-f", tmpConf)
 	stdout, err := e.StdoutPipe()
 	require.NoError(t, err, "Could get StdoutPipe from command")
 	go func() {
