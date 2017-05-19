@@ -23,15 +23,7 @@ const (
 )
 
 const (
-	letterBytes     = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	stdOutputLogCfg = `<seelog minlevel="ddloglevel">
-	<outputs formatid="common">
-		<console />
-	</outputs>
-	<formats>
-		<format id="common" format="%Date %Time | %LEVEL | (%File:%Line) |  %Msg%n"/>
-	</formats>
-</seelog>`
+	letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 )
 
 var (
@@ -77,6 +69,21 @@ func (f *forwarderBenchStub) SubmitV1CheckRuns(apiKey string, payload *[]byte) e
 	f.computeStats(payload)
 	return nil
 }
+func (f *forwarderBenchStub) SubmitV2Series(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+func (f *forwarderBenchStub) SubmitV2Events(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+func (f *forwarderBenchStub) SubmitV2CheckRuns(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+func (f *forwarderBenchStub) SubmitV2HostMeta(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+func (f *forwarderBenchStub) SubmitV2GenericMeta(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
 
 // NewStatsdGenerator returns a generator server
 // We could use datadog-go, but I want as little overhead as possible.
@@ -100,13 +107,10 @@ func NewStatsdGenerator(uri string) (*net.UDPConn, error) {
 }
 
 func initLogging() error {
-	logConfig := bytes.Replace([]byte(stdOutputLogCfg), []byte("ddloglevel"), []byte("info"), 1)
-
-	logger, err := log.LoggerFromConfigAsBytes(logConfig)
+	err := config.SetupLogger("info", "")
 	if err != nil {
 		return fmt.Errorf("Unable to initiate logger: %s", err)
 	}
-	log.ReplaceLogger(logger)
 
 	return nil
 }
