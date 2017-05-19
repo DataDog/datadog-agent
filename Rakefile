@@ -2,6 +2,7 @@ require_relative './rake/common'
 require_relative './rake/agent'
 require_relative './rake/dogstatsd'
 require_relative './rake/benchmarks'
+require_relative './rake/docker'
 
 PKG_CONFIG_LIBDIR=File.join(Dir.pwd, "pkg-config", os)
 ORG_PATH="github.com/DataDog"
@@ -80,7 +81,7 @@ task :test => %w[fmt lint vet] do
 end
 
 desc "Run every system tests"
-task system_test: %w[dogstatsd:system_test]
+task system_test: %w[dogstatsd:system_test docker:system_test]
 
 desc "Build allthethings"
 task build: %w[agent:build dogstatsd:build]
