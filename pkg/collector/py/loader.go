@@ -22,8 +22,8 @@ type PythonCheckLoader struct {
 // NewPythonCheckLoader creates an instance of the Python checks loader
 func NewPythonCheckLoader() *PythonCheckLoader {
 	// Lock the GIL and release it at the end of the run
-	glock := NewStickyLock()
-	defer glock.Unlock()
+	glock := newStickyLock()
+	defer glock.unlock()
 
 	agentCheckModule := python.PyImport_ImportModule(agentCheckModuleName)
 	if agentCheckModule == nil {
@@ -47,7 +47,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	moduleName := config.Name
 
 	// Lock the GIL while working with go-python directly
-	glock := NewStickyLock()
+	glock := newStickyLock()
 
 	// import python module containing the check
 	checkModule := python.PyImport_ImportModule(moduleName)
@@ -61,7 +61,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	}
 
 	// release the GIL, some functions we're going to call might need it
-	glock.Unlock()
+	glock.unlock()
 
 	// Try to find a class inheriting from AgentCheck within the module
 	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule)

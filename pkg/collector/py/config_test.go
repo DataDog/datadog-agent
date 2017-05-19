@@ -37,8 +37,8 @@ func TestToPython(t *testing.T) {
 	}
 
 	// Lock the GIL and release it at the end
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	if !python.PyDict_Check(res) {
 		t.Fatalf("Result is not a Python dict")
@@ -72,8 +72,8 @@ func TestToPythonInt(t *testing.T) {
 	require.Nil(t, err, "Expected empty error message")
 
 	// Lock the GIL and release it at the end
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	assert.True(t, python.PyInt_Check(res), "Result is not a Python dict")
 
@@ -92,8 +92,8 @@ func TestToPythonfloat(t *testing.T) {
 	require.Nil(t, err, "Expected empty error message")
 
 	// Lock the GIL and release it at the end
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	assert.True(t, python.PyFloat_Check(res), "Result is not a Python float")
 
@@ -110,8 +110,8 @@ func TestToPythonBool(t *testing.T) {
 	require.Nil(t, err, "Expected empty error message")
 
 	// Lock the GIL and release it at the end
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	assert.True(t, python.PyBool_Check(res), "Result is not a Python bool")
 }
@@ -124,8 +124,8 @@ func TestToPythonString(t *testing.T) {
 	require.Nil(t, err, "Expected empty error message")
 
 	// Lock the GIL and release it at the end
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	assert.True(t, python.PyString_Check(res), "Result is not a Python string")
 }
@@ -138,15 +138,15 @@ func TestToPythonDuration(t *testing.T) {
 	require.Nil(t, err, "Expected empty error message")
 
 	// Lock the GIL and release it at the end
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	assert.True(t, python.PyInt_Check(res), "Result is not a Python string")
 }
 
 func TestWalkerPush(t *testing.T) {
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	w := new(walker)
 	d := python.PyDict_New()
@@ -185,8 +185,8 @@ func TestWalkerPush(t *testing.T) {
 }
 
 func TestWalkerPop(t *testing.T) {
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	w := new(walker)
 	d := python.PyDict_New()
@@ -251,9 +251,9 @@ func TestWalkerExit(t *testing.T) {
 	}
 
 	// fill the stack to test cleanup procedure
-	gstate := NewStickyLock()
+	gstate := newStickyLock()
 	w.push(python.PyDict_New())
-	gstate.Unlock()
+	gstate.unlock()
 	w.Exit(reflectwalk.WalkLoc)
 	if w.containersStack != nil {
 		t.Fatalf("Stack should be nil, found: %v", w.containersStack)
@@ -265,8 +265,8 @@ func TestWalkerExit(t *testing.T) {
 
 func TestIfToPy(t *testing.T) {
 	// ifToPy is supposed to be invoked holding the GIL
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	var i interface{}
 
