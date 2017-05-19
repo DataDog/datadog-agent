@@ -12,10 +12,6 @@ if [[ -z $DD_DD_URL ]]; then
     export DD_DD_URL="https://app.datadoghq.com"
 fi
 
-if [[ $DD_SOCKET ]]; then
-    export DD_DOGSTATSD_SOCKET=$DD_SOCKET
-fi
-
 if [ -z $DD_DOGSTATSD_SOCKET ]; then
     export DD_DOGSTATSD_NON_LOCAL_TRAFFIC=1
 fi
