@@ -102,11 +102,8 @@ func Initialize(paths ...string) *python.PyThreadState {
 }
 
 // Search in module for a class deriving from baseClass and return the first match if any.
+// Notice: the GIL must be acquired before calling this method
 func findSubclassOf(base, module *python.PyObject) (*python.PyObject, error) {
-	// Lock the GIL and release it at the end of the run
-	gstate := newStickyLock()
-	defer gstate.unlock()
-
 	if base == nil || module == nil {
 		return nil, fmt.Errorf("both base class and module must be not nil")
 	}
