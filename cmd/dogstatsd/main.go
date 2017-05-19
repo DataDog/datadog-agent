@@ -63,8 +63,8 @@ func init() {
 	config.Datadog.SetDefault("log_file", defaultLogPath)
 
 	// local flags
-	startCmd.Flags().StringVarP(&confPath, "conf", "c", "", "path to the datadog.yaml file")
-	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("conf"))
+	startCmd.Flags().StringVarP(&confPath, "cfgpath", "f", "", "path to datadog.yaml")
+	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath"))
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket"))
 }
