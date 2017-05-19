@@ -71,17 +71,21 @@ func init() {
 
 func start(cmd *cobra.Command, args []string) error {
 	config.Datadog.SetConfigFile(config.Datadog.GetString("conf_path"))
+	confErr := config.Datadog.ReadInConfig()
 
-	err := config.Datadog.ReadInConfig()
+	// Setup logger
+	err := config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
 	if err != nil {
-		log.Criticalf("unable to load Datadog config file: %s", err)
+		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
 	}
 
-	// Setup logger
-	err = config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
-	if err != nil {
-		log.Criticalf("Unable to setup logger: %s", err)
+	if confErr != nil {
+		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
+	}
+
+	if !config.Datadog.IsSet("api_key") {
+		log.Critical("no API key configured, exiting")
 		return nil
 	}
 

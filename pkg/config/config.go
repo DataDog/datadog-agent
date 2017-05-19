@@ -26,4 +26,5 @@ func init() {
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
 	Datadog.BindEnv("dogstatsd_socket")
+	Datadog.BindEnv("dogstatsd_non_local_traffic")
 }

@@ -10,4 +10,4 @@ COPY dogstatsd /dogstatsd
 EXPOSE 8125/udp
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["/dogstatsd", "start", "-c", "/datadog.yaml"]
+CMD ["/dogstatsd", "start"]
