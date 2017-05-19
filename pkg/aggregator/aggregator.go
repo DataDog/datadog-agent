@@ -98,7 +98,7 @@ type BufferedAggregator struct {
 	TickerChan         <-chan time.Time // For test/benchmark purposes: it allows the flush to be controlled from the outside
 }
 
-// Instantiate a BufferedAggregator and run it
+// NewBufferedAggregator instantiates a BufferedAggregator and runs it
 func NewBufferedAggregator(f forwarder.Forwarder, hostname string) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
 		dogstatsdIn:        make(chan *MetricSample, 100),      // TODO make buffer size configurable
