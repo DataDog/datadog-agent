@@ -52,11 +52,12 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	// import python module containing the check
 	checkModule := python.PyImport_ImportModule(moduleName)
 	if checkModule == nil {
-		// we don't expect a traceback here so we use the error msg in `pvalue`
-		_, pvalue, _ := python.PyErr_Fetch()
-		msg := python.PyString_AsString(pvalue)
+		pyErr, err := getPythonError()
 		glock.Unlock()
-		return checks, errors.New(msg)
+		if err != nil {
+			return nil, fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
+		}
+		return nil, errors.New(pyErr)
 	}
 
 	// release the GIL, some functions we're going to call might need it

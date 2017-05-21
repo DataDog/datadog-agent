@@ -147,6 +147,54 @@ func getModuleName(modulePath string) string {
 	return toks[len(toks)-1]
 }
 
+// getPythonError returns string-formatted info about a Python interpreter error that occurred,
+// and clears the error flag in the Python interpreter
+// WARNING: make sure a StickyLock is locked when calling this function (i.e. the GIL is locked and the goroutine
+// is locked to its thread)
+func getPythonError() (string, error) {
+	ptype, pvalue, ptraceback := python.PyErr_Fetch() // new references, have to be decref'd
+	defer python.PyErr_Clear()
+	defer ptype.DecRef()
+	defer pvalue.DecRef()
+	defer ptraceback.DecRef()
+
+	if ptraceback != nil && ptraceback.Type() != nil {
+		// There's a traceback, try to format it nicely
+		traceback := python.PyImport_ImportModule("traceback")
+		formatExcFn := traceback.GetAttrString("format_exception")
+		if formatExcFn != nil {
+			defer formatExcFn.DecRef()
+			pyFormattedExc := formatExcFn.CallFunction(ptype, pvalue, ptraceback)
+			if pyFormattedExc != nil {
+				defer pyFormattedExc.DecRef()
+				pyStringExc := pyFormattedExc.Str()
+				if pyStringExc != nil {
+					defer pyStringExc.DecRef()
+					return python.PyString_AsString(pyStringExc), nil
+				}
+			}
+		}
+
+		// If we reach this point, there was an error while formatting the exception
+		return "", fmt.Errorf("can't format exception")
+	}
+
+	// we sometimes do not get a traceback but an error in pvalue.
+	if pvalue != nil && pvalue.Type() != nil {
+		return python.PyString_AsString(pvalue), nil
+	}
+
+	if ptype != nil {
+		strPtype := ptype.Str()
+		if strPtype != nil {
+			defer strPtype.DecRef()
+			return python.PyString_AsString(strPtype), nil
+		}
+	}
+
+	return "", fmt.Errorf("unknown error")
+}
+
 // GetInterpreterVersion should go in `go-python`, TODO.
 func GetInterpreterVersion() string {
 	// Lock the GIL and release it at the end of the run
