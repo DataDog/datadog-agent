@@ -115,7 +115,6 @@ dogstatsd_static-x64:
     # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
     - rake dogstatsd:build_static
-
     - cp $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
   artifacts:
     expire_in: 2 weeks
