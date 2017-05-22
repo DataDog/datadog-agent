@@ -1,9 +1,10 @@
 package py
 
 import (
-	log "github.com/cihub/seelog"
 	"reflect"
 	"time"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/mitchellh/reflectwalk"
 	"github.com/sbinet/go-python"
@@ -33,8 +34,8 @@ func (w *walker) Primitive(v reflect.Value) error {
 	}
 
 	// if not: we are converting a simple type
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	w.result = ifToPy(v)
 	return nil
@@ -78,8 +79,8 @@ func (w *walker) pop() {
 // the walker is about to enter a new type, we only need to take action for
 // Maps and Slices.
 func (w *walker) Enter(l reflectwalk.Location) error {
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	switch l {
 	case reflectwalk.Map:
@@ -161,8 +162,8 @@ func ifToPy(v reflect.Value) *python.PyObject {
 // go through map elements and convert to Python dict elements
 func (w *walker) MapElem(m, k, v reflect.Value) error {
 	// Lock the GIL and release it at the end
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	w.lastKey = k.Interface().(string)
 	dictKey := python.PyString_FromString(w.lastKey)
@@ -179,8 +180,8 @@ func (w *walker) MapElem(m, k, v reflect.Value) error {
 // go through slice items and convert to Python list items
 func (w *walker) SliceElem(i int, v reflect.Value) error {
 	// Lock the GIL and release it at the end
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	pyval := ifToPy(v)
 	if pyval != nil {

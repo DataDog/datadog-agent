@@ -40,8 +40,8 @@ func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
 // Run a Python check
 func (c *PythonCheck) Run() error {
 	// Lock the GIL and release it at the end of the run
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	// call run function, it takes no args so we pass an empty tuple
 	emptyTuple := python.PyTuple_New(0)
@@ -82,8 +82,8 @@ func (c *PythonCheck) String() string {
 // of  the defer calls stack.
 func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObject, error) {
 	// Lock the GIL and release it at the end
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	if args == nil {
 		args = python.PyTuple_New(0)
@@ -163,10 +163,10 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 		}
 
 		// Add new 'agentConfig' key to the dict...
-		gstate := NewStickyLock()
+		gstate := newStickyLock()
 		key := python.PyString_FromString("agentConfig")
 		python.PyDict_SetItem(kwargs, key, agentConfig)
-		gstate.Unlock()
+		gstate.unlock()
 
 		// ...and retry to get an instance
 		instance, err = c.getInstance(nil, kwargs)

@@ -18,8 +18,8 @@ var (
 
 func getClass(moduleName, className string) (checkClass *python.PyObject) {
 	// Lock the GIL while operating with go-python
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	module := python.PyImport_ImportModule(moduleName)
 	if module == nil {
@@ -45,8 +45,8 @@ func getCheckInstance(moduleName, className string) (*PythonCheck, error) {
 
 func TestNewPythonCheck(t *testing.T) {
 	// Lock the GIL and release it at the end of the run
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	tuple := python.PyTuple_New(0)
 	res := NewPythonCheck("FooBar", tuple)

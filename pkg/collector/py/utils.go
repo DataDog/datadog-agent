@@ -11,7 +11,7 @@ import (
 // #include <Python.h>
 import "C"
 
-// StickyLock is a convenient wrapper to interact with the Python GIL
+// stickyLock is a convenient wrapper to interact with the Python GIL
 // from go code when using `go-python`.
 //
 // We are going to call the Python C API from different goroutines that
@@ -23,27 +23,27 @@ import "C"
 // in fact, the Python interpreter will check lock/unlock requests against
 // the thread ID they are called from, raising a runtime assertion if
 // they don't match. To avoid this, even if giving up on some performance,
-// we ask the go runtime to be sure any goroutine using a `StickyLock`
+// we ask the go runtime to be sure any goroutine using a `stickyLock`
 // will be always paused and resumed on the same thread.
 //
 // [0]: https://docs.python.org/2/c-api/init.html#non-python-created-threads
-type StickyLock struct {
+type stickyLock struct {
 	gstate python.PyGILState
 }
 
-// NewStickyLock register the current thread with the interpreter and locks
+// newStickyLock register the current thread with the interpreter and locks
 // the GIL. It also sticks the goroutine to the current thread so that a
 // subsequent call to `Unlock` will unregister the very same thread.
-func NewStickyLock() *StickyLock {
+func newStickyLock() *stickyLock {
 	runtime.LockOSThread()
-	return &StickyLock{
+	return &stickyLock{
 		gstate: python.PyGILState_Ensure(),
 	}
 }
 
-// Unlock deregisters the current thread from the interpreter, unlocks the GIL
+// unlock deregisters the current thread from the interpreter, unlocks the GIL
 // and detaches the goroutine from the current thread.
-func (sl *StickyLock) Unlock() {
+func (sl *stickyLock) unlock() {
 	python.PyGILState_Release(sl.gstate)
 	runtime.UnlockOSThread()
 }
@@ -102,11 +102,8 @@ func Initialize(paths ...string) *python.PyThreadState {
 }
 
 // Search in module for a class deriving from baseClass and return the first match if any.
+// Notice: the GIL must be acquired before calling this method
 func findSubclassOf(base, module *python.PyObject) (*python.PyObject, error) {
-	// Lock the GIL and release it at the end of the run
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
-
 	if base == nil || module == nil {
 		return nil, fmt.Errorf("both base class and module must be not nil")
 	}
@@ -198,8 +195,8 @@ func getPythonError() (string, error) {
 // GetInterpreterVersion should go in `go-python`, TODO.
 func GetInterpreterVersion() string {
 	// Lock the GIL and release it at the end of the run
-	gstate := NewStickyLock()
-	defer gstate.Unlock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
 
 	res := C.Py_GetVersion()
 	if res == nil {

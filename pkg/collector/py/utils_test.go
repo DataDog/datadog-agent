@@ -26,12 +26,13 @@ func TestMain(m *testing.M) {
 }
 
 func TestFindSubclassOf(t *testing.T) {
-	gstate := NewStickyLock()
+	gstate := newStickyLock()
+	defer gstate.unlock()
+
 	fooModule := python.PyImport_ImportModuleNoBlock("foo")
 	fooClass := fooModule.GetAttrString("Foo")
 	barModule := python.PyImport_ImportModuleNoBlock("bar")
 	barClass := barModule.GetAttrString("Bar")
-	gstate.Unlock()
 
 	// invalid input
 	sclass, err := findSubclassOf(nil, nil)
