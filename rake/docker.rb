@@ -11,7 +11,7 @@ namespace :docker do
       Rake::Task["dogstatsd:build_static"].invoke
     end
     puts "Starting docker system tests"
-    system("bash test/system/docker/dsd_alpine_listening.sh")
+    system("bash test/system/docker/dsd_alpine_listening.sh") || exit(1)
   end
 
 end
