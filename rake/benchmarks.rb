@@ -1,12 +1,12 @@
 require_relative './common'
 
 namespace :benchmark do
-  BENCHMARK_BIN_PATH="./bin/benchmark"
+  BENCHMARK_BIN_PATH="./bin/benchmarks"
   CLOBBER.include(BENCHMARK_BIN_PATH)
 
-  desc "Build the aggregator benchmark"
+  desc "Build the aggregator benchmarks"
   task :aggregator do
-    # -race option
+    # `incremental` option
     build_type = ENV['incremental'] == "true" ? "-i" : "-a"
     flags = ""
 
@@ -16,7 +16,7 @@ namespace :benchmark do
       flags="-gcflags \"-N -l\" -ldflags=\"-linkmode internal\""
     end
 
-    system("go build #{build_type} -o #{BENCHMARK_BIN_PATH}/#{bin_name("aggregator")} #{flags} #{REPO_PATH}/cmd/benchmark/aggregator") or exit!(1)
+    system("go build #{build_type} -o #{BENCHMARK_BIN_PATH}/#{bin_name("aggregator")} #{flags} #{REPO_PATH}/test/benchmarks/aggregator") or exit!(1)
   end
 
 end
