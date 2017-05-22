@@ -42,7 +42,7 @@ namespace :dogstatsd do
     puts "Starting DogStatsD system tests"
     root = `git rev-parse --show-toplevel`.strip
     bin_path = File.join(root, DOGSTATSD_BIN_PATH, "dogstatsd")
-    system("DOGSTATSD_BIN=\"#{bin_path}\" go test -v #{REPO_PATH}/test/system/dogstatsd/")
+    system("DOGSTATSD_BIN=\"#{bin_path}\" go test -v #{REPO_PATH}/test/system/dogstatsd/") || exit(1)
   end
 
   desc "Build omnibus installer"
