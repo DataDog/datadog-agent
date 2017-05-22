@@ -81,7 +81,7 @@ task :test => %w[fmt lint vet] do
 end
 
 desc "Run every system tests"
-task system_test: %w[dogstatsd:system_test docker:system_test]
+task system_test: %w[dogstatsd:system_test]
 
 desc "Build allthethings"
 task build: %w[agent:build dogstatsd:build]

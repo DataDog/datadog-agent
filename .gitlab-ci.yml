@@ -1,6 +1,7 @@
 stages:
   - test
   - build
+  - integration_test
   - deploy
 
 variables:
@@ -10,7 +11,7 @@ variables:
   RPM_X64: $DOCKER_REGISTRY/datadog/datadog-agent-builders:rpm_x64
   DEPLOY: $DOCKER_REGISTRY/datadog/datadog-agent-builders:deploy # For now, just a renamed version of the image datadog/mars-jenkins-scripts
   AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
-  STATIC_BINARIES_DIR: $SRC_PATH/bin/static
+  STATIC_BINARIES_DIR: bin/static
   DEB_S3_BUCKET: apt-agent6.datad0g.com
 
 before_script:
@@ -114,11 +115,26 @@ dogstatsd_static-x64:
     # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
     - rake dogstatsd:build_static
-    - cp $STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
+
+    - cp $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
   artifacts:
     expire_in: 2 weeks
     paths:
       - dogstatsd
+
+# run integration tests for deb-x64
+run_docker_integration_tests_deb-x64:
+  stage: integration_test
+  dependencies:
+    - dogstatsd_static-x64 # Reuse artifact from build stage
+  tags:
+    - container-builder
+  before_script:
+    # Disable global before_script
+    - mkdir --parent $STATIC_BINARIES_DIR
+    - ln dogstatsd $STATIC_BINARIES_DIR/dogstatsd
+  script:
+    - docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v $(pwd):$(pwd) --workdir $(pwd) -e CI_PIPELINE_ID=$CI_PIPELINE_ID -e CI_COMMIT_SHA=$CI_COMMIT_SHA -e skip_rebuild=true $DEB_X64 rake docker:integration_test 2>&1
 
 # run tests for rpm-x64
 run_test_rpm-x64:

@@ -2,8 +2,8 @@ require_relative './common'
 
 namespace :docker do
 
-  desc "Run docker system tests"
-  task :system_test  do
+  desc "Run docker integration tests"
+  task :integration_test  do
     if ENV['skip_rebuild'] == "true" then
       puts "Skipping DogStatsD build"
     else
