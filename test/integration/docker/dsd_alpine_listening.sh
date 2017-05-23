@@ -3,8 +3,6 @@
 # System check for the dsd-alpine image. Builds and runs the image
 # both in UDP and socket mode. With lsof, we test that dogstatsd is
 # running and listening on the right interface
-#
-# Can be ported to Go once we add the docker go library to the build deps
 
 DOCKER_IMAGE="dsd-alpine:system_test"
 SOCKET_PATH="/statsd/statsd.socket"
@@ -12,7 +10,7 @@ DD_ARGS="-e DD_DD_URL=http://dummy -e DD_API_KEY=dummy -v `pwd`:/statsd:rw"
 TEST_FAIL=0
 
 if [ !$(which docker) ]; then
-    echo "Installing docker (temporary workaround, will install in runner image)"
+    echo "Installing docker (temporary workaround, to remove when builder image has docker installed)"
     curl -sL https://get.docker.com/builds/Linux/x86_64/docker-17.04.0-ce.tgz | tar xfz -
     chmod -R 0777 docker
     export PATH=$PWD/docker:$PATH
@@ -85,6 +83,8 @@ if [ $TEST_FAIL -eq 0 ]; then
 fi
 
 docker stop $SOCKET_CO > /dev/null
+
+# Cleanup and conclusion
 
 if [ -f statsd.socket ]; then
     rm statsd.socket
