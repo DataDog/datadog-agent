@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestNewCollector(t *testing.T) {
-	fwd := forwarder.NewForwarder(nil)
+	fwd := forwarder.NewDefaultForwarder(nil)
 	fwd.Start()
 	c := NewCollector(fwd, "apikey", "hostname")
 	assert.NotNil(t, c.sendHostT)

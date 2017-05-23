@@ -1,15 +1,6 @@
 require_relative './common'
 
 
-def dogstatsd_bin_name
-  case os
-  when "windows"
-    "dogstatsd.exe"
-  else
-    "dogstatsd"
-  end
-end
-
 namespace :dogstatsd do
   DOGSTATSD_BIN_PATH="./bin/dogstatsd"
   CLOBBER.include(DOGSTATSD_BIN_PATH)
@@ -26,12 +17,12 @@ namespace :dogstatsd do
     commit = `git rev-parse --short HEAD`.strip
     ldflags = "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
 
-    system("go build #{race_opt} #{build_type} -o #{DOGSTATSD_BIN_PATH}/#{dogstatsd_bin_name} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
+    system("go build #{race_opt} #{build_type} -o #{DOGSTATSD_BIN_PATH}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
   end
 
   desc "Build static Dogstatsd"
   task :build_static do
-    system("go build #{STATIC_GO_FLAGS} -o #{STATIC_BIN_PATH}/#{dogstatsd_bin_name} #{REPO_PATH}/cmd/dogstatsd/")
+    system("go build #{STATIC_GO_FLAGS} -o #{STATIC_BIN_PATH}/#{bin_name("dogstatsd")} #{REPO_PATH}/cmd/dogstatsd/")
   end
 
   desc "Run Dogstatsd"

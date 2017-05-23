@@ -95,7 +95,7 @@ func start(cmd *cobra.Command, args []string) error {
 			config.Datadog.GetString("api_key"),
 		},
 	}
-	f := forwarder.NewForwarder(keysPerDomain)
+	f := forwarder.NewDefaultForwarder(keysPerDomain)
 	f.Start()
 
 	// FIXME: the aggregator should probably be initialized with the resolved hostname instead

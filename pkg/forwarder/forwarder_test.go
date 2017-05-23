@@ -15,9 +15,9 @@ import (
 	"github.com/DataDog/zstd"
 )
 
-func TestNewForwarder(t *testing.T) {
+func TestNewDefaultForwarder(t *testing.T) {
 	keysPerDomains := map[string][]string{"domainsA": []string{"key1", "key2"}, "domainsB": nil}
-	forwarder := NewForwarder(keysPerDomains)
+	forwarder := NewDefaultForwarder(keysPerDomains)
 
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, forwarder.NumberOfWorkers, 4)
@@ -32,7 +32,7 @@ func TestNewForwarder(t *testing.T) {
 }
 
 func TestState(t *testing.T) {
-	forwarder := NewForwarder(nil)
+	forwarder := NewDefaultForwarder(nil)
 
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, forwarder.State(), Stopped)
@@ -41,7 +41,7 @@ func TestState(t *testing.T) {
 }
 
 func TestForwarderStart(t *testing.T) {
-	forwarder := NewForwarder(nil)
+	forwarder := NewDefaultForwarder(nil)
 
 	err := forwarder.Start()
 	defer forwarder.Stop()
@@ -57,7 +57,7 @@ func TestForwarderStart(t *testing.T) {
 }
 
 func TestSubmitInStopMode(t *testing.T) {
-	forwarder := NewForwarder(nil)
+	forwarder := NewDefaultForwarder(nil)
 
 	assert.NotNil(t, forwarder)
 	assert.NotNil(t, forwarder.SubmitTimeseries(nil))
@@ -103,7 +103,7 @@ func TestSubmit(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	forwarder := NewForwarder(map[string][]string{ts.URL: []string{firstKey, secondKey}})
+	forwarder := NewDefaultForwarder(map[string][]string{ts.URL: []string{firstKey, secondKey}})
 	// delay next retry cycle so we can inspect retry queue
 	flushInterval = 5 * time.Hour
 	forwarder.NumberOfWorkers = 1
@@ -194,7 +194,7 @@ func TestSubmitWithProxy(t *testing.T) {
 	config.Datadog.Set("proxy", ts.URL)
 	defer config.Datadog.Set("proxy", nil)
 
-	forwarder := NewForwarder(map[string][]string{targetURL: []string{firstKey}})
+	forwarder := NewDefaultForwarder(map[string][]string{targetURL: []string{firstKey}})
 	// delay next retry cycle so we can inspect retry queue
 	flushInterval = 5 * time.Hour
 	forwarder.NumberOfWorkers = 1
@@ -228,7 +228,7 @@ func TestSubmitWithProxyAndPassword(t *testing.T) {
 	config.Datadog.Set("proxy", fmt.Sprintf("http://%s@%s", userInfo, ts.URL[7:]))
 	defer config.Datadog.Set("proxy", nil)
 
-	forwarder := NewForwarder(map[string][]string{targetURL: []string{firstKey}})
+	forwarder := NewDefaultForwarder(map[string][]string{targetURL: []string{firstKey}})
 	// delay next retry cycle so we can inspect retry queue
 	flushInterval = 5 * time.Hour
 	forwarder.NumberOfWorkers = 1
@@ -243,7 +243,7 @@ func TestSubmitWithProxyAndPassword(t *testing.T) {
 }
 
 func TestForwarderRetry(t *testing.T) {
-	forwarder := NewForwarder(nil)
+	forwarder := NewDefaultForwarder(nil)
 	forwarder.Start()
 	defer forwarder.Stop()
 
@@ -271,7 +271,7 @@ func TestForwarderRetry(t *testing.T) {
 }
 
 func TestForwarderRetryLifo(t *testing.T) {
-	forwarder := NewForwarder(nil)
+	forwarder := NewDefaultForwarder(nil)
 	forwarder.init()
 
 	transaction1 := newTestTransaction()

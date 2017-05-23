@@ -58,8 +58,22 @@ type Transaction interface {
 	GetCreatedAt() time.Time
 }
 
-// Forwarder is in charge of receiving transaction payloads and sending them to Datadog backend over HTTP.
-type Forwarder struct {
+// Forwarder implements basic interface - useful for testing
+type Forwarder interface {
+	Start() error
+	Stop()
+	SubmitV1Series(apiKey string, payload *[]byte) error
+	SubmitV1Intake(apiKey string, payload *[]byte) error
+	SubmitV1CheckRuns(apiKey string, payload *[]byte) error
+	SubmitV2Series(apikey string, payload *[]byte) error
+	SubmitV2Events(apikey string, payload *[]byte) error
+	SubmitV2CheckRuns(apikey string, payload *[]byte) error
+	SubmitV2HostMeta(apikey string, payload *[]byte) error
+	SubmitV2GenericMeta(apikey string, payload *[]byte) error
+}
+
+// DefaultForwarder is in charge of receiving transaction payloads and sending them to Datadog backend over HTTP.
+type DefaultForwarder struct {
 	waitingPipe         chan Transaction
 	requeuedTransaction chan Transaction
 	stopRetry           chan bool
@@ -68,15 +82,15 @@ type Forwarder struct {
 	internalState       uint32
 	m                   sync.Mutex // To control Start/Stop races
 
-	// NumberOfWorkers Number of concurrent HTTP request made by the Forwarder (default 4).
+	// NumberOfWorkers Number of concurrent HTTP request made by the DefaultForwarder (default 4).
 	NumberOfWorkers int
 	// KeysPerDomains are the different keys to use per domain when sending transactions.
 	KeysPerDomains map[string][]string
 }
 
-// NewForwarder returns a new Forwarder.
-func NewForwarder(KeysPerDomains map[string][]string) *Forwarder {
-	return &Forwarder{
+// NewDefaultForwarder returns a new DefaultForwarder.
+func NewDefaultForwarder(KeysPerDomains map[string][]string) *DefaultForwarder {
+	return &DefaultForwarder{
 		NumberOfWorkers: defaultNumberOfWorkers,
 		KeysPerDomains:  KeysPerDomains,
 		internalState:   Stopped,
@@ -89,7 +103,7 @@ func (v byCreatedTime) Len() int           { return len(v) }
 func (v byCreatedTime) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
 func (v byCreatedTime) Less(i, j int) bool { return v[i].GetCreatedAt().After(v[j].GetCreatedAt()) }
 
-func (f *Forwarder) retryTransactions(tickTime time.Time) {
+func (f *DefaultForwarder) retryTransactions(tickTime time.Time) {
 	newQueue := []Transaction{}
 
 	sort.Sort(byCreatedTime(f.retryQueue))
@@ -106,12 +120,12 @@ func (f *Forwarder) retryTransactions(tickTime time.Time) {
 	transactionsCreation.Add("RetryQueueSize", int64(len(f.retryQueue)))
 }
 
-func (f *Forwarder) requeueTransaction(t Transaction) {
+func (f *DefaultForwarder) requeueTransaction(t Transaction) {
 	f.retryQueue = append(f.retryQueue, t)
 	transactionsCreation.Add("Requeued", 1)
 }
 
-func (f *Forwarder) handleFailedTransactions() {
+func (f *DefaultForwarder) handleFailedTransactions() {
 	ticker := time.NewTicker(flushInterval)
 	for {
 		select {
@@ -126,7 +140,7 @@ func (f *Forwarder) handleFailedTransactions() {
 	}
 }
 
-func (f *Forwarder) init() {
+func (f *DefaultForwarder) init() {
 	f.waitingPipe = make(chan Transaction, chanBufferSize)
 	f.requeuedTransaction = make(chan Transaction, chanBufferSize)
 	f.stopRetry = make(chan bool)
@@ -134,9 +148,9 @@ func (f *Forwarder) init() {
 	f.retryQueue = []Transaction{}
 }
 
-// Start starts a Forwarder.
-func (f *Forwarder) Start() error {
-	// Lock so we can't stop a Forwarder while is starting
+// Start starts a DefaultForwarder.
+func (f *DefaultForwarder) Start() error {
+	// Lock so we can't stop a DefaultForwarder while is starting
 	f.m.Lock()
 	defer f.m.Unlock()
 
@@ -154,18 +168,18 @@ func (f *Forwarder) Start() error {
 	}
 	go f.handleFailedTransactions()
 	f.internalState = Started
-	log.Infof("Forwarder started (%v workers)", f.NumberOfWorkers)
+	log.Infof("DefaultForwarder started (%v workers)", f.NumberOfWorkers)
 	return nil
 }
 
-// State returns the internal state of the Forwarder (either Started or Stopped).
-func (f *Forwarder) State() uint32 {
+// State returns the internal state of the DefaultForwarder (either Started or Stopped).
+func (f *DefaultForwarder) State() uint32 {
 	return f.internalState
 }
 
-// Stop stops a Forwarder, all transactions not yet flushed will be lost.
-func (f *Forwarder) Stop() {
-	// Lock so we can't start a Forwarder while is stopping
+// Stop stops a DefaultForwarder, all transactions not yet flushed will be lost.
+func (f *DefaultForwarder) Stop() {
+	// Lock so we can't start a DefaultForwarder while is stopping
 	f.m.Lock()
 	defer f.m.Unlock()
 
@@ -184,10 +198,10 @@ func (f *Forwarder) Stop() {
 	f.retryQueue = []Transaction{}
 	close(f.waitingPipe)
 	close(f.requeuedTransaction)
-	log.Info("Forwarder stopped")
+	log.Info("DefaultForwarder stopped")
 }
 
-func (f *Forwarder) createHTTPTransactions(endpoint string, payload *[]byte, compress bool) ([]*HTTPTransaction, error) {
+func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payload *[]byte, compress bool) ([]*HTTPTransaction, error) {
 	if compress && payload != nil {
 		compressPayload, err := zstd.Compress(nil, *payload)
 		if err != nil {
@@ -210,7 +224,7 @@ func (f *Forwarder) createHTTPTransactions(endpoint string, payload *[]byte, com
 	return transactions, nil
 }
 
-func (f *Forwarder) sendHTTPTransactions(transactions []*HTTPTransaction) error {
+func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction) error {
 	if atomic.LoadUint32(&f.internalState) == Stopped {
 		return fmt.Errorf("the forwarder is not started")
 	}
@@ -223,7 +237,7 @@ func (f *Forwarder) sendHTTPTransactions(transactions []*HTTPTransaction) error 
 }
 
 // SubmitTimeseries will send a timeserie type payload to Datadog backend.
-func (f *Forwarder) SubmitTimeseries(payload *[]byte) error {
+func (f *DefaultForwarder) SubmitTimeseries(payload *[]byte) error {
 	transactions, err := f.createHTTPTransactions(seriesEndpoint, payload, true)
 	if err != nil {
 		return err
@@ -234,7 +248,7 @@ func (f *Forwarder) SubmitTimeseries(payload *[]byte) error {
 }
 
 // SubmitEvent will send a event type payload to Datadog backend.
-func (f *Forwarder) SubmitEvent(payload *[]byte) error {
+func (f *DefaultForwarder) SubmitEvent(payload *[]byte) error {
 	transactions, err := f.createHTTPTransactions(eventsEndpoint, payload, true)
 	if err != nil {
 		return err
@@ -245,7 +259,7 @@ func (f *Forwarder) SubmitEvent(payload *[]byte) error {
 }
 
 // SubmitCheckRun will send a check_run type payload to Datadog backend.
-func (f *Forwarder) SubmitCheckRun(payload *[]byte) error {
+func (f *DefaultForwarder) SubmitCheckRun(payload *[]byte) error {
 	transactions, err := f.createHTTPTransactions(checkRunsEndpoint, payload, true)
 	if err != nil {
 		return err
@@ -256,7 +270,7 @@ func (f *Forwarder) SubmitCheckRun(payload *[]byte) error {
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
-func (f *Forwarder) SubmitHostMetadata(payload *[]byte) error {
+func (f *DefaultForwarder) SubmitHostMetadata(payload *[]byte) error {
 	transactions, err := f.createHTTPTransactions(hostMetadataEndpoint, payload, true)
 	if err != nil {
 		return err
@@ -267,7 +281,7 @@ func (f *Forwarder) SubmitHostMetadata(payload *[]byte) error {
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
-func (f *Forwarder) SubmitMetadata(payload *[]byte) error {
+func (f *DefaultForwarder) SubmitMetadata(payload *[]byte) error {
 	transactions, err := f.createHTTPTransactions(metadataEndpoint, payload, true)
 	if err != nil {
 		return err
@@ -279,7 +293,7 @@ func (f *Forwarder) SubmitMetadata(payload *[]byte) error {
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
-func (f *Forwarder) SubmitV1Series(apiKey string, payload *[]byte) error {
+func (f *DefaultForwarder) SubmitV1Series(apiKey string, payload *[]byte) error {
 	endpoint := fmt.Sprintf(v1SeriesEndpoint, apiKey)
 	transactions, err := f.createHTTPTransactions(endpoint, payload, false)
 	if err != nil {
@@ -292,7 +306,7 @@ func (f *Forwarder) SubmitV1Series(apiKey string, payload *[]byte) error {
 
 // SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
 // the backend handles v2 endpoints).
-func (f *Forwarder) SubmitV1CheckRuns(apiKey string, payload *[]byte) error {
+func (f *DefaultForwarder) SubmitV1CheckRuns(apiKey string, payload *[]byte) error {
 	endpoint := fmt.Sprintf(v1CheckRunsEndpoint, apiKey)
 	transactions, err := f.createHTTPTransactions(endpoint, payload, false)
 	if err != nil {
@@ -304,7 +318,7 @@ func (f *Forwarder) SubmitV1CheckRuns(apiKey string, payload *[]byte) error {
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
-func (f *Forwarder) SubmitV1Intake(apiKey string, payload *[]byte) error {
+func (f *DefaultForwarder) SubmitV1Intake(apiKey string, payload *[]byte) error {
 	endpoint := fmt.Sprintf(v1IntakeEndpoint, apiKey)
 	transactions, err := f.createHTTPTransactions(endpoint, payload, false)
 	if err != nil {
@@ -318,4 +332,29 @@ func (f *Forwarder) SubmitV1Intake(apiKey string, payload *[]byte) error {
 
 	transactionsCreation.Add("IntakeV1", 1)
 	return f.sendHTTPTransactions(transactions)
+}
+
+// SubmitV2Series will send service checks to v2 endpoint - UNIMPLEMENTED
+func (f *DefaultForwarder) SubmitV2Series(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+
+// SubmitV2Events will send events to v2 endpoint - UNIMPLEMENTED
+func (f *DefaultForwarder) SubmitV2Events(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+
+// SubmitV2CheckRuns will send service checks to v2 endpoint - UNIMPLEMENTED
+func (f *DefaultForwarder) SubmitV2CheckRuns(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+
+// SubmitV2HostMeta will send host metadata to v2 endpoint - UNIMPLEMENTED
+func (f *DefaultForwarder) SubmitV2HostMeta(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+
+// SubmitV2GenericMeta will send generic metadata to v2 endpoint - UNIMPLEMENTED
+func (f *DefaultForwarder) SubmitV2GenericMeta(apikey string, payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
 }

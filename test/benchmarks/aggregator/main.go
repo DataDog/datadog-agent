@@ -90,7 +90,7 @@ func main() {
 	flag.Parse()
 
 	config.SetupLogger("error", "")
-	f := forwarder.NewForwarder(map[string][]string{})
+	f := forwarder.NewDefaultForwarder(map[string][]string{})
 
 	agg := aggregator.NewBufferedAggregator(f, "benchmark")
 	flush := make(chan time.Time)

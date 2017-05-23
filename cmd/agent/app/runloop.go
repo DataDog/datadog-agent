@@ -34,7 +34,7 @@ var (
 )
 
 // StartAgent Initializes the agent process
-func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder) {
+func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) {
 
 	if pidfilePath != "" {
 		err := pidfile.WritePID(pidfilePath)
@@ -71,7 +71,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 			config.Datadog.GetString("api_key"),
 		},
 	}
-	fwd := forwarder.NewForwarder(keysPerDomain)
+	fwd := forwarder.NewDefaultForwarder(keysPerDomain)
 	log.Debugf("Starting forwarder")
 	fwd.Start()
 	log.Debugf("Forwarder started")
@@ -101,7 +101,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, *forwarder.Forwarder)
 }
 
 // StopAgent Tears down the agent process
-func StopAgent(statsd *dogstatsd.Server, metaCollector *metadata.Collector, fwd *forwarder.Forwarder) {
+func StopAgent(statsd *dogstatsd.Server, metaCollector *metadata.Collector, fwd forwarder.Forwarder) {
 	// gracefully shut down any component
 	if statsd != nil {
 		statsd.Stop()

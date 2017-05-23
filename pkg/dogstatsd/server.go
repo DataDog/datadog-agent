@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 var (
@@ -20,8 +21,9 @@ var (
 
 // Server represent a Dogstatsd server
 type Server struct {
-	conn    net.PacketConn
-	Started bool
+	conn       net.PacketConn
+	Statistics *util.Stats
+	Started    bool
 }
 
 // NewServer returns a running Dogstatsd server
@@ -29,8 +31,17 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 	var conn net.PacketConn
 	var err error
 
-	socketPath := config.Datadog.GetString("dogstatsd_socket")
+	var stats *util.Stats
+	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
+		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
+		s, err := util.NewStats(uint32(buff))
+		if err != nil {
+			log.Errorf("dogstatsd: unable to start statistics facilities")
+		}
+		stats = s
+	}
 
+	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) == 0 {
 		var url string
 
@@ -51,8 +62,9 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 	}
 
 	s := &Server{
-		Started: true,
-		conn:    conn,
+		Started:    true,
+		Statistics: stats,
+		conn:       conn,
 	}
 	go s.handleMessages(metricOut, eventOut, serviceCheckOut)
 	log.Infof("dogstatsd: listening on %s", conn.LocalAddr())
@@ -60,6 +72,10 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 }
 
 func (s *Server) handleMessages(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggregator.Event, serviceCheckOut chan<- aggregator.ServiceCheck) {
+	if s.Statistics != nil {
+		go s.Statistics.Process()
+		defer s.Statistics.Stop()
+	}
 	for {
 		buf := make([]byte, config.Datadog.GetInt("dogstatsd_buffer_size"))
 		n, _, err := s.conn.ReadFrom(buf)
@@ -82,6 +98,10 @@ func (s *Server) handleMessages(metricOut chan<- *aggregator.MetricSample, event
 				packet := nextPacket(&datagram)
 				if packet == nil {
 					break
+				}
+
+				if s.Statistics != nil {
+					s.Statistics.StatEvent(1)
 				}
 
 				if bytes.HasPrefix(packet, []byte("_sc")) {
