@@ -42,6 +42,7 @@ func (c *LoadCheck) Run() error {
 	c.sender.Gauge("system.load.norm.15", avg.Load15/cpus, "", nil)
 	c.sender.Commit()
 
+	fmt.Printf("THIS CHECK DID RUN!")
 	return nil
 }
 
