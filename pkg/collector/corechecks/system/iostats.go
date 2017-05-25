@@ -18,6 +18,7 @@ import (
 /*
 #include <unistd.h>
 #include <sys/types.h>
+#include <pwd.h>
 #include <stdlib.h>
 */
 import "C"
@@ -46,7 +47,7 @@ func (c *IOCheck) String() string {
 	return "IOCheck"
 }
 
-func (c *IOCheck) nixIO() error {
+func (c *IOCheck) Run() error {
 	// See: https://www.xaprb.com/blog/2010/01/09/how-linux-iostat-computes-its-results/
 	//      https://www.kernel.org/doc/Documentation/iostats.txt
 	iomap, err := ioCounters()
@@ -54,6 +55,7 @@ func (c *IOCheck) nixIO() error {
 		log.Errorf("system.IOCheck: could not retrieve io stats: %s", err)
 		return err
 	}
+
 	now := time.Now().Unix()
 	delta := float64(now - c.ts)
 
@@ -142,51 +144,6 @@ func (c *IOCheck) nixIO() error {
 	return nil
 }
 
-func (c *IOCheck) windowsIO() error {
-	iomap, err := ioCounters()
-	if err != nil {
-		log.Errorf("system.IOCheck: could not retrieve io stats: %s", err)
-		return err
-	}
-
-	var tagbuff bytes.Buffer
-	for device, ioStats := range iomap {
-		if c.blacklist != nil && c.blacklist.MatchString(device) {
-			continue
-		}
-
-		tagbuff.Reset()
-		tagbuff.WriteString("device:")
-		tagbuff.WriteString(device)
-		tags := []string{tagbuff.String()}
-
-		c.sender.Gauge("system.io.r_s", float64(ioStats.ReadCount), "", tags)
-		c.sender.Gauge("system.io.w_s", float64(ioStats.WriteCount), "", tags)
-		c.sender.Gauge("system.io.rkb_s", float64(ioStats.ReadBytes)/kB, "", tags)
-		c.sender.Gauge("system.io.wkb_s", float64(ioStats.WriteBytes)/kB, "", tags)
-		// TODO: c.sender.Gauge("system.io.avg_q_sz", avgqusz, "", tags)
-	}
-
-	return nil
-}
-
-// Run executes the check
-func (c *IOCheck) Run() error {
-	var err error
-
-	switch os := runtime.GOOS; os {
-	case "windows":
-		err = c.windowsIO()
-	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
-		err = c.nixIO()
-	}
-
-	if err == nil {
-		c.sender.Commit()
-	}
-	return err
-}
-
 // Configure the IOstats check
 func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	err := error(nil)
@@ -238,18 +195,9 @@ func ioFactory() check.Check {
 func init() {
 	core.RegisterCheck("io", ioFactory)
 
+	// get the clock frequency - one time op
 	var scClkTck C.long
+	scClkTck = C.sysconf(C._SC_CLK_TCK)
 
-	switch os := runtime.GOOS; os {
-	case "windows":
-		hz = -1
-	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
-		scClkTck = C.sysconf(C._SC_CLK_TCK)
-		hz = int64(scClkTck)
-	}
-
-	if hz <= 0 {
-		log.Errorf("Unable to grab HZ: perhaps unavailable in your architecture" +
-			"(svctm will not be available)")
-	}
+	hz = int64(scClkTck)
 }

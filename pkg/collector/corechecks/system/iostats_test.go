@@ -56,7 +56,7 @@ func ioSampler(names ...string) (map[string]disk.IOCountersStat, error) {
 	return ioSamples[idx], nil
 }
 
-func TestIOCheck(t *testing.T) {
+func TestIOCheckLinux(t *testing.T) {
 	ioCounters = ioSampler
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(nil, nil)
