@@ -78,6 +78,6 @@ func TestIOCheckLinux(t *testing.T) {
 
 	ioCheck.Run()
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 6)
+	mock.AssertNumberOfCalls(t, "Gauge", 13)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
