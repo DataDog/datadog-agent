@@ -48,6 +48,7 @@ func (c *IOCheck) String() string {
 }
 
 func (c *IOCheck) Run() error {
+	// TODO: Different OS's might not have everything - make this OSX/Windows safe
 	// See: https://www.xaprb.com/blog/2010/01/09/how-linux-iostat-computes-its-results/
 	//      https://www.kernel.org/doc/Documentation/iostats.txt
 	iomap, err := ioCounters()
