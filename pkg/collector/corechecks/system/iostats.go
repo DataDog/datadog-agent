@@ -68,10 +68,9 @@ func (c *IOCheck) Run() error {
 		tagbuff.WriteString("device:")
 		tagbuff.WriteString(device)
 
-		// TODO: Different OS have different fields.... account for that
+		// TODO: Different OS's might not have everything - make this OSX/Windows safe
 		// See: https://www.xaprb.com/blog/2010/01/09/how-linux-iostat-computes-its-results/
 		//      https://www.kernel.org/doc/Documentation/iostats.txt
-		// Linux
 		rrqms := (ioStats2.MergedReadCount - ioStats.MergedReadCount)
 		wrqms := (ioStats2.MergedWriteCount - ioStats.MergedWriteCount)
 		rs := (ioStats2.ReadCount - ioStats.ReadCount)
