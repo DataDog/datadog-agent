@@ -8,6 +8,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/disk"
 	"gopkg.in/yaml.v2"
@@ -169,6 +170,33 @@ func (c *IOCheck) nixIO() error {
 
 	c.stats = iomap
 	c.ts = now
+	return nil
+}
+
+func (c *IOCheck) windowsIO() error {
+	iomap, err := ioCounters()
+	if err != nil {
+		log.Errorf("system.IOCheck: could not retrieve io stats: %s", err)
+		return err
+	}
+
+	var tagbuff bytes.Buffer
+	for device, ioStats := range iomap {
+		if c.blacklist.MatchString(device) {
+			continue
+		}
+
+		tagbuff.Reset()
+		tagbuff.WriteString("device:")
+		tagbuff.WriteString(device)
+		tags := []string{tagbuff.String()}
+
+		c.sender.Gauge("system.io.r_s", float64(ioStats.ReadCount), "", tags)
+		c.sender.Gauge("system.io.w_s", float64(ioStats.WriteCount), "", tags)
+		c.sender.Gauge("system.io.rkb_s", float64(ioStats.ReadBytes)/kB, "", tags)
+		c.sender.Gauge("system.io.wkb_s", float64(ioStats.WriteBytes)/kB, "", tags)
+		// TODO: c.sender.Gauge("system.io.avg_q_sz", avgqusz, "", tags)
+	}
 
 	return nil
 }
@@ -190,7 +218,7 @@ func (c *IOCheck) Run() error {
 	return err
 }
 
-// Configure the CPU check doesn't need configuration
+// Configure the IOstats check
 func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	err := error(nil)
 
