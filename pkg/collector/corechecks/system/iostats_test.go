@@ -62,24 +62,30 @@ func TestIOCheckLinux(t *testing.T) {
 	mock := new(MockSender)
 	ioCheck.sender = mock
 
-	mock.On("Gauge", "system.io.r_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Gauge", "system.io.w_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Gauge", "system.io.rkb_s", 60.5, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Gauge", "system.io.wkb_s", 37.5, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Gauge", "system.io.avg_rq_sz", 0.0, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Gauge", "system.io.await", 0.0, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Gauge", "system.io.r_await", 0.0, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Gauge", "system.io.w_await", 0.0, "", []string{"device:sda"}).Return().Times(1)
-
-	expectedCalls := 8
-	if runtime.GOOS != "windows" {
+	expectedCalls := 4
+	switch os := runtime.GOOS; os {
+	case "windows":
+		mock.On("Gauge", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.rkb_s", float64(849293*SectorSize), "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.wkb_s", float64(1406995*SectorSize), "", []string{"device:sda"}).Return().Times(1)
+	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
+		mock.On("Gauge", "system.io.r_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.w_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.rkb_s", 60.5, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.wkb_s", 37.5, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.avg_rq_sz", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.await", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.r_await", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.w_await", 0.0, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.rrqm_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.wrqm_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.avg_q_sz", 0.028, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.util", 2.8, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.svctm", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		expectedCalls = expectedCalls + 5
+		expectedCalls += 9
 	}
+
 	mock.On("Commit").Return().Times(1)
 
 	ioCheck.Run()
