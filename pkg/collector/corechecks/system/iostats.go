@@ -2,11 +2,13 @@ package system
 
 import (
 	"bytes"
+	"regexp"
 	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/disk"
 
@@ -34,7 +36,8 @@ const (
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
-	sender aggregator.Sender
+	sender    aggregator.Sender
+	blacklist *regexp.Regexp
 }
 
 func (c *IOCheck) String() string {
@@ -60,6 +63,10 @@ func (c *IOCheck) nixIO() error {
 
 	var tagbuff bytes.Buffer
 	for device, ioStats := range iomap {
+		if c.blacklist.MatchString(device) {
+			continue
+		}
+
 		ioStats2, ok := iomap2[device]
 		if !ok {
 			log.Infof("New device stats (possible hotplug) - full stats unavailable this iteration.")
@@ -140,6 +147,10 @@ func (c *IOCheck) windowsIO() error {
 
 	var tagbuff bytes.Buffer
 	for device, ioStats := range iomap {
+		if c.blacklist.MatchString(device) {
+			continue
+		}
+
 		tagbuff.Reset()
 		tagbuff.WriteString("device:")
 		tagbuff.WriteString(device)
@@ -172,9 +183,15 @@ func (c *IOCheck) Run() error {
 	return err
 }
 
-// Configure the CPU check doesn't need configuration
+// Configure the IOstats check
 func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
-	return nil
+	err := error(nil)
+
+	blacklistRe := config.Datadog.GetString("device_blacklist_re")
+	if blacklistRe != "" {
+		c.blacklist, err = regexp.Compile(blacklistRe)
+	}
+	return err
 }
 
 // InitSender initializes a sender
