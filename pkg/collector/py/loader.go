@@ -46,12 +46,13 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 	moduleName := config.Name
 
+	// import python module containing the check
 	// Lock the GIL while working with go-python directly
 	glock := newStickyLock()
-
-	// import python module containing the check
 	checkModule := python.PyImport_ImportModule(moduleName)
+	glock.unlock()
 	if checkModule == nil {
+		glock = newStickyLock()
 		pyErr, err := getPythonError()
 		glock.unlock()
 		if err != nil {
@@ -61,18 +62,18 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	}
 
 	// Try to find a class inheriting from AgentCheck within the module
+	glock = newStickyLock()
 	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule)
+	glock.unlock()
 	if err != nil {
 		msg := fmt.Sprintf("Unable to find a check class in the module: %v", err)
 		return checks, errors.New(msg)
 	}
 
-	// Unlock the GIL here, `check.Configure` below uses its own stickyLock and stickyLocks must not be nested
-	glock.unlock()
-
 	// Get an AgentCheck for each configuration instance and add it to the registry
 	for _, i := range config.Instances {
 		check := NewPythonCheck(moduleName, checkClass)
+		// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
 		if err := check.Configure(i, config.InitConfig); err != nil {
 			log.Errorf("py.loader: could not configure check '%s': %s", moduleName, err)
 			continue
