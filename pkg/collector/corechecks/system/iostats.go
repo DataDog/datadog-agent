@@ -71,7 +71,6 @@ func (c *IOCheck) Run() error {
 		tagbuff.WriteString(device)
 		tags := []string{tagbuff.String()}
 
-		// TODO: Different OS's might not have everything - make this OSX/Windows safe
 		c.sender.Rate("system.io.r_s", float64(ioStats.ReadCount), "", tags)
 		c.sender.Rate("system.io.w_s", float64(ioStats.WriteCount), "", tags)
 		c.sender.Rate("system.io.rrqm_s", float64(ioStats.MergedReadCount), "", tags)
@@ -196,9 +195,18 @@ func ioFactory() check.Check {
 func init() {
 	core.RegisterCheck("io", ioFactory)
 
-	// get the clock frequency - one time op
 	var scClkTck C.long
-	scClkTck = C.sysconf(C._SC_CLK_TCK)
 
-	hz = int64(scClkTck)
+	switch os := runtime.GOOS; os {
+	case "windows":
+		hz = -1
+	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
+		scClkTck = C.sysconf(C._SC_CLK_TCK)
+		hz = int64(scClkTck)
+	}
+
+	if hz <= 0 {
+		log.Errorf("Unable to grab HZ: perhaps unavailable in your architecture" +
+			"(svctm will not be available)")
+	}
 }
