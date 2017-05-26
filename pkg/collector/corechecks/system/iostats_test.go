@@ -1,6 +1,7 @@
 package system
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/shirou/gopsutil/disk"
@@ -61,23 +62,28 @@ func TestIOCheckLinux(t *testing.T) {
 	mock := new(MockSender)
 	ioCheck.sender = mock
 
-	mock.On("Gauge", "system.io.rrqm_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Gauge", "system.io.wrqm_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.r_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.w_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.rkb_s", 60.5, "", []string{"device:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.wkb_s", 37.5, "", []string{"device:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.avg_rq_sz", 0.0, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Gauge", "system.io.avg_q_sz", 0.028, "", []string{"device:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.await", 0.0, "", []string{"device:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.r_await", 0.0, "", []string{"device:sda"}).Return().Times(1)
 	mock.On("Gauge", "system.io.w_await", 0.0, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Gauge", "system.io.util", 2.8, "", []string{"device:sda"}).Return().Times(1)
-	mock.On("Gauge", "system.io.svctm", 0.0, "", []string{"device:sda"}).Return().Times(1)
+
+	expectedCalls := 8
+	if runtime.GOOS != "windows" {
+		mock.On("Gauge", "system.io.rrqm_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.wrqm_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.avg_q_sz", 0.028, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.util", 2.8, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Gauge", "system.io.svctm", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		expectedCalls = expectedCalls + 5
+	}
 	mock.On("Commit").Return().Times(1)
 
 	ioCheck.Run()
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 13)
+	mock.AssertNumberOfCalls(t, "Gauge", expectedCalls)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }

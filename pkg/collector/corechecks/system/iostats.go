@@ -2,6 +2,7 @@ package system
 
 import (
 	"bytes"
+	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -24,7 +25,7 @@ import "C"
 var ioCounters = disk.IOCounters
 
 // kernel ticks / sec
-var hz uint64
+var hz int64
 
 const (
 	// SectorSize is exported in github.com/shirou/gopsutil/disk (but not working!)
@@ -43,6 +44,8 @@ func (c *IOCheck) String() string {
 
 // Run executes the check
 func (c *IOCheck) Run() error {
+	// See: https://www.xaprb.com/blog/2010/01/09/how-linux-iostat-computes-its-results/
+	//      https://www.kernel.org/doc/Documentation/iostats.txt
 	iomap, err := ioCounters()
 	if err != nil {
 		log.Errorf("system.IOCheck: could not retrieve io stats: %s", err)
@@ -69,15 +72,11 @@ func (c *IOCheck) Run() error {
 		tagbuff.WriteString(device)
 
 		// TODO: Different OS's might not have everything - make this OSX/Windows safe
-		// See: https://www.xaprb.com/blog/2010/01/09/how-linux-iostat-computes-its-results/
-		//      https://www.kernel.org/doc/Documentation/iostats.txt
-		rrqms := (ioStats2.MergedReadCount - ioStats.MergedReadCount)
-		wrqms := (ioStats2.MergedWriteCount - ioStats.MergedWriteCount)
 		rs := (ioStats2.ReadCount - ioStats.ReadCount)
 		ws := (ioStats2.WriteCount - ioStats.WriteCount)
 		rkbs := float64(ioStats2.ReadBytes-ioStats.ReadBytes) / kB
 		wkbs := float64(ioStats2.WriteBytes-ioStats.WriteBytes) / kB
-		avgqusz := float64(ioStats2.WeightedIO-ioStats.WeightedIO) / 1000
+		avgqusz := float64(ioStats2.WeightedIO-ioStats.WeightedIO) / 1000 //unavailable on windows
 
 		rAwait := 0.0
 		wAwait := 0.0
@@ -91,38 +90,46 @@ func (c *IOCheck) Run() error {
 		}
 
 		avgrqsz := 0.0
-		await := 0.0
-		svctime := 0.0
+		aWait := 0.0
 
 		diffNIO := float64(diffNRIO + diffNWIO)
 		if diffNIO != 0 {
 			avgrqsz = float64((ioStats2.ReadBytes-ioStats.ReadBytes+ioStats2.WriteBytes-ioStats.WriteBytes)/SectorSize) / diffNIO
-			await = float64(ioStats2.ReadTime-ioStats.ReadTime+ioStats2.WriteTime-ioStats.WriteTime) / diffNIO
-		}
-		tput := diffNIO * float64(hz)
-		util := float64(ioStats2.IoTime - ioStats.IoTime)
-		if tput != 0 {
-			svctime = util / tput
+			aWait = float64(ioStats2.ReadTime-ioStats.ReadTime+ioStats2.WriteTime-ioStats.WriteTime) / diffNIO
 		}
 
 		tags := []string{tagbuff.String()}
-		c.sender.Gauge("system.io.rrqm_s", float64(rrqms), "", tags)
-		c.sender.Gauge("system.io.wrqm_s", float64(wrqms), "", tags)
 		c.sender.Gauge("system.io.r_s", float64(rs), "", tags)
 		c.sender.Gauge("system.io.w_s", float64(ws), "", tags)
 		c.sender.Gauge("system.io.rkb_s", rkbs, "", tags)
 		c.sender.Gauge("system.io.wkb_s", wkbs, "", tags)
 		c.sender.Gauge("system.io.avg_rq_sz", avgrqsz, "", tags)
-		c.sender.Gauge("system.io.avg_q_sz", avgqusz, "", tags)
-		c.sender.Gauge("system.io.await", await, "", tags)
+		c.sender.Gauge("system.io.await", aWait, "", tags)
 		c.sender.Gauge("system.io.r_await", float64(rAwait), "", tags)
 		c.sender.Gauge("system.io.w_await", float64(wAwait), "", tags)
-		c.sender.Gauge("system.io.svctm", svctime, "", tags)
 
-		// Stats should be per device no device groups.
-		// If device groups ever become a thing - util / 10.0 / n_devs_in_group
-		// See more: (https://github.com/sysstat/sysstat/blob/v11.5.6/iostat.c#L1033-L1040)
-		c.sender.Gauge("system.io.util", (util / 10.0), "", tags)
+		if runtime.GOOS != "windows" { //unavailable on windows
+			rrqms := (ioStats2.MergedReadCount - ioStats.MergedReadCount)
+			wrqms := (ioStats2.MergedWriteCount - ioStats.MergedWriteCount)
+			tput := diffNIO * float64(hz)
+			util := float64(ioStats2.IoTime - ioStats.IoTime)
+			svctime := 0.0
+			if tput != 0 {
+				svctime = util / tput
+			}
+
+			c.sender.Gauge("system.io.rrqm_s", float64(rrqms), "", tags)
+			c.sender.Gauge("system.io.wrqm_s", float64(wrqms), "", tags)
+			c.sender.Gauge("system.io.avg_q_sz", avgqusz, "", tags)
+			if hz > 0 { // only send if we were able to collect HZ
+				c.sender.Gauge("system.io.svctm", svctime, "", tags)
+			}
+
+			// Stats should be per device no device groups.
+			// If device groups ever become a thing - util / 10.0 / n_devs_in_group
+			// See more: (https://github.com/sysstat/sysstat/blob/v11.5.6/iostat.c#L1033-L1040)
+			c.sender.Gauge("system.io.util", (util / 10.0), "", tags)
+		}
 
 		// TODO: enable blacklist
 		c.sender.Commit()
@@ -167,9 +174,18 @@ func ioFactory() check.Check {
 func init() {
 	core.RegisterCheck("io", ioFactory)
 
-	// get the clock frequency - one time op
 	var scClkTck C.long
-	scClkTck = C.sysconf(C._SC_CLK_TCK)
 
-	hz = uint64(scClkTck)
+	switch os := runtime.GOOS; os {
+	case "windows":
+		hz = -1
+	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
+		scClkTck = C.sysconf(C._SC_CLK_TCK)
+		hz = int64(scClkTck)
+	}
+
+	if hz <= 0 {
+		log.Errorf("Unable to grab HZ: perhaps unavailable in your architecture" +
+			"(svctm will not be available)")
+	}
 }
