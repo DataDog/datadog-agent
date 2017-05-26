@@ -48,12 +48,12 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 	// Lock the GIL while working with go-python directly
 	glock := newStickyLock()
-	defer glock.unlock()
 
 	// import python module containing the check
 	checkModule := python.PyImport_ImportModule(moduleName)
 	if checkModule == nil {
 		pyErr, err := getPythonError()
+		glock.unlock()
 		if err != nil {
 			return nil, fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
 		}
@@ -66,6 +66,9 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		msg := fmt.Sprintf("Unable to find a check class in the module: %v", err)
 		return checks, errors.New(msg)
 	}
+
+	// Unlock the GIL here, `check.Configure` below uses its own stickyLock and stickyLocks must not be nested
+	glock.unlock()
 
 	// Get an AgentCheck for each configuration instance and add it to the registry
 	for _, i := range config.Instances {
