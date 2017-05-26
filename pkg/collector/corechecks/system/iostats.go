@@ -30,7 +30,7 @@ var hz int64
 const (
 	// SectorSize is exported in github.com/shirou/gopsutil/disk (but not working!)
 	SectorSize = 512
-	kB         = 1024
+	kB         = (1 << 10)
 )
 
 // IOCheck doesn't need additional fields
@@ -40,6 +40,35 @@ type IOCheck struct {
 
 func (c *IOCheck) String() string {
 	return "IOCheck"
+}
+
+func (c *IOCheck) nixSpecificIO(ioStats, ioStats2 *disk.IOCountersStat, tags []string) {
+	rrqms := (ioStats2.MergedReadCount - ioStats.MergedReadCount)
+	wrqms := (ioStats2.MergedWriteCount - ioStats.MergedWriteCount)
+	avgqusz := float64(ioStats2.WeightedIO-ioStats.WeightedIO) / 1000
+
+	diffNRIO := float64(ioStats2.ReadCount - ioStats.ReadCount)
+	diffNWIO := float64(ioStats2.WriteCount - ioStats.WriteCount)
+	diffNIO := diffNRIO + diffNWIO
+
+	tput := diffNIO * float64(hz)
+	util := float64(ioStats2.IoTime - ioStats.IoTime)
+	svctime := 0.0
+	if tput != 0 {
+		svctime = util / tput
+	}
+
+	c.sender.Gauge("system.io.rrqm_s", float64(rrqms), "", tags)
+	c.sender.Gauge("system.io.wrqm_s", float64(wrqms), "", tags)
+	c.sender.Gauge("system.io.avg_q_sz", avgqusz, "", tags)
+	if hz > 0 { // only send if we were able to collect HZ
+		c.sender.Gauge("system.io.svctm", svctime, "", tags)
+	}
+
+	// Stats should be per device no device groups.
+	// If device groups ever become a thing - util / 10.0 / n_devs_in_group
+	// See more: (https://github.com/sysstat/sysstat/blob/v11.5.6/iostat.c#L1033-L1040)
+	c.sender.Gauge("system.io.util", (util / 10.0), "", tags)
 }
 
 // Run executes the check
@@ -76,7 +105,6 @@ func (c *IOCheck) Run() error {
 		ws := (ioStats2.WriteCount - ioStats.WriteCount)
 		rkbs := float64(ioStats2.ReadBytes-ioStats.ReadBytes) / kB
 		wkbs := float64(ioStats2.WriteBytes-ioStats.WriteBytes) / kB
-		avgqusz := float64(ioStats2.WeightedIO-ioStats.WeightedIO) / 1000 //unavailable on windows
 
 		rAwait := 0.0
 		wAwait := 0.0
@@ -109,29 +137,9 @@ func (c *IOCheck) Run() error {
 		c.sender.Gauge("system.io.w_await", float64(wAwait), "", tags)
 
 		if runtime.GOOS != "windows" { //unavailable on windows
-			rrqms := (ioStats2.MergedReadCount - ioStats.MergedReadCount)
-			wrqms := (ioStats2.MergedWriteCount - ioStats.MergedWriteCount)
-			tput := diffNIO * float64(hz)
-			util := float64(ioStats2.IoTime - ioStats.IoTime)
-			svctime := 0.0
-			if tput != 0 {
-				svctime = util / tput
-			}
-
-			c.sender.Gauge("system.io.rrqm_s", float64(rrqms), "", tags)
-			c.sender.Gauge("system.io.wrqm_s", float64(wrqms), "", tags)
-			c.sender.Gauge("system.io.avg_q_sz", avgqusz, "", tags)
-			if hz > 0 { // only send if we were able to collect HZ
-				c.sender.Gauge("system.io.svctm", svctime, "", tags)
-			}
-
-			// Stats should be per device no device groups.
-			// If device groups ever become a thing - util / 10.0 / n_devs_in_group
-			// See more: (https://github.com/sysstat/sysstat/blob/v11.5.6/iostat.c#L1033-L1040)
-			c.sender.Gauge("system.io.util", (util / 10.0), "", tags)
+			c.nixSpecificIO(&ioStats, &ioStats2, tags)
 		}
 
-		// TODO: enable blacklist
 		c.sender.Commit()
 	}
 
