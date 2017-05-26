@@ -47,6 +47,36 @@ func (c *IOCheck) String() string {
 	return "IOCheck"
 }
 
+func (c *IOCheck) nixSpecificIO(ioStats, ioStats2 *disk.IOCountersStat, tags []string) {
+	rrqms := (ioStats2.MergedReadCount - ioStats.MergedReadCount)
+	wrqms := (ioStats2.MergedWriteCount - ioStats.MergedWriteCount)
+	avgqusz := float64(ioStats2.WeightedIO-ioStats.WeightedIO) / 1000
+
+	diffNRIO := float64(ioStats2.ReadCount - ioStats.ReadCount)
+	diffNWIO := float64(ioStats2.WriteCount - ioStats.WriteCount)
+	diffNIO := diffNRIO + diffNWIO
+
+	tput := diffNIO * float64(hz)
+	util := float64(ioStats2.IoTime - ioStats.IoTime)
+	svctime := 0.0
+	if tput != 0 {
+		svctime = util / tput
+	}
+
+	c.sender.Gauge("system.io.rrqm_s", float64(rrqms), "", tags)
+	c.sender.Gauge("system.io.wrqm_s", float64(wrqms), "", tags)
+	c.sender.Gauge("system.io.avg_q_sz", avgqusz, "", tags)
+	if hz > 0 { // only send if we were able to collect HZ
+		c.sender.Gauge("system.io.svctm", svctime, "", tags)
+	}
+
+	// Stats should be per device no device groups.
+	// If device groups ever become a thing - util / 10.0 / n_devs_in_group
+	// See more: (https://github.com/sysstat/sysstat/blob/v11.5.6/iostat.c#L1033-L1040)
+	c.sender.Gauge("system.io.util", (util / 10.0), "", tags)
+}
+
+// Run executes the check
 func (c *IOCheck) Run() error {
 	// TODO: Different OS's might not have everything - make this OSX/Windows safe
 	// See: https://www.xaprb.com/blog/2010/01/09/how-linux-iostat-computes-its-results/
