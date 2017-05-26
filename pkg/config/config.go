@@ -15,6 +15,7 @@ func init() {
 	Datadog.SetDefault("hostname", "")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
+	Datadog.SetDefault("device_blacklist_re", "")
 	Datadog.SetDefault("use_dogstatsd", true)
 	Datadog.SetDefault("dogstatsd_port", 8125)
 	Datadog.SetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
