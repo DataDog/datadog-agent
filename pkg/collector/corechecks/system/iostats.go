@@ -77,7 +77,7 @@ func (c *IOCheck) nixSpecificIO(ioStats, ioStats2 *disk.IOCountersStat, tags []s
 }
 
 // Run executes the check
-func (c *IOCheck) Run() error {
+func (c *IOCheck) nixIO() error {
 	// TODO: Different OS's might not have everything - make this OSX/Windows safe
 	// See: https://www.xaprb.com/blog/2010/01/09/how-linux-iostat-computes-its-results/
 	//      https://www.kernel.org/doc/Documentation/iostats.txt
@@ -174,7 +174,24 @@ func (c *IOCheck) Run() error {
 	return nil
 }
 
-// Configure the IOstats check
+// Run executes the check
+func (c *IOCheck) Run() error {
+	var err error
+
+	switch os := runtime.GOOS; os {
+	case "windows":
+		err = c.windowsIO()
+	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
+		err = c.nixIO()
+	}
+
+	if err == nil {
+		c.sender.Commit()
+	}
+	return err
+}
+
+// Configure the CPU check doesn't need configuration
 func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	err := error(nil)
 
