@@ -19,8 +19,8 @@ class AgentLogHandler(logging.Handler):
         msg =  self.format(record)
         datadog_agent.log("(%s:%s) | %s" % (record.filename, record.lineno, msg), record.levelno)
 
-rootLoggger = logging.getLogger()
-rootLoggger.addHandler(AgentLogHandler())
+rootLogger = logging.getLogger()
+rootLogger.addHandler(AgentLogHandler())
 
 class AgentCheck(object):
 
