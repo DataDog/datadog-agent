@@ -24,19 +24,26 @@ namespace :agent do
     # Check if we should use Embedded or System Python,
     # default to the embedded one.
     env = {}
+    ldflags = []
     if !ENV["USE_SYSTEM_PY"]
       env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
+      libdir = `PKG_CONFIG_LIBDIR=#{PKG_CONFIG_LIBDIR} pkg-config --variable=libdir python-2.7`.strip
+      fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
+      ldflags << "-r #{libdir}"
     end
 
     commit = `git rev-parse --short HEAD`.strip
-    ldflags = "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
+    ldflags << "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
     if ENV["WINDOWS_DELVE"]
       # On windows, need to build with the extra arguments -gcflags "-N -l" -ldflags="-linkmode internal"
       # if you want to be able to use the delve debugger.
-      system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"-linkmode internal\" -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
+      ldflags << "-linkmode internal"
+      build_success = system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
     else
-      system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/agent")
+      build_success = system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
     end
+    fail "Agent build failed with code #{$?.exitstatus}" if !build_success
+
     Rake::Task["agent:refresh_assets"].invoke
   end
 
