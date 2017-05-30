@@ -1,3 +1,6 @@
+# dogstatsd image temporary file
+Dockerfiles/dogstatsd/alpine/dogstatsd
+
 vendor/
 bin/
 .vscode
