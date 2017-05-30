@@ -182,7 +182,7 @@ func (c *IOCheck) windowsIO() error {
 
 	var tagbuff bytes.Buffer
 	for device, ioStats := range iomap {
-		if c.blacklist.MatchString(device) {
+		if c.blacklist != nil && c.blacklist.MatchString(device) {
 			continue
 		}
 
