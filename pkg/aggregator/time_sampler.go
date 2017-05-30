@@ -19,11 +19,17 @@ type TimeSampler struct {
 	interval           int64
 	contextResolver    *ContextResolver
 	metricsByTimestamp map[int64]ContextMetrics
+	defaultHostname    string
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(interval int64) *TimeSampler {
-	return &TimeSampler{interval, newContextResolver(), map[int64]ContextMetrics{}}
+func NewTimeSampler(interval int64, defaultHostname string) *TimeSampler {
+	return &TimeSampler{
+		interval:           interval,
+		contextResolver:    newContextResolver(),
+		metricsByTimestamp: map[int64]ContextMetrics{},
+		defaultHostname:    defaultHostname,
+	}
 }
 
 func (s *TimeSampler) calculateBucketStart(timestamp int64) int64 {
@@ -73,7 +79,11 @@ func (s *TimeSampler) flush(timestamp int64) []*Serie {
 				context := s.contextResolver.contextsByKey[serie.contextKey]
 				serie.Name = context.Name + serie.nameSuffix
 				serie.Tags = context.Tags
-				serie.Host = context.Host
+				if context.Host != "" {
+					serie.Host = context.Host
+				} else {
+					serie.Host = s.defaultHostname
+				}
 				serie.DeviceName = context.DeviceName
 				serie.Interval = s.interval
 
