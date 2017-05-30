@@ -314,7 +314,7 @@ func (agg *BufferedAggregator) run() {
 			agg.hostname = h
 			agg.mu.Lock()
 			for _, checkSampler := range agg.checkSamplers {
-				checkSampler.hostname = h
+				checkSampler.defaultHostname = h
 			}
 			agg.sampler.defaultHostname = h
 			agg.mu.Unlock()

@@ -7,7 +7,7 @@ type CheckSampler struct {
 	series          []*Serie
 	contextResolver *ContextResolver
 	metrics         ContextMetrics
-	hostname        string
+	defaultHostname string
 }
 
 // newCheckSampler returns a newly initialized CheckSample
@@ -16,7 +16,7 @@ func newCheckSampler(hostname string) *CheckSampler {
 		series:          make([]*Serie, 0),
 		contextResolver: newContextResolver(),
 		metrics:         makeContextMetrics(),
-		hostname:        hostname,
+		defaultHostname: hostname,
 	}
 }
 
@@ -32,7 +32,11 @@ func (cs *CheckSampler) commit(timestamp int64) {
 		context := cs.contextResolver.contextsByKey[serie.contextKey]
 		serie.Name = context.Name + serie.nameSuffix
 		serie.Tags = context.Tags
-		serie.Host = cs.hostname // FIXME: take into account the hostname of the context if it's specified
+		if context.Host != "" {
+			serie.Host = context.Host
+		} else {
+			serie.Host = cs.defaultHostname
+		}
 		serie.DeviceName = context.DeviceName
 
 		cs.series = append(cs.series, serie)
