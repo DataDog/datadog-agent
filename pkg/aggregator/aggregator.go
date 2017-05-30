@@ -105,7 +105,7 @@ func NewBufferedAggregator(f forwarder.Forwarder, hostname string) *BufferedAggr
 		checkMetricIn:      make(chan senderMetricSample, 100), // TODO make buffer size configurable
 		serviceCheckIn:     make(chan ServiceCheck, 100),       // TODO make buffer size configurable
 		eventIn:            make(chan Event, 100),              // TODO make buffer size configurable
-		sampler:            *NewTimeSampler(bucketSize),
+		sampler:            *NewTimeSampler(bucketSize, hostname),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
 		flushInterval:      defaultFlushInterval,
 		forwarder:          f,
@@ -316,6 +316,7 @@ func (agg *BufferedAggregator) run() {
 			for _, checkSampler := range agg.checkSamplers {
 				checkSampler.hostname = h
 			}
+			agg.sampler.defaultHostname = h
 			agg.mu.Unlock()
 			agg.hostnameUpdateDone <- struct{}{}
 		}

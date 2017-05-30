@@ -63,7 +63,7 @@ func (os OrderedSeries) Swap(i, j int) {
 
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
-	sampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(10, "")
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460))
@@ -71,7 +71,7 @@ func TestCalculateBucketStart(t *testing.T) {
 }
 
 func TestBucketSampling(t *testing.T) {
-	sampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(10, "")
 
 	mSample := MetricSample{
 		Name:       "my.metric.name",
@@ -102,7 +102,7 @@ func TestBucketSampling(t *testing.T) {
 }
 
 func TestContextSampling(t *testing.T) {
-	sampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(10, "")
 
 	mSample1 := MetricSample{
 		Name:       "my.metric.name1",
