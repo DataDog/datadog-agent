@@ -1,6 +1,7 @@
 package system
 
 import (
+	"regexp"
 	"runtime"
 	"testing"
 
@@ -54,7 +55,7 @@ func ioSampler() (map[string]disk.IOCountersStat, error) {
 	return ioSamples[idx], nil
 }
 
-func TestIOCheckLinux(t *testing.T) {
+func TestIOCheck(t *testing.T) {
 	ioCounters = ioSampler
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(nil, nil)
@@ -91,5 +92,28 @@ func TestIOCheckLinux(t *testing.T) {
 	ioCheck.Run()
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", expectedCalls)
+	mock.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestIOCheckBlacklist(t *testing.T) {
+	ioCounters = ioSampler
+	ioCheck := new(IOCheck)
+	ioCheck.Configure(nil, nil)
+
+	mock := new(MockSender)
+	ioCheck.sender = mock
+
+	//set blacklist
+	bl, err := regexp.Compile("sd.*")
+	if err != nil {
+		t.FailNow()
+	}
+	ioCheck.blacklist = bl
+
+	mock.On("Commit").Return().Times(1)
+
+	ioCheck.Run()
+	mock.AssertExpectations(t)
+	mock.AssertNumberOfCalls(t, "Gauge", 0)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
