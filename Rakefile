@@ -2,6 +2,7 @@ require_relative './rake/common'
 require_relative './rake/agent'
 require_relative './rake/dogstatsd'
 require_relative './rake/benchmarks'
+require_relative './rake/docker'
 
 PKG_CONFIG_LIBDIR=File.join(Dir.pwd, "pkg-config", os)
 ORG_PATH="github.com/DataDog"
