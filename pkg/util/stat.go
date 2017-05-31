@@ -33,7 +33,7 @@ func NewStats(sz uint32) (*Stats, error) {
 		valExpvar:  expvar.NewInt("pktsec"),
 		last:       time.Now(),
 		incoming:   make(chan int64, sz),
-		Aggregated: make(chan Stat, 2),
+		Aggregated: make(chan Stat, 3),
 	}
 
 	return s, nil

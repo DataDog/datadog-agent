@@ -31,7 +31,7 @@ namespace :benchmark do
     task :run => %w[benchmark:dogstatsd:build] do
       root = `git rev-parse --show-toplevel`.strip
       bin_path = File.join(root, BENCHMARK_BIN_PATH, "dogstatsd")
-      system("#{bin_path} -pps=1000 -dur 30 -ser 5 -brk -inc 500")
+      system("#{bin_path} -pps=5000 -dur 45 -ser 5 -brk -inc 1000")
     end
   end
 end
