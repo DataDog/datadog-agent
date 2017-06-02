@@ -44,16 +44,6 @@ func NewEtcdConfigProvider() (*EtcdConfigProvider, error) {
 		Transport:               client.DefaultTransport,
 		HeaderTimeoutPerRequest: time.Second,
 	}
-
-	etcdUsername := config.Datadog.GetString("autoconf_template_username")
-	etcdPassword := config.Datadog.GetString("autoconf_template_password")
-
-	if len(etcdUsername) > 0 && len(etcdPassword) > 0 {
-		log.Info("Using provided etcd credentials: username ", etcdUsername)
-		clientCfg.Username = etcdUsername
-		clientCfg.Password = etcdPassword
-	}
-
 	cl, err := client.New(clientCfg)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to instantiate the etcd client: %s", err)
