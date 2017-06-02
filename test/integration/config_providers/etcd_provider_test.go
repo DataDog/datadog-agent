@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -76,13 +77,18 @@ func (suite *EtcdTestSuite) createEtcd() {
 	match := false
 	for _, img := range l {
 		if img.RepoTags[0] == etcdImg {
+			suite.T().Logf("Found image %s", etcdImg)
 			match = true
 			break
 		}
 	}
 
 	if !match {
-		_, err = cli.ImagePull(ctx, etcdImg, types.ImagePullOptions{})
+		suite.T().Logf("Image %s not found, pulling", etcdImg)
+		resp, err := cli.ImagePull(ctx, etcdImg, types.ImagePullOptions{})
+		_, _ = ioutil.ReadAll(resp)
+		resp.Close()
+		//suite.T().Logf(string(b[:]))
 		if err != nil {
 			panic(err)
 		}
@@ -106,7 +112,7 @@ func (suite *EtcdTestSuite) createEtcd() {
 	_, err = cli.ContainerCreate(ctx, containerConfig, hostConfig, nil, containerName)
 	if err != nil {
 		// containers already exists
-		suite.T().Logf("Container %s already exists, skipping creation...", containerName)
+		suite.T().Logf("Error creating container %s: %s", containerName, err)
 	}
 
 	if err := cli.ContainerStart(ctx, containerName, types.ContainerStartOptions{}); err != nil {
