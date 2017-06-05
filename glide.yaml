@@ -48,3 +48,5 @@ import:
   - client
 - package: golang.org/x/net
 - package: github.com/DataDog/gohai
+- package: k8s.io/client-go
+  version: v2.0.0
