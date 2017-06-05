@@ -59,19 +59,19 @@ func TestMarshalServiceChecks(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
 
-	newPayload := &agentpayload.CheckRunsPayload{}
+	newPayload := &agentpayload.ServiceChecksPayload{}
 	err = proto.Unmarshal(payload, newPayload)
 	assert.Nil(t, err)
 
-	require.Len(t, newPayload.CheckRuns, 1)
-	assert.Equal(t, newPayload.CheckRuns[0].Name, "test.check")
-	assert.Equal(t, newPayload.CheckRuns[0].Host, "test.localhost")
-	assert.Equal(t, newPayload.CheckRuns[0].Ts, int64(1000))
-	assert.Equal(t, newPayload.CheckRuns[0].Status, int32(ServiceCheckOK))
-	assert.Equal(t, newPayload.CheckRuns[0].Message, "this is fine")
-	require.Len(t, newPayload.CheckRuns[0].Tags, 2)
-	assert.Equal(t, newPayload.CheckRuns[0].Tags[0], "tag1")
-	assert.Equal(t, newPayload.CheckRuns[0].Tags[1], "tag2:yes")
+	require.Len(t, newPayload.ServiceChecks, 1)
+	assert.Equal(t, newPayload.ServiceChecks[0].Name, "test.check")
+	assert.Equal(t, newPayload.ServiceChecks[0].Host, "test.localhost")
+	assert.Equal(t, newPayload.ServiceChecks[0].Ts, int64(1000))
+	assert.Equal(t, newPayload.ServiceChecks[0].Status, int32(ServiceCheckOK))
+	assert.Equal(t, newPayload.ServiceChecks[0].Message, "this is fine")
+	require.Len(t, newPayload.ServiceChecks[0].Tags, 2)
+	assert.Equal(t, newPayload.ServiceChecks[0].Tags[0], "tag1")
+	assert.Equal(t, newPayload.ServiceChecks[0].Tags[1], "tag2:yes")
 }
 
 func TestMarshalEvents(t *testing.T) {
