@@ -2,6 +2,7 @@ package app
 
 import (
 	"path"
+	"time"
 
 	"os"
 
@@ -21,6 +22,10 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
+
+	// register metadata providers
+	_ "github.com/DataDog/datadog-agent/pkg/metadata/host"
+	_ "github.com/DataDog/datadog-agent/pkg/metadata/resources"
 )
 
 var (
@@ -95,8 +100,25 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
-	metaCollector := metadata.NewCollector(fwd, config.Datadog.GetString("api_key"), hostname)
-	log.Debugf("metaCollector created")
+	var metaCollector *metadata.Collector
+	var C []config.MetadataProviders
+	err = config.Datadog.UnmarshalKey("metadata_providers", &C)
+	if err == nil {
+		metaCollector = metadata.NewCollector(fwd, config.Datadog.GetString("api_key"), hostname)
+		log.Debugf("metaCollector created, adding providers")
+		for _, c := range C {
+			intl := c.Interval * time.Second
+			err = metaCollector.AddProvider(c.Name, intl)
+			if err != nil {
+				log.Errorf("Unable to add '%s' metadata provider: %v", c.Name, err)
+			} else {
+				log.Infof("Scheduled metadata provider '%v' to run every %v", c.Name, intl)
+			}
+		}
+	} else {
+		log.Errorf("Unable to parse metadata_providers config: %v", err)
+	}
+
 	return statsd, metaCollector, fwd
 }
 

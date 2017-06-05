@@ -1,15 +1,16 @@
 package metadata
 
 import (
-	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
-	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	log "github.com/cihub/seelog"
 )
+
+// Catalog keeps track of Go checks by name
+var catalog = make(map[string]Provider)
 
 func init() {
 	// define defaults for the Agent
@@ -22,112 +23,58 @@ func init() {
 // Collector takes care of sending metadata at specific
 // time intervals
 type Collector struct {
-	fwd             forwarder.Forwarder
-	sendHostT       *time.Ticker
-	sendExtHostT    *time.Ticker
-	sendAgentCheckT *time.Ticker
-	sendProcessesT  *time.Ticker
-	apikey          string // the api key to use to send metadata
-	hostname        string
-	stop            chan bool
+	fwd      forwarder.Forwarder
+	apikey   string // the api key to use to send metadata
+	hostname string
+	tickers  []*time.Ticker
 }
 
 // NewCollector builds and returns a new Metadata Collector
 func NewCollector(fwd forwarder.Forwarder, apikey, hostname string) *Collector {
 	collector := &Collector{
-		fwd:             fwd,
-		sendHostT:       time.NewTicker(config.Datadog.GetDuration("metadata_interval")),
-		sendExtHostT:    time.NewTicker(config.Datadog.GetDuration("external_host_tags_interval")),
-		sendAgentCheckT: time.NewTicker(config.Datadog.GetDuration("agent_checks_interval")),
-		sendProcessesT:  time.NewTicker(config.Datadog.GetDuration("processes_interval")),
-		apikey:          apikey,
-		hostname:        hostname,
-		stop:            make(chan bool),
+		fwd:      fwd,
+		apikey:   apikey,
+		hostname: hostname,
 	}
 
-	collector.firstRun()
-	go collector.loop()
+	err := collector.firstRun()
+	if err != nil {
+		log.Errorf("Unable to send host metadata at first run: %v", err)
+	}
 
 	return collector
 }
 
 // Stop the metadata collector
 func (c *Collector) Stop() {
-	c.stop <- true
+	for _, t := range c.tickers {
+		t.Stop()
+	}
 }
 
-func (c *Collector) loop() {
-	for {
-		select {
-		case <-c.sendHostT.C:
-			c.sendHost()
-		case <-c.sendExtHostT.C:
-			c.sendExtHost()
-		case <-c.sendAgentCheckT.C:
-			c.sendAgentCheck()
-		case <-c.sendProcessesT.C:
-			c.sendProcesses()
-		case <-c.stop:
-			c.sendHostT.Stop()
-			c.sendExtHostT.Stop()
-			c.sendAgentCheckT.Stop()
-			c.sendProcessesT.Stop()
-			return
+// AddProvider TODO docstring
+func (c *Collector) AddProvider(name string, interval time.Duration) error {
+	p, found := catalog[name]
+	if !found {
+		return fmt.Errorf("Unable to find metadata provider: %s", name)
+	}
+
+	ticker := time.NewTicker(interval)
+	go func() {
+		for _ = range ticker.C {
+			p.Send(c.apikey, c.fwd)
 		}
-	}
+	}()
+	c.tickers = append(c.tickers, ticker)
+
+	return nil
 }
 
-func (c *Collector) firstRun() {
-	// Alway send host metadata at the first run
-	c.sendHost()
-}
-
-func (c *Collector) sendHost() {
-	payload := v5.GetPayload(c.hostname)
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		log.Errorf("unable to serialize host metadata payload, %s", err)
-		return
+// Always send host metadata at the first run
+func (c *Collector) firstRun() error {
+	p, found := catalog["host"]
+	if !found {
+		panic("Unable to find 'host' metadata provider in the catalog!")
 	}
-
-	err = c.fwd.SubmitV1Intake(c.apikey, &payloadBytes)
-	if err != nil {
-		log.Errorf("unable to submit host metadata payload to the forwarder, %s", err)
-		return
-	}
-
-	log.Infof("Sent host metadata payload, size: %d bytes.", len(payloadBytes))
-	log.Debugf("Sent host metadata payload, content: %v", string(payloadBytes))
-}
-
-func (c *Collector) sendExtHost() {
-	// TODO
-	log.Info("Sending external host tags metadata, NYI.")
-}
-
-func (c *Collector) sendAgentCheck() {
-	// TODO
-	log.Info("Sending agent check, NYI.")
-}
-
-func (c *Collector) sendProcesses() {
-
-	payload := map[string]interface{}{
-		"resources": resources.GetPayload(c.hostname),
-	}
-	payloadBytes, err := json.Marshal(payload)
-
-	if err != nil {
-		log.Errorf("unable to serialize processes metadata payload, %s", err)
-		return
-	}
-
-	err = c.fwd.SubmitV1Intake(c.apikey, &payloadBytes)
-	if err != nil {
-		log.Errorf("unable to submit processes metadata payload to the forwarder, %s", err)
-		return
-	}
-
-	log.Infof("Sent processes metadata payload, size: %d bytes.", len(payloadBytes))
-	log.Debugf("Sent processes metadata payload, content: %v", string(payloadBytes))
+	return p.Send(c.apikey, c.fwd)
 }

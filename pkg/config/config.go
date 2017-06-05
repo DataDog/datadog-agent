@@ -1,9 +1,19 @@
 package config
 
-import "github.com/spf13/viper"
+import (
+	"time"
+
+	"github.com/spf13/viper"
+)
 
 // Datadog is the global configuration object
 var Datadog = viper.New()
+
+// MetadataProviders helps unmarshalling `metadata_providers` config param
+type MetadataProviders struct {
+	Name     string        `mapstructure:"name"`
+	Interval time.Duration `mapstructure:"interval"`
+}
 
 func init() {
 	// config identifiers
