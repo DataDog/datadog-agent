@@ -17,6 +17,16 @@ api_key:
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 
+# Metadata providers, add or remove from the list to enable or disable collection.
+# Intervals are expressed in seconds.
+metadata_providers:
+  - name: 'host'
+    interval: 14400
+  - name: 'resources'
+    interval: 60
+#  - name: k8s
+#    interval: 60
+
 # ========================================================================== #
 # DogStatsd configuration                                                    #
 # ========================================================================== #
@@ -38,5 +48,4 @@ api_key:
 # ========================================================================== #
 
 # log_level: info
-
 # log_file: /var/log/datadog/agent.log
