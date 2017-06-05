@@ -44,14 +44,14 @@ func MarshalSeries(series []*Serie) ([]byte, error) {
 
 // MarshalServiceChecks serialize check runs payload using agent-payload definition
 func MarshalServiceChecks(checkRuns []*ServiceCheck) ([]byte, error) {
-	payload := &agentpayload.CheckRunsPayload{
-		CheckRuns: []*agentpayload.CheckRunsPayload_CheckRun{},
-		Metadata:  &agentpayload.CommonMetadata{},
+	payload := &agentpayload.ServiceChecksPayload{
+		ServiceChecks: []*agentpayload.ServiceChecksPayload_ServiceCheck{},
+		Metadata:      &agentpayload.CommonMetadata{},
 	}
 
 	for _, c := range checkRuns {
-		payload.CheckRuns = append(payload.CheckRuns,
-			&agentpayload.CheckRunsPayload_CheckRun{
+		payload.ServiceChecks = append(payload.ServiceChecks,
+			&agentpayload.ServiceChecksPayload_ServiceCheck{
 				Name:    c.CheckName,
 				Host:    c.Host,
 				Ts:      c.Ts,
