@@ -18,10 +18,9 @@ api_key:
 # hostname: mymachine.mydomain
 
 # Metadata providers, add or remove from the list to enable or disable collection.
+# The host metadata provider cannot be configured and is enabled by default.
 # Intervals are expressed in seconds.
 metadata_providers:
-  - name: 'host'
-    interval: 14400
   - name: 'resources'
     interval: 60
 #  - name: k8s

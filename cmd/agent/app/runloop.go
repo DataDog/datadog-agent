@@ -38,6 +38,8 @@ var (
 	confFilePath string
 )
 
+const hostMetadataCollectorInterval = 14400
+
 // StartAgent Initializes the agent process
 func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) {
 
@@ -106,7 +108,12 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) 
 	if err == nil {
 		metaCollector = metadata.NewCollector(fwd, config.Datadog.GetString("api_key"), hostname)
 		log.Debugf("metaCollector created, adding providers")
+		// add the host metadata collector, this is not user-configurable by design
+		err = metaCollector.AddProvider("host", hostMetadataCollectorInterval)
 		for _, c := range C {
+			if c.Name == "host" {
+				continue
+			}
 			intl := c.Interval * time.Second
 			err = metaCollector.AddProvider(c.Name, intl)
 			if err != nil {
