@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"io/ioutil"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,6 +75,7 @@ func (suite *EtcdTestSuite) SetupTest() {
 	config.Datadog.Set("autoconf_template_password", "")
 
 	suite.populateEtcd()
+	suite.toggleEtcdAuth(false)
 }
 
 func (suite *EtcdTestSuite) createEtcd() {
@@ -164,9 +166,9 @@ func (suite *EtcdTestSuite) setEtcdPassword() {
 	ctx := context.Background()
 
 	_, err = auth.ChangePassword(ctx, etcdUser, etcdPass)
-	/*if err != nil {
+	if err != nil && len(err.Error()) > 0 { // Flaky error with empty string ignored
 		panic(err)
-	}*/
+	}
 }
 
 func (suite *EtcdTestSuite) toggleEtcdAuth(enable bool) {
@@ -179,11 +181,11 @@ func (suite *EtcdTestSuite) toggleEtcdAuth(enable bool) {
 	ctx := context.Background()
 
 	if enable {
-		c.Enable(ctx)
+		err = c.Enable(ctx)
 	} else {
-		c.Disable(ctx)
+		err = c.Disable(ctx)
 	}
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "auth: already") {
 		panic(err)
 	}
 }
@@ -226,8 +228,6 @@ func (suite *EtcdTestSuite) TestWorkingAuth() {
 	checks, err := p.Collect()
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 2, len(checks))
-
-	suite.toggleEtcdAuth(false)
 }
 
 func (suite *EtcdTestSuite) TestBadAuth() {
@@ -241,8 +241,6 @@ func (suite *EtcdTestSuite) TestBadAuth() {
 	checks, err := p.Collect()
 	assert.Nil(suite.T(), err)
 	assert.Empty(suite.T(), checks)
-
-	suite.toggleEtcdAuth(false)
 }
 
 func TestEtcdSuite(t *testing.T) {
