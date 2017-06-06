@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"expvar"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -22,9 +23,7 @@ const (
 	pMode = 2
 )
 
-const (
-	letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-)
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 var (
 	mode = flag.Int("mode", 1, "1: duration, 2: packets.")
@@ -34,6 +33,7 @@ var (
 	pad  = flag.Int("pad", 2, "tag padding - determines packet size.")
 	ser  = flag.Int("ser", 10, "number of distinct series.")
 	inc  = flag.Int("inc", 1000, "pps increments per iteration.")
+	rnd  = flag.Bool("rnd", false, "random series.")
 	brk  = flag.Bool("brk", false, "find breaking point.")
 )
 
@@ -180,6 +180,7 @@ func main() {
 	var wg sync.WaitGroup
 
 	config.Datadog.Set("dogstatsd_stats_enable", true)
+	config.Datadog.Set("dogstatsd_stats_buffer", 100)
 	aggr := aggregator.InitAggregator(f, "localhost")
 	statsd, err := dogstatsd.NewServer(aggr.GetChannels())
 	if err != nil {
@@ -195,6 +196,10 @@ func main() {
 		return
 	}
 	defer generator.Close()
+
+	// Get memory stats from expvar:
+	memstatsFunc := expvar.Get("memstats").(expvar.Func)
+	memstats := memstatsFunc().(runtime.MemStats)
 
 	if statsd.Statistics != nil {
 
@@ -212,16 +217,15 @@ func main() {
 			go func() {
 				sent = 0
 				target := uint64(*num)
+				var buf bytes.Buffer
+				var packets []string
 
-				// Lock generator thread. This should prevent generator and
-				// dogstatsd from sharing a thread by the go scheduler, and
-				// thus minimize the Heisenberg-effect.
-				runtime.LockOSThread()
 				defer wg.Done()
-
-				packets := make([]string, *ser)
-				for i := range packets {
-					packets[i] = buildPayload("foo.bar", rand.Int63n(1000), []byte("|g"), []string{randomString(*pad)}, 1)
+				if !(*rnd) {
+					packets = make([]string, *ser)
+					for i := range packets {
+						packets[i] = buildPayload("foo.bar", rand.Int63n(1000), []byte("|g"), []string{randomString(*pad)}, 1)
+					}
 				}
 
 				for _ = range ticker.C {
@@ -231,7 +235,16 @@ func main() {
 						return
 					default:
 						// Do other stuff
-						err := submitPacket([]byte(packets[rand.Int63n(int64(*ser))]), generator)
+						var err error
+						if *rnd {
+							buf.Reset()
+							buf.WriteString("foo.")
+							buf.WriteString(randomString(*ser))
+
+							err = submitPacket([]byte(buildPayload(buf.String(), rand.Int63n(1000), []byte("|g"), []string{randomString(*pad)}, 2)), generator)
+						} else {
+							err = submitPacket([]byte(packets[rand.Int63n(int64(*ser))]), generator)
+						}
 						if err != nil {
 							log.Warnf("Problem sending packet: %v", err)
 						}
@@ -256,16 +269,13 @@ func main() {
 					case <-quitStatter:
 						quit = true
 					case v := <-statsd.Statistics.Aggregated:
+						log.Infof("[stats] [mem: %v] proceesed %v packets @%v ", memstats.Alloc, v.Val, v.Ts)
 						if quit && v.Val == 0 {
 							return
 						}
 						processed += uint64(v.Val)
-						log.Infof("[stats] proceesed %v packets @%v", v.Val, v.Ts)
 					default:
-						if quit {
-							return
-						}
-						log.Infof("[stats] no packets were processed.")
+						log.Infof("[stats] no statistics were available.")
 					}
 				}
 			}()
