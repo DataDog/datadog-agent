@@ -15,9 +15,13 @@ SOCKET_PATH="/tmp/statsd.socket"
 DD_ARGS="-e DD_DD_URL=http://dummy -e DD_API_KEY=dummy"
 TEST_FAIL=0
 
-# UDP_CO should listen on UDP 8125, but not on the socket
+# Starting containers and waiting one second for dsd to listen (avoid flaky test)
 
 UDP_CO=`docker run --rm -d $DD_ARGS $DOCKER_IMAGE`
+SOCKET_CO=`docker run --rm -d -e DD_DOGSTATSD_SOCKET=$SOCKET_PATH $DD_ARGS $DOCKER_IMAGE`
+sleep 1
+
+# UDP_CO should listen on UDP 8125, but not on the socket
 
 echo "Testing UDP container:"
 docker exec $UDP_CO apk add --no-cache lsof > /dev/null
@@ -40,12 +44,8 @@ if [ $TEST_FAIL -eq 0 ]; then
     echo "OK"
 fi
 
-docker stop $UDP_CO > /dev/null
-
 # SOCKET_CO should listen on the socket, but not on UDP 8125
 # We don't bind the socket out of the container as we don't need to send anything
-
-SOCKET_CO=`docker run --rm -d -e DD_DOGSTATSD_SOCKET=$SOCKET_PATH $DD_ARGS $DOCKER_IMAGE`
 
 echo "Testing socket container:"
 docker exec $SOCKET_CO apk add --no-cache lsof > /dev/null
@@ -68,7 +68,9 @@ if [ $TEST_FAIL -eq 0 ]; then
     echo "OK"
 fi
 
-docker stop $SOCKET_CO > /dev/null
+# Cleanup 
+
+docker stop $UDP_CO $SOCKET_CO > /dev/null
 
 # Conclusion
 
