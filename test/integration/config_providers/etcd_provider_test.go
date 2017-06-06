@@ -2,6 +2,8 @@ package integration
 
 import (
 	"context"
+	"io/ioutil"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,11 +23,14 @@ const (
 	etcdImg       string = "quay.io/coreos/etcd:latest"
 	containerName string = "datadog-agent-etcd0"
 	etcdURL       string = "http://127.0.0.1:2379/"
+	etcdUser      string = "root"
+	etcdPass      string = "root"
 )
 
 type EtcdTestSuite struct {
 	suite.Suite
 	templates map[string]string
+	clientCfg etcd_client.Config
 }
 
 func (suite *EtcdTestSuite) SetupSuite() {
@@ -34,12 +39,21 @@ func (suite *EtcdTestSuite) SetupSuite() {
 		"/foo/nginx/init_configs": `[{}, {}]`,
 		"/foo/nginx/instances":    `[{"name": "test", "url": "http://%25%25host%25%25/", "timeout": 5}, {"foo": "bar"}]`,
 	}
+	suite.clientCfg = etcd_client.Config{
+		Endpoints:               []string{etcdURL},
+		Transport:               etcd_client.DefaultTransport,
+		HeaderTimeoutPerRequest: 1 * time.Second,
+		Username:                etcdUser,
+		Password:                etcdPass,
+	}
 
 	// pull the latest etcd image, create a standalone etcd container
 	suite.createEtcd()
 
 	// wait for etcd to start
 	time.Sleep(1 * time.Second)
+
+	suite.setEtcdPassword()
 }
 
 func (suite *EtcdTestSuite) TearDownSuite() {
@@ -57,7 +71,11 @@ func (suite *EtcdTestSuite) TearDownSuite() {
 func (suite *EtcdTestSuite) SetupTest() {
 	config.Datadog.Set("autoconf_template_url", etcdURL)
 	config.Datadog.Set("autoconf_template_dir", "/foo/")
+	config.Datadog.Set("autoconf_template_username", "")
+	config.Datadog.Set("autoconf_template_password", "")
+
 	suite.populateEtcd()
+	suite.toggleEtcdAuth(false)
 }
 
 func (suite *EtcdTestSuite) createEtcd() {
@@ -76,13 +94,20 @@ func (suite *EtcdTestSuite) createEtcd() {
 	match := false
 	for _, img := range l {
 		if img.RepoTags[0] == etcdImg {
+			suite.T().Logf("Found image %s", etcdImg)
 			match = true
 			break
 		}
 	}
 
 	if !match {
-		_, err = cli.ImagePull(ctx, etcdImg, types.ImagePullOptions{})
+		suite.T().Logf("Image %s not found, pulling", etcdImg)
+		resp, err := cli.ImagePull(ctx, etcdImg, types.ImagePullOptions{})
+		if err != nil {
+			panic(err)
+		}
+		_, err = ioutil.ReadAll(resp) // Necessary for image pull to complete
+		resp.Close()
 		if err != nil {
 			panic(err)
 		}
@@ -106,7 +131,7 @@ func (suite *EtcdTestSuite) createEtcd() {
 	_, err = cli.ContainerCreate(ctx, containerConfig, hostConfig, nil, containerName)
 	if err != nil {
 		// containers already exists
-		suite.T().Logf("Container %s already exists, skipping creation...", containerName)
+		suite.T().Logf("Error creating container %s: %s", containerName, err)
 	}
 
 	if err := cli.ContainerStart(ctx, containerName, types.ContainerStartOptions{}); err != nil {
@@ -115,14 +140,7 @@ func (suite *EtcdTestSuite) createEtcd() {
 }
 
 func (suite *EtcdTestSuite) populateEtcd() {
-	// get etcd client
-	clientCfg := etcd_client.Config{
-		Endpoints:               []string{etcdURL},
-		Transport:               etcd_client.DefaultTransport,
-		HeaderTimeoutPerRequest: 1 * time.Second,
-	}
-
-	cl, err := etcd_client.New(clientCfg)
+	cl, err := etcd_client.New(suite.clientCfg)
 	if err != nil {
 		panic(err)
 	}
@@ -138,7 +156,41 @@ func (suite *EtcdTestSuite) populateEtcd() {
 	}
 }
 
-func (suite *EtcdTestSuite) TestWorkingConnection() {
+func (suite *EtcdTestSuite) setEtcdPassword() {
+	cl, err := etcd_client.New(suite.clientCfg)
+	if err != nil {
+		panic(err)
+	}
+
+	auth := etcd_client.NewAuthUserAPI(cl)
+	ctx := context.Background()
+
+	_, err = auth.ChangePassword(ctx, etcdUser, etcdPass)
+	if err != nil && len(err.Error()) > 0 { // Flaky error with empty string ignored
+		panic(err)
+	}
+}
+
+func (suite *EtcdTestSuite) toggleEtcdAuth(enable bool) {
+	cl, err := etcd_client.New(suite.clientCfg)
+	if err != nil {
+		panic(err)
+	}
+
+	c := etcd_client.NewAuthAPI(cl)
+	ctx := context.Background()
+
+	if enable {
+		err = c.Enable(ctx)
+	} else {
+		err = c.Disable(ctx)
+	}
+	if err != nil && !strings.Contains(err.Error(), "auth: already") {
+		panic(err)
+	}
+}
+
+func (suite *EtcdTestSuite) TestWorkingConnectionAnon() {
 	p, err := providers.NewEtcdConfigProvider()
 	if err != nil {
 		panic(err)
@@ -156,6 +208,32 @@ func (suite *EtcdTestSuite) TestWorkingConnection() {
 
 func (suite *EtcdTestSuite) TestBadConnection() {
 	config.Datadog.Set("autoconf_template_url", "http://127.0.0.1:1337")
+
+	p, err := providers.NewEtcdConfigProvider()
+	assert.Nil(suite.T(), err)
+
+	checks, err := p.Collect()
+	assert.Nil(suite.T(), err)
+	assert.Empty(suite.T(), checks)
+}
+
+func (suite *EtcdTestSuite) TestWorkingAuth() {
+	suite.toggleEtcdAuth(true)
+	config.Datadog.Set("autoconf_template_username", etcdUser)
+	config.Datadog.Set("autoconf_template_password", etcdPass)
+
+	p, err := providers.NewEtcdConfigProvider()
+	assert.Nil(suite.T(), err)
+
+	checks, err := p.Collect()
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 2, len(checks))
+}
+
+func (suite *EtcdTestSuite) TestBadAuth() {
+	suite.toggleEtcdAuth(true)
+	config.Datadog.Set("autoconf_template_username", etcdUser)
+	config.Datadog.Set("autoconf_template_password", "invalid")
 
 	p, err := providers.NewEtcdConfigProvider()
 	assert.Nil(suite.T(), err)
