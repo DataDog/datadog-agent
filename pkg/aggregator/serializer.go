@@ -6,7 +6,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 
-	agentpayload "github.com/DataDog/agent-payload/go"
+	agentpayload "github.com/DataDog/agent-payload/gogen"
 )
 
 func marshalPoints(points []Point) []*agentpayload.MetricsPayload_Sample_Point {

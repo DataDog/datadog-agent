@@ -34,7 +34,7 @@ imports:
   - httputil
   - timeutil
 - name: github.com/DataDog/agent-payload
-  version: 164709ae846c628091e670009226c2874fa36c1e
+  version: 091e000da55ab18aca225f8338abe8338b959aea
   subpackages:
   - go
 - name: github.com/DataDog/datadog-go
