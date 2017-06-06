@@ -3,7 +3,7 @@ package kubernetes
 import (
 	"testing"
 
-	payload "github.com/DataDog/agent-payload/go"
+	payload "github.com/DataDog/agent-payload/gogen"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/pkg/api/v1"
 )

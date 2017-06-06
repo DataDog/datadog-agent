@@ -9,7 +9,7 @@ import (
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/rest"
 
-	payload "github.com/DataDog/agent-payload/go"
+	payload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 )
 

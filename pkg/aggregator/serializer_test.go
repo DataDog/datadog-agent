@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	agentpayload "github.com/DataDog/agent-payload/go"
+	agentpayload "github.com/DataDog/agent-payload/gogen"
 )
 
 func TestMarshalSeries(t *testing.T) {
