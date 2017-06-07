@@ -57,8 +57,10 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 			return nil, fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
 		}
 		return nil, errors.New(pyErr)
+	} else {
+		log.Infof("checkModule is not Nil")
 	}
-
+	log.Infof("finding subclass of %s", cl.agentCheckClass)
 	// Try to find a class inheriting from AgentCheck within the module
 	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule)
 	glock.unlock()
