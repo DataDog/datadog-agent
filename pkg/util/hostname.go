@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/k8s"
 )
 
 const maxLength = 255
@@ -112,7 +113,10 @@ func GetHostname() string {
 			hostName = name
 		} else if isKubernetes() {
 			log.Debug("GetHostname trying k8s...")
-			// TODO
+			_, name, err = k8s.GetNodeInfo()
+			if err == nil && ValidHostname(name) == nil {
+				hostName = name
+			}
 		}
 	}
 
