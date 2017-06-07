@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/dd-trace-go/tracer"
 	log "github.com/cihub/seelog"
 )
 
@@ -91,9 +92,9 @@ type CounterInfo struct {
 	Counter     syscall.Handle
 }
 
-// CreateQuery XXX
+// createQuery XXX
 // copied from https://github.com/mackerelio/mackerel-agent/
-func CreateQuery() (syscall.Handle, error) {
+func createQuery() (syscall.Handle, error) {
 	var query syscall.Handle
 	r, _, err := PdhOpenQuery.Call(0, 0, uintptr(unsafe.Pointer(&query)))
 	if r != 0 {
@@ -102,8 +103,8 @@ func CreateQuery() (syscall.Handle, error) {
 	return query, nil
 }
 
-// CreateCounter XXX
-func CreateCounter(query syscall.Handle, pname, cname string) (*CounterInfo, error) {
+// createCounter XXX
+func createCounter(query syscall.Handle, pname, cname string) (*CounterInfo, error) {
 	var counter syscall.Handle
 	r, _, err := PdhAddCounter.Call(
 		uintptr(query),
@@ -149,7 +150,7 @@ var metrics = map[string]string{
 func ioFactory() check.Check {
 	log.Infof("IOCheck factory")
 	c := &IOCheck{}
-	q, err := CreateQuery()
+	q, err := createQuery()
 	if err != nil {
 		log.Errorf("IO factory failed to create query")
 		return nil
@@ -178,7 +179,7 @@ func ioFactory() check.Check {
 			for k, m := range metrics {
 				var counter *CounterInfo
 				countername := fmt.Sprintf(`\PhysicalDisk(0 %s:)\%s`, drive, m)
-				counter, err = CreateCounter(c.query, k, countername)
+				counter, err = createCounter(c.query, k, countername)
 				if err != nil {
 					log.Errorf("Failed to create counter %s %d", countername, err)
 					continue
@@ -195,22 +196,26 @@ func ioFactory() check.Check {
 
 // Run executes the check
 func (c *IOCheck) Run() error {
-	log.Infof("Running IO Check")
-	var err error
+	span := tracer.NewRootSpan("ddagent.check.system.io", "pdh-io", "Run")
+	defer span.Finish()
 
+	log.Infof("Running IO Check")
+	start := time.Now()
+	var err error
 	r, _, err := PdhCollectQueryData.Call(uintptr(c.query))
 	if r != 0 && err != nil {
 		return err
 	}
-	time.Sleep(time.Second)
-	r, _, err = PdhCollectQueryData.Call(uintptr(c.query))
-	if r != 0 && err != nil {
-		return err
-	}
+	//time.Sleep(time.Second)
+	//r, _, err = PdhCollectQueryData.Call(uintptr(c.query))
+	//if r != 0 && err != nil {
+	//	return err
+	//}
 	var tagbuff bytes.Buffer
 	for drive, counters := range c.drivemap {
-		log.Infof("checking drive %s against blacklist", drive)
+
 		if c.blacklist != nil && c.blacklist.MatchString(drive) {
+			log.Infof("skipping drive %s from blacklist", drive)
 			continue
 		}
 
@@ -231,6 +236,7 @@ func (c *IOCheck) Run() error {
 				return err
 			}
 			val := fmtValue.LargeValue
+			log.Infof("Value for %s is %f", v.PostName, float64(val))
 			if v.PostName == "system.io.wkb_s" ||
 				v.PostName == "system.io.rkb_s" {
 				val = val / 1024
@@ -239,6 +245,8 @@ func (c *IOCheck) Run() error {
 			c.sender.Gauge(v.PostName, float64(val), "", tags)
 		}
 	}
+
 	c.sender.Commit()
+	log.Infof("Elapsed time: %s", time.Since(start).String())
 	return nil
 }
