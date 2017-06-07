@@ -17,14 +17,15 @@ The relevant configuration parameters are also accepted as environment variables
 DD_API_KEY=XXX dogstatsd start -f datadog.yaml
 ```
 
-If you want to connect through a Unix socket instead of a UDP socket:
+If you want to connect through a Unix socket instead of a UDP socket,
+you can set the `dogstatsd_socket` option in the configuration file, or use the -s command argument:
 ```
 dogstatsd start -f datadog.yaml -s /tmp/dsd.sock
 ```
 
 The easiest way to run DogStatsD is starting a Docker container (still not publicly available):
 ```
-docker run -e DD_API_KEY=XXX datadog/dogstatsd6-alpine:master
+docker run -e DD_API_KEY=XXX datadog/dogstatsd:beta
 ```
 
 ## Why UDP?
