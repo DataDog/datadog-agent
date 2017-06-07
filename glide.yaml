@@ -49,3 +49,4 @@ import:
 - package: golang.org/x/net
 - package: github.com/DataDog/gohai
 - package: github.com/ericchiang/k8s
+- package: github.com/jhoonb/archivex
