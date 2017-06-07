@@ -1,6 +1,10 @@
 package util
 
 import (
+	"bytes"
+	"io"
+	"mime/multipart"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,14 +17,48 @@ import (
 
 var datadogSupportURL = "/support/flare"
 
-// SendFlareWithCaseID will send a flare with a caseID
-func SendFlareWithCaseID(caseID string) error {
+// SendFlare will send a flare
+func SendFlare(caseID string, email string) error {
 
 	return nil
 }
 
-// SendFlare will send a flare
-func SendFlare() error {
+func sendFlare(url string, caseID string, email string) error {
+	archivePath, err := createArchive()
+	if err != nil {
+		return err
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	p, err := writer.CreateFormFile("flare_file", archivePath)
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(p, file)
+	if err != nil {
+		return err
+	}
+	writer.WriteField("case_id", caseID)
+	writer.WriteField("hostname", GetHostname())
+	writer.WriteField("email", email)
+
+	err = writer.Close()
+
+	if err != nil {
+		return err
+	}
+
+	request, err := http.NewRequest("POST", url, body)
+
+	client := &http.Client{}
+
+	_, err = client.Do(request)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -34,16 +72,25 @@ func createArchive() (string, error) {
 	logFile := config.Datadog.GetString("log_file")
 	logFilePath := path.Dir(logFile)
 
+	zipFile.AddFileWithName(config.Datadog.ConfigFileUsed(), "datadog.yaml")
+
 	filepath.Walk(logFilePath, func(path string, f os.FileInfo, err error) error {
 		if f.IsDir() {
 			return nil
 		}
-
 		fileName := filepath.Join("logs", f.Name())
+		return zipFile.AddFileWithName(path, fileName)
+	})
 
-		zipFile.AddFileWithName(path, fileName)
+	filepath.Walk(config.Datadog.GetString("confd_path"), func(path string, f os.FileInfo, err error) error {
+		if f.IsDir() {
+			return nil
+		}
 
-		return nil
+		baseDir := strings.Replace(path, config.Datadog.GetString("confd_path"), "", 1)
+
+		fileName := filepath.Join("etc", baseDir, f.Name())
+		return zipFile.AddFileWithName(path, fileName)
 	})
 
 	return zipFilePath, nil
