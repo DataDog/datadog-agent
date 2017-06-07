@@ -55,13 +55,14 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	ch := NewCheck()
 
 	// schedule a check
-	err := suite.c.RunCheck(ch)
+	id, err := suite.c.RunCheck(ch)
+	assert.NotNil(suite.T(), id)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 1, len(suite.c.checks))
 	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"])
 
 	// schedule the same check twice
-	err = suite.c.RunCheck(ch)
+	_, err = suite.c.RunCheck(ch)
 	assert.NotNil(suite.T(), err)
 	assert.Equal(suite.T(), "a check with ID TestCheck is already running", err.Error())
 }
@@ -71,7 +72,7 @@ func (suite *CollectorTestSuite) TestReloadCheck() {
 	empty := check.ConfigData{}
 
 	// schedule a check
-	err := suite.c.RunCheck(ch)
+	_, err := suite.c.RunCheck(ch)
 
 	// check doesn't exist
 	err = suite.c.ReloadCheck("foo", empty, empty)
@@ -87,7 +88,7 @@ func (suite *CollectorTestSuite) TestStopCheck() {
 	ch := NewCheck()
 
 	// schedule a check
-	err := suite.c.RunCheck(ch)
+	_, err := suite.c.RunCheck(ch)
 
 	// all good
 	err = suite.c.StopCheck("TestCheck")
