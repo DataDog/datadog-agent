@@ -1,7 +1,7 @@
 # DogStatsD
 
-DogStatsD accepts custom application metrics points and periodically aggregates
-and forwards them to Datadog, where they can be graphedon dashboards.
+DogStatsD accepts custom application metric points and periodically aggregates
+and forwards them to Datadog, where they can be graphed on dashboards.
 DogStatsD implements the [StatsD](https://github.com/etsy/statsd) protocol,
 along with a few extensions for special Datadog features.
 
