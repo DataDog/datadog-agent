@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/jhoonb/archivex"
 )
@@ -72,7 +74,12 @@ func createArchive() (string, error) {
 	logFile := config.Datadog.GetString("log_file")
 	logFilePath := path.Dir(logFile)
 
-	zipFile.AddFileWithName(config.Datadog.ConfigFileUsed(), "datadog.yaml")
+	c, err := yaml.Marshal(&config.Datadog)
+	if err != nil {
+		return "", err
+	}
+	// zip up the actual config
+	zipFile.Add("datadog.yaml", c)
 
 	filepath.Walk(logFilePath, func(path string, f os.FileInfo, err error) error {
 		if f.IsDir() {
@@ -92,6 +99,8 @@ func createArchive() (string, error) {
 		fileName := filepath.Join("etc", baseDir, f.Name())
 		return zipFile.AddFileWithName(path, fileName)
 	})
+	// zip up the config file that was actually used
+	zipFile.AddFileWithName(config.Datadog.ConfigFileUsed(), "etc/datadog.yaml")
 
 	return zipFilePath, nil
 }
