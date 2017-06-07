@@ -27,7 +27,7 @@ namespace :agent do
     ldflags = []
     if !ENV["USE_SYSTEM_PY"]
       env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
-      libdir = `PKG_CONFIG_LIBDIR=#{PKG_CONFIG_LIBDIR} pkg-config --variable=libdir python-2.7`.strip
+      libdir = `PKG_CONFIG_LIBDIR="#{PKG_CONFIG_LIBDIR}" pkg-config --variable=libdir python-2.7`.strip
       fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
       ldflags << "-r #{libdir}"
     end
