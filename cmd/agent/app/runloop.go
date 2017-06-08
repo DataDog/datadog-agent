@@ -103,12 +103,11 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
-	var metaCollector *metadata.Collector
+	metaCollector := metadata.NewCollector(fwd, config.Datadog.GetString("api_key"), hostname)
 	var C []config.MetadataProviders
 	err = config.Datadog.UnmarshalKey("metadata_providers", &C)
 	if err == nil {
-		metaCollector = metadata.NewCollector(fwd, config.Datadog.GetString("api_key"), hostname)
-		log.Debugf("metaCollector created, adding providers")
+		log.Debugf("Adding configured providers to the metadata collector")
 		for _, c := range C {
 			if c.Name == "host" {
 				continue
