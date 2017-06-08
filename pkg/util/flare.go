@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -20,17 +21,12 @@ import (
 var datadogSupportURL = "/support/flare"
 
 // SendFlare will send a flare
-func SendFlare(caseID string, email string) error {
+func SendFlare(archivePath string, url string, caseID string, email string) error {
 
 	return nil
 }
 
-func sendFlare(url string, caseID string, email string) error {
-	archivePath, err := createArchive()
-	if err != nil {
-		return err
-	}
-
+func sendFlare(archivePath string, url string, caseID string, email string) error {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
@@ -65,51 +61,100 @@ func sendFlare(url string, caseID string, email string) error {
 	return nil
 }
 
+// CreateArchive is a function that I am using to test archive creation
+// TODO: Remove
+func CreateArchive() (string, error) {
+	return createArchive()
+}
+
 func createArchive() (string, error) {
 	zipFilePath := mkFilePath()
 	zipFile := new(archivex.ZipFile)
 	zipFile.Create(zipFilePath)
 	defer zipFile.Close()
 
+	err := zipLogFiles(zipFile)
+	if err != nil {
+		fmt.Println("log file error", err)
+		return "", err
+	}
+
+	err = zipConfigFiles(zipFile)
+	if err != nil {
+		fmt.Println("config file error", err)
+		return "", err
+	}
+
+	return zipFilePath, nil
+}
+
+func zipLogFiles(zipFile *archivex.ZipFile) error {
 	logFile := config.Datadog.GetString("log_file")
 	logFilePath := path.Dir(logFile)
 
-	c, err := yaml.Marshal(&config.Datadog)
+	fmt.Println("logFilePath", logFilePath)
+
+	err := filepath.Walk(logFilePath, func(path string, f os.FileInfo, err error) error {
+		if f.IsDir() {
+			return nil
+		}
+
+		if filepath.Ext(f.Name()) == ".log" || getFirstSuffix(f.Name()) == ".log" {
+			fileName := filepath.Join("logs", f.Name())
+			return zipFile.AddFileWithName(fileName, path)
+		}
+		return nil
+	})
+
+	return err
+}
+
+func zipConfigFiles(zipFile *archivex.ZipFile) error {
+	fmt.Println("config", config.Datadog)
+	c, err := yaml.Marshal(config.Datadog)
 	if err != nil {
-		return "", err
+		return err
 	}
 	// zip up the actual config
 	zipFile.Add("datadog.yaml", c)
 
-	filepath.Walk(logFilePath, func(path string, f os.FileInfo, err error) error {
-		if f.IsDir() {
-			return nil
-		}
-		fileName := filepath.Join("logs", f.Name())
-		return zipFile.AddFileWithName(path, fileName)
-	})
-
-	filepath.Walk(config.Datadog.GetString("confd_path"), func(path string, f os.FileInfo, err error) error {
+	err = filepath.Walk(config.Datadog.GetString("confd_path"), func(path string, f os.FileInfo, err error) error {
 		if f.IsDir() {
 			return nil
 		}
 
-		baseDir := strings.Replace(path, config.Datadog.GetString("confd_path"), "", 1)
+		if filepath.Ext(f.Name()) == ".example" {
+			return nil
+		}
 
-		fileName := filepath.Join("etc", baseDir, f.Name())
-		return zipFile.AddFileWithName(path, fileName)
+		if getFirstSuffix(f.Name()) == ".yaml" || filepath.Ext(f.Name()) == ".yaml" {
+			baseDir := strings.Replace(path, config.Datadog.GetString("confd_path"), "", 1)
+
+			fileName := filepath.Join("etc/confd", baseDir)
+			return zipFile.AddFileWithName(fileName, path)
+		}
+
+		return nil
 	})
-	// zip up the config file that was actually used
-	zipFile.AddFileWithName(config.Datadog.ConfigFileUsed(), "etc/datadog.yaml")
+	fmt.Println("config file used: ", config.Datadog.ConfigFileUsed())
+	if config.Datadog.ConfigFileUsed() != "" {
+		// zip up the config file that was actually used, if one exists
+		err = zipFile.AddFileWithName("etc/datadog.yaml", config.Datadog.ConfigFileUsed())
+	}
 
-	return zipFilePath, nil
+	return err
+}
+
+func getFirstSuffix(s string) string {
+	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }
 
 func mkFilePath() string {
 	dir := os.TempDir()
 	t := time.Now()
 	timeString := t.Format("2006-01-02-15-04-05")
-	fileName := strings.Join([]string{dir, "datadog-agent-", timeString}, "-")
+	fileName := strings.Join([]string{"datadog", "agent", timeString}, "-")
 	fileName = strings.Join([]string{fileName, "zip"}, ".")
-	return fileName
+	filePath := path.Join(dir, fileName)
+	return filePath
 }

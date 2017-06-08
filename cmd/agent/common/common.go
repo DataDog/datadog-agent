@@ -27,6 +27,7 @@ var (
 
 	// Stopper is the channel used by other packages to ask for stopping the agent
 	Stopper = make(chan bool)
+	Flare   = make(chan bool)
 
 	// utility variables
 	_here, _ = osext.ExecutableFolder()
