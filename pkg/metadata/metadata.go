@@ -9,7 +9,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// Catalog keeps track of Go checks by name
+// Catalog keeps track of metadata collectors by name
 var catalog = make(map[string]Provider)
 
 func init() {

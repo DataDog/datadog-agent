@@ -38,6 +38,7 @@ var (
 	confFilePath string
 )
 
+// run the host metadata collector every 14400 seconds (4 hours)
 const hostMetadataCollectorInterval = 14400
 
 // StartAgent Initializes the agent process
@@ -108,8 +109,6 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) 
 	if err == nil {
 		metaCollector = metadata.NewCollector(fwd, config.Datadog.GetString("api_key"), hostname)
 		log.Debugf("metaCollector created, adding providers")
-		// add the host metadata collector, this is not user-configurable by design
-		err = metaCollector.AddProvider("host", hostMetadataCollectorInterval)
 		for _, c := range C {
 			if c.Name == "host" {
 				continue
@@ -124,6 +123,12 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) 
 		}
 	} else {
 		log.Errorf("Unable to parse metadata_providers config: %v", err)
+	}
+
+	// always add the host metadata collector, this is not user-configurable by design
+	err = metaCollector.AddProvider("host", hostMetadataCollectorInterval)
+	if err != nil {
+		panic("Host metadata is supposed to be always available in the catalog!")
 	}
 
 	return statsd, metaCollector, fwd
