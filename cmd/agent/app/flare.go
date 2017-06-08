@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -18,13 +19,27 @@ var flareCmd = &cobra.Command{
 	Use:   "flare",
 	Short: "Collect a flare and send it to Datadog (FIXME: NYI)",
 	Long:  ``,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) {
 		common.SetupConfig("")
-		doFlare()
+		requestFlare()
 		fmt.Println(`I dunno how to make a flare ¯\_(ツ)_/¯`)
 	},
 }
 
+func requestFlare() error {
+	c := GetClient()
+	urlstr := "http://" + sockname + "/agent/flare"
+	var e error
+	postbody := ""
+
+	body, e := doPost(c, urlstr, "application/json", strings.NewReader(postbody))
+	if e != nil {
+		fmt.Printf("Unable to contact agent; initiating flare locally")
+		doFlare()
+	}
+	return nil
+
+}
 func doFlare() {
 	filePath, err := util.CreateArchive()
 	fmt.Println("filePath", filePath)

@@ -18,6 +18,7 @@ import (
 func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
+	r.HandleFunc("/flare", flare).Methods("POST")
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
@@ -36,4 +37,8 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	}
 	j, _ := json.Marshal(hname)
 	w.Write(j)
+}
+
+func flare(w http.ResponseWriter, r *http.request) {
+	// initiate the flare
 }
