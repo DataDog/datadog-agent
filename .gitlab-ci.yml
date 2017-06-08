@@ -83,6 +83,21 @@ dogstatsd_static-x64:
     paths:
       - dogstatsd
 
+# check the size of the static dogstatsd binary
+run_dogstatsd_size_test:
+  stage: integration_test
+  image: $DEB_X64
+  tags:
+    - docker
+  dependencies:
+    - dogstatsd_static-x64 # Reuse artifact from build stage
+  before_script:
+    # Disable global before_script
+    - mkdir -p $STATIC_BINARIES_DIR
+    - ln dogstatsd $STATIC_BINARIES_DIR/dogstatsd
+  script:
+    - rake dogstatsd:size_test skip_rebuild=true
+
 # run integration tests for deb-x64
 run_docker_integration_tests_deb-x64:
   stage: integration_test

@@ -45,6 +45,28 @@ namespace :dogstatsd do
     system("DOGSTATSD_BIN=\"#{bin_path}\" go test -v #{REPO_PATH}/test/system/dogstatsd/") || exit(1)
   end
 
+  desc "Run Dogstatsd size test"
+  task :size_test do
+    if ENV['skip_rebuild'] == "true" then
+      puts "Skipping DogStatsD build"
+    else
+      puts "Building DogStatsD"
+      Rake::Task["dogstatsd:build"].invoke
+    end
+
+    root = `git rev-parse --show-toplevel`.strip
+    bin_path = File.join(root, STATIC_BIN_PATH, "dogstatsd")
+    size = File.size(bin_path) / 1024
+
+    if size > 15 * 1024 then
+      puts "DogStatsD static build size too big: #{size} kB"
+      puts "This means your PR added big classes or dependencies in the packages dogstatsd uses"
+      exit(1)
+    else
+      puts "DogStatsD static build size OK: #{size} kB"
+    end
+  end
+
   desc "Build omnibus installer"
   task :omnibus do
     # omnibus log level
