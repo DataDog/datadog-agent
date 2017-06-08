@@ -238,7 +238,7 @@ func TestSubmitSNMP(t *testing.T) {
 	expectedTags := []string{
 		"optional_tag_1",
 		"optional_tag_2",
-		"instance:localhost:161"}
+		"snmp_device:localhost:161"}
 
 	for _, oid := range oids {
 		symbolicOID, err := snmpCheck.cfg.instance.OIDTranslator.GetKVReverse(oid.String())
