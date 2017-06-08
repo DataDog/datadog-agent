@@ -197,7 +197,6 @@ func ioFactory() check.Check {
 // Run executes the check
 func (c *IOCheck) Run() error {
 	span := tracer.NewRootSpan("ddagent.check.system.io", "pdh-io", "Run")
-	defer span.Finish()
 
 	log.Infof("Running IO Check")
 	start := time.Now()
@@ -247,6 +246,7 @@ func (c *IOCheck) Run() error {
 	}
 
 	c.sender.Commit()
-	log.Infof("Elapsed time: %s", time.Since(start).String())
+	span.Finish()
+	log.Infof("Span duration %d Elapsed time: %s", span.Duration, time.Since(start).String())
 	return nil
 }
