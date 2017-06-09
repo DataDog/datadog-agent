@@ -120,6 +120,17 @@ func TestParseSet(t *testing.T) {
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
+func TestParseDistribution(t *testing.T) {
+	parsed, err := parseMetricPacket([]byte("daemon:3.5|d"))
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.Equal(t, 3.5, parsed.Value)
+	assert.Equal(t, aggregator.DistributionType, parsed.Mtype)
+	assert.Equal(t, 0, len(*(parsed.Tags)))
+}
+
 func TestParseSetUnicode(t *testing.T) {
 	parsed, err := parseMetricPacket([]byte("daemon:♬†øU†øU¥ºuT0♪|s"))
 

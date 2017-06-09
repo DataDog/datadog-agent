@@ -133,3 +133,14 @@ func MarshalJSONEvents(events []Event, apiKey string, hostname string) ([]byte, 
 	err := json.NewEncoder(reqBody).Encode(data)
 	return reqBody.Bytes(), err
 }
+
+// MarshalJSONSketchSeries serializes sketch series to JSON so it can be sent to
+// endpoints
+func MarshalJSONSketchSeries(sketches []*SketchSerie) ([]byte, error) {
+	data := map[string][]*SketchSerie{
+		"sketch_series": sketches,
+	}
+	reqBody := &bytes.Buffer{}
+	err := json.NewEncoder(reqBody).Encode(data)
+	return reqBody.Bytes(), err
+}
