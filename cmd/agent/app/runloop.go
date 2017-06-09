@@ -42,7 +42,7 @@ var (
 const hostMetadataCollectorInterval = 14400
 
 // StartAgent Initializes the agent process
-func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) {
+func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) {
 
 	if pidfilePath != "" {
 		err := pidfile.WritePID(pidfilePath)
@@ -103,7 +103,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
-	metaCollector := metadata.NewCollector(fwd, config.Datadog.GetString("api_key"), hostname)
+	metadataScheduler := metadata.NewScheduler(fwd, config.Datadog.GetString("api_key"), hostname)
 	var C []config.MetadataProviders
 	err = config.Datadog.UnmarshalKey("metadata_providers", &C)
 	if err == nil {
@@ -113,7 +113,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) 
 				continue
 			}
 			intl := c.Interval * time.Second
-			err = metaCollector.AddProvider(c.Name, intl)
+			err = metadataScheduler.AddCollector(c.Name, intl)
 			if err != nil {
 				log.Errorf("Unable to add '%s' metadata provider: %v", c.Name, err)
 			} else {
@@ -125,22 +125,22 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) 
 	}
 
 	// always add the host metadata collector, this is not user-configurable by design
-	err = metaCollector.AddProvider("host", hostMetadataCollectorInterval)
+	err = metadataScheduler.AddCollector("host", hostMetadataCollectorInterval)
 	if err != nil {
 		panic("Host metadata is supposed to be always available in the catalog!")
 	}
 
-	return statsd, metaCollector, fwd
+	return statsd, metadataScheduler, fwd
 }
 
 // StopAgent Tears down the agent process
-func StopAgent(statsd *dogstatsd.Server, metaCollector *metadata.Collector, fwd forwarder.Forwarder) {
+func StopAgent(statsd *dogstatsd.Server, metadataScheduler *metadata.Scheduler, fwd forwarder.Forwarder) {
 	// gracefully shut down any component
 	if statsd != nil {
 		statsd.Stop()
 	}
 	common.AC.Stop()
-	metaCollector.Stop()
+	metadataScheduler.Stop()
 	api.StopServer()
 	fwd.Stop()
 	os.Remove(pidfilePath)

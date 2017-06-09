@@ -10,7 +10,7 @@ import (
 )
 
 // Catalog keeps track of metadata collectors by name
-var catalog = make(map[string]Provider)
+var catalog = make(map[string]Collector)
 
 func init() {
 	// define defaults for the Agent
@@ -20,43 +20,43 @@ func init() {
 	config.Datadog.SetDefault("processes_interval", time.Minute)
 }
 
-// Collector takes care of sending metadata at specific
+// Scheduler takes care of sending metadata at specific
 // time intervals
-type Collector struct {
+type Scheduler struct {
 	fwd      forwarder.Forwarder
 	apikey   string // the api key to use to send metadata
 	hostname string
 	tickers  []*time.Ticker
 }
 
-// NewCollector builds and returns a new Metadata Collector
-func NewCollector(fwd forwarder.Forwarder, apikey, hostname string) *Collector {
-	collector := &Collector{
+// NewScheduler builds and returns a new Metadata Scheduler
+func NewScheduler(fwd forwarder.Forwarder, apikey, hostname string) *Scheduler {
+	scheduler := &Scheduler{
 		fwd:      fwd,
 		apikey:   apikey,
 		hostname: hostname,
 	}
 
-	err := collector.firstRun()
+	err := scheduler.firstRun()
 	if err != nil {
 		log.Errorf("Unable to send host metadata at first run: %v", err)
 	}
 
-	return collector
+	return scheduler
 }
 
-// Stop the metadata collector
-func (c *Collector) Stop() {
+// Stop scheduling collectors
+func (c *Scheduler) Stop() {
 	for _, t := range c.tickers {
 		t.Stop()
 	}
 }
 
-// AddProvider TODO docstring
-func (c *Collector) AddProvider(name string, interval time.Duration) error {
+// AddCollector schedules a Metadata Collector at the given interval
+func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	p, found := catalog[name]
 	if !found {
-		return fmt.Errorf("Unable to find metadata provider: %s", name)
+		return fmt.Errorf("Unable to find metadata collector: %s", name)
 	}
 
 	ticker := time.NewTicker(interval)
@@ -71,10 +71,10 @@ func (c *Collector) AddProvider(name string, interval time.Duration) error {
 }
 
 // Always send host metadata at the first run
-func (c *Collector) firstRun() error {
+func (c *Scheduler) firstRun() error {
 	p, found := catalog["host"]
 	if !found {
-		panic("Unable to find 'host' metadata provider in the catalog!")
+		panic("Unable to find 'host' metadata collector in the catalog!")
 	}
 	return p.Send(c.apikey, c.fwd)
 }

@@ -17,10 +17,10 @@ api_key:
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 
-# Metadata providers, add or remove from the list to enable or disable collection.
-# The host metadata provider cannot be configured and is enabled by default.
+# Metadata collectors, add or remove from the list to enable or disable collection.
+# The host metadata collector cannot be configured and is enabled by default.
 # Intervals are expressed in seconds.
-metadata_providers:
+metadata_collectors:
   - name: 'resources'
     interval: 60
 #  - name: k8s
