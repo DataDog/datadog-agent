@@ -1,11 +1,12 @@
 package k8s
 
 import (
+	"context"
 	"fmt"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/rest"
 	"os"
+
+	"github.com/ericchiang/k8s"
+	"github.com/ericchiang/k8s/api/v1"
 )
 
 // GetNodeInfo returns the IP address and the hostname of the node where
@@ -18,9 +19,9 @@ func GetNodeInfo() (ip, name string, err error) {
 
 	for _, pod := range pods {
 		// The env var HOSTNAME is set to the name of the pod running the datadog-agent
-		if pod.GetName() == os.Getenv("HOSTNAME") {
+		if pod.GetMetadata().GetName() == os.Getenv("HOSTNAME") {
 			// We identified the pod running the agent, let's return the host ip and hostname on which the pod is running
-			return pod.Status.HostIP, pod.Spec.Hostname, nil
+			return pod.GetStatus().GetHostIP(), pod.GetSpec().GetHostname(), nil
 		}
 	}
 
@@ -28,21 +29,16 @@ func GetNodeInfo() (ip, name string, err error) {
 }
 
 // GetPodList returns the list of pods running on the cluster where this pod is running
-func GetPodList() ([]v1.Pod, error) {
-
-	config, err := rest.InClusterConfig()
+func GetPodList() ([]*v1.Pod, error) {
+	client, err := k8s.NewInClusterClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve config: %s", err)
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get clientset: %s", err)
+		return nil, fmt.Errorf("failed to get client: %s", err)
 	}
 
-	pods, err := clientset.Pods("").List(v1.ListOptions{})
+	pods, err := client.CoreV1().ListPods(context.Background(), "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pods: %s", err)
 	}
 
-	return pods.Items, nil
+	return pods.GetItems(), nil
 }
