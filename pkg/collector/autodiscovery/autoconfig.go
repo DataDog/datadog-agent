@@ -89,7 +89,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 		for _, check := range ac.loadChecks(config) {
 			err := ac.collector.RunCheck(check)
 			if err != nil {
-				log.Errorf("Unable to run Check %s", check)
+				log.Errorf("Unable to run Check %s: %v", check, err)
 			}
 		}
 	}

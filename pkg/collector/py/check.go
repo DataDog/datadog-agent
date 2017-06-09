@@ -47,8 +47,11 @@ func (c *PythonCheck) Run() error {
 	emptyTuple := python.PyTuple_New(0)
 	result := c.Instance.CallMethod("run", emptyTuple)
 	if result == nil {
-		python.PyErr_Print()
-		return errors.New("Unable to run Python check")
+		pyErr, err := getPythonError()
+		if err != nil {
+			return fmt.Errorf("An error occurred while running python check and couldn't be formatted: %v", err)
+		}
+		return errors.New(pyErr)
 	}
 
 	s, err := aggregator.GetDefaultSender()
