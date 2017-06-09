@@ -25,14 +25,16 @@ func init() {
 	Datadog.SetDefault("hostname", "")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
+	Datadog.SetDefault("forwarder_timeout", 20)
 	Datadog.SetDefault("use_dogstatsd", true)
 	Datadog.SetDefault("dogstatsd_port", 8125)
 	Datadog.SetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
-	Datadog.SetDefault("forwarder_timeout", 20)
 	Datadog.SetDefault("dogstatsd_non_local_traffic", false)
 	Datadog.SetDefault("dogstatsd_socket", "")
 	Datadog.SetDefault("dogstatsd_stats_enable", false)
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
+	Datadog.SetDefault("jmx_pipe_path", defaultJMXPipePath)
+	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")

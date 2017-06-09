@@ -2,6 +2,7 @@ package check
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 	"time"
 )
@@ -98,4 +99,37 @@ func (c *Config) Equal(config *Config) bool {
 	}
 
 	return true
+}
+
+// String YAML representation of the config
+func (c *Config) String() string {
+	var yamlBuff bytes.Buffer
+
+	yamlBuff.Write([]byte("init_config:\n"))
+	if c.InitConfig != nil {
+		yamlBuff.Write([]byte("- "))
+		strInit := strings.Split(string(c.InitConfig[:]), "\n")
+		for i, line := range strInit {
+			if i > 0 {
+				yamlBuff.Write([]byte("  "))
+			}
+			yamlBuff.Write([]byte(line))
+			yamlBuff.Write([]byte("\n"))
+		}
+	}
+
+	yamlBuff.Write([]byte("instances:\n"))
+	for _, instance := range c.Instances {
+		strInst := strings.Split(string(instance[:]), "\n")
+		yamlBuff.Write([]byte("- "))
+		for i, line := range strInst {
+			if i > 0 {
+				yamlBuff.Write([]byte("  "))
+			}
+			yamlBuff.Write([]byte(line))
+			yamlBuff.Write([]byte("\n"))
+		}
+	}
+
+	return yamlBuff.String()
 }
