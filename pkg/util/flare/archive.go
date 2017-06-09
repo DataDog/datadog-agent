@@ -1,68 +1,18 @@
-package util
+package flare
 
 import (
-	"bytes"
 	"fmt"
-	"io"
-	"mime/multipart"
-	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/jhoonb/archivex"
+	yaml "gopkg.in/yaml.v2"
 )
 
-var datadogSupportURL = "/support/flare"
-
-// SendFlare will send a flare
-func SendFlare(archivePath string, url string, caseID string, email string) error {
-
-	return nil
-}
-
-func sendFlare(archivePath string, url string, caseID string, email string) error {
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	p, err := writer.CreateFormFile("flare_file", archivePath)
-	file, err := os.Open(archivePath)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(p, file)
-	if err != nil {
-		return err
-	}
-	writer.WriteField("case_id", caseID)
-	writer.WriteField("hostname", GetHostname())
-	writer.WriteField("email", email)
-
-	err = writer.Close()
-
-	if err != nil {
-		return err
-	}
-
-	request, err := http.NewRequest("POST", url, body)
-
-	client := &http.Client{}
-
-	_, err = client.Do(request)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// CreateArchive is a function that I am using to test archive creation
-// TODO: Remove
 func CreateArchive() (string, error) {
 	return createArchive()
 }

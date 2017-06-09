@@ -5,11 +5,14 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flare"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
 )
@@ -18,7 +21,7 @@ import (
 func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
-	r.HandleFunc("/flare", flare).Methods("POST")
+	r.HandleFunc("/flare", makeFlare).Methods("POST")
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +42,17 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func flare(w http.ResponseWriter, r *http.request) {
-	// initiate the flare
+func makeFlare(w http.ResponseWriter, r *http.Request) {
+	var body = make(map[string]string)
+	b, _ := ioutil.ReadAll(r.Body)
+	json.Unmarshal(b, &body)
+	fmt.Println(body)
+	filePath, err := flare.CreateArchive()
+	w.Header().Set("Content-Type", "application/json")
+	if err != nil || filePath == "" {
+		http.Error(w, "The flare failed to be created", 500)
+	}
+	fmt.Println(filePath)
+	j, _ := json.Marshal(filePath)
+	w.Write(j)
 }

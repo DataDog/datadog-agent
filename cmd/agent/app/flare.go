@@ -1,27 +1,34 @@
 package app
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/spf13/cobra"
 )
 
+var customerEmail string
+var caseID string
+
 func init() {
 	AgentCmd.AddCommand(flareCmd)
+
+	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
+	flareCmd.Flags().StringVarP(&caseID, "case-id", "c", "", "Your case ID")
 }
 
 var flareCmd = &cobra.Command{
 	Use:   "flare",
 	Short: "Collect a flare and send it to Datadog (FIXME: NYI)",
 	Long:  ``,
-	RunE: func(cmd *cobra.Command, args []string) {
+	Run: func(cmd *cobra.Command, args []string) {
 		common.SetupConfig("")
-		requestFlare()
+		err := requestFlare()
+		if err != nil {
+			fmt.Println(err)
+		}
 		fmt.Println(`I dunno how to make a flare ¯\_(ツ)_/¯`)
 	},
 }
@@ -30,31 +37,15 @@ func requestFlare() error {
 	c := GetClient()
 	urlstr := "http://" + sockname + "/agent/flare"
 	var e error
-	postbody := ""
+	var postbody = make(map[string]string)
+	postbody["case_id"] = caseID
+	postbody["email"] = customerEmail
+	body, _ := json.Marshal(postbody)
 
-	body, e := doPost(c, urlstr, "application/json", strings.NewReader(postbody))
+	doPost(c, urlstr, "application/json", bytes.NewBuffer(body))
 	if e != nil {
 		fmt.Printf("Unable to contact agent; initiating flare locally")
-		doFlare()
+		return common.DoFlare()
 	}
 	return nil
-
-}
-func doFlare() {
-	filePath, err := util.CreateArchive()
-	fmt.Println("filePath", filePath)
-	fmt.Println("error", err)
-	if err != nil {
-		fmt.Errorf("Error sending Flare: ", err)
-	}
-	// err = util.SendFlare(filePath, "", "", "")
-	if err != nil {
-		fmt.Errorf("Error sending Flare: ", err)
-	}
-
-	fmt.Println("I made a flare here: ", filePath)
-	dir, _ := os.Getwd()
-
-	exec.Command("cp", filePath, dir).Run()
-	os.Remove(filePath)
 }
