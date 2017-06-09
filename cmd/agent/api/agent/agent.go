@@ -52,6 +52,11 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	if err != nil || filePath == "" {
 		http.Error(w, "The flare failed to be created", 500)
 	}
+
+	err = flare.SendFlare(filePath, body["case_id"], body["email"])
+	if err != nil {
+		http.Error(w, "The flare failed to be created", 500)
+	}
 	fmt.Println(filePath)
 	j, _ := json.Marshal(filePath)
 	w.Write(j)

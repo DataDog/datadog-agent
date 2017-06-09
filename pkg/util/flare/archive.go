@@ -42,8 +42,6 @@ func zipLogFiles(zipFile *archivex.ZipFile) error {
 	logFile := config.Datadog.GetString("log_file")
 	logFilePath := path.Dir(logFile)
 
-	fmt.Println("logFilePath", logFilePath)
-
 	err := filepath.Walk(logFilePath, func(path string, f os.FileInfo, err error) error {
 		if f.IsDir() {
 			return nil
@@ -60,7 +58,6 @@ func zipLogFiles(zipFile *archivex.ZipFile) error {
 }
 
 func zipConfigFiles(zipFile *archivex.ZipFile) error {
-	fmt.Println("config", config.Datadog)
 	c, err := yaml.Marshal(config.Datadog)
 	if err != nil {
 		return err
@@ -86,7 +83,6 @@ func zipConfigFiles(zipFile *archivex.ZipFile) error {
 
 		return nil
 	})
-	fmt.Println("config file used: ", config.Datadog.ConfigFileUsed())
 	if config.Datadog.ConfigFileUsed() != "" {
 		// zip up the config file that was actually used, if one exists
 		err = zipFile.AddFileWithName("etc/datadog.yaml", config.Datadog.ConfigFileUsed())
