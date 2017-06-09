@@ -34,7 +34,7 @@ import:
   subpackages:
   - proto
 - package: github.com/DataDog/agent-payload
-  version: ^1.0
+  version: ^4.0
 - package: github.com/patrickmn/go-cache
   version: ^2.0.0
 - package: github.com/k-sone/snmpgo
