@@ -1,6 +1,8 @@
 ## package `metadata`
 
 This package is responsible to provide metadata in the right form to be directly sent to the backend.
+Metadata collection is iterated during Agent execution at different time intervals for different
+use cases.
 
 ### Providers
 Single metadata providers are defined in the form of insulated sub packages exposing a public
@@ -15,9 +17,11 @@ environments.
 
 ### Collectors
 Collectors are used by the Agent and are supposed to be run periodically. They are
-responsible to invoke the configured `Provider`s, collect all the info needed, fill the appropriate
+responsible to invoke the relevant `Provider`, collect all the info needed, fill the appropriate
 payload and send it to the specific endpoint in the intake. Collectors are allowed to be strongly coupled
 to the rest of the Agent components because they're not supposed to be used elsewhere.
+Collectors can be user configurable, except for the `host` metadata collector that is always scheduled
+with a default interval.
 
 **Notice:** For the time being, several providers collect a piece of information that is used in
 the `v5` package to compose a single metadata payload compatible with the one from Agent v.5.
