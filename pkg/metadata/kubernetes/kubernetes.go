@@ -1,13 +1,15 @@
 package kubernetes
 
 import (
+	"context"
 	"fmt"
 
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
-	batchv1 "k8s.io/client-go/pkg/apis/batch/v1"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/rest"
+	"github.com/ericchiang/k8s"
+	"github.com/ericchiang/k8s/api/v1"
+	appsv1beta1 "github.com/ericchiang/k8s/apis/apps/v1beta1"
+	batchv1 "github.com/ericchiang/k8s/apis/batch/v1"
+	"github.com/ericchiang/k8s/apis/extensions/v1beta1"
+	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
 
 	payload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -28,35 +30,32 @@ const (
 // the state of a Kubernetes cluster. We will use this metadata for tagging
 // metrics and other services in the backend.
 func GetPayload() (metadata.Payload, error) {
-	config, err := rest.InClusterConfig()
+	ctx := context.Background()
+	client, err := k8s.NewInClusterClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve config: %s", err)
 	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get clientset: %s", err)
-	}
-	dr, err := clientset.Deployments("").List(v1.ListOptions{})
+	dr, err := client.AppsV1Beta1().ListDeployments(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployments: %s", err)
 	}
-	rr, err := clientset.ReplicaSets("").List(v1.ListOptions{})
+	rr, err := client.ExtensionsV1Beta1().ListReplicaSets(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get replicasets: %s", err)
 	}
-	sr, err := clientset.Services("").List(v1.ListOptions{})
+	sr, err := client.CoreV1().ListServices(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get services: %s", err)
 	}
-	dsr, err := clientset.DaemonSets("").List(v1.ListOptions{})
+	dsr, err := client.ExtensionsV1Beta1().ListDaemonSets(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get daemonsets: %s", err)
 	}
-	jr, err := clientset.BatchV1Client.Jobs("").List(v1.ListOptions{})
+	jr, err := client.BatchV1().ListJobs(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get jobs: %s", err)
 	}
-	pr, err := clientset.Pods("").List(v1.ListOptions{})
+	pr, err := client.CoreV1().ListPods(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pods: %s", err)
 	}
@@ -78,78 +77,78 @@ func GetPayload() (metadata.Payload, error) {
 	}, nil
 }
 
-func parseDeployments(apiDeployments []v1beta1.Deployment) []*payload.KubeMetadataPayload_Deployment {
-	dss := make([]*payload.KubeMetadataPayload_Deployment, len(apiDeployments))
+func parseDeployments(apiDeployments []*appsv1beta1.Deployment) []*payload.KubeMetadataPayload_Deployment {
+	dss := make([]*payload.KubeMetadataPayload_Deployment, 0, len(apiDeployments))
 	for _, d := range apiDeployments {
 		dss = append(dss, &payload.KubeMetadataPayload_Deployment{
-			Uid:       string(d.UID),
-			Name:      d.Name,
-			Namespace: d.Namespace,
+			Uid:       d.Metadata.GetUid(),
+			Name:      d.Metadata.GetName(),
+			Namespace: d.Metadata.GetNamespace(),
 		})
 	}
 	return dss
 }
 
-func parseReplicaSets(apiRs []v1beta1.ReplicaSet) []*payload.KubeMetadataPayload_ReplicaSet {
+func parseReplicaSets(apiRs []*v1beta1.ReplicaSet) []*payload.KubeMetadataPayload_ReplicaSet {
 	rss := make([]*payload.KubeMetadataPayload_ReplicaSet, 0, len(apiRs))
 	for _, ar := range apiRs {
 		// Assumes only a single deployment per ReplicaSet
 		var deployment string
-		for _, o := range ar.OwnerReferences {
-			if o.Kind == kindDeployment {
-				deployment = o.Name
+		for _, o := range ar.Metadata.OwnerReferences {
+			if o.GetKind() == kindDeployment {
+				deployment = o.GetName()
 			}
 		}
 		rss = append(rss, &payload.KubeMetadataPayload_ReplicaSet{
-			Uid:        string(ar.UID),
-			Name:       ar.Name,
-			Namespace:  ar.Namespace,
+			Uid:        ar.Metadata.GetUid(),
+			Name:       ar.Metadata.GetName(),
+			Namespace:  ar.Metadata.GetNamespace(),
 			Deployment: deployment,
 		})
 	}
 	return rss
 }
 
-func parseServices(apiServices []v1.Service) []*payload.KubeMetadataPayload_Service {
+func parseServices(apiServices []*v1.Service) []*payload.KubeMetadataPayload_Service {
 	services := make([]*payload.KubeMetadataPayload_Service, 0, len(apiServices))
 	for _, s := range apiServices {
 		services = append(services, &payload.KubeMetadataPayload_Service{
-			Uid:       string(s.UID),
-			Name:      s.Name,
-			Namespace: s.Namespace,
-			Selector:  s.Spec.Selector,
-			Type:      string(s.Spec.Type),
+			Uid:       s.Metadata.GetUid(),
+			Name:      s.Metadata.GetName(),
+			Namespace: s.Metadata.GetNamespace(),
+			Selector:  s.Spec.GetSelector(),
+			Type:      s.Spec.GetType(),
 		})
 	}
 	return services
 }
 
-func parseJobs(apiJobs []batchv1.Job) []*payload.KubeMetadataPayload_Job {
+func parseJobs(apiJobs []*batchv1.Job) []*payload.KubeMetadataPayload_Job {
 	jobs := make([]*payload.KubeMetadataPayload_Job, 0, len(apiJobs))
 	for _, j := range apiJobs {
 		jobs = append(jobs, &payload.KubeMetadataPayload_Job{
-			Uid:       string(j.UID),
-			Name:      j.Name,
-			Namespace: j.Namespace,
+			Uid:       j.Metadata.GetUid(),
+			Name:      j.Metadata.GetName(),
+			Namespace: j.Metadata.GetNamespace(),
 		})
 	}
 	return jobs
 }
 
-func parseDaemonSets(apiDs []v1beta1.DaemonSet) []*payload.KubeMetadataPayload_DaemonSet {
+func parseDaemonSets(apiDs []*v1beta1.DaemonSet) []*payload.KubeMetadataPayload_DaemonSet {
 	daemonSets := make([]*payload.KubeMetadataPayload_DaemonSet, 0, len(apiDs))
 	for _, ds := range apiDs {
 		daemonSets = append(daemonSets, &payload.KubeMetadataPayload_DaemonSet{
-			Uid:       string(ds.UID),
-			Name:      ds.Name,
-			Namespace: ds.Namespace,
+			Uid:       ds.Metadata.GetUid(),
+			Name:      ds.Metadata.GetName(),
+			Namespace: ds.Metadata.GetNamespace(),
 		})
 	}
 	return daemonSets
 }
 
 func parsePods(
-	apiPods []v1.Pod,
+	apiPods []*v1.Pod,
 	services []*payload.KubeMetadataPayload_Service,
 ) ([]*payload.KubeMetadataPayload_Pod, []*payload.KubeMetadataPayload_Container) {
 	pods := make([]*payload.KubeMetadataPayload_Pod, 0, len(apiPods))
@@ -158,25 +157,26 @@ func parsePods(
 		cids := make([]string, 0, len(ap.Status.ContainerStatuses))
 		for _, c := range ap.Status.ContainerStatuses {
 			containers = append(containers, &payload.KubeMetadataPayload_Container{
-				Name:    c.Name,
-				Id:      c.ContainerID,
-				Image:   c.Image,
-				ImageId: c.ImageID,
+				Name:    c.GetName(),
+				Id:      c.GetContainerID(),
+				Image:   c.GetImage(),
+				ImageId: c.GetImageID(),
 			})
-			cids = append(cids, c.ContainerID)
+			cids = append(cids, c.GetContainerID())
 		}
 
+		pm := ap.GetMetadata()
 		pod := &payload.KubeMetadataPayload_Pod{
-			Uid:          string(ap.UID),
-			Name:         ap.Name,
-			Namespace:    ap.Namespace,
-			HostIp:       ap.Status.HostIP,
-			PodIp:        ap.Status.PodIP,
-			Labels:       ap.Labels,
-			ServiceUids:  findPodServices(ap.Namespace, ap.Labels, services),
+			Uid:          pm.GetUid(),
+			Name:         pm.GetName(),
+			Namespace:    pm.GetNamespace(),
+			HostIp:       ap.Status.GetHostIP(),
+			PodIp:        ap.Status.GetPodIP(),
+			Labels:       ap.Metadata.GetLabels(),
+			ServiceUids:  findPodServices(pm.GetNamespace(), pm.GetLabels(), services),
 			ContainerIds: cids,
 		}
-		setPodCreator(pod, ap.OwnerReferences)
+		setPodCreator(pod, ap.Metadata.GetOwnerReferences())
 		pods = append(pods, pod)
 	}
 	return pods, containers
@@ -207,17 +207,17 @@ func findPodServices(
 	return uids
 }
 
-func setPodCreator(pod *payload.KubeMetadataPayload_Pod, ownerRefs []v1.OwnerReference) {
+func setPodCreator(pod *payload.KubeMetadataPayload_Pod, ownerRefs []*metav1.OwnerReference) {
 	for _, o := range ownerRefs {
-		switch o.Kind {
+		switch o.GetKind() {
 		case kindDaemonSet:
-			pod.DaemonSet = o.Name
+			pod.DaemonSet = o.GetName()
 		case kindReplicaSet:
-			pod.ReplicaSet = o.Name
+			pod.ReplicaSet = o.GetName()
 		case kindReplicationController:
-			pod.ReplicationController = o.Name
+			pod.ReplicationController = o.GetName()
 		case kindJob:
-			pod.Job = o.Name
+			pod.Job = o.GetName()
 		}
 	}
 }

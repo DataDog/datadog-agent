@@ -34,7 +34,7 @@ import:
   subpackages:
   - proto
 - package: github.com/DataDog/agent-payload
-  version: ^1.0
+  version: ^4.0
 - package: github.com/patrickmn/go-cache
   version: ^2.0.0
 - package: github.com/k-sone/snmpgo
@@ -48,5 +48,4 @@ import:
   - client
 - package: golang.org/x/net
 - package: github.com/DataDog/gohai
-- package: k8s.io/client-go
-  version: v2.0.0
+- package: github.com/ericchiang/k8s
