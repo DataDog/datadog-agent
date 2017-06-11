@@ -15,8 +15,8 @@ type replacer struct {
 }
 
 var apiKeyReplacer, uriPasswordReplacer, passwordReplacer, snmpReplacer replacer
-var commentRegex *regexp.Regexp = regexp.MustCompile(`^\s*#.*$`)
-var blankRegex *regexp.Regexp = regexp.MustCompile(`^\s*$`)
+var commentRegex = regexp.MustCompile(`^\s*#.*$`)
+var blankRegex = regexp.MustCompile(`^\s*$`)
 
 var replacers []replacer
 
