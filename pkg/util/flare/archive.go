@@ -16,6 +16,10 @@ import (
 // CreateArchive packages up the files
 func CreateArchive() (string, error) {
 	zipFilePath := mkFilePath()
+	return createArchive(zipFilePath)
+}
+
+func createArchive(zipFilePath string) (string, error) {
 	zipFile := new(archivex.ZipFile)
 	zipFile.Create(zipFilePath)
 	defer zipFile.Close()
