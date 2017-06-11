@@ -59,7 +59,7 @@ func zipLogFiles(zipFile *archivex.ZipFile) error {
 }
 
 func zipConfigFiles(zipFile *archivex.ZipFile) error {
-	c, err := yaml.Marshal(config.Datadog)
+	c, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
 		return err
 	}
