@@ -5,7 +5,6 @@ package agent
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -46,18 +45,16 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	var body = make(map[string]string)
 	b, _ := ioutil.ReadAll(r.Body)
 	json.Unmarshal(b, &body)
-	fmt.Println(body)
+	log.Infof("Making a flare")
 	filePath, err := flare.CreateArchive()
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil || filePath == "" {
+		if err != nil {
+			log.Errorf("The flare failed to be created: %s", err)
+		} else {
+			log.Warnf("The flare failed to be created")
+		}
 		http.Error(w, "The flare failed to be created", 500)
 	}
-
-	err = flare.SendFlare(filePath, body["case_id"], body["email"])
-	if err != nil {
-		http.Error(w, "The flare failed to be created", 500)
-	}
-	fmt.Println(filePath)
-	j, _ := json.Marshal(filePath)
-	w.Write(j)
+	w.Write([]byte(filePath))
 }

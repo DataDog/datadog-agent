@@ -2,7 +2,10 @@ package flare
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -54,11 +57,19 @@ func SendFlare(archivePath string, caseID string, email string) error {
 	}
 
 	client := mkHTTPClient()
-	_, err = client.Do(request)
+	r, err := client.Do(request)
 	if err != nil {
 		return err
 	}
+	b, _ := ioutil.ReadAll(r.Body)
+	var response = make(map[string]int)
+	err = json.Unmarshal(b, &response)
+	if err != nil {
+		fmt.Println("An unknown error has occurred - Please contact support by email.")
+		return err
+	}
 
+	fmt.Printf("Your logs were successfully uploaded. For future reference, your internal case id is %d\n", response["case_id"])
 	return nil
 }
 

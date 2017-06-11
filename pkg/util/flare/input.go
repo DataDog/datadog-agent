@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // AskForEmail asks for the user's email
@@ -14,13 +15,18 @@ func AskForEmail() string {
 }
 
 // AskForConfirmation asks for the user's confirmation to send the flare
-func AskForConfirmation() bool {
-	response, _ := askForInput("Are you sure you want to upload a flare? [Y/N]", "")
+func AskForConfirmation(input string) bool {
+	response, e := askForInput(input, "")
+	if e != nil {
+		return false
+	}
 	if response == "y" || response == "Y" {
 		return true
 	}
 	return false
 }
+
+// 'Are you sure you want to continue [y/N]? '
 
 func askForInput(before string, after string) (string, error) {
 	reader := bufio.NewReader(os.Stdin)
@@ -31,5 +37,6 @@ func askForInput(before string, after string) (string, error) {
 	if after != "" {
 		fmt.Println(after)
 	}
+	text = strings.TrimSpace(text)
 	return text, err
 }

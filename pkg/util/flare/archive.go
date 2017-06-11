@@ -13,11 +13,8 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+// CreateArchive packages up the files
 func CreateArchive() (string, error) {
-	return createArchive()
-}
-
-func createArchive() (string, error) {
 	zipFilePath := mkFilePath()
 	zipFile := new(archivex.ZipFile)
 	zipFile.Create(zipFilePath)
@@ -63,7 +60,11 @@ func zipConfigFiles(zipFile *archivex.ZipFile) error {
 		return err
 	}
 	// zip up the actual config
-	zipFile.Add("datadog.yaml", c)
+	cleaned, err := credentialsCleanerBytes(c)
+	if err != nil {
+		return err
+	}
+	zipFile.Add("datadog.yaml", cleaned)
 
 	err = filepath.Walk(config.Datadog.GetString("confd_path"), func(path string, f os.FileInfo, err error) error {
 		if f.IsDir() {
@@ -75,17 +76,31 @@ func zipConfigFiles(zipFile *archivex.ZipFile) error {
 		}
 
 		if getFirstSuffix(f.Name()) == ".yaml" || filepath.Ext(f.Name()) == ".yaml" {
-			baseDir := strings.Replace(path, config.Datadog.GetString("confd_path"), "", 1)
-
-			fileName := filepath.Join("etc/confd", baseDir)
-			return zipFile.AddFileWithName(fileName, path)
+			baseName := strings.Replace(path, config.Datadog.GetString("confd_path"), "", 1)
+			fileName := filepath.Join("etc/confd", baseName)
+			file, err := credentialsCleanerFile(path)
+			if err != nil {
+				return err
+			}
+			return zipFile.Add(fileName, file)
 		}
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
 	if config.Datadog.ConfigFileUsed() != "" {
 		// zip up the config file that was actually used, if one exists
-		err = zipFile.AddFileWithName("etc/datadog.yaml", config.Datadog.ConfigFileUsed())
+		file, e := credentialsCleanerFile(config.Datadog.ConfigFileUsed())
+		if err != nil {
+			return e
+		}
+		e = zipFile.Add("etc/datadog.yaml", file)
+		if e != nil {
+			return e
+		}
 	}
 
 	return err
