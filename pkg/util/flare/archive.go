@@ -68,7 +68,10 @@ func zipConfigFiles(zipFile *archivex.ZipFile) error {
 	if err != nil {
 		return err
 	}
-	zipFile.Add("datadog.yaml", cleaned)
+	err = zipFile.Add("datadog.yaml", cleaned)
+	if err != nil {
+		return err
+	}
 
 	err = filepath.Walk(config.Datadog.GetString("confd_path"), func(path string, f os.FileInfo, err error) error {
 		if f.IsDir() {
