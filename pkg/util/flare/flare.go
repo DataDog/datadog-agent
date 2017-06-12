@@ -18,6 +18,11 @@ import (
 var datadogSupportURL = "/support/flare"
 var httpTimeout = time.Duration(60)
 
+type flareResponse struct {
+	CaseID int    `json:"case_id,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
 // SendFlare will send a flare
 func SendFlare(archivePath string, caseID string, email string) error {
 	body := &bytes.Buffer{}
@@ -62,14 +67,19 @@ func SendFlare(archivePath string, caseID string, email string) error {
 		return err
 	}
 	b, _ := ioutil.ReadAll(r.Body)
-	var response = make(map[string]int)
+	var response = flareResponse{}
 	err = json.Unmarshal(b, &response)
 	if err != nil {
 		fmt.Println("An unknown error has occurred - Please contact support by email.")
 		return err
 	}
 
-	fmt.Printf("Your logs were successfully uploaded. For future reference, your internal case id is %d\n", response["case_id"])
+	if response.Error != "" {
+		fmt.Printf("An error occurred while uploading the flare: %s. Please contact support by email.\n", response.Error)
+		return fmt.Errorf("%s", response.Error)
+	}
+
+	fmt.Printf("Your logs were successfully uploaded. For future reference, your internal case id is %d\n", response.CaseID)
 	return nil
 }
 
