@@ -73,7 +73,6 @@ func requestFlare() error {
 
 	e = flare.SendFlare(filePath, caseID, customerEmail)
 	if e != nil {
-		fmt.Printf("The flare failed to send: %s\n", e)
 		return e
 	}
 	return nil
