@@ -2,11 +2,14 @@ package py
 
 import (
 	"os"
+	"path"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Setup the test module
@@ -23,6 +26,14 @@ func TestMain(m *testing.M) {
 	// benchmarks don't like python.Finalize() for some reason, let's just not call it
 
 	os.Exit(ret)
+}
+
+func TestInitialize(t *testing.T) {
+	key := path.Join(util.AgentCachePrefix, "pythonVersion")
+	x, found := util.Cache.Get(key)
+	require.True(t, found)
+	require.NotEmpty(t, x)
+	require.NotEqual(t, "n/a", x)
 }
 
 func TestFindSubclassOf(t *testing.T) {

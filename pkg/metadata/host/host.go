@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/shirou/gopsutil/cpu"
@@ -61,16 +60,13 @@ func getSystemStats() *systemStats {
 }
 
 func getPythonVersion() string {
-	var pythonVersion string
-	key := buildKey("python")
+	// retrieve the Python version from the Agent cache
+	key := path.Join(util.AgentCachePrefix, "pythonVersion")
 	if x, found := util.Cache.Get(key); found {
-		pythonVersion = x.(string)
-	} else {
-		pythonVersion = py.GetInterpreterVersion()
-		util.Cache.Set(key, pythonVersion, util.NoExpiration)
+		return x.(string)
 	}
 
-	return pythonVersion
+	return "n/a"
 }
 
 // getCPUInfo returns InfoStat for the first CPU gopsutil found

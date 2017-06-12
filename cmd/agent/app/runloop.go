@@ -42,7 +42,7 @@ var (
 const hostMetadataCollectorInterval = 14400
 
 // StartAgent Initializes the agent process
-func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) {
+func StartAgent() {
 
 	if pidfilePath != "" {
 		err := pidfile.WritePID(pidfilePath)
@@ -89,10 +89,9 @@ func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) 
 	agg.AddAgentStartupEvent(version.AgentVersion)
 
 	// start dogstatsd
-	var statsd *dogstatsd.Server
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		statsd, err = dogstatsd.NewServer(agg.GetChannels())
+		common.DSD, err = dogstatsd.NewServer(agg.GetChannels())
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}
@@ -129,20 +128,18 @@ func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) 
 	if err != nil {
 		panic("Host metadata is supposed to be always available in the catalog!")
 	}
-
-	return statsd, metadataScheduler, fwd
 }
 
 // StopAgent Tears down the agent process
-func StopAgent(statsd *dogstatsd.Server, metadataScheduler *metadata.Scheduler, fwd forwarder.Forwarder) {
+func StopAgent() {
 	// gracefully shut down any component
-	if statsd != nil {
-		statsd.Stop()
+	if common.DSD != nil {
+		common.DSD.Stop()
 	}
 	common.AC.Stop()
-	metadataScheduler.Stop()
+	common.MetadataScheduler.Stop()
 	api.StopServer()
-	fwd.Stop()
+	common.Forwarder.Stop()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()

@@ -1,28 +1,15 @@
 package host
 
 import (
-	"os"
+	"path"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	python "github.com/sbinet/go-python"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-// Setup the test module
-func TestMain(m *testing.M) {
-	state := py.Initialize()
-
-	ret := m.Run()
-
-	python.PyEval_RestoreThread(state)
-	python.Finalize()
-
-	os.Exit(ret)
-}
 
 func TestGetPayload(t *testing.T) {
 	p := GetPayload("myhostname")
@@ -45,10 +32,10 @@ func TestGetSystemStats(t *testing.T) {
 }
 
 func TestGetPythonVersion(t *testing.T) {
-	assert.NotEmpty(t, getPythonVersion())
-	key := buildKey("python")
+	require.Equal(t, "n/a", getPythonVersion())
+	key := path.Join(util.AgentCachePrefix, "pythonVersion")
 	util.Cache.Set(key, "Python 2.8", util.NoExpiration)
-	assert.Equal(t, "Python 2.8", getPythonVersion())
+	require.Equal(t, "Python 2.8", getPythonVersion())
 }
 
 func TestGetCPUInfo(t *testing.T) {
