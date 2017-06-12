@@ -22,14 +22,10 @@ func TestMain(m *testing.M) {
 	os.Exit(ret)
 }
 
-func TestNewCollector(t *testing.T) {
+func TestNewScheduler(t *testing.T) {
 	fwd := forwarder.NewDefaultForwarder(nil)
 	fwd.Start()
-	c := NewCollector(fwd, "apikey", "hostname")
-	assert.NotNil(t, c.sendHostT)
-	assert.NotNil(t, c.sendExtHostT)
-	assert.NotNil(t, c.sendAgentCheckT)
-	assert.NotNil(t, c.sendProcessesT)
+	c := NewScheduler(fwd, "apikey", "hostname")
 	assert.Equal(t, "apikey", c.apikey)
 	assert.Equal(t, "hostname", c.hostname)
 }

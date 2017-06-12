@@ -2,6 +2,7 @@ package app
 
 import (
 	"path"
+	"time"
 
 	"os"
 
@@ -21,6 +22,10 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
+
+	// register metadata providers
+	_ "github.com/DataDog/datadog-agent/pkg/metadata/host"
+	_ "github.com/DataDog/datadog-agent/pkg/metadata/resources"
 )
 
 var (
@@ -33,8 +38,11 @@ var (
 	confFilePath string
 )
 
+// run the host metadata collector every 14400 seconds (4 hours)
+const hostMetadataCollectorInterval = 14400
+
 // StartAgent Initializes the agent process
-func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) {
+func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) {
 
 	if pidfilePath != "" {
 		err := pidfile.WritePID(pidfilePath)
@@ -95,19 +103,44 @@ func StartAgent() (*dogstatsd.Server, *metadata.Collector, forwarder.Forwarder) 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
-	metaCollector := metadata.NewCollector(fwd, config.Datadog.GetString("api_key"), hostname)
-	log.Debugf("metaCollector created")
-	return statsd, metaCollector, fwd
+	metadataScheduler := metadata.NewScheduler(fwd, config.Datadog.GetString("api_key"), hostname)
+	var C []config.MetadataProviders
+	err = config.Datadog.UnmarshalKey("metadata_providers", &C)
+	if err == nil {
+		log.Debugf("Adding configured providers to the metadata collector")
+		for _, c := range C {
+			if c.Name == "host" {
+				continue
+			}
+			intl := c.Interval * time.Second
+			err = metadataScheduler.AddCollector(c.Name, intl)
+			if err != nil {
+				log.Errorf("Unable to add '%s' metadata provider: %v", c.Name, err)
+			} else {
+				log.Infof("Scheduled metadata provider '%v' to run every %v", c.Name, intl)
+			}
+		}
+	} else {
+		log.Errorf("Unable to parse metadata_providers config: %v", err)
+	}
+
+	// always add the host metadata collector, this is not user-configurable by design
+	err = metadataScheduler.AddCollector("host", hostMetadataCollectorInterval)
+	if err != nil {
+		panic("Host metadata is supposed to be always available in the catalog!")
+	}
+
+	return statsd, metadataScheduler, fwd
 }
 
 // StopAgent Tears down the agent process
-func StopAgent(statsd *dogstatsd.Server, metaCollector *metadata.Collector, fwd forwarder.Forwarder) {
+func StopAgent(statsd *dogstatsd.Server, metadataScheduler *metadata.Scheduler, fwd forwarder.Forwarder) {
 	// gracefully shut down any component
 	if statsd != nil {
 		statsd.Stop()
 	}
 	common.AC.Stop()
-	metaCollector.Stop()
+	metadataScheduler.Stop()
 	api.StopServer()
 	fwd.Stop()
 	os.Remove(pidfilePath)
