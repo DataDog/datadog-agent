@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/jhoonb/archivex"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -22,15 +23,28 @@ func CreateArchive() (string, error) {
 func createArchive(zipFilePath string) (string, error) {
 	zipFile := new(archivex.ZipFile)
 	zipFile.Create(zipFilePath)
+
+	// Get hostname from cache if it exists there
+	// Otherwise, create it.
+	// If it is not in the cache,
+	// it's likely because it was unable to run this on the agent itself
+	var hostname string
+	x, found := util.Cache.Get("hostname")
+	if found {
+		hostname = x.(string)
+	} else {
+		hostname = util.GetHostname()
+	}
+
 	defer zipFile.Close()
 
-	err := zipLogFiles(zipFile)
+	err := zipLogFiles(zipFile, hostname)
 	if err != nil {
 		fmt.Println("log file error", err)
 		return "", err
 	}
 
-	err = zipConfigFiles(zipFile)
+	err = zipConfigFiles(zipFile, hostname)
 	if err != nil {
 		fmt.Println("config file error", err)
 		return "", err
@@ -39,7 +53,7 @@ func createArchive(zipFilePath string) (string, error) {
 	return zipFilePath, nil
 }
 
-func zipLogFiles(zipFile *archivex.ZipFile) error {
+func zipLogFiles(zipFile *archivex.ZipFile, hostname string) error {
 	logFile := config.Datadog.GetString("log_file")
 	logFilePath := path.Dir(logFile)
 
@@ -49,7 +63,7 @@ func zipLogFiles(zipFile *archivex.ZipFile) error {
 		}
 
 		if filepath.Ext(f.Name()) == ".log" || getFirstSuffix(f.Name()) == ".log" {
-			fileName := filepath.Join("logs", f.Name())
+			fileName := filepath.Join(hostname, "logs", f.Name())
 			return zipFile.AddFileWithName(fileName, path)
 		}
 		return nil
@@ -58,7 +72,7 @@ func zipLogFiles(zipFile *archivex.ZipFile) error {
 	return err
 }
 
-func zipConfigFiles(zipFile *archivex.ZipFile) error {
+func zipConfigFiles(zipFile *archivex.ZipFile, hostname string) error {
 	c, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
 		return err
@@ -68,7 +82,7 @@ func zipConfigFiles(zipFile *archivex.ZipFile) error {
 	if err != nil {
 		return err
 	}
-	err = zipFile.Add("datadog.yaml", cleaned)
+	err = zipFile.Add(filepath.Join(hostname, "datadog.yaml"), cleaned)
 	if err != nil {
 		return err
 	}
@@ -84,7 +98,7 @@ func zipConfigFiles(zipFile *archivex.ZipFile) error {
 
 		if getFirstSuffix(f.Name()) == ".yaml" || filepath.Ext(f.Name()) == ".yaml" {
 			baseName := strings.Replace(path, config.Datadog.GetString("confd_path"), "", 1)
-			fileName := filepath.Join("etc/confd", baseName)
+			fileName := filepath.Join(hostname, "etc", "confd", baseName)
 			file, err := credentialsCleanerFile(path)
 			if err != nil {
 				return err
@@ -104,7 +118,8 @@ func zipConfigFiles(zipFile *archivex.ZipFile) error {
 		if err != nil {
 			return e
 		}
-		e = zipFile.Add("etc/datadog.yaml", file)
+		fileName := filepath.Join(hostname, "etc", "datadog.yaml")
+		e = zipFile.Add(fileName, file)
 		if e != nil {
 			return e
 		}
