@@ -27,7 +27,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	hname := util.GetHostname()
+	hname, _ := util.GetHostname()
 	j, _ := json.Marshal(hname)
 	w.Write(j)
 }
