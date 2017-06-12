@@ -4,65 +4,70 @@ import (
 	"testing"
 
 	payload "github.com/DataDog/agent-payload/gogen"
+	"github.com/ericchiang/k8s/api/v1"
+	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/client-go/pkg/api/v1"
 )
 
+func ps(s string) *string {
+	return &s
+}
+
 func TestParsePods(t *testing.T) {
-	inPods := []v1.Pod{
-		v1.Pod{
-			ObjectMeta: v1.ObjectMeta{
-				Name:      "test-pod-1",
-				Namespace: "default",
+	inPods := []*v1.Pod{
+		&v1.Pod{
+			Metadata: &metav1.ObjectMeta{
+				Name:      ps("test-pod-1"),
+				Namespace: ps("default"),
 				Labels: map[string]string{
 					"test": "abcd",
 					"role": "intake",
 				},
-				OwnerReferences: []v1.OwnerReference{v1.OwnerReference{
-					Kind: "ReplicationController",
-					Name: "kubernetes-dashboard",
+				OwnerReferences: []*metav1.OwnerReference{&metav1.OwnerReference{
+					Kind: ps("ReplicationController"),
+					Name: ps("kubernetes-dashboard"),
 				}},
 			},
-			Status: v1.PodStatus{
-				ContainerStatuses: []v1.ContainerStatus{
-					v1.ContainerStatus{
-						ContainerID: "e468b96ca4fcc9687cc3",
-						Image:       "datadog/docker-dd-agent",
-						ImageID:     "docker://sha256:7c4034e4",
+			Status: &v1.PodStatus{
+				ContainerStatuses: []*v1.ContainerStatus{
+					&v1.ContainerStatus{
+						ContainerID: ps("e468b96ca4fcc9687cc3"),
+						Image:       ps("datadog/docker-dd-agent"),
+						ImageID:     ps("docker://sha256:7c4034e4"),
 					},
-					v1.ContainerStatus{
-						ContainerID: "3dbeb56a5545f17c1af2",
-						Image:       "redis",
-						ImageID:     "docker://sha256:7c4034e4",
+					&v1.ContainerStatus{
+						ContainerID: ps("3dbeb56a5545f17c1af2"),
+						Image:       ps("redis"),
+						ImageID:     ps("docker://sha256:7c4034e4"),
 					},
 				},
 			},
 		},
-		v1.Pod{
-			ObjectMeta: v1.ObjectMeta{
-				Name:      "test-pod-2",
-				Namespace: "default",
+		&v1.Pod{
+			Metadata: &metav1.ObjectMeta{
+				Name:      ps("test-pod-2"),
+				Namespace: ps("default"),
 				Labels: map[string]string{
 					"role":    "web",
 					"another": "label",
 					"bim":     "bop",
 				},
-				OwnerReferences: []v1.OwnerReference{v1.OwnerReference{
-					Kind: "ReplicaSet",
-					Name: "kube-dns-196007617",
+				OwnerReferences: []*metav1.OwnerReference{&metav1.OwnerReference{
+					Kind: ps("ReplicaSet"),
+					Name: ps("kube-dns-196007617"),
 				}},
 			},
-			Status: v1.PodStatus{
-				ContainerStatuses: []v1.ContainerStatus{
-					v1.ContainerStatus{
-						ContainerID: "ce749d07a5645291f2f",
-						Image:       "dd/web-app",
-						ImageID:     "docker://sha256:7c4034e4",
+			Status: &v1.PodStatus{
+				ContainerStatuses: []*v1.ContainerStatus{
+					&v1.ContainerStatus{
+						ContainerID: ps("ce749d07a5645291f2f"),
+						Image:       ps("dd/web-app"),
+						ImageID:     ps("docker://sha256:7c4034e4"),
 					},
-					v1.ContainerStatus{
-						ContainerID: "57bb7bcd0c5b1e58daa0",
-						Image:       "dd/redis-cache",
-						ImageID:     "docker://sha256:7c4034e4",
+					&v1.ContainerStatus{
+						ContainerID: ps("57bb7bcd0c5b1e58daa0"),
+						Image:       ps("dd/redis-cache"),
+						ImageID:     ps("docker://sha256:7c4034e4"),
 					},
 				},
 			},
@@ -73,9 +78,9 @@ func TestParsePods(t *testing.T) {
 	pods, _ := parsePods(inPods, []*payload.KubeMetadataPayload_Service{})
 	assert := assert.New(t)
 	for i, p := range pods {
-		assert.Equal(inPods[i].Name, p.Name)
-		assert.Equal(inPods[i].Namespace, p.Namespace)
-		assert.Equal(inPods[i].Labels, p.Labels)
+		assert.Equal(inPods[i].Metadata.GetName(), p.Name)
+		assert.Equal(inPods[i].Metadata.GetNamespace(), p.Namespace)
+		assert.Equal(inPods[i].Metadata.GetLabels(), p.Labels)
 		assert.Len(inPods[i].Status.ContainerStatuses, len(p.ContainerIds))
 		assert.Empty(p.ServiceUids)
 	}
@@ -86,37 +91,37 @@ func TestParsePods(t *testing.T) {
 
 func TestSetPodCreator(t *testing.T) {
 	for _, tc := range []struct {
-		ownerRefs   []v1.OwnerReference
+		ownerRefs   []*metav1.OwnerReference
 		annotations map[string]string
 		expected    *payload.KubeMetadataPayload_Pod
 	}{
 		{
 			// No refs
-			ownerRefs: []v1.OwnerReference{},
+			ownerRefs: []*metav1.OwnerReference{},
 			expected:  &payload.KubeMetadataPayload_Pod{},
 		},
 		{
-			ownerRefs: []v1.OwnerReference{v1.OwnerReference{
-				Kind: "ReplicationController",
-				Name: "kubernetes-dashboard",
+			ownerRefs: []*metav1.OwnerReference{&metav1.OwnerReference{
+				Kind: ps("ReplicationController"),
+				Name: ps("kubernetes-dashboard"),
 			}},
 			expected: &payload.KubeMetadataPayload_Pod{
 				ReplicationController: "kubernetes-dashboard",
 			},
 		},
 		{
-			ownerRefs: []v1.OwnerReference{v1.OwnerReference{
-				Kind: "ReplicaSet",
-				Name: "apptastic-app",
+			ownerRefs: []*metav1.OwnerReference{&metav1.OwnerReference{
+				Kind: ps("ReplicaSet"),
+				Name: ps("apptastic-app"),
 			}},
 			expected: &payload.KubeMetadataPayload_Pod{
 				ReplicaSet: "apptastic-app",
 			},
 		},
 		{
-			ownerRefs: []v1.OwnerReference{v1.OwnerReference{
-				Kind: "Job",
-				Name: "hello",
+			ownerRefs: []*metav1.OwnerReference{&metav1.OwnerReference{
+				Kind: ps("Job"),
+				Name: ps("hello"),
 			}},
 			expected: &payload.KubeMetadataPayload_Pod{
 				Job: "hello",
