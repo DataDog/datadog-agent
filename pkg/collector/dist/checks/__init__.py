@@ -99,6 +99,9 @@ class AgentCheck(object):
             event['aggregation_key'] = str(event['aggregation_key'])
         aggregator.submit_event(self, event)
 
+    def increment(self, name, value, tags=None):
+        pass
+        
     def check(self, instance):
         raise NotImplementedError
 

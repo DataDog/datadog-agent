@@ -3,8 +3,6 @@
 package common
 
 import (
-	"path/filepath"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/kardianos/osext"
 )
@@ -18,6 +16,4 @@ var (
 
 	// utility variables
 	_here, _ = osext.ExecutableFolder()
-	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	PyChecksPath = filepath.Join(_here, "..", "..", "agent", "checks.d")
 )
