@@ -15,6 +15,7 @@ import (
 	"github.com/ericchiang/k8s/api/v1"
 )
 
+// Kubelet constants
 const (
 	AuthTokenPath           = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	DefaultHTTPKubeletPort  = 10255
@@ -22,11 +23,13 @@ const (
 	KubeletHealthPath       = "/healthz"
 )
 
+// Struct to hold the kubelet api url
+// Instanciate with NewKubeUtil
 type KubeUtil struct {
 	kubeletAPIURL string
 }
 
-// Return a new KubeUtil.
+// NewKubeUtil returns a new instance of KubeUtil.
 func NewKubeUtil(kubeletHost string, kubeletPort int) (*KubeUtil, error) {
 	kubeletURL, err := locateKubelet(kubeletHost, kubeletPort)
 	if err != nil {
@@ -86,6 +89,7 @@ func (ku *KubeUtil) GetLocalPodList() ([]*v1.Pod, error) {
 	return v.GetItems(), nil
 }
 
+// Try and find the hostname to query the kubelet
 func locateKubelet(kubeletHost string, kubeletPort int) (string, error) {
 	host := os.Getenv("KUBERNETES_KUBELET_HOST")
 	var err error
@@ -123,6 +127,8 @@ func locateKubelet(kubeletHost string, kubeletPort int) (string, error) {
 	return "", fmt.Errorf("Could not find a method to connect to kubelet")
 }
 
+// PerformKubeletQuery performs a GET query against kubelet and return the response body
+// Supports auth
 func PerformKubeletQuery(url string) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -146,6 +152,7 @@ func PerformKubeletQuery(url string) ([]byte, error) {
 	return body, nil
 }
 
+// Read the kubelet token
 func getAuthToken() string {
 	token, err := ioutil.ReadFile(AuthTokenPath)
 	if err != nil {
