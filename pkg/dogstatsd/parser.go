@@ -20,6 +20,7 @@ var metricTypes = map[string]aggregator.MetricType{
 	"s":  aggregator.SetType,
 	"h":  aggregator.HistogramType,
 	"ms": aggregator.HistogramType,
+	"d":  aggregator.DistributionType,
 }
 
 func nextPacket(datagram *[]byte) (packet []byte) {
