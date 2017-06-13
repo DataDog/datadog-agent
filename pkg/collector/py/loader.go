@@ -52,7 +52,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checkModule := python.PyImport_ImportModule(moduleName)
 	if checkModule == nil {
 		defer glock.unlock()
-		pyErr, err := getPythonError()
+		pyErr, err := glock.getPythonError()
 		if err != nil {
 			return nil, fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
 		}

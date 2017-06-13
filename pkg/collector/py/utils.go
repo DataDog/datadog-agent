@@ -31,6 +31,7 @@ import "C"
 // [0]: https://docs.python.org/2/c-api/init.html#non-python-created-threads
 type stickyLock struct {
 	gstate python.PyGILState
+	locked bool
 }
 
 // newStickyLock register the current thread with the interpreter and locks
@@ -40,14 +41,78 @@ func newStickyLock() *stickyLock {
 	runtime.LockOSThread()
 	return &stickyLock{
 		gstate: python.PyGILState_Ensure(),
+		locked: true,
 	}
 }
 
 // unlock deregisters the current thread from the interpreter, unlocks the GIL
 // and detaches the goroutine from the current thread.
 func (sl *stickyLock) unlock() {
+	sl.locked = false
 	python.PyGILState_Release(sl.gstate)
 	runtime.UnlockOSThread()
+}
+
+// getPythonError returns string-formatted info about a Python interpreter error that occurred,
+// and clears the error flag in the Python interpreter
+// WARNING: make sure the same stickyLock was already locked when the error flag was set on the python interpreter
+func (sl *stickyLock) getPythonError() (string, error) {
+	if !sl.locked {
+		return "", fmt.Errorf("the stickyLock is unlocked, can't interact with python interpreter")
+	}
+
+	if python.PyErr_Occurred() == nil { // borrowed ref, no decref needed
+		return "", fmt.Errorf("the error indicator is not set on the python interpreter")
+	}
+
+	ptype, pvalue, ptraceback := python.PyErr_Fetch() // new references, have to be decref'd
+	defer python.PyErr_Clear()
+	defer ptype.DecRef()
+	defer pvalue.DecRef()
+	defer ptraceback.DecRef()
+
+	// Make sure exception values are normalized, as per python C API docs. No error to handle here
+	python.PyErr_NormalizeException(ptype, pvalue, ptraceback)
+
+	if ptraceback != nil && ptraceback.GetCPointer() != nil {
+		// There's a traceback, try to format it nicely
+		traceback := python.PyImport_ImportModule("traceback")
+		formatExcFn := traceback.GetAttrString("format_exception")
+		if formatExcFn != nil {
+			defer formatExcFn.DecRef()
+			pyFormattedExc := formatExcFn.CallFunction(ptype, pvalue, ptraceback)
+			if pyFormattedExc != nil {
+				defer pyFormattedExc.DecRef()
+				pyStringExc := pyFormattedExc.Str()
+				if pyStringExc != nil {
+					defer pyStringExc.DecRef()
+					return python.PyString_AsString(pyStringExc), nil
+				}
+			}
+		}
+
+		// If we reach this point, there was an error while formatting the exception
+		return "", fmt.Errorf("can't format exception")
+	}
+
+	// we sometimes do not get a traceback but an error in pvalue
+	if pvalue != nil && pvalue.GetCPointer() != nil {
+		strPvalue := pvalue.Str()
+		if strPvalue != nil {
+			defer strPvalue.DecRef()
+			return python.PyString_AsString(strPvalue), nil
+		}
+	}
+
+	if ptype != nil {
+		strPtype := ptype.Str()
+		if strPtype != nil {
+			defer strPtype.DecRef()
+			return python.PyString_AsString(strPtype), nil
+		}
+	}
+
+	return "", fmt.Errorf("unknown error")
 }
 
 // Initialize wraps all the operations needed to start the Python interpreter and
