@@ -77,6 +77,14 @@ class AgentCheck(object):
         tags = self._normalize_tags(tags)
         aggregator.submit_metric(self, aggregator.HISTORATE, name, value, tags)
 
+    def increment(self, name, value=1, tags=None, hostname=None, device_name=None):
+        # DEPRECATED metric submission method
+        self.count(name + "_count", value, tags)
+
+    def decrement(self, name, value=-1, tags=None, hostname=None, device_name=None):
+        # DEPRECATED metric submission method
+        self.count(name + "_count", value, tags)
+
     def service_check(self, name, status, tags=None, message=""):
         tags = self._normalize_tags(tags)
         aggregator.submit_service_check(self, name, status, tags, message)
