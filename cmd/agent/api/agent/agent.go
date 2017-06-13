@@ -5,7 +5,6 @@ package agent
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"net/http"
 
 	log "github.com/cihub/seelog"
@@ -42,19 +41,15 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	var body = make(map[string]string)
-	b, _ := ioutil.ReadAll(r.Body)
-	json.Unmarshal(b, &body)
 	log.Infof("Making a flare")
 	filePath, err := flare.CreateArchive()
-	w.Header().Set("Content-Type", "application/json")
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
 		} else {
 			log.Warnf("The flare failed to be created")
 		}
-		http.Error(w, "The flare failed to be created", 500)
+		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
 }

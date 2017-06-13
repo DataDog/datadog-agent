@@ -2,7 +2,6 @@ package app
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 
@@ -12,8 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var customerEmail string
-var caseID string
+var (
+	customerEmail string
+	caseID        string
+)
 
 func init() {
 	AgentCmd.AddCommand(flareCmd)
@@ -43,25 +44,28 @@ var flareCmd = &cobra.Command{
 }
 
 func requestFlare() error {
-	fmt.Println("Building the flare archive")
+	fmt.Println("Asking the agent to build the flare archive.")
 	var e error
 	c := GetClient()
 	urlstr := "http://" + sockname + "/agent/flare"
-	var postbody = make(map[string]string)
-	postbody["case_id"] = caseID
-	postbody["email"] = customerEmail
-	body, _ := json.Marshal(postbody)
 
-	r, e := doPost(c, urlstr, "application/json", bytes.NewBuffer(body))
+	r, e := doPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string
-	filePath = string(r)
 	if e != nil {
-		fmt.Println("Unable to contact agent; initiating flare locally")
+		if r != nil && string(r) != "" {
+			fmt.Printf("The agent ran into an error while making the flare: %s\n", string(r))
+		} else {
+			fmt.Println("The agent was unable to make the flare.")
+		}
+		fmt.Println("Initiating flare locally.")
+
 		filePath, e = flare.CreateArchive()
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e
 		}
+	} else {
+		filePath = string(r)
 	}
 
 	fmt.Printf("%s is going to be uploaded to Datadog\n", filePath)
@@ -71,7 +75,8 @@ func requestFlare() error {
 		return nil
 	}
 
-	e = flare.SendFlare(filePath, caseID, customerEmail)
+	response, e := flare.SendFlare(filePath, caseID, customerEmail)
+	fmt.Println(response)
 	if e != nil {
 		return e
 	}
