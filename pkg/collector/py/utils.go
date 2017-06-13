@@ -200,18 +200,3 @@ func getPythonError() (string, error) {
 
 	return "", fmt.Errorf("unknown error")
 }
-
-// GetInterpreterVersion returns the Python version as fetched from the C api
-// BUG(massi) submit a PR to add this func to `go-python`
-func GetInterpreterVersion() string {
-	// Lock the GIL and release it at the end of the run
-	gstate := newStickyLock()
-	defer gstate.unlock()
-
-	res := C.Py_GetVersion()
-	if res == nil {
-		return ""
-	}
-
-	return C.GoString(res)
-}
