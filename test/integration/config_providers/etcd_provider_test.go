@@ -212,9 +212,8 @@ func (suite *EtcdTestSuite) TestBadConnection() {
 	p, err := providers.NewEtcdConfigProvider()
 	assert.Nil(suite.T(), err)
 
-	checks, err := p.Collect()
-	assert.Nil(suite.T(), err)
-	assert.Empty(suite.T(), checks)
+	_, err = p.Collect()
+	assert.NotNil(suite.T(), err)
 }
 
 func (suite *EtcdTestSuite) TestWorkingAuth() {
@@ -238,9 +237,8 @@ func (suite *EtcdTestSuite) TestBadAuth() {
 	p, err := providers.NewEtcdConfigProvider()
 	assert.Nil(suite.T(), err)
 
-	checks, err := p.Collect()
-	assert.Nil(suite.T(), err)
-	assert.Empty(suite.T(), checks)
+	_, err = p.Collect()
+	assert.NotNil(suite.T(), err)
 }
 
 func TestEtcdSuite(t *testing.T) {

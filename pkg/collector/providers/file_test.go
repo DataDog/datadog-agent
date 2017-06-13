@@ -40,7 +40,7 @@ func TestNewYamlConfigProvider(t *testing.T) {
 	}
 }
 
-func TestCollect(t *testing.T) {
+func TestFileCollect(t *testing.T) {
 	paths := []string{"tests", "foo/bar"}
 	provider := NewFileConfigProvider(paths)
 	configs, err := provider.Collect()
