@@ -125,7 +125,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) 
 	}
 
 	// always add the host metadata collector, this is not user-configurable by design
-	err = metadataScheduler.AddCollector("host", hostMetadataCollectorInterval)
+	err = metadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
 	if err != nil {
 		panic("Host metadata is supposed to be always available in the catalog!")
 	}
