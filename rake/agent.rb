@@ -25,9 +25,15 @@ namespace :agent do
     env = {}
     gcflags = []
     ldflags = []
+<<<<<<< HEAD
     if !ENV["USE_SYSTEM_LIBS"]
       env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
       ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
+=======
+    if !ENV["USE_SYSTEM_PY"]
+      env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
+      ENV["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
+>>>>>>> [windows] make windows python checks (specifically WMI) load and run
       libdir = `pkg-config --variable=libdir python-2.7`.strip
       fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
       ldflags << "-r #{libdir}"
