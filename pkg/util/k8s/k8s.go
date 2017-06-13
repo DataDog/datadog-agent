@@ -23,7 +23,7 @@ const (
 	KubeletHealthPath       = "/healthz"
 )
 
-// Struct to hold the kubelet api url
+// KubeUtil is a struct to hold the kubelet api url
 // Instanciate with NewKubeUtil
 type KubeUtil struct {
 	kubeletAPIURL string
@@ -108,7 +108,7 @@ func locateKubelet(kubeletHost string, kubeletPort int) (string, error) {
 		port = DefaultHTTPKubeletPort
 	}
 
-	url := fmt.Sprintf("http://%s:%s", host, port)
+	url := fmt.Sprintf("http://%s:%d", host, port)
 	if _, err := PerformKubeletQuery(url); err == nil {
 		return url, nil
 	}
@@ -119,7 +119,7 @@ func locateKubelet(kubeletHost string, kubeletPort int) (string, error) {
 		port = DefaultHTTPSKubeletPort
 	}
 
-	url = fmt.Sprintf("https://%s:%s", host, port)
+	url = fmt.Sprintf("https://%s:%d", host, port)
 	if _, err := PerformKubeletQuery(url); err == nil {
 		return url, nil
 	}
