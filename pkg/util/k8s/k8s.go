@@ -2,43 +2,155 @@ package k8s
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s"
 	"github.com/ericchiang/k8s/api/v1"
 )
 
+const (
+	AuthTokenPath           = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	DefaultHTTPKubeletPort  = 10255
+	DefaultHTTPSKubeletPort = 10250
+	KubeletHealthPath       = "/healthz"
+)
+
+type KubeUtil struct {
+	kubeletAPIURL string
+}
+
+// Return a new KubeUtil.
+func NewKubeUtil(kubeletHost string, kubeletPort int) (*KubeUtil, error) {
+	kubeletURL, err := locateKubelet(kubeletHost, kubeletPort)
+	if err != nil {
+		return nil, fmt.Errorf("Could not find a way to connect to kubelet: %s", err)
+	}
+
+	kubeUtil := KubeUtil{
+		kubeletAPIURL: kubeletURL,
+	}
+	return &kubeUtil, nil
+}
+
 // GetNodeInfo returns the IP address and the hostname of the node where
 // this pod is running.
-func GetNodeInfo() (ip, name string, err error) {
-	pods, err := GetPodList()
+func (ku *KubeUtil) GetNodeInfo() (ip, name string, err error) {
+	pods, err := ku.GetLocalPodList()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to retrieve host ip and name: %s", err)
+		return "", "", fmt.Errorf("Error getting pod list from kubelet: %s", err)
 	}
 
 	for _, pod := range pods {
-		// The env var HOSTNAME is set to the name of the pod running the datadog-agent
-		if pod.GetMetadata().GetName() == os.Getenv("HOSTNAME") {
-			// We identified the pod running the agent, let's return the host ip and hostname on which the pod is running
+		if !pod.GetSpec().GetHostNetwork() {
 			return pod.GetStatus().GetHostIP(), pod.GetSpec().GetHostname(), nil
 		}
 	}
 
-	return "", "", fmt.Errorf("Failed to fetch node info: could not identify the pod running the agent")
+	return "", "", fmt.Errorf("Failed to get node info")
 }
 
-// GetPodList returns the list of pods running on the cluster where this pod is running
-func GetPodList() ([]*v1.Pod, error) {
+// GetGlobalPodList returns the list of pods running on the cluster where this pod is running
+// This function queries the API server which could put heavy load on it so use with caution
+func GetGlobalPodList() ([]*v1.Pod, error) {
 	client, err := k8s.NewInClusterClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get client: %s", err)
+		return nil, fmt.Errorf("Failed to get client: %s", err)
 	}
 
 	pods, err := client.CoreV1().ListPods(context.Background(), "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get pods: %s", err)
+		return nil, fmt.Errorf("Failed to get pods: %s", err)
 	}
 
 	return pods.GetItems(), nil
+}
+
+// GetLocalPodList returns the list of pods running on the node where this pod is running
+func (ku *KubeUtil) GetLocalPodList() ([]*v1.Pod, error) {
+
+	data, err := PerformKubeletQuery(fmt.Sprintf("%s/pods", ku.kubeletAPIURL))
+	if err != nil {
+		return nil, fmt.Errorf("Error performing kubelet query: %s", err)
+	}
+
+	var v *v1.PodList
+	json.Unmarshal(data, v)
+
+	return v.GetItems(), nil
+}
+
+func locateKubelet(kubeletHost string, kubeletPort int) (string, error) {
+	host := os.Getenv("KUBERNETES_KUBELET_HOST")
+	var err error
+	if host == "" {
+		host = kubeletHost
+	}
+	if host == "" {
+		host, err = docker.GetHostname()
+		if err != nil {
+			return "", fmt.Errorf("Unable to get hostname from docker: %s", err)
+		}
+	}
+
+	port := kubeletPort
+	if port == 0 {
+		port = DefaultHTTPKubeletPort
+	}
+
+	url := fmt.Sprintf("http://%s:%s", host, port)
+	if _, err := PerformKubeletQuery(url); err == nil {
+		return url, nil
+	}
+	log.Debugf("Couldn't query kubelet over HTTP, assuming it's not in no_auth mode.")
+
+	port = kubeletPort
+	if port == 0 {
+		port = DefaultHTTPSKubeletPort
+	}
+
+	url = fmt.Sprintf("https://%s:%s", host, port)
+	if _, err := PerformKubeletQuery(url); err == nil {
+		return url, nil
+	}
+
+	return "", fmt.Errorf("Could not find a method to connect to kubelet")
+}
+
+func PerformKubeletQuery(url string) ([]byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("Could not create request: %s", err)
+	}
+
+	if strings.HasPrefix(url, "https") {
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", getAuthToken()))
+	}
+
+	res, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("Error executing request to %s: %s", url, err)
+	}
+	defer res.Body.Close()
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading response from %s: %s", url, err)
+	}
+	return body, nil
+}
+
+func getAuthToken() string {
+	token, err := ioutil.ReadFile(AuthTokenPath)
+	if err != nil {
+		log.Errorf("Could not read token from %s: %s", AuthTokenPath, err)
+		return ""
+	}
+	return string(token)
 }
