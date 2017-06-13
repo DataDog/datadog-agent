@@ -98,7 +98,11 @@ func start(cmd *cobra.Command, args []string) error {
 	f := forwarder.NewDefaultForwarder(keysPerDomain)
 	f.Start()
 
-	hname, _ := util.GetHostname()
+	hname, err := util.GetHostname()
+	if err != nil {
+		log.Warnf("Error getting hostname: %s\n", err)
+		hname = ""
+	}
 	aggregatorInstance := aggregator.InitAggregator(f, hname)
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
