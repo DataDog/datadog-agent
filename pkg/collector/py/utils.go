@@ -53,9 +53,15 @@ func (sl *stickyLock) unlock() {
 	runtime.UnlockOSThread()
 }
 
-// getPythonError returns string-formatted info about a Python interpreter error that occurred,
-// and clears the error flag in the Python interpreter
-// WARNING: make sure the same stickyLock was already locked when the error flag was set on the python interpreter
+// getPythonError returns string-formatted info about a Python interpreter error
+// that occurred and clears the error flag in the Python interpreter.
+//
+// For many C python functions, a `NULL` return value indicates an error (always
+// refer to the python C API docs to check the meaning of return values).
+// If an error did occur, use this function to handle it properly.
+//
+// WARNING: make sure the same stickyLock was already locked when the error flag
+// was set on the python interpreter
 func (sl *stickyLock) getPythonError() (string, error) {
 	if !sl.locked {
 		return "", fmt.Errorf("the stickyLock is unlocked, can't interact with python interpreter")
