@@ -59,6 +59,10 @@ func getSystemStats() *systemStats {
 	return stats
 }
 
+// getPythonVersion returns the version string as provided by the embedded Python
+// interpreter. The string is stored in the Agent cache when the interpreter is
+// initialized (see pkg/collector/py/utils.go), an empty value is expected when
+// using this package without embedding Python.
 func getPythonVersion() string {
 	// retrieve the Python version from the Agent cache
 	key := path.Join(util.AgentCachePrefix, "pythonVersion")
