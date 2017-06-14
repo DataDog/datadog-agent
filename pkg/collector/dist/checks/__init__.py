@@ -40,11 +40,13 @@ class AgentCheck(object):
         else:
             self.name = args[0]
             self.agentConfig = args[1]
-            # no agentConfig
-            if len(args) == 3:
+            if 'instances' in kwargs:
+                self.instances = kwargs['instances']
+            elif len(args) == 3:
+                # no agentConfig
                 self.instances = args[2]
-            # with agentConfig
             else:
+                # with agentConfig
                 self.instances = args[3]
 
         # the agent5 'AgentCheck' setup a log attribute.
