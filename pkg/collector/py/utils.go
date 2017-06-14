@@ -5,6 +5,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/sbinet/go-python"
@@ -31,7 +32,7 @@ import "C"
 // [0]: https://docs.python.org/2/c-api/init.html#non-python-created-threads
 type stickyLock struct {
 	gstate python.PyGILState
-	locked bool
+	locked uint32 // Flag set to 1 if the lock is locked, 0 otherwise
 }
 
 // newStickyLock register the current thread with the interpreter and locks
@@ -41,14 +42,15 @@ func newStickyLock() *stickyLock {
 	runtime.LockOSThread()
 	return &stickyLock{
 		gstate: python.PyGILState_Ensure(),
-		locked: true,
+		locked: 1,
 	}
 }
 
 // unlock deregisters the current thread from the interpreter, unlocks the GIL
 // and detaches the goroutine from the current thread.
+// Thread safe ; noop when called on an already-unlocked stickylock.
 func (sl *stickyLock) unlock() {
-	sl.locked = false
+	atomic.StoreUint32(&sl.locked, 0)
 	python.PyGILState_Release(sl.gstate)
 	runtime.UnlockOSThread()
 }
@@ -63,7 +65,7 @@ func (sl *stickyLock) unlock() {
 // WARNING: make sure the same stickyLock was already locked when the error flag
 // was set on the python interpreter
 func (sl *stickyLock) getPythonError() (string, error) {
-	if !sl.locked {
+	if atomic.LoadUint32(&sl.locked) != 1 {
 		return "", fmt.Errorf("the stickyLock is unlocked, can't interact with python interpreter")
 	}
 
