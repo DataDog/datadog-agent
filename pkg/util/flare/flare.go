@@ -65,7 +65,7 @@ func SendFlareWithHostname(archivePath string, caseID string, email string, host
 	client := mkHTTPClient()
 	r, err := client.Do(request)
 
-	return AnalyzeResponse(r, err)
+	return analyzeResponse(r, err)
 }
 
 // SendFlare will send a flare and grab the local hostname
@@ -74,8 +74,7 @@ func SendFlare(archivePath string, caseID string, email string) (string, error) 
 	return SendFlareWithHostname(archivePath, caseID, email, hostname)
 }
 
-// AnalyzeResponse analyzes the response
-func AnalyzeResponse(r *http.Response, err error) (string, error) {
+func analyzeResponse(r *http.Response, err error) (string, error) {
 	var response string
 	if err != nil {
 		return response, err
