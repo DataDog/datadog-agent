@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
@@ -27,7 +29,11 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	hname := util.GetHostname()
+	hname, err := util.GetHostname()
+	if err != nil {
+		log.Warnf("Error getting hostname: %s\n", err) // or something like this
+		hname = ""
+	}
 	j, _ := json.Marshal(hname)
 	w.Write(j)
 }

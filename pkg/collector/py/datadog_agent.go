@@ -30,7 +30,11 @@ func GetVersion(self *C.PyObject, args *C.PyObject) *C.PyObject {
 // GetHostname expose the current hostname of the agent to python check (used as a PyCFunction in the datadog_agent python module)
 //export GetHostname
 func GetHostname(self *C.PyObject, args *C.PyObject) *C.PyObject {
-	hostname := util.GetHostname()
+	hostname, err := util.GetHostname()
+	if err != nil {
+		log.Warnf("Error getting hostname: %s\n", err)
+		hostname = ""
+	}
 
 	cStr := C.CString(hostname)
 	pyStr := C.PyString_FromString(cStr)

@@ -60,7 +60,10 @@ func StartAgent() {
 		panic(err)
 	}
 
-	hostname := util.GetHostname()
+	hostname, err := util.GetHostname()
+	if err != nil {
+		panic(err)
+	}
 
 	// store the computed hostname in the global cache
 	key := path.Join(util.AgentCachePrefix, "hostname")

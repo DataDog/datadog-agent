@@ -98,8 +98,12 @@ func start(cmd *cobra.Command, args []string) error {
 	f := forwarder.NewDefaultForwarder(keysPerDomain)
 	f.Start()
 
-	// FIXME: the aggregator should probably be initialized with the resolved hostname instead
-	aggregatorInstance := aggregator.InitAggregator(f, util.GetHostname())
+	hname, err := util.GetHostname()
+	if err != nil {
+		log.Warnf("Error getting hostname: %s\n", err)
+		hname = ""
+	}
+	aggregatorInstance := aggregator.InitAggregator(f, hname)
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)
