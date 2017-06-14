@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"regexp"
 	"syscall"
-	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/dd-trace-go/tracer"
 	log "github.com/cihub/seelog"
 )
 
@@ -184,32 +182,22 @@ func ioFactory() check.Check {
 					log.Errorf("Failed to create counter %s %d", countername, err)
 					continue
 				} else {
-					log.Infof("Created counter name %s", countername)
+					log.Debugf("Created counter name %s", countername)
 				}
 				c.drivemap[drive] = append(c.drivemap[drive], counter)
 			}
 		}
 	}
-	log.Infof("IO Factory -- success")
 	return c
 }
 
 // Run executes the check
 func (c *IOCheck) Run() error {
-	span := tracer.NewRootSpan("ddagent.check.system.io", "pdh-io", "Run")
-
-	log.Infof("Running IO Check")
-	start := time.Now()
 	var err error
 	r, _, err := PdhCollectQueryData.Call(uintptr(c.query))
 	if r != 0 && err != nil {
 		return err
 	}
-	//time.Sleep(time.Second)
-	//r, _, err = PdhCollectQueryData.Call(uintptr(c.query))
-	//if r != 0 && err != nil {
-	//	return err
-	//}
 	var tagbuff bytes.Buffer
 	for drive, counters := range c.drivemap {
 
@@ -222,9 +210,8 @@ func (c *IOCheck) Run() error {
 		tagbuff.WriteString("device:")
 		tagbuff.WriteString(drive)
 		tags := []string{tagbuff.String()}
-		log.Infof("counters map is size %d", len(counters))
 		for _, v := range counters {
-			log.Infof("Checking counter %s", v.PostName)
+			log.Debugf("Checking counter %s", v.PostName)
 			var fmtValue PDH_FMT_COUNTERVALUE_LARGE
 			r, _, err := PdhGetFormattedCounterValue.Call(uintptr(v.Counter),
 				PDH_FMT_LARGE,
@@ -235,18 +222,14 @@ func (c *IOCheck) Run() error {
 				return err
 			}
 			val := fmtValue.LargeValue
-			log.Infof("Value for %s is %f", v.PostName, float64(val))
 			if v.PostName == "system.io.wkb_s" ||
 				v.PostName == "system.io.rkb_s" {
 				val = val / 1024
 			}
-			log.Infof("Setting Gauge %s %f %s", v.PostName, float64(val), tags)
 			c.sender.Gauge(v.PostName, float64(val), "", tags)
 		}
 	}
 
 	c.sender.Commit()
-	span.Finish()
-	log.Infof("Span duration %d Elapsed time: %s", span.Duration, time.Since(start).String())
 	return nil
 }

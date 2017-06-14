@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/dd-trace-go/tracer"
 	"github.com/StackExchange/wmi"
 	log "github.com/cihub/seelog"
 )
@@ -80,7 +79,7 @@ func init() {
 }
 
 func wmiioFactory() check.Check {
-	log.Infof("WMIIOCheck factory")
+	log.Debug("WMIIOCheck factory")
 	c := &WMIIOCheck{}
 	c.drivemap = make(map[string]Win32_PerfRawData_PerfDisk_LogicalDisk, 0)
 
@@ -104,7 +103,7 @@ func wmiioFactory() check.Check {
 			c.drivemap[drive] = Win32_PerfRawData_PerfDisk_LogicalDisk{}
 		}
 	}
-	log.Infof("IO Factory -- success")
+	log.Debug("IO Factory -- success")
 	return c
 }
 
@@ -147,11 +146,7 @@ func computeValue(pvs Win32_PerfRawData_PerfDisk_LogicalDisk, cur *Win32_PerfRaw
 
 // Run executes the check
 func (c *WMIIOCheck) Run() error {
-	span := tracer.NewRootSpan("ddagent.check.system.io", "wmi-io", "Run")
-	defer span.Finish()
-	log.Infof("Running IO Check")
 	var dst []Win32_PerfRawData_PerfDisk_LogicalDisk
-	start := time.Now()
 	err := wmi.Query("SELECT Name, DiskWriteBytesPerSec, DiskWritesPerSec, DiskReadBytesPerSec, DiskReadsPerSec, CurrentDiskQueueLength, Timestamp_Sys100NS, Frequency_Sys100NS FROM Win32_PerfRawData_PerfDisk_LogicalDisk ", &dst)
 	if err != nil {
 		log.Errorf("Error in WMI query %s", err.Error())
@@ -164,8 +159,8 @@ func (c *WMIIOCheck) Run() error {
 			continue
 		}
 		drive := d.Name
-		log.Infof("checking drive %s against blacklist", drive)
 		if c.blacklist != nil && c.blacklist.MatchString(drive) {
+			log.Debugf("matched drive %s against blacklist; skipping", drive)
 			continue
 		}
 
@@ -173,27 +168,21 @@ func (c *WMIIOCheck) Run() error {
 		tagbuff.WriteString("device:")
 		tagbuff.WriteString(drive)
 		tags := []string{tagbuff.String()}
-		log.Infof("Created tags %s", tags)
 		if len(c.drivemap[d.Name].Name) != 0 {
 			// have a previous value we can compute from
 			metrics, err := computeValue(c.drivemap[d.Name], &d)
 			if err != nil {
 				log.Errorf("Error computing WMI statistics: %s", err)
 			} else {
-				log.Infof("returned metrics %d", len(metrics))
 				for k, v := range metrics {
-					log.Infof("Setting %s to %f", k, v)
+					log.Debugf("Setting %s to %f", k, v)
 					c.sender.Gauge(k, v, "", tags)
 				}
 			}
 
-		} else {
-			log.Infof("Length of drive was %d", len(c.drivemap[d.Name].Name))
 		}
-		log.Infof("Setting previous values")
 		c.drivemap[d.Name] = d
 	}
 	c.sender.Commit()
-	log.Infof("Elapsed time: %s", time.Since(start).String())
 	return nil
 }
