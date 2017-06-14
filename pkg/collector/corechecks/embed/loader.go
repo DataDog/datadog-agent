@@ -19,7 +19,7 @@ const (
 	autoDiscoveryToken = "#### AUTO-DISCOVERY ####\n"
 )
 
-// ader is a specific loader for checks living in this package
+// JMXCheckLoader is a specific loader for checks living in this package
 type JMXCheckLoader struct {
 	ipc util.NamedPipe
 }
@@ -63,7 +63,7 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 
 	if !jl.ipc.Ready() {
-		return checks, errors.New("Pipe unavailable - cannot load check configuration.")
+		return checks, errors.New("pipe unavailable - cannot load check configuration")
 	}
 
 	isJMX := false
@@ -85,12 +85,12 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 		x, ok := rawInitConfig["is_jmx"]
 		if !ok {
-			return checks, errors.New("Not a JMX check.")
+			return checks, errors.New("not a JMX check")
 		}
 
 		isJMX, ok := x.(bool)
 		if !isJMX || !ok {
-			return checks, errors.New("Unable to determine if check is JMX compatible.")
+			return checks, errors.New("unable to determine if check is JMX compatible")
 		}
 	}
 

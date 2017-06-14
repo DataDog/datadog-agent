@@ -1,5 +1,6 @@
 package util
 
+// NamedPipe interface to NamedPipes (multi-platform)
 type NamedPipe interface {
 	Open() error
 	Ready() bool

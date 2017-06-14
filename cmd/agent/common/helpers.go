@@ -31,6 +31,8 @@ func SetupAutoConfig(confdPath string) {
 	} else {
 		log.Errorf("Unable to create Python loader.")
 	}
+
+	// can't fail
 	AC.AddLoader(core.NewGoCheckLoader())
 
 	if loader := embed.NewJMXCheckLoader(); loader != nil {

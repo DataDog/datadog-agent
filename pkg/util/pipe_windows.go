@@ -63,7 +63,7 @@ func (p *WinNamedPipe) Write(b []byte) (int, error) {
 }
 
 func (p *WinNamedPipe) Close() error {
-        var err error
+	var err error
 	if p.pipe == nil {
 		return nil
 	}

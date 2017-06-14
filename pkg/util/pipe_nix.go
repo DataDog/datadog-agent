@@ -8,19 +8,23 @@ import (
 	"syscall"
 )
 
+// UnixNamedPipe unix abstraction to named pipes
 type UnixNamedPipe struct {
 	path string
 	pipe *os.File
 }
 
+// GetPipe returns a UnixPipe to path
 func GetPipe(path string) (NamedPipe, error) {
 	return NewUnixNamedPipe(path)
 }
 
+// NewUnixNamedPipe UnixNamedPipe constructor
 func NewUnixNamedPipe(path string) (*UnixNamedPipe, error) {
 	return &UnixNamedPipe{path: path}, nil
 }
 
+// Open opens named pipe - will create it if doesn't exist
 func (p *UnixNamedPipe) Open() error {
 	var err error
 	if p.pipe != nil {
@@ -45,17 +49,20 @@ func (p *UnixNamedPipe) Open() error {
 	return nil
 }
 
+// Ready is the pipe ready to read/write?
 func (p *UnixNamedPipe) Ready() bool {
 	return (p.pipe != nil)
 }
 
+// Read from the pipe
 func (p *UnixNamedPipe) Read(b []byte) (int, error) {
 	if p.pipe == nil {
-		return 0, errors.New("No pipe to write to.")
+		return 0, errors.New("no pipe to write to")
 	}
 	return p.pipe.Read(b)
 }
 
+// Write to the pipe
 func (p *UnixNamedPipe) Write(b []byte) (int, error) {
 	if p.pipe == nil {
 		return 0, nil
@@ -63,6 +70,7 @@ func (p *UnixNamedPipe) Write(b []byte) (int, error) {
 	return p.pipe.Write(b)
 }
 
+// Close the underlying named pipe
 func (p *UnixNamedPipe) Close() error {
 	if p.pipe == nil {
 		return nil
