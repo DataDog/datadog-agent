@@ -4,10 +4,15 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateArchive(t *testing.T) {
+	common.SetupConfig("./test")
+	config.Datadog.Set("confd_path", "./test/confd")
+	config.Datadog.Set("log_file", "./test/logs/agent.log")
 	zipFilePath := mkFilePath()
 	filePath, err := createArchive(zipFilePath)
 
