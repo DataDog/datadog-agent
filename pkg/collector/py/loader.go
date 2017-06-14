@@ -59,7 +59,6 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		}
 		return nil, errors.New(pyErr)
 	}
-
 	// Try to find a class inheriting from AgentCheck within the module
 	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule)
 	if err != nil {
