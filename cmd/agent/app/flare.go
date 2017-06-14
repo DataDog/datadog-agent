@@ -32,7 +32,7 @@ var flareCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		common.SetupConfig(confFilePath)
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
-		config.SetupLogger("error", "")
+		config.SetupLogger("off", "")
 		if customerEmail == "" && caseID == "" {
 			customerEmail = flare.AskForEmail()
 		}
