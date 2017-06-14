@@ -17,7 +17,7 @@ var (
 		Use:   "start",
 		Short: "Start the Agent",
 		Long:  `Runs the agent in the foreground`,
-		RunE:  start,
+		Run:   start,
 	}
 )
 
@@ -33,8 +33,8 @@ func init() {
 }
 
 // Start the main loop
-func start(cmd *cobra.Command, args []string) error {
-	statsd, collector, forwarder := StartAgent()
+func start(cmd *cobra.Command, args []string) {
+	StartAgent()
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -47,6 +47,5 @@ func start(cmd *cobra.Command, args []string) error {
 	case sig := <-signalCh:
 		log.Infof("Received signal '%s', shutting down...", sig)
 	}
-	StopAgent(statsd, collector, forwarder)
-	return nil
+	StopAgent()
 }

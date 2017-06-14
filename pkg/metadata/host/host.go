@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/shirou/gopsutil/cpu"
@@ -60,17 +59,18 @@ func getSystemStats() *systemStats {
 	return stats
 }
 
+// getPythonVersion returns the version string as provided by the embedded Python
+// interpreter. The string is stored in the Agent cache when the interpreter is
+// initialized (see pkg/collector/py/utils.go), an empty value is expected when
+// using this package without embedding Python.
 func getPythonVersion() string {
-	var pythonVersion string
-	key := buildKey("python")
+	// retrieve the Python version from the Agent cache
+	key := path.Join(util.AgentCachePrefix, "pythonVersion")
 	if x, found := util.Cache.Get(key); found {
-		pythonVersion = x.(string)
-	} else {
-		pythonVersion = py.GetInterpreterVersion()
-		util.Cache.Set(key, pythonVersion, util.NoExpiration)
+		return x.(string)
 	}
 
-	return pythonVersion
+	return "n/a"
 }
 
 // getCPUInfo returns InfoStat for the first CPU gopsutil found

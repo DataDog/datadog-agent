@@ -44,7 +44,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
-	statsd, collector, forwarder := app.StartAgent()
+	app.StartAgent()
 
 loop:
 	for {
@@ -57,14 +57,14 @@ loop:
 				time.Sleep(100 * time.Millisecond)
 				changes <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
-				app.StopAgent(statsd, collector, forwarder)
+				app.StopAgent()
 				break loop
 			default:
 				elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
 			}
 		case <-common.Stopper:
 			elog.Info(1, "Received stop command, shutting down...")
-			app.StopAgent(statsd, collector, forwarder)
+			app.StopAgent()
 			break loop
 
 		}

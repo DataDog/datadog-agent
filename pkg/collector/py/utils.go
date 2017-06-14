@@ -2,9 +2,11 @@ package py
 
 import (
 	"fmt"
+	"path"
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/sbinet/go-python"
 )
 
@@ -82,6 +84,13 @@ func Initialize(paths ...string) *python.PyThreadState {
 		for _, p := range paths {
 			python.PyList_Append(path, python.PyString_FromString(p))
 		}
+	}
+
+	// store the Python version in the global cache
+	res := C.Py_GetVersion()
+	if res != nil {
+		key := path.Join(util.AgentCachePrefix, "pythonVersion")
+		util.Cache.Set(key, C.GoString(res), util.NoExpiration)
 	}
 
 	// We acquired the GIL as a side effect of threading initialization (see above)
@@ -190,18 +199,4 @@ func getPythonError() (string, error) {
 	}
 
 	return "", fmt.Errorf("unknown error")
-}
-
-// GetInterpreterVersion should go in `go-python`, TODO.
-func GetInterpreterVersion() string {
-	// Lock the GIL and release it at the end of the run
-	gstate := newStickyLock()
-	defer gstate.unlock()
-
-	res := C.Py_GetVersion()
-	if res == nil {
-		return ""
-	}
-
-	return C.GoString(res)
 }
