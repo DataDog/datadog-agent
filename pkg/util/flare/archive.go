@@ -1,7 +1,6 @@
 package flare
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -40,13 +39,11 @@ func createArchive(zipFilePath string) (string, error) {
 
 	err := zipLogFiles(zipFile, hostname)
 	if err != nil {
-		fmt.Println("log file error", err)
 		return "", err
 	}
 
 	err = zipConfigFiles(zipFile, hostname)
 	if err != nil {
-		fmt.Println("config file error", err)
 		return "", err
 	}
 
