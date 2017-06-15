@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s"
@@ -30,8 +31,8 @@ type KubeUtil struct {
 }
 
 // NewKubeUtil returns a new instance of KubeUtil.
-func NewKubeUtil(kubeletHost string, kubeletPort int) (*KubeUtil, error) {
-	kubeletURL, err := locateKubelet(kubeletHost, kubeletPort)
+func NewKubeUtil() (*KubeUtil, error) {
+	kubeletURL, err := locateKubelet()
 	if err != nil {
 		return nil, fmt.Errorf("Could not find a way to connect to kubelet: %s", err)
 	}
@@ -90,12 +91,12 @@ func (ku *KubeUtil) GetLocalPodList() ([]*v1.Pod, error) {
 }
 
 // Try and find the hostname to query the kubelet
-func locateKubelet(kubeletHost string, kubeletPort int) (string, error) {
-	host := os.Getenv("KUBERNETES_KUBELET_HOST")
+// TODO: Add TLS verification
+func locateKubelet() (string, error) {
+	host := config.Datadog.GetString("kubernetes_kubelet_host")
+	port := config.Datadog.GetInt("kubernetes_kubelet_port")
 	var err error
-	if host == "" {
-		host = kubeletHost
-	}
+
 	if host == "" {
 		host, err = docker.GetHostname()
 		if err != nil {
@@ -103,7 +104,6 @@ func locateKubelet(kubeletHost string, kubeletPort int) (string, error) {
 		}
 	}
 
-	port := kubeletPort
 	if port == 0 {
 		port = DefaultHTTPKubeletPort
 	}
@@ -128,7 +128,8 @@ func locateKubelet(kubeletHost string, kubeletPort int) (string, error) {
 }
 
 // PerformKubeletQuery performs a GET query against kubelet and return the response body
-// Supports auth
+// Supports token-based auth
+// TODO: TLS
 func PerformKubeletQuery(url string) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
