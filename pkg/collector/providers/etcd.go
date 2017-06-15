@@ -229,6 +229,10 @@ func (p *EtcdConfigProvider) getIdx(key string) int {
 	return 0
 }
 
+func (p *EtcdConfigProvider) String() string {
+	return "etcd Configuration Provider"
+}
+
 func buildStoreKey(key ...string) string {
 	parts := []string{config.Datadog.GetString("autoconf_template_dir")}
 	parts = append(parts, key...)

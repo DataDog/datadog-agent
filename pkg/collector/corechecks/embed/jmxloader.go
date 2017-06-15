@@ -103,3 +103,7 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 	return checks, err
 }
+
+func (jl *JMXCheckLoader) String() string {
+	return "JMX Check Loader"
+}
