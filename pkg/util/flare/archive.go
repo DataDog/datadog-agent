@@ -23,21 +23,16 @@ func createArchive(zipFilePath string) (string, error) {
 	zipFile := new(archivex.ZipFile)
 	zipFile.Create(zipFilePath)
 
-	// Get hostname from cache if it exists there
-	// Otherwise, create it.
-	// If it is not in the cache,
-	// it's likely because it was unable to run this on the agent itself
-	var hostname string
-	x, found := util.Cache.Get("hostname")
-	if found {
-		hostname = x.(string)
-	} else {
-		hostname = util.GetHostname()
+	// Get hostname, if there's an error in getting the hostname,
+	// set the hostname to unknown
+	hostname, err := util.GetHostname()
+	if err != nil {
+		hostname = "unknown"
 	}
 
 	defer zipFile.Close()
 
-	err := zipLogFiles(zipFile, hostname)
+	err = zipLogFiles(zipFile, hostname)
 	if err != nil {
 		return "", err
 	}

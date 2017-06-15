@@ -70,7 +70,10 @@ func SendFlareWithHostname(archivePath string, caseID string, email string, host
 
 // SendFlare will send a flare and grab the local hostname
 func SendFlare(archivePath string, caseID string, email string) (string, error) {
-	hostname := util.GetHostname()
+	hostname, err := util.GetHostname()
+	if err != nil {
+		hostname = "unknown"
+	}
 	return SendFlareWithHostname(archivePath, caseID, email, hostname)
 }
 
