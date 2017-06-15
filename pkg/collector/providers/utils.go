@@ -19,6 +19,8 @@ const (
 func init() {
 	// Where to look for check templates if no custom path is defined
 	config.Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
+	// Defaut Timeout in second when talking to storage for configuration (etcd, zookeeper, ...)
+	config.Datadog.SetDefault("autoconf_template_url_timeout", 5)
 }
 
 // parseJSONValue returns a slice of ConfigData parsed from the JSON

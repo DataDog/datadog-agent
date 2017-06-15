@@ -1,5 +1,5 @@
-hash: 8e18d7a6c09b747f522d0b72c8242965515d481246f93caa839ab5c99a632364
-updated: 2017-06-12T13:00:17.908884886-07:00
+hash: c6738d0e9aa4b030a8b36e9940b14ab5a96351b7d3a2de89e43be53ae8378c24
+updated: 2017-06-19T10:35:24.569426126+02:00
 imports:
 - name: github.com/beevik/ntp
   version: cb3dae3a7588ae35829eb5724df611cd75152fba
@@ -103,8 +103,6 @@ imports:
   version: 629574ca2a5df945712d3079857300b5e4da0236
 - name: github.com/geoffgarside/ber
   version: 854377f11dfb81f04121879829bc53487e377739
-- name: github.com/ghodss/yaml
-  version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
   subpackages:
@@ -160,6 +158,10 @@ imports:
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
+- name: github.com/samuel/go-zookeeper
+  version: 1d7be4effb13d2d908342d349d71a284a7542693
+  subpackages:
+  - zk
 - name: github.com/sbinet/go-python
   version: ba7e58341058bdefb92b359870caf2dc0a05cfcf
 - name: github.com/shirou/gopsutil
