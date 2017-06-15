@@ -19,13 +19,23 @@ import (
 )
 
 const (
-	jmxJarName                        = "jmxfetch-0.13.0-jar-with-dependencies.jar"
+	jmxJarName                        = "jmxfetch-0.14.0-jar-with-dependencies.jar"
 	jmxMainClass                      = "org.datadog.jmxfetch.App"
 	jmxCollectCommand                 = "collect"
 	jvmDefaultMaxMemoryAllocation     = " -Xmx200m"
 	jvmDefaultInitialMemoryAllocation = " -Xms50m"
 	linkToDoc                         = "See http://docs.datadoghq.com/integrations/java/ for more information"
 )
+
+var jmxChecks = [...]string{
+	"activemq",
+	"activemq_58",
+	"cassandra",
+	"jmx",
+	"solr",
+	"tomcat",
+	"kafka",
+}
 
 // Structures to parse the yaml containing a list of jmx checks config files
 type instanceCfg struct {

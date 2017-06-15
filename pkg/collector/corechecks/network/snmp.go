@@ -642,7 +642,7 @@ func (c *SNMPCheck) getSNMP() error {
 	return nil
 }
 
-// Configure the Python check from YAML data
+// Configure the check from YAML data
 func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 
 	cfg := new(snmpConfig)
