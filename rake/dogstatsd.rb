@@ -45,6 +45,7 @@ namespace :dogstatsd do
   task :size_test do
     if ENV['skip_rebuild'] != "true" then
       puts "Building DogStatsD"
+      ENV['static'] = "true"
       Rake::Task["dogstatsd:build"].invoke
     end
 
