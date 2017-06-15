@@ -7,7 +7,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/flare"
+	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/spf13/cobra"
 )
 
@@ -59,7 +59,7 @@ func requestFlare() error {
 		}
 		fmt.Println("Initiating flare locally.")
 
-		filePath, e = flare.CreateArchive()
+		filePath, e = flare.CreateArchive(true)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

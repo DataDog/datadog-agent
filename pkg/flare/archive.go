@@ -14,12 +14,12 @@ import (
 )
 
 // CreateArchive packages up the files
-func CreateArchive() (string, error) {
+func CreateArchive(local bool) (string, error) {
 	zipFilePath := mkFilePath()
-	return createArchive(zipFilePath)
+	return createArchive(zipFilePath, local)
 }
 
-func createArchive(zipFilePath string) (string, error) {
+func createArchive(zipFilePath string, local bool) (string, error) {
 	zipFile := new(archivex.ZipFile)
 	zipFile.Create(zipFilePath)
 
@@ -31,6 +31,10 @@ func createArchive(zipFilePath string) (string, error) {
 	}
 
 	defer zipFile.Close()
+
+	if local {
+		zipFile.Add(filepath.Join(hostname, "local"), []byte{})
+	}
 
 	err = zipLogFiles(zipFile, hostname)
 	if err != nil {
@@ -50,6 +54,9 @@ func zipLogFiles(zipFile *archivex.ZipFile, hostname string) error {
 	logFilePath := path.Dir(logFile)
 
 	err := filepath.Walk(logFilePath, func(path string, f os.FileInfo, err error) error {
+		if f == nil {
+			return nil
+		}
 		if f.IsDir() {
 			return nil
 		}
@@ -80,6 +87,9 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string) error {
 	}
 
 	err = filepath.Walk(config.Datadog.GetString("confd_path"), func(path string, f os.FileInfo, err error) error {
+		if f == nil {
+			return nil
+		}
 		if f.IsDir() {
 			return nil
 		}

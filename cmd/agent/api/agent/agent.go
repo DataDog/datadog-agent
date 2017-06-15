@@ -9,8 +9,8 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/flare"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
 )
@@ -42,7 +42,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive()
+	filePath, err := flare.CreateArchive(false)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

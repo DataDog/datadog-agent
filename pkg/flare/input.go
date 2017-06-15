@@ -29,14 +29,18 @@ func AskForConfirmation(input string) bool {
 // 'Are you sure you want to continue [y/N]? '
 
 func askForInput(before string, after string) (string, error) {
-	reader := bufio.NewReader(os.Stdin)
+	scanner := bufio.NewScanner(os.Stdin)
 	if before != "" {
 		fmt.Println(before)
 	}
-	text, err := reader.ReadString('\n')
+	scanner.Scan()
+	text := scanner.Text()
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
 	if after != "" {
 		fmt.Println(after)
 	}
 	text = strings.TrimSpace(text)
-	return text, err
+	return text, nil
 }
