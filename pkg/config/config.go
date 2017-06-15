@@ -41,4 +41,6 @@ func init() {
 	Datadog.BindEnv("dd_url")
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
+	Datadog.BindEnv("kubernetes_kubelet_host")
+	Datadog.BindEnv("kubernetes_kubelet_port")
 }
