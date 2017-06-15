@@ -53,6 +53,8 @@ class AgentCheck(object):
         # FIXME: get the log level from the agent global config and apply it to the python one.
         self.log.setLevel(logging.DEBUG)
 
+        self._logged_increment_deprecation = False
+
     def gauge(self, name, value, tags=None):
         tags = self._normalize_tags(tags)
         aggregator.submit_metric(self, aggregator.GAUGE, name, value, tags)
@@ -76,6 +78,23 @@ class AgentCheck(object):
     def historate(self, name, value, tags=None, hostname=None, device_name=None):
         tags = self._normalize_tags(tags)
         aggregator.submit_metric(self, aggregator.HISTORATE, name, value, tags)
+
+    def increment(self, name, value=1, tags=None, hostname=None, device_name=None):
+        self._log_increment_deprecation()
+        self.count(name + "_count", value, tags)
+
+    def decrement(self, name, value=-1, tags=None, hostname=None, device_name=None):
+        self._log_increment_deprecation()
+        self.count(name + "_count", value, tags)
+
+    def _log_increment_deprecation(self):
+        """
+        Logs a deprecation notice on the first run of the check where increment/decrement is used
+        """
+        if not self._logged_increment_deprecation:
+            self.log.warning("DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, sending these " +
+                "metrics with `AgentCheck.count` and a '_count' suffix instead")
+            self._logged_increment_deprecation = True
 
     def service_check(self, name, status, tags=None, message=""):
         tags = self._normalize_tags(tags)
