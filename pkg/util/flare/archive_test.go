@@ -24,5 +24,23 @@ func TestCreateArchive(t *testing.T) {
 	} else {
 		os.Remove(zipFilePath)
 	}
+}
 
+func TestCreateArchiveBadConfig(t *testing.T) {
+	/**
+		The zipfile should be created even if there is no config file.
+	**/
+
+	common.SetupConfig("")
+	zipFilePath := mkFilePath()
+	filePath, err := createArchive(zipFilePath)
+
+	assert.Nil(t, err)
+	assert.Equal(t, zipFilePath, filePath)
+
+	if _, err := os.Stat(zipFilePath); os.IsNotExist(err) {
+		assert.Fail(t, "The Zip File was not created")
+	} else {
+		os.Remove(zipFilePath)
+	}
 }

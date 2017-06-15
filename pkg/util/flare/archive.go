@@ -106,14 +106,19 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string) error {
 
 	if config.Datadog.ConfigFileUsed() != "" {
 		// zip up the config file that was actually used, if one exists
-		file, e := credentialsCleanerFile(config.Datadog.ConfigFileUsed())
+		filePath := config.Datadog.ConfigFileUsed()
+		// Check if the file exists
+		_, err := os.Stat(filePath)
 		if err != nil {
-			return e
-		}
-		fileName := filepath.Join(hostname, "etc", "datadog.yaml")
-		e = zipFile.Add(fileName, file)
-		if e != nil {
-			return e
+			file, e := credentialsCleanerFile(filePath)
+			if err != nil {
+				return e
+			}
+			fileName := filepath.Join(hostname, "etc", "datadog.yaml")
+			e = zipFile.Add(fileName, file)
+			if e != nil {
+				return e
+			}
 		}
 	}
 
