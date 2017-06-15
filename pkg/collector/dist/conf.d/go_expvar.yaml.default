@@ -82,3 +82,15 @@ instances:
         type: rate
       - path: aggregator/HostnameUpdate
         type: rate
+
+      # scheduler monitoring
+      - path: scheduler/ChecksEntered
+        type: gauge
+      - path: scheduler/Queues/.*/Size
+        type: gauge
+        alias: scheduler.queues.size
+      - path: scheduler/Queues/.*/Interval
+        type: gauge
+        alias: scheduler.queues.interval
+      - path: scheduler/QueuesCount
+        type: gauge
