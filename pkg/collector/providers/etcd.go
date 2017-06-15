@@ -2,36 +2,25 @@ package providers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"path"
 	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/coreos/etcd/client"
-	"github.com/ghodss/yaml"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-const (
-	instancePath   string = "instances"
-	checkNamePath  string = "check_names"
-	initConfigPath string = "init_configs"
-)
-
 // EtcdConfigProvider implements the Config Provider interface
 // It should be called periodically and returns templates from etcd for AutoConf.
 type EtcdConfigProvider struct {
-	Client      client.KeysAPI
-	TemplateDir string
+	Client client.KeysAPI
 }
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
 func NewEtcdConfigProvider() (*EtcdConfigProvider, error) {
-	tplDir := config.Datadog.GetString("autoconf_template_dir")
 	tplURL := config.Datadog.GetString("autoconf_template_url")
 
 	clientCfg := client.Config{
@@ -55,26 +44,17 @@ func NewEtcdConfigProvider() (*EtcdConfigProvider, error) {
 	}
 
 	c := client.NewKeysAPI(cl)
-	return &EtcdConfigProvider{c, tplDir}, nil
+	return &EtcdConfigProvider{Client: c}, nil
 }
 
 // Collect retrieves templates from etcd, builds Config objects and returns them
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
 func (p *EtcdConfigProvider) Collect() ([]check.Config, error) {
 	configs := make([]check.Config, 0)
-	identifiers := p.getIdentifiers(p.TemplateDir)
+	identifiers := p.getIdentifiers(config.Datadog.GetString("autoconf_template_dir"))
 	for _, id := range identifiers {
 		templates := p.getTemplates(id)
-
-		for _, template := range templates {
-			c := check.Config{
-				ID:         check.ID(id),
-				Name:       template.Name,
-				InitConfig: template.InitConfig,
-				Instances:  template.Instances,
-			}
-			configs = append(configs, c)
-		}
+		configs = append(configs, templates...)
 	}
 	return configs, nil
 }
@@ -102,8 +82,6 @@ func (p *EtcdConfigProvider) getIdentifiers(key string) []string {
 // getTemplates takes a path and returns a slice of templates if it finds
 // sufficient data under this path to build one.
 func (p *EtcdConfigProvider) getTemplates(key string) []check.Config {
-	templates := make([]check.Config, 0)
-
 	checkNameKey := buildStoreKey(key, checkNamePath)
 	initKey := buildStoreKey(key, initConfigPath)
 	instanceKey := buildStoreKey(key, instancePath)
@@ -126,28 +104,11 @@ func (p *EtcdConfigProvider) getTemplates(key string) []check.Config {
 		return nil
 	}
 
-	// sanity check
-	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
-		log.Error("Template entries don't all have the same length in etcd, not using them.")
-		return templates
-	}
-
-	for idx := range checkNames {
-		instance := check.ConfigData(instances[idx])
-
-		templates = append(templates, check.Config{
-			ID:         check.ID(key),
-			Name:       checkNames[idx],
-			InitConfig: check.ConfigData(initConfigs[idx]),
-			Instances:  []check.ConfigData{instance},
-		})
-	}
-	return templates
+	return buildTemplates(key, checkNames, initConfigs, instances)
 }
 
 // getEtcdValue retrieves content from etcd
 func (p *EtcdConfigProvider) getEtcdValue(key string) (string, error) {
-
 	resp, err := p.Client.Get(context.Background(), key, nil)
 	if err != nil {
 		return "", fmt.Errorf("Failed to retrieve %s from etcd: %s", key, err)
@@ -162,58 +123,17 @@ func (p *EtcdConfigProvider) getCheckNames(key string) ([]string, error) {
 		err := fmt.Errorf("Couldn't get check names from etcd: %s", err)
 		return nil, err
 	}
-	if rawNames == "" {
-		err = fmt.Errorf("check_names is empty")
-		return nil, err
-	}
 
-	var res []string
-
-	if err = json.Unmarshal([]byte(rawNames), &res); err != nil {
-		return nil, err
-	}
-
-	return res, nil
+	return parseCheckNames(rawNames)
 }
 
 func (p *EtcdConfigProvider) getJSONValue(key string) ([]check.ConfigData, error) {
 	rawValue, err := p.getEtcdValue(key)
 	if err != nil {
-		err := fmt.Errorf("Couldn't get key %s from etcd: %s", key, err)
-		return nil, err
+		return nil, fmt.Errorf("Couldn't get key %s from etcd: %s", key, err)
 	}
 
-	if rawValue == "" {
-		err = fmt.Errorf("Value at %s is empty in etcd", key)
-		return nil, err
-	}
-
-	yamlValue, err := yaml.JSONToYAML([]byte(rawValue))
-	if err != nil {
-		err := fmt.Errorf("Couldn't decode JSON value at %s. Error: %s", key, err)
-		return nil, err
-	}
-
-	var rawRes interface{}
-	var result []check.ConfigData
-
-	err = yaml.Unmarshal(yamlValue, &rawRes)
-	if err != nil {
-		err := fmt.Errorf("Failed to unmarshal value at %s. Error: %s", key, err)
-		return nil, err
-	}
-
-	for _, r := range rawRes.([]interface{}) {
-		switch r.(type) {
-		case []byte:
-			result = append(result, r.([]byte))
-		case map[string]interface{}:
-			init, _ := yaml.Marshal(r)
-			result = append(result, init)
-		}
-
-	}
-	return result, nil
+	return parseJSONValue(rawValue)
 }
 
 // getIdx gets the last-modified index of a key
@@ -226,12 +146,6 @@ func (p *EtcdConfigProvider) getIdx(key string) int {
 
 func (p *EtcdConfigProvider) String() string {
 	return "etcd Configuration Provider"
-}
-
-func buildStoreKey(key ...string) string {
-	parts := []string{config.Datadog.GetString("autoconf_template_dir")}
-	parts = append(parts, key...)
-	return path.Join(parts...)
 }
 
 // hasTemplateFields verifies that a node array contains
