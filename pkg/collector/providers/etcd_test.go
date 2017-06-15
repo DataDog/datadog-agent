@@ -17,19 +17,6 @@ func createTestNode(key string) *client.Node {
 	}
 }
 
-func TestBuildStoreKey(t *testing.T) {
-	res := buildStoreKey()
-	assert.Equal(t, "/datadog/check_configs", res)
-	res = buildStoreKey("")
-	assert.Equal(t, "/datadog/check_configs", res)
-	res = buildStoreKey("foo")
-	assert.Equal(t, "/datadog/check_configs/foo", res)
-	res = buildStoreKey("foo", "bar")
-	assert.Equal(t, "/datadog/check_configs/foo/bar", res)
-	res = buildStoreKey("foo", "bar", "bazz")
-	assert.Equal(t, "/datadog/check_configs/foo/bar/bazz", res)
-}
-
 func TestHasTemplateFields(t *testing.T) {
 	emptyNodes := []*client.Node{}
 	node0 := createTestNode("foo")
