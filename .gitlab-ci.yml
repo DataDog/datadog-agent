@@ -76,7 +76,7 @@ dogstatsd_static-x64:
     # Uncomment the following to see debug logs from omnibus, it defaults to info
     # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
-    - rake dogstatsd:build_static
+    - rake dogstatsd:build static=true
     - cp $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
   artifacts:
     expire_in: 2 weeks
