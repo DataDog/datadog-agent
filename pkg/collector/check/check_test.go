@@ -28,3 +28,19 @@ func TestConfigEqual(t *testing.T) {
 	config.Instances = another.Instances
 	assert.True(t, config.Equal(another))
 }
+
+func TestString(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.Equal(nil))
+
+	config.Name = "foo"
+	config.InitConfig = ConfigData("fooBarBaz")
+	config.Instances = []ConfigData{ConfigData("justFoo")}
+
+	expected := `init_config:
+- fooBarBaz
+instances:
+- justFoo
+`
+	assert.Equal(t, config.String(), expected)
+}
