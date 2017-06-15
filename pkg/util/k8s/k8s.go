@@ -114,7 +114,7 @@ func locateKubelet() (string, error) {
 	}
 	log.Debugf("Couldn't query kubelet over HTTP, assuming it's not in no_auth mode.")
 
-	port = kubeletPort
+	port = config.Datadog.GetInt("kubernetes_kubelet_port")
 	if port == 0 {
 		port = DefaultHTTPSKubeletPort
 	}
