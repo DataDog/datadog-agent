@@ -178,3 +178,21 @@ func TestMarshalJSONEventsOmittedFields(t *testing.T) {
 	// These optional fields are not present in the serialized payload, and a default source type name is used
 	assert.Equal(t, payload, []byte("{\"apiKey\":\"testapikey\",\"events\":{\"api\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"host\":\"my-hostname\"}]},\"internalHostname\":\"test-hostname\"}\n"))
 }
+
+func TestMarshalJSONSketchSeries(t *testing.T) {
+	series := []*SketchSerie{{
+		contextKey: "test_context",
+		Sketches: []Sketch{
+			{int64(12345), QSketch{[]Entry{{1, 1, 0}}, 1}},
+			{int64(67890), QSketch{[]Entry{{10, 1, 0}, {14, 3, 0}, {21, 2, 0}}, 3}},
+		},
+		Name: "test.metrics",
+		Host: "localHost",
+		Tags: []string{"tag1", "tag2:yes"},
+	}}
+
+	payload, err := MarshalJSONSketchSeries(series)
+	assert.Nil(t, err)
+	assert.NotNil(t, payload)
+	assert.Equal(t, payload, []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device_name\":\"\",\"interval\":0,\"sketches\":[[12345,[[[1,1,0]],1]],[67890,[[[10,1,0],[14,3,0],[21,2,0]],3]]]}]}\n"))
+}

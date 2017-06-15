@@ -30,9 +30,10 @@ const (
 	defaultNumberOfWorkers = 4
 	chanBufferSize         = 100
 
-	v1SeriesEndpoint    = "/api/v1/series?api_key=%s"
-	v1CheckRunsEndpoint = "/api/v1/check_run?api_key=%s"
-	v1IntakeEndpoint    = "/intake/?api_key=%s"
+	v1SeriesEndpoint       = "/api/v1/series?api_key=%s"
+	v1CheckRunsEndpoint    = "/api/v1/check_run?api_key=%s"
+	v1IntakeEndpoint       = "/intake/?api_key=%s"
+	v1SketchSeriesEndpoint = "/api/v1/sketches?api_key=%s"
 
 	seriesEndpoint       = "/api/v2/series"
 	eventsEndpoint       = "/api/v2/events"
@@ -70,6 +71,7 @@ type Forwarder interface {
 	SubmitV2CheckRuns(apikey string, payload *[]byte) error
 	SubmitV2HostMeta(apikey string, payload *[]byte) error
 	SubmitV2GenericMeta(apikey string, payload *[]byte) error
+	SubmitV1SketchSeries(apiKey string, payload *[]byte) error
 }
 
 // DefaultForwarder is in charge of receiving transaction payloads and sending them to Datadog backend over HTTP.
@@ -331,6 +333,17 @@ func (f *DefaultForwarder) SubmitV1Intake(apiKey string, payload *[]byte) error 
 	}
 
 	transactionsCreation.Add("IntakeV1", 1)
+	return f.sendHTTPTransactions(transactions)
+}
+
+// SubmitV1SketchSeries will send payloads to v1 endpoint
+func (f *DefaultForwarder) SubmitV1SketchSeries(apiKey string, payload *[]byte) error {
+	endpoint := fmt.Sprintf(v1SketchSeriesEndpoint, apiKey)
+	transactions, err := f.createHTTPTransactions(endpoint, payload, false)
+	if err != nil {
+		return err
+	}
+	transactionsCreation.Add("SketchSeries", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
