@@ -82,13 +82,13 @@ func StartAgent() {
 			config.Datadog.GetString("api_key"),
 		},
 	}
-	fwd := forwarder.NewDefaultForwarder(keysPerDomain)
+	common.Forwarder = forwarder.NewDefaultForwarder(keysPerDomain)
 	log.Debugf("Starting forwarder")
-	fwd.Start()
+	common.Forwarder.Start()
 	log.Debugf("Forwarder started")
 
 	// setup the aggregator
-	agg := aggregator.InitAggregator(fwd, hostname)
+	agg := aggregator.InitAggregator(common.Forwarder, hostname)
 	agg.AddAgentStartupEvent(version.AgentVersion)
 
 	// start dogstatsd
@@ -105,7 +105,7 @@ func StartAgent() {
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
-	metadataScheduler := metadata.NewScheduler(fwd, config.Datadog.GetString("api_key"), hostname)
+	common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, config.Datadog.GetString("api_key"), hostname)
 	var C []config.MetadataProviders
 	err = config.Datadog.UnmarshalKey("metadata_providers", &C)
 	if err == nil {
@@ -115,7 +115,7 @@ func StartAgent() {
 				continue
 			}
 			intl := c.Interval * time.Second
-			err = metadataScheduler.AddCollector(c.Name, intl)
+			err = common.MetadataScheduler.AddCollector(c.Name, intl)
 			if err != nil {
 				log.Errorf("Unable to add '%s' metadata provider: %v", c.Name, err)
 			} else {
@@ -127,7 +127,7 @@ func StartAgent() {
 	}
 
 	// always add the host metadata collector, this is not user-configurable by design
-	err = metadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
+	err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
 	if err != nil {
 		panic("Host metadata is supposed to be always available in the catalog!")
 	}
