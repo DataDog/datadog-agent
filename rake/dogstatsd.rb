@@ -3,26 +3,24 @@ require_relative './common'
 
 namespace :dogstatsd do
   DOGSTATSD_BIN_PATH="./bin/dogstatsd"
-  CLOBBER.include(DOGSTATSD_BIN_PATH)
-
   STATIC_BIN_PATH="./bin/static"
-  STATIC_GO_FLAGS="--ldflags '-s -w -extldflags \"-static\"'"
+  CLOBBER.include(DOGSTATSD_BIN_PATH, STATIC_BIN_PATH)
 
-  desc "Build Dogstatsd"
+  desc "Build Dogstatsd [race=false|incremental=false|static=false]"
   task :build do
-    # -race option
     race_opt = ENV['race'] == "true" ? "-race" : ""
-    build_type = ENV['incremental'] == "true" ? "-i" : "-a"
+    build_type_opt = ENV['incremental'] == "true" ? "-i" : "-a"
+    static_bin = ENV['static'] == "true"
 
+    bin_path = DOGSTATSD_BIN_PATH
     commit = `git rev-parse --short HEAD`.strip
     ldflags = "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
+    if static_bin then
+      ldflags += "-s -w -extldflags \"-static\""
+      bin_path = STATIC_BIN_PATH
+    end
 
-    system("go build #{race_opt} #{build_type} -o #{DOGSTATSD_BIN_PATH}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
-  end
-
-  desc "Build static Dogstatsd"
-  task :build_static do
-    system("go build #{STATIC_GO_FLAGS} -o #{STATIC_BIN_PATH}/#{bin_name("dogstatsd")} #{REPO_PATH}/cmd/dogstatsd/")
+    system("go build #{race_opt} #{build_type_opt} -o #{bin_path}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
   end
 
   desc "Run Dogstatsd"
@@ -30,11 +28,9 @@ namespace :dogstatsd do
     system("#{DOGSTATSD_BIN_PATH}/dogstatsd")
   end
 
-  desc "Run Dogstatsd system tests"
+  desc "Run Dogstatsd system tests [skip_rebuild=false]"
   task :system_test do
-    if ENV['skip_rebuild'] == "true" then
-      puts "Skipping DogStatsD build"
-    else
+    if ENV['skip_rebuild'] != "true" then
       puts "Building DogStatsD"
       Rake::Task["dogstatsd:build"].invoke
     end
@@ -45,12 +41,11 @@ namespace :dogstatsd do
     system("DOGSTATSD_BIN=\"#{bin_path}\" go test -v #{REPO_PATH}/test/system/dogstatsd/") || exit(1)
   end
 
-  desc "Run Dogstatsd size test"
+  desc "Run Dogstatsd size test [skip_rebuild=false]"
   task :size_test do
-    if ENV['skip_rebuild'] == "true" then
-      puts "Skipping DogStatsD build"
-    else
+    if ENV['skip_rebuild'] != "true" then
       puts "Building DogStatsD"
+      ENV['static'] = "true"
       Rake::Task["dogstatsd:build"].invoke
     end
 
