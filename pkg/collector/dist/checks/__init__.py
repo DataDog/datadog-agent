@@ -56,7 +56,17 @@ class AgentCheck(object):
         # FIXME: get the log level from the agent global config and apply it to the python one.
         self.log.setLevel(logging.DEBUG)
 
-        self._logged_increment_deprecation = False
+        self._deprecations = {
+            'increment' : [
+                False,
+                "DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, sending these " +
+                "metrics with `AgentCheck.count` and a '_count' suffix instead",
+            ],
+            'device_name': [
+                False,
+                "DEPRECATION NOTICE: `device_name` is deprecated, please use a `device:` tag in the `tags` list instead",
+            ],
+        }
 
     def gauge(self, name, value, tags=None, hostname=None, device_name=None):
         tags = self._normalize_tags(tags, device_name)
@@ -83,21 +93,20 @@ class AgentCheck(object):
         aggregator.submit_metric(self, aggregator.HISTORATE, name, value, tags)
 
     def increment(self, name, value=1, tags=None, hostname=None, device_name=None):
-        self._log_increment_deprecation()
+        self._log_deprecation("increment")
         self.count(name + "_count", value, tags)
 
     def decrement(self, name, value=-1, tags=None, hostname=None, device_name=None):
-        self._log_increment_deprecation()
+        self._log_deprecation("increment")
         self.count(name + "_count", value, tags)
 
-    def _log_increment_deprecation(self):
+    def _log_deprecation(self, deprecation_key):
         """
-        Logs a deprecation notice on the first run of the check where increment/decrement is used
+        Logs a deprecation notice at most once per AgentCheck instance, for the pre-defined `deprecation_key`
         """
-        if not self._logged_increment_deprecation:
-            self.log.warning("DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, sending these " +
-                "metrics with `AgentCheck.count` and a '_count' suffix instead")
-            self._logged_increment_deprecation = True
+        if not self._deprecations[deprecation_key][0]:
+            self.log.warning(self._deprecations[deprecation_key][1])
+            self._deprecations[deprecation_key][0] = True
 
     def service_check(self, name, status, tags=None, message=""):
         tags = self._normalize_tags_type(tags)
@@ -181,6 +190,7 @@ class AgentCheck(object):
         """
         normalized_tags = copy.copy(tags)
         if device_name:
+            self._log_deprecation("device_name")
             normalized_tags.append("device:%s" % device_name)
 
         return self._normalize_tags_type(normalized_tags)
