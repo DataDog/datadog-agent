@@ -16,11 +16,11 @@ api_key:
 # hostname: mymachine.mydomain
 
 # The path containing check configuration files
-# By default, uses the conf.d folder located in the agent installation folder.
+# By default, uses the conf.d folder located in the agent configuration folder.
 # confd_path:
 
 # Additional path where to search for Python checks
-# By default, uses the checks.d folder located in the agent installation folder.
+# By default, uses the checks.d folder located in the agent configuration folder.
 # additional_checksd:
 
 # The path to the Unix Socket where the IPC api listens on *nix
@@ -52,8 +52,9 @@ metadata_collectors:
 # Make sure your client is sending to the same port
 # dogstatsd_port: 8125
 #
-# Whether dogstatsd should listen to a Unix Socket instead of UDP (*nix only)
-# dogstatsd_socket: /tmp/dsd.sock
+# Whether dogstatsd should listen to a Unix Socket instead of UDP (*nix only).
+# Set to a valid filesystem path to enable
+# dogstatsd_socket:
 #
 # The buffer size use to receive statsd packet, in bytes
 # dogstatsd_buffer_size: 1024
