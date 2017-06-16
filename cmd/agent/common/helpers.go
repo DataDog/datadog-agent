@@ -74,10 +74,4 @@ func SetupConfig(confFilePath string) {
 	if err != nil {
 		panic(fmt.Errorf("unable to load Datadog config file: %s", err))
 	}
-
-	// define defaults for the Agent
-	config.Datadog.SetDefault("log_file", defaultLogPath)
-	config.Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
-	config.Datadog.BindEnv("cmd_sock")
-	config.Datadog.SetDefault("check_runners", int64(4))
 }

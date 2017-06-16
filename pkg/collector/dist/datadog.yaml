@@ -4,8 +4,6 @@ dd_url: https://app.datadoghq.com
 # The Datadog api key to associate your Agent's data with your organization.
 # Can be found here:
 # https://app.datadoghq.com/account/settings
-# This can be a comma-separated list of api keys.
-# (default: None, the agent doesn't start without it)
 api_key:
 
 # If you need a proxy to connect to the Internet, provide it here (default: disabled)
@@ -17,6 +15,26 @@ api_key:
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 
+# The path containing check configuration files
+# By default, uses the conf.d folder located in the agent configuration folder.
+# confd_path:
+
+# Additional path where to search for Python checks
+# By default, uses the checks.d folder located in the agent configuration folder.
+# additional_checksd:
+
+# The path to the Unix Socket where the IPC api listens on *nix
+# cmd_sock: /tmp/agent.sock
+
+# The path of the Named Pipe the IPC api uses on Windows
+# cmd_pipe_name: \\.\pipe\ddagent
+
+# How many workers will be used to run the checks
+# check_runners: 4
+
+# Forwarder timeout in seconds
+# forwarder_timeout: 20
+
 # Metadata collectors, add or remove from the list to enable or disable collection.
 # The host metadata collector cannot be configured and is enabled by default.
 # Intervals are expressed in seconds.
@@ -26,25 +44,41 @@ metadata_collectors:
 #  - name: k8s
 #    interval: 60
 
-# ========================================================================== #
-# DogStatsd configuration                                                    #
-# ========================================================================== #
-
+# DogStatsd
+#
 # If you don't want to enable the DogStatsd server, set this option to no
 # use_dogstatsd: yes
-
-# DogStatsd is a small server that aggregates your custom app metrics. For
-# usage information, check out http://api.datadoghq.com
-
-# Make sure your client is sending to the same port.
-# dogstatsd_port : 8125
 #
-# The buffer size use to receive statsd packet (defaults 1024)
+# Make sure your client is sending to the same port
+# dogstatsd_port: 8125
+#
+# Whether dogstatsd should listen to a Unix Socket instead of UDP (*nix only).
+# Set to a valid filesystem path to enable
+# dogstatsd_socket:
+#
+# The buffer size use to receive statsd packet, in bytes
 # dogstatsd_buffer_size: 1024
+#
+# Whether dogstatsd should listen to non local traffic
+# dogstatsd_non_local_traffic: no
+#
+# Publish dogstatsd's internal stats as Go epxvars
+# dogstatsd_stats_enable: no
+#
+# How many items in the dogstatsd's stats circular buffer
+# dogstatsd_stats_buffer: 10
 
-# ========================================================================== #
+# JMX
+#
+# jmx_pipe_path:
+# jmx_pipe_name: dd-auto_discovery
+
+# Autoconfig
+#
+# Directory containing configuration templates
+# autoconf_template_dir: /datadog/check_configs
+
 # Logging
-# ========================================================================== #
-
+#
 # log_level: info
 # log_file: /var/log/datadog/agent.log
