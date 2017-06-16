@@ -49,3 +49,5 @@ import:
 - package: golang.org/x/net
 - package: github.com/DataDog/gohai
 - package: github.com/ericchiang/k8s
+- package: github.com/jhoonb/archivex
+  version: be4efa7ec0c38ab76d56037014c90d48d6b13037
