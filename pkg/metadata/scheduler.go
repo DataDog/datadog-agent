@@ -4,21 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	log "github.com/cihub/seelog"
 )
 
 // Catalog keeps track of metadata collectors by name
 var catalog = make(map[string]Collector)
-
-func init() {
-	// define defaults for the Agent
-	config.Datadog.SetDefault("metadata_interval", 4*time.Hour)
-	config.Datadog.SetDefault("external_host_tags_interval", 5*time.Minute)
-	config.Datadog.SetDefault("agent_checks_interval", 10*time.Minute)
-	config.Datadog.SetDefault("processes_interval", time.Minute)
-}
 
 // Scheduler takes care of sending metadata at specific
 // time intervals
