@@ -8,10 +8,10 @@ import (
 )
 
 // AskForEmail asks for the user's email
-func AskForEmail() string {
+func AskForEmail() (string, error) {
 	var email string
-	email, _ = askForInput("Please enter your email: ", "")
-	return email
+	email, err := askForInput("Please enter your email: ", "")
+	return email, err
 }
 
 // AskForConfirmation asks for the user's confirmation to send the flare
