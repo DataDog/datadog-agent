@@ -40,11 +40,13 @@ class AgentCheck(object):
         else:
             self.name = args[0]
             self.agentConfig = args[1]
-            # no agentConfig
-            if len(args) == 3:
+            if 'instances' in kwargs:
+                self.instances = kwargs['instances']
+            elif len(args) == 3:
+                # no agentConfig
                 self.instances = args[2]
-            # with agentConfig
             else:
+                # with agentConfig
                 self.instances = args[3]
 
         # the agent5 'AgentCheck' setup a log attribute.
@@ -52,6 +54,8 @@ class AgentCheck(object):
         # let every log pass through and let the Go logger filter them.
         # FIXME: get the log level from the agent global config and apply it to the python one.
         self.log.setLevel(logging.DEBUG)
+
+        self._logged_increment_deprecation = False
 
     def gauge(self, name, value, tags=None):
         tags = self._normalize_tags(tags)
@@ -76,6 +80,23 @@ class AgentCheck(object):
     def historate(self, name, value, tags=None, hostname=None, device_name=None):
         tags = self._normalize_tags(tags)
         aggregator.submit_metric(self, aggregator.HISTORATE, name, value, tags)
+
+    def increment(self, name, value=1, tags=None, hostname=None, device_name=None):
+        self._log_increment_deprecation()
+        self.count(name + "_count", value, tags)
+
+    def decrement(self, name, value=-1, tags=None, hostname=None, device_name=None):
+        self._log_increment_deprecation()
+        self.count(name + "_count", value, tags)
+
+    def _log_increment_deprecation(self):
+        """
+        Logs a deprecation notice on the first run of the check where increment/decrement is used
+        """
+        if not self._logged_increment_deprecation:
+            self.log.warning("DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, sending these " +
+                "metrics with `AgentCheck.count` and a '_count' suffix instead")
+            self._logged_increment_deprecation = True
 
     def service_check(self, name, status, tags=None, message=""):
         tags = self._normalize_tags(tags)

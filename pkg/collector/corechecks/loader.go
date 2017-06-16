@@ -47,3 +47,7 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 	return checks, nil
 }
+
+func (gl *GoCheckLoader) String() string {
+	return "Core Check Loader"
+}

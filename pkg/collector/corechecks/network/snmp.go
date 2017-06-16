@@ -425,7 +425,7 @@ func (c *snmpConfig) Parse(data []byte, initData []byte) error {
 
 	//build instance tag
 	tagbuff.Reset()
-	tagbuff.WriteString("instance:")
+	tagbuff.WriteString("snmp_device:")
 	tagbuff.WriteString(c.instance.Host)
 	tagbuff.WriteString(":")
 	tagbuff.WriteString(fmt.Sprintf("%d", c.instance.Port))
@@ -538,10 +538,14 @@ func (c *SNMPCheck) submitSNMP(oids snmpgo.Oids, vbs snmpgo.VarBinds) error {
 				}
 
 				switch metricType {
-				case "Counter64", "Counter32", "Gauge32", "Integer", "gauge":
+				case "Gauge32", "Integer", "gauge":
 					log.Debugf("Submitting gauge: %v = %v tagged with: %v", metricName, value, tagbundle)
 					//should report instance has hostname
 					c.sender.Gauge(metricName, float64(value.Int64()), "", tagbundle)
+				case "Counter64", "Counter32":
+					log.Debugf("Submitting rate: %v = %v tagged with: %v", metricName, value, tagbundle)
+					//should report instance has hostname
+					c.sender.Rate(metricName, float64(value.Int64()), "", tagbundle)
 				case "OctetString":
 				default:
 					continue
@@ -638,7 +642,7 @@ func (c *SNMPCheck) getSNMP() error {
 	return nil
 }
 
-// Configure the Python check from YAML data
+// Configure the check from YAML data
 func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 
 	cfg := new(snmpConfig)

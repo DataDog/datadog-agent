@@ -57,7 +57,11 @@ namespace :agent do
   end
 
   desc "Run the agent"
-  task :run => %w[agent:build] do
+  task :run => %w[agent:build agent:run_lazy]
+
+  desc "Run the agent (no build)"
+  task :run_lazy do
+    abort "Binary unavailable run agent:build or agent:run" if !File.exists? "#{BIN_PATH}/#{agent_bin_name}"
     sh("#{BIN_PATH}/agent start")
   end
 

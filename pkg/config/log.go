@@ -7,13 +7,8 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-const defaultLogLevel = "info"
 const logFileMaxSize = 10 * 1024 * 1024         // 10MB
 const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
-
-func init() {
-	Datadog.SetDefault("log_level", defaultLogLevel)
-}
 
 // SetupLogger sets up the default logger
 func SetupLogger(logLevel, logFile string) error {
@@ -25,7 +20,7 @@ func SetupLogger(logLevel, logFile string) error {
 	}
 	configTemplate += `</outputs>
     <formats>
-        <format id="common" format="%%Date(%s) | %%LEVEL | (%%File:%%Line) | %%Msg%%n"/>
+        <format id="common" format="%%Date(%s) | %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>
     </formats>
 </seelog>`
 	config := fmt.Sprintf(configTemplate, strings.ToLower(logLevel), logFile, logFileMaxSize, logDateFormat)

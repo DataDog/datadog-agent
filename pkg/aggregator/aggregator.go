@@ -59,6 +59,7 @@ func init() {
 	newStats("ServiceCheckFlushTime")
 	newStats("EventFlushTime")
 	newStats("MainFlushTime")
+	newStats("MetricSketchFlushTime")
 	aggregatorExpvar.Set("Flush", expvar.Func(expStats))
 }
 
@@ -87,6 +88,7 @@ type BufferedAggregator struct {
 	eventIn            chan Event
 	sampler            TimeSampler
 	checkSamplers      map[check.ID]*CheckSampler
+	distSampler        DistSampler
 	serviceChecks      []ServiceCheck
 	events             []Event
 	flushInterval      int64
@@ -107,6 +109,7 @@ func NewBufferedAggregator(f forwarder.Forwarder, hostname string) *BufferedAggr
 		eventIn:            make(chan Event, 100),              // TODO make buffer size configurable
 		sampler:            *NewTimeSampler(bucketSize, hostname),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
+		distSampler:        *NewDistSampler(bucketSize, hostname),
 		flushInterval:      defaultFlushInterval,
 		forwarder:          f,
 		hostname:           hostname,
@@ -204,6 +207,17 @@ func (agg *BufferedAggregator) addEvent(e Event) {
 	agg.events = append(agg.events, e)
 }
 
+// addSample adds the metric sample to either the sampler or distSampler
+func (agg *BufferedAggregator) addSample(metricSample *MetricSample, timestamp int64) {
+	log.Infof("Adding sample of type %s", metricSample.Mtype)
+	if metricSample.Mtype == DistributionType {
+		log.Infof("Adding sample to Distribution %v", metricSample.Value)
+		agg.distSampler.addSample(metricSample, timestamp)
+	} else {
+		agg.sampler.addSample(metricSample, timestamp)
+	}
+}
+
 func (agg *BufferedAggregator) flushSeries() {
 	start := time.Now()
 	series := agg.sampler.flush(start.Unix())
@@ -257,6 +271,28 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 	}()
 }
 
+func (agg *BufferedAggregator) flushSketches() {
+	start := time.Now()
+	sketchSeries := agg.distSampler.flush(start.Unix())
+
+	if len(sketchSeries) == 0 {
+		return
+	}
+
+	// Serialize and forward in a separate goroutine
+	go func() {
+		log.Debug("Flushing ", len(sketchSeries), " sketches to the forwarder")
+		payload, err := MarshalJSONSketchSeries(sketchSeries)
+		if err != nil {
+			log.Error("could not serialize sketches, dropping them:", err)
+		}
+		agg.forwarder.SubmitV1SketchSeries(config.Datadog.GetString("api_key"), &payload)
+		log.Infof("Forwarding sketch %v", string(payload))
+		addFlushTime("MetricSketchFlushTIme", int64(time.Since(start)))
+		aggregatorExpvar.Add("SketchesFlushed", int64(len(sketchSeries)))
+	}()
+}
+
 func (agg *BufferedAggregator) flushEvents() {
 	// Clear the current event slice
 	start := time.Now()
@@ -292,6 +328,7 @@ func (agg *BufferedAggregator) run() {
 		case <-agg.TickerChan:
 			start := time.Now()
 			agg.flushSeries()
+			agg.flushSketches()
 			agg.flushServiceChecks()
 			agg.flushEvents()
 			addFlushTime("MainFlushTime", int64(time.Since(start)))
@@ -299,7 +336,7 @@ func (agg *BufferedAggregator) run() {
 		case sample := <-agg.dogstatsdIn:
 			aggregatorExpvar.Add("DogstatsdMetricSample", 1)
 			now := time.Now().Unix()
-			agg.sampler.addSample(sample, now)
+			agg.addSample(sample, now)
 		case ss := <-agg.checkMetricIn:
 			aggregatorExpvar.Add("ChecksMetricSample", 1)
 			agg.handleSenderSample(ss)

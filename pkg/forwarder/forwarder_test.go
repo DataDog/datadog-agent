@@ -159,6 +159,14 @@ func TestSubmit(t *testing.T) {
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
+	expectedPayload = []byte("SubmitV1SketchSeries payload")
+	expectedEndpoint = "/api/v1/sketches"
+	expectedQuery = "api_key=test_api_key"
+	assert.Nil(t, forwarder.SubmitV1SketchSeries("test_api_key", &expectedPayload))
+	<-wait
+	<-wait
+	assert.Equal(t, len(forwarder.retryQueue), 0)
+
 	expectedPayload = []byte("SubmitV1CheckRuns payload")
 	expectedEndpoint = "/api/v1/check_run"
 	expectedQuery = "api_key=test_api_key"

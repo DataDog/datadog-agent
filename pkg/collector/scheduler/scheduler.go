@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -13,6 +14,14 @@ import (
 
 const defaultTimeout time.Duration = 5 * time.Second
 const minAllowedInterval time.Duration = 1 * time.Second
+
+var (
+	schedulerStats *expvar.Map
+)
+
+func init() {
+	schedulerStats = expvar.NewMap("scheduler")
+}
 
 // Scheduler keeps things rolling.
 // More docs to come...
@@ -50,6 +59,7 @@ func (s *Scheduler) Enter(check check.Check) error {
 		go func() {
 			s.checksPipe <- check
 		}()
+		schedulerStats.Add("ChecksEntered", 1)
 		return nil
 	}
 
@@ -66,11 +76,14 @@ func (s *Scheduler) Enter(check check.Check) error {
 	if _, ok := s.jobQueues[check.Interval()]; !ok {
 		s.jobQueues[check.Interval()] = newJobQueue(check.Interval())
 		s.startQueue(s.jobQueues[check.Interval()])
+		schedulerStats.Add("QueuesCount", 1)
 	}
 	s.jobQueues[check.Interval()].addJob(check)
 	// map each check to the Job Queue it was assigned to
 	s.checkToQueue[check.ID()] = s.jobQueues[check.Interval()]
 
+	schedulerStats.Add("ChecksEntered", 1)
+	schedulerStats.Set("Queues", expvar.Func(expQueues(s)))
 	return nil
 }
 
@@ -90,6 +103,8 @@ func (s *Scheduler) Cancel(id check.ID) error {
 		return fmt.Errorf("unable to remove the Job from the queue: %s", err)
 	}
 
+	schedulerStats.Add("ChecksEntered", -1)
+	schedulerStats.Set("Queues", expvar.Func(expQueues(s)))
 	return nil
 }
 
@@ -191,4 +206,20 @@ func (s *Scheduler) startQueues() {
 func (s *Scheduler) startQueue(q *jobQueue) {
 	q.run(s.checksPipe)
 	q.running = true
+}
+
+// expQueues return a function to get the stats for the queues
+func expQueues(s *Scheduler) func() interface{} {
+	return func() interface{} {
+		queues := make([]map[string]interface{}, 0)
+
+		for interval, queue := range s.jobQueues {
+			queueStats := map[string]interface{}{
+				"Interval": interval / time.Second,
+				"Size":     len(queue.jobs),
+			}
+			queues = append(queues, queueStats)
+		}
+		return queues
+	}
 }

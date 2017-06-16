@@ -50,11 +50,9 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	// Lock the GIL while working with go-python directly
 	glock := newStickyLock()
 	checkModule := python.PyImport_ImportModule(moduleName)
-	glock.unlock()
 	if checkModule == nil {
-		glock = newStickyLock()
-		pyErr, err := getPythonError()
-		glock.unlock()
+		defer glock.unlock()
+		pyErr, err := glock.getPythonError()
 		if err != nil {
 			return nil, fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
 		}
@@ -62,7 +60,6 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	}
 
 	// Try to find a class inheriting from AgentCheck within the module
-	glock = newStickyLock()
 	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule)
 	glock.unlock()
 	if err != nil {
@@ -82,4 +79,8 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	}
 
 	return checks, nil
+}
+
+func (cl *PythonCheckLoader) String() string {
+	return "Python Check Loader"
 }

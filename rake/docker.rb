@@ -3,13 +3,12 @@ require_relative './common'
 namespace :docker do
   DOGSTATSD_TAG="datadog/dogstatsd:master"
 
-  desc "Build datadog/dogstatsd docker image"
+  desc "Build datadog/dogstatsd docker image [skip_rebuild=false]"
   task :build_dogstatsd do
-    if ENV['skip_rebuild'] == "true" then
-      puts "Skipping DogStatsD build"
-    else
+    if ENV['skip_rebuild'] != "true" then
       puts "Building DogStatsD"
-      Rake::Task["dogstatsd:build_static"].invoke
+      ENV['static'] = 'true'
+      Rake::Task["dogstatsd:build"].invoke
     end
     FileUtils.cp("bin/static/dogstatsd", "Dockerfiles/dogstatsd/alpine/")
     system("docker build -t #{DOGSTATSD_TAG} Dockerfiles/dogstatsd/alpine/") || exit(1)

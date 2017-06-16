@@ -222,15 +222,27 @@ func TestSubmitSNMP(t *testing.T) {
 
 	//Mocked VarBinds
 	binds := []*snmpgo.VarBind{}
-	for i, oid := range oids {
+	mtype := make(map[string]string)
+	cnt := 0
+	for _, oid := range oids {
 		v := snmpgo.VarBind{Oid: oid}
-		switch i % 3 { // just different acceptable types.
-		case 0:
-			v.Variable = snmpgo.NewInteger(int32(42949670))
-		case 1:
+		if oid.String() == "1.3.6.1.4.1.3375.2.1.1.2.1.8.0" {
+			// forced type - gauge despite being counter
 			v.Variable = snmpgo.NewCounter32(uint32(42949670))
-		case 2:
-			v.Variable = snmpgo.NewCounter64(uint64(42949670))
+			mtype[oid.String()] = "Gauge"
+		} else {
+			switch cnt { // just different acceptable types.
+			case 0:
+				v.Variable = snmpgo.NewInteger(int32(42949670))
+				mtype[oid.String()] = "Gauge"
+			case 1:
+				v.Variable = snmpgo.NewGauge32(uint32(42949670))
+				mtype[oid.String()] = "Gauge"
+			case 2:
+				v.Variable = snmpgo.NewCounter64(uint64(42949670))
+				mtype[oid.String()] = "Rate"
+			}
+			cnt++
 		}
 		binds = append(binds, &v)
 	}
@@ -238,7 +250,7 @@ func TestSubmitSNMP(t *testing.T) {
 	expectedTags := []string{
 		"optional_tag_1",
 		"optional_tag_2",
-		"instance:localhost:161"}
+		"snmp_device:localhost:161"}
 
 	for _, oid := range oids {
 		symbolicOID, err := snmpCheck.cfg.instance.OIDTranslator.GetKVReverse(oid.String())
@@ -260,13 +272,18 @@ func TestSubmitSNMP(t *testing.T) {
 					name = "snmp." + m
 				}
 			}
-			mock.On("Gauge", name, float64(42949670), "", expectedTags).Return().Times(1)
+			mt, ok := mtype[oid.String()]
+			if !ok {
+				t.FailNow()
+			}
+			mock.On(mt, name, float64(42949670), "", expectedTags).Return().Times(1)
 		}
 	}
 	mock.On("Commit").Return().Times(1)
 	snmpCheck.submitSNMP(oids, binds)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 4)
+	mock.AssertNumberOfCalls(t, "Gauge", 3)
+	mock.AssertNumberOfCalls(t, "Rate", 1)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }

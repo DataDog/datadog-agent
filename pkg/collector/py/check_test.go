@@ -86,6 +86,11 @@ func TestInitOldSignatureCheck(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestInitOldAltSignatureCheck(t *testing.T) {
+	_, err := getCheckInstance("old_alt_init_signature", "TestCheck")
+	assert.Nil(t, err)
+}
+
 func TestInitNewSignatureCheck(t *testing.T) {
 	_, err := getCheckInstance("new_init_signature", "TestCheck")
 	assert.Nil(t, err)

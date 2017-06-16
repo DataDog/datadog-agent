@@ -47,8 +47,11 @@ func (c *PythonCheck) Run() error {
 	emptyTuple := python.PyTuple_New(0)
 	result := c.Instance.CallMethod("run", emptyTuple)
 	if result == nil {
-		python.PyErr_Print()
-		return errors.New("Unable to run Python check")
+		pyErr, err := gstate.getPythonError()
+		if err != nil {
+			return fmt.Errorf("An error occurred while running python check and couldn't be formatted: %v", err)
+		}
+		return errors.New(pyErr)
 	}
 
 	s, err := aggregator.GetDefaultSender()
@@ -96,7 +99,7 @@ func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObje
 	}
 
 	// there was an error, retrieve it
-	pyErr, err := getPythonError()
+	pyErr, err := gstate.getPythonError()
 	if err != nil {
 		return nil, fmt.Errorf("An error occurred while invoking the python check constructor, and couldn't be formatted: %v", err)
 	}

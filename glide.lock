@@ -1,5 +1,5 @@
-hash: 6635cddf9fb1d6c99778eaeafcd76f173a8cb10777d939d289b81e3be129f539
-updated: 2017-06-10T17:55:13.533890769-04:00
+hash: 8e18d7a6c09b747f522d0b72c8242965515d481246f93caa839ab5c99a632364
+updated: 2017-06-12T13:00:17.908884886-07:00
 imports:
 - name: github.com/beevik/ntp
   version: cb3dae3a7588ae35829eb5724df611cd75152fba
@@ -114,7 +114,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/golang/protobuf
-  version: 4bd1920723d7b7c925de087aa32e2187708897f7
+  version: 18c9bb3261723cd5401db4d0c9fbc5c3b6c70fe8
   subpackages:
   - proto
 - name: github.com/gorilla/context
@@ -134,6 +134,8 @@ imports:
   - json/token
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/jhoonb/archivex
+  version: be4efa7ec0c38ab76d56037014c90d48d6b13037
 - name: github.com/k-sone/snmpgo
   version: de09377ff34857b08afdc16ea8c7c2929eb1fc6e
 - name: github.com/kardianos/osext

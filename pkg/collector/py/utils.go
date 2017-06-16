@@ -2,9 +2,12 @@ package py
 
 import (
 	"fmt"
+	"path"
 	"runtime"
 	"strings"
+	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/sbinet/go-python"
 )
 
@@ -29,6 +32,7 @@ import "C"
 // [0]: https://docs.python.org/2/c-api/init.html#non-python-created-threads
 type stickyLock struct {
 	gstate python.PyGILState
+	locked uint32 // Flag set to 1 if the lock is locked, 0 otherwise
 }
 
 // newStickyLock register the current thread with the interpreter and locks
@@ -38,14 +42,85 @@ func newStickyLock() *stickyLock {
 	runtime.LockOSThread()
 	return &stickyLock{
 		gstate: python.PyGILState_Ensure(),
+		locked: 1,
 	}
 }
 
 // unlock deregisters the current thread from the interpreter, unlocks the GIL
 // and detaches the goroutine from the current thread.
+// Thread safe ; noop when called on an already-unlocked stickylock.
 func (sl *stickyLock) unlock() {
+	atomic.StoreUint32(&sl.locked, 0)
 	python.PyGILState_Release(sl.gstate)
 	runtime.UnlockOSThread()
+}
+
+// getPythonError returns string-formatted info about a Python interpreter error
+// that occurred and clears the error flag in the Python interpreter.
+//
+// For many C python functions, a `NULL` return value indicates an error (always
+// refer to the python C API docs to check the meaning of return values).
+// If an error did occur, use this function to handle it properly.
+//
+// WARNING: make sure the same stickyLock was already locked when the error flag
+// was set on the python interpreter
+func (sl *stickyLock) getPythonError() (string, error) {
+	if atomic.LoadUint32(&sl.locked) != 1 {
+		return "", fmt.Errorf("the stickyLock is unlocked, can't interact with python interpreter")
+	}
+
+	if python.PyErr_Occurred() == nil { // borrowed ref, no decref needed
+		return "", fmt.Errorf("the error indicator is not set on the python interpreter")
+	}
+
+	ptype, pvalue, ptraceback := python.PyErr_Fetch() // new references, have to be decref'd
+	defer python.PyErr_Clear()
+	defer ptype.DecRef()
+	defer pvalue.DecRef()
+	defer ptraceback.DecRef()
+
+	// Make sure exception values are normalized, as per python C API docs. No error to handle here
+	python.PyErr_NormalizeException(ptype, pvalue, ptraceback)
+
+	if ptraceback != nil && ptraceback.GetCPointer() != nil {
+		// There's a traceback, try to format it nicely
+		traceback := python.PyImport_ImportModule("traceback")
+		formatExcFn := traceback.GetAttrString("format_exception")
+		if formatExcFn != nil {
+			defer formatExcFn.DecRef()
+			pyFormattedExc := formatExcFn.CallFunction(ptype, pvalue, ptraceback)
+			if pyFormattedExc != nil {
+				defer pyFormattedExc.DecRef()
+				pyStringExc := pyFormattedExc.Str()
+				if pyStringExc != nil {
+					defer pyStringExc.DecRef()
+					return python.PyString_AsString(pyStringExc), nil
+				}
+			}
+		}
+
+		// If we reach this point, there was an error while formatting the exception
+		return "", fmt.Errorf("can't format exception")
+	}
+
+	// we sometimes do not get a traceback but an error in pvalue
+	if pvalue != nil && pvalue.GetCPointer() != nil {
+		strPvalue := pvalue.Str()
+		if strPvalue != nil {
+			defer strPvalue.DecRef()
+			return python.PyString_AsString(strPvalue), nil
+		}
+	}
+
+	if ptype != nil {
+		strPtype := ptype.Str()
+		if strPtype != nil {
+			defer strPtype.DecRef()
+			return python.PyString_AsString(strPtype), nil
+		}
+	}
+
+	return "", fmt.Errorf("unknown error")
 }
 
 // Initialize wraps all the operations needed to start the Python interpreter and
@@ -82,6 +157,13 @@ func Initialize(paths ...string) *python.PyThreadState {
 		for _, p := range paths {
 			python.PyList_Append(path, python.PyString_FromString(p))
 		}
+	}
+
+	// store the Python version in the global cache
+	res := C.Py_GetVersion()
+	if res != nil {
+		key := path.Join(util.AgentCachePrefix, "pythonVersion")
+		util.Cache.Set(key, C.GoString(res), util.NoExpiration)
 	}
 
 	// We acquired the GIL as a side effect of threading initialization (see above)
@@ -146,16 +228,24 @@ func getModuleName(modulePath string) string {
 
 // getPythonError returns string-formatted info about a Python interpreter error that occurred,
 // and clears the error flag in the Python interpreter
-// WARNING: make sure a StickyLock is locked when calling this function (i.e. the GIL is locked and the goroutine
-// is locked to its thread)
+// WARNINGS:
+// - make sure a StickyLock is locked when calling this function
+// - make sure the same StickyLock was already locked when the error flag was set on the python interpreter
 func getPythonError() (string, error) {
+	if python.PyErr_Occurred() == nil { // borrowed ref, no decref needed
+		return "", fmt.Errorf("the error indicator is not set on the python interpreter")
+	}
+
 	ptype, pvalue, ptraceback := python.PyErr_Fetch() // new references, have to be decref'd
 	defer python.PyErr_Clear()
 	defer ptype.DecRef()
 	defer pvalue.DecRef()
 	defer ptraceback.DecRef()
 
-	if ptraceback != nil && ptraceback.Type() != nil {
+	// Make sure exception values are normalized, as per python C API docs. No error to handle here
+	python.PyErr_NormalizeException(ptype, pvalue, ptraceback)
+
+	if ptraceback != nil && ptraceback.GetCPointer() != nil {
 		// There's a traceback, try to format it nicely
 		traceback := python.PyImport_ImportModule("traceback")
 		formatExcFn := traceback.GetAttrString("format_exception")
@@ -176,9 +266,13 @@ func getPythonError() (string, error) {
 		return "", fmt.Errorf("can't format exception")
 	}
 
-	// we sometimes do not get a traceback but an error in pvalue.
-	if pvalue != nil && pvalue.Type() != nil {
-		return python.PyString_AsString(pvalue), nil
+	// we sometimes do not get a traceback but an error in pvalue
+	if pvalue != nil && pvalue.GetCPointer() != nil {
+		strPvalue := pvalue.Str()
+		if strPvalue != nil {
+			defer strPvalue.DecRef()
+			return python.PyString_AsString(strPvalue), nil
+		}
 	}
 
 	if ptype != nil {
@@ -190,18 +284,4 @@ func getPythonError() (string, error) {
 	}
 
 	return "", fmt.Errorf("unknown error")
-}
-
-// GetInterpreterVersion should go in `go-python`, TODO.
-func GetInterpreterVersion() string {
-	// Lock the GIL and release it at the end of the run
-	gstate := newStickyLock()
-	defer gstate.unlock()
-
-	res := C.Py_GetVersion()
-	if res == nil {
-		return ""
-	}
-
-	return C.GoString(res)
 }

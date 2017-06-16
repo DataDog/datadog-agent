@@ -89,7 +89,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 		for _, check := range ac.loadChecks(config) {
 			err := ac.collector.RunCheck(check)
 			if err != nil {
-				log.Errorf("Unable to run Check %s", check)
+				log.Errorf("Unable to run Check %s: %v", check, err)
 			}
 		}
 	}
@@ -162,6 +162,8 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []check.Conf
 		}
 	}
 
+	log.Infof("%v: collected %d new configurations, removed %d", pd.provider, len(new), len(removed))
+
 	return
 }
 
@@ -169,12 +171,14 @@ func (ac *AutoConfig) loadChecks(config check.Config) []check.Check {
 	for _, loader := range ac.loaders {
 		res, err := loader.Load(config)
 		if err == nil {
+			log.Infof("%v: successfully loaded check '%s'", loader, config.Name)
 			return res
 		}
 
-		log.Warnf("Unable to load the check '%s': %s", config.Name, err)
+		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
 	}
 
+	log.Errorf("Unable to load the check '%s', see debug logs for more details.", config.Name)
 	return []check.Check{}
 }
 

@@ -37,7 +37,7 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 	defaultConfigs := []check.Config{}
 
 	for _, path := range c.paths {
-		log.Infof("Searching for configuration files at: %s", path)
+		log.Infof("%v: searching for configuration files at: %s", c, path)
 
 		entries, err := ioutil.ReadDir(path)
 		if err != nil {
@@ -104,6 +104,10 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 	}
 
 	return configs, nil
+}
+
+func (c *FileConfigProvider) String() string {
+	return "File Configuration Provider"
 }
 
 func collectDir(parentPath string, folder os.FileInfo) []check.Config {

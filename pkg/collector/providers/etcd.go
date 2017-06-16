@@ -22,11 +22,6 @@ const (
 	initConfigPath string = "init_configs"
 )
 
-func init() {
-	// Where to look for check templates if no custom path is defined
-	config.Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
-}
-
 // EtcdConfigProvider implements the Config Provider interface
 // It should be called periodically and returns templates from etcd for AutoConf.
 type EtcdConfigProvider struct {
@@ -227,6 +222,10 @@ func (p *EtcdConfigProvider) getJSONValue(key string) ([]check.ConfigData, error
 func (p *EtcdConfigProvider) getIdx(key string) int {
 	// TODO
 	return 0
+}
+
+func (p *EtcdConfigProvider) String() string {
+	return "etcd Configuration Provider"
 }
 
 func buildStoreKey(key ...string) string {

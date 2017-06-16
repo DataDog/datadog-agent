@@ -42,7 +42,7 @@ var (
 const hostMetadataCollectorInterval = 14400
 
 // StartAgent Initializes the agent process
-func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) {
+func StartAgent() {
 
 	if pidfilePath != "" {
 		err := pidfile.WritePID(pidfilePath)
@@ -60,7 +60,10 @@ func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) 
 		panic(err)
 	}
 
-	hostname := util.GetHostname()
+	hostname, err := util.GetHostname()
+	if err != nil {
+		panic(err)
+	}
 
 	// store the computed hostname in the global cache
 	key := path.Join(util.AgentCachePrefix, "hostname")
@@ -79,20 +82,19 @@ func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) 
 			config.Datadog.GetString("api_key"),
 		},
 	}
-	fwd := forwarder.NewDefaultForwarder(keysPerDomain)
+	common.Forwarder = forwarder.NewDefaultForwarder(keysPerDomain)
 	log.Debugf("Starting forwarder")
-	fwd.Start()
+	common.Forwarder.Start()
 	log.Debugf("Forwarder started")
 
 	// setup the aggregator
-	agg := aggregator.InitAggregator(fwd, hostname)
+	agg := aggregator.InitAggregator(common.Forwarder, hostname)
 	agg.AddAgentStartupEvent(version.AgentVersion)
 
 	// start dogstatsd
-	var statsd *dogstatsd.Server
 	if config.Datadog.GetBool("use_dogstatsd") {
 		var err error
-		statsd, err = dogstatsd.NewServer(agg.GetChannels())
+		common.DSD, err = dogstatsd.NewServer(agg.GetChannels())
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
 		}
@@ -103,7 +105,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
-	metadataScheduler := metadata.NewScheduler(fwd, config.Datadog.GetString("api_key"), hostname)
+	common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, config.Datadog.GetString("api_key"), hostname)
 	var C []config.MetadataProviders
 	err = config.Datadog.UnmarshalKey("metadata_providers", &C)
 	if err == nil {
@@ -113,7 +115,7 @@ func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) 
 				continue
 			}
 			intl := c.Interval * time.Second
-			err = metadataScheduler.AddCollector(c.Name, intl)
+			err = common.MetadataScheduler.AddCollector(c.Name, intl)
 			if err != nil {
 				log.Errorf("Unable to add '%s' metadata provider: %v", c.Name, err)
 			} else {
@@ -125,24 +127,22 @@ func StartAgent() (*dogstatsd.Server, *metadata.Scheduler, forwarder.Forwarder) 
 	}
 
 	// always add the host metadata collector, this is not user-configurable by design
-	err = metadataScheduler.AddCollector("host", hostMetadataCollectorInterval)
+	err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
 	if err != nil {
 		panic("Host metadata is supposed to be always available in the catalog!")
 	}
-
-	return statsd, metadataScheduler, fwd
 }
 
 // StopAgent Tears down the agent process
-func StopAgent(statsd *dogstatsd.Server, metadataScheduler *metadata.Scheduler, fwd forwarder.Forwarder) {
+func StopAgent() {
 	// gracefully shut down any component
-	if statsd != nil {
-		statsd.Stop()
+	if common.DSD != nil {
+		common.DSD.Stop()
 	}
 	common.AC.Stop()
-	metadataScheduler.Stop()
+	common.MetadataScheduler.Stop()
 	api.StopServer()
-	fwd.Stop()
+	common.Forwarder.Stop()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()

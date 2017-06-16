@@ -1,14 +1,13 @@
 package forwarder
 
 import (
-	"crypto/tls"
 	"net/http"
-	"net/url"
 	"time"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // Worker comsumes Transaction (aka transactions) from the Forwarder and
@@ -29,29 +28,7 @@ type Worker struct {
 // and push back erroneous ones into requeueChan.
 func NewWorker(inputChan chan Transaction, requeueChan chan Transaction) *Worker {
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
-		},
-	}
-
-	if confProxy := config.Datadog.GetString("proxy"); confProxy != "" {
-		if proxyURL, err := url.Parse(confProxy); err != nil {
-			log.Error("Could not parse the URL in 'proxy' from configuration")
-		} else {
-			userInfo := ""
-			if proxyURL.User != nil {
-				if _, isSet := proxyURL.User.Password(); isSet {
-					userInfo = "*****:*****@"
-				} else {
-					userInfo = "*****@"
-				}
-			}
-
-			log.Infof("Using proxy from configuration over ENV: %s://%s%s", proxyURL.Scheme, userInfo, proxyURL.Host)
-			transport.Proxy = http.ProxyURL(proxyURL)
-		}
-	}
+	transport := util.CreateHTTPTransport()
 
 	httpClient := &http.Client{
 		Timeout:   config.Datadog.GetDuration("forwarder_timeout") * time.Second,

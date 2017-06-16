@@ -76,7 +76,7 @@ dogstatsd_static-x64:
     # Uncomment the following to see debug logs from omnibus, it defaults to info
     # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
-    - rake dogstatsd:build_static
+    - rake dogstatsd:build static=true
     - cp $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
   artifacts:
     expire_in: 2 weeks
@@ -138,31 +138,6 @@ agent_deb-x64:
     paths:
       - $AGENT_OMNIBUS_PACKAGE_DIR
 
-# build dogstatsd for deb-x64
-dogstatsd_deb-x64:
-  stage: package_build
-  image: $DEB_X64
-  tags:
-    - docker
-  variables:
-    # Artifacts and cache must live within project directory but we run omnibus from the GOPATH (see above).
-    # We then instrument `rake` to invoke `omnibus` with custom parameter, pointing to a gitlab-friendly location.
-    AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
-    # Uncomment the following to see debug logs from omnibus, it defaults to info
-    # AGENT_OMNIBUS_LOG_LEVEL: debug
-  script:
-    - rake dogstatsd:omnibus
-    - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/*.deb
-  cache:
-    # cache per branch
-    key: $CI_COMMIT_REF_NAME
-    paths:
-      - $AGENT_OMNIBUS_BASE_DIR
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $AGENT_OMNIBUS_PACKAGE_DIR
-
 # build the package for rpm-x64
 agent_rpm-x64:
   stage: package_build
@@ -188,32 +163,6 @@ agent_rpm-x64:
     expire_in: 2 weeks
     paths:
       - $AGENT_OMNIBUS_PACKAGE_DIR
-
-# build dogstatsd for deb-x64
-dogstatsd_rpm-x64:
-  stage: package_build
-  image: $RPM_X64
-  tags:
-    - docker
-  variables:
-    # Artifacts and cache must live within project directory but we run omnibus from the GOPATH (see above).
-    # We then instrument `rake` to invoke `omnibus` with custom parameter, pointing to a gitlab-friendly location.
-    AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
-    # Uncomment the following to see debug logs from omnibus, it defaults to info
-    # AGENT_OMNIBUS_LOG_LEVEL: debug
-  script:
-    - rake dogstatsd:omnibus
-    - rpm -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
-  cache:
-    # cache per branch
-    key: $CI_COMMIT_REF_NAME
-    paths:
-      - $AGENT_OMNIBUS_BASE_DIR
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - $AGENT_OMNIBUS_PACKAGE_DIR
-
 
 # deploy debian packages to apt staging repo
 deploy_deb:

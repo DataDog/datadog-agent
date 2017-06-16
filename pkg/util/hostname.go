@@ -84,14 +84,15 @@ func Fqdn(hostname string) string {
 // * kubernetes
 // * os
 // * EC2
-func GetHostname() string {
+func GetHostname() (string, error) {
 	var hostName string
+	var err error
 
 	// try the name provided in the configuration file
 	name := config.Datadog.GetString("hostname")
-	err := ValidHostname(name)
+	err = ValidHostname(name)
 	if err == nil {
-		return name
+		return name, err
 	}
 
 	log.Warnf("unable to get the hostname from the config file: %s", err)
@@ -101,7 +102,7 @@ func GetHostname() string {
 	log.Debug("GetHostname trying GCE metadata...")
 	name, err = gce.GetHostname()
 	if err == nil {
-		return name
+		return name, err
 	}
 
 	if isContainerized() {
@@ -139,10 +140,10 @@ func GetHostname() string {
 
 	// If at this point we don't have a name, bail out
 	if hostName == "" {
-		panic(fmt.Errorf("Unable to reliably determine the host name. You can define one in the agent config file or in your hosts file"))
+		err = fmt.Errorf("Unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
 	}
 
-	return hostName
+	return hostName, err
 }
 
 // IsContainerized returns whether the Agent is running on a Docker container
