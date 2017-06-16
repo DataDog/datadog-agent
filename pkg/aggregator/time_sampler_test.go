@@ -18,7 +18,6 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 		AssertTagsEqual(t, expected.Tags, actual.Tags)
 	}
 	assert.Equal(t, expected.Host, actual.Host)
-	assert.Equal(t, expected.DeviceName, actual.DeviceName)
 	assert.Equal(t, expected.MType, actual.MType)
 	assert.Equal(t, expected.Interval, actual.Interval)
 	if expected.contextKey != "" {

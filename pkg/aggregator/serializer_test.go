@@ -125,7 +125,7 @@ func TestMarshalJSONSeries(t *testing.T) {
 	payload, err := MarshalJSONSeries(series)
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
-	assert.Equal(t, payload, []byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device_name\":\"\",\"type\":\"gauge\",\"interval\":0}]}\n"))
+	assert.Equal(t, payload, []byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"type\":\"gauge\",\"interval\":0}]}\n"))
 }
 
 func TestMarshalJSONServiceChecks(t *testing.T) {

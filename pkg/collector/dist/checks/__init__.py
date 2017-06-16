@@ -1,3 +1,4 @@
+import copy
 import json
 import traceback
 import re
@@ -57,28 +58,28 @@ class AgentCheck(object):
 
         self._logged_increment_deprecation = False
 
-    def gauge(self, name, value, tags=None):
-        tags = self._normalize_tags(tags)
+    def gauge(self, name, value, tags=None, hostname=None, device_name=None):
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.GAUGE, name, value, tags)
 
-    def count(self, name, value, tags=None):
-        tags = self._normalize_tags(tags)
+    def count(self, name, value, tags=None, hostname=None, device_name=None):
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.COUNT, name, value, tags)
 
-    def monotonic_count(self, name, value, tags=None):
-        tags = self._normalize_tags(tags)
+    def monotonic_count(self, name, value, tags=None, hostname=None, device_name=None):
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.MONOTONIC_COUNT, name, value, tags)
 
-    def rate(self, name, value, tags=None):
-        tags = self._normalize_tags(tags)
+    def rate(self, name, value, tags=None, hostname=None, device_name=None):
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.RATE, name, value, tags)
 
     def histogram(self, name, value, tags=None, hostname=None, device_name=None):
-        tags = self._normalize_tags(tags)
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.HISTOGRAM, name, value, tags)
 
     def historate(self, name, value, tags=None, hostname=None, device_name=None):
-        tags = self._normalize_tags(tags)
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.HISTORATE, name, value, tags)
 
     def increment(self, name, value=1, tags=None, hostname=None, device_name=None):
@@ -99,7 +100,7 @@ class AgentCheck(object):
             self._logged_increment_deprecation = True
 
     def service_check(self, name, status, tags=None, message=""):
-        tags = self._normalize_tags(tags)
+        tags = self._normalize_tags_type(tags)
         aggregator.submit_service_check(self, name, status, tags, message)
 
     def event(self, event):
@@ -113,7 +114,7 @@ class AgentCheck(object):
                     self.log.warning("Error encoding unicode field '%s' of event to utf-8 encoded string, can't submit event", key)
                     return
         if event.get('tags'):
-            event['tags'] = self._normalize_tags(event['tags'])
+            event['tags'] = self._normalize_tags_type(event['tags'])
         if event.get('timestamp'):
             event['timestamp'] = int(event['timestamp'])
         if event.get('aggregation_key'):
@@ -172,7 +173,19 @@ class AgentCheck(object):
         metric_name = self.METRIC_REPLACEMENT.sub('_', metric_name)
         return self.DOT_UNDERSCORE_CLEANUP.sub('.', metric_name).strip('_')
 
-    def _normalize_tags(self, tags):
+    def _normalize_tags(self, tags, device_name):
+        """
+        Normalize tags:
+        - append `device_name` as `device:` tag
+        - normalize tags to type `str`
+        """
+        normalized_tags = copy.copy(tags)
+        if device_name:
+            normalized_tags.append("device:%s" % device_name)
+
+        return self._normalize_tags_type(normalized_tags)
+
+    def _normalize_tags_type(self, tags):
         """
         Normalize all the tags to strings (type `str`) so that the go bindings can handle them easily
         Doesn't mutate the passed list, returns a new list

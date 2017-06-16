@@ -14,7 +14,6 @@ func AssertSketchSerieEqual(t *testing.T, expected, actual *SketchSerie) {
 		AssertTagsEqual(t, expected.Tags, actual.Tags)
 	}
 	assert.Equal(t, expected.Host, actual.Host)
-	assert.Equal(t, expected.DeviceName, actual.DeviceName)
 	assert.Equal(t, expected.Interval, actual.Interval)
 	if expected.contextKey != "" {
 		assert.Equal(t, expected.contextKey, actual.contextKey)
