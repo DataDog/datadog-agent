@@ -32,6 +32,8 @@ func init() {
 	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
+	// BUG(massi): make the listener_windows.go module actually use the following:
+	Datadog.SetDefault("cmd_pipe_name", `\\.\pipe\ddagent`)
 	Datadog.SetDefault("check_runners", int64(4))
 	Datadog.SetDefault("forwarder_timeout", 20)
 	// Dogstatsd
@@ -39,7 +41,7 @@ func init() {
 	Datadog.SetDefault("dogstatsd_port", 8125)
 	Datadog.SetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
 	Datadog.SetDefault("dogstatsd_non_local_traffic", false)
-	Datadog.SetDefault("dogstatsd_socket", "")
+	Datadog.SetDefault("dogstatsd_socket", "/tmp/dsd.sock")
 	Datadog.SetDefault("dogstatsd_stats_enable", false)
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	// JMX
