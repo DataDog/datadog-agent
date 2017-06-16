@@ -95,7 +95,6 @@ func (ku *KubeUtil) GetLocalPodList() ([]*v1.Pod, error) {
 // TODO: Add TLS verification
 func locateKubelet() (string, error) {
 	host := config.Datadog.GetString("kubernetes_kubelet_host")
-	port := config.Datadog.GetInt("kubernetes_kubelet_port")
 	var err error
 
 	if host == "" {
@@ -105,21 +104,14 @@ func locateKubelet() (string, error) {
 		}
 	}
 
-	if port == 0 {
-		port = DefaultHTTPKubeletPort
-	}
-
+	port := config.Datadog.GetInt("kubernetes_http_kubelet_port")
 	url := fmt.Sprintf("http://%s:%d", host, port)
 	if _, err := PerformKubeletQuery(url); err == nil {
 		return url, nil
 	}
 	log.Debugf("Couldn't query kubelet over HTTP, assuming it's not in no_auth mode.")
 
-	port = config.Datadog.GetInt("kubernetes_kubelet_port")
-	if port == 0 {
-		port = DefaultHTTPSKubeletPort
-	}
-
+	port = config.Datadog.GetInt("kubernetes_https_kubelet_port")
 	url = fmt.Sprintf("https://%s:%d", host, port)
 	if _, err := PerformKubeletQuery(url); err == nil {
 		return url, nil
