@@ -23,6 +23,8 @@ func init() {
 	// Configuration defaults
 	// Agent
 	Datadog.SetDefault("dd_url", "http://localhost:17123")
+	Datadog.SetDefault("proxy", "")
+	Datadog.SetDefault("skip_ssl_validation", false)
 	Datadog.SetDefault("hostname", "")
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)

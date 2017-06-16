@@ -6,6 +6,12 @@ dd_url: https://app.datadoghq.com
 # https://app.datadoghq.com/account/settings
 api_key:
 
+# If you need a proxy to connect to the Internet, provide it here (default: disabled)
+# proxy: http://user:password@host:port
+
+# If you run the agent behind haproxy, you might want to set this to yes
+# skip_ssl_validation: no
+
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 
