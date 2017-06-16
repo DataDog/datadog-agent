@@ -17,10 +17,8 @@ import (
 
 // Kubelet constants
 const (
-	AuthTokenPath           = "/var/run/secrets/kubernetes.io/serviceaccount/token"
-	DefaultHTTPKubeletPort  = 10255
-	DefaultHTTPSKubeletPort = 10250
-	KubeletHealthPath       = "/healthz"
+	AuthTokenPath     = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	KubeletHealthPath = "/healthz"
 )
 
 // KubeUtil is a struct to hold the kubelet api url
