@@ -10,6 +10,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
@@ -20,6 +21,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
+	r.HandleFunc("/status", getStatus).Methods("GET")
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
@@ -52,4 +54,20 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
+}
+
+func getStatus(w http.ResponseWriter, r *http.Request) {
+	status, err := status.GetStatus()
+	log.Infof("Status: %v", status)
+	if err != nil {
+		log.Errorf("Error getting status. Error: %v, Status: %v", err, status)
+		http.Error(w, err.Error(), 500)
+	}
+
+	j, err := json.Marshal(status)
+	if err != nil {
+		log.Errorf("Error Marshalling Status. Error: %v, Status: %v", err, status)
+		http.Error(w, err.Error(), 500)
+	}
+	w.Write(j)
 }
