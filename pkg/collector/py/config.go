@@ -4,8 +4,6 @@ import (
 	"reflect"
 	"time"
 
-	log "github.com/cihub/seelog"
-
 	"github.com/mitchellh/reflectwalk"
 	"github.com/sbinet/go-python"
 )
@@ -152,8 +150,6 @@ func ifToPy(v reflect.Value) *python.PyObject {
 		} else {
 			pyval = python.PyBool_FromLong(0)
 		}
-	default:
-		log.Warnf("Could not convert type %s to python", reflect.TypeOf(vi))
 	}
 
 	return pyval

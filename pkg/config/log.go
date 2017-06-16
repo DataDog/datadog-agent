@@ -25,7 +25,7 @@ func SetupLogger(logLevel, logFile string) error {
 	}
 	configTemplate += `</outputs>
     <formats>
-        <format id="common" format="%%Date(%s) | %%LEVEL | (%%File:%%Line) | %%Msg%%n"/>
+        <format id="common" format="%%Date(%s) | %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>
     </formats>
 </seelog>`
 	config := fmt.Sprintf(configTemplate, strings.ToLower(logLevel), logFile, logFileMaxSize, logDateFormat)
