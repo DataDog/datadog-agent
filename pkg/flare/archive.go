@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/jhoonb/archivex"
@@ -86,30 +87,7 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string) error {
 		return err
 	}
 
-	err = filepath.Walk(config.Datadog.GetString("confd_path"), func(path string, f os.FileInfo, err error) error {
-		if f == nil {
-			return nil
-		}
-		if f.IsDir() {
-			return nil
-		}
-
-		if filepath.Ext(f.Name()) == ".example" {
-			return nil
-		}
-
-		if getFirstSuffix(f.Name()) == ".yaml" || filepath.Ext(f.Name()) == ".yaml" {
-			baseName := strings.Replace(path, config.Datadog.GetString("confd_path"), "", 1)
-			fileName := filepath.Join(hostname, "etc", "confd", baseName)
-			file, err := credentialsCleanerFile(path)
-			if err != nil {
-				return err
-			}
-			return zipFile.Add(fileName, file)
-		}
-
-		return nil
-	})
+	err = walkConfigFilePaths(zipFile, hostname)
 	if err != nil {
 		return err
 	}
@@ -133,6 +111,46 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string) error {
 	}
 
 	return err
+}
+
+func walkConfigFilePaths(zipFile *archivex.ZipFile, hostname string) error {
+	confSearchPaths := map[string]string{
+		"":     config.Datadog.GetString("confd_path"),
+		"dist": filepath.Join(common.GetDistPath(), "conf.d"),
+	}
+	for prefix, filePath := range confSearchPaths {
+		err := filepath.Walk(filePath, func(path string, f os.FileInfo, err error) error {
+			if f == nil {
+				return nil
+			}
+			if f.IsDir() {
+				return nil
+			}
+
+			if filepath.Ext(f.Name()) == ".example" {
+				return nil
+			}
+
+			if getFirstSuffix(f.Name()) == ".yaml" || filepath.Ext(f.Name()) == ".yaml" {
+				baseName := strings.Replace(path, filePath, "", 1)
+				fileName := filepath.Join(hostname, "etc", "confd", prefix, baseName)
+				file, err := credentialsCleanerFile(path)
+				if err != nil {
+					return err
+				}
+				return zipFile.Add(fileName, file)
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return nil
 }
 
 func getFirstSuffix(s string) string {
