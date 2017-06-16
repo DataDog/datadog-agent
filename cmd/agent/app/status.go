@@ -23,7 +23,7 @@ var statusCmd = &cobra.Command{
 }
 
 func requestStatus() error {
-	fmt.Println("Asking the agent to build the flare archive.")
+	fmt.Printf("Getting the status from the agent.\n\n")
 	var e error
 	c := GetClient()
 	urlstr := "http://" + sockname + "/agent/status"
@@ -34,18 +34,6 @@ func requestStatus() error {
 	}
 
 	fmt.Println(string(r))
-	//
-	// var statuses = make(map[string]string)
-	// json.Unmarshal(r, &statuses)
-	// fmt.Println("Status: ")
-	// for name, status := range statuses {
-	// 	// j, _ := json.Marshal(status)
-	// 	var prettyJ bytes.Buffer
-	// 	json.Indent(&prettyJ, []byte(status), "", "    ")
-	// 	fmt.Printf("%s:\n", name)
-	// 	fmt.Println(string(prettyJ.Bytes()))
-	// 	fmt.Println("")
-	// }
 
 	return nil
 }

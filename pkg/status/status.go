@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"strconv"
-
-	log "github.com/cihub/seelog"
 )
 
 func GetStatus() (string, error) {
@@ -20,7 +17,6 @@ func GetStatus() (string, error) {
 
 	statsString := getForwarderStatus()
 	statsString += getChecksStats()
-	log.Info(statsString)
 
 	return statsString, nil
 }
@@ -64,7 +60,7 @@ func getChecksStats() string {
 				formattedString += "  Error: " + checkStats["LastError"].(string) + "\n"
 			}
 
-			formattedString += "  Total Runs: " + strconv.FormatFloat(checkStats["TotalRuns"].(float64), 'f', 4, 64) + "\n"
+			formattedString += "  Total Runs: " + string(int(checkStats["TotalRuns"].(float64))) + "\n"
 			formattedString += "\n"
 		}
 	}
