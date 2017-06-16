@@ -58,7 +58,6 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	status, err := status.GetStatus()
-	log.Infof("Status: %v", status)
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, status)
 		http.Error(w, err.Error(), 500)

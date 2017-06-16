@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"strconv"
 )
 
 func GetStatus() (string, error) {
@@ -59,8 +60,8 @@ func getChecksStats() string {
 			if checkStats["LastError"] != "" {
 				formattedString += "  Error: " + checkStats["LastError"].(string) + "\n"
 			}
-
-			formattedString += "  Total Runs: " + string(int(checkStats["TotalRuns"].(float64))) + "\n"
+			formattedString += "  Total Runs: "
+			formattedString += strconv.FormatInt(int64(checkStats["TotalRuns"].(float64)), 10) + "\n"
 			formattedString += "\n"
 		}
 	}
