@@ -84,7 +84,9 @@ func (ku *KubeUtil) GetLocalPodList() ([]*v1.Pod, error) {
 	}
 
 	var v *v1.PodList
-	json.Unmarshal(data, v)
+	if err := json.Unmarshal(data, v); err != nil {
+		return nil, fmt.Errorf("Error unmarshalling json: %s", err)
+	}
 
 	return v.GetItems(), nil
 }
