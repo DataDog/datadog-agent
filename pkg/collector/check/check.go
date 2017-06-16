@@ -38,14 +38,14 @@ type Check interface {
 
 // Stats holds basic runtime statistics about check instances
 type Stats struct {
-	CheckName         string    `json:"checkName"`
-	CheckID           ID        `json:"checkID"`
-	TotalRuns         uint64    `json:"totalRuns,omitempty"`
-	TotalErrors       uint64    `json:"totalErrors,omitempty"`
-	ExecutionTimes    [32]int64 `json:"executionTimes,omitempty"`    // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
-	LastExecutionTime int64     `json:"lastExecutionTime,omitempty"` // most recent run duration, provided for convenience
-	LastError         string    `json:"lastError,omitempty"`         // last occurred error message, if any
-	UpdateTimestamp   int64     `json:"lastUpdate,omitempty"`        // latest update to this instance, unix timestamp in seconds
+	CheckName         string
+	CheckID           ID
+	TotalRuns         uint64
+	TotalErrors       uint64
+	ExecutionTimes    [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
+	LastExecutionTime int64     // most recent run duration, provided for convenience
+	LastError         string    // last occurred error message, if any
+	UpdateTimestamp   int64     // latest update to this instance, unix timestamp in seconds
 	m                 sync.Mutex
 }
 

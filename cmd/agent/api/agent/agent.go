@@ -64,10 +64,5 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 
-	j, err := json.Marshal(status)
-	if err != nil {
-		log.Errorf("Error Marshalling Status. Error: %v, Status: %v", err, status)
-		http.Error(w, err.Error(), 500)
-	}
-	w.Write(j)
+	w.Write([]byte(status))
 }

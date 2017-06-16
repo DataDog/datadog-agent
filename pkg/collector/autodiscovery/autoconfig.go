@@ -1,6 +1,8 @@
 package autodiscovery
 
 import (
+	"expvar"
+	"fmt"
 	"sync"
 	"time"
 
@@ -13,7 +15,14 @@ import (
 var (
 	configsPollIntl = 10 * time.Second
 	configPipeBuf   = 100
+	loaderStats     *expvar.Map
+	loaderErrors    = make(map[string]map[string]string)
 )
+
+func init() {
+	loaderStats = expvar.NewMap("loader")
+	loaderStats.Set("Errors", expvar.Func(expLoaderErrors))
+}
 
 type providerDescriptor struct {
 	provider providers.ConfigProvider
@@ -174,6 +183,11 @@ func (ac *AutoConfig) loadChecks(config check.Config) []check.Check {
 			log.Infof("%v: successfully loaded check '%s'", loader, config.Name)
 			return res
 		}
+		if loaderErrors[config.Name] == nil {
+			loaderErrors[config.Name] = make(map[string]string)
+		}
+
+		loaderErrors[config.Name][fmt.Sprintf("%v", loader)] = err.Error()
 
 		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
 	}
@@ -191,4 +205,8 @@ func (pd *providerDescriptor) contains(c *check.Config) bool {
 	}
 
 	return false
+}
+
+func expLoaderErrors() interface{} {
+	return loaderErrors
 }
