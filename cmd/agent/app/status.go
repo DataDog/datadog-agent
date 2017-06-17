@@ -9,9 +9,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var noFormatStatus bool
+
 func init() {
 	AgentCmd.AddCommand(statusCmd)
 	statusCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to datadog.yaml")
+	statusCmd.Flags().BoolVarP(&noFormatStatus, "no-format", "j", false, "print out raw json")
 }
 
 var statusCmd = &cobra.Command{
@@ -34,18 +37,18 @@ func requestStatus() error {
 	if e != nil {
 		return e
 	}
-
-	formattedStatus, err := status.FormatStatus(r)
-	if err != nil {
-		return err
-	}
-	fmt.Printf(formattedStatus)
-	stats := make(map[string]string)
-
-	json.Unmarshal(r, &stats)
-
-	for key, value := range stats {
-		fmt.Printf("%v: %v\n\n", key, value)
+	if noFormatStatus {
+		stats := make(map[string]string)
+		json.Unmarshal(r, &stats)
+		for key, value := range stats {
+			fmt.Printf("%v: %v\n\n", key, value)
+		}
+	} else {
+		formattedStatus, err := status.FormatStatus(r)
+		if err != nil {
+			return err
+		}
+		fmt.Printf(formattedStatus)
 	}
 
 	return nil
