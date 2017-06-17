@@ -1,9 +1,11 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +35,18 @@ func requestStatus() error {
 		return e
 	}
 
-	fmt.Println(string(r))
+	formattedStatus, err := status.FormatStatus(r)
+	if err != nil {
+		return err
+	}
+	fmt.Printf(formattedStatus)
+	stats := make(map[string]string)
+
+	json.Unmarshal(r, &stats)
+
+	for key, value := range stats {
+		fmt.Printf("%v: %v\n\n", key, value)
+	}
 
 	return nil
 }

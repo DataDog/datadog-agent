@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-func GetStatus() (string, error) {
+func GetStatus() (map[string]string, error) {
 	stats := make(map[string]string)
 	forwarderStats := expvar.Get("forwarder").String()
 	stats["forwarderStats"] = forwarderStats
@@ -16,17 +16,29 @@ func GetStatus() (string, error) {
 	loaderStats := expvar.Get("loader").String()
 	stats["loaderStats"] = loaderStats
 
-	statsString := getForwarderStatus()
-	statsString += getChecksStats()
+	return stats, nil
+}
+
+func FormatStatus(data []byte) (string, error) {
+	stats := make(map[string]string)
+
+	json.Unmarshal(data, &stats)
+
+	forwarderStats := stats["forwarderStats"]
+	runnerStats := stats["runnerStats"]
+	loaderStats := stats["loaderStats"]
+
+	statsString := getForwarderStatus([]byte(forwarderStats))
+	statsString += getChecksStats([]byte(runnerStats), []byte(loaderStats))
 
 	return statsString, nil
 }
 
-func getForwarderStatus() string {
+func getForwarderStatus(forwarderStatsJSON []byte) string {
 	var formattedString = "===== Transactions =====\n\n"
 	forwarderStats := make(map[string]interface{})
-	forwarderStatsJSON := expvar.Get("forwarder").String()
-	json.Unmarshal([]byte(forwarderStatsJSON), &forwarderStats)
+
+	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
 	if forwarderStats["TransactionsCreated"] == nil {
 		return ""
 	}
@@ -39,39 +51,54 @@ func getForwarderStatus() string {
 	return formattedString
 }
 
-func getChecksStats() string {
+func getChecksStats(runnerStatsJSON []byte, loaderStatsJSON []byte) string {
 	var formattedString = "===== Checks =====\n\n"
-	runnerStatsJSON := expvar.Get("runner").String()
-	loaderStatsJSON := expvar.Get("loader").String()
+	var checkPrefix = "   "
+
 	runnerStats := make(map[string]interface{})
 	loaderStats := make(map[string]interface{})
-	json.Unmarshal([]byte(runnerStatsJSON), &runnerStats)
-	json.Unmarshal([]byte(loaderStatsJSON), &loaderStats)
+	json.Unmarshal(runnerStatsJSON, &runnerStats)
+	json.Unmarshal(loaderStatsJSON, &loaderStats)
 
 	if runnerStats["Checks"] == nil && loaderStats["Errors"] == nil {
 		return ""
 	}
 
+	if runnerStats["Runs"] == 0 || runnerStats["Runs"] == nil {
+		formattedString += "  === Running Checks ===\n\n"
+		formattedString += checkPrefix + "No checks have run yet\n\n"
+	}
+
 	if runnerStats["Checks"] != nil {
+		var runningHeader = false
 		var checksStats = runnerStats["Checks"].(map[string]interface{})
 		for _, m := range checksStats {
-			var checkStats = m.(map[string]interface{})
-			formattedString += "  == " + checkStats["CheckName"].(string) + " ==\n"
-			if checkStats["LastError"] != "" {
-				formattedString += "  Error: " + checkStats["LastError"].(string) + "\n"
+			if !runningHeader {
+				runningHeader = true
+				formattedString += "  === Running Checks ===\n\n"
 			}
-			formattedString += "  Total Runs: "
+			var checkStats = m.(map[string]interface{})
+			formattedString += fmt.Sprintf("%s== %s ==\n", checkPrefix, checkStats["CheckName"].(string))
+			if checkStats["LastError"] != "" {
+				formattedString += fmt.Sprintf("%sError: %s\n", checkPrefix, checkStats["LastError"].(string))
+			}
+			formattedString += checkPrefix + "Total Runs: "
 			formattedString += strconv.FormatInt(int64(checkStats["TotalRuns"].(float64)), 10) + "\n"
 			formattedString += "\n"
 		}
 	}
 
 	if loaderStats["Errors"] != nil {
+		var loadingHeader = false
 		var loaderErrors = loaderStats["Errors"].(map[string]interface{})
 		for checkName, errors := range loaderErrors {
-			formattedString += "  == " + checkName + " ==\n"
+			if !loadingHeader {
+				loadingHeader = true
+				formattedString += "  === Loading Errors ===\n\n"
+			}
+			formattedString += checkPrefix + "== " + checkName + " ==\n"
 			for kind, err := range errors.(map[string]interface{}) {
-				formattedString += "  " + kind + ": " + err.(string) + "\n"
+				formattedString += checkPrefix + kind + ": " + err.(string) + "\n"
 			}
 			formattedString += "\n"
 		}
