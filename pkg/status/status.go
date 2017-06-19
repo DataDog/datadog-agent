@@ -30,6 +30,7 @@ func init() {
 
 }
 
+// GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]string, error) {
 	stats := make(map[string]string)
 	forwarderStats := expvar.Get("forwarder").String()
@@ -44,6 +45,7 @@ func GetStatus() (map[string]string, error) {
 	return stats, nil
 }
 
+// FormatStatus takes a json bytestring and prints out the formatted statuspage
 func FormatStatus(data []byte) (string, error) {
 	stats := make(map[string]string)
 	json.Unmarshal(data, &stats)
