@@ -6,15 +6,28 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/kardianos/osext"
 )
 
-var fmap = template.FuncMap{
-	"doNotEscape":        doNotEscape,
-	"lastError":          lastError,
-	"lastErrorTraceback": lastErrorTraceback,
-	"lastErrorMessage":   lastErrorMessage,
-	"pythonLoaderError":  pythonLoaderError,
+var (
+	here, _        = osext.ExecutableFolder()
+	fmap           template.FuncMap
+	templateFolder string
+)
+
+func init() {
+	fmap = template.FuncMap{
+		"doNotEscape":        doNotEscape,
+		"lastError":          lastError,
+		"lastErrorTraceback": lastErrorTraceback,
+		"lastErrorMessage":   lastErrorMessage,
+		"pythonLoaderError":  pythonLoaderError,
+	}
+	templateFolder = filepath.Join(here, "dist", "templates")
+
 }
 
 func GetStatus() (map[string]string, error) {
@@ -51,7 +64,7 @@ func getAggregatorStatus(aggregatorStatsJSON []byte) {
 
 	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
 
-	t := template.Must(template.New("aggregator.tmpl").Funcs(fmap).Parse(aggregator))
+	t := template.Must(template.New("aggregator.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "aggregator.tmpl")))
 	err := t.Execute(os.Stdout, aggregatorStats)
 	if err != nil {
 		fmt.Println(err)
@@ -61,7 +74,7 @@ func getAggregatorStatus(aggregatorStatsJSON []byte) {
 func getForwarderStatus(forwarderStatsJSON []byte) {
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
-	t := template.Must(template.New("forwarder.tmpl").Funcs(fmap).Parse(forwarder))
+	t := template.Must(template.New("forwarder.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "forwarder.tmpl")))
 	err := t.Execute(os.Stdout, forwarderStats)
 	if err != nil {
 		fmt.Println(err)
@@ -76,7 +89,7 @@ func getChecksStats(runnerStatsJSON []byte, loaderStatsJSON []byte) {
 	checkStats := make(map[string]map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
 	checkStats["LoaderStats"] = loaderStats
-	t := template.Must(template.New("checks.tmpl").Funcs(fmap).Parse(checks))
+	t := template.Must(template.New("checks.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "checks.tmpl")))
 	err := t.Execute(os.Stdout, checkStats)
 	if err != nil {
 		fmt.Println(err)

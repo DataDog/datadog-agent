@@ -52,6 +52,7 @@ namespace :agent do
     # Collector's assets and config files
     FileUtils.rm_rf("#{BIN_PATH}/dist")
     FileUtils.cp_r("./pkg/collector/dist/", "#{BIN_PATH}", :remove_destination => true)
+    FileUtils.cp_r("./pkg/status/templates/", "#{BIN_PATH}/dist/", :remove_destination => true)
     FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
     FileUtils.chmod(0755, "#{BIN_PATH}/agent")
   end
