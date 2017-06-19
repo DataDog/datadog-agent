@@ -1,4 +1,4 @@
-package k8s
+package kubernetes
 
 import (
 	"context"
@@ -20,6 +20,28 @@ const (
 	AuthTokenPath     = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	KubeletHealthPath = "/healthz"
 )
+
+// Pod contains fields for unmarshalling a Pod
+type Pod struct {
+	Spec   Spec   `json:"spec,omitempty"`
+	Status Status `json:"status,omitempty"`
+}
+
+// PodList contains fields for unmarshalling a PodList
+type PodList struct {
+	Items []*Pod `json:"items,omitempty"`
+}
+
+// Spec contains fields for unmarshalling a PodSpec
+type Spec struct {
+	HostNetwork bool   `json:"hostNetwork,omitempty"`
+	Hostname    string `json:"hostname,omitempty"`
+}
+
+// Status contains fields for unmarshalling a PodStatus
+type Status struct {
+	HostIP string `json:"hostIP,omitempty"`
+}
 
 // KubeUtil is a struct to hold the kubelet api url
 // Instanciate with NewKubeUtil
@@ -49,8 +71,8 @@ func (ku *KubeUtil) GetNodeInfo() (ip, name string, err error) {
 	}
 
 	for _, pod := range pods {
-		if !pod.GetSpec().GetHostNetwork() {
-			return pod.GetStatus().GetHostIP(), pod.GetSpec().GetHostname(), nil
+		if !pod.Spec.HostNetwork {
+			return pod.Status.HostIP, pod.Spec.Hostname, nil
 		}
 	}
 
@@ -74,19 +96,19 @@ func GetGlobalPodList() ([]*v1.Pod, error) {
 }
 
 // GetLocalPodList returns the list of pods running on the node where this pod is running
-func (ku *KubeUtil) GetLocalPodList() ([]*v1.Pod, error) {
+func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 
 	data, err := PerformKubeletQuery(fmt.Sprintf("%s/pods", ku.kubeletAPIURL))
 	if err != nil {
 		return nil, fmt.Errorf("Error performing kubelet query: %s", err)
 	}
 
-	v := new(v1.PodList)
+	v := new(PodList)
 	if err := json.Unmarshal(data, v); err != nil {
 		return nil, fmt.Errorf("Error unmarshalling json: %s", err)
 	}
 
-	return v.GetItems(), nil
+	return v.Items, nil
 }
 
 // Try and find the hostname to query the kubelet
