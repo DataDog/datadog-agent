@@ -180,19 +180,50 @@ func TestMarshalJSONEventsOmittedFields(t *testing.T) {
 }
 
 func TestMarshalJSONSketchSeries(t *testing.T) {
+	sketch1 := QSketch{
+		GKArray{
+			Entries: []Entry{{1, 1, 0}},
+			Min:     1, ValCount: 1}}
+	sketch2 := QSketch{
+		GKArray{
+			Entries: []Entry{{10, 1, 0}, {14, 3, 0}, {21, 2, 0}},
+			Min:     10, ValCount: 3}}
 	series := []*SketchSerie{{
 		contextKey: "test_context",
-		Sketches: []Sketch{
-			{int64(12345), QSketch{[]Entry{{1, 1, 0}}, 1}},
-			{int64(67890), QSketch{[]Entry{{10, 1, 0}, {14, 3, 0}, {21, 2, 0}}, 3}},
-		},
-		Name: "test.metrics",
-		Host: "localHost",
-		Tags: []string{"tag1", "tag2:yes"},
+		Sketches:   []Sketch{{int64(12345), sketch1}, {int64(67890), sketch2}},
+		Name:       "test.metrics",
+		Host:       "localHost",
+		Tags:       []string{"tag1", "tag2:yes"},
 	}}
 
 	payload, err := MarshalJSONSketchSeries(series)
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
-	assert.Equal(t, payload, []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device_name\":\"\",\"interval\":0,\"sketches\":[[12345,[[[1,1,0]],1]],[67890,[[[10,1,0],[14,3,0],[21,2,0]],3]]]}]}\n"))
+
+	expectedPayload := "{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device_name\":\"\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[{\"v\":1,\"g\":1,\"d\":0}],\"min\":1,\"n\":1}},{\"timestamp\":67890,\"qsketch\":{\"entries\":[{\"v\":10,\"g\":1,\"d\":0},{\"v\":14,\"g\":3,\"d\":0},{\"v\":21,\"g\":2,\"d\":0}],\"min\":10,\"n\":3}}]}]}\n"
+	assert.Equal(t, payload, []byte(expectedPayload))
+}
+
+func TestUnmarshalJSONSketchSeries(t *testing.T) {
+
+	payload := []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device_name\":\"\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[{\"v\":1,\"g\":1,\"d\":0}],\"min\":1,\"n\":1}},{\"timestamp\":67890,\"qsketch\":{\"entries\":[{\"v\":10,\"g\":1,\"d\":0},{\"v\":14,\"g\":3,\"d\":0},{\"v\":21,\"g\":2,\"d\":0}],\"min\":10,\"n\":3}}]}]}\n")
+	sketch1 := QSketch{
+		GKArray{
+			Entries: []Entry{{1, 1, 0}},
+			Min:     1, ValCount: 1}}
+	sketch2 := QSketch{
+		GKArray{
+			Entries: []Entry{{10, 1, 0}, {14, 3, 0}, {21, 2, 0}},
+			Min:     10, ValCount: 3}}
+	expectedSeries := SketchSerie{
+		Sketches: []Sketch{{int64(12345), sketch1}, {int64(67890), sketch2}},
+		Name:     "test.metrics",
+		Host:     "localHost",
+		Tags:     []string{"tag1", "tag2:yes"},
+	}
+
+	data, err := UnmarshalJSONSketchSeries(payload)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(data))
+	AssertSketchSerieEqual(t, &expectedSeries, data[0])
 }
