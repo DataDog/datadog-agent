@@ -194,5 +194,5 @@ func TestMarshalJSONSketchSeries(t *testing.T) {
 	payload, err := MarshalJSONSketchSeries(series)
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
-	assert.Equal(t, payload, []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device_name\":\"\",\"interval\":0,\"sketches\":[[12345,[[[1,1,0]],1]],[67890,[[[10,1,0],[14,3,0],[21,2,0]],3]]]}]}\n"))
+	assert.Equal(t, payload, []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"interval\":0,\"sketches\":[[12345,[[[1,1,0]],1]],[67890,[[[10,1,0],[14,3,0],[21,2,0]],3]]]}]}\n"))
 }
