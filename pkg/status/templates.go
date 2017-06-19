@@ -34,6 +34,15 @@ const aggregator = `
   {{if .ServiceCheckFlushed -}}
   ServiceCheckFlushed: {{.ServiceCheckFlushed}}
   {{end}}
+  {{if .SketchesFlushed -}}
+  SketchesFlushed: {{.SketchesFlushed}}
+  {{end}}
+  {{if .HostnameUpdate -}}
+  HostnameUpdate: {{.HostnameUpdate}}
+  {{end}}
+  {{if .DogstatsdMetricSample -}}
+  DogstatsdMetricSample: {{.DogstatsdMetricSample}}
+  {{end}}
 `
 
 const checks = `
