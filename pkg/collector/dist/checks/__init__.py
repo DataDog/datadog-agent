@@ -3,7 +3,6 @@ import json
 import traceback
 import re
 import time
-import copy
 import logging
 from collections import defaultdict
 
@@ -187,8 +186,12 @@ class AgentCheck(object):
         Normalize tags:
         - append `device_name` as `device:` tag
         - normalize tags to type `str`
+        - always return a list
         """
-        normalized_tags = copy.copy(tags)
+        if tags is None:
+            return []
+
+        normalized_tags = list(tags)  # normalize to `list` type, and make a copy
         if device_name:
             self._log_deprecation("device_name")
             normalized_tags.append("device:%s" % device_name)
