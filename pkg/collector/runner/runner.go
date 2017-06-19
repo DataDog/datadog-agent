@@ -181,7 +181,3 @@ func expCheckStats() interface{} {
 
 	return checkStats
 }
-
-func GetCheckStats() map[check.ID]*check.Stats {
-	return checkStats
-}
