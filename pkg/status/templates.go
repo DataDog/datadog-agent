@@ -11,6 +11,31 @@ const forwarder = `
   {{end -}}
 `
 
+const aggregator = `
+===== Aggregator =====
+  {{if .ChecksMetricSample -}}
+  ChecksMetricSample: {{.ChecksMetricSample}}
+  {{end -}}
+  {{if .Event -}}
+  Event: {{.Event}}
+  {{end -}}
+  {{if .EventsFlushed -}}
+  EventsFlushed: {{.EventsFlushed}}
+  {{end -}}
+  {{if .NumberOfFlush -}}
+  NumberOfFlush: {{.NumberOfFlush}}
+  {{end -}}
+  {{if .SeriesFlushed -}}
+  SeriesFlushed: {{.SeriesFlushed}}
+  {{end -}}
+  {{if .ServiceCheck -}}
+  ServiceCheck: {{.ServiceCheck}}
+  {{end -}}
+  {{if .ServiceCheckFlushed -}}
+  ServiceCheckFlushed: {{.ServiceCheckFlushed}}
+  {{end}}
+`
+
 const checks = `
 ===== Checks =====
 
