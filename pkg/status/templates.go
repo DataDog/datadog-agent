@@ -8,7 +8,7 @@ const forwarder = `
   {{- range $key, $value := .TransactionsCreated -}}
   {{$key}}: {{$value}}
   {{end -}}
-  {{end}}
+  {{end -}}
 `
 
 const checks = `

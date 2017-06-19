@@ -94,9 +94,6 @@ func pythonLoaderError(value string) template.HTML {
 	value = strings.Replace(value, "\\n", "\n      ", -1)
 	var loaderErrorArray []string
 	json.Unmarshal([]byte(value), &loaderErrorArray)
-	// var loaderError string
-	// fmt.Println(loaderErrorArray)
-	// loaderError = strings.Join(loaderErrorArray, "\n")
 	return template.HTML(value)
 }
 
