@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -25,8 +26,20 @@ func SetupAutoConfig(confdPath string) {
 	AC = autodiscovery.NewAutoConfig(coll)
 
 	// add the check loaders
-	AC.AddLoader(py.NewPythonCheckLoader())
+	if loader := py.NewPythonCheckLoader(); loader != nil {
+		AC.AddLoader(loader)
+	} else {
+		log.Errorf("Unable to create Python loader.")
+	}
+
+	// can't fail
 	AC.AddLoader(core.NewGoCheckLoader())
+
+	if loader := embed.NewJMXCheckLoader(); loader != nil {
+		AC.AddLoader(loader)
+	} else {
+		log.Errorf("Unable to create JMX loader.")
+	}
 
 	// add the configuration providers
 	// File Provider
@@ -61,10 +74,4 @@ func SetupConfig(confFilePath string) {
 	if err != nil {
 		panic(fmt.Errorf("unable to load Datadog config file: %s", err))
 	}
-
-	// define defaults for the Agent
-	config.Datadog.SetDefault("log_file", defaultLogPath)
-	config.Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
-	config.Datadog.BindEnv("cmd_sock")
-	config.Datadog.SetDefault("check_runners", int64(4))
 }

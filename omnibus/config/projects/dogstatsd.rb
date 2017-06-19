@@ -5,6 +5,12 @@
 #
 require "./lib/ostools.rb"
 
+# --------------------------------------------------
+# WIP / FIXME:
+# The dogstatsd package is currently not working as
+# a standalone package. Work will be put into making
+# it fully contained and stable in the future.
+# --------------------------------------------------
 name 'dogstatsd'
 maintainer 'Datadog Packages <package@datadoghq.com>'
 homepage 'http://www.datadoghq.com'

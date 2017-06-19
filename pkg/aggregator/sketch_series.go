@@ -11,7 +11,6 @@ type SketchSerie struct {
 	Name       string   `json:"metric"`
 	Tags       []string `json:"tags"`
 	Host       string   `json:"host"`
-	DeviceName string   `json:"device_name"`
 	Interval   int64    `json:"interval"`
 	Sketches   []Sketch `json:"sketches"`
 	contextKey string

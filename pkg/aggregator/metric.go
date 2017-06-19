@@ -22,7 +22,6 @@ type Serie struct {
 	Points     []Point       `json:"points"`
 	Tags       []string      `json:"tags"`
 	Host       string        `json:"host"`
-	DeviceName string        `json:"device_name"`
 	MType      APIMetricType `json:"type"`
 	Interval   int64         `json:"interval"`
 	contextKey string

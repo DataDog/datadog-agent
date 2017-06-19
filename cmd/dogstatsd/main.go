@@ -57,11 +57,6 @@ func init() {
 	dogstatsdCmd.AddCommand(startCmd)
 	dogstatsdCmd.AddCommand(versionCmd)
 
-	// ENV vars bindings
-	config.Datadog.BindEnv("conf_path")
-	config.Datadog.SetDefault("conf_path", ".")
-	config.Datadog.SetDefault("log_file", defaultLogPath)
-
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "cfgpath", "f", "", "path to datadog.yaml")
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath"))

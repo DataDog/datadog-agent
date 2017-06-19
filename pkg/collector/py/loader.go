@@ -80,3 +80,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 	return checks, nil
 }
+
+func (cl *PythonCheckLoader) String() string {
+	return "Python Check Loader"
+}

@@ -1,8 +1,8 @@
+import copy
 import json
 import traceback
 import re
 import time
-import copy
 import logging
 from collections import defaultdict
 
@@ -55,51 +55,60 @@ class AgentCheck(object):
         # FIXME: get the log level from the agent global config and apply it to the python one.
         self.log.setLevel(logging.DEBUG)
 
-        self._logged_increment_deprecation = False
+        self._deprecations = {
+            'increment' : [
+                False,
+                "DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, sending these " +
+                "metrics with `AgentCheck.count` and a '_count' suffix instead",
+            ],
+            'device_name': [
+                False,
+                "DEPRECATION NOTICE: `device_name` is deprecated, please use a `device:` tag in the `tags` list instead",
+            ],
+        }
 
-    def gauge(self, name, value, tags=None):
-        tags = self._normalize_tags(tags)
+    def gauge(self, name, value, tags=None, hostname=None, device_name=None):
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.GAUGE, name, value, tags)
 
-    def count(self, name, value, tags=None):
-        tags = self._normalize_tags(tags)
+    def count(self, name, value, tags=None, hostname=None, device_name=None):
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.COUNT, name, value, tags)
 
-    def monotonic_count(self, name, value, tags=None):
-        tags = self._normalize_tags(tags)
+    def monotonic_count(self, name, value, tags=None, hostname=None, device_name=None):
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.MONOTONIC_COUNT, name, value, tags)
 
-    def rate(self, name, value, tags=None):
-        tags = self._normalize_tags(tags)
+    def rate(self, name, value, tags=None, hostname=None, device_name=None):
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.RATE, name, value, tags)
 
     def histogram(self, name, value, tags=None, hostname=None, device_name=None):
-        tags = self._normalize_tags(tags)
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.HISTOGRAM, name, value, tags)
 
     def historate(self, name, value, tags=None, hostname=None, device_name=None):
-        tags = self._normalize_tags(tags)
+        tags = self._normalize_tags(tags, device_name)
         aggregator.submit_metric(self, aggregator.HISTORATE, name, value, tags)
 
     def increment(self, name, value=1, tags=None, hostname=None, device_name=None):
-        self._log_increment_deprecation()
+        self._log_deprecation("increment")
         self.count(name + "_count", value, tags)
 
     def decrement(self, name, value=-1, tags=None, hostname=None, device_name=None):
-        self._log_increment_deprecation()
+        self._log_deprecation("increment")
         self.count(name + "_count", value, tags)
 
-    def _log_increment_deprecation(self):
+    def _log_deprecation(self, deprecation_key):
         """
-        Logs a deprecation notice on the first run of the check where increment/decrement is used
+        Logs a deprecation notice at most once per AgentCheck instance, for the pre-defined `deprecation_key`
         """
-        if not self._logged_increment_deprecation:
-            self.log.warning("DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, sending these " +
-                "metrics with `AgentCheck.count` and a '_count' suffix instead")
-            self._logged_increment_deprecation = True
+        if not self._deprecations[deprecation_key][0]:
+            self.log.warning(self._deprecations[deprecation_key][1])
+            self._deprecations[deprecation_key][0] = True
 
     def service_check(self, name, status, tags=None, message=""):
-        tags = self._normalize_tags(tags)
+        tags = self._normalize_tags_type(tags)
         aggregator.submit_service_check(self, name, status, tags, message)
 
     def event(self, event):
@@ -113,7 +122,7 @@ class AgentCheck(object):
                     self.log.warning("Error encoding unicode field '%s' of event to utf-8 encoded string, can't submit event", key)
                     return
         if event.get('tags'):
-            event['tags'] = self._normalize_tags(event['tags'])
+            event['tags'] = self._normalize_tags_type(event['tags'])
         if event.get('timestamp'):
             event['timestamp'] = int(event['timestamp'])
         if event.get('aggregation_key'):
@@ -172,7 +181,24 @@ class AgentCheck(object):
         metric_name = self.METRIC_REPLACEMENT.sub('_', metric_name)
         return self.DOT_UNDERSCORE_CLEANUP.sub('.', metric_name).strip('_')
 
-    def _normalize_tags(self, tags):
+    def _normalize_tags(self, tags, device_name):
+        """
+        Normalize tags:
+        - append `device_name` as `device:` tag
+        - normalize tags to type `str`
+        - always return a list
+        """
+        if tags is None:
+            return []
+
+        normalized_tags = list(tags)  # normalize to `list` type, and make a copy
+        if device_name:
+            self._log_deprecation("device_name")
+            normalized_tags.append("device:%s" % device_name)
+
+        return self._normalize_tags_type(normalized_tags)
+
+    def _normalize_tags_type(self, tags):
         """
         Normalize all the tags to strings (type `str`) so that the go bindings can handle them easily
         Doesn't mutate the passed list, returns a new list
