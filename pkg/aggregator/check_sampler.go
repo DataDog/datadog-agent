@@ -37,7 +37,6 @@ func (cs *CheckSampler) commit(timestamp int64) {
 		} else {
 			serie.Host = cs.defaultHostname
 		}
-		serie.DeviceName = context.DeviceName
 
 		cs.series = append(cs.series, serie)
 	}

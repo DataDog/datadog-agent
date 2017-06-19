@@ -84,7 +84,6 @@ func (s *TimeSampler) flush(timestamp int64) []*Serie {
 				} else {
 					serie.Host = s.defaultHostname
 				}
-				serie.DeviceName = context.DeviceName
 				serie.Interval = s.interval
 
 				serieBySignature[serieSignature] = serie

@@ -67,7 +67,6 @@ func (d *DistSampler) flush(timestamp int64) []*SketchSerie {
 				} else {
 					sketchSerie.Host = d.defaultHostname
 				}
-				sketchSerie.DeviceName = context.DeviceName
 				sketchSerie.Interval = d.interval
 
 				sketchesByContext[contextKey] = sketchSerie

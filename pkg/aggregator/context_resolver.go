@@ -11,10 +11,9 @@ import (
 
 // Context holds the elements that form a context, and can be serialized into a context key
 type Context struct {
-	Name       string
-	Tags       []string
-	Host       string
-	DeviceName string
+	Name string
+	Tags []string
+	Host string
 }
 
 // ContextResolver allows tracking and expiring contexts
@@ -46,10 +45,9 @@ func (cr *ContextResolver) trackContext(metricSample *MetricSample, currentTimes
 	contextKey := generateContextKey(metricSample)
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		cr.contextsByKey[contextKey] = &Context{
-			Name:       metricSample.Name,
-			Tags:       *(metricSample.Tags),
-			Host:       "",
-			DeviceName: "",
+			Name: metricSample.Name,
+			Tags: *(metricSample.Tags),
+			Host: "",
 		}
 	}
 	cr.lastSeenByKey[contextKey] = currentTimestamp
