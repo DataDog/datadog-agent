@@ -189,9 +189,10 @@ class AgentCheck(object):
         - always return a list
         """
         if tags is None:
-            return []
+            normalized_tags = []
+        else:
+            normalized_tags = list(tags)  # normalize to `list` type, and make a copy
 
-        normalized_tags = list(tags)  # normalize to `list` type, and make a copy
         if device_name:
             self._log_deprecation("device_name")
             normalized_tags.append("device:%s" % device_name)
