@@ -1,12 +1,20 @@
 package aggregator
 
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
+
 // Counter track how many times something happened per second. Counters are
 // only use by DogStatsD and are very similar to Count: the main diffence is
 // that they are sent as Rate.
 type Counter struct {
-	value    float64
-	sampled  bool
-	interval int64
+	value      float64
+	sampled    bool
+	interval   int64
+	expiration int64
+	lastSample MetricSample
 }
 
 // NewCounter return a new initialized Counter
@@ -20,13 +28,15 @@ func NewCounter(interval int64) *Counter {
 func (c *Counter) addSample(sample *MetricSample, timestamp int64) {
 	c.value += sample.Value * (1 / sample.SampleRate)
 	c.sampled = true
+	expirySeconds := config.Datadog.GetDuration("dogstatsd_expiry_seconds") / time.Second
+	c.expiration = timestamp + int64(expirySeconds)
 }
 
 func (c *Counter) flush(timestamp int64) ([]*Serie, error) {
 	value, sampled := c.value, c.sampled
 	c.value, c.sampled = 0, false
 
-	if !sampled {
+	if !sampled && c.expiration <= timestamp {
 		return []*Serie{}, NoSerieError{}
 	}
 

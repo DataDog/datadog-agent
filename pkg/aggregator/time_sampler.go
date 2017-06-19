@@ -20,6 +20,7 @@ type TimeSampler struct {
 	contextResolver    *ContextResolver
 	metricsByTimestamp map[int64]ContextMetrics
 	defaultHostname    string
+	reportingCounters  map[string]*Counter
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
@@ -29,6 +30,7 @@ func NewTimeSampler(interval int64, defaultHostname string) *TimeSampler {
 		contextResolver:    newContextResolver(),
 		metricsByTimestamp: map[int64]ContextMetrics{},
 		defaultHostname:    defaultHostname,
+		reportingCounters:  map[string]*Counter{},
 	}
 }
 
@@ -51,15 +53,24 @@ func (s *TimeSampler) addSample(metricSample *MetricSample, timestamp int64) {
 
 	// Add sample to bucket
 	metrics.addSample(contextKey, metricSample, timestamp, s.interval)
+
+	// If it's a Counter, keep track of it to report 0 values when no data
+	if metricSample.Mtype == CounterType {
+		s.reportingCounters[contextKey] = metrics[contextKey].(*Counter)
+	}
 }
 
 func (s *TimeSampler) flush(timestamp int64) []*Serie {
 	var result []*Serie
+	var rawSeries []*Serie
 
 	serieBySignature := make(map[SerieSignature]*Serie)
 
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
+
+	// Flush all counters that were not sampled so that they report a 0 value
+	rawSeries = append(rawSeries, s.flushNotSampledCounters(cutoffTime-s.interval)...)
 
 	// Iter on each bucket
 	for timestamp, metrics := range s.metricsByTimestamp {
@@ -68,33 +79,54 @@ func (s *TimeSampler) flush(timestamp int64) []*Serie {
 			continue
 		}
 
-		series := metrics.flush(timestamp)
-		for _, serie := range series {
-			serieSignature := SerieSignature{serie.MType, serie.contextKey, serie.nameSuffix}
-
-			if existingSerie, ok := serieBySignature[serieSignature]; ok {
-				existingSerie.Points = append(existingSerie.Points, serie.Points[0])
-			} else {
-				// Resolve context and populate new Serie
-				context := s.contextResolver.contextsByKey[serie.contextKey]
-				serie.Name = context.Name + serie.nameSuffix
-				serie.Tags = context.Tags
-				if context.Host != "" {
-					serie.Host = context.Host
-				} else {
-					serie.Host = s.defaultHostname
-				}
-				serie.Interval = s.interval
-
-				serieBySignature[serieSignature] = serie
-				result = append(result, serie)
-			}
-		}
+		rawSeries = append(rawSeries, metrics.flush(timestamp)...)
 
 		delete(s.metricsByTimestamp, timestamp)
+	}
+
+	for _, serie := range rawSeries {
+		serieSignature := SerieSignature{serie.MType, serie.contextKey, serie.nameSuffix}
+
+		if existingSerie, ok := serieBySignature[serieSignature]; ok {
+			existingSerie.Points = append(existingSerie.Points, serie.Points[0])
+		} else {
+			// Resolve context and populate new Serie
+			context := s.contextResolver.contextsByKey[serie.contextKey]
+			serie.Name = context.Name + serie.nameSuffix
+			serie.Tags = context.Tags
+			if context.Host != "" {
+				serie.Host = context.Host
+			} else {
+				serie.Host = s.defaultHostname
+			}
+			serie.Interval = s.interval
+
+			serieBySignature[serieSignature] = serie
+			result = append(result, serie)
+		}
 	}
 
 	s.contextResolver.expireContexts(timestamp - int64(defaultExpiry/time.Second))
 
 	return result
+}
+
+func (s *TimeSampler) flushNotSampledCounters(timestamp int64) []*Serie {
+	contextMetrics := makeContextMetrics()
+
+	for contextKey, counter := range s.reportingCounters {
+		// If the counter has not been sampled for too long, stop tracking it
+		if counter.expiration <= timestamp {
+			delete(s.reportingCounters, contextKey)
+			continue
+		}
+		// If no sample was added between two flushes to the counter, it was not flushed
+		// Add it to the ContextMetrics to be flushed and report a 0 value
+		if !counter.sampled {
+			contextMetrics[contextKey] = counter
+			// Keep tracking the context
+			s.contextResolver.lastSeenByKey[contextKey] = timestamp
+		}
+	}
+	return contextMetrics.flush(timestamp)
 }

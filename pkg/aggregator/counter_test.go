@@ -68,7 +68,15 @@ func TestCounterAddSample(t *testing.T) {
 	assert.InEpsilon(t, (5+3)*2/10.0, series[0].Points[0].Value, epsilon)
 	assert.EqualValues(t, 70, series[0].Points[0].Ts)
 
-	// Flush w/o samples: error
-	_, err = counter.flush(80)
+	// Flush w/o samples before expiry, the value 0 is flushed
+	series, err = counter.flush(80)
+	assert.Nil(t, err)
+	require.Len(t, series, 1)
+	require.Len(t, series[0].Points, 1)
+	assert.EqualValues(t, 0, series[0].Points[0].Value)
+	assert.EqualValues(t, 80, series[0].Points[0].Ts)
+
+	// Flush w/o samples after expiry: error
+	_, err = counter.flush(800)
 	assert.NotNil(t, err)
 }
