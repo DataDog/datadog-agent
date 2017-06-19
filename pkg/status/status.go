@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"strconv"
+	"html/template"
+	"os"
 )
 
 func GetStatus() (map[string]string, error) {
@@ -28,81 +29,34 @@ func FormatStatus(data []byte) (string, error) {
 	runnerStats := stats["runnerStats"]
 	loaderStats := stats["loaderStats"]
 
-	statsString := getForwarderStatus([]byte(forwarderStats))
-	statsString += getChecksStats([]byte(runnerStats), []byte(loaderStats))
+	fmt.Println("===== AGENT STATUS =====")
 
-	return statsString, nil
+	getForwarderStatus([]byte(forwarderStats))
+	getChecksStats([]byte(runnerStats), []byte(loaderStats))
+
+	return "", nil
 }
 
-func getForwarderStatus(forwarderStatsJSON []byte) string {
-	var formattedString = "===== Transactions =====\n\n"
+func getForwarderStatus(forwarderStatsJSON []byte) {
 	forwarderStats := make(map[string]interface{})
 
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
-	if forwarderStats["TransactionsCreated"] == nil {
-		return ""
-	}
-	var transactionStats = forwarderStats["TransactionsCreated"].(map[string]interface{})
-	for name, stat := range transactionStats {
-		formattedString += fmt.Sprintf("  %v: %v\n", name, stat)
-	}
-	formattedString += "\n\n"
 
-	return formattedString
+	t := template.Must(template.New("forwarder.tmpl").Parse(forwarder))
+	t.Execute(os.Stdout, forwarderStats)
+
 }
 
-func getChecksStats(runnerStatsJSON []byte, loaderStatsJSON []byte) string {
-	var formattedString = "===== Checks =====\n\n"
-	var checkPrefix = "   "
+func getChecksStats(runnerStatsJSON []byte, loaderStatsJSON []byte) {
 
 	runnerStats := make(map[string]interface{})
 	loaderStats := make(map[string]interface{})
 	json.Unmarshal(runnerStatsJSON, &runnerStats)
 	json.Unmarshal(loaderStatsJSON, &loaderStats)
+	checkStats := make(map[string]map[string]interface{})
+	checkStats["RunnerStats"] = runnerStats
+	checkStats["LoaderStats"] = loaderStats
 
-	if runnerStats["Checks"] == nil && loaderStats["Errors"] == nil {
-		return ""
-	}
-
-	if runnerStats["Runs"] == 0 || runnerStats["Runs"] == nil {
-		formattedString += "  === Running Checks ===\n\n"
-		formattedString += checkPrefix + "No checks have run yet\n\n"
-	}
-
-	if runnerStats["Checks"] != nil {
-		var runningHeader = false
-		var checksStats = runnerStats["Checks"].(map[string]interface{})
-		for _, m := range checksStats {
-			if !runningHeader {
-				runningHeader = true
-				formattedString += "  === Running Checks ===\n\n"
-			}
-			var checkStats = m.(map[string]interface{})
-			formattedString += fmt.Sprintf("%s== %s ==\n", checkPrefix, checkStats["CheckName"].(string))
-			if checkStats["LastError"] != "" {
-				formattedString += fmt.Sprintf("%sError: %s\n", checkPrefix, checkStats["LastError"].(string))
-			}
-			formattedString += checkPrefix + "Total Runs: "
-			formattedString += strconv.FormatInt(int64(checkStats["TotalRuns"].(float64)), 10) + "\n"
-			formattedString += "\n"
-		}
-	}
-
-	if loaderStats["Errors"] != nil {
-		var loadingHeader = false
-		var loaderErrors = loaderStats["Errors"].(map[string]interface{})
-		for checkName, errors := range loaderErrors {
-			if !loadingHeader {
-				loadingHeader = true
-				formattedString += "  === Loading Errors ===\n\n"
-			}
-			formattedString += checkPrefix + "== " + checkName + " ==\n"
-			for kind, err := range errors.(map[string]interface{}) {
-				formattedString += checkPrefix + kind + ": " + err.(string) + "\n"
-			}
-			formattedString += "\n"
-		}
-	}
-
-	return formattedString
+	t := template.Must(template.New("forwarder.tmpl").Parse(checks))
+	t.Execute(os.Stdout, checkStats)
 }
