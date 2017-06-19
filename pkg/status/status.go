@@ -47,8 +47,6 @@ func FormatStatus(data []byte) (string, error) {
 	getChecksStats([]byte(runnerStats), []byte(loaderStats))
 	getAggregatorStatus([]byte(aggregatorStats))
 
-	// fmt.Println(stats["aggregatorStats"])
-
 	return "", nil
 }
 
