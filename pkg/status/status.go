@@ -33,16 +33,12 @@ func GetStatus() (map[string]string, error) {
 
 func FormatStatus(data []byte) (string, error) {
 	stats := make(map[string]string)
-
 	json.Unmarshal(data, &stats)
-
 	forwarderStats := stats["forwarderStats"]
 	runnerStats := stats["runnerStats"]
 	loaderStats := stats["loaderStats"]
 	aggregatorStats := stats["aggregatorStats"]
-
 	fmt.Println("===== AGENT STATUS =====")
-
 	getForwarderStatus([]byte(forwarderStats))
 	getChecksStats([]byte(runnerStats), []byte(loaderStats))
 	getAggregatorStatus([]byte(aggregatorStats))
@@ -64,9 +60,7 @@ func getAggregatorStatus(aggregatorStatsJSON []byte) {
 
 func getForwarderStatus(forwarderStatsJSON []byte) {
 	forwarderStats := make(map[string]interface{})
-
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
-
 	t := template.Must(template.New("forwarder.tmpl").Funcs(fmap).Parse(forwarder))
 	err := t.Execute(os.Stdout, forwarderStats)
 	if err != nil {
@@ -75,16 +69,13 @@ func getForwarderStatus(forwarderStatsJSON []byte) {
 }
 
 func getChecksStats(runnerStatsJSON []byte, loaderStatsJSON []byte) {
-
 	runnerStats := make(map[string]interface{})
 	loaderStats := make(map[string]interface{})
 	json.Unmarshal(runnerStatsJSON, &runnerStats)
 	json.Unmarshal(loaderStatsJSON, &loaderStats)
-
 	checkStats := make(map[string]map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
 	checkStats["LoaderStats"] = loaderStats
-
 	t := template.Must(template.New("checks.tmpl").Funcs(fmap).Parse(checks))
 	err := t.Execute(os.Stdout, checkStats)
 	if err != nil {
