@@ -80,12 +80,6 @@ func getChecksStats(runnerStatsJSON []byte, loaderStatsJSON []byte) {
 	loaderStats := make(map[string]interface{})
 	json.Unmarshal(runnerStatsJSON, &runnerStats)
 	json.Unmarshal(loaderStatsJSON, &loaderStats)
-	// fmt.Println(runnerStats["Checks"])
-
-	// for check, stats := range runnerStats["Checks"].(map[string]interface{}) {
-	// 	fmt.Println(check)
-	// 	fmt.Println(stats)
-	// }
 
 	checkStats := make(map[string]map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
