@@ -1,13 +1,9 @@
 package aggregator
 
-import (
-	"fmt"
-)
-
 // Sketch represents a quantile sketch at a specific time
 type Sketch struct {
-	timestamp int64
-	sketch    QSketch
+	Timestamp int64   `json:"timestamp"`
+	Sketch    QSketch `json:"qsketch"`
 }
 
 // SketchSerie holds an array of sketches.
@@ -21,16 +17,15 @@ type SketchSerie struct {
 	contextKey string
 }
 
-// MarshalJSON returns a Sketch as an array of timestamp, percentile sketch pairs
-func (s *Sketch) MarshalJSON() ([]byte, error) {
-	sketchStr := fmt.Sprintf("[%v, [[", s.timestamp)
-	for _, entry := range s.sketch.Entries {
-		sketchStr += fmt.Sprintf("[%v, %v, %v],", entry.V, entry.G, entry.Delta)
-	}
-	// remove the last comma
-	sketchStr = sketchStr[:len(sketchStr)-1]
-	sketchStr += fmt.Sprintf("], %v]]", s.sketch.N)
-	return []byte(sketchStr), nil
+// QSketch is a wrapper around GKArray to make it easier if we want to try a
+// different sketch algorithm
+type QSketch struct {
+	GKArray
+}
+
+// NewQSketch creates a new QSketch
+func NewQSketch() QSketch {
+	return QSketch{NewGKArray()}
 }
 
 // NoSketchError is the error returned when not enough samples have been

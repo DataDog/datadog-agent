@@ -200,13 +200,15 @@ func TestMarshalJSONSketchSeries(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
 
-	expectedPayload := "{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device_name\":\"\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[{\"v\":1,\"g\":1,\"d\":0}],\"min\":1,\"n\":1}},{\"timestamp\":67890,\"qsketch\":{\"entries\":[{\"v\":10,\"g\":1,\"d\":0},{\"v\":14,\"g\":3,\"d\":0},{\"v\":21,\"g\":2,\"d\":0}],\"min\":10,\"n\":3}}]}]}\n"
+	expectedPayload := []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device_name\":\"\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[[1,1,0]],\"min\":1,\"n\":1}},{\"timestamp\":67890,\"qsketch\":{\"entries\":[[10,1,0],[14,3,0],[21,2,0]],\"min\":10,\"n\":3}}]}]}\n")
+
 	assert.Equal(t, payload, []byte(expectedPayload))
 }
 
 func TestUnmarshalJSONSketchSeries(t *testing.T) {
 
-	payload := []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device_name\":\"\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[{\"v\":1,\"g\":1,\"d\":0}],\"min\":1,\"n\":1}},{\"timestamp\":67890,\"qsketch\":{\"entries\":[{\"v\":10,\"g\":1,\"d\":0},{\"v\":14,\"g\":3,\"d\":0},{\"v\":21,\"g\":2,\"d\":0}],\"min\":10,\"n\":3}}]}]}\n")
+	payload := []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device_name\":\"\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[[1,1,0]],\"min\":1,\"n\":1}},{\"timestamp\":67890,\"qsketch\":{\"entries\":[[10,1,0],[14,3,0],[21,2,0]],\"min\":10,\"n\":3}}]}]}\n")
+
 	sketch1 := QSketch{
 		GKArray{
 			Entries: []Entry{{1, 1, 0}},

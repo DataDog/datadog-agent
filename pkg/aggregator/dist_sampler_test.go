@@ -45,7 +45,7 @@ func (os OrderedSketches) Len() int {
 }
 
 func (os OrderedSketches) Less(i, j int) bool {
-	return os.sketches[i].timestamp < os.sketches[j].timestamp
+	return os.sketches[i].Timestamp < os.sketches[j].Timestamp
 }
 
 func (os OrderedSketches) Swap(i, j int) {
@@ -94,9 +94,10 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 
 	sketchSeries := distSampler.flush(10020)
 
-	expectedSketch := QSketch{}
-	expectedSketch.Insert(1)
-	expectedSketch.Insert(2)
+	expectedSketch := NewQSketch()
+	expectedSketch.Add(1)
+	expectedSketch.Add(2)
+	expectedSketch.Compress()
 	expectedSerie := &SketchSerie{
 		Name:     "test.metric.name",
 		Tags:     []string{"a", "b"},
@@ -138,8 +139,9 @@ func TestDistSamplerContextSampling(t *testing.T) {
 	sort.Sort(orderedSketchSeries)
 	sketchSeries := orderedSketchSeries.sketchSeries
 
-	expectedSketch := QSketch{}
-	expectedSketch.Insert(1)
+	expectedSketch := NewQSketch()
+	expectedSketch.Add(1)
+	expectedSketch.Compress()
 	expectedSerie1 := &SketchSerie{
 		Name:       "test.metric.name1",
 		Tags:       []string{"a", "b"},

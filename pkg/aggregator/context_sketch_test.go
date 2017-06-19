@@ -16,9 +16,10 @@ func TestContextSketchSampling(t *testing.T) {
 	ctxSketch.addSample(contextKey, &MetricSample{Value: 5}, 3, 10)
 	resultSeries := ctxSketch.flush(12345)
 
-	expectedSketch := QSketch{}
-	expectedSketch.Insert(1)
-	expectedSketch.Insert(5)
+	expectedSketch := NewQSketch()
+	expectedSketch.Add(1)
+	expectedSketch.Add(5)
+	expectedSketch.Compress()
 	expectedSerie := &SketchSerie{
 		contextKey: contextKey,
 		Sketches:   []Sketch{{int64(12345), expectedSketch}}}
@@ -54,14 +55,16 @@ func TestContextSketchSamplingMultiContexts(t *testing.T) {
 	orderedSketchSeries := OrderedSketchSeries{ctxSketch.flush(12345)}
 	sort.Sort(orderedSketchSeries)
 
-	expectedSketch1 := QSketch{}
-	expectedSketch1.Insert(1)
-	expectedSketch1.Insert(3)
+	expectedSketch1 := NewQSketch()
+	expectedSketch1.Add(1)
+	expectedSketch1.Add(3)
+	expectedSketch1.Compress()
 	expectedSerie1 := &SketchSerie{
 		contextKey: contextKey1,
 		Sketches:   []Sketch{{int64(12345), expectedSketch1}}}
-	expectedSketch2 := QSketch{}
-	expectedSketch2.Insert(1)
+	expectedSketch2 := NewQSketch()
+	expectedSketch2.Add(1)
+	expectedSketch2.Compress()
 	expectedSerie2 := &SketchSerie{
 		contextKey: contextKey2,
 		Sketches:   []Sketch{{int64(12345), expectedSketch2}}}

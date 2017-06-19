@@ -24,10 +24,11 @@ func TestDistributionSampling(t *testing.T) {
 	sketchSerie, err := distro.flush(15)
 	assert.Nil(t, err)
 
-	expectedSketch := QSketch{}
-	expectedSketch.Insert(1)
-	expectedSketch.Insert(10)
-	expectedSketch.Insert(5)
+	expectedSketch := NewQSketch()
+	expectedSketch.Add(1)
+	expectedSketch.Add(10)
+	expectedSketch.Add(5)
+	expectedSketch.Compress()
 	expectedSerie := &SketchSerie{
 		Sketches: []Sketch{{int64(15), expectedSketch}}}
 	AssertSketchSerieEqual(t, expectedSerie, sketchSerie)
