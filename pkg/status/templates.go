@@ -4,11 +4,11 @@ package status
 const forwarder = `
 ===== Transactions =====
 
-{{if .TransactionsCreated -}}
-{{- range $key, $value := .TransactionsCreated -}}
+  {{if .TransactionsCreated -}}
+  {{- range $key, $value := .TransactionsCreated -}}
   {{$key}}: {{$value}}
-{{end -}}
-{{end}}
+  {{end -}}
+  {{end}}
 `
 
 const checks = `
@@ -21,11 +21,12 @@ const checks = `
 {{end -}}
 {{- range .Checks}}
   == {{.CheckName}} ==
-  {{if .LastError -}}
-  Error: {{.LastError}}
-  {{end -}}
-  Total Runs: {{.TotalRuns}}
-{{end -}}
+    Total Runs: {{.TotalRuns}}
+    {{if .LastError -}}
+    Error: {{lastErrorMessage .LastError}}
+    {{lastErrorTraceback .LastError -}}
+    {{- end -}}
+{{- end -}}
 {{- end}}
 
 {{- with .LoaderStats -}}
@@ -33,9 +34,13 @@ const checks = `
 === Loading Errors ===
   {{ range $checkname, $errors := .Errors }}
   == {{$checkname}} ==
-  {{ range $kind, $err := $errors -}}
-  {{$kind}}: {{$err}}
-  {{end -}}
+    {{ range $kind, $err := $errors -}}
+    {{- if eq $kind "Python Check Loader" -}}
+    {{$kind}}: {{ pythonLoaderError $err -}}
+    {{- else -}}
+    {{$kind}}: {{ doNotEscape $err}}
+    {{end -}}
+    {{end -}}
   {{end -}}
 {{- end}}
 {{- end}}
