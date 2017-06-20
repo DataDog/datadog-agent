@@ -100,4 +100,9 @@ namespace :agent do
     end
   end
 
+  desc "Run agent system tests"
+  task :system_test do
+    system("cd #{ENV["GOPATH"]}/src/#{REPO_PATH}/test/integration/config_providers/zookeeper/ && bash ./test.sh") || exit(1)
+  end
+
 end
