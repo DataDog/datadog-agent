@@ -1,6 +1,6 @@
 #include "api.h"
 
-PyObject* SubmitMetric(PyObject*, MetricType, char*, float, PyObject*);
+PyObject* SubmitMetric(PyObject*, MetricType, char*, float, PyObject*, char*);
 PyObject* SubmitServiceCheck(PyObject*, char*, int, PyObject*, char*);
 PyObject* SubmitEvent(PyObject*, PyObject*);
 
@@ -20,18 +20,19 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
     char *name;
     float value;
     PyObject *tags = NULL;
+    char *hostname;
 
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
 
-    // aggregator.submit_metric(self, aggregator.metric_type.GAUGE, name, value, tags)
-    if (!PyArg_ParseTuple(args, "OisfO", &check, &mt, &name, &value, &tags)) {
+    // aggregator.submit_metric(self, aggregator.metric_type.GAUGE, name, value, tags, hostname)
+    if (!PyArg_ParseTuple(args, "OisfOs", &check, &mt, &name, &value, &tags, &hostname)) {
       PyGILState_Release(gstate);
       return NULL;
     }
 
     PyGILState_Release(gstate);
-    return SubmitMetric(check, mt, name, value, tags);
+    return SubmitMetric(check, mt, name, value, tags, hostname);
 }
 
 static PyObject *submit_service_check(PyObject *self, PyObject *args) {

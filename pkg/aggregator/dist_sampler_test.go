@@ -104,7 +104,6 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 			Sketch{int64(10000), expectedSketch},
 			Sketch{int64(10010), expectedSketch},
 		},
-		contextKey: "test.metric.name,a,b",
 	}
 	assert.Equal(t, 1, len(sketchSeries))
 	AssertSketchSerieEqual(t, expectedSerie, sketchSeries[0])
@@ -140,18 +139,16 @@ func TestDistSamplerContextSampling(t *testing.T) {
 	expectedSketch := QSketch{}
 	expectedSketch.Insert(1)
 	expectedSerie1 := &SketchSerie{
-		Name:       "test.metric.name1",
-		Tags:       []string{"a", "b"},
-		Interval:   10,
-		Sketches:   []Sketch{Sketch{int64(10010), expectedSketch}},
-		contextKey: "test.metric.name1,a,b",
+		Name:     "test.metric.name1",
+		Tags:     []string{"a", "b"},
+		Interval: 10,
+		Sketches: []Sketch{Sketch{int64(10010), expectedSketch}},
 	}
 	expectedSerie2 := &SketchSerie{
-		Name:       "test.metric.name2",
-		Tags:       []string{"a", "c"},
-		Interval:   10,
-		Sketches:   []Sketch{Sketch{int64(10010), expectedSketch}},
-		contextKey: "test.metric.name2,a,c",
+		Name:     "test.metric.name2",
+		Tags:     []string{"a", "c"},
+		Interval: 10,
+		Sketches: []Sketch{Sketch{int64(10010), expectedSketch}},
 	}
 
 	assert.Equal(t, 2, len(sketchSeries))

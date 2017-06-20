@@ -7,6 +7,7 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCheckGaugeSampling(t *testing.T) {
@@ -133,12 +134,23 @@ func TestCheckSamplerHostname(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  12345,
 	}
+	mSample2 := MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      GaugeType,
+		Tags:       &[]string{"foo", "bar"},
+		Host:       "metric-hostname",
+		SampleRate: 1,
+		Timestamp:  12345,
+	}
 
 	checkSampler.addSample(&mSample1)
+	checkSampler.addSample(&mSample2)
 	checkSampler.commit(12346)
 	series := checkSampler.flush()
 
-	if assert.Len(t, series, 1) {
-		assert.Equal(t, "my.test.hostname", series[0].Host)
-	}
+	require.Len(t, series, 2)
+	actualHostnames := []string{series[0].Host, series[1].Host}
+	assert.Contains(t, actualHostnames, "my.test.hostname")
+	assert.Contains(t, actualHostnames, "metric-hostname")
 }

@@ -17,7 +17,7 @@ import "C"
 
 // SubmitMetric is the method exposed to Python scripts to submit metrics
 //export SubmitMetric
-func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.float, tags *C.PyObject) *C.PyObject {
+func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.float, tags *C.PyObject, hostname *C.char) *C.PyObject {
 
 	sender, err := aggregator.GetDefaultSender()
 	if err != nil {
@@ -32,20 +32,21 @@ func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.floa
 		log.Error(err)
 		return nil
 	}
+	_hostname := C.GoString(hostname)
 
 	switch mt {
 	case C.GAUGE:
-		sender.Gauge(_name, _value, "", _tags)
+		sender.Gauge(_name, _value, _hostname, _tags)
 	case C.RATE:
-		sender.Rate(_name, _value, "", _tags)
+		sender.Rate(_name, _value, _hostname, _tags)
 	case C.COUNT:
-		sender.Count(_name, _value, "", _tags)
+		sender.Count(_name, _value, _hostname, _tags)
 	case C.MONOTONIC_COUNT:
-		sender.MonotonicCount(_name, _value, "", _tags)
+		sender.MonotonicCount(_name, _value, _hostname, _tags)
 	case C.HISTOGRAM:
-		sender.Histogram(_name, _value, "", _tags)
+		sender.Histogram(_name, _value, _hostname, _tags)
 	case C.HISTORATE:
-		sender.Historate(_name, _value, "", _tags)
+		sender.Historate(_name, _value, _hostname, _tags)
 	}
 
 	return C._none()
