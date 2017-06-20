@@ -1,7 +1,5 @@
 package aggregator
 
-import ()
-
 // Distribution tracks the distribution of samples added over one flush
 // period. Designed to be globally accurate for percentiles.
 type Distribution struct {

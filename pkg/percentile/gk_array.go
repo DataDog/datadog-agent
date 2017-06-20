@@ -1,4 +1,4 @@
-package aggregator
+package percentile
 
 import (
 	"encoding/json"
@@ -136,7 +136,7 @@ func (s *GKArray) Merge(o GKArray) {
 		values that have been inserted in o rather than in the number of entries in the summary. To tackle this issue, we
 		can notice that each of the quantiles that are queried from o is a v of one of the entry of o. Instead of actually
 		querying for those quantiles, we can count the number of times each v will be returned (when querying the quantiles
-		i/(o.valCount-1)); we end up with the values n below. Then instead of successively inserting each v n times, we can
+	        i/(o.valCount-1)); we end up with the values n below. Then instead of successively inserting each v n times, we can
 		actually directly append them to s.incoming as new entries where g = n. This is possible because the values of n
 		will never violate the condition n <= int(s.eps * (s.ValCount+o.ValCount-1)). Also, we need to make sure that
 		compress() can handle entries in incoming where g > 1.

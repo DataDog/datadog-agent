@@ -1,4 +1,4 @@
-package aggregator
+package percentile
 
 import (
 	"math"
@@ -10,8 +10,8 @@ import (
 var testQuantiles = []float64{0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.999, 1}
 var testSizes = []int{10, 100, 1000, 10000, 100000}
 
-func GenQSketch(n int, gen func(i int) float64) []float64 {
-	s := NewQSketch()
+func GenSketch(n int, gen func(i int) float64) []float64 {
+	s := NewGKArray()
 
 	for i := 0; i < n; i++ {
 		s.Add(gen(i))
@@ -33,7 +33,7 @@ func ConstantGenerator(i int) float64 {
 
 func TestConstant(t *testing.T) {
 	for _, n := range testSizes {
-		vals := GenQSketch(n, ConstantGenerator)
+		vals := GenSketch(n, ConstantGenerator)
 		for _, v := range vals {
 			assert.Equal(t, 42.0, v)
 		}
@@ -47,7 +47,7 @@ func UniformGenerator(i int) float64 {
 
 func TestUniform(t *testing.T) {
 	for _, n := range testSizes {
-		vals := GenQSketch(n, UniformGenerator)
+		vals := GenSketch(n, UniformGenerator)
 		for i, v := range vals {
 			var expected float64
 			if testQuantiles[i] == 0 {
@@ -64,15 +64,15 @@ func TestUniform(t *testing.T) {
 
 func TestMerge(t *testing.T) {
 	for _, n := range testSizes {
-		s1 := NewQSketch()
+		s1 := NewGKArray()
 		for i := 0; i < n; i += 2 {
 			s1.Add(float64(i))
 		}
-		s2 := NewQSketch()
+		s2 := NewGKArray()
 		for i := 1; i < n; i += 2 {
 			s2.Add(float64(i))
 		}
-		s1.Merge(s2.GKArray)
+		s1.Merge(s2)
 
 		for i, q := range testQuantiles {
 			val := s1.Quantile(q)
