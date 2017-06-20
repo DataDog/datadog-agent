@@ -276,11 +276,13 @@ func TestCounterExpirySeconds(t *testing.T) {
 	// Counter2 stopped reporting but context is not expired
 	assert.Equal(t, 1, len(series))
 	assert.Equal(t, 2, len(sampler.contextResolver.contextsByKey))
+	assert.Equal(t, 1, len(sampler.reportingCounters))
 
 	series = sampler.flush(1800)
 	// Everything stopped reporting and is expired
 	assert.Equal(t, 0, len(series))
 	assert.Equal(t, 0, len(sampler.contextResolver.contextsByKey))
+	assert.Equal(t, 0, len(sampler.reportingCounters))
 }
 
 //func TestOne(t *testing.T) {
