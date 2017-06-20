@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"os"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -37,14 +36,6 @@ func GetStatus() (map[string]interface{}, error) {
 
 	stats["config"] = getConfig()
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
-	// configStats := make(map[string]interface{})
-	log.Info(stats["config"])
-	_, e := json.Marshal(stats["config"])
-	if e != nil {
-		log.Info("Error: %v", e)
-	}
-
-	// json.Unmarshal(byte[](getConfig()), &configStats)
 
 	platformPayload, err := new(platform.Platform).Collect()
 	if err != nil {
@@ -64,7 +55,6 @@ func getConfig() map[string]interface{} {
 	newConf := make(map[string]interface{})
 	for k, v := range conf {
 		if k != "api_key" && k != "metadata_collectors" {
-			log.Infof("key: %v, type: %v --- value: %v, type: %v", k, reflect.TypeOf(k), v, reflect.TypeOf(v))
 			newConf[k] = v
 		}
 	}
