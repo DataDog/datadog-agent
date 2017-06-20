@@ -48,21 +48,23 @@ func TestCheckGaugeSampling(t *testing.T) {
 	series := orderedSeries.series
 
 	expectedSerie1 := &Serie{
-		Name:       "my.metric.name",
-		Tags:       []string{"foo", "bar"},
-		Points:     []Point{{int64(12349), mSample2.Value}},
-		MType:      APIGaugeType,
-		contextKey: generateContextKey(&mSample2),
-		nameSuffix: "",
+		Name:           "my.metric.name",
+		Tags:           []string{"foo", "bar"},
+		Points:         []Point{{int64(12349), mSample2.Value}},
+		MType:          APIGaugeType,
+		SourceTypeName: checksSourceTypeName,
+		contextKey:     generateContextKey(&mSample2),
+		nameSuffix:     "",
 	}
 
 	expectedSerie2 := &Serie{
-		Name:       "my.metric.name",
-		Tags:       []string{"foo", "bar", "baz"},
-		Points:     []Point{{int64(12349), mSample3.Value}},
-		MType:      APIGaugeType,
-		contextKey: generateContextKey(&mSample3),
-		nameSuffix: "",
+		Name:           "my.metric.name",
+		Tags:           []string{"foo", "bar", "baz"},
+		Points:         []Point{{int64(12349), mSample3.Value}},
+		MType:          APIGaugeType,
+		SourceTypeName: checksSourceTypeName,
+		contextKey:     generateContextKey(&mSample3),
+		nameSuffix:     "",
 	}
 
 	orderedExpectedSeries := OrderedSeries{[]*Serie{expectedSerie1, expectedSerie2}}
@@ -111,11 +113,12 @@ func TestCheckRateSampling(t *testing.T) {
 	series := checkSampler.flush()
 
 	expectedSerie := &Serie{
-		Name:       "my.metric.name",
-		Tags:       []string{"foo", "bar"},
-		Points:     []Point{{int64(12347), 0.5}},
-		MType:      APIGaugeType,
-		nameSuffix: "",
+		Name:           "my.metric.name",
+		Tags:           []string{"foo", "bar"},
+		Points:         []Point{{int64(12347), 0.5}},
+		MType:          APIGaugeType,
+		SourceTypeName: checksSourceTypeName,
+		nameSuffix:     "",
 	}
 
 	if assert.Equal(t, 1, len(series)) {

@@ -116,16 +116,17 @@ func TestMarshalJSONSeries(t *testing.T) {
 			{int64(12345), float64(21.21)},
 			{int64(67890), float64(12.12)},
 		},
-		MType: APIGaugeType,
-		Name:  "test.metrics",
-		Host:  "localHost",
-		Tags:  []string{"tag1", "tag2:yes"},
+		MType:          APIGaugeType,
+		Name:           "test.metrics",
+		Host:           "localHost",
+		Tags:           []string{"tag1", "tag2:yes"},
+		SourceTypeName: "System",
 	}}
 
 	payload, err := MarshalJSONSeries(series)
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
-	assert.Equal(t, payload, []byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"type\":\"gauge\",\"interval\":0}]}\n"))
+	assert.Equal(t, payload, []byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"type\":\"gauge\",\"interval\":0,\"source_type_name\":\"System\"}]}\n"))
 }
 
 func TestMarshalJSONServiceChecks(t *testing.T) {
