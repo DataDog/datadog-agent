@@ -67,37 +67,38 @@ class AgentCheck(object):
             ],
         }
 
-    def gauge(self, name, value, tags=None, hostname=None, device_name=None):
+    def _submit_metric(self, mtype, name, value, tags=None, hostname=None, device_name=None):
         tags = self._normalize_tags(tags, device_name)
-        aggregator.submit_metric(self, aggregator.GAUGE, name, value, tags)
+        if hostname is None:
+            hostname = ""
+
+        aggregator.submit_metric(self, mtype, name, value, tags, hostname)
+
+    def gauge(self, name, value, tags=None, hostname=None, device_name=None):
+        self._submit_metric(aggregator.GAUGE, name, value, tags=tags, hostname=hostname, device_name=device_name)
 
     def count(self, name, value, tags=None, hostname=None, device_name=None):
-        tags = self._normalize_tags(tags, device_name)
-        aggregator.submit_metric(self, aggregator.COUNT, name, value, tags)
+        self._submit_metric(aggregator.COUNT, name, value, tags=tags, hostname=hostname, device_name=device_name)
 
     def monotonic_count(self, name, value, tags=None, hostname=None, device_name=None):
-        tags = self._normalize_tags(tags, device_name)
-        aggregator.submit_metric(self, aggregator.MONOTONIC_COUNT, name, value, tags)
+        self._submit_metric(aggregator.MONOTONIC_COUNT, name, value, tags=tags, hostname=hostname, device_name=device_name)
 
     def rate(self, name, value, tags=None, hostname=None, device_name=None):
-        tags = self._normalize_tags(tags, device_name)
-        aggregator.submit_metric(self, aggregator.RATE, name, value, tags)
+        self._submit_metric(aggregator.RATE, name, value, tags=tags, hostname=hostname, device_name=device_name)
 
     def histogram(self, name, value, tags=None, hostname=None, device_name=None):
-        tags = self._normalize_tags(tags, device_name)
-        aggregator.submit_metric(self, aggregator.HISTOGRAM, name, value, tags)
+        self._submit_metric(aggregator.HISTOGRAM, name, value, tags=tags, hostname=hostname, device_name=device_name)
 
     def historate(self, name, value, tags=None, hostname=None, device_name=None):
-        tags = self._normalize_tags(tags, device_name)
-        aggregator.submit_metric(self, aggregator.HISTORATE, name, value, tags)
+        self._submit_metric(aggregator.HISTORATE, name, value, tags=tags, hostname=hostname, device_name=device_name)
 
     def increment(self, name, value=1, tags=None, hostname=None, device_name=None):
         self._log_deprecation("increment")
-        self.count(name + "_count", value, tags)
+        self.count(name + "_count", value, tags=tags, hostname=hostname, device_name=device_name)
 
     def decrement(self, name, value=-1, tags=None, hostname=None, device_name=None):
         self._log_deprecation("increment")
-        self.count(name + "_count", value, tags)
+        self.count(name + "_count", value, tags=tags, hostname=hostname, device_name=device_name)
 
     def _log_deprecation(self, deprecation_key):
         """
