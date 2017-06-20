@@ -17,13 +17,6 @@ var (
 )
 
 func init() {
-	fmap = template.FuncMap{
-		"doNotEscape":        doNotEscape,
-		"lastError":          lastError,
-		"lastErrorTraceback": lastErrorTraceback,
-		"lastErrorMessage":   lastErrorMessage,
-		"pythonLoaderError":  pythonLoaderError,
-	}
 	templateFolder = filepath.Join(here, "dist", "templates")
 }
 
@@ -35,9 +28,11 @@ func FormatStatus(data []byte) (string, error) {
 	runnerStats := stats["runnerStats"]
 	loaderStats := stats["loaderStats"]
 	aggregatorStats := stats["aggregatorStats"]
+	title := fmt.Sprintf("Agent (v%s)", stats["version"])
+	stats["title"] = title
 	renderHeader(stats)
-	renderForwarderStatus(forwarderStats)
 	renderChecksStats(runnerStats, loaderStats)
+	renderForwarderStatus(forwarderStats)
 	renderAggregatorStatus(aggregatorStats)
 
 	return "", nil

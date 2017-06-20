@@ -1,9 +1,32 @@
-====================
-Agent (v {{.version}})
-====================
+{{printDashes .title "="}}
+{{doNotEscape .title}}
+{{printDashes .title "="}}
 
-Status date: 2017-06-19 22:23:13 (6s ago)
-Pid: 7916
-Platform: Linux-3.16.0-4-amd64-x86_64-with-debian-8.8
-Python Version: 2.7.13, 64bit
-Logs: <stderr>, /var/log/datadog/collector.log, syslog:/dev/log
+  Status date: {{.time}}
+  Pid: {{.pid}}
+  Python Version: {{.platform.pythonV}}
+  Logs: <stderr>, /var/log/datadog/collector.log, syslog:/dev/log
+
+  Clocks
+  ======
+
+    NTP offset: 7850.7797 s
+    System UTC time: {{.time}}
+
+  Host Info
+  =========
+    {{ range $type, $value := .hostinfo -}}
+    {{- if ne $type "hostname" -}} {{if $value}}
+    {{$type}}: {{if eq $type "bootTime" -}}
+    {{- formatUnixTime $value -}}
+    {{- else -}}
+    {{- $value -}}
+    {{- end -}}
+    {{end -}} {{end -}} {{- end}}
+
+  Hostnames
+  =========
+    {{ range $type, $value := .metadata.meta }} {{ if ne $type "timezones" -}} {{if $value -}}
+    {{$type}}: {{$value}}
+    {{- end}} {{end}}
+    {{end}}
