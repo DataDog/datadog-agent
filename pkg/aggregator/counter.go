@@ -14,7 +14,6 @@ type Counter struct {
 	sampled    bool
 	interval   int64
 	expiration int64
-	lastSample MetricSample
 }
 
 // NewCounter return a new initialized Counter
