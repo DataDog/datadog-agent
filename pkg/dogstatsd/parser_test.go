@@ -157,6 +157,21 @@ func TestParseGaugeWithTags(t *testing.T) {
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
+func TestParseGaugeWithHostTag(t *testing.T) {
+	parsed, err := parseMetricPacket([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"))
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "daemon", parsed.Name)
+	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
+	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
+	require.Equal(t, 2, len(*(parsed.Tags)))
+	assert.Equal(t, "sometag1:somevalue1", (*parsed.Tags)[0])
+	assert.Equal(t, "sometag2:somevalue2", (*parsed.Tags)[1])
+	assert.Equal(t, "my-hostname", parsed.Host)
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
 func TestParseGaugeWithSampleRate(t *testing.T) {
 	parsed, err := parseMetricPacket([]byte("daemon:666|g|@0.21"))
 

@@ -10,7 +10,7 @@ type CheckSampler struct {
 	defaultHostname string
 }
 
-// newCheckSampler returns a newly initialized CheckSample
+// newCheckSampler returns a newly initialized CheckSampler
 func newCheckSampler(hostname string) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*Serie, 0),
