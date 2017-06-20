@@ -4,10 +4,11 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 	"github.com/stretchr/testify/assert"
 )
 
-func AssertSketchSerieEqual(t *testing.T, expected, actual *SketchSerie) {
+func AssertSketchSeriesEqual(t *testing.T, expected, actual *percentile.SketchSeries) {
 	assert.Equal(t, expected.Name, actual.Name)
 	if expected.Tags != nil {
 		assert.NotNil(t, actual.Tags)
@@ -15,8 +16,8 @@ func AssertSketchSerieEqual(t *testing.T, expected, actual *SketchSerie) {
 	}
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.Interval, actual.Interval)
-	if expected.contextKey != "" {
-		assert.Equal(t, expected.contextKey, actual.contextKey)
+	if expected.ContextKey != "" {
+		assert.Equal(t, expected.ContextKey, actual.ContextKey)
 	}
 	if expected.Sketches != nil {
 		assert.NotNil(t, actual.Sketches)
@@ -24,7 +25,7 @@ func AssertSketchSerieEqual(t *testing.T, expected, actual *SketchSerie) {
 	}
 }
 
-func AssertSketchesEqual(t *testing.T, expected, actual []Sketch) {
+func AssertSketchesEqual(t *testing.T, expected, actual []percentile.Sketch) {
 	if assert.Equal(t, len(expected), len(actual)) {
 		actualOrdered := OrderedSketches{actual}
 		sort.Sort(actualOrdered)
@@ -36,7 +37,7 @@ func AssertSketchesEqual(t *testing.T, expected, actual []Sketch) {
 
 // OrderedSketches used to sort []Sketch
 type OrderedSketches struct {
-	sketches []Sketch
+	sketches []percentile.Sketch
 }
 
 func (os OrderedSketches) Len() int {
@@ -44,16 +45,16 @@ func (os OrderedSketches) Len() int {
 }
 
 func (os OrderedSketches) Less(i, j int) bool {
-	return os.sketches[i].timestamp < os.sketches[j].timestamp
+	return os.sketches[i].Timestamp < os.sketches[j].Timestamp
 }
 
 func (os OrderedSketches) Swap(i, j int) {
 	os.sketches[i], os.sketches[j] = os.sketches[j], os.sketches[i]
 }
 
-// OrderedSketchSeries used to sort []*SketchSerie
+// OrderedSketchSeries used to sort []*SketchSeries
 type OrderedSketchSeries struct {
-	sketchSeries []*SketchSerie
+	sketchSeries []*percentile.SketchSeries
 }
 
 func (oss OrderedSketchSeries) Len() int {
@@ -61,7 +62,7 @@ func (oss OrderedSketchSeries) Len() int {
 }
 
 func (oss OrderedSketchSeries) Less(i, j int) bool {
-	return oss.sketchSeries[i].contextKey < oss.sketchSeries[j].contextKey
+	return oss.sketchSeries[i].ContextKey < oss.sketchSeries[j].ContextKey
 }
 
 func (oss OrderedSketchSeries) Swap(i, j int) {
@@ -93,20 +94,22 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 
 	sketchSeries := distSampler.flush(10020)
 
-	expectedSketch := QSketch{}
-	expectedSketch.Insert(1)
-	expectedSketch.Insert(2)
-	expectedSerie := &SketchSerie{
+	expectedSketch := percentile.NewQSketch()
+	expectedSketch.Add(1)
+	expectedSketch.Add(2)
+	expectedSketch.Compress()
+	expectedSeries := &percentile.SketchSeries{
 		Name:     "test.metric.name",
 		Tags:     []string{"a", "b"},
 		Interval: 10,
-		Sketches: []Sketch{
-			Sketch{int64(10000), expectedSketch},
-			Sketch{int64(10010), expectedSketch},
+		Sketches: []percentile.Sketch{
+			percentile.Sketch{Timestamp: int64(10000), Sketch: expectedSketch},
+			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch},
 		},
+		ContextKey: "test.metric.name,a,b,",
 	}
 	assert.Equal(t, 1, len(sketchSeries))
-	AssertSketchSerieEqual(t, expectedSerie, sketchSeries[0])
+	AssertSketchSeriesEqual(t, expectedSeries, sketchSeries[0])
 
 	// The samples added after the flush time remains in the dist sampler
 	assert.Equal(t, 1, len(distSampler.sketchesByTimestamp))
@@ -136,22 +139,29 @@ func TestDistSamplerContextSampling(t *testing.T) {
 	sort.Sort(orderedSketchSeries)
 	sketchSeries := orderedSketchSeries.sketchSeries
 
-	expectedSketch := QSketch{}
-	expectedSketch.Insert(1)
-	expectedSerie1 := &SketchSerie{
+	expectedSketch := percentile.NewQSketch()
+	expectedSketch.Add(1)
+	expectedSketch.Compress()
+	expectedSeries1 := &percentile.SketchSeries{
 		Name:     "test.metric.name1",
 		Tags:     []string{"a", "b"},
 		Interval: 10,
-		Sketches: []Sketch{Sketch{int64(10010), expectedSketch}},
+		Sketches: []percentile.Sketch{
+			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch},
+		},
+		ContextKey: "test.metric.name1,a,b,",
 	}
-	expectedSerie2 := &SketchSerie{
+	expectedSeries2 := &percentile.SketchSeries{
 		Name:     "test.metric.name2",
 		Tags:     []string{"a", "c"},
 		Interval: 10,
-		Sketches: []Sketch{Sketch{int64(10010), expectedSketch}},
+		Sketches: []percentile.Sketch{
+			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch},
+		},
+		ContextKey: "test.metric.name2,a,c,",
 	}
 
 	assert.Equal(t, 2, len(sketchSeries))
-	AssertSketchSerieEqual(t, expectedSerie1, sketchSeries[0])
-	AssertSketchSerieEqual(t, expectedSerie2, sketchSeries[1])
+	AssertSketchSeriesEqual(t, expectedSeries1, sketchSeries[0])
+	AssertSketchSeriesEqual(t, expectedSeries2, sketchSeries[1])
 }

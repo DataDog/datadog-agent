@@ -5,6 +5,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,15 +17,16 @@ func TestContextSketchSampling(t *testing.T) {
 	ctxSketch.addSample(contextKey, &MetricSample{Value: 5}, 3, 10)
 	resultSeries := ctxSketch.flush(12345)
 
-	expectedSketch := QSketch{}
-	expectedSketch.Insert(1)
-	expectedSketch.Insert(5)
-	expectedSerie := &SketchSerie{
-		contextKey: contextKey,
-		Sketches:   []Sketch{{int64(12345), expectedSketch}}}
+	expectedSketch := percentile.NewQSketch()
+	expectedSketch.Add(1)
+	expectedSketch.Add(5)
+	expectedSketch.Compress()
+	expectedSeries := &percentile.SketchSeries{
+		ContextKey: contextKey,
+		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch}}}
 
 	assert.Equal(t, 1, len(resultSeries))
-	AssertSketchSerieEqual(t, expectedSerie, resultSeries[0])
+	AssertSketchSeriesEqual(t, expectedSeries, resultSeries[0])
 
 	// No sketches should be flushed when there's no new sample since
 	// last flush
@@ -54,20 +56,22 @@ func TestContextSketchSamplingMultiContexts(t *testing.T) {
 	orderedSketchSeries := OrderedSketchSeries{ctxSketch.flush(12345)}
 	sort.Sort(orderedSketchSeries)
 
-	expectedSketch1 := QSketch{}
-	expectedSketch1.Insert(1)
-	expectedSketch1.Insert(3)
-	expectedSerie1 := &SketchSerie{
-		contextKey: contextKey1,
-		Sketches:   []Sketch{{int64(12345), expectedSketch1}}}
-	expectedSketch2 := QSketch{}
-	expectedSketch2.Insert(1)
-	expectedSerie2 := &SketchSerie{
-		contextKey: contextKey2,
-		Sketches:   []Sketch{{int64(12345), expectedSketch2}}}
+	expectedSketch1 := percentile.NewQSketch()
+	expectedSketch1.Add(1)
+	expectedSketch1.Add(3)
+	expectedSketch1.Compress()
+	expectedSeries1 := &percentile.SketchSeries{
+		ContextKey: contextKey1,
+		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch1}}}
+	expectedSketch2 := percentile.NewQSketch()
+	expectedSketch2.Add(1)
+	expectedSketch2.Compress()
+	expectedSeries2 := &percentile.SketchSeries{
+		ContextKey: contextKey2,
+		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch2}}}
 
 	assert.Equal(t, 2, orderedSketchSeries.Len())
 
-	AssertSketchSerieEqual(t, expectedSerie1, orderedSketchSeries.sketchSeries[0])
-	AssertSketchSerieEqual(t, expectedSerie2, orderedSketchSeries.sketchSeries[1])
+	AssertSketchSeriesEqual(t, expectedSeries1, orderedSketchSeries.sketchSeries[0])
+	AssertSketchSeriesEqual(t, expectedSeries2, orderedSketchSeries.sketchSeries[1])
 }

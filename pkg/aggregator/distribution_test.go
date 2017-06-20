@@ -3,6 +3,7 @@ package aggregator
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,16 +22,17 @@ func TestDistributionSampling(t *testing.T) {
 
 	assert.Equal(t, int64(3), distro.count)
 
-	sketchSerie, err := distro.flush(15)
+	sketchSeries, err := distro.flush(15)
 	assert.Nil(t, err)
 
-	expectedSketch := QSketch{}
-	expectedSketch.Insert(1)
-	expectedSketch.Insert(10)
-	expectedSketch.Insert(5)
-	expectedSerie := &SketchSerie{
-		Sketches: []Sketch{{int64(15), expectedSketch}}}
-	AssertSketchSerieEqual(t, expectedSerie, sketchSerie)
+	expectedSketch := percentile.NewQSketch()
+	expectedSketch.Add(1)
+	expectedSketch.Add(10)
+	expectedSketch.Add(5)
+	expectedSketch.Compress()
+	expectedSeries := &percentile.SketchSeries{
+		Sketches: []percentile.Sketch{{Timestamp: int64(15), Sketch: expectedSketch}}}
+	AssertSketchSeriesEqual(t, expectedSeries, sketchSeries)
 
 	// Global histogram is reset after a flush
 	assert.Equal(t, int64(0), distro.count)
