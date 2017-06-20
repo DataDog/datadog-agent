@@ -51,6 +51,7 @@ type LoaderErrorStats struct {
 	m      sync.Mutex
 }
 
+// AddError will safely add an error to the LoaderErrorStats
 func (les *LoaderErrorStats) AddError(check string, loader string, err string) {
 	les.m.Lock()
 	defer les.m.Unlock()
@@ -61,6 +62,7 @@ func (les *LoaderErrorStats) AddError(check string, loader string, err string) {
 	les.Errors[check][loader] = err
 }
 
+// Init will initialize the errors object
 func (les *LoaderErrorStats) Init() {
 	les.m.Lock()
 	defer les.m.Unlock()
@@ -68,6 +70,7 @@ func (les *LoaderErrorStats) Init() {
 	les.Errors = make(map[string]map[string]string)
 }
 
+// GetErrors will safely get the errors from a LoaderErrorStats object
 func (les *LoaderErrorStats) GetErrors() map[string]map[string]string {
 	les.m.Lock()
 	defer les.m.Unlock()
