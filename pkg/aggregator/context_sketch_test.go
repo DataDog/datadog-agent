@@ -23,7 +23,7 @@ func TestContextSketchSampling(t *testing.T) {
 	expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		ContextKey: contextKey,
-		Sketches:   []percentile.Sketch{{int64(12345), expectedSketch}}}
+		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch}}}
 
 	assert.Equal(t, 1, len(resultSeries))
 	AssertSketchSeriesEqual(t, expectedSeries, resultSeries[0])
@@ -62,13 +62,13 @@ func TestContextSketchSamplingMultiContexts(t *testing.T) {
 	expectedSketch1.Compress()
 	expectedSeries1 := &percentile.SketchSeries{
 		ContextKey: contextKey1,
-		Sketches:   []percentile.Sketch{{int64(12345), expectedSketch1}}}
+		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch1}}}
 	expectedSketch2 := percentile.NewQSketch()
 	expectedSketch2.Add(1)
 	expectedSketch2.Compress()
 	expectedSeries2 := &percentile.SketchSeries{
 		ContextKey: contextKey2,
-		Sketches:   []percentile.Sketch{{int64(12345), expectedSketch2}}}
+		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch2}}}
 
 	assert.Equal(t, 2, orderedSketchSeries.Len())
 

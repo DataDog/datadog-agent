@@ -103,10 +103,10 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 		Tags:     []string{"a", "b"},
 		Interval: 10,
 		Sketches: []percentile.Sketch{
-			percentile.Sketch{int64(10000), expectedSketch},
-			percentile.Sketch{int64(10010), expectedSketch},
+			percentile.Sketch{Timestamp: int64(10000), Sketch: expectedSketch},
+			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch},
 		},
-		ContextKey: "test.metric.name,a,b",
+		ContextKey: "test.metric.name,a,b,",
 	}
 	assert.Equal(t, 1, len(sketchSeries))
 	AssertSketchSeriesEqual(t, expectedSeries, sketchSeries[0])
@@ -147,18 +147,18 @@ func TestDistSamplerContextSampling(t *testing.T) {
 		Tags:     []string{"a", "b"},
 		Interval: 10,
 		Sketches: []percentile.Sketch{
-			percentile.Sketch{int64(10010), expectedSketch},
+			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch},
 		},
-		ContextKey: "test.metric.name1,a,b",
+		ContextKey: "test.metric.name1,a,b,",
 	}
 	expectedSeries2 := &percentile.SketchSeries{
 		Name:     "test.metric.name2",
 		Tags:     []string{"a", "c"},
 		Interval: 10,
 		Sketches: []percentile.Sketch{
-			percentile.Sketch{int64(10010), expectedSketch},
+			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch},
 		},
-		ContextKey: "test.metric.name2,a,c",
+		ContextKey: "test.metric.name2,a,c,",
 	}
 
 	assert.Equal(t, 2, len(sketchSeries))
