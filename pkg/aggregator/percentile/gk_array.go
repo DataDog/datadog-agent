@@ -125,21 +125,21 @@ func (s *GKArray) Merge(o GKArray) {
 	spread := int(EPSILON * float64(o.ValCount-1))
 
 	/*
-		Here is one way to merge summaries so that the sketch is one-way mergeable: we extract an epsilon-approximate
-		distribution from one of the summaries (o) and we insert this distribution into the other summary (s). More
-		specifically, to extract the approximate distribution, we can query for all the quantiles i/(o.valCount-1) where i
-		is between 0 and o.ValCount-1 (included). Then we insert those values into s as usual. This way, when querying a
-		quantile from the merged summary, the returned quantile has a rank error from the inserted values that is lower than
-		epsilon, but the inserted values, because of the merge process, have a rank error from the actual data that is also
-		lower than epsilon, so that the total rank error is bounded by 2*epsilon.
-		However, querying and inserting each value as described above has a complexity that is linear in the number of
-		values that have been inserted in o rather than in the number of entries in the summary. To tackle this issue, we
-		can notice that each of the quantiles that are queried from o is a v of one of the entry of o. Instead of actually
-		querying for those quantiles, we can count the number of times each v will be returned (when querying the quantiles
-	        i/(o.valCount-1)); we end up with the values n below. Then instead of successively inserting each v n times, we can
-		actually directly append them to s.incoming as new entries where g = n. This is possible because the values of n
-		will never violate the condition n <= int(s.eps * (s.ValCount+o.ValCount-1)). Also, we need to make sure that
-		compress() can handle entries in incoming where g > 1.
+			Here is one way to merge summaries so that the sketch is one-way mergeable: we extract an epsilon-approximate
+			distribution from one of the summaries (o) and we insert this distribution into the other summary (s). More
+			specifically, to extract the approximate distribution, we can query for all the quantiles i/(o.valCount-1) where i
+			is between 0 and o.ValCount-1 (included). Then we insert those values into s as usual. This way, when querying a
+			quantile from the merged summary, the returned quantile has a rank error from the inserted values that is lower than
+			epsilon, but the inserted values, because of the merge process, have a rank error from the actual data that is also
+			lower than epsilon, so that the total rank error is bounded by 2*epsilon.
+			However, querying and inserting each value as described above has a complexity that is linear in the number of
+			values that have been inserted in o rather than in the number of entries in the summary. To tackle this issue, we
+			can notice that each of the quantiles that are queried from o is a v of one of the entry of o. Instead of actually
+			querying for those quantiles, we can count the number of times each v will be returned (when querying the quantiles
+		        i/(o.valCount-1)); we end up with the values n below. Then instead of successively inserting each v n times, we can
+			actually directly append them to s.incoming as new entries where g = n. This is possible because the values of n
+			will never violate the condition n <= int(s.eps * (s.ValCount+o.ValCount-1)). Also, we need to make sure that
+			compress() can handle entries in incoming where g > 1.
 	*/
 
 	incomingEntries := make([]Entry, 0, len(o.Entries))

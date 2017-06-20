@@ -8,6 +8,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -280,7 +281,7 @@ func (agg *BufferedAggregator) flushSketches() {
 	// Serialize and forward in a separate goroutine
 	go func() {
 		log.Debug("Flushing ", len(sketchSeries), " sketches to the forwarder")
-		payload, err := MarshalJSONSketchSeries(sketchSeries)
+		payload, err := percentile.MarshalJSONSketchSeries(sketchSeries)
 		if err != nil {
 			log.Error("could not serialize sketches, dropping them:", err)
 		}

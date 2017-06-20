@@ -3,7 +3,6 @@ package aggregator
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/percentile"
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -178,54 +177,4 @@ func TestMarshalJSONEventsOmittedFields(t *testing.T) {
 	assert.NotNil(t, payload)
 	// These optional fields are not present in the serialized payload, and a default source type name is used
 	assert.Equal(t, payload, []byte("{\"apiKey\":\"testapikey\",\"events\":{\"api\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"host\":\"my-hostname\"}]},\"internalHostname\":\"test-hostname\"}\n"))
-}
-
-func TestMarshalJSONSketchSeries(t *testing.T) {
-	sketch1 := QSketch{
-		percentile.GKArray{
-			Entries: []percentile.Entry{{1, 1, 0}},
-			Min:     1, ValCount: 1}}
-	sketch2 := QSketch{
-		percentile.GKArray{
-			Entries: []percentile.Entry{{10, 1, 0}, {14, 3, 0}, {21, 2, 0}},
-			Min:     10, ValCount: 6}}
-	series := []*SketchSerie{{
-		contextKey: "test_context",
-		Sketches:   []Sketch{{int64(12345), sketch1}, {int64(67890), sketch2}},
-		Name:       "test.metrics",
-		Host:       "localHost",
-		Tags:       []string{"tag1", "tag2:yes"},
-	}}
-
-	payload, err := MarshalJSONSketchSeries(series)
-	assert.Nil(t, err)
-	assert.NotNil(t, payload)
-
-	expectedPayload := []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[[1,1,0]],\"min\":1,\"n\":1}},{\"timestamp\":67890,\"qsketch\":{\"entries\":[[10,1,0],[14,3,0],[21,2,0]],\"min\":10,\"n\":6}}]}]}\n")
-	assert.Equal(t, payload, []byte(expectedPayload))
-}
-
-func TestUnmarshalJSONSketchSeries(t *testing.T) {
-
-	payload := []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[[1,1,0]],\"min\":1,\"n\":1}},{\"timestamp\":67890,\"qsketch\":{\"entries\":[[10,1,0],[14,3,0],[21,2,0]],\"min\":10,\"n\":6}}]}]}\n")
-
-	sketch1 := QSketch{
-		percentile.GKArray{
-			Entries: []percentile.Entry{{1, 1, 0}},
-			Min:     1, ValCount: 1}}
-	sketch2 := QSketch{
-		percentile.GKArray{
-			Entries: []percentile.Entry{{10, 1, 0}, {14, 3, 0}, {21, 2, 0}},
-			Min:     10, ValCount: 6}}
-	expectedSeries := SketchSerie{
-		Sketches: []Sketch{{int64(12345), sketch1}, {int64(67890), sketch2}},
-		Name:     "test.metrics",
-		Host:     "localHost",
-		Tags:     []string{"tag1", "tag2:yes"},
-	}
-
-	data, err := UnmarshalJSONSketchSeries(payload)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(data))
-	AssertSketchSerieEqual(t, &expectedSeries, data[0])
 }
