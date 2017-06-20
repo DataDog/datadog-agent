@@ -3,6 +3,7 @@ package aggregator
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 
 	"github.com/gogo/protobuf/proto"
 
@@ -90,9 +91,29 @@ func MarshalEvents(events []*Event) ([]byte, error) {
 	return proto.Marshal(payload)
 }
 
-// MarshalJSONSeries serializea timeserie to JSON so it can be sent to V1 endpoints
+// populateDeviceField removes any `device:` tag in the series tags and uses the value to
+// populate the Serie.Device field
+// Mutates the `series` slice in place
+//FIXME(olivier): remove this as soon as the v1 API can handle `device` as a regular tag
+func populateDeviceField(series []*Serie) {
+	for _, serie := range series {
+		filteredTags := serie.Tags[:0] // use the same underlying array
+		for _, tag := range serie.Tags {
+			if strings.HasPrefix(tag, "device:") {
+				serie.Device = tag[7:]
+			} else {
+				filteredTags = append(filteredTags, tag)
+			}
+		}
+		serie.Tags = filteredTags
+	}
+}
+
+// MarshalJSONSeries serializes timeseries to JSON so it can be sent to V1 endpoints
 //FIXME(maxime): to be removed when v2 endpoints are available
 func MarshalJSONSeries(series []*Serie) ([]byte, error) {
+	populateDeviceField(series)
+
 	data := map[string][]*Serie{
 		"series": series,
 	}
