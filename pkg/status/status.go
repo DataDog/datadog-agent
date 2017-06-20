@@ -3,131 +3,50 @@ package status
 import (
 	"encoding/json"
 	"expvar"
-	"fmt"
-	"html/template"
-	"os"
-	"path/filepath"
-	"strings"
 
-	"github.com/kardianos/osext"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/version"
+	log "github.com/cihub/seelog"
 )
-
-var (
-	here, _        = osext.ExecutableFolder()
-	fmap           template.FuncMap
-	templateFolder string
-)
-
-func init() {
-	fmap = template.FuncMap{
-		"doNotEscape":        doNotEscape,
-		"lastError":          lastError,
-		"lastErrorTraceback": lastErrorTraceback,
-		"lastErrorMessage":   lastErrorMessage,
-		"pythonLoaderError":  pythonLoaderError,
-	}
-	templateFolder = filepath.Join(here, "dist", "templates")
-
-}
 
 // GetStatus grabs the status from expvar and puts it into a map
-func GetStatus() (map[string]string, error) {
-	stats := make(map[string]string)
-	forwarderStats := expvar.Get("forwarder").String()
-	stats["forwarderStats"] = forwarderStats
-	runnerStats := expvar.Get("runner").String()
-	stats["runnerStats"] = runnerStats
-	loaderStats := expvar.Get("loader").String()
-	stats["loaderStats"] = loaderStats
-	aggregatorStats := expvar.Get("aggregator").String()
-	stats["aggregatorStats"] = aggregatorStats
+func GetStatus() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+	stats, _ = expvarStats(stats)
+
+	stats["version"] = version.AgentVersion
+	hostname, err := util.GetHostname()
+	if err != nil {
+		log.Errorf("Error grabbing hostname for status: %v", err)
+		stats["metadata"] = host.GetPayload("unknown")
+	} else {
+		stats["metadata"] = host.GetPayload(hostname)
+	}
 
 	return stats, nil
 }
 
-// FormatStatus takes a json bytestring and prints out the formatted statuspage
-func FormatStatus(data []byte) (string, error) {
-	stats := make(map[string]string)
-	json.Unmarshal(data, &stats)
-	forwarderStats := stats["forwarderStats"]
-	runnerStats := stats["runnerStats"]
-	loaderStats := stats["loaderStats"]
-	aggregatorStats := stats["aggregatorStats"]
-	fmt.Println("===== AGENT STATUS =====")
-	getForwarderStatus([]byte(forwarderStats))
-	getChecksStats([]byte(runnerStats), []byte(loaderStats))
-	getAggregatorStatus([]byte(aggregatorStats))
-
-	return "", nil
-}
-
-func getAggregatorStatus(aggregatorStatsJSON []byte) {
-	aggregatorStats := make(map[string]interface{})
-
-	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
-
-	t := template.Must(template.New("aggregator.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "aggregator.tmpl")))
-	err := t.Execute(os.Stdout, aggregatorStats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
-
-func getForwarderStatus(forwarderStatsJSON []byte) {
+func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
+	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
-	t := template.Must(template.New("forwarder.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "forwarder.tmpl")))
-	err := t.Execute(os.Stdout, forwarderStats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
+	stats["forwarderStats"] = forwarderStats
 
-func getChecksStats(runnerStatsJSON []byte, loaderStatsJSON []byte) {
+	runnerStatsJSON := []byte(expvar.Get("runner").String())
 	runnerStats := make(map[string]interface{})
-	loaderStats := make(map[string]interface{})
 	json.Unmarshal(runnerStatsJSON, &runnerStats)
+	stats["runnerStats"] = runnerStats
+
+	loaderStatsJSON := []byte(expvar.Get("loader").String())
+	loaderStats := make(map[string]interface{})
 	json.Unmarshal(loaderStatsJSON, &loaderStats)
-	checkStats := make(map[string]map[string]interface{})
-	checkStats["RunnerStats"] = runnerStats
-	checkStats["LoaderStats"] = loaderStats
-	t := template.Must(template.New("checks.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "checks.tmpl")))
-	err := t.Execute(os.Stdout, checkStats)
-	if err != nil {
-		fmt.Println(err)
-	}
-}
+	stats["loaderStats"] = loaderStats
 
-func doNotEscape(value string) template.HTML {
-	return template.HTML(value)
-}
+	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
+	aggregatorStats := make(map[string]interface{})
+	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats)
+	stats["aggregatorStats"] = aggregatorStats
 
-func pythonLoaderError(value string) template.HTML {
-	value = strings.Replace(value, "', '", "", -1)
-	value = strings.Replace(value, "['", "", -1)
-	value = strings.Replace(value, "\\n']", "", -1)
-	value = strings.Replace(value, "']", "", -1)
-	value = strings.Replace(value, "\\n", "\n      ", -1)
-	var loaderErrorArray []string
-	json.Unmarshal([]byte(value), &loaderErrorArray)
-	return template.HTML(value)
-}
-
-func lastError(value string) template.HTML {
-	return template.HTML(value)
-}
-
-func lastErrorTraceback(value string) template.HTML {
-	var lastErrorArray []map[string]string
-
-	json.Unmarshal([]byte(value), &lastErrorArray)
-	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "\n", "\n    ", -1)
-	return template.HTML(lastErrorArray[0]["traceback"])
-}
-
-func lastErrorMessage(value string) template.HTML {
-	var lastErrorArray []map[string]string
-
-	json.Unmarshal([]byte(value), &lastErrorArray)
-	return template.HTML(lastErrorArray[0]["message"])
+	return stats, nil
 }

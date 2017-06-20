@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -9,12 +10,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var noFormatStatus bool
+var (
+	jsonStatus      bool
+	prettyPrintJSON bool
+)
 
 func init() {
 	AgentCmd.AddCommand(statusCmd)
 	statusCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to datadog.yaml")
-	statusCmd.Flags().BoolVarP(&noFormatStatus, "no-format", "j", false, "print out raw json")
+	statusCmd.Flags().BoolVarP(&jsonStatus, "json", "j", false, "print out raw json")
+	statusCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-print-json", "p", false, "print out raw json")
 }
 
 var statusCmd = &cobra.Command{
@@ -37,12 +42,12 @@ func requestStatus() error {
 	if e != nil {
 		return e
 	}
-	if noFormatStatus {
-		stats := make(map[string]string)
-		json.Unmarshal(r, &stats)
-		for key, value := range stats {
-			fmt.Printf("%v: %v\n\n", key, value)
-		}
+	if prettyPrintJSON {
+		var prettyJSON bytes.Buffer
+		json.Indent(&prettyJSON, r, "", "  ")
+		fmt.Println(prettyJSON.String())
+	} else if jsonStatus {
+		fmt.Println(string(r))
 	} else {
 		formattedStatus, err := status.FormatStatus(r)
 		if err != nil {
