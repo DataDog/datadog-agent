@@ -57,13 +57,18 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request for the status. Making status.")
 	s, err := status.GetStatus()
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
 		http.Error(w, err.Error(), 500)
 	}
 
-	jsonStats, _ := json.Marshal(s)
+	jsonStats, err := json.Marshal(s)
+	if err != nil {
+		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
+		http.Error(w, err.Error(), 500)
+	}
 
 	w.Write(jsonStats)
 }

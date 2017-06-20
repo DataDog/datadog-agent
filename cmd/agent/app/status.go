@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -33,7 +34,9 @@ var statusCmd = &cobra.Command{
 }
 
 func requestStatus() error {
-	fmt.Printf("Getting the status from the agent.\n\n")
+	fmt.Fprintf(os.Stderr, "Getting the status from the agent.\n\n")
+	// fmt.Errorf("Getting the status from the agent.\n\n")
+	// fmt.Printf("Getting the status from the agent.\n\n")
 	var e error
 	c := GetClient()
 	urlstr := "http://" + sockname + "/agent/status"

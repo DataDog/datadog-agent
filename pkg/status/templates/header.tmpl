@@ -5,7 +5,18 @@
   Status date: {{.time}}
   Pid: {{.pid}}
   Python Version: {{.platform.pythonV}}
-  Logs: <stderr>, /var/log/datadog/collector.log, syslog:/dev/log
+  Logs: {{.config.log_file}}
+  {{if .runnerStats.Workers -}}
+  Check Runners: {{.runnerStats.Workers}}
+  {{end -}}
+  Log Level: {{.config.log_level}}
+
+  Paths
+  =====
+
+    Config File: {{if .conf_file_used}}{{.conf_file_used}}{{else}}There is no config file{{end}}
+    conf.d: {{.config.confd_path}}
+    checks.d: {{.config.additional_checksd}}
 
   Clocks
   ======

@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"expvar"
 	"os"
+	"reflect"
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -19,7 +21,10 @@ var timeFormat = "2006-01-02 15:04:05.000000 UTC"
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
-	stats, _ = expvarStats(stats)
+	stats, err := expvarStats(stats)
+	if err != nil {
+		log.Errorf("Error Getting ExpVar Stats: %v", err)
+	}
 
 	stats["version"] = version.AgentVersion
 	hostname, err := util.GetHostname()
@@ -30,21 +35,44 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["metadata"] = host.GetPayload(hostname)
 	}
 
+	stats["config"] = getConfig()
+	stats["conf_file"] = config.Datadog.ConfigFileUsed()
+	// configStats := make(map[string]interface{})
+	log.Info(stats["config"])
+	_, e := json.Marshal(stats["config"])
+	if e != nil {
+		log.Info("Error: %v", e)
+	}
+
+	// json.Unmarshal(byte[](getConfig()), &configStats)
+
 	platformPayload, err := new(platform.Platform).Collect()
+	if err != nil {
+		return nil, err
+	}
 	stats["pid"] = os.Getpid()
 	stats["platform"] = platformPayload
 	stats["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 
-	if err != nil {
-		return nil, err
-	}
-
 	return stats, nil
 }
 
+func getConfig() map[string]interface{} {
+	var conf = config.Datadog.AllSettings()
+	newConf := make(map[string]interface{})
+	for k, v := range conf {
+		if k != "api_key" && k != "metadata_collectors" {
+			log.Infof("key: %v, type: %v --- value: %v, type: %v", k, reflect.TypeOf(k), v, reflect.TypeOf(v))
+			newConf[k] = v
+		}
+	}
+	return newConf
+}
+
 func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
+	var err error
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats)
@@ -66,8 +94,8 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	stats["aggregatorStats"] = aggregatorStats
 
 	if expvar.Get("ntpOffset").String() != "" {
-		stats["ntpOffset"], _ = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
+		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}
 
-	return stats, nil
+	return stats, err
 }
