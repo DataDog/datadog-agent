@@ -39,7 +39,10 @@ func createArchive(zipFilePath string, local bool) (string, error) {
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
-		zipStatusFile(zipFile, hostname)
+		err = zipStatusFile(zipFile, hostname)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	err = zipLogFiles(zipFile, hostname)
