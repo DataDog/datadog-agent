@@ -168,6 +168,121 @@ func TestContextSampling(t *testing.T) {
 	AssertSerieEqual(t, expectedSerie3, series[2])
 }
 
+func TestCounterExpirySeconds(t *testing.T) {
+	sampler := NewTimeSampler(10, "default-hostname")
+
+	sampleCounter1 := &MetricSample{
+		Name:       "my.counter1",
+		Value:      1,
+		Mtype:      CounterType,
+		Tags:       &[]string{"foo", "bar"},
+		SampleRate: 1,
+	}
+	contextCounter1 := "my.counter1,bar,foo,"
+
+	sampleCounter2 := &MetricSample{
+		Name:       "my.counter2",
+		Value:      2,
+		Mtype:      CounterType,
+		Tags:       &[]string{"foo", "bar"},
+		SampleRate: 1,
+	}
+	contextCounter2 := "my.counter2,bar,foo,"
+
+	sampleGauge3 := &MetricSample{
+		Name:       "my.gauge",
+		Value:      2,
+		Mtype:      GaugeType,
+		Tags:       &[]string{"foo", "bar"},
+		SampleRate: 1,
+	}
+
+	sampler.addSample(sampleCounter1, 1004)
+	sampler.addSample(sampleCounter2, 1002)
+	sampler.addSample(sampleGauge3, 1003)
+	require.Equal(t, 2, len(sampler.reportingCounters))
+
+	orderedSeries := OrderedSeries{sampler.flush(1010)}
+	sort.Sort(orderedSeries)
+
+	series := orderedSeries.series
+
+	expectedSerie1 := &Serie{
+		Name:     "my.counter1",
+		Points:   []Point{{int64(1000), float64(.1)}},
+		Tags:     []string{"bar", "foo"},
+		Host:     "default-hostname",
+		MType:    APIRateType,
+		Interval: 10,
+	}
+
+	expectedSerie2 := &Serie{
+		Name:     "my.counter2",
+		Points:   []Point{{int64(1000), float64(.2)}},
+		Tags:     []string{"bar", "foo"},
+		Host:     "default-hostname",
+		MType:    APIRateType,
+		Interval: 10,
+	}
+
+	require.Equal(t, 3, len(series))
+	AssertSerieEqual(t, expectedSerie1, series[0])
+	AssertSerieEqual(t, expectedSerie2, series[1])
+
+	sampleCounter1 = &MetricSample{
+		Name:       "my.counter1",
+		Value:      1,
+		Mtype:      CounterType,
+		Tags:       &[]string{"foo", "bar"},
+		SampleRate: 1,
+	}
+
+	sampler.addSample(sampleCounter1, 1010)
+	assert.Equal(t, 2, len(sampler.reportingCounters))
+	assert.True(t, sampler.reportingCounters[contextCounter1].sampled)
+	assert.False(t, sampler.reportingCounters[contextCounter2].sampled)
+
+	orderedSeries = OrderedSeries{sampler.flush(1020)}
+	sort.Sort(orderedSeries)
+
+	series = orderedSeries.series
+
+	expectedSerie1 = &Serie{
+		Name:     "my.counter1",
+		Points:   []Point{{int64(1010), float64(.1)}},
+		Tags:     []string{"bar", "foo"},
+		Host:     "default-hostname",
+		MType:    APIRateType,
+		Interval: 10,
+	}
+
+	expectedSerie2 = &Serie{
+		Name:     "my.counter2",
+		Points:   []Point{{int64(1010), float64(0)}},
+		Tags:     []string{"bar", "foo"},
+		Host:     "default-hostname",
+		MType:    APIRateType,
+		Interval: 10,
+	}
+
+	require.Equal(t, 2, len(series))
+	AssertSerieEqual(t, expectedSerie1, series[0])
+	AssertSerieEqual(t, expectedSerie2, series[1])
+
+	sampler.addSample(sampleCounter1, 1020)
+	series = sampler.flush(1030)
+
+	series = sampler.flush(1320)
+	// Counter2 stopped reporting but context is not expired
+	assert.Equal(t, 1, len(series))
+	assert.Equal(t, 2, len(sampler.contextResolver.contextsByKey))
+
+	series = sampler.flush(1800)
+	// Everything stopped reporting and is expired
+	assert.Equal(t, 0, len(series))
+	assert.Equal(t, 0, len(sampler.contextResolver.contextsByKey))
+}
+
 //func TestOne(t *testing.T) {
 //	assert.Equal(t, 1, 1)
 //}
