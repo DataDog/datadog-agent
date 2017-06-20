@@ -1,9 +1,12 @@
 package status
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -22,6 +25,9 @@ func init() {
 
 // FormatStatus takes a json bytestring and prints out the formatted statuspage
 func FormatStatus(data []byte) (string, error) {
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats)
 	forwarderStats := stats["forwarderStats"]
@@ -30,15 +36,17 @@ func FormatStatus(data []byte) (string, error) {
 	aggregatorStats := stats["aggregatorStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
-	renderHeader(stats)
-	renderChecksStats(runnerStats, loaderStats)
-	renderForwarderStatus(forwarderStats)
-	renderAggregatorStatus(aggregatorStats)
+	renderHeader(writer, stats)
+	renderChecksStats(writer, runnerStats, loaderStats)
+	renderForwarderStatus(writer, forwarderStats)
+	renderAggregatorStatus(writer, aggregatorStats)
 
-	return "", nil
+	b.String()
+
+	return b.String(), nil
 }
 
-func renderHeader(stats map[string]interface{}) {
+func renderHeader(w io.Writer, stats map[string]interface{}) {
 	t := template.Must(template.New("header.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "header.tmpl")))
 	err := t.Execute(os.Stdout, stats)
 	if err != nil {
@@ -46,7 +54,7 @@ func renderHeader(stats map[string]interface{}) {
 	}
 }
 
-func renderAggregatorStatus(aggregatorStats interface{}) {
+func renderAggregatorStatus(w io.Writer, aggregatorStats interface{}) {
 	t := template.Must(template.New("aggregator.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "aggregator.tmpl")))
 	err := t.Execute(os.Stdout, aggregatorStats)
 	if err != nil {
@@ -54,7 +62,7 @@ func renderAggregatorStatus(aggregatorStats interface{}) {
 	}
 }
 
-func renderForwarderStatus(forwarderStats interface{}) {
+func renderForwarderStatus(w io.Writer, forwarderStats interface{}) {
 	t := template.Must(template.New("forwarder.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "forwarder.tmpl")))
 	err := t.Execute(os.Stdout, forwarderStats)
 	if err != nil {
@@ -62,7 +70,7 @@ func renderForwarderStatus(forwarderStats interface{}) {
 	}
 }
 
-func renderChecksStats(runnerStats interface{}, loaderStats interface{}) {
+func renderChecksStats(w io.Writer, runnerStats interface{}, loaderStats interface{}) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
 	checkStats["LoaderStats"] = loaderStats

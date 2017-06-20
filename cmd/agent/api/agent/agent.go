@@ -22,6 +22,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
@@ -71,4 +72,15 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(jsonStats)
+}
+
+func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request for the formatted status. Making formtted status.")
+	s, err := status.GetAndFormatStatus()
+	if err != nil {
+		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
+		http.Error(w, err.Error(), 500)
+	}
+
+	w.Write(s)
 }

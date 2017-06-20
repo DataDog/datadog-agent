@@ -50,6 +50,26 @@ func GetStatus() (map[string]interface{}, error) {
 	return stats, nil
 }
 
+// GetAndFormatStatus gets and formats the status all in one go
+func GetAndFormatStatus() ([]byte, error) {
+	s, err := GetStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	statusJSON, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+
+	st, err := FormatStatus(statusJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(st), nil
+}
+
 func getConfig() map[string]interface{} {
 	var conf = config.Datadog.AllSettings()
 	newConf := make(map[string]interface{})

@@ -29,7 +29,10 @@ var statusCmd = &cobra.Command{
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		common.SetupConfig(confFilePath)
-		requestStatus()
+		err := requestStatus()
+		if err != nil {
+			fmt.Printf("Error Printing Status: %v", err)
+		}
 	},
 }
 
@@ -43,6 +46,7 @@ func requestStatus() error {
 
 	r, e := doGet(c, urlstr)
 	if e != nil {
+		fmt.Printf("Could not reach agent: %v. \n\n Make sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
 		return e
 	}
 	if prettyPrintJSON {
