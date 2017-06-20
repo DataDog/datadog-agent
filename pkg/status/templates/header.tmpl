@@ -27,13 +27,13 @@
   Host Info
   =========
     {{ range $type, $value := .hostinfo -}}
-    {{- if ne $type "hostname" -}} {{if $value}}
+    {{- if ne $type "hostname" -}} {{- if ne $type "hostid" -}} {{if $value}}
     {{$type}}: {{if eq $type "bootTime" -}}
     {{- formatUnixTime $value -}}
     {{- else -}}
     {{- $value -}}
     {{- end -}}
-    {{end -}} {{end -}} {{- end}}
+    {{end -}} {{end -}} {{end -}} {{- end}}
 
   Hostnames
   =========
