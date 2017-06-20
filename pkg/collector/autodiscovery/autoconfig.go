@@ -16,11 +16,12 @@ var (
 	configsPollIntl = 10 * time.Second
 	configPipeBuf   = 100
 	loaderStats     *expvar.Map
-	loaderErrors    = make(map[string]map[string]string)
+	loaderErrors    = new(LoaderErrorStats)
 )
 
 func init() {
 	loaderStats = expvar.NewMap("loader")
+	loaderErrors.Init()
 	loaderStats.Set("Errors", expvar.Func(expLoaderErrors))
 }
 
@@ -42,6 +43,36 @@ type AutoConfig struct {
 	configsPollTicker *time.Ticker
 	stop              chan bool
 	m                 sync.RWMutex
+}
+
+// LoaderErrorStats holds the error objects
+type LoaderErrorStats struct {
+	Errors map[string]map[string]string
+	m      sync.Mutex
+}
+
+func (les *LoaderErrorStats) AddError(check string, loader string, err string) {
+	les.m.Lock()
+	defer les.m.Unlock()
+
+	if les.Errors[check] == nil {
+		les.Errors[check] = make(map[string]string)
+	}
+	les.Errors[check][loader] = err
+}
+
+func (les *LoaderErrorStats) Init() {
+	les.m.Lock()
+	defer les.m.Unlock()
+
+	les.Errors = make(map[string]map[string]string)
+}
+
+func (les *LoaderErrorStats) GetErrors() map[string]map[string]string {
+	les.m.Lock()
+	defer les.m.Unlock()
+
+	return les.Errors
 }
 
 // NewAutoConfig creates an AutoConfig instance and start the goroutine
@@ -183,12 +214,8 @@ func (ac *AutoConfig) loadChecks(config check.Config) []check.Check {
 			log.Infof("%v: successfully loaded check '%s'", loader, config.Name)
 			return res
 		}
-		if loaderErrors[config.Name] == nil {
-			loaderErrors[config.Name] = make(map[string]string)
-		}
 
-		loaderErrors[config.Name][fmt.Sprintf("%v", loader)] = err.Error()
-
+		loaderErrors.AddError(config.Name, fmt.Sprintf("%v", loader), err.Error())
 		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
 	}
 
@@ -208,5 +235,5 @@ func (pd *providerDescriptor) contains(c *check.Config) bool {
 }
 
 func expLoaderErrors() interface{} {
-	return loaderErrors
+	return loaderErrors.GetErrors()
 }
