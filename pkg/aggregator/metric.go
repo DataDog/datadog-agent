@@ -22,6 +22,7 @@ type Serie struct {
 	Points         []Point       `json:"points"`
 	Tags           []string      `json:"tags"`
 	Host           string        `json:"host"`
+	Device         string        `json:"device,omitempty"` // FIXME(olivier): remove as soon as the v1 API can handle `device` as a regular tag
 	MType          APIMetricType `json:"type"`
 	Interval       int64         `json:"interval"`
 	SourceTypeName string        `json:"source_type_name,omitempty"`

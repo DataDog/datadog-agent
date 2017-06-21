@@ -109,6 +109,32 @@ func TestMarshalEvents(t *testing.T) {
 	assert.Equal(t, newPayload.Events[0].SourceTypeName, "test source")
 }
 
+func TestPopulateDeviceField(t *testing.T) {
+	series := []*Serie{
+		&Serie{},
+		&Serie{
+			Tags: []string{"some:tag", "device:/dev/sda1"},
+		},
+		&Serie{
+			Tags: []string{"some:tag", "device:/dev/sda2", "some_other:tag"},
+		},
+		&Serie{
+			Tags: []string{"yet_another:value", "one_last:tag_value"},
+		}}
+
+	populateDeviceField(series)
+
+	require.Len(t, series, 4)
+	assert.Empty(t, series[0].Tags)
+	assert.Empty(t, series[0].Device)
+	assert.Equal(t, series[1].Tags, []string{"some:tag"})
+	assert.Equal(t, series[1].Device, "/dev/sda1")
+	assert.Equal(t, series[2].Tags, []string{"some:tag", "some_other:tag"})
+	assert.Equal(t, series[2].Device, "/dev/sda2")
+	assert.Equal(t, series[3].Tags, []string{"yet_another:value", "one_last:tag_value"})
+	assert.Empty(t, series[3].Device)
+}
+
 func TestMarshalJSONSeries(t *testing.T) {
 	series := []*Serie{{
 		contextKey: "test_context",
@@ -119,14 +145,14 @@ func TestMarshalJSONSeries(t *testing.T) {
 		MType:          APIGaugeType,
 		Name:           "test.metrics",
 		Host:           "localHost",
-		Tags:           []string{"tag1", "tag2:yes"},
+		Tags:           []string{"tag1", "tag2:yes", "device:/dev/sda1"},
 		SourceTypeName: "System",
 	}}
 
 	payload, err := MarshalJSONSeries(series)
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
-	assert.Equal(t, payload, []byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"type\":\"gauge\",\"interval\":0,\"source_type_name\":\"System\"}]}\n"))
+	assert.Equal(t, payload, []byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device\":\"/dev/sda1\",\"type\":\"gauge\",\"interval\":0,\"source_type_name\":\"System\"}]}\n"))
 }
 
 func TestMarshalJSONServiceChecks(t *testing.T) {
