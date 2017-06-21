@@ -19,7 +19,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 		Mtype:      GaugeType,
 		Tags:       &[]string{"foo", "bar"},
 		SampleRate: 1,
-		Timestamp:  12345,
+		Timestamp:  12345.0,
 	}
 	mSample2 := MetricSample{
 		Name:       "my.metric.name",
@@ -27,7 +27,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 		Mtype:      GaugeType,
 		Tags:       &[]string{"foo", "bar"},
 		SampleRate: 1,
-		Timestamp:  12347,
+		Timestamp:  12347.0,
 	}
 	mSample3 := MetricSample{
 		Name:       "my.metric.name",
@@ -35,14 +35,14 @@ func TestCheckGaugeSampling(t *testing.T) {
 		Mtype:      GaugeType,
 		Tags:       &[]string{"foo", "bar", "baz"},
 		SampleRate: 1,
-		Timestamp:  12348,
+		Timestamp:  12348.0,
 	}
 
 	checkSampler.addSample(&mSample1)
 	checkSampler.addSample(&mSample2)
 	checkSampler.addSample(&mSample3)
 
-	checkSampler.commit(12349)
+	checkSampler.commit(12349.0)
 	orderedSeries := OrderedSeries{checkSampler.flush()}
 	sort.Sort(orderedSeries)
 	series := orderedSeries.series
@@ -50,7 +50,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 	expectedSerie1 := &Serie{
 		Name:           "my.metric.name",
 		Tags:           []string{"foo", "bar"},
-		Points:         []Point{{int64(12349), mSample2.Value}},
+		Points:         []Point{{12349.0, mSample2.Value}},
 		MType:          APIGaugeType,
 		SourceTypeName: checksSourceTypeName,
 		contextKey:     generateContextKey(&mSample2),
@@ -60,7 +60,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 	expectedSerie2 := &Serie{
 		Name:           "my.metric.name",
 		Tags:           []string{"foo", "bar", "baz"},
-		Points:         []Point{{int64(12349), mSample3.Value}},
+		Points:         []Point{{12349.0, mSample3.Value}},
 		MType:          APIGaugeType,
 		SourceTypeName: checksSourceTypeName,
 		contextKey:     generateContextKey(&mSample3),
@@ -86,15 +86,15 @@ func TestCheckRateSampling(t *testing.T) {
 		Mtype:      RateType,
 		Tags:       &[]string{"foo", "bar"},
 		SampleRate: 1,
-		Timestamp:  12345,
+		Timestamp:  12345.0,
 	}
 	mSample2 := MetricSample{
 		Name:       "my.metric.name",
-		Value:      2,
+		Value:      10,
 		Mtype:      RateType,
 		Tags:       &[]string{"foo", "bar"},
 		SampleRate: 1,
-		Timestamp:  12347,
+		Timestamp:  12347.5,
 	}
 	mSample3 := MetricSample{
 		Name:       "my.metric.name",
@@ -102,20 +102,20 @@ func TestCheckRateSampling(t *testing.T) {
 		Mtype:      RateType,
 		Tags:       &[]string{"foo", "bar", "baz"},
 		SampleRate: 1,
-		Timestamp:  12348,
+		Timestamp:  12348.0,
 	}
 
 	checkSampler.addSample(&mSample1)
 	checkSampler.addSample(&mSample2)
 	checkSampler.addSample(&mSample3)
 
-	checkSampler.commit(12349)
+	checkSampler.commit(12349.0)
 	series := checkSampler.flush()
 
 	expectedSerie := &Serie{
 		Name:           "my.metric.name",
 		Tags:           []string{"foo", "bar"},
-		Points:         []Point{{int64(12347), 0.5}},
+		Points:         []Point{{12347.5, 3.6}},
 		MType:          APIGaugeType,
 		SourceTypeName: checksSourceTypeName,
 		nameSuffix:     "",
@@ -135,7 +135,7 @@ func TestCheckSamplerHostname(t *testing.T) {
 		Mtype:      GaugeType,
 		Tags:       &[]string{"foo", "bar"},
 		SampleRate: 1,
-		Timestamp:  12345,
+		Timestamp:  12345.0,
 	}
 	mSample2 := MetricSample{
 		Name:       "my.metric.name",
@@ -149,7 +149,7 @@ func TestCheckSamplerHostname(t *testing.T) {
 
 	checkSampler.addSample(&mSample1)
 	checkSampler.addSample(&mSample2)
-	checkSampler.commit(12346)
+	checkSampler.commit(12346.0)
 	series := checkSampler.flush()
 
 	require.Len(t, series, 2)

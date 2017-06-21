@@ -51,5 +51,5 @@ type MetricSample struct {
 	Tags       *[]string
 	Host       string
 	SampleRate float64
-	Timestamp  int64
+	Timestamp  float64
 }

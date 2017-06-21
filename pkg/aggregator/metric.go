@@ -6,14 +6,14 @@ import (
 
 // Point represents a metric value at a specific time
 type Point struct {
-	Ts    int64
+	Ts    float64
 	Value float64
 }
 
 // MarshalJSON return a Point as an array of value (to be compatible with v1 API)
 // FIXME(maxime): to be removed when v2 endpoints are available
 func (p *Point) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("[%v, %v]", p.Ts, p.Value)), nil
+	return []byte(fmt.Sprintf("[%v, %v]", int64(p.Ts), p.Value)), nil
 }
 
 // Serie holds a timeseries (w/ json serialization to DD API format)
@@ -67,8 +67,8 @@ func (a APIMetricType) MarshalText() ([]byte, error) {
 
 // Metric is the interface of all metric types
 type Metric interface {
-	addSample(sample *MetricSample, timestamp int64)
-	flush(timestamp int64) ([]*Serie, error)
+	addSample(sample *MetricSample, timestamp float64)
+	flush(timestamp float64) ([]*Serie, error)
 }
 
 // NoSerieError is the error returned by a metric when not enough samples have been

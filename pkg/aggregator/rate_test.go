@@ -15,16 +15,16 @@ func TestRateSampling(t *testing.T) {
 
 	// Add samples
 	mRate1.addSample(&MetricSample{Value: 1}, 50)
-	mRate1.addSample(&MetricSample{Value: 2}, 55)
-	mRate2.addSample(&MetricSample{Value: 1}, 50)
+	mRate1.addSample(&MetricSample{Value: 11}, 52.5)
+	mRate2.addSample(&MetricSample{Value: 1}, 60)
 
 	// First rate
 	series, err := mRate1.flush(60)
 	assert.Nil(t, err)
 	assert.Len(t, series, 1)
 	assert.Len(t, series[0].Points, 1)
-	assert.InEpsilon(t, 0.2, series[0].Points[0].Value, epsilon)
-	assert.EqualValues(t, 55, series[0].Points[0].Ts)
+	assert.InEpsilon(t, 4., series[0].Points[0].Value, epsilon)
+	assert.EqualValues(t, 52.5, series[0].Points[0].Ts)
 
 	// Second rate (should return error)
 	_, err = mRate2.flush(60)

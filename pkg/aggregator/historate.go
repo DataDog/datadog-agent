@@ -6,20 +6,20 @@ package aggregator
 type Historate struct {
 	histogram         Histogram
 	previousSample    float64
-	previousTimestamp int64
+	previousTimestamp float64
 	sampled           bool
 }
 
-func (h *Historate) addSample(sample *MetricSample, timestamp int64) {
+func (h *Historate) addSample(sample *MetricSample, timestamp float64) {
 	if h.previousTimestamp != 0 {
-		v := (sample.Value - h.previousSample) / float64(timestamp-h.previousTimestamp)
+		v := (sample.Value - h.previousSample) / (timestamp - h.previousTimestamp)
 		h.histogram.addSample(&MetricSample{Value: v}, timestamp)
 		h.sampled = true
 	}
 	h.previousSample, h.previousTimestamp = sample.Value, timestamp
 }
 
-func (h *Historate) flush(timestamp int64) ([]*Serie, error) {
+func (h *Historate) flush(timestamp float64) ([]*Serie, error) {
 	if h.sampled == false {
 		return []*Serie{}, NoSerieError{}
 	}

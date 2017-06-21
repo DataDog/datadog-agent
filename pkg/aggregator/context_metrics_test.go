@@ -23,7 +23,7 @@ func TestContextMetricsGaugeSampling(t *testing.T) {
 
 	expectedSerie := &Serie{
 		contextKey: contextKey,
-		Points:     []Point{{int64(12345), mSample.Value}},
+		Points:     []Point{{12345.0, mSample.Value}},
 		MType:      APIGaugeType,
 		nameSuffix: "",
 	}
@@ -90,7 +90,7 @@ func TestContextMetricsRateSampling(t *testing.T) {
 	series = metrics.flush(12351)
 	expectedSerie := &Serie{
 		contextKey: contextKey,
-		Points:     []Point{{int64(12350), 1. / 10.}},
+		Points:     []Point{{12350.0, 1. / 10.}},
 		MType:      APIGaugeType,
 		nameSuffix: "",
 	}
@@ -109,7 +109,7 @@ func TestContextMetricsCountSampling(t *testing.T) {
 	series := metrics.flush(12350)
 	expectedSerie := &Serie{
 		contextKey: contextKey,
-		Points:     []Point{{int64(12350), 6.}},
+		Points:     []Point{{12350.0, 6.}},
 		MType:      APICountType,
 		nameSuffix: "",
 	}
@@ -128,7 +128,7 @@ func TestContextMetricsMonotonicCountSampling(t *testing.T) {
 	series := metrics.flush(12350)
 	expectedSerie := &Serie{
 		contextKey: contextKey,
-		Points:     []Point{{int64(12350), 4.}},
+		Points:     []Point{{12350.0, 4.}},
 		MType:      APICountType,
 		nameSuffix: "",
 	}
@@ -151,31 +151,31 @@ func TestContextMetricsHistogramSampling(t *testing.T) {
 	expectedSeries := []*Serie{
 		&Serie{
 			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 6.}},
+			Points:     []Point{{12351.0, 6.}},
 			MType:      APIGaugeType,
 			nameSuffix: ".max",
 		},
 		&Serie{
 			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 1.}},
+			Points:     []Point{{12351.0, 1.}},
 			MType:      APIGaugeType,
 			nameSuffix: ".median",
 		},
 		&Serie{
 			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 2.5}},
+			Points:     []Point{{12351.0, 2.5}},
 			MType:      APIGaugeType,
 			nameSuffix: ".avg",
 		},
 		&Serie{
 			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 4.}},
+			Points:     []Point{{12351.0, 4.}},
 			MType:      APIRateType,
 			nameSuffix: ".count",
 		},
 		&Serie{
 			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 6.}},
+			Points:     []Point{{12351.0, 6.}},
 			MType:      APIGaugeType,
 			nameSuffix: ".95percentile",
 		},
@@ -202,7 +202,7 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 	AssertSerieEqual(t,
 		&Serie{
 			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 2.}},
+			Points:     []Point{{12351.0, 2.}},
 			MType:      APIGaugeType,
 			nameSuffix: ".max",
 		},
@@ -211,7 +211,7 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 	AssertSerieEqual(t,
 		&Serie{
 			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 1.}},
+			Points:     []Point{{12351.0, 1.}},
 			MType:      APIGaugeType,
 			nameSuffix: ".median",
 		},
@@ -220,7 +220,7 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 	AssertSerieEqual(t,
 		&Serie{
 			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 1.0}},
+			Points:     []Point{{12351.0, 1.0}},
 			MType:      APIGaugeType,
 			nameSuffix: ".avg",
 		},
@@ -229,7 +229,7 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 	AssertSerieEqual(t,
 		&Serie{
 			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 3.}},
+			Points:     []Point{{12351.0, 3.}},
 			MType:      APIRateType,
 			nameSuffix: ".count",
 		},
@@ -238,7 +238,7 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 	AssertSerieEqual(t,
 		&Serie{
 			contextKey: contextKey,
-			Points:     []Point{{int64(12351), 2.}},
+			Points:     []Point{{12351.0, 2.}},
 			MType:      APIGaugeType,
 			nameSuffix: ".95percentile",
 		},

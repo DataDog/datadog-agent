@@ -18,7 +18,7 @@ func makeContextSketch() ContextSketch {
 	return ContextSketch(make(map[string]*Distribution))
 }
 
-func (c ContextSketch) addSample(contextKey string, sample *MetricSample, timestamp int64, interval int64) {
+func (c ContextSketch) addSample(contextKey string, sample *MetricSample, timestamp float64, interval int64) {
 	if math.IsInf(sample.Value, 0) {
 		log.Warn("Ignoring sample with +/-Inf value on context key:", contextKey)
 		return
@@ -29,7 +29,7 @@ func (c ContextSketch) addSample(contextKey string, sample *MetricSample, timest
 	c[contextKey].addSample(sample, timestamp)
 }
 
-func (c ContextSketch) flush(timestamp int64) []*percentile.SketchSeries {
+func (c ContextSketch) flush(timestamp float64) []*percentile.SketchSeries {
 	var sketches []*percentile.SketchSeries
 
 	for contextKey, distribution := range c {

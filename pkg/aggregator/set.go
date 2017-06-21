@@ -11,11 +11,11 @@ func NewSet() *Set {
 	return &Set{values: make(map[string]bool)}
 }
 
-func (s *Set) addSample(sample *MetricSample, timestamp int64) {
+func (s *Set) addSample(sample *MetricSample, timestamp float64) {
 	s.values[sample.RawValue] = true
 }
 
-func (s *Set) flush(timestamp int64) ([]*Serie, error) {
+func (s *Set) flush(timestamp float64) ([]*Serie, error) {
 	if len(s.values) == 0 {
 		return []*Serie{}, NoSerieError{}
 	}

@@ -15,7 +15,7 @@ func TestContextSketchSampling(t *testing.T) {
 
 	ctxSketch.addSample(contextKey, &MetricSample{Value: 1}, 1, 10)
 	ctxSketch.addSample(contextKey, &MetricSample{Value: 5}, 3, 10)
-	resultSeries := ctxSketch.flush(12345)
+	resultSeries := ctxSketch.flush(12345.0)
 
 	expectedSketch := percentile.NewQSketch()
 	expectedSketch.Add(1)
@@ -30,7 +30,7 @@ func TestContextSketchSampling(t *testing.T) {
 
 	// No sketches should be flushed when there's no new sample since
 	// last flush
-	resultSeries = ctxSketch.flush(12355)
+	resultSeries = ctxSketch.flush(12355.0)
 	assert.Equal(t, 0, len(resultSeries))
 }
 
@@ -41,7 +41,7 @@ func TestContextSketchSamplingInfinity(t *testing.T) {
 
 	ctxSketch.addSample(contextKey, &MetricSample{Value: math.Inf(1)}, 1, 10)
 	ctxSketch.addSample(contextKey, &MetricSample{Value: math.Inf(-1)}, 2, 10)
-	resultSeries := ctxSketch.flush(12345)
+	resultSeries := ctxSketch.flush(12345.0)
 
 	assert.Equal(t, 0, len(resultSeries))
 }
@@ -53,7 +53,7 @@ func TestContextSketchSamplingMultiContexts(t *testing.T) {
 	ctxSketch.addSample(contextKey1, &MetricSample{Value: 1}, 1, 10)
 	ctxSketch.addSample(contextKey2, &MetricSample{Value: 1}, 1, 10)
 	ctxSketch.addSample(contextKey1, &MetricSample{Value: 3}, 5, 10)
-	orderedSketchSeries := OrderedSketchSeries{ctxSketch.flush(12345)}
+	orderedSketchSeries := OrderedSketchSeries{ctxSketch.flush(12345.0)}
 	sort.Sort(orderedSketchSeries)
 
 	expectedSketch1 := percentile.NewQSketch()

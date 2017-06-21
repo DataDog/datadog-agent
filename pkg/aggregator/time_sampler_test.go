@@ -66,8 +66,8 @@ func (os OrderedSeries) Swap(i, j int) {
 func TestCalculateBucketStart(t *testing.T) {
 	sampler := NewTimeSampler(10, "")
 
-	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456))
-	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460))
+	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
+	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
 
 }
 
@@ -81,16 +81,16 @@ func TestBucketSampling(t *testing.T) {
 		Tags:       &[]string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	sampler.addSample(&mSample, 12345)
-	sampler.addSample(&mSample, 12355)
-	sampler.addSample(&mSample, 12365)
+	sampler.addSample(&mSample, 12345.0)
+	sampler.addSample(&mSample, 12355.0)
+	sampler.addSample(&mSample, 12365.0)
 
-	series := sampler.flush(12360)
+	series := sampler.flush(12360.0)
 
 	expectedSerie := &Serie{
 		Name:       "my.metric.name",
 		Tags:       []string{"foo", "bar"},
-		Points:     []Point{{int64(12340), mSample.Value}, {int64(12350), mSample.Value}},
+		Points:     []Point{{12340.0, mSample.Value}, {12350.0, mSample.Value}},
 		MType:      APIGaugeType,
 		Interval:   10,
 		nameSuffix: "",
@@ -128,18 +128,18 @@ func TestContextSampling(t *testing.T) {
 		SampleRate: 1,
 	}
 
-	sampler.addSample(&mSample1, 12346)
-	sampler.addSample(&mSample2, 12346)
-	sampler.addSample(&mSample3, 12346)
+	sampler.addSample(&mSample1, 12346.0)
+	sampler.addSample(&mSample2, 12346.0)
+	sampler.addSample(&mSample3, 12346.0)
 
-	orderedSeries := OrderedSeries{sampler.flush(12360)}
+	orderedSeries := OrderedSeries{sampler.flush(12360.0)}
 	sort.Sort(orderedSeries)
 
 	series := orderedSeries.series
 
 	expectedSerie1 := &Serie{
 		Name:     "my.metric.name1",
-		Points:   []Point{{int64(12340), float64(1)}},
+		Points:   []Point{{12340.0, float64(1)}},
 		Tags:     []string{"bar", "foo"},
 		Host:     "default-hostname",
 		MType:    APIGaugeType,
@@ -147,7 +147,7 @@ func TestContextSampling(t *testing.T) {
 	}
 	expectedSerie2 := &Serie{
 		Name:     "my.metric.name2",
-		Points:   []Point{{int64(12340), float64(1)}},
+		Points:   []Point{{12340.0, float64(1)}},
 		Tags:     []string{"bar", "foo"},
 		Host:     "default-hostname",
 		MType:    APIGaugeType,
@@ -155,7 +155,7 @@ func TestContextSampling(t *testing.T) {
 	}
 	expectedSerie3 := &Serie{
 		Name:     "my.metric.name3",
-		Points:   []Point{{int64(12340), float64(1)}},
+		Points:   []Point{{12340.0, float64(1)}},
 		Tags:     []string{"bar", "foo"},
 		Host:     "metric-hostname",
 		MType:    APIGaugeType,

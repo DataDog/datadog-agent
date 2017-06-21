@@ -16,20 +16,20 @@ func NewDistribution() *Distribution {
 	return &Distribution{sketch: percentile.NewQSketch()}
 }
 
-func (d *Distribution) addSample(sample *MetricSample, timestamp int64) {
+func (d *Distribution) addSample(sample *MetricSample, timestamp float64) {
 	// Insert sample value into the sketch
 	d.sketch.Add(sample.Value)
 	d.count++
 }
 
-func (d *Distribution) flush(timestamp int64) (*percentile.SketchSeries, error) {
+func (d *Distribution) flush(timestamp float64) (*percentile.SketchSeries, error) {
 	if d.count == 0 {
 		return &percentile.SketchSeries{}, percentile.NoSketchError{}
 	}
 	// compress the sketch before flushing
 	d.sketch.Compress()
 	sketch := &percentile.SketchSeries{
-		Sketches: []percentile.Sketch{{Timestamp: timestamp,
+		Sketches: []percentile.Sketch{{Timestamp: int64(timestamp),
 			Sketch: d.sketch}},
 	}
 	// reset the global histogram

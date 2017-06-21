@@ -1,10 +1,6 @@
 package aggregator
 
-import (
-	"time"
-)
-
-const defaultExpiry = 300 * time.Second // duration after which contexts are expired
+const defaultExpiry = 300.0 // number of seconds after which contexts are expired
 
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
 // from the same bucket can be merged into one
@@ -32,12 +28,12 @@ func NewTimeSampler(interval int64, defaultHostname string) *TimeSampler {
 	}
 }
 
-func (s *TimeSampler) calculateBucketStart(timestamp int64) int64 {
-	return timestamp - timestamp%s.interval
+func (s *TimeSampler) calculateBucketStart(timestamp float64) int64 {
+	return int64(timestamp) - int64(timestamp)%s.interval
 }
 
 // Add the metricSample to the correct bucket
-func (s *TimeSampler) addSample(metricSample *MetricSample, timestamp int64) {
+func (s *TimeSampler) addSample(metricSample *MetricSample, timestamp float64) {
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
 
@@ -53,7 +49,7 @@ func (s *TimeSampler) addSample(metricSample *MetricSample, timestamp int64) {
 	metrics.addSample(contextKey, metricSample, timestamp, s.interval)
 }
 
-func (s *TimeSampler) flush(timestamp int64) []*Serie {
+func (s *TimeSampler) flush(timestamp float64) []*Serie {
 	var result []*Serie
 
 	serieBySignature := make(map[SerieSignature]*Serie)
@@ -62,13 +58,13 @@ func (s *TimeSampler) flush(timestamp int64) []*Serie {
 	cutoffTime := s.calculateBucketStart(timestamp)
 
 	// Iter on each bucket
-	for timestamp, metrics := range s.metricsByTimestamp {
+	for bucketTimestamp, metrics := range s.metricsByTimestamp {
 		// disregard when the timestamp is too recent
-		if cutoffTime <= timestamp {
+		if cutoffTime <= bucketTimestamp {
 			continue
 		}
 
-		series := metrics.flush(timestamp)
+		series := metrics.flush(float64(bucketTimestamp))
 		for _, serie := range series {
 			serieSignature := SerieSignature{serie.MType, serie.contextKey, serie.nameSuffix}
 
@@ -91,10 +87,10 @@ func (s *TimeSampler) flush(timestamp int64) []*Serie {
 			}
 		}
 
-		delete(s.metricsByTimestamp, timestamp)
+		delete(s.metricsByTimestamp, bucketTimestamp)
 	}
 
-	s.contextResolver.expireContexts(timestamp - int64(defaultExpiry/time.Second))
+	s.contextResolver.expireContexts(timestamp - defaultExpiry)
 
 	return result
 }

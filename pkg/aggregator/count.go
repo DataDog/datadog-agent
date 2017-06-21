@@ -7,12 +7,12 @@ type Count struct {
 	sampled bool
 }
 
-func (c *Count) addSample(sample *MetricSample, timestamp int64) {
+func (c *Count) addSample(sample *MetricSample, timestamp float64) {
 	c.value += sample.Value
 	c.sampled = true
 }
 
-func (c *Count) flush(timestamp int64) ([]*Serie, error) {
+func (c *Count) flush(timestamp float64) ([]*Serie, error) {
 	value, sampled := c.value, c.sampled
 	c.value, c.sampled = 0, false
 
