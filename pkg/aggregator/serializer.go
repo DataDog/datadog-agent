@@ -31,11 +31,12 @@ func MarshalSeries(series []*Serie) ([]byte, error) {
 	for _, s := range series {
 		payload.Samples = append(payload.Samples,
 			&agentpayload.MetricsPayload_Sample{
-				Metric: s.Name,
-				Type:   s.MType.String(),
-				Host:   s.Host,
-				Points: marshalPoints(s.Points),
-				Tags:   s.Tags,
+				Metric:         s.Name,
+				Type:           s.MType.String(),
+				Host:           s.Host,
+				Points:         marshalPoints(s.Points),
+				Tags:           s.Tags,
+				SourceTypeName: s.SourceTypeName,
 			})
 	}
 
@@ -128,17 +129,6 @@ func MarshalJSONEvents(events []Event, apiKey string, hostname string) ([]byte, 
 		"apiKey":           apiKey,
 		"events":           eventsBySourceType,
 		"internalHostname": hostname,
-	}
-	reqBody := &bytes.Buffer{}
-	err := json.NewEncoder(reqBody).Encode(data)
-	return reqBody.Bytes(), err
-}
-
-// MarshalJSONSketchSeries serializes sketch series to JSON so it can be sent to
-// endpoints
-func MarshalJSONSketchSeries(sketches []*SketchSerie) ([]byte, error) {
-	data := map[string][]*SketchSerie{
-		"sketch_series": sketches,
 	}
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)

@@ -96,6 +96,7 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 		Value:      value,
 		Mtype:      mType,
 		Tags:       &tags,
+		Host:       hostname,
 		SampleRate: 1,
 		Timestamp:  time.Now().Unix(),
 	}

@@ -41,14 +41,20 @@ func nextPacket(datagram *[]byte) (packet []byte) {
 	return packet
 }
 
-func parseTags(rawTags []byte) []string {
+// parseTags parses `rawTags` and returns a slice of tags and the value of the `host:` tag if found
+func parseTags(rawTags []byte, extractHost bool) ([]string, string) {
+	var host string
 	tags := bytes.Split(rawTags[1:], []byte(","))
-	tagsList := make([]string, len(tags))
+	tagsList := make([]string, 0, len(tags))
 
-	for i := range tags {
-		tagsList[i] = string(tags[i])
+	for _, tag := range tags {
+		if extractHost && bytes.HasPrefix(tag, []byte("host:")) {
+			host = string(tag[5:])
+		} else {
+			tagsList = append(tagsList, string(tag))
+		}
 	}
-	return tagsList
+	return tagsList, host
 }
 
 func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
@@ -93,7 +99,7 @@ func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("h:")) {
 				service.Host = string(rawMetadataFields[i][2:])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
-				service.Tags = parseTags(rawMetadataFields[i])
+				service.Tags, _ = parseTags(rawMetadataFields[i], false)
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("m:")) {
 				service.Message = string(rawMetadataFields[i][2:])
 			} else {
@@ -189,7 +195,7 @@ func parseEventPacket(packet []byte) (*aggregator.Event, error) {
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("s:")) {
 				event.SourceTypeName = string(rawMetadataFields[i][2:])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
-				event.Tags = parseTags(rawMetadataFields[i])
+				event.Tags, _ = parseTags(rawMetadataFields[i], false)
 			} else {
 				log.Warnf("unknown metadata type: '%s'", rawMetadataFields[i])
 			}
@@ -223,6 +229,7 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 
 	// Metadata
 	var metricTags []string
+	var host string
 	rawSampleRate := []byte("1")
 	if len(splitPacket) > 2 {
 		rawMetadataFields := splitPacket[2:]
@@ -233,7 +240,7 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 			}
 
 			if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
-				metricTags = parseTags(rawMetadataFields[i])
+				metricTags, host = parseTags(rawMetadataFields[i], true)
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("@")) {
 				rawSampleRate = rawMetadataFields[i][1:]
 			} else {
@@ -260,6 +267,7 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 		Name:       metricName,
 		Mtype:      metricType,
 		Tags:       &metricTags,
+		Host:       host,
 		SampleRate: metricSampleRate,
 		Timestamp:  0,
 	}

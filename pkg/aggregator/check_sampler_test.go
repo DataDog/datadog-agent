@@ -7,6 +7,7 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCheckGaugeSampling(t *testing.T) {
@@ -47,21 +48,23 @@ func TestCheckGaugeSampling(t *testing.T) {
 	series := orderedSeries.series
 
 	expectedSerie1 := &Serie{
-		Name:       "my.metric.name",
-		Tags:       []string{"foo", "bar"},
-		Points:     []Point{{int64(12349), mSample2.Value}},
-		MType:      APIGaugeType,
-		contextKey: generateContextKey(&mSample2),
-		nameSuffix: "",
+		Name:           "my.metric.name",
+		Tags:           []string{"foo", "bar"},
+		Points:         []Point{{int64(12349), mSample2.Value}},
+		MType:          APIGaugeType,
+		SourceTypeName: checksSourceTypeName,
+		contextKey:     generateContextKey(&mSample2),
+		nameSuffix:     "",
 	}
 
 	expectedSerie2 := &Serie{
-		Name:       "my.metric.name",
-		Tags:       []string{"foo", "bar", "baz"},
-		Points:     []Point{{int64(12349), mSample3.Value}},
-		MType:      APIGaugeType,
-		contextKey: generateContextKey(&mSample3),
-		nameSuffix: "",
+		Name:           "my.metric.name",
+		Tags:           []string{"foo", "bar", "baz"},
+		Points:         []Point{{int64(12349), mSample3.Value}},
+		MType:          APIGaugeType,
+		SourceTypeName: checksSourceTypeName,
+		contextKey:     generateContextKey(&mSample3),
+		nameSuffix:     "",
 	}
 
 	orderedExpectedSeries := OrderedSeries{[]*Serie{expectedSerie1, expectedSerie2}}
@@ -110,11 +113,12 @@ func TestCheckRateSampling(t *testing.T) {
 	series := checkSampler.flush()
 
 	expectedSerie := &Serie{
-		Name:       "my.metric.name",
-		Tags:       []string{"foo", "bar"},
-		Points:     []Point{{int64(12347), 0.5}},
-		MType:      APIGaugeType,
-		nameSuffix: "",
+		Name:           "my.metric.name",
+		Tags:           []string{"foo", "bar"},
+		Points:         []Point{{int64(12347), 0.5}},
+		MType:          APIGaugeType,
+		SourceTypeName: checksSourceTypeName,
+		nameSuffix:     "",
 	}
 
 	if assert.Equal(t, 1, len(series)) {
@@ -133,12 +137,23 @@ func TestCheckSamplerHostname(t *testing.T) {
 		SampleRate: 1,
 		Timestamp:  12345,
 	}
+	mSample2 := MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      GaugeType,
+		Tags:       &[]string{"foo", "bar"},
+		Host:       "metric-hostname",
+		SampleRate: 1,
+		Timestamp:  12345,
+	}
 
 	checkSampler.addSample(&mSample1)
+	checkSampler.addSample(&mSample2)
 	checkSampler.commit(12346)
 	series := checkSampler.flush()
 
-	if assert.Len(t, series, 1) {
-		assert.Equal(t, "my.test.hostname", series[0].Host)
-	}
+	require.Len(t, series, 2)
+	actualHostnames := []string{series[0].Host, series[1].Host}
+	assert.Contains(t, actualHostnames, "my.test.hostname")
+	assert.Contains(t, actualHostnames, "metric-hostname")
 }

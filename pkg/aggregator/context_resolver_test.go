@@ -14,11 +14,12 @@ func TestGenerateContextKey(t *testing.T) {
 		Value:      1,
 		Mtype:      GaugeType,
 		Tags:       &[]string{"foo", "bar"},
+		Host:       "metric-hostname",
 		SampleRate: 1,
 	}
 
 	contextKey := generateContextKey(&mSample)
-	assert.Equal(t, "my.metric.name,bar,foo", contextKey)
+	assert.Equal(t, "my.metric.name,bar,foo,metric-hostname", contextKey)
 }
 
 func TestTrackContext(t *testing.T) {
@@ -36,6 +37,14 @@ func TestTrackContext(t *testing.T) {
 		Tags:       &[]string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
+	mSample3 := MetricSample{ // same as mSample2, with different Host
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      GaugeType,
+		Tags:       &[]string{"foo", "bar", "baz"},
+		Host:       "metric-hostname",
+		SampleRate: 1,
+	}
 	expectedContext1 := Context{
 		Name: mSample1.Name,
 		Tags: *(mSample1.Tags),
@@ -44,11 +53,17 @@ func TestTrackContext(t *testing.T) {
 		Name: mSample2.Name,
 		Tags: *(mSample2.Tags),
 	}
+	expectedContext3 := Context{
+		Name: mSample3.Name,
+		Tags: *(mSample3.Tags),
+		Host: mSample3.Host,
+	}
 	contextResolver := newContextResolver()
 
 	// Track the 2 contexts
 	contextKey1 := contextResolver.trackContext(&mSample1, 1)
 	contextKey2 := contextResolver.trackContext(&mSample2, 1)
+	contextKey3 := contextResolver.trackContext(&mSample3, 1)
 
 	// When we look up the 2 keys, they return the correct contexts
 	context1 := contextResolver.contextsByKey[contextKey1]
@@ -56,6 +71,9 @@ func TestTrackContext(t *testing.T) {
 
 	context2 := contextResolver.contextsByKey[contextKey2]
 	assert.Equal(t, expectedContext2, *context2)
+
+	context3 := contextResolver.contextsByKey[contextKey3]
+	assert.Equal(t, expectedContext3, *context3)
 
 	// Looking for a missing context key returns an error
 	_, ok := contextResolver.contextsByKey["missingContextKey"]

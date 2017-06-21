@@ -2,6 +2,8 @@ package aggregator
 
 import "time"
 
+const checksSourceTypeName = "System"
+
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
 	series          []*Serie
@@ -10,7 +12,7 @@ type CheckSampler struct {
 	defaultHostname string
 }
 
-// newCheckSampler returns a newly initialized CheckSample
+// newCheckSampler returns a newly initialized CheckSampler
 func newCheckSampler(hostname string) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*Serie, 0),
@@ -32,6 +34,7 @@ func (cs *CheckSampler) commit(timestamp int64) {
 		context := cs.contextResolver.contextsByKey[serie.contextKey]
 		serie.Name = context.Name + serie.nameSuffix
 		serie.Tags = context.Tags
+		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		if context.Host != "" {
 			serie.Host = context.Host
 		} else {

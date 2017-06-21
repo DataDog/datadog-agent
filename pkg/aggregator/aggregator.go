@@ -8,6 +8,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -209,9 +210,7 @@ func (agg *BufferedAggregator) addEvent(e Event) {
 
 // addSample adds the metric sample to either the sampler or distSampler
 func (agg *BufferedAggregator) addSample(metricSample *MetricSample, timestamp int64) {
-	log.Infof("Adding sample of type %s", metricSample.Mtype)
 	if metricSample.Mtype == DistributionType {
-		log.Infof("Adding sample to Distribution %v", metricSample.Value)
 		agg.distSampler.addSample(metricSample, timestamp)
 	} else {
 		agg.sampler.addSample(metricSample, timestamp)
@@ -282,13 +281,12 @@ func (agg *BufferedAggregator) flushSketches() {
 	// Serialize and forward in a separate goroutine
 	go func() {
 		log.Debug("Flushing ", len(sketchSeries), " sketches to the forwarder")
-		payload, err := MarshalJSONSketchSeries(sketchSeries)
+		payload, err := percentile.MarshalJSONSketchSeries(sketchSeries)
 		if err != nil {
 			log.Error("could not serialize sketches, dropping them:", err)
 		}
 		agg.forwarder.SubmitV1SketchSeries(config.Datadog.GetString("api_key"), &payload)
-		log.Infof("Forwarding sketch %v", string(payload))
-		addFlushTime("MetricSketchFlushTIme", int64(time.Since(start)))
+		addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("SketchesFlushed", int64(len(sketchSeries)))
 	}()
 }

@@ -12,7 +12,7 @@ imports:
   - pkg/pathutil
   - pkg/types
 - name: github.com/DataDog/agent-payload
-  version: 091e000da55ab18aca225f8338abe8338b959aea
+  version: 0b7d55a8fb246702cc0321f68631d746c07d6ddb
   subpackages:
   - gogen
 - name: github.com/DataDog/datadog-go

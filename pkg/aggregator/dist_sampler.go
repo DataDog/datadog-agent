@@ -2,6 +2,8 @@ package aggregator
 
 import (
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 )
 
 // FIXME(Jee) : This should be integrated with time_sampler.go since it
@@ -41,10 +43,10 @@ func (d *DistSampler) addSample(metricSample *MetricSample, timestamp int64) {
 	sketch.addSample(contextKey, metricSample, timestamp, d.interval)
 }
 
-func (d *DistSampler) flush(timestamp int64) []*SketchSerie {
-	var result []*SketchSerie
+func (d *DistSampler) flush(timestamp int64) []*percentile.SketchSeries {
+	var result []*percentile.SketchSeries
 
-	sketchesByContext := make(map[string]*SketchSerie)
+	sketchesByContext := make(map[string]*percentile.SketchSeries)
 
 	cutoffTime := d.calculateBucketStart(timestamp)
 	for timestamp, ctxSketch := range d.sketchesByTimestamp {
@@ -53,24 +55,24 @@ func (d *DistSampler) flush(timestamp int64) []*SketchSerie {
 		}
 
 		sketches := ctxSketch.flush(timestamp)
-		for _, sketchSerie := range sketches {
-			contextKey := sketchSerie.contextKey
+		for _, sketchSeries := range sketches {
+			contextKey := sketchSeries.ContextKey
 
-			if existingSerie, ok := sketchesByContext[contextKey]; ok {
-				existingSerie.Sketches = append(existingSerie.Sketches, sketchSerie.Sketches[0])
+			if existingSeries, ok := sketchesByContext[contextKey]; ok {
+				existingSeries.Sketches = append(existingSeries.Sketches, sketchSeries.Sketches[0])
 			} else {
 				context := d.contextResolver.contextsByKey[contextKey]
-				sketchSerie.Name = context.Name
-				sketchSerie.Tags = context.Tags
+				sketchSeries.Name = context.Name
+				sketchSeries.Tags = context.Tags
 				if context.Host != "" {
-					sketchSerie.Host = context.Host
+					sketchSeries.Host = context.Host
 				} else {
-					sketchSerie.Host = d.defaultHostname
+					sketchSeries.Host = d.defaultHostname
 				}
-				sketchSerie.Interval = d.interval
+				sketchSeries.Interval = d.interval
 
-				sketchesByContext[contextKey] = sketchSerie
-				result = append(result, sketchSerie)
+				sketchesByContext[contextKey] = sketchSeries
+				result = append(result, sketchSeries)
 			}
 		}
 		delete(d.sketchesByTimestamp, timestamp)

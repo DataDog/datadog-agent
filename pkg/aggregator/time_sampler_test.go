@@ -8,6 +8,7 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Helper(s)
@@ -20,6 +21,7 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.MType, actual.MType)
 	assert.Equal(t, expected.Interval, actual.Interval)
+	assert.Equal(t, expected.SourceTypeName, actual.SourceTypeName)
 	if expected.contextKey != "" {
 		// Only test the contextKey if it's set in the expected Serie
 		assert.Equal(t, expected.contextKey, actual.contextKey)
@@ -101,7 +103,7 @@ func TestBucketSampling(t *testing.T) {
 }
 
 func TestContextSampling(t *testing.T) {
-	sampler := NewTimeSampler(10, "")
+	sampler := NewTimeSampler(10, "default-hostname")
 
 	mSample1 := MetricSample{
 		Name:       "my.metric.name1",
@@ -117,9 +119,18 @@ func TestContextSampling(t *testing.T) {
 		Tags:       &[]string{"foo", "bar"},
 		SampleRate: 1,
 	}
+	mSample3 := MetricSample{
+		Name:       "my.metric.name3",
+		Value:      1,
+		Mtype:      GaugeType,
+		Tags:       &[]string{"foo", "bar"},
+		Host:       "metric-hostname",
+		SampleRate: 1,
+	}
 
 	sampler.addSample(&mSample1, 12346)
 	sampler.addSample(&mSample2, 12346)
+	sampler.addSample(&mSample3, 12346)
 
 	orderedSeries := OrderedSeries{sampler.flush(12360)}
 	sort.Sort(orderedSeries)
@@ -130,6 +141,7 @@ func TestContextSampling(t *testing.T) {
 		Name:     "my.metric.name1",
 		Points:   []Point{{int64(12340), float64(1)}},
 		Tags:     []string{"bar", "foo"},
+		Host:     "default-hostname",
 		MType:    APIGaugeType,
 		Interval: 10,
 	}
@@ -137,14 +149,23 @@ func TestContextSampling(t *testing.T) {
 		Name:     "my.metric.name2",
 		Points:   []Point{{int64(12340), float64(1)}},
 		Tags:     []string{"bar", "foo"},
+		Host:     "default-hostname",
+		MType:    APIGaugeType,
+		Interval: 10,
+	}
+	expectedSerie3 := &Serie{
+		Name:     "my.metric.name3",
+		Points:   []Point{{int64(12340), float64(1)}},
+		Tags:     []string{"bar", "foo"},
+		Host:     "metric-hostname",
 		MType:    APIGaugeType,
 		Interval: 10,
 	}
 
-	if assert.Equal(t, 2, len(series)) {
-		AssertSerieEqual(t, expectedSerie1, series[0])
-		AssertSerieEqual(t, expectedSerie2, series[1])
-	}
+	require.Equal(t, 3, len(series))
+	AssertSerieEqual(t, expectedSerie1, series[0])
+	AssertSerieEqual(t, expectedSerie2, series[1])
+	AssertSerieEqual(t, expectedSerie3, series[2])
 }
 
 //func TestOne(t *testing.T) {
