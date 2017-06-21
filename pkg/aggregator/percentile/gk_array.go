@@ -83,6 +83,11 @@ func (s *GKArray) Quantile(q float64) float64 {
 		return math.NaN()
 	}
 
+	// Interpolate the quantile when there are only a few values.
+	if s.ValCount < int(1/EPSILON) {
+		return s.interpolatedQuantile(q)
+	}
+
 	if len(s.Entries) == 0 {
 		sort.Float64s(s.incoming)
 		return s.incoming[int(q*float64(s.ValCount-1))]
@@ -107,6 +112,26 @@ func (s *GKArray) Quantile(q float64) float64 {
 		return s.Min
 	}
 	return s.Entries[i-1].V
+}
+
+// interpolatedQuantile returns an estimate of the element at quantile q,
+// but interpolates between the lower and higher elements when ValCount is
+// less than 1/EPSILON
+func (s *GKArray) interpolatedQuantile(q float64) float64 {
+	rank := q * float64(s.ValCount-1)
+	indexBelow := int(rank)
+	indexAbove := indexBelow + 1
+	if indexAbove > s.ValCount-1 {
+		indexAbove = s.ValCount - 1
+	}
+	weightAbove := rank - float64(indexBelow)
+	weightBelow := 1.0 - weightAbove
+
+	if len(s.incoming) > 0 {
+		s.compress(nil)
+	}
+	// When ValCount is less than 1/EPSILON, all the entries will have G = 1, Delta = 0.
+	return weightBelow*s.Entries[indexBelow].V + weightAbove*s.Entries[indexAbove].V
 }
 
 // Merge another GKArray into this in-place.
