@@ -62,9 +62,9 @@ func (s *TimeSampler) flush(timestamp int64) []*Serie {
 	cutoffTime := s.calculateBucketStart(timestamp)
 
 	// Iter on each bucket
-	for timestamp, metrics := range s.metricsByTimestamp {
+	for bucketTimestamp, metrics := range s.metricsByTimestamp {
 		// disregard when the timestamp is too recent
-		if cutoffTime <= timestamp {
+		if cutoffTime <= bucketTimestamp {
 			continue
 		}
 
@@ -91,7 +91,7 @@ func (s *TimeSampler) flush(timestamp int64) []*Serie {
 			}
 		}
 
-		delete(s.metricsByTimestamp, timestamp)
+		delete(s.metricsByTimestamp, bucketTimestamp)
 	}
 
 	s.contextResolver.expireContexts(timestamp - int64(defaultExpiry/time.Second))
