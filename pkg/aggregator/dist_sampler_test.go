@@ -92,7 +92,7 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 	distSampler.addSample(&mSample2, 10012)
 	distSampler.addSample(&mSample1, 10021)
 
-	sketchSeries := distSampler.flush(10020)
+	sketchSeries := distSampler.flush(10020.0)
 
 	expectedSketch := percentile.NewQSketch()
 	expectedSketch.Add(1)
@@ -135,7 +135,7 @@ func TestDistSamplerContextSampling(t *testing.T) {
 	distSampler.addSample(&mSample1, 10011)
 	distSampler.addSample(&mSample2, 10011)
 
-	orderedSketchSeries := OrderedSketchSeries{distSampler.flush(10020)}
+	orderedSketchSeries := OrderedSketchSeries{distSampler.flush(10020.0)}
 	sort.Sort(orderedSketchSeries)
 	sketchSeries := orderedSketchSeries.sketchSeries
 

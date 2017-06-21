@@ -14,8 +14,8 @@ func TestMarshalSeries(t *testing.T) {
 	series := []*Serie{{
 		contextKey: "test_context",
 		Points: []Point{
-			{int64(12345), float64(21.21)},
-			{int64(67890), float64(12.12)},
+			{12345.0, float64(21.21)},
+			{67890.0, float64(12.12)},
 		},
 		MType: APIGaugeType,
 		Name:  "test.metrics",
@@ -139,8 +139,8 @@ func TestMarshalJSONSeries(t *testing.T) {
 	series := []*Serie{{
 		contextKey: "test_context",
 		Points: []Point{
-			{int64(12345), float64(21.21)},
-			{int64(67890), float64(12.12)},
+			{12345.0, float64(21.21)},
+			{67890.0, float64(12.12)},
 		},
 		MType:          APIGaugeType,
 		Name:           "test.metrics",

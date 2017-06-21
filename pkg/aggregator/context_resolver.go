@@ -19,7 +19,7 @@ type Context struct {
 // ContextResolver allows tracking and expiring contexts
 type ContextResolver struct {
 	contextsByKey map[string]*Context
-	lastSeenByKey map[string]int64
+	lastSeenByKey map[string]float64
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -37,12 +37,12 @@ func generateContextKey(metricSample *MetricSample) string {
 func newContextResolver() *ContextResolver {
 	return &ContextResolver{
 		contextsByKey: make(map[string]*Context),
-		lastSeenByKey: make(map[string]int64),
+		lastSeenByKey: make(map[string]float64),
 	}
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *ContextResolver) trackContext(metricSample *MetricSample, currentTimestamp int64) string {
+func (cr *ContextResolver) trackContext(metricSample *MetricSample, currentTimestamp float64) string {
 	contextKey := generateContextKey(metricSample)
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		cr.contextsByKey[contextKey] = &Context{
@@ -58,7 +58,7 @@ func (cr *ContextResolver) trackContext(metricSample *MetricSample, currentTimes
 
 // expireContexts cleans up the contexts that haven't been tracked since the given timestamp
 // and returns the associated contextKeys
-func (cr *ContextResolver) expireContexts(expireTimestamp int64) []string {
+func (cr *ContextResolver) expireContexts(expireTimestamp float64) []string {
 	var expiredContextKeys []string
 
 	// Find expired context keys

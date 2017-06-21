@@ -6,12 +6,12 @@ type Gauge struct {
 	sampled bool
 }
 
-func (g *Gauge) addSample(sample *MetricSample, timestamp int64) {
+func (g *Gauge) addSample(sample *MetricSample, timestamp float64) {
 	g.gauge = sample.Value
 	g.sampled = true
 }
 
-func (g *Gauge) flush(timestamp int64) ([]*Serie, error) {
+func (g *Gauge) flush(timestamp float64) ([]*Serie, error) {
 	value, sampled := g.gauge, g.sampled
 	g.gauge, g.sampled = 0, false
 

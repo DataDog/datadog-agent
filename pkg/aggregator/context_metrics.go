@@ -14,7 +14,7 @@ func makeContextMetrics() ContextMetrics {
 }
 
 // TODO: Pass a reference to *MetricSample instead
-func (m ContextMetrics) addSample(contextKey string, sample *MetricSample, timestamp int64, interval int64) {
+func (m ContextMetrics) addSample(contextKey string, sample *MetricSample, timestamp float64, interval int64) {
 	if math.IsInf(sample.Value, 0) {
 		log.Warn("Ignoring sample with +/-Inf value on context key:", contextKey)
 		return
@@ -45,7 +45,7 @@ func (m ContextMetrics) addSample(contextKey string, sample *MetricSample, times
 	m[contextKey].addSample(sample, timestamp)
 }
 
-func (m ContextMetrics) flush(timestamp int64) []*Serie {
+func (m ContextMetrics) flush(timestamp float64) []*Serie {
 	var series []*Serie
 
 	for contextKey, metric := range m {

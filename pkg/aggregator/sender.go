@@ -91,6 +91,7 @@ func (s *checkSender) Commit() {
 
 func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType MetricType) {
 	log.Debug(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+
 	metricSample := &MetricSample{
 		Name:       metric,
 		Value:      value,
@@ -98,7 +99,7 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 		Tags:       &tags,
 		Host:       hostname,
 		SampleRate: 1,
-		Timestamp:  time.Now().Unix(),
+		Timestamp:  timeNowNano(),
 	}
 
 	s.smsOut <- senderMetricSample{s.id, metricSample, false}

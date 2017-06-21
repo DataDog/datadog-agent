@@ -17,12 +17,12 @@ func NewCounter(interval int64) *Counter {
 	}
 }
 
-func (c *Counter) addSample(sample *MetricSample, timestamp int64) {
+func (c *Counter) addSample(sample *MetricSample, timestamp float64) {
 	c.value += sample.Value * (1 / sample.SampleRate)
 	c.sampled = true
 }
 
-func (c *Counter) flush(timestamp int64) ([]*Serie, error) {
+func (c *Counter) flush(timestamp float64) ([]*Serie, error) {
 	value, sampled := c.value, c.sampled
 	c.value, c.sampled = 0, false
 

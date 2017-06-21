@@ -15,7 +15,7 @@ func marshalPoints(points []Point) []*agentpayload.MetricsPayload_Sample_Point {
 
 	for _, p := range points {
 		pointsPayload = append(pointsPayload, &agentpayload.MetricsPayload_Sample_Point{
-			Ts:    p.Ts,
+			Ts:    int64(p.Ts),
 			Value: p.Value,
 		})
 	}

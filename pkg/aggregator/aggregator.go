@@ -47,6 +47,10 @@ func expStats() interface{} {
 	return flushStats
 }
 
+func timeNowNano() float64 {
+	return float64(time.Now().UnixNano()) / float64(time.Second) // Unix time with nanosecond precision
+}
+
 var (
 	aggregatorInstance *BufferedAggregator
 	aggregatorInit     sync.Once
@@ -174,8 +178,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
-			now := time.Now().Unix()
-			checkSampler.commit(now)
+			checkSampler.commit(timeNowNano())
 		} else {
 			checkSampler.addSample(ss.metricSample)
 		}
@@ -209,7 +212,7 @@ func (agg *BufferedAggregator) addEvent(e Event) {
 }
 
 // addSample adds the metric sample to either the sampler or distSampler
-func (agg *BufferedAggregator) addSample(metricSample *MetricSample, timestamp int64) {
+func (agg *BufferedAggregator) addSample(metricSample *MetricSample, timestamp float64) {
 	if metricSample.Mtype == DistributionType {
 		agg.distSampler.addSample(metricSample, timestamp)
 	} else {
@@ -219,7 +222,7 @@ func (agg *BufferedAggregator) addSample(metricSample *MetricSample, timestamp i
 
 func (agg *BufferedAggregator) flushSeries() {
 	start := time.Now()
-	series := agg.sampler.flush(start.Unix())
+	series := agg.sampler.flush(timeNowNano())
 	agg.mu.Lock()
 	for _, checkSampler := range agg.checkSamplers {
 		series = append(series, checkSampler.flush()...)
@@ -272,7 +275,7 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 
 func (agg *BufferedAggregator) flushSketches() {
 	start := time.Now()
-	sketchSeries := agg.distSampler.flush(start.Unix())
+	sketchSeries := agg.distSampler.flush(timeNowNano())
 
 	if len(sketchSeries) == 0 {
 		return
@@ -333,8 +336,7 @@ func (agg *BufferedAggregator) run() {
 			aggregatorExpvar.Add("NumberOfFlush", 1)
 		case sample := <-agg.dogstatsdIn:
 			aggregatorExpvar.Add("DogstatsdMetricSample", 1)
-			now := time.Now().Unix()
-			agg.addSample(sample, now)
+			agg.addSample(sample, timeNowNano())
 		case ss := <-agg.checkMetricIn:
 			aggregatorExpvar.Add("ChecksMetricSample", 1)
 			agg.handleSenderSample(ss)

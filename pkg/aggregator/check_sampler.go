@@ -1,7 +1,5 @@
 package aggregator
 
-import "time"
-
 const checksSourceTypeName = "System"
 
 // CheckSampler aggregates metrics from one Check instance
@@ -28,7 +26,7 @@ func (cs *CheckSampler) addSample(metricSample *MetricSample) {
 	cs.metrics.addSample(contextKey, metricSample, metricSample.Timestamp, 1)
 }
 
-func (cs *CheckSampler) commit(timestamp int64) {
+func (cs *CheckSampler) commit(timestamp float64) {
 	for _, serie := range cs.metrics.flush(timestamp) {
 		// Resolve context and populate new []Serie
 		context := cs.contextResolver.contextsByKey[serie.contextKey]
@@ -44,7 +42,7 @@ func (cs *CheckSampler) commit(timestamp int64) {
 		cs.series = append(cs.series, serie)
 	}
 
-	cs.contextResolver.expireContexts(timestamp - int64(defaultExpiry/time.Second))
+	cs.contextResolver.expireContexts(timestamp - defaultExpiry)
 }
 
 func (cs *CheckSampler) flush() []*Serie {

@@ -1,8 +1,6 @@
 package aggregator
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 )
 
@@ -27,12 +25,12 @@ func NewDistSampler(interval int64, defaultHostname string) *DistSampler {
 	}
 }
 
-func (d *DistSampler) calculateBucketStart(timestamp int64) int64 {
-	return timestamp - timestamp%d.interval
+func (d *DistSampler) calculateBucketStart(timestamp float64) int64 {
+	return int64(timestamp) - int64(timestamp)%d.interval
 }
 
 // Add the metricSample to the correct sketch
-func (d *DistSampler) addSample(metricSample *MetricSample, timestamp int64) {
+func (d *DistSampler) addSample(metricSample *MetricSample, timestamp float64) {
 	contextKey := d.contextResolver.trackContext(metricSample, timestamp)
 	bucketStart := d.calculateBucketStart(timestamp)
 	sketch, ok := d.sketchesByTimestamp[bucketStart]
@@ -43,18 +41,18 @@ func (d *DistSampler) addSample(metricSample *MetricSample, timestamp int64) {
 	sketch.addSample(contextKey, metricSample, timestamp, d.interval)
 }
 
-func (d *DistSampler) flush(timestamp int64) []*percentile.SketchSeries {
+func (d *DistSampler) flush(timestamp float64) []*percentile.SketchSeries {
 	var result []*percentile.SketchSeries
 
 	sketchesByContext := make(map[string]*percentile.SketchSeries)
 
 	cutoffTime := d.calculateBucketStart(timestamp)
-	for timestamp, ctxSketch := range d.sketchesByTimestamp {
-		if cutoffTime <= timestamp {
+	for bucketTimestamp, ctxSketch := range d.sketchesByTimestamp {
+		if cutoffTime <= bucketTimestamp {
 			continue
 		}
 
-		sketches := ctxSketch.flush(timestamp)
+		sketches := ctxSketch.flush(float64(bucketTimestamp))
 		for _, sketchSeries := range sketches {
 			contextKey := sketchSeries.ContextKey
 
@@ -75,9 +73,9 @@ func (d *DistSampler) flush(timestamp int64) []*percentile.SketchSeries {
 				result = append(result, sketchSeries)
 			}
 		}
-		delete(d.sketchesByTimestamp, timestamp)
+		delete(d.sketchesByTimestamp, bucketTimestamp)
 	}
-	d.contextResolver.expireContexts(timestamp - int64(defaultExpiry/time.Second))
+	d.contextResolver.expireContexts(timestamp - defaultExpiry)
 
 	return result
 }

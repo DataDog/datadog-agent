@@ -45,7 +45,7 @@ func (h *Histogram) configure(aggregates []string, percentiles []int) {
 	h.percentiles = percentiles
 }
 
-func (h *Histogram) addSample(sample *MetricSample, timestamp int64) {
+func (h *Histogram) addSample(sample *MetricSample, timestamp float64) {
 	rate := sample.SampleRate
 	if rate == 0 {
 		rate = 1
@@ -56,7 +56,7 @@ func (h *Histogram) addSample(sample *MetricSample, timestamp int64) {
 	h.count += int64(1 / rate)
 }
 
-func (h *Histogram) flush(timestamp int64) ([]*Serie, error) {
+func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 	if len(h.samples) == 0 {
 		return []*Serie{}, NoSerieError{}
 	}
