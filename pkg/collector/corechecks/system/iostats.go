@@ -83,6 +83,11 @@ func (c *IOCheck) nixIO() error {
 			continue
 		}
 
+		if delta == 0 {
+			log.Infof("No delta to compute - skipping.")
+			continue
+		}
+
 		rkbs := float64(ioStats.ReadBytes-lastIOStats.ReadBytes) / kB
 		wkbs := float64(ioStats.WriteBytes-lastIOStats.WriteBytes) / kB
 		avgqusz := float64(ioStats.WeightedIO-lastIOStats.WeightedIO) / 1000

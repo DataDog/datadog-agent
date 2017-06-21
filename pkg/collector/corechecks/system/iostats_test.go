@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/shirou/gopsutil/disk"
 )
@@ -48,9 +49,9 @@ var (
 
 var sampleIdx = 0
 
-func ioSampler() (map[string]disk.IOCountersStat, error) {
+func ioSampler(names ...string) (map[string]disk.IOCountersStat, error) {
 	idx := sampleIdx
-	sampleIdx = sampleIdx + 1
+	sampleIdx++
 	sampleIdx = sampleIdx % len(ioSamples)
 	return ioSamples[idx], nil
 }
@@ -70,30 +71,32 @@ func TestIOCheck(t *testing.T) {
 		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
 	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
-		mock.On("Rate", "system.io.r_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.w_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.rrqm_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.wrqm_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.rrqm_s", 104744.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.wrqm_s", 310860.0, "", []string{"device:sda"}).Return().Times(1)
 		expectedRates += 2
 	}
-	ioCheck.Run()
-
 	mock.On("Commit").Return().Times(1)
 
+	ioCheck.Run()
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges)
 	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
+
+	// sleep for a second, for delta
+	time.Sleep(time.Second)
 
 	switch os := runtime.GOOS; os {
 	case "windows":
 		mock.On("Gauge", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
 	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
-		mock.On("Rate", "system.io.r_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.w_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.rrqm_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.wrqm_s", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.rrqm_s", 104744.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.wrqm_s", 310860.0, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.rkb_s", 60.5, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.wkb_s", 37.5, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.avg_rq_sz", 0.0, "", []string{"device:sda"}).Return().Times(1)
@@ -103,15 +106,17 @@ func TestIOCheck(t *testing.T) {
 		mock.On("Gauge", "system.io.avg_q_sz", 0.028, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.util", 2.8, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Gauge", "system.io.svctm", 0.0, "", []string{"device:sda"}).Return().Times(1)
+		expectedRates += 4
 		expectedGauges += 9
 	}
 
 	mock.On("Commit").Return().Times(1)
 
+	ioCheck.Run()
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges)
 	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
+	mock.AssertNumberOfCalls(t, "Commit", 2)
 }
 
 func TestIOCheckBlacklist(t *testing.T) {
