@@ -1,5 +1,5 @@
-hash: c6738d0e9aa4b030a8b36e9940b14ab5a96351b7d3a2de89e43be53ae8378c24
-updated: 2017-06-19T10:35:24.569426126+02:00
+hash: 6be0f021e623aae13e159648f0d6090b9a0eecefd08194124dd13ff910b081db
+updated: 2017-06-21T11:58:55.579976083-04:00
 imports:
 - name: github.com/beevik/ntp
   version: cb3dae3a7588ae35829eb5724df611cd75152fba
@@ -12,7 +12,7 @@ imports:
   - pkg/pathutil
   - pkg/types
 - name: github.com/DataDog/agent-payload
-  version: 091e000da55ab18aca225f8338abe8338b959aea
+  version: 0b7d55a8fb246702cc0321f68631d746c07d6ddb
   subpackages:
   - gogen
 - name: github.com/DataDog/datadog-go

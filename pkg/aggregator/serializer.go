@@ -31,11 +31,12 @@ func MarshalSeries(series []*Serie) ([]byte, error) {
 	for _, s := range series {
 		payload.Samples = append(payload.Samples,
 			&agentpayload.MetricsPayload_Sample{
-				Metric: s.Name,
-				Type:   s.MType.String(),
-				Host:   s.Host,
-				Points: marshalPoints(s.Points),
-				Tags:   s.Tags,
+				Metric:         s.Name,
+				Type:           s.MType.String(),
+				Host:           s.Host,
+				Points:         marshalPoints(s.Points),
+				Tags:           s.Tags,
+				SourceTypeName: s.SourceTypeName,
 			})
 	}
 

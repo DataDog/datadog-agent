@@ -18,14 +18,15 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 
 // Serie holds a timeseries (w/ json serialization to DD API format)
 type Serie struct {
-	Name       string        `json:"metric"`
-	Points     []Point       `json:"points"`
-	Tags       []string      `json:"tags"`
-	Host       string        `json:"host"`
-	MType      APIMetricType `json:"type"`
-	Interval   int64         `json:"interval"`
-	contextKey string
-	nameSuffix string
+	Name           string        `json:"metric"`
+	Points         []Point       `json:"points"`
+	Tags           []string      `json:"tags"`
+	Host           string        `json:"host"`
+	MType          APIMetricType `json:"type"`
+	Interval       int64         `json:"interval"`
+	SourceTypeName string        `json:"source_type_name,omitempty"`
+	contextKey     string
+	nameSuffix     string
 }
 
 // APIMetricType represents an API metric type
