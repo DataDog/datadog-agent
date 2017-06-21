@@ -187,8 +187,15 @@ func (c *IOCheck) Run() error {
 func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	err := error(nil)
 
-	blacklistRe := config.Datadog.GetString("device_blacklist_re")
-	if blacklistRe != "" {
+	conf := make(map[interface{}]interface{})
+
+	err = yaml.Unmarshal([]byte(initConfig), &m)
+	if err != nil {
+		return err
+	}
+
+	blacklistRe, ok := conf["device_blacklist_re"]
+	if ok && blacklistRe != "" {
 		c.blacklist, err = regexp.Compile(blacklistRe)
 	}
 	return err

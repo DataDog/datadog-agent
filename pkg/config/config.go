@@ -37,7 +37,6 @@ func init() {
 	Datadog.SetDefault("check_runners", int64(4))
 	Datadog.SetDefault("forwarder_timeout", 20)
 	// Dogstatsd
-	Datadog.SetDefault("device_blacklist_re", "")
 	Datadog.SetDefault("use_dogstatsd", true)
 	Datadog.SetDefault("dogstatsd_port", 8125)
 	Datadog.SetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
