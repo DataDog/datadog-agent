@@ -8,9 +8,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/disk"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
@@ -38,6 +38,8 @@ const (
 type IOCheck struct {
 	sender    aggregator.Sender
 	blacklist *regexp.Regexp
+	ts        int64
+	stats     map[string]disk.IOCountersStat
 }
 
 func (c *IOCheck) String() string {
@@ -52,14 +54,8 @@ func (c *IOCheck) nixIO() error {
 		log.Errorf("system.IOCheck: could not retrieve io stats: %s", err)
 		return err
 	}
-
-	//sleep and collect again
-	time.Sleep(time.Second)
-	iomap2, err := ioCounters()
-	if err != nil {
-		log.Errorf("system.IOCheck: could not retrieve io stats: %s", err)
-		return err
-	}
+	now := time.Now().Unix()
+	delta := float64(now - c.ts)
 
 	var tagbuff bytes.Buffer
 	for device, ioStats := range iomap {
@@ -67,73 +63,76 @@ func (c *IOCheck) nixIO() error {
 			continue
 		}
 
-		ioStats2, ok := iomap2[device]
+		tagbuff.Reset()
+		tagbuff.WriteString("device:")
+		tagbuff.WriteString(device)
+		tags := []string{tagbuff.String()}
+
+		// TODO: Different OS's might not have everything - make this OSX/Windows safe
+		c.sender.Rate("system.io.r_s", float64(ioStats.ReadCount), "", tags)
+		c.sender.Rate("system.io.w_s", float64(ioStats.WriteCount), "", tags)
+		c.sender.Rate("system.io.rrqm_s", float64(ioStats.MergedReadCount), "", tags)
+		c.sender.Rate("system.io.wrqm_s", float64(ioStats.MergedWriteCount), "", tags)
+
+		if c.ts == 0 {
+			continue
+		}
+		lastIOStats, ok := c.stats[device]
 		if !ok {
 			log.Infof("New device stats (possible hotplug) - full stats unavailable this iteration.")
 			continue
 		}
 
-		// TODO: Different OS's might not have everything - make this OSX/Windows safe
-		rs := (ioStats2.ReadCount - ioStats.ReadCount)
-		ws := (ioStats2.WriteCount - ioStats.WriteCount)
-		rkbs := float64(ioStats2.ReadBytes-ioStats.ReadBytes) / kB
-		wkbs := float64(ioStats2.WriteBytes-ioStats.WriteBytes) / kB
-		rrqms := (ioStats2.MergedReadCount - ioStats.MergedReadCount)
-		wrqms := (ioStats2.MergedWriteCount - ioStats.MergedWriteCount)
-		avgqusz := float64(ioStats2.WeightedIO-ioStats.WeightedIO) / 1000
+		rkbs := float64(ioStats.ReadBytes-lastIOStats.ReadBytes) / kB
+		wkbs := float64(ioStats.WriteBytes-lastIOStats.WriteBytes) / kB
+		avgqusz := float64(ioStats.WeightedIO-lastIOStats.WeightedIO) / 1000
 
 		rAwait := 0.0
 		wAwait := 0.0
-		diffNRIO := float64(ioStats2.ReadCount - ioStats.ReadCount)
-		diffNWIO := float64(ioStats2.WriteCount - ioStats.WriteCount)
+		diffNRIO := float64(ioStats.ReadCount - lastIOStats.ReadCount)
+		diffNWIO := float64(ioStats.WriteCount - lastIOStats.WriteCount)
 		if diffNRIO != 0 {
-			rAwait = float64(ioStats2.ReadTime-ioStats.ReadTime) / diffNRIO
+			rAwait = float64(ioStats.ReadTime-lastIOStats.ReadTime) / diffNRIO
 		}
 		if diffNWIO != 0 {
-			wAwait = float64(ioStats2.WriteTime-ioStats.WriteTime) / diffNWIO
+			wAwait = float64(ioStats.WriteTime-lastIOStats.WriteTime) / diffNWIO
 		}
 
 		avgrqsz := 0.0
 		aWait := 0.0
 		diffNIO := diffNRIO + diffNWIO
 		if diffNIO != 0 {
-			avgrqsz = float64((ioStats2.ReadBytes-ioStats.ReadBytes+ioStats2.WriteBytes-ioStats.WriteBytes)/SectorSize) / diffNIO
-			aWait = float64(ioStats2.ReadTime-ioStats.ReadTime+ioStats2.WriteTime-ioStats.WriteTime) / diffNIO
+			avgrqsz = float64((ioStats.ReadBytes-lastIOStats.ReadBytes+ioStats.WriteBytes-lastIOStats.WriteBytes)/SectorSize) / diffNIO
+			aWait = float64(ioStats.ReadTime-lastIOStats.ReadTime+ioStats.WriteTime-lastIOStats.WriteTime) / diffNIO
 		}
 
 		tput := diffNIO * float64(hz)
-		util := float64(ioStats2.IoTime - ioStats.IoTime)
+		util := float64(ioStats.IoTime - lastIOStats.IoTime)
 		svctime := 0.0
 		if tput != 0 {
 			svctime = util / tput
 		}
 
-		tagbuff.Reset()
-		tagbuff.WriteString("device:")
-		tagbuff.WriteString(device)
-		tags := []string{tagbuff.String()}
-
-		c.sender.Gauge("system.io.r_s", float64(rs), "", tags)
-		c.sender.Gauge("system.io.w_s", float64(ws), "", tags)
-		c.sender.Gauge("system.io.rkb_s", rkbs, "", tags)
-		c.sender.Gauge("system.io.wkb_s", wkbs, "", tags)
-		c.sender.Gauge("system.io.avg_rq_sz", avgrqsz, "", tags)
-		c.sender.Gauge("system.io.await", aWait, "", tags)
-		c.sender.Gauge("system.io.r_await", float64(rAwait), "", tags)
-		c.sender.Gauge("system.io.w_await", float64(wAwait), "", tags)
-		c.sender.Gauge("system.io.rrqm_s", float64(rrqms), "", tags)
-		c.sender.Gauge("system.io.wrqm_s", float64(wrqms), "", tags)
-		c.sender.Gauge("system.io.avg_q_sz", avgqusz, "", tags)
+		c.sender.Gauge("system.io.rkb_s", rkbs/delta, "", tags)
+		c.sender.Gauge("system.io.wkb_s", wkbs/delta, "", tags)
+		c.sender.Gauge("system.io.avg_rq_sz", avgrqsz/delta, "", tags)
+		c.sender.Gauge("system.io.await", aWait/delta, "", tags)
+		c.sender.Gauge("system.io.r_await", rAwait/delta, "", tags)
+		c.sender.Gauge("system.io.w_await", wAwait/delta, "", tags)
+		c.sender.Gauge("system.io.avg_q_sz", avgqusz/delta, "", tags)
 		if hz > 0 { // only send if we were able to collect HZ
-			c.sender.Gauge("system.io.svctm", svctime, "", tags)
+			c.sender.Gauge("system.io.svctm", svctime/delta, "", tags)
 		}
 
 		// Stats should be per device no device groups.
 		// If device groups ever become a thing - util / 10.0 / n_devs_in_group
 		// See more: (https://github.com/sysstat/sysstat/blob/v11.5.6/iostat.c#L1033-L1040)
-		c.sender.Gauge("system.io.util", (util / 10.0), "", tags)
+		c.sender.Gauge("system.io.util", (util / 10.0 / delta), "", tags)
 
 	}
+
+	c.stats = iomap
+	c.ts = now
 
 	return nil
 }
@@ -189,14 +188,16 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 
 	conf := make(map[interface{}]interface{})
 
-	err = yaml.Unmarshal([]byte(initConfig), &m)
+	err = yaml.Unmarshal([]byte(initConfig), &conf)
 	if err != nil {
 		return err
 	}
 
 	blacklistRe, ok := conf["device_blacklist_re"]
 	if ok && blacklistRe != "" {
-		c.blacklist, err = regexp.Compile(blacklistRe)
+		if regex, ok := blacklistRe.(string); ok {
+			c.blacklist, err = regexp.Compile(regex)
+		}
 	}
 	return err
 }
