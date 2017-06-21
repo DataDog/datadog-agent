@@ -1,34 +1,33 @@
 =========
 DogStatsD
 =========
-
-  {{if .ChecksMetricSample -}}
+{{- if .ChecksMetricSample}}
   ChecksMetricSample: {{.ChecksMetricSample}}
-  {{end -}}
-  {{if .Event -}}
+{{- end -}}
+{{- if .Event}}
   Event: {{.Event}}
-  {{end -}}
-  {{if .EventsFlushed -}}
+{{- end -}}
+{{- if .EventsFlushed}}
   EventsFlushed: {{.EventsFlushed}}
-  {{end -}}
-  {{if .NumberOfFlush -}}
+{{- end -}}
+{{- if .NumberOfFlush}}
   NumberOfFlush: {{.NumberOfFlush}}
-  {{end -}}
-  {{if .SeriesFlushed -}}
+{{- end -}}
+{{- if .SeriesFlushed}}
   SeriesFlushed: {{.SeriesFlushed}}
-  {{end -}}
-  {{if .ServiceCheck -}}
+{{- end -}}
+{{- if .ServiceCheck}}
   ServiceCheck: {{.ServiceCheck}}
-  {{end -}}
-  {{if .ServiceCheckFlushed -}}
+{{- end -}}
+{{- if .ServiceCheckFlushed}}
   ServiceCheckFlushed: {{.ServiceCheckFlushed}}
-  {{end -}}
-  {{if .SketchesFlushed -}}
+{{- end -}}
+{{- if .SketchesFlushed}}
   SketchesFlushed: {{.SketchesFlushed}}
-  {{end -}}
-  {{if .HostnameUpdate -}}
+{{- end -}}
+{{- if .HostnameUpdate}}
   HostnameUpdate: {{.HostnameUpdate}}
-  {{end -}}
-  {{if .DogstatsdMetricSample -}}
+{{- end -}}
+{{- if .DogstatsdMetricSample}}
   DogstatsdMetricSample: {{.DogstatsdMetricSample}}
-  {{end}}
+{{- end}}

@@ -33,6 +33,7 @@ func pythonLoaderError(value string) template.HTML {
 	value = strings.Replace(value, "\\n']", "", -1)
 	value = strings.Replace(value, "']", "", -1)
 	value = strings.Replace(value, "\\n", "\n      ", -1)
+	value = strings.TrimRight(value, "\n\t ")
 	var loaderErrorArray []string
 	json.Unmarshal([]byte(value), &loaderErrorArray)
 	return template.HTML(value)
@@ -47,6 +48,7 @@ func lastErrorTraceback(value string) template.HTML {
 
 	json.Unmarshal([]byte(value), &lastErrorArray)
 	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "\n", "\n      ", -1)
+	lastErrorArray[0]["traceback"] = strings.TrimRight(lastErrorArray[0]["traceback"], "\n\t ")
 	return template.HTML(lastErrorArray[0]["traceback"])
 }
 
