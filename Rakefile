@@ -57,7 +57,7 @@ task :test => %w[fmt lint vet] do
     covermode_opt = "-covermode=atomic"
   end
   # `tags` option
-  build_tags = ENV['tags'] || "zstd snmp etcd zk"
+  build_tags = ENV['tags'] || "zstd snmp etcd zk cpython"
   build_tags = ENV['puppy'] == 'true' ? 'zlib' : build_tags
 
   TARGETS.each do |t|
