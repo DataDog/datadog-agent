@@ -14,7 +14,7 @@ def os
 end
 
 def build_tags
-    modules = ENV['AGENT_TAGS'] || "cpython,jmx,snmp"
+    modules = ENV['AGENT_TAGS'] || "cpython,jmx,snmp,zk,etcd"
     modules.tr(',', ' ')
 end
 
