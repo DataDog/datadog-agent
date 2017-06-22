@@ -1,3 +1,5 @@
+// +build etcd
+
 package providers
 
 import (

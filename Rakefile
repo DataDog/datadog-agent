@@ -58,7 +58,7 @@ task :test => %w[fmt lint vet] do
     covermode_opt = "-covermode=atomic"
   end
   # `tags` option
-  build_tags = ENV['tags'] || "zstd"
+  build_tags = ENV['tags'] || "zstd snmp etcd zk"
 
   TARGETS.each do |t|
     Dir.glob("#{t}/**/*").select {|f| File.directory? f }.each do |pkg_folder|  # recursively search for go packages
