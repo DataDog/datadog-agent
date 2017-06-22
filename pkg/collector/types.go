@@ -13,8 +13,8 @@ const (
 	started
 )
 
-// Collector abstract common operations about running a Check
-type CollectorBase struct {
+// AbstractCollector abstract common structure for the Collector
+type AbstractCollector struct {
 	scheduler *scheduler.Scheduler
 	runner    *runner.Runner
 	checks    map[check.ID]check.Check

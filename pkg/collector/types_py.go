@@ -9,14 +9,16 @@ import (
 	python "github.com/sbinet/go-python"
 )
 
+// Collector struct that provides a collector with python support
 type Collector struct {
-	CollectorBase
+	AbstractCollector
 	pyState *python.PyThreadState
 }
 
+// CreateCollector creates a collector for the current implementation
 func CreateCollector(s *scheduler.Scheduler, r *runner.Runner, paths ...string) {
 	c := &Collector{
-		CollectorBase{
+		AbstractCollector{
 			scheduler: s,
 			runner:    r,
 			checks:    make(map[check.ID]check.Check),
@@ -26,6 +28,7 @@ func CreateCollector(s *scheduler.Scheduler, r *runner.Runner, paths ...string) 
 	}
 }
 
+// StopImplementation implementation specific stop routine
 func (c *Collector) StopImplementation() {
 	python.PyEval_RestoreThread(c.pyState)
 	c.pyState = nil
