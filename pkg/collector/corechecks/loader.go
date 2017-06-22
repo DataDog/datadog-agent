@@ -53,10 +53,6 @@ func (gl *GoCheckLoader) String() string {
 	return "Core Check Loader"
 }
 
-func goLoaderFactory() check.Loader {
-	return NewGoCheckLoader()
-}
-
 func init() {
-	loaders.RegisterLoader("go", goLoaderFactory)
+	loaders.RegisterLoader("go", NewGoCheckLoader())
 }
