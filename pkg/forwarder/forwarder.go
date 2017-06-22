@@ -9,9 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	log "github.com/cihub/seelog"
-
-	"github.com/DataDog/zstd"
 )
 
 var (
@@ -205,7 +204,7 @@ func (f *DefaultForwarder) Stop() {
 
 func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payload *[]byte, compress bool) ([]*HTTPTransaction, error) {
 	if compress && payload != nil {
-		compressPayload, err := zstd.Compress(nil, *payload)
+		compressPayload, err := compression.Compress(nil, *payload)
 		if err != nil {
 			return nil, err
 		}
