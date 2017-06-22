@@ -2,32 +2,14 @@ package collector
 
 import (
 	"fmt"
-	"sync"
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
-	python "github.com/sbinet/go-python"
 )
-
-const (
-	stopped uint32 = iota
-	started
-)
-
-// Collector abstract common operations about running a Check
-type Collector struct {
-	scheduler *scheduler.Scheduler
-	runner    *runner.Runner
-	pyState   *python.PyThreadState
-	checks    map[check.ID]check.Check
-	state     uint32
-	m         sync.RWMutex
-}
 
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
@@ -40,13 +22,8 @@ func NewCollector(paths ...string) *Collector {
 	// Send the agent startup event
 	// TODO
 	log.Debug("Creating collector")
-	c := &Collector{
-		scheduler: sched,
-		runner:    run,
-		pyState:   py.Initialize(paths...),
-		checks:    make(map[check.ID]check.Check),
-		state:     started,
-	}
+	c := CreateCollector(sched, run, paths...)
+
 	log.Debug("created collector")
 	return c
 }
@@ -65,8 +42,7 @@ func (c *Collector) Stop() {
 	c.scheduler = nil
 	c.runner.Stop()
 	c.runner = nil
-	python.PyEval_RestoreThread(c.pyState)
-	c.pyState = nil
+	c.StopImplementation()
 	c.state = stopped
 }
 
