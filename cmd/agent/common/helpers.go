@@ -24,10 +24,13 @@ func SetupAutoConfig(confdPath string) {
 	AC = autodiscovery.NewAutoConfig(coll)
 
 	// add the check loaders
-	for module, loader := range loaders.LoaderCatalog {
-		AC.AddLoader(loader)
-		log.Infof("Adding auto-discovery loader: %s", module)
-
+	for module, factory := range loaders.LoaderCatalog {
+		loader := factory()
+		if loader != nil {
+			AC.AddLoader(loader)
+		} else {
+			log.Infof("Failed to instantiate loader for %s", module)
+		}
 	}
 
 	// add the configuration providers
