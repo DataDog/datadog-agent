@@ -1,5 +1,3 @@
-// +build cpython
-
 package collector
 
 import (
