@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/compression"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/zstd"
 )
 
 func TestNewDefaultForwarder(t *testing.T) {
@@ -111,7 +111,7 @@ func TestSubmit(t *testing.T) {
 	defer forwarder.Stop()
 
 	payload := []byte("SubmitTimeseries payload")
-	expectedPayload, _ = zstd.Compress(nil, payload)
+	expectedPayload, _ = compression.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/series"
 	assert.Nil(t, forwarder.SubmitTimeseries(&payload))
 	// wait for the queries to complete before changing expected value
@@ -120,7 +120,7 @@ func TestSubmit(t *testing.T) {
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
 	payload = []byte("SubmitEvent payload")
-	expectedPayload, _ = zstd.Compress(nil, payload)
+	expectedPayload, _ = compression.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/events"
 	assert.Nil(t, forwarder.SubmitEvent(&payload))
 	<-wait
@@ -128,7 +128,7 @@ func TestSubmit(t *testing.T) {
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
 	payload = []byte("SubmitCheckRun payload")
-	expectedPayload, _ = zstd.Compress(nil, payload)
+	expectedPayload, _ = compression.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/check_runs"
 	assert.Nil(t, forwarder.SubmitCheckRun(&payload))
 	<-wait
@@ -136,7 +136,7 @@ func TestSubmit(t *testing.T) {
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
 	payload = []byte("SubmitHostMetadata payload")
-	expectedPayload, _ = zstd.Compress(nil, payload)
+	expectedPayload, _ = compression.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/host_metadata"
 	assert.Nil(t, forwarder.SubmitHostMetadata(&payload))
 	<-wait
@@ -144,7 +144,7 @@ func TestSubmit(t *testing.T) {
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
 	payload = []byte("SubmitMetadata payload")
-	expectedPayload, _ = zstd.Compress(nil, payload)
+	expectedPayload, _ = compression.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/metadata"
 	assert.Nil(t, forwarder.SubmitMetadata(&payload))
 	<-wait
