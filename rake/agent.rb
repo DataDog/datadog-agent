@@ -21,7 +21,7 @@ namespace :agent do
     build_type = ENV['incremental'] == "true" ? "-i" : "-a"
     # `tags` option
     build_tags = ENV['tags'] || "zstd snmp etcd zk"
-    build_tags = ENV['puppy'] == 'true' ? '' : build_tags
+    build_tags = ENV['puppy'] == 'true' ? 'zlib' : build_tags
 
     # Check if we should use Embedded or System Python,
     # default to the embedded one.
