@@ -1,3 +1,5 @@
+// +build zk
+
 package providers
 
 import (
@@ -133,4 +135,11 @@ func (z *ZookeeperConfigProvider) getJSONValue(key string) ([]check.ConfigData, 
 	}
 
 	return parseJSONValue(string(rawValue))
+}
+
+func init() {
+	provider, err := NewZookeeperConfigProvider()
+	if err == nil {
+		RegisterProvider("zk", provider)
+	}
 }
