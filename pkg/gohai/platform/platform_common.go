@@ -33,10 +33,13 @@ func getPlatformInfo() (platformInfo map[string]interface{}, err error) {
 	platformInfo, err = getArchInfo()
 
 	platformInfo["goV"] = strings.Replace(runtime.Version(), "go", "", -1)
-	pythonV, err := getPythonVersion()
+	// If this errors, swallow the error.
+	// It will usually mean that Python is not on the PATH
+	// and we don't care about that.
+	pythonV, e := getPythonVersion()
 
 	// if there was no failure, add the python variables to the platformInfo
-	if err == nil {
+	if e == nil {
 		platformInfo["pythonV"] = pythonV
 	}
 
