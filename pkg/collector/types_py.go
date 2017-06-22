@@ -5,6 +5,8 @@ package collector
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner"
+	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 
 	python "github.com/sbinet/go-python"
 )
@@ -16,9 +18,9 @@ type Collector struct {
 }
 
 // CreateCollector creates a collector for the current implementation
-func CreateCollector(s *scheduler.Scheduler, r *runner.Runner, paths ...string) {
+func CreateCollector(s *scheduler.Scheduler, r *runner.Runner, paths ...string) *Collector {
 	c := &Collector{
-		AbstractCollector{
+		AbstractCollector: AbstractCollector{
 			scheduler: s,
 			runner:    r,
 			checks:    make(map[check.ID]check.Check),
@@ -26,6 +28,8 @@ func CreateCollector(s *scheduler.Scheduler, r *runner.Runner, paths ...string) 
 		},
 		pyState: py.Initialize(paths...),
 	}
+
+	return c
 }
 
 // StopImplementation implementation specific stop routine
