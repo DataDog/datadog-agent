@@ -90,7 +90,7 @@ func TestBucketSampling(t *testing.T) {
 	expectedSerie := &Serie{
 		Name:       "my.metric.name",
 		Tags:       []string{"foo", "bar"},
-		Points:     []Point{{int64(12340), mSample.Value}, {int64(12350), mSample.Value}},
+		Points:     []Point{{int64(12360), mSample.Value}, {int64(12360), mSample.Value}},
 		MType:      APIGaugeType,
 		Interval:   10,
 		nameSuffix: "",
@@ -139,7 +139,7 @@ func TestContextSampling(t *testing.T) {
 
 	expectedSerie1 := &Serie{
 		Name:     "my.metric.name1",
-		Points:   []Point{{int64(12340), float64(1)}},
+		Points:   []Point{{int64(12360), float64(1)}},
 		Tags:     []string{"bar", "foo"},
 		Host:     "default-hostname",
 		MType:    APIGaugeType,
@@ -147,7 +147,7 @@ func TestContextSampling(t *testing.T) {
 	}
 	expectedSerie2 := &Serie{
 		Name:     "my.metric.name2",
-		Points:   []Point{{int64(12340), float64(1)}},
+		Points:   []Point{{int64(12360), float64(1)}},
 		Tags:     []string{"bar", "foo"},
 		Host:     "default-hostname",
 		MType:    APIGaugeType,
@@ -155,7 +155,7 @@ func TestContextSampling(t *testing.T) {
 	}
 	expectedSerie3 := &Serie{
 		Name:     "my.metric.name3",
-		Points:   []Point{{int64(12340), float64(1)}},
+		Points:   []Point{{int64(12360), float64(1)}},
 		Tags:     []string{"bar", "foo"},
 		Host:     "metric-hostname",
 		MType:    APIGaugeType,

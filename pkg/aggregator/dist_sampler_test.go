@@ -103,8 +103,8 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 		Tags:     []string{"a", "b"},
 		Interval: 10,
 		Sketches: []percentile.Sketch{
-			percentile.Sketch{Timestamp: int64(10000), Sketch: expectedSketch},
-			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch},
+			percentile.Sketch{Timestamp: int64(10020), Sketch: expectedSketch},
+			percentile.Sketch{Timestamp: int64(10020), Sketch: expectedSketch},
 		},
 		ContextKey: "test.metric.name,a,b,",
 	}
@@ -147,7 +147,7 @@ func TestDistSamplerContextSampling(t *testing.T) {
 		Tags:     []string{"a", "b"},
 		Interval: 10,
 		Sketches: []percentile.Sketch{
-			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch},
+			percentile.Sketch{Timestamp: int64(10020), Sketch: expectedSketch},
 		},
 		ContextKey: "test.metric.name1,a,b,",
 	}
@@ -156,7 +156,7 @@ func TestDistSamplerContextSampling(t *testing.T) {
 		Tags:     []string{"a", "c"},
 		Interval: 10,
 		Sketches: []percentile.Sketch{
-			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch},
+			percentile.Sketch{Timestamp: int64(10020), Sketch: expectedSketch},
 		},
 		ContextKey: "test.metric.name2,a,c,",
 	}

@@ -49,8 +49,8 @@ func (d *DistSampler) flush(timestamp int64) []*percentile.SketchSeries {
 	sketchesByContext := make(map[string]*percentile.SketchSeries)
 
 	cutoffTime := d.calculateBucketStart(timestamp)
-	for timestamp, ctxSketch := range d.sketchesByTimestamp {
-		if cutoffTime <= timestamp {
+	for bucketTimestamp, ctxSketch := range d.sketchesByTimestamp {
+		if cutoffTime <= bucketTimestamp {
 			continue
 		}
 
@@ -75,7 +75,7 @@ func (d *DistSampler) flush(timestamp int64) []*percentile.SketchSeries {
 				result = append(result, sketchSeries)
 			}
 		}
-		delete(d.sketchesByTimestamp, timestamp)
+		delete(d.sketchesByTimestamp, bucketTimestamp)
 	}
 	d.contextResolver.expireContexts(timestamp - int64(defaultExpiry/time.Second))
 
