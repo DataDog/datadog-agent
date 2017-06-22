@@ -10,11 +10,6 @@ def agent_bin_name
   end
 end
 
-def build_tags
-    modules = ENV['AGENT_TAGS'] || "cpython,jmx,snmp"
-    modules.tr(',', ' ')
-end
-
 namespace :agent do
   BIN_PATH="./bin/agent"
   CLOBBER.include(BIN_PATH)
