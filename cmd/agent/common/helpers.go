@@ -24,12 +24,9 @@ func SetupAutoConfig(confdPath string) {
 	AC = autodiscovery.NewAutoConfig(coll)
 
 	// add the check loaders
-	for module, factory := range loaders.LoaderCatalog {
-		if loader := factory(); loader != nil {
-			AC.AddLoader(loader)
-		} else {
-			log.Errorf("Unable to create %v loader.", module)
-		}
+	for module, loader := range loaders.LoaderCatalog {
+		AC.AddLoader(loader)
+		log.Infof("Adding auto-discovery loader: %s", module)
 
 	}
 
@@ -41,12 +38,10 @@ func SetupAutoConfig(confdPath string) {
 	}
 	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
 
-	// Etcd Provider
-	etcd, err := providers.NewEtcdConfigProvider()
-	if err != nil {
-		log.Errorf("Cannot use the etcd config provider: %s", err)
-	} else {
-		AC.AddProvider(etcd, true)
+	// Register Providers
+	for backend, provider := range providers.ProviderCatalog {
+		AC.AddProvider(provider, true)
+		log.Infof("Registering %s config provider", backend)
 	}
 }
 
