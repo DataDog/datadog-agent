@@ -6,10 +6,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
+	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
-	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 )
@@ -26,19 +24,13 @@ func SetupAutoConfig(confdPath string) {
 	AC = autodiscovery.NewAutoConfig(coll)
 
 	// add the check loaders
-	if loader := py.NewPythonCheckLoader(); loader != nil {
-		AC.AddLoader(loader)
-	} else {
-		log.Errorf("Unable to create Python loader.")
-	}
+	for module, factory := range loaders.LoaderCatalog {
+		if loader := factory(); loader != nil {
+			AC.AddLoader(loader)
+		} else {
+			log.Errorf("Unable to create %v loader.", module)
+		}
 
-	// can't fail
-	AC.AddLoader(core.NewGoCheckLoader())
-
-	if loader := embed.NewJMXCheckLoader(); loader != nil {
-		AC.AddLoader(loader)
-	} else {
-		log.Errorf("Unable to create JMX loader.")
 	}
 
 	// add the configuration providers
