@@ -13,11 +13,6 @@ def os
   end
 end
 
-def build_tags
-    modules = ENV['AGENT_TAGS'] || "cpython,jmx,snmp,zk,etcd"
-    modules.tr(',', ' ')
-end
-
 def go_fmt(path, fail_on_mod)
   out = `go fmt #{path}/...`
   errors = out.split("\n")
