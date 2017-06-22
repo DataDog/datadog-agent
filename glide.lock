@@ -1,5 +1,5 @@
-hash: 6be0f021e623aae13e159648f0d6090b9a0eecefd08194124dd13ff910b081db
-updated: 2017-06-21T11:58:55.579976083-04:00
+hash: 496ebb52c95bf04b84b8beee352e431b677706b6949fa75a2991478c6ac48ab1
+updated: 2017-06-22T10:40:06.598557496+02:00
 imports:
 - name: github.com/beevik/ntp
   version: cb3dae3a7588ae35829eb5724df611cd75152fba
@@ -168,8 +168,10 @@ imports:
   version: e30b7839cd6161b2fbef5f187377a345157abe04
   subpackages:
   - cpu
+  - disk
   - host
   - internal/common
+  - load
   - mem
   - net
   - process
