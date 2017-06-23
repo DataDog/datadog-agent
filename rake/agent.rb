@@ -13,15 +13,12 @@ end
 namespace :agent do
   BIN_PATH="./bin/agent"
   CLOBBER.include(BIN_PATH)
-  desc "Build the Agent [race=false|incremental=false|tags=*]"
+  desc "Build the Agent [race=false|incremental=false|tags=*|puppy=false]"
   task :build do
     # `race` option
     race_opt = ENV['race'] == "true" ? "-race" : ""
     # `incremental` option
     build_type = ENV['incremental'] == "true" ? "-i" : "-a"
-    # `tags` option
-    build_tags = ENV['tags'] || "zstd snmp etcd zk cpython"
-    build_tags = ENV['puppy'] == 'true' ? 'zlib' : build_tags
 
     # Check if we should use Embedded or System Python,
     # default to the embedded one.
@@ -41,9 +38,9 @@ namespace :agent do
       # On windows, need to build with the extra arguments -gcflags "-N -l" -ldflags="-linkmode internal"
       # if you want to be able to use the delve debugger.
       ldflags << "-linkmode internal"
-      build_success = system(env, "go build #{race_opt} #{build_type} -tags '#{build_tags}' -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
+      build_success = system(env, "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
     else
-      build_success = system(env, "go build #{race_opt} #{build_type} -tags '#{build_tags}' -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
+      build_success = system(env, "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
     end
     fail "Agent build failed with code #{$?.exitstatus}" if !build_success
 

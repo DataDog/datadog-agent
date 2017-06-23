@@ -1,3 +1,5 @@
+// +build freebsd netbsd openbsd solaris dragonfly linux
+
 package common
 
 import (

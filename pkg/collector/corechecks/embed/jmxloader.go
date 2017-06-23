@@ -1,3 +1,5 @@
+// +build jmx
+
 package embed
 
 import (
