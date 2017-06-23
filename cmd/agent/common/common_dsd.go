@@ -14,6 +14,7 @@ var (
 	DSD *dogstatsd.Server
 )
 
+// CreateDSD creates a new DSD server and assigns it to DSD global
 func CreateDSD(agg *aggregator.BufferedAggregator) error {
 	var err error
 	DSD, err = dogstatsd.NewServer(agg.GetChannels())
@@ -21,6 +22,7 @@ func CreateDSD(agg *aggregator.BufferedAggregator) error {
 	return err
 }
 
+// StopDSD stops the dogstatsd server
 func StopDSD() {
 	if DSD != nil {
 		DSD.Stop()

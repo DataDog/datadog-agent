@@ -8,10 +8,12 @@ import (
 	"errors"
 )
 
+// CreateDSD a stub in this build
 func CreateDSD() error {
-	return errors.New("Dogstatsd support unavailable in build.")
+	return errors.New("dogstatsd support unavailable in build")
 }
 
+// StopDSD a stub in this build
 func StopDSD() {
 	return
 }
