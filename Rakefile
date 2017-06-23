@@ -59,6 +59,7 @@ task :test => %w[fmt lint vet] do
   end
   # `tags` option
   build_tags = ENV['tags'] || "zstd snmp etcd zk"
+  build_tags = ENV['puppy'] == 'true' ? 'zlib' : build_tags
 
   TARGETS.each do |t|
     Dir.glob("#{t}/**/*").select {|f| File.directory? f }.each do |pkg_folder|  # recursively search for go packages
