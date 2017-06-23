@@ -13,7 +13,7 @@ end
 namespace :agent do
   BIN_PATH="./bin/agent"
   CLOBBER.include(BIN_PATH)
-  desc "Build the Agent [race=false|incremental=false|tags=*]"
+  desc "Build the Agent [race=false|incremental=false|tags=*|puppy=false]"
   task :build do
     # `race` option
     race_opt = ENV['race'] == "true" ? "-race" : ""

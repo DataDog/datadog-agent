@@ -42,7 +42,7 @@ task :vet do
   end
 end
 
-desc "Run testsuite [race=false|tags=*]"
+desc "Run testsuite [race=false|tags=*|puppy=false]"
 task :test => %w[fmt lint vet] do
   PROFILE = "profile.cov"  # collect global coverage data in this file
   `echo "mode: count" > #{PROFILE}`
