@@ -1,9 +1,11 @@
-name 'datadog-agent'
+name 'datadog-puppy'
 require './lib/ostools.rb'
 
 source path: '..'
 
-relative_path 'datadog-agent'
+relative_path 'datadog-puppy'
+
+whitelist_file ".*"  # temporary hack, TODO: build libz with omnibus
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'

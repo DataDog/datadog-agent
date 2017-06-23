@@ -24,7 +24,7 @@ else
 end
 
 build_version do
-  source :git, from_dependency: 'datadog-agent'
+  source :git, from_dependency: 'datadog-puppy'
   output_format :dd_agent_format
 end
 
@@ -118,14 +118,9 @@ if linux?
 
   # Example configuration files for the agent and the checks
   extra_package_file '/etc/dd-agent/datadog.yaml.example'
-  extra_package_file '/etc/dd-agent/conf.d'
 
   # Custom checks directory
   extra_package_file '/etc/dd-agent/checks.d'
-
-  # Linux-specific dependencies
-  dependency 'procps-ng'
-  dependency 'sysstat'
 end
 
 # ------------------------------------
