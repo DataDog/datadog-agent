@@ -1,4 +1,4 @@
-// +build freebsd netbsd openbsd solaris dragonfly
+// +build linux freebsd netbsd openbsd solaris dragonfly
 
 package host
 
