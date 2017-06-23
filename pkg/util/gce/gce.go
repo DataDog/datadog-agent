@@ -52,7 +52,7 @@ func getResponse(url string) (*http.Response, error) {
 	return res, nil
 }
 
-// This is the gce implementation of the HostnameProvider
+// HostnameProvider GCE implementation of the HostnameProvider
 func HostnameProvider(hostName string) (string, error) {
 	return GetHostname()
 }
