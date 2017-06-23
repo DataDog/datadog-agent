@@ -1,18 +1,13 @@
 name 'datadog-agent'
 require './lib/ostools.rb'
 
-dependency 'python'
-unless windows?
-  dependency 'net-snmp-lib'
-end
-
 source path: '..'
 
 relative_path 'datadog-agent'
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  command "rake agent:build"
+  command "rake agent:build puppy=true"
   copy('bin', install_dir)
 
   mkdir "#{install_dir}/run/"
