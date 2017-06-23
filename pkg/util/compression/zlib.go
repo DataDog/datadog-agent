@@ -1,4 +1,5 @@
 // +build zlib
+// +build !zstd
 
 package compression
 
