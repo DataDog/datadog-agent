@@ -51,3 +51,8 @@ func getResponse(url string) (*http.Response, error) {
 
 	return res, nil
 }
+
+// HostnameProvider GCE implementation of the HostnameProvider
+func HostnameProvider(hostName string) (string, error) {
+	return GetHostname()
+}
