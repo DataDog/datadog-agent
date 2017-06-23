@@ -21,3 +21,7 @@ func GetHostname() (string, error) {
 
 	return info.Name, nil
 }
+
+func HostnameProvider(hostName string) (string, error) {
+	return GetHostname()
+}

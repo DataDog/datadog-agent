@@ -15,7 +15,7 @@ end
 
 # `tags` option
 def go_build_tags
-  build_tags = ENV['tags'] || "zstd snmp etcd zk cpython jmx apm"
+  build_tags = ENV['tags'] || "zstd snmp etcd zk cpython jmx apm docker ec2 gce"
   build_tags = ENV['puppy'] == 'true' ? 'zlib' : build_tags
 end
 

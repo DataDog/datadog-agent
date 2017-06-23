@@ -10,9 +10,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
-	"github.com/DataDog/datadog-agent/pkg/util/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 const maxLength = 255
@@ -99,9 +97,11 @@ func GetHostname() (string, error) {
 
 	// GCE metadata
 	log.Debug("GetHostname trying GCE metadata...")
-	name, err = gce.GetHostname()
-	if err == nil {
-		return name, err
+	if getGCEHostname, found := hostname.ProviderCatalog["gce"]; found {
+		name, err = getGCEHostname(name)
+		if err == nil {
+			return name, err
+		}
 	}
 
 	isContainerized, name := getContainerHostname()
@@ -122,14 +122,13 @@ func GetHostname() (string, error) {
 
 	// We use the instance id if we're on an ECS cluster or we're on EC2
 	// and the hostname is one of the default ones
-	if ecs.IsInstance() || ec2.IsDefaultHostname(hostName) {
+	if getEC2Hostname, found := hostname.ProviderCatalog["ec2"]; found {
 		log.Debug("GetHostname trying EC2 metadata...")
-		instanceID, err := ec2.GetInstanceID()
-		if err == nil {
-			hostName = instanceID
+		instanceID, err := getEC2Hostname(name)
+		if err == nil && ValidHostname(instanceID) == nil {
+			hostName = name
 		}
 	}
-
 	// If at this point we don't have a name, bail out
 	if hostName == "" {
 		err = fmt.Errorf("Unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
