@@ -10,7 +10,6 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
@@ -105,16 +104,9 @@ func GetHostname() (string, error) {
 		return name, err
 	}
 
-	if isContainerized() {
-		// Docker
-		log.Debug("GetHostname trying Docker API...")
-		name, err = docker.GetHostname()
-		if err == nil && ValidHostname(name) == nil {
-			hostName = name
-		} else if isKubernetes() {
-			log.Debug("GetHostname trying k8s...")
-			// TODO
-		}
+	isContainerized, name := getContainerHostname()
+	if isContainerized && name != "" {
+		hostName = name
 	}
 
 	if hostName == "" {

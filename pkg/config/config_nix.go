@@ -1,5 +1,10 @@
-// +build darwin freebsd linux
+// +build darwin linux freebsd netbsd openbsd solaris dragonfly
 
 package config
 
-const defaultJMXPipePath = "/opt/datadog-agent/run"
+const (
+	defaultConfdPath            = "/etc/dd-agent/conf.d"
+	defaultAdditionalChecksPath = "/etc/dd-agent/checks.d"
+	defaultLogPath              = "/var/log/datadog/agent.log"
+	defaultJMXPipePath          = "/opt/datadog-agent/run"
+)
