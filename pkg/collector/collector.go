@@ -6,12 +6,10 @@ import (
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
-	python "github.com/sbinet/go-python"
 )
 
 const (
@@ -23,7 +21,6 @@ const (
 type Collector struct {
 	scheduler *scheduler.Scheduler
 	runner    *runner.Runner
-	pyState   *python.PyThreadState
 	checks    map[check.ID]check.Check
 	state     uint32
 	m         sync.RWMutex
@@ -43,10 +40,10 @@ func NewCollector(paths ...string) *Collector {
 	c := &Collector{
 		scheduler: sched,
 		runner:    run,
-		pyState:   py.Initialize(paths...),
 		checks:    make(map[check.ID]check.Check),
 		state:     started,
 	}
+	pySetup(paths...)
 	log.Debug("created collector")
 	return c
 }
@@ -65,8 +62,7 @@ func (c *Collector) Stop() {
 	c.scheduler = nil
 	c.runner.Stop()
 	c.runner = nil
-	python.PyEval_RestoreThread(c.pyState)
-	c.pyState = nil
+	pyTeardown()
 	c.state = stopped
 }
 
