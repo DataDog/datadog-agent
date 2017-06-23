@@ -1,3 +1,5 @@
+// +build apm
+
 package embed
 
 import (
