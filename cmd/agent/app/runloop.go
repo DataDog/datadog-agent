@@ -10,7 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -91,15 +90,15 @@ func StartAgent() {
 	agg := aggregator.InitAggregator(common.Forwarder, hostname)
 	agg.AddAgentStartupEvent(version.AgentVersion)
 
-	// start dogstatsd
+	// start
 	if config.Datadog.GetBool("use_dogstatsd") {
-		var err error
-		common.DSD, err = dogstatsd.NewServer(agg.GetChannels())
+		err := common.CreateDSD(agg)
 		if err != nil {
 			log.Errorf("Could not start dogstatsd: %s", err)
+		} else {
+			log.Debugf("statsd started")
 		}
 	}
-	log.Debugf("statsd started")
 
 	// create and setup the Autoconfig instance
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
@@ -136,9 +135,7 @@ func StartAgent() {
 // StopAgent Tears down the agent process
 func StopAgent() {
 	// gracefully shut down any component
-	if common.DSD != nil {
-		common.DSD.Stop()
-	}
+	common.StopDSD()
 	common.AC.Stop()
 	common.MetadataScheduler.Stop()
 	api.StopServer()

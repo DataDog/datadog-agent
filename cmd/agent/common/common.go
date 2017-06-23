@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/kardianos/osext"
@@ -15,9 +14,6 @@ import (
 var (
 	// AC is the global object orchestrating checks' loading and running
 	AC *autodiscovery.AutoConfig
-
-	// DSD is the global dogstastd instance
-	DSD *dogstatsd.Server
 
 	// MetadataScheduler is responsible to orchestrate metadata collection
 	MetadataScheduler *metadata.Scheduler
