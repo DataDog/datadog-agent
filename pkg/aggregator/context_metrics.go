@@ -3,11 +3,14 @@ package aggregator
 import (
 	"math"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 )
 
 // ContextMetrics stores all the metrics by context key
 type ContextMetrics map[string]Metric
+
+var expirySeconds = config.Datadog.GetInt64("dogstatsd_expiry_seconds")
 
 func makeContextMetrics() ContextMetrics {
 	return ContextMetrics(make(map[string]Metric))
@@ -45,12 +48,28 @@ func (m ContextMetrics) addSample(contextKey string, sample *MetricSample, times
 	m[contextKey].addSample(sample, timestamp)
 }
 
-func (m ContextMetrics) flush(timestamp int64) []*Serie {
+func (m ContextMetrics) flush(timestamp int64, sampler *TimeSampler) []*Serie {
 	var series []*Serie
 
-	for contextKey, metric := range m {
-		metricSeries, err := metric.flush(timestamp)
+	// Copy the map so we can recreate non-expired Counters
+	var notSampledInThisBucket = map[string]int64{}
+	if sampler != nil {
+		for k, v := range sampler.counterLastSampledByContext {
+			notSampledInThisBucket[k] = v
+		}
+	}
 
+	for contextKey, metric := range m {
+		if sampler != nil {
+			// Look for non-expired Counter that need to be reported with a 0 value
+			if _, isCounter := metric.(*Counter); isCounter {
+				// Counter sampled in this bucket
+				sampler.counterLastSampledByContext[contextKey] = timestamp
+				delete(notSampledInThisBucket, contextKey)
+			}
+		}
+
+		metricSeries, err := metric.flush(timestamp)
 		if err == nil {
 			for _, serie := range metricSeries {
 				serie.contextKey = contextKey
@@ -63,6 +82,24 @@ func (m ContextMetrics) flush(timestamp int64) []*Serie {
 			default:
 				log.Infof("An error occurred while flushing metric on context key '%s': %s", contextKey, err)
 			}
+		}
+	}
+
+	// Recreate non-expired Counters and delete expired ones
+	for contextKey := range notSampledInThisBucket {
+		if expirySeconds+sampler.counterLastSampledByContext[contextKey] <= timestamp {
+			// Counter expired, stop tracking it
+			delete(sampler.counterLastSampledByContext, contextKey)
+			delete(notSampledInThisBucket, contextKey)
+		} else {
+			// Create an empty Counter
+			emptySerie := &Serie{
+				contextKey: contextKey,
+				Points:     []Point{{Ts: timestamp, Value: 0}},
+				MType:      APIRateType,
+			}
+			series = append(series, emptySerie)
+			sampler.contextResolver.lastSeenByKey[contextKey] = timestamp
 		}
 	}
 

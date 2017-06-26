@@ -29,7 +29,7 @@ func (cs *CheckSampler) addSample(metricSample *MetricSample) {
 }
 
 func (cs *CheckSampler) commit(timestamp int64) {
-	for _, serie := range cs.metrics.flush(timestamp) {
+	for _, serie := range cs.metrics.flush(timestamp, nil) {
 		// Resolve context and populate new []Serie
 		context := cs.contextResolver.contextsByKey[serie.contextKey]
 		serie.Name = context.Name + serie.nameSuffix

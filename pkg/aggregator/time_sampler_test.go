@@ -200,9 +200,11 @@ func TestCounterExpirySeconds(t *testing.T) {
 	sampler.addSample(sampleCounter1, 1004)
 	sampler.addSample(sampleCounter2, 1002)
 	sampler.addSample(sampleGauge3, 1003)
-	require.Equal(t, 2, len(sampler.reportingCounters))
+	// counterLastSampledByContext should be populated at flush time
+	assert.Equal(t, 0, len(sampler.counterLastSampledByContext))
 
 	orderedSeries := OrderedSeries{sampler.flush(1010)}
+
 	sort.Sort(orderedSeries)
 
 	series := orderedSeries.series
@@ -226,8 +228,11 @@ func TestCounterExpirySeconds(t *testing.T) {
 	}
 
 	require.Equal(t, 3, len(series))
+	require.Equal(t, 2, len(sampler.counterLastSampledByContext))
 	AssertSerieEqual(t, expectedSerie1, series[0])
 	AssertSerieEqual(t, expectedSerie2, series[1])
+	assert.Equal(t, int64(1000), sampler.counterLastSampledByContext[contextCounter1])
+	assert.Equal(t, int64(1000), sampler.counterLastSampledByContext[contextCounter2])
 
 	sampleCounter1 = &MetricSample{
 		Name:       "my.counter1",
@@ -238,18 +243,17 @@ func TestCounterExpirySeconds(t *testing.T) {
 	}
 
 	sampler.addSample(sampleCounter1, 1010)
-	assert.Equal(t, 2, len(sampler.reportingCounters))
-	assert.True(t, sampler.reportingCounters[contextCounter1].sampled)
-	assert.False(t, sampler.reportingCounters[contextCounter2].sampled)
+	sampler.addSample(sampleCounter2, 1020)
+	sampler.addSample(sampleCounter2, 1034)
 
-	orderedSeries = OrderedSeries{sampler.flush(1020)}
+	orderedSeries = OrderedSeries{sampler.flush(1040)}
 	sort.Sort(orderedSeries)
 
 	series = orderedSeries.series
 
 	expectedSerie1 = &Serie{
 		Name:     "my.counter1",
-		Points:   []Point{{int64(1010), float64(.1)}},
+		Points:   []Point{{int64(1010), float64(.1)}, {int64(1020), float64(0)}, {int64(1030), float64(0)}},
 		Tags:     []string{"bar", "foo"},
 		Host:     "default-hostname",
 		MType:    APIRateType,
@@ -258,7 +262,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 
 	expectedSerie2 = &Serie{
 		Name:     "my.counter2",
-		Points:   []Point{{int64(1010), float64(0)}},
+		Points:   []Point{{int64(1010), float64(0)}, {int64(1020), float64(.2)}, {int64(1030), float64(.2)}},
 		Tags:     []string{"bar", "foo"},
 		Host:     "default-hostname",
 		MType:    APIRateType,
@@ -269,20 +273,26 @@ func TestCounterExpirySeconds(t *testing.T) {
 	AssertSerieEqual(t, expectedSerie1, series[0])
 	AssertSerieEqual(t, expectedSerie2, series[1])
 
-	sampler.addSample(sampleCounter1, 1020)
-	series = sampler.flush(1030)
+	// We shouldn't get any empty counter since the last flush was during the same interval
+	series = sampler.flush(1045)
+	assert.Equal(t, 0, len(series))
 
-	series = sampler.flush(1320)
-	// Counter2 stopped reporting but context is not expired
+	// Now we should get the empty counters
+	series = sampler.flush(1050)
+	assert.Equal(t, 2, len(series))
+
+	series = sampler.flush(1329)
+	// Counter1 should have stopped reporting but the context is not expired yet
+	// Counter2 should still report
 	assert.Equal(t, 1, len(series))
+	assert.Equal(t, 1, len(sampler.counterLastSampledByContext))
 	assert.Equal(t, 2, len(sampler.contextResolver.contextsByKey))
-	assert.Equal(t, 1, len(sampler.reportingCounters))
 
 	series = sampler.flush(1800)
 	// Everything stopped reporting and is expired
 	assert.Equal(t, 0, len(series))
+	assert.Equal(t, 0, len(sampler.counterLastSampledByContext))
 	assert.Equal(t, 0, len(sampler.contextResolver.contextsByKey))
-	assert.Equal(t, 0, len(sampler.reportingCounters))
 }
 
 //func TestOne(t *testing.T) {

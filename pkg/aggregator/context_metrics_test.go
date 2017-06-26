@@ -19,7 +19,7 @@ func TestContextMetricsGaugeSampling(t *testing.T) {
 	}
 
 	metrics.addSample(contextKey, &mSample, 1, 10)
-	series := metrics.flush(12345)
+	series := metrics.flush(12345, nil)
 
 	expectedSerie := &Serie{
 		contextKey: contextKey,
@@ -44,11 +44,11 @@ func TestContextMetricsGaugeSamplingNoSample(t *testing.T) {
 	}
 
 	metrics.addSample(contextKey, &mSample, 1, 10)
-	series := metrics.flush(12345)
+	series := metrics.flush(12345, nil)
 
 	assert.Equal(t, 1, len(series))
 
-	series = metrics.flush(12355)
+	series = metrics.flush(12355, nil)
 	// No series flushed since there's no new sample since last flush
 	assert.Equal(t, 0, len(series))
 }
@@ -69,7 +69,7 @@ func TestContextMetricsGaugeSamplingInfinity(t *testing.T) {
 
 	metrics.addSample(contextKey1, &mSample1, 1, 10)
 	metrics.addSample(contextKey2, &mSample2, 1, 10)
-	series := metrics.flush(12345)
+	series := metrics.flush(12345, nil)
 
 	assert.Equal(t, 0, len(series))
 }
@@ -81,13 +81,13 @@ func TestContextMetricsRateSampling(t *testing.T) {
 	contextKey := "context_key"
 
 	metrics.addSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12340, 10)
-	series := metrics.flush(12345)
+	series := metrics.flush(12345, nil)
 
 	// No series flushed since the rate was sampled once only
 	assert.Equal(t, 0, len(series))
 
 	metrics.addSample(contextKey, &MetricSample{Mtype: RateType, Value: 2}, 12350, 10)
-	series = metrics.flush(12351)
+	series = metrics.flush(12351, nil)
 	expectedSerie := &Serie{
 		contextKey: contextKey,
 		Points:     []Point{{int64(12350), 1. / 10.}},
@@ -106,7 +106,7 @@ func TestContextMetricsCountSampling(t *testing.T) {
 
 	metrics.addSample(contextKey, &MetricSample{Mtype: CountType, Value: 1}, 12340, 10)
 	metrics.addSample(contextKey, &MetricSample{Mtype: CountType, Value: 5}, 12345, 10)
-	series := metrics.flush(12350)
+	series := metrics.flush(12350, nil)
 	expectedSerie := &Serie{
 		contextKey: contextKey,
 		Points:     []Point{{int64(12350), 6.}},
@@ -125,7 +125,7 @@ func TestContextMetricsMonotonicCountSampling(t *testing.T) {
 
 	metrics.addSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 1}, 12340, 10)
 	metrics.addSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 5}, 12345, 10)
-	series := metrics.flush(12350)
+	series := metrics.flush(12350, nil)
 	expectedSerie := &Serie{
 		contextKey: contextKey,
 		Points:     []Point{{int64(12350), 4.}},
@@ -146,7 +146,7 @@ func TestContextMetricsHistogramSampling(t *testing.T) {
 	metrics.addSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 2}, 12342, 10)
 	metrics.addSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12350, 10)
 	metrics.addSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 6}, 12350, 10)
-	series := metrics.flush(12351)
+	series := metrics.flush(12351, nil)
 
 	expectedSeries := []*Serie{
 		&Serie{
@@ -196,7 +196,7 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 	metrics.addSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 2}, 12341, 10)
 	metrics.addSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 4}, 12342, 10)
 	metrics.addSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 4}, 12343, 10)
-	series := metrics.flush(12351)
+	series := metrics.flush(12351, nil)
 
 	require.Len(t, series, 5)
 	AssertSerieEqual(t,
