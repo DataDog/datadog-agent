@@ -5,7 +5,6 @@ package agent
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	log "github.com/cihub/seelog"
@@ -64,14 +63,16 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
-		http.Error(w, fmt.Sprintf("{\"error\": %v}", err.Error()), 500)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
 		return
 	}
 
 	jsonStats, err := json.Marshal(s)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
-		http.Error(w, fmt.Sprintf("{\"error\": %v}", err.Error()), 500)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
 		return
 	}
 
@@ -84,7 +85,8 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
-		http.Error(w, fmt.Sprintf("{\"error\": %v}", err.Error()), 500)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
 		return
 	}
 

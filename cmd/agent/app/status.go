@@ -54,6 +54,7 @@ func requestStatus() error {
 		if err, found := errMap["error"]; found {
 			e = fmt.Errorf(err)
 		}
+
 		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
 		return e
 	}
