@@ -34,6 +34,9 @@ func doPost(c *http.Client, url string, contentType string, body io.Reader) (res
 	if e != nil {
 		return resp, e
 	}
+	if r.StatusCode >= 400 {
+		return resp, fmt.Errorf("%s", resp)
+	}
 	return resp, nil
 
 }
