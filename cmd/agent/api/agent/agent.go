@@ -60,15 +60,18 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 func getStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the status. Making status.")
 	s, err := status.GetStatus()
+	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	jsonStats, err := json.Marshal(s)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	w.Write(jsonStats)
@@ -77,11 +80,12 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the formatted status. Making formatted status.")
 	s, err := status.GetAndFormatStatus()
+	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
 		http.Error(w, err.Error(), 500)
+		return
 	}
-	w.Header().Set("Content-Type", "application/json")
 
 	w.Write(s)
 }

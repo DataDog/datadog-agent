@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -15,6 +16,9 @@ func doGet(c *http.Client, url string) (body []byte, e error) {
 	r.Body.Close()
 	if e != nil {
 		return body, e
+	}
+	if r.StatusCode >= 400 {
+		return body, fmt.Errorf("%s", body)
 	}
 	return body, nil
 
