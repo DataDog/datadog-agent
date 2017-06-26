@@ -110,18 +110,25 @@ func zipExpVar(zipFile *archivex.ZipFile, hostname string) error {
 		json.Unmarshal([]byte(kv.Value.String()), &variable)
 		variables[kv.Key] = variable
 	})
-	expvarData, err := yaml.Marshal(variables)
-	if err != nil {
-		return err
+
+	// The callback above cannot return an error.
+	// In order to properly ensure error checking,
+	// it needs to be done in its own loop
+	for key, value := range variables {
+		yamlValue, err := yaml.Marshal(value)
+		if err != nil {
+			return err
+		}
+		cleanedYAML, err := credentialsCleanerBytes(yamlValue)
+		if err != nil {
+			return err
+		}
+		err = zipFile.Add(filepath.Join(hostname, "expvar", key), cleanedYAML)
+		if err != nil {
+			return err
+		}
 	}
-	cleaned, err := credentialsCleanerBytes(expvarData)
-	if err != nil {
-		return err
-	}
-	err = zipFile.Add(filepath.Join(hostname, "expvar.yaml"), cleaned)
-	if err != nil {
-		return err
-	}
+
 	return nil
 }
 
