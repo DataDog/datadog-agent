@@ -23,7 +23,7 @@ func (c *IOCheck) String() string {
 }
 
 // Configure the IOstats check
-func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+func (c *IOCheck) commonConfigure(data check.ConfigData, initConfig check.ConfigData) error {
 	err := error(nil)
 
 	blacklistRe := config.Datadog.GetString("device_blacklist_re")

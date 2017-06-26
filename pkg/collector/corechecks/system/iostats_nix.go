@@ -134,6 +134,11 @@ func (c *IOCheck) nixIO() error {
 	return nil
 }
 
+// Configure the IOstats check
+func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+	err := c.commonConfigure(data, initConfig)
+	return err
+}
 // Run executes the check
 func (c *IOCheck) Run() error {
 	var err error
