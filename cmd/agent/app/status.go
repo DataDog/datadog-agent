@@ -51,6 +51,8 @@ func requestStatus() error {
 		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
 		return e
 	}
+
+	// The rendering is done in the client so that the agent has less work to do
 	if prettyPrintJSON {
 		var prettyJSON bytes.Buffer
 		json.Indent(&prettyJSON, r, "", "  ")
