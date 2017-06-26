@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -51,6 +53,9 @@ extensions for special Datadog features.`,
 	confPath   string
 	socketPath string
 )
+
+// run the host metadata collector every 14400 seconds (4 hours)
+const hostMetadataCollectorInterval = 14400
 
 func init() {
 	// attach the command to the root
@@ -98,6 +103,16 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Warnf("Error getting hostname: %s\n", err)
 		hname = ""
 	}
+
+	// start metadata collection
+	metaCollector := metadata.NewScheduler(f, config.Datadog.GetString("api_key"), hname)
+
+	// add the host metadata collector
+	err = metaCollector.AddCollector("host", hostMetadataCollectorInterval*time.Second)
+	if err != nil {
+		panic("Host metadata is supposed to be always available in the catalog!")
+	}
+
 	aggregatorInstance := aggregator.InitAggregator(f, hname)
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
@@ -112,6 +127,7 @@ func start(cmd *cobra.Command, args []string) error {
 	// Block here until we receive the interrupt signal
 	<-signalCh
 
+	metaCollector.Stop()
 	statsd.Stop()
 	log.Info("See ya!")
 	log.Flush()

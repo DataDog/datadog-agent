@@ -10,12 +10,34 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
 )
+
+func testMetadata(t *testing.T, d *dogstatsdTest) {
+	// waiting for metadata payload
+	timeOut := time.Tick(10 * time.Second)
+	select {
+	case <-d.requestReady:
+	case <-timeOut:
+		require.Fail(t, "Timeout: the backend never receive a metadata requests from dogstatsd")
+	}
+
+	requests := d.getRequests()
+	require.Len(t, requests, 1)
+
+	metadata := v5.Payload{}
+	err := json.Unmarshal([]byte(requests[0]), &metadata)
+	require.NoError(t, err, "Could not Unmarshal metadata request")
+
+	require.NotNil(t, metadata.Os)
+}
 
 func TestReceiveAndForward(t *testing.T) {
 	d := setupDogstatsd(t)
 	defer d.teardown()
 	defer log.Flush()
+
+	testMetadata(t, d)
 
 	d.sendUDP("_sc|test.ServiceCheck|0")
 
