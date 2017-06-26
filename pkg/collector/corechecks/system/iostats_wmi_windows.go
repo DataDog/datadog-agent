@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+// +build ignore
+>>>>>>> db/system-both
 package system
 
 import (
@@ -5,7 +9,10 @@ import (
 	"fmt"
 	"regexp"
 	"syscall"
+<<<<<<< HEAD
 	"time"
+=======
+>>>>>>> db/system-both
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -16,6 +23,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+<<<<<<< HEAD
 func (c *WMIIOCheck) String() string {
 	return "WMIIOCheckWMI"
 }
@@ -54,6 +62,21 @@ func (c *WMIIOCheck) ID() check.ID {
 
 // Stop does nothing
 func (c *WMIIOCheck) Stop() {}
+=======
+var (
+	Modkernel32 = syscall.NewLazyDLL("kernel32.dll")
+
+	ProcGetLogicalDriveStringsW = Modkernel32.NewProc("GetLogicalDriveStringsW")
+	ProcGetDriveType            = Modkernel32.NewProc("GetDriveTypeW")
+)
+
+const (
+	ERROR_SUCCESS        = 0
+	ERROR_FILE_NOT_FOUND = 2
+	DRIVE_REMOVABLE      = 2
+	DRIVE_FIXED          = 3
+)
+>>>>>>> db/system-both
 
 //type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
 type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
@@ -67,30 +90,49 @@ type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
 	Timestamp_Sys100NS     uint64
 }
 
-// WMIIOCheck doesn't need additional fields
-type WMIIOCheck struct {
+// IOCheck doesn't need additional fields
+type IOCheck struct {
 	sender    aggregator.Sender
 	blacklist *regexp.Regexp
 	drivemap  map[string]Win32_PerfRawData_PerfDisk_LogicalDisk
 }
 
 func init() {
-	core.RegisterCheck("io_wmi", wmiioFactory)
+	core.RegisterCheck("iowin", wmiioFactory)
 }
 
 func wmiioFactory() check.Check {
-	log.Debug("WMIIOCheck factory")
-	c := &WMIIOCheck{}
+	log.Debug("IOCheck factory")
+	c := &IOCheck{}
+	return c
+}
+
+// Configure the IOstats check
+func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+	err := error(nil)
+	err = c.commonConfigure(data, initConfig)
+	if err != nil {
+		return err
+	}
+
+	blacklistRe := config.Datadog.GetString("device_blacklist_re")
+	if blacklistRe != "" {
+		c.blacklist, err = regexp.Compile(blacklistRe)
+		if err != nil {
+			return err
+		}
+	}
+
 	c.drivemap = make(map[string]Win32_PerfRawData_PerfDisk_LogicalDisk, 0)
 
 	drivebuf := make([]byte, 256)
 
-	r, _, _ := ProcGetLogicalDriveStringsW.Call(
+	r, _, err := ProcGetLogicalDriveStringsW.Call(
 		uintptr(len(drivebuf)),
 		uintptr(unsafe.Pointer(&drivebuf[0])))
 	if r == 0 {
 		log.Errorf("IO Factory failed to get drive strings")
-		return nil
+		return err
 	}
 	for _, v := range drivebuf {
 		// between 'A' & 'Z'
@@ -103,8 +145,7 @@ func wmiioFactory() check.Check {
 			c.drivemap[drive] = Win32_PerfRawData_PerfDisk_LogicalDisk{}
 		}
 	}
-	log.Debug("IO Factory -- success")
-	return c
+	return error(nil)
 }
 
 //
@@ -126,26 +167,26 @@ func computeValue(pvs Win32_PerfRawData_PerfDisk_LogicalDisk, cur *Win32_PerfRaw
 	}
 
 	v := (cur.DiskWriteBytesPerSec - pvs.DiskWriteBytesPerSec) / (dt / f)
-	ret["system.wmi.io.wkb_s"] = float64(v / 1024)
+	ret["system.io.wkb_s"] = float64(v / 1024)
 
 	v = (uint64(cur.DiskWritesPerSec) - uint64(pvs.DiskWritesPerSec)) / (dt / f)
-	ret["system.wmi.io.w_s"] = float64(v)
+	ret["system.io.w_s"] = float64(v)
 
 	v = (cur.DiskReadBytesPerSec - pvs.DiskReadBytesPerSec) / (dt / f)
-	ret["system.wmi.io.rkb_s"] = float64(v / 1024)
+	ret["system.io.rkb_s"] = float64(v / 1024)
 
 	v = (uint64(cur.DiskReadsPerSec) - uint64(pvs.DiskReadsPerSec)) / (dt / f)
-	ret["system.wmi.io.r_s"] = float64(v)
+	ret["system.io.r_s"] = float64(v)
 
 	v = (uint64(cur.CurrentDiskQueueLength) - uint64(pvs.CurrentDiskQueueLength)) / (dt / f)
-	ret["system.wmi.io.avg_q_sz"] = float64(v)
+	ret["system.io.avg_q_sz"] = float64(v)
 
 	return ret, e
 
 }
 
 // Run executes the check
-func (c *WMIIOCheck) Run() error {
+func (c *IOCheck) Run() error {
 	var dst []Win32_PerfRawData_PerfDisk_LogicalDisk
 	err := wmi.Query("SELECT Name, DiskWriteBytesPerSec, DiskWritesPerSec, DiskReadBytesPerSec, DiskReadsPerSec, CurrentDiskQueueLength, Timestamp_Sys100NS, Frequency_Sys100NS FROM Win32_PerfRawData_PerfDisk_LogicalDisk ", &dst)
 	if err != nil {

@@ -33,7 +33,7 @@ const (
 	SectorSize = 512
 	kB         = (1 << 10)
 )
-
+ 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
 	sender    aggregator.Sender
@@ -41,7 +41,11 @@ type IOCheck struct {
 	ts        int64
 	stats     map[string]disk.IOCountersStat
 }
-
+// Configure the IOstats check
+func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+	err := c.commonConfigure(data, initConfig)
+	return err
+}
 func (c *IOCheck) nixIO() error {
 	// See: https://www.xaprb.com/blog/2010/01/09/how-linux-iostat-computes-its-results/
 	//      https://www.kernel.org/doc/Documentation/iostats.txt

@@ -4,7 +4,10 @@ import (
 	"regexp"
 	"runtime"
 	"testing"
+<<<<<<< HEAD
 	"time"
+=======
+>>>>>>> db/system-both
 
 	"github.com/shirou/gopsutil/disk"
 )
@@ -49,9 +52,15 @@ var (
 
 var sampleIdx = 0
 
+<<<<<<< HEAD
 func ioSampler(names ...string) (map[string]disk.IOCountersStat, error) {
 	idx := sampleIdx
 	sampleIdx++
+=======
+func ioSampler() (map[string]disk.IOCountersStat, error) {
+	idx := sampleIdx
+	sampleIdx = sampleIdx + 1
+>>>>>>> db/system-both
 	sampleIdx = sampleIdx % len(ioSamples)
 	return ioSamples[idx], nil
 }
@@ -66,6 +75,7 @@ func TestIOCheck(t *testing.T) {
 
 	expectedRates := 2
 	expectedGauges := 0
+	expectedCalls := 4
 	switch os := runtime.GOOS; os {
 	case "windows":
 		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
@@ -88,6 +98,7 @@ func TestIOCheck(t *testing.T) {
 	// sleep for a second, for delta
 	time.Sleep(time.Second)
 
+	
 	switch os := runtime.GOOS; os {
 	case "windows":
 		mock.On("Gauge", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)

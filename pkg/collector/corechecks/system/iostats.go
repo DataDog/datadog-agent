@@ -16,7 +16,7 @@ func (c *IOCheck) String() string {
 }
 
 // Configure the IOstats check
-func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+func (c *IOCheck) commonConfigure(data check.ConfigData, initConfig check.ConfigData) error {
 	err := error(nil)
 
 	conf := make(map[interface{}]interface{})
@@ -29,7 +29,7 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 	blacklistRe, ok := conf["device_blacklist_re"]
 	if ok && blacklistRe != "" {
 		if regex, ok := blacklistRe.(string); ok {
-			c.blacklist, err = regexp.Compile(regex)
+				c.blacklist, err = regexp.Compile(regex)
 		}
 	}
 	return err
