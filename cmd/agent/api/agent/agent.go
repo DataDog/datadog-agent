@@ -82,6 +82,7 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 	log.Info("Got a request for the formatted status. Making formatted status.")
 	s, err := status.GetAndFormatStatus()
 	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
 		http.Error(w, fmt.Sprintf("{\"error\": %v}", err.Error()), 500)
 		return
