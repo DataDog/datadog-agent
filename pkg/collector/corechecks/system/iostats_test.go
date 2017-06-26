@@ -4,10 +4,7 @@ import (
 	"regexp"
 	"runtime"
 	"testing"
-<<<<<<< HEAD
 	"time"
-=======
->>>>>>> db/system-both
 
 	"github.com/shirou/gopsutil/disk"
 )
@@ -52,15 +49,9 @@ var (
 
 var sampleIdx = 0
 
-<<<<<<< HEAD
 func ioSampler(names ...string) (map[string]disk.IOCountersStat, error) {
 	idx := sampleIdx
 	sampleIdx++
-=======
-func ioSampler() (map[string]disk.IOCountersStat, error) {
-	idx := sampleIdx
-	sampleIdx = sampleIdx + 1
->>>>>>> db/system-both
 	sampleIdx = sampleIdx % len(ioSamples)
 	return ioSamples[idx], nil
 }

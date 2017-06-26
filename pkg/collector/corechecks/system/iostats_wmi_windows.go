@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-=======
-// +build ignore
->>>>>>> db/system-both
 package system
 
 import (
@@ -9,10 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"syscall"
-<<<<<<< HEAD
-	"time"
-=======
->>>>>>> db/system-both
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -23,46 +15,6 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-<<<<<<< HEAD
-func (c *WMIIOCheck) String() string {
-	return "WMIIOCheckWMI"
-}
-
-// Configure the IOstats check
-func (c *WMIIOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
-	err := error(nil)
-
-	blacklistRe := config.Datadog.GetString("device_blacklist_re")
-	if blacklistRe != "" {
-		c.blacklist, err = regexp.Compile(blacklistRe)
-	}
-	return err
-}
-
-// InitSender initializes a sender
-func (c *WMIIOCheck) InitSender() {
-	s, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	c.sender = s
-}
-
-// Interval returns the scheduling time for the check
-func (c *WMIIOCheck) Interval() time.Duration {
-	return check.DefaultCheckInterval
-}
-
-// ID returns the name of the check since there should be only one instance running
-func (c *WMIIOCheck) ID() check.ID {
-	return check.ID(c.String())
-}
-
-// Stop does nothing
-func (c *WMIIOCheck) Stop() {}
-=======
 var (
 	Modkernel32 = syscall.NewLazyDLL("kernel32.dll")
 
@@ -76,7 +28,6 @@ const (
 	DRIVE_REMOVABLE      = 2
 	DRIVE_FIXED          = 3
 )
->>>>>>> db/system-both
 
 //type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
 type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
