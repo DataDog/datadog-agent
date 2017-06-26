@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 )
@@ -37,9 +38,12 @@ func getClass(moduleName, className string) (checkClass *python.PyObject) {
 }
 
 func getCheckInstance(moduleName, className string) (*PythonCheck, error) {
+	config.Datadog.Set("foo_agent", "bar_agent")
+	defer config.Datadog.Set("foo_agent", nil)
+
 	checkClass := getClass(moduleName, className)
 	check := NewPythonCheck(moduleName, checkClass)
-	err := check.Configure([]byte("foo: bar"), []byte("foo: bar"))
+	err := check.Configure([]byte("foo_instance: bar_instance"), []byte("foo_init: bar_init"))
 	return check, err
 }
 

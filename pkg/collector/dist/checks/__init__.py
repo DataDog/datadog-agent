@@ -31,23 +31,28 @@ class AgentCheck(object):
     CRITICAL = 2
 
     def __init__(self, *args, **kwargs):
+        # `args` order is `name`, `init_config`, `agentConfig` (deprecated), `instances`
+
         self.metrics = defaultdict(list)
 
-        if len(args) == 0:
-            self.instances = kwargs.get('instances', [])
-            self.name = kwargs.get('name', '')
-            self.agentConfig = kwargs.get('agentConfig', {})
-        else:
+        self.instances = kwargs.get('instances', [])
+        self.name = kwargs.get('name', '')
+        self.init_config = kwargs.get('init_config', {})
+        self.agentConfig = kwargs.get('agentConfig', {})
+
+        if len(args) > 0:
             self.name = args[0]
-            self.agentConfig = args[1]
-            if 'instances' in kwargs:
-                self.instances = kwargs['instances']
-            elif len(args) == 3:
-                # no agentConfig
-                self.instances = args[2]
+        if len(args) > 1:
+            self.init_config = args[1]
+        if len(args) > 2:
+            if len(args) > 3 or 'instances' in kwargs:
+                # old-style init: the 3rd argument is `agentConfig`
+                self.agentConfig = args[2]
+                if len(args) > 3:
+                    self.instances = args[3]
             else:
-                # with agentConfig
-                self.instances = args[3]
+                # new-style init: the 3rd argument is `instances`
+                self.instances = args[2]
 
         # the agent5 'AgentCheck' setup a log attribute.
         self.log = logging.getLogger('%s.%s' % (__name__, self.name))
