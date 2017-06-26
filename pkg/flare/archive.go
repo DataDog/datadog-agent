@@ -97,7 +97,7 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string) error {
 		filePath := config.Datadog.ConfigFileUsed()
 		// Check if the file exists
 		_, e := os.Stat(filePath)
-		if e != nil {
+		if e == nil {
 			file, e := credentialsCleanerFile(filePath)
 			if err != nil {
 				return e
