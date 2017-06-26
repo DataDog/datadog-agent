@@ -20,7 +20,7 @@ namespace :dogstatsd do
       bin_path = STATIC_BIN_PATH
     end
 
-    system("go build #{race_opt} #{build_type_opt} -o #{bin_path}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
+    sh("go build #{race_opt} #{build_type_opt} -o #{bin_path}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
   end
 
   desc "Run Dogstatsd"
@@ -38,7 +38,7 @@ namespace :dogstatsd do
     puts "Starting DogStatsD system tests"
     root = `git rev-parse --show-toplevel`.strip
     bin_path = File.join(root, DOGSTATSD_BIN_PATH, "dogstatsd")
-    system("DOGSTATSD_BIN=\"#{bin_path}\" go test -v #{REPO_PATH}/test/system/dogstatsd/") || exit(1)
+    sh("DOGSTATSD_BIN=\"#{bin_path}\" go test -v #{REPO_PATH}/test/system/dogstatsd/")
   end
 
   desc "Run Dogstatsd size test [skip_rebuild=false]"
