@@ -1,0 +1,34 @@
+{{printDashes .title "="}}
+{{doNotEscape .title}}
+{{printDashes .title "="}}
+  Status date: {{.time}}
+  Pid: {{.pid}}
+  Python Version: {{.platform.pythonV}}
+  Logs: {{.config.log_file}}
+{{- if .runnerStats.Workers}}
+  Check Runners: {{.runnerStats.Workers -}} {{end}}
+  Log Level: {{.config.log_level}}
+  Paths
+  =====
+    Config File: {{if .conf_file_used}}{{.conf_file_used}}{{else}}There is no config file{{end}}
+    conf.d: {{.config.confd_path}}
+    checks.d: {{.config.additional_checksd}}
+  Clocks
+  ======
+    NTP offset: 7850.7797 s
+    System UTC time: {{.time}}
+  Host Info
+  =========
+    {{- range $type, $value := .hostinfo -}}
+    {{- if ne $type "hostname" -}} {{- if ne $type "hostid" -}} {{if $value}}
+    {{$type}}: {{if eq $type "bootTime" -}}
+    {{- formatUnixTime $value -}}
+    {{- else -}}
+    {{- $value -}}
+    {{- end -}}
+    {{end -}} {{end -}} {{end -}} {{- end}}
+  Hostnames
+  =========
+    {{- range $type, $value := .metadata.meta -}} {{- if ne $type "timezones" -}} {{- if $value}}
+    {{$type}}: {{$value -}}
+    {{end -}} {{- end -}} {{- end}}

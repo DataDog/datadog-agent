@@ -10,6 +10,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
@@ -20,6 +21,8 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
+	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
@@ -52,4 +55,40 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
+}
+
+func getStatus(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request for the status. Making status.")
+	s, err := status.GetStatus()
+	w.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	jsonStats, err := json.Marshal(s)
+	if err != nil {
+		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonStats)
+}
+
+func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
+	log.Info("Got a request for the formatted status. Making formatted status.")
+	s, err := status.GetAndFormatStatus()
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(s)
 }

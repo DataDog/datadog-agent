@@ -34,6 +34,11 @@ func GetPayload(hostname string) *Payload {
 	}
 }
 
+// GetStatusInformation just returns an InfoStat object, we need some additional information that's not
+func GetStatusInformation() *host.InfoStat {
+	return getHostInfo()
+}
+
 func getSystemStats() *systemStats {
 	var stats *systemStats
 	key := buildKey("systemStats")

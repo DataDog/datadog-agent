@@ -9,6 +9,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/jhoonb/archivex"
 	yaml "gopkg.in/yaml.v2"
@@ -35,6 +36,13 @@ func createArchive(zipFilePath string, local bool) (string, error) {
 
 	if local {
 		zipFile.Add(filepath.Join(hostname, "local"), []byte{})
+	} else {
+		// The Status will be unavailable unless the agent is running.
+		// Only zip it up if the agent is running
+		err = zipStatusFile(zipFile, hostname)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	err = zipLogFiles(zipFile, hostname)
@@ -48,6 +56,22 @@ func createArchive(zipFilePath string, local bool) (string, error) {
 	}
 
 	return zipFilePath, nil
+}
+
+func zipStatusFile(zipFile *archivex.ZipFile, hostname string) error {
+	// Grab the status
+	s, err := status.GetAndFormatStatus()
+	if err != nil {
+		return err
+	}
+	// Clean it up
+	cleaned, err := credentialsCleanerBytes(s)
+	if err != nil {
+		return err
+	}
+	// Add it to the zipfile
+	zipFile.Add(filepath.Join(hostname, "status.log"), cleaned)
+	return err
 }
 
 func zipLogFiles(zipFile *archivex.ZipFile, hostname string) error {

@@ -1,6 +1,7 @@
 package network
 
 import (
+	"expvar"
 	"fmt"
 	"math/rand"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	yaml "gopkg.in/yaml.v2"
 )
+
+var ntpExpVar = expvar.NewFloat("ntpOffset")
 
 // NTPCheck only has sender and config
 type NTPCheck struct {
@@ -137,6 +140,7 @@ func (c *NTPCheck) Run() error {
 		}
 
 		c.sender.Gauge("ntp.offset", response.ClockOffset.Seconds(), "", nil)
+		ntpExpVar.Set(response.ClockOffset.Seconds())
 	}
 
 	c.sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
