@@ -66,7 +66,7 @@ func TestIOCheck(t *testing.T) {
 
 	expectedRates := 2
 	expectedGauges := 0
-	expectedCalls := 4
+
 	switch os := runtime.GOOS; os {
 	case "windows":
 		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
@@ -89,7 +89,6 @@ func TestIOCheck(t *testing.T) {
 	// sleep for a second, for delta
 	time.Sleep(time.Second)
 
-	
 	switch os := runtime.GOOS; os {
 	case "windows":
 		mock.On("Gauge", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
@@ -119,29 +118,6 @@ func TestIOCheck(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Gauge", expectedGauges)
 	mock.AssertNumberOfCalls(t, "Rate", expectedRates)
 	mock.AssertNumberOfCalls(t, "Commit", 2)
-}
-
-func TestIOCheckBlacklist(t *testing.T) {
-	ioCounters = ioSampler
-	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil)
-
-	mock := new(MockSender)
-	ioCheck.sender = mock
-
-	//set blacklist
-	bl, err := regexp.Compile("sd.*")
-	if err != nil {
-		t.FailNow()
-	}
-	ioCheck.blacklist = bl
-
-	mock.On("Commit").Return().Times(1)
-
-	ioCheck.Run()
-	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 0)
-	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
 func TestIOCheckBlacklist(t *testing.T) {

@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"gopkg.in/yaml.v2"
 )
 
 func (c *IOCheck) String() string {
@@ -29,7 +29,7 @@ func (c *IOCheck) commonConfigure(data check.ConfigData, initConfig check.Config
 	blacklistRe, ok := conf["device_blacklist_re"]
 	if ok && blacklistRe != "" {
 		if regex, ok := blacklistRe.(string); ok {
-				c.blacklist, err = regexp.Compile(regex)
+			c.blacklist, err = regexp.Compile(regex)
 		}
 	}
 	return err
