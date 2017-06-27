@@ -42,6 +42,7 @@ func init() {
 	Datadog.SetDefault("use_dogstatsd", true)
 	Datadog.SetDefault("dogstatsd_port", 8125)
 	Datadog.SetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
+	Datadog.SetDefault("dogstatsd_6_enable", false)
 	Datadog.SetDefault("dogstatsd_non_local_traffic", false)
 	Datadog.SetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
 	Datadog.SetDefault("dogstatsd_stats_enable", false)

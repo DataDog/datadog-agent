@@ -50,8 +50,9 @@ extensions for special Datadog features.`,
 		},
 	}
 
-	confPath   string
-	socketPath string
+	confPath    string
+	socketPath  string
+	legacyAgent bool
 )
 
 // run the host metadata collector every 14400 seconds (4 hours)
@@ -65,8 +66,7 @@ func init() {
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "cfgpath", "f", "", "path to datadog.yaml")
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath"))
-	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket"))
+	startCmd.Flags().BoolVarP(&legacyAgent, "legacy_agent", "l", false, "Run dogstatsd on a legacy agent(5)")
 }
 
 func start(cmd *cobra.Command, args []string) error {
@@ -82,6 +82,11 @@ func start(cmd *cobra.Command, args []string) error {
 
 	if confErr != nil {
 		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
+	}
+
+	if legacyAgent && !config.Datadog.GetBool("dogstatsd_6_enable") {
+		log.Info("dogstatsd6 not enabled on legacy agent - exiting")
+		return nil // clean exit.
 	}
 
 	if !config.Datadog.IsSet("api_key") {
