@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	agentpayload "github.com/DataDog/agent-payload/gogen"
 )
 
 // EPSILON represents the accuracy of the sketch.
@@ -33,6 +35,27 @@ type GKArray struct {
 	// TODO[Charles]: incorporate min in entries so that we can get rid of the field.
 	Min      float64 `json:"min"`
 	ValCount int     `json:"n"`
+}
+
+func marshalEntries(entries Entries) []*agentpayload.SketchPayload_Summary_Sketch_Entry {
+	entriesPayload := []*agentpayload.SketchPayload_Summary_Sketch_Entry{}
+	for _, e := range entries {
+		entriesPayload = append(entriesPayload,
+			&agentpayload.SketchPayload_Summary_Sketch_Entry{
+				V:     e.V,
+				G:     int64(e.G),
+				Delta: int64(e.Delta),
+			})
+	}
+	return entriesPayload
+}
+
+func unmarshalEntries(sketchEntries []*agentpayload.SketchPayload_Summary_Sketch_Entry) Entries {
+	entries := Entries{}
+	for _, e := range sketchEntries {
+		entries = append(entries, Entry{V: e.V, G: int(e.G), Delta: int(e.Delta)})
+	}
+	return entries
 }
 
 // MarshalJSON encodes an Entry into an array of values
