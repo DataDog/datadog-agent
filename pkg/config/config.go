@@ -58,3 +58,35 @@ func init() {
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
 }
+
+// GetMultipleEndpoints returns the api keys per domain specified in the main agent config
+func GetMultipleEndpoints() (map[string][]string, error) {
+	return getMultipleEndpoints(Datadog)
+}
+
+// getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
+func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
+	keysPerDomain := map[string][]string{
+		config.GetString("dd_url"): {
+			config.GetString("api_key"),
+		},
+	}
+
+	var additionalEndpoints map[string][]string
+	err := config.UnmarshalKey("additional_endpoints", &additionalEndpoints)
+	if err != nil {
+		return keysPerDomain, err
+	}
+
+	for domain, apiKeys := range additionalEndpoints {
+		if _, ok := keysPerDomain[domain]; ok {
+			for _, apiKey := range apiKeys {
+				keysPerDomain[domain] = append(keysPerDomain[domain], apiKey)
+			}
+		} else {
+			keysPerDomain[domain] = apiKeys
+		}
+	}
+
+	return keysPerDomain, nil
+}

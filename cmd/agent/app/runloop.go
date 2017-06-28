@@ -76,11 +76,9 @@ func StartAgent() {
 	api.StartServer()
 
 	// setup the forwarder
-	// for now we handle only one key and one domain
-	keysPerDomain := map[string][]string{
-		config.Datadog.GetString("dd_url"): {
-			config.Datadog.GetString("api_key"),
-		},
+	keysPerDomain, err := config.GetMultipleEndpoints()
+	if err != nil {
+		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 	common.Forwarder = forwarder.NewDefaultForwarder(keysPerDomain)
 	log.Debugf("Starting forwarder")

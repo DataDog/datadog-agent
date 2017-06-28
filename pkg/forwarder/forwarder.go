@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -171,6 +172,14 @@ func (f *DefaultForwarder) Start() error {
 	go f.handleFailedTransactions()
 	f.internalState = Started
 	log.Infof("DefaultForwarder started (%v workers)", f.NumberOfWorkers)
+
+	// log endpoints configuration
+	endpointLogs := make([]string, 0, len(f.KeysPerDomains))
+	for domain, apiKeys := range f.KeysPerDomains {
+		endpointLogs = append(endpointLogs, fmt.Sprintf("\"%s\" (%v api key(s))", domain, len(apiKeys)))
+	}
+	log.Infof("DefaultForwarder sending to %v endpoint(s): %s", len(endpointLogs), strings.Join(endpointLogs, " ; "))
+
 	return nil
 }
 
