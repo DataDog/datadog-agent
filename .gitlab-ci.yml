@@ -142,6 +142,7 @@ agent_deb-x64:
 agent_rpm-x64:
   stage: package_build
   image: $RPM_X64
+  allow_failure: true  # FIXME: when we start deploying the rpm package
   tags:
     - docker
   variables:
