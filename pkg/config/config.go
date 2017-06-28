@@ -1,8 +1,10 @@
 package config
 
 import (
+	"strings"
 	"time"
 
+	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
 )
 
@@ -78,6 +80,7 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 		return keysPerDomain, err
 	}
 
+	// merge additional endpoints into keysPerDomain
 	for domain, apiKeys := range additionalEndpoints {
 		if _, ok := keysPerDomain[domain]; ok {
 			for _, apiKey := range apiKeys {
@@ -85,6 +88,26 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 			}
 		} else {
 			keysPerDomain[domain] = apiKeys
+		}
+	}
+
+	// dedupe api keys and remove domains with no api keys (or empty ones)
+	for domain, apiKeys := range keysPerDomain {
+		dedupedApiKeys := make([]string, 0, len(apiKeys))
+		seen := make(map[string]bool)
+		for _, apiKey := range apiKeys {
+			trimmedApiKey := strings.TrimSpace(apiKey)
+			if _, ok := seen[trimmedApiKey]; !ok && trimmedApiKey != "" {
+				seen[trimmedApiKey] = true
+				dedupedApiKeys = append(dedupedApiKeys, trimmedApiKey)
+			}
+		}
+
+		if len(dedupedApiKeys) > 0 {
+			keysPerDomain[domain] = dedupedApiKeys
+		} else {
+			log.Infof("No API key provided for domain \"%s\", removing domain from endpoints", domain)
+			delete(keysPerDomain, domain)
 		}
 	}
 

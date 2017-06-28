@@ -20,7 +20,7 @@ func setupViperConf(yamlConfig string) *viper.Viper {
 }
 
 func TestGetMultipleEndpoints(t *testing.T) {
-	var datadogYaml = `
+	datadogYaml := `
 dd_url: "https://app.datadoghq.com"
 api_key: fakeapikey
 
@@ -44,6 +44,72 @@ additional_endpoints:
 		},
 		"https://foo.datadoghq.com": {
 			"someapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+func TestGetMultipleEndpointseIgnoresDomainWithoutApiKey(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+additional_endpoints:
+  "https://app.datadoghq.com":
+  - fakeapikey2
+  "https://foo.datadoghq.com":
+  - someapikey
+  "https://bar.datadoghq.com":
+  - ""
+`
+
+	testConfig := setupViperConf(datadogYaml)
+
+	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.com": {
+			"fakeapikey",
+			"fakeapikey2",
+		},
+		"https://foo.datadoghq.com": {
+			"someapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+func TestGetMultipleEndpointsApiKeyDeduping(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+additional_endpoints:
+  "https://app.datadoghq.com":
+  - fakeapikey2
+  - fakeapikey
+  "https://foo.datadoghq.com":
+  - someapikey
+  - someotherapikey
+  - someapikey
+`
+
+	testConfig := setupViperConf(datadogYaml)
+
+	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.com": {
+			"fakeapikey",
+			"fakeapikey2",
+		},
+		"https://foo.datadoghq.com": {
+			"someapikey",
+			"someotherapikey",
 		},
 	}
 
