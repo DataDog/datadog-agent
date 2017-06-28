@@ -89,11 +89,10 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// for now we handle only one key and one domain
-	keysPerDomain := map[string][]string{
-		config.Datadog.GetString("dd_url"): {
-			config.Datadog.GetString("api_key"),
-		},
+	// setup the forwarder
+	keysPerDomain, err := config.GetMultipleEndpoints()
+	if err != nil {
+		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 	f := forwarder.NewDefaultForwarder(keysPerDomain)
 	f.Start()
