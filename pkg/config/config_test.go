@@ -51,6 +51,26 @@ additional_endpoints:
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
+func TestGetMultipleEndpointsWithNoAdditionalEndpoints(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+`
+
+	testConfig := setupViperConf(datadogYaml)
+
+	multipleEndpoints, err := getMultipleEndpoints(testConfig)
+
+	expectedMultipleEndpoints := map[string][]string{
+		"https://app.datadoghq.com": {
+			"fakeapikey",
+		},
+	}
+
+	assert.Nil(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
 func TestGetMultipleEndpointseIgnoresDomainWithoutApiKey(t *testing.T) {
 	datadogYaml := `
 dd_url: "https://app.datadoghq.com"
