@@ -93,18 +93,18 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 
 	// dedupe api keys and remove domains with no api keys (or empty ones)
 	for domain, apiKeys := range keysPerDomain {
-		dedupedApiKeys := make([]string, 0, len(apiKeys))
+		dedupedAPIKeys := make([]string, 0, len(apiKeys))
 		seen := make(map[string]bool)
 		for _, apiKey := range apiKeys {
-			trimmedApiKey := strings.TrimSpace(apiKey)
-			if _, ok := seen[trimmedApiKey]; !ok && trimmedApiKey != "" {
-				seen[trimmedApiKey] = true
-				dedupedApiKeys = append(dedupedApiKeys, trimmedApiKey)
+			trimmedAPIKey := strings.TrimSpace(apiKey)
+			if _, ok := seen[trimmedAPIKey]; !ok && trimmedAPIKey != "" {
+				seen[trimmedAPIKey] = true
+				dedupedAPIKeys = append(dedupedAPIKeys, trimmedAPIKey)
 			}
 		}
 
-		if len(dedupedApiKeys) > 0 {
-			keysPerDomain[domain] = dedupedApiKeys
+		if len(dedupedAPIKeys) > 0 {
+			keysPerDomain[domain] = dedupedAPIKeys
 		} else {
 			log.Infof("No API key provided for domain \"%s\", removing domain from endpoints", domain)
 			delete(keysPerDomain, domain)
