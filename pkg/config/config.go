@@ -5,6 +5,7 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+	"github.com/go-ini/ini"
 	"github.com/spf13/viper"
 )
 
@@ -113,4 +114,64 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 	}
 
 	return keysPerDomain, nil
+}
+
+// ReadLegacyConfig will read the legacy config (needed by dogstatsd6)
+func ReadLegacyConfig() error {
+
+	cfg, err := ini.Load(Datadog.GetString("conf_path"))
+	if err != nil {
+		return err
+	}
+	main, err := cfg.GetSection("Main")
+	if err != nil {
+		return err
+	}
+
+	if v := main.Key("hostname").MustString(""); v != "" {
+		//set value
+		Datadog.Set("hostname", v)
+	}
+	if v := main.Key("api_key").MustString(""); v != "" {
+		//set value
+		Datadog.Set("api_key", v)
+	}
+	if v := main.Key("dd_url").MustString("http://localhost:17123"); v != "" {
+		//set value
+		Datadog.Set("dd_url", v)
+	}
+	if v := main.Key("use_dogstatsd").MustBool(true); v {
+		//set value
+		Datadog.Set("use_dogstatsd", v)
+	}
+	if v := main.Key("dogstatsd6_enable").MustBool(false); v {
+		//set value
+		Datadog.Set("dogstatsd6_enable", v)
+	}
+	if v := main.Key("dogstatsd_port").MustInt64(8125); v != 8125 {
+		//set value
+		Datadog.Set("dogstatsd_port", v)
+	}
+	if v := main.Key("dogstatsd_buffer_size").MustInt64(1024 * 8); v != (1024 * 8) {
+		//set value
+		Datadog.Set("dogstatsd_buffer_size", v)
+	}
+	if v := main.Key("dogstatsd_non_local_traffic").MustBool(false); v {
+		//set value
+		Datadog.Set("dogstatsd_non_local_traffic", v)
+	}
+	if v := main.Key("dogstatsd_socket").MustString(""); v != "" {
+		//set value
+		Datadog.Set("dogstatsd_socket", v)
+	}
+	if v := main.Key("dogstatsd_stats_enable").MustBool(false); v {
+		//set value
+		Datadog.Set("dogstatsd_stats_enable", v)
+	}
+	if v := main.Key("dogstatsd_stats_buffer").MustInt64(10); v != 0 {
+		//set value
+		Datadog.Set("dogstatsd_stats_buffer", v)
+	}
+
+	return err
 }

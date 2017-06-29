@@ -79,13 +79,20 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
 	}
+	defer log.Flush()
 
-	if confErr != nil {
-		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
+	if confErr != nil && legacyAgent {
+		log.Infof("unable to parse Datadog config file, error: %v", confErr)
+		log.Info("attempting to load legacy agent5 config...")
+		confErr = config.ReadLegacyConfig()
 	}
 
-	if legacyAgent && !config.Datadog.GetBool("dogstatsd_6_enable") {
-		log.Info("dogstatsd6 not enabled on legacy agent - exiting")
+	if confErr != nil {
+		log.Infof("unable to parse any Datadog config file, running with env variables: %s", confErr)
+	}
+	if legacyAgent && (!config.Datadog.GetBool("dogstatsd6_enable") || !config.Datadog.GetBool("use_dogstatsd")) {
+		log.Infof("running in legacy mode but dogstatsd6 not enabled - shutting down")
+		time.Sleep(4 * time.Second)
 		return nil // clean exit.
 	}
 
@@ -134,7 +141,6 @@ func start(cmd *cobra.Command, args []string) error {
 	metaCollector.Stop()
 	statsd.Stop()
 	log.Info("See ya!")
-	log.Flush()
 	return nil
 }
 
