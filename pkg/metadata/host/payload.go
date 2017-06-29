@@ -18,6 +18,7 @@ type meta struct {
 	SocketFqdn     string   `json:"socket-fqdn"`
 	EC2Hostname    string   `json:"ec2-hostname"`
 	Hostname       string   `json:"hostname"`
+	HostAliases    []string `json:"host_aliases"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload

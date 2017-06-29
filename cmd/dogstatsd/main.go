@@ -99,9 +99,10 @@ func start(cmd *cobra.Command, args []string) error {
 
 	hname, err := util.GetHostname()
 	if err != nil {
-		log.Warnf("Error getting hostname: %s\n", err)
+		log.Warnf("Error getting hostname: %s", err)
 		hname = ""
 	}
+	log.Debugf("Using hostname: %s", hname)
 
 	var metaScheduler *metadata.Scheduler
 	if config.Datadog.GetBool("enable_metadata_collection") {
