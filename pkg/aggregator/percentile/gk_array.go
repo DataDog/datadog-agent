@@ -37,11 +37,11 @@ type GKArray struct {
 	ValCount int     `json:"n"`
 }
 
-func marshalEntries(entries Entries) []*agentpayload.SketchPayload_Summary_Sketch_Entry {
-	entriesPayload := []*agentpayload.SketchPayload_Summary_Sketch_Entry{}
+func marshalEntries(entries Entries) []agentpayload.SketchPayload_Summary_Sketch_Entry {
+	entriesPayload := []agentpayload.SketchPayload_Summary_Sketch_Entry{}
 	for _, e := range entries {
 		entriesPayload = append(entriesPayload,
-			&agentpayload.SketchPayload_Summary_Sketch_Entry{
+			agentpayload.SketchPayload_Summary_Sketch_Entry{
 				V:     e.V,
 				G:     int64(e.G),
 				Delta: int64(e.Delta),
@@ -50,7 +50,7 @@ func marshalEntries(entries Entries) []*agentpayload.SketchPayload_Summary_Sketc
 	return entriesPayload
 }
 
-func unmarshalEntries(sketchEntries []*agentpayload.SketchPayload_Summary_Sketch_Entry) Entries {
+func unmarshalEntries(sketchEntries []agentpayload.SketchPayload_Summary_Sketch_Entry) Entries {
 	entries := Entries{}
 	for _, e := range sketchEntries {
 		entries = append(entries, Entry{V: e.V, G: int(e.G), Delta: int(e.Delta)})

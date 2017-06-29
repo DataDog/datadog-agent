@@ -44,12 +44,12 @@ func (e NoSketchError) Error() string {
 	return "Not enough samples to generate sketches"
 }
 
-func marshalSketches(sketches []Sketch) []*agentpayload.SketchPayload_Summary_Sketch {
-	sketchesPayload := []*agentpayload.SketchPayload_Summary_Sketch{}
+func marshalSketches(sketches []Sketch) []agentpayload.SketchPayload_Summary_Sketch {
+	sketchesPayload := []agentpayload.SketchPayload_Summary_Sketch{}
 
 	for _, s := range sketches {
 		sketchesPayload = append(sketchesPayload,
-			&agentpayload.SketchPayload_Summary_Sketch{
+			agentpayload.SketchPayload_Summary_Sketch{
 				Ts:      s.Timestamp,
 				N:       int64(s.Sketch.ValCount),
 				Min:     s.Sketch.Min,
@@ -59,7 +59,7 @@ func marshalSketches(sketches []Sketch) []*agentpayload.SketchPayload_Summary_Sk
 	return sketchesPayload
 }
 
-func unmarshalSketches(summarySketches []*agentpayload.SketchPayload_Summary_Sketch) []Sketch {
+func unmarshalSketches(summarySketches []agentpayload.SketchPayload_Summary_Sketch) []Sketch {
 	sketches := []Sketch{}
 	for _, s := range summarySketches {
 		sketches = append(sketches,
@@ -79,12 +79,12 @@ func unmarshalSketches(summarySketches []*agentpayload.SketchPayload_Summary_Ske
 // MarshalSketchSeries serializes sketch series using protocol buffers
 func MarshalSketchSeries(sketches []*SketchSeries) ([]byte, error) {
 	payload := &agentpayload.SketchPayload{
-		Summaries: []*agentpayload.SketchPayload_Summary{},
-		Metadata:  &agentpayload.CommonMetadata{},
+		Summaries: []agentpayload.SketchPayload_Summary{},
+		Metadata:  agentpayload.CommonMetadata{},
 	}
 	for _, s := range sketches {
 		payload.Summaries = append(payload.Summaries,
-			&agentpayload.SketchPayload_Summary{
+			agentpayload.SketchPayload_Summary{
 				Metric:   s.Name,
 				Host:     s.Host,
 				Sketches: marshalSketches(s.Sketches),
@@ -111,7 +111,7 @@ func UnmarshalSketchSeries(payload []byte) ([]*SketchSeries, agentpayload.Common
 				Sketches: unmarshalSketches(s.Sketches),
 			})
 	}
-	return sketches, *decodedPayload.Metadata, err
+	return sketches, decodedPayload.Metadata, err
 }
 
 // MarshalJSONSketchSeries serializes sketch series to JSON so it can be sent to
