@@ -1,6 +1,8 @@
 package flare
 
 import (
+	"encoding/json"
+	"expvar"
 	"os"
 	"path"
 	"path/filepath"
@@ -55,6 +57,11 @@ func createArchive(zipFilePath string, local bool) (string, error) {
 		return "", err
 	}
 
+	err = zipExpVar(zipFile, hostname)
+	if err != nil {
+		return "", err
+	}
+
 	return zipFilePath, nil
 }
 
@@ -94,6 +101,35 @@ func zipLogFiles(zipFile *archivex.ZipFile, hostname string) error {
 	})
 
 	return err
+}
+
+func zipExpVar(zipFile *archivex.ZipFile, hostname string) error {
+	var variables = make(map[string]interface{})
+	expvar.Do(func(kv expvar.KeyValue) {
+		var variable = make(map[string]interface{})
+		json.Unmarshal([]byte(kv.Value.String()), &variable)
+		variables[kv.Key] = variable
+	})
+
+	// The callback above cannot return an error.
+	// In order to properly ensure error checking,
+	// it needs to be done in its own loop
+	for key, value := range variables {
+		yamlValue, err := yaml.Marshal(value)
+		if err != nil {
+			return err
+		}
+		cleanedYAML, err := credentialsCleanerBytes(yamlValue)
+		if err != nil {
+			return err
+		}
+		err = zipFile.Add(filepath.Join(hostname, "expvar", key), cleanedYAML)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func zipConfigFiles(zipFile *archivex.ZipFile, hostname string) error {
