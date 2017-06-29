@@ -12,6 +12,7 @@ import (
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
 
+	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	log "github.com/cihub/seelog"
 )
@@ -112,6 +113,20 @@ func getHostInfo() *host.InfoStat {
 	return info
 }
 
+// getHostAliases returns the hostname aliases from different provider
+// This should include GCE, Azure, Cloud foundry.
+func getHostAliases() []string {
+	aliases := []string{}
+
+	azureAliases, err := azure.GetHostAlias()
+	if err != nil {
+		log.Errorf("no Azure Host Aliases: %s", err)
+	} else if azureAliases != "" {
+		aliases = append(aliases, azureAliases)
+	}
+	return aliases
+}
+
 func getMeta() *meta {
 	hostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
@@ -122,6 +137,7 @@ func getMeta() *meta {
 		Timezones:      []string{tzname},
 		SocketFqdn:     util.Fqdn(hostname),
 		EC2Hostname:    ec2Hostname,
+		HostAliases:    getHostAliases(),
 	}
 }
 
