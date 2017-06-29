@@ -241,7 +241,7 @@ func (agg *BufferedAggregator) flushSeries() {
 			log.Error("could not serialize series, dropping it:", err)
 			return
 		}
-		agg.forwarder.SubmitV1Series(config.Datadog.GetString("api_key"), &payload)
+		agg.forwarder.SubmitV1Series(&payload)
 		addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("SeriesFlushed", int64(len(series)))
 	}()
@@ -267,7 +267,7 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 			log.Error("could not serialize service checks, dropping them: ", err)
 			return
 		}
-		agg.forwarder.SubmitV1CheckRuns(config.Datadog.GetString("api_key"), &payload)
+		agg.forwarder.SubmitV1CheckRuns(&payload)
 		addFlushTime("ServiceCheckFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("ServiceCheckFlushed", int64(len(serviceChecks)))
 	}()
@@ -288,7 +288,7 @@ func (agg *BufferedAggregator) flushSketches() {
 		if err != nil {
 			log.Error("could not serialize sketches, dropping them:", err)
 		}
-		agg.forwarder.SubmitV1SketchSeries(config.Datadog.GetString("api_key"), &payload)
+		agg.forwarder.SubmitV1SketchSeries(&payload)
 		addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("SketchesFlushed", int64(len(sketchSeries)))
 	}()
@@ -313,7 +313,7 @@ func (agg *BufferedAggregator) flushEvents() {
 			return
 		}
 		// We use the agent 5 intake endpoint until the v2 events endpoint is ready
-		agg.forwarder.SubmitV1Intake(config.Datadog.GetString("api_key"), &payload)
+		agg.forwarder.SubmitV1Intake(&payload)
 		addFlushTime("EventFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("EventsFlushed", int64(len(events)))
 	}(agg.hostname)

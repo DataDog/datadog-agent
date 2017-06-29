@@ -69,12 +69,13 @@ func TestSubmitInStopMode(t *testing.T) {
 
 func TestSubmit(t *testing.T) {
 	expectedEndpoint := ""
-	expectedQuery := ""
+	expectAPIKeyInQuery := false
 	expectedPayload := []byte{}
 	expectedHeaders := make(http.Header)
 
 	firstKey := "api_key1"
 	secondKey := "api_key2"
+	currentKey := firstKey
 	expectedHeaders.Set(apiHTTPHeaderKey, firstKey)
 
 	wait := make(chan bool)
@@ -82,7 +83,9 @@ func TestSubmit(t *testing.T) {
 		defer func() { wait <- true }()
 		assert.Equal(t, r.Method, "POST")
 		assert.Equal(t, r.URL.Path, expectedEndpoint)
-		assert.Equal(t, r.URL.RawQuery, expectedQuery)
+		if expectAPIKeyInQuery {
+			assert.Equal(t, r.URL.RawQuery, fmt.Sprintf("api_key=%s", currentKey))
+		}
 		for k := range expectedHeaders {
 			assert.Equal(t, expectedHeaders.Get(k), r.Header.Get(k))
 		}
@@ -90,8 +93,10 @@ func TestSubmit(t *testing.T) {
 		// We switch expected keys as the forwarder should create one
 		// transaction per keys
 		if expectedHeaders.Get(apiHTTPHeaderKey) == firstKey {
+			currentKey = secondKey
 			expectedHeaders.Set(apiHTTPHeaderKey, secondKey)
 		} else {
+			currentKey = firstKey
 			expectedHeaders.Set(apiHTTPHeaderKey, firstKey)
 		}
 
@@ -153,33 +158,33 @@ func TestSubmit(t *testing.T) {
 
 	expectedPayload = []byte("SubmitV1Series payload")
 	expectedEndpoint = "/api/v1/series"
-	expectedQuery = "api_key=test_api_key"
-	assert.Nil(t, forwarder.SubmitV1Series("test_api_key", &expectedPayload))
+	expectAPIKeyInQuery = true
+	assert.Nil(t, forwarder.SubmitV1Series(&expectedPayload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
 	expectedPayload = []byte("SubmitV1SketchSeries payload")
 	expectedEndpoint = "/api/v1/sketches"
-	expectedQuery = "api_key=test_api_key"
-	assert.Nil(t, forwarder.SubmitV1SketchSeries("test_api_key", &expectedPayload))
+	expectAPIKeyInQuery = true
+	assert.Nil(t, forwarder.SubmitV1SketchSeries(&expectedPayload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
 	expectedPayload = []byte("SubmitV1CheckRuns payload")
 	expectedEndpoint = "/api/v1/check_run"
-	expectedQuery = "api_key=test_api_key"
-	assert.Nil(t, forwarder.SubmitV1CheckRuns("test_api_key", &expectedPayload))
+	expectAPIKeyInQuery = true
+	assert.Nil(t, forwarder.SubmitV1CheckRuns(&expectedPayload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
 	expectedPayload = []byte("SubmitV1Intake payload")
 	expectedEndpoint = "/intake/"
-	expectedQuery = "api_key=test_api_key"
 	expectedHeaders.Set("Content-type", "application/json")
-	assert.Nil(t, forwarder.SubmitV1Intake("test_api_key", &expectedPayload))
+	expectAPIKeyInQuery = true
+	assert.Nil(t, forwarder.SubmitV1Intake(&expectedPayload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)

@@ -104,7 +104,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	// start metadata collection
-	metaCollector := metadata.NewScheduler(f, config.Datadog.GetString("api_key"), hname)
+	metaCollector := metadata.NewScheduler(f, hname)
 
 	// add the host metadata collector
 	err = metaCollector.AddCollector("host", hostMetadataCollectorInterval*time.Second)
