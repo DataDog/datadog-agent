@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path"
 	"strings"
 	"time"
 
@@ -48,6 +49,8 @@ func init() {
 	Datadog.SetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
 	Datadog.SetDefault("dogstatsd_stats_enable", false)
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
+	Datadog.SetDefault("legacy_dogstatsd_log", path.Join(
+		path.Dir(defaultLogPath), "dogstatsd.log"))
 	// JMX
 	Datadog.SetDefault("jmx_pipe_path", defaultJMXPipePath)
 	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
