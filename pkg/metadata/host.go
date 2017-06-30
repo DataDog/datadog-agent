@@ -15,7 +15,7 @@ import (
 type HostCollector struct{}
 
 // Send collects the data needed and submits the payload
-func (hp *HostCollector) Send(apiKey string, fwd forwarder.Forwarder) error {
+func (hp *HostCollector) Send(fwd forwarder.Forwarder) error {
 	var hostname string
 	x, found := util.Cache.Get("hostname")
 	if found {
@@ -28,7 +28,7 @@ func (hp *HostCollector) Send(apiKey string, fwd forwarder.Forwarder) error {
 		return fmt.Errorf("unable to serialize host metadata payload, %s", err)
 	}
 
-	err = fwd.SubmitV1Intake(apiKey, &payloadBytes)
+	err = fwd.SubmitV1Intake(&payloadBytes)
 	if err != nil {
 		return fmt.Errorf("unable to submit host metadata payload to the forwarder, %s", err)
 	}

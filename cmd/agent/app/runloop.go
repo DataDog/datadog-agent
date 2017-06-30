@@ -103,7 +103,7 @@ func StartAgent() {
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
-	common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, config.Datadog.GetString("api_key"), hostname)
+	common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, hostname)
 	var C []config.MetadataProviders
 	err = config.Datadog.UnmarshalKey("metadata_providers", &C)
 	if err == nil {
