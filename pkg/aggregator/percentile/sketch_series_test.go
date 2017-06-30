@@ -4,7 +4,45 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	agentpayload "github.com/DataDog/agent-payload/gogen"
 )
+
+func TestMarshalSketches(t *testing.T) {
+	sketch1 := QSketch{
+		GKArray{
+			Entries: []Entry{{1, 1, 0}},
+			Min:     1, ValCount: 1,
+			incoming: make([]float64, 0, int(1/EPSILON))}}
+	sketch2 := QSketch{
+		GKArray{
+			Entries: []Entry{{10, 1, 0}, {14, 3, 0}, {21, 2, 0}},
+			Min:     10, ValCount: 6,
+			incoming: make([]float64, 0, int(1/EPSILON))}}
+	series := []*SketchSeries{{
+		ContextKey: "test_context",
+		Sketches:   []Sketch{{int64(12345), sketch1}, {int64(67890), sketch2}},
+		Name:       "test.metrics",
+		Host:       "localHost",
+		Tags:       []string{"tag1", "tag2:yes"},
+	}}
+
+	payload, err := MarshalSketchSeries(series)
+	assert.Nil(t, err)
+
+	decodedPayload, metadata, err := UnmarshalSketchSeries(payload)
+	assert.Nil(t, err)
+
+	assert.Equal(t, 1, len(decodedPayload))
+	assert.Equal(t, agentpayload.CommonMetadata{}, metadata)
+	assert.Equal(t, "test.metrics", (*decodedPayload[0]).Name)
+	assert.Equal(t, "tag1", (*decodedPayload[0]).Tags[0])
+	assert.Equal(t, "tag2:yes", (*decodedPayload[0]).Tags[1])
+	assert.Equal(t, "localHost", (*decodedPayload[0]).Host)
+	assert.Equal(t, Sketch{Timestamp: 12345, Sketch: sketch1}, (*decodedPayload[0]).Sketches[0])
+	assert.Equal(t, Sketch{Timestamp: 67890, Sketch: sketch2}, (*decodedPayload[0]).Sketches[1])
+
+}
 
 func TestMarshalJSONSketchSeries(t *testing.T) {
 	sketch1 := QSketch{

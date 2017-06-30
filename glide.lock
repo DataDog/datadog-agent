@@ -1,5 +1,5 @@
-hash: 496ebb52c95bf04b84b8beee352e431b677706b6949fa75a2991478c6ac48ab1
-updated: 2017-06-22T10:40:06.598557496+02:00
+hash: 53f3397071741b3e934291d6186d55d94b4c85607fc54efafe27457c20e64d98
+updated: 2017-06-29T16:03:56.41071368-04:00
 imports:
 - name: github.com/beevik/ntp
   version: cb3dae3a7588ae35829eb5724df611cd75152fba
@@ -12,7 +12,7 @@ imports:
   - pkg/pathutil
   - pkg/types
 - name: github.com/DataDog/agent-payload
-  version: 0b7d55a8fb246702cc0321f68631d746c07d6ddb
+  version: 81c6e466836dfc706380e4f060062836ce7197a6
   subpackages:
   - gogen
 - name: github.com/DataDog/datadog-go
@@ -110,10 +110,13 @@ imports:
 - name: github.com/gogo/protobuf
   version: 909568be09de550ed094403c2bf8a261b5bb730a
   subpackages:
+  - gogoproto
   - proto
+  - protoc-gen-gogo/descriptor
 - name: github.com/golang/protobuf
-  version: 18c9bb3261723cd5401db4d0c9fbc5c3b6c70fe8
+  version: 4bd1920723d7b7c925de087aa32e2187708897f7
   subpackages:
+  - jsonpb
   - proto
 - name: github.com/gorilla/context
   version: 1ea25387ff6f684839d82767c1733ff4d4d15d0a
