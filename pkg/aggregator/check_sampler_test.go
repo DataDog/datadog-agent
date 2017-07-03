@@ -17,7 +17,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 		Timestamp:  12345.0,
 	}
@@ -25,7 +25,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      2,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 		Timestamp:  12347.0,
 	}
@@ -33,7 +33,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar", "baz"},
+		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 		Timestamp:  12348.0,
 	}
@@ -84,7 +84,7 @@ func TestCheckRateSampling(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      RateType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 		Timestamp:  12345.0,
 	}
@@ -92,7 +92,7 @@ func TestCheckRateSampling(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      10,
 		Mtype:      RateType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 		Timestamp:  12347.5,
 	}
@@ -100,7 +100,7 @@ func TestCheckRateSampling(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      RateType,
-		Tags:       &[]string{"foo", "bar", "baz"},
+		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 		Timestamp:  12348.0,
 	}
@@ -133,7 +133,7 @@ func TestCheckSamplerHostname(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 		Timestamp:  12345.0,
 	}
@@ -141,7 +141,7 @@ func TestCheckSamplerHostname(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
 		Timestamp:  12345,

@@ -27,8 +27,8 @@ func generateContextKey(metricSample *MetricSample) string {
 	var contextFields []string
 
 	contextFields = append(contextFields, metricSample.Name)
-	sort.Strings(*(metricSample.Tags))
-	contextFields = append(contextFields, *(metricSample.Tags)...)
+	sort.Strings(metricSample.Tags)
+	contextFields = append(contextFields, metricSample.Tags...)
 	contextFields = append(contextFields, metricSample.Host)
 
 	return strings.Join(contextFields, ",")
@@ -47,7 +47,7 @@ func (cr *ContextResolver) trackContext(metricSample *MetricSample, currentTimes
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		cr.contextsByKey[contextKey] = &Context{
 			Name: metricSample.Name,
-			Tags: *(metricSample.Tags),
+			Tags: metricSample.Tags,
 			Host: metricSample.Host,
 		}
 	}
