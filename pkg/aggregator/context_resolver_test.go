@@ -13,7 +13,7 @@ func TestGenerateContextKey(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
 	}
@@ -27,35 +27,35 @@ func TestTrackContext(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
 	mSample2 := MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar", "baz"},
+		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
 	mSample3 := MetricSample{ // same as mSample2, with different Host
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar", "baz"},
+		Tags:       []string{"foo", "bar", "baz"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
 	}
 	expectedContext1 := Context{
 		Name: mSample1.Name,
-		Tags: *(mSample1.Tags),
+		Tags: mSample1.Tags,
 	}
 	expectedContext2 := Context{
 		Name: mSample2.Name,
-		Tags: *(mSample2.Tags),
+		Tags: mSample2.Tags,
 	}
 	expectedContext3 := Context{
 		Name: mSample3.Name,
-		Tags: *(mSample3.Tags),
+		Tags: mSample3.Tags,
 		Host: mSample3.Host,
 	}
 	contextResolver := newContextResolver()
@@ -85,14 +85,14 @@ func TestExpireContexts(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
 	mSample2 := MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar", "baz"},
+		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
 	contextResolver := newContextResolver()

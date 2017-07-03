@@ -76,14 +76,14 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 		Name:       "test.metric.name",
 		Value:      1,
 		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "b"},
+		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
 	mSample2 := MetricSample{
 		Name:       "test.metric.name",
 		Value:      2,
 		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "b"},
+		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
 	distSampler.addSample(&mSample1, 10001)
@@ -122,14 +122,14 @@ func TestDistSamplerContextSampling(t *testing.T) {
 		Name:       "test.metric.name1",
 		Value:      1,
 		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "b"},
+		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
 	mSample2 := MetricSample{
 		Name:       "test.metric.name2",
 		Value:      1,
 		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "c"},
+		Tags:       []string{"a", "c"},
 		SampleRate: 1,
 	}
 	distSampler.addSample(&mSample1, 10011)

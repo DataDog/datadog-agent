@@ -78,7 +78,7 @@ func TestBucketSampling(t *testing.T) {
 		Name:       "my.metric.name",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
 	sampler.addSample(&mSample, 12345.0)
@@ -109,21 +109,21 @@ func TestContextSampling(t *testing.T) {
 		Name:       "my.metric.name1",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
 	mSample2 := MetricSample{
 		Name:       "my.metric.name2",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
 	mSample3 := MetricSample{
 		Name:       "my.metric.name3",
 		Value:      1,
 		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Tags:       []string{"foo", "bar"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
 	}

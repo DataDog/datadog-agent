@@ -48,7 +48,7 @@ type MetricSample struct {
 	Value      float64
 	RawValue   string
 	Mtype      MetricType
-	Tags       *[]string
+	Tags       []string
 	Host       string
 	SampleRate float64
 	Timestamp  float64

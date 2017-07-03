@@ -266,7 +266,7 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 	sample := &aggregator.MetricSample{
 		Name:       metricName,
 		Mtype:      metricType,
-		Tags:       &metricTags,
+		Tags:       metricTags,
 		Host:       host,
 		SampleRate: metricSampleRate,
 		Timestamp:  0,

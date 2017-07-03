@@ -96,7 +96,7 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 		Name:       metric,
 		Value:      value,
 		Mtype:      mType,
-		Tags:       &tags,
+		Tags:       tags,
 		Host:       hostname,
 		SampleRate: 1,
 		Timestamp:  timeNowNano(),
