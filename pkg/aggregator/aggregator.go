@@ -125,6 +125,20 @@ func NewBufferedAggregator(f forwarder.Forwarder, hostname string) *BufferedAggr
 	return aggregator
 }
 
+func deduplicateTags(tags []string) []string {
+	seen := make(map[string]bool, len(tags))
+	idx := 0
+	for _, v := range tags {
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = true
+		tags[idx] = v
+		idx++
+	}
+	return tags[:idx]
+}
+
 // IsInputQueueEmpty returns true if every input channel for the aggregator are
 // empty. This is mainly usefull for tests and benchmark
 func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
@@ -180,6 +194,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 		if ss.commit {
 			checkSampler.commit(timeNowNano())
 		} else {
+			ss.metricSample.Tags = deduplicateTags(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample)
 		}
 	} else {
@@ -195,6 +210,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
+	sc.Tags = deduplicateTags(sc.Tags)
 
 	agg.serviceChecks = append(agg.serviceChecks, sc)
 }
@@ -207,12 +223,14 @@ func (agg *BufferedAggregator) addEvent(e Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
+	e.Tags = deduplicateTags(e.Tags)
 
 	agg.events = append(agg.events, e)
 }
 
 // addSample adds the metric sample to either the sampler or distSampler
 func (agg *BufferedAggregator) addSample(metricSample *MetricSample, timestamp float64) {
+	metricSample.Tags = deduplicateTags(metricSample.Tags)
 	if metricSample.Mtype == DistributionType {
 		agg.distSampler.addSample(metricSample, timestamp)
 	} else {

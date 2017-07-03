@@ -55,22 +55,24 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 		// leave Host and Ts fields blank
 		CheckName: "my_service.can_connect",
 		Status:    ServiceCheckOK,
-		Tags:      []string{"foo", "bar"},
+		Tags:      []string{"bar", "foo", "bar"},
 		Message:   "message",
 	})
 	agg.addServiceCheck(ServiceCheck{
 		CheckName: "my_service.can_connect",
 		Status:    ServiceCheckOK,
 		Host:      "my-hostname",
-		Tags:      []string{"foo", "bar"},
+		Tags:      []string{"foo", "foo", "bar"},
 		Ts:        12345,
 		Message:   "message",
 	})
 
 	require.Len(t, agg.serviceChecks, 2)
 	assert.Equal(t, "resolved-hostname", agg.serviceChecks[0].Host)
+	assert.Equal(t, []string{"bar", "foo"}, agg.serviceChecks[0].Tags)
 	assert.NotZero(t, agg.serviceChecks[0].Ts) // should be set to the current time, let's just check that it's not 0
 	assert.Equal(t, "my-hostname", agg.serviceChecks[1].Host)
+	assert.Equal(t, []string{"foo", "bar"}, agg.serviceChecks[1].Tags)
 	assert.Equal(t, int64(12345), agg.serviceChecks[1].Ts)
 }
 
@@ -90,7 +92,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 		Ts:             12345,
 		Priority:       EventPriorityNormal,
 		Host:           "my-hostname",
-		Tags:           []string{"foo", "bar"},
+		Tags:           []string{"foo", "bar", "foo"},
 		AlertType:      EventAlertTypeError,
 		AggregationKey: "my_agg_key",
 		SourceTypeName: "custom_source_type",
