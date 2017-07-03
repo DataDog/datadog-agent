@@ -46,6 +46,7 @@ run_test_rpm-x64:
   variables:
     USE_SYSTEM_PY: "1"
   script:
+    - source /opt/rh/python27/enable # Enable the alternative python
     - yum install -y net-snmp net-snmp-devel  # required by snmp check
     - rake test
 

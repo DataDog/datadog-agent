@@ -25,13 +25,15 @@ build do
     move 'bin/agent/dist/datadog.yaml', '/etc/dd-agent/datadog.yaml.example'
     mkdir '/etc/dd-agent/checks.d'
 
-    if debian?
+    mkdir "/etc/init/"
+    if debian? || redhat?
       erb source: "upstart.conf.erb",
           dest: "/etc/init/datadog-agent6.conf",
           mode: 0755,
           vars: { install_dir: install_dir }
     end
 
+    mkdir "/lib/systemd/system/"
     if redhat? || debian?
       erb source: "systemd.service.erb",
           dest: "/lib/systemd/system/datadog-agent6.service",
