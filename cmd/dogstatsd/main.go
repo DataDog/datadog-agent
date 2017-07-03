@@ -150,7 +150,10 @@ func start(cmd *cobra.Command, args []string) error {
 
 func main() {
 	// go_expvar server
-	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)
+	port := config.Datadog.Get("dogstatsd6_stats_port")
+	go http.ListenAndServe(
+		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd6_stat_port")),
+		http.DefaultServeMux)
 
 	if err := dogstatsdCmd.Execute(); err != nil {
 		log.Error(err)
