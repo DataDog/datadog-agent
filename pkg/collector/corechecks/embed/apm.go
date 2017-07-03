@@ -10,11 +10,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
+
 	log "github.com/cihub/seelog"
 	"github.com/kardianos/osext"
+	"gopkg.in/yaml.v2"
 )
+
+type apmCheckConf struct {
+	BinPath  string `yaml:"bin_path,omitempty"`
+	ConfPath string `yaml:"conf_path,omitempty"`
+}
 
 // APMCheck keeps track of the running command
 type APMCheck struct {
@@ -60,16 +66,36 @@ func (c *APMCheck) Run() error {
 
 // Configure the APMCheck
 func (c *APMCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
-	here, _ := osext.ExecutableFolder()
-	dist := path.Join(here, "dist")
-	bin := path.Join(here, "trace-agent")
-	conf := path.Join(dist, "trace-agent.ini")
+	var checkConf apmCheckConf
+	if err := yaml.Unmarshal(data, &checkConf); err != nil {
+		return err
+	}
 
-	c.cmd = exec.Command(bin, fmt.Sprintf("-ddconfig=%s", conf))
+	binPath := ""
+	if checkConf.BinPath != "" {
+		if _, err := os.Stat(checkConf.BinPath); err == nil {
+			binPath = checkConf.BinPath
+		} else {
+			log.Infof("Can't access apm binary at %s, falling back to default", checkConf.BinPath)
+		}
+	}
+	if binPath == "" {
+		defaultBinPath, err := getAPMAgentDefaultBinPath()
+		if err != nil {
+			return err
+		}
+		binPath = defaultBinPath
+	}
+
+	// let the trace-agent use its own default config file if we haven't explicitly configured one
+	ddConfigOption := ""
+	if checkConf.ConfPath != "" {
+		ddConfigOption = fmt.Sprintf("-ddconfig=%s", checkConf.ConfPath)
+	}
+
+	c.cmd = exec.Command(binPath, ddConfigOption)
 
 	env := os.Environ()
-	env = append(env, "DD_APM_ENABLED=true")
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.Datadog.GetString("api_key")))
 	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", getHostname()))
 	c.cmd.Env = env
 
@@ -111,4 +137,13 @@ func getHostname() string {
 		return hname.(string)
 	}
 	return ""
+}
+
+func getAPMAgentDefaultBinPath() (string, error) {
+	here, _ := osext.ExecutableFolder()
+	binPath := path.Join(here, "..", "..", "embedded", "bin", "trace-agent")
+	if _, err := os.Stat(binPath); err == nil {
+		return binPath, nil
+	}
+	return "", fmt.Errorf("Can't access apm binary at %s", binPath)
 }
