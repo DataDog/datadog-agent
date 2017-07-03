@@ -55,6 +55,7 @@ func init() {
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
+	Datadog.BindEnv("hostname")
 	Datadog.BindEnv("cmd_sock")
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("dogstatsd_socket")
