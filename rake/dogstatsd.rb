@@ -16,7 +16,7 @@ namespace :dogstatsd do
     commit = `git rev-parse --short HEAD`.strip
     ldflags = "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
     if static_bin then
-      ldflags += "-s -w -extldflags \"-static\""
+      ldflags += " -s -w -extldflags \"-static\""
       bin_path = STATIC_BIN_PATH
     end
 
