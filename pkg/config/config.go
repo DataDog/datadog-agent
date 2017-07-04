@@ -44,14 +44,11 @@ func init() {
 	Datadog.SetDefault("use_dogstatsd", true)
 	Datadog.SetDefault("dogstatsd_port", 8125)
 	Datadog.SetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
-	Datadog.SetDefault("dogstatsd6_enable", false)
-	Datadog.SetDefault("dogstatsd6_stat_port", 5000)
 	Datadog.SetDefault("dogstatsd_non_local_traffic", false)
 	Datadog.SetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
+	Datadog.SetDefault("dogstatsd_stats_port", 5000)
 	Datadog.SetDefault("dogstatsd_stats_enable", false)
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
-	Datadog.SetDefault("legacy_dogstatsd_log", path.Join(
-		path.Dir(defaultLogPath), "dogstatsd.log"))
 	// JMX
 	Datadog.SetDefault("jmx_pipe_path", defaultJMXPipePath)
 	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
@@ -133,49 +130,43 @@ func ReadLegacyConfig() error {
 	}
 
 	if v := main.Key("hostname").MustString(""); v != "" {
-		//set value
 		Datadog.Set("hostname", v)
 	}
 	if v := main.Key("api_key").MustString(""); v != "" {
-		//set value
 		Datadog.Set("api_key", v)
 	}
 	if v := main.Key("dd_url").MustString("http://localhost:17123"); v != "" {
-		//set value
 		Datadog.Set("dd_url", v)
 	}
 	if v := main.Key("use_dogstatsd").MustBool(true); v {
-		//set value
 		Datadog.Set("use_dogstatsd", v)
 	}
-	if v := main.Key("dogstatsd6_enable").MustBool(false); v {
-		//set value
-		Datadog.Set("dogstatsd6_enable", v)
-	}
+
 	if v := main.Key("dogstatsd_port").MustInt64(8125); v != 8125 {
-		//set value
 		Datadog.Set("dogstatsd_port", v)
 	}
+	if v := main.Key("dogstatsd6_stats_port").MustInt64(5000); v != 5000 {
+		Datadog.Set("dogstatsd_stats_port", v)
+	}
 	if v := main.Key("dogstatsd_buffer_size").MustInt64(1024 * 8); v != (1024 * 8) {
-		//set value
 		Datadog.Set("dogstatsd_buffer_size", v)
 	}
 	if v := main.Key("dogstatsd_non_local_traffic").MustBool(false); v {
-		//set value
 		Datadog.Set("dogstatsd_non_local_traffic", v)
 	}
 	if v := main.Key("dogstatsd_socket").MustString(""); v != "" {
-		//set value
 		Datadog.Set("dogstatsd_socket", v)
 	}
 	if v := main.Key("dogstatsd_stats_enable").MustBool(false); v {
-		//set value
 		Datadog.Set("dogstatsd_stats_enable", v)
 	}
 	if v := main.Key("dogstatsd_stats_buffer").MustInt64(10); v != 0 {
-		//set value
 		Datadog.Set("dogstatsd_stats_buffer", v)
 	}
+
+	// actual enable logic...
+	v := main.Key("dogstatsd6_enable").MustBool(false)
+	Datadog.Set("use_dogstatsd", v && Datadog.GetBool("use_dogstatsd"))
 
 	return err
 }

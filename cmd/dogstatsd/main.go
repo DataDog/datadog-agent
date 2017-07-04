@@ -75,9 +75,6 @@ func start(cmd *cobra.Command, args []string) error {
 
 	// Setup logger
 	logFile := config.Datadog.GetString("log_file")
-	if legacyAgent {
-		logFile = config.Datadog.GetString("legacy_dogstatsd_log")
-	}
 	err := config.SetupLogger(config.Datadog.GetString("log_level"), logFile)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
@@ -94,7 +91,7 @@ func start(cmd *cobra.Command, args []string) error {
 	if confErr != nil {
 		log.Infof("unable to parse any Datadog config file, running with env variables: %s", confErr)
 	}
-	if legacyAgent && (!config.Datadog.GetBool("dogstatsd6_enable") || !config.Datadog.GetBool("use_dogstatsd")) {
+	if legacyAgent && !config.Datadog.GetBool("use_dogstatsd") {
 		log.Infof("running in legacy mode but dogstatsd6 not enabled - shutting down")
 		time.Sleep(4 * time.Second)
 		return nil // clean exit.
@@ -150,9 +147,8 @@ func start(cmd *cobra.Command, args []string) error {
 
 func main() {
 	// go_expvar server
-	port := config.Datadog.Get("dogstatsd6_stats_port")
 	go http.ListenAndServe(
-		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd6_stat_port")),
+		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
 		http.DefaultServeMux)
 
 	if err := dogstatsdCmd.Execute(); err != nil {
