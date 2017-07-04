@@ -1,7 +1,6 @@
 package config
 
 import (
-	"path"
 	"strings"
 	"time"
 
