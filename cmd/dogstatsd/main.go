@@ -66,6 +66,7 @@ func init() {
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "cfgpath", "f", "", "path to datadog.yaml")
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath"))
+	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 	startCmd.Flags().BoolVarP(&legacyAgent, "legacy_agent", "l", false, "Run dogstatsd on a legacy agent(5)")
 }
 
