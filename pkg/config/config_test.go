@@ -154,7 +154,6 @@ func TestLegacyIniConfig(t *testing.T) {
 	assert.EqualValues(t, Datadog.GetString("hostname"), "foo.bar")
 	assert.EqualValues(t, Datadog.GetString("api_key"), "deadbeeffeebdaeddeadbeeffeebdaed")
 	assert.EqualValues(t, Datadog.GetBool("use_dogstatsd"), true)
-	assert.EqualValues(t, Datadog.GetBool("dogstatsd6_enable"), true)
 	assert.EqualValues(t, Datadog.GetInt64("dogstatsd_port"), 8126)
 	assert.EqualValues(t, Datadog.GetInt64("dogstatsd_buffer_size"), 16384)
 	assert.EqualValues(t, Datadog.GetBool("dogstatsd_stats_enable"), true)
