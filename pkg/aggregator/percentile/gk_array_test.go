@@ -14,15 +14,15 @@ type Generator interface {
 }
 
 type Dataset struct {
-	Values   []float64
-	ValCount int
-	sorted   bool
+	Values []float64
+	Count  int
+	sorted bool
 }
 
 func NewDataset() *Dataset { return &Dataset{} }
 func (d *Dataset) Add(v float64) {
 	d.Values = append(d.Values, v)
-	d.ValCount++
+	d.Count++
 	d.sorted = false
 }
 
@@ -31,23 +31,45 @@ func (d *Dataset) Quantile(q float64) float64 {
 		panic("Quantile out of bounds")
 	}
 	d.Sort()
-	if d.ValCount == 0 {
+	if d.Count == 0 {
 		return math.NaN()
 	}
 
-	rank := q * float64(d.ValCount-1)
+	rank := q * float64(d.Count-1)
 	indexBelow := int(rank)
 	indexAbove := indexBelow + 1
-	if indexAbove > d.ValCount-1 {
-		indexAbove = d.ValCount - 1
+	if indexAbove > d.Count-1 {
+		indexAbove = d.Count - 1
 	}
 	weightAbove := rank - float64(indexBelow)
 	weightBelow := 1.0 - weightAbove
 
-	if d.ValCount < int(1/EPSILON) {
+	if d.Count < int(1/EPSILON) {
 		return weightBelow*d.Values[indexBelow] + weightAbove*d.Values[indexAbove]
 	}
 	return d.Values[indexBelow]
+}
+
+func (d *Dataset) Min() float64 {
+	d.Sort()
+	return d.Values[0]
+}
+
+func (d *Dataset) Max() float64 {
+	d.Sort()
+	return d.Values[len(d.Values)-1]
+}
+
+func (d *Dataset) Sum() float64 {
+	s := float64(0)
+	for _, v := range d.Values {
+		s += v
+	}
+	return s
+}
+
+func (d *Dataset) Avg() float64 {
+	return d.Sum() / float64(d.Count)
 }
 
 func (d *Dataset) Sort() {
@@ -70,8 +92,14 @@ func EvaluateSketch(t *testing.T, n int, gen Generator) {
 		s.Add(value)
 		d.Add(value)
 	}
+	eps := float64(1.0e-6)
 	for _, q := range testQuantiles {
 		assert.InDelta(t, d.Quantile(q), s.Quantile(q), EPSILON*(float64(n)))
+		assert.Equal(t, d.Min(), s.Min)
+		assert.Equal(t, d.Max(), s.Max)
+		assert.InEpsilon(t, d.Avg(), s.Avg, eps)
+		assert.InEpsilon(t, d.Sum(), s.Sum, eps)
+		assert.Equal(t, d.Count, s.Count)
 	}
 }
 
@@ -154,8 +182,14 @@ func TestMerge(t *testing.T) {
 		}
 		s1.Merge(s3)
 
+		eps := float64(1e-6)
 		for _, q := range testQuantiles {
 			assert.InDelta(t, d.Quantile(q), s1.Quantile(q), 2*EPSILON*float64(n))
+			assert.InEpsilon(t, d.Min(), s1.Min, eps)
+			assert.InEpsilon(t, d.Max(), s1.Max, eps)
+			assert.InEpsilon(t, d.Avg(), s1.Avg, eps)
+			assert.InEpsilon(t, d.Sum(), s1.Sum, eps)
+			assert.InEpsilon(t, d.Count, s1.Count, eps)
 		}
 	}
 }

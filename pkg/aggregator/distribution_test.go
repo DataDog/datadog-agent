@@ -32,6 +32,7 @@ func TestDistributionSampling(t *testing.T) {
 	expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		Sketches: []percentile.Sketch{{Timestamp: int64(15), Sketch: expectedSketch}}}
+
 	AssertSketchSeriesEqual(t, expectedSeries, sketchSeries)
 
 	// Global histogram is reset after a flush

@@ -51,8 +51,11 @@ func marshalSketches(sketches []Sketch) []agentpayload.SketchPayload_Summary_Ske
 		sketchesPayload = append(sketchesPayload,
 			agentpayload.SketchPayload_Summary_Sketch{
 				Ts:      s.Timestamp,
-				N:       int64(s.Sketch.ValCount),
+				N:       int64(s.Sketch.Count),
 				Min:     s.Sketch.Min,
+				Max:     s.Sketch.Max,
+				Avg:     s.Sketch.Avg,
+				Sum:     s.Sketch.Sum,
 				Entries: marshalEntries(s.Sketch.Entries),
 			})
 	}
@@ -67,7 +70,10 @@ func unmarshalSketches(summarySketches []agentpayload.SketchPayload_Summary_Sket
 				Timestamp: s.Ts,
 				Sketch: QSketch{
 					GKArray{Min: s.Min,
-						ValCount: int(s.N),
+						Count:    int(s.N),
+						Max:      s.Max,
+						Avg:      s.Avg,
+						Sum:      s.Sum,
 						Entries:  unmarshalEntries(s.Entries),
 						incoming: make([]float64, 0, int(1/EPSILON))}},
 			})
