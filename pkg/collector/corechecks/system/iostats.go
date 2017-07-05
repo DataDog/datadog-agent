@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -58,3 +60,13 @@ func (c *IOCheck) ID() check.ID {
 
 // Stop does nothing
 func (c *IOCheck) Stop() {}
+
+func init() {
+	core.RegisterCheck("io", ioFactory)
+}
+
+func ioFactory() check.Check {
+	log.Debug("IOCheck factory")
+	c := &IOCheck{}
+	return c
+}

@@ -9,8 +9,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/StackExchange/wmi"
 	log "github.com/cihub/seelog"
 )
@@ -48,16 +46,6 @@ type IOCheck struct {
 	drivemap  map[string]Win32_PerfRawData_PerfDisk_LogicalDisk
 }
 
-func init() {
-	core.RegisterCheck("iowin", wmiioFactory)
-}
-
-func wmiioFactory() check.Check {
-	log.Debug("IOCheck factory")
-	c := &IOCheck{}
-	return c
-}
-
 // Configure the IOstats check
 func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	err := error(nil)
@@ -66,18 +54,12 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 		return err
 	}
 
-	blacklistRe := config.Datadog.GetString("device_blacklist_re")
-	if blacklistRe != "" {
-		c.blacklist, err = regexp.Compile(blacklistRe)
-		if err != nil {
-			return err
-		}
-	}
-
 	c.drivemap = make(map[string]Win32_PerfRawData_PerfDisk_LogicalDisk, 0)
 
-	drivebuf := make([]byte, 256)
+	drivebuf := make([]uint16, 256)
 
+	// Windows API GetLogicalDriveStrings returns all of the assigned drive letters
+	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa364975(v=vs.85).aspx
 	r, _, err := ProcGetLogicalDriveStringsW.Call(
 		uintptr(len(drivebuf)),
 		uintptr(unsafe.Pointer(&drivebuf[0])))
@@ -85,16 +67,13 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 		log.Errorf("IO Factory failed to get drive strings")
 		return err
 	}
-	for _, v := range drivebuf {
-		// between 'A' & 'Z'
-		if v >= 65 && v <= 90 {
-			drive := string(v)
-			r, _, _ = ProcGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(drive + `:\`))))
-			if r != DRIVE_FIXED {
-				continue
-			}
-			c.drivemap[drive] = Win32_PerfRawData_PerfDisk_LogicalDisk{}
+	drivelist := convert_windows_string_list(drivebuf)
+	for _, drive := range drivelist {
+		r, _, _ = ProcGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(drive + "\\"))))
+		if r != DRIVE_FIXED {
+			continue
 		}
+		c.drivemap[drive] = Win32_PerfRawData_PerfDisk_LogicalDisk{}
 	}
 	return error(nil)
 }
@@ -160,9 +139,9 @@ func (c *IOCheck) Run() error {
 		tagbuff.WriteString("device:")
 		tagbuff.WriteString(drive)
 		tags := []string{tagbuff.String()}
-		if len(c.drivemap[d.Name].Name) != 0 {
+		if prev, ok := c.drivemap[d.Name]; ok {
 			// have a previous value we can compute from
-			metrics, err := computeValue(c.drivemap[d.Name], &d)
+			metrics, err := computeValue(prev, &d)
 			if err != nil {
 				log.Errorf("Error computing WMI statistics: %s", err)
 			} else {
@@ -177,4 +156,22 @@ func (c *IOCheck) Run() error {
 	}
 	c.sender.Commit()
 	return nil
+}
+func convert_windows_string_list(winput []uint16) []string {
+	var retstrings []string
+	var rsindex = 0
+
+	retstrings = append(retstrings, "")
+	for i := 0; i < (len(winput) - 1); i++ {
+		if winput[i] == 0 {
+			if winput[i+1] == 0 {
+				return retstrings
+			}
+			rsindex++
+			retstrings = append(retstrings, "")
+			continue
+		}
+		retstrings[rsindex] += string(rune(winput[i]))
+	}
+	return retstrings
 }

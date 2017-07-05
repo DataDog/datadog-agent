@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/disk"
 
@@ -154,7 +153,6 @@ func (c *IOCheck) Run() error {
 }
 
 func init() {
-	core.RegisterCheck("io", ioFactory)
 	var scClkTck C.long
 
 	scClkTck = C.sysconf(C._SC_CLK_TCK)
@@ -164,8 +162,4 @@ func init() {
 		log.Errorf("Unable to grab HZ: perhaps unavailable in your architecture" +
 			"(svctm will not be available)")
 	}
-}
-
-func ioFactory() check.Check {
-	return &IOCheck{}
 }
