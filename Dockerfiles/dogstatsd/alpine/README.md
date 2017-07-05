@@ -6,7 +6,7 @@ The following environment variables are supported:
 
   - `DD_API_KEY`: your API key (**required**)
   - `DD_HOSTNAME`: hostname to use for metrics
-  - `DD_DOGSTATSD_SOCKET`: path to the unix socket to use instead of UDP
+  - `DD_DOGSTATSD_SOCKET`: path to the unix socket to use instead of UDP. Must be in a `rw` mounted volume.
 
 This is a sample Kubernetes DaemonSet, using the UDS protocol:
 
