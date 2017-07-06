@@ -72,18 +72,20 @@ func (c *APMCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 	}
 
 	binPath := ""
+	defaultBinPath, defaultBinPathErr := getAPMAgentDefaultBinPath()
 	if checkConf.BinPath != "" {
 		if _, err := os.Stat(checkConf.BinPath); err == nil {
 			binPath = checkConf.BinPath
 		} else {
-			log.Infof("Can't access apm binary at %s, falling back to default", checkConf.BinPath)
+			log.Warnf("Can't access apm binary at %s, falling back to default path at %s", checkConf.BinPath, defaultBinPath)
 		}
 	}
+
 	if binPath == "" {
-		defaultBinPath, err := getAPMAgentDefaultBinPath()
-		if err != nil {
-			return err
+		if defaultBinPathErr != nil {
+			return defaultBinPathErr
 		}
+
 		binPath = defaultBinPath
 	}
 
@@ -145,5 +147,5 @@ func getAPMAgentDefaultBinPath() (string, error) {
 	if _, err := os.Stat(binPath); err == nil {
 		return binPath, nil
 	}
-	return "", fmt.Errorf("Can't access apm binary at %s", binPath)
+	return binPath, fmt.Errorf("Can't access the default apm binary at %s", binPath)
 }
