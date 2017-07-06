@@ -104,31 +104,34 @@ func StartAgent() {
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
-	common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, hostname)
-	var C []config.MetadataProviders
-	err = config.Datadog.UnmarshalKey("metadata_providers", &C)
-	if err == nil {
-		log.Debugf("Adding configured providers to the metadata collector")
-		for _, c := range C {
-			if c.Name == "host" {
-				continue
+	if config.Datadog.GetBool("send_host_metadata") {
+		common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, hostname)
+		var C []config.MetadataProviders
+		err = config.Datadog.UnmarshalKey("metadata_providers", &C)
+		if err == nil {
+			log.Debugf("Adding configured providers to the metadata collector")
+			for _, c := range C {
+				if c.Name == "host" {
+					continue
+				}
+				intl := c.Interval * time.Second
+				err = common.MetadataScheduler.AddCollector(c.Name, intl)
+				if err != nil {
+					log.Errorf("Unable to add '%s' metadata provider: %v", c.Name, err)
+				} else {
+					log.Infof("Scheduled metadata provider '%v' to run every %v", c.Name, intl)
+				}
 			}
-			intl := c.Interval * time.Second
-			err = common.MetadataScheduler.AddCollector(c.Name, intl)
-			if err != nil {
-				log.Errorf("Unable to add '%s' metadata provider: %v", c.Name, err)
-			} else {
-				log.Infof("Scheduled metadata provider '%v' to run every %v", c.Name, intl)
-			}
+		} else {
+			log.Errorf("Unable to parse metadata_providers config: %v", err)
+		}
+		// Should be always true, except in some edge cases (multiple agents per host)
+		err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
+		if err != nil {
+			panic("Host metadata is supposed to be always available in the catalog!")
 		}
 	} else {
-		log.Errorf("Unable to parse metadata_providers config: %v", err)
-	}
-
-	// always add the host metadata collector, this is not user-configurable by design
-	err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
-	if err != nil {
-		panic("Host metadata is supposed to be always available in the catalog!")
+		log.Warnf("Host metadata disabled, only do that if another agent/dogstatsd is running on this host\n")
 	}
 }
 
@@ -139,7 +142,9 @@ func StopAgent() {
 		common.DSD.Stop()
 	}
 	common.AC.Stop()
-	common.MetadataScheduler.Stop()
+	if common.MetadataScheduler != nil {
+		common.MetadataScheduler.Stop()
+	}
 	api.StopServer()
 	common.Forwarder.Stop()
 	os.Remove(pidfilePath)

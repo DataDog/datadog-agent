@@ -7,6 +7,7 @@ The following environment variables are supported:
   - `DD_API_KEY`: your API key (**required**)
   - `DD_HOSTNAME`: hostname to use for metrics
   - `DD_DOGSTATSD_SOCKET`: path to the unix socket to use instead of UDP. Must be in a `rw` mounted volume.
+  - `DD_SEND_HOST_METADATA`: whether to send host metadata (default is true, set to false only if running alonside an existing dd-agent)
 
 This is a sample Kubernetes DaemonSet, using the UDS protocol:
 
@@ -31,6 +32,8 @@ spec:
             value: ___value___
           - name: DD_DOGSTATSD_SOCKET
             value: "/socket/statsd.socket"
+          - name: DD_SEND_HOST_METADATA
+            value: false
           - name: DD_HOSTNAME
             valueFrom:
               fieldRef:

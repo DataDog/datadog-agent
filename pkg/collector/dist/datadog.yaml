@@ -36,13 +36,17 @@ api_key:
 # forwarder_timeout: 20
 
 # Metadata collectors, add or remove from the list to enable or disable collection.
-# The host metadata collector cannot be configured and is enabled by default.
 # Intervals are expressed in seconds.
 metadata_collectors:
   - name: 'resources'
     interval: 60
 #  - name: k8s
 #    interval: 60
+
+# Host metadata collection should always be enabled, except if you are running several
+# agents/dsd instances per host. In that case, only one agent should have it on.
+# WARNING: disabling it on every agent will lead to display and billing issues
+# send_host_metadata: true
 
 # DogStatsd
 #
