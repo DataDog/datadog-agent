@@ -12,6 +12,8 @@ To build the project you need:
  * `rake`
  * an `agent` version 5.x installed under `/opt/`
 
+Some tests have specific requirements, see [System Tests](tests/README.md).
+
  We use `pkg-config` to make compilers and linkers aware of CPython. If you need to adjust the build for your specific configuration, add or edit the files within the `pkg-config` folder.
 
 ## Getting started
