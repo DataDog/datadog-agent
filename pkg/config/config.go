@@ -5,7 +5,6 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"github.com/go-ini/ini"
 	"github.com/spf13/viper"
 )
 
@@ -61,6 +60,8 @@ func init() {
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
+	Datadog.BindEnv("log_file")
+	Datadog.BindEnv("log_level")
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
@@ -114,58 +115,4 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 	}
 
 	return keysPerDomain, nil
-}
-
-// ReadLegacyConfig will read the legacy config (needed by dogstatsd6)
-func ReadLegacyConfig() error {
-
-	cfg, err := ini.Load(Datadog.GetString("conf_path"))
-	if err != nil {
-		return err
-	}
-	main, err := cfg.GetSection("Main")
-	if err != nil {
-		return err
-	}
-
-	if v := main.Key("hostname").MustString(""); v != "" {
-		Datadog.Set("hostname", v)
-	}
-	if v := main.Key("api_key").MustString(""); v != "" {
-		Datadog.Set("api_key", v)
-	}
-	if v := main.Key("dd_url").MustString("http://localhost:17123"); v != "" {
-		Datadog.Set("dd_url", v)
-	}
-	if v := main.Key("use_dogstatsd").MustBool(true); v {
-		Datadog.Set("use_dogstatsd", v)
-	}
-
-	if v := main.Key("dogstatsd_port").MustInt64(8125); v != 8125 {
-		Datadog.Set("dogstatsd_port", v)
-	}
-	if v := main.Key("dogstatsd6_stats_port").MustInt64(5000); v != 5000 {
-		Datadog.Set("dogstatsd_stats_port", v)
-	}
-	if v := main.Key("dogstatsd_buffer_size").MustInt64(1024 * 8); v != (1024 * 8) {
-		Datadog.Set("dogstatsd_buffer_size", v)
-	}
-	if v := main.Key("dogstatsd_non_local_traffic").MustBool(false); v {
-		Datadog.Set("dogstatsd_non_local_traffic", v)
-	}
-	if v := main.Key("dogstatsd_socket").MustString(""); v != "" {
-		Datadog.Set("dogstatsd_socket", v)
-	}
-	if v := main.Key("dogstatsd_stats_enable").MustBool(false); v {
-		Datadog.Set("dogstatsd_stats_enable", v)
-	}
-	if v := main.Key("dogstatsd_stats_buffer").MustInt64(10); v != 0 {
-		Datadog.Set("dogstatsd_stats_buffer", v)
-	}
-
-	// actual enable logic...
-	v := main.Key("dogstatsd6_enable").MustBool(false)
-	Datadog.Set("use_dogstatsd", v && Datadog.GetBool("use_dogstatsd"))
-
-	return err
 }

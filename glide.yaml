@@ -59,4 +59,3 @@ import:
 - package: github.com/jhoonb/archivex
   version: be4efa7ec0c38ab76d56037014c90d48d6b13037
 - package: github.com/samuel/go-zookeeper/zk
-- package: github.com/go-ini/ini
