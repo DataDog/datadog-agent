@@ -20,11 +20,13 @@ var (
 
 	forwarderExpvar      = expvar.NewMap("forwarder")
 	transactionsCreation = expvar.Map{}
+	retryQueueSize       = expvar.Int{}
 )
 
 func init() {
 	transactionsCreation.Init()
 	forwarderExpvar.Set("TransactionsCreated", &transactionsCreation)
+	transactionsCreation.Set("RetryQueueSize", &retryQueueSize)
 }
 
 const (
@@ -120,7 +122,7 @@ func (f *DefaultForwarder) retryTransactions(tickTime time.Time) {
 		}
 	}
 	f.retryQueue = newQueue
-	transactionsCreation.Add("RetryQueueSize", int64(len(f.retryQueue)))
+	retryQueueSize.Set(int64(len(f.retryQueue)))
 }
 
 func (f *DefaultForwarder) requeueTransaction(t Transaction) {
