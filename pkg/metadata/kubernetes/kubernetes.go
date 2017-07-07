@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/ericchiang/k8s"
 	"github.com/ericchiang/k8s/api/v1"
@@ -35,8 +36,13 @@ func GetPayload() (metadata.Payload, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve config: %s", err)
 	}
+
 	dr, err := client.AppsV1Beta1().ListDeployments(ctx, "")
-	if err != nil {
+	apiErr, ok := err.(*k8s.APIError)
+	// Older K8s version don't have this API and will return a 404.
+	if ok && apiErr.Code == http.StatusNotFound {
+		dr = &appsv1beta1.DeploymentList{}
+	} else if err != nil {
 		return nil, fmt.Errorf("failed to get deployments: %s", err)
 	}
 	rr, err := client.ExtensionsV1Beta1().ListReplicaSets(ctx, "")
