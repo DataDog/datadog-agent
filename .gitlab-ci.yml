@@ -177,7 +177,7 @@ deploy_deb:
   tags:
     - docker
   script:
-    - source ~/.rvm/scripts/rvm
+    - source /home/jenkins/.rvm/scripts/rvm
     - rvm use 2.2.2@circleci
     - echo "$APT_SIGNING_KEY_ID"
     - echo "$APT_SIGNING_PRIVATE_KEY" | gpg --import
