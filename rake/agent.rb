@@ -66,14 +66,17 @@ namespace :agent do
     sh("#{BIN_PATH}/agent start")
   end
 
-  desc "Build omnibus installer"
+  desc "Build omnibus installer [puppy=false]"
   task :omnibus do
+    # omnibus config overrides
+    overrides = []
+
+    # puppy mode option
+    project_name = ENV['puppy'] == "true" ? "puppy" : "datadog-agent6"
+
     # omnibus log level
     log_level = ENV["AGENT_OMNIBUS_LOG_LEVEL"] || "info"
 
-    # omnibus config overrides
-    overrides_cmd = ""
-    overrides = []
     base_dir = ENV["AGENT_OMNIBUS_BASE_DIR"]
     if base_dir
       overrides.push("base_dir:#{base_dir}")
@@ -84,21 +87,21 @@ namespace :agent do
       overrides.push("package_dir:#{package_dir}")
     end
 
+    overrides_cmd = ""
+    if overrides.size > 0
+      overrides_cmd = "--override=" + overrides.join(" ")
+    end
+
     Dir.chdir('omnibus') do
       system("bundle install --without development")
-
-      if overrides.size > 0
-        overrides_cmd = "--override=" + overrides.join(" ")
-      end
-
-    case os
+      case os
       when "windows"
-        system("omnibus.bat build datadog-agent6 --log-level=#{log_level} #{overrides_cmd}")
+        system("omnibus.bat build #{project_name} --log-level=#{log_level} #{overrides_cmd}")
       else
-        system("omnibus build datadog-agent6 --log-level=#{log_level} #{overrides_cmd}")
+        system("omnibus build #{project_name} --log-level=#{log_level} #{overrides_cmd}")
       end
-
     end
+
   end
 
   desc "Run agent system tests"
