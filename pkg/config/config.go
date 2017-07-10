@@ -59,6 +59,7 @@ func init() {
 	Datadog.BindEnv("cmd_sock")
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("dogstatsd_socket")
+	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
