@@ -6,11 +6,11 @@ stages:
   - deploy
 
 variables:
-  DOCKER_REGISTRY: gitlab.datad0g.com:4567
+  DOCKER_REGISTRY: 727006795293.dkr.ecr.us-east-1.amazonaws.com
   SRC_PATH: /src/github.com/DataDog/datadog-agent
-  DEB_X64: $DOCKER_REGISTRY/datadog/datadog-agent-builders:deb_x64
-  RPM_X64: $DOCKER_REGISTRY/datadog/datadog-agent-builders:rpm_x64
-  DEPLOY: $DOCKER_REGISTRY/datadog/datadog-agent-builders:deploy # For now, just a renamed version of the image datadog/mars-jenkins-scripts
+  DEB_X64: $DOCKER_REGISTRY/datadog-agent-builders:deb_x64
+  RPM_X64: $DOCKER_REGISTRY/datadog-agent-builders:rpm_x64
+  DEPLOY: $DOCKER_REGISTRY/datadog-agent-builders:deploy # For now, just a renamed version of the image datadog/mars-jenkins-scripts
   AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   STATIC_BINARIES_DIR: bin/static
   DEB_S3_BUCKET: apt-agent6.datad0g.com
