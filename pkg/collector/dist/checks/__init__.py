@@ -22,6 +22,9 @@ class AgentLogHandler(logging.Handler):
 rootLogger = logging.getLogger()
 rootLogger.addHandler(AgentLogHandler())
 
+class CheckException(Exception):
+    pass
+
 class AgentCheck(object):
 
     RATE = "rate"
