@@ -12,12 +12,16 @@ func TestCleanConfig(t *testing.T) {
 	configFile := `dd_url: https://app.datadoghq.com
 api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 proxy: http://user:password@host:port
+password: foo
+auth_token: bar
 # comment to strip
 log_level: info
 `
 	cleanedConfigFile := `dd_url: https://app.datadoghq.com
 api_key: **************************aaaaa
 proxy: http://user:********@host:port
+password: ********
+auth_token: ********
 log_level: info
 `
 
