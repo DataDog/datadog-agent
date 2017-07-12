@@ -157,21 +157,22 @@ func (c *IOCheck) Run() error {
 	c.sender.Commit()
 	return nil
 }
+
 func convert_windows_string_list(winput []uint16) []string {
 	var retstrings []string
-	var rsindex = 0
+	var buffer bytes.Buffer
 
-	retstrings = append(retstrings, "")
 	for i := 0; i < (len(winput) - 1); i++ {
 		if winput[i] == 0 {
+			retstrings = append(retstrings, buffer.String())
+			buffer.Reset()
+
 			if winput[i+1] == 0 {
 				return retstrings
 			}
-			rsindex++
-			retstrings = append(retstrings, "")
 			continue
 		}
-		retstrings[rsindex] += string(rune(winput[i]))
+		buffer.WriteString(string(rune(winput[i])))
 	}
 	return retstrings
 }
