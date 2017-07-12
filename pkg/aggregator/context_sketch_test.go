@@ -18,9 +18,9 @@ func TestContextSketchSampling(t *testing.T) {
 	resultSeries := ctxSketch.flush(12345.0)
 
 	expectedSketch := percentile.NewQSketch()
-	expectedSketch.Add(1)
-	expectedSketch.Add(5)
-	expectedSketch.Compress()
+	expectedSketch = expectedSketch.Add(1)
+	expectedSketch = expectedSketch.Add(5)
+	expectedSketch = expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		ContextKey: contextKey,
 		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch}}}
@@ -57,15 +57,15 @@ func TestContextSketchSamplingMultiContexts(t *testing.T) {
 	sort.Sort(orderedSketchSeries)
 
 	expectedSketch1 := percentile.NewQSketch()
-	expectedSketch1.Add(1)
-	expectedSketch1.Add(3)
-	expectedSketch1.Compress()
+	expectedSketch1 = expectedSketch1.Add(1)
+	expectedSketch1 = expectedSketch1.Add(3)
+	expectedSketch1 = expectedSketch1.Compress()
 	expectedSeries1 := &percentile.SketchSeries{
 		ContextKey: contextKey1,
 		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch1}}}
 	expectedSketch2 := percentile.NewQSketch()
-	expectedSketch2.Add(1)
-	expectedSketch2.Compress()
+	expectedSketch2 = expectedSketch2.Add(1)
+	expectedSketch2 = expectedSketch2.Compress()
 	expectedSeries2 := &percentile.SketchSeries{
 		ContextKey: contextKey2,
 		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch2}}}

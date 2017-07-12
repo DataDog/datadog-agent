@@ -18,7 +18,7 @@ func NewDistribution() *Distribution {
 
 func (d *Distribution) addSample(sample *MetricSample, timestamp float64) {
 	// Insert sample value into the sketch
-	d.sketch.Add(sample.Value)
+	d.sketch = d.sketch.Add(sample.Value)
 	d.count++
 }
 
@@ -27,7 +27,7 @@ func (d *Distribution) flush(timestamp float64) (*percentile.SketchSeries, error
 		return &percentile.SketchSeries{}, percentile.NoSketchError{}
 	}
 	// compress the sketch before flushing
-	d.sketch.Compress()
+	d.sketch = d.sketch.Compress()
 	sketch := &percentile.SketchSeries{
 		Sketches: []percentile.Sketch{{Timestamp: int64(timestamp),
 			Sketch: d.sketch}},

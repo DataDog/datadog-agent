@@ -89,7 +89,7 @@ func NewGKArray() GKArray {
 }
 
 // Add a new value to the summary.
-func (s *GKArray) Add(v float64) {
+func (s GKArray) Add(v float64) GKArray {
 	s.Count++
 	s.Sum += v
 	s.Avg += (v - s.Avg) / float64(s.Count)
@@ -101,12 +101,14 @@ func (s *GKArray) Add(v float64) {
 		s.Max = v
 	}
 	if s.Count%int(1/EPSILON) == 0 {
-		s.compress(nil)
+		return s.compress(nil)
 	}
+
+	return s
 }
 
 // Quantile returns an epsilon estimate of the element at quantile q.
-func (s *GKArray) Quantile(q float64) float64 {
+func (s GKArray) Quantile(q float64) float64 {
 	if q < 0 || q > 1 {
 		panic("Quantile out of bounds")
 	}
@@ -126,7 +128,7 @@ func (s *GKArray) Quantile(q float64) float64 {
 	}
 
 	if len(s.incoming) > 0 {
-		s.compress(nil)
+		s = s.compress(nil)
 	}
 
 	rank := int(q * float64(s.Count-1))
@@ -149,7 +151,7 @@ func (s *GKArray) Quantile(q float64) float64 {
 // interpolatedQuantile returns an estimate of the element at quantile q,
 // but interpolates between the lower and higher elements when Count is
 // less than 1/EPSILON
-func (s *GKArray) interpolatedQuantile(q float64) float64 {
+func (s GKArray) interpolatedQuantile(q float64) float64 {
 	rank := q * float64(s.Count-1)
 	indexBelow := int(rank)
 	indexAbove := indexBelow + 1
@@ -160,16 +162,16 @@ func (s *GKArray) interpolatedQuantile(q float64) float64 {
 	weightBelow := 1.0 - weightAbove
 
 	if len(s.incoming) > 0 {
-		s.compress(nil)
+		s = s.compress(nil)
 	}
 	// When Count is less than 1/EPSILON, all the entries will have G = 1, Delta = 0.
 	return weightBelow*s.Entries[indexBelow].V + weightAbove*s.Entries[indexAbove].V
 }
 
 // Merge another GKArray into this in-place.
-func (s *GKArray) Merge(o GKArray) {
+func (s GKArray) Merge(o GKArray) GKArray {
 	if o.Count == 0 {
-		return
+		return s
 	}
 	if s.Count == 0 {
 		s.Entries = o.Entries
@@ -179,9 +181,9 @@ func (s *GKArray) Merge(o GKArray) {
 		s.Max = o.Max
 		s.Sum = o.Sum
 		s.Avg = o.Avg
-		return
+		return s
 	}
-	o.compress(nil)
+	o = o.compress(nil)
 	spread := int(EPSILON * float64(o.Count-1))
 
 	/*
@@ -224,18 +226,18 @@ func (s *GKArray) Merge(o GKArray) {
 	if o.Max > s.Max {
 		s.Max = o.Max
 	}
-	s.compress(incomingEntries)
+	return s.compress(incomingEntries)
 }
 
 // Compress merges the incoming buffer into entries and compresses it.
-func (s *GKArray) Compress() {
+func (s GKArray) Compress() GKArray {
 	if len(s.incoming) == 0 {
-		return
+		return s
 	}
-	s.compress(nil)
+	return s.compress(nil)
 }
 
-func (s *GKArray) compress(incomingEntries Entries) {
+func (s GKArray) compress(incomingEntries Entries) GKArray {
 
 	// TODO[Charles]: use s.incoming and incomingEntries directly instead of merging them prior to compressing
 	for _, v := range s.incoming {
@@ -290,7 +292,7 @@ func (s *GKArray) compress(incomingEntries Entries) {
 			j++
 		}
 	}
-
 	s.Entries = merged
 	s.incoming = make([]float64, 0, int(1/EPSILON))
+	return s
 }

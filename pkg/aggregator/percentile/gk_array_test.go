@@ -89,7 +89,7 @@ func EvaluateSketch(t *testing.T, n int, gen Generator) {
 	d := NewDataset()
 	for i := 0; i < n; i++ {
 		value := gen.Generate()
-		s.Add(value)
+		s = s.Add(value)
 		d.Add(value)
 	}
 	eps := float64(1.0e-6)
@@ -116,7 +116,7 @@ func TestConstant(t *testing.T) {
 		d := NewDataset()
 		for i := 0; i < n; i++ {
 			value := constantGenerator.Generate()
-			s.Add(value)
+			s = s.Add(value)
 			d.Add(value)
 		}
 		for _, q := range testQuantiles {
@@ -162,25 +162,25 @@ func TestMerge(t *testing.T) {
 		generator1 := NewNormal(35, 1)
 		for i := 0; i < n; i += 3 {
 			value := generator1.Generate()
-			s1.Add(value)
+			s1 = s1.Add(value)
 			d.Add(value)
 		}
 		s2 := NewGKArray()
 		generator2 := NewNormal(50, 2)
 		for i := 1; i < n; i += 3 {
 			value := generator2.Generate()
-			s2.Add(value)
+			s2 = s2.Add(value)
 			d.Add(value)
 		}
-		s1.Merge(s2)
+		s1 = s1.Merge(s2)
 		s3 := NewGKArray()
 		generator3 := NewNormal(40, 0.5)
 		for i := 2; i < n; i += 3 {
 			value := generator3.Generate()
-			s3.Add(value)
+			s3 = s3.Add(value)
 			d.Add(value)
 		}
-		s1.Merge(s3)
+		s1 = s1.Merge(s3)
 
 		eps := float64(1e-6)
 		for _, q := range testQuantiles {
@@ -199,7 +199,7 @@ func TestInterpolatedQuantile(t *testing.T) {
 		if n < int(1/EPSILON) {
 			s := NewGKArray()
 			for i := 0; i < n; i++ {
-				s.Add(float64(i))
+				s = s.Add(float64(i))
 			}
 			for _, q := range testQuantiles {
 				expected := q * (float64(n) - 1)
