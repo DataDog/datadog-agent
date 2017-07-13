@@ -76,7 +76,7 @@ func NewConsulConfigProvider() (*ConsulConfigProvider, error) {
 	}
 
 	if len(consulUsername) > 0 && len(consulPassword) > 0 {
-		log.Info("Using provided consul credentials: username ", consulUsername)
+		log.Infof("Using provided consul credentials (username): %s", consulUsername)
 		auth := &consul.HttpBasicAuth{
 			Username: consulUsername,
 			Password: consulPassword,
@@ -108,7 +108,7 @@ func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
 
 	configs := make([]check.Config, 0)
 	identifiers := p.getIdentifiers(p.TemplateDir)
-	fmt.Printf("identifiers: %v\n", identifiers)
+	log.Debugf("identifiers found in backend: %v\n", identifiers)
 	for _, id := range identifiers {
 		current, err := p.isIndexCurrent(id)
 		if err != nil {
@@ -124,15 +124,7 @@ func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
 			p.cacheIdx[id] = *index
 		}
 
-		for _, template := range templates {
-			c := check.Config{
-				ID:         check.ID(id),
-				Name:       template.Name,
-				InitConfig: template.InitConfig,
-				Instances:  template.Instances,
-			}
-			configs = append(configs, c)
-		}
+		configs = append(configs, templates...)
 	}
 	return configs, nil
 }
@@ -159,7 +151,7 @@ func (p *ConsulConfigProvider) getIdentifiers(prefix string) []string {
 			continue
 		}
 
-		postfix := splits[len(splits)-1]
+		postfix := splits[1]
 		if postfix[0] == '/' {
 			postfix = strings.TrimLeft(postfix, "/")
 		}
