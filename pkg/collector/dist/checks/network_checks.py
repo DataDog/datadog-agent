@@ -8,7 +8,7 @@ class Status:
     UP = "UP"
 
 
-# Deprecated since we don't reporting statuses as events anymore
+# Deprecated since we aren't reporting statuses as events anymore
 # Keep the class here so that imports don't fail
 class EventType:
     pass
@@ -17,6 +17,8 @@ class EventType:
 class NetworkCheck(AgentCheck):
     """
     This class should never be directly instantiated.
+    This class is deprecated, please make your checks inherit from the
+    `AgentCheck` class directly.
     """
 
     STATUS_TO_SERVICE_CHECK = {
