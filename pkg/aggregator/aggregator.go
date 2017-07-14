@@ -302,11 +302,12 @@ func (agg *BufferedAggregator) flushSketches() {
 	// Serialize and forward in a separate goroutine
 	go func() {
 		log.Debug("Flushing ", len(sketchSeries), " sketches to the forwarder")
-		payload, err := percentile.MarshalJSONSketchSeries(sketchSeries)
+		// Serialize with Protocol Buffer and use v2 endpoint
+		payload, err := percentile.MarshalSketchSeries(sketchSeries)
 		if err != nil {
 			log.Error("could not serialize sketches, dropping them:", err)
 		}
-		agg.forwarder.SubmitV1SketchSeries(&payload)
+		agg.forwarder.SubmitV2SketchSeries(&payload)
 		addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("SketchesFlushed", int64(len(sketchSeries)))
 	}()
