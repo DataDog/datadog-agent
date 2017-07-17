@@ -232,8 +232,11 @@ class AgentCheck(object):
 
         return normalized_tags
 
-    def warning(self, *args, **kwargs):
-        pass
+    def warning(self, warning_message):
+        # TODO: add the warning message to the info page, and send the warning as a service check
+        # to DD so that it shows up on the infrastructure page
+        warning_message = str(warning_message)
+        self.log.warning(warning_message)
 
     def run(self):
         try:
