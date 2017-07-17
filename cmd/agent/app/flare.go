@@ -27,7 +27,7 @@ func init() {
 
 var flareCmd = &cobra.Command{
 	Use:   "flare [caseID]",
-	Short: "Collect a flare and send it to Datadog (FIXME: NYI)",
+	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		common.SetupConfig(confFilePath)
