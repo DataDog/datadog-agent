@@ -21,7 +21,7 @@ func init() {
 }
 
 var checkCmd = &cobra.Command{
-	Use:   "check -c <check_name>",
+	Use:   "check <check_name>",
 	Short: "Run the specified check",
 	Long:  `Use this to run a specific check with a specific rate`,
 	Run: func(cmd *cobra.Command, args []string) {
