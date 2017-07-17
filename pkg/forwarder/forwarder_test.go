@@ -63,6 +63,7 @@ func TestSubmitInStopMode(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitTimeseries(nil))
 	assert.NotNil(t, forwarder.SubmitEvent(nil))
 	assert.NotNil(t, forwarder.SubmitCheckRun(nil))
+	assert.NotNil(t, forwarder.SubmitSketchSeries(nil))
 	assert.NotNil(t, forwarder.SubmitHostMetadata(nil))
 	assert.NotNil(t, forwarder.SubmitMetadata(nil))
 }
@@ -140,6 +141,14 @@ func TestSubmit(t *testing.T) {
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
+	payload = []byte("SubmitSketchSeries payload")
+	expectedPayload, _ = zstd.Compress(nil, payload)
+	expectedEndpoint = "/api/v2/sketches"
+	assert.Nil(t, forwarder.SubmitSketchSeries(&payload))
+	<-wait
+	<-wait
+	assert.Equal(t, len(forwarder.retryQueue), 0)
+
 	payload = []byte("SubmitHostMetadata payload")
 	expectedPayload, _ = zstd.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/host_metadata"
@@ -168,6 +177,14 @@ func TestSubmit(t *testing.T) {
 	expectedEndpoint = "/api/v1/sketches"
 	expectAPIKeyInQuery = true
 	assert.Nil(t, forwarder.SubmitV1SketchSeries(&expectedPayload))
+	<-wait
+	<-wait
+	assert.Equal(t, len(forwarder.retryQueue), 0)
+
+	expectedPayload = []byte("SubmitV2SketchSeries payload")
+	expectedEndpoint = "/api/v2/sketches"
+	expectAPIKeyInQuery = true
+	assert.Nil(t, forwarder.SubmitV2SketchSeries(&expectedPayload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
