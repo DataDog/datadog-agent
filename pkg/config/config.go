@@ -34,6 +34,7 @@ func init() {
 	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
+	Datadog.SetDefault("default_integration_http_timeout", 9)
 	// BUG(massi): make the listener_windows.go module actually use the following:
 	Datadog.SetDefault("cmd_pipe_name", `\\.\pipe\ddagent`)
 	Datadog.SetDefault("check_runners", int64(4))
