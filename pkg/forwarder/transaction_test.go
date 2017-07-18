@@ -130,7 +130,7 @@ func TestProcessHTTPError(t *testing.T) {
 
 	err := transaction.Process(client)
 	assert.NotNil(t, err)
-	assert.Equal(t, err.Error(), "Error '404 Not Found' while sending transaction, rescheduling it")
+	assert.Contains(t, err.Error(), "Error '404 Not Found' while sending transaction")
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusBadRequest

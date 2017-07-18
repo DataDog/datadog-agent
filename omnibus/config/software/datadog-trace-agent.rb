@@ -38,15 +38,11 @@ build do
    command "go get -d github.com/Masterminds/glide", :env => env, :cwd => agent_cache_dir
 
    # Pin build deps to known versions
+   command "git reset --hard v0.12.3", :env => env, :cwd => glide_cache_dir
    command "go install github.com/Masterminds/glide", :env => env, :cwd => glide_cache_dir
 
    # Build datadog-trace-agent
    command "$GOPATH/bin/glide install", :env => env, :cwd => agent_cache_dir
-   if rhel? # temporary workaround for RHEL 5 build issue with the regular `build -a` command
-     command "rake install", :env => env, :cwd => agent_cache_dir
-     command "mv $GOPATH/bin/trace-agent #{install_dir}/embedded/bin/", :env => env, :cwd => agent_cache_dir
-   else
-     command "rake build", :env => env, :cwd => agent_cache_dir
-     command "mv ./trace-agent #{install_dir}/embedded/bin/", :env => env, :cwd => agent_cache_dir
-   end
+   command "rake build", :env => env, :cwd => agent_cache_dir
+   command "mv ./trace-agent #{install_dir}/embedded/bin/", :env => env, :cwd => agent_cache_dir
 end

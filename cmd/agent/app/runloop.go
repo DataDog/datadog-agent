@@ -43,14 +43,6 @@ const hostMetadataCollectorInterval = 14400
 
 // StartAgent Initializes the agent process
 func StartAgent() {
-
-	if pidfilePath != "" {
-		err := pidfile.WritePID(pidfilePath)
-		if err != nil {
-			panic(err)
-		}
-	}
-
 	// Global Agent configuration
 	common.SetupConfig(confFilePath)
 
@@ -58,6 +50,16 @@ func StartAgent() {
 	err := config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
 	if err != nil {
 		panic(err)
+	}
+
+	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
+
+	if pidfilePath != "" {
+		err := pidfile.WritePID(pidfilePath)
+		if err != nil {
+			panic(err)
+		}
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
 	}
 
 	hostname, err := util.GetHostname()
@@ -69,7 +71,6 @@ func StartAgent() {
 	key := path.Join(util.AgentCachePrefix, "hostname")
 	util.Cache.Set(key, hostname, util.NoExpiration)
 
-	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	log.Infof("Hostname is: %s", hostname)
 
 	// start the cmd HTTP server
@@ -103,7 +104,7 @@ func StartAgent() {
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
-	common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, config.Datadog.GetString("api_key"), hostname)
+	common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, hostname)
 	var C []config.MetadataProviders
 	err = config.Datadog.UnmarshalKey("metadata_providers", &C)
 	if err == nil {

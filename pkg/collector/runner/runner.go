@@ -157,7 +157,7 @@ func (r *Runner) work() {
 		log.Infof("Done running check %s", check)
 	}
 
-	log.Debug("Finished to process checks.")
+	log.Debug("Finished processing checks.")
 }
 
 func addWorkStats(c check.Check, execTime time.Duration, err error) {

@@ -68,7 +68,7 @@ func TestParseGauge(t *testing.T) {
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, "666", parsed.RawValue)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
-	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
@@ -80,7 +80,7 @@ func TestParseCounter(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, 21.0, parsed.Value)
 	assert.Equal(t, aggregator.CounterType, parsed.Mtype)
-	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
@@ -92,7 +92,7 @@ func TestParseHistogram(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, 21.0, parsed.Value)
 	assert.Equal(t, aggregator.HistogramType, parsed.Mtype)
-	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
@@ -104,7 +104,7 @@ func TestParseTimer(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, 21.0, parsed.Value)
 	assert.Equal(t, aggregator.HistogramType, parsed.Mtype)
-	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
@@ -116,7 +116,7 @@ func TestParseSet(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, "abc", parsed.RawValue)
 	assert.Equal(t, aggregator.SetType, parsed.Mtype)
-	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
@@ -128,7 +128,7 @@ func TestParseDistribution(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, 3.5, parsed.Value)
 	assert.Equal(t, aggregator.DistributionType, parsed.Mtype)
-	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.Equal(t, 0, len(parsed.Tags))
 }
 
 func TestParseSetUnicode(t *testing.T) {
@@ -139,7 +139,7 @@ func TestParseSetUnicode(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, "♬†øU†øU¥ºuT0♪", parsed.RawValue)
 	assert.Equal(t, aggregator.SetType, parsed.Mtype)
-	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
@@ -151,9 +151,9 @@ func TestParseGaugeWithTags(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
-	require.Equal(t, 2, len(*(parsed.Tags)))
-	assert.Equal(t, "sometag1:somevalue1", (*parsed.Tags)[0])
-	assert.Equal(t, "sometag2:somevalue2", (*parsed.Tags)[1])
+	require.Equal(t, 2, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
@@ -165,9 +165,9 @@ func TestParseGaugeWithHostTag(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
-	require.Equal(t, 2, len(*(parsed.Tags)))
-	assert.Equal(t, "sometag1:somevalue1", (*parsed.Tags)[0])
-	assert.Equal(t, "sometag2:somevalue2", (*parsed.Tags)[1])
+	require.Equal(t, 2, len(parsed.Tags))
+	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
+	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
 	assert.Equal(t, "my-hostname", parsed.Host)
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
@@ -180,7 +180,7 @@ func TestParseGaugeWithSampleRate(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
-	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 0.21, parsed.SampleRate, epsilon)
 }
 
@@ -192,7 +192,7 @@ func TestParseGaugeWithPoundOnly(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
-	assert.Equal(t, 0, len(*(parsed.Tags)))
+	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
@@ -204,8 +204,8 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 	assert.Equal(t, "♬†øU†øU¥ºuT0♪", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
-	require.Equal(t, 1, len(*(parsed.Tags)))
-	assert.Equal(t, "intitulé:T0µ", (*parsed.Tags)[0])
+	require.Equal(t, 1, len(parsed.Tags))
+	assert.Equal(t, "intitulé:T0µ", parsed.Tags[0])
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 

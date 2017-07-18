@@ -6,5 +6,5 @@ import "github.com/DataDog/datadog-agent/pkg/forwarder"
 // through the forwarder.
 // A Metadata Collector normally uses a Metadata Provider to fill the payload.
 type Collector interface {
-	Send(apiKey string, fwd forwarder.Forwarder) error
+	Send(fwd forwarder.Forwarder) error
 }

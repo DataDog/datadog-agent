@@ -14,15 +14,15 @@ type Generator interface {
 }
 
 type Dataset struct {
-	Values   []float64
-	ValCount int
-	sorted   bool
+	Values []float64
+	Count  int
+	sorted bool
 }
 
 func NewDataset() *Dataset { return &Dataset{} }
 func (d *Dataset) Add(v float64) {
 	d.Values = append(d.Values, v)
-	d.ValCount++
+	d.Count++
 	d.sorted = false
 }
 
@@ -31,23 +31,45 @@ func (d *Dataset) Quantile(q float64) float64 {
 		panic("Quantile out of bounds")
 	}
 	d.Sort()
-	if d.ValCount == 0 {
+	if d.Count == 0 {
 		return math.NaN()
 	}
 
-	rank := q * float64(d.ValCount-1)
+	rank := q * float64(d.Count-1)
 	indexBelow := int(rank)
 	indexAbove := indexBelow + 1
-	if indexAbove > d.ValCount-1 {
-		indexAbove = d.ValCount - 1
+	if indexAbove > d.Count-1 {
+		indexAbove = d.Count - 1
 	}
 	weightAbove := rank - float64(indexBelow)
 	weightBelow := 1.0 - weightAbove
 
-	if d.ValCount < int(1/EPSILON) {
+	if d.Count < int(1/EPSILON) {
 		return weightBelow*d.Values[indexBelow] + weightAbove*d.Values[indexAbove]
 	}
 	return d.Values[indexBelow]
+}
+
+func (d *Dataset) Min() float64 {
+	d.Sort()
+	return d.Values[0]
+}
+
+func (d *Dataset) Max() float64 {
+	d.Sort()
+	return d.Values[len(d.Values)-1]
+}
+
+func (d *Dataset) Sum() float64 {
+	s := float64(0)
+	for _, v := range d.Values {
+		s += v
+	}
+	return s
+}
+
+func (d *Dataset) Avg() float64 {
+	return d.Sum() / float64(d.Count)
 }
 
 func (d *Dataset) Sort() {
@@ -67,11 +89,17 @@ func EvaluateSketch(t *testing.T, n int, gen Generator) {
 	d := NewDataset()
 	for i := 0; i < n; i++ {
 		value := gen.Generate()
-		s.Add(value)
+		s = s.Add(value)
 		d.Add(value)
 	}
+	eps := float64(1.0e-6)
 	for _, q := range testQuantiles {
 		assert.InDelta(t, d.Quantile(q), s.Quantile(q), EPSILON*(float64(n)))
+		assert.Equal(t, d.Min(), s.Min)
+		assert.Equal(t, d.Max(), s.Max)
+		assert.InEpsilon(t, d.Avg(), s.Avg, eps)
+		assert.InEpsilon(t, d.Sum(), s.Sum, eps)
+		assert.Equal(t, d.Count, s.Count)
 	}
 }
 
@@ -88,7 +116,7 @@ func TestConstant(t *testing.T) {
 		d := NewDataset()
 		for i := 0; i < n; i++ {
 			value := constantGenerator.Generate()
-			s.Add(value)
+			s = s.Add(value)
 			d.Add(value)
 		}
 		for _, q := range testQuantiles {
@@ -134,28 +162,34 @@ func TestMerge(t *testing.T) {
 		generator1 := NewNormal(35, 1)
 		for i := 0; i < n; i += 3 {
 			value := generator1.Generate()
-			s1.Add(value)
+			s1 = s1.Add(value)
 			d.Add(value)
 		}
 		s2 := NewGKArray()
 		generator2 := NewNormal(50, 2)
 		for i := 1; i < n; i += 3 {
 			value := generator2.Generate()
-			s2.Add(value)
+			s2 = s2.Add(value)
 			d.Add(value)
 		}
-		s1.Merge(s2)
+		s1 = s1.Merge(s2)
 		s3 := NewGKArray()
 		generator3 := NewNormal(40, 0.5)
 		for i := 2; i < n; i += 3 {
 			value := generator3.Generate()
-			s3.Add(value)
+			s3 = s3.Add(value)
 			d.Add(value)
 		}
-		s1.Merge(s3)
+		s1 = s1.Merge(s3)
 
+		eps := float64(1e-6)
 		for _, q := range testQuantiles {
 			assert.InDelta(t, d.Quantile(q), s1.Quantile(q), 2*EPSILON*float64(n))
+			assert.InEpsilon(t, d.Min(), s1.Min, eps)
+			assert.InEpsilon(t, d.Max(), s1.Max, eps)
+			assert.InEpsilon(t, d.Avg(), s1.Avg, eps)
+			assert.InEpsilon(t, d.Sum(), s1.Sum, eps)
+			assert.InEpsilon(t, d.Count, s1.Count, eps)
 		}
 	}
 }
@@ -165,7 +199,7 @@ func TestInterpolatedQuantile(t *testing.T) {
 		if n < int(1/EPSILON) {
 			s := NewGKArray()
 			for i := 0; i < n; i++ {
-				s.Add(float64(i))
+				s = s.Add(float64(i))
 			}
 			for _, q := range testQuantiles {
 				expected := q * (float64(n) - 1)

@@ -34,6 +34,7 @@ func init() {
 	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
+	Datadog.SetDefault("default_integration_http_timeout", 9)
 	// BUG(massi): make the listener_windows.go module actually use the following:
 	Datadog.SetDefault("cmd_pipe_name", `\\.\pipe\ddagent`)
 	Datadog.SetDefault("check_runners", int64(4))
@@ -52,10 +53,14 @@ func init() {
 	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
+	// Kubernetes
+	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
+	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
+	Datadog.BindEnv("hostname")
 	Datadog.BindEnv("cmd_sock")
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("dogstatsd_socket")
@@ -63,6 +68,9 @@ func init() {
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
+	Datadog.BindEnv("kubernetes_kubelet_host")
+	Datadog.BindEnv("kubernetes_http_kubelet_port")
+	Datadog.BindEnv("kubernetes_https_kubelet_port")
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config

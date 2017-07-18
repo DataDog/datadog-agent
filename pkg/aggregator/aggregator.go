@@ -125,6 +125,20 @@ func NewBufferedAggregator(f forwarder.Forwarder, hostname string) *BufferedAggr
 	return aggregator
 }
 
+func deduplicateTags(tags []string) []string {
+	seen := make(map[string]bool, len(tags))
+	idx := 0
+	for _, v := range tags {
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = true
+		tags[idx] = v
+		idx++
+	}
+	return tags[:idx]
+}
+
 // IsInputQueueEmpty returns true if every input channel for the aggregator are
 // empty. This is mainly usefull for tests and benchmark
 func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
@@ -180,6 +194,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 		if ss.commit {
 			checkSampler.commit(timeNowNano())
 		} else {
+			ss.metricSample.Tags = deduplicateTags(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample)
 		}
 	} else {
@@ -195,6 +210,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc ServiceCheck) {
 	if sc.Ts == 0 {
 		sc.Ts = time.Now().Unix()
 	}
+	sc.Tags = deduplicateTags(sc.Tags)
 
 	agg.serviceChecks = append(agg.serviceChecks, sc)
 }
@@ -207,12 +223,14 @@ func (agg *BufferedAggregator) addEvent(e Event) {
 	if e.Ts == 0 {
 		e.Ts = time.Now().Unix()
 	}
+	e.Tags = deduplicateTags(e.Tags)
 
 	agg.events = append(agg.events, e)
 }
 
 // addSample adds the metric sample to either the sampler or distSampler
 func (agg *BufferedAggregator) addSample(metricSample *MetricSample, timestamp float64) {
+	metricSample.Tags = deduplicateTags(metricSample.Tags)
 	if metricSample.Mtype == DistributionType {
 		agg.distSampler.addSample(metricSample, timestamp)
 	} else {
@@ -241,7 +259,7 @@ func (agg *BufferedAggregator) flushSeries() {
 			log.Error("could not serialize series, dropping it:", err)
 			return
 		}
-		agg.forwarder.SubmitV1Series(config.Datadog.GetString("api_key"), &payload)
+		agg.forwarder.SubmitV1Series(&payload)
 		addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("SeriesFlushed", int64(len(series)))
 	}()
@@ -267,7 +285,7 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 			log.Error("could not serialize service checks, dropping them: ", err)
 			return
 		}
-		agg.forwarder.SubmitV1CheckRuns(config.Datadog.GetString("api_key"), &payload)
+		agg.forwarder.SubmitV1CheckRuns(&payload)
 		addFlushTime("ServiceCheckFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("ServiceCheckFlushed", int64(len(serviceChecks)))
 	}()
@@ -284,11 +302,12 @@ func (agg *BufferedAggregator) flushSketches() {
 	// Serialize and forward in a separate goroutine
 	go func() {
 		log.Debug("Flushing ", len(sketchSeries), " sketches to the forwarder")
-		payload, err := percentile.MarshalJSONSketchSeries(sketchSeries)
+		// Serialize with Protocol Buffer and use v2 endpoint
+		payload, err := percentile.MarshalSketchSeries(sketchSeries)
 		if err != nil {
 			log.Error("could not serialize sketches, dropping them:", err)
 		}
-		agg.forwarder.SubmitV1SketchSeries(config.Datadog.GetString("api_key"), &payload)
+		agg.forwarder.SubmitV2SketchSeries(&payload)
 		addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("SketchesFlushed", int64(len(sketchSeries)))
 	}()
@@ -313,7 +332,7 @@ func (agg *BufferedAggregator) flushEvents() {
 			return
 		}
 		// We use the agent 5 intake endpoint until the v2 events endpoint is ready
-		agg.forwarder.SubmitV1Intake(config.Datadog.GetString("api_key"), &payload)
+		agg.forwarder.SubmitV1Intake(&payload)
 		addFlushTime("EventFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("EventsFlushed", int64(len(events)))
 	}(agg.hostname)

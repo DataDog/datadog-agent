@@ -25,7 +25,7 @@ func TestMain(m *testing.M) {
 func TestNewScheduler(t *testing.T) {
 	fwd := forwarder.NewDefaultForwarder(nil)
 	fwd.Start()
-	c := NewScheduler(fwd, "apikey", "hostname")
-	assert.Equal(t, "apikey", c.apikey)
+	c := NewScheduler(fwd, "hostname")
+	assert.Equal(t, fwd, c.fwd)
 	assert.Equal(t, "hostname", c.hostname)
 }

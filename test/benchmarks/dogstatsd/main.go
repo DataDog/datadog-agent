@@ -69,6 +69,10 @@ func (f *forwarderBenchStub) SubmitV1CheckRuns(apiKey string, payload *[]byte) e
 	f.computeStats(payload)
 	return nil
 }
+func (f *forwarderBenchStub) SubmitV1SketchSeries(apiKey string, payload *[]byte) error {
+	f.computeStats(payload)
+	return nil
+}
 func (f *forwarderBenchStub) SubmitV2Series(apikey string, payload *[]byte) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }

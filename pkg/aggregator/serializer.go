@@ -147,7 +147,7 @@ func MarshalJSONEvents(events []Event, apiKey string, hostname string) ([]byte, 
 
 	// Build intake payload containing events and serialize
 	data := map[string]interface{}{
-		"apiKey":           apiKey,
+		"apiKey":           apiKey, // legacy field, it isn't actually used by the backend
 		"events":           eventsBySourceType,
 		"internalHostname": hostname,
 	}

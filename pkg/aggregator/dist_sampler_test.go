@@ -76,14 +76,14 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 		Name:       "test.metric.name",
 		Value:      1,
 		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "b"},
+		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
 	mSample2 := MetricSample{
 		Name:       "test.metric.name",
 		Value:      2,
 		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "b"},
+		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
 	distSampler.addSample(&mSample1, 10001)
@@ -95,9 +95,9 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 	sketchSeries := distSampler.flush(10020.0)
 
 	expectedSketch := percentile.NewQSketch()
-	expectedSketch.Add(1)
-	expectedSketch.Add(2)
-	expectedSketch.Compress()
+	expectedSketch = expectedSketch.Add(1)
+	expectedSketch = expectedSketch.Add(2)
+	expectedSketch = expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		Name:     "test.metric.name",
 		Tags:     []string{"a", "b"},
@@ -122,14 +122,14 @@ func TestDistSamplerContextSampling(t *testing.T) {
 		Name:       "test.metric.name1",
 		Value:      1,
 		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "b"},
+		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
 	mSample2 := MetricSample{
 		Name:       "test.metric.name2",
 		Value:      1,
 		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "c"},
+		Tags:       []string{"a", "c"},
 		SampleRate: 1,
 	}
 	distSampler.addSample(&mSample1, 10011)
@@ -140,8 +140,8 @@ func TestDistSamplerContextSampling(t *testing.T) {
 	sketchSeries := orderedSketchSeries.sketchSeries
 
 	expectedSketch := percentile.NewQSketch()
-	expectedSketch.Add(1)
-	expectedSketch.Compress()
+	expectedSketch = expectedSketch.Add(1)
+	expectedSketch = expectedSketch.Compress()
 	expectedSeries1 := &percentile.SketchSeries{
 		Name:     "test.metric.name1",
 		Tags:     []string{"a", "b"},

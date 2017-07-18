@@ -66,6 +66,7 @@ func TestIOCheck(t *testing.T) {
 
 	expectedRates := 2
 	expectedGauges := 0
+
 	switch os := runtime.GOOS; os {
 	case "windows":
 		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)

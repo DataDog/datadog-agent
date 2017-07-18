@@ -22,6 +22,9 @@ class AgentLogHandler(logging.Handler):
 rootLogger = logging.getLogger()
 rootLogger.addHandler(AgentLogHandler())
 
+class CheckException(Exception):
+    pass
+
 class AgentCheck(object):
 
     RATE = "rate"
@@ -60,6 +63,8 @@ class AgentCheck(object):
         # FIXME: get the log level from the agent global config and apply it to the python one.
         self.log.setLevel(logging.DEBUG)
 
+        self.default_integration_http_timeout = float(self.agentConfig.get('default_integration_http_timeout', 9))
+
         self._deprecations = {
             'increment' : [
                 False,
@@ -71,6 +76,10 @@ class AgentCheck(object):
                 "DEPRECATION NOTICE: `device_name` is deprecated, please use a `device:` tag in the `tags` list instead",
             ],
         }
+
+    # FIXME(olivier): implement this method
+    def get_instance_proxy(self, instance, uri):
+        return {}
 
     def _submit_metric(self, mtype, name, value, tags=None, hostname=None, device_name=None):
         tags = self._normalize_tags(tags, device_name)
@@ -229,8 +238,11 @@ class AgentCheck(object):
 
         return normalized_tags
 
-    def warning(self, *args, **kwargs):
-        pass
+    def warning(self, warning_message):
+        # TODO: add the warning message to the info page, and send the warning as a service check
+        # to DD so that it shows up on the infrastructure page
+        warning_message = str(warning_message)
+        self.log.warning(warning_message)
 
     def run(self):
         try:

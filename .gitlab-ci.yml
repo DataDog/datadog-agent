@@ -6,11 +6,11 @@ stages:
   - deploy
 
 variables:
-  DOCKER_REGISTRY: gitlab.datad0g.com:4567
+  DOCKER_REGISTRY: 727006795293.dkr.ecr.us-east-1.amazonaws.com
   SRC_PATH: /src/github.com/DataDog/datadog-agent
-  DEB_X64: $DOCKER_REGISTRY/datadog/datadog-agent-builders:deb_x64
-  RPM_X64: $DOCKER_REGISTRY/datadog/datadog-agent-builders:rpm_x64
-  DEPLOY: $DOCKER_REGISTRY/datadog/datadog-agent-builders:deploy # For now, just a renamed version of the image datadog/mars-jenkins-scripts
+  DEB_X64: $DOCKER_REGISTRY/datadog-agent-builders:deb_x64
+  RPM_X64: $DOCKER_REGISTRY/datadog-agent-builders:rpm_x64
+  DEPLOY: $DOCKER_REGISTRY/datadog-agent-builders:deploy # For now, just a renamed version of the image datadog/mars-jenkins-scripts
   AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   STATIC_BINARIES_DIR: bin/static
   DEB_S3_BUCKET: apt-agent6.datad0g.com
@@ -21,7 +21,7 @@ before_script:
   # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
-  - rake deps
+  - rake deps && pip install -r test/requirements-test.txt
 
 # run tests for deb-x64
 run_tests_deb-x64:
@@ -46,6 +46,7 @@ run_test_rpm-x64:
   variables:
     USE_SYSTEM_PY: "1"
   script:
+    - source /opt/rh/python27/enable # Enable the alternative python
     - yum install -y net-snmp net-snmp-devel  # required by snmp check
     - rake test
 
@@ -176,7 +177,7 @@ deploy_deb:
   tags:
     - docker
   script:
-    - source ~/.rvm/scripts/rvm
+    - source /home/jenkins/.rvm/scripts/rvm
     - rvm use 2.2.2@circleci
     - echo "$APT_SIGNING_KEY_ID"
     - echo "$APT_SIGNING_PRIVATE_KEY" | gpg --import

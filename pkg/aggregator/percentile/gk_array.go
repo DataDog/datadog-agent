@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	agentpayload "github.com/DataDog/agent-payload/gogen"
 )
 
 // EPSILON represents the accuracy of the sketch.
@@ -31,8 +33,32 @@ type GKArray struct {
 	Entries  Entries `json:"entries"`
 	incoming []float64
 	// TODO[Charles]: incorporate min in entries so that we can get rid of the field.
-	Min      float64 `json:"min"`
-	ValCount int     `json:"n"`
+	Min   float64 `json:"min"`
+	Max   float64 `json:"max"`
+	Count int     `json:"n"`
+	Sum   float64 `json:"sum"`
+	Avg   float64 `json:"avg"`
+}
+
+func marshalEntries(entries Entries) []agentpayload.SketchPayload_Summary_Sketch_Entry {
+	entriesPayload := []agentpayload.SketchPayload_Summary_Sketch_Entry{}
+	for _, e := range entries {
+		entriesPayload = append(entriesPayload,
+			agentpayload.SketchPayload_Summary_Sketch_Entry{
+				V:     e.V,
+				G:     int64(e.G),
+				Delta: int64(e.Delta),
+			})
+	}
+	return entriesPayload
+}
+
+func unmarshalEntries(sketchEntries []agentpayload.SketchPayload_Summary_Sketch_Entry) Entries {
+	entries := Entries{}
+	for _, e := range sketchEntries {
+		entries = append(entries, Entry{V: e.V, G: int(e.G), Delta: int(e.Delta)})
+	}
+	return entries
 }
 
 // MarshalJSON encodes an Entry into an array of values
@@ -58,47 +84,55 @@ func NewGKArray() GKArray {
 		// preallocate the incoming array for better insert throughput (5% faster)
 		incoming: make([]float64, 0, int(1/EPSILON)),
 		Min:      math.Inf(1),
+		Max:      math.Inf(-1),
 	}
 }
 
 // Add a new value to the summary.
-func (s *GKArray) Add(v float64) {
-	s.ValCount++
+func (s GKArray) Add(v float64) GKArray {
+	s.Count++
+	s.Sum += v
+	s.Avg += (v - s.Avg) / float64(s.Count)
 	s.incoming = append(s.incoming, v)
 	if v < s.Min {
 		s.Min = v
 	}
-	if s.ValCount%int(1/EPSILON) == 0 {
-		s.compress(nil)
+	if v > s.Max {
+		s.Max = v
 	}
+	if s.Count%int(1/EPSILON) == 0 {
+		return s.compress(nil)
+	}
+
+	return s
 }
 
 // Quantile returns an epsilon estimate of the element at quantile q.
-func (s *GKArray) Quantile(q float64) float64 {
+func (s GKArray) Quantile(q float64) float64 {
 	if q < 0 || q > 1 {
 		panic("Quantile out of bounds")
 	}
 
-	if s.ValCount == 0 {
+	if s.Count == 0 {
 		return math.NaN()
 	}
 
 	// Interpolate the quantile when there are only a few values.
-	if s.ValCount < int(1/EPSILON) {
+	if s.Count < int(1/EPSILON) {
 		return s.interpolatedQuantile(q)
 	}
 
 	if len(s.Entries) == 0 {
 		sort.Float64s(s.incoming)
-		return s.incoming[int(q*float64(s.ValCount-1))]
+		return s.incoming[int(q*float64(s.Count-1))]
 	}
 
 	if len(s.incoming) > 0 {
-		s.compress(nil)
+		s = s.compress(nil)
 	}
 
-	rank := int(q * float64(s.ValCount-1))
-	spread := int(EPSILON * float64(s.ValCount-1))
+	rank := int(q * float64(s.Count-1))
+	spread := int(EPSILON * float64(s.Count-1))
 	gSum := 0
 	i := 0
 	for ; i < len(s.Entries); i++ {
@@ -115,45 +149,48 @@ func (s *GKArray) Quantile(q float64) float64 {
 }
 
 // interpolatedQuantile returns an estimate of the element at quantile q,
-// but interpolates between the lower and higher elements when ValCount is
+// but interpolates between the lower and higher elements when Count is
 // less than 1/EPSILON
-func (s *GKArray) interpolatedQuantile(q float64) float64 {
-	rank := q * float64(s.ValCount-1)
+func (s GKArray) interpolatedQuantile(q float64) float64 {
+	rank := q * float64(s.Count-1)
 	indexBelow := int(rank)
 	indexAbove := indexBelow + 1
-	if indexAbove > s.ValCount-1 {
-		indexAbove = s.ValCount - 1
+	if indexAbove > s.Count-1 {
+		indexAbove = s.Count - 1
 	}
 	weightAbove := rank - float64(indexBelow)
 	weightBelow := 1.0 - weightAbove
 
 	if len(s.incoming) > 0 {
-		s.compress(nil)
+		s = s.compress(nil)
 	}
-	// When ValCount is less than 1/EPSILON, all the entries will have G = 1, Delta = 0.
+	// When Count is less than 1/EPSILON, all the entries will have G = 1, Delta = 0.
 	return weightBelow*s.Entries[indexBelow].V + weightAbove*s.Entries[indexAbove].V
 }
 
 // Merge another GKArray into this in-place.
-func (s *GKArray) Merge(o GKArray) {
-	if o.ValCount == 0 {
-		return
+func (s GKArray) Merge(o GKArray) GKArray {
+	if o.Count == 0 {
+		return s
 	}
-	if s.ValCount == 0 {
+	if s.Count == 0 {
 		s.Entries = o.Entries
-		s.ValCount = o.ValCount
+		s.Count = o.Count
 		s.incoming = o.incoming
 		s.Min = o.Min
-		return
+		s.Max = o.Max
+		s.Sum = o.Sum
+		s.Avg = o.Avg
+		return s
 	}
-	o.compress(nil)
-	spread := int(EPSILON * float64(o.ValCount-1))
+	o = o.compress(nil)
+	spread := int(EPSILON * float64(o.Count-1))
 
 	/*
 			Here is one way to merge summaries so that the sketch is one-way mergeable: we extract an epsilon-approximate
 			distribution from one of the summaries (o) and we insert this distribution into the other summary (s). More
 			specifically, to extract the approximate distribution, we can query for all the quantiles i/(o.valCount-1) where i
-			is between 0 and o.ValCount-1 (included). Then we insert those values into s as usual. This way, when querying a
+			is between 0 and o.Count-1 (included). Then we insert those values into s as usual. This way, when querying a
 			quantile from the merged summary, the returned quantile has a rank error from the inserted values that is lower than
 			epsilon, but the inserted values, because of the merge process, have a rank error from the actual data that is also
 			lower than epsilon, so that the total rank error is bounded by 2*epsilon.
@@ -163,7 +200,7 @@ func (s *GKArray) Merge(o GKArray) {
 			querying for those quantiles, we can count the number of times each v will be returned (when querying the quantiles
 		        i/(o.valCount-1)); we end up with the values n below. Then instead of successively inserting each v n times, we can
 			actually directly append them to s.incoming as new entries where g = n. This is possible because the values of n
-			will never violate the condition n <= int(s.eps * (s.ValCount+o.ValCount-1)). Also, we need to make sure that
+			will never violate the condition n <= int(s.eps * (s.Count+o.Count-1)). Also, we need to make sure that
 			compress() can handle entries in incoming where g > 1.
 	*/
 
@@ -180,22 +217,27 @@ func (s *GKArray) Merge(o GKArray) {
 		incomingEntries = append(incomingEntries, Entry{V: o.Entries[len(o.Entries)-1].V, G: n, Delta: 0})
 	}
 
-	s.ValCount += o.ValCount
+	s.Count += o.Count
+	s.Sum += o.Sum
+	s.Avg = s.Avg + (o.Avg-s.Avg)*float64(o.Count)/float64(s.Count)
 	if o.Min < s.Min {
 		s.Min = o.Min
 	}
-	s.compress(incomingEntries)
+	if o.Max > s.Max {
+		s.Max = o.Max
+	}
+	return s.compress(incomingEntries)
 }
 
 // Compress merges the incoming buffer into entries and compresses it.
-func (s *GKArray) Compress() {
+func (s GKArray) Compress() GKArray {
 	if len(s.incoming) == 0 {
-		return
+		return s
 	}
-	s.compress(nil)
+	return s.compress(nil)
 }
 
-func (s *GKArray) compress(incomingEntries Entries) {
+func (s GKArray) compress(incomingEntries Entries) GKArray {
 
 	// TODO[Charles]: use s.incoming and incomingEntries directly instead of merging them prior to compressing
 	for _, v := range s.incoming {
@@ -203,7 +245,7 @@ func (s *GKArray) compress(incomingEntries Entries) {
 	}
 	sort.Sort(incomingEntries)
 
-	removalThreshold := 2 * int(EPSILON*float64(s.ValCount-1))
+	removalThreshold := 2 * int(EPSILON*float64(s.Count-1))
 	merged := make([]Entry, 0, len(s.Entries)+len(incomingEntries))
 
 	// TODO[Charles]: The compression algo might not be optimal. We need to revisit it if we need to improve space
@@ -250,7 +292,7 @@ func (s *GKArray) compress(incomingEntries Entries) {
 			j++
 		}
 	}
-
 	s.Entries = merged
 	s.incoming = make([]float64, 0, int(1/EPSILON))
+	return s
 }

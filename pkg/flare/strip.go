@@ -14,7 +14,7 @@ type replacer struct {
 	replFunc func(b []byte) []byte
 }
 
-var apiKeyReplacer, uriPasswordReplacer, passwordReplacer, snmpReplacer replacer
+var apiKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer replacer
 var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
 
@@ -37,11 +37,15 @@ func init() {
 		regex: regexp.MustCompile(`( *(\w|_)*pass(word)?:).+`),
 		repl:  []byte(`$1 ********`),
 	}
+	tokenReplacer = replacer{
+		regex: regexp.MustCompile(`( *(\w|_)*token:).+`),
+		repl:  []byte(`$1 ********`),
+	}
 	snmpReplacer = replacer{
 		regex: regexp.MustCompile(`^(\s*community_string:) *.+$`),
 		repl:  []byte(`$1 ********`),
 	}
-	replacers = []replacer{apiKeyReplacer, uriPasswordReplacer, passwordReplacer, snmpReplacer}
+	replacers = []replacer{apiKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
 }
 
 func credentialsCleanerFile(filePath string) ([]byte, error) {

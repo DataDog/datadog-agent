@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -28,9 +29,12 @@ type HTTPTransaction struct {
 }
 
 const (
-	retryInterval    time.Duration = 20 * time.Second
-	maxRetryInterval time.Duration = 90 * time.Second
+	apiKeyReplacement               = "api_key=*************************$1"
+	retryInterval     time.Duration = 20 * time.Second
+	maxRetryInterval  time.Duration = 90 * time.Second
 )
+
+var apiKeyRegExp = regexp.MustCompile("api_key=*\\w+(\\w{5})")
 
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
@@ -55,9 +59,12 @@ func (t *HTTPTransaction) GetCreatedAt() time.Time {
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
 func (t *HTTPTransaction) Process(client *http.Client) error {
 	reader := bytes.NewReader(*t.Payload)
-	req, err := http.NewRequest("POST", t.Domain+t.Endpoint, reader)
+	url := t.Domain + t.Endpoint
+	logURL := apiKeyRegExp.ReplaceAllString(url, apiKeyReplacement) // sanitized url that can be logged
+
+	req, err := http.NewRequest("POST", url, reader)
 	if err != nil {
-		log.Errorf("Could not create request for transaction to invalid URL '%s' (dropping transaction): %s", t.Domain+t.Endpoint, err)
+		log.Errorf("Could not create request for transaction to invalid URL '%s' (dropping transaction): %s", logURL, err)
 		transactionsCreation.Add("Errors", 1)
 		return nil
 	}
@@ -66,23 +73,23 @@ func (t *HTTPTransaction) Process(client *http.Client) error {
 	if err != nil {
 		t.ErrorCount++
 		transactionsCreation.Add("Errors", 1)
-		return fmt.Errorf("Error while sending transaction, rescheduling it: %s", err)
+		return fmt.Errorf("Error while sending transaction to '%s', rescheduling it: %s", logURL, err)
 	}
 	defer resp.Body.Close()
 
 	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode == 400 || resp.StatusCode == 413 {
-		log.Errorf("Error code '%s' received while sending transaction to '%s': %s, dropping it", resp.Status, t.Domain+t.Endpoint, string(body))
+		log.Errorf("Error code '%s' received while sending transaction to '%s': %s, dropping it", resp.Status, logURL, string(body))
 		transactionsCreation.Add("Dropped", 1)
 		return nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsCreation.Add("Errors", 1)
-		return fmt.Errorf("Error '%s' while sending transaction, rescheduling it", resp.Status)
+		return fmt.Errorf("Error '%s' while sending transaction to '%s', rescheduling it", resp.Status, logURL)
 	}
 
 	transactionsCreation.Add("Success", 1)
-	log.Debugf("successfully posted payload to '%s': %s", t.Domain+t.Endpoint, string(body))
+	log.Debugf("successfully posted payload to '%s': %s", logURL, string(body))
 	return nil
 }
 
