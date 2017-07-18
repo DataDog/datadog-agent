@@ -26,12 +26,7 @@ class CheckException(Exception):
     pass
 
 class AgentCheck(object):
-
-    RATE = "rate"
-    GAUGE = "gauge"
-    OK = 0
-    WARNING = 1
-    CRITICAL = 2
+    OK, WARNING, CRITICAL, UNKNOWN = (0, 1, 2, 3)
 
     def __init__(self, *args, **kwargs):
         # `args` order is `name`, `init_config`, `agentConfig` (deprecated), `instances`
