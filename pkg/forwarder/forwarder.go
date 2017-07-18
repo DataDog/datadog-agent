@@ -38,12 +38,12 @@ const (
 	v1IntakeEndpoint       = "/intake/"
 	v1SketchSeriesEndpoint = "/api/v1/sketches"
 
-	seriesEndpoint       = "/api/v2/series"
-	eventsEndpoint       = "/api/v2/events"
-	checkRunsEndpoint    = "/api/v2/check_runs"
-	sketchSeriesEndpoint = "/api/v2/sketches"
-	hostMetadataEndpoint = "/api/v2/host_metadata"
-	metadataEndpoint     = "/api/v2/metadata"
+	seriesEndpoint        = "/api/v2/series"
+	eventsEndpoint        = "/api/v2/events"
+	serviceChecksEndpoint = "/api/v2/service_checks"
+	sketchSeriesEndpoint  = "/api/v2/sketches"
+	hostMetadataEndpoint  = "/api/v2/host_metadata"
+	metadataEndpoint      = "/api/v2/metadata"
 
 	apiHTTPHeaderKey = "DD-Api-Key"
 )
@@ -71,12 +71,12 @@ type Forwarder interface {
 	SubmitV1Intake(payload *[]byte) error
 	SubmitV1CheckRuns(payload *[]byte) error
 	SubmitV1SketchSeries(payload *[]byte) error
-	SubmitV2Series(payload *[]byte) error
-	SubmitV2Events(payload *[]byte) error
-	SubmitV2CheckRuns(payload *[]byte) error
-	SubmitV2SketchSeries(payload *[]byte) error
-	SubmitV2HostMeta(payload *[]byte) error
-	SubmitV2GenericMeta(payload *[]byte) error
+	SubmitSeries(payload *[]byte) error
+	SubmitEvents(payload *[]byte) error
+	SubmitServiceChecks(payload *[]byte) error
+	SubmitSketchSeries(payload *[]byte) error
+	SubmitHostMetadata(payload *[]byte) error
+	SubmitMetadata(payload *[]byte) error
 }
 
 // DefaultForwarder is in charge of receiving transaction payloads and sending them to Datadog backend over HTTP.
@@ -255,19 +255,19 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 	return nil
 }
 
-// SubmitTimeseries will send a timeserie type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitTimeseries(payload *[]byte) error {
+// SubmitSeries will send a series type payload to Datadog backend.
+func (f *DefaultForwarder) SubmitSeries(payload *[]byte) error {
 	transactions, err := f.createHTTPTransactions(seriesEndpoint, payload, true, false)
 	if err != nil {
 		return err
 	}
 
-	transactionsCreation.Add("Timeseries", 1)
+	transactionsCreation.Add("Series", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
-// SubmitEvent will send a event type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitEvent(payload *[]byte) error {
+// SubmitEvents will send an event type payload to Datadog backend.
+func (f *DefaultForwarder) SubmitEvents(payload *[]byte) error {
 	transactions, err := f.createHTTPTransactions(eventsEndpoint, payload, true, false)
 	if err != nil {
 		return err
@@ -277,24 +277,24 @@ func (f *DefaultForwarder) SubmitEvent(payload *[]byte) error {
 	return f.sendHTTPTransactions(transactions)
 }
 
-// SubmitCheckRun will send a check_run type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitCheckRun(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(checkRunsEndpoint, payload, true, false)
+// SubmitServiceChecks will send a service check type payload to Datadog backend.
+func (f *DefaultForwarder) SubmitServiceChecks(payload *[]byte) error {
+	transactions, err := f.createHTTPTransactions(serviceChecksEndpoint, payload, true, false)
 	if err != nil {
 		return err
 	}
 
-	transactionsCreation.Add("CheckRuns", 1)
+	transactionsCreation.Add("ServiceChecks", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
-// SubmitSketchSeries will send a SketchSeries type payload to Datadog backend.
+// SubmitSketchSeries will send payloads to v2 endpoint - PROTOTYPE FOR PERCENTILE
+// Prototype for Percentiles: same as for SubmitV1SketchSeries method for now.
 func (f *DefaultForwarder) SubmitSketchSeries(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(sketchSeriesEndpoint, payload, true, false)
+	transactions, err := f.createHTTPTransactions(sketchSeriesEndpoint, payload, false, true)
 	if err != nil {
 		return err
 	}
-
 	transactionsCreation.Add("SketchSeries", 1)
 	return f.sendHTTPTransactions(transactions)
 }
@@ -369,40 +369,4 @@ func (f *DefaultForwarder) SubmitV1SketchSeries(payload *[]byte) error {
 	}
 	transactionsCreation.Add("SketchSeriesV1", 1)
 	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitV2Series will send service checks to v2 endpoint - UNIMPLEMENTED
-func (f *DefaultForwarder) SubmitV2Series(payload *[]byte) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
-}
-
-// SubmitV2Events will send events to v2 endpoint - UNIMPLEMENTED
-func (f *DefaultForwarder) SubmitV2Events(payload *[]byte) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
-}
-
-// SubmitV2CheckRuns will send service checks to v2 endpoint - UNIMPLEMENTED
-func (f *DefaultForwarder) SubmitV2CheckRuns(payload *[]byte) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
-}
-
-// SubmitV2SketchSeries will send payloads to v2 endpoint - PROTOTYPE FOR PERCENTILE
-// Prototype for Percentiles. Same as for SubmitV1SketchSeries method.
-func (f *DefaultForwarder) SubmitV2SketchSeries(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(sketchSeriesEndpoint, payload, false, true)
-	if err != nil {
-		return err
-	}
-	transactionsCreation.Add("SketchSeriesV2", 1)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitV2HostMeta will send host metadata to v2 endpoint - UNIMPLEMENTED
-func (f *DefaultForwarder) SubmitV2HostMeta(payload *[]byte) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
-}
-
-// SubmitV2GenericMeta will send generic metadata to v2 endpoint - UNIMPLEMENTED
-func (f *DefaultForwarder) SubmitV2GenericMeta(payload *[]byte) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
 }

@@ -60,9 +60,9 @@ func TestSubmitInStopMode(t *testing.T) {
 	forwarder := NewDefaultForwarder(nil)
 
 	assert.NotNil(t, forwarder)
-	assert.NotNil(t, forwarder.SubmitTimeseries(nil))
-	assert.NotNil(t, forwarder.SubmitEvent(nil))
-	assert.NotNil(t, forwarder.SubmitCheckRun(nil))
+	assert.NotNil(t, forwarder.SubmitSeries(nil))
+	assert.NotNil(t, forwarder.SubmitEvents(nil))
+	assert.NotNil(t, forwarder.SubmitServiceChecks(nil))
 	assert.NotNil(t, forwarder.SubmitSketchSeries(nil))
 	assert.NotNil(t, forwarder.SubmitHostMetadata(nil))
 	assert.NotNil(t, forwarder.SubmitMetadata(nil))
@@ -116,38 +116,40 @@ func TestSubmit(t *testing.T) {
 	forwarder.Start()
 	defer forwarder.Stop()
 
-	payload := []byte("SubmitTimeseries payload")
+	payload := []byte("SubmitSeries payload")
 	expectedPayload, _ = zstd.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/series"
-	assert.Nil(t, forwarder.SubmitTimeseries(&payload))
+	assert.Nil(t, forwarder.SubmitSeries(&payload))
 	// wait for the queries to complete before changing expected value
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
-	payload = []byte("SubmitEvent payload")
+	payload = []byte("SubmitEvents payload")
 	expectedPayload, _ = zstd.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/events"
-	assert.Nil(t, forwarder.SubmitEvent(&payload))
+	assert.Nil(t, forwarder.SubmitEvents(&payload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
-	payload = []byte("SubmitCheckRun payload")
+	payload = []byte("SubmitServiceChecks payload")
 	expectedPayload, _ = zstd.Compress(nil, payload)
-	expectedEndpoint = "/api/v2/check_runs"
-	assert.Nil(t, forwarder.SubmitCheckRun(&payload))
+	expectedEndpoint = "/api/v2/service_checks"
+	assert.Nil(t, forwarder.SubmitServiceChecks(&payload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 
-	payload = []byte("SubmitSketchSeries payload")
-	expectedPayload, _ = zstd.Compress(nil, payload)
+	expectedPayload = []byte("SubmitSketchSeries payload")
+	// for now, no compression and api key in query
 	expectedEndpoint = "/api/v2/sketches"
-	assert.Nil(t, forwarder.SubmitSketchSeries(&payload))
+	expectAPIKeyInQuery = true
+	assert.Nil(t, forwarder.SubmitSketchSeries(&expectedPayload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
+	expectAPIKeyInQuery = false
 
 	payload = []byte("SubmitHostMetadata payload")
 	expectedPayload, _ = zstd.Compress(nil, payload)
@@ -177,14 +179,6 @@ func TestSubmit(t *testing.T) {
 	expectedEndpoint = "/api/v1/sketches"
 	expectAPIKeyInQuery = true
 	assert.Nil(t, forwarder.SubmitV1SketchSeries(&expectedPayload))
-	<-wait
-	<-wait
-	assert.Equal(t, len(forwarder.retryQueue), 0)
-
-	expectedPayload = []byte("SubmitV2SketchSeries payload")
-	expectedEndpoint = "/api/v2/sketches"
-	expectAPIKeyInQuery = true
-	assert.Nil(t, forwarder.SubmitV2SketchSeries(&expectedPayload))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
@@ -231,8 +225,8 @@ func TestSubmitWithProxy(t *testing.T) {
 	forwarder.Start()
 	defer forwarder.Stop()
 
-	payload := []byte("SubmitTimeseries payload")
-	assert.Nil(t, forwarder.SubmitTimeseries(&payload))
+	payload := []byte("SubmitSeries payload")
+	assert.Nil(t, forwarder.SubmitSeries(&payload))
 	// wait for the queries to complete before changing expected value
 	<-wait
 	assert.Equal(t, 0, len(forwarder.retryQueue))
@@ -265,8 +259,8 @@ func TestSubmitWithProxyAndPassword(t *testing.T) {
 	forwarder.Start()
 	defer forwarder.Stop()
 
-	payload := []byte("SubmitTimeseries payload")
-	assert.Nil(t, forwarder.SubmitTimeseries(&payload))
+	payload := []byte("SubmitSeries payload")
+	assert.Nil(t, forwarder.SubmitSeries(&payload))
 	// wait for the queries to complete before changing expected value
 	<-wait
 	assert.Equal(t, 0, len(forwarder.retryQueue))
