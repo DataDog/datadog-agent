@@ -103,13 +103,18 @@ func start(cmd *cobra.Command, args []string) error {
 		hname = ""
 	}
 
-	// start metadata collection
-	metaCollector := metadata.NewScheduler(f, hname)
+	var metaScheduler *metadata.Scheduler
+	if config.Datadog.GetBool("enable_metadata_collection") {
+		// start metadata collection
+		metaScheduler := metadata.NewScheduler(f, hname)
 
-	// add the host metadata collector
-	err = metaCollector.AddCollector("host", hostMetadataCollectorInterval*time.Second)
-	if err != nil {
-		panic("Host metadata is supposed to be always available in the catalog!")
+		// add the host metadata collector
+		err = metaScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
+		if err != nil {
+			panic("Host metadata is supposed to be always available in the catalog!")
+		}
+	} else {
+		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(f, hname)
@@ -126,7 +131,9 @@ func start(cmd *cobra.Command, args []string) error {
 	// Block here until we receive the interrupt signal
 	<-signalCh
 
-	metaCollector.Stop()
+	if metaScheduler != nil {
+		metaScheduler.Stop()
+	}
 	statsd.Stop()
 	log.Info("See ya!")
 	log.Flush()
