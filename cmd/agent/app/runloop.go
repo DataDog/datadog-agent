@@ -104,7 +104,7 @@ func StartAgent() {
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
-	if config.Datadog.GetBool("send_host_metadata") {
+	if config.Datadog.GetBool("enable_metadata_collection") {
 		common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, hostname)
 		var C []config.MetadataProviders
 		err = config.Datadog.UnmarshalKey("metadata_providers", &C)
@@ -131,7 +131,7 @@ func StartAgent() {
 			panic("Host metadata is supposed to be always available in the catalog!")
 		}
 	} else {
-		log.Warnf("Host metadata disabled, only do that if another agent/dogstatsd is running on this host\n")
+		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
 	}
 }
 

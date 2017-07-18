@@ -104,7 +104,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	var metaScheduler *metadata.Scheduler
-	if config.Datadog.GetBool("send_host_metadata") {
+	if config.Datadog.GetBool("enable_metadata_collection") {
 		// start metadata collection
 		metaScheduler := metadata.NewScheduler(f, hname)
 
@@ -114,7 +114,7 @@ func start(cmd *cobra.Command, args []string) error {
 			panic("Host metadata is supposed to be always available in the catalog!")
 		}
 	} else {
-		log.Warnf("Host metadata disabled, only do that if another agent/dogstatsd is running on this host\n")
+		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(f, hname)
