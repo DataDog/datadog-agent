@@ -37,9 +37,8 @@ func NewCollector(paths ...string) *Collector {
 	log.Debug("scheduler created")
 	sched.Run()
 
-	// Send the agent startup event
-	// TODO
 	log.Debug("Creating collector")
+	log.Infof("Initializing python interpreter with paths: %v", paths)
 	c := &Collector{
 		scheduler: sched,
 		runner:    run,
