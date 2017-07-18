@@ -1,9 +1,17 @@
 package app
 
 import (
-	"fmt"
+	"path"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
+
+	log "github.com/cihub/seelog"
 )
 
 var (
@@ -28,6 +36,26 @@ var checkCmd = &cobra.Command{
 		if len(args) != 0 {
 			checkName = args[0]
 		}
-		fmt.Println(checkName)
+
+		common.SetupConfig(confFilePath)
+
+		hostname, err := util.GetHostname()
+		key := path.Join(util.AgentCachePrefix, "hostname")
+		util.Cache.Set(key, hostname, util.NoExpiration)
+		if err != nil {
+			panic(err)
+		}
+
+		keysPerDomain, err := config.GetMultipleEndpoints()
+		common.Forwarder = forwarder.NewDefaultForwarder(keysPerDomain)
+		log.Debugf("Starting forwarder")
+		common.Forwarder.Start()
+		log.Debugf("Forwarder started")
+
+		agg := aggregator.InitAggregator(common.Forwarder, hostname)
+		agg.AddAgentStartupEvent(version.AgentVersion)
+
+		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+		common.AC.RunCheck(checkName)
 	},
 }

@@ -27,11 +27,13 @@ func (l *MockLoader) Load(config check.Config) ([]check.Check, error) { return [
 
 func TestAddProvider(t *testing.T) {
 	ac := NewAutoConfig(nil)
+	ac.StartPolling()
 	assert.Len(t, ac.providers, 0)
 	mp := &MockProvider{}
 	ac.AddProvider(mp, false)
 	ac.AddProvider(mp, false) // this should be a noop
 	ac.AddProvider(&MockProvider2{}, true)
+	ac.LoadConfigs()
 	require.Len(t, ac.providers, 2)
 	assert.Equal(t, 1, mp.CollectCounter)
 	assert.False(t, ac.providers[0].poll)

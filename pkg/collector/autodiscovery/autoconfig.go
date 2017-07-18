@@ -108,9 +108,12 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		stop:              make(chan bool),
 	}
 
-	ac.pollConfigs()
-
 	return ac
+}
+
+// StartPolling starts polling the configs
+func (ac *AutoConfig) StartPolling() {
+	ac.pollConfigs()
 }
 
 // Stop just shuts down AutoConfig in a clean way.
@@ -143,15 +146,31 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 		poll:     shouldPoll,
 	}
 	ac.providers = append(ac.providers, pd)
+}
 
-	// call Collect() now, so providers that don't need polling will be called at least once.
-	configs, _ := ac.collect(pd)
-	for _, config := range configs {
-		// load the check instances and schedule them
-		for _, check := range ac.loadChecks(config) {
-			err := ac.collector.RunCheck(check)
-			if err != nil {
-				log.Errorf("Unable to run Check %s: %v", check, err)
+// LoadConfigs loads all of the configs,
+// should always be run once so providers that don't need polling will be called at least once
+func (ac *AutoConfig) LoadConfigs() {
+	ac.collectChecks("")
+}
+
+// RunCheck runs a single check
+func (ac *AutoConfig) RunCheck(checkName string) {
+	ac.collectChecks(checkName)
+}
+
+func (ac *AutoConfig) collectChecks(checkName string) {
+	for _, pd := range ac.providers {
+		configs, _ := ac.collect(pd)
+		for _, config := range configs {
+			// load the check instances and schedule them
+			for _, check := range ac.loadChecks(config) {
+				if checkName == "" || checkName == check.String() {
+					err := ac.collector.RunCheck(check)
+					if err != nil {
+						log.Errorf("Unable to run Check %s: %v", check, err)
+					}
+				}
 			}
 		}
 	}
