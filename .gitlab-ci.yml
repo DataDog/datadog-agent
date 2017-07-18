@@ -29,7 +29,7 @@ before_script:
 # run tests for deb-x64
 run_tests_deb-x64:
   stage: source_test
-  image: $DEB_TEST_X64
+  image: $DEB_X64
   tags:
     - docker
   variables:
@@ -43,7 +43,7 @@ run_tests_deb-x64:
 # run tests for rpm-x64
 run_test_rpm-x64:
   stage: source_test
-  image: $RPM_TEST_X64
+  image: $RPM_X64
   tags:
     - docker
   variables:
@@ -106,7 +106,7 @@ benchmarks-x64:
 # check the size of the static dogstatsd binary
 run_dogstatsd_size_test:
   stage: integration_test
-  image: $DEB_TEST_X64
+  image: $DEB_X64
   tags:
     - docker
   dependencies:
