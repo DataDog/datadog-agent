@@ -111,10 +111,10 @@ func (jl *JMXCheckLoader) String() string {
 	return "JMX Check Loader"
 }
 
-func jmxLoaderFactory() check.Loader {
-	return NewJMXCheckLoader()
-}
-
 func init() {
-	loaders.RegisterLoader("jmx", jmxLoaderFactory)
+	factory := func() check.Loader {
+		return NewJMXCheckLoader()
+	}
+
+	loaders.RegisterLoader(30, factory)
 }

@@ -85,10 +85,10 @@ func (cl *PythonCheckLoader) String() string {
 	return "Python Check Loader"
 }
 
-func pyLoaderFactory() check.Loader {
-	return NewPythonCheckLoader()
-}
-
 func init() {
-	loaders.RegisterLoader("python", pyLoaderFactory)
+	factory := func() check.Loader {
+		return NewPythonCheckLoader()
+	}
+
+	loaders.RegisterLoader(10, factory)
 }
