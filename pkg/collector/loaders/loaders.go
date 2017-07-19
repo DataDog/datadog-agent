@@ -7,7 +7,7 @@ import (
 // LoaderFactory a factory to check loaders
 type LoaderFactory func() check.Loader
 
-// LoaderCatalog keeps track of Go loaders by name
+// LoaderCatalog keeps track of check loaders by name
 var LoaderCatalog = make(map[string]LoaderFactory)
 
 // RegisterLoader adds a loader to the loaderCatalog
