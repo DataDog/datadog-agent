@@ -18,10 +18,12 @@ func (lt LoaderTwo) Load(config check.Config) ([]check.Check, error) { return ni
 
 func TestLoaderCatalog(t *testing.T) {
 	l1 := LoaderOne{}
+	factory1 := func() check.Loader { return l1 }
 	l2 := LoaderTwo{}
+	factory2 := func() check.Loader { return l2 }
 
-	RegisterLoader(20, l1)
-	RegisterLoader(10, l2)
+	RegisterLoader(20, factory1)
+	RegisterLoader(10, factory2)
 
 	require.Len(t, LoaderCatalog(), 2)
 	assert.Equal(t, l1, LoaderCatalog()[1])
