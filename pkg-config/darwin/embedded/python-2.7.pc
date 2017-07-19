@@ -8,6 +8,6 @@ Name: Python
 Description: Python library
 Requires:
 Version: 2.7
-Libs.private: -ldl  -framework CoreFoundation
+Libs.private: -ldl
 Libs: -L${libdir} -lpython2.7
-Cflags: -I${includedir}/python2.7 -I${osx_include}
+Cflags: -I${includedir}/python2.7
