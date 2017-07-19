@@ -2,7 +2,6 @@ package app
 
 import (
 	"encoding/json"
-	"expvar"
 	"fmt"
 	"os"
 	"path"
@@ -16,16 +15,18 @@ import (
 )
 
 var (
-	checkRate int
-	checkName string
+	checkRate  int
+	checkName  string
+	checkDelay int
 )
 
 func init() {
 	AgentCmd.AddCommand(checkCmd)
 
 	checkCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to datadog.yaml")
-	checkCmd.Flags().IntVarP(&checkRate, "check-rate", "r", 0, "check rate")
+	checkCmd.Flags().IntVarP(&checkRate, "check-rate", "r", 1, "check rate")
 	checkCmd.Flags().StringVarP(&checkName, "check", "c", "", "check name")
+	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
 	checkCmd.SetArgs([]string{"checkName"})
 }
 
@@ -36,8 +37,11 @@ var checkCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 0 {
 			checkName = args[0]
+		} else if checkName == "" {
+			cmd.Help()
+			os.Exit(0)
 		}
-		// config.SetupLogger("off", "")
+		config.SetupLogger("off", "")
 
 		common.SetupConfig(confFilePath)
 
@@ -56,63 +60,63 @@ var checkCmd = &cobra.Command{
 			fmt.Println("no check found")
 			os.Exit(1)
 		}
-		err = check.Run()
-		if err != nil {
-			fmt.Printf("There was a problem running this check: %v\n", err)
-			os.Exit(1)
-		}
-		err = check.Run()
-		if err != nil {
-			fmt.Printf("There was a problem running this check: %v\n", err)
-			os.Exit(1)
+		i := 0
+		for i < checkRate {
+			err = check.Run()
+			if err != nil {
+				fmt.Printf("There was a problem running this check: %v\n", err)
+				os.Exit(1)
+			}
+			i++
 		}
 
-		time.Sleep(15)
+		// Without a small delay some of the metrics will not show up
+		time.Sleep(100 * time.Millisecond)
 
 		series := agg.GetSeries()
-		fmt.Println("Series: ")
-		fmt.Println(series)
 		if len(series) != 0 {
 			fmt.Println("Series: ")
-			for s := range series {
-				fmt.Println(json.Marshal(s))
+			for _, s := range series {
+				j, _ := json.Marshal(s)
+				fmt.Println(string(j))
 			}
 		}
 
 		sketches := agg.GetSketches()
-		fmt.Println("Sketches: ")
-		fmt.Println(sketches)
 		if len(sketches) != 0 {
 			fmt.Println("Sketches: ")
-			for s := range sketches {
-				fmt.Println(json.Marshal(s))
+			for _, s := range sketches {
+				j, _ := json.Marshal(s)
+				fmt.Println(string(j))
 			}
 		}
 		serviceChecks := agg.GetServiceChecks()
-		fmt.Println("Service Checks: ")
-		fmt.Println(serviceChecks)
 		if len(serviceChecks) != 0 {
 			fmt.Println("Service Checks: ")
-			for s := range serviceChecks {
-				fmt.Println(json.Marshal(s))
+			for _, s := range serviceChecks {
+				j, _ := json.Marshal(s)
+				fmt.Println(string(j))
 			}
 		}
 		events := agg.GetEvents()
-		fmt.Println("Events: ")
-		fmt.Println(events)
 		if len(events) != 0 {
 			fmt.Println("Events: ")
-			for e := range events {
-				fmt.Println(json.Marshal(e))
+			for _, e := range events {
+				j, _ := json.Marshal(e)
+				fmt.Println(string(j))
 			}
 		}
 
-		metrics, _ := agg.GetMetrics(check.ID())
-
-		fmt.Println(string(metrics))
-
-		aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
-		fmt.Println(string(aggregatorStatsJSON))
+		metricsJSON, _ := agg.GetMetrics(check.ID())
+		metrics := []*aggregator.Serie{}
+		json.Unmarshal(metricsJSON, &metrics)
+		if len(metrics) != 0 {
+			fmt.Println("Metrics: ")
+			for _, m := range metrics {
+				j, _ := json.Marshal(m)
+				fmt.Println(string(j))
+			}
+		}
 
 	},
 }
