@@ -82,6 +82,10 @@ func (t *HTTPTransaction) Process(client *http.Client) error {
 		log.Errorf("Error code '%s' received while sending transaction to '%s': %s, dropping it", resp.Status, logURL, string(body))
 		transactionsCreation.Add("Dropped", 1)
 		return nil
+	} else if resp.StatusCode == 403 {
+		log.Errorf("API Key invalid, dropping transaction")
+		transactionsCreation.Add("Dropped", 1)
+		return nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsCreation.Add("Errors", 1)

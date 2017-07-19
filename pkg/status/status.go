@@ -3,6 +3,8 @@ package status
 import (
 	"encoding/json"
 	"expvar"
+	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -46,6 +48,7 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
+	stats["apikey"] = validateAPIKey()
 
 	return stats, nil
 }
@@ -108,4 +111,27 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	}
 
 	return stats, err
+}
+
+func validateAPIKey() string {
+
+	transport := util.CreateHTTPTransport()
+
+	httpClient := &http.Client{
+		Timeout:   config.Datadog.GetDuration("forwarder_timeout") * time.Second,
+		Transport: transport,
+	}
+
+	res, err := httpClient.Get(fmt.Sprintf("https://app.datadoghq.com/api/v1/validate?api_key=%s", config.Datadog.GetString("api_key")))
+	if err != nil {
+		return fmt.Sprintf("Unable to validate API Key: %s. Please try again later", err)
+	}
+	if res.StatusCode == 403 {
+		return "API key is invalid"
+	}
+	if res.StatusCode >= 400 {
+		return fmt.Sprintf("Unable to validate API Key, received %s. Please try again later", res.Status)
+	}
+
+	return "API key is valid"
 }

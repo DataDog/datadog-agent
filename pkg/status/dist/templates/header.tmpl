@@ -8,6 +8,7 @@
 {{- if .runnerStats.Workers}}
   Check Runners: {{.runnerStats.Workers -}} {{end}}
   Log Level: {{.config.log_level}}
+  API Key Status: {{.apikey}}
   Paths
   =====
     Config File: {{if .conf_file_used}}{{.conf_file_used}}{{else}}There is no config file{{end}}
