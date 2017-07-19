@@ -155,6 +155,7 @@ func (agg *BufferedAggregator) GetChannels() (chan *metrics.MetricSample, chan m
 	return agg.dogstatsdIn, agg.eventIn, agg.serviceCheckIn
 }
 
+// SetFlushInterval allows the flush interval to be set
 func (agg *BufferedAggregator) SetFlushInterval(interval int64) {
 	if interval == 0 {
 		agg.TickerChan = nil
@@ -249,6 +250,7 @@ func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, tim
 	}
 }
 
+// GetSeries grabs all the series from the queue and clears the queue
 func (agg *BufferedAggregator) GetSeries() []*Serie {
 	series := agg.sampler.flush(timeNowNano())
 	agg.mu.Lock()
@@ -281,6 +283,7 @@ func (agg *BufferedAggregator) flushSeries() {
 	}()
 }
 
+// GetServiceChecks grabs all the service checks from the queue and clears the queue
 func (agg *BufferedAggregator) GetServiceChecks() []ServiceCheck {
 	// Clear the current service check slice
 	serviceChecks := agg.serviceChecks
@@ -314,6 +317,7 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 	}()
 }
 
+// GetSketches grabs all the sketches from the queue and clears the queue
 func (agg *BufferedAggregator) GetSketches() []*percentile.SketchSeries {
 	return agg.distSampler.flush(timeNowNano())
 }
