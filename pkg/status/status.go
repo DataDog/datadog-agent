@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -63,6 +64,28 @@ func GetAndFormatStatus() ([]byte, error) {
 	}
 
 	st, err := FormatStatus(statusJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(st), nil
+}
+
+// GetCheckStatus gets the status of a single check
+func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
+	s, err := GetStatus()
+	if err != nil {
+		return nil, err
+	}
+	checks := s["runnerStats"].(map[string]interface{})["Checks"]
+	checks.(map[string]interface{})[c.String()] = cs
+
+	statusJSON, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+
+	st, err := renderCheckStats(statusJSON, c.String())
 	if err != nil {
 		return nil, err
 	}

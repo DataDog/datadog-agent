@@ -9,13 +9,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/spf13/cobra"
 )
 
 var (
-	checkRate  int
+	checkRate  bool
 	checkName  string
 	checkDelay int
 )
@@ -24,7 +26,7 @@ func init() {
 	AgentCmd.AddCommand(checkCmd)
 
 	checkCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to datadog.yaml")
-	checkCmd.Flags().IntVarP(&checkRate, "check-rate", "r", 1, "check rate")
+	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice")
 	checkCmd.Flags().StringVarP(&checkName, "check", "c", "", "check name")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
 	checkCmd.SetArgs([]string{"checkName"})
@@ -55,18 +57,22 @@ var checkCmd = &cobra.Command{
 		agg := aggregator.InitAggregator(common.Forwarder, hostname)
 		agg.SetFlushInterval(10000000000)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
-		check := common.AC.GetCheck(checkName)
-		if check == nil {
+		c := common.AC.GetCheck(checkName)
+		if c == nil {
 			fmt.Println("no check found")
 			os.Exit(1)
 		}
+
+		s := check.NewStats(c)
 		i := 0
-		for i < checkRate {
-			err = check.Run()
-			if err != nil {
-				fmt.Printf("There was a problem running this check: %v\n", err)
-				os.Exit(1)
-			}
+		times := 1
+		if checkRate {
+			times = 2
+		}
+		for i < times {
+			t0 := time.Now()
+			err = c.Run()
+			s.Add(time.Since(t0), err)
 			i++
 		}
 
@@ -108,6 +114,9 @@ var checkCmd = &cobra.Command{
 				fmt.Println(string(j))
 			}
 		}
+
+		checkStatus, _ := status.GetCheckStatus(c, s)
+		fmt.Println(string(checkStatus))
 
 	},
 }
