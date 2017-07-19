@@ -307,7 +307,7 @@ func (agg *BufferedAggregator) flushSketches() {
 		if err != nil {
 			log.Error("could not serialize sketches, dropping them:", err)
 		}
-		agg.forwarder.SubmitV2SketchSeries(&payload)
+		agg.forwarder.SubmitSketchSeries(&payload)
 		addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("SketchesFlushed", int64(len(sketchSeries)))
 	}()
