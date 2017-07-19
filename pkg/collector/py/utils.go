@@ -127,9 +127,6 @@ func (sl *stickyLock) getPythonError() (string, error) {
 // configure the environment. This function should be called at most once in the
 // Agent lifetime.
 func Initialize(paths ...string) *python.PyThreadState {
-	// Disable Site initialization
-	C.Py_NoSiteFlag = 1
-
 	// Start the interpreter
 	if C.Py_IsInitialized() == 0 {
 		C.Py_Initialize()
