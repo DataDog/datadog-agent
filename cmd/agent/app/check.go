@@ -1,17 +1,18 @@
 package app
 
 import (
+	"encoding/json"
+	"expvar"
+	"fmt"
+	"os"
 	"path"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
-
-	log "github.com/cihub/seelog"
 )
 
 var (
@@ -36,6 +37,7 @@ var checkCmd = &cobra.Command{
 		if len(args) != 0 {
 			checkName = args[0]
 		}
+		// config.SetupLogger("off", "")
 
 		common.SetupConfig(confFilePath)
 
@@ -46,16 +48,71 @@ var checkCmd = &cobra.Command{
 			panic(err)
 		}
 
-		keysPerDomain, err := config.GetMultipleEndpoints()
-		common.Forwarder = forwarder.NewDefaultForwarder(keysPerDomain)
-		log.Debugf("Starting forwarder")
-		common.Forwarder.Start()
-		log.Debugf("Forwarder started")
-
 		agg := aggregator.InitAggregator(common.Forwarder, hostname)
-		agg.AddAgentStartupEvent(version.AgentVersion)
-
+		agg.SetFlushInterval(10000000000)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
-		common.AC.RunCheck(checkName)
+		check := common.AC.GetCheck(checkName)
+		if check == nil {
+			fmt.Println("no check found")
+			os.Exit(1)
+		}
+		err = check.Run()
+		if err != nil {
+			fmt.Printf("There was a problem running this check: %v\n", err)
+			os.Exit(1)
+		}
+		err = check.Run()
+		if err != nil {
+			fmt.Printf("There was a problem running this check: %v\n", err)
+			os.Exit(1)
+		}
+
+		time.Sleep(15)
+
+		series := agg.GetSeries()
+		fmt.Println("Series: ")
+		fmt.Println(series)
+		if len(series) != 0 {
+			fmt.Println("Series: ")
+			for s := range series {
+				fmt.Println(json.Marshal(s))
+			}
+		}
+
+		sketches := agg.GetSketches()
+		fmt.Println("Sketches: ")
+		fmt.Println(sketches)
+		if len(sketches) != 0 {
+			fmt.Println("Sketches: ")
+			for s := range sketches {
+				fmt.Println(json.Marshal(s))
+			}
+		}
+		serviceChecks := agg.GetServiceChecks()
+		fmt.Println("Service Checks: ")
+		fmt.Println(serviceChecks)
+		if len(serviceChecks) != 0 {
+			fmt.Println("Service Checks: ")
+			for s := range serviceChecks {
+				fmt.Println(json.Marshal(s))
+			}
+		}
+		events := agg.GetEvents()
+		fmt.Println("Events: ")
+		fmt.Println(events)
+		if len(events) != 0 {
+			fmt.Println("Events: ")
+			for e := range events {
+				fmt.Println(json.Marshal(e))
+			}
+		}
+
+		metrics, _ := agg.GetMetrics(check.ID())
+
+		fmt.Println(string(metrics))
+
+		aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
+		fmt.Println(string(aggregatorStatsJSON))
+
 	},
 }

@@ -3,6 +3,7 @@ package autodiscovery
 import (
 	"expvar"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -157,6 +158,23 @@ func (ac *AutoConfig) LoadConfigs() {
 // RunCheck runs a single check
 func (ac *AutoConfig) RunCheck(checkName string) {
 	ac.collectChecks(checkName)
+}
+
+// GetCheck grabs a check from the config
+func (ac *AutoConfig) GetCheck(checkName string) check.Check {
+	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
+	for _, pd := range ac.providers {
+		configs, _ := ac.collect(pd)
+		for _, config := range configs {
+			// load the check instances and schedule them
+			for _, check := range ac.loadChecks(config) {
+				if checkName == check.String() || titleCheck == check.String() {
+					return check
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (ac *AutoConfig) collectChecks(checkName string) {
