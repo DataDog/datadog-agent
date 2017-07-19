@@ -1,7 +1,6 @@
 package aggregator
 
 import (
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"sync"
@@ -182,17 +181,6 @@ func (agg *BufferedAggregator) AddAgentStartupEvent(agentVersion string) {
 	agg.eventIn <- event
 }
 
-// GetMetrics grabs the metrics from a single check in a byte array
-func (agg *BufferedAggregator) GetMetrics(id check.ID) ([]byte, error) {
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
-	if checkSampler, ok := agg.checkSamplers[id]; ok {
-		return json.Marshal(checkSampler.series)
-	}
-
-	return nil, fmt.Errorf("Sender with ID '%s' has not been registered, cannot get metrics", id)
-}
-
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
@@ -262,17 +250,18 @@ func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, tim
 }
 
 func (agg *BufferedAggregator) GetSeries() []*Serie {
-	return agg.sampler.flush(timeNowNano())
-}
-
-func (agg *BufferedAggregator) flushSeries() {
-	start := time.Now()
-	series := agg.GetSeries()
+	series := agg.sampler.flush(timeNowNano())
 	agg.mu.Lock()
 	for _, checkSampler := range agg.checkSamplers {
 		series = append(series, checkSampler.flush()...)
 	}
 	agg.mu.Unlock()
+	return series
+}
+
+func (agg *BufferedAggregator) flushSeries() {
+	start := time.Now()
+	series := agg.GetSeries()
 
 	if len(series) == 0 {
 		return

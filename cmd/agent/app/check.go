@@ -90,6 +90,7 @@ var checkCmd = &cobra.Command{
 				fmt.Println(string(j))
 			}
 		}
+
 		serviceChecks := agg.GetServiceChecks()
 		if len(serviceChecks) != 0 {
 			fmt.Println("Service Checks: ")
@@ -98,22 +99,12 @@ var checkCmd = &cobra.Command{
 				fmt.Println(string(j))
 			}
 		}
+
 		events := agg.GetEvents()
 		if len(events) != 0 {
 			fmt.Println("Events: ")
 			for _, e := range events {
 				j, _ := json.Marshal(e)
-				fmt.Println(string(j))
-			}
-		}
-
-		metricsJSON, _ := agg.GetMetrics(check.ID())
-		metrics := []*aggregator.Serie{}
-		json.Unmarshal(metricsJSON, &metrics)
-		if len(metrics) != 0 {
-			fmt.Println("Metrics: ")
-			for _, m := range metrics {
-				j, _ := json.Marshal(m)
 				fmt.Println(string(j))
 			}
 		}
