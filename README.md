@@ -28,4 +28,4 @@ To start working on the Agent, you can build the `master` branch:
    on how to build the Agent alone.
 
 ## Tests
-Some tests have specific requirements, see [System Tests](tests/README.md).
+Some tests have specific requirements, see [System Tests](test/README.md).
