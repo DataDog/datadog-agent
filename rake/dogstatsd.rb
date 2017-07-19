@@ -20,7 +20,7 @@ namespace :dogstatsd do
       bin_path = STATIC_BIN_PATH
     end
 
-    sh("go build #{race_opt} #{build_type_opt} -o #{bin_path}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
+    sh("go build #{race_opt} #{build_type_opt} -tags '#{go_build_tags}' -o #{bin_path}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
   end
 
   desc "Run Dogstatsd"
