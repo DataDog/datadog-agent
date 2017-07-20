@@ -74,14 +74,16 @@ func start(cmd *cobra.Command, args []string) error {
 	confErr := config.Datadog.ReadInConfig()
 
 	// Setup logger
-	err := config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
+	logFile := config.Datadog.GetString("log_file")
+	err := config.SetupLogger(config.Datadog.GetString("log_level"), logFile)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
 	}
+	defer log.Flush()
 
 	if confErr != nil {
-		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
+		log.Infof("unable to parse any Datadog config file, running with env variables: %s", confErr)
 	}
 
 	if !config.Datadog.IsSet("api_key") {
@@ -136,13 +138,14 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	statsd.Stop()
 	log.Info("See ya!")
-	log.Flush()
 	return nil
 }
 
 func main() {
 	// go_expvar server
-	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)
+	go http.ListenAndServe(
+		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
+		http.DefaultServeMux)
 
 	if err := dogstatsdCmd.Execute(); err != nil {
 		log.Error(err)

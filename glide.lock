@@ -1,5 +1,5 @@
-hash: 730d35370e1cc6eb3c1c439c34a1cb626717ff10b2f535708888f017bc08e5c6
-updated: 2017-07-05T14:46:24.245647215-04:00
+hash: 496ebb52c95bf04b84b8beee352e431b677706b6949fa75a2991478c6ac48ab1
+updated: 2017-07-08T01:46:51.737103225+02:00
 imports:
 - name: github.com/beevik/ntp
   version: cb3dae3a7588ae35829eb5724df611cd75152fba
@@ -36,9 +36,9 @@ imports:
   subpackages:
   - spew
 - name: github.com/docker/distribution
-  version: cd27f179f2c10c5d300e6d09025b538c475b0d51
+  version: 1d7824702bb4763786d35b7553b18722c4afce4f
   subpackages:
-  - digest
+  - digestset
   - reference
 - name: github.com/docker/docker
   version: 092cba3727bb9b4a2f0e922cd6c0f93ea270e363
@@ -68,7 +68,7 @@ imports:
 - name: github.com/docker/go-units
   version: 0dadbb0345b35ec7ef35e228dabb8de89a65bf52
 - name: github.com/ericchiang/k8s
-  version: 860d64039a0d98e149452f9687f26eb3636d5038
+  version: 5803ed75e31fc1998b5f781ac08e22ff985c3f8f
   subpackages:
   - api/resource
   - api/unversioned
@@ -103,6 +103,8 @@ imports:
   version: 629574ca2a5df945712d3079857300b5e4da0236
 - name: github.com/geoffgarside/ber
   version: 854377f11dfb81f04121879829bc53487e377739
+- name: github.com/go-ini/ini
+  version: 3d73f4b845efdf9989fffd4b4e562727744a34ba
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
   subpackages:
@@ -149,6 +151,8 @@ imports:
   version: cc8532a8e9a55ea36402aa21efdf403a60d34096
 - name: github.com/mitchellh/reflectwalk
   version: 417edcfd99a4d472c262e58f22b4bfe97580f03e
+- name: github.com/opencontainers/go-digest
+  version: aa2ec055abd10d26d539eb630a92241b781ce4bc
 - name: github.com/patrickmn/go-cache
   version: 1881a9bccb818787f68c52bfba648c6cf34c34fa
 - name: github.com/pelletier/go-buffruneio
@@ -181,9 +185,7 @@ imports:
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/Sirupsen/logrus
-  version: 55eb11d21d2a31a3cc93838241d04800f52e823d
-  subpackages:
-  - formatters/logstash
+  version: 10f801ebc38b33738c9d17d50860f484a0988ff5
 - name: github.com/spf13/afero
   version: 9be650865eab0c12963d8753212f4f9c66cdcf12
   subpackages:
@@ -226,7 +228,7 @@ imports:
   - lex/httplex
   - proxy
 - name: golang.org/x/sys
-  version: 8f0908ab3b2457e2e15403d3697c9ef5cb4b57a9
+  version: 9ccfe848b9db8435a24c424abbc07a921adf1df5
   subpackages:
   - unix
   - windows
@@ -236,7 +238,7 @@ imports:
   - windows/svc/eventlog
   - windows/svc/mgr
 - name: golang.org/x/text
-  version: 2910a502d2bf9e43193af9d68ca516529614eed3
+  version: 470f45bf29f4147d6fbd7dfd0a02a848e49f5bf4
   subpackages:
   - transform
   - unicode/norm

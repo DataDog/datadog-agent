@@ -46,6 +46,7 @@ func init() {
 	Datadog.SetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
 	Datadog.SetDefault("dogstatsd_non_local_traffic", false)
 	Datadog.SetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
+	Datadog.SetDefault("dogstatsd_stats_port", 5000)
 	Datadog.SetDefault("dogstatsd_stats_enable", false)
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	// JMX
@@ -65,7 +66,10 @@ func init() {
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("enable_metadata_collection")
 	Datadog.BindEnv("dogstatsd_socket")
+	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
+	Datadog.BindEnv("log_file")
+	Datadog.BindEnv("log_level")
 	Datadog.BindEnv("kubernetes_kubelet_host")
 	Datadog.BindEnv("kubernetes_http_kubelet_port")
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
