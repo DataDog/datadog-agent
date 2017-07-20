@@ -125,6 +125,11 @@ func (c *APMCheck) Stop() {
 	}
 }
 
+// GetWarnings does not return anything in APM
+func (c *APMCheck) GetWarnings() []error {
+	return []error{}
+}
+
 func init() {
 	factory := func() check.Check {
 		return &APMCheck{}

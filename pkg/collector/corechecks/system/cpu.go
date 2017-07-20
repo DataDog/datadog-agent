@@ -18,9 +18,10 @@ var cpuInfo = cpu.Info
 
 // CPUCheck doesn't need additional fields
 type CPUCheck struct {
-	nbCPU       float64
-	lastNbCycle float64
-	lastTimes   cpu.TimesStat
+	nbCPU        float64
+	lastNbCycle  float64
+	lastWarnings []error
+	lastTimes    cpu.TimesStat
 }
 
 func (c *CPUCheck) String() string {
@@ -97,6 +98,29 @@ func (c *CPUCheck) ID() check.ID {
 
 // Stop does nothing
 func (c *CPUCheck) Stop() {}
+
+// GetWarnings grabs the last warnings from the sender
+func (c *CPUCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *CPUCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *CPUCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
 
 func cpuFactory() check.Check {
 	return &CPUCheck{}

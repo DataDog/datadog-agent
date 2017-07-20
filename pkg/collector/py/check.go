@@ -20,20 +20,22 @@ import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
-	id         check.ID
-	Instance   *python.PyObject
-	Class      *python.PyObject
-	ModuleName string
-	Config     *python.PyObject
-	interval   time.Duration
+	id           check.ID
+	Instance     *python.PyObject
+	Class        *python.PyObject
+	ModuleName   string
+	Config       *python.PyObject
+	interval     time.Duration
+	lastWarnings []error
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
 func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
 	return &PythonCheck{
-		ModuleName: name,
-		Class:      class,
-		interval:   check.DefaultCheckInterval,
+		ModuleName:   name,
+		Class:        class,
+		interval:     check.DefaultCheckInterval,
+		lastWarnings: []error{},
 	}
 }
 
@@ -63,6 +65,9 @@ func (c *PythonCheck) Run() error {
 
 	s.Commit()
 
+	// grab the warnings and add them to the struct
+	c.lastWarnings = c.getPythonWarnings(gstate)
+
 	var resultStr = python.PyString_AsString(result)
 	if resultStr == "" {
 		return nil
@@ -77,6 +82,39 @@ func (c *PythonCheck) Stop() {}
 // String representation (for debug and logging)
 func (c *PythonCheck) String() string {
 	return c.ModuleName
+}
+
+// GetWarnings grabs the last warnings from the struct
+func (c *PythonCheck) GetWarnings() []error {
+	warnings := c.lastWarnings
+	c.lastWarnings = []error{}
+	return warnings
+}
+
+// getPythonWarnings grabs the last warnings from the python check
+func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
+	/**
+	This function must be run before the GIL is unlocked, otherwise it will return nothing.
+	**/
+	warnings := []error{}
+	emptyTuple := python.PyTuple_New(0)
+	ws := c.Instance.CallMethod("get_warnings", emptyTuple)
+	if ws == nil {
+		pyErr, err := gstate.getPythonError()
+		if err != nil {
+			log.Errorf("An error occurred while grabbing python check and couldn't be formatted: %v", err)
+		}
+		log.Infof("Python error: %v", pyErr)
+		return warnings
+	}
+	numWarnings := python.PyList_Size(ws)
+	idx := 0
+	for idx < numWarnings {
+		w := python.PyList_GetItem(ws, idx)
+		warnings = append(warnings, fmt.Errorf("%v", python.PyString_AsString(w)))
+		idx++
+	}
+	return warnings
 }
 
 // getInstance invokes the constructor on the Python class stored in

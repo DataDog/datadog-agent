@@ -97,8 +97,9 @@ type snmpConfig struct {
 
 // SNMPCheck grabs SNMP metrics
 type SNMPCheck struct {
-	id  check.ID
-	cfg *snmpConfig
+	id           check.ID
+	lastWarnings []error
+	cfg          *snmpConfig
 }
 
 func (c *SNMPCheck) String() string {
@@ -730,6 +731,29 @@ func (c *SNMPCheck) Run() error {
 	}
 
 	return nil
+}
+
+// GetWarnings grabs the last warnings from the sender
+func (c *SNMPCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *SNMPCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *SNMPCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
 }
 
 func snmpFactory() check.Check {

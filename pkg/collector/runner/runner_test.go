@@ -27,7 +27,8 @@ func (c *TestCheck) Run() error {
 	c.hasRun = true
 	return nil
 }
-func (c *TestCheck) ID() check.ID { return check.ID(c.String()) }
+func (c *TestCheck) ID() check.ID         { return check.ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error { return nil }
 
 func TestNewRunner(t *testing.T) {
 	r := NewRunner(1)

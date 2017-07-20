@@ -49,6 +49,29 @@ func (c *IOCheck) ID() check.ID {
 // Stop does nothing
 func (c *IOCheck) Stop() {}
 
+// GetWarnings grabs the last warnings from the sender
+func (c *IOCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *IOCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *IOCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
 func init() {
 	core.RegisterCheck("io", ioFactory)
 }

@@ -3,26 +3,37 @@ package runner
 import (
 	"expvar"
 	"fmt"
+	"path"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
 )
 
 const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
 
+// checkStats holds the stats from the running checks
+type runnerCheckStats struct {
+	Stats map[check.ID]*check.Stats
+	M     sync.RWMutex
+}
+
 var (
 	runnerStats *expvar.Map
-	checkStats  map[check.ID]*check.Stats
-	checkStatsM sync.RWMutex
+	checkStats  *runnerCheckStats
 )
 
 func init() {
 	runnerStats = expvar.NewMap("runner")
 	runnerStats.Set("Checks", expvar.Func(expCheckStats))
-	checkStats = make(map[check.ID]*check.Stats)
+	checkStats = &runnerCheckStats{
+		Stats: make(map[check.ID]*check.Stats),
+	}
 }
 
 // Runner ...
@@ -139,9 +150,36 @@ func (r *Runner) work() {
 		// run the check
 		t0 := time.Now()
 		err := check.Run()
+		warnings := check.GetWarnings()
+
+		sender, e := aggregator.GetSender(check.ID())
+		if e != nil {
+			log.Debugf("Error getting sender: %v for check %s. trying to get default sender", e, check)
+			sender, e = aggregator.GetDefaultSender()
+			if e != nil {
+				log.Errorf("Error getting default sender: %v. Not sending status check for %s", e, check)
+			}
+		}
+		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String())}
+		serviceCheckStatus := metrics.ServiceCheckOK
+
+		hostname := getHostname()
+
+		if len(warnings) != 0 {
+			// len returns int, and this expect int64, so it has to be converted
+			runnerStats.Add("Warnings", int64(len(warnings)))
+			serviceCheckStatus = metrics.ServiceCheckWarning
+		}
+
 		if err != nil {
 			log.Errorf("Error running check %s: %s", check, err)
 			runnerStats.Add("Errors", 1)
+			serviceCheckStatus = metrics.ServiceCheckCritical
+		}
+
+		if sender != nil {
+			sender.ServiceCheck("datadog.agent.check_status", serviceCheckStatus, hostname, serviceCheckTags, "")
+			sender.Commit()
 		}
 
 		// remove the check from the running list
@@ -152,7 +190,7 @@ func (r *Runner) work() {
 		// publish statistics about this run
 		runnerStats.Add("RunningChecks", -1)
 		runnerStats.Add("Runs", 1)
-		addWorkStats(check, time.Since(t0), err)
+		addWorkStats(check, time.Since(t0), err, warnings)
 
 		log.Infof("Done running check %s", check)
 	}
@@ -160,24 +198,40 @@ func (r *Runner) work() {
 	log.Debug("Finished processing checks.")
 }
 
-func addWorkStats(c check.Check, execTime time.Duration, err error) {
+func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []error) {
 	var s *check.Stats
 	var found bool
 
-	checkStatsM.Lock()
-	s, found = checkStats[c.ID()]
+	checkStats.M.Lock()
+	s, found = checkStats.Stats[c.ID()]
 	if !found {
 		s = check.NewStats(c)
-		checkStats[c.ID()] = s
+		checkStats.Stats[c.ID()] = s
 	}
-	checkStatsM.Unlock()
+	checkStats.M.Unlock()
 
-	s.Add(execTime, err)
+	s.Add(execTime, err, warnings)
 }
 
 func expCheckStats() interface{} {
-	checkStatsM.RLock()
-	defer checkStatsM.RUnlock()
+	checkStats.M.RLock()
+	defer checkStats.M.RUnlock()
 
-	return checkStats
+	return checkStats.Stats
+}
+
+// GetCheckStats returns the check stats map
+func GetCheckStats() map[check.ID]*check.Stats {
+	checkStats.M.RLock()
+	defer checkStats.M.RUnlock()
+
+	return checkStats.Stats
+}
+
+func getHostname() string {
+	hname, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
+	if found {
+		return hname.(string)
+	}
+	return ""
 }

@@ -60,7 +60,9 @@ namespace :agent do
       end
     end
 
-    command = "go build #{race_opt} #{build_type} -tags \"#{go_build_tags}\" -o #{BIN_PATH}/#{agent_bin_name} -gcflags=\"#{gcflags.join(" ")}\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
+    build_tags = go_build_tags added_tags: 'checks'
+
+    command = "go build #{race_opt} #{build_type} -tags \"#{build_tags}\" -o #{BIN_PATH}/#{agent_bin_name} -gcflags=\"#{gcflags.join(" ")}\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
     puts command
     build_success = system(env, command)
     fail "Agent build failed with code #{$?.exitstatus}" if !build_success

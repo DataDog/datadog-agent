@@ -14,9 +14,11 @@ def os
 end
 
 # `tags` option
-def go_build_tags
+def go_build_tags(tags: '', added_tags: '')
   build_tags = ENV['tags'] || "zstd snmp etcd zk cpython jmx apm docker ec2 gce process"
   build_tags = ENV['puppy'] == 'true' ? 'zlib' : build_tags
+  build_tags = tags ? tags : build_tags
+  build_tags = added_tags ? build_tags + ' ' + added_tags : build_tags
 end
 
 def get_base_ldflags()

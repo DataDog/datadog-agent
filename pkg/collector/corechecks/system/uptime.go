@@ -15,7 +15,9 @@ import (
 var uptime = host.Uptime
 
 // UptimeCheck doesn't need additional fields
-type UptimeCheck struct{}
+type UptimeCheck struct {
+	lastWarnings []error
+}
 
 func (c *UptimeCheck) String() string {
 	return "uptime"
@@ -58,6 +60,29 @@ func (c *UptimeCheck) ID() check.ID {
 
 // Stop does nothing
 func (c *UptimeCheck) Stop() {}
+
+// GetWarnings grabs the last warnings from the sender
+func (c *UptimeCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *UptimeCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *UptimeCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
 
 func uptimeFactory() check.Check {
 	return &UptimeCheck{}

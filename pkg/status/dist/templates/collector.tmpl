@@ -14,7 +14,10 @@ Collector
 {{- if .LastError}}
       Error: {{lastErrorMessage .LastError}}
       {{lastErrorTraceback .LastError -}}
-{{- end -}} {{- end -}} {{- end -}}
+{{- end -}}
+{{- if .LastWarnings}} {{- range .LastWarnings }}
+      Warning: {{.}}
+{{- end -}} {{- end -}} {{- end -}} {{- end -}}
 {{- with .LoaderStats -}} {{- if .Errors}}
   Loading Errors
   ==============
