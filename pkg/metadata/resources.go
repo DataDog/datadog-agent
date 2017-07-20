@@ -3,6 +3,7 @@ package metadata
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
@@ -17,7 +18,7 @@ type ResourcesCollector struct{}
 // Send collects the data needed and submits the payload
 func (rp *ResourcesCollector) Send(fwd forwarder.Forwarder) error {
 	var hostname string
-	x, found := util.Cache.Get("hostname")
+	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
 	if found {
 		hostname = x.(string)
 	}
