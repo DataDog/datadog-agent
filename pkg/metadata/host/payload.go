@@ -26,6 +26,6 @@ type Payload struct {
 	PythonVersion    string       `json:"python"`
 	InternalHostname string       `json:"internalHostname"`
 	UUID             string       `json:"uuid"`
-	SytemStats       *systemStats `json:"systemStats"`
+	SystemStats      *systemStats `json:"systemStats"`
 	Meta             *meta        `json:"meta"`
 }

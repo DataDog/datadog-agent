@@ -29,7 +29,7 @@ func GetPayload(hostname string) *Payload {
 		PythonVersion:    getPythonVersion(),
 		InternalHostname: hostname,
 		UUID:             getHostInfo().HostID,
-		SytemStats:       getSystemStats(),
+		SystemStats:      getSystemStats(),
 		Meta:             meta,
 	}
 }
