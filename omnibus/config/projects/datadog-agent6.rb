@@ -144,6 +144,7 @@ end
 
 if windows?
   dependency 'datadog-upgrade-helper'
+  dependency 'pywin32'
 end
 
 # Remove pyc/pyo files from package

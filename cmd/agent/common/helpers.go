@@ -19,8 +19,15 @@ import (
 func SetupAutoConfig(confdPath string) {
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment
-	coll := collector.NewCollector(GetDistPath(), filepath.Join(GetDistPath(), "checks"),
-		config.Datadog.GetString("additional_checksd"), PyChecksPath)
+	coll := collector.NewCollector(GetDistPath(),
+		PyChecksPath,
+		filepath.Join(GetDistPath(), "checks"),
+		config.Datadog.GetString("additional_checksd"),
+		filepath.Join(_here, "lib"),
+		filepath.Join(_here, "lib\\site-packages"),
+		filepath.Join(_here, "lib\\site-packages\\win32"),
+		filepath.Join(_here, "lib\\site-packages\\win32\\lib"),
+		filepath.Join(_here, "lib\\site-packages\\pywin32_system32"))
 
 	// create the Autoconfig instance
 	AC = autodiscovery.NewAutoConfig(coll)
