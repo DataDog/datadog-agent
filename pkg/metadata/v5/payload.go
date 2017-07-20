@@ -18,5 +18,5 @@ type HostPayload struct {
 
 // ResourcesPayload wraps Payload from the resources package
 type ResourcesPayload struct {
-	resources.Payload
+	resources.Payload `json:"resources"`
 }
