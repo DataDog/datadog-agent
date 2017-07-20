@@ -41,7 +41,6 @@ func (suite *CollectorTestSuite) TearDownTest() {
 func (suite *CollectorTestSuite) TestNewCollector() {
 	assert.NotNil(suite.T(), suite.c.runner)
 	assert.NotNil(suite.T(), suite.c.scheduler)
-	assert.NotNil(suite.T(), suite.c.pyState)
 	assert.Equal(suite.T(), started, suite.c.state)
 }
 
@@ -49,7 +48,6 @@ func (suite *CollectorTestSuite) TestStop() {
 	suite.c.Stop()
 	assert.Nil(suite.T(), suite.c.runner)
 	assert.Nil(suite.T(), suite.c.scheduler)
-	assert.Nil(suite.T(), suite.c.pyState)
 	assert.Equal(suite.T(), stopped, suite.c.state)
 }
 

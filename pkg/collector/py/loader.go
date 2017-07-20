@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/sbinet/go-python"
 
 	log "github.com/cihub/seelog"
@@ -82,4 +83,12 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 func (cl *PythonCheckLoader) String() string {
 	return "Python Check Loader"
+}
+
+func init() {
+	factory := func() check.Loader {
+		return NewPythonCheckLoader()
+	}
+
+	loaders.RegisterLoader(10, factory)
 }

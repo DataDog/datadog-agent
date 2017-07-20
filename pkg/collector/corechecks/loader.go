@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	log "github.com/cihub/seelog"
 )
 
@@ -50,4 +51,12 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 func (gl *GoCheckLoader) String() string {
 	return "Core Check Loader"
+}
+
+func init() {
+	factory := func() check.Loader {
+		return NewGoCheckLoader()
+	}
+
+	loaders.RegisterLoader(20, factory)
 }

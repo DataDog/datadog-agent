@@ -13,8 +13,7 @@ end
 namespace :agent do
   BIN_PATH="./bin/agent"
   CLOBBER.include(BIN_PATH)
-
-  desc "Build the agent, pass 'race=true' to invoke the race detector, 'incremental=true' to build incrementally"
+  desc "Build the Agent [race=false|incremental=false|tags=*|puppy=false]"
   task :build do
     # `race` option
     race_opt = ENV['race'] == "true" ? "-race" : ""
@@ -39,9 +38,9 @@ namespace :agent do
       # On windows, need to build with the extra arguments -gcflags "-N -l" -ldflags="-linkmode internal"
       # if you want to be able to use the delve debugger.
       ldflags << "-linkmode internal"
-      build_success = system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
+      build_success = system(env, "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
     else
-      build_success = system(env, "go build #{race_opt} #{build_type} -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
+      build_success = system(env, "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
     end
     fail "Agent build failed with code #{$?.exitstatus}" if !build_success
 
@@ -67,14 +66,17 @@ namespace :agent do
     sh("#{BIN_PATH}/agent start")
   end
 
-  desc "Build omnibus installer"
+  desc "Build omnibus installer [puppy=false]"
   task :omnibus do
+    # omnibus config overrides
+    overrides = []
+
+    # puppy mode option
+    project_name = ENV['puppy'] == "true" ? "puppy" : "datadog-agent6"
+
     # omnibus log level
     log_level = ENV["AGENT_OMNIBUS_LOG_LEVEL"] || "info"
 
-    # omnibus config overrides
-    overrides_cmd = ""
-    overrides = []
     base_dir = ENV["AGENT_OMNIBUS_BASE_DIR"]
     if base_dir
       overrides.push("base_dir:#{base_dir}")
@@ -85,21 +87,21 @@ namespace :agent do
       overrides.push("package_dir:#{package_dir}")
     end
 
+    overrides_cmd = ""
+    if overrides.size > 0
+      overrides_cmd = "--override=" + overrides.join(" ")
+    end
+
     Dir.chdir('omnibus') do
       system("bundle install --without development")
-
-      if overrides.size > 0
-        overrides_cmd = "--override=" + overrides.join(" ")
-      end
-
-    case os
+      case os
       when "windows"
-        system("omnibus.bat build datadog-agent6 --log-level=#{log_level} #{overrides_cmd}")
+        system("omnibus.bat build #{project_name} --log-level=#{log_level} #{overrides_cmd}")
       else
-        system("omnibus build datadog-agent6 --log-level=#{log_level} #{overrides_cmd}")
+        system("omnibus build #{project_name} --log-level=#{log_level} #{overrides_cmd}")
       end
-
     end
+
   end
 
   desc "Run agent system tests"

@@ -21,3 +21,8 @@ func GetHostname() (string, error) {
 
 	return info.Name, nil
 }
+
+// HostnameProvider docker implementation for the hostname provider
+func HostnameProvider(hostName string) (string, error) {
+	return GetHostname()
+}

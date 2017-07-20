@@ -1,3 +1,5 @@
+// +build jmx
+
 package embed
 
 import (
@@ -7,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
@@ -106,4 +109,12 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 func (jl *JMXCheckLoader) String() string {
 	return "JMX Check Loader"
+}
+
+func init() {
+	factory := func() check.Loader {
+		return NewJMXCheckLoader()
+	}
+
+	loaders.RegisterLoader(30, factory)
 }

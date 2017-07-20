@@ -1,3 +1,5 @@
+// +build etcd
+
 package providers
 
 import (
@@ -169,4 +171,11 @@ func hasTemplateFields(nodes client.Nodes) bool {
 		}
 	}
 	return true
+}
+
+func init() {
+	provider, err := NewEtcdConfigProvider()
+	if err == nil {
+		RegisterProvider("etcd", provider)
+	}
 }

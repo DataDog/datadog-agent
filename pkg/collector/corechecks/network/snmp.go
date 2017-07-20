@@ -1,4 +1,5 @@
 // +build !windows
+// +build snmp
 
 package network
 

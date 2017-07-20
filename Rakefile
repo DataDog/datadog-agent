@@ -43,7 +43,7 @@ task :vet do
   end
 end
 
-desc "Run testsuite, pass 'race=true' to invoke the race detector"
+desc "Run testsuite [race=false|tags=*|puppy=false]"
 task :test => %w[fmt lint vet] do
   PROFILE = "profile.cov"  # collect global coverage data in this file
   `echo "mode: count" > #{PROFILE}`
@@ -70,7 +70,7 @@ task :test => %w[fmt lint vet] do
         env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
       end
 
-      system(env, "go test #{race_opt} -short #{covermode_opt} -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
+      system(env, "go test -tags '#{go_build_tags}' #{race_opt} -short #{covermode_opt} -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
       if File.file?(profile_tmp)
         `cat #{profile_tmp} | tail -n +2 >> #{PROFILE}`
         File.delete(profile_tmp)

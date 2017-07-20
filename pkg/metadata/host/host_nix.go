@@ -1,3 +1,5 @@
+// +build linux freebsd netbsd openbsd solaris dragonfly
+
 package host
 
 import "github.com/shirou/gopsutil/host"
