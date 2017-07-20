@@ -17,14 +17,14 @@ namespace :benchmark do
         flags="-gcflags \"-N -l\" -ldflags=\"-linkmode internal\""
       end
 
-      system("go build #{build_type} -o #{BENCHMARK_BIN_PATH}/#{bin_name("aggregator")} #{flags} #{REPO_PATH}/test/benchmarks/aggregator") or exit!(1)
+      system("go build #{build_type} -tags '#{go_build_tags}' -o #{BENCHMARK_BIN_PATH}/#{bin_name("aggregator")} #{flags} #{REPO_PATH}/test/benchmarks/aggregator") or exit!(1)
     end
   end
 
   namespace :dogstatsd do
     desc "Build Dogstatsd benchmark"
     task :build do
-      system("go build -o #{BENCHMARK_BIN_PATH}/#{bin_name("dogstatsd")} #{REPO_PATH}/test/benchmarks/dogstatsd") or exit!(1)
+      system("go build -tags '#{go_build_tags}' -o #{BENCHMARK_BIN_PATH}/#{bin_name("dogstatsd")} #{REPO_PATH}/test/benchmarks/dogstatsd") or exit!(1)
     end
 
     desc "Run Dogstatsd Benchmark"
