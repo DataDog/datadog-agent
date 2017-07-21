@@ -320,3 +320,10 @@ func isTemplateField(key string) bool {
 	}
 	return false
 }
+
+func init() {
+	provider, err := NewConsulConfigProvider()
+	if err == nil {
+		RegisterProvider("consul", provider)
+	}
+}
