@@ -1,12 +1,12 @@
-hash: b32d5cbfbeb46a4da0794c7d223afd49c7c3e9f0efbe1099b648a369f17094b4
-updated: 2017-07-13T12:28:26.118263605+02:00
+hash: ce6d771ac6d8d1bcd81aa98e7fbd2a96eabd787efd67cd37d22256d53400cae3
+updated: 2017-07-21T12:32:25.957191396+02:00
 imports:
 - name: github.com/beevik/ntp
   version: cb3dae3a7588ae35829eb5724df611cd75152fba
 - name: github.com/cihub/seelog
   version: d2c6e5aa9fbfdd1c624e140287063c7730654115
 - name: github.com/coreos/etcd
-  version: 0f4a535c2fb7a2920e13e2e19b9eaf6b2e9285e5
+  version: 0520cb9304cb2385f7e72b8bc02d6e4d3257158a
   subpackages:
   - client
   - pkg/pathutil
