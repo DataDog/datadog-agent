@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -121,7 +122,7 @@ func (c *NTPCheck) Stop() {}
 
 // Run runs the check
 func (c *NTPCheck) Run() error {
-	var serviceCheckStatus aggregator.ServiceCheckStatus
+	var serviceCheckStatus metrics.ServiceCheckStatus
 	var clockOffset int
 	serviceCheckMessage := ""
 	offsetThreshold := c.cfg.instance.OffsetThreshold
@@ -129,14 +130,14 @@ func (c *NTPCheck) Run() error {
 	response, err := ntp.Query(c.cfg.instance.Host, c.cfg.instance.Version)
 	if err != nil {
 		log.Infof("There was an error querying the ntp host: %s", err)
-		serviceCheckStatus = aggregator.ServiceCheckUnknown
+		serviceCheckStatus = metrics.ServiceCheckUnknown
 	} else {
 		clockOffset = int(response.ClockOffset.Seconds())
 		if clockOffset > offsetThreshold {
-			serviceCheckStatus = aggregator.ServiceCheckCritical
+			serviceCheckStatus = metrics.ServiceCheckCritical
 			serviceCheckMessage = fmt.Sprintf("Offset %v secs higher than offset threshold (%v secs)", clockOffset, offsetThreshold)
 		} else {
-			serviceCheckStatus = aggregator.ServiceCheckOK
+			serviceCheckStatus = metrics.ServiceCheckOK
 		}
 
 		c.sender.Gauge("ntp.offset", response.ClockOffset.Seconds(), "", nil)

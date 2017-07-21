@@ -8,19 +8,19 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // Schema of a dogstatsd packet: see http://docs.datadoghq.com
 
-// MetricTypes maps the dogstatsd metric types to the aggregator metric types
-var metricTypes = map[string]aggregator.MetricType{
-	"g":  aggregator.GaugeType,
-	"c":  aggregator.CounterType,
-	"s":  aggregator.SetType,
-	"h":  aggregator.HistogramType,
-	"ms": aggregator.HistogramType,
-	"d":  aggregator.DistributionType,
+// MetricTypes maps the dogstatsd metric types to the agent metric types
+var metricTypes = map[string]metrics.MetricType{
+	"g":  metrics.GaugeType,
+	"c":  metrics.CounterType,
+	"s":  metrics.SetType,
+	"h":  metrics.HistogramType,
+	"ms": metrics.HistogramType,
+	"d":  metrics.DistributionType,
 }
 
 func nextPacket(datagram *[]byte) (packet []byte) {
@@ -57,7 +57,7 @@ func parseTags(rawTags []byte, extractHost bool) ([]string, string) {
 	return tagsList, host
 }
 
-func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
+func parseServiceCheckPacket(packet []byte) (*metrics.ServiceCheck, error) {
 	// _sc|name|status|[metadata|...]
 
 	splitPacket := bytes.Split(packet, []byte("|"))
@@ -72,13 +72,13 @@ func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
 		return nil, fmt.Errorf("Invalid ServiceCheck packet format: empty 'name' or 'status' field")
 	}
 
-	service := aggregator.ServiceCheck{
+	service := metrics.ServiceCheck{
 		CheckName: string(rawName),
 	}
 
 	if status, err := strconv.Atoi(string(rawStatus)); err != nil {
 		return nil, fmt.Errorf("dogstatsd: service check has invalid 'status': %s", err)
-	} else if serviceStatus, err := aggregator.GetServiceCheckStatus(status); err != nil {
+	} else if serviceStatus, err := metrics.GetServiceCheckStatus(status); err != nil {
 		return nil, fmt.Errorf("dogstatsd: unknown service check 'status': %s", err)
 	} else {
 		service.Status = serviceStatus
@@ -111,7 +111,7 @@ func parseServiceCheckPacket(packet []byte) (*aggregator.ServiceCheck, error) {
 	return &service, nil
 }
 
-func parseEventPacket(packet []byte) (*aggregator.Event, error) {
+func parseEventPacket(packet []byte) (*metrics.Event, error) {
 	// _e{title.length,text.length}:title|text
 	//  [
 	//   |d:date_happened
@@ -155,9 +155,9 @@ func parseEventPacket(packet []byte) (*aggregator.Event, error) {
 		return nil, fmt.Errorf("Invalid event packet format: empty 'title' or 'text' field")
 	}
 
-	event := aggregator.Event{
-		Priority:  aggregator.EventPriorityNormal,
-		AlertType: aggregator.EventAlertTypeInfo,
+	event := metrics.Event{
+		Priority:  metrics.EventPriorityNormal,
+		AlertType: metrics.EventAlertTypeInfo,
 		Title:     string(rawTitle),
 		Text:      string(bytes.Replace(rawText, []byte("\\n"), []byte("\n"), -1)),
 	}
@@ -175,7 +175,7 @@ func parseEventPacket(packet []byte) (*aggregator.Event, error) {
 				}
 				event.Ts = ts
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("p:")) {
-				priority, err := aggregator.GetEventPriorityFromString(string(rawMetadataFields[i][2:]))
+				priority, err := metrics.GetEventPriorityFromString(string(rawMetadataFields[i][2:]))
 				if err != nil {
 					log.Warnf("skipping priority: %s", err)
 					continue
@@ -184,7 +184,7 @@ func parseEventPacket(packet []byte) (*aggregator.Event, error) {
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("h:")) {
 				event.Host = string(rawMetadataFields[i][2:])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("t:")) {
-				t, err := aggregator.GetAlertTypeFromString(string(rawMetadataFields[i][2:]))
+				t, err := metrics.GetAlertTypeFromString(string(rawMetadataFields[i][2:]))
 				if err != nil {
 					log.Warnf("skipping alert type: %s", err)
 					continue
@@ -205,7 +205,7 @@ func parseEventPacket(packet []byte) (*aggregator.Event, error) {
 	return &event, nil
 }
 
-func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
+func parseMetricPacket(packet []byte) (*metrics.MetricSample, error) {
 	// daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2
 	// daemon:666|g|@0.1|#sometag:somevalue"
 
@@ -252,7 +252,7 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 	// Casting
 	metricName := string(rawName)
 
-	var metricType aggregator.MetricType
+	var metricType metrics.MetricType
 	var ok bool
 	if metricType, ok = metricTypes[string(rawType)]; !ok {
 		return nil, errors.New("Invalid metric type")
@@ -263,7 +263,7 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 		return nil, errors.New("Invalid sample rate value")
 	}
 
-	sample := &aggregator.MetricSample{
+	sample := &metrics.MetricSample{
 		Name:       metricName,
 		Mtype:      metricType,
 		Tags:       metricTags,
@@ -272,7 +272,7 @@ func parseMetricPacket(packet []byte) (*aggregator.MetricSample, error) {
 		Timestamp:  0,
 	}
 
-	if metricType == aggregator.SetType {
+	if metricType == metrics.SetType {
 		sample.RawValue = string(rawValue)
 	} else {
 		metricValue, err := strconv.ParseFloat(string(rawValue), 64)

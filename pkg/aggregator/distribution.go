@@ -1,7 +1,8 @@
 package aggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
 // Distribution tracks the distribution of samples added over one flush
@@ -16,7 +17,7 @@ func NewDistribution() *Distribution {
 	return &Distribution{sketch: percentile.NewQSketch()}
 }
 
-func (d *Distribution) addSample(sample *MetricSample, timestamp float64) {
+func (d *Distribution) addSample(sample *metrics.MetricSample, timestamp float64) {
 	// Insert sample value into the sketch
 	d.sketch = d.sketch.Add(sample.Value)
 	d.count++

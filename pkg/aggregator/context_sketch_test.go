@@ -5,16 +5,18 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
 func TestContextSketchSampling(t *testing.T) {
 	ctxSketch := makeContextSketch()
 	contextKey := "context_key"
 
-	ctxSketch.addSample(contextKey, &MetricSample{Value: 1}, 1, 10)
-	ctxSketch.addSample(contextKey, &MetricSample{Value: 5}, 3, 10)
+	ctxSketch.addSample(contextKey, &metrics.MetricSample{Value: 1}, 1, 10)
+	ctxSketch.addSample(contextKey, &metrics.MetricSample{Value: 5}, 3, 10)
 	resultSeries := ctxSketch.flush(12345.0)
 
 	expectedSketch := percentile.NewQSketch()
@@ -39,8 +41,8 @@ func TestContextSketchSamplingInfinity(t *testing.T) {
 	ctxSketch := makeContextSketch()
 	contextKey := "context_key"
 
-	ctxSketch.addSample(contextKey, &MetricSample{Value: math.Inf(1)}, 1, 10)
-	ctxSketch.addSample(contextKey, &MetricSample{Value: math.Inf(-1)}, 2, 10)
+	ctxSketch.addSample(contextKey, &metrics.MetricSample{Value: math.Inf(1)}, 1, 10)
+	ctxSketch.addSample(contextKey, &metrics.MetricSample{Value: math.Inf(-1)}, 2, 10)
 	resultSeries := ctxSketch.flush(12345.0)
 
 	assert.Equal(t, 0, len(resultSeries))
@@ -50,9 +52,9 @@ func TestContextSketchSamplingMultiContexts(t *testing.T) {
 	ctxSketch := makeContextSketch()
 	contextKey1 := "context_key1"
 	contextKey2 := "context_key2"
-	ctxSketch.addSample(contextKey1, &MetricSample{Value: 1}, 1, 10)
-	ctxSketch.addSample(contextKey2, &MetricSample{Value: 1}, 1, 10)
-	ctxSketch.addSample(contextKey1, &MetricSample{Value: 3}, 5, 10)
+	ctxSketch.addSample(contextKey1, &metrics.MetricSample{Value: 1}, 1, 10)
+	ctxSketch.addSample(contextKey2, &metrics.MetricSample{Value: 1}, 1, 10)
+	ctxSketch.addSample(contextKey1, &metrics.MetricSample{Value: 3}, 5, 10)
 	orderedSketchSeries := OrderedSketchSeries{ctxSketch.flush(12345.0)}
 	sort.Sort(orderedSketchSeries)
 

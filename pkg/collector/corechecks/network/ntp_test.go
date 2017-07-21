@@ -25,7 +25,7 @@ func TestNTP(t *testing.T) {
 
 	mockSender.On("Gauge", "ntp.offset", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
-		"ntp.in_sync", mock.AnythingOfType("aggregator.ServiceCheckStatus"), "",
+		"ntp.in_sync", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
 		[]string(nil), mock.AnythingOfType("string")).Return().Times(1)
 
 	mockSender.On("Commit").Return().Times(1)

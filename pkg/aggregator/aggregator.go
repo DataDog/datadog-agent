@@ -8,10 +8,11 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 const defaultFlushInterval = 15 // flush interval in seconds
@@ -87,15 +88,15 @@ func SetDefaultAggregator(agg *BufferedAggregator) {
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	dogstatsdIn        chan *MetricSample
+	dogstatsdIn        chan *metrics.MetricSample
 	checkMetricIn      chan senderMetricSample
-	serviceCheckIn     chan ServiceCheck
-	eventIn            chan Event
+	serviceCheckIn     chan metrics.ServiceCheck
+	eventIn            chan metrics.Event
 	sampler            TimeSampler
 	checkSamplers      map[check.ID]*CheckSampler
 	distSampler        DistSampler
-	serviceChecks      []ServiceCheck
-	events             []Event
+	serviceChecks      []metrics.ServiceCheck
+	events             []metrics.Event
 	flushInterval      int64
 	mu                 sync.Mutex // to protect the checkSamplers field
 	forwarder          forwarder.Forwarder
@@ -108,10 +109,10 @@ type BufferedAggregator struct {
 // NewBufferedAggregator instantiates a BufferedAggregator
 func NewBufferedAggregator(f forwarder.Forwarder, hostname string) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
-		dogstatsdIn:        make(chan *MetricSample, 100),      // TODO make buffer size configurable
-		checkMetricIn:      make(chan senderMetricSample, 100), // TODO make buffer size configurable
-		serviceCheckIn:     make(chan ServiceCheck, 100),       // TODO make buffer size configurable
-		eventIn:            make(chan Event, 100),              // TODO make buffer size configurable
+		dogstatsdIn:        make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
+		checkMetricIn:      make(chan senderMetricSample, 100),    // TODO make buffer size configurable
+		serviceCheckIn:     make(chan metrics.ServiceCheck, 100),  // TODO make buffer size configurable
+		eventIn:            make(chan metrics.Event, 100),         // TODO make buffer size configurable
 		sampler:            *NewTimeSampler(bucketSize, hostname),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
 		distSampler:        *NewDistSampler(bucketSize, hostname),
@@ -149,7 +150,7 @@ func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
 }
 
 // GetChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
-func (agg *BufferedAggregator) GetChannels() (chan *MetricSample, chan Event, chan ServiceCheck) {
+func (agg *BufferedAggregator) GetChannels() (chan *metrics.MetricSample, chan metrics.Event, chan metrics.ServiceCheck) {
 	return agg.dogstatsdIn, agg.eventIn, agg.serviceCheckIn
 }
 
@@ -162,7 +163,7 @@ func (agg *BufferedAggregator) SetHostname(hostname string) {
 
 // AddAgentStartupEvent adds the startup event to the events that'll be sent on the next flush
 func (agg *BufferedAggregator) AddAgentStartupEvent(agentVersion string) {
-	event := Event{
+	event := metrics.Event{
 		Text:           fmt.Sprintf("Version %s", agentVersion),
 		SourceTypeName: "System",
 		EventType:      "Agent Startup",
@@ -203,7 +204,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 }
 
 // addServiceCheck adds the service check to the slice of current service checks
-func (agg *BufferedAggregator) addServiceCheck(sc ServiceCheck) {
+func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 	if sc.Host == "" {
 		sc.Host = agg.hostname
 	}
@@ -216,7 +217,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc ServiceCheck) {
 }
 
 // addEvent adds the event to the slice of current events
-func (agg *BufferedAggregator) addEvent(e Event) {
+func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	if e.Host == "" {
 		e.Host = agg.hostname
 	}
@@ -229,9 +230,9 @@ func (agg *BufferedAggregator) addEvent(e Event) {
 }
 
 // addSample adds the metric sample to either the sampler or distSampler
-func (agg *BufferedAggregator) addSample(metricSample *MetricSample, timestamp float64) {
+func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	metricSample.Tags = deduplicateTags(metricSample.Tags)
-	if metricSample.Mtype == DistributionType {
+	if metricSample.Mtype == metrics.DistributionType {
 		agg.distSampler.addSample(metricSample, timestamp)
 	} else {
 		agg.sampler.addSample(metricSample, timestamp)
@@ -254,7 +255,7 @@ func (agg *BufferedAggregator) flushSeries() {
 	// Serialize and forward in a separate goroutine
 	go func() {
 		log.Debug("Flushing ", len(series), " series to the forwarder")
-		payload, err := MarshalJSONSeries(series)
+		payload, _, err := serializer.MarshalJSONSeries(series)
 		if err != nil {
 			log.Error("could not serialize series, dropping it:", err)
 			return
@@ -268,9 +269,9 @@ func (agg *BufferedAggregator) flushSeries() {
 func (agg *BufferedAggregator) flushServiceChecks() {
 	// Add a simple service check for the Agent status
 	start := time.Now()
-	agg.addServiceCheck(ServiceCheck{
+	agg.addServiceCheck(metrics.ServiceCheck{
 		CheckName: "datadog.agent.up",
-		Status:    ServiceCheckOK,
+		Status:    metrics.ServiceCheckOK,
 	})
 
 	// Clear the current service check slice
@@ -280,7 +281,7 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 	// Serialize and forward in a separate goroutine
 	go func() {
 		log.Debug("Flushing ", len(serviceChecks), " service checks to the forwarder")
-		payload, err := MarshalJSONServiceChecks(serviceChecks)
+		payload, _, err := serializer.MarshalJSONServiceChecks(serviceChecks)
 		if err != nil {
 			log.Error("could not serialize service checks, dropping them: ", err)
 			return
@@ -303,7 +304,7 @@ func (agg *BufferedAggregator) flushSketches() {
 	go func() {
 		log.Debug("Flushing ", len(sketchSeries), " sketches to the forwarder")
 		// Serialize with Protocol Buffer and use v2 endpoint
-		payload, err := percentile.MarshalSketchSeries(sketchSeries)
+		payload, _, err := serializer.MarshalSketchSeries(sketchSeries)
 		if err != nil {
 			log.Error("could not serialize sketches, dropping them:", err)
 		}
@@ -326,7 +327,7 @@ func (agg *BufferedAggregator) flushEvents() {
 	// Serialize and forward in a separate goroutine
 	go func(hostname string) {
 		log.Debug("Flushing ", len(events), " events to the forwarder")
-		payload, err := MarshalJSONEvents(events, config.Datadog.GetString("api_key"), hostname)
+		payload, _, err := serializer.MarshalJSONEvents(events, config.Datadog.GetString("api_key"), hostname)
 		if err != nil {
 			log.Error("could not serialize events, dropping them: ", err)
 			return
