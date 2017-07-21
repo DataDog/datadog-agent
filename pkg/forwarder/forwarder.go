@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	log "github.com/cihub/seelog"
 )
@@ -98,6 +99,7 @@ type DefaultForwarder struct {
 	retryQueue          []Transaction
 	internalState       uint32
 	m                   sync.Mutex // To control Start/Stop races
+	retryQueueLimit     int
 
 	// NumberOfWorkers Number of concurrent HTTP request made by the DefaultForwarder (default 4).
 	NumberOfWorkers int
@@ -111,6 +113,7 @@ func NewDefaultForwarder(KeysPerDomains map[string][]string) *DefaultForwarder {
 		NumberOfWorkers: defaultNumberOfWorkers,
 		KeysPerDomains:  KeysPerDomains,
 		internalState:   Stopped,
+		retryQueueLimit: config.Datadog.GetInt("forwarder_retry_queue_max_size"),
 	}
 }
 
@@ -122,6 +125,7 @@ func (v byCreatedTime) Less(i, j int) bool { return v[i].GetCreatedAt().After(v[
 
 func (f *DefaultForwarder) retryTransactions(tickTime time.Time) {
 	newQueue := []Transaction{}
+	droppedTransaction := 0
 
 	sort.Sort(byCreatedTime(f.retryQueue))
 
@@ -129,12 +133,18 @@ func (f *DefaultForwarder) retryTransactions(tickTime time.Time) {
 		if t.GetNextFlush().Before(tickTime) {
 			f.waitingPipe <- t
 			transactionsCreation.Add("SuccessfullyRetried", 1)
-		} else {
+		} else if len(newQueue) < f.retryQueueLimit {
 			newQueue = append(newQueue, t)
+		} else {
+			transactionsCreation.Add("Dropped", 1)
+			droppedTransaction++
 		}
 	}
 	f.retryQueue = newQueue
 	retryQueueSize.Set(int64(len(f.retryQueue)))
+	if droppedTransaction != 0 {
+		log.Warnf("forwarder retry queue size exceed limit from configuration (%d): dropped %d transactions (the oldest ones)", f.retryQueueLimit, droppedTransaction)
+	}
 }
 
 func (f *DefaultForwarder) requeueTransaction(t Transaction) {

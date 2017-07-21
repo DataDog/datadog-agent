@@ -28,6 +28,8 @@ instances:
         type: rate
       - path: forwarder/TransactionsCreated/IntakeV1
         type: rate
+      - path: forwarder/TransactionsCreated/Dropped
+        type: rate
       - path: forwarder/TransactionsCreated/RetryQueueSize
         type: gauge
       - path: forwarder/TransactionsCreated/Requeued

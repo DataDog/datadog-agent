@@ -323,3 +323,31 @@ func TestForwarderRetryLifo(t *testing.T) {
 	transaction2.AssertExpectations(t)
 	assert.Equal(t, len(forwarder.retryQueue), 0)
 }
+
+func TestForwarderRetryLimitQueue(t *testing.T) {
+	forwarder := NewDefaultForwarder(nil)
+	forwarder.init()
+
+	forwarder.retryQueueLimit = 1
+
+	transaction1 := newTestTransaction()
+	transaction2 := newTestTransaction()
+
+	forwarder.requeueTransaction(transaction1)
+	forwarder.requeueTransaction(transaction2)
+
+	transaction1.On("GetNextFlush").Return(time.Now().Add(1 * time.Minute)).Times(1)
+	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
+
+	transaction2.On("GetNextFlush").Return(time.Now().Add(1 * time.Minute)).Times(1)
+	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
+
+	forwarder.retryTransactions(time.Now())
+
+	transaction1.AssertExpectations(t)
+	transaction2.AssertExpectations(t)
+	assert.Equal(t, len(forwarder.retryQueue), 1)
+	assert.Equal(t, len(forwarder.waitingPipe), 0)
+	// assert that the oldest transaction was dropped
+	assert.Equal(t, transaction2, forwarder.retryQueue[0])
+}
