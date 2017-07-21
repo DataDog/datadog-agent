@@ -8,6 +8,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 var senderInstance *checkSender
@@ -22,25 +23,25 @@ type Sender interface {
 	MonotonicCount(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
 	Historate(metric string, value float64, hostname string, tags []string)
-	ServiceCheck(checkName string, status ServiceCheckStatus, hostname string, tags []string, message string)
-	Event(e Event)
+	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
+	Event(e metrics.Event)
 }
 
 // checkSender implements Sender
 type checkSender struct {
 	id              check.ID
 	smsOut          chan<- senderMetricSample
-	serviceCheckOut chan<- ServiceCheck
-	eventOut        chan<- Event
+	serviceCheckOut chan<- metrics.ServiceCheck
+	eventOut        chan<- metrics.Event
 }
 
 type senderMetricSample struct {
 	id           check.ID
-	metricSample *MetricSample
+	metricSample *metrics.MetricSample
 	commit       bool
 }
 
-func newCheckSender(id check.ID, smsOut chan<- senderMetricSample, serviceCheckOut chan<- ServiceCheck, eventOut chan<- Event) *checkSender {
+func newCheckSender(id check.ID, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event) *checkSender {
 	return &checkSender{
 		id:              id,
 		smsOut:          smsOut,
@@ -86,13 +87,13 @@ func GetDefaultSender() (Sender, error) {
 // Commit commits the metric samples that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
-	s.smsOut <- senderMetricSample{s.id, &MetricSample{}, true}
+	s.smsOut <- senderMetricSample{s.id, &metrics.MetricSample{}, true}
 }
 
-func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType MetricType) {
+func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType metrics.MetricType) {
 	log.Debug(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
 
-	metricSample := &MetricSample{
+	metricSample := &metrics.MetricSample{
 		Name:       metric,
 		Value:      value,
 		Mtype:      mType,
@@ -107,40 +108,40 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 
 // Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
 func (s *checkSender) Gauge(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, GaugeType)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.GaugeType)
 }
 
 // Rate should be used to track the rate of a metric over each check run
 func (s *checkSender) Rate(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, RateType)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.RateType)
 }
 
 // Count should be used to count a number of events that occurred during the check run
 func (s *checkSender) Count(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, CountType)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.CountType)
 }
 
 // MonotonicCount should be used to track the increase of a monotonic raw counter
 func (s *checkSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, MonotonicCountType)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType)
 }
 
 // Histogram should be used to track the statistical distribution of a set of values during a check run
 // Should be called multiple times on the same (metric, hostname, tags) so that a distribution can be computed
 func (s *checkSender) Histogram(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, HistogramType)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.HistogramType)
 }
 
 // Historate should be used to create a histogram metric for "rate" like metrics.
 // Warning this doesn't use the harmonic mean, beware of what it means when using it.
 func (s *checkSender) Historate(metric string, value float64, hostname string, tags []string) {
-	s.sendMetricSample(metric, value, hostname, tags, HistorateType)
+	s.sendMetricSample(metric, value, hostname, tags, metrics.HistorateType)
 }
 
 // ServiceCheck submits a service check
-func (s *checkSender) ServiceCheck(checkName string, status ServiceCheckStatus, hostname string, tags []string, message string) {
+func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
 	log.Debug("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
-	serviceCheck := ServiceCheck{
+	serviceCheck := metrics.ServiceCheck{
 		CheckName: checkName,
 		Status:    status,
 		Host:      hostname,
@@ -153,7 +154,7 @@ func (s *checkSender) ServiceCheck(checkName string, status ServiceCheckStatus, 
 }
 
 // Event submits an event
-func (s *checkSender) Event(e Event) {
+func (s *checkSender) Event(e metrics.Event) {
 	log.Debug("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
 
 	s.eventOut <- e

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 const epsilon = 0.1
@@ -67,7 +67,7 @@ func TestParseGauge(t *testing.T) {
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
 	assert.Equal(t, "666", parsed.RawValue)
-	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
@@ -79,7 +79,7 @@ func TestParseCounter(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, 21.0, parsed.Value)
-	assert.Equal(t, aggregator.CounterType, parsed.Mtype)
+	assert.Equal(t, metrics.CounterType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
@@ -91,7 +91,7 @@ func TestParseHistogram(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, 21.0, parsed.Value)
-	assert.Equal(t, aggregator.HistogramType, parsed.Mtype)
+	assert.Equal(t, metrics.HistogramType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
@@ -103,7 +103,7 @@ func TestParseTimer(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, 21.0, parsed.Value)
-	assert.Equal(t, aggregator.HistogramType, parsed.Mtype)
+	assert.Equal(t, metrics.HistogramType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
@@ -115,7 +115,7 @@ func TestParseSet(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, "abc", parsed.RawValue)
-	assert.Equal(t, aggregator.SetType, parsed.Mtype)
+	assert.Equal(t, metrics.SetType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
@@ -127,7 +127,7 @@ func TestParseDistribution(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, 3.5, parsed.Value)
-	assert.Equal(t, aggregator.DistributionType, parsed.Mtype)
+	assert.Equal(t, metrics.DistributionType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 }
 
@@ -138,7 +138,7 @@ func TestParseSetUnicode(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.Equal(t, "♬†øU†øU¥ºuT0♪", parsed.RawValue)
-	assert.Equal(t, aggregator.SetType, parsed.Mtype)
+	assert.Equal(t, metrics.SetType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
@@ -150,7 +150,7 @@ func TestParseGaugeWithTags(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	require.Equal(t, 2, len(parsed.Tags))
 	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
 	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
@@ -164,7 +164,7 @@ func TestParseGaugeWithHostTag(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	require.Equal(t, 2, len(parsed.Tags))
 	assert.Equal(t, "sometag1:somevalue1", parsed.Tags[0])
 	assert.Equal(t, "sometag2:somevalue2", parsed.Tags[1])
@@ -179,7 +179,7 @@ func TestParseGaugeWithSampleRate(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 0.21, parsed.SampleRate, epsilon)
 }
@@ -191,7 +191,7 @@ func TestParseGaugeWithPoundOnly(t *testing.T) {
 
 	assert.Equal(t, "daemon", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	assert.Equal(t, 0, len(parsed.Tags))
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
@@ -203,7 +203,7 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 
 	assert.Equal(t, "♬†øU†øU¥ºuT0♪", parsed.Name)
 	assert.InEpsilon(t, 666.0, parsed.Value, epsilon)
-	assert.Equal(t, aggregator.GaugeType, parsed.Mtype)
+	assert.Equal(t, metrics.GaugeType, parsed.Mtype)
 	require.Equal(t, 1, len(parsed.Tags))
 	assert.Equal(t, "intitulé:T0µ", parsed.Tags[0])
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
@@ -273,7 +273,7 @@ func TestServiceCheckMinimal(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "", sc.Host)
 	assert.Equal(t, int64(0), sc.Ts)
-	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, []string(nil), sc.Tags)
 }
@@ -310,7 +310,7 @@ func TestServiceCheckMetadataTimestamp(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "", sc.Host)
 	assert.Equal(t, int64(21), sc.Ts)
-	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, []string(nil), sc.Tags)
 }
@@ -322,7 +322,7 @@ func TestServiceCheckMetadataHostname(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
 	assert.Equal(t, int64(0), sc.Ts)
-	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, []string(nil), sc.Tags)
 }
@@ -334,7 +334,7 @@ func TestServiceCheckMetadataTags(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "", sc.Host)
 	assert.Equal(t, int64(0), sc.Ts)
-	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, []string{"tag1", "tag2:test", "tag3"}, sc.Tags)
 }
@@ -346,7 +346,7 @@ func TestServiceCheckMetadataMessage(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "", sc.Host)
 	assert.Equal(t, int64(0), sc.Ts)
-	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "this is fine", sc.Message)
 	assert.Equal(t, []string(nil), sc.Tags)
 }
@@ -358,7 +358,7 @@ func TestServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
 	assert.Equal(t, int64(21), sc.Ts)
-	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "this is fine", sc.Message)
 	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.Tags)
 
@@ -368,7 +368,7 @@ func TestServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost2", sc.Host)
 	assert.Equal(t, int64(22), sc.Ts)
-	assert.Equal(t, aggregator.ServiceCheckOK, sc.Status)
+	assert.Equal(t, metrics.ServiceCheckOK, sc.Status)
 	assert.Equal(t, "", sc.Message)
 	assert.Equal(t, []string(nil), sc.Tags)
 }
@@ -380,10 +380,10 @@ func TestEventMinimal(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -396,10 +396,10 @@ func TestEventMultilinesText(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test\\line1\nline2\nline3", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -412,10 +412,10 @@ func TestEventPipeInTitle(t *testing.T) {
 	assert.Equal(t, "test|title", e.Title)
 	assert.Equal(t, "test\\line1\nline2\nline3", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -493,10 +493,10 @@ func TestEventMetadataTimestamp(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(21), e.Ts)
-	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -509,10 +509,10 @@ func TestEventMetadataPriority(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, aggregator.EventPriorityLow, e.Priority)
+	assert.Equal(t, metrics.EventPriorityLow, e.Priority)
 	assert.Equal(t, "", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -525,10 +525,10 @@ func TestEventMetadataHostname(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "localhost", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -541,10 +541,10 @@ func TestEventMetadataAlertType(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, aggregator.EventAlertTypeWarning, e.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeWarning, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -557,10 +557,10 @@ func TestEventMetadataAggregatioKey(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "some aggregation key", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -573,10 +573,10 @@ func TestEventMetadataSourceType(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "", e.Host)
 	assert.Equal(t, []string(nil), e.Tags)
-	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "this is the source", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -589,10 +589,10 @@ func TestEventMetadataTags(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(0), e.Ts)
-	assert.Equal(t, aggregator.EventPriorityNormal, e.Priority)
+	assert.Equal(t, metrics.EventPriorityNormal, e.Priority)
 	assert.Equal(t, "", e.Host)
 	assert.Equal(t, []string{"tag1", "tag2:test"}, e.Tags)
-	assert.Equal(t, aggregator.EventAlertTypeInfo, e.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeInfo, e.AlertType)
 	assert.Equal(t, "", e.AggregationKey)
 	assert.Equal(t, "", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)
@@ -605,10 +605,10 @@ func TestEventMetadataMultiple(t *testing.T) {
 	assert.Equal(t, "test title", e.Title)
 	assert.Equal(t, "test text", e.Text)
 	assert.Equal(t, int64(12345), e.Ts)
-	assert.Equal(t, aggregator.EventPriorityLow, e.Priority)
+	assert.Equal(t, metrics.EventPriorityLow, e.Priority)
 	assert.Equal(t, "some.host", e.Host)
 	assert.Equal(t, []string{"tag1", "tag2:test"}, e.Tags)
-	assert.Equal(t, aggregator.EventAlertTypeWarning, e.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeWarning, e.AlertType)
 	assert.Equal(t, "aggKey", e.AggregationKey)
 	assert.Equal(t, "source test", e.SourceTypeName)
 	assert.Equal(t, "", e.EventType)

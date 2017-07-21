@@ -7,6 +7,8 @@ import (
 
 	// 3p
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // Context holds the elements that form a context, and can be serialized into a context key
@@ -23,7 +25,7 @@ type ContextResolver struct {
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
-func generateContextKey(metricSample *MetricSample) string {
+func generateContextKey(metricSample *metrics.MetricSample) string {
 	var contextFields []string
 
 	contextFields = append(contextFields, metricSample.Name)
@@ -42,7 +44,7 @@ func newContextResolver() *ContextResolver {
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
-func (cr *ContextResolver) trackContext(metricSample *MetricSample, currentTimestamp float64) string {
+func (cr *ContextResolver) trackContext(metricSample *metrics.MetricSample, currentTimestamp float64) string {
 	contextKey := generateContextKey(metricSample)
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		cr.contextsByKey[contextKey] = &Context{

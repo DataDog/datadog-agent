@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 var checkID1 check.ID = "1"
@@ -51,16 +52,16 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	resetAggregator()
 	agg := InitAggregator(nil, "resolved-hostname")
 
-	agg.addServiceCheck(ServiceCheck{
+	agg.addServiceCheck(metrics.ServiceCheck{
 		// leave Host and Ts fields blank
 		CheckName: "my_service.can_connect",
-		Status:    ServiceCheckOK,
+		Status:    metrics.ServiceCheckOK,
 		Tags:      []string{"bar", "foo", "bar"},
 		Message:   "message",
 	})
-	agg.addServiceCheck(ServiceCheck{
+	agg.addServiceCheck(metrics.ServiceCheck{
 		CheckName: "my_service.can_connect",
-		Status:    ServiceCheckOK,
+		Status:    metrics.ServiceCheckOK,
 		Host:      "my-hostname",
 		Tags:      []string{"foo", "foo", "bar"},
 		Ts:        12345,
@@ -80,20 +81,20 @@ func TestAddEventDefaultValues(t *testing.T) {
 	resetAggregator()
 	agg := InitAggregator(nil, "resolved-hostname")
 
-	agg.addEvent(Event{
+	agg.addEvent(metrics.Event{
 		// only populate required fields
 		Title: "An event occurred",
 		Text:  "Event description",
 	})
-	agg.addEvent(Event{
+	agg.addEvent(metrics.Event{
 		// populate all fields
 		Title:          "Another event occurred",
 		Text:           "Other event description",
 		Ts:             12345,
-		Priority:       EventPriorityNormal,
+		Priority:       metrics.EventPriorityNormal,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar", "foo"},
-		AlertType:      EventAlertTypeError,
+		AlertType:      metrics.EventAlertTypeError,
 		AggregationKey: "my_agg_key",
 		SourceTypeName: "custom_source_type",
 	})
@@ -115,9 +116,9 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, "Another event occurred", event2.Title)
 	assert.Equal(t, "my-hostname", event2.Host)
 	assert.Equal(t, int64(12345), event2.Ts)
-	assert.Equal(t, EventPriorityNormal, event2.Priority)
+	assert.Equal(t, metrics.EventPriorityNormal, event2.Priority)
 	assert.Equal(t, []string{"foo", "bar"}, event2.Tags)
-	assert.Equal(t, EventAlertTypeError, event2.AlertType)
+	assert.Equal(t, metrics.EventAlertTypeError, event2.AlertType)
 	assert.Equal(t, "my_agg_key", event2.AggregationKey)
 	assert.Equal(t, "custom_source_type", event2.SourceTypeName)
 }

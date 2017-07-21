@@ -3,8 +3,10 @@ package aggregator
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
 func TestDistributionSampling(t *testing.T) {
@@ -16,9 +18,9 @@ func TestDistributionSampling(t *testing.T) {
 
 	// Add metric samples and check that the flushed summary series
 	// are correct
-	distro.addSample(&MetricSample{Value: 1}, 10)
-	distro.addSample(&MetricSample{Value: 10}, 11)
-	distro.addSample(&MetricSample{Value: 5}, 12)
+	distro.addSample(&metrics.MetricSample{Value: 1}, 10)
+	distro.addSample(&metrics.MetricSample{Value: 10}, 11)
+	distro.addSample(&metrics.MetricSample{Value: 5}, 12)
 
 	assert.Equal(t, int64(3), distro.count)
 

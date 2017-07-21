@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
 )
 
@@ -51,14 +51,14 @@ func TestReceiveAndForward(t *testing.T) {
 	requests := d.getRequests()
 	require.Len(t, requests, 1)
 
-	sc := []aggregator.ServiceCheck{}
+	sc := []metrics.ServiceCheck{}
 	err := json.Unmarshal([]byte(requests[0]), &sc)
 	require.NoError(t, err, "Could not Unmarshal request")
 
 	require.Len(t, sc, 2)
 	assert.Equal(t, sc[0].CheckName, "test.ServiceCheck")
-	assert.Equal(t, sc[0].Status, aggregator.ServiceCheckOK)
+	assert.Equal(t, sc[0].Status, metrics.ServiceCheckOK)
 
 	assert.Equal(t, sc[1].CheckName, "datadog.agent.up")
-	assert.Equal(t, sc[1].Status, aggregator.ServiceCheckOK)
+	assert.Equal(t, sc[1].Status, metrics.ServiceCheckOK)
 }

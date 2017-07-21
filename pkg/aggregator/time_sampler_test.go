@@ -2,52 +2,18 @@ package aggregator
 
 import (
 	// stdlib
-	"fmt"
 	"sort"
 	"testing"
 
 	// 3p
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-// Helper(s)
-func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
-	assert.Equal(t, expected.Name, actual.Name)
-	if expected.Tags != nil {
-		assert.NotNil(t, actual.Tags)
-		AssertTagsEqual(t, expected.Tags, actual.Tags)
-	}
-	assert.Equal(t, expected.Host, actual.Host)
-	assert.Equal(t, expected.MType, actual.MType)
-	assert.Equal(t, expected.Interval, actual.Interval)
-	assert.Equal(t, expected.SourceTypeName, actual.SourceTypeName)
-	if expected.contextKey != "" {
-		// Only test the contextKey if it's set in the expected Serie
-		assert.Equal(t, expected.contextKey, actual.contextKey)
-	}
-	assert.Equal(t, expected.nameSuffix, actual.nameSuffix)
-	AssertPointsEqual(t, expected.Points, actual.Points)
-}
-
-func AssertTagsEqual(t *testing.T, expected, actual []string) {
-	if assert.Equal(t, len(expected), len(actual), fmt.Sprintf("Unexpected number of tags: expected %s, actual: %s", expected, actual)) {
-		for _, tag := range expected {
-			assert.Contains(t, actual, tag)
-		}
-	}
-}
-
-func AssertPointsEqual(t *testing.T, expected, actual []Point) {
-	if assert.Equal(t, len(expected), len(actual)) {
-		for _, point := range expected {
-			assert.Contains(t, actual, point)
-		}
-	}
-}
-
 type OrderedSeries struct {
-	series []*Serie
+	series []*metrics.Serie
 }
 
 func (os OrderedSeries) Len() int {
@@ -55,7 +21,7 @@ func (os OrderedSeries) Len() int {
 }
 
 func (os OrderedSeries) Less(i, j int) bool {
-	return os.series[i].contextKey < os.series[j].contextKey
+	return os.series[i].ContextKey < os.series[j].ContextKey
 }
 
 func (os OrderedSeries) Swap(i, j int) {
@@ -74,10 +40,10 @@ func TestCalculateBucketStart(t *testing.T) {
 func TestBucketSampling(t *testing.T) {
 	sampler := NewTimeSampler(10, "")
 
-	mSample := MetricSample{
+	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
@@ -87,42 +53,42 @@ func TestBucketSampling(t *testing.T) {
 
 	series := sampler.flush(12360.0)
 
-	expectedSerie := &Serie{
+	expectedSerie := &metrics.Serie{
 		Name:       "my.metric.name",
 		Tags:       []string{"foo", "bar"},
-		Points:     []Point{{12340.0, mSample.Value}, {12350.0, mSample.Value}},
-		MType:      APIGaugeType,
+		Points:     []metrics.Point{{Ts: 12340.0, Value: mSample.Value}, {Ts: 12350.0, Value: mSample.Value}},
+		MType:      metrics.APIGaugeType,
 		Interval:   10,
-		nameSuffix: "",
+		NameSuffix: "",
 	}
 
 	assert.Equal(t, 1, len(sampler.metricsByTimestamp))
 	if assert.Equal(t, 1, len(series)) {
-		AssertSerieEqual(t, expectedSerie, series[0])
+		metrics.AssertSerieEqual(t, expectedSerie, series[0])
 	}
 }
 
 func TestContextSampling(t *testing.T) {
 	sampler := NewTimeSampler(10, "default-hostname")
 
-	mSample1 := MetricSample{
+	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
 		Value:      1,
-		Mtype:      GaugeType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	mSample2 := MetricSample{
+	mSample2 := metrics.MetricSample{
 		Name:       "my.metric.name2",
 		Value:      1,
-		Mtype:      GaugeType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	mSample3 := MetricSample{
+	mSample3 := metrics.MetricSample{
 		Name:       "my.metric.name3",
 		Value:      1,
-		Mtype:      GaugeType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"foo", "bar"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
@@ -137,35 +103,35 @@ func TestContextSampling(t *testing.T) {
 
 	series := orderedSeries.series
 
-	expectedSerie1 := &Serie{
+	expectedSerie1 := &metrics.Serie{
 		Name:     "my.metric.name1",
-		Points:   []Point{{12340.0, float64(1)}},
+		Points:   []metrics.Point{{Ts: 12340.0, Value: float64(1)}},
 		Tags:     []string{"bar", "foo"},
 		Host:     "default-hostname",
-		MType:    APIGaugeType,
+		MType:    metrics.APIGaugeType,
 		Interval: 10,
 	}
-	expectedSerie2 := &Serie{
+	expectedSerie2 := &metrics.Serie{
 		Name:     "my.metric.name2",
-		Points:   []Point{{12340.0, float64(1)}},
+		Points:   []metrics.Point{{Ts: 12340.0, Value: float64(1)}},
 		Tags:     []string{"bar", "foo"},
 		Host:     "default-hostname",
-		MType:    APIGaugeType,
+		MType:    metrics.APIGaugeType,
 		Interval: 10,
 	}
-	expectedSerie3 := &Serie{
+	expectedSerie3 := &metrics.Serie{
 		Name:     "my.metric.name3",
-		Points:   []Point{{12340.0, float64(1)}},
+		Points:   []metrics.Point{{Ts: 12340.0, Value: float64(1)}},
 		Tags:     []string{"bar", "foo"},
 		Host:     "metric-hostname",
-		MType:    APIGaugeType,
+		MType:    metrics.APIGaugeType,
 		Interval: 10,
 	}
 
 	require.Equal(t, 3, len(series))
-	AssertSerieEqual(t, expectedSerie1, series[0])
-	AssertSerieEqual(t, expectedSerie2, series[1])
-	AssertSerieEqual(t, expectedSerie3, series[2])
+	metrics.AssertSerieEqual(t, expectedSerie1, series[0])
+	metrics.AssertSerieEqual(t, expectedSerie2, series[1])
+	metrics.AssertSerieEqual(t, expectedSerie3, series[2])
 }
 
 //func TestOne(t *testing.T) {

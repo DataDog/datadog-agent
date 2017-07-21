@@ -1,7 +1,8 @@
 package aggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
 // FIXME(Jee) : This should be integrated with time_sampler.go since it
@@ -30,7 +31,7 @@ func (d *DistSampler) calculateBucketStart(timestamp float64) int64 {
 }
 
 // Add the metricSample to the correct sketch
-func (d *DistSampler) addSample(metricSample *MetricSample, timestamp float64) {
+func (d *DistSampler) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	contextKey := d.contextResolver.trackContext(metricSample, timestamp)
 	bucketStart := d.calculateBucketStart(timestamp)
 	sketch, ok := d.sketchesByTimestamp[bucketStart]

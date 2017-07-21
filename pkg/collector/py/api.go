@@ -7,6 +7,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // #cgo pkg-config: python-2.7
@@ -63,7 +64,7 @@ func SubmitServiceCheck(check *C.PyObject, name *C.char, status C.int, tags *C.P
 	}
 
 	_name := C.GoString(name)
-	_status := aggregator.ServiceCheckStatus(status)
+	_status := metrics.ServiceCheckStatus(status)
 	_tags, err := extractTags(tags)
 	if err != nil {
 		log.Error(err)
@@ -105,7 +106,7 @@ func SubmitEvent(check *C.PyObject, event *C.PyObject) *C.PyObject {
 // extractEventFromDict returns an `Event` populated with the fields of the passed event py object
 // The caller needs to check the returned `error`, any non-nil value indicates that the error flag is set
 // on the python interpreter.
-func extractEventFromDict(event *C.PyObject) (aggregator.Event, error) {
+func extractEventFromDict(event *C.PyObject) (metrics.Event, error) {
 	// Extract all string values
 	// Values that should be extracted from the python event dict as strings
 	eventStringValues := map[string]string{
@@ -134,12 +135,12 @@ func extractEventFromDict(event *C.PyObject) (aggregator.Event, error) {
 		}
 	}
 
-	_event := aggregator.Event{
+	_event := metrics.Event{
 		Title:          eventStringValues["msg_title"],
 		Text:           eventStringValues["msg_text"],
-		Priority:       aggregator.EventPriority(eventStringValues["priority"]),
+		Priority:       metrics.EventPriority(eventStringValues["priority"]),
 		Host:           eventStringValues["host"],
-		AlertType:      aggregator.EventAlertType(eventStringValues["alert_type"]),
+		AlertType:      metrics.EventAlertType(eventStringValues["alert_type"]),
 		AggregationKey: eventStringValues["aggregation_key"],
 		SourceTypeName: eventStringValues["source_type_name"],
 	}

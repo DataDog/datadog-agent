@@ -4,15 +4,17 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
 func AssertSketchSeriesEqual(t *testing.T, expected, actual *percentile.SketchSeries) {
 	assert.Equal(t, expected.Name, actual.Name)
 	if expected.Tags != nil {
 		assert.NotNil(t, actual.Tags)
-		AssertTagsEqual(t, expected.Tags, actual.Tags)
+		metrics.AssertTagsEqual(t, expected.Tags, actual.Tags)
 	}
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.Interval, actual.Interval)
@@ -72,17 +74,17 @@ func (oss OrderedSketchSeries) Swap(i, j int) {
 func TestDistSamplerBucketSampling(t *testing.T) {
 	distSampler := NewDistSampler(10, "")
 
-	mSample1 := MetricSample{
+	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
 		Value:      1,
-		Mtype:      DistributionType,
+		Mtype:      metrics.DistributionType,
 		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
-	mSample2 := MetricSample{
+	mSample2 := metrics.MetricSample{
 		Name:       "test.metric.name",
 		Value:      2,
-		Mtype:      DistributionType,
+		Mtype:      metrics.DistributionType,
 		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
@@ -118,17 +120,17 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 func TestDistSamplerContextSampling(t *testing.T) {
 	distSampler := NewDistSampler(10, "")
 
-	mSample1 := MetricSample{
+	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
 		Value:      1,
-		Mtype:      DistributionType,
+		Mtype:      metrics.DistributionType,
 		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
-	mSample2 := MetricSample{
+	mSample2 := metrics.MetricSample{
 		Name:       "test.metric.name2",
 		Value:      1,
-		Mtype:      DistributionType,
+		Mtype:      metrics.DistributionType,
 		Tags:       []string{"a", "c"},
 		SampleRate: 1,
 	}

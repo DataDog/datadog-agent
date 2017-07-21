@@ -6,13 +6,15 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestGenerateContextKey(t *testing.T) {
-	mSample := MetricSample{
+	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"foo", "bar"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
@@ -23,24 +25,24 @@ func TestGenerateContextKey(t *testing.T) {
 }
 
 func TestTrackContext(t *testing.T) {
-	mSample1 := MetricSample{
+	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	mSample2 := MetricSample{
+	mSample2 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	mSample3 := MetricSample{ // same as mSample2, with different Host
+	mSample3 := metrics.MetricSample{ // same as mSample2, with different Host
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"foo", "bar", "baz"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
@@ -81,17 +83,17 @@ func TestTrackContext(t *testing.T) {
 }
 
 func TestExpireContexts(t *testing.T) {
-	mSample1 := MetricSample{
+	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	mSample2 := MetricSample{
+	mSample2 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
+		Mtype:      metrics.GaugeType,
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
