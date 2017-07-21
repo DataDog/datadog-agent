@@ -71,8 +71,12 @@ func init() {
 
 // InitAggregator returns the Singleton instance
 func InitAggregator(f forwarder.Forwarder, hostname string) *BufferedAggregator {
+	return InitAggregatorWithFlushInterval(f, hostname, defaultFlushInterval)
+}
+
+func InitAggregatorWithFlushInterval(f forwarder.Forwarder, hostname string, flushInterval int64) *BufferedAggregator {
 	aggregatorInit.Do(func() {
-		aggregatorInstance = NewBufferedAggregator(f, hostname)
+		aggregatorInstance = NewBufferedAggregator(f, hostname, flushInterval)
 		go aggregatorInstance.run()
 	})
 
@@ -100,7 +104,6 @@ type BufferedAggregator struct {
 	flushInterval      int64
 	mu                 sync.Mutex // to protect the checkSamplers field
 	forwarder          forwarder.Forwarder
-	running            bool
 	hostname           string
 	hostnameUpdate     chan string
 	hostnameUpdateDone chan struct{}    // signals that the hostname update is finished
@@ -108,7 +111,7 @@ type BufferedAggregator struct {
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(f forwarder.Forwarder, hostname string) *BufferedAggregator {
+func NewBufferedAggregator(f forwarder.Forwarder, hostname string, flushInterval int64) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
 		dogstatsdIn:        make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
 		checkMetricIn:      make(chan senderMetricSample, 100),    // TODO make buffer size configurable
@@ -153,16 +156,6 @@ func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
 // GetChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
 func (agg *BufferedAggregator) GetChannels() (chan *metrics.MetricSample, chan metrics.Event, chan metrics.ServiceCheck) {
 	return agg.dogstatsdIn, agg.eventIn, agg.serviceCheckIn
-}
-
-// SetFlushInterval allows the flush interval to be set
-func (agg *BufferedAggregator) SetFlushInterval(interval int64) {
-	if interval == 0 {
-		agg.TickerChan = nil
-	} else {
-		flushPeriod := time.Duration(agg.flushInterval) * time.Second
-		agg.TickerChan = time.NewTicker(flushPeriod).C
-	}
 }
 
 // SetHostname sets the hostname that the aggregator uses by default on all the data it sends
@@ -380,7 +373,8 @@ func (agg *BufferedAggregator) flush() {
 
 func (agg *BufferedAggregator) run() {
 	if agg.TickerChan == nil {
-		agg.SetFlushInterval(agg.flushInterval)
+		flushPeriod := time.Duration(agg.flushInterval) * time.Second
+		agg.TickerChan = time.NewTicker(flushPeriod).C
 	}
 	for {
 		select {

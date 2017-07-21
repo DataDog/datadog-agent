@@ -19,8 +19,6 @@ var (
 
 func init() {
 	templateFolder = filepath.Join(here, "dist", "templates")
-	// t := template.New("").Funcs(fmap)
-	// t.New("aggregator.tmpl")
 }
 
 // FormatStatus takes a json bytestring and prints out the formatted statuspage

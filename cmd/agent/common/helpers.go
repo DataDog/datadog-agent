@@ -49,7 +49,8 @@ func SetupAutoConfig(confdPath string) {
 }
 
 // StartAutoConfig starts the autoconfig polling and loads the configs
-func StartAutoConfig() {
+func StartAutoConfig(confdPath string) {
+	SetupAutoConfig(confdPath)
 	AC.StartPolling()
 	AC.LoadConfigs()
 }
