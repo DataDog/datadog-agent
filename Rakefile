@@ -72,7 +72,7 @@ task :test => %w[fmt lint vet] do
       # Check if we should use Embedded or System Python,
       # default to the embedded one.
       env = {}
-      if !ENV["USE_SYSTEM_PY"]
+      if !ENV["USE_SYSTEM_LIBS"]
         env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
       end
 

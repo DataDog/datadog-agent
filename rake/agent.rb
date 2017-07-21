@@ -24,7 +24,7 @@ namespace :agent do
     # default to the embedded one.
     env = {}
     ldflags = []
-    if !ENV["USE_SYSTEM_PY"]
+    if !ENV["USE_SYSTEM_LIBS"]
       env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
       ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
       libdir = `pkg-config --variable=libdir python-2.7`.strip
