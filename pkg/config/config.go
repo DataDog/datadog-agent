@@ -39,7 +39,9 @@ func init() {
 	// BUG(massi): make the listener_windows.go module actually use the following:
 	Datadog.SetDefault("cmd_pipe_name", `\\.\pipe\ddagent`)
 	Datadog.SetDefault("check_runners", int64(4))
+	// Forwarder
 	Datadog.SetDefault("forwarder_timeout", 20)
+	Datadog.SetDefault("forwarder_retry_queue_max_size", 30)
 	// Dogstatsd
 	Datadog.SetDefault("use_dogstatsd", true)
 	Datadog.SetDefault("dogstatsd_port", 8125)
@@ -69,6 +71,8 @@ func init() {
 	Datadog.BindEnv("kubernetes_kubelet_host")
 	Datadog.BindEnv("kubernetes_http_kubelet_port")
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
+	Datadog.BindEnv("forwarder_timeout")
+	Datadog.BindEnv("forwarder_retry_queue_max_size")
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
