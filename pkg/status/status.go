@@ -18,6 +18,7 @@ import (
 )
 
 var timeFormat = "2006-01-02 15:04:05.000000 UTC"
+var apiValidationURL = "https://app.datadoghq.com/api/v1/validate"
 
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus() (map[string]interface{}, error) {
@@ -122,7 +123,7 @@ func validateAPIKey() string {
 		Transport: transport,
 	}
 
-	res, err := httpClient.Get(fmt.Sprintf("https://app.datadoghq.com/api/v1/validate?api_key=%s", config.Datadog.GetString("api_key")))
+	res, err := httpClient.Get(fmt.Sprintf("%s?api_key=%s", apiValidationURL, config.Datadog.GetString("api_key")))
 	if err != nil {
 		return fmt.Sprintf("Unable to validate API Key: %s. Please try again later", err)
 	}
