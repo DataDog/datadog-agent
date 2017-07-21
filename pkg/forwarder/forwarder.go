@@ -21,12 +21,23 @@ var (
 	forwarderExpvar      = expvar.NewMap("forwarder")
 	transactionsCreation = expvar.Map{}
 	retryQueueSize       = expvar.Int{}
+
+	apiKeyStatus        = expvar.Map{}
+	apiKeyStatusUnknown = expvar.String{}
+	apiKeyInvalid       = expvar.String{}
+	apiKeyValid         = expvar.String{}
 )
 
 func init() {
 	transactionsCreation.Init()
+	apiKeyStatus.Init()
+	forwarderExpvar.Set("APIKeyStatus", &apiKeyStatus)
 	forwarderExpvar.Set("TransactionsCreated", &transactionsCreation)
 	transactionsCreation.Set("RetryQueueSize", &retryQueueSize)
+
+	apiKeyStatusUnknown.Set("Unable to validate API Key")
+	apiKeyInvalid.Set("API Key invalid")
+	apiKeyValid.Set("API Key valid")
 }
 
 const (
@@ -235,6 +246,7 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payload *[]by
 			t.Endpoint = transactionEndpoint
 			t.Payload = payload
 			t.Headers.Set(apiHTTPHeaderKey, apiKey)
+			t.apiKeyStatusKey = fmt.Sprintf("%s,%s", domain, fmt.Sprintf("*************************%s", apiKey[len(apiKey)-5:]))
 			transactions = append(transactions, t)
 		}
 	}
