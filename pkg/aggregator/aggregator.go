@@ -74,6 +74,7 @@ func InitAggregator(f forwarder.Forwarder, hostname string) *BufferedAggregator 
 	return InitAggregatorWithFlushInterval(f, hostname, defaultFlushInterval)
 }
 
+// InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
 func InitAggregatorWithFlushInterval(f forwarder.Forwarder, hostname string, flushInterval int64) *BufferedAggregator {
 	aggregatorInit.Do(func() {
 		aggregatorInstance = NewBufferedAggregator(f, hostname, flushInterval)
