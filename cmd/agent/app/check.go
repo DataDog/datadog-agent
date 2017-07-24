@@ -29,7 +29,6 @@ func init() {
 
 	checkCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to datadog.yaml")
 	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice")
-	checkCmd.Flags().StringVarP(&checkName, "check", "c", "", "check name")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
 	checkCmd.SetArgs([]string{"checkName"})
 }
@@ -41,7 +40,7 @@ var checkCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) != 0 {
 			checkName = args[0]
-		} else if checkName == "" {
+		} else {
 			cmd.Help()
 			os.Exit(0)
 		}

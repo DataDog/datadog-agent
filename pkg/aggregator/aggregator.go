@@ -279,6 +279,8 @@ func (agg *BufferedAggregator) flushSeries() {
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
 func (agg *BufferedAggregator) GetServiceChecks() []ServiceCheck {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
 	// Clear the current service check slice
 	serviceChecks := agg.serviceChecks
 	agg.serviceChecks = nil
@@ -313,6 +315,8 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 
 // GetSketches grabs all the sketches from the queue and clears the queue
 func (agg *BufferedAggregator) GetSketches() []*percentile.SketchSeries {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
 	return agg.distSampler.flush(timeNowNano())
 }
 
@@ -338,6 +342,8 @@ func (agg *BufferedAggregator) flushSketches() {
 
 // GetEvents grabs the events from the queue and clears it
 func (agg *BufferedAggregator) GetEvents() []Event {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
 	events := agg.events
 	agg.events = nil
 	return events
