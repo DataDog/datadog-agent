@@ -24,9 +24,9 @@ namespace :agent do
     # default to the embedded one.
     env = {}
     ldflags = []
-    if !ENV["USE_SYSTEM_PY"]
-      env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
-      ENV["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
+    if !ENV["USE_SYSTEM_LIBS"]
+      env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
+      ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
       libdir = `pkg-config --variable=libdir python-2.7`.strip
       fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
       ldflags << "-r #{libdir}"
@@ -38,9 +38,13 @@ namespace :agent do
       # On windows, need to build with the extra arguments -gcflags "-N -l" -ldflags="-linkmode internal"
       # if you want to be able to use the delve debugger.
       ldflags << "-linkmode internal"
-      build_success = system(env, "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
+      command = "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
+      puts command
+      build_success = system(env, command)
     else
-      build_success = system(env, "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent")
+      command = "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
+      puts command
+      build_success = system(env, command)
     end
     fail "Agent build failed with code #{$?.exitstatus}" if !build_success
 

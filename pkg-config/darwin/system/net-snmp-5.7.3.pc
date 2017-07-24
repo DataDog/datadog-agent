@@ -1,0 +1,11 @@
+prefix=/usr/local/Cellar/net-snmp/5.7.3
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: Net-SNMP
+Description: net-snmp library
+Requires:
+Version: 5.7.3
+Libs: -L${libdir} -lnetsnmp
+Cflags: -I${includedir} -DNETSNMP_NO_LEGACY_DEFINITIONS

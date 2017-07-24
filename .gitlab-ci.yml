@@ -30,8 +30,8 @@ run_tests_deb-x64:
   tags:
     - docker
   variables:
-    # No need to use the embedded python built with omnibus to run tests.
-    USE_SYSTEM_PY: "1"
+    # No need to use the embedded python and libs built with omnibus to run tests.
+    USE_SYSTEM_LIBS: "1"
   script:
     - echo "deb http://deb.debian.org/debian wheezy contrib non-free" >> /etc/apt/sources.list
     - apt-get update && apt-get install -y -qq libsnmp-base libsnmp-dev snmp-mibs-downloader # required by snmp check
@@ -44,7 +44,7 @@ run_test_rpm-x64:
   tags:
     - docker
   variables:
-    USE_SYSTEM_PY: "1"
+    USE_SYSTEM_LIBS: "1"
   script:
     - source /opt/rh/python27/enable # Enable the alternative python
     - yum install -y net-snmp net-snmp-devel  # required by snmp check
@@ -57,8 +57,8 @@ run_system_tests_deb-x64:
   tags:
     - docker
   variables:
-    # No need to use the embedded python built with omnibus to run tests.
-    USE_SYSTEM_PY: "1"
+    # No need to use the embedded python and libs built with omnibus to run tests.
+    USE_SYSTEM_LIBS: "1"
   script:
     - echo "deb http://deb.debian.org/debian wheezy contrib non-free" >> /etc/apt/sources.list
     - apt-get update && apt-get install -y -qq libsnmp-base libsnmp-dev snmp-mibs-downloader # required by snmp check
