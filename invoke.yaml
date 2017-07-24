@@ -1,0 +1,2 @@
+targets: [pkg, cmd]
+use_system_py: False
