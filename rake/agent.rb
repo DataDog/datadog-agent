@@ -23,6 +23,7 @@ namespace :agent do
     # Check if we should use Embedded or System Python,
     # default to the embedded one.
     env = {}
+    gcflags = []
     ldflags = []
     if !ENV["USE_SYSTEM_LIBS"]
       env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
@@ -34,18 +35,18 @@ namespace :agent do
 
     commit = `git rev-parse --short HEAD`.strip
     ldflags << "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
-    if ENV["WINDOWS_DELVE"]
-      # On windows, need to build with the extra arguments -gcflags "-N -l" -ldflags="-linkmode internal"
-      # if you want to be able to use the delve debugger.
-      ldflags << "-linkmode internal"
-      command = "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name}  -gcflags \"-N -l\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
-      puts command
-      build_success = system(env, command)
-    else
-      command = "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
-      puts command
-      build_success = system(env, command)
+    if ENV["DELVE"]
+      gcflags << "-N" << "-l"
+      if os == "windows"
+        # On windows, need to build with the extra argument -ldflags="-linkmode internal"
+        # if you want to be able to use the delve debugger.
+        ldflags << "-linkmode internal"
+      end
     end
+
+    command = "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name} -gcflags=\"#{gcflags.join(" ")}\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
+    puts command
+    build_success = system(env, command)
     fail "Agent build failed with code #{$?.exitstatus}" if !build_success
 
     Rake::Task["agent:refresh_assets"].invoke
