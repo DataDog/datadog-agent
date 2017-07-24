@@ -270,6 +270,11 @@ func (c *JMXCheck) ID() check.ID {
 	return "JMX_Check"
 }
 
+// GetMetricStats returns the stats from the last run of the check, but there aren't any yet
+func (c *JMXCheck) GetMetricStats() (map[string]int64, error) {
+	return make(map[string]int64), nil
+}
+
 // Stop sends a termination signal to the JMXFetch process
 func (c *JMXCheck) Stop() {
 	if jmxExitFile == "" {

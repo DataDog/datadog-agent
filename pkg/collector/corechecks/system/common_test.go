@@ -66,3 +66,9 @@ func (m *MockSender) Event(e metrics.Event) {
 func (m *MockSender) Commit() {
 	m.Called()
 }
+
+//GetMetricStats enables the get metric stats mock call.
+func (m *MockSender) GetMetricStats() map[string]int64 {
+	m.Called()
+	return make(map[string]int64)
+}

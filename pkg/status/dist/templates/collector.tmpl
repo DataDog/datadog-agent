@@ -11,6 +11,9 @@ Collector
     {{.CheckName}}
     {{printDashes .CheckName "-"}}
       Total Runs: {{.TotalRuns}}
+      Metrics: {{.Metrics}}, TotalMetrics: {{.TotalMetrics}}
+      Events: {{.Events}}, TotalEvents: {{.TotalEvents}}
+      ServiceChecks: {{.ServiceChecks}}, TotalServiceChecks: {{.TotalServiceChecks}}
 {{- if .LastError}}
       Error: {{lastErrorMessage .LastError}}
       {{lastErrorTraceback .LastError -}}

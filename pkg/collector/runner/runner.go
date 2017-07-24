@@ -195,7 +195,8 @@ func (r *Runner) work() {
 		// publish statistics about this run
 		runnerStats.Add("RunningChecks", -1)
 		runnerStats.Add("Runs", 1)
-		addWorkStats(check, time.Since(t0), err, warnings)
+		mStats, _ := check.GetMetricStats()
+		addWorkStats(check, time.Since(t0), err, warnings, mStats)
 
 		log.Infof("Done running check %s", check)
 	}
@@ -203,7 +204,7 @@ func (r *Runner) work() {
 	log.Debug("Finished processing checks.")
 }
 
-func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []error) {
+func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []error, mStats map[string]int64) {
 	var s *check.Stats
 	var found bool
 
@@ -215,7 +216,7 @@ func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []e
 	}
 	checkStats.M.Unlock()
 
-	s.Add(execTime, err, warnings)
+	s.Add(execTime, err, warnings, mStats)
 }
 
 func expCheckStats() interface{} {

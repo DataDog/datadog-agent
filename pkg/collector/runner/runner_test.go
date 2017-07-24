@@ -32,8 +32,9 @@ func (c *TestCheck) Run() error {
 	c.hasRun = true
 	return nil
 }
-func (c *TestCheck) ID() check.ID         { return check.ID(c.String()) }
-func (c *TestCheck) GetWarnings() []error { return nil }
+func (c *TestCheck) ID() check.ID                              { return check.ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error                      { return nil }
+func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
 
 func TestNewRunner(t *testing.T) {
 	r := NewRunner(1)
