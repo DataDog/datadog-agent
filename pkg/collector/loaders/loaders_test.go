@@ -1,6 +1,7 @@
 package loaders
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -16,14 +17,21 @@ type LoaderTwo struct{}
 
 func (lt LoaderTwo) Load(config check.Config) ([]check.Check, error) { return nil, nil }
 
+type LoaderThree struct{}
+
+func (lt *LoaderThree) Load(config check.Config) ([]check.Check, error) { return nil, nil }
+
 func TestLoaderCatalog(t *testing.T) {
 	l1 := LoaderOne{}
-	factory1 := func() check.Loader { return l1 }
+	factory1 := func() (check.Loader, error) { return l1, nil }
 	l2 := LoaderTwo{}
-	factory2 := func() check.Loader { return l2 }
+	factory2 := func() (check.Loader, error) { return l2, nil }
+	var l3 *LoaderThree
+	factory3 := func() (check.Loader, error) { return l3, errors.New("error") }
 
 	RegisterLoader(20, factory1)
 	RegisterLoader(10, factory2)
+	RegisterLoader(30, factory3)
 
 	require.Len(t, LoaderCatalog(), 2)
 	assert.Equal(t, l1, LoaderCatalog()[1])

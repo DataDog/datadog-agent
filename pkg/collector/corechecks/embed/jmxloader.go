@@ -28,7 +28,7 @@ type JMXCheckLoader struct {
 }
 
 // NewJMXCheckLoader creates a loader for go checks
-func NewJMXCheckLoader() *JMXCheckLoader {
+func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 	basePath := config.Datadog.GetString("jmx_pipe_path")
 	pipeName := config.Datadog.GetString("jmx_pipe_name")
 
@@ -49,15 +49,15 @@ func NewJMXCheckLoader() *JMXCheckLoader {
 	pipe, err := util.GetPipe(pipePath)
 	if err != nil {
 		log.Errorf("Error getting pipe: %v", err)
-		return nil
+		return nil, errors.New("unable to initialize pipe")
 	}
 
 	if err := pipe.Open(); err != nil {
 		log.Errorf("Error opening pipe: %v", err)
-		return nil
+		return nil, errors.New("unable to initialize pipe")
 	}
 
-	return &JMXCheckLoader{ipc: pipe}
+	return &JMXCheckLoader{ipc: pipe}, nil
 }
 
 // Load returns an (empty?) list of checks and nil if it all works out
@@ -112,7 +112,7 @@ func (jl *JMXCheckLoader) String() string {
 }
 
 func init() {
-	factory := func() check.Loader {
+	factory := func() (check.Loader, error) {
 		return NewJMXCheckLoader()
 	}
 

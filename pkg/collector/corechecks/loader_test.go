@@ -19,7 +19,7 @@ func (c *TestCheck) Interval() time.Duration                            { return
 func (c *TestCheck) ID() check.ID                                       { return check.ID(c.String()) }
 
 func TestNewGoCheckLoader(t *testing.T) {
-	if NewGoCheckLoader() == nil {
+	if checkLoader, _ := NewGoCheckLoader(); checkLoader == nil {
 		t.Fatal("Expected loader instance, found: nil")
 	}
 }
@@ -45,7 +45,7 @@ func TestLoad(t *testing.T) {
 		check.ConfigData("bar: baz"),
 	}
 	cc := check.Config{Name: "foo", Instances: i}
-	l := NewGoCheckLoader()
+	l, _ := NewGoCheckLoader()
 
 	lst, err := l.Load(cc)
 

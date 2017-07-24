@@ -21,7 +21,7 @@ type PythonCheckLoader struct {
 }
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader() *PythonCheckLoader {
+func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 	// Lock the GIL and release it at the end of the run
 	glock := newStickyLock()
 	defer glock.unlock()
@@ -29,16 +29,16 @@ func NewPythonCheckLoader() *PythonCheckLoader {
 	agentCheckModule := python.PyImport_ImportModule(agentCheckModuleName)
 	if agentCheckModule == nil {
 		log.Errorf("Unable to import Python module: %s", agentCheckModuleName)
-		return nil
+		return nil, fmt.Errorf("unable to initialize AgentCheck module")
 	}
 
 	agentCheckClass := agentCheckModule.GetAttrString(agentCheckClassName)
 	if agentCheckClass == nil {
 		log.Errorf("Unable to import %s class from Python module: %s", agentCheckClassName, agentCheckModuleName)
-		return nil
+		return nil, errors.New("unable to initialize AgentCheck class")
 	}
 
-	return &PythonCheckLoader{agentCheckClass}
+	return &PythonCheckLoader{agentCheckClass}, nil
 }
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
@@ -86,7 +86,7 @@ func (cl *PythonCheckLoader) String() string {
 }
 
 func init() {
-	factory := func() check.Loader {
+	factory := func() (check.Loader, error) {
 		return NewPythonCheckLoader()
 	}
 

@@ -22,8 +22,8 @@ func RegisterCheck(name string, c checkFactory) {
 type GoCheckLoader struct{}
 
 // NewGoCheckLoader creates a loader for go checks
-func NewGoCheckLoader() *GoCheckLoader {
-	return &GoCheckLoader{}
+func NewGoCheckLoader() (*GoCheckLoader, error) {
+	return &GoCheckLoader{}, nil
 }
 
 // Load returns a list of checks, one for every configuration instance found in `config`
@@ -54,7 +54,7 @@ func (gl *GoCheckLoader) String() string {
 }
 
 func init() {
-	factory := func() check.Loader {
+	factory := func() (check.Loader, error) {
 		return NewGoCheckLoader()
 	}
 
