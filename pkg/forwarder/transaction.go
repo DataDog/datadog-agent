@@ -78,7 +78,7 @@ func (t *HTTPTransaction) Process(client *http.Client) error {
 	defer resp.Body.Close()
 
 	body, _ := ioutil.ReadAll(resp.Body)
-	if resp.StatusCode == 400 || resp.StatusCode == 413 {
+	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code '%s' received while sending transaction to '%s': %s, dropping it", resp.Status, logURL, string(body))
 		transactionsCreation.Add("Dropped", 1)
 		return nil
