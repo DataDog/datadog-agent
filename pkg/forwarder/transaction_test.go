@@ -113,7 +113,7 @@ func TestProcessNetworkError(t *testing.T) {
 }
 
 func TestProcessHTTPError(t *testing.T) {
-	errorCode := http.StatusNotFound
+	errorCode := http.StatusServiceUnavailable
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(errorCode)
@@ -130,7 +130,7 @@ func TestProcessHTTPError(t *testing.T) {
 
 	err := transaction.Process(client)
 	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "Error '404 Not Found' while sending transaction")
+	assert.Contains(t, err.Error(), "Error '503 Service Unavailable' while sending transaction")
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusBadRequest
