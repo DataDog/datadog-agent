@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -245,7 +246,7 @@ func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, tim
 }
 
 // GetSeries grabs all the series from the queue and clears the queue
-func (agg *BufferedAggregator) GetSeries() []*Serie {
+func (agg *BufferedAggregator) GetSeries() []*metrics.Serie {
 	series := agg.sampler.flush(timeNowNano())
 	agg.mu.Lock()
 	for _, checkSampler := range agg.checkSamplers {
@@ -278,7 +279,7 @@ func (agg *BufferedAggregator) flushSeries() {
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
-func (agg *BufferedAggregator) GetServiceChecks() []ServiceCheck {
+func (agg *BufferedAggregator) GetServiceChecks() []metrics.ServiceCheck {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	// Clear the current service check slice
@@ -341,7 +342,7 @@ func (agg *BufferedAggregator) flushSketches() {
 }
 
 // GetEvents grabs the events from the queue and clears it
-func (agg *BufferedAggregator) GetEvents() []Event {
+func (agg *BufferedAggregator) GetEvents() []metrics.Event {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	events := agg.events
