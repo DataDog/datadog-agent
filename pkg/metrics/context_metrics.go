@@ -3,7 +3,6 @@ package metrics
 import (
 	"math"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 )
@@ -11,7 +10,7 @@ import (
 // ContextMetrics stores all the metrics by context key
 type ContextMetrics map[string]Metric
 
-var expirySeconds = config.Datadog.GetInt64("dogstatsd_expiry_seconds")
+var expirySeconds = config.Datadog.GetFloat64("dogstatsd_expiry_seconds")
 
 // MakeContextMetrics returns a new ContextMetrics
 func MakeContextMetrics() ContextMetrics {
@@ -52,23 +51,30 @@ func (m ContextMetrics) AddSample(contextKey string, sample *MetricSample, times
 }
 
 // Flush flushes every metrics in the ContextMetrics
-func (m ContextMetrics) Flush(timestamp float64, sampler *aggregator.TimeSampler) []*Serie {
+func (m ContextMetrics) Flush(timestamp float64, samplerMaps ...map[string]float64) []*Serie {
 	var series []*Serie
+	var counterLastSampledByContext map[string]float64
+	var lastSeenByKey map[string]float64
+
+	if len(samplerMaps) == 2 {
+		counterLastSampledByContext = samplerMaps[0]
+		lastSeenByKey = samplerMaps[1]
+	}
 
 	// Copy the map so we can recreate non-expired Counters
 	var notSampledInThisBucket = map[string]float64{}
-	if sampler != nil {
-		for k, v := range sampler.counterLastSampledByContext {
+	if counterLastSampledByContext != nil {
+		for k, v := range counterLastSampledByContext {
 			notSampledInThisBucket[k] = v
 		}
 	}
 
 	for contextKey, metric := range m {
-		if sampler != nil {
+		if counterLastSampledByContext != nil {
 			// Look for non-expired Counter that need to be reported with a 0 value
 			if _, isCounter := metric.(*Counter); isCounter {
 				// Counter sampled in this bucket
-				sampler.counterLastSampledByContext[contextKey] = timestamp
+				counterLastSampledByContext[contextKey] = timestamp
 				delete(notSampledInThisBucket, contextKey)
 			}
 		}
@@ -91,19 +97,19 @@ func (m ContextMetrics) Flush(timestamp float64, sampler *aggregator.TimeSampler
 
 	// Recreate non-expired Counters and delete expired ones
 	for contextKey := range notSampledInThisBucket {
-		if expirySeconds+sampler.counterLastSampledByContext[contextKey] <= timestamp {
+		if expirySeconds+counterLastSampledByContext[contextKey] <= timestamp {
 			// Counter expired, stop tracking it
-			delete(sampler.counterLastSampledByContext, contextKey)
+			delete(counterLastSampledByContext, contextKey)
 			delete(notSampledInThisBucket, contextKey)
 		} else {
 			// Create an empty Counter
 			emptySerie := &Serie{
-				contextKey: contextKey,
+				ContextKey: contextKey,
 				Points:     []Point{{Ts: timestamp, Value: 0}},
 				MType:      APIRateType,
 			}
 			series = append(series, emptySerie)
-			sampler.contextResolver.lastSeenByKey[contextKey] = timestamp
+			lastSeenByKey[contextKey] = timestamp
 		}
 	}
 

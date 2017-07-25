@@ -2,7 +2,6 @@ package aggregator
 
 import (
 	"sort"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -36,7 +35,7 @@ type TimeSampler struct {
 	contextResolver             *ContextResolver
 	metricsByTimestamp          map[int64]metrics.ContextMetrics
 	defaultHostname             string
-	counterLastSampledByContext map[string]int64
+	counterLastSampledByContext map[string]float64
 	lastCutOffTime              int64
 }
 
@@ -47,7 +46,7 @@ func NewTimeSampler(interval int64, defaultHostname string) *TimeSampler {
 		contextResolver:             newContextResolver(),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		defaultHostname:             defaultHostname,
-		counterLastSampledByContext: map[string]int64{},
+		counterLastSampledByContext: map[string]float64{},
 	}
 }
 
@@ -72,9 +71,9 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 	bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval)
 }
 
-func (s *TimeSampler) flush(timestamp int64) []*Serie {
+func (s *TimeSampler) flush(timestamp float64) []*metrics.Serie {
 	var result []*metrics.Serie
-	var rawSeries []*Serie
+	var rawSeries []*metrics.Serie
 
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 
@@ -97,25 +96,25 @@ func (s *TimeSampler) flush(timestamp int64) []*Serie {
 				continue
 			}
 
-			rawSeries = append(rawSeries, metrics.flush(timestamp, s)...)
+			rawSeries = append(rawSeries, metrics.Flush(float64(timestamp), s.counterLastSampledByContext, s.contextResolver.lastSeenByKey)...)
 
 			delete(s.metricsByTimestamp, timestamp)
 		}
 	} else if s.lastCutOffTime+s.interval <= cutoffTime {
 		// Even if there is no metric in this flush, recreate empty counters,
 		// but only if we've passed an interval since the last flush
-		rawSeries = append(rawSeries, makeContextMetrics().flush(timestamp, s)...)
+		rawSeries = append(rawSeries, metrics.MakeContextMetrics().Flush(timestamp, s.counterLastSampledByContext, s.contextResolver.lastSeenByKey)...)
 	}
 
 	for _, serie := range rawSeries {
-		serieSignature := SerieSignature{serie.MType, serie.contextKey, serie.nameSuffix}
+		serieSignature := SerieSignature{serie.MType, serie.ContextKey, serie.NameSuffix}
 
 		if existingSerie, ok := serieBySignature[serieSignature]; ok {
 			existingSerie.Points = append(existingSerie.Points, serie.Points[0])
 		} else {
 			// Resolve context and populate new Serie
-			context := s.contextResolver.contextsByKey[serie.contextKey]
-			serie.Name = context.Name + serie.nameSuffix
+			context := s.contextResolver.contextsByKey[serie.ContextKey]
+			serie.Name = context.Name + serie.NameSuffix
 			serie.Tags = context.Tags
 			if context.Host != "" {
 				serie.Host = context.Host
@@ -129,7 +128,7 @@ func (s *TimeSampler) flush(timestamp int64) []*Serie {
 		}
 	}
 
-	s.contextResolver.expireContexts(timestamp - int64(defaultExpiry/time.Second))
+	s.contextResolver.expireContexts(timestamp - defaultExpiry)
 	s.lastCutOffTime = cutoffTime
 	return result
 }

@@ -31,7 +31,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 }
 
 func (cs *CheckSampler) commit(timestamp float64) {
-	for _, serie := range cs.metrics.Flush(timestamp, nil) {
+	for _, serie := range cs.metrics.Flush(timestamp) {
 		// Resolve context and populate new []Serie
 		context := cs.contextResolver.contextsByKey[serie.ContextKey]
 		serie.Name = context.Name + serie.NameSuffix
