@@ -24,7 +24,7 @@ type MemoryCheck struct {
 }
 
 func (c *MemoryCheck) String() string {
-	return "MemoryCheck"
+	return "memory"
 }
 
 const mbSize float64 = 1024 * 1024

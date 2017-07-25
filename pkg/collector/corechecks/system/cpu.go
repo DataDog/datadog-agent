@@ -25,7 +25,7 @@ type CPUCheck struct {
 }
 
 func (c *CPUCheck) String() string {
-	return "CPUCheck"
+	return "cpu"
 }
 
 // Run executes the check

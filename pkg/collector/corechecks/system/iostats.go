@@ -14,7 +14,7 @@ import (
 )
 
 func (c *IOCheck) String() string {
-	return "IOCheck"
+	return "io"
 }
 
 // Configure the IOstats check

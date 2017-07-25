@@ -20,7 +20,7 @@ type UptimeCheck struct {
 }
 
 func (c *UptimeCheck) String() string {
-	return "UptimeCheck"
+	return "uptime"
 }
 
 // Run executes the check
