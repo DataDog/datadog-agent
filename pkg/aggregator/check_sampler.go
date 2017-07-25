@@ -49,7 +49,7 @@ func (cs *CheckSampler) commit(timestamp float64) {
 	cs.contextResolver.expireContexts(timestamp - defaultExpiry)
 }
 
-func (cs *CheckSampler) flush() []*metrics.Serie {
+func (cs *CheckSampler) flush() metrics.Series {
 	series := cs.series
 	cs.series = make([]*metrics.Serie, 0)
 	return series

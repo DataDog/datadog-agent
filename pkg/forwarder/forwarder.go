@@ -77,16 +77,16 @@ type Transaction interface {
 type Forwarder interface {
 	Start() error
 	Stop()
-	SubmitV1Series(payload *[]byte) error
-	SubmitV1Intake(payload *[]byte) error
-	SubmitV1CheckRuns(payload *[]byte) error
-	SubmitV1SketchSeries(payload *[]byte) error
-	SubmitSeries(payload *[]byte) error
-	SubmitEvents(payload *[]byte) error
-	SubmitServiceChecks(payload *[]byte) error
-	SubmitSketchSeries(payload *[]byte) error
-	SubmitHostMetadata(payload *[]byte) error
-	SubmitMetadata(payload *[]byte) error
+	SubmitV1Series(payload *[]byte, contentType string) error
+	SubmitV1Intake(payload *[]byte, contentType string) error
+	SubmitV1CheckRuns(payload *[]byte, contentType string) error
+	SubmitV1SketchSeries(payload *[]byte, contentType string) error
+	SubmitSeries(payload *[]byte, contentType string) error
+	SubmitEvents(payload *[]byte, contentType string) error
+	SubmitServiceChecks(payload *[]byte, contentType string) error
+	SubmitSketchSeries(payload *[]byte, contentType string) error
+	SubmitHostMetadata(payload *[]byte, contentType string) error
+	SubmitMetadata(payload *[]byte, contentType string) error
 }
 
 // DefaultForwarder is in charge of receiving transaction payloads and sending them to Datadog backend over HTTP.
@@ -226,7 +226,7 @@ func (f *DefaultForwarder) Stop() {
 	log.Info("DefaultForwarder stopped")
 }
 
-func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payload *[]byte, compress bool, apiKeyInQueryString bool) ([]*HTTPTransaction, error) {
+func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payload *[]byte, compress bool, apiKeyInQueryString bool, contentType string) ([]*HTTPTransaction, error) {
 	if compress && payload != nil {
 		compressPayload, err := compression.Compress(nil, *payload)
 		if err != nil {
@@ -248,6 +248,7 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payload *[]by
 			t.Payload = payload
 			t.Headers.Set(apiHTTPHeaderKey, apiKey)
 			t.apiKeyStatusKey = fmt.Sprintf("%s,%s", domain, fmt.Sprintf("*************************%s", apiKey[len(apiKey)-5:]))
+			t.Headers.Set("Content-Type", contentType)
 			transactions = append(transactions, t)
 		}
 	}
@@ -267,8 +268,8 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 }
 
 // SubmitSeries will send a series type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitSeries(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(seriesEndpoint, payload, true, false)
+func (f *DefaultForwarder) SubmitSeries(payload *[]byte, contentType string) error {
+	transactions, err := f.createHTTPTransactions(seriesEndpoint, payload, true, false, contentType)
 	if err != nil {
 		return err
 	}
@@ -278,8 +279,8 @@ func (f *DefaultForwarder) SubmitSeries(payload *[]byte) error {
 }
 
 // SubmitEvents will send an event type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitEvents(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(eventsEndpoint, payload, true, false)
+func (f *DefaultForwarder) SubmitEvents(payload *[]byte, contentType string) error {
+	transactions, err := f.createHTTPTransactions(eventsEndpoint, payload, true, false, contentType)
 	if err != nil {
 		return err
 	}
@@ -289,8 +290,8 @@ func (f *DefaultForwarder) SubmitEvents(payload *[]byte) error {
 }
 
 // SubmitServiceChecks will send a service check type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitServiceChecks(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(serviceChecksEndpoint, payload, true, false)
+func (f *DefaultForwarder) SubmitServiceChecks(payload *[]byte, contentType string) error {
+	transactions, err := f.createHTTPTransactions(serviceChecksEndpoint, payload, true, false, contentType)
 	if err != nil {
 		return err
 	}
@@ -301,8 +302,8 @@ func (f *DefaultForwarder) SubmitServiceChecks(payload *[]byte) error {
 
 // SubmitSketchSeries will send payloads to v2 endpoint - PROTOTYPE FOR PERCENTILE
 // Prototype for Percentiles: same as for SubmitV1SketchSeries method for now.
-func (f *DefaultForwarder) SubmitSketchSeries(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(sketchSeriesEndpoint, payload, false, true)
+func (f *DefaultForwarder) SubmitSketchSeries(payload *[]byte, contentType string) error {
+	transactions, err := f.createHTTPTransactions(sketchSeriesEndpoint, payload, false, true, contentType)
 	if err != nil {
 		return err
 	}
@@ -311,8 +312,8 @@ func (f *DefaultForwarder) SubmitSketchSeries(payload *[]byte) error {
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitHostMetadata(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(hostMetadataEndpoint, payload, true, false)
+func (f *DefaultForwarder) SubmitHostMetadata(payload *[]byte, contentType string) error {
+	transactions, err := f.createHTTPTransactions(hostMetadataEndpoint, payload, true, false, contentType)
 	if err != nil {
 		return err
 	}
@@ -322,8 +323,8 @@ func (f *DefaultForwarder) SubmitHostMetadata(payload *[]byte) error {
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitMetadata(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(metadataEndpoint, payload, true, false)
+func (f *DefaultForwarder) SubmitMetadata(payload *[]byte, contentType string) error {
+	transactions, err := f.createHTTPTransactions(metadataEndpoint, payload, true, false, contentType)
 	if err != nil {
 		return err
 	}
@@ -334,8 +335,8 @@ func (f *DefaultForwarder) SubmitMetadata(payload *[]byte) error {
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
-func (f *DefaultForwarder) SubmitV1Series(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(v1SeriesEndpoint, payload, false, true)
+func (f *DefaultForwarder) SubmitV1Series(payload *[]byte, contentType string) error {
+	transactions, err := f.createHTTPTransactions(v1SeriesEndpoint, payload, false, true, contentType)
 	if err != nil {
 		return err
 	}
@@ -346,8 +347,8 @@ func (f *DefaultForwarder) SubmitV1Series(payload *[]byte) error {
 
 // SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
 // the backend handles v2 endpoints).
-func (f *DefaultForwarder) SubmitV1CheckRuns(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(v1CheckRunsEndpoint, payload, false, true)
+func (f *DefaultForwarder) SubmitV1CheckRuns(payload *[]byte, contentType string) error {
+	transactions, err := f.createHTTPTransactions(v1CheckRunsEndpoint, payload, false, true, contentType)
 	if err != nil {
 		return err
 	}
@@ -357,8 +358,8 @@ func (f *DefaultForwarder) SubmitV1CheckRuns(payload *[]byte) error {
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
-func (f *DefaultForwarder) SubmitV1Intake(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(v1IntakeEndpoint, payload, false, true)
+func (f *DefaultForwarder) SubmitV1Intake(payload *[]byte, contentType string) error {
+	transactions, err := f.createHTTPTransactions(v1IntakeEndpoint, payload, false, true, contentType)
 	if err != nil {
 		return err
 	}
@@ -373,8 +374,8 @@ func (f *DefaultForwarder) SubmitV1Intake(payload *[]byte) error {
 }
 
 // SubmitV1SketchSeries will send payloads to v1 endpoint
-func (f *DefaultForwarder) SubmitV1SketchSeries(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(v1SketchSeriesEndpoint, payload, false, true)
+func (f *DefaultForwarder) SubmitV1SketchSeries(payload *[]byte, contentType string) error {
+	transactions, err := f.createHTTPTransactions(v1SketchSeriesEndpoint, payload, false, true, contentType)
 	if err != nil {
 		return err
 	}

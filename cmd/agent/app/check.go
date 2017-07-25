@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/spf13/cobra"
@@ -55,7 +56,8 @@ var checkCmd = &cobra.Command{
 			panic(err)
 		}
 
-		agg := aggregator.InitAggregatorWithFlushInterval(common.Forwarder, hostname, 10000000000)
+		s := &serializer.Serializer{Forwarder: common.Forwarder}
+		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 10000000000)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 		cs := common.AC.GetCheck(checkName)
 		if len(cs) == 0 {

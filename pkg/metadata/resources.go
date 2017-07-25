@@ -1,14 +1,12 @@
 package metadata
 
 import (
-	"encoding/json"
 	"fmt"
 	"path"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	log "github.com/cihub/seelog"
 )
 
 // ResourcesCollector sends the old metadata payload used in the
@@ -16,7 +14,7 @@ import (
 type ResourcesCollector struct{}
 
 // Send collects the data needed and submits the payload
-func (rp *ResourcesCollector) Send(fwd forwarder.Forwarder) error {
+func (rp *ResourcesCollector) Send(s *serializer.Serializer) error {
 	var hostname string
 	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
 	if found {
@@ -26,20 +24,9 @@ func (rp *ResourcesCollector) Send(fwd forwarder.Forwarder) error {
 	payload := map[string]interface{}{
 		"resources": resources.GetPayload(hostname),
 	}
-	payloadBytes, err := json.Marshal(payload)
-
-	if err != nil {
+	if err := s.SendJSONToV1Intake(payload); err != nil {
 		return fmt.Errorf("unable to serialize processes metadata payload, %s", err)
 	}
-
-	err = fwd.SubmitV1Intake(&payloadBytes)
-	if err != nil {
-		return fmt.Errorf("unable to submit processes metadata payload to the forwarder, %s", err)
-	}
-
-	log.Infof("Sent processes metadata payload, size: %d bytes.", len(payloadBytes))
-	log.Debugf("Sent processes metadata payload, content: %v", string(payloadBytes))
-
 	return nil
 }
 

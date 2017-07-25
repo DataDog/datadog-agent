@@ -1,4 +1,4 @@
-package serializer
+package metrics
 
 import (
 	"testing"
@@ -8,26 +8,25 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func TestMarshalEvents(t *testing.T) {
-	events := []*metrics.Event{{
+func TestMarshal(t *testing.T) {
+	events := Events{{
 		Title:          "test title",
 		Text:           "test text",
 		Ts:             12345,
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       EventPriorityNormal,
 		Host:           "test.localhost",
 		Tags:           []string{"tag1", "tag2:yes"},
-		AlertType:      metrics.EventAlertTypeError,
+		AlertType:      EventAlertTypeError,
 		AggregationKey: "test aggregation",
 		SourceTypeName: "test source",
 	}}
 
-	payload, contentType, err := MarshalEvents(events)
+	payload, err := events.Marshal()
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
-	assert.Equal(t, contentType, "application/x-protobuf")
 
 	newPayload := &agentpayload.EventsPayload{}
 	err = proto.Unmarshal(payload, newPayload)
@@ -37,38 +36,41 @@ func TestMarshalEvents(t *testing.T) {
 	assert.Equal(t, newPayload.Events[0].Title, "test title")
 	assert.Equal(t, newPayload.Events[0].Text, "test text")
 	assert.Equal(t, newPayload.Events[0].Ts, int64(12345))
-	assert.Equal(t, newPayload.Events[0].Priority, string(metrics.EventPriorityNormal))
+	assert.Equal(t, newPayload.Events[0].Priority, string(EventPriorityNormal))
 	assert.Equal(t, newPayload.Events[0].Host, "test.localhost")
 	require.Len(t, newPayload.Events[0].Tags, 2)
 	assert.Equal(t, newPayload.Events[0].Tags[0], "tag1")
 	assert.Equal(t, newPayload.Events[0].Tags[1], "tag2:yes")
-	assert.Equal(t, newPayload.Events[0].AlertType, string(metrics.EventAlertTypeError))
+	assert.Equal(t, newPayload.Events[0].AlertType, string(EventAlertTypeError))
 	assert.Equal(t, newPayload.Events[0].AggregationKey, "test aggregation")
 	assert.Equal(t, newPayload.Events[0].SourceTypeName, "test source")
 }
 
-func TestMarshalJSONEvents(t *testing.T) {
-	events := []metrics.Event{{
+func TestMarshalJSON(t *testing.T) {
+	events := Events{{
 		Title:          "An event occurred",
 		Text:           "event description",
 		Ts:             12345,
-		Priority:       metrics.EventPriorityNormal,
+		Priority:       EventPriorityNormal,
 		Host:           "my-hostname",
 		Tags:           []string{"tag1", "tag2:yes"},
-		AlertType:      metrics.EventAlertTypeError,
+		AlertType:      EventAlertTypeError,
 		AggregationKey: "my_agg_key",
 		SourceTypeName: "custom_source_type",
 	}}
 
-	payload, contentType, err := MarshalJSONEvents(events, "testapikey", "test-hostname")
+	oldName := config.Datadog.GetString("hostname")
+	defer config.Datadog.Set("hostname", oldName)
+	config.Datadog.Set("hostname", "test-hostname")
+
+	payload, err := events.MarshalJSON()
 	assert.Nil(t, err)
-	assert.Equal(t, contentType, "application/json")
 	assert.NotNil(t, payload)
-	assert.Equal(t, payload, []byte("{\"apiKey\":\"testapikey\",\"events\":{\"custom_source_type\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"priority\":\"normal\",\"host\":\"my-hostname\",\"tags\":[\"tag1\",\"tag2:yes\"],\"alert_type\":\"error\",\"aggregation_key\":\"my_agg_key\",\"source_type_name\":\"custom_source_type\"}]},\"internalHostname\":\"test-hostname\"}\n"))
+	assert.Equal(t, payload, []byte("{\"apiKey\":\"\",\"events\":{\"custom_source_type\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"priority\":\"normal\",\"host\":\"my-hostname\",\"tags\":[\"tag1\",\"tag2:yes\"],\"alert_type\":\"error\",\"aggregation_key\":\"my_agg_key\",\"source_type_name\":\"custom_source_type\"}]},\"internalHostname\":\"test-hostname\"}\n"))
 }
 
-func TestMarshalJSONEventsOmittedFields(t *testing.T) {
-	events := []metrics.Event{{
+func TestMarshalJSONOmittedFields(t *testing.T) {
+	events := Events{{
 		// Don't populate optional fields
 		Title: "An event occurred",
 		Text:  "event description",
@@ -76,10 +78,13 @@ func TestMarshalJSONEventsOmittedFields(t *testing.T) {
 		Host:  "my-hostname",
 	}}
 
-	payload, contentType, err := MarshalJSONEvents(events, "testapikey", "test-hostname")
+	oldName := config.Datadog.GetString("hostname")
+	defer config.Datadog.Set("hostname", oldName)
+	config.Datadog.Set("hostname", "test-hostname")
+
+	payload, err := events.MarshalJSON()
 	assert.Nil(t, err)
-	assert.Equal(t, contentType, "application/json")
 	assert.NotNil(t, payload)
 	// These optional fields are not present in the serialized payload, and a default source type name is used
-	assert.Equal(t, payload, []byte("{\"apiKey\":\"testapikey\",\"events\":{\"api\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"host\":\"my-hostname\"}]},\"internalHostname\":\"test-hostname\"}\n"))
+	assert.Equal(t, payload, []byte("{\"apiKey\":\"\",\"events\":{\"api\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"host\":\"my-hostname\"}]},\"internalHostname\":\"test-hostname\"}\n"))
 }
