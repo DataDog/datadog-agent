@@ -1,4 +1,4 @@
-package serializer
+package metrics
 
 import (
 	"testing"
@@ -8,25 +8,23 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestMarshalSeries(t *testing.T) {
-	series := []*metrics.Serie{{
-		Points: []metrics.Point{
+	series := Series{{
+		Points: []Point{
 			{Ts: 12345.0, Value: float64(21.21)},
 			{Ts: 67890.0, Value: float64(12.12)},
 		},
-		MType: metrics.APIGaugeType,
+		MType: APIGaugeType,
 		Name:  "test.metrics",
 		Host:  "localHost",
 		Tags:  []string{"tag1", "tag2:yes"},
 	}}
 
-	payload, contentType, err := MarshalSeries(series)
+	payload, err := series.Marshal()
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
-	assert.Equal(t, contentType, "application/x-protobuf")
 
 	newPayload := &agentpayload.MetricsPayload{}
 	err = proto.Unmarshal(payload, newPayload)
@@ -47,15 +45,15 @@ func TestMarshalSeries(t *testing.T) {
 }
 
 func TestPopulateDeviceField(t *testing.T) {
-	series := []*metrics.Serie{
-		&metrics.Serie{},
-		&metrics.Serie{
+	series := Series{
+		&Serie{},
+		&Serie{
 			Tags: []string{"some:tag", "device:/dev/sda1"},
 		},
-		&metrics.Serie{
+		&Serie{
 			Tags: []string{"some:tag", "device:/dev/sda2", "some_other:tag"},
 		},
-		&metrics.Serie{
+		&Serie{
 			Tags: []string{"yet_another:value", "one_last:tag_value"},
 		}}
 
@@ -73,21 +71,20 @@ func TestPopulateDeviceField(t *testing.T) {
 }
 
 func TestMarshalJSONSeries(t *testing.T) {
-	series := []*metrics.Serie{{
-		Points: []metrics.Point{
+	series := Series{{
+		Points: []Point{
 			{Ts: 12345.0, Value: float64(21.21)},
 			{Ts: 67890.0, Value: float64(12.12)},
 		},
-		MType:          metrics.APIGaugeType,
+		MType:          APIGaugeType,
 		Name:           "test.metrics",
 		Host:           "localHost",
 		Tags:           []string{"tag1", "tag2:yes", "device:/dev/sda1"},
 		SourceTypeName: "System",
 	}}
 
-	payload, contentType, err := MarshalJSONSeries(series)
+	payload, err := series.MarshalJSON()
 	assert.Nil(t, err)
-	assert.Equal(t, contentType, "application/json")
 	assert.NotNil(t, payload)
 	assert.Equal(t, payload, []byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device\":\"/dev/sda1\",\"type\":\"gauge\",\"interval\":0,\"source_type_name\":\"System\"}]}\n"))
 }

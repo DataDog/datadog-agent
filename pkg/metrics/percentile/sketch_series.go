@@ -25,6 +25,9 @@ type SketchSeries struct {
 	ContextKey string   `json:"-"`
 }
 
+// SketchSeriesList represents a list of SketchSeries ready to be serialize
+type SketchSeriesList []*SketchSeries
+
 // QSketch is a wrapper around GKArray to make it easier if we want to try a
 // different sketch algorithm
 type QSketch struct {
@@ -102,4 +105,64 @@ func UnmarshalJSONSketchSeries(b []byte) ([]*SketchSeries, error) {
 		return []*SketchSeries{}, err
 	}
 	return data["sketch_series"], nil
+}
+
+func marshalEntries(entries Entries) []agentpayload.SketchPayload_Summary_Sketch_Entry {
+	entriesPayload := []agentpayload.SketchPayload_Summary_Sketch_Entry{}
+	for _, e := range entries {
+		entriesPayload = append(entriesPayload,
+			agentpayload.SketchPayload_Summary_Sketch_Entry{
+				V:     e.V,
+				G:     int64(e.G),
+				Delta: int64(e.Delta),
+			})
+	}
+	return entriesPayload
+}
+
+func marshalSketches(sketches []Sketch) []agentpayload.SketchPayload_Summary_Sketch {
+	sketchesPayload := []agentpayload.SketchPayload_Summary_Sketch{}
+
+	for _, s := range sketches {
+		sketchesPayload = append(sketchesPayload,
+			agentpayload.SketchPayload_Summary_Sketch{
+				Ts:      s.Timestamp,
+				N:       int64(s.Sketch.Count),
+				Min:     s.Sketch.Min,
+				Max:     s.Sketch.Max,
+				Avg:     s.Sketch.Avg,
+				Sum:     s.Sketch.Sum,
+				Entries: marshalEntries(s.Sketch.Entries),
+			})
+	}
+	return sketchesPayload
+}
+
+// Marshal serializes sketch series using protocol buffers
+func (sl SketchSeriesList) Marshal() ([]byte, error) {
+	payload := &agentpayload.SketchPayload{
+		Summaries: []agentpayload.SketchPayload_Summary{},
+		Metadata:  agentpayload.CommonMetadata{},
+	}
+	for _, s := range sl {
+		payload.Summaries = append(payload.Summaries,
+			agentpayload.SketchPayload_Summary{
+				Metric:   s.Name,
+				Host:     s.Host,
+				Sketches: marshalSketches(s.Sketches),
+				Tags:     s.Tags,
+			})
+	}
+	return proto.Marshal(payload)
+}
+
+// MarshalJSON serializes sketch series to JSON so it can be sent to
+// v1 endpoints
+func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
+	data := map[string][]*SketchSeries{
+		"sketch_series": sl,
+	}
+	reqBody := &bytes.Buffer{}
+	err := json.NewEncoder(reqBody).Encode(data)
+	return reqBody.Bytes(), err
 }

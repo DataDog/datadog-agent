@@ -42,7 +42,7 @@ func (d *DistSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 	sketch.addSample(contextKey, metricSample, timestamp, d.interval)
 }
 
-func (d *DistSampler) flush(timestamp float64) []*percentile.SketchSeries {
+func (d *DistSampler) flush(timestamp float64) percentile.SketchSeriesList {
 	var result []*percentile.SketchSeries
 
 	sketchesByContext := make(map[string]*percentile.SketchSeries)

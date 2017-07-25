@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -96,6 +97,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	f := forwarder.NewDefaultForwarder(keysPerDomain)
 	f.Start()
+	s := &serializer.Serializer{Forwarder: f}
 
 	hname, err := util.GetHostname()
 	if err != nil {
@@ -107,7 +109,7 @@ func start(cmd *cobra.Command, args []string) error {
 	var metaScheduler *metadata.Scheduler
 	if config.Datadog.GetBool("enable_metadata_collection") {
 		// start metadata collection
-		metaScheduler := metadata.NewScheduler(f, hname)
+		metaScheduler := metadata.NewScheduler(s, hname)
 
 		// add the host metadata collector
 		err = metaScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
@@ -118,7 +120,7 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
 	}
 
-	aggregatorInstance := aggregator.InitAggregator(f, hname)
+	aggregatorInstance := aggregator.InitAggregator(s, hname)
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
 		log.Criticalf("Unable to start dogstatsd: %s", err)

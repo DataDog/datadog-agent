@@ -2,8 +2,8 @@
 
 The Aggregator is the first thing a metric hits during its journey towards the
 intake. This package is responsible for metrics reception and aggregation
-before passing them to the forwarder. It computes rates and histograms, then
-serializes payload and passes them to the Forwarder.
+before passing them to the forwarder. It computes rates and histograms and
+passes them to the **Serializer**.
 
 For now sources of metrics are DogStatsD and Python/Go checks. DogStatsD
 directly send **MetricSample** to the Aggregator while checks use the sender to
@@ -12,51 +12,46 @@ do so.
 **MetricSample** are the raw metric value that flow from our 2 sources to the
 different metric types (Gauge, Count, ...).
 
+
          +===========+                       +===============+
-         | DogStatsD |                       |    checks     |
+         + DogStatsD +                       +    checks     +
          +===========+                       | Python and Go |
-              ||                             +===============+
-              ||                                    ||
+              ++                             +===============+
+              ||                                    ++
               ||                                    vv
-              ||                                .--------.
+              ||                                .+------+.
               ||                                . Sender .
-              ||                                '--------'
+              ||                                '+---+--+'
               ||                                     |
               vv                                     v
-           .---------------------------------------------.
-           |                 Aggregator                  |
-           '---------------------------------------------'
+           .+----------------------------------------+--+.
+           +                 Aggregator                  +
+           '+--+-------------------------------------+--+'
                |                                     |
                |                                     |
                v                                     v
-        .-------------.                       .--------------.
-        | TimeSampler |                       | CheckSampler |
-        '-------------'                       '--------------'
+        .+-----+-----+.                       .+-----+------+.
+        + TimeSampler +                       + CheckSampler +
+        '+-----+-----+'                       '+-----+------+'
                |                                     |
                |                                     |
-               |         .-----------------.         |
-               '-------->| ContextMetrics  |<--------'
-                         '-----------------'
-                                  |
+               +         .+---------------+.         +
+               '+------->+ ContextMetrics  +<-------+'
+                         '+-------+-------+'
                                   |
                                   v
-                         .-----------------.
-                         |     Metric      |
+                         .+-------+-------+.
+                         +     Metrics     +
                          | Gauge           |
                          | Count           |
                          | Histogram       |
                          | Rate            |
                          | Set             |
-                         | ...             |
-                         '-----------------'
-                                  |
-                                  v
-                         .-----------------.
-                         |      Serie      |
-                         '-----------------'
-                                 ||               +=================+
-                                 ++==============>|    Forwarder    |
-                                                  +=================+
+                         + ...             +
+                         '+--------+------+'
+                                  ||               +=================+
+                                  ++==============>+  Serializer     |
+                                                   +=================+
 
 ### Sender
 The Sender is used by calling code (namely: checks) that wants to send metric

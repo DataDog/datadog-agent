@@ -1,7 +1,14 @@
 package metrics
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+
+	"github.com/gogo/protobuf/proto"
+
+	agentpayload "github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // EventPriority represents the priority of an event
@@ -64,4 +71,59 @@ type Event struct {
 	AggregationKey string         `json:"aggregation_key,omitempty"`
 	SourceTypeName string         `json:"source_type_name,omitempty"`
 	EventType      string         `json:"event_type,omitempty"`
+}
+
+// Events represents a list of events ready to be serialize
+type Events []*Event
+
+// Marshal serialize events using agent-payload definition
+func (events Events) Marshal() ([]byte, error) {
+	payload := &agentpayload.EventsPayload{
+		Events:   []*agentpayload.EventsPayload_Event{},
+		Metadata: &agentpayload.CommonMetadata{},
+	}
+
+	for _, e := range events {
+		payload.Events = append(payload.Events,
+			&agentpayload.EventsPayload_Event{
+				Title:          e.Title,
+				Text:           e.Text,
+				Ts:             e.Ts,
+				Priority:       string(e.Priority),
+				Host:           e.Host,
+				Tags:           e.Tags,
+				AlertType:      string(e.AlertType),
+				AggregationKey: e.AggregationKey,
+				SourceTypeName: e.SourceTypeName,
+			})
+	}
+
+	return proto.Marshal(payload)
+}
+
+// MarshalJSON serializes events to JSON so it can be sent to the Agent 5 intake
+// (we don't use the v1 event endpoint because it only supports 1 event per payload)
+//FIXME(olivier): to be removed when v2 endpoints are available
+func (events Events) MarshalJSON() ([]byte, error) {
+	// Regroup events by their source type name
+	eventsBySourceType := make(map[string][]*Event)
+	for _, e := range events {
+		sourceTypeName := e.SourceTypeName
+		if sourceTypeName == "" {
+			sourceTypeName = "api"
+		}
+
+		eventsBySourceType[sourceTypeName] = append(eventsBySourceType[sourceTypeName], e)
+	}
+
+	hostname, _ := util.GetHostname()
+	// Build intake payload containing events and serialize
+	data := map[string]interface{}{
+		"apiKey":           "", // legacy field, it isn't actually used by the backend
+		"events":           eventsBySourceType,
+		"internalHostname": hostname,
+	}
+	reqBody := &bytes.Buffer{}
+	err := json.NewEncoder(reqBody).Encode(data)
+	return reqBody.Bytes(), err
 }

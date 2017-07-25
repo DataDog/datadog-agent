@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	log "github.com/cihub/seelog"
 )
 
@@ -14,15 +14,15 @@ var catalog = make(map[string]Collector)
 // Scheduler takes care of sending metadata at specific
 // time intervals
 type Scheduler struct {
-	fwd      forwarder.Forwarder
+	srl      *serializer.Serializer
 	hostname string
 	tickers  []*time.Ticker
 }
 
 // NewScheduler builds and returns a new Metadata Scheduler
-func NewScheduler(fwd forwarder.Forwarder, hostname string) *Scheduler {
+func NewScheduler(s *serializer.Serializer, hostname string) *Scheduler {
 	scheduler := &Scheduler{
-		fwd:      fwd,
+		srl:      s,
 		hostname: hostname,
 	}
 
@@ -51,7 +51,7 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	ticker := time.NewTicker(interval)
 	go func() {
 		for _ = range ticker.C {
-			p.Send(c.fwd)
+			p.Send(c.srl)
 		}
 	}()
 	c.tickers = append(c.tickers, ticker)
@@ -65,5 +65,5 @@ func (c *Scheduler) firstRun() error {
 	if !found {
 		panic("Unable to find 'host' metadata collector in the catalog!")
 	}
-	return p.Send(c.fwd)
+	return p.Send(c.srl)
 }
