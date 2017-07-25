@@ -103,7 +103,7 @@ type SNMPCheck struct {
 }
 
 func (c *SNMPCheck) String() string {
-	return "SNMPCheck"
+	return "snmp"
 }
 
 func initCNetSnmpLib(cfg *snmpInitCfg) (err error) {

@@ -41,7 +41,7 @@ type ntpConfig struct {
 }
 
 func (c *NTPCheck) String() string {
-	return "NTPCheck"
+	return "ntp"
 }
 
 func (c *ntpConfig) Parse(data []byte, initData []byte) error {
