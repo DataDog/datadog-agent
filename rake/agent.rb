@@ -33,6 +33,13 @@ namespace :agent do
       ldflags << "-r #{libdir}"
     end
 
+    if os == "windows"
+      # This generates the manifest resource. The manifest resource is necessary for
+      # being able to load the ancient C-runtime that comes along with Python 2.7
+      command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
+      build_success = system(env, command)
+      puts "success is #{build_success}"
+    end
     commit = `git rev-parse --short HEAD`.strip
     ldflags << "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
     if ENV["WINDOWS_DELVE"]
