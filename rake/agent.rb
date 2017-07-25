@@ -25,15 +25,9 @@ namespace :agent do
     env = {}
     gcflags = []
     ldflags = []
-<<<<<<< HEAD
     if !ENV["USE_SYSTEM_LIBS"]
       env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
       ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
-=======
-    if !ENV["USE_SYSTEM_PY"]
-      env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
-      ENV["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
->>>>>>> [windows] make windows python checks (specifically WMI) load and run
       libdir = `pkg-config --variable=libdir python-2.7`.strip
       fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
       ldflags << "-r #{libdir}"
@@ -44,7 +38,9 @@ namespace :agent do
       # being able to load the ancient C-runtime that comes along with Python 2.7
       command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
       build_success = system(env, command)
-      puts "success is #{build_success}"
+      puts command
+      build_success = system(env, command)
+      fail "Agent build failed with code #{$?.exitstatus}" if !build_success
     end
     commit = `git rev-parse --short HEAD`.strip
     ldflags << "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
