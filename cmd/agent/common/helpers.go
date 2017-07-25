@@ -6,10 +6,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
+	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
-	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 )
@@ -26,19 +24,9 @@ func SetupAutoConfig(confdPath string) {
 	AC = autodiscovery.NewAutoConfig(coll)
 
 	// add the check loaders
-	if loader := py.NewPythonCheckLoader(); loader != nil {
+	for _, loader := range loaders.LoaderCatalog() {
 		AC.AddLoader(loader)
-	} else {
-		log.Errorf("Unable to create Python loader.")
-	}
-
-	// can't fail
-	AC.AddLoader(core.NewGoCheckLoader())
-
-	if loader := embed.NewJMXCheckLoader(); loader != nil {
-		AC.AddLoader(loader)
-	} else {
-		log.Errorf("Unable to create JMX loader.")
+		log.Debugf("Added %s to AutoConfig", loader)
 	}
 
 	// add the configuration providers
@@ -49,12 +37,10 @@ func SetupAutoConfig(confdPath string) {
 	}
 	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
 
-	// Etcd Provider
-	etcd, err := providers.NewEtcdConfigProvider()
-	if err != nil {
-		log.Errorf("Cannot use the etcd config provider: %s", err)
-	} else {
-		AC.AddProvider(etcd, true)
+	// Register Providers
+	for backend, provider := range providers.ProviderCatalog {
+		AC.AddProvider(provider, true)
+		log.Infof("Registering %s config provider", backend)
 	}
 }
 

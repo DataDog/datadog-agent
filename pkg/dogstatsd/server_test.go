@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestNewServer(t *testing.T) {
@@ -33,9 +33,9 @@ func TestStopServer(t *testing.T) {
 }
 
 func TestUPDReceive(t *testing.T) {
-	metricOut := make(chan *aggregator.MetricSample)
-	eventOut := make(chan aggregator.Event)
-	serviceOut := make(chan aggregator.ServiceCheck)
+	metricOut := make(chan *metrics.MetricSample)
+	eventOut := make(chan metrics.Event)
+	serviceOut := make(chan metrics.ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
 	assert.Nil(t, err)
 	defer s.Stop()
@@ -52,7 +52,7 @@ func TestUPDReceive(t *testing.T) {
 		assert.NotNil(t, res)
 		assert.Equal(t, res.Name, "daemon")
 		assert.EqualValues(t, res.Value, 666.0)
-		assert.Equal(t, res.Mtype, aggregator.GaugeType)
+		assert.Equal(t, res.Mtype, metrics.GaugeType)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
@@ -63,7 +63,7 @@ func TestUPDReceive(t *testing.T) {
 		assert.NotNil(t, res)
 		assert.Equal(t, res.Name, "daemon")
 		assert.EqualValues(t, res.Value, 666.0)
-		assert.Equal(t, aggregator.CounterType, res.Mtype)
+		assert.Equal(t, metrics.CounterType, res.Mtype)
 		assert.Equal(t, 0.5, res.SampleRate)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
@@ -75,7 +75,7 @@ func TestUPDReceive(t *testing.T) {
 		assert.NotNil(t, res)
 		assert.Equal(t, res.Name, "daemon")
 		assert.EqualValues(t, res.Value, 666.0)
-		assert.Equal(t, aggregator.HistogramType, res.Mtype)
+		assert.Equal(t, metrics.HistogramType, res.Mtype)
 		assert.Equal(t, 0.5, res.SampleRate)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
@@ -87,7 +87,7 @@ func TestUPDReceive(t *testing.T) {
 		assert.NotNil(t, res)
 		assert.Equal(t, res.Name, "daemon")
 		assert.EqualValues(t, res.Value, 666.0)
-		assert.Equal(t, aggregator.HistogramType, res.Mtype)
+		assert.Equal(t, metrics.HistogramType, res.Mtype)
 		assert.Equal(t, 0.5, res.SampleRate)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
@@ -99,7 +99,7 @@ func TestUPDReceive(t *testing.T) {
 		assert.NotNil(t, res)
 		assert.Equal(t, res.Name, "daemon_set")
 		assert.Equal(t, res.RawValue, "abc")
-		assert.Equal(t, res.Mtype, aggregator.SetType)
+		assert.Equal(t, res.Mtype, metrics.SetType)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

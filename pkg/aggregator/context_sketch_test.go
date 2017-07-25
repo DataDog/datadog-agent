@@ -5,22 +5,24 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
 func TestContextSketchSampling(t *testing.T) {
 	ctxSketch := makeContextSketch()
 	contextKey := "context_key"
 
-	ctxSketch.addSample(contextKey, &MetricSample{Value: 1}, 1, 10)
-	ctxSketch.addSample(contextKey, &MetricSample{Value: 5}, 3, 10)
-	resultSeries := ctxSketch.flush(12345)
+	ctxSketch.addSample(contextKey, &metrics.MetricSample{Value: 1}, 1, 10)
+	ctxSketch.addSample(contextKey, &metrics.MetricSample{Value: 5}, 3, 10)
+	resultSeries := ctxSketch.flush(12345.0)
 
 	expectedSketch := percentile.NewQSketch()
-	expectedSketch.Add(1)
-	expectedSketch.Add(5)
-	expectedSketch.Compress()
+	expectedSketch = expectedSketch.Add(1)
+	expectedSketch = expectedSketch.Add(5)
+	expectedSketch = expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		ContextKey: contextKey,
 		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch}}}
@@ -30,7 +32,7 @@ func TestContextSketchSampling(t *testing.T) {
 
 	// No sketches should be flushed when there's no new sample since
 	// last flush
-	resultSeries = ctxSketch.flush(12355)
+	resultSeries = ctxSketch.flush(12355.0)
 	assert.Equal(t, 0, len(resultSeries))
 }
 
@@ -39,9 +41,9 @@ func TestContextSketchSamplingInfinity(t *testing.T) {
 	ctxSketch := makeContextSketch()
 	contextKey := "context_key"
 
-	ctxSketch.addSample(contextKey, &MetricSample{Value: math.Inf(1)}, 1, 10)
-	ctxSketch.addSample(contextKey, &MetricSample{Value: math.Inf(-1)}, 2, 10)
-	resultSeries := ctxSketch.flush(12345)
+	ctxSketch.addSample(contextKey, &metrics.MetricSample{Value: math.Inf(1)}, 1, 10)
+	ctxSketch.addSample(contextKey, &metrics.MetricSample{Value: math.Inf(-1)}, 2, 10)
+	resultSeries := ctxSketch.flush(12345.0)
 
 	assert.Equal(t, 0, len(resultSeries))
 }
@@ -50,22 +52,22 @@ func TestContextSketchSamplingMultiContexts(t *testing.T) {
 	ctxSketch := makeContextSketch()
 	contextKey1 := "context_key1"
 	contextKey2 := "context_key2"
-	ctxSketch.addSample(contextKey1, &MetricSample{Value: 1}, 1, 10)
-	ctxSketch.addSample(contextKey2, &MetricSample{Value: 1}, 1, 10)
-	ctxSketch.addSample(contextKey1, &MetricSample{Value: 3}, 5, 10)
-	orderedSketchSeries := OrderedSketchSeries{ctxSketch.flush(12345)}
+	ctxSketch.addSample(contextKey1, &metrics.MetricSample{Value: 1}, 1, 10)
+	ctxSketch.addSample(contextKey2, &metrics.MetricSample{Value: 1}, 1, 10)
+	ctxSketch.addSample(contextKey1, &metrics.MetricSample{Value: 3}, 5, 10)
+	orderedSketchSeries := OrderedSketchSeries{ctxSketch.flush(12345.0)}
 	sort.Sort(orderedSketchSeries)
 
 	expectedSketch1 := percentile.NewQSketch()
-	expectedSketch1.Add(1)
-	expectedSketch1.Add(3)
-	expectedSketch1.Compress()
+	expectedSketch1 = expectedSketch1.Add(1)
+	expectedSketch1 = expectedSketch1.Add(3)
+	expectedSketch1 = expectedSketch1.Compress()
 	expectedSeries1 := &percentile.SketchSeries{
 		ContextKey: contextKey1,
 		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch1}}}
 	expectedSketch2 := percentile.NewQSketch()
-	expectedSketch2.Add(1)
-	expectedSketch2.Compress()
+	expectedSketch2 = expectedSketch2.Add(1)
+	expectedSketch2 = expectedSketch2.Compress()
 	expectedSeries2 := &percentile.SketchSeries{
 		ContextKey: contextKey2,
 		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch2}}}

@@ -15,7 +15,8 @@
     checks.d: {{.config.additional_checksd}}
   Clocks
   ======
-    NTP offset: 7850.7797 s
+{{- if .ntpOffset}}
+    NTP offset: {{.ntpOffset}} s {{end}}
     System UTC time: {{.time}}
   Host Info
   =========

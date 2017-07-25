@@ -1,8 +1,10 @@
 package config
 
 import (
+	"strings"
 	"time"
 
+	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
 )
 
@@ -32,6 +34,8 @@ func init() {
 	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
+	Datadog.SetDefault("default_integration_http_timeout", 9)
+	Datadog.SetDefault("enable_metadata_collection", true)
 	// BUG(massi): make the listener_windows.go module actually use the following:
 	Datadog.SetDefault("cmd_pipe_name", `\\.\pipe\ddagent`)
 	Datadog.SetDefault("check_runners", int64(4))
@@ -50,12 +54,73 @@ func init() {
 	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
+	// Kubernetes
+	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
+	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
+	Datadog.BindEnv("hostname")
 	Datadog.BindEnv("cmd_sock")
 	Datadog.BindEnv("conf_path")
+	Datadog.BindEnv("enable_metadata_collection")
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
+	Datadog.BindEnv("kubernetes_kubelet_host")
+	Datadog.BindEnv("kubernetes_http_kubelet_port")
+	Datadog.BindEnv("kubernetes_https_kubelet_port")
+}
+
+// GetMultipleEndpoints returns the api keys per domain specified in the main agent config
+func GetMultipleEndpoints() (map[string][]string, error) {
+	return getMultipleEndpoints(Datadog)
+}
+
+// getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
+func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
+	keysPerDomain := map[string][]string{
+		config.GetString("dd_url"): {
+			config.GetString("api_key"),
+		},
+	}
+
+	var additionalEndpoints map[string][]string
+	err := config.UnmarshalKey("additional_endpoints", &additionalEndpoints)
+	if err != nil {
+		return keysPerDomain, err
+	}
+
+	// merge additional endpoints into keysPerDomain
+	for domain, apiKeys := range additionalEndpoints {
+		if _, ok := keysPerDomain[domain]; ok {
+			for _, apiKey := range apiKeys {
+				keysPerDomain[domain] = append(keysPerDomain[domain], apiKey)
+			}
+		} else {
+			keysPerDomain[domain] = apiKeys
+		}
+	}
+
+	// dedupe api keys and remove domains with no api keys (or empty ones)
+	for domain, apiKeys := range keysPerDomain {
+		dedupedAPIKeys := make([]string, 0, len(apiKeys))
+		seen := make(map[string]bool)
+		for _, apiKey := range apiKeys {
+			trimmedAPIKey := strings.TrimSpace(apiKey)
+			if _, ok := seen[trimmedAPIKey]; !ok && trimmedAPIKey != "" {
+				seen[trimmedAPIKey] = true
+				dedupedAPIKeys = append(dedupedAPIKeys, trimmedAPIKey)
+			}
+		}
+
+		if len(dedupedAPIKeys) > 0 {
+			keysPerDomain[domain] = dedupedAPIKeys
+		} else {
+			log.Infof("No API key provided for domain \"%s\", removing domain from endpoints", domain)
+			delete(keysPerDomain, domain)
+		}
+	}
+
+	return keysPerDomain, nil
 }

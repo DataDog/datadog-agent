@@ -25,7 +25,7 @@ test:
   override:
     - cd "$IMPORT_PATH" && eval "$(gimme)" && rake deps && rake test race=true:
         environment:
-          USE_SYSTEM_PY: 1
+          USE_SYSTEM_LIBS: 1
 
   post:
     - cd "$IMPORT_PATH" && eval "$(gimme)" && go tool cover -html=profile.cov -o $CIRCLE_ARTIFACTS/coverage.html

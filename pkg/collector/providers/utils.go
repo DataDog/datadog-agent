@@ -16,6 +16,13 @@ const (
 	initConfigPath string = "init_configs"
 )
 
+// ADEntryIndex structure to store indeces to backend entries
+type ADEntryIndex struct {
+	NamesIdx     uint64
+	InitIdx      uint64
+	InstancesIdx uint64
+}
+
 func init() {
 	// Where to look for check templates if no custom path is defined
 	config.Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")

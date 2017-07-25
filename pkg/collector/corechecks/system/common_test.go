@@ -3,7 +3,7 @@ package system
 import (
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 //MockSender allows mocking of the checks sender
@@ -42,12 +42,12 @@ func (m *MockSender) Gauge(metric string, value float64, hostname string, tags [
 }
 
 //ServiceCheck enables the service check mock call.
-func (m *MockSender) ServiceCheck(checkName string, status aggregator.ServiceCheckStatus, hostname string, tags []string, message string) {
+func (m *MockSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
 	m.Called(checkName, status, hostname, tags, message)
 }
 
 //Event enables the event mock call.
-func (m *MockSender) Event(e aggregator.Event) {
+func (m *MockSender) Event(e metrics.Event) {
 	m.Called(e)
 }
 

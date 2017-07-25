@@ -1,17 +1,10 @@
 // +build !windows
+// +build snmp
 
 package network
 
 /*
-#cgo linux CFLAGS: -I/opt/datadog-agent6/embedded/include -I/usr/include/net-snmp/library -DNETSNMP_NO_LEGACY_DEFINITIONS
-//Dynamic linking (enabled)
-#cgo linux LDFLAGS: -L/opt/datadog-agent6/embedded/lib -L/usr/lib/ -L/usr/lib/x86_64-linux-gnu/ -L/ -static-libgcc -lnetsnmp -lcrypto -ldl -lz
-//STATIC link for netsnmp (disabled)
-//linux LDFLAGS: /usr/lib/libnetsnmp.a /usr/lib/x86_64-linux-gnu/libcrypto.a /usr/lib/x86_64-linux-gnu/libz.a -L/usr/lib/ -L/usr/lib/x86_64-linux-gnu/ -static-libgcc -ldl
-
-#cgo darwin CFLAGS: -I/opt/datadog-agent6/embedded/include -I/usr/local/Cellar/net-snmp/5.7.3/include -DNETSNMP_NO_LEGACY_DEFINITIONS
-//Dynamic linking (enabled)
-#cgo darwin LDFLAGS: -L/opt/datadog-agent6/embedded/lib -L/usr/local/Cellar/net-snmp/5.7.3/lib/ -lnetsnmp
+#cgo pkg-config: net-snmp-5.7.3
 
 #include <stdlib.h>
 #include <net-snmp/net-snmp-config.h>
@@ -110,7 +103,7 @@ type SNMPCheck struct {
 }
 
 func (c *SNMPCheck) String() string {
-	return "SNMPCheck"
+	return "snmp"
 }
 
 func initCNetSnmpLib(cfg *snmpInitCfg) (err error) {

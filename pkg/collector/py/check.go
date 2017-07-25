@@ -155,7 +155,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	instance, err := c.getInstance(nil, kwargs)
 	if err != nil {
 		log.Warnf("could not get a check instance with the new api: %s", err)
-		log.Warn("trying to instantiate the check with the old api, passing initConfig to the constructor")
+		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
 
 		// try again, assuming the check is good but has still the old api
 		// we pass initConfig but emit a deprecation notice

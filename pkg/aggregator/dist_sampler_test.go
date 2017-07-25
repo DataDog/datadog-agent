@@ -4,15 +4,17 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/percentile"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
 func AssertSketchSeriesEqual(t *testing.T, expected, actual *percentile.SketchSeries) {
 	assert.Equal(t, expected.Name, actual.Name)
 	if expected.Tags != nil {
 		assert.NotNil(t, actual.Tags)
-		AssertTagsEqual(t, expected.Tags, actual.Tags)
+		metrics.AssertTagsEqual(t, expected.Tags, actual.Tags)
 	}
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.Interval, actual.Interval)
@@ -72,18 +74,18 @@ func (oss OrderedSketchSeries) Swap(i, j int) {
 func TestDistSamplerBucketSampling(t *testing.T) {
 	distSampler := NewDistSampler(10, "")
 
-	mSample1 := MetricSample{
+	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
 		Value:      1,
-		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "b"},
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
-	mSample2 := MetricSample{
+	mSample2 := metrics.MetricSample{
 		Name:       "test.metric.name",
 		Value:      2,
-		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "b"},
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
 	distSampler.addSample(&mSample1, 10001)
@@ -92,12 +94,12 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 	distSampler.addSample(&mSample2, 10012)
 	distSampler.addSample(&mSample1, 10021)
 
-	sketchSeries := distSampler.flush(10020)
+	sketchSeries := distSampler.flush(10020.0)
 
 	expectedSketch := percentile.NewQSketch()
-	expectedSketch.Add(1)
-	expectedSketch.Add(2)
-	expectedSketch.Compress()
+	expectedSketch = expectedSketch.Add(1)
+	expectedSketch = expectedSketch.Add(2)
+	expectedSketch = expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		Name:     "test.metric.name",
 		Tags:     []string{"a", "b"},
@@ -118,30 +120,30 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 func TestDistSamplerContextSampling(t *testing.T) {
 	distSampler := NewDistSampler(10, "")
 
-	mSample1 := MetricSample{
+	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
 		Value:      1,
-		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "b"},
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
-	mSample2 := MetricSample{
+	mSample2 := metrics.MetricSample{
 		Name:       "test.metric.name2",
 		Value:      1,
-		Mtype:      DistributionType,
-		Tags:       &[]string{"a", "c"},
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"a", "c"},
 		SampleRate: 1,
 	}
 	distSampler.addSample(&mSample1, 10011)
 	distSampler.addSample(&mSample2, 10011)
 
-	orderedSketchSeries := OrderedSketchSeries{distSampler.flush(10020)}
+	orderedSketchSeries := OrderedSketchSeries{distSampler.flush(10020.0)}
 	sort.Sort(orderedSketchSeries)
 	sketchSeries := orderedSketchSeries.sketchSeries
 
 	expectedSketch := percentile.NewQSketch()
-	expectedSketch.Add(1)
-	expectedSketch.Compress()
+	expectedSketch = expectedSketch.Add(1)
+	expectedSketch = expectedSketch.Compress()
 	expectedSeries1 := &percentile.SketchSeries{
 		Name:     "test.metric.name1",
 		Tags:     []string{"a", "b"},

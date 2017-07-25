@@ -57,31 +57,38 @@ func (f *forwarderBenchStub) Start() error {
 func (f *forwarderBenchStub) Stop() {
 	return
 }
-func (f *forwarderBenchStub) SubmitV1Series(apiKey string, payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitV1Series(payload *[]byte) error {
 	f.computeStats(payload)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(apiKey string, payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payload *[]byte) error {
 	f.computeStats(payload)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1CheckRuns(apiKey string, payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitV1CheckRuns(payload *[]byte) error {
 	f.computeStats(payload)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV2Series(apikey string, payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitV1SketchSeries(payload *[]byte) error {
+	f.computeStats(payload)
+	return nil
+}
+func (f *forwarderBenchStub) SubmitSeries(payload *[]byte) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitV2Events(apikey string, payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitEvents(payload *[]byte) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitV2CheckRuns(apikey string, payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitServiceChecks(payload *[]byte) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitV2HostMeta(apikey string, payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitSketchSeries(payload *[]byte) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitV2GenericMeta(apikey string, payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitHostMetadata(payload *[]byte) error {
+	return fmt.Errorf("v2 endpoint submission unimplemented")
+}
+func (f *forwarderBenchStub) SubmitMetadata(payload *[]byte) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
 

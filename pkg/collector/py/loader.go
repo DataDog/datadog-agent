@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/sbinet/go-python"
 
 	log "github.com/cihub/seelog"
@@ -20,7 +21,7 @@ type PythonCheckLoader struct {
 }
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader() *PythonCheckLoader {
+func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 	// Lock the GIL and release it at the end of the run
 	glock := newStickyLock()
 	defer glock.unlock()
@@ -28,16 +29,16 @@ func NewPythonCheckLoader() *PythonCheckLoader {
 	agentCheckModule := python.PyImport_ImportModule(agentCheckModuleName)
 	if agentCheckModule == nil {
 		log.Errorf("Unable to import Python module: %s", agentCheckModuleName)
-		return nil
+		return nil, fmt.Errorf("unable to initialize AgentCheck module")
 	}
 
 	agentCheckClass := agentCheckModule.GetAttrString(agentCheckClassName)
 	if agentCheckClass == nil {
 		log.Errorf("Unable to import %s class from Python module: %s", agentCheckClassName, agentCheckModuleName)
-		return nil
+		return nil, errors.New("unable to initialize AgentCheck class")
 	}
 
-	return &PythonCheckLoader{agentCheckClass}
+	return &PythonCheckLoader{agentCheckClass}, nil
 }
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
@@ -58,7 +59,6 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		}
 		return nil, errors.New(pyErr)
 	}
-
 	// Try to find a class inheriting from AgentCheck within the module
 	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule)
 	glock.unlock()
@@ -83,4 +83,12 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 func (cl *PythonCheckLoader) String() string {
 	return "Python Check Loader"
+}
+
+func init() {
+	factory := func() (check.Loader, error) {
+		return NewPythonCheckLoader()
+	}
+
+	loaders.RegisterLoader(10, factory)
 }

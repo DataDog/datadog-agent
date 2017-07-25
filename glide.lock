@@ -1,18 +1,18 @@
-hash: 496ebb52c95bf04b84b8beee352e431b677706b6949fa75a2991478c6ac48ab1
-updated: 2017-06-22T10:40:06.598557496+02:00
+hash: ce6d771ac6d8d1bcd81aa98e7fbd2a96eabd787efd67cd37d22256d53400cae3
+updated: 2017-07-21T12:32:25.957191396+02:00
 imports:
 - name: github.com/beevik/ntp
   version: cb3dae3a7588ae35829eb5724df611cd75152fba
 - name: github.com/cihub/seelog
   version: d2c6e5aa9fbfdd1c624e140287063c7730654115
 - name: github.com/coreos/etcd
-  version: 0f4a535c2fb7a2920e13e2e19b9eaf6b2e9285e5
+  version: 0520cb9304cb2385f7e72b8bc02d6e4d3257158a
   subpackages:
   - client
   - pkg/pathutil
   - pkg/types
 - name: github.com/DataDog/agent-payload
-  version: 0b7d55a8fb246702cc0321f68631d746c07d6ddb
+  version: 480a98b258fa6ee55641d7a9c3729770e5b2ba34
   subpackages:
   - gogen
 - name: github.com/DataDog/datadog-go
@@ -110,15 +110,26 @@ imports:
 - name: github.com/gogo/protobuf
   version: 909568be09de550ed094403c2bf8a261b5bb730a
   subpackages:
+  - gogoproto
   - proto
+  - protoc-gen-gogo/descriptor
 - name: github.com/golang/protobuf
-  version: 18c9bb3261723cd5401db4d0c9fbc5c3b6c70fe8
+  version: 4bd1920723d7b7c925de087aa32e2187708897f7
   subpackages:
+  - jsonpb
   - proto
 - name: github.com/gorilla/context
   version: 1ea25387ff6f684839d82767c1733ff4d4d15d0a
 - name: github.com/gorilla/mux
   version: bcd8bc72b08df0f70df986b97f95590779502d31
+- name: github.com/hashicorp/consul
+  version: 5473255f9816e2b64d52cc054470d600b007d821
+  subpackages:
+  - api
+- name: github.com/hashicorp/go-cleanhttp
+  version: 3573b8b52aa7b37b9358d966a898feb387f62437
+- name: github.com/hashicorp/go-rootcerts
+  version: 6bb64b370b90e7ef1fa532be9e591a81c3493e00
 - name: github.com/hashicorp/hcl
   version: 7fa7fff964d035e8a162cce3a164b3ad02ad651b
   subpackages:
@@ -130,6 +141,10 @@ imports:
   - json/parser
   - json/scanner
   - json/token
+- name: github.com/hashicorp/serf
+  version: 91fd53b1d3e624389ed9a295a3fa380e5c7b9dfc
+  subpackages:
+  - coordinate
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jhoonb/archivex
@@ -142,6 +157,8 @@ imports:
   version: 51463bfca2576e06c62a8504b5c0f06d61312647
 - name: github.com/Microsoft/go-winio
   version: fff283ad5116362ca252298cfc9b95828956d85d
+- name: github.com/mitchellh/go-homedir
+  version: b8bc1bf767474819792c23f32d8286a45736f1c6
 - name: github.com/mitchellh/mapstructure
   version: cc8532a8e9a55ea36402aa21efdf403a60d34096
 - name: github.com/mitchellh/reflectwalk
@@ -165,7 +182,7 @@ imports:
 - name: github.com/sbinet/go-python
   version: ba7e58341058bdefb92b359870caf2dc0a05cfcf
 - name: github.com/shirou/gopsutil
-  version: e30b7839cd6161b2fbef5f187377a345157abe04
+  version: aa0a3bce9d1f4efc710ed812f19f77851da2eedd
   subpackages:
   - cpu
   - disk

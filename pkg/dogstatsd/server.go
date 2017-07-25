@@ -10,8 +10,8 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
@@ -27,7 +27,7 @@ type Server struct {
 }
 
 // NewServer returns a running Dogstatsd server
-func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggregator.Event, serviceCheckOut chan<- aggregator.ServiceCheck) (*Server, error) {
+func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) (*Server, error) {
 	var conn net.PacketConn
 	var err error
 
@@ -71,7 +71,7 @@ func NewServer(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggreg
 	return s, nil
 }
 
-func (s *Server) handleMessages(metricOut chan<- *aggregator.MetricSample, eventOut chan<- aggregator.Event, serviceCheckOut chan<- aggregator.ServiceCheck) {
+func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 		defer s.Statistics.Stop()

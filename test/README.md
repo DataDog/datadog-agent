@@ -17,3 +17,14 @@ System Tests are launched with unit tests on every commit.
 
 System tests must not extend the project requirements and are therefore written
 in Go, Python or Shell.
+
+Requirements
+============
+
+Some python tests have dependencies. They are listed in **requirements-test.txt**.
+You should install them in some way on your system to be able to run every System Tests.
+
+example with `pip`
+```
+pip install -r requirements-test.txt
+```

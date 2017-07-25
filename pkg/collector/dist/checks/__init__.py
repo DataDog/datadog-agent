@@ -22,38 +22,43 @@ class AgentLogHandler(logging.Handler):
 rootLogger = logging.getLogger()
 rootLogger.addHandler(AgentLogHandler())
 
-class AgentCheck(object):
+class CheckException(Exception):
+    pass
 
-    RATE = "rate"
-    GAUGE = "gauge"
-    OK = 0
-    WARNING = 1
-    CRITICAL = 2
+class AgentCheck(object):
+    OK, WARNING, CRITICAL, UNKNOWN = (0, 1, 2, 3)
 
     def __init__(self, *args, **kwargs):
+        # `args` order is `name`, `init_config`, `agentConfig` (deprecated), `instances`
+
         self.metrics = defaultdict(list)
 
-        if len(args) == 0:
-            self.instances = kwargs.get('instances', [])
-            self.name = kwargs.get('name', '')
-            self.agentConfig = kwargs.get('agentConfig', {})
-        else:
+        self.instances = kwargs.get('instances', [])
+        self.name = kwargs.get('name', '')
+        self.init_config = kwargs.get('init_config', {})
+        self.agentConfig = kwargs.get('agentConfig', {})
+
+        if len(args) > 0:
             self.name = args[0]
-            self.agentConfig = args[1]
-            if 'instances' in kwargs:
-                self.instances = kwargs['instances']
-            elif len(args) == 3:
-                # no agentConfig
-                self.instances = args[2]
+        if len(args) > 1:
+            self.init_config = args[1]
+        if len(args) > 2:
+            if len(args) > 3 or 'instances' in kwargs:
+                # old-style init: the 3rd argument is `agentConfig`
+                self.agentConfig = args[2]
+                if len(args) > 3:
+                    self.instances = args[3]
             else:
-                # with agentConfig
-                self.instances = args[3]
+                # new-style init: the 3rd argument is `instances`
+                self.instances = args[2]
 
         # the agent5 'AgentCheck' setup a log attribute.
         self.log = logging.getLogger('%s.%s' % (__name__, self.name))
         # let every log pass through and let the Go logger filter them.
         # FIXME: get the log level from the agent global config and apply it to the python one.
         self.log.setLevel(logging.DEBUG)
+
+        self.default_integration_http_timeout = float(self.agentConfig.get('default_integration_http_timeout', 9))
 
         self._deprecations = {
             'increment' : [
@@ -66,6 +71,10 @@ class AgentCheck(object):
                 "DEPRECATION NOTICE: `device_name` is deprecated, please use a `device:` tag in the `tags` list instead",
             ],
         }
+
+    # FIXME(olivier): implement this method
+    def get_instance_proxy(self, instance, uri):
+        return {}
 
     def _submit_metric(self, mtype, name, value, tags=None, hostname=None, device_name=None):
         tags = self._normalize_tags(tags, device_name)
@@ -224,8 +233,11 @@ class AgentCheck(object):
 
         return normalized_tags
 
-    def warning(self, *args, **kwargs):
-        pass
+    def warning(self, warning_message):
+        # TODO: add the warning message to the info page, and send the warning as a service check
+        # to DD so that it shows up on the infrastructure page
+        warning_message = str(warning_message)
+        self.log.warning(warning_message)
 
     def run(self):
         try:

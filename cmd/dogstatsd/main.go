@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -52,6 +54,9 @@ extensions for special Datadog features.`,
 	socketPath string
 )
 
+// run the host metadata collector every 14400 seconds (4 hours)
+const hostMetadataCollectorInterval = 14400
+
 func init() {
 	// attach the command to the root
 	dogstatsdCmd.AddCommand(startCmd)
@@ -84,20 +89,35 @@ func start(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// for now we handle only one key and one domain
-	keysPerDomain := map[string][]string{
-		config.Datadog.GetString("dd_url"): {
-			config.Datadog.GetString("api_key"),
-		},
+	// setup the forwarder
+	keysPerDomain, err := config.GetMultipleEndpoints()
+	if err != nil {
+		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 	f := forwarder.NewDefaultForwarder(keysPerDomain)
 	f.Start()
 
 	hname, err := util.GetHostname()
 	if err != nil {
-		log.Warnf("Error getting hostname: %s\n", err)
+		log.Warnf("Error getting hostname: %s", err)
 		hname = ""
 	}
+	log.Debugf("Using hostname: %s", hname)
+
+	var metaScheduler *metadata.Scheduler
+	if config.Datadog.GetBool("enable_metadata_collection") {
+		// start metadata collection
+		metaScheduler := metadata.NewScheduler(f, hname)
+
+		// add the host metadata collector
+		err = metaScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
+		if err != nil {
+			panic("Host metadata is supposed to be always available in the catalog!")
+		}
+	} else {
+		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
+	}
+
 	aggregatorInstance := aggregator.InitAggregator(f, hname)
 	statsd, err := dogstatsd.NewServer(aggregatorInstance.GetChannels())
 	if err != nil {
@@ -112,6 +132,9 @@ func start(cmd *cobra.Command, args []string) error {
 	// Block here until we receive the interrupt signal
 	<-signalCh
 
+	if metaScheduler != nil {
+		metaScheduler.Stop()
+	}
 	statsd.Stop()
 	log.Info("See ya!")
 	log.Flush()

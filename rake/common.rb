@@ -13,6 +13,12 @@ def os
   end
 end
 
+# `tags` option
+def go_build_tags
+  build_tags = ENV['tags'] || "zstd snmp etcd zk cpython jmx apm docker ec2 gce"
+  build_tags = ENV['puppy'] == 'true' ? 'zlib' : build_tags
+end
+
 def go_fmt(path, fail_on_mod)
   out = `go fmt #{path}/...`
   errors = out.split("\n")

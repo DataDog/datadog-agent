@@ -1,3 +1,5 @@
+// +build linux windows darwin
+
 package v5
 
 import (

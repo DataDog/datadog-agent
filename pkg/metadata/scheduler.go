@@ -15,16 +15,14 @@ var catalog = make(map[string]Collector)
 // time intervals
 type Scheduler struct {
 	fwd      forwarder.Forwarder
-	apikey   string // the api key to use to send metadata
 	hostname string
 	tickers  []*time.Ticker
 }
 
 // NewScheduler builds and returns a new Metadata Scheduler
-func NewScheduler(fwd forwarder.Forwarder, apikey, hostname string) *Scheduler {
+func NewScheduler(fwd forwarder.Forwarder, hostname string) *Scheduler {
 	scheduler := &Scheduler{
 		fwd:      fwd,
-		apikey:   apikey,
 		hostname: hostname,
 	}
 
@@ -53,7 +51,7 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	ticker := time.NewTicker(interval)
 	go func() {
 		for _ = range ticker.C {
-			p.Send(c.apikey, c.fwd)
+			p.Send(c.fwd)
 		}
 	}()
 	c.tickers = append(c.tickers, ticker)
@@ -67,5 +65,5 @@ func (c *Scheduler) firstRun() error {
 	if !found {
 		panic("Unable to find 'host' metadata collector in the catalog!")
 	}
-	return p.Send(c.apikey, c.fwd)
+	return p.Send(c.fwd)
 }

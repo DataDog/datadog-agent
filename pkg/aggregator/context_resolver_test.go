@@ -6,14 +6,16 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestGenerateContextKey(t *testing.T) {
-	mSample := MetricSample{
+	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
 	}
@@ -23,39 +25,39 @@ func TestGenerateContextKey(t *testing.T) {
 }
 
 func TestTrackContext(t *testing.T) {
-	mSample1 := MetricSample{
+	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	mSample2 := MetricSample{
+	mSample2 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar", "baz"},
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	mSample3 := MetricSample{ // same as mSample2, with different Host
+	mSample3 := metrics.MetricSample{ // same as mSample2, with different Host
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar", "baz"},
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar", "baz"},
 		Host:       "metric-hostname",
 		SampleRate: 1,
 	}
 	expectedContext1 := Context{
 		Name: mSample1.Name,
-		Tags: *(mSample1.Tags),
+		Tags: mSample1.Tags,
 	}
 	expectedContext2 := Context{
 		Name: mSample2.Name,
-		Tags: *(mSample2.Tags),
+		Tags: mSample2.Tags,
 	}
 	expectedContext3 := Context{
 		Name: mSample3.Name,
-		Tags: *(mSample3.Tags),
+		Tags: mSample3.Tags,
 		Host: mSample3.Host,
 	}
 	contextResolver := newContextResolver()
@@ -81,18 +83,18 @@ func TestTrackContext(t *testing.T) {
 }
 
 func TestExpireContexts(t *testing.T) {
-	mSample1 := MetricSample{
+	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar"},
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	mSample2 := MetricSample{
+	mSample2 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
-		Mtype:      GaugeType,
-		Tags:       &[]string{"foo", "bar", "baz"},
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
 	contextResolver := newContextResolver()

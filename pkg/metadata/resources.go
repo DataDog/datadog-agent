@@ -3,6 +3,7 @@ package metadata
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
@@ -15,9 +16,9 @@ import (
 type ResourcesCollector struct{}
 
 // Send collects the data needed and submits the payload
-func (rp *ResourcesCollector) Send(apiKey string, fwd forwarder.Forwarder) error {
+func (rp *ResourcesCollector) Send(fwd forwarder.Forwarder) error {
 	var hostname string
-	x, found := util.Cache.Get("hostname")
+	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
 	if found {
 		hostname = x.(string)
 	}
@@ -31,7 +32,7 @@ func (rp *ResourcesCollector) Send(apiKey string, fwd forwarder.Forwarder) error
 		return fmt.Errorf("unable to serialize processes metadata payload, %s", err)
 	}
 
-	err = fwd.SubmitV1Intake(apiKey, &payloadBytes)
+	err = fwd.SubmitV1Intake(&payloadBytes)
 	if err != nil {
 		return fmt.Errorf("unable to submit processes metadata payload to the forwarder, %s", err)
 	}

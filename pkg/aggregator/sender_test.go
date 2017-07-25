@@ -7,6 +7,8 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func resetAggregator() {
@@ -87,8 +89,8 @@ func TestDestroySender(t *testing.T) {
 
 func TestCheckSenderInterface(t *testing.T) {
 	senderMetricSampleChan := make(chan senderMetricSample, 10)
-	serviceCheckChan := make(chan ServiceCheck, 10)
-	eventChan := make(chan Event, 10)
+	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	eventChan := make(chan metrics.Event, 10)
 	checkSender := newCheckSender(checkID1, senderMetricSampleChan, serviceCheckChan, eventChan)
 	checkSender.Gauge("my.metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
@@ -96,15 +98,15 @@ func TestCheckSenderInterface(t *testing.T) {
 	checkSender.MonotonicCount("my.monotonic_count_metric", 12.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Commit()
-	checkSender.ServiceCheck("my_service.can_connect", ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
-	submittedEvent := Event{
+	checkSender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
+	submittedEvent := metrics.Event{
 		Title:          "Something happened",
 		Text:           "Description of the event",
 		Ts:             12,
-		Priority:       EventPriorityLow,
+		Priority:       metrics.EventPriorityLow,
 		Host:           "my-hostname",
 		Tags:           []string{"foo", "bar"},
-		AlertType:      EventAlertTypeInfo,
+		AlertType:      metrics.EventAlertTypeInfo,
 		AggregationKey: "event_agg_key",
 		SourceTypeName: "docker",
 	}
@@ -112,27 +114,27 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	gaugeSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, gaugeSenderSample.id)
-	assert.Equal(t, GaugeType, gaugeSenderSample.metricSample.Mtype)
+	assert.Equal(t, metrics.GaugeType, gaugeSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, gaugeSenderSample.commit)
 
 	rateSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, rateSenderSample.id)
-	assert.Equal(t, RateType, rateSenderSample.metricSample.Mtype)
+	assert.Equal(t, metrics.RateType, rateSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, rateSenderSample.commit)
 
 	countSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, countSenderSample.id)
-	assert.Equal(t, CountType, countSenderSample.metricSample.Mtype)
+	assert.Equal(t, metrics.CountType, countSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, countSenderSample.commit)
 
 	monotonicCountSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, monotonicCountSenderSample.id)
-	assert.Equal(t, MonotonicCountType, monotonicCountSenderSample.metricSample.Mtype)
+	assert.Equal(t, metrics.MonotonicCountType, monotonicCountSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, monotonicCountSenderSample.commit)
 
 	histoSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, histoSenderSample.id)
-	assert.Equal(t, HistogramType, histoSenderSample.metricSample.Mtype)
+	assert.Equal(t, metrics.HistogramType, histoSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, histoSenderSample.commit)
 
 	commitSenderSample := <-senderMetricSampleChan
@@ -141,7 +143,7 @@ func TestCheckSenderInterface(t *testing.T) {
 
 	serviceCheck := <-serviceCheckChan
 	assert.Equal(t, "my_service.can_connect", serviceCheck.CheckName)
-	assert.Equal(t, ServiceCheckOK, serviceCheck.Status)
+	assert.Equal(t, metrics.ServiceCheckOK, serviceCheck.Status)
 	assert.Equal(t, "my-hostname", serviceCheck.Host)
 	assert.Equal(t, []string{"foo", "bar"}, serviceCheck.Tags)
 	assert.Equal(t, "message", serviceCheck.Message)

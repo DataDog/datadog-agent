@@ -39,9 +39,10 @@ import:
 - package: github.com/DataDog/zstd
 - package: github.com/gogo/protobuf
   subpackages:
+  - gogoproto
   - proto
 - package: github.com/DataDog/agent-payload
-  version: ^4.1
+  version: ^4.3
 - package: github.com/patrickmn/go-cache
   version: ^2.0.0
 - package: github.com/k-sone/snmpgo
@@ -59,3 +60,4 @@ import:
 - package: github.com/jhoonb/archivex
   version: be4efa7ec0c38ab76d56037014c90d48d6b13037
 - package: github.com/samuel/go-zookeeper/zk
+- package: github.com/hashicorp/consul/api

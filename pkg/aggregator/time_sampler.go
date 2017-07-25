@@ -3,9 +3,11 @@ package aggregator
 import (
 	"sort"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-const defaultExpiry = 300 * time.Second // duration after which contexts are expired
+const defaultExpiry = 300.0 // number of seconds after which contexts are expired
 
 // Wrapper for sorting an int64 array
 type int64s []int64
@@ -23,7 +25,7 @@ func (a int64s) Swap(i, j int) {
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
 // from the same bucket can be merged into one
 type SerieSignature struct {
-	mType      APIMetricType
+	mType      metrics.APIMetricType
 	contextKey string
 	nameSuffix string
 }
@@ -32,7 +34,7 @@ type SerieSignature struct {
 type TimeSampler struct {
 	interval                    int64
 	contextResolver             *ContextResolver
-	metricsByTimestamp          map[int64]ContextMetrics
+	metricsByTimestamp          map[int64]metrics.ContextMetrics
 	defaultHostname             string
 	counterLastSampledByContext map[string]int64
 	lastCutOffTime              int64
@@ -43,38 +45,38 @@ func NewTimeSampler(interval int64, defaultHostname string) *TimeSampler {
 	return &TimeSampler{
 		interval:                    interval,
 		contextResolver:             newContextResolver(),
-		metricsByTimestamp:          map[int64]ContextMetrics{},
+		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		defaultHostname:             defaultHostname,
 		counterLastSampledByContext: map[string]int64{},
 	}
 }
 
-func (s *TimeSampler) calculateBucketStart(timestamp int64) int64 {
-	return timestamp - timestamp%s.interval
+func (s *TimeSampler) calculateBucketStart(timestamp float64) int64 {
+	return int64(timestamp) - int64(timestamp)%s.interval
 }
 
 // Add the metricSample to the correct bucket
-func (s *TimeSampler) addSample(metricSample *MetricSample, timestamp int64) {
+func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
 
 	bucketStart := s.calculateBucketStart(timestamp)
 	// If it's a new bucket, initialize it
-	metrics, ok := s.metricsByTimestamp[bucketStart]
+	bucketMetrics, ok := s.metricsByTimestamp[bucketStart]
 	if !ok {
-		metrics = makeContextMetrics()
-		s.metricsByTimestamp[bucketStart] = metrics
+		bucketMetrics = metrics.MakeContextMetrics()
+		s.metricsByTimestamp[bucketStart] = bucketMetrics
 	}
 
 	// Add sample to bucket
-	metrics.addSample(contextKey, metricSample, timestamp, s.interval)
+	bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval)
 }
 
 func (s *TimeSampler) flush(timestamp int64) []*Serie {
-	var result []*Serie
+	var result []*metrics.Serie
 	var rawSeries []*Serie
 
-	serieBySignature := make(map[SerieSignature]*Serie)
+	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)

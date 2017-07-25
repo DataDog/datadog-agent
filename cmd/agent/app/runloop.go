@@ -43,14 +43,6 @@ const hostMetadataCollectorInterval = 14400
 
 // StartAgent Initializes the agent process
 func StartAgent() {
-
-	if pidfilePath != "" {
-		err := pidfile.WritePID(pidfilePath)
-		if err != nil {
-			panic(err)
-		}
-	}
-
 	// Global Agent configuration
 	common.SetupConfig(confFilePath)
 
@@ -58,6 +50,16 @@ func StartAgent() {
 	err := config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
 	if err != nil {
 		panic(err)
+	}
+
+	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
+
+	if pidfilePath != "" {
+		err := pidfile.WritePID(pidfilePath)
+		if err != nil {
+			panic(err)
+		}
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
 	}
 
 	hostname, err := util.GetHostname()
@@ -69,18 +71,15 @@ func StartAgent() {
 	key := path.Join(util.AgentCachePrefix, "hostname")
 	util.Cache.Set(key, hostname, util.NoExpiration)
 
-	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	log.Infof("Hostname is: %s", hostname)
 
 	// start the cmd HTTP server
 	api.StartServer()
 
 	// setup the forwarder
-	// for now we handle only one key and one domain
-	keysPerDomain := map[string][]string{
-		config.Datadog.GetString("dd_url"): {
-			config.Datadog.GetString("api_key"),
-		},
+	keysPerDomain, err := config.GetMultipleEndpoints()
+	if err != nil {
+		log.Error("Misconfiguration of agent endpoints: ", err)
 	}
 	common.Forwarder = forwarder.NewDefaultForwarder(keysPerDomain)
 	log.Debugf("Starting forwarder")
@@ -105,31 +104,34 @@ func StartAgent() {
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
-	common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, config.Datadog.GetString("api_key"), hostname)
-	var C []config.MetadataProviders
-	err = config.Datadog.UnmarshalKey("metadata_providers", &C)
-	if err == nil {
-		log.Debugf("Adding configured providers to the metadata collector")
-		for _, c := range C {
-			if c.Name == "host" {
-				continue
+	if config.Datadog.GetBool("enable_metadata_collection") {
+		common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, hostname)
+		var C []config.MetadataProviders
+		err = config.Datadog.UnmarshalKey("metadata_providers", &C)
+		if err == nil {
+			log.Debugf("Adding configured providers to the metadata collector")
+			for _, c := range C {
+				if c.Name == "host" {
+					continue
+				}
+				intl := c.Interval * time.Second
+				err = common.MetadataScheduler.AddCollector(c.Name, intl)
+				if err != nil {
+					log.Errorf("Unable to add '%s' metadata provider: %v", c.Name, err)
+				} else {
+					log.Infof("Scheduled metadata provider '%v' to run every %v", c.Name, intl)
+				}
 			}
-			intl := c.Interval * time.Second
-			err = common.MetadataScheduler.AddCollector(c.Name, intl)
-			if err != nil {
-				log.Errorf("Unable to add '%s' metadata provider: %v", c.Name, err)
-			} else {
-				log.Infof("Scheduled metadata provider '%v' to run every %v", c.Name, intl)
-			}
+		} else {
+			log.Errorf("Unable to parse metadata_providers config: %v", err)
+		}
+		// Should be always true, except in some edge cases (multiple agents per host)
+		err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
+		if err != nil {
+			panic("Host metadata is supposed to be always available in the catalog!")
 		}
 	} else {
-		log.Errorf("Unable to parse metadata_providers config: %v", err)
-	}
-
-	// always add the host metadata collector, this is not user-configurable by design
-	err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
-	if err != nil {
-		panic("Host metadata is supposed to be always available in the catalog!")
+		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
 	}
 }
 
@@ -140,7 +142,9 @@ func StopAgent() {
 		common.DSD.Stop()
 	}
 	common.AC.Stop()
-	common.MetadataScheduler.Stop()
+	if common.MetadataScheduler != nil {
+		common.MetadataScheduler.Stop()
+	}
 	api.StopServer()
 	common.Forwarder.Stop()
 	os.Remove(pidfilePath)

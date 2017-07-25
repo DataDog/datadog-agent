@@ -1,3 +1,5 @@
+// +build jmx
+
 package embed
 
 import (
@@ -67,7 +69,8 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	config.Datadog.Set("jmx_pipe_path", tmp)
 
-	jl := NewJMXCheckLoader()
+	jl, err := NewJMXCheckLoader()
+	assert.Nil(t, err)
 	assert.NotNil(t, jl)
 
 	f, err := getFile()

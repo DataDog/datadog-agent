@@ -1,3 +1,5 @@
+// +build linux windows darwin
+
 package resources
 
 import (

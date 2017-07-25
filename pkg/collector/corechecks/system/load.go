@@ -22,7 +22,7 @@ type LoadCheck struct {
 }
 
 func (c *LoadCheck) String() string {
-	return "LoadCheck"
+	return "load"
 }
 
 // Run executes the check

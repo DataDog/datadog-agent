@@ -3,8 +3,15 @@ require_relative './rake/agent'
 require_relative './rake/dogstatsd'
 require_relative './rake/benchmarks'
 require_relative './rake/docker'
+require_relative './rake/py-launcher'
 
-PKG_CONFIG_LIBDIR=File.join(Dir.pwd, "pkg-config", os)
+# Only add 'embedded' pkg-config dir to the env's PKG_CONFIG_PATH if the embedded python/libs are used
+# In that case it should be the first path so that the 'embedded' dir takes precedence over the 'system' one
+PKG_CONFIG_EMBEDDED_PATH=File.join(Dir.pwd, "pkg-config", os, "embedded")
+# Always add 'system' pkg-config dir to the env's PKG_CONFIG_PATH
+PKG_CONFIG_PATH=File.join(Dir.pwd, "pkg-config", os, "system")
+ENV["PKG_CONFIG_PATH"] = ENV.has_key?("PKG_CONFIG_PATH") ? "#{PKG_CONFIG_PATH}:#{ENV['PKG_CONFIG_PATH']}" : PKG_CONFIG_PATH
+
 ORG_PATH="github.com/DataDog"
 REPO_PATH="#{ORG_PATH}/datadog-agent"
 TARGETS = %w[./pkg ./cmd]
@@ -42,7 +49,7 @@ task :vet do
   end
 end
 
-desc "Run testsuite, pass 'race=true' to invoke the race detector"
+desc "Run testsuite [race=false|tags=*|puppy=false]"
 task :test => %w[fmt lint vet] do
   PROFILE = "profile.cov"  # collect global coverage data in this file
   `echo "mode: count" > #{PROFILE}`
@@ -65,11 +72,11 @@ task :test => %w[fmt lint vet] do
       # Check if we should use Embedded or System Python,
       # default to the embedded one.
       env = {}
-      if !ENV["USE_SYSTEM_PY"]
-        env["PKG_CONFIG_LIBDIR"] = "#{PKG_CONFIG_LIBDIR}"
+      if !ENV["USE_SYSTEM_LIBS"]
+        env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
       end
 
-      system(env, "go test #{race_opt} -short #{covermode_opt} -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
+      system(env, "go test -tags '#{go_build_tags}' #{race_opt} -short #{covermode_opt} -coverprofile=#{profile_tmp} #{pkg_folder}") || exit(1)
       if File.file?(profile_tmp)
         `cat #{profile_tmp} | tail -n +2 >> #{PROFILE}`
         File.delete(profile_tmp)
@@ -81,7 +88,7 @@ task :test => %w[fmt lint vet] do
 end
 
 desc "Run every system tests"
-task system_test: %w[dogstatsd:system_test]
+task system_test: %w[dogstatsd:system_test] # FIXME: re-enable pylauncher:system_test once they're fixed
 
 desc "Build allthethings"
-task build: %w[agent:build dogstatsd:build]
+task build: %w[agent:build dogstatsd:build pylauncher:build]

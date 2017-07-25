@@ -3,6 +3,7 @@ package metadata
 import (
 	"encoding/json"
 	"fmt"
+	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
@@ -15,20 +16,21 @@ import (
 type HostCollector struct{}
 
 // Send collects the data needed and submits the payload
-func (hp *HostCollector) Send(apiKey string, fwd forwarder.Forwarder) error {
+func (hp *HostCollector) Send(fwd forwarder.Forwarder) error {
 	var hostname string
-	x, found := util.Cache.Get("hostname")
+	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
 	if found {
 		hostname = x.(string)
 	}
 
 	payload := v5.GetPayload(hostname)
+
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("unable to serialize host metadata payload, %s", err)
 	}
 
-	err = fwd.SubmitV1Intake(apiKey, &payloadBytes)
+	err = fwd.SubmitV1Intake(&payloadBytes)
 	if err != nil {
 		return fmt.Errorf("unable to submit host metadata payload to the forwarder, %s", err)
 	}

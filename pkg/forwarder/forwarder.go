@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	log "github.com/cihub/seelog"
-
-	"github.com/DataDog/zstd"
 )
 
 var (
@@ -19,27 +19,41 @@ var (
 
 	forwarderExpvar      = expvar.NewMap("forwarder")
 	transactionsCreation = expvar.Map{}
+	retryQueueSize       = expvar.Int{}
+
+	apiKeyStatus        = expvar.Map{}
+	apiKeyStatusUnknown = expvar.String{}
+	apiKeyInvalid       = expvar.String{}
+	apiKeyValid         = expvar.String{}
 )
 
 func init() {
 	transactionsCreation.Init()
+	apiKeyStatus.Init()
+	forwarderExpvar.Set("APIKeyStatus", &apiKeyStatus)
 	forwarderExpvar.Set("TransactionsCreated", &transactionsCreation)
+	transactionsCreation.Set("RetryQueueSize", &retryQueueSize)
+
+	apiKeyStatusUnknown.Set("Unable to validate API Key")
+	apiKeyInvalid.Set("API Key invalid")
+	apiKeyValid.Set("API Key valid")
 }
 
 const (
 	defaultNumberOfWorkers = 4
 	chanBufferSize         = 100
 
-	v1SeriesEndpoint       = "/api/v1/series?api_key=%s"
-	v1CheckRunsEndpoint    = "/api/v1/check_run?api_key=%s"
-	v1IntakeEndpoint       = "/intake/?api_key=%s"
-	v1SketchSeriesEndpoint = "/api/v1/sketches?api_key=%s"
+	v1SeriesEndpoint       = "/api/v1/series"
+	v1CheckRunsEndpoint    = "/api/v1/check_run"
+	v1IntakeEndpoint       = "/intake/"
+	v1SketchSeriesEndpoint = "/api/v1/sketches"
 
-	seriesEndpoint       = "/api/v2/series"
-	eventsEndpoint       = "/api/v2/events"
-	checkRunsEndpoint    = "/api/v2/check_runs"
-	hostMetadataEndpoint = "/api/v2/host_metadata"
-	metadataEndpoint     = "/api/v2/metadata"
+	seriesEndpoint        = "/api/v2/series"
+	eventsEndpoint        = "/api/v2/events"
+	serviceChecksEndpoint = "/api/v2/service_checks"
+	sketchSeriesEndpoint  = "/api/v2/sketches"
+	hostMetadataEndpoint  = "/api/v2/host_metadata"
+	metadataEndpoint      = "/api/v2/metadata"
 
 	apiHTTPHeaderKey = "DD-Api-Key"
 )
@@ -63,15 +77,16 @@ type Transaction interface {
 type Forwarder interface {
 	Start() error
 	Stop()
-	SubmitV1Series(apiKey string, payload *[]byte) error
-	SubmitV1Intake(apiKey string, payload *[]byte) error
-	SubmitV1CheckRuns(apiKey string, payload *[]byte) error
-	SubmitV2Series(apikey string, payload *[]byte) error
-	SubmitV2Events(apikey string, payload *[]byte) error
-	SubmitV2CheckRuns(apikey string, payload *[]byte) error
-	SubmitV2HostMeta(apikey string, payload *[]byte) error
-	SubmitV2GenericMeta(apikey string, payload *[]byte) error
-	SubmitV1SketchSeries(apiKey string, payload *[]byte) error
+	SubmitV1Series(payload *[]byte) error
+	SubmitV1Intake(payload *[]byte) error
+	SubmitV1CheckRuns(payload *[]byte) error
+	SubmitV1SketchSeries(payload *[]byte) error
+	SubmitSeries(payload *[]byte) error
+	SubmitEvents(payload *[]byte) error
+	SubmitServiceChecks(payload *[]byte) error
+	SubmitSketchSeries(payload *[]byte) error
+	SubmitHostMetadata(payload *[]byte) error
+	SubmitMetadata(payload *[]byte) error
 }
 
 // DefaultForwarder is in charge of receiving transaction payloads and sending them to Datadog backend over HTTP.
@@ -119,7 +134,7 @@ func (f *DefaultForwarder) retryTransactions(tickTime time.Time) {
 		}
 	}
 	f.retryQueue = newQueue
-	transactionsCreation.Add("RetryQueueSize", int64(len(f.retryQueue)))
+	retryQueueSize.Set(int64(len(f.retryQueue)))
 }
 
 func (f *DefaultForwarder) requeueTransaction(t Transaction) {
@@ -171,6 +186,14 @@ func (f *DefaultForwarder) Start() error {
 	go f.handleFailedTransactions()
 	f.internalState = Started
 	log.Infof("DefaultForwarder started (%v workers)", f.NumberOfWorkers)
+
+	// log endpoints configuration
+	endpointLogs := make([]string, 0, len(f.KeysPerDomains))
+	for domain, apiKeys := range f.KeysPerDomains {
+		endpointLogs = append(endpointLogs, fmt.Sprintf("\"%s\" (%v api key(s))", domain, len(apiKeys)))
+	}
+	log.Infof("DefaultForwarder sending to %v endpoint(s): %s", len(endpointLogs), strings.Join(endpointLogs, " ; "))
+
 	return nil
 }
 
@@ -203,9 +226,9 @@ func (f *DefaultForwarder) Stop() {
 	log.Info("DefaultForwarder stopped")
 }
 
-func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payload *[]byte, compress bool) ([]*HTTPTransaction, error) {
+func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payload *[]byte, compress bool, apiKeyInQueryString bool) ([]*HTTPTransaction, error) {
 	if compress && payload != nil {
-		compressPayload, err := zstd.Compress(nil, *payload)
+		compressPayload, err := compression.Compress(nil, *payload)
 		if err != nil {
 			return nil, err
 		}
@@ -215,11 +238,16 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payload *[]by
 	transactions := []*HTTPTransaction{}
 	for domain, apiKeys := range f.KeysPerDomains {
 		for _, apiKey := range apiKeys {
+			transactionEndpoint := endpoint
+			if apiKeyInQueryString {
+				transactionEndpoint = fmt.Sprintf("%s?api_key=%s", endpoint, apiKey)
+			}
 			t := NewHTTPTransaction()
 			t.Domain = domain
-			t.Endpoint = endpoint
+			t.Endpoint = transactionEndpoint
 			t.Payload = payload
 			t.Headers.Set(apiHTTPHeaderKey, apiKey)
+			t.apiKeyStatusKey = fmt.Sprintf("%s,%s", domain, fmt.Sprintf("*************************%s", apiKey[len(apiKey)-5:]))
 			transactions = append(transactions, t)
 		}
 	}
@@ -238,20 +266,20 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 	return nil
 }
 
-// SubmitTimeseries will send a timeserie type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitTimeseries(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(seriesEndpoint, payload, true)
+// SubmitSeries will send a series type payload to Datadog backend.
+func (f *DefaultForwarder) SubmitSeries(payload *[]byte) error {
+	transactions, err := f.createHTTPTransactions(seriesEndpoint, payload, true, false)
 	if err != nil {
 		return err
 	}
 
-	transactionsCreation.Add("Timeseries", 1)
+	transactionsCreation.Add("Series", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
-// SubmitEvent will send a event type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitEvent(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(eventsEndpoint, payload, true)
+// SubmitEvents will send an event type payload to Datadog backend.
+func (f *DefaultForwarder) SubmitEvents(payload *[]byte) error {
+	transactions, err := f.createHTTPTransactions(eventsEndpoint, payload, true, false)
 	if err != nil {
 		return err
 	}
@@ -260,20 +288,31 @@ func (f *DefaultForwarder) SubmitEvent(payload *[]byte) error {
 	return f.sendHTTPTransactions(transactions)
 }
 
-// SubmitCheckRun will send a check_run type payload to Datadog backend.
-func (f *DefaultForwarder) SubmitCheckRun(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(checkRunsEndpoint, payload, true)
+// SubmitServiceChecks will send a service check type payload to Datadog backend.
+func (f *DefaultForwarder) SubmitServiceChecks(payload *[]byte) error {
+	transactions, err := f.createHTTPTransactions(serviceChecksEndpoint, payload, true, false)
 	if err != nil {
 		return err
 	}
 
-	transactionsCreation.Add("CheckRuns", 1)
+	transactionsCreation.Add("ServiceChecks", 1)
+	return f.sendHTTPTransactions(transactions)
+}
+
+// SubmitSketchSeries will send payloads to v2 endpoint - PROTOTYPE FOR PERCENTILE
+// Prototype for Percentiles: same as for SubmitV1SketchSeries method for now.
+func (f *DefaultForwarder) SubmitSketchSeries(payload *[]byte) error {
+	transactions, err := f.createHTTPTransactions(sketchSeriesEndpoint, payload, false, true)
+	if err != nil {
+		return err
+	}
+	transactionsCreation.Add("SketchSeries", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(hostMetadataEndpoint, payload, true)
+	transactions, err := f.createHTTPTransactions(hostMetadataEndpoint, payload, true, false)
 	if err != nil {
 		return err
 	}
@@ -284,7 +323,7 @@ func (f *DefaultForwarder) SubmitHostMetadata(payload *[]byte) error {
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitMetadata(payload *[]byte) error {
-	transactions, err := f.createHTTPTransactions(metadataEndpoint, payload, true)
+	transactions, err := f.createHTTPTransactions(metadataEndpoint, payload, true, false)
 	if err != nil {
 		return err
 	}
@@ -295,9 +334,8 @@ func (f *DefaultForwarder) SubmitMetadata(payload *[]byte) error {
 
 // SubmitV1Series will send timeserie to v1 endpoint (this will be remove once
 // the backend handles v2 endpoints).
-func (f *DefaultForwarder) SubmitV1Series(apiKey string, payload *[]byte) error {
-	endpoint := fmt.Sprintf(v1SeriesEndpoint, apiKey)
-	transactions, err := f.createHTTPTransactions(endpoint, payload, false)
+func (f *DefaultForwarder) SubmitV1Series(payload *[]byte) error {
+	transactions, err := f.createHTTPTransactions(v1SeriesEndpoint, payload, false, true)
 	if err != nil {
 		return err
 	}
@@ -308,9 +346,8 @@ func (f *DefaultForwarder) SubmitV1Series(apiKey string, payload *[]byte) error 
 
 // SubmitV1CheckRuns will send service checks to v1 endpoint (this will be removed once
 // the backend handles v2 endpoints).
-func (f *DefaultForwarder) SubmitV1CheckRuns(apiKey string, payload *[]byte) error {
-	endpoint := fmt.Sprintf(v1CheckRunsEndpoint, apiKey)
-	transactions, err := f.createHTTPTransactions(endpoint, payload, false)
+func (f *DefaultForwarder) SubmitV1CheckRuns(payload *[]byte) error {
+	transactions, err := f.createHTTPTransactions(v1CheckRunsEndpoint, payload, false, true)
 	if err != nil {
 		return err
 	}
@@ -320,9 +357,8 @@ func (f *DefaultForwarder) SubmitV1CheckRuns(apiKey string, payload *[]byte) err
 }
 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
-func (f *DefaultForwarder) SubmitV1Intake(apiKey string, payload *[]byte) error {
-	endpoint := fmt.Sprintf(v1IntakeEndpoint, apiKey)
-	transactions, err := f.createHTTPTransactions(endpoint, payload, false)
+func (f *DefaultForwarder) SubmitV1Intake(payload *[]byte) error {
+	transactions, err := f.createHTTPTransactions(v1IntakeEndpoint, payload, false, true)
 	if err != nil {
 		return err
 	}
@@ -337,37 +373,11 @@ func (f *DefaultForwarder) SubmitV1Intake(apiKey string, payload *[]byte) error 
 }
 
 // SubmitV1SketchSeries will send payloads to v1 endpoint
-func (f *DefaultForwarder) SubmitV1SketchSeries(apiKey string, payload *[]byte) error {
-	endpoint := fmt.Sprintf(v1SketchSeriesEndpoint, apiKey)
-	transactions, err := f.createHTTPTransactions(endpoint, payload, false)
+func (f *DefaultForwarder) SubmitV1SketchSeries(payload *[]byte) error {
+	transactions, err := f.createHTTPTransactions(v1SketchSeriesEndpoint, payload, false, true)
 	if err != nil {
 		return err
 	}
-	transactionsCreation.Add("SketchSeries", 1)
+	transactionsCreation.Add("SketchSeriesV1", 1)
 	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitV2Series will send service checks to v2 endpoint - UNIMPLEMENTED
-func (f *DefaultForwarder) SubmitV2Series(apikey string, payload *[]byte) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
-}
-
-// SubmitV2Events will send events to v2 endpoint - UNIMPLEMENTED
-func (f *DefaultForwarder) SubmitV2Events(apikey string, payload *[]byte) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
-}
-
-// SubmitV2CheckRuns will send service checks to v2 endpoint - UNIMPLEMENTED
-func (f *DefaultForwarder) SubmitV2CheckRuns(apikey string, payload *[]byte) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
-}
-
-// SubmitV2HostMeta will send host metadata to v2 endpoint - UNIMPLEMENTED
-func (f *DefaultForwarder) SubmitV2HostMeta(apikey string, payload *[]byte) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
-}
-
-// SubmitV2GenericMeta will send generic metadata to v2 endpoint - UNIMPLEMENTED
-func (f *DefaultForwarder) SubmitV2GenericMeta(apikey string, payload *[]byte) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
