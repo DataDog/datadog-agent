@@ -5,12 +5,13 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	log "github.com/cihub/seelog"
 )
 
 // LoaderFactory helps to defer actual instantiation of Check Loaders,
 // mostly helpful with code involving calls to cgo (for example, the Python
 // interpreter might not be initialized when `init`ing a package)
-type LoaderFactory func() check.Loader
+type LoaderFactory func() (check.Loader, error)
 
 var factoryCatalog = make(map[int][]LoaderFactory)
 var loaderCatalog = []check.Loader{}
@@ -37,7 +38,13 @@ func LoaderCatalog() []check.Loader {
 		// the final slice of loaders
 		for _, k := range keys {
 			for _, factory := range factoryCatalog[k] {
-				loaderCatalog = append(loaderCatalog, factory())
+				loader, err := factory()
+				if err != nil {
+					log.Infof("Failed to instantiate %s: %v", loader, err)
+					continue
+				}
+
+				loaderCatalog = append(loaderCatalog, loader)
 			}
 		}
 

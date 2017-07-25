@@ -9,7 +9,7 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-	l := NewPythonCheckLoader()
+	l, _ := NewPythonCheckLoader()
 	config := check.Config{Name: "testcheck"}
 	config.Instances = append(config.Instances, []byte("foo: bar"))
 	config.Instances = append(config.Instances, []byte("bar: baz"))
@@ -38,6 +38,7 @@ func TestLoad(t *testing.T) {
 }
 
 func TestNewPythonCheckLoader(t *testing.T) {
-	loader := NewPythonCheckLoader()
+	loader, err := NewPythonCheckLoader()
+	assert.Nil(t, err)
 	assert.NotNil(t, loader)
 }

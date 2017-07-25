@@ -25,12 +25,8 @@ func SetupAutoConfig(confdPath string) {
 
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog() {
-		if loader != nil {
-			AC.AddLoader(loader)
-			log.Debugf("Added %s to AutoConfig", loader)
-		} else {
-			log.Infof("Failed to instantiate %s", loader)
-		}
+		AC.AddLoader(loader)
+		log.Debugf("Added %s to AutoConfig", loader)
 	}
 
 	// add the configuration providers
