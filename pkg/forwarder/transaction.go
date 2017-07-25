@@ -24,8 +24,9 @@ type HTTPTransaction struct {
 	// ErrorCount is the number of times this HTTPTransaction failed to be processed.
 	ErrorCount int
 
-	nextFlush time.Time
-	createdAt time.Time
+	apiKeyStatusKey string
+	nextFlush       time.Time
+	createdAt       time.Time
 }
 
 const (
@@ -81,14 +82,26 @@ func (t *HTTPTransaction) Process(client *http.Client) error {
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code '%s' received while sending transaction to '%s': %s, dropping it", resp.Status, logURL, string(body))
 		transactionsCreation.Add("Dropped", 1)
+		if apiKeyStatus.Get(t.apiKeyStatusKey) == nil {
+			apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyStatusUnknown)
+		}
+		return nil
+	} else if resp.StatusCode == 403 {
+		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
+		transactionsCreation.Add("Dropped", 1)
+		apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyInvalid)
 		return nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsCreation.Add("Errors", 1)
+		if apiKeyStatus.Get(t.apiKeyStatusKey) == nil {
+			apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyStatusUnknown)
+		}
 		return fmt.Errorf("Error '%s' while sending transaction to '%s', rescheduling it", resp.Status, logURL)
 	}
 
 	transactionsCreation.Add("Success", 1)
+	apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyValid)
 	log.Debugf("successfully posted payload to '%s': %s", logURL, string(body))
 	return nil
 }
