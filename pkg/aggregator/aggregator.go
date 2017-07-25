@@ -296,9 +296,7 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 		Status:    metrics.ServiceCheckOK,
 	})
 
-	// Clear the current service check slice
-	serviceChecks := agg.serviceChecks
-	agg.serviceChecks = nil
+	serviceChecks := agg.GetServiceChecks()
 
 	// Serialize and forward in a separate goroutine
 	go func() {
