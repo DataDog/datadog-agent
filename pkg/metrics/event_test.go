@@ -88,3 +88,29 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 	// These optional fields are not present in the serialized payload, and a default source type name is used
 	assert.Equal(t, payload, []byte("{\"apiKey\":\"\",\"events\":{\"api\":[{\"msg_title\":\"An event occurred\",\"msg_text\":\"event description\",\"timestamp\":12345,\"host\":\"my-hostname\"}]},\"internalHostname\":\"test-hostname\"}\n"))
 }
+
+func TestSplitEvents(t *testing.T) {
+	var events = Events{}
+	for i := 0; i < 2; i++ {
+		e := Event{
+			Title:          "An event occurred",
+			Text:           "event description",
+			Ts:             12345,
+			Priority:       EventPriorityNormal,
+			Host:           "my-hostname",
+			Tags:           []string{"tag1", "tag2:yes"},
+			AlertType:      EventAlertTypeError,
+			AggregationKey: "my_agg_key",
+			SourceTypeName: "custom_source_type",
+		}
+		events = append(events, &e)
+	}
+
+	newEvents, err := events.SplitPayload(2)
+	require.Nil(t, err)
+	require.Len(t, newEvents, 2)
+
+	newEvents, err = events.SplitPayload(3)
+	require.Nil(t, err)
+	require.Len(t, newEvents, 2)
+}

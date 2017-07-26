@@ -3,11 +3,13 @@ package metrics
 import (
 	"bytes"
 	"encoding/json"
+	"expvar"
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
@@ -19,6 +21,8 @@ const (
 	EventPriorityNormal EventPriority = "normal"
 	EventPriorityLow    EventPriority = "low"
 )
+
+var eventExpvar = expvar.NewMap("Event")
 
 // GetEventPriorityFromString returns the EventPriority from its string representation
 func GetEventPriorityFromString(val string) (EventPriority, error) {
@@ -126,4 +130,34 @@ func (events Events) MarshalJSON() ([]byte, error) {
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)
 	return reqBody.Bytes(), err
+}
+
+// SplitPayload breaks the payload into times number of pieces
+func (events Events) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+	eventExpvar.Add("TimesSplit", 1)
+	// An individual event cannot be split,
+	// we can only split up the events
+
+	// only split as much as possible
+	if len(events) < times {
+		eventExpvar.Add("EventsShorter", 1)
+		times = len(events)
+	}
+	splitPayloads := make([]marshaler.Marshaler, times)
+
+	batchSize := len(events) / times
+	n := 0
+	for i := 0; i < times; i++ {
+		var end int
+		// the batchSize won't be perfect, in most cases there will be more or less in the last one than the others
+		if i < times-1 {
+			end = n + batchSize
+		} else {
+			end = len(events)
+		}
+		newEvents := Events(events[n:end])
+		splitPayloads[i] = newEvents
+		n += batchSize
+	}
+	return splitPayloads, nil
 }

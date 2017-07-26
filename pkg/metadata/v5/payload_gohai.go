@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 // GohaiPayload wraps Payload from the gohai package
@@ -72,4 +73,10 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 // Marshal not implemented
 func (p *Payload) Marshal() ([]byte, error) {
 	return nil, fmt.Errorf("V5 Payload serialization is not implemented")
+}
+
+// SplitPayload breaks the payload into times number of pieces
+func (p *Payload) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+	// Metadata payloads are analyzed as a whole, so they cannot be split
+	return nil, fmt.Errorf("V5 Payload splitting is not implemented")
 }

@@ -3,11 +3,15 @@ package percentile
 import (
 	"bytes"
 	"encoding/json"
+	"expvar"
 
 	"github.com/gogo/protobuf/proto"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
+
+var sketchSeriesExpvar = expvar.NewMap("SketchSeries")
 
 // Sketch represents a quantile sketch at a specific time
 type Sketch struct {
@@ -155,4 +159,31 @@ func (sl SketchSeriesList) MarshalJSON() ([]byte, error) {
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)
 	return reqBody.Bytes(), err
+}
+
+// SplitPayload breaks the payload into times number of pieces
+func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+	sketchSeriesExpvar.Add("TimesSplit", 1)
+	// Only break it down as much as possible
+	if len(sl) < times {
+		sketchSeriesExpvar.Add("SketchSeriesListShorter", 1)
+		times = len(sl)
+	}
+	splitPayloads := make([]marshaler.Marshaler, times)
+	batchSize := len(sl) / times
+	n := 0
+	for i := 0; i < times; i++ {
+		var end int
+		// In many cases the batchSize is not perfect
+		// so the last one will be a bit bigger or smaller than the others
+		if i < times-1 {
+			end = n + batchSize
+		} else {
+			end = len(sl)
+		}
+		newSL := SketchSeriesList(sl[n:end])
+		splitPayloads[i] = newSL
+		n += batchSize
+	}
+	return splitPayloads, nil
 }

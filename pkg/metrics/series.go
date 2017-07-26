@@ -3,13 +3,17 @@ package metrics
 import (
 	"bytes"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"strings"
 
 	"github.com/gogo/protobuf/proto"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
+
+var seriesExpvar = expvar.NewMap("series")
 
 // Point represents a metric value at a specific time
 type Point struct {
@@ -105,4 +109,83 @@ func (series Series) MarshalJSON() ([]byte, error) {
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)
 	return reqBody.Bytes(), err
+}
+
+// SplitPayload breaks the payload into times number of pieces
+func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+	seriesExpvar.Add("TimesSplit", 1)
+	var splitPayloads []marshaler.Marshaler
+	// Only split points if there isn't any other choice
+	if len(series) == 1 {
+		seriesExpvar.Add("SplitPoints", 1)
+		s := series[0]
+		points := s.Points
+		if len(points) < times {
+			seriesExpvar.Add("PointsShorter", 1)
+			times = len(points)
+		}
+		splitPayloads = make([]marshaler.Marshaler, times)
+		batchSize := len(points) / times
+		var n = 0
+		for i := 0; i < times; i++ {
+			// make "times" new series
+			var newS = &Serie{
+				Name:           s.Name,
+				Tags:           s.Tags,
+				Host:           s.Host,
+				Device:         s.Device,
+				MType:          s.MType,
+				Interval:       s.Interval,
+				SourceTypeName: s.SourceTypeName,
+			}
+			var end int
+			if i < times-1 {
+				end = n + batchSize
+			} else {
+				end = len(points)
+			}
+			newPoints := []Point(points[n:end])
+			newS.Points = newPoints
+			// create the new series
+			splitPayloads[i] = Series{newS}
+			n += batchSize
+		}
+	} else {
+		seriesExpvar.Add("SplitSeries", 1)
+		// Only split the series as much as is possible
+		if len(series) < times {
+			seriesExpvar.Add("SeriesShorter", 1)
+			times = len(series)
+		}
+		splitPayloads = make([]marshaler.Marshaler, times)
+		batchSize := len(series) / times
+		var n = 0
+		// loop through the splits
+		for i := 0; i < times; i++ {
+			var end int
+			if i < times-1 {
+				end = n + batchSize
+			} else {
+				end = len(series)
+			}
+			newSeries := Series(series[n:end])
+			// assign the new series to its place in the series
+			splitPayloads[i] = newSeries
+			n += batchSize
+		}
+	}
+	return splitPayloads, nil
+}
+
+// UnmarshalJSON is a custom unmarshaller for Point (used for testing)
+func (p *Point) UnmarshalJSON(buf []byte) error {
+	tmp := []interface{}{&p.Ts, &p.Value}
+	wantLen := len(tmp)
+	if err := json.Unmarshal(buf, &tmp); err != nil {
+		return err
+	}
+	if len(tmp) != wantLen {
+		return fmt.Errorf("wrong number of fields in Point: %d != %d", len(tmp), wantLen)
+	}
+	return nil
 }
