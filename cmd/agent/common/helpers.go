@@ -24,11 +24,6 @@ func SetupAutoConfig(confdPath string) {
 		PyChecksPath,
 		filepath.Join(GetDistPath(), "checks"),
 		config.Datadog.GetString("additional_checksd"))
-	//filepath.Join(_here, "lib"),
-	//filepath.Join(_here, "lib\\site-packages"),
-	//filepath.Join(_here, "lib\\site-packages\\win32"),
-	//filepath.Join(_here, "lib\\site-packages\\win32\\lib"),
-	//filepath.Join(_here, "lib\\site-packages\\pywin32_system32"))
 
 	// create the Autoconfig instance
 	AC = autodiscovery.NewAutoConfig(coll)

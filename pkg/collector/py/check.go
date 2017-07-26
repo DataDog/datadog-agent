@@ -44,10 +44,10 @@ func (c *PythonCheck) Run() error {
 	defer gstate.unlock()
 
 	// call run function, it takes no args so we pass an empty tuple
-	log.Debugf("Running python check %s", c.ModuleName)
+	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
 	emptyTuple := python.PyTuple_New(0)
 	result := c.Instance.CallMethod("run", emptyTuple)
-	log.Debugf("Run returned for %s", c.ModuleName)
+	log.Debugf("Run returned for %s %s", c.ModuleName, c.id)
 	if result == nil {
 		pyErr, err := gstate.getPythonError()
 		if err != nil {
