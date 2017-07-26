@@ -34,7 +34,7 @@ func FormatStatus(data []byte) (string, error) {
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, loaderStats)
+	renderChecksStats(b, runnerStats, loaderStats, "")
 	renderForwarderStatus(b, forwarderStats)
 	renderAggregatorStatus(b, aggregatorStats)
 
@@ -65,13 +65,27 @@ func renderForwarderStatus(w io.Writer, forwarderStats interface{}) {
 	}
 }
 
-func renderChecksStats(w io.Writer, runnerStats interface{}, loaderStats interface{}) {
+func renderChecksStats(w io.Writer, runnerStats interface{}, loaderStats interface{}, onlyCheck string) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
 	checkStats["LoaderStats"] = loaderStats
-	t := template.Must(template.New("checks.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "checks.tmpl")))
+	checkStats["OnlyCheck"] = onlyCheck
+	t := template.Must(template.New("collector.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "collector.tmpl")))
+
 	err := t.Execute(w, checkStats)
 	if err != nil {
 		fmt.Println(err)
 	}
+}
+
+func renderCheckStats(data []byte, checkName string) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats)
+	runnerStats := stats["runnerStats"]
+	loaderStats := stats["loaderStats"]
+	renderChecksStats(b, runnerStats, loaderStats, checkName)
+
+	return b.String(), nil
 }
