@@ -106,9 +106,6 @@ func (c *APMCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 	return nil
 }
 
-// InitSender initializes a sender but we don't need any
-func (c *APMCheck) InitSender() {}
-
 // Interval returns the scheduling time for the check, this will be scheduled only once
 // since `Run` won't return, thus implementing a long running check.
 func (c *APMCheck) Interval() time.Duration {

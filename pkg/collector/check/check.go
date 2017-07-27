@@ -48,7 +48,6 @@ type Check interface {
 	Stop()                                         // stop the check if it's running
 	String() string                                // provide a printable version of the check name
 	Configure(config, initConfig ConfigData) error // configure the check from the outside
-	InitSender()                                   // initialize what's needed to send data to the aggregator
 	Interval() time.Duration                       // return the interval time for the check
 	ID() ID                                        // provide a unique identifier for every check instance
 }

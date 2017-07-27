@@ -15,9 +15,7 @@ import (
 var uptime = host.Uptime
 
 // UptimeCheck doesn't need additional fields
-type UptimeCheck struct {
-	sender aggregator.Sender
-}
+type UptimeCheck struct{}
 
 func (c *UptimeCheck) String() string {
 	return "uptime"
@@ -25,14 +23,19 @@ func (c *UptimeCheck) String() string {
 
 // Run executes the check
 func (c *UptimeCheck) Run() error {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return err
+	}
+
 	t, err := uptime()
 	if err != nil {
 		log.Errorf("system.UptimeCheck: could not retrieve uptime: %s", err)
 		return err
 	}
 
-	c.sender.Gauge("system.uptime", float64(t), "", nil)
-	c.sender.Commit()
+	sender.Gauge("system.uptime", float64(t), "", nil)
+	sender.Commit()
 
 	return nil
 }
@@ -41,17 +44,6 @@ func (c *UptimeCheck) Run() error {
 func (c *UptimeCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	// do nothing
 	return nil
-}
-
-// InitSender initializes a sender
-func (c *UptimeCheck) InitSender() {
-	s, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	c.sender = s
 }
 
 // Interval returns the scheduling time for the check

@@ -41,7 +41,6 @@ type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
-	sender    aggregator.Sender
 	blacklist *regexp.Regexp
 	drivemap  map[string]Win32_PerfRawData_PerfDisk_LogicalDisk
 }
@@ -117,6 +116,11 @@ func computeValue(pvs Win32_PerfRawData_PerfDisk_LogicalDisk, cur *Win32_PerfRaw
 
 // Run executes the check
 func (c *IOCheck) Run() error {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return err
+	}
+
 	var dst []Win32_PerfRawData_PerfDisk_LogicalDisk
 	err := wmi.Query("SELECT Name, DiskWriteBytesPerSec, DiskWritesPerSec, DiskReadBytesPerSec, DiskReadsPerSec, CurrentDiskQueueLength, Timestamp_Sys100NS, Frequency_Sys100NS FROM Win32_PerfRawData_PerfDisk_LogicalDisk ", &dst)
 	if err != nil {
@@ -147,14 +151,14 @@ func (c *IOCheck) Run() error {
 			} else {
 				for k, v := range metrics {
 					log.Debugf("Setting %s to %f", k, v)
-					c.sender.Gauge(k, v, "", tags)
+					sender.Gauge(k, v, "", tags)
 				}
 			}
 
 		}
 		c.drivemap[d.Name] = d
 	}
-	c.sender.Commit()
+	sender.Commit()
 	return nil
 }
 

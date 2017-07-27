@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/load"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 // For testing purpose
@@ -17,8 +16,7 @@ var loadAvg = load.Avg
 
 // LoadCheck doesn't need additional fields
 type LoadCheck struct {
-	sender aggregator.Sender
-	nbCPU  int32
+	nbCPU int32
 }
 
 func (c *LoadCheck) String() string {
@@ -27,20 +25,25 @@ func (c *LoadCheck) String() string {
 
 // Run executes the check
 func (c *LoadCheck) Run() error {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return err
+	}
+
 	avg, err := loadAvg()
 	if err != nil {
 		log.Errorf("system.LoadCheck: could not retrieve load stats: %s", err)
 		return err
 	}
 
-	c.sender.Gauge("system.load.1", avg.Load1, "", nil)
-	c.sender.Gauge("system.load.5", avg.Load5, "", nil)
-	c.sender.Gauge("system.load.15", avg.Load15, "", nil)
+	sender.Gauge("system.load.1", avg.Load1, "", nil)
+	sender.Gauge("system.load.5", avg.Load5, "", nil)
+	sender.Gauge("system.load.15", avg.Load15, "", nil)
 	cpus := float64(c.nbCPU)
-	c.sender.Gauge("system.load.norm.1", avg.Load1/cpus, "", nil)
-	c.sender.Gauge("system.load.norm.5", avg.Load5/cpus, "", nil)
-	c.sender.Gauge("system.load.norm.15", avg.Load15/cpus, "", nil)
-	c.sender.Commit()
+	sender.Gauge("system.load.norm.1", avg.Load1/cpus, "", nil)
+	sender.Gauge("system.load.norm.5", avg.Load5/cpus, "", nil)
+	sender.Gauge("system.load.norm.15", avg.Load15/cpus, "", nil)
+	sender.Commit()
 
 	return nil
 }
@@ -56,17 +59,6 @@ func (c *LoadCheck) Configure(data check.ConfigData, initConfig check.ConfigData
 		c.nbCPU += i.Cores
 	}
 	return nil
-}
-
-// InitSender initializes a sender
-func (c *LoadCheck) InitSender() {
-	s, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	c.sender = s
 }
 
 // Interval returns the scheduling time for the check

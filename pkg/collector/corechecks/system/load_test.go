@@ -3,6 +3,7 @@ package system
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/shirou/gopsutil/load"
 )
 
@@ -25,7 +26,7 @@ func TestLoadCheckLinux(t *testing.T) {
 	loadCheck.Configure(nil, nil)
 
 	mock := new(MockSender)
-	loadCheck.sender = mock
+	aggregator.SetSender(mock, loadCheck.ID())
 
 	var nbCPU float64
 	info, _ := cpuInfo()

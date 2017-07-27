@@ -4,6 +4,7 @@ import (
 	"errors"
 	"unsafe"
 
+	chk "github.com/DataDog/datadog-agent/pkg/collector/check"
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -18,10 +19,15 @@ import "C"
 
 // SubmitMetric is the method exposed to Python scripts to submit metrics
 //export SubmitMetric
-func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.float, tags *C.PyObject, hostname *C.char) *C.PyObject {
+func SubmitMetric(check *C.PyObject, checkID *C.char, mt C.MetricType, name *C.char, value C.float, tags *C.PyObject, hostname *C.char) *C.PyObject {
 
-	sender, err := aggregator.GetDefaultSender()
-	if err != nil {
+	goCheckID := C.GoString(checkID)
+	var sender aggregator.Sender
+	var err error
+
+	sender, err = aggregator.GetSender(chk.ID(goCheckID))
+
+	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return C._none()
 	}
@@ -55,11 +61,16 @@ func SubmitMetric(check *C.PyObject, mt C.MetricType, name *C.char, value C.floa
 
 // SubmitServiceCheck is the method exposed to Python scripts to submit service checks
 //export SubmitServiceCheck
-func SubmitServiceCheck(check *C.PyObject, name *C.char, status C.int, tags *C.PyObject, message *C.char) *C.PyObject {
+func SubmitServiceCheck(check *C.PyObject, checkID *C.char, name *C.char, status C.int, tags *C.PyObject, message *C.char) *C.PyObject {
 
-	sender, err := aggregator.GetDefaultSender()
-	if err != nil {
-		log.Errorf("Error submitting service check to the Sender: %v", err)
+	goCheckID := C.GoString(checkID)
+	var sender aggregator.Sender
+	var err error
+
+	sender, err = aggregator.GetSender(chk.ID(goCheckID))
+
+	if err != nil || sender == nil {
+		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return C._none()
 	}
 
@@ -79,11 +90,16 @@ func SubmitServiceCheck(check *C.PyObject, name *C.char, status C.int, tags *C.P
 
 // SubmitEvent is the method exposed to Python scripts to submit events
 //export SubmitEvent
-func SubmitEvent(check *C.PyObject, event *C.PyObject) *C.PyObject {
+func SubmitEvent(check *C.PyObject, checkID *C.char, event *C.PyObject) *C.PyObject {
 
-	sender, err := aggregator.GetDefaultSender()
-	if err != nil {
-		log.Errorf("Error submitting event to the Sender: %v", err)
+	goCheckID := C.GoString(checkID)
+	var sender aggregator.Sender
+	var err error
+
+	sender, err = aggregator.GetSender(chk.ID(goCheckID))
+
+	if err != nil || sender == nil {
+		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return C._none()
 	}
 

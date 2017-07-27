@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/k-sone/snmpgo"
 )
 
@@ -191,7 +192,7 @@ func TestSubmitSNMP(t *testing.T) {
 	initCNetSnmpLib(nil)
 
 	mock := new(MockSender)
-	snmpCheck.sender = mock
+	aggregator.SetSender(mock, snmpCheck.ID())
 
 	if err := cfg.Parse(bytes.NewBufferString(basicCfg).Bytes(), []byte{}); err != nil {
 		t.Fatalf("Unable to parse configuration: %v", err)

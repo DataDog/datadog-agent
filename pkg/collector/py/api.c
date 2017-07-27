@@ -1,8 +1,8 @@
 #include "api.h"
 
-PyObject* SubmitMetric(PyObject*, MetricType, char*, float, PyObject*, char*);
-PyObject* SubmitServiceCheck(PyObject*, char*, int, PyObject*, char*);
-PyObject* SubmitEvent(PyObject*, PyObject*);
+PyObject* SubmitMetric(PyObject*, char*, MetricType, char*, float, PyObject*, char*);
+PyObject* SubmitServiceCheck(PyObject*, char*, char*, int, PyObject*, char*);
+PyObject* SubmitEvent(PyObject*, char*, PyObject*);
 
 // _must_ be in the same order as the MetricType enum
 char* MetricTypeNames[] = {
@@ -21,18 +21,19 @@ static PyObject *submit_metric(PyObject *self, PyObject *args) {
     float value;
     PyObject *tags = NULL;
     char *hostname;
+    char *check_id;
 
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
 
-    // aggregator.submit_metric(self, aggregator.metric_type.GAUGE, name, value, tags, hostname)
-    if (!PyArg_ParseTuple(args, "OisfOs", &check, &mt, &name, &value, &tags, &hostname)) {
+    // aggregator.submit_metric(self, check_id, aggregator.metric_type.GAUGE, name, value, tags, hostname)
+    if (!PyArg_ParseTuple(args, "OsisfOs", &check, &check_id, &mt, &name, &value, &tags, &hostname)) {
       PyGILState_Release(gstate);
       return NULL;
     }
 
     PyGILState_Release(gstate);
-    return SubmitMetric(check, mt, name, value, tags, hostname);
+    return SubmitMetric(check, check_id, mt, name, value, tags, hostname);
 }
 
 static PyObject *submit_service_check(PyObject *self, PyObject *args) {
@@ -41,35 +42,37 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
     int status;
     PyObject *tags = NULL;
     char *message = NULL;
+    char *check_id;
 
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
 
-    // aggregator.submit_service_check(self, name, status, tags, message)
-    if (!PyArg_ParseTuple(args, "OsiOs", &check, &name, &status, &tags, &message)) {
+    // aggregator.submit_service_check(self, check_id, name, status, tags, message)
+    if (!PyArg_ParseTuple(args, "OssiOs", &check, &check_id, &name, &status, &tags, &message)) {
       PyGILState_Release(gstate);
       return NULL;
     }
 
     PyGILState_Release(gstate);
-    return SubmitServiceCheck(check, name, status, tags, message);
+    return SubmitServiceCheck(check, check_id, name, status, tags, message);
 }
 
 static PyObject *submit_event(PyObject *self, PyObject *args) {
     PyObject *check = NULL;
     PyObject *event = NULL;
+    char *check_id;
 
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
 
-    // aggregator.submit_event(self, event)
-    if (!PyArg_ParseTuple(args, "OO", &check, &event)) {
+    // aggregator.submit_event(self, check_id, event)
+    if (!PyArg_ParseTuple(args, "OsO", &check, &check_id, &event)) {
       PyGILState_Release(gstate);
       return NULL;
     }
 
     PyGILState_Release(gstate);
-    return SubmitEvent(check, event);
+    return SubmitEvent(check, check_id, event);
 }
 
 static PyMethodDef AggMethods[] = {
