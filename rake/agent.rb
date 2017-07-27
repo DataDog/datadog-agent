@@ -110,7 +110,7 @@ namespace :agent do
       system("bundle install --without development")
       case os
       when "windows"
-        system("omnibus.bat build #{project_name} --log-level=#{log_level} #{overrides_cmd}")
+        system("bundle exec omnibus.bat build #{project_name} --log-level=#{log_level} #{overrides_cmd}")
       else
         system("omnibus build #{project_name} --log-level=#{log_level} #{overrides_cmd}")
       end
