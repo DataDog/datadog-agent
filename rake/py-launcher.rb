@@ -13,17 +13,19 @@ namespace :pylauncher do
     ldflags = []
 
     if !ENV["USE_SYSTEM_LIBS"]
-      if os == "windows"
-        env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}"
-        ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}"
-      else
-        env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
-        ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
-      end
+      env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
+      ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
       libdir = `pkg-config --variable=libdir python-2.7`.strip
-      puts "libdir #{libdir}"
       fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
       ldflags << "-r #{libdir}"
+    else
+      if os == "windows"
+        env["PKG_CONFIG_PATH"] = "#{ENV["PKG_CONFIG_SYSTEM"]}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
+        ENV["PKG_CONFIG_PATH"] = "#{ENV["PKG_CONFIG_SYSTEM"]}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
+        libdir = `pkg-config --variable=libdir python-2.7`.strip
+        fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
+        ldflags << "-r #{libdir}"
+      end
     end
     build_type_opt = ENV['incremental'] == "true" ? "-i" : "-a"
 
