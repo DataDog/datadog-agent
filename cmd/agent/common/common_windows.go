@@ -7,9 +7,14 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-const defaultConfPath = "c:\\programdata\\datadog"
+var (
+	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
+	PyChecksPath = filepath.Join(_here, "..", "agent", "checks.d")
+	distPath     string
+)
 
-var distPath string
+const defaultConfPath = "c:\\programdata\\datadog"
+const defaultLogPath = "c:\\programdata\\datadog\\logs\\agent.log"
 
 // EnableLoggingToFile -- set up logging to file
 func EnableLoggingToFile() {

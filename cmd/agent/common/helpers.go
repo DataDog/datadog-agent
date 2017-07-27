@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -17,8 +18,12 @@ import (
 func SetupAutoConfig(confdPath string) {
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment
-	coll := collector.NewCollector(GetDistPath(), filepath.Join(GetDistPath(), "checks"),
-		config.Datadog.GetString("additional_checksd"), PyChecksPath)
+	os.Setenv("PYTHONHOME", _here)
+	log.Debug("Setting pythonhome to %s", _here)
+	coll := collector.NewCollector(GetDistPath(),
+		PyChecksPath,
+		filepath.Join(GetDistPath(), "checks"),
+		config.Datadog.GetString("additional_checksd"))
 
 	// create the Autoconfig instance
 	AC = autodiscovery.NewAutoConfig(coll)
