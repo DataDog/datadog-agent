@@ -26,18 +26,25 @@ namespace :agent do
     gcflags = []
     ldflags = []
     if !ENV["USE_SYSTEM_LIBS"]
-      env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
-      ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
+      env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
+      ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
       libdir = `pkg-config --variable=libdir python-2.7`.strip
       fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
       ldflags << "-r #{libdir}"
+    else
+      if os == "windows"
+        env["PKG_CONFIG_PATH"] = "#{ENV["PKG_CONFIG_SYSTEM"]}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
+        ENV["PKG_CONFIG_PATH"] = "#{ENV["PKG_CONFIG_SYSTEM"]}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
+        libdir = `pkg-config --variable=libdir python-2.7`.strip
+        fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
+        ldflags << "-r #{libdir}"
+      end
     end
 
     if os == "windows"
       # This generates the manifest resource. The manifest resource is necessary for
       # being able to load the ancient C-runtime that comes along with Python 2.7
       command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-      build_success = system(env, command)
       puts command
       build_success = system(env, command)
       fail "Agent build failed with code #{$?.exitstatus}" if !build_success
@@ -53,7 +60,7 @@ namespace :agent do
       end
     end
 
-    command = "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name} -gcflags=\"#{gcflags.join(" ")}\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
+    command = "go build #{race_opt} #{build_type} -tags \"#{go_build_tags}\" -o #{BIN_PATH}/#{agent_bin_name} -gcflags=\"#{gcflags.join(" ")}\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
     puts command
     build_success = system(env, command)
     fail "Agent build failed with code #{$?.exitstatus}" if !build_success
