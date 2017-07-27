@@ -19,6 +19,6 @@ func GetPayload(hostname string) *Payload {
 		CommonPayload:    CommonPayload{*cp},
 		HostPayload:      HostPayload{*hp},
 		ResourcesPayload: ResourcesPayload{*rp},
-		GohaiPayload:     GohaiPayload{*gp},
+		GohaiPayload:     GohaiPayload{MarshalledGohaiPayload{*gp}},
 	}
 }
