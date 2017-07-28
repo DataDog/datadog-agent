@@ -1,8 +1,7 @@
 package aggregator
 
 import (
-	"sort"
-
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -66,6 +65,10 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 		bucketMetrics = metrics.MakeContextMetrics()
 		s.metricsByTimestamp[bucketStart] = bucketMetrics
 	}
+	// If it's the first time we see this counter, add it to our list
+	if metricSample.Mtype == metrics.CounterType {
+		s.counterLastSampledByContext[contextKey] = timestamp
+	}
 
 	// Add sample to bucket
 	bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval)
@@ -81,29 +84,26 @@ func (s *TimeSampler) flush(timestamp float64) []*metrics.Serie {
 	cutoffTime := s.calculateBucketStart(timestamp)
 
 	if len(s.metricsByTimestamp) > 0 {
-		// Create an array of the timestamp keys and sort them to iterate through the map in order
-		var orderedTimestamps int64s
-		for timestamp := range s.metricsByTimestamp {
-			orderedTimestamps = append(orderedTimestamps, timestamp)
-		}
-		sort.Sort(orderedTimestamps)
-
-		// Iter on each bucket in order
-		for _, timestamp := range orderedTimestamps {
-			metrics := s.metricsByTimestamp[timestamp]
+		for bucketTimestamp, contextMetrics := range s.metricsByTimestamp {
 			// disregard when the timestamp is too recent
-			if cutoffTime <= timestamp {
+			if cutoffTime <= bucketTimestamp {
 				continue
 			}
 
-			rawSeries = append(rawSeries, metrics.Flush(float64(timestamp), s.counterLastSampledByContext, s.contextResolver.lastSeenByKey)...)
+			s.flushEmptyCounters(bucketTimestamp, contextMetrics)
 
-			delete(s.metricsByTimestamp, timestamp)
+			rawSeries = append(rawSeries, contextMetrics.Flush(float64(bucketTimestamp))...)
+
+			delete(s.metricsByTimestamp, bucketTimestamp)
 		}
 	} else if s.lastCutOffTime+s.interval <= cutoffTime {
 		// Even if there is no metric in this flush, recreate empty counters,
 		// but only if we've passed an interval since the last flush
-		rawSeries = append(rawSeries, metrics.MakeContextMetrics().Flush(timestamp, s.counterLastSampledByContext, s.contextResolver.lastSeenByKey)...)
+		contextMetrics := metrics.MakeContextMetrics()
+
+		s.flushEmptyCounters(cutoffTime-s.interval, contextMetrics)
+
+		rawSeries = append(rawSeries, contextMetrics.Flush(float64(cutoffTime-s.interval))...)
 	}
 
 	for _, serie := range rawSeries {
@@ -131,4 +131,27 @@ func (s *TimeSampler) flush(timestamp float64) []*metrics.Serie {
 	s.contextResolver.expireContexts(timestamp - defaultExpiry)
 	s.lastCutOffTime = cutoffTime
 	return result
+}
+
+func (s *TimeSampler) flushEmptyCounters(timestamp int64, contextMetrics metrics.ContextMetrics) {
+
+	expirySeconds := config.Datadog.GetFloat64("dogstatsd_expiry_seconds")
+	for counterContext, lastSampled := range s.counterLastSampledByContext {
+		if expirySeconds+lastSampled > float64(timestamp) {
+			sample := &metrics.MetricSample{
+				Name:       "",
+				Value:      0.0,
+				RawValue:   "0.0",
+				Mtype:      metrics.CounterType,
+				Tags:       []string{},
+				Host:       "",
+				SampleRate: 1,
+				Timestamp:  float64(timestamp),
+			}
+			contextMetrics.AddSample(counterContext, sample, float64(timestamp), s.interval)
+			s.contextResolver.lastSeenByKey[counterContext] = float64(timestamp)
+		} else {
+			delete(s.counterLastSampledByContext, counterContext)
+		}
+	}
 }

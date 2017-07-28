@@ -2,6 +2,8 @@ package aggregator
 
 import (
 	// stdlib
+
+	"fmt"
 	"sort"
 	"testing"
 
@@ -167,7 +169,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 	sampler.addSample(sampleCounter2, 1002.0)
 	sampler.addSample(sampleGauge3, 1003.0)
 	// counterLastSampledByContext should be populated at flush time
-	assert.Equal(t, 0, len(sampler.counterLastSampledByContext))
+	assert.Equal(t, 2, len(sampler.counterLastSampledByContext))
 
 	orderedSeries := OrderedSeries{sampler.flush(1010.0)}
 
@@ -197,8 +199,8 @@ func TestCounterExpirySeconds(t *testing.T) {
 	require.Equal(t, 2, len(sampler.counterLastSampledByContext))
 	metrics.AssertSerieEqual(t, expectedSerie1, series[0])
 	metrics.AssertSerieEqual(t, expectedSerie2, series[1])
-	assert.Equal(t, 1000.0, sampler.counterLastSampledByContext[contextCounter1])
-	assert.Equal(t, 1000.0, sampler.counterLastSampledByContext[contextCounter2])
+	assert.Equal(t, 1004.0, sampler.counterLastSampledByContext[contextCounter1])
+	assert.Equal(t, 1002.0, sampler.counterLastSampledByContext[contextCounter2])
 
 	sampleCounter1 = &metrics.MetricSample{
 		Name:       "my.counter1",
@@ -237,6 +239,8 @@ func TestCounterExpirySeconds(t *testing.T) {
 
 	require.Equal(t, 2, len(series))
 	metrics.AssertSerieEqual(t, expectedSerie1, series[0])
+	fmt.Printf("%v\n", series[0])
+	fmt.Printf("%v\n", series[1])
 	metrics.AssertSerieEqual(t, expectedSerie2, series[1])
 
 	// We shouldn't get any empty counter since the last flush was during the same interval
