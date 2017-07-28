@@ -136,7 +136,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 	for _, pd := range ac.providers {
 		if pd.provider == provider {
 			// we already know this configuration provider, don't do anything
-			log.Warnf("Provider %s was already added, skipping...", provider)
+			log.Warn(fmt.Sprintf("Provider %s was already added, skipping...", provider))
 			return
 		}
 	}
