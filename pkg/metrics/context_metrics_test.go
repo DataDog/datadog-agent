@@ -169,7 +169,7 @@ func TestContextMetricsHistogramSampling(t *testing.T) {
 		},
 		&Serie{
 			ContextKey: contextKey,
-			Points:     []Point{{12351.0, 4.}},
+			Points:     []Point{{12351.0, 0.4}},
 			MType:      APIRateType,
 			NameSuffix: ".count",
 		},
@@ -229,7 +229,7 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 	AssertSerieEqual(t,
 		&Serie{
 			ContextKey: contextKey,
-			Points:     []Point{{12351.0, 3.}},
+			Points:     []Point{{12351.0, 0.3}},
 			MType:      APIRateType,
 			NameSuffix: ".count",
 		},

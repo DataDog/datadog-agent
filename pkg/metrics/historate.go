@@ -10,6 +10,13 @@ type Historate struct {
 	sampled           bool
 }
 
+// NewHistorate returns a newly-initialized historate
+func NewHistorate(interval int64) *Historate {
+	return &Historate{
+		histogram: *NewHistogram(interval),
+	}
+}
+
 func (h *Historate) addSample(sample *MetricSample, timestamp float64) {
 	if h.previousTimestamp != 0 {
 		v := (sample.Value - h.previousSample) / (timestamp - h.previousTimestamp)

@@ -32,9 +32,9 @@ func (m ContextMetrics) AddSample(contextKey string, sample *MetricSample, times
 		case MonotonicCountType:
 			m[contextKey] = &MonotonicCount{}
 		case HistogramType:
-			m[contextKey] = &Histogram{} // default histogram configuration for now
+			m[contextKey] = NewHistogram(interval) // default histogram configuration (no call to `configure`) for now
 		case HistorateType:
-			m[contextKey] = &Historate{} // internal histogram have the configuration for now
+			m[contextKey] = NewHistorate(interval) // internal histogram has the configuration for now
 		case SetType:
 			m[contextKey] = NewSet()
 		case CounterType:

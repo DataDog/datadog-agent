@@ -128,6 +128,64 @@ func TestCheckRateSampling(t *testing.T) {
 	}
 }
 
+func TestHistogramIntervalSampling(t *testing.T) {
+	checkSampler := newCheckSampler("")
+
+	mSample1 := metrics.MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      metrics.HistogramType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	mSample2 := metrics.MetricSample{
+		Name:       "my.metric.name",
+		Value:      10,
+		Mtype:      metrics.HistogramType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12347.5,
+	}
+	mSample3 := metrics.MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      metrics.HistogramType,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  12348.0,
+	}
+
+	checkSampler.addSample(&mSample1)
+	checkSampler.addSample(&mSample2)
+	checkSampler.addSample(&mSample3)
+
+	checkSampler.commit(12349.0)
+	series := checkSampler.flush()
+
+	// Check that the `.count` metric returns a raw count of the samples, with no interval normalization
+	expectedCountSerie := &metrics.Serie{
+		Name:           "my.metric.name.count",
+		Tags:           []string{"foo", "bar"},
+		Points:         []metrics.Point{{Ts: 12349.0, Value: 3.}},
+		MType:          metrics.APIRateType,
+		SourceTypeName: checksSourceTypeName,
+		NameSuffix:     ".count",
+	}
+
+	require.Len(t, series, 5)
+
+	foundCount := false
+	for _, serie := range series {
+		if serie.Name == expectedCountSerie.Name {
+			metrics.AssertSerieEqual(t, expectedCountSerie, serie)
+			foundCount = true
+		}
+	}
+
+	assert.True(t, foundCount)
+}
+
 func TestCheckSamplerHostname(t *testing.T) {
 	checkSampler := newCheckSampler("my.test.hostname")
 

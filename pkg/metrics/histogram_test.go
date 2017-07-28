@@ -13,7 +13,7 @@ import (
 
 func TestDefaultHistogramSampling(t *testing.T) {
 	// Initialize default histogram
-	mHistogram := Histogram{}
+	mHistogram := NewHistogram(10)
 
 	// Empty flush
 	_, err := mHistogram.flush(50)
@@ -40,7 +40,7 @@ func TestDefaultHistogramSampling(t *testing.T) {
 		assert.Equal(t, ".median", series[1].NameSuffix)                // median
 		assert.InEpsilon(t, 12./3., series[2].Points[0].Value, epsilon) // avg
 		assert.Equal(t, ".avg", series[2].NameSuffix)                   // avg
-		assert.InEpsilon(t, 6, series[3].Points[0].Value, epsilon)      // count
+		assert.InEpsilon(t, 0.6, series[3].Points[0].Value, epsilon)    // count
 		assert.Equal(t, ".count", series[3].NameSuffix)                 // count
 		assert.InEpsilon(t, 10, series[4].Points[0].Value, epsilon)     // 0.95
 		assert.Equal(t, ".95percentile", series[4].NameSuffix)          // 0.95
@@ -52,7 +52,7 @@ func TestDefaultHistogramSampling(t *testing.T) {
 
 func TestCustomHistogramSampling(t *testing.T) {
 	// Initialize custom histogram, with an invalid aggregate
-	mHistogram := Histogram{}
+	mHistogram := NewHistogram(10)
 	mHistogram.configure([]string{"min", "sum", "invalid"}, []int{})
 
 	// Empty flush
@@ -97,7 +97,7 @@ func shuffle(slice []float64) {
 
 func TestHistogramPercentiles(t *testing.T) {
 	// Initialize custom histogram
-	mHistogram := Histogram{}
+	mHistogram := NewHistogram(10)
 	mHistogram.configure([]string{"max", "median", "avg", "count", "min"}, []int{95, 80})
 
 	// Empty flush
@@ -124,20 +124,20 @@ func TestHistogramPercentiles(t *testing.T) {
 			assert.Len(t, serie.Points, 1)
 			assert.EqualValues(t, 60, serie.Points[0].Ts)
 		}
-		assert.InEpsilon(t, 100, series[0].Points[0].Value, epsilon)    // max
-		assert.Equal(t, ".max", series[0].NameSuffix)                   // max
-		assert.InEpsilon(t, 50, series[1].Points[0].Value, epsilon)     // median
-		assert.Equal(t, ".median", series[1].NameSuffix)                // median
-		assert.InEpsilon(t, 50, series[2].Points[0].Value, epsilon)     // avg
-		assert.Equal(t, ".avg", series[2].NameSuffix)                   // avg
-		assert.InEpsilon(t, 100*20, series[3].Points[0].Value, epsilon) // count
-		assert.Equal(t, ".count", series[3].NameSuffix)                 // count
-		assert.InEpsilon(t, 1, series[4].Points[0].Value, epsilon)      // min
-		assert.Equal(t, ".min", series[4].NameSuffix)                   // min
-		assert.InEpsilon(t, 80, series[5].Points[0].Value, epsilon)     // 0.80
-		assert.Equal(t, ".80percentile", series[5].NameSuffix)          // 0.80
-		assert.InEpsilon(t, 95, series[6].Points[0].Value, epsilon)     // 0.95
-		assert.Equal(t, ".95percentile", series[6].NameSuffix)          // 0.95
+		assert.InEpsilon(t, 100, series[0].Points[0].Value, epsilon)                         // max
+		assert.Equal(t, ".max", series[0].NameSuffix)                                        // max
+		assert.InEpsilon(t, 50, series[1].Points[0].Value, epsilon)                          // median
+		assert.Equal(t, ".median", series[1].NameSuffix)                                     // median
+		assert.InEpsilon(t, 50, series[2].Points[0].Value, epsilon)                          // avg
+		assert.Equal(t, ".avg", series[2].NameSuffix)                                        // avg
+		assert.InEpsilon(t, float64(100*20)/float64(10), series[3].Points[0].Value, epsilon) // count
+		assert.Equal(t, ".count", series[3].NameSuffix)                                      // count
+		assert.InEpsilon(t, 1, series[4].Points[0].Value, epsilon)                           // min
+		assert.Equal(t, ".min", series[4].NameSuffix)                                        // min
+		assert.InEpsilon(t, 80, series[5].Points[0].Value, epsilon)                          // 0.80
+		assert.Equal(t, ".80percentile", series[5].NameSuffix)                               // 0.80
+		assert.InEpsilon(t, 95, series[6].Points[0].Value, epsilon)                          // 0.95
+		assert.Equal(t, ".95percentile", series[6].NameSuffix)                               // 0.95
 	}
 
 	_, err = mHistogram.flush(61)
@@ -145,7 +145,7 @@ func TestHistogramPercentiles(t *testing.T) {
 }
 
 func TestHistogramSampleRate(t *testing.T) {
-	mHistogram := Histogram{}
+	mHistogram := NewHistogram(10)
 	mHistogram.configure([]string{"max", "min", "median", "avg", "sum", "count"}, []int{20, 95, 80})
 
 	mHistogram.addSample(&MetricSample{Value: 1}, 50)
@@ -171,7 +171,7 @@ func TestHistogramSampleRate(t *testing.T) {
 	assert.Equal(t, ".avg", series[3].NameSuffix)               // avg
 	assert.InEpsilon(t, 40, series[4].Points[0].Value, epsilon) // sum
 	assert.Equal(t, ".sum", series[4].NameSuffix)               // sum
-	assert.InEpsilon(t, 10, series[5].Points[0].Value, epsilon) // count
+	assert.InEpsilon(t, 1, series[5].Points[0].Value, epsilon)  // count
 	assert.Equal(t, ".count", series[5].NameSuffix)             // count
 	assert.InEpsilon(t, 2, series[6].Points[0].Value, epsilon)  // 0.20
 	assert.Equal(t, ".20percentile", series[6].NameSuffix)      // 0.20
@@ -185,7 +185,7 @@ func TestHistogramSampleRate(t *testing.T) {
 }
 
 func TestHistogramReset(t *testing.T) {
-	mHistogram := Histogram{}
+	mHistogram := NewHistogram(10)
 	mHistogram.configure([]string{"max", "min", "median", "avg", "sum", "count"}, []int{20, 95, 80})
 
 	mHistogram.addSample(&MetricSample{Value: 1}, 50)
@@ -202,24 +202,24 @@ func TestHistogramReset(t *testing.T) {
 		assert.Len(t, serie.Points, 1)
 		assert.EqualValues(t, 70, serie.Points[0].Ts)
 	}
-	assert.InEpsilon(t, 10, series[0].Points[0].Value, epsilon) // max
-	assert.Equal(t, ".max", series[0].NameSuffix)               // max
-	assert.InEpsilon(t, 10, series[1].Points[0].Value, epsilon) // min
-	assert.Equal(t, ".min", series[1].NameSuffix)               // min
-	assert.InEpsilon(t, 10, series[2].Points[0].Value, epsilon) // median
-	assert.Equal(t, ".median", series[2].NameSuffix)            // median
-	assert.InEpsilon(t, 10, series[3].Points[0].Value, epsilon) // avg
-	assert.Equal(t, ".avg", series[3].NameSuffix)               // avg
-	assert.InEpsilon(t, 10, series[4].Points[0].Value, epsilon) // sum
-	assert.Equal(t, ".sum", series[4].NameSuffix)               // sum
-	assert.InEpsilon(t, 1, series[5].Points[0].Value, epsilon)  // count
-	assert.Equal(t, ".count", series[5].NameSuffix)             // count
-	assert.InEpsilon(t, 10, series[6].Points[0].Value, epsilon) // 0.20
-	assert.Equal(t, ".20percentile", series[6].NameSuffix)      // 0.20
-	assert.InEpsilon(t, 10, series[7].Points[0].Value, epsilon) // 0.80
-	assert.Equal(t, ".80percentile", series[7].NameSuffix)      // 0.80
-	assert.InEpsilon(t, 10, series[8].Points[0].Value, epsilon) // 0.95
-	assert.Equal(t, ".95percentile", series[8].NameSuffix)      // 0.95
+	assert.InEpsilon(t, 10, series[0].Points[0].Value, epsilon)  // max
+	assert.Equal(t, ".max", series[0].NameSuffix)                // max
+	assert.InEpsilon(t, 10, series[1].Points[0].Value, epsilon)  // min
+	assert.Equal(t, ".min", series[1].NameSuffix)                // min
+	assert.InEpsilon(t, 10, series[2].Points[0].Value, epsilon)  // median
+	assert.Equal(t, ".median", series[2].NameSuffix)             // median
+	assert.InEpsilon(t, 10, series[3].Points[0].Value, epsilon)  // avg
+	assert.Equal(t, ".avg", series[3].NameSuffix)                // avg
+	assert.InEpsilon(t, 10, series[4].Points[0].Value, epsilon)  // sum
+	assert.Equal(t, ".sum", series[4].NameSuffix)                // sum
+	assert.InEpsilon(t, 0.1, series[5].Points[0].Value, epsilon) // count
+	assert.Equal(t, ".count", series[5].NameSuffix)              // count
+	assert.InEpsilon(t, 10, series[6].Points[0].Value, epsilon)  // 0.20
+	assert.Equal(t, ".20percentile", series[6].NameSuffix)       // 0.20
+	assert.InEpsilon(t, 10, series[7].Points[0].Value, epsilon)  // 0.80
+	assert.Equal(t, ".80percentile", series[7].NameSuffix)       // 0.80
+	assert.InEpsilon(t, 10, series[8].Points[0].Value, epsilon)  // 0.95
+	assert.Equal(t, ".95percentile", series[8].NameSuffix)       // 0.95
 
 	_, err = mHistogram.flush(71)
 	assert.NotNil(t, err)
@@ -231,7 +231,7 @@ func TestHistogramReset(t *testing.T) {
 
 func benchHistogram(b *testing.B, number int, sampleRate float64) {
 	for n := 0; n < b.N; n++ {
-		h := Histogram{}
+		h := NewHistogram(1)
 		h.configure([]string{"max", "min", "median", "avg", "sum", "count"}, []int{20, 95, 80})
 		m := MetricSample{Value: 21, SampleRate: sampleRate}
 
