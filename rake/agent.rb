@@ -76,6 +76,7 @@ namespace :agent do
     FileUtils.rm_rf("#{BIN_PATH}/dist")
     FileUtils.cp_r("./pkg/collector/dist/", "#{BIN_PATH}", :remove_destination => true)
     FileUtils.cp_r("./pkg/status/dist/", "#{BIN_PATH}", :remove_destination => true)
+    FileUtils.cp_r("./dev/dist/", "#{BIN_PATH}", :remove_destination => true)
     FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
     FileUtils.chmod(0755, "#{BIN_PATH}/agent")
   end
