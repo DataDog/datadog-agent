@@ -140,6 +140,7 @@ dependency 'jmxfetch'
 
 unless windows?
   dependency 'datadog-trace-agent'
+  dependency 'datadog-process-agent'
 end
 
 if windows?
