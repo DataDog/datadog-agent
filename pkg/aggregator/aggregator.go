@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
-const defaultFlushInterval = 15 // flush interval in seconds
+const DefaultFlushInterval = 15 // flush interval in seconds
 const bucketSize = 10           // fixed for now
 
 // Stats stores a statistic from several past flushes allowing computations like median or percentiles
@@ -92,7 +92,7 @@ func init() {
 
 // InitAggregator returns the Singleton instance
 func InitAggregator(s *serializer.Serializer, hostname string) *BufferedAggregator {
-	return InitAggregatorWithFlushInterval(s, hostname, defaultFlushInterval)
+	return InitAggregatorWithFlushInterval(s, hostname, DefaultFlushInterval)
 }
 
 // InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
@@ -142,7 +142,7 @@ func NewBufferedAggregator(s *serializer.Serializer, hostname string, flushInter
 		sampler:            *NewTimeSampler(bucketSize, hostname),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
 		distSampler:        *NewDistSampler(bucketSize, hostname),
-		flushInterval:      defaultFlushInterval,
+		flushInterval:      flushInterval,
 		serializer:         s,
 		hostname:           hostname,
 		hostnameUpdate:     make(chan string),

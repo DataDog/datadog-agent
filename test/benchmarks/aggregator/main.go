@@ -50,6 +50,26 @@ var (
 		"",
 		"Add a 'branch' tag to every metrics equal to the value given.")
 
+	memory = flag.Bool("memory",
+		false,
+		"should we run the memory benchmark.")
+
+	memips = flag.Int("ips",
+		1000,
+		"number of iterations per second (best-effort).")
+
+	duration = flag.Int("duration",
+		60,
+		"duration per second.")
+
+	plotFile = flag.String("plot",
+		"",
+		"if set, the file where to write results to be plot with gnuplot.")
+
+	flushIval = flag.Int64("flush_ival",
+		aggregator.DefaultFlushInterval,
+		"Flush interval for aggregator")
+
 	agg   *aggregator.BufferedAggregator
 	flush = make(chan time.Time)
 )
@@ -189,8 +209,7 @@ func main() {
 	f := &forwarderBenchStub{}
 	s := &serializer.Serializer{Forwarder: f}
 
-	agg = aggregator.InitAggregator(s, "hostname")
-	agg.TickerChan = flush
+	agg = aggregator.InitAggregatorWithFlushInterval(s, "hostname", *flushIval)
 
 	aggregator.SetDefaultAggregator(agg)
 	sender, err := aggregator.GetSender(check.ID("benchmark check"))
@@ -198,13 +217,6 @@ func main() {
 		log.Criticalf("could not get sender: %s", err)
 		return
 	}
-
-	//warm up
-	generateMetrics(1, 1, sender.Gauge)
-	generateEvent(1, sender)
-	generateServiceCheck(1, sender)
-	sender.Commit()
-	startInfo := report(nil, "")
 
 	nbPoints := []int{}
 	for _, n := range strings.Split(*points, ",") {
@@ -225,21 +237,34 @@ func main() {
 		nbSeries = append(nbSeries, res)
 	}
 
-	log.Infof("Starting benchmark with %v series of %v points.\n\n", nbSeries, nbPoints)
-	results := benchmarkMetrics(nbSeries, nbPoints, sender, startInfo, *branchName)
-	if *jsonOutput {
-		data, err := json.Marshal(results)
-		if err != nil {
-			fmt.Printf("Error serializing results to JSON: %s\n", err)
-		} else {
-			fmt.Println(string(data))
-		}
-	}
-
-	if *apiKey != "" {
-		log.Infof("Pushing results to DataDog backend")
-		pushMetricsToDatadog(*apiKey, results)
+	if *memory {
+		benchmarkMemory(agg, sender, nbPoints, nbSeries, *memips, *duration)
 	} else {
-		log.Infof("No API key provided: no results was push to the DataDog backend")
+		agg.TickerChan = flush
+
+		//warm up
+		generateMetrics(1, 1, sender.Gauge)
+		generateEvent(1, sender)
+		generateServiceCheck(1, sender)
+		sender.Commit()
+		startInfo := report(nil, "")
+
+		log.Infof("Starting benchmark with %v series of %v points.\n\n", nbSeries, nbPoints)
+		results := benchmarkMetrics(nbSeries, nbPoints, sender, startInfo, *branchName)
+		if *jsonOutput {
+			data, err := json.Marshal(results)
+			if err != nil {
+				fmt.Printf("Error serializing results to JSON: %s\n", err)
+			} else {
+				fmt.Println(string(data))
+			}
+		}
+
+		if *apiKey != "" {
+			log.Infof("Pushing results to DataDog backend")
+			pushMetricsToDatadog(*apiKey, results)
+		} else {
+			log.Infof("No API key provided: no results was push to the DataDog backend")
+		}
 	}
 }
