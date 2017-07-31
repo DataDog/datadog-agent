@@ -7,19 +7,6 @@ import (
 
 const defaultExpiry = 300.0 // number of seconds after which contexts are expired
 
-// Wrapper for sorting an int64 array
-type int64s []int64
-
-func (a int64s) Less(i, j int) bool {
-	return a[i] < a[j]
-}
-func (a int64s) Len() int {
-	return len(a)
-}
-func (a int64s) Swap(i, j int) {
-	a[i], a[j] = a[j], a[i]
-}
-
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
 // from the same bucket can be merged into one
 type SerieSignature struct {
@@ -65,7 +52,7 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 		bucketMetrics = metrics.MakeContextMetrics()
 		s.metricsByTimestamp[bucketStart] = bucketMetrics
 	}
-	// If it's the first time we see this counter, add it to our list
+	// Update LastSampled timestamp for counters
 	if metricSample.Mtype == metrics.CounterType {
 		s.counterLastSampledByContext[contextKey] = timestamp
 	}
@@ -90,7 +77,7 @@ func (s *TimeSampler) flush(timestamp float64) []*metrics.Serie {
 				continue
 			}
 
-			s.flushEmptyCounters(bucketTimestamp, contextMetrics)
+			s.countersSampleZeroValue(bucketTimestamp, contextMetrics)
 
 			rawSeries = append(rawSeries, contextMetrics.Flush(float64(bucketTimestamp))...)
 
@@ -99,9 +86,10 @@ func (s *TimeSampler) flush(timestamp float64) []*metrics.Serie {
 	} else if s.lastCutOffTime+s.interval <= cutoffTime {
 		// Even if there is no metric in this flush, recreate empty counters,
 		// but only if we've passed an interval since the last flush
+
 		contextMetrics := metrics.MakeContextMetrics()
 
-		s.flushEmptyCounters(cutoffTime-s.interval, contextMetrics)
+		s.countersSampleZeroValue(cutoffTime-s.interval, contextMetrics)
 
 		rawSeries = append(rawSeries, contextMetrics.Flush(float64(cutoffTime-s.interval))...)
 	}
@@ -133,7 +121,7 @@ func (s *TimeSampler) flush(timestamp float64) []*metrics.Serie {
 	return result
 }
 
-func (s *TimeSampler) flushEmptyCounters(timestamp int64, contextMetrics metrics.ContextMetrics) {
+func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics metrics.ContextMetrics) {
 
 	expirySeconds := config.Datadog.GetFloat64("dogstatsd_expiry_seconds")
 	for counterContext, lastSampled := range s.counterLastSampledByContext {
@@ -149,7 +137,7 @@ func (s *TimeSampler) flushEmptyCounters(timestamp int64, contextMetrics metrics
 				Timestamp:  float64(timestamp),
 			}
 			contextMetrics.AddSample(counterContext, sample, float64(timestamp), s.interval)
-			s.contextResolver.lastSeenByKey[counterContext] = float64(timestamp)
+			s.contextResolver.updateTrackedContext(counterContext, float64(timestamp))
 		} else {
 			delete(s.counterLastSampledByContext, counterContext)
 		}

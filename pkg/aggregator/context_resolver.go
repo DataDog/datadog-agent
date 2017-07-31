@@ -58,6 +58,11 @@ func (cr *ContextResolver) trackContext(metricSample *metrics.MetricSample, curr
 	return contextKey
 }
 
+// updateTrackedContext updates the last seen timestamp on a given context key
+func (cr *ContextResolver) updateTrackedContext(contextKey string, timestamp float64) {
+	cr.lastSeenByKey[contextKey] = float64(timestamp)
+}
+
 // expireContexts cleans up the contexts that haven't been tracked since the given timestamp
 // and returns the associated contextKeys
 func (cr *ContextResolver) expireContexts(expireTimestamp float64) []string {
