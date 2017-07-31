@@ -1,4 +1,5 @@
 require 'rake/clean'
+require 'yaml'
 
 def os
   case RUBY_PLATFORM
@@ -17,6 +18,17 @@ end
 def go_build_tags
   build_tags = ENV['tags'] || "zstd snmp etcd zk cpython jmx apm docker ec2 gce"
   build_tags = ENV['puppy'] == 'true' ? 'zlib' : build_tags
+end
+
+def get_base_ldflags()
+  # get agent-payload version
+  agent_payload_version = YAML.load_file("glide.yaml")["import"].find {|p| p["package"] == "github.com/DataDog/agent-payload"}["version"]
+  commit = `git rev-parse --short HEAD`.strip
+
+  ldflags = [
+    "-X #{REPO_PATH}/pkg/version.commit=#{commit}",
+    "-X #{REPO_PATH}/pkg/serializer.AgentPayloadVersion=#{agent_payload_version}",
+  ]
 end
 
 def go_fmt(path, fail_on_mod)

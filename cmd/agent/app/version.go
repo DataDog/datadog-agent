@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +18,6 @@ var versionCmd = &cobra.Command{
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		av, _ := version.New(version.AgentVersion)
-		fmt.Println(fmt.Sprintf("Agent %s - Codename: %s - Commit: %s", av.GetNumber(), av.Meta, av.Commit))
+		fmt.Println(fmt.Sprintf("Agent %s - Codename: %s - Commit: %s - Serialization version: %s", av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion))
 	},
 }

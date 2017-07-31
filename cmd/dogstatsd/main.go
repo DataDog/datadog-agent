@@ -47,7 +47,7 @@ extensions for special Datadog features.`,
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
 			av, _ := version.New(version.AgentVersion)
-			fmt.Println(fmt.Sprintf("DogStatsD from Agent %s - Codename: %s - Commit: %s", av.GetNumber(), av.Meta, av.Commit))
+			fmt.Println(fmt.Sprintf("DogStatsD from Agent %s - Codename: %s - Commit: %s - Serialization version: %s", av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion))
 		},
 	}
 

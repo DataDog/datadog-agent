@@ -24,7 +24,7 @@ namespace :agent do
     # default to the embedded one.
     env = {}
     gcflags = []
-    ldflags = []
+    ldflags = get_base_ldflags()
     if !ENV["USE_SYSTEM_LIBS"]
       if os == "windows"
         env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}"
@@ -51,8 +51,6 @@ namespace :agent do
       build_success = system(env, command)
       fail "Agent build failed with code #{$?.exitstatus}" if !build_success
     end
-    commit = `git rev-parse --short HEAD`.strip
-    ldflags << "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
     if ENV["DELVE"]
       gcflags << "-N" << "-l"
       if os == "windows"
