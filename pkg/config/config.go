@@ -1,11 +1,15 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Datadog is the global configuration object
@@ -75,33 +79,71 @@ func init() {
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
 }
 
+var (
+	ddURLs = map[string]interface{}{
+		"app.datadoghq.com": nil,
+		"app.datad0g.com":   nil,
+	}
+)
+
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints() (map[string][]string, error) {
 	return getMultipleEndpoints(Datadog)
 }
 
+// addAgentVersionToDomain prefix the domain with the agent version: X-Y-Z.domain
+func addAgentVersionToDomain(domain string, app string) (string, error) {
+	u, err := url.Parse(domain)
+	if err != nil {
+		return "", err
+	}
+
+	// we don't udpdate unknown URL (ie: proxy or custom StatsD server)
+	if _, found := ddURLs[u.Host]; !found {
+		return domain, nil
+	}
+
+	v, _ := version.New(version.AgentVersion)
+	subdomain := strings.Split(u.Host, ".")[0]
+	newSubdomain := fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
+
+	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
+	return u.String(), nil
+}
+
 // getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
 func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
+	ddURL := config.GetString("dd_url")
+	updatedDDUrl, err := addAgentVersionToDomain(ddURL, "app")
+	if err != nil {
+		return nil, fmt.Errorf("Could not parse 'dd_url': %s", err)
+	}
+
 	keysPerDomain := map[string][]string{
-		config.GetString("dd_url"): {
+		updatedDDUrl: {
 			config.GetString("api_key"),
 		},
 	}
 
 	var additionalEndpoints map[string][]string
-	err := config.UnmarshalKey("additional_endpoints", &additionalEndpoints)
+	err = config.UnmarshalKey("additional_endpoints", &additionalEndpoints)
 	if err != nil {
 		return keysPerDomain, err
 	}
 
 	// merge additional endpoints into keysPerDomain
 	for domain, apiKeys := range additionalEndpoints {
-		if _, ok := keysPerDomain[domain]; ok {
+		updatedDomain, err := addAgentVersionToDomain(domain, "app")
+		if err != nil {
+			return nil, fmt.Errorf("Could not parse url from 'additional_endpoints' %s: %s", domain, err)
+		}
+
+		if _, ok := keysPerDomain[updatedDomain]; ok {
 			for _, apiKey := range apiKeys {
-				keysPerDomain[domain] = append(keysPerDomain[domain], apiKey)
+				keysPerDomain[updatedDomain] = append(keysPerDomain[updatedDomain], apiKey)
 			}
 		} else {
-			keysPerDomain[domain] = apiKeys
+			keysPerDomain[updatedDomain] = apiKeys
 		}
 	}
 
