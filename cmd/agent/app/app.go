@@ -4,7 +4,14 @@ all the components and providing the command line interface.
 */
 package app
 
-import "github.com/spf13/cobra"
+import (
+	"fmt"
+	"runtime"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/spf13/cobra"
+)
 
 var (
 	// AgentCmd is the root command
@@ -23,5 +30,12 @@ monitoring and performance data.`,
 )
 
 func init() {
-	AgentCmd.Flags().StringVarP(&sockname, "name", "n", "agent.sock", "name of socket/pipe")
+	var defaultSockName string
+	if runtime.GOOS == "windows" {
+		defaultSockName = strings.SplitAfter(config.Datadog.GetString("cmd_pipe_name"), "pipe\\")[1]
+		fmt.Printf("Set defaultSockName to %s\n", defaultSockName)
+	} else {
+		defaultSockName = strings.SplitAfter(config.Datadog.GetString("cmd_sock"), "tmp/")[1]
+	}
+	AgentCmd.Flags().StringVarP(&sockname, "name", "n", defaultSockName, "name of socket/pipe")
 }

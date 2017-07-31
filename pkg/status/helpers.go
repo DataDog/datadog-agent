@@ -46,7 +46,10 @@ func lastError(value string) template.HTML {
 func lastErrorTraceback(value string) template.HTML {
 	var lastErrorArray []map[string]string
 
-	json.Unmarshal([]byte(value), &lastErrorArray)
+	err := json.Unmarshal([]byte(value), &lastErrorArray)
+	if err != nil || len(lastErrorArray) == 0 {
+		return template.HTML("No traceback")
+	}
 	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "\n", "\n      ", -1)
 	lastErrorArray[0]["traceback"] = strings.TrimRight(lastErrorArray[0]["traceback"], "\n\t ")
 	return template.HTML(lastErrorArray[0]["traceback"])
@@ -54,9 +57,13 @@ func lastErrorTraceback(value string) template.HTML {
 
 func lastErrorMessage(value string) template.HTML {
 	var lastErrorArray []map[string]string
-
-	json.Unmarshal([]byte(value), &lastErrorArray)
-	return template.HTML(lastErrorArray[0]["message"])
+	err := json.Unmarshal([]byte(value), &lastErrorArray)
+	if err == nil && len(lastErrorArray) > 0 {
+		if _, ok := lastErrorArray[0]["message"]; ok {
+			return template.HTML(lastErrorArray[0]["message"])
+		}
+	}
+	return template.HTML("UNKNOWN ERROR")
 }
 
 func formatUnixTime(unixTime float64) string {
