@@ -60,12 +60,12 @@ func TestSubmitInStopMode(t *testing.T) {
 	forwarder := NewDefaultForwarder(nil)
 
 	assert.NotNil(t, forwarder)
-	assert.NotNil(t, forwarder.SubmitSeries(nil, ""))
-	assert.NotNil(t, forwarder.SubmitEvents(nil, ""))
-	assert.NotNil(t, forwarder.SubmitServiceChecks(nil, ""))
-	assert.NotNil(t, forwarder.SubmitSketchSeries(nil, ""))
-	assert.NotNil(t, forwarder.SubmitHostMetadata(nil, ""))
-	assert.NotNil(t, forwarder.SubmitMetadata(nil, ""))
+	assert.NotNil(t, forwarder.SubmitSeries(nil, map[string]string{}))
+	assert.NotNil(t, forwarder.SubmitEvents(nil, map[string]string{}))
+	assert.NotNil(t, forwarder.SubmitServiceChecks(nil, map[string]string{}))
+	assert.NotNil(t, forwarder.SubmitSketchSeries(nil, map[string]string{}))
+	assert.NotNil(t, forwarder.SubmitHostMetadata(nil, map[string]string{}))
+	assert.NotNil(t, forwarder.SubmitMetadata(nil, map[string]string{}))
 }
 
 func TestSubmit(t *testing.T) {
@@ -120,7 +120,7 @@ func TestSubmit(t *testing.T) {
 	payload := []byte("SubmitSeries payload")
 	expectedPayload, _ = compression.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/series"
-	assert.Nil(t, forwarder.SubmitSeries(&payload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitSeries(&payload, map[string]string{"Content-Type": "application/unit-test"}))
 	// wait for the queries to complete before changing expected value
 	<-wait
 	<-wait
@@ -129,7 +129,7 @@ func TestSubmit(t *testing.T) {
 	payload = []byte("SubmitEvents payload")
 	expectedPayload, _ = compression.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/events"
-	assert.Nil(t, forwarder.SubmitEvents(&payload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitEvents(&payload, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
@@ -137,7 +137,7 @@ func TestSubmit(t *testing.T) {
 	payload = []byte("SubmitServiceChecks payload")
 	expectedPayload, _ = compression.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/service_checks"
-	assert.Nil(t, forwarder.SubmitServiceChecks(&payload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitServiceChecks(&payload, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
@@ -146,7 +146,7 @@ func TestSubmit(t *testing.T) {
 	// for now, no compression and api key in query
 	expectedEndpoint = "/api/v2/sketches"
 	expectAPIKeyInQuery = true
-	assert.Nil(t, forwarder.SubmitSketchSeries(&expectedPayload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitSketchSeries(&expectedPayload, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
@@ -155,7 +155,7 @@ func TestSubmit(t *testing.T) {
 	payload = []byte("SubmitHostMetadata payload")
 	expectedPayload, _ = compression.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/host_metadata"
-	assert.Nil(t, forwarder.SubmitHostMetadata(&payload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitHostMetadata(&payload, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
@@ -163,7 +163,7 @@ func TestSubmit(t *testing.T) {
 	payload = []byte("SubmitMetadata payload")
 	expectedPayload, _ = compression.Compress(nil, payload)
 	expectedEndpoint = "/api/v2/metadata"
-	assert.Nil(t, forwarder.SubmitMetadata(&payload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitMetadata(&payload, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
@@ -171,7 +171,7 @@ func TestSubmit(t *testing.T) {
 	expectedPayload = []byte("SubmitV1Series payload")
 	expectedEndpoint = "/api/v1/series"
 	expectAPIKeyInQuery = true
-	assert.Nil(t, forwarder.SubmitV1Series(&expectedPayload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitV1Series(&expectedPayload, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
@@ -179,7 +179,7 @@ func TestSubmit(t *testing.T) {
 	expectedPayload = []byte("SubmitV1SketchSeries payload")
 	expectedEndpoint = "/api/v1/sketches"
 	expectAPIKeyInQuery = true
-	assert.Nil(t, forwarder.SubmitV1SketchSeries(&expectedPayload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitV1SketchSeries(&expectedPayload, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
@@ -187,7 +187,7 @@ func TestSubmit(t *testing.T) {
 	expectedPayload = []byte("SubmitV1CheckRuns payload")
 	expectedEndpoint = "/api/v1/check_run"
 	expectAPIKeyInQuery = true
-	assert.Nil(t, forwarder.SubmitV1CheckRuns(&expectedPayload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitV1CheckRuns(&expectedPayload, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
@@ -196,7 +196,7 @@ func TestSubmit(t *testing.T) {
 	expectedEndpoint = "/intake/"
 	expectedHeaders.Set("Content-type", "application/json")
 	expectAPIKeyInQuery = true
-	assert.Nil(t, forwarder.SubmitV1Intake(&expectedPayload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitV1Intake(&expectedPayload, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
 	assert.Equal(t, len(forwarder.retryQueue), 0)
@@ -227,7 +227,7 @@ func TestSubmitWithProxy(t *testing.T) {
 	defer forwarder.Stop()
 
 	payload := []byte("SubmitSeries payload")
-	assert.Nil(t, forwarder.SubmitSeries(&payload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitSeries(&payload, map[string]string{"Content-Type": "application/unit-test"}))
 	// wait for the queries to complete before changing expected value
 	<-wait
 	assert.Equal(t, 0, len(forwarder.retryQueue))
@@ -261,7 +261,7 @@ func TestSubmitWithProxyAndPassword(t *testing.T) {
 	defer forwarder.Stop()
 
 	payload := []byte("SubmitSeries payload")
-	assert.Nil(t, forwarder.SubmitSeries(&payload, "application/unit-test"))
+	assert.Nil(t, forwarder.SubmitSeries(&payload, map[string]string{"Content-Type": "application/unit-test"}))
 	// wait for the queries to complete before changing expected value
 	<-wait
 	assert.Equal(t, 0, len(forwarder.retryQueue))

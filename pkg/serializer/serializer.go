@@ -11,7 +11,29 @@ import (
 const (
 	protobufContentType = "application/x-protobuf"
 	jsonContentType     = "application/json"
+
+	payloadVersionHTTPHeader = "DD-Agent-Payload"
 )
+
+var (
+	// AgentPayloadVersion is the versions of the agent-payload repository
+	// used to serialize to protobuf
+	AgentPayloadVersion string
+
+	jsonExtraHeaders     map[string]string
+	protobufExtraHeaders map[string]string
+)
+
+func init() {
+	jsonExtraHeaders = map[string]string{
+		"Content-Type": jsonContentType,
+	}
+
+	protobufExtraHeaders = map[string]string{
+		"Content-Type":           protobufContentType,
+		payloadVersionHTTPHeader: AgentPayloadVersion,
+	}
+}
 
 // Marshaler is an interface for metrics that are able to serialize themselves to JSON and protobuf
 type Marshaler interface {
@@ -30,7 +52,7 @@ func (s *Serializer) SendEvents(e Marshaler) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize events, %s", err)
 	}
-	return s.Forwarder.SubmitV1Intake(&payload, jsonContentType)
+	return s.Forwarder.SubmitV1Intake(&payload, jsonExtraHeaders)
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
@@ -39,7 +61,7 @@ func (s *Serializer) SendServiceChecks(sc Marshaler) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize service checks, %s", err)
 	}
-	return s.Forwarder.SubmitV1CheckRuns(&payload, jsonContentType)
+	return s.Forwarder.SubmitV1CheckRuns(&payload, jsonExtraHeaders)
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
@@ -48,7 +70,7 @@ func (s *Serializer) SendSeries(series Marshaler) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize series: %s", err)
 	}
-	return s.Forwarder.SubmitV1Series(&payload, jsonContentType)
+	return s.Forwarder.SubmitV1Series(&payload, jsonExtraHeaders)
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
@@ -57,7 +79,7 @@ func (s *Serializer) SendSketch(sketches Marshaler) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize sketches: %s", err)
 	}
-	return s.Forwarder.SubmitSketchSeries(&payload, protobufContentType)
+	return s.Forwarder.SubmitSketchSeries(&payload, protobufExtraHeaders)
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
@@ -67,7 +89,7 @@ func (s *Serializer) SendMetadata(m Marshaler) error {
 		return fmt.Errorf("could not serialize metadata payload: %s", err)
 	}
 
-	if err := s.Forwarder.SubmitV1Intake(&payload, jsonContentType); err != nil {
+	if err := s.Forwarder.SubmitV1Intake(&payload, jsonExtraHeaders); err != nil {
 		return err
 	}
 
@@ -84,7 +106,7 @@ func (s *Serializer) SendJSONToV1Intake(data interface{}) error {
 		return fmt.Errorf("could not serialize v1 payload: %s", err)
 	}
 
-	if err := s.Forwarder.SubmitV1Intake(&payload, jsonContentType); err != nil {
+	if err := s.Forwarder.SubmitV1Intake(&payload, jsonExtraHeaders); err != nil {
 		return err
 	}
 

@@ -42,7 +42,8 @@ import:
   - gogoproto
   - proto
 - package: github.com/DataDog/agent-payload
-  version: ^4.3
+  # version for agent-payload has to be exact since it's used in the forwarder payload
+  version: 4.3
 - package: github.com/patrickmn/go-cache
   version: ^2.0.0
 - package: github.com/k-sone/snmpgo

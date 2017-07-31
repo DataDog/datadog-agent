@@ -58,38 +58,38 @@ func (f *forwarderBenchStub) Start() error {
 func (f *forwarderBenchStub) Stop() {
 	return
 }
-func (f *forwarderBenchStub) SubmitV1Series(payload *[]byte, contentType string) error {
+func (f *forwarderBenchStub) SubmitV1Series(payload *[]byte, extraHeaders map[string]string) error {
 	f.computeStats(payload)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payload *[]byte, contentType string) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payload *[]byte, extraHeaders map[string]string) error {
 	f.computeStats(payload)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1CheckRuns(payload *[]byte, contentType string) error {
+func (f *forwarderBenchStub) SubmitV1CheckRuns(payload *[]byte, extraHeaders map[string]string) error {
 	f.computeStats(payload)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1SketchSeries(payload *[]byte, contentType string) error {
+func (f *forwarderBenchStub) SubmitV1SketchSeries(payload *[]byte, extraHeaders map[string]string) error {
 	f.computeStats(payload)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSeries(payload *[]byte, contentType string) error {
+func (f *forwarderBenchStub) SubmitSeries(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitEvents(payload *[]byte, contentType string) error {
+func (f *forwarderBenchStub) SubmitEvents(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitServiceChecks(payload *[]byte, contentType string) error {
+func (f *forwarderBenchStub) SubmitServiceChecks(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitSketchSeries(payload *[]byte, contentType string) error {
+func (f *forwarderBenchStub) SubmitSketchSeries(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitHostMetadata(payload *[]byte, contentType string) error {
+func (f *forwarderBenchStub) SubmitHostMetadata(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitMetadata(payload *[]byte, contentType string) error {
+func (f *forwarderBenchStub) SubmitMetadata(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
 

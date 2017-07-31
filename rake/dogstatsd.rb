@@ -13,14 +13,13 @@ namespace :dogstatsd do
     static_bin = ENV['static'] == "true"
 
     bin_path = DOGSTATSD_BIN_PATH
-    commit = `git rev-parse --short HEAD`.strip
-    ldflags = "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
+    ldflags = get_base_ldflags()
     if static_bin then
-      ldflags += " -s -w -extldflags \"-static\""
+      ldflags << " -s -w -extldflags \"-static\""
       bin_path = STATIC_BIN_PATH
     end
 
-    sh("go build #{race_opt} #{build_type_opt} -tags '#{go_build_tags}' -o #{bin_path}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
+    sh("go build #{race_opt} #{build_type_opt} -tags '#{go_build_tags}' -o #{bin_path}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/dogstatsd/")
   end
 
   desc "Run Dogstatsd"
