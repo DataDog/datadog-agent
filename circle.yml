@@ -1,7 +1,7 @@
 machine:
   environment:
     IMPORT_PATH: "/home/ubuntu/.go_workspace/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME"
-    GIMME_GO_VERSION: 1.7.4
+    GIMME_GO_VERSION: 1.8.3
     PATH: "$PATH:$HOME/bin"
 
   post:
