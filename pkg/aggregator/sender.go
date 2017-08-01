@@ -43,6 +43,7 @@ type metricStats struct {
 	Lock          sync.RWMutex
 }
 
+// RawSender interface to submit samples to aggregator directly
 type RawSender interface {
 	SendRawMetricSample(sample *metrics.MetricSample)
 	SendRawServiceCheck(sc *metrics.ServiceCheck)

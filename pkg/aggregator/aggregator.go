@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
+// DefaultFlushInterval aggregator default flush interval
 const DefaultFlushInterval = 15 // flush interval in seconds
 const bucketSize = 10           // fixed for now
 
