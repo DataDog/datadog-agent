@@ -207,7 +207,7 @@ func createMetric(value float64, tags []string, name string, t int64) datadog.Me
 }
 
 func main() {
-	if err := initLogging(); err != nil {
+	if err := util.InitLogging("info"); err != nil {
 		log.Infof("Unable to replace logger, default logging will apply (highly verbose): %s", err)
 	}
 	defer log.Flush()

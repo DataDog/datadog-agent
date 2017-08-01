@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/test/util"
 )
 
 var (
@@ -200,11 +201,14 @@ func main() {
 		fmt.Printf("could not set loggger: %s", err)
 		return
 	}
+	defer log.Flush()
 
 	if *branchName == "" {
 		log.Criticalf("Error: '-branch' parameter is mandatory")
 		return
 	}
+
+	util.SetHostname("foo")
 
 	f := &forwarderBenchStub{}
 	s := &serializer.Serializer{Forwarder: f}
@@ -237,8 +241,9 @@ func main() {
 		nbSeries = append(nbSeries, res)
 	}
 
+	var plotRes string
 	if *memory {
-		benchmarkMemory(agg, sender, nbPoints, nbSeries, *memips, *duration)
+		plotRes = benchmarkMemory(agg, sender, nbPoints, nbSeries, *memips, *duration)
 	} else {
 		agg.TickerChan = flush
 
