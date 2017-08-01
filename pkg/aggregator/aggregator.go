@@ -265,7 +265,11 @@ func (agg *BufferedAggregator) flushSeries() {
 	// Serialize and forward in a separate goroutine
 	go func() {
 		log.Debug("Flushing ", len(series), " series to the forwarder")
-		agg.serializer.SendSeries(series)
+		err := agg.serializer.SendSeries(series)
+		if err != nil {
+			log.Warnf("Error flushing series: %v", err)
+			aggregatorExpvar.Add("SeriesFlushErrors", 1)
+		}
 		addFlushTime("ChecksMetricSampleFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("SeriesFlushed", int64(len(series)))
 	}()
@@ -294,7 +298,11 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 	// Serialize and forward in a separate goroutine
 	go func() {
 		log.Debug("Flushing ", len(serviceChecks), " service checks to the forwarder")
-		agg.serializer.SendServiceChecks(serviceChecks)
+		err := agg.serializer.SendServiceChecks(serviceChecks)
+		if err != nil {
+			log.Warnf("Error flushing service checks: %v", err)
+			aggregatorExpvar.Add("ServiceCheckFlushErrors", 1)
+		}
 		addFlushTime("ServiceCheckFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("ServiceCheckFlushed", int64(len(serviceChecks)))
 	}()
@@ -316,7 +324,11 @@ func (agg *BufferedAggregator) flushSketches() {
 	}
 	go func() {
 		log.Debug("Flushing ", len(sketchSeries), " sketches to the forwarder")
-		agg.serializer.SendSketch(sketchSeries)
+		err := agg.serializer.SendSketch(sketchSeries)
+		if err != nil {
+			log.Warnf("Error flushing sketch: %v", err)
+			aggregatorExpvar.Add("SketchesFlushErrors", 1)
+		}
 		addFlushTime("MetricSketchFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("SketchesFlushed", int64(len(sketchSeries)))
 	}()
@@ -342,7 +354,11 @@ func (agg *BufferedAggregator) flushEvents() {
 
 	go func() {
 		log.Debug("Flushing ", len(events), " events to the forwarder")
-		agg.serializer.SendEvents(events)
+		err := agg.serializer.SendEvents(events)
+		if err != nil {
+			log.Warnf("Error flushing events: %v", err)
+			aggregatorExpvar.Add("EventsFlushErrors", 1)
+		}
 		addFlushTime("EventFlushTime", int64(time.Since(start)))
 		aggregatorExpvar.Add("EventsFlushed", int64(len(events)))
 	}()
