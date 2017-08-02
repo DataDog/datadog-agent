@@ -77,7 +77,7 @@ def get_payload_version()
 
   # parse the TOML file line by line
   File.readlines("Gopkg.toml").each do |line|
-    # change the parser "state" when we find a [[constraing]] section
+    # change the parser "state" when we find a [[constraint]] section
     if line.include? "[[constraint]]"
       # see if the current section is what we're searching for
       if current.fetch('name', nil) == "github.com/DataDog/agent-payload"
