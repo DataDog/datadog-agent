@@ -76,14 +76,14 @@ def get_payload_version()
   current = {}
 
   # parse the TOML file line by line
-  File.readlines("Gopkg.toml").each do |line|
+  File.readlines("Gopkg.lock").each do |line|
     # skip empty lines and comments
     if line.length == 0 || line.start_with?("#")
       next
     end
 
-    # change the parser "state" when we find a [[constraint]] section
-    if line.include? "[[constraint]]"
+    # change the parser "state" when we find a [[projects]] section
+    if line.include? "[[projects]]"
       # see if the current section is what we're searching for
       if current.fetch('name', nil) == "github.com/DataDog/agent-payload"
         return current["version"]
@@ -99,8 +99,8 @@ def get_payload_version()
     if toks.length == 2
       # strip whitespaces
       key = toks.first.strip
-      # strip whitespaces, quotes and `=`
-      value = toks.last.tr('"', '').tr('=', '').strip
+      # strip whitespaces and quotes
+      value = toks.last.tr('"', '').strip
       current[key] = value
     end
   end
