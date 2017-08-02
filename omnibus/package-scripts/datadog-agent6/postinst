@@ -60,6 +60,11 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     chown -R dd-agent:dd-agent ${LOG_DIR}
     chown -R dd-agent:dd-agent ${INSTALL_DIR}
 
+    # Create symlinks to the various agent's components
+    ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
+    chown -R dd-agent:dd-agent /usr/bin/datadog-agent
+    chmod 755 /usr/bin/datadog-agent
+
     # Only supports systemd and upstart
     echo "Enabling service $SERVICE_NAME"
     if command -v systemctl >/dev/null 2>&1; then
