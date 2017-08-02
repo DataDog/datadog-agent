@@ -11,5 +11,6 @@ func TestFillOsVersion(t *testing.T) {
 	stats := &systemStats{}
 	info, _ := host.Info()
 	fillOsVersion(stats, info)
-	assert.NotEmpty(t, stats.Macver.Release)
+	assert.Len(t, stats.Nixver, 3)
+	assert.NotEmpty(t, stats.Macver[0])
 }
