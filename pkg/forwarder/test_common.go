@@ -1,6 +1,7 @@
 package forwarder
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -26,9 +27,9 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
 
-func (t *testTransaction) Process(client *http.Client) error {
+func (t *testTransaction) Process(ctx context.Context, client *http.Client) error {
 	defer func() { t.processed <- true }()
-	return t.Called(client).Error(0)
+	return t.Called(client).Error(0) // we ignore the context to ease mocking
 }
 
 func (t *testTransaction) Reschedule() {

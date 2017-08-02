@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -25,8 +26,8 @@ func TestNewDefaultForwarder(t *testing.T) {
 	assert.Nil(t, forwarder.waitingPipe)
 	assert.Nil(t, forwarder.requeuedTransaction)
 	assert.Nil(t, forwarder.stopRetry)
-	assert.Equal(t, len(forwarder.workers), 0)
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	assert.Len(t, forwarder.workers, 0)
+	assert.Len(t, forwarder.retryQueue, 0)
 	assert.Equal(t, forwarder.internalState, Stopped)
 }
 
@@ -46,7 +47,7 @@ func TestForwarderStart(t *testing.T) {
 	defer forwarder.Stop()
 	assert.Nil(t, err)
 
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	require.Len(t, forwarder.retryQueue, 0)
 	assert.Equal(t, forwarder.internalState, Started)
 	assert.NotNil(t, forwarder.waitingPipe)
 	assert.NotNil(t, forwarder.requeuedTransaction)
@@ -125,7 +126,7 @@ func TestSubmit(t *testing.T) {
 	// wait for the queries to complete before changing expected value
 	<-wait
 	<-wait
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	require.Len(t, forwarder.retryQueue, 0)
 
 	expectedPayload = []byte("SubmitEvents payload")
 	expectedEndpoint = "/api/v2/events"
@@ -134,7 +135,7 @@ func TestSubmit(t *testing.T) {
 	assert.Nil(t, forwarder.SubmitEvents(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	require.Len(t, forwarder.retryQueue, 0)
 
 	expectedPayload = []byte("SubmitServiceChecks payload")
 	expectedEndpoint = "/api/v2/service_checks"
@@ -143,7 +144,7 @@ func TestSubmit(t *testing.T) {
 	assert.Nil(t, forwarder.SubmitServiceChecks(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	require.Len(t, forwarder.retryQueue, 0)
 
 	expectedPayload = []byte("SubmitSketchSeries payload")
 	expectedEndpoint = "/api/v2/sketches"
@@ -153,7 +154,7 @@ func TestSubmit(t *testing.T) {
 	assert.Nil(t, forwarder.SubmitSketchSeries(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	require.Len(t, forwarder.retryQueue, 0)
 	expectAPIKeyInQuery = false
 
 	expectedPayload = []byte("SubmitHostMetadata payload")
@@ -163,7 +164,7 @@ func TestSubmit(t *testing.T) {
 	assert.Nil(t, forwarder.SubmitHostMetadata(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	require.Len(t, forwarder.retryQueue, 0)
 
 	expectedPayload = []byte("SubmitMetadata payload")
 	expectedEndpoint = "/api/v2/metadata"
@@ -171,7 +172,7 @@ func TestSubmit(t *testing.T) {
 	assert.Nil(t, forwarder.SubmitMetadata(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	require.Len(t, forwarder.retryQueue, 0)
 
 	expectedPayload = []byte("SubmitV1Series payload")
 	expectedEndpoint = "/api/v1/series"
@@ -181,7 +182,7 @@ func TestSubmit(t *testing.T) {
 	assert.Nil(t, forwarder.SubmitV1Series(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	require.Len(t, forwarder.retryQueue, 0)
 
 	expectedPayload = []byte("SubmitV1SketchSeries payload")
 	expectedEndpoint = "/api/v1/sketches"
@@ -191,7 +192,7 @@ func TestSubmit(t *testing.T) {
 	assert.Nil(t, forwarder.SubmitV1SketchSeries(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	require.Len(t, forwarder.retryQueue, 0)
 
 	expectedPayload = []byte("SubmitV1CheckRuns payload")
 	expectedEndpoint = "/api/v1/check_run"
@@ -201,7 +202,7 @@ func TestSubmit(t *testing.T) {
 	assert.Nil(t, forwarder.SubmitV1CheckRuns(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	require.Len(t, forwarder.retryQueue, 0)
 
 	expectedPayload = []byte("SubmitV1Intake payload")
 	expectedEndpoint = "/intake/"
@@ -212,7 +213,7 @@ func TestSubmit(t *testing.T) {
 	assert.Nil(t, forwarder.SubmitV1Intake(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	require.Len(t, forwarder.retryQueue, 0)
 }
 
 func TestSubmitWithProxy(t *testing.T) {
@@ -245,7 +246,7 @@ func TestSubmitWithProxy(t *testing.T) {
 	assert.Nil(t, forwarder.SubmitSeries(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	// wait for the queries to complete before changing expected value
 	<-wait
-	assert.Equal(t, 0, len(forwarder.retryQueue))
+	require.Len(t, forwarder.retryQueue, 0)
 }
 
 func TestSubmitWithProxyAndPassword(t *testing.T) {
@@ -281,7 +282,7 @@ func TestSubmitWithProxyAndPassword(t *testing.T) {
 	assert.Nil(t, forwarder.SubmitSeries(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	// wait for the queries to complete before changing expected value
 	<-wait
-	assert.Equal(t, 0, len(forwarder.retryQueue))
+	require.Len(t, forwarder.retryQueue, 0)
 }
 
 func TestForwarderRetry(t *testing.T) {
@@ -294,7 +295,7 @@ func TestForwarderRetry(t *testing.T) {
 
 	forwarder.requeueTransaction(ready)
 	forwarder.requeueTransaction(notReady)
-	assert.Equal(t, len(forwarder.retryQueue), 2)
+	require.Len(t, forwarder.retryQueue, 2)
 
 	ready.On("Process", forwarder.workers[0].Client).Return(nil).Times(1)
 	ready.On("GetTarget").Return("").Times(1)
@@ -310,7 +311,7 @@ func TestForwarderRetry(t *testing.T) {
 	notReady.AssertExpectations(t)
 	notReady.AssertNumberOfCalls(t, "Process", 0)
 	notReady.AssertNumberOfCalls(t, "GetTarget", 0)
-	assert.Equal(t, len(forwarder.retryQueue), 1)
+	require.Len(t, forwarder.retryQueue, 1)
 	assert.Equal(t, forwarder.retryQueue[0], notReady)
 }
 
@@ -340,7 +341,7 @@ func TestForwarderRetryLifo(t *testing.T) {
 
 	transaction1.AssertExpectations(t)
 	transaction2.AssertExpectations(t)
-	assert.Equal(t, len(forwarder.retryQueue), 0)
+	assert.Len(t, forwarder.retryQueue, 0)
 }
 
 func TestForwarderRetryLimitQueue(t *testing.T) {
@@ -365,8 +366,8 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 
 	transaction1.AssertExpectations(t)
 	transaction2.AssertExpectations(t)
-	assert.Equal(t, len(forwarder.retryQueue), 1)
-	assert.Equal(t, len(forwarder.waitingPipe), 0)
+	require.Len(t, forwarder.retryQueue, 1)
+	require.Len(t, forwarder.waitingPipe, 0)
 	// assert that the oldest transaction was dropped
 	assert.Equal(t, transaction2, forwarder.retryQueue[0])
 }

@@ -1,6 +1,7 @@
 package forwarder
 
 import (
+	"context"
 	"expvar"
 	"fmt"
 	"net/http"
@@ -70,7 +71,7 @@ type Payloads []*[]byte
 
 // Transaction represents the task to process for a Worker.
 type Transaction interface {
-	Process(client *http.Client) error
+	Process(ctx context.Context, client *http.Client) error
 	Reschedule()
 	GetNextFlush() time.Time
 	GetCreatedAt() time.Time
