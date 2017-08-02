@@ -1,0 +1,103 @@
+
+# Gopkg.toml example
+#
+# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
+# for detailed Gopkg.toml documentation.
+#
+# required = ["github.com/user/thing/cmd/thing"]
+# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
+#
+# [[constraint]]
+#   name = "github.com/user/project"
+#   version = "1.0.0"
+#
+# [[constraint]]
+#   name = "github.com/user/project2"
+#   branch = "dev"
+#   source = "github.com/myfork/project2"
+#
+# [[override]]
+#  name = "github.com/x/y"
+#  version = "2.4.0"
+
+
+[[constraint]]
+  name = "github.com/DataDog/agent-payload"
+  version = "=4.3.0"
+
+[[constraint]]
+  name = "github.com/DataDog/gohai"
+
+[[constraint]]
+  name = "github.com/DataDog/zstd"
+
+[[constraint]]
+  name = "github.com/Microsoft/go-winio"
+  version = "0.3.8"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/StackExchange/wmi"
+
+[[constraint]]
+  name = "github.com/beevik/ntp"
+
+[[constraint]]
+  name = "github.com/cihub/seelog"
+  version = "2.6.0"
+
+[[constraint]]
+  name = "github.com/coreos/etcd"
+  version = "~3.1.3"
+
+[[constraint]]
+  name = "github.com/docker/docker"
+  version = "1.13.1-rc1"
+
+[[constraint]]
+  name = "github.com/ericchiang/k8s"
+
+[[constraint]]
+  name = "github.com/gogo/protobuf"
+
+[[constraint]]
+  name = "github.com/gorilla/mux"
+  version = "1.1.0"
+
+[[constraint]]
+  name = "github.com/jhoonb/archivex"
+  revision = "be4efa7ec0c38ab76d56037014c90d48d6b13037"
+
+[[constraint]]
+  name = "github.com/k-sone/snmpgo"
+  version = "3.0.2"
+
+[[constraint]]
+  name = "github.com/kardianos/osext"
+
+[[constraint]]
+  name = "github.com/mitchellh/reflectwalk"
+
+[[constraint]]
+  name = "github.com/patrickmn/go-cache"
+  version = "2.0.0"
+
+[[constraint]]
+  name = "github.com/sbinet/go-python"
+
+[[constraint]]
+  name = "github.com/shirou/gopsutil"
+  version = "2.17.2"
+
+[[constraint]]
+  name = "github.com/spf13/cobra"
+
+[[constraint]]
+  name = "github.com/spf13/viper"
+
+[[constraint]]
+  name = "github.com/stretchr/testify"
+  version = "1.1.3"
+
+[[constraint]]
+  name = "gopkg.in/yaml.v2"
