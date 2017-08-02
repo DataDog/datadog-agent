@@ -1,5 +1,4 @@
 require 'rake/clean'
-require 'yaml'
 
 def os
   case RUBY_PLATFORM
@@ -70,6 +69,8 @@ def bin_name(name)
   end
 end
 
+# extract the agent payload version from `Gopkg.toml` without requiring an
+# external package
 def get_payload_version()
 
   current = {}
