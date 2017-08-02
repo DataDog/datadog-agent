@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -43,6 +44,11 @@ func init() {
 	// BUG(massi): make the listener_windows.go module actually use the following:
 	Datadog.SetDefault("cmd_pipe_name", `\\.\pipe\ddagent`)
 	Datadog.SetDefault("check_runners", int64(4))
+	if IsContainerized() {
+		Datadog.SetDefault("proc_root", "/host/proc")
+	} else {
+		Datadog.SetDefault("proc_root", "/proc")
+	}
 	// Forwarder
 	Datadog.SetDefault("forwarder_timeout", 20)
 	Datadog.SetDefault("forwarder_retry_queue_max_size", 30)
@@ -70,6 +76,7 @@ func init() {
 	Datadog.BindEnv("cmd_sock")
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("enable_metadata_collection")
+	Datadog.BindEnv("proc_root")
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
 	Datadog.BindEnv("kubernetes_kubelet_host")
@@ -168,4 +175,9 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 	}
 
 	return keysPerDomain, nil
+}
+
+// IsContainerized returns whether the Agent is running on a Docker container
+func IsContainerized() bool {
+	return os.Getenv("DOCKER_DD_AGENT") == "yes"
 }

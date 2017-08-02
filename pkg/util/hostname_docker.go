@@ -5,13 +5,14 @@
 package util
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	log "github.com/cihub/seelog"
 )
 
 func getContainerHostname() (bool, string) {
 	var name string
-	if isContainerized() {
+	if config.IsContainerized() {
 		// Docker
 		log.Debug("GetHostname trying Docker API...")
 		if getDockerHostname, found := hostname.ProviderCatalog["docker"]; found {
