@@ -22,7 +22,7 @@ end
 
 def get_base_ldflags()
   # get agent-payload version
-  agent_payload_version = YAML.load_file("glide.yaml")["import"].find {|p| p["package"] == "github.com/DataDog/agent-payload"}["version"]
+  agent_payload_version = get_payload_version()
   commit = `git rev-parse --short HEAD`.strip
 
   ldflags = [
@@ -68,4 +68,36 @@ def bin_name(name)
   else
     name
   end
+end
+
+def get_payload_version()
+
+  current = {}
+
+  # parse the TOML file line by line
+  File.readlines("Gopkg.toml").each do |line|
+    # change the parser "state" when we find a [[constraing]] section
+    if line.include? "[[constraint]]"
+      # see if the current section is what we're searching for
+      if current.fetch('name', nil) == "github.com/DataDog/agent-payload"
+        return current["version"]
+      end
+
+      # if not, reset the "state" and proceed with the next line
+      current = {}
+      next
+    end
+
+    # search for an assignment, ignore subsequent `=` chars
+    toks = line.split('=', 2)
+    if toks.length == 2
+      # strip whitespaces
+      key = toks.first.strip
+      # strip whitespaces, quotes and `=`
+      value = toks.last.tr('"', '').tr('=', '').strip
+      current[key] = value
+    end
+  end
+
+  return ""
 end
