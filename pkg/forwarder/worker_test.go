@@ -39,9 +39,16 @@ func TestWorkerStart(t *testing.T) {
 	mock.On("Process", w.Client).Return(nil).Times(1)
 	mock.On("GetTarget").Return("").Times(1)
 
+	dummy := newTestTransaction()
+	dummy.On("Process", w.Client).Return(nil).Times(1)
+	dummy.On("GetTarget").Return("").Times(1)
+
 	w.Start()
 	input <- mock
+	// since input has no buffering the worker won't take another Transaction until it has processed the first one
+	input <- dummy
 	w.Stop()
+
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Process", 1)
 	mock.AssertNumberOfCalls(t, "Reschedule", 0)

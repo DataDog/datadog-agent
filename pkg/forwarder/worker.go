@@ -1,6 +1,7 @@
 package forwarder
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -56,7 +57,23 @@ func (w *Worker) Start() {
 		for {
 			select {
 			case t := <-w.InputChan:
-				w.process(t)
+				ctx, cancel := context.WithCancel(context.Background())
+
+				done := make(chan interface{})
+				go func() {
+					w.process(ctx, t)
+					done <- nil
+				}()
+
+				select {
+				case <-done:
+					// wait for the Transaction process to be over
+				case <-w.stopChan:
+					// cancel current Transaction if we need to stop the worker
+					cancel()
+					return
+				}
+				cancel()
 			case <-w.stopChan:
 				return
 			}
@@ -64,14 +81,14 @@ func (w *Worker) Start() {
 	}()
 }
 
-func (w *Worker) process(t Transaction) {
+func (w *Worker) process(ctx context.Context, t Transaction) {
 	// First we check if we don't have recently received an error for that endpoint
 	target := t.GetTarget()
 	if w.blockedList.isBlock(target) {
 		t.Reschedule()
 		w.RequeueChan <- t
 		log.Errorf("Too many errors for endpoint '%s': retrying later", target)
-	} else if err := t.Process(w.Client); err != nil {
+	} else if err := t.Process(ctx, w.Client); err != nil {
 		w.blockedList.block(target)
 		t.Reschedule()
 		w.RequeueChan <- t
