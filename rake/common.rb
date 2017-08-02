@@ -77,6 +77,11 @@ def get_payload_version()
 
   # parse the TOML file line by line
   File.readlines("Gopkg.toml").each do |line|
+    # skip empty lines and comments
+    if line.length == 0 || line.start_with?("#")
+      next
+    end
+
     # change the parser "state" when we find a [[constraint]] section
     if line.include? "[[constraint]]"
       # see if the current section is what we're searching for
