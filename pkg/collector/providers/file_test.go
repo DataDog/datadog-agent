@@ -57,7 +57,7 @@ func TestCollect(t *testing.T) {
 
 	assert.Nil(t, err)
 	// total number of configurations found
-	assert.Equal(t, 6, len(configs))
+	assert.Equal(t, 8, len(configs))
 
 	// count how many configs were found for a given check
 	get := func(name string) []check.Config {
