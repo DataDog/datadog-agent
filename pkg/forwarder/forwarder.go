@@ -74,6 +74,7 @@ type Transaction interface {
 	Reschedule()
 	GetNextFlush() time.Time
 	GetCreatedAt() time.Time
+	GetTarget() string
 }
 
 // Forwarder implements basic interface - useful for testing
@@ -190,8 +191,9 @@ func (f *DefaultForwarder) Start() error {
 	// reset internal state to purge transactions from past starts
 	f.init()
 
+	blockedList := newBlockedEndpoints()
 	for i := 0; i < f.NumberOfWorkers; i++ {
-		w := NewWorker(f.waitingPipe, f.requeuedTransaction)
+		w := NewWorker(f.waitingPipe, f.requeuedTransaction, blockedList)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}

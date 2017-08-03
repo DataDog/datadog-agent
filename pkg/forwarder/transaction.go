@@ -57,6 +57,12 @@ func (t *HTTPTransaction) GetCreatedAt() time.Time {
 	return t.createdAt
 }
 
+// GetTarget return the url used by the transaction
+func (t *HTTPTransaction) GetTarget() string {
+	url := t.Domain + t.Endpoint
+	return apiKeyRegExp.ReplaceAllString(url, apiKeyReplacement) // sanitized url that can be logged
+}
+
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
 func (t *HTTPTransaction) Process(client *http.Client) error {
 	reader := bytes.NewReader(*t.Payload)
@@ -74,7 +80,7 @@ func (t *HTTPTransaction) Process(client *http.Client) error {
 	if err != nil {
 		t.ErrorCount++
 		transactionsCreation.Add("Errors", 1)
-		return fmt.Errorf("Error while sending transaction to '%s', rescheduling it: %s", logURL, err)
+		return fmt.Errorf("Error while sending transaction, rescheduling it: %s", apiKeyRegExp.ReplaceAllString(err.Error(), apiKeyReplacement))
 	}
 	defer resp.Body.Close()
 

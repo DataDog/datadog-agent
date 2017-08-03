@@ -35,6 +35,10 @@ func (t *testTransaction) Reschedule() {
 	t.Called()
 }
 
+func (t *testTransaction) GetTarget() string {
+	return t.Called().Get(0).(string)
+}
+
 // MockedForwarder a mocked forwarder to be use in other module to test their dependencies with the forwarder
 type MockedForwarder struct {
 	mock.Mock
