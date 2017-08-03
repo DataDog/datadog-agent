@@ -1,0 +1,13 @@
+docker_images:
+  - foo
+  - bar
+
+ad_identifiers:
+  - foo_id
+  - bar_id
+
+init_config:
+
+instances:
+  # No configuration is needed for this check.
+  - foo: bar

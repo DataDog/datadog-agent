@@ -19,10 +19,11 @@ type ConfigRawMap map[interface{}]interface{}
 
 // Config is a generic container for configuration files
 type Config struct {
-	ID         ID           // the resource this Config applies to. Can be empty
-	Name       string       // the name of the check
-	Instances  []ConfigData // array of Yaml configurations
-	InitConfig ConfigData   // the init_config in Yaml (python check only)
+	ID            ID           // the unique ID for this config
+	Name          string       // the name of the check
+	Instances     []ConfigData // array of Yaml configurations
+	InitConfig    ConfigData   // the init_config in Yaml (python check only)
+	ADIdentifiers []string     // the list of AutoDiscovery identifiers (optional)
 }
 
 // Check is an interface for types capable to run checks
