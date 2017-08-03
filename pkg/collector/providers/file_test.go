@@ -5,6 +5,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetCheckConfig(t *testing.T) {
@@ -23,11 +24,20 @@ func TestGetCheckConfig(t *testing.T) {
 
 	// valid configuration file
 	config, err = getCheckConfig("foo", "tests/testcheck.yaml")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, config.Name, "foo")
 	assert.Equal(t, []byte(config.InitConfig), []byte("- test: 21\n"))
 	assert.Equal(t, len(config.Instances), 1)
 	assert.Equal(t, []byte(config.Instances[0]), []byte("foo: bar\n"))
+	assert.Len(t, config.ADIdentifiers, 0)
+
+	// autodiscovery
+	config, err = getCheckConfig("foo", "tests/ad_legacy.yaml")
+	require.Nil(t, err)
+	assert.Equal(t, config.ADIdentifiers, []string{"foo", "bar"})
+	config, err = getCheckConfig("foo", "tests/ad.yaml")
+	require.Nil(t, err)
+	assert.Equal(t, config.ADIdentifiers, []string{"foo_id", "bar_id"})
 }
 
 func TestNewYamlConfigProvider(t *testing.T) {

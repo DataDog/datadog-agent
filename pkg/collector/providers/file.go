@@ -13,8 +13,10 @@ import (
 )
 
 type configFormat struct {
-	InitConfig interface{} `yaml:"init_config"`
-	Instances  []check.ConfigRawMap
+	ADIdentifiers []string    `yaml:"ad_identifiers"`
+	DockerImages  []string    `yaml:"docker_images"`
+	InitConfig    interface{} `yaml:"init_config"`
+	Instances     []check.ConfigRawMap
 }
 
 // FileConfigProvider collect configuration files from disk
@@ -180,6 +182,17 @@ func getCheckConfig(name, fpath string) (check.Config, error) {
 		// at this point the Yaml was already parsed, no need to check the error
 		rawConf, _ := yaml.Marshal(instance)
 		config.Instances = append(config.Instances, rawConf)
+	}
+
+	// Read AutoDiscovery data, try to use the old `docker_image` settings
+	// param first
+	if len(cf.DockerImages) > 0 {
+		config.ADIdentifiers = cf.DockerImages
+	}
+
+	// Override the legacy param with the new one, `ad_identifiers`
+	if len(cf.ADIdentifiers) > 0 {
+		config.ADIdentifiers = cf.ADIdentifiers
 	}
 
 	return config, err
