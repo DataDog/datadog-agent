@@ -187,11 +187,15 @@ func getCheckConfig(name, fpath string) (check.Config, error) {
 	// Read AutoDiscovery data, try to use the old `docker_image` settings
 	// param first
 	if len(cf.DockerImages) > 0 {
+		log.Warn("'docker_image' section is deprecated and will be eventually removed, use 'ad_identifiers' instead")
 		config.ADIdentifiers = cf.DockerImages
 	}
 
 	// Override the legacy param with the new one, `ad_identifiers`
 	if len(cf.ADIdentifiers) > 0 {
+		if len(config.ADIdentifiers) > 0 {
+			log.Warn("Overwriting the deprecated 'docker_image' section in favor of the new 'ad_identifiers' one")
+		}
 		config.ADIdentifiers = cf.ADIdentifiers
 	}
 
