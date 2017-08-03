@@ -280,6 +280,7 @@ func TestForwarderRetry(t *testing.T) {
 	assert.Equal(t, len(forwarder.retryQueue), 2)
 
 	ready.On("Process", forwarder.workers[0].Client).Return(nil).Times(1)
+	ready.On("GetTarget").Return("").Times(1)
 	ready.On("GetNextFlush").Return(time.Now()).Times(1)
 	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetNextFlush").Return(time.Now().Add(10 * time.Minute)).Times(1)
@@ -291,6 +292,7 @@ func TestForwarderRetry(t *testing.T) {
 	ready.AssertExpectations(t)
 	notReady.AssertExpectations(t)
 	notReady.AssertNumberOfCalls(t, "Process", 0)
+	notReady.AssertNumberOfCalls(t, "GetTarget", 0)
 	assert.Equal(t, len(forwarder.retryQueue), 1)
 	assert.Equal(t, forwarder.retryQueue[0], notReady)
 }

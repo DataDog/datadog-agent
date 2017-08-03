@@ -21,12 +21,13 @@ type Worker struct {
 	// RequeueChan is the channel used to send failed transaction back to the Forwarder.
 	RequeueChan chan<- Transaction
 
-	stopChan chan bool
+	stopChan    chan bool
+	blockedList *blockedEndpoints
 }
 
 // NewWorker returns a new worker to consume Transaction from inputChan
 // and push back erroneous ones into requeueChan.
-func NewWorker(inputChan chan Transaction, requeueChan chan Transaction) *Worker {
+func NewWorker(inputChan chan Transaction, requeueChan chan Transaction, blocked *blockedEndpoints) *Worker {
 
 	transport := util.CreateHTTPTransport()
 
@@ -40,6 +41,7 @@ func NewWorker(inputChan chan Transaction, requeueChan chan Transaction) *Worker
 		RequeueChan: requeueChan,
 		stopChan:    make(chan bool),
 		Client:      httpClient,
+		blockedList: blocked,
 	}
 }
 
@@ -63,9 +65,18 @@ func (w *Worker) Start() {
 }
 
 func (w *Worker) process(t Transaction) {
-	if err := t.Process(w.Client); err != nil {
-		log.Errorf("Error while processing transaction: %v", err)
+	// First we check if we don't have recently received an error for that endpoint
+	target := t.GetTarget()
+	if w.blockedList.isBlock(target) {
 		t.Reschedule()
 		w.RequeueChan <- t
+		log.Errorf("Too many errors for endpoint '%s': retrying later", target)
+	} else if err := t.Process(w.Client); err != nil {
+		w.blockedList.block(target)
+		t.Reschedule()
+		w.RequeueChan <- t
+		log.Errorf("Error while processing transaction: %v", err)
+	} else {
+		w.blockedList.unblock(target)
 	}
 }
