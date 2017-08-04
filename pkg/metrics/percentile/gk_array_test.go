@@ -92,6 +92,7 @@ func EvaluateSketch(t *testing.T, n int, gen Generator) {
 		s = s.Add(value)
 		d.Add(value)
 	}
+	s = s.Compress()
 	eps := float64(1.0e-6)
 	for _, q := range testQuantiles {
 		assert.InDelta(t, d.Quantile(q), s.Quantile(q), EPSILON*(float64(n)))
@@ -119,6 +120,7 @@ func TestConstant(t *testing.T) {
 			s = s.Add(value)
 			d.Add(value)
 		}
+		s = s.Compress()
 		for _, q := range testQuantiles {
 			assert.Equal(t, 42.0, s.Quantile(q))
 		}
@@ -155,7 +157,20 @@ func TestNormal(t *testing.T) {
 	}
 }
 
-func TestMerge(t *testing.T) {
+// Exponential distribution
+type Exponential struct{ rate float64 }
+
+func NewExponential(rate float64) *Exponential { return &Exponential{rate: rate} }
+func (g *Exponential) Generate() float64       { return rand.ExpFloat64() / g.rate }
+
+func TestExponential(t *testing.T) {
+	for _, n := range testSizes {
+		expGenerator := NewExponential(2)
+		EvaluateSketch(t, n, expGenerator)
+	}
+}
+
+func TestMergeNormal(t *testing.T) {
 	for _, n := range testSizes {
 		d := NewDataset()
 		s1 := NewGKArray()
@@ -190,6 +205,86 @@ func TestMerge(t *testing.T) {
 			assert.InEpsilon(t, d.Avg(), s1.Avg, eps)
 			assert.InEpsilon(t, d.Sum(), s1.Sum, eps)
 			assert.InEpsilon(t, d.Count, s1.Count, eps)
+			assert.Equal(t, 0, len(s1.incoming))
+		}
+	}
+}
+
+func TestMergeEmpty(t *testing.T) {
+	for _, n := range testSizes {
+		d := NewDataset()
+		// Merge a non-empty sketch to an empty sketch
+		s1 := NewGKArray()
+		s2 := NewGKArray()
+		generator := NewExponential(5)
+		for i := 0; i < 30; i++ {
+			value := generator.Generate()
+			s2 = s2.Add(value)
+			d.Add(value)
+		}
+		s1 = s1.Merge(s2)
+		eps := float64(1e-6)
+		for _, q := range testQuantiles {
+			assert.InDelta(t, d.Quantile(q), s1.Quantile(q), 2*EPSILON*float64(n))
+			assert.InEpsilon(t, d.Min(), s1.Min, eps)
+			assert.InEpsilon(t, d.Max(), s1.Max, eps)
+			assert.InEpsilon(t, d.Avg(), s1.Avg, eps)
+			assert.InEpsilon(t, d.Sum(), s1.Sum, eps)
+			assert.InEpsilon(t, d.Count, s1.Count, eps)
+			assert.Equal(t, 0, len(s1.incoming))
+		}
+
+		// Merge an empty sketch to a non-empty sketch
+		s3 := NewGKArray()
+		s2 = s2.Merge(s3)
+		for _, q := range testQuantiles {
+			assert.InDelta(t, d.Quantile(q), s2.Quantile(q), 2*EPSILON*float64(n))
+			assert.InEpsilon(t, d.Min(), s2.Min, eps)
+			assert.InEpsilon(t, d.Max(), s2.Max, eps)
+			assert.InEpsilon(t, d.Avg(), s2.Avg, eps)
+			assert.InEpsilon(t, d.Sum(), s2.Sum, eps)
+			assert.InEpsilon(t, d.Count, s2.Count, eps)
+			assert.Equal(t, 0, len(s2.incoming))
+		}
+	}
+}
+
+func TestMergeMixed(t *testing.T) {
+	for _, n := range testSizes {
+		d := NewDataset()
+		s1 := NewGKArray()
+		generator1 := NewNormal(100, 1)
+		for i := 0; i < n; i += 3 {
+			value := generator1.Generate()
+			s1 = s1.Add(value)
+			d.Add(value)
+		}
+		s2 := NewGKArray()
+		generator2 := NewExponential(5)
+		for i := 1; i < n; i += 3 {
+			value := generator2.Generate()
+			s2 = s2.Add(value)
+			d.Add(value)
+		}
+		s1 = s1.Merge(s2)
+		s3 := NewGKArray()
+		generator3 := NewExponential(0.1)
+		for i := 2; i < n; i += 3 {
+			value := generator3.Generate()
+			s3 = s3.Add(value)
+			d.Add(value)
+		}
+		s1 = s1.Merge(s3)
+
+		eps := float64(1e-6)
+		for _, q := range testQuantiles {
+			assert.InDelta(t, d.Quantile(q), s1.Quantile(q), 2*EPSILON*float64(n))
+			assert.InEpsilon(t, d.Min(), s1.Min, eps)
+			assert.InEpsilon(t, d.Max(), s1.Max, eps)
+			assert.InEpsilon(t, d.Avg(), s1.Avg, eps)
+			assert.InEpsilon(t, d.Sum(), s1.Sum, eps)
+			assert.InEpsilon(t, d.Count, s1.Count, eps)
+			assert.Equal(t, 0, len(s1.incoming))
 		}
 	}
 }
@@ -201,6 +296,7 @@ func TestInterpolatedQuantile(t *testing.T) {
 			for i := 0; i < n; i++ {
 				s = s.Add(float64(i))
 			}
+			s = s.Compress()
 			for _, q := range testQuantiles {
 				expected := q * (float64(n) - 1)
 				assert.Equal(t, expected, s.Quantile(q))

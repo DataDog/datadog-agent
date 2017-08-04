@@ -95,6 +95,9 @@ func (s GKArray) Add(v float64) GKArray {
 }
 
 // Quantile returns an epsilon estimate of the element at quantile q.
+// If calling Quantile() repeatedly on the same sketch, it would be more
+// efficient to Compress() the sketch beforehand since each Quantile()
+// calls Compress() if incoming is not empty.
 func (s GKArray) Quantile(q float64) float64 {
 	if q < 0 || q > 1 {
 		panic("Quantile out of bounds")
@@ -158,17 +161,10 @@ func (s GKArray) interpolatedQuantile(q float64) float64 {
 // Merge another GKArray into this in-place.
 func (s GKArray) Merge(o GKArray) GKArray {
 	if o.Count == 0 {
-		return s
+		return s.compress(nil)
 	}
 	if s.Count == 0 {
-		s.Entries = o.Entries
-		s.Count = o.Count
-		s.incoming = o.incoming
-		s.Min = o.Min
-		s.Max = o.Max
-		s.Sum = o.Sum
-		s.Avg = o.Avg
-		return s
+		return o.compress(nil)
 	}
 	o = o.compress(nil)
 	spread := int(EPSILON * float64(o.Count-1))
