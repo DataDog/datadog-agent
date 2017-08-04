@@ -27,6 +27,13 @@ func TestConfigEqual(t *testing.T) {
 	assert.False(t, config.Equal(another))
 	config.Instances = another.Instances
 	assert.True(t, config.Equal(another))
+
+	config.ADIdentifiers = []string{"foo", "bar"}
+	assert.False(t, config.Equal(another))
+	another.ADIdentifiers = []string{"foo", "bar"}
+	assert.True(t, config.Equal(another))
+	another.ADIdentifiers = []string{"bar", "foo"}
+	assert.False(t, config.Equal(another))
 }
 
 func TestString(t *testing.T) {
