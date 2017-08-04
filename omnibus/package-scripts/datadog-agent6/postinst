@@ -63,8 +63,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     # Create symlinks to the agent's binary
     sed -i -e s@DIRPATH=.*@DIRPATH=$INSTALL_DIR/bin/agent@ $INSTALL_DIR/bin/agent/agent
     ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
-    chown -R dd-agent:dd-agent /usr/bin/datadog-agent
-    chmod 755 /usr/bin/datadog-agent
+    chmod 755 $INSTALL_DIR/bin/agent/agent
 
     # Only supports systemd and upstart
     echo "Enabling service $SERVICE_NAME"
