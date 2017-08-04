@@ -99,6 +99,16 @@ func (c *Config) Equal(config *Config) bool {
 		return false
 	}
 
+	if len(c.ADIdentifiers) != len(config.ADIdentifiers) {
+		return false
+	}
+
+	for i, id := range c.ADIdentifiers {
+		if id != config.ADIdentifiers[i] {
+			return false
+		}
+	}
+
 	return true
 }
 
