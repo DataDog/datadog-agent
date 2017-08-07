@@ -10,7 +10,7 @@ import (
 // TemplateCache is a data structure to store configuration templates
 type TemplateCache struct {
 	id2templates map[string][]check.Config
-	template2ids map[check.ID][]string
+	template2ids map[string][]string
 	m            sync.RWMutex
 }
 
@@ -18,7 +18,7 @@ type TemplateCache struct {
 func NewTemplateCache() *TemplateCache {
 	return &TemplateCache{
 		id2templates: make(map[string][]check.Config, 0),
-		template2ids: make(map[check.ID][]string, 0),
+		template2ids: make(map[string][]string, 0),
 	}
 }
 

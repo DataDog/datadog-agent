@@ -120,7 +120,7 @@ func (c *Config) String() string {
 }
 
 // Digest returns an hash value representing the data stored in this configuration
-func (c *Config) Digest() ID {
+func (c *Config) Digest() string {
 	h := fnv.New64()
 	h.Write([]byte(c.Name))
 	for _, i := range c.Instances {
@@ -131,5 +131,5 @@ func (c *Config) Digest() ID {
 		h.Write([]byte(i))
 	}
 
-	return ID(strconv.FormatUint(h.Sum64(), 16))
+	return strconv.FormatUint(h.Sum64(), 16)
 }
