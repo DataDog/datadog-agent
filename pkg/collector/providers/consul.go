@@ -215,10 +215,10 @@ func (p *ConsulConfigProvider) getTemplates(key string) ([]check.Config, *ADEntr
 		instance := check.ConfigData(instances[idx])
 
 		templates = append(templates, check.Config{
-			ID:         check.ID(key),
-			Name:       checkNames[idx],
-			InitConfig: check.ConfigData(initConfigs[idx]),
-			Instances:  []check.ConfigData{instance},
+			Name:          checkNames[idx],
+			InitConfig:    check.ConfigData(initConfigs[idx]),
+			Instances:     []check.ConfigData{instance},
+			ADIdentifiers: []string{key},
 		})
 	}
 	index := &ADEntryIndex{
