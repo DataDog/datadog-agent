@@ -4,8 +4,8 @@
 [[projects]]
   name = "github.com/DataDog/agent-payload"
   packages = ["gogen"]
-  revision = "fb25fcedf155de94e762080a914adb5436d45b9c"
-  version = "4.3"
+  revision = "878e17eb68c0ab47f62a702158bf01c7d6e1452b"
+  version = "4.4"
 
 [[projects]]
   name = "github.com/DataDog/gohai"
@@ -329,6 +329,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b18546f75ac0ff366a31fb13bc0bddf7ac59213c66c49833c7bc8972517b182e"
+  inputs-digest = "6cd25394231af3d7cfd1655a983b925cc30f6c0b94acafb8dba2e13c1b8cd01e"
   solver-name = "gps-cdcl"
   solver-version = 1

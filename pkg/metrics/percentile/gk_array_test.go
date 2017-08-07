@@ -15,7 +15,7 @@ type Generator interface {
 
 type Dataset struct {
 	Values []float64
-	Count  int
+	Count  int64
 	sorted bool
 }
 
@@ -36,7 +36,7 @@ func (d *Dataset) Quantile(q float64) float64 {
 	}
 
 	rank := q * float64(d.Count-1)
-	indexBelow := int(rank)
+	indexBelow := int64(rank)
 	indexAbove := indexBelow + 1
 	if indexAbove > d.Count-1 {
 		indexAbove = d.Count - 1
@@ -44,7 +44,7 @@ func (d *Dataset) Quantile(q float64) float64 {
 	weightAbove := rank - float64(indexBelow)
 	weightBelow := 1.0 - weightAbove
 
-	if d.Count < int(1/EPSILON) {
+	if d.Count < int64(1/EPSILON) {
 		return weightBelow*d.Values[indexBelow] + weightAbove*d.Values[indexAbove]
 	}
 	return d.Values[indexBelow]
