@@ -92,9 +92,9 @@ func main() {
 
 	config.SetupLogger("error", "")
 	f := forwarder.NewDefaultForwarder(map[string][]string{})
-	s := &serializer.Serializer{forwarder: f}
+	s := &serializer.Serializer{Forwarder: f}
 
-	agg := aggregator.NewBufferedAggregator(s, "benchmark")
+	agg := aggregator.InitAggregator(s, "hostname")
 	flush := make(chan time.Time)
 	agg.TickerChan = flush
 
