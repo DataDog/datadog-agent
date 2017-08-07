@@ -2,8 +2,6 @@ package aggregator
 
 import (
 	// stdlib
-
-	"fmt"
 	"sort"
 	"testing"
 
@@ -239,8 +237,6 @@ func TestCounterExpirySeconds(t *testing.T) {
 
 	require.Equal(t, 2, len(series))
 	metrics.AssertSerieEqual(t, expectedSerie1, series[0])
-	fmt.Printf("%v\n", series[0])
-	fmt.Printf("%v\n", series[1])
 	metrics.AssertSerieEqual(t, expectedSerie2, series[1])
 
 	// We shouldn't get any empty counter since the last flush was during the same interval
