@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 var gnuplotHeader = `# set terminal png truecolor
@@ -37,14 +38,14 @@ func generateMetrics(numberOfSeries int, pointPerSeries int, senderMetric sender
 func generateEvent(numberOfEvent int, sender aggregator.Sender) time.Duration {
 	start := time.Now()
 	for i := 0; i < numberOfEvent; i++ {
-		sender.Event(aggregator.Event{
+		sender.Event(metrics.Event{
 			Title:          "Event title",
 			Text:           "some text",
 			Ts:             21,
-			Priority:       aggregator.EventPriorityNormal,
+			Priority:       metrics.EventPriorityNormal,
 			Host:           "localhost",
 			Tags:           []string{"a", "b:21", "c"},
-			AlertType:      aggregator.EventAlertTypeWarning,
+			AlertType:      metrics.EventAlertTypeWarning,
 			AggregationKey: "",
 			SourceTypeName: "",
 			EventType:      "",
@@ -56,7 +57,7 @@ func generateEvent(numberOfEvent int, sender aggregator.Sender) time.Duration {
 func generateServiceCheck(numberOfSC int, sender aggregator.Sender) time.Duration {
 	start := time.Now()
 	for i := 0; i < numberOfSC; i++ {
-		sender.ServiceCheck("benchmark.ServiceCheck."+strconv.Itoa(i), aggregator.ServiceCheckOK, "localhost", []string{"a", "b:21", "c"}, "some message")
+		sender.ServiceCheck("benchmark.ServiceCheck."+strconv.Itoa(i), metrics.ServiceCheckOK, "localhost", []string{"a", "b:21", "c"}, "some message")
 	}
 	return time.Since(start)
 }

@@ -189,7 +189,7 @@ func main() {
 
 	config.Datadog.Set("dogstatsd_stats_enable", true)
 	config.Datadog.Set("dogstatsd_stats_buffer", 100)
-	s := &serializer.Serializer{forwarder: f}
+	s := &serializer.Serializer{Forwarder: f}
 	aggr := aggregator.InitAggregator(s, "localhost")
 	statsd, err := dogstatsd.NewServer(aggr.GetChannels())
 	if err != nil {
