@@ -10,8 +10,9 @@ import (
 
 func TestNew(t *testing.T) {
 	cache := NewTemplateCache()
-	assert.Len(t, cache.id2templates, 0)
-	assert.Len(t, cache.template2ids, 0)
+	assert.Len(t, cache.id2digests, 0)
+	assert.Len(t, cache.digest2ids, 0)
+	assert.Len(t, cache.digest2template, 0)
 }
 
 func TestSet(t *testing.T) {
@@ -21,19 +22,21 @@ func TestSet(t *testing.T) {
 	err := cache.Set(tpl1)
 
 	require.Nil(t, err)
-	assert.Len(t, cache.id2templates, 2)
-	assert.Len(t, cache.id2templates["foo"], 1)
-	assert.Len(t, cache.id2templates["bar"], 1)
-	assert.Len(t, cache.template2ids, 1)
+	assert.Len(t, cache.id2digests, 2)
+	assert.Len(t, cache.id2digests["foo"], 1)
+	assert.Len(t, cache.id2digests["bar"], 1)
+	assert.Len(t, cache.digest2ids, 1)
+	assert.Len(t, cache.digest2template, 1)
 
 	tpl2 := check.Config{ADIdentifiers: []string{"foo"}}
 	err = cache.Set(tpl2)
 
 	require.Nil(t, err)
-	assert.Len(t, cache.id2templates, 2)
-	assert.Len(t, cache.id2templates["foo"], 2)
-	assert.Len(t, cache.id2templates["bar"], 1)
-	assert.Len(t, cache.template2ids, 2)
+	assert.Len(t, cache.id2digests, 2)
+	assert.Len(t, cache.id2digests["foo"], 2)
+	assert.Len(t, cache.id2digests["bar"], 1)
+	assert.Len(t, cache.digest2ids, 2)
+	assert.Len(t, cache.digest2template, 2)
 }
 
 func TestDel(t *testing.T) {
@@ -45,8 +48,9 @@ func TestDel(t *testing.T) {
 	err = cache.Del(tpl)
 	require.Nil(t, err)
 
-	require.Len(t, cache.id2templates, 2)
-	assert.Len(t, cache.id2templates["foo"], 0)
-	assert.Len(t, cache.id2templates["bar"], 0)
-	assert.Len(t, cache.template2ids, 0)
+	require.Len(t, cache.id2digests, 2)
+	assert.Len(t, cache.id2digests["foo"], 0)
+	assert.Len(t, cache.id2digests["bar"], 0)
+	assert.Len(t, cache.digest2ids, 0)
+	assert.Len(t, cache.digest2template, 0)
 }
