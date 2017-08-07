@@ -71,6 +71,7 @@ func init() {
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
+	Datadog.SetDefault("log_to_syslog", true)
 	Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)

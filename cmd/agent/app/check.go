@@ -70,6 +70,10 @@ var checkCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
+		config.SetupLogger("off", "", false)
+
+		common.SetupConfig(confFilePath)
+
 		hostname, err := util.GetHostname()
 		key := path.Join(util.AgentCachePrefix, "hostname")
 		util.Cache.Set(key, hostname, util.NoExpiration)
