@@ -59,10 +59,10 @@ func TestDigest(t *testing.T) {
 }
 
 // this is here to prevent compiler optimization on the benchmarking code
-var result ID
+var result string
 
 func BenchmarkID(b *testing.B) {
-	var id ID // store ID() return value to avoid the compiler to strip the function call
+	var id string // store return value to avoid the compiler to strip the function call
 	config := &Config{}
 	config.InitConfig = make([]byte, 32000)
 	rand.Read(config.InitConfig)
