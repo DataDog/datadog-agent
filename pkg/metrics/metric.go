@@ -1,8 +1,6 @@
 package metrics
 
-import (
-	"fmt"
-)
+import "fmt"
 
 // APIMetricType represents an API metric type
 type APIMetricType int
@@ -37,6 +35,20 @@ func (a APIMetricType) MarshalText() ([]byte, error) {
 	}
 
 	return []byte(str), nil
+}
+
+// UnmarshalText is a custom unmarshaller for APIMetricType (used for testing)
+func (a APIMetricType) UnmarshalText(buf []byte) error {
+	tmp := string(buf)
+	switch tmp {
+	case "gauge":
+		a = APIGaugeType
+	case "rate":
+		a = APIRateType
+	case "count":
+		a = APICountType
+	}
+	return nil
 }
 
 // Metric is the interface of all metric types

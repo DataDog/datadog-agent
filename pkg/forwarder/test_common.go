@@ -51,51 +51,51 @@ func (tf *MockedForwarder) Stop() {
 }
 
 // SubmitV1Series updates the internal mock struct
-func (tf *MockedForwarder) SubmitV1Series(payload *[]byte, extraHeaders map[string]string) error {
+func (tf *MockedForwarder) SubmitV1Series(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
 }
 
 // SubmitV1Intake updates the internal mock struct
-func (tf *MockedForwarder) SubmitV1Intake(payload *[]byte, extraHeaders map[string]string) error {
+func (tf *MockedForwarder) SubmitV1Intake(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
 }
 
 // SubmitV1CheckRuns updates the internal mock struct
-func (tf *MockedForwarder) SubmitV1CheckRuns(payload *[]byte, extraHeaders map[string]string) error {
+func (tf *MockedForwarder) SubmitV1CheckRuns(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
 }
 
 // SubmitV1SketchSeries updates the internal mock struct
-func (tf *MockedForwarder) SubmitV1SketchSeries(payload *[]byte, extraHeaders map[string]string) error {
+func (tf *MockedForwarder) SubmitV1SketchSeries(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
 }
 
 // SubmitSeries updates the internal mock struct
-func (tf *MockedForwarder) SubmitSeries(payload *[]byte, extraHeaders map[string]string) error {
+func (tf *MockedForwarder) SubmitSeries(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
 }
 
 // SubmitEvents updates the internal mock struct
-func (tf *MockedForwarder) SubmitEvents(payload *[]byte, extraHeaders map[string]string) error {
+func (tf *MockedForwarder) SubmitEvents(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
 }
 
 // SubmitServiceChecks updates the internal mock struct
-func (tf *MockedForwarder) SubmitServiceChecks(payload *[]byte, extraHeaders map[string]string) error {
+func (tf *MockedForwarder) SubmitServiceChecks(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
 }
 
 // SubmitSketchSeries updates the internal mock struct
-func (tf *MockedForwarder) SubmitSketchSeries(payload *[]byte, extraHeaders map[string]string) error {
+func (tf *MockedForwarder) SubmitSketchSeries(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
 }
 
 // SubmitHostMetadata updates the internal mock struct
-func (tf *MockedForwarder) SubmitHostMetadata(payload *[]byte, extraHeaders map[string]string) error {
+func (tf *MockedForwarder) SubmitHostMetadata(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
 }
 
 // SubmitMetadata updates the internal mock struct
-func (tf *MockedForwarder) SubmitMetadata(payload *[]byte, extraHeaders map[string]string) error {
+func (tf *MockedForwarder) SubmitMetadata(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
 }

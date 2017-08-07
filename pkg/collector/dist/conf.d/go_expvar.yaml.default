@@ -96,3 +96,11 @@ instances:
         alias: scheduler.queues.interval
       - path: scheduler/QueuesCount
         type: gauge
+
+      # Payload monitoring
+      - path: splitter/NotTooBig
+        type: rate
+      - path: splitter/TooBig
+        type: rate
+      - path: splitter/TotalLoops
+        type: rate
