@@ -41,6 +41,7 @@ type AutoConfig struct {
 	collector         *collector.Collector
 	providers         []*providerDescriptor
 	loaders           []check.Loader
+	templateCache     *TemplateCache
 	configsPollTicker *time.Ticker
 	stop              chan bool
 	m                 sync.RWMutex
@@ -102,10 +103,11 @@ func (les *LoaderErrorStats) GetErrors() map[string]map[string]string {
 // responsible to poll the different configuration providers.
 func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 	ac := &AutoConfig{
-		collector: collector,
-		providers: make([]*providerDescriptor, 0, 5),
-		loaders:   make([]check.Loader, 0, 5),
-		stop:      make(chan bool),
+		collector:     collector,
+		providers:     make([]*providerDescriptor, 0, 5),
+		loaders:       make([]check.Loader, 0, 5),
+		templateCache: NewTemplateCache(),
+		stop:          make(chan bool),
 	}
 
 	return ac
@@ -230,9 +232,30 @@ func (ac *AutoConfig) pollConfigs() {
 						continue
 					}
 
-					_, _ = ac.collect(pd)
+					// retrieve the list of newly added configurations as well
+					// as removed configurations
+					newConfigs, removedConfigs := ac.collect(pd)
+					for _, config := range newConfigs {
+						if len(config.ADIdentifiers) > 0 { // TODO: move this evaluation in a config.IsTemplate() method
+							// TODO: try to resolve the template
+							// TODO: if success, schedule the check for running
+							// TODO: if failed, notify we couldn't resolve it for now (it might happen later)
+							// store the template in the cache
+							if err := ac.templateCache.Set(config); err != nil {
+								log.Errorf("Unable to process Check configuration: %s", err)
+							}
+						} else {
+							// TODO: just schedule the check for running
+						}
+					}
 
-					// TODO tell the collector to stop/start/restart the corresponding checks
+					for _, config := range removedConfigs {
+						// TODO: unschedule the checks corresponding to this config
+						if len(config.ADIdentifiers) > 0 {
+							// if the config is a template, remove it from the cache
+							ac.templateCache.Del(config)
+						}
+					}
 				}
 				ac.m.RUnlock()
 			}

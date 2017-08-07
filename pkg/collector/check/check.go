@@ -2,6 +2,8 @@ package check
 
 import (
 	"bytes"
+	"hash/fnv"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -81,35 +83,7 @@ func (c *Config) Equal(config *Config) bool {
 		return false
 	}
 
-	if c.Name != config.Name {
-		return false
-	}
-
-	if len(c.Instances) != len(config.Instances) {
-		return false
-	}
-
-	for i := range c.Instances {
-		if !bytes.Equal(c.Instances[i], config.Instances[i]) {
-			return false
-		}
-	}
-
-	if !bytes.Equal(c.InitConfig, config.InitConfig) {
-		return false
-	}
-
-	if len(c.ADIdentifiers) != len(config.ADIdentifiers) {
-		return false
-	}
-
-	for i, id := range c.ADIdentifiers {
-		if id != config.ADIdentifiers[i] {
-			return false
-		}
-	}
-
-	return true
+	return c.Digest() == config.Digest()
 }
 
 // String YAML representation of the config
@@ -143,4 +117,19 @@ func (c *Config) String() string {
 	}
 
 	return yamlBuff.String()
+}
+
+// Digest returns an hash value representing the data stored in this configuration
+func (c *Config) Digest() string {
+	h := fnv.New64()
+	h.Write([]byte(c.Name))
+	for _, i := range c.Instances {
+		h.Write([]byte(i))
+	}
+	h.Write([]byte(c.InitConfig))
+	for _, i := range c.ADIdentifiers {
+		h.Write([]byte(i))
+	}
+
+	return strconv.FormatUint(h.Sum64(), 16)
 }
