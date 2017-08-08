@@ -74,6 +74,8 @@ func init() {
 	Datadog.SetDefault("log_to_syslog", false)
 	Datadog.SetDefault("syslog_host", "")
 	Datadog.SetDefault("syslog_port", 0)
+	Datadog.SetDefault("syslog_tls", false)
+	Datadog.SetDefault("syslog_pem", "")
 	Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)

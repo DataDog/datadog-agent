@@ -6,6 +6,8 @@
 package config
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -21,8 +23,17 @@ import (
 const logFileMaxSize = 10 * 1024 * 1024         // 10MB
 const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
 
+var logCertPool *x509.CertPool
+
 // SetupLogger sets up the default logger
-func SetupLogger(logLevel, logFile, host string, port int, syslog bool) error {
+func SetupLogger(logLevel, logFile, host string, port int, syslog, tls bool, pem string) error {
+	if pem != "" {
+		if logCertPool == nil {
+			logCertPool = x509.NewCertPool()
+		}
+		logCertPool.AppendCertsFromPEM([]byte(pem))
+	}
+
 	configTemplate := `<seelog minlevel="%s">
     <outputs formatid="common">
         <console />`
@@ -32,10 +43,15 @@ func SetupLogger(logLevel, logFile, host string, port int, syslog bool) error {
 	if syslog {
 		var syslogTemplate string
 		if host != "" && port != 0 {
+			withTLS := "false"
+			if tls {
+				withTLS = "true"
+			}
 			syslogTemplate = fmt.Sprintf(
-				`<custom name="syslog" formatid="syslog" hostname="%s" port="%d" />`,
+				`<custom name="syslog" formatid="syslog" hostname="%s" port="%d" tls="%s"/>`,
 				host,
 				port,
+				withTLS,
 			)
 		} else {
 			syslogTemplate = `<custom name="syslog" formatid="syslog" />`
@@ -46,7 +62,7 @@ func SetupLogger(logLevel, logFile, host string, port int, syslog bool) error {
     <formats>
         <format id="common" format="%%Date(%s) | %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>`
 	if syslog {
-		configTemplate += `<format id="syslog" format="%%CustomSyslogHeader(20) %%Msg%%n" />`
+		configTemplate += `<format id="syslog" format="%%CustomSyslogHeader(20) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`
 	}
 
 	configTemplate += `</formats>
@@ -93,7 +109,7 @@ func createSyslogHeaderFormatter(params string) log.FormatterFunc {
 		appName := filepath.Base(os.Args[0])
 		hostName, _ := os.Hostname()
 
-		return fmt.Sprintf("<%d>1 %s %s %s %d - - %%LEVEL | (%%RelFile:%%Line) |",
+		return fmt.Sprintf("<%d>1 %s %s %s %d - -",
 			facility*8+levelToSyslogSeverity[level],
 			time.Now().Format("2006-01-02T15:04:05Z07:00"),
 			hostName, appName, pid)
@@ -103,12 +119,13 @@ func createSyslogHeaderFormatter(params string) log.FormatterFunc {
 // SyslogReceiver implements seelog.CustomReceiver
 type SyslogReceiver struct {
 	enabled  bool
+	tls      bool
 	hostname string
 	port     int
 	conn     net.Conn
 }
 
-func getSyslogConnection(hostname string, port int) (net.Conn, error) {
+func getSyslogConnection(hostname string, port int, secure bool) (net.Conn, error) {
 	var conn net.Conn
 	var err error
 
@@ -125,7 +142,14 @@ func getSyslogConnection(hostname string, port int) (net.Conn, error) {
 			}
 		}
 	} else {
-		conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", hostname, port))
+		if secure {
+			conn, err = tls.Dial("tcp",
+				fmt.Sprintf("%s:%d", hostname, port),
+				&tls.Config{RootCAs: logCertPool})
+
+		} else {
+			conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", hostname, port))
+		}
 		if err == nil {
 			return conn, nil
 		}
@@ -152,7 +176,7 @@ func (s *SyslogReceiver) ReceiveMessage(message string, level log.LogLevel, cont
 	if s.conn != nil {
 		s.conn.Close()
 	}
-	conn, err := getSyslogConnection(s.hostname, s.port)
+	conn, err := getSyslogConnection(s.hostname, s.port, s.tls)
 	if err != nil {
 		return err
 	}
@@ -184,11 +208,19 @@ func (s *SyslogReceiver) AfterParse(initArgs log.CustomReceiverInitArgs) error {
 		}
 	}
 
+	tls, ok := initArgs.XmlCustomAttrs["tls"]
+	if ok {
+		// if certificate specified it should already be in pool
+		if tls == "true" {
+			s.tls = true
+		}
+	}
+
 	if !s.enabled {
 		return errors.New("bad syslog receiver configuration - disabling")
 	}
 
-	conn, err = getSyslogConnection(s.hostname, s.port)
+	conn, err = getSyslogConnection(s.hostname, s.port, s.tls)
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		return nil

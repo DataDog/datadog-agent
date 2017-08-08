@@ -103,6 +103,8 @@ func StartAgent() {
 		config.Datadog.GetString("syslog_host"),
 		config.Datadog.GetInt("syslog_port"),
 		config.Datadog.GetBool("log_to_syslog"),
+		config.Datadog.GetBool("syslog_tls"),
+		config.Datadog.GetString("syslog_pem"),
 	)
 	if err != nil {
 		panic(err)

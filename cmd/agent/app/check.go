@@ -69,7 +69,7 @@ var checkCmd = &cobra.Command{
 			cmd.Help()
 			os.Exit(0)
 		}
-		config.SetupLogger("off", "", "", 0, false)
+		config.SetupLogger("off", "", "", 0, false, false, "")
 
 		common.SetupConfig(confFilePath)
 
