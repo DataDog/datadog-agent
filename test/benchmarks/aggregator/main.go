@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
 var (
@@ -91,8 +92,9 @@ func main() {
 
 	config.SetupLogger("error", "")
 	f := forwarder.NewDefaultForwarder(map[string][]string{})
+	s := &serializer.Serializer{Forwarder: f}
 
-	agg := aggregator.NewBufferedAggregator(f, "benchmark")
+	agg := aggregator.InitAggregator(s, "hostname")
 	flush := make(chan time.Time)
 	agg.TickerChan = flush
 

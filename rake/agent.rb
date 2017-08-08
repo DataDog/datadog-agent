@@ -24,17 +24,33 @@ namespace :agent do
     # default to the embedded one.
     env = {}
     gcflags = []
-    ldflags = []
+    ldflags = get_base_ldflags()
     if !ENV["USE_SYSTEM_LIBS"]
-      env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
-      ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
+      if os == "windows"
+        env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}"
+        ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}"
+      else
+        env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
+        ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
+      end
       libdir = `pkg-config --variable=libdir python-2.7`.strip
+      puts "libdir #{libdir}"
       fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
       ldflags << "-r #{libdir}"
     end
 
-    commit = `git rev-parse --short HEAD`.strip
-    ldflags << "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
+    if os == "windows"
+      # This generates the manifest resource. The manifest resource is necessary for
+      # being able to load the ancient C-runtime that comes along with Python 2.7
+      #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
+
+      # fixme -- still need to calculate correct *_VER numbers at build time rather than
+      # hard-coded here.
+      command = "windres --define MAJ_VER=6 --define MIN_VER=0 --define PATCH_VER=0 -i cmd/agent/agent.rc --target=pe-x86-64 -O coff -o cmd/agent/rsrc.syso"
+      puts command
+      build_success = system(env, command)
+      fail "Agent build failed with code #{$?.exitstatus}" if !build_success
+    end
     if ENV["DELVE"]
       gcflags << "-N" << "-l"
       if os == "windows"
@@ -44,7 +60,7 @@ namespace :agent do
       end
     end
 
-    command = "go build #{race_opt} #{build_type} -tags '#{go_build_tags}' -o #{BIN_PATH}/#{agent_bin_name} -gcflags=\"#{gcflags.join(" ")}\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
+    command = "go build #{race_opt} #{build_type} -tags \"#{go_build_tags}\" -o #{BIN_PATH}/#{agent_bin_name} -gcflags=\"#{gcflags.join(" ")}\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
     puts command
     build_success = system(env, command)
     fail "Agent build failed with code #{$?.exitstatus}" if !build_success
@@ -58,6 +74,7 @@ namespace :agent do
     FileUtils.rm_rf("#{BIN_PATH}/dist")
     FileUtils.cp_r("./pkg/collector/dist/", "#{BIN_PATH}", :remove_destination => true)
     FileUtils.cp_r("./pkg/status/dist/", "#{BIN_PATH}", :remove_destination => true)
+    FileUtils.cp_r("./dev/dist/", "#{BIN_PATH}", :remove_destination => true)
     FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
     FileUtils.chmod(0755, "#{BIN_PATH}/agent")
   end

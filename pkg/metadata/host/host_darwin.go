@@ -6,16 +6,8 @@ import (
 	"github.com/shirou/gopsutil/host"
 )
 
-type osVersion struct {
-	Release     string    `json:"release"`
-	Versioninfo [3]string `json:"versioninfo"`
-	Machine     string    `json:"machine"`
-}
+type osVersion [3]interface{}
 
 func fillOsVersion(stats *systemStats, info *host.InfoStat) {
-	stats.Macver = osVersion{
-		Release:     info.PlatformVersion,
-		Versioninfo: [3]string{"", "", ""},
-		Machine:     runtime.GOARCH,
-	}
+	stats.Macver = osVersion{info.PlatformVersion, [3]string{"", "", ""}, runtime.GOARCH}
 }

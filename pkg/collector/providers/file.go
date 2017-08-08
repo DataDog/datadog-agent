@@ -13,8 +13,10 @@ import (
 )
 
 type configFormat struct {
-	InitConfig interface{} `yaml:"init_config"`
-	Instances  []check.ConfigRawMap
+	ADIdentifiers []string    `yaml:"ad_identifiers"`
+	DockerImages  []string    `yaml:"docker_images"`
+	InitConfig    interface{} `yaml:"init_config"`
+	Instances     []check.ConfigRawMap
 }
 
 // FileConfigProvider collect configuration files from disk
@@ -180,6 +182,23 @@ func getCheckConfig(name, fpath string) (check.Config, error) {
 		// at this point the Yaml was already parsed, no need to check the error
 		rawConf, _ := yaml.Marshal(instance)
 		config.Instances = append(config.Instances, rawConf)
+	}
+
+	// Read AutoDiscovery data, try to use the old `docker_image` settings
+	// param first
+	if len(cf.DockerImages) > 0 {
+		log.Warnf("'docker_image' section in %s is deprecated and will be eventually removed, use 'ad_identifiers' instead",
+			fpath)
+		config.ADIdentifiers = cf.DockerImages
+	}
+
+	// Override the legacy param with the new one, `ad_identifiers`
+	if len(cf.ADIdentifiers) > 0 {
+		if len(config.ADIdentifiers) > 0 {
+			log.Warnf("Overwriting the deprecated 'docker_image' section from %s in favor of the new 'ad_identifiers' one",
+				fpath)
+		}
+		config.ADIdentifiers = cf.ADIdentifiers
 	}
 
 	return config, err

@@ -3,6 +3,7 @@ Dockerfiles/dogstatsd/alpine/dogstatsd
 
 vendor/
 bin/
+dev/
 .vscode
 
 .DS_Store
@@ -10,3 +11,4 @@ bin/
 *.pyc
 *.swp
 *.exe
+*.syso

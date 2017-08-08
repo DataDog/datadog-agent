@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	log "github.com/cihub/seelog"
 )
 
@@ -57,38 +58,38 @@ func (f *forwarderBenchStub) Start() error {
 func (f *forwarderBenchStub) Stop() {
 	return
 }
-func (f *forwarderBenchStub) SubmitV1Series(payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitV1Series(payload *[]byte, extraHeaders map[string]string) error {
 	f.computeStats(payload)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payload *[]byte, extraHeaders map[string]string) error {
 	f.computeStats(payload)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1CheckRuns(payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitV1CheckRuns(payload *[]byte, extraHeaders map[string]string) error {
 	f.computeStats(payload)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1SketchSeries(payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitV1SketchSeries(payload *[]byte, extraHeaders map[string]string) error {
 	f.computeStats(payload)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSeries(payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitSeries(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitEvents(payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitEvents(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitServiceChecks(payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitServiceChecks(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitSketchSeries(payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitSketchSeries(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitHostMetadata(payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitHostMetadata(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitMetadata(payload *[]byte) error {
+func (f *forwarderBenchStub) SubmitMetadata(payload *[]byte, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
 
@@ -188,7 +189,8 @@ func main() {
 
 	config.Datadog.Set("dogstatsd_stats_enable", true)
 	config.Datadog.Set("dogstatsd_stats_buffer", 100)
-	aggr := aggregator.InitAggregator(f, "localhost")
+	s := &serializer.Serializer{Forwarder: f}
+	aggr := aggregator.InitAggregator(s, "localhost")
 	statsd, err := dogstatsd.NewServer(aggr.GetChannels())
 	if err != nil {
 		log.Errorf("Problem allocating dogstatsd server: %s", err)

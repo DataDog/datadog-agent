@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 )
 
+var client *k8s.Client
+
 const (
 	createdByKey = "kubernetes.io/created-by"
 
@@ -32,9 +34,12 @@ const (
 // metrics and other services in the backend.
 func GetPayload() (metadata.Payload, error) {
 	ctx := context.Background()
-	client, err := k8s.NewInClusterClient()
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve config: %s", err)
+	if client == nil {
+		var err error
+		client, err = k8s.NewInClusterClient()
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve config: %s", err)
+		}
 	}
 
 	dr, err := client.AppsV1Beta1().ListDeployments(ctx, "")

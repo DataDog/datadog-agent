@@ -22,9 +22,9 @@ task default: %w[agent:build]
 
 desc "Setup Go dependencies"
 task :deps do
-  system("go get github.com/Masterminds/glide")
+  system("go get -u github.com/golang/dep/cmd/dep")
   system("go get -u github.com/golang/lint/golint")
-  system("glide install")
+  system("dep ensure")
 end
 
 desc "Run go fmt on #{TARGETS}"

@@ -137,11 +137,6 @@ func GetHostname() (string, error) {
 	return hostName, err
 }
 
-// IsContainerized returns whether the Agent is running on a Docker container
-func isContainerized() bool {
-	return os.Getenv("DOCKER_DD_AGENT") == "yes"
-}
-
 // IsKubernetes returns whether the Agent is running on a kubernetes cluster
 func isKubernetes() bool {
 	return os.Getenv("KUBERNETES_PORT") != ""

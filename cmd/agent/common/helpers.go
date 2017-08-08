@@ -17,8 +17,10 @@ import (
 func SetupAutoConfig(confdPath string) {
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment
-	coll := collector.NewCollector(GetDistPath(), filepath.Join(GetDistPath(), "checks"),
-		config.Datadog.GetString("additional_checksd"), PyChecksPath)
+	coll := collector.NewCollector(GetDistPath(),
+		PyChecksPath,
+		filepath.Join(GetDistPath(), "checks"),
+		config.Datadog.GetString("additional_checksd"))
 
 	// create the Autoconfig instance
 	AC = autodiscovery.NewAutoConfig(coll)
@@ -42,6 +44,29 @@ func SetupAutoConfig(confdPath string) {
 		AC.AddProvider(provider, true)
 		log.Infof("Registering %s config provider", backend)
 	}
+
+	// add the service listeners
+	// newService := make(chan listeners.Service)
+	// delService := make(chan listeners.Service)
+
+	// Docker listener
+	// docker, err := listeners.NewDockerListener(newService, delService)
+	// if err != nil {
+	// 	log.Errorf("Failed to create a Docker listener. Is Docker accessible by the agent? %s", err)
+	// } else {
+	// 	AC.AddListener(docker)
+	// }
+
+	// add the config resolver
+	// resolver := autodiscovery.NewConfigResolver(newService, delService)
+	// AC.RegisterConfigResolver(resolver)
+}
+
+// StartAutoConfig starts the autoconfig polling and loads the configs
+func StartAutoConfig(confdPath string) {
+	SetupAutoConfig(confdPath)
+	AC.StartPolling()
+	AC.LoadConfigs()
 }
 
 // SetupConfig fires up the configuration system

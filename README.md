@@ -23,7 +23,7 @@ To start working on the Agent, you can build the `master` branch:
 1. checkout the repo within your `GOPATH`.
 2. install the project's dependencies: `rake deps`.
    Make sure that `GOPATH/bin` is in your `PATH` otherwise this step might fail. Alternatively  you can
-   install [glide](https://github.com/Masterminds/glide) manually on your system before running `rake deps`.
+   install [dep](https://github.com/golang/dep) manually on your system before running `rake deps`.
 3. build the whole project with `rake build`, see [the Agent README](cmd/agent/README.md) for more details
    on how to build the Agent alone.
 

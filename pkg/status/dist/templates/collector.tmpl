@@ -4,7 +4,7 @@ Collector
   Running Checks
   ==============
 {{- with .RunnerStats -}}
-{{- if not .Runs}}
+{{- if and (not .Runs) (not .Checks)}}
     No checks have run yet
 {{end -}}
 {{- range .Checks}}

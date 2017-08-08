@@ -3,11 +3,13 @@ package autodiscovery
 import (
 	"expvar"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	log "github.com/cihub/seelog"
 )
@@ -34,12 +36,16 @@ type providerDescriptor struct {
 // AutoConfig is responsible to collect checks configurations from
 // different sources and then create, update or destroy check instances
 // with the help of the Collector.
-// It is also responsible to listen to containers related events and act
-// accordingly.
+// It is also responsible to listen to container-related events and
+// trigger scheduling decisions based on them.
 type AutoConfig struct {
 	collector         *collector.Collector
 	providers         []*providerDescriptor
 	loaders           []check.Loader
+	templateCache     *TemplateCache
+	listeners         []listeners.ServiceListener
+	configResolver    *ConfigResolver
+	templateChan      chan []check.Config
 	configsPollTicker *time.Ticker
 	stop              chan bool
 	m                 sync.RWMutex
@@ -101,16 +107,20 @@ func (les *LoaderErrorStats) GetErrors() map[string]map[string]string {
 // responsible to poll the different configuration providers.
 func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 	ac := &AutoConfig{
-		collector:         collector,
-		providers:         make([]*providerDescriptor, 0, 5),
-		loaders:           make([]check.Loader, 0, 5),
-		configsPollTicker: time.NewTicker(configsPollIntl),
-		stop:              make(chan bool),
+		collector:     collector,
+		providers:     make([]*providerDescriptor, 0, 5),
+		loaders:       make([]check.Loader, 0, 5),
+		templateCache: NewTemplateCache(),
+		stop:          make(chan bool),
 	}
 
-	ac.pollConfigs()
-
 	return ac
+}
+
+// StartPolling starts polling the configs
+func (ac *AutoConfig) StartPolling() {
+	ac.configsPollTicker = time.NewTicker(configsPollIntl)
+	ac.pollConfigs()
 }
 
 // Stop just shuts down AutoConfig in a clean way.
@@ -119,6 +129,13 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 func (ac *AutoConfig) Stop() {
 	ac.stop <- true
 	ac.collector.Stop()
+	if ac.configResolver != nil {
+		ac.configResolver.Stop()
+	}
+
+	for _, l := range ac.listeners {
+		l.Stop()
+	}
 }
 
 // AddProvider adds a new configuration provider to AutoConfig.
@@ -132,7 +149,10 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 	for _, pd := range ac.providers {
 		if pd.provider == provider {
 			// we already know this configuration provider, don't do anything
-			log.Warnf("Provider %s was already added, skipping...", provider)
+			// this is formatted inline since logging is done on a background thread,
+			// so you can only pass it things to act on if they're thread safe
+			// this is not inherently thread safe
+			log.Warn(fmt.Sprintf("Provider %s was already added, skipping...", provider))
 			return
 		}
 	}
@@ -143,18 +163,68 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 		poll:     shouldPoll,
 	}
 	ac.providers = append(ac.providers, pd)
+}
 
-	// call Collect() now, so providers that don't need polling will be called at least once.
-	configs, _ := ac.collect(pd)
-	for _, config := range configs {
-		// load the check instances and schedule them
-		for _, check := range ac.loadChecks(config) {
-			err := ac.collector.RunCheck(check)
-			if err != nil {
-				log.Errorf("Unable to run Check %s: %v", check, err)
+// LoadConfigs loads all of the configs,
+// should always be run once so providers that don't need polling will be called at least once
+func (ac *AutoConfig) LoadConfigs() {
+	ac.collectChecks("")
+}
+
+// RunCheck runs a single check
+func (ac *AutoConfig) RunCheck(checkName string) {
+	ac.collectChecks(checkName)
+}
+
+// GetCheck grabs a check from the config
+func (ac *AutoConfig) GetCheck(checkName string) []check.Check {
+	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
+	checks := []check.Check{}
+	for _, pd := range ac.providers {
+		configs, _ := ac.collect(pd)
+		for _, config := range configs {
+			// load the check instances and schedule them
+			for _, check := range ac.loadChecks(config) {
+				if checkName == check.String() || titleCheck == check.String() {
+					checks = append(checks, check)
+				}
 			}
 		}
 	}
+	return checks
+}
+
+func (ac *AutoConfig) collectChecks(checkName string) {
+	for _, pd := range ac.providers {
+		configs, _ := ac.collect(pd)
+		for _, config := range configs {
+			// load the check instances and schedule them
+			for _, check := range ac.loadChecks(config) {
+				if checkName == "" || checkName == check.String() {
+					_, err := ac.collector.RunCheck(check)
+					if err != nil {
+						log.Errorf("Unable to run Check %s: %v", check, err)
+					}
+				}
+			}
+		}
+	}
+}
+
+// AddListener adds a service listener to AutoConfig.
+func (ac *AutoConfig) AddListener(listener listeners.ServiceListener) {
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
+	for _, l := range ac.listeners {
+		if l == listener {
+			log.Warnf("Listener %s was already added, skipping...", listener)
+			return
+		}
+	}
+
+	ac.listeners = append(ac.listeners, listener)
+	listener.Listen()
 }
 
 // AddLoader adds a new Loader that AutoConfig can use to load a check.
@@ -169,6 +239,15 @@ func (ac *AutoConfig) AddLoader(loader check.Loader) {
 	ac.loaders = append(ac.loaders, loader)
 }
 
+// RegisterConfigResolver adds a new ConfigResolver that will listen to service-related
+// events, template changes and update checks accordingly
+func (ac *AutoConfig) RegisterConfigResolver(cr *ConfigResolver) {
+	// ConfigResolver needs a reference to AC to schedule checks
+	cr.AC = ac
+	ac.configResolver = cr
+	cr.Listen()
+}
+
 // pollConfigs periodically calls Collect() on all the configuration
 // providers that have been requested to be polled
 func (ac *AutoConfig) pollConfigs() {
@@ -176,7 +255,9 @@ func (ac *AutoConfig) pollConfigs() {
 		for {
 			select {
 			case <-ac.stop:
-				ac.configsPollTicker.Stop()
+				if ac.configsPollTicker != nil {
+					ac.configsPollTicker.Stop()
+				}
 				return
 			case <-ac.configsPollTicker.C:
 				ac.m.RLock()
@@ -187,9 +268,30 @@ func (ac *AutoConfig) pollConfigs() {
 						continue
 					}
 
-					_, _ = ac.collect(pd)
+					// retrieve the list of newly added configurations as well
+					// as removed configurations
+					newConfigs, removedConfigs := ac.collect(pd)
+					for _, config := range newConfigs {
+						if len(config.ADIdentifiers) > 0 { // TODO: move this evaluation in a config.IsTemplate() method
+							// TODO: try to resolve the template
+							// TODO: if success, schedule the check for running
+							// TODO: if failed, notify we couldn't resolve it for now (it might happen later)
+							// store the template in the cache
+							if err := ac.templateCache.Set(config); err != nil {
+								log.Errorf("Unable to process Check configuration: %s", err)
+							}
+						} else {
+							// TODO: just schedule the check for running
+						}
+					}
 
-					// TODO tell the collector to stop/start/restart the corresponding checks
+					for _, config := range removedConfigs {
+						// TODO: unschedule the checks corresponding to this config
+						if len(config.ADIdentifiers) > 0 {
+							// if the config is a template, remove it from the cache
+							ac.templateCache.Del(config)
+						}
+					}
 				}
 				ac.m.RUnlock()
 			}
@@ -244,6 +346,35 @@ func (ac *AutoConfig) loadChecks(config check.Config) []check.Check {
 
 	log.Errorf("Unable to load the check '%s', see debug logs for more details.", config.Name)
 	return []check.Check{}
+}
+
+// LoadAndRun takes a config, load it into (a) check(s)
+// and instructs the collector to run this/these check(s)
+func (ac *AutoConfig) LoadAndRun(conf check.Config) ([]check.ID, error) {
+	checks := ac.loadChecks(conf)
+	ids := make([]check.ID, len(checks))
+	for _, c := range checks {
+		id, err := ac.collector.RunCheck(c)
+		if err != nil {
+			log.Errorf("Unable to run Check '%s': %s", c, err)
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// StopCheck instructs the collector to stop a check and simply forwards any error it receives
+func (ac *AutoConfig) StopCheck(id check.ID) error {
+	return ac.collector.StopCheck(id)
+}
+
+// ReloadCheck extracts initConfig and instance from a config and instructs
+// the collector to re-configure a running check with them.
+func (ac *AutoConfig) ReloadCheck(id check.ID, config check.Config) error {
+	initConfig := config.InitConfig
+	instance := config.Instances[0]
+	return ac.collector.ReloadCheck(id, instance, initConfig)
 }
 
 // check if the descriptor contains the Config passed

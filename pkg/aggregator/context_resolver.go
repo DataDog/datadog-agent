@@ -3,8 +3,8 @@ package aggregator
 import (
 	// stdlib
 	"fmt"
+	"bytes"
 	"sort"
-	"strings"
 
 	// 3p
 	log "github.com/cihub/seelog"
@@ -27,14 +27,25 @@ type ContextResolver struct {
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
 func generateContextKey(metricSample *metrics.MetricSample) string {
-	var contextFields []string
+	// Pre-compute the size of the buffer we'll need, and allocate a buffer of that size
+	bufferSize := len(metricSample.Name) + 1
+	for k := range metricSample.Tags {
+		bufferSize += len(metricSample.Tags[k]) + 1
+	}
+	bufferSize += len(metricSample.Host)
+	buffer := bytes.NewBuffer(make([]byte, 0, bufferSize))
 
-	contextFields = append(contextFields, metricSample.Name)
 	sort.Strings(metricSample.Tags)
-	contextFields = append(contextFields, metricSample.Tags...)
-	contextFields = append(contextFields, metricSample.Host)
+	// write the context items to the buffer, and return it as a string
+	buffer.WriteString(metricSample.Name)
+	buffer.WriteString(",")
+	for k := range metricSample.Tags {
+		buffer.WriteString(metricSample.Tags[k])
+		buffer.WriteString(",")
+	}
+	buffer.WriteString(metricSample.Host)
 
-	return strings.Join(contextFields, ",")
+	return buffer.String()
 }
 
 func newContextResolver() *ContextResolver {

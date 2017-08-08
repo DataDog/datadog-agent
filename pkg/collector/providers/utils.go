@@ -89,10 +89,10 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []ch
 		instance := check.ConfigData(instances[idx])
 
 		templates = append(templates, check.Config{
-			ID:         check.ID(key),
-			Name:       checkNames[idx],
-			InitConfig: check.ConfigData(initConfigs[idx]),
-			Instances:  []check.ConfigData{instance},
+			Name:          checkNames[idx],
+			InitConfig:    check.ConfigData(initConfigs[idx]),
+			Instances:     []check.ConfigData{instance},
+			ADIdentifiers: []string{key},
 		})
 	}
 	return templates

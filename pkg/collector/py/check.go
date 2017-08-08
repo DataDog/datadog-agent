@@ -44,8 +44,10 @@ func (c *PythonCheck) Run() error {
 	defer gstate.unlock()
 
 	// call run function, it takes no args so we pass an empty tuple
+	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
 	emptyTuple := python.PyTuple_New(0)
 	result := c.Instance.CallMethod("run", emptyTuple)
+	log.Debugf("Run returned for %s %s", c.ModuleName, c.id)
 	if result == nil {
 		pyErr, err := gstate.getPythonError()
 		if err != nil {
@@ -162,6 +164,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 		allSettings := config.Datadog.AllSettings()
 		agentConfig, err := ToPython(allSettings)
 		if err != nil {
+			log.Errorf("could not convert agent configuration to python: %s", err)
 			return fmt.Errorf("could not convert agent configuration to python: %s", err)
 		}
 
@@ -179,6 +182,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 
 		log.Warnf("passing `agentConfig` to the constructor is deprecated, please use the `get_config` function from the 'datadog_agent' package (%s).", c.ModuleName)
 	}
+	log.Debugf("python check configure done %s", c.ModuleName)
 
 	c.Instance = instance
 	c.Config = kwargs

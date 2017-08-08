@@ -1,6 +1,7 @@
-package serializer
+package metrics
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -8,25 +9,23 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestMarshalSeries(t *testing.T) {
-	series := []*metrics.Serie{{
-		Points: []metrics.Point{
+	series := Series{{
+		Points: []Point{
 			{Ts: 12345.0, Value: float64(21.21)},
 			{Ts: 67890.0, Value: float64(12.12)},
 		},
-		MType: metrics.APIGaugeType,
+		MType: APIGaugeType,
 		Name:  "test.metrics",
 		Host:  "localHost",
 		Tags:  []string{"tag1", "tag2:yes"},
 	}}
 
-	payload, contentType, err := MarshalSeries(series)
+	payload, err := series.Marshal()
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
-	assert.Equal(t, contentType, "application/x-protobuf")
 
 	newPayload := &agentpayload.MetricsPayload{}
 	err = proto.Unmarshal(payload, newPayload)
@@ -47,15 +46,15 @@ func TestMarshalSeries(t *testing.T) {
 }
 
 func TestPopulateDeviceField(t *testing.T) {
-	series := []*metrics.Serie{
-		&metrics.Serie{},
-		&metrics.Serie{
+	series := Series{
+		&Serie{},
+		&Serie{
 			Tags: []string{"some:tag", "device:/dev/sda1"},
 		},
-		&metrics.Serie{
+		&Serie{
 			Tags: []string{"some:tag", "device:/dev/sda2", "some_other:tag"},
 		},
-		&metrics.Serie{
+		&Serie{
 			Tags: []string{"yet_another:value", "one_last:tag_value"},
 		}}
 
@@ -73,21 +72,115 @@ func TestPopulateDeviceField(t *testing.T) {
 }
 
 func TestMarshalJSONSeries(t *testing.T) {
-	series := []*metrics.Serie{{
-		Points: []metrics.Point{
+	series := Series{{
+		Points: []Point{
 			{Ts: 12345.0, Value: float64(21.21)},
 			{Ts: 67890.0, Value: float64(12.12)},
 		},
-		MType:          metrics.APIGaugeType,
+		MType:          APIGaugeType,
 		Name:           "test.metrics",
 		Host:           "localHost",
 		Tags:           []string{"tag1", "tag2:yes", "device:/dev/sda1"},
 		SourceTypeName: "System",
 	}}
 
-	payload, contentType, err := MarshalJSONSeries(series)
+	payload, err := series.MarshalJSON()
 	assert.Nil(t, err)
-	assert.Equal(t, contentType, "application/json")
 	assert.NotNil(t, payload)
 	assert.Equal(t, payload, []byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device\":\"/dev/sda1\",\"type\":\"gauge\",\"interval\":0,\"source_type_name\":\"System\"}]}\n"))
+}
+
+func TestSplitSeries(t *testing.T) {
+	var series = Series{}
+	for i := 0; i < 2; i++ {
+		s := Serie{
+			Points: []Point{
+				{Ts: 12345.0, Value: float64(21.21)},
+				{Ts: 67890.0, Value: float64(12.12)},
+			},
+			MType: APIGaugeType,
+			Name:  "test.metrics",
+			Host:  "localHost",
+			Tags:  []string{"tag1", "tag2:yes"},
+		}
+		series = append(series, &s)
+	}
+
+	newSeries, err := series.SplitPayload(2)
+	require.Nil(t, err)
+	require.Len(t, newSeries, 2)
+	newSeries, err = series.SplitPayload(3)
+	require.Nil(t, err)
+	require.Len(t, newSeries, 2)
+
+	series = Series{{
+		Points: []Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
+		MType: APIGaugeType,
+		Name:  "test.metrics",
+		Host:  "localHost",
+		Tags:  []string{"tag1", "tag2:yes"},
+	}}
+	newSeries, err = series.SplitPayload(2)
+	require.Nil(t, err)
+	require.Len(t, newSeries, 2)
+	for _, s := range newSeries {
+		ser := s.(Series)
+		require.Len(t, ser[0].Points, 1)
+	}
+	newSeries, err = series.SplitPayload(3)
+	require.Nil(t, err)
+	require.Len(t, newSeries, 2)
+	for _, s := range newSeries {
+		ser := s.(Series)
+		require.Len(t, ser[0].Points, 1)
+	}
+}
+
+func TestUnmarshalSeriesJSON(t *testing.T) {
+	// Test one for each value of the API Type
+	series := Series{{
+		Points: []Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
+		MType:    APIGaugeType,
+		Name:     "test.metrics",
+		Interval: 1,
+		Host:     "localHost",
+		Tags:     []string{"tag1", "tag2:yes"},
+	}, {
+		Points: []Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
+		MType:    APIRateType,
+		Name:     "test.metrics",
+		Interval: 1,
+		Host:     "localHost",
+		Tags:     []string{"tag1", "tag2:yes"},
+	}, {
+		Points: []Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
+		MType:    APICountType,
+		Name:     "test.metrics",
+		Interval: 1,
+		Host:     "localHost",
+		Tags:     []string{"tag1", "tag2:yes"},
+	}}
+
+	seriesJSON, err := series.MarshalJSON()
+	require.Nil(t, err)
+	var newSeries map[string]Series
+	err = json.Unmarshal(seriesJSON, &newSeries)
+	require.Nil(t, err)
+
+	badPointJSON := []byte(`[12345,21.21,1]`)
+	var badPoint Point
+	err = json.Unmarshal(badPointJSON, &badPoint)
+	require.NotNil(t, err)
 }

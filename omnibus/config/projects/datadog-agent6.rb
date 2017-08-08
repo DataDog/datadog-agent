@@ -140,10 +140,12 @@ dependency 'jmxfetch'
 
 unless windows?
   dependency 'datadog-trace-agent'
+  dependency 'datadog-process-agent'
 end
 
 if windows?
   dependency 'datadog-upgrade-helper'
+  dependency 'pywin32'
 end
 
 # Remove pyc/pyo files from package

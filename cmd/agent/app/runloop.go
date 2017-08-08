@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
@@ -87,7 +88,8 @@ func StartAgent() {
 	log.Debugf("Forwarder started")
 
 	// setup the aggregator
-	agg := aggregator.InitAggregator(common.Forwarder, hostname)
+	s := &serializer.Serializer{Forwarder: common.Forwarder}
+	agg := aggregator.InitAggregator(s, hostname)
 	agg.AddAgentStartupEvent(version.AgentVersion)
 
 	// start dogstatsd
@@ -101,11 +103,11 @@ func StartAgent() {
 	log.Debugf("statsd started")
 
 	// create and setup the Autoconfig instance
-	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+	common.StartAutoConfig(config.Datadog.GetString("confd_path"))
 
 	// setup the metadata collector, this needs a working Python env to function
 	if config.Datadog.GetBool("enable_metadata_collection") {
-		common.MetadataScheduler = metadata.NewScheduler(common.Forwarder, hostname)
+		common.MetadataScheduler = metadata.NewScheduler(s, hostname)
 		var C []config.MetadataProviders
 		err = config.Datadog.UnmarshalKey("metadata_providers", &C)
 		if err == nil {

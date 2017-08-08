@@ -63,7 +63,7 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 	bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval)
 }
 
-func (s *TimeSampler) flush(timestamp float64) []*metrics.Serie {
+func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 	var result []*metrics.Serie
 	var rawSeries []*metrics.Serie
 

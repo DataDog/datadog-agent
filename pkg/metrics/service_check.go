@@ -1,7 +1,15 @@
 package metrics
 
 import (
+	"bytes"
+	"encoding/json"
+	"expvar"
 	"fmt"
+
+	"github.com/gogo/protobuf/proto"
+
+	agentpayload "github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 // ServiceCheckStatus represents the status associated with a service check
@@ -14,6 +22,8 @@ const (
 	ServiceCheckCritical ServiceCheckStatus = 2
 	ServiceCheckUnknown  ServiceCheckStatus = 3
 )
+
+var serviceCheckExpvar = expvar.NewMap("ServiceCheck")
 
 // GetServiceCheckStatus returns the ServiceCheckStatus from and integer value
 func GetServiceCheckStatus(val int) (ServiceCheckStatus, error) {
@@ -55,4 +65,66 @@ type ServiceCheck struct {
 	Status    ServiceCheckStatus `json:"status"`
 	Message   string             `json:"message"`
 	Tags      []string           `json:"tags"`
+}
+
+// ServiceChecks represents a list of service checks ready to be serialize
+type ServiceChecks []*ServiceCheck
+
+// Marshal serialize service checks using agent-payload definition
+func (sc ServiceChecks) Marshal() ([]byte, error) {
+	payload := &agentpayload.ServiceChecksPayload{
+		ServiceChecks: []*agentpayload.ServiceChecksPayload_ServiceCheck{},
+		Metadata:      &agentpayload.CommonMetadata{},
+	}
+
+	for _, c := range sc {
+		payload.ServiceChecks = append(payload.ServiceChecks,
+			&agentpayload.ServiceChecksPayload_ServiceCheck{
+				Name:    c.CheckName,
+				Host:    c.Host,
+				Ts:      c.Ts,
+				Status:  int32(c.Status),
+				Message: c.Message,
+				Tags:    c.Tags,
+			})
+	}
+
+	return proto.Marshal(payload)
+}
+
+// MarshalJSON serializes service checks to JSON so it can be sent to V1 endpoints
+//FIXME(olivier): to be removed when v2 endpoints are available
+func (sc ServiceChecks) MarshalJSON() ([]byte, error) {
+	// use an alias to avoid infinit recursion while serializing
+	type ServiceChecksAlias ServiceChecks
+
+	reqBody := &bytes.Buffer{}
+	err := json.NewEncoder(reqBody).Encode(ServiceChecksAlias(sc))
+	return reqBody.Bytes(), err
+}
+
+// SplitPayload breaks the payload into times number of pieces
+func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+	serviceCheckExpvar.Add("TimesSplit", 1)
+	// only split it up as much as possible
+	if len(sc) < times {
+		serviceCheckExpvar.Add("ServiceChecksShorter", 1)
+		times = len(sc)
+	}
+	splitPayloads := make([]marshaler.Marshaler, times)
+	batchSize := len(sc) / times
+	n := 0
+	for i := 0; i < times; i++ {
+		var end int
+		// the batch size will not be perfect, only split it as much as possible
+		if i < times-1 {
+			end = n + batchSize
+		} else {
+			end = len(sc)
+		}
+		newSC := ServiceChecks(sc[n:end])
+		splitPayloads[i] = newSC
+		n += batchSize
+	}
+	return splitPayloads, nil
 }
