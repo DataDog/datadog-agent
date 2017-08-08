@@ -46,7 +46,7 @@ func SetupLogger(logLevel, logFile, host string, port int, syslog bool) error {
     <formats>
         <format id="common" format="%%Date(%s) | %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>`
 	if syslog {
-		configTemplate += `<format id="syslog" format="%%CustomSyslogHeader(20) | %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`
+		configTemplate += `<format id="syslog" format="%%CustomSyslogHeader(20) %%Msg%%n" />`
 	}
 
 	configTemplate += `</formats>
@@ -93,7 +93,7 @@ func createSyslogHeaderFormatter(params string) log.FormatterFunc {
 		appName := filepath.Base(os.Args[0])
 		hostName, _ := os.Hostname()
 
-		return fmt.Sprintf("<%d>1 %s %s %s %d - -",
+		return fmt.Sprintf("<%d>1 %s %s %s %d - - %%LEVEL | (%%RelFile:%%Line) |",
 			facility*8+levelToSyslogSeverity[level],
 			time.Now().Format("2006-01-02T15:04:05Z07:00"),
 			hostName, appName, pid)
@@ -134,17 +134,8 @@ func getSyslogConnection(hostname string, port int) (net.Conn, error) {
 	return nil, errors.New("Unable to connect to syslog")
 }
 
-func (s *SyslogReceiver) isLocal() bool {
-	if s.hostname == "" || s.port <= 0 {
-		return true
-	}
-
-	return false
-}
-
 // ReceiveMessage process current log message
 func (s *SyslogReceiver) ReceiveMessage(message string, level log.LogLevel, context log.LogContextInterface) error {
-	// Implement levels
 	if !s.enabled {
 		return nil
 	}
@@ -194,7 +185,7 @@ func (s *SyslogReceiver) AfterParse(initArgs log.CustomReceiverInitArgs) error {
 	}
 
 	if !s.enabled {
-		return errors.New("bad syslog receiver configuration - disabling.")
+		return errors.New("bad syslog receiver configuration - disabling")
 	}
 
 	conn, err = getSyslogConnection(s.hostname, s.port)
@@ -209,8 +200,7 @@ func (s *SyslogReceiver) AfterParse(initArgs log.CustomReceiverInitArgs) error {
 
 // Flush is a NOP in current implementation
 func (s *SyslogReceiver) Flush() {
-	// Anything to do here?
-
+	// Nothing to do here...
 }
 
 // Close is a NOP in current implementation
