@@ -45,6 +45,10 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                     echo "Adding dd-agent user to dd-agent group"
                     usermod -g dd-agent dd-agent
                 fi
+
+                # Create symlink to the agent's binary
+                ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
+                chmod 755 $INSTALL_DIR/bin/agent/agent
             ;;
             abort-upgrade|abort-remove|abort-deconfigure)
             ;;
@@ -59,11 +63,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     chown -R dd-agent:dd-agent ${CONFIG_DIR}
     chown -R dd-agent:dd-agent ${LOG_DIR}
     chown -R dd-agent:dd-agent ${INSTALL_DIR}
-
-    # Create symlinks to the agent's binary
-    sed -i -e s@DIRPATH=.*@DIRPATH=$INSTALL_DIR/bin/agent@ $INSTALL_DIR/bin/agent/agent
-    ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
-    chmod 755 $INSTALL_DIR/bin/agent/agent
 
     # Only supports systemd and upstart
     echo "Enabling service $SERVICE_NAME"
