@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
 	log "github.com/cihub/seelog"
 )
@@ -23,18 +24,33 @@ var (
 	// used to serialize to protobuf
 	AgentPayloadVersion string
 
-	jsonExtraHeaders     map[string]string
-	protobufExtraHeaders map[string]string
+	jsonExtraHeaders                    map[string]string
+	protobufExtraHeaders                map[string]string
+	jsonExtraHeadersWithCompression     map[string]string
+	protobufExtraHeadersWithCompression map[string]string
 )
 
 func init() {
 	jsonExtraHeaders = map[string]string{
 		"Content-Type": jsonContentType,
 	}
+	jsonExtraHeadersWithCompression = make(map[string]string)
+	for k, v := range jsonExtraHeaders {
+		jsonExtraHeadersWithCompression[k] = v
+	}
 
 	protobufExtraHeaders = map[string]string{
 		"Content-Type":           protobufContentType,
 		payloadVersionHTTPHeader: AgentPayloadVersion,
+	}
+	protobufExtraHeadersWithCompression = make(map[string]string)
+	for k, v := range protobufExtraHeaders {
+		protobufExtraHeadersWithCompression[k] = v
+	}
+
+	if compression.ContentEncoding != "" {
+		jsonExtraHeadersWithCompression["Content-Encoding"] = compression.ContentEncoding
+		protobufExtraHeadersWithCompression["Content-Encoding"] = compression.ContentEncoding
 	}
 }
 
@@ -43,18 +59,33 @@ type Serializer struct {
 	Forwarder forwarder.Forwarder
 }
 
-func (s Serializer) splitPayload(payload marshaler.Marshaler, compress bool, useV1Endpoint bool) (forwarder.Payloads, error) {
-	marshalType := split.Marshal
+func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1Endpoint bool) (forwarder.Payloads, map[string]string, error) {
+	var marshalType split.MarshalType
+	var extraHeaders map[string]string
+
 	if useV1Endpoint {
 		marshalType = split.MarshalJSON
+		if compress {
+			extraHeaders = jsonExtraHeadersWithCompression
+		} else {
+			extraHeaders = jsonExtraHeaders
+		}
+	} else {
+		marshalType = split.Marshal
+		if compress {
+			extraHeaders = protobufExtraHeadersWithCompression
+		} else {
+			extraHeaders = protobufExtraHeaders
+		}
 	}
+
 	payloads, err := split.Payloads(payload, compress, marshalType)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not split payload into small enough chunks: %s", err)
+		return nil, nil, fmt.Errorf("could not split payload into small enough chunks: %s", err)
 	}
 
-	return payloads, nil
+	return payloads, extraHeaders, nil
 }
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
@@ -65,15 +96,15 @@ func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 	}
 
 	compress := true
-	eventPayloads, err := s.splitPayload(e, compress, useV1Endpoint)
+	eventPayloads, extraHeaders, err := s.serializePayload(e, compress, useV1Endpoint)
 	if err != nil {
 		return fmt.Errorf("dropping event payload: %s", err)
 	}
 
 	if useV1Endpoint {
-		return s.Forwarder.SubmitV1Intake(eventPayloads, jsonExtraHeaders)
+		return s.Forwarder.SubmitV1Intake(eventPayloads, extraHeaders)
 	}
-	return s.Forwarder.SubmitEvents(eventPayloads, protobufExtraHeaders)
+	return s.Forwarder.SubmitEvents(eventPayloads, extraHeaders)
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
@@ -84,15 +115,15 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 	}
 
 	compress := false
-	serviceCheckPayloads, err := s.splitPayload(sc, compress, useV1Endpoint)
+	serviceCheckPayloads, extraHeaders, err := s.serializePayload(sc, compress, useV1Endpoint)
 	if err != nil {
 		return fmt.Errorf("dropping service check payload: %s", err)
 	}
 
 	if useV1Endpoint {
-		return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, jsonExtraHeaders)
+		return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, extraHeaders)
 	}
-	return s.Forwarder.SubmitServiceChecks(serviceCheckPayloads, protobufExtraHeaders)
+	return s.Forwarder.SubmitServiceChecks(serviceCheckPayloads, extraHeaders)
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
@@ -103,27 +134,27 @@ func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
 	}
 
 	compress := true
-	seriesPayloads, err := s.splitPayload(series, compress, useV1Endpoint)
+	seriesPayloads, extraHeaders, err := s.serializePayload(series, compress, useV1Endpoint)
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
 	if useV1Endpoint {
-		return s.Forwarder.SubmitV1Series(seriesPayloads, jsonExtraHeaders)
+		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
 	}
-	return s.Forwarder.SubmitSeries(seriesPayloads, protobufExtraHeaders)
+	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
 func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 	compress := false
 	useV1Endpoint := false // Sketches only have a v2 endpoint
-	splitSketches, err := s.splitPayload(sketches, compress, useV1Endpoint)
+	splitSketches, extraHeaders, err := s.serializePayload(sketches, compress, useV1Endpoint)
 	if err != nil {
 		return fmt.Errorf("dropping sketch payload: %s", err)
 	}
 
-	return s.Forwarder.SubmitSketchSeries(splitSketches, protobufExtraHeaders)
+	return s.Forwarder.SubmitSketchSeries(splitSketches, extraHeaders)
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder

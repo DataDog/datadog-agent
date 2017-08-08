@@ -22,6 +22,30 @@ func TestInit(t *testing.T) {
 			"Content-Type":           protobufContentType,
 		},
 		protobufExtraHeaders)
+
+	if compression.ContentEncoding == "" {
+		assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeadersWithCompression)
+		assert.Equal(t,
+			map[string]string{
+				payloadVersionHTTPHeader: "",
+				"Content-Type":           protobufContentType,
+			},
+			protobufExtraHeadersWithCompression)
+	} else {
+		assert.Equal(t,
+			map[string]string{
+				"Content-Type":     jsonContentType,
+				"Content-Encoding": compression.ContentEncoding,
+			},
+			jsonExtraHeadersWithCompression)
+		assert.Equal(t,
+			map[string]string{
+				payloadVersionHTTPHeader: "",
+				"Content-Type":           protobufContentType,
+				"Content-Encoding":       compression.ContentEncoding,
+			},
+			protobufExtraHeadersWithCompression)
+	}
 }
 
 var (
@@ -33,7 +57,7 @@ var (
 
 func init() {
 	jsonPayloads, _ = mkPayloads(jsonString, true)
-	protobufPayloads, _ = mkPayloads(protobufString, false)
+	protobufPayloads, _ = mkPayloads(protobufString, true)
 }
 
 type testPayload struct{}
@@ -67,7 +91,7 @@ func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 
 func TestSendEvents(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeaders).Return(nil).Times(1)
+	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := Serializer{Forwarder: f}
 
@@ -83,7 +107,7 @@ func TestSendEvents(t *testing.T) {
 
 func TestSendV2Events(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	f.On("SubmitEvents", protobufPayloads, protobufExtraHeaders).Return(nil).Times(1)
+	f.On("SubmitEvents", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_endpoint.events", true)
 	defer config.Datadog.Set("use_v2_endpoint.events", nil)
 
@@ -137,7 +161,7 @@ func TestSendV2ServiceChecks(t *testing.T) {
 
 func TestSendSeries(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeaders).Return(nil).Times(1)
+	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := Serializer{Forwarder: f}
 
@@ -153,7 +177,7 @@ func TestSendSeries(t *testing.T) {
 
 func TestSendV2Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	f.On("SubmitSeries", protobufPayloads, protobufExtraHeaders).Return(nil).Times(1)
+	f.On("SubmitSeries", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_endpoint.series", true)
 	defer config.Datadog.Set("use_v2_endpoint.series", nil)
 
@@ -171,7 +195,8 @@ func TestSendV2Series(t *testing.T) {
 
 func TestSendSketch(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	f.On("SubmitSketchSeries", protobufPayloads, protobufExtraHeaders).Return(nil).Times(1)
+	payloads, _ := mkPayloads(protobufString, false)
+	f.On("SubmitSketchSeries", payloads, protobufExtraHeaders).Return(nil).Times(1)
 
 	s := Serializer{Forwarder: f}
 
