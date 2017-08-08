@@ -2,8 +2,8 @@ package aggregator
 
 import (
 	// stdlib
-	"fmt"
 	"bytes"
+	"fmt"
 	"sort"
 
 	// 3p
