@@ -60,6 +60,7 @@ func init() {
 	Datadog.SetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
 	Datadog.SetDefault("dogstatsd_stats_enable", false)
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
+	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
 	// JMX
 	Datadog.SetDefault("jmx_pipe_path", defaultJMXPipePath)
 	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
