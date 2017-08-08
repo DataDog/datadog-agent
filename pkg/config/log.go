@@ -26,7 +26,7 @@ const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format sy
 var logCertPool *x509.CertPool
 
 // SetupLogger sets up the default logger
-func SetupLogger(logLevel, logFile, host string, port int, syslog, tls bool, pem string) error {
+func SetupLogger(logLevel, logFile string, syslog, rfc bool, host string, port int, tls bool, pem string) error {
 	if pem != "" {
 		if logCertPool == nil {
 			logCertPool = x509.NewCertPool()
@@ -62,7 +62,11 @@ func SetupLogger(logLevel, logFile, host string, port int, syslog, tls bool, pem
     <formats>
         <format id="common" format="%%Date(%s) | %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>`
 	if syslog {
-		configTemplate += `<format id="syslog" format="%%CustomSyslogHeader(20) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`
+		if rfc {
+			configTemplate += `<format id="syslog" format="%%CustomSyslogRFCHeader(20) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`
+		} else {
+			configTemplate += `<format id="syslog" format="%%CustomSyslogHeader %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`
+		}
 	}
 
 	configTemplate += `</formats>
@@ -97,7 +101,7 @@ var levelToSyslogSeverity = map[log.LogLevel]int{
 	log.Off:         7,
 }
 
-func createSyslogHeaderFormatter(params string) log.FormatterFunc {
+func createSyslogRFCHeaderFormatter(params string) log.FormatterFunc {
 	facility := 20
 	i, err := strconv.Atoi(params)
 	if err == nil && i >= 0 && i <= 23 {
@@ -112,6 +116,17 @@ func createSyslogHeaderFormatter(params string) log.FormatterFunc {
 		return fmt.Sprintf("<%d>1 %s %s %s %d - -",
 			facility*8+levelToSyslogSeverity[level],
 			time.Now().Format("2006-01-02T15:04:05Z07:00"),
+			hostName, appName, pid)
+	}
+}
+
+func createSyslogHeaderFormatter(params string) log.FormatterFunc {
+	return func(message string, level log.LogLevel, context log.LogContextInterface) interface{} {
+		pid := os.Getpid()
+		appName := filepath.Base(os.Args[0])
+		hostName, _ := os.Hostname()
+
+		return fmt.Sprintf("%s %s[%d]:",
 			hostName, appName, pid)
 	}
 }
@@ -241,6 +256,7 @@ func (s *SyslogReceiver) Close() error {
 }
 
 func init() {
+	log.RegisterCustomFormatter("CustomSyslogRFCHeader", createSyslogRFCHeaderFormatter)
 	log.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
 	log.RegisterReceiver("syslog", &SyslogReceiver{})
 }
