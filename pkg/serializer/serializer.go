@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -42,44 +43,86 @@ type Serializer struct {
 	Forwarder forwarder.Forwarder
 }
 
+func (s Serializer) splitPayload(payload marshaler.Marshaler, compress bool, useV1Endpoint bool) (forwarder.Payloads, error) {
+	marshalType := split.Marshal
+	if useV1Endpoint {
+		marshalType = split.MarshalJSON
+	}
+	payloads, err := split.Payloads(payload, compress, marshalType)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not split payload into small enough chunks: %s", err)
+	}
+
+	return payloads, nil
+}
+
 // SendEvents serializes a list of event and sends the payload to the forwarder
 func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
-	compress := true
-	events, err := split.Payloads(e, compress, split.MarshalJSON)
-	if err != nil {
-		return fmt.Errorf("could not split events into small enough chunks, dropping: %s", err)
+	useV1Endpoint := false
+	if !config.Datadog.GetBool("use_v2_endpoint.events") {
+		useV1Endpoint = true
 	}
-	return s.Forwarder.SubmitV1Intake(events, jsonExtraHeaders)
+
+	compress := true
+	eventPayloads, err := s.splitPayload(e, compress, useV1Endpoint)
+	if err != nil {
+		return fmt.Errorf("dropping event payload: %s", err)
+	}
+
+	if useV1Endpoint {
+		return s.Forwarder.SubmitV1Intake(eventPayloads, jsonExtraHeaders)
+	}
+	return s.Forwarder.SubmitEvents(eventPayloads, protobufExtraHeaders)
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
-	compress := false
-	serviceChecks, err := split.Payloads(sc, compress, split.MarshalJSON)
-	if err != nil {
-		return fmt.Errorf("could not split service checks into small enough chunks, dropping: %s", err)
+	useV1Endpoint := false
+	if !config.Datadog.GetBool("use_v2_endpoint.service_checks") {
+		useV1Endpoint = true
 	}
-	return s.Forwarder.SubmitV1CheckRuns(serviceChecks, jsonExtraHeaders)
+
+	compress := false
+	serviceCheckPayloads, err := s.splitPayload(sc, compress, useV1Endpoint)
+	if err != nil {
+		return fmt.Errorf("dropping service check payload: %s", err)
+	}
+
+	if useV1Endpoint {
+		return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, jsonExtraHeaders)
+	}
+	return s.Forwarder.SubmitServiceChecks(serviceCheckPayloads, protobufExtraHeaders)
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
-	compress := true
-
-	splitSeries, err := split.Payloads(series, compress, split.MarshalJSON)
-	if err != nil {
-		return fmt.Errorf("could not split series into small enough chunks, dropping: %s", err)
+	useV1Endpoint := false
+	if !config.Datadog.GetBool("use_v2_endpoint.series") {
+		useV1Endpoint = true
 	}
-	return s.Forwarder.SubmitV1Series(splitSeries, jsonExtraHeaders)
+
+	compress := true
+	seriesPayloads, err := s.splitPayload(series, compress, useV1Endpoint)
+	if err != nil {
+		return fmt.Errorf("dropping series payload: %s", err)
+	}
+
+	if useV1Endpoint {
+		return s.Forwarder.SubmitV1Series(seriesPayloads, jsonExtraHeaders)
+	}
+	return s.Forwarder.SubmitSeries(seriesPayloads, protobufExtraHeaders)
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
 func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 	compress := false
-	splitSketches, err := split.Payloads(sketches, compress, split.Marshal)
+	useV1Endpoint := false // Sketches only have a v2 endpoint
+	splitSketches, err := s.splitPayload(sketches, compress, useV1Endpoint)
 	if err != nil {
-		return fmt.Errorf("could not split sketches into small enough chunks, dropping: %s", err)
+		return fmt.Errorf("dropping sketch payload: %s", err)
 	}
+
 	return s.Forwarder.SubmitSketchSeries(splitSketches, protobufExtraHeaders)
 }
 

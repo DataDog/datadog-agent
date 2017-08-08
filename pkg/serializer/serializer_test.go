@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -80,6 +81,24 @@ func TestSendEvents(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+func TestSendV2Events(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	f.On("SubmitEvents", protobufPayloads, protobufExtraHeaders).Return(nil).Times(1)
+	config.Datadog.Set("use_v2_endpoint.events", true)
+	defer config.Datadog.Set("use_v2_endpoint.events", nil)
+
+	s := Serializer{Forwarder: f}
+
+	payload := &testPayload{}
+	err := s.SendEvents(payload)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	errPayload := &testErrorPayload{}
+	err = s.SendEvents(errPayload)
+	require.NotNil(t, err)
+}
+
 func TestSendServiceChecks(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	payloads, _ := mkPayloads(jsonString, false)
@@ -97,9 +116,46 @@ func TestSendServiceChecks(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+func TestSendV2ServiceChecks(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	payloads, _ := mkPayloads(protobufString, false)
+	f.On("SubmitServiceChecks", payloads, protobufExtraHeaders).Return(nil).Times(1)
+	config.Datadog.Set("use_v2_endpoint.service_checks", true)
+	defer config.Datadog.Set("use_v2_endpoint.service_checks", nil)
+
+	s := Serializer{Forwarder: f}
+
+	payload := &testPayload{}
+	err := s.SendServiceChecks(payload)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	errPayload := &testErrorPayload{}
+	err = s.SendServiceChecks(errPayload)
+	require.NotNil(t, err)
+}
+
 func TestSendSeries(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeaders).Return(nil).Times(1)
+
+	s := Serializer{Forwarder: f}
+
+	payload := &testPayload{}
+	err := s.SendSeries(payload)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	errPayload := &testErrorPayload{}
+	err = s.SendSeries(errPayload)
+	require.NotNil(t, err)
+}
+
+func TestSendV2Series(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	f.On("SubmitSeries", protobufPayloads, protobufExtraHeaders).Return(nil).Times(1)
+	config.Datadog.Set("use_v2_endpoint.series", true)
+	defer config.Datadog.Set("use_v2_endpoint.series", nil)
 
 	s := Serializer{Forwarder: f}
 
