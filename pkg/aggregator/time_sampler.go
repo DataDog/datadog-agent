@@ -1,9 +1,10 @@
 package aggregator
 
 import (
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/cihub/seelog"
 )
 
 const defaultExpiry = 300.0 // number of seconds after which contexts are expired
@@ -154,7 +155,7 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 			// i.e. while we are still sending zeros for them
 			err := s.contextResolver.updateTrackedContext(counterContext, float64(timestamp))
 			if err != nil {
-				seelog.Errorf(err)
+				log.Errorf(err)
 			}
 		} else {
 			// Register the context to be deleted
