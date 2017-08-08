@@ -129,7 +129,9 @@ func (ac *AutoConfig) StartPolling() {
 func (ac *AutoConfig) Stop() {
 	ac.stop <- true
 	ac.collector.Stop()
-	ac.configResolver.Stop()
+	if ac.configResolver != nil {
+		ac.configResolver.Stop()
+	}
 
 	for _, l := range ac.listeners {
 		l.Stop()
@@ -241,7 +243,6 @@ func (ac *AutoConfig) AddLoader(loader check.Loader) {
 // events, template changes and update checks accordingly
 func (ac *AutoConfig) RegisterConfigResolver(cr *ConfigResolver) {
 	// ConfigResolver needs a reference to AC to schedule checks
-	cr.FreshTemplates = ac.templateChan
 	cr.AC = ac
 	ac.configResolver = cr
 	cr.Listen()
