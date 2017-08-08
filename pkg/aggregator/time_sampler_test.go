@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	// project
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -166,7 +167,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 	sampler.addSample(sampleCounter1, 1004.0)
 	sampler.addSample(sampleCounter2, 1002.0)
 	sampler.addSample(sampleGauge3, 1003.0)
-	// counterLastSampledByContext should be populated at flush time
+	// counterLastSampledByContext should be populated when a sample is added
 	assert.Equal(t, 2, len(sampler.counterLastSampledByContext))
 
 	orderedSeries := OrderedSeries{sampler.flush(1010.0)}
@@ -208,9 +209,9 @@ func TestCounterExpirySeconds(t *testing.T) {
 		SampleRate: 1,
 	}
 
+	sampler.addSample(sampleCounter2, 1034.0)
 	sampler.addSample(sampleCounter1, 1010.0)
 	sampler.addSample(sampleCounter2, 1020.0)
-	sampler.addSample(sampleCounter2, 1034.0)
 
 	orderedSeries = OrderedSeries{sampler.flush(1040.0)}
 	sort.Sort(orderedSeries)

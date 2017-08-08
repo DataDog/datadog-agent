@@ -70,6 +70,9 @@ func (s *TimeSampler) flush(timestamp float64) []*metrics.Serie {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
+	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
+	contextsToDelete := map[string]struct{}{}
+
 	if len(s.metricsByTimestamp) > 0 {
 		for bucketTimestamp, contextMetrics := range s.metricsByTimestamp {
 			// disregard when the timestamp is too recent
@@ -77,7 +80,9 @@ func (s *TimeSampler) flush(timestamp float64) []*metrics.Serie {
 				continue
 			}
 
-			s.countersSampleZeroValue(bucketTimestamp, contextMetrics)
+			// Add a 0 sample to all the counters that are not expired.
+			// It is ok to add 0 samples to a counter that was already sampled for real in the bucket, since it won't change its value
+			s.countersSampleZeroValue(bucketTimestamp, contextMetrics, contextsToDelete)
 
 			rawSeries = append(rawSeries, contextMetrics.Flush(float64(bucketTimestamp))...)
 
@@ -89,9 +94,14 @@ func (s *TimeSampler) flush(timestamp float64) []*metrics.Serie {
 
 		contextMetrics := metrics.MakeContextMetrics()
 
-		s.countersSampleZeroValue(cutoffTime-s.interval, contextMetrics)
+		s.countersSampleZeroValue(cutoffTime-s.interval, contextMetrics, contextsToDelete)
 
 		rawSeries = append(rawSeries, contextMetrics.Flush(float64(cutoffTime-s.interval))...)
+	}
+
+	// Delete the contexts associated to an expired counter
+	for context := range contextsToDelete {
+		delete(s.counterLastSampledByContext, context)
 	}
 
 	for _, serie := range rawSeries {
@@ -121,7 +131,7 @@ func (s *TimeSampler) flush(timestamp float64) []*metrics.Serie {
 	return result
 }
 
-func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics metrics.ContextMetrics) {
+func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics metrics.ContextMetrics, contextsToDelete map[string]struct{}) {
 
 	expirySeconds := config.Datadog.GetFloat64("dogstatsd_expiry_seconds")
 	for counterContext, lastSampled := range s.counterLastSampledByContext {
@@ -136,10 +146,16 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 				SampleRate: 1,
 				Timestamp:  float64(timestamp),
 			}
+			// Add a zero value sample to the counter
+			// It is ok to add a 0 sample to a counter that was already sampled in the bucket, it won't change its value
 			contextMetrics.AddSample(counterContext, sample, float64(timestamp), s.interval)
+
+			// Update the tracked context so that the contextResolver doesn't expire counter contexts too early
+			// i.e. while we are still sending zeros for them
 			s.contextResolver.updateTrackedContext(counterContext, float64(timestamp))
 		} else {
-			delete(s.counterLastSampledByContext, counterContext)
+			// Register the context to be deleted
+			contextsToDelete[counterContext] = struct{}{}
 		}
 	}
 }

@@ -2,6 +2,7 @@ package aggregator
 
 import (
 	// stdlib
+	"fmt"
 	"sort"
 	"strings"
 
@@ -59,8 +60,14 @@ func (cr *ContextResolver) trackContext(metricSample *metrics.MetricSample, curr
 }
 
 // updateTrackedContext updates the last seen timestamp on a given context key
-func (cr *ContextResolver) updateTrackedContext(contextKey string, timestamp float64) {
-	cr.lastSeenByKey[contextKey] = float64(timestamp)
+func (cr *ContextResolver) updateTrackedContext(contextKey string, timestamp float64) error {
+	if _, ok := cr.lastSeenByKey[contextKey]; ok && cr.lastSeenByKey[contextKey] < timestamp {
+		cr.lastSeenByKey[contextKey] = timestamp
+	} else if !ok {
+		return fmt.Errorf("Trying to update a context that is not tracked")
+	}
+
+	return nil
 }
 
 // expireContexts cleans up the contexts that haven't been tracked since the given timestamp
