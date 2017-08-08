@@ -48,7 +48,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
 
                 # Create symlink to the agent's binary
                 ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
-                chmod 755 $INSTALL_DIR/bin/agent/agent
             ;;
             abort-upgrade|abort-remove|abort-deconfigure)
             ;;
