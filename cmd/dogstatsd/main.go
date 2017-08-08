@@ -87,6 +87,8 @@ func start(cmd *cobra.Command, args []string) error {
 		config.Datadog.GetString("syslog_host"),
 		config.Datadog.GetInt("syslog_port"),
 		config.Datadog.GetBool("log_to_syslog"),
+		config.Datadog.GetBool("syslog_tls"),
+		config.Datadog.GetString("syslog_pem"),
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
