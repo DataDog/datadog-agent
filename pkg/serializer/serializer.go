@@ -59,11 +59,11 @@ type Serializer struct {
 	Forwarder forwarder.Forwarder
 }
 
-func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1Endpoint bool) (forwarder.Payloads, map[string]string, error) {
+func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, map[string]string, error) {
 	var marshalType split.MarshalType
 	var extraHeaders map[string]string
 
-	if useV1Endpoint {
+	if useV1API {
 		marshalType = split.MarshalJSON
 		if compress {
 			extraHeaders = jsonExtraHeadersWithCompression
@@ -90,18 +90,18 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
 func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
-	useV1Endpoint := false
-	if !config.Datadog.GetBool("use_v2_endpoint.events") {
-		useV1Endpoint = true
+	useV1API := false
+	if !config.Datadog.GetBool("use_v2_api.events") {
+		useV1API = true
 	}
 
 	compress := true
-	eventPayloads, extraHeaders, err := s.serializePayload(e, compress, useV1Endpoint)
+	eventPayloads, extraHeaders, err := s.serializePayload(e, compress, useV1API)
 	if err != nil {
 		return fmt.Errorf("dropping event payload: %s", err)
 	}
 
-	if useV1Endpoint {
+	if useV1API {
 		return s.Forwarder.SubmitV1Intake(eventPayloads, extraHeaders)
 	}
 	return s.Forwarder.SubmitEvents(eventPayloads, extraHeaders)
@@ -109,18 +109,18 @@ func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
-	useV1Endpoint := false
-	if !config.Datadog.GetBool("use_v2_endpoint.service_checks") {
-		useV1Endpoint = true
+	useV1API := false
+	if !config.Datadog.GetBool("use_v2_api.service_checks") {
+		useV1API = true
 	}
 
 	compress := false
-	serviceCheckPayloads, extraHeaders, err := s.serializePayload(sc, compress, useV1Endpoint)
+	serviceCheckPayloads, extraHeaders, err := s.serializePayload(sc, compress, useV1API)
 	if err != nil {
 		return fmt.Errorf("dropping service check payload: %s", err)
 	}
 
-	if useV1Endpoint {
+	if useV1API {
 		return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, extraHeaders)
 	}
 	return s.Forwarder.SubmitServiceChecks(serviceCheckPayloads, extraHeaders)
@@ -128,18 +128,18 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
-	useV1Endpoint := false
-	if !config.Datadog.GetBool("use_v2_endpoint.series") {
-		useV1Endpoint = true
+	useV1API := false
+	if !config.Datadog.GetBool("use_v2_api.series") {
+		useV1API = true
 	}
 
 	compress := true
-	seriesPayloads, extraHeaders, err := s.serializePayload(series, compress, useV1Endpoint)
+	seriesPayloads, extraHeaders, err := s.serializePayload(series, compress, useV1API)
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	if useV1Endpoint {
+	if useV1API {
 		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
 	}
 	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
@@ -148,8 +148,8 @@ func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
 func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 	compress := false
-	useV1Endpoint := false // Sketches only have a v2 endpoint
-	splitSketches, extraHeaders, err := s.serializePayload(sketches, compress, useV1Endpoint)
+	useV1API := false // Sketches only have a v2 endpoint
+	splitSketches, extraHeaders, err := s.serializePayload(sketches, compress, useV1API)
 	if err != nil {
 		return fmt.Errorf("dropping sketch payload: %s", err)
 	}

@@ -108,8 +108,8 @@ func TestSendEvents(t *testing.T) {
 func TestSendV2Events(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitEvents", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_endpoint.events", true)
-	defer config.Datadog.Set("use_v2_endpoint.events", nil)
+	config.Datadog.Set("use_v2_api.events", true)
+	defer config.Datadog.Set("use_v2_api.events", nil)
 
 	s := Serializer{Forwarder: f}
 
@@ -144,8 +144,8 @@ func TestSendV2ServiceChecks(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	payloads, _ := mkPayloads(protobufString, false)
 	f.On("SubmitServiceChecks", payloads, protobufExtraHeaders).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_endpoint.service_checks", true)
-	defer config.Datadog.Set("use_v2_endpoint.service_checks", nil)
+	config.Datadog.Set("use_v2_api.service_checks", true)
+	defer config.Datadog.Set("use_v2_api.service_checks", nil)
 
 	s := Serializer{Forwarder: f}
 
@@ -178,8 +178,8 @@ func TestSendSeries(t *testing.T) {
 func TestSendV2Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitSeries", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
-	config.Datadog.Set("use_v2_endpoint.series", true)
-	defer config.Datadog.Set("use_v2_endpoint.series", nil)
+	config.Datadog.Set("use_v2_api.series", true)
+	defer config.Datadog.Set("use_v2_api.series", nil)
 
 	s := Serializer{Forwarder: f}
 

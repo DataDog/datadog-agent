@@ -50,9 +50,9 @@ func init() {
 		Datadog.SetDefault("proc_root", "/proc")
 	}
 	// Serializer
-	Datadog.SetDefault("use_v2_endpoint.series", false)
-	Datadog.SetDefault("use_v2_endpoint.events", false)
-	Datadog.SetDefault("use_v2_endpoint.service_checks", false)
+	Datadog.SetDefault("use_v2_api.series", false)
+	Datadog.SetDefault("use_v2_api.events", false)
+	Datadog.SetDefault("use_v2_api.service_checks", false)
 	// Forwarder
 	Datadog.SetDefault("forwarder_timeout", 20)
 	Datadog.SetDefault("forwarder_retry_queue_max_size", 30)
