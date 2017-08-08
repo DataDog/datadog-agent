@@ -100,6 +100,8 @@ func StartAgent() {
 	err := config.SetupLogger(
 		config.Datadog.GetString("log_level"),
 		config.Datadog.GetString("log_file"),
+		config.Datadog.GetString("syslog_host"),
+		config.Datadog.GetInt("syslog_port"),
 		config.Datadog.GetBool("log_to_syslog"),
 	)
 	if err != nil {

@@ -22,7 +22,7 @@ const logFileMaxSize = 10 * 1024 * 1024         // 10MB
 const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
 
 // SetupLogger sets up the default logger
-func SetupLogger(logLevel, logFile string, syslog bool) error {
+func SetupLogger(logLevel, logFile, host string, port int, syslog bool) error {
 	configTemplate := `<seelog minlevel="%s">
     <outputs formatid="common">
         <console />`
@@ -30,13 +30,23 @@ func SetupLogger(logLevel, logFile string, syslog bool) error {
 		configTemplate += `<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="1" />`
 	}
 	if syslog {
-		configTemplate += `<custom name="syslog" formatid="syslog" />`
+		var syslogTemplate string
+		if host != "" && port != 0 {
+			syslogTemplate = fmt.Sprintf(
+				`<custom name="syslog" formatid="syslog" hostname="%s" port="%d" />`,
+				host,
+				port,
+			)
+		} else {
+			syslogTemplate = `<custom name="syslog" formatid="syslog" />`
+		}
+		configTemplate += syslogTemplate
 	}
 	configTemplate += `</outputs>
     <formats>
         <format id="common" format="%%Date(%s) | %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>`
 	if syslog {
-		configTemplate += `<format id="syslog" format="%%CustomSyslogHeader(20) %%Msg%%n" />`
+		configTemplate += `<format id="syslog" format="%%CustomSyslogHeader(20) | %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`
 	}
 
 	configTemplate += `</formats>
@@ -83,7 +93,8 @@ func createSyslogHeaderFormatter(params string) log.FormatterFunc {
 		appName := filepath.Base(os.Args[0])
 		hostName, _ := os.Hostname()
 
-		return fmt.Sprintf("<%d>1 %s %s %s %d - -", facility*8+levelToSyslogSeverity[level],
+		return fmt.Sprintf("<%d>1 %s %s %s %d - -",
+			facility*8+levelToSyslogSeverity[level],
 			time.Now().Format("2006-01-02T15:04:05Z07:00"),
 			hostName, appName, pid)
 	}
@@ -91,54 +102,66 @@ func createSyslogHeaderFormatter(params string) log.FormatterFunc {
 
 // SyslogReceiver implements seelog.CustomReceiver
 type SyslogReceiver struct {
-	conn net.Conn
+	enabled  bool
+	hostname string
+	port     int
+	conn     net.Conn
 }
 
-func getSyslogConnection() (net.Conn, error) {
+func getSyslogConnection(hostname string, port int) (net.Conn, error) {
 	var conn net.Conn
 	var err error
 
-	netNames := []string{"unixgram", "unix"}
-	addrs := []string{"/dev/log", "/var/run/syslog", "/var/run/log"}
-	for _, netName := range netNames {
-		for _, addr := range addrs {
-			conn, err = net.Dial(netName, addr)
-			if err == nil { // on success
-				return conn, nil
+	// local
+	if hostname == "" {
+		netNames := []string{"unixgram", "unix"}
+		addrs := []string{"/dev/log", "/var/run/syslog", "/var/run/log"}
+		for _, netName := range netNames {
+			for _, addr := range addrs {
+				conn, err = net.Dial(netName, addr)
+				if err == nil { // on success
+					return conn, nil
+				}
 			}
+		}
+	} else {
+		conn, err = net.Dial("tcp", fmt.Sprintf("%s:%d", hostname, port))
+		if err == nil {
+			return conn, nil
 		}
 	}
 
 	return nil, errors.New("Unable to connect to syslog")
 }
 
-// NewSyslogReceiver instantiates SyslogReceiver
-func NewSyslogReceiver() *SyslogReceiver {
-	// Detect syslog daemon; code derived from Go's own syslog package.
-	conn, err := getSyslogConnection()
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return nil
+func (s *SyslogReceiver) isLocal() bool {
+	if s.hostname == "" || s.port <= 0 {
+		return true
 	}
 
-	return &SyslogReceiver{
-		conn: conn,
-	}
+	return false
 }
 
 // ReceiveMessage process current log message
 func (s *SyslogReceiver) ReceiveMessage(message string, level log.LogLevel, context log.LogContextInterface) error {
 	// Implement levels
+	if !s.enabled {
+		return nil
+	}
+
 	if s.conn != nil {
 		_, err := s.conn.Write([]byte(message))
 		if err == nil {
-			fmt.Printf("syslogg'd: %v\n", message)
 			return nil
 		}
 	}
 
-	// try to reconnect
-	conn, err := getSyslogConnection()
+	// try to reconnect - close the connection first just in case
+	//                    we don't want fd leaks here.
+	if s.conn != nil {
+		s.conn.Close()
+	}
+	conn, err := getSyslogConnection(s.hostname, s.port)
 	if err != nil {
 		return err
 	}
@@ -151,6 +174,36 @@ func (s *SyslogReceiver) ReceiveMessage(message string, level log.LogLevel, cont
 
 // AfterParse is a NOP in current implementation
 func (s *SyslogReceiver) AfterParse(initArgs log.CustomReceiverInitArgs) error {
+	var conn net.Conn
+	var ok bool
+	var err error
+
+	s.enabled = true
+	hostname, ok := initArgs.XmlCustomAttrs["hostname"]
+	if ok {
+		s.hostname = hostname
+	}
+
+	port, ok := initArgs.XmlCustomAttrs["port"]
+	if ok {
+		s.port, err = strconv.Atoi(port)
+		if err != nil {
+			s.port = 0
+			s.enabled = false
+		}
+	}
+
+	if !s.enabled {
+		return errors.New("bad syslog receiver configuration - disabling.")
+	}
+
+	conn, err = getSyslogConnection(s.hostname, s.port)
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		return nil
+	}
+	s.conn = conn
+
 	return nil
 }
 
@@ -167,9 +220,5 @@ func (s *SyslogReceiver) Close() error {
 
 func init() {
 	log.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
-	receiver := NewSyslogReceiver()
-	if receiver != nil {
-		log.RegisterReceiver("syslog", receiver)
-		fmt.Print("Registered receiver.")
-	}
+	log.RegisterReceiver("syslog", &SyslogReceiver{})
 }
