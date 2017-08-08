@@ -3,15 +3,30 @@ package check
 import (
 	"bytes"
 	"hash/fnv"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
-// DefaultCheckInterval is the interval in seconds the scheduler should apply
-// when no value was provided in Check configuration.
-const DefaultCheckInterval time.Duration = 15 * time.Second
+const (
+	// DefaultCheckInterval is the interval in seconds the scheduler should apply
+	// when no value was provided in Check configuration.
+	DefaultCheckInterval time.Duration = 15 * time.Second
+)
+
+var (
+	tplVarRegex = regexp.MustCompile(`%%.+?%%`)
+
+	tplVars = []string{
+		"host",
+		"pid",
+		"port",
+		"container-name",
+		"tags",
+	}
+)
 
 // ConfigData contains YAML code
 type ConfigData []byte
@@ -116,6 +131,30 @@ func (c *Config) String() string {
 	}
 
 	return yamlBuff.String()
+}
+
+// IsTemplate looks at init config and instance and
+// returns if it finds template variables
+func (c *Config) IsTemplate() bool {
+	if tplVarRegex.Match(c.InitConfig) {
+		return true
+	}
+	for _, inst := range c.Instances {
+		if tplVarRegex.Match(inst) {
+			return true
+		}
+	}
+	return false
+}
+
+// GetTemplateVariables returns a slice of raw template variables
+// it found in a config template.
+// FIXME: only extracts from the first instance. Do we need more?
+func (c *Config) GetTemplateVariables() (vars [][]byte) {
+	if len(c.Instances) == 0 {
+		return vars
+	}
+	return tplVarRegex.FindAll(c.Instances[0], -1)
 }
 
 // Digest returns an hash value representing the data stored in this configuration

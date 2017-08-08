@@ -44,6 +44,22 @@ func SetupAutoConfig(confdPath string) {
 		AC.AddProvider(provider, true)
 		log.Infof("Registering %s config provider", backend)
 	}
+
+	// add the service listeners
+	// newService := make(chan listeners.Service)
+	// delService := make(chan listeners.Service)
+
+	// Docker listener
+	// docker, err := listeners.NewDockerListener(newService, delService)
+	// if err != nil {
+	// 	log.Errorf("Failed to create a Docker listener. Is Docker accessible by the agent? %s", err)
+	// } else {
+	// 	AC.AddListener(docker)
+	// }
+
+	// add the config resolver
+	// resolver := autodiscovery.NewConfigResolver(newService, delService)
+	// AC.RegisterConfigResolver(resolver)
 }
 
 // StartAutoConfig starts the autoconfig polling and loads the configs
