@@ -155,7 +155,7 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 			// i.e. while we are still sending zeros for them
 			err := s.contextResolver.updateTrackedContext(counterContext, float64(timestamp))
 			if err != nil {
-				log.Errorf(err)
+				log.Errorf("Error updating context: %s", err)
 			}
 		} else {
 			// Register the context to be deleted
