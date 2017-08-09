@@ -13,9 +13,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
-func TestInit(t *testing.T) {
-	assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeaders)
+var initialContentEncoding = compression.ContentEncoding
 
+func resetContentEncoding() {
+	compression.ContentEncoding = initialContentEncoding
+}
+
+func TestInitExtraHeadersNoopCompression(t *testing.T) {
+	compression.ContentEncoding = ""
+	defer resetContentEncoding()
+
+	initExtraHeaders()
+
+	assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeaders)
 	assert.Equal(t,
 		map[string]string{
 			payloadVersionHTTPHeader: "",
@@ -23,29 +33,44 @@ func TestInit(t *testing.T) {
 		},
 		protobufExtraHeaders)
 
-	if compression.ContentEncoding == "" {
-		assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeadersWithCompression)
-		assert.Equal(t,
-			map[string]string{
-				payloadVersionHTTPHeader: "",
-				"Content-Type":           protobufContentType,
-			},
-			protobufExtraHeadersWithCompression)
-	} else {
-		assert.Equal(t,
-			map[string]string{
-				"Content-Type":     jsonContentType,
-				"Content-Encoding": compression.ContentEncoding,
-			},
-			jsonExtraHeadersWithCompression)
-		assert.Equal(t,
-			map[string]string{
-				payloadVersionHTTPHeader: "",
-				"Content-Type":           protobufContentType,
-				"Content-Encoding":       compression.ContentEncoding,
-			},
-			protobufExtraHeadersWithCompression)
-	}
+	// No "Content-Encoding" header
+	assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeadersWithCompression)
+	assert.Equal(t,
+		map[string]string{
+			payloadVersionHTTPHeader: "",
+			"Content-Type":           protobufContentType,
+		},
+		protobufExtraHeadersWithCompression)
+}
+
+func TestInitExtraHeadersWithCompression(t *testing.T) {
+	compression.ContentEncoding = "zstd"
+	defer resetContentEncoding()
+
+	initExtraHeaders()
+
+	assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeaders)
+	assert.Equal(t,
+		map[string]string{
+			payloadVersionHTTPHeader: "",
+			"Content-Type":           protobufContentType,
+		},
+		protobufExtraHeaders)
+
+	// "Content-Encoding" header present with correct value
+	assert.Equal(t,
+		map[string]string{
+			"Content-Type":     jsonContentType,
+			"Content-Encoding": compression.ContentEncoding,
+		},
+		jsonExtraHeadersWithCompression)
+	assert.Equal(t,
+		map[string]string{
+			payloadVersionHTTPHeader: "",
+			"Content-Type":           protobufContentType,
+			"Content-Encoding":       compression.ContentEncoding,
+		},
+		protobufExtraHeadersWithCompression)
 }
 
 var (

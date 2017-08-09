@@ -7,8 +7,9 @@ import (
 	"compress/zlib"
 )
 
-// CompressionHeaders lists the HTTP headers that should be used with this compression method
-const ContentEncoding = "application/zlib"
+// ContentEncoding describes the HTTP header value associated with the compression method
+// var instead of const to ease testing
+var ContentEncoding = "deflate"
 
 // Compress will compress the data with zlib
 func Compress(dst []byte, src []byte) ([]byte, error) {

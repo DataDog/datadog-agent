@@ -31,6 +31,12 @@ var (
 )
 
 func init() {
+	initExtraHeaders()
+}
+
+// initExtraHeaders initializes the global extraHeaders variables
+// extracted out of the `init` function to ease testing
+func initExtraHeaders() {
 	jsonExtraHeaders = map[string]string{
 		"Content-Type": jsonContentType,
 	}
@@ -90,10 +96,7 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 
 // SendEvents serializes a list of event and sends the payload to the forwarder
 func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
-	useV1API := false
-	if !config.Datadog.GetBool("use_v2_api.events") {
-		useV1API = true
-	}
+	useV1API := !config.Datadog.GetBool("use_v2_api.events")
 
 	compress := true
 	eventPayloads, extraHeaders, err := s.serializePayload(e, compress, useV1API)
@@ -109,10 +112,7 @@ func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
-	useV1API := false
-	if !config.Datadog.GetBool("use_v2_api.service_checks") {
-		useV1API = true
-	}
+	useV1API := !config.Datadog.GetBool("use_v2_api.service_checks")
 
 	compress := false
 	serviceCheckPayloads, extraHeaders, err := s.serializePayload(sc, compress, useV1API)
@@ -128,10 +128,7 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
-	useV1API := false
-	if !config.Datadog.GetBool("use_v2_api.series") {
-		useV1API = true
-	}
+	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
 	compress := true
 	seriesPayloads, extraHeaders, err := s.serializePayload(series, compress, useV1API)
