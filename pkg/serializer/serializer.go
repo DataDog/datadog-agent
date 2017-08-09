@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 
 	log "github.com/cihub/seelog"
 )
@@ -22,18 +24,39 @@ var (
 	// used to serialize to protobuf
 	AgentPayloadVersion string
 
-	jsonExtraHeaders     map[string]string
-	protobufExtraHeaders map[string]string
+	jsonExtraHeaders                    map[string]string
+	protobufExtraHeaders                map[string]string
+	jsonExtraHeadersWithCompression     map[string]string
+	protobufExtraHeadersWithCompression map[string]string
 )
 
 func init() {
+	initExtraHeaders()
+}
+
+// initExtraHeaders initializes the global extraHeaders variables
+// extracted out of the `init` function to ease testing
+func initExtraHeaders() {
 	jsonExtraHeaders = map[string]string{
 		"Content-Type": jsonContentType,
+	}
+	jsonExtraHeadersWithCompression = make(map[string]string)
+	for k, v := range jsonExtraHeaders {
+		jsonExtraHeadersWithCompression[k] = v
 	}
 
 	protobufExtraHeaders = map[string]string{
 		"Content-Type":           protobufContentType,
 		payloadVersionHTTPHeader: AgentPayloadVersion,
+	}
+	protobufExtraHeadersWithCompression = make(map[string]string)
+	for k, v := range protobufExtraHeaders {
+		protobufExtraHeadersWithCompression[k] = v
+	}
+
+	if compression.ContentEncoding != "" {
+		jsonExtraHeadersWithCompression["Content-Encoding"] = compression.ContentEncoding
+		protobufExtraHeadersWithCompression["Content-Encoding"] = compression.ContentEncoding
 	}
 }
 
@@ -42,45 +65,95 @@ type Serializer struct {
 	Forwarder forwarder.Forwarder
 }
 
+func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, map[string]string, error) {
+	var marshalType split.MarshalType
+	var extraHeaders map[string]string
+
+	if useV1API {
+		marshalType = split.MarshalJSON
+		if compress {
+			extraHeaders = jsonExtraHeadersWithCompression
+		} else {
+			extraHeaders = jsonExtraHeaders
+		}
+	} else {
+		marshalType = split.Marshal
+		if compress {
+			extraHeaders = protobufExtraHeadersWithCompression
+		} else {
+			extraHeaders = protobufExtraHeaders
+		}
+	}
+
+	payloads, err := split.Payloads(payload, compress, marshalType)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not split payload into small enough chunks: %s", err)
+	}
+
+	return payloads, extraHeaders, nil
+}
+
 // SendEvents serializes a list of event and sends the payload to the forwarder
 func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
-	compress := true
-	events, err := split.Payloads(e, compress, split.MarshalJSON)
+	useV1API := !config.Datadog.GetBool("use_v2_api.events")
+
+	compress := !useV1API
+	eventPayloads, extraHeaders, err := s.serializePayload(e, compress, useV1API)
 	if err != nil {
-		return fmt.Errorf("could not split events into small enough chunks, dropping: %s", err)
+		return fmt.Errorf("dropping event payload: %s", err)
 	}
-	return s.Forwarder.SubmitV1Intake(events, jsonExtraHeaders)
+
+	if useV1API {
+		return s.Forwarder.SubmitV1Intake(eventPayloads, extraHeaders)
+	}
+	return s.Forwarder.SubmitEvents(eventPayloads, extraHeaders)
 }
 
 // SendServiceChecks serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
-	compress := false
-	serviceChecks, err := split.Payloads(sc, compress, split.MarshalJSON)
+	useV1API := !config.Datadog.GetBool("use_v2_api.service_checks")
+
+	// FIXME(olivier): zstd compression is supposed to work on this v1 endpoint, we should investigate why it's broken
+	compress := !useV1API
+	serviceCheckPayloads, extraHeaders, err := s.serializePayload(sc, compress, useV1API)
 	if err != nil {
-		return fmt.Errorf("could not split service checks into small enough chunks, dropping: %s", err)
+		return fmt.Errorf("dropping service check payload: %s", err)
 	}
-	return s.Forwarder.SubmitV1CheckRuns(serviceChecks, jsonExtraHeaders)
+
+	if useV1API {
+		return s.Forwarder.SubmitV1CheckRuns(serviceCheckPayloads, extraHeaders)
+	}
+	return s.Forwarder.SubmitServiceChecks(serviceCheckPayloads, extraHeaders)
 }
 
 // SendSeries serializes a list of serviceChecks and sends the payload to the forwarder
 func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
-	compress := true
+	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
-	splitSeries, err := split.Payloads(series, compress, split.MarshalJSON)
+	// FIXME(olivier): zstd compression is supposed to work on this v1 endpoint, we should investigate why it's broken
+	compress := !useV1API
+	seriesPayloads, extraHeaders, err := s.serializePayload(series, compress, useV1API)
 	if err != nil {
-		return fmt.Errorf("could not split series into small enough chunks, dropping: %s", err)
+		return fmt.Errorf("dropping series payload: %s", err)
 	}
-	return s.Forwarder.SubmitV1Series(splitSeries, jsonExtraHeaders)
+
+	if useV1API {
+		return s.Forwarder.SubmitV1Series(seriesPayloads, extraHeaders)
+	}
+	return s.Forwarder.SubmitSeries(seriesPayloads, extraHeaders)
 }
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
 func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
-	compress := false
-	splitSketches, err := split.Payloads(sketches, compress, split.Marshal)
+	compress := false // TODO: enable compression once the backend supports it on this endpoint
+	useV1API := false // Sketches only have a v2 endpoint
+	splitSketches, extraHeaders, err := s.serializePayload(sketches, compress, useV1API)
 	if err != nil {
-		return fmt.Errorf("could not split sketches into small enough chunks, dropping: %s", err)
+		return fmt.Errorf("dropping sketch payload: %s", err)
 	}
-	return s.Forwarder.SubmitSketchSeries(splitSketches, protobufExtraHeaders)
+
+	return s.Forwarder.SubmitSketchSeries(splitSketches, extraHeaders)
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder

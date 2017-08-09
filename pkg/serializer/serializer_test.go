@@ -7,20 +7,71 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
-func TestInit(t *testing.T) {
-	assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeaders)
+var initialContentEncoding = compression.ContentEncoding
 
+func resetContentEncoding() {
+	compression.ContentEncoding = initialContentEncoding
+	initExtraHeaders()
+}
+
+func TestInitExtraHeadersNoopCompression(t *testing.T) {
+	compression.ContentEncoding = ""
+	defer resetContentEncoding()
+
+	initExtraHeaders()
+
+	assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeaders)
 	assert.Equal(t,
 		map[string]string{
 			payloadVersionHTTPHeader: "",
 			"Content-Type":           protobufContentType,
 		},
 		protobufExtraHeaders)
+
+	// No "Content-Encoding" header
+	assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeadersWithCompression)
+	assert.Equal(t,
+		map[string]string{
+			payloadVersionHTTPHeader: "",
+			"Content-Type":           protobufContentType,
+		},
+		protobufExtraHeadersWithCompression)
+}
+
+func TestInitExtraHeadersWithCompression(t *testing.T) {
+	compression.ContentEncoding = "zstd"
+	defer resetContentEncoding()
+
+	initExtraHeaders()
+
+	assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeaders)
+	assert.Equal(t,
+		map[string]string{
+			payloadVersionHTTPHeader: "",
+			"Content-Type":           protobufContentType,
+		},
+		protobufExtraHeaders)
+
+	// "Content-Encoding" header present with correct value
+	assert.Equal(t,
+		map[string]string{
+			"Content-Type":     jsonContentType,
+			"Content-Encoding": compression.ContentEncoding,
+		},
+		jsonExtraHeadersWithCompression)
+	assert.Equal(t,
+		map[string]string{
+			payloadVersionHTTPHeader: "",
+			"Content-Type":           protobufContentType,
+			"Content-Encoding":       compression.ContentEncoding,
+		},
+		protobufExtraHeadersWithCompression)
 }
 
 var (
@@ -31,8 +82,8 @@ var (
 )
 
 func init() {
-	jsonPayloads, _ = mkPayloads(jsonString, true)
-	protobufPayloads, _ = mkPayloads(protobufString, false)
+	jsonPayloads, _ = mkPayloads(jsonString, false)
+	protobufPayloads, _ = mkPayloads(protobufString, true)
 }
 
 type testPayload struct{}
@@ -64,7 +115,7 @@ func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 	return payloads, nil
 }
 
-func TestSendEvents(t *testing.T) {
+func TestSendV1Events(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeaders).Return(nil).Times(1)
 
@@ -80,7 +131,25 @@ func TestSendEvents(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendServiceChecks(t *testing.T) {
+func TestSendEvents(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	f.On("SubmitEvents", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
+	config.Datadog.Set("use_v2_api.events", true)
+	defer config.Datadog.Set("use_v2_api.events", nil)
+
+	s := Serializer{Forwarder: f}
+
+	payload := &testPayload{}
+	err := s.SendEvents(payload)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	errPayload := &testErrorPayload{}
+	err = s.SendEvents(errPayload)
+	require.NotNil(t, err)
+}
+
+func TestSendV1ServiceChecks(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	payloads, _ := mkPayloads(jsonString, false)
 	f.On("SubmitV1CheckRuns", payloads, jsonExtraHeaders).Return(nil).Times(1)
@@ -97,7 +166,25 @@ func TestSendServiceChecks(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendSeries(t *testing.T) {
+func TestSendServiceChecks(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	f.On("SubmitServiceChecks", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
+	config.Datadog.Set("use_v2_api.service_checks", true)
+	defer config.Datadog.Set("use_v2_api.service_checks", nil)
+
+	s := Serializer{Forwarder: f}
+
+	payload := &testPayload{}
+	err := s.SendServiceChecks(payload)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	errPayload := &testErrorPayload{}
+	err = s.SendServiceChecks(errPayload)
+	require.NotNil(t, err)
+}
+
+func TestSendV1Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeaders).Return(nil).Times(1)
 
@@ -113,9 +200,28 @@ func TestSendSeries(t *testing.T) {
 	require.NotNil(t, err)
 }
 
+func TestSendSeries(t *testing.T) {
+	f := &forwarder.MockedForwarder{}
+	f.On("SubmitSeries", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
+	config.Datadog.Set("use_v2_api.series", true)
+	defer config.Datadog.Set("use_v2_api.series", nil)
+
+	s := Serializer{Forwarder: f}
+
+	payload := &testPayload{}
+	err := s.SendSeries(payload)
+	require.Nil(t, err)
+	f.AssertExpectations(t)
+
+	errPayload := &testErrorPayload{}
+	err = s.SendSeries(errPayload)
+	require.NotNil(t, err)
+}
+
 func TestSendSketch(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	f.On("SubmitSketchSeries", protobufPayloads, protobufExtraHeaders).Return(nil).Times(1)
+	payloads, _ := mkPayloads(protobufString, false)
+	f.On("SubmitSketchSeries", payloads, protobufExtraHeaders).Return(nil).Times(1)
 
 	s := Serializer{Forwarder: f}
 
