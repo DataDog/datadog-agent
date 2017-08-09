@@ -272,11 +272,16 @@ func (ac *AutoConfig) pollConfigs() {
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
-						if len(config.ADIdentifiers) > 0 { // TODO: move this evaluation in a config.IsTemplate() method
-							// TODO: try to resolve the template
-							// TODO: if success, schedule the check for running
-							// TODO: if failed, notify we couldn't resolve it for now (it might happen later)
-							// store the template in the cache
+						if config.IsTemplate() {
+							// try to resolve the template
+							resolved := ac.configResolver.Resolve(config)
+							if len(resolved) > 0 {
+								// TODO: if success, schedule the check for running
+							} else {
+								// TODO: if failed, notify we couldn't resolve it for now (it might happen later)
+							}
+
+							// store the template in the cache in any case
 							if err := ac.templateCache.Set(config); err != nil {
 								log.Errorf("Unable to process Check configuration: %s", err)
 							}
@@ -287,7 +292,7 @@ func (ac *AutoConfig) pollConfigs() {
 
 					for _, config := range removedConfigs {
 						// TODO: unschedule the checks corresponding to this config
-						if len(config.ADIdentifiers) > 0 {
+						if config.IsTemplate() {
 							// if the config is a template, remove it from the cache
 							ac.templateCache.Del(config)
 						}

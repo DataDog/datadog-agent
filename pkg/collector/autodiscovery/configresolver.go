@@ -221,6 +221,33 @@ func (cr *ConfigResolver) Stop() {
 // 	}
 // }
 
+// Resolve attempts to resolve a configuration template.
+//
+// The function might return more than one configuration for a single template,
+// for example when the `ad_identifiers` section of a config.yaml file contains
+// multiple entries.
+//
+// The function might return an empty list in the case the configuration has a
+// list of Autodiscovery identifiers for services that are unknown to the
+// resolver at this moment.
+func (cr *ConfigResolver) Resolve(tpl check.Config) []check.Config {
+	// use a map to dedupe configurations
+	resolvedSet := map[string]check.Config{}
+	resolved := []check.Config{}
+
+	for _, id := range tpl.ADIdentifiers {
+		// TODO: render the template using the services known by the resolver
+		fmt.Println(id)
+	}
+
+	// build the slice of configs to return
+	for _, v := range resolvedSet {
+		resolved = append(resolved, v)
+	}
+
+	return resolved
+}
+
 // ResolveConfig takes a template and a service and generates a config with
 // valid connection info and relevant tags.
 func (cr *ConfigResolver) ResolveConfig(tpl check.Config, svc listeners.Service) (check.Config, error) {
@@ -247,37 +274,37 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 	cr.m.Lock()
 	defer cr.m.Unlock()
 
-	// in any case, register the service
-	cr.services[svc.ID] = svc
-	cr.serviceToChecks[svc.ID] = make([]check.ID, 0)
+	// // in any case, register the service
+	// cr.services[svc.ID] = svc
+	// cr.serviceToChecks[svc.ID] = make([]check.ID, 0)
 
-	for configID, tpls := range cr.templates {
-		if IsConfigMatching(svc.ConfigID, configID) {
-			// add svc to the list of services matching tpl
-			// this is used when a template is removed and we want to remove its related checks
-			cr.configToServices[configID] = append(cr.configToServices[configID], svc)
+	// for configID, tpls := range cr.templates {
+	// 	if IsConfigMatching(svc.ConfigID, configID) {
+	// 		// add svc to the list of services matching tpl
+	// 		// this is used when a template is removed and we want to remove its related checks
+	// 		cr.configToServices[configID] = append(cr.configToServices[configID], svc)
 
-			for _, tpl := range tpls {
-				// actually resolve the config and run the check
-				conf, err := cr.ResolveConfig(tpl, svc)
-				if err != nil {
-					log.Errorf("Unable to generate a check config with template %s and service %s: %s", tpl.Digest(), svc.ConfigID, err)
-				} else {
-					checkIDs, err := cr.AC.LoadAndRun(conf)
-					if err == nil {
-						for _, id := range checkIDs {
-							// add the check to the list of checks running against the service
-							// this is used when a template or a service is removed
-							// and we want to stop their related checks
-							cr.serviceToChecks[svc.ID] = append(cr.serviceToChecks[svc.ID], id)
-						}
-					} else {
-						log.Errorf("Failed to run check(s) based on config %s: %s", conf.Digest(), err)
-					}
-				}
-			}
-		}
-	}
+	// 		for _, tpl := range tpls {
+	// 			// actually resolve the config and run the check
+	// 			conf, err := cr.ResolveConfig(tpl, svc)
+	// 			if err != nil {
+	// 				log.Errorf("Unable to generate a check config with template %s and service %s: %s", tpl.Digest(), svc.ConfigID, err)
+	// 			} else {
+	// 				checkIDs, err := cr.AC.LoadAndRun(conf)
+	// 				if err == nil {
+	// 					for _, id := range checkIDs {
+	// 						// add the check to the list of checks running against the service
+	// 						// this is used when a template or a service is removed
+	// 						// and we want to stop their related checks
+	// 						cr.serviceToChecks[svc.ID] = append(cr.serviceToChecks[svc.ID], id)
+	// 					}
+	// 				} else {
+	// 					log.Errorf("Failed to run check(s) based on config %s: %s", conf.Digest(), err)
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
