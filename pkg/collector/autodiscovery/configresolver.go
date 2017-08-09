@@ -221,7 +221,8 @@ func (cr *ConfigResolver) Stop() {
 // 	}
 // }
 
-// Resolve attempts to resolve a configuration template.
+// ResolveTemplate attempts to resolve a configuration template using the AD
+// identifiers in the `check.Config` struct to match a Service.
 //
 // The function might return more than one configuration for a single template,
 // for example when the `ad_identifiers` section of a config.yaml file contains
@@ -230,7 +231,7 @@ func (cr *ConfigResolver) Stop() {
 // The function might return an empty list in the case the configuration has a
 // list of Autodiscovery identifiers for services that are unknown to the
 // resolver at this moment.
-func (cr *ConfigResolver) Resolve(tpl check.Config) []check.Config {
+func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 	// use a map to dedupe configurations
 	resolvedSet := map[string]check.Config{}
 	resolved := []check.Config{}

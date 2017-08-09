@@ -274,7 +274,7 @@ func (ac *AutoConfig) pollConfigs() {
 					for _, config := range newConfigs {
 						if config.IsTemplate() {
 							// try to resolve the template
-							resolved := ac.configResolver.Resolve(config)
+							resolved := ac.configResolver.ResolveTemplate(config)
 							if len(resolved) > 0 {
 								// TODO: if success, schedule the check for running
 							} else {
