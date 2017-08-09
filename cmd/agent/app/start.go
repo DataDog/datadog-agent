@@ -97,13 +97,12 @@ func StartAgent() {
 	common.SetupConfig(confFilePath)
 
 	// Setup logger
+	syslogURI := config.GetSyslogURI()
 	err := config.SetupLogger(
 		config.Datadog.GetString("log_level"),
 		config.Datadog.GetString("log_file"),
-		config.Datadog.GetBool("log_to_syslog"),
+		syslogURI,
 		config.Datadog.GetBool("syslog_rfc"),
-		config.Datadog.GetString("syslog_host"),
-		config.Datadog.GetInt("syslog_port"),
 		config.Datadog.GetBool("syslog_tls"),
 		config.Datadog.GetString("syslog_pem"),
 	)

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -71,9 +72,8 @@ func init() {
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
-	Datadog.SetDefault("log_to_syslog", false)
-	Datadog.SetDefault("syslog_host", "")
-	Datadog.SetDefault("syslog_port", 0)
+	Datadog.SetDefault("syslog_uri", "")
+	Datadog.SetDefault("syslog_rfc", false)
 	Datadog.SetDefault("syslog_tls", false)
 	Datadog.SetDefault("syslog_pem", "")
 	Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
@@ -234,6 +234,24 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 	}
 
 	return keysPerDomain, nil
+}
+
+// GetSyslogURI returns the configured/default syslog uri
+func GetSyslogURI() string {
+	enabled := Datadog.GetBool("log_to_syslog")
+	uri := Datadog.GetString("syslog_uri")
+
+	if runtime.GOOS == "windows" {
+		enabled = false
+	}
+
+	if enabled {
+		if uri == "" {
+			uri = defaultSyslogURI
+		}
+	}
+
+	return uri
 }
 
 // IsContainerized returns whether the Agent is running on a Docker container
