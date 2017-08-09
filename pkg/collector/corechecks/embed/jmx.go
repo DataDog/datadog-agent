@@ -350,9 +350,6 @@ func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
 	return nil
 }
 
-// InitSender initializes a sender but we don't need any
-func (c *JMXCheck) InitSender() {}
-
 // Interval returns the scheduling time for the check, this will be scheduled only once
 // since `Run` won't return, thus implementing a long running check.
 func (c *JMXCheck) Interval() time.Duration {

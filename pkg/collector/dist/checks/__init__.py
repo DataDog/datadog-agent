@@ -81,7 +81,7 @@ class AgentCheck(object):
         if hostname is None:
             hostname = ""
 
-        aggregator.submit_metric(self, mtype, name, value, tags, hostname)
+        aggregator.submit_metric(self, self.check_id, mtype, name, value, tags, hostname)
 
     def gauge(self, name, value, tags=None, hostname=None, device_name=None):
         self._submit_metric(aggregator.GAUGE, name, value, tags=tags, hostname=hostname, device_name=device_name)
@@ -119,7 +119,7 @@ class AgentCheck(object):
 
     def service_check(self, name, status, tags=None, message=""):
         tags = self._normalize_tags_type(tags)
-        aggregator.submit_service_check(self, name, status, tags, message)
+        aggregator.submit_service_check(self, self.check_id, name, status, tags, message)
 
     def event(self, event):
         # Enforce types of some fields, considerably facilitates handling in go bindings downstream
@@ -137,11 +137,11 @@ class AgentCheck(object):
             event['timestamp'] = int(event['timestamp'])
         if event.get('aggregation_key'):
             event['aggregation_key'] = str(event['aggregation_key'])
-        aggregator.submit_event(self, event)
+        aggregator.submit_event(self, self.check_id, event)
 
     def increment(self, name, value, tags=None):
         pass
-        
+
     def check(self, instance):
         raise NotImplementedError
 

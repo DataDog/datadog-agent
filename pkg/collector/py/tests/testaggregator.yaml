@@ -1,0 +1,6 @@
+init_config:
+
+instances:
+  - foo: bar
+    baz: bar
+  - bar: baz

@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	// 3p
+
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -16,6 +18,9 @@ func resetAggregator() {
 	aggregatorInit = sync.Once{}
 	senderInstance = nil
 	senderInit = sync.Once{}
+	senderPool = &checkSenderPool{
+		senders: make(map[check.ID]Sender),
+	}
 }
 
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
@@ -57,18 +62,21 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	assert.NotEqual(t, sender2.id, defaultSender.id)
 }
 
-func TestGetSenderWithSameIDsReturnsError(t *testing.T) {
+func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	resetAggregator()
 	InitAggregator(nil, "")
 
-	_, err := GetSender(checkID1)
+	sender1, err := GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
+	assert.Len(t, senderPool.senders, 1)
 
-	_, err = GetSender(checkID1)
-	assert.NotNil(t, err)
+	sender2, err := GetSender(checkID1)
+	assert.Nil(t, err)
+	assert.Equal(t, sender1, sender2)
 
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
+	assert.Len(t, senderPool.senders, 1)
 }
 
 func TestDestroySender(t *testing.T) {
@@ -85,6 +93,24 @@ func TestDestroySender(t *testing.T) {
 	assert.Len(t, aggregatorInstance.checkSamplers, 2)
 	DestroySender(checkID1)
 	assert.Len(t, aggregatorInstance.checkSamplers, 1)
+}
+
+func TestGetAndSetSender(t *testing.T) {
+	resetAggregator()
+	InitAggregator(nil, "")
+
+	senderMetricSampleChan := make(chan senderMetricSample, 10)
+	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
+	eventChan := make(chan metrics.Event, 10)
+	testCheckSender := newCheckSender(checkID1, senderMetricSampleChan, serviceCheckChan, eventChan)
+
+	err := SetSender(testCheckSender, checkID1)
+	assert.Nil(t, err)
+
+	sender, err := GetSender(checkID1)
+	assert.Nil(t, err)
+	assert.Equal(t, testCheckSender, sender)
+
 }
 
 func TestCheckSenderInterface(t *testing.T) {

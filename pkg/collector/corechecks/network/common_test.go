@@ -3,8 +3,14 @@ package network
 import (
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
+
+func init() {
+	// The MockSender requires an aggregator
+	aggregator.InitAggregator(nil, "")
+}
 
 //MockSender allows mocking of the checks sender
 type MockSender struct {

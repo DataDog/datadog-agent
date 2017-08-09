@@ -56,7 +56,7 @@ func (c *PythonCheck) Run() error {
 		return errors.New(pyErr)
 	}
 
-	s, err := aggregator.GetDefaultSender()
+	s, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 	}
@@ -184,13 +184,15 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	}
 	log.Debugf("python check configure done %s", c.ModuleName)
 
+	// The Check ID is set in Python so that the python check
+	// can use it afterwards to submit to the proper sender in the aggregator
+	pyID := python.PyString_FromString(string(c.ID()))
+	instance.SetAttrString("check_id", pyID)
+
 	c.Instance = instance
 	c.Config = kwargs
-	return nil
-}
 
-// InitSender does nothing here because all python checks use the default sender
-func (c *PythonCheck) InitSender() {
+	return nil
 }
 
 // Interval returns the scheduling time for the check

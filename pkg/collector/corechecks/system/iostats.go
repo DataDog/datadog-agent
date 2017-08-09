@@ -9,7 +9,6 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"gopkg.in/yaml.v2"
 )
 
@@ -35,17 +34,6 @@ func (c *IOCheck) commonConfigure(data check.ConfigData, initConfig check.Config
 		}
 	}
 	return err
-}
-
-// InitSender initializes a sender
-func (c *IOCheck) InitSender() {
-	s, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	c.sender = s
 }
 
 // Interval returns the scheduling time for the check

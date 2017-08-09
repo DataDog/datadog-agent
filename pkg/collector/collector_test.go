@@ -17,7 +17,6 @@ type TestCheck struct {
 func (c *TestCheck) String() string                        { return "TestCheck" }
 func (c *TestCheck) Stop()                                 { c.stop <- true }
 func (c *TestCheck) Configure(a, b check.ConfigData) error { return nil }
-func (c *TestCheck) InitSender()                           {}
 func (c *TestCheck) Interval() time.Duration               { return 1 * time.Minute }
 func (c *TestCheck) Run() error                            { <-c.stop; return nil }
 func (c *TestCheck) ID() check.ID                          { return check.ID(c.String()) }

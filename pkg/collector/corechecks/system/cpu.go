@@ -18,7 +18,6 @@ var cpuInfo = cpu.Info
 
 // CPUCheck doesn't need additional fields
 type CPUCheck struct {
-	sender      aggregator.Sender
 	nbCPU       float64
 	lastNbCycle float64
 	lastTimes   cpu.TimesStat
@@ -30,6 +29,11 @@ func (c *CPUCheck) String() string {
 
 // Run executes the check
 func (c *CPUCheck) Run() error {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return err
+	}
+
 	cpuTimes, err := times(false)
 	if err != nil {
 		log.Errorf("system.CPUCheck: could not retrieve cpu stats: %s", err)
@@ -54,13 +58,13 @@ func (c *CPUCheck) Run() error {
 		stolen := (t.Stolen - c.lastTimes.Stolen) / c.nbCPU
 		guest := (t.Guest - c.lastTimes.Guest) / c.nbCPU
 
-		c.sender.Gauge("system.cpu.user", user*toPercent, "", nil)
-		c.sender.Gauge("system.cpu.system", system*toPercent, "", nil)
-		c.sender.Gauge("system.cpu.iowait", iowait*toPercent, "", nil)
-		c.sender.Gauge("system.cpu.idle", idle*toPercent, "", nil)
-		c.sender.Gauge("system.cpu.stolen", stolen*toPercent, "", nil)
-		c.sender.Gauge("system.cpu.guest", guest*toPercent, "", nil)
-		c.sender.Commit()
+		sender.Gauge("system.cpu.user", user*toPercent, "", nil)
+		sender.Gauge("system.cpu.system", system*toPercent, "", nil)
+		sender.Gauge("system.cpu.iowait", iowait*toPercent, "", nil)
+		sender.Gauge("system.cpu.idle", idle*toPercent, "", nil)
+		sender.Gauge("system.cpu.stolen", stolen*toPercent, "", nil)
+		sender.Gauge("system.cpu.guest", guest*toPercent, "", nil)
+		sender.Commit()
 	}
 
 	c.lastNbCycle = nbCycle
@@ -79,17 +83,6 @@ func (c *CPUCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 		c.nbCPU += float64(i.Cores)
 	}
 	return nil
-}
-
-// InitSender initializes a sender
-func (c *CPUCheck) InitSender() {
-	s, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	c.sender = s
 }
 
 // Interval returns the scheduling time for the check

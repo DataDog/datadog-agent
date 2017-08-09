@@ -13,7 +13,6 @@ type TestCheck struct{ intl time.Duration }
 
 func (c *TestCheck) String() string                                     { return "TestCheck" }
 func (c *TestCheck) Configure(check.ConfigData, check.ConfigData) error { return nil }
-func (c *TestCheck) InitSender()                                        {}
 func (c *TestCheck) Interval() time.Duration                            { return c.intl }
 func (c *TestCheck) Run() error                                         { return nil }
 func (c *TestCheck) Stop()                                              {}

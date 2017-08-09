@@ -1,4 +1,4 @@
-package system
+package py
 
 import (
 	"github.com/stretchr/testify/mock"

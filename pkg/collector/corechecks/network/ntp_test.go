@@ -3,6 +3,7 @@ package network
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -21,7 +22,7 @@ func TestNTP(t *testing.T) {
 	ntpCheck.Configure(ntpCfg, ntpInitCfg)
 
 	mockSender := new(MockSender)
-	ntpCheck.sender = mockSender
+	aggregator.SetSender(mockSender, ntpCheck.ID())
 
 	mockSender.On("Gauge", "ntp.offset", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",

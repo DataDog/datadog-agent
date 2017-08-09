@@ -20,9 +20,8 @@ var ntpExpVar = expvar.NewFloat("ntpOffset")
 
 // NTPCheck only has sender and config
 type NTPCheck struct {
-	id     check.ID
-	sender aggregator.Sender
-	cfg    *ntpConfig
+	id  check.ID
+	cfg *ntpConfig
 }
 
 type ntpInstanceConfig struct {
@@ -96,17 +95,6 @@ func (c *NTPCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 	return nil
 }
 
-// InitSender initializes a sender
-func (c *NTPCheck) InitSender() {
-	s, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	c.sender = s
-}
-
 // ID returns the id of the instance
 func (c *NTPCheck) ID() check.ID {
 	return c.id
@@ -122,6 +110,11 @@ func (c *NTPCheck) Stop() {}
 
 // Run runs the check
 func (c *NTPCheck) Run() error {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return err
+	}
+
 	var serviceCheckStatus metrics.ServiceCheckStatus
 	var clockOffset int
 	serviceCheckMessage := ""
@@ -140,13 +133,13 @@ func (c *NTPCheck) Run() error {
 			serviceCheckStatus = metrics.ServiceCheckOK
 		}
 
-		c.sender.Gauge("ntp.offset", response.ClockOffset.Seconds(), "", nil)
+		sender.Gauge("ntp.offset", response.ClockOffset.Seconds(), "", nil)
 		ntpExpVar.Set(response.ClockOffset.Seconds())
 	}
 
-	c.sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
+	sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
 
-	c.sender.Commit()
+	sender.Commit()
 
 	return nil
 }

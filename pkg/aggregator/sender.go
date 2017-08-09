@@ -2,6 +2,7 @@ package aggregator
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 
 var senderInstance *checkSender
 var senderInit sync.Once
+var senderPool *checkSenderPool
 
 // Sender allows sending metrics from checks/a check
 type Sender interface {
@@ -41,6 +43,17 @@ type senderMetricSample struct {
 	commit       bool
 }
 
+type checkSenderPool struct {
+	senders map[check.ID]Sender
+	m       sync.Mutex
+}
+
+func init() {
+	senderPool = &checkSenderPool{
+		senders: make(map[check.ID]Sender),
+	}
+}
+
 func newCheckSender(id check.ID, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event) *checkSender {
 	return &checkSender{
 		id:              id,
@@ -57,16 +70,27 @@ func GetSender(id check.ID) (Sender, error) {
 	if aggregatorInstance == nil {
 		return nil, errors.New("Aggregator was not initialized")
 	}
-
-	err := aggregatorInstance.registerSender(id)
-	return newCheckSender(id, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn), err
+	sender, err := senderPool.getSender(id)
+	if err != nil {
+		sender, err = senderPool.mkSender(id)
+	}
+	return sender, err
 }
 
 // DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
 // Should be called when no sender with this ID is used anymore
 // The metrics of this (these) sender(s) that haven't been flushed yet will be lost
 func DestroySender(id check.ID) {
-	aggregatorInstance.deregisterSender(id)
+	senderPool.removeSender(id)
+}
+
+// SetSender returns the passed sender with the passed ID.
+// This is largely for testing purposes
+func SetSender(sender Sender, id check.ID) error {
+	if aggregatorInstance == nil {
+		return errors.New("Aggregator was not initialized")
+	}
+	return senderPool.setSender(sender, id)
 }
 
 // GetDefaultSender returns the default sender
@@ -158,4 +182,45 @@ func (s *checkSender) Event(e metrics.Event) {
 	log.Debug("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
 
 	s.eventOut <- e
+}
+
+func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
+	sp.m.Lock()
+	defer sp.m.Unlock()
+
+	if sender, ok := sp.senders[id]; ok {
+		return sender, nil
+	}
+	return nil, fmt.Errorf("Sender not found")
+}
+
+func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
+	sp.m.Lock()
+	defer sp.m.Unlock()
+
+	err := aggregatorInstance.registerSender(id)
+	sender := newCheckSender(id, aggregatorInstance.checkMetricIn, aggregatorInstance.serviceCheckIn, aggregatorInstance.eventIn)
+	sp.senders[id] = sender
+	return sender, err
+}
+
+func (sp *checkSenderPool) setSender(sender Sender, id check.ID) error {
+	sp.m.Lock()
+	defer sp.m.Unlock()
+
+	if _, ok := sp.senders[id]; ok {
+		aggregatorInstance.deregisterSender(id)
+	}
+	err := aggregatorInstance.registerSender(id)
+	sp.senders[id] = sender
+
+	return err
+}
+
+func (sp *checkSenderPool) removeSender(id check.ID) {
+	sp.m.Lock()
+	defer sp.m.Unlock()
+
+	delete(sp.senders, id)
+	aggregatorInstance.deregisterSender(id)
 }

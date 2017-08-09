@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 var (
@@ -108,6 +110,45 @@ func TestInitException(t *testing.T) {
 func TestInitNoTracebackException(t *testing.T) {
 	_, err := getCheckInstance("init_no_traceback_exception", "TestCheck")
 	assert.EqualError(t, err, "could not invoke python check constructor: __init__() takes exactly 8 arguments (5 given)")
+}
+
+// TestAggregatorLink checks to see if a simple check that sends metrics to the aggregator has no errors
+func TestAggregatorLink(t *testing.T) {
+	check, _ := getCheckInstance("testaggregator", "TestAggregatorCheck")
+
+	mockSender := new(MockSender)
+	aggregator.SetSender(mockSender, check.ID())
+
+	mockSender.On("ServiceCheck",
+		"testservicecheck", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
+		[]string(nil), mock.AnythingOfType("string")).Return().Times(1)
+	mockSender.On("Gauge", "testmetric", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
+	mockSender.On("Event", mock.AnythingOfType("metrics.Event")).Return().Times(1)
+	mockSender.On("Commit").Return().Times(1)
+
+	err := check.Run()
+	assert.Nil(t, err)
+}
+
+// TestAggregatorLinkTwoRuns checks to ensure that it is consistently grabbing the correct aggregator
+// Essentially it ensures that checkID is being set correctly
+func TestAggregatorLinkTwoRuns(t *testing.T) {
+	check, _ := getCheckInstance("testaggregator", "TestAggregatorCheck")
+
+	mockSender := new(MockSender)
+	aggregator.SetSender(mockSender, check.ID())
+
+	mockSender.On("ServiceCheck",
+		"testservicecheck", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
+		[]string(nil), mock.AnythingOfType("string")).Return().Times(2)
+	mockSender.On("Gauge", "testmetric", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(2)
+	mockSender.On("Event", mock.AnythingOfType("metrics.Event")).Return().Times(2)
+	mockSender.On("Commit").Return().Times(2)
+
+	err := check.Run()
+	assert.Nil(t, err)
+	err = check.Run()
+	assert.Nil(t, err)
 }
 
 // BenchmarkRun executes a single check: benchmark results

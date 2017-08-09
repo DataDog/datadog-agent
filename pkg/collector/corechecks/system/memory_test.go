@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/shirou/gopsutil/mem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 	memCheck := new(MemoryCheck)
 
 	mock := new(MockSender)
-	memCheck.sender = mock
+	aggregator.SetSender(mock, memCheck.ID())
 	runtimeOS = "linux"
 
 	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -80,7 +81,7 @@ func TestMemoryCheckFreebsd(t *testing.T) {
 	memCheck := new(MemoryCheck)
 
 	mock := new(MockSender)
-	memCheck.sender = mock
+	aggregator.SetSender(mock, memCheck.ID())
 	runtimeOS = "freebsd"
 
 	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -108,7 +109,7 @@ func TestMemoryCheckDarwin(t *testing.T) {
 	memCheck := new(MemoryCheck)
 
 	mock := new(MockSender)
-	memCheck.sender = mock
+	aggregator.SetSender(mock, memCheck.ID())
 	runtimeOS = "darwin"
 
 	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -135,7 +136,7 @@ func TestMemoryError(t *testing.T) {
 	memCheck := new(MemoryCheck)
 
 	mock := new(MockSender)
-	memCheck.sender = mock
+	aggregator.SetSender(mock, memCheck.ID())
 	runtimeOS = "linux"
 
 	err := memCheck.Run()
@@ -152,7 +153,7 @@ func TestSwapMemoryError(t *testing.T) {
 	memCheck := new(MemoryCheck)
 
 	mock := new(MockSender)
-	memCheck.sender = mock
+	aggregator.SetSender(mock, memCheck.ID())
 	runtimeOS = "linux"
 
 	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -180,7 +181,7 @@ func TestVirtualMemoryError(t *testing.T) {
 	memCheck := new(MemoryCheck)
 
 	mock := new(MockSender)
-	memCheck.sender = mock
+	aggregator.SetSender(mock, memCheck.ID())
 	runtimeOS = "linux"
 
 	mock.On("Gauge", "system.swap.total", 100000.0/mbSize, "", []string(nil)).Return().Times(1)

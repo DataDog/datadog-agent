@@ -97,9 +97,8 @@ type snmpConfig struct {
 
 // SNMPCheck grabs SNMP metrics
 type SNMPCheck struct {
-	id     check.ID
-	cfg    *snmpConfig
-	sender aggregator.Sender
+	id  check.ID
+	cfg *snmpConfig
 }
 
 func (c *SNMPCheck) String() string {
@@ -449,6 +448,10 @@ func (c *snmpConfig) Parse(data []byte, initData []byte) error {
 }
 
 func (c *SNMPCheck) submitSNMP(oids snmpgo.Oids, vbs snmpgo.VarBinds) error {
+	sender, err := aggregator.GetSender(c.id)
+	if err != nil {
+		return err
+	}
 
 	for _, oid := range oids {
 		varbinds := vbs.MatchBaseOids(oid)
@@ -534,11 +537,11 @@ func (c *SNMPCheck) submitSNMP(oids snmpgo.Oids, vbs snmpgo.VarBinds) error {
 				case "Gauge32", "Integer", "gauge":
 					log.Debugf("Submitting gauge: %v = %v tagged with: %v", metricName, value, tagbundle)
 					//should report instance has hostname
-					c.sender.Gauge(metricName, float64(value.Int64()), "", tagbundle)
+					sender.Gauge(metricName, float64(value.Int64()), "", tagbundle)
 				case "Counter64", "Counter32":
 					log.Debugf("Submitting rate: %v = %v tagged with: %v", metricName, value, tagbundle)
 					//should report instance has hostname
-					c.sender.Rate(metricName, float64(value.Int64()), "", tagbundle)
+					sender.Rate(metricName, float64(value.Int64()), "", tagbundle)
 				case "OctetString":
 				default:
 					continue
@@ -547,7 +550,7 @@ func (c *SNMPCheck) submitSNMP(oids snmpgo.Oids, vbs snmpgo.VarBinds) error {
 		}
 	}
 
-	c.sender.Commit()
+	sender.Commit()
 
 	return nil
 }
@@ -703,17 +706,6 @@ func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData
 	}
 
 	return nil
-}
-
-// InitSender initializes a sender
-func (c *SNMPCheck) InitSender() {
-	s, err := aggregator.GetSender(c.id)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	c.sender = s
 }
 
 // Interval returns the scheduling time for the check
