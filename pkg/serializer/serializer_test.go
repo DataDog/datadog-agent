@@ -17,6 +17,7 @@ var initialContentEncoding = compression.ContentEncoding
 
 func resetContentEncoding() {
 	compression.ContentEncoding = initialContentEncoding
+	initExtraHeaders()
 }
 
 func TestInitExtraHeadersNoopCompression(t *testing.T) {
@@ -81,7 +82,7 @@ var (
 )
 
 func init() {
-	jsonPayloads, _ = mkPayloads(jsonString, true)
+	jsonPayloads, _ = mkPayloads(jsonString, false)
 	protobufPayloads, _ = mkPayloads(protobufString, true)
 }
 
@@ -114,9 +115,9 @@ func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 	return payloads, nil
 }
 
-func TestSendEvents(t *testing.T) {
+func TestSendV1Events(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
+	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeaders).Return(nil).Times(1)
 
 	s := Serializer{Forwarder: f}
 
@@ -130,7 +131,7 @@ func TestSendEvents(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendV2Events(t *testing.T) {
+func TestSendEvents(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitEvents", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_api.events", true)
@@ -148,7 +149,7 @@ func TestSendV2Events(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendServiceChecks(t *testing.T) {
+func TestSendV1ServiceChecks(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	payloads, _ := mkPayloads(jsonString, false)
 	f.On("SubmitV1CheckRuns", payloads, jsonExtraHeaders).Return(nil).Times(1)
@@ -165,10 +166,9 @@ func TestSendServiceChecks(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendV2ServiceChecks(t *testing.T) {
+func TestSendServiceChecks(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	payloads, _ := mkPayloads(protobufString, false)
-	f.On("SubmitServiceChecks", payloads, protobufExtraHeaders).Return(nil).Times(1)
+	f.On("SubmitServiceChecks", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_api.service_checks", true)
 	defer config.Datadog.Set("use_v2_api.service_checks", nil)
 
@@ -184,9 +184,9 @@ func TestSendV2ServiceChecks(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendSeries(t *testing.T) {
+func TestSendV1Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
+	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeaders).Return(nil).Times(1)
 
 	s := Serializer{Forwarder: f}
 
@@ -200,7 +200,7 @@ func TestSendSeries(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-func TestSendV2Series(t *testing.T) {
+func TestSendSeries(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	f.On("SubmitSeries", protobufPayloads, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 	config.Datadog.Set("use_v2_api.series", true)

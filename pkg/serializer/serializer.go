@@ -98,7 +98,7 @@ func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool,
 func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 	useV1API := !config.Datadog.GetBool("use_v2_api.events")
 
-	compress := true
+	compress := !useV1API
 	eventPayloads, extraHeaders, err := s.serializePayload(e, compress, useV1API)
 	if err != nil {
 		return fmt.Errorf("dropping event payload: %s", err)
@@ -114,7 +114,8 @@ func (s *Serializer) SendEvents(e marshaler.Marshaler) error {
 func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 	useV1API := !config.Datadog.GetBool("use_v2_api.service_checks")
 
-	compress := false
+	// FIXME(olivier): zstd compression is supposed to work on this v1 endpoint, we should investigate why it's broken
+	compress := !useV1API
 	serviceCheckPayloads, extraHeaders, err := s.serializePayload(sc, compress, useV1API)
 	if err != nil {
 		return fmt.Errorf("dropping service check payload: %s", err)
@@ -130,7 +131,8 @@ func (s *Serializer) SendServiceChecks(sc marshaler.Marshaler) error {
 func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
 	useV1API := !config.Datadog.GetBool("use_v2_api.series")
 
-	compress := true
+	// FIXME(olivier): zstd compression is supposed to work on this v1 endpoint, we should investigate why it's broken
+	compress := !useV1API
 	seriesPayloads, extraHeaders, err := s.serializePayload(series, compress, useV1API)
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
@@ -144,7 +146,7 @@ func (s *Serializer) SendSeries(series marshaler.Marshaler) error {
 
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
 func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
-	compress := false
+	compress := false // TODO: enable compression once the backend supports it on this endpoint
 	useV1API := false // Sketches only have a v2 endpoint
 	splitSketches, extraHeaders, err := s.serializePayload(sketches, compress, useV1API)
 	if err != nil {
