@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	log "github.com/cihub/seelog"
 )
@@ -111,23 +110,23 @@ func createSyslogRFCHeaderFormatter(params string) log.FormatterFunc {
 	return func(message string, level log.LogLevel, context log.LogContextInterface) interface{} {
 		pid := os.Getpid()
 		appName := filepath.Base(os.Args[0])
-		hostName, _ := os.Hostname()
 
-		return fmt.Sprintf("<%d>1 %s %s %s %d - -",
-			facility*8+levelToSyslogSeverity[level],
-			time.Now().Format("2006-01-02T15:04:05Z07:00"),
-			hostName, appName, pid)
+		return fmt.Sprintf("<%d>1 %s %d - -", facility, appName, pid)
 	}
 }
 
 func createSyslogHeaderFormatter(params string) log.FormatterFunc {
+	facility := 20
+	i, err := strconv.Atoi(params)
+	if err == nil && i >= 0 && i <= 23 {
+		facility = i
+	}
+
 	return func(message string, level log.LogLevel, context log.LogContextInterface) interface{} {
 		pid := os.Getpid()
 		appName := filepath.Base(os.Args[0])
-		hostName, _ := os.Hostname()
 
-		return fmt.Sprintf("%s %s[%d]:",
-			hostName, appName, pid)
+		return fmt.Sprintf("<%d>%s[%d]:", facility, appName, pid)
 	}
 }
 
@@ -159,7 +158,7 @@ func getSyslogConnection(hostname string, port int, secure bool) (net.Conn, erro
 	} else {
 		if secure {
 			conn, err = tls.Dial("tcp",
-				fmt.Sprintf("%s:%d", hostname, port),
+				fmt.Sprintf("  %s:%d", hostname, port),
 				&tls.Config{RootCAs: logCertPool})
 
 		} else {
