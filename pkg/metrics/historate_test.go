@@ -8,7 +8,7 @@ import (
 )
 
 func TestHistorateEmptyFlush(t *testing.T) {
-	h := Historate{}
+	h := NewHistorate(1)
 
 	// Flush w/o samples: error
 	_, err := h.flush(50)
@@ -16,7 +16,7 @@ func TestHistorateEmptyFlush(t *testing.T) {
 }
 
 func TestHistorateAddSampleOnce(t *testing.T) {
-	h := Historate{}
+	h := NewHistorate(1)
 	h.addSample(&MetricSample{Value: 1}, 50)
 
 	// Flush one sample: error
@@ -25,7 +25,7 @@ func TestHistorateAddSampleOnce(t *testing.T) {
 }
 
 func TestHistorateAddSample(t *testing.T) {
-	h := Historate{}
+	h := NewHistorate(1)
 
 	h.addSample(&MetricSample{Value: 1}, 50)
 	h.addSample(&MetricSample{Value: 2}, 51)

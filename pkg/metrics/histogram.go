@@ -23,6 +23,7 @@ func (w weightSamples) Swap(i, j int)      { w[i], w[j] = w[j], w[i] }
 type Histogram struct {
 	aggregates  []string // aggregates configured on this histogram
 	percentiles []int    // percentiles configured on this histogram, each in the 1-100 range
+	interval    int64    // interval over which the `count` value is normalized (bucket interval for Dogstatsd, 1 otherwise)
 	samples     weightSamples
 	configured  bool
 	sum         float64
@@ -37,6 +38,13 @@ const (
 	sumAgg    = "sum"
 	countAgg  = "count"
 )
+
+// NewHistogram returns a newly initialized histogram
+func NewHistogram(interval int64) *Histogram {
+	return &Histogram{
+		interval: interval,
+	}
+}
 
 func (h *Histogram) configure(aggregates []string, percentiles []int) {
 	h.configured = true
@@ -94,7 +102,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 		case sumAgg:
 			value = h.sum
 		case countAgg:
-			value = float64(h.count)
+			value = float64(h.count) / float64(h.interval)
 			mType = APIRateType
 		default:
 			log.Infof("Configured aggregate '%s' is not implemented, skipping", aggregate)
