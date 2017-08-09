@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	log "github.com/cihub/seelog"
 )
@@ -48,48 +49,53 @@ func (f *forwarderBenchStub) reset() {
 	f.receivedBytes = 0
 }
 
-func (f *forwarderBenchStub) computeStats(payload *[]byte) {
+func (f *forwarderBenchStub) computeStats(payloads forwarder.Payloads) {
 	f.received++
-	f.receivedBytes += uint64(len(*payload))
+	for _, payload := range payloads {
+		f.receivedBytes += uint64(len(*payload))
+	}
 }
+
 func (f *forwarderBenchStub) Start() error {
 	return nil
 }
+
 func (f *forwarderBenchStub) Stop() {
 	return
 }
-func (f *forwarderBenchStub) SubmitV1Series(payload *[]byte, extraHeaders map[string]string) error {
-	f.computeStats(payload)
+
+func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payload *[]byte, extraHeaders map[string]string) error {
-	f.computeStats(payload)
+func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1CheckRuns(payload *[]byte, extraHeaders map[string]string) error {
-	f.computeStats(payload)
+func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1SketchSeries(payload *[]byte, extraHeaders map[string]string) error {
-	f.computeStats(payload)
+func (f *forwarderBenchStub) SubmitV1SketchSeries(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSeries(payload *[]byte, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitSeries(payload forwarder.Payloads, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitEvents(payload *[]byte, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitEvents(payload forwarder.Payloads, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitServiceChecks(payload *[]byte, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitServiceChecks(payload forwarder.Payloads, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitSketchSeries(payload *[]byte, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitHostMetadata(payload *[]byte, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitHostMetadata(payload forwarder.Payloads, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
-func (f *forwarderBenchStub) SubmitMetadata(payload *[]byte, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
 
