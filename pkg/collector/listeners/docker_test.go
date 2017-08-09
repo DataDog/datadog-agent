@@ -17,16 +17,18 @@ func TestGetConfigIDFromPs(t *testing.T) {
 	}
 	dl := DockerListener{}
 
-	id := dl.getConfigIDFromPs(co)
-	assert.Equal(t, "test", id)
+	ids := dl.getConfigIDFromPs(co)
+	assert.Len(t, ids, 1)
+	assert.Equal(t, "test", ids[0])
 
 	labeledCo := types.Container{
 		ID:     "deadbeef",
 		Image:  "test",
 		Labels: map[string]string{"io.datadog.check.id": "w00tw00t"},
 	}
-	id = dl.getConfigIDFromPs(labeledCo)
-	assert.Equal(t, "w00tw00t", id)
+	ids = dl.getConfigIDFromPs(labeledCo)
+	assert.Len(t, ids, 1)
+	assert.Equal(t, "w00tw00t", ids[0])
 }
 
 func TestGetHostsFromPs(t *testing.T) {
@@ -87,8 +89,9 @@ func TestGetConfigIDFromInspect(t *testing.T) {
 	}
 	dl := DockerListener{}
 
-	id := dl.getConfigIDFromInspect(co)
-	assert.Equal(t, "test", string(id))
+	ids := dl.getConfigIDFromInspect(co)
+	assert.Len(t, ids, 1)
+	assert.Equal(t, "test", ids[0])
 
 	labeledCo := types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{ID: "deadbeef", Image: "test"},
@@ -96,8 +99,9 @@ func TestGetConfigIDFromInspect(t *testing.T) {
 		Config:            &container.Config{Labels: map[string]string{"io.datadog.check.id": "w00tw00t"}},
 		NetworkSettings:   &types.NetworkSettings{},
 	}
-	id = dl.getConfigIDFromInspect(labeledCo)
-	assert.Equal(t, "w00tw00t", string(id))
+	ids = dl.getConfigIDFromInspect(labeledCo)
+	assert.Len(t, ids, 1)
+	assert.Equal(t, "w00tw00t", ids[0])
 }
 
 func TestGetHostsFromInspect(t *testing.T) {

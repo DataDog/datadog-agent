@@ -11,8 +11,6 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 const (
@@ -96,11 +94,11 @@ func (l *DockerListener) GetCurrentServices() map[ID]Service {
 	services := make(map[ID]Service, 0)
 	for _, co := range containers {
 		id := ID(co.ID)
-		configID := l.getConfigIDFromPs(co)
+		ADidentifiers := l.getConfigIDFromPs(co)
 		hosts := l.getHostsFromPs(co)
 		ports := l.getPortsFromPs(co)
 		tags := l.getTagsFromPs(co)
-		svc := Service{id, check.ID(configID), hosts, ports, tags}
+		svc := Service{id, ADidentifiers, hosts, ports, tags}
 		l.newService <- svc
 		services[id] = svc
 	}
@@ -157,18 +155,32 @@ func (l *DockerListener) removeService(cID ID) {
 
 }
 
-// getID returns the config ID for a container.
-func (l *DockerListener) getConfigIDFromInspect(co types.ContainerJSON) check.ID {
+// getConfigIDFromInspect returns a set of AD identifiers for a container.
+// These id are sorted to reflect the priority we want the ConfigResolver to
+// use when matching a template.
+//
+// When the special identifier label in `identifierLabel` is set by the user,
+// it overrides any other meaning of template identification for the service
+// and the return value will contain only the label value.
+//
+// If the special label was not set, the priority order is the following:
+//   1. Long image name
+//   2. Short image name
+func (l *DockerListener) getConfigIDFromInspect(co types.ContainerJSON) []string {
 	// check for an identifier label
 	for l, v := range co.Config.Labels {
 		if l == identifierLabel {
-			return check.ID(v)
+			return []string{v}
 		}
 	}
 
+	ids := []string{}
+
 	// use the image name
-	// TODO: check if it's the sha256
-	return check.ID(co.Image)
+	ids = append(ids, co.Image) // TODO: check if it's the sha256
+	// TODO: add the short name with lower priority
+
+	return ids
 }
 
 // getHosts gets the addresss (for now IP address only) of a container on all its networks.
@@ -200,18 +212,32 @@ func (l *DockerListener) getTagsFromInspect(co types.ContainerJSON) []string {
 	return []string{}
 }
 
-// getID returns the config ID for a container.
-func (l *DockerListener) getConfigIDFromPs(co types.Container) string {
+// getConfigIDFromPs returns a set of AD identifiers for a container.
+// These id are sorted to reflect the priority we want the ConfigResolver to
+// use when matching a template.
+//
+// When the special identifier label in `identifierLabel` is set by the user,
+// it overrides any other meaning of template identification for the service
+// and the return value will contain only the label value.
+//
+// If the special label was not set, the priority order is the following:
+//   1. Long image name
+//   2. Short image name
+func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
 	// check for an identifier label
 	for l, v := range co.Labels {
 		if l == identifierLabel {
-			return v
+			return []string{v}
 		}
 	}
 
+	ids := []string{}
+
 	// use the image name
-	// TODO: check if it's the sha256
-	return co.Image
+	ids = append(ids, co.Image) // TODO: check if it's the sha256
+	// TODO: add the short name with lower priority
+
+	return ids
 }
 
 // getHosts gets the addresss (for now IP address only) of a container on all its networks.
