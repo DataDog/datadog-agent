@@ -82,7 +82,7 @@ var (
 )
 
 func init() {
-	jsonPayloads, _ = mkPayloads(jsonString, false)
+	jsonPayloads, _ = mkPayloads(jsonString, true)
 	protobufPayloads, _ = mkPayloads(protobufString, true)
 }
 
@@ -117,7 +117,7 @@ func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 
 func TestSendV1Events(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeaders).Return(nil).Times(1)
+	f.On("SubmitV1Intake", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := Serializer{Forwarder: f}
 
@@ -151,8 +151,7 @@ func TestSendEvents(t *testing.T) {
 
 func TestSendV1ServiceChecks(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	payloads, _ := mkPayloads(jsonString, false)
-	f.On("SubmitV1CheckRuns", payloads, jsonExtraHeaders).Return(nil).Times(1)
+	f.On("SubmitV1CheckRuns", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := Serializer{Forwarder: f}
 
@@ -186,7 +185,7 @@ func TestSendServiceChecks(t *testing.T) {
 
 func TestSendV1Series(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
-	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeaders).Return(nil).Times(1)
+	f.On("SubmitV1Series", jsonPayloads, jsonExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := Serializer{Forwarder: f}
 
