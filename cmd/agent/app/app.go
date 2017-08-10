@@ -5,11 +5,11 @@ all the components and providing the command line interface.
 package app
 
 import (
-	"fmt"
 	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 )
 
@@ -19,8 +19,8 @@ var (
 		Use:   "agent [command]",
 		Short: "Datadog Agent at your service.",
 		Long: `
-The Datadog Agent faithfully collects events and metrics and brings them 
-to Datadog on your behalf so that you can do something useful with your 
+The Datadog Agent faithfully collects events and metrics and brings them
+to Datadog on your behalf so that you can do something useful with your
 monitoring and performance data.`,
 	}
 
@@ -33,7 +33,7 @@ func init() {
 	var defaultSockName string
 	if runtime.GOOS == "windows" {
 		defaultSockName = strings.SplitAfter(config.Datadog.GetString("cmd_pipe_name"), "pipe\\")[1]
-		fmt.Printf("Set defaultSockName to %s\n", defaultSockName)
+		log.Debugf("Set defaultSockName to %s\n", defaultSockName)
 	} else {
 		defaultSockName = strings.SplitAfter(config.Datadog.GetString("cmd_sock"), "tmp/")[1]
 	}
