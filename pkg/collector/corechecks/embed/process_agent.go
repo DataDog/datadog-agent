@@ -164,3 +164,8 @@ func getProcessAgentDefaultBinPath() (string, error) {
 	}
 	return binPath, fmt.Errorf("Can't access the default process-agent binary at %s", binPath)
 }
+
+// GetWarnings does not return anything
+func (c *ProcessAgentCheck) GetWarnings() []error {
+	return []error{}
+}
