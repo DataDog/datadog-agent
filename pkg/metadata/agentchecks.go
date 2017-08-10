@@ -1,5 +1,3 @@
-// +build checks
-
 package metadata
 
 import (
