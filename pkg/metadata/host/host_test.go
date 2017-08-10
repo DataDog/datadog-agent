@@ -4,6 +4,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
@@ -19,6 +20,7 @@ func TestGetPayload(t *testing.T) {
 	assert.NotEmpty(t, p.UUID)
 	assert.NotNil(t, p.SystemStats)
 	assert.NotNil(t, p.Meta)
+	assert.NotNil(t, p.HostTags)
 }
 
 func TestGetSystemStats(t *testing.T) {
@@ -61,6 +63,14 @@ func TestGetMeta(t *testing.T) {
 	assert.NotEmpty(t, meta.SocketHostname)
 	assert.NotEmpty(t, meta.Timezones)
 	assert.NotEmpty(t, meta.SocketFqdn)
+}
+
+func TestGetHostTags(t *testing.T) {
+	config.Datadog.Set("tags", []string{"tag1:value1", "tag2", "tag3"})
+
+	hostTags := getHostTags()
+	assert.NotNil(t, hostTags.System)
+	assert.Equal(t, hostTags.System, []string{"tag1:value1", "tag2", "tag3"})
 }
 
 func TestBuildKey(t *testing.T) {

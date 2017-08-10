@@ -21,6 +21,10 @@ type meta struct {
 	HostAliases    []string `json:"host_aliases"`
 }
 
+type tags struct {
+	System []string `json:"system"`
+}
+
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	Os               string       `json:"os"`
@@ -29,4 +33,5 @@ type Payload struct {
 	UUID             string       `json:"uuid"`
 	SystemStats      *systemStats `json:"systemStats"`
 	Meta             *meta        `json:"meta"`
+	HostTags         *tags        `json:"host-tags"`
 }

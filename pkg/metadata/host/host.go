@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/shirou/gopsutil/cpu"
@@ -32,12 +33,19 @@ func GetPayload(hostname string) *Payload {
 		UUID:             getHostInfo().HostID,
 		SystemStats:      getSystemStats(),
 		Meta:             meta,
+		HostTags:         getHostTags(),
 	}
 }
 
 // GetStatusInformation just returns an InfoStat object, we need some additional information that's not
 func GetStatusInformation() *host.InfoStat {
 	return getHostInfo()
+}
+
+func getHostTags() *tags {
+	return &tags{
+		System: config.Datadog.GetStringSlice("tags"),
+	}
 }
 
 func getSystemStats() *systemStats {
