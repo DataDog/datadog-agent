@@ -12,3 +12,9 @@ func Compress(dst []byte, src []byte) ([]byte, error) {
 	dst = src
 	return dst, nil
 }
+
+// Decompress will not decompress anything
+func Decompress(dst []byte, src []byte) ([]byte, error) {
+	dst = src
+	return dst, nil
+}

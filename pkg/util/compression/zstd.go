@@ -15,3 +15,8 @@ var ContentEncoding = "zstd"
 func Compress(dst []byte, src []byte) ([]byte, error) {
 	return zstd.Compress(dst, src)
 }
+
+// Decompress will decompress the data with zstd
+func Decompress(dst []byte, src []byte) ([]byte, error) {
+	return zstd.Decompress(dst, src)
+}
