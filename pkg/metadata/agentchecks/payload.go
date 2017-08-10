@@ -3,6 +3,8 @@ package agentchecks
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -21,4 +23,9 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 // Marshal not implemented
 func (p *Payload) Marshal() ([]byte, error) {
 	return nil, fmt.Errorf("V5 Payload serialization is not implemented")
+}
+
+// SplitPayload breaks the payload into times number of pieces
+func (p *Payload) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+	return nil, fmt.Errorf("AgentChecks Payload splitting is not implemented")
 }
