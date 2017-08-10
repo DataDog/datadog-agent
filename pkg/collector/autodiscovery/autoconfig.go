@@ -396,3 +396,8 @@ func (pd *providerDescriptor) contains(c *check.Config) bool {
 func expLoaderErrors() interface{} {
 	return loaderErrors.GetErrors()
 }
+
+// GetLoaderErrors gets the errors from the loaderErrors struct
+func GetLoaderErrors() map[string]map[string]string {
+	return loaderErrors.GetErrors()
+}

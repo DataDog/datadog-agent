@@ -16,6 +16,7 @@ func (c *TestCheck) Run() error                                         { return
 func (c *TestCheck) Stop()                                              {}
 func (c *TestCheck) Interval() time.Duration                            { return 1 }
 func (c *TestCheck) ID() check.ID                                       { return check.ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error                               { return []error{} }
 
 func TestNewGoCheckLoader(t *testing.T) {
 	if checkLoader, _ := NewGoCheckLoader(); checkLoader == nil {

@@ -59,7 +59,6 @@ type Payload struct {
 	// TODO: host-tags
 	// TODO: external_host_tags
 	GohaiPayload
-	// TODO: agent_checks
 }
 
 // SplitPayload breaks the payload into times number of pieces

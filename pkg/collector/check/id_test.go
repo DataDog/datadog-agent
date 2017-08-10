@@ -16,6 +16,7 @@ func (c *TestCheck) Configure(ConfigData, ConfigData) error { return nil }
 func (c *TestCheck) Interval() time.Duration                { return 1 }
 func (c *TestCheck) Run() error                             { return nil }
 func (c *TestCheck) ID() ID                                 { return ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error                   { return []error{} }
 
 func TestIdentify(t *testing.T) {
 	testCheck := &TestCheck{}

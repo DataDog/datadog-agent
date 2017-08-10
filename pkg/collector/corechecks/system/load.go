@@ -16,7 +16,8 @@ var loadAvg = load.Avg
 
 // LoadCheck doesn't need additional fields
 type LoadCheck struct {
-	nbCPU int32
+	lastWarnings []error
+	nbCPU        int32
 }
 
 func (c *LoadCheck) String() string {
@@ -73,6 +74,29 @@ func (c *LoadCheck) ID() check.ID {
 
 // Stop does nothing
 func (c *LoadCheck) Stop() {}
+
+// GetWarnings grabs the last warnings from the sender
+func (c *LoadCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *LoadCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *LoadCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
 
 func loadFactory() check.Check {
 	return &LoadCheck{}

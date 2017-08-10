@@ -19,7 +19,9 @@ var swapMemory = mem.SwapMemory
 var runtimeOS = runtime.GOOS
 
 // MemoryCheck doesn't need additional fields
-type MemoryCheck struct{}
+type MemoryCheck struct {
+	lastWarnings []error
+}
 
 func (c *MemoryCheck) String() string {
 	return "memory"
@@ -118,6 +120,29 @@ func (c *MemoryCheck) ID() check.ID {
 
 // Stop does nothing
 func (c *MemoryCheck) Stop() {}
+
+// GetWarnings grabs the last warnings from the sender
+func (c *MemoryCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *MemoryCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *MemoryCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
 
 func memFactory() check.Check {
 	return &MemoryCheck{}

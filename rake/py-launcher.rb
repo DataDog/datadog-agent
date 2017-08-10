@@ -8,8 +8,10 @@ namespace :pylauncher do
   task :build do
     build_type_opt = ENV['incremental'] == "true" ? "-i" : "-a"
 
+    build_tags = go_build_tags added_tags: 'checks'
+
     bin_path = PYLAUNCHER_BIN_PATH
-    sh("go build #{build_type_opt} -tags '#{go_build_tags}' -o #{bin_path}/#{bin_name("py-launcher")} #{REPO_PATH}/cmd/py-launcher/")
+    sh("go build #{build_type_opt} -tags '#{build_tags}' -o #{bin_path}/#{bin_name("py-launcher")} #{REPO_PATH}/cmd/py-launcher/")
   end
 
   desc "Run system tests with pylauncher"

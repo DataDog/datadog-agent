@@ -375,6 +375,11 @@ func (c *JMXCheck) Stop() {
 	}
 }
 
+// GetWarnings does not return anything in JMX
+func (c *JMXCheck) GetWarnings() []error {
+	return []error{}
+}
+
 func init() {
 	factory := func() check.Check {
 		return &JMXCheck{}

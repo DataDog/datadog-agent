@@ -42,6 +42,9 @@ var (
 // run the host metadata collector every 14400 seconds (4 hours)
 const hostMetadataCollectorInterval = 14400
 
+// run the agent checks metadata collector every 600 seconds (10 minutes)
+const agentChecksMetadataCollectorInterval = 600
+
 // StartAgent Initializes the agent process
 func StartAgent() {
 	// Global Agent configuration
@@ -113,7 +116,7 @@ func StartAgent() {
 		if err == nil {
 			log.Debugf("Adding configured providers to the metadata collector")
 			for _, c := range C {
-				if c.Name == "host" {
+				if c.Name == "host" || c.Name == "agent_checks" {
 					continue
 				}
 				intl := c.Interval * time.Second
@@ -131,6 +134,10 @@ func StartAgent() {
 		err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
 		if err != nil {
 			panic("Host metadata is supposed to be always available in the catalog!")
+		}
+		err = common.MetadataScheduler.AddCollector("agent_checks", agentChecksMetadataCollectorInterval*time.Second)
+		if err != nil {
+			panic("Agent Checks metadata is supposed to be always available in the catalog!")
 		}
 	} else {
 		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")

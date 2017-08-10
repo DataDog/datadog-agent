@@ -37,6 +37,7 @@ class AgentCheck(object):
         self.name = kwargs.get('name', '')
         self.init_config = kwargs.get('init_config', {})
         self.agentConfig = kwargs.get('agentConfig', {})
+        self.warnings = []
 
         if len(args) > 0:
             self.name = args[0]
@@ -237,10 +238,17 @@ class AgentCheck(object):
         return normalized_tags
 
     def warning(self, warning_message):
-        # TODO: add the warning message to the info page, and send the warning as a service check
-        # to DD so that it shows up on the infrastructure page
         warning_message = str(warning_message)
         self.log.warning(warning_message)
+        self.warnings.append(warning_message)
+
+    def get_warnings(self):
+        """
+        Return the list of warnings messages to be displayed in the info page
+        """
+        warnings = self.warnings
+        self.warnings = []
+        return warnings
 
     def run(self):
         try:

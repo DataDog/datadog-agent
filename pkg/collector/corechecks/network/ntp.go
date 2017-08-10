@@ -20,8 +20,9 @@ var ntpExpVar = expvar.NewFloat("ntpOffset")
 
 // NTPCheck only has sender and config
 type NTPCheck struct {
-	id  check.ID
-	cfg *ntpConfig
+	id           check.ID
+	lastWarnings []error
+	cfg          *ntpConfig
 }
 
 type ntpInstanceConfig struct {
@@ -142,6 +143,29 @@ func (c *NTPCheck) Run() error {
 	sender.Commit()
 
 	return nil
+}
+
+// GetWarnings grabs the last warnings from the sender
+func (c *NTPCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *NTPCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *NTPCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
 }
 
 func ntpFactory() check.Check {

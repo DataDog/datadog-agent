@@ -10,5 +10,4 @@ type Payload struct {
 	// TODO: host-tags
 	// TODO: external_host_tags
 	// TODO: gohai alternative (or fix gohai)
-	// TODO: agent_checks
 }

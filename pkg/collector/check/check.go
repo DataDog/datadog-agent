@@ -50,6 +50,7 @@ type Check interface {
 	Configure(config, initConfig ConfigData) error // configure the check from the outside
 	Interval() time.Duration                       // return the interval time for the check
 	ID() ID                                        // provide a unique identifier for every check instance
+	GetWarnings() []error                          // return the last warning registered by the check
 }
 
 // Stats holds basic runtime statistics about check instances
@@ -58,9 +59,11 @@ type Stats struct {
 	CheckID           ID
 	TotalRuns         uint64
 	TotalErrors       uint64
+	TotalWarnings     uint64
 	ExecutionTimes    [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
 	LastExecutionTime int64     // most recent run duration, provided for convenience
 	LastError         string    // last occurred error message, if any
+	LastWarnings      []string  // last occured warnings, if any
 	UpdateTimestamp   int64     // latest update to this instance, unix timestamp in seconds
 	m                 sync.Mutex
 }
@@ -74,7 +77,7 @@ func NewStats(c Check) *Stats {
 }
 
 // Add tracks a new execution time
-func (cs *Stats) Add(t time.Duration, err error) {
+func (cs *Stats) Add(t time.Duration, err error, warnings []error) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
 
@@ -86,6 +89,13 @@ func (cs *Stats) Add(t time.Duration, err error) {
 	if err != nil {
 		cs.TotalErrors++
 		cs.LastError = err.Error()
+	}
+	if len(warnings) != 0 {
+		cs.LastWarnings = []string{}
+		for _, w := range warnings {
+			cs.TotalWarnings++
+			cs.LastWarnings = append(cs.LastWarnings, w.Error())
+		}
 	}
 	cs.UpdateTimestamp = time.Now().Unix()
 }

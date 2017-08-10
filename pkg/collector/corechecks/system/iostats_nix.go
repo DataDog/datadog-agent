@@ -34,9 +34,10 @@ const (
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
-	blacklist *regexp.Regexp
-	ts        int64
-	stats     map[string]disk.IOCountersStat
+	blacklist    *regexp.Regexp
+	lastWarnings []error
+	ts           int64
+	stats        map[string]disk.IOCountersStat
 }
 
 // Configure the IOstats check
