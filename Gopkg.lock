@@ -21,8 +21,8 @@
 [[projects]]
   name = "github.com/Microsoft/go-winio"
   packages = ["."]
-  revision = "fff283ad5116362ca252298cfc9b95828956d85d"
-  version = "v0.3.8"
+  revision = "78439966b38d69bf38227fbf57ac8a6fee70f69a"
+  version = "v0.4.5"
 
 [[projects]]
   name = "github.com/Sirupsen/logrus"
@@ -329,6 +329,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6cd25394231af3d7cfd1655a983b925cc30f6c0b94acafb8dba2e13c1b8cd01e"
+  inputs-digest = "d62b0eff218ba491d085ef7c1bd436b28f5c416fc267a81f1f96d845100dc41f"
   solver-name = "gps-cdcl"
   solver-version = 1
