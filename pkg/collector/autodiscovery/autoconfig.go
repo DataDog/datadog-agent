@@ -18,12 +18,11 @@ var (
 	configsPollIntl = 10 * time.Second
 	configPipeBuf   = 100
 	loaderStats     *expvar.Map
-	loaderErrors    = new(LoaderErrorStats)
+	loaderErrors    = newLoaderErrorStats()
 )
 
 func init() {
 	loaderStats = expvar.NewMap("loader")
-	loaderErrors.Init()
 	loaderStats.Set("Errors", expvar.Func(expLoaderErrors))
 }
 
@@ -49,58 +48,6 @@ type AutoConfig struct {
 	configsPollTicker *time.Ticker
 	stop              chan bool
 	m                 sync.RWMutex
-}
-
-// LoaderErrorStats holds the error objects
-type LoaderErrorStats struct {
-	Errors map[string]map[string]string
-	m      sync.Mutex
-}
-
-// SetError will safely set the error for that check and loader to the LoaderErrorStats
-func (les *LoaderErrorStats) SetError(check string, loader string, err string) {
-	les.m.Lock()
-	defer les.m.Unlock()
-
-	if les.Errors[check] == nil {
-		les.Errors[check] = make(map[string]string)
-	}
-	les.Errors[check][loader] = err
-}
-
-// Init will initialize the errors object
-func (les *LoaderErrorStats) Init() {
-	les.m.Lock()
-	defer les.m.Unlock()
-
-	les.Errors = make(map[string]map[string]string)
-}
-
-// RemoveCheckErrors removes the errors for a check (usually when successfully loaded)
-func (les *LoaderErrorStats) RemoveCheckErrors(check string) {
-	les.m.Lock()
-	defer les.m.Unlock()
-
-	if _, found := les.Errors[check]; found {
-		delete(les.Errors, check)
-	}
-}
-
-// GetErrors will safely get the errors from a LoaderErrorStats object
-func (les *LoaderErrorStats) GetErrors() map[string]map[string]string {
-	les.m.Lock()
-	defer les.m.Unlock()
-
-	errorsCopy := make(map[string]map[string]string)
-
-	for check, loaderErrors := range les.Errors {
-		errorsCopy[check] = make(map[string]string)
-		for loader, loaderError := range loaderErrors {
-			errorsCopy[check][loader] = loaderError
-		}
-	}
-
-	return errorsCopy
 }
 
 // NewAutoConfig creates an AutoConfig instance and start the goroutine
@@ -341,11 +288,11 @@ func (ac *AutoConfig) loadChecks(config check.Config) []check.Check {
 		res, err := loader.Load(config)
 		if err == nil {
 			log.Infof("%v: successfully loaded check '%s'", loader, config.Name)
-			loaderErrors.RemoveCheckErrors(config.Name)
+			loaderErrors.removeCheckErrors(config.Name)
 			return res
 		}
 
-		loaderErrors.SetError(config.Name, fmt.Sprintf("%v", loader), err.Error())
+		loaderErrors.setError(config.Name, fmt.Sprintf("%v", loader), err.Error())
 		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
 	}
 
@@ -394,10 +341,10 @@ func (pd *providerDescriptor) contains(c *check.Config) bool {
 }
 
 func expLoaderErrors() interface{} {
-	return loaderErrors.GetErrors()
+	return loaderErrors.getErrors()
 }
 
 // GetLoaderErrors gets the errors from the loaderErrors struct
-func GetLoaderErrors() map[string]map[string]string {
-	return loaderErrors.GetErrors()
+func GetLoaderErrors() map[string]LoaderErrors {
+	return loaderErrors.getErrors()
 }
