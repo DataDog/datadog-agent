@@ -2,6 +2,7 @@ package dogstatsd_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -9,8 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
 func testMetadata(t *testing.T, d *dogstatsdTest) {
@@ -52,8 +54,10 @@ func TestReceiveAndForward(t *testing.T) {
 	require.Len(t, requests, 1)
 
 	sc := []metrics.ServiceCheck{}
-	err := json.Unmarshal([]byte(requests[0]), &sc)
-	require.NoError(t, err, "Could not Unmarshal request")
+	decompressedBody, err := compression.Decompress(nil, []byte(requests[0]))
+	require.NoError(t, err, "Could not decompress request body")
+	err = json.Unmarshal(decompressedBody, &sc)
+	require.NoError(t, err, fmt.Sprintf("Could not Unmarshal request body: %s", decompressedBody))
 
 	require.Len(t, sc, 2)
 	assert.Equal(t, sc[0].CheckName, "test.ServiceCheck")

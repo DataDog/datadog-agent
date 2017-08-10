@@ -37,7 +37,7 @@ namespace :dogstatsd do
     puts "Starting DogStatsD system tests"
     root = `git rev-parse --show-toplevel`.strip
     bin_path = File.join(root, DOGSTATSD_BIN_PATH, "dogstatsd")
-    sh("DOGSTATSD_BIN=\"#{bin_path}\" go test -v #{REPO_PATH}/test/system/dogstatsd/")
+    sh("DOGSTATSD_BIN=\"#{bin_path}\" go test -tags '#{go_build_tags}' -v #{REPO_PATH}/test/system/dogstatsd/")
   end
 
   desc "Run Dogstatsd size test [skip_rebuild=false]"
