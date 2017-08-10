@@ -106,7 +106,9 @@ func StartAgent() {
 	log.Debugf("statsd started")
 
 	// create and setup the Autoconfig instance
-	common.StartAutoConfig(config.Datadog.GetString("confd_path"))
+	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+	// start the autoconfig, this will immediately run any configured check
+	common.StartAutoConfig()
 
 	// setup the metadata collector, this needs a working Python env to function
 	if config.Datadog.GetBool("enable_metadata_collection") {

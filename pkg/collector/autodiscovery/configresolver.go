@@ -6,6 +6,7 @@ import (
 	"sync"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
 	log "github.com/cihub/seelog"
@@ -25,7 +26,8 @@ var (
 // services it hears about with templates to create valid configs.
 // It is also responsible to send scheduling orders to AutoConfig
 type ConfigResolver struct {
-	AC               *AutoConfig
+	ac               *AutoConfig
+	collector        *collector.Collector
 	templates        map[check.ID][]check.Config        // ConfigID --> []Config
 	services         map[listeners.ID]listeners.Service // Service.ID --> []Service
 	configToServices map[check.ID][]listeners.Service   // ConfigID --> []Service
@@ -37,12 +39,12 @@ type ConfigResolver struct {
 }
 
 // NewConfigResolver returns a config resolver
-func NewConfigResolver(newSvc chan listeners.Service, delSvc chan listeners.Service) *ConfigResolver {
+func NewConfigResolver(coll *collector.Collector, ac *AutoConfig, newSvc chan listeners.Service, delSvc chan listeners.Service) *ConfigResolver {
 	tpls := make(map[check.ID][]check.Config)
 	stop := make(chan bool)
 	return &ConfigResolver{
-		// these two references are set at registry time
-		AC:               nil,
+		ac:               ac,
+		collector:        coll,
 		templates:        tpls,
 		configToServices: make(map[check.ID][]listeners.Service, 0),
 		serviceToChecks:  make(map[listeners.ID][]check.ID, 0),
@@ -316,7 +318,7 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 	if checks, ok := cr.serviceToChecks[svc.ID]; ok {
 		stopFailure := false
 		for _, check := range checks {
-			err := cr.AC.StopCheck(check)
+			err := cr.collector.StopCheck(check)
 			if err != nil {
 				log.Errorf("Failed to stop check '%s': %s", check, err)
 				stopFailure = true
