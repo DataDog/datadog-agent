@@ -46,10 +46,6 @@ func SetupAutoConfig(confdPath string) {
 		log.Infof("Registering %s config provider", backend)
 	}
 
-	// add the service listeners
-	// newService := make(chan listeners.Service)
-	// delService := make(chan listeners.Service)
-
 	// Docker listener
 	// docker, err := listeners.NewDockerListener(newService, delService)
 	// if err != nil {
@@ -57,10 +53,6 @@ func SetupAutoConfig(confdPath string) {
 	// } else {
 	// 	AC.AddListener(docker)
 	// }
-
-	// add the config resolver
-	// resolver := autodiscovery.NewConfigResolver(newService, delService)
-	// AC.RegisterConfigResolver(resolver)
 }
 
 // StartAutoConfig starts the autoconfig:

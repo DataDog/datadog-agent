@@ -26,6 +26,8 @@ func init() {
 	loaderStats.Set("Errors", expvar.Func(expLoaderErrors))
 }
 
+// providerDescriptor keeps track of the configurations loaded by a certain
+// `providers.ConfigProvider` and whether it should be polled or not.
 type providerDescriptor struct {
 	provider providers.ConfigProvider
 	configs  []check.Config
@@ -33,10 +35,17 @@ type providerDescriptor struct {
 }
 
 // AutoConfig is responsible to collect checks configurations from
-// different sources and then create, update or destroy check instances
-// with the help of the Collector.
-// It is also responsible to listen to container-related events and
-// trigger scheduling decisions based on them.
+// different sources and then create, update or destroy check instances.
+// It owns and orchestrates several key modules:
+//  - it owns a reference to the `collector.Collector` that it uses to schedule checks when template or container updates warrant them
+//	- it holds a list of `providers.ConfigProvider`s and poll them according to their policy
+//	- it holds a list of `check.Loader`s to load configurations into `Check` objects
+//	- it holds a list of `listeners.ServiceListener`s` used to listen to container lifecycle events
+//	- it runs the `ConfigResolver` that resolves a configuration template to an actual configuration based on data it extracts from a service that matches it the template
+//
+// Notice the `AutoConfig` public API speaks in terms of `check.Config`,
+// meaning that you cannot use it to schedule check instances directly: the
+// `Collector` is only used internally.
 type AutoConfig struct {
 	collector         *collector.Collector
 	providers         []*providerDescriptor
@@ -44,14 +53,12 @@ type AutoConfig struct {
 	templateCache     *TemplateCache
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
-	templateChan      chan []check.Config
 	configsPollTicker *time.Ticker
 	stop              chan bool
 	m                 sync.RWMutex
 }
 
-// NewAutoConfig creates an AutoConfig instance and start the goroutine
-// responsible to poll the different configuration providers.
+// NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 	ac := &AutoConfig{
 		collector:     collector,
@@ -60,11 +67,12 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		templateCache: NewTemplateCache(),
 		stop:          make(chan bool),
 	}
+	ac.configResolver = newConfigResolver(collector, ac)
 
 	return ac
 }
 
-// StartPolling starts polling the configs
+// StartPolling starts the goroutine responsible for polling the providers
 func (ac *AutoConfig) StartPolling() {
 	ac.configsPollTicker = time.NewTicker(configsPollIntl)
 	ac.pollConfigs()
@@ -96,6 +104,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 	for _, pd := range ac.providers {
 		if pd.provider == provider {
 			// we already know this configuration provider, don't do anything
+
 			// this is formatted inline since logging is done on a background thread,
 			// so you can only pass it things to act on if they're thread safe
 			// this is not inherently thread safe
@@ -114,7 +123,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 
 // LoadAndRun loads all of the configs it can find and schedule the corresponding
 // Check instances. Should always be run once so providers that don't need
-// polling will be called at least once
+// polling will be queried at least once
 func (ac *AutoConfig) LoadAndRun() {
 	for _, check := range ac.getAllChecks() {
 		_, err := ac.collector.RunCheck(check)
@@ -146,8 +155,8 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	return checks
 }
 
-// getAllConfigs queries all the providers and return all the check
-// configurations found
+// getAllConfigs queries all the providers and returns all the check
+// configurations found.
 func (ac *AutoConfig) getAllConfigs() []check.Config {
 	configs := []check.Config{}
 	for _, pd := range ac.providers {
@@ -158,7 +167,7 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 	return configs
 }
 
-// getAllChecks all the check instances for any configurations found
+// getAllChecks gets all the check instances for any configurations found.
 func (ac *AutoConfig) getAllChecks() []check.Check {
 	all := []check.Check{}
 	configs := ac.getAllConfigs()
@@ -200,14 +209,6 @@ func (ac *AutoConfig) AddLoader(loader check.Loader) {
 	}
 
 	ac.loaders = append(ac.loaders, loader)
-}
-
-// RegisterConfigResolver adds a new ConfigResolver that will listen to service-related
-// events, template changes and update checks accordingly
-func (ac *AutoConfig) RegisterConfigResolver(cr *ConfigResolver) {
-	// ConfigResolver needs a reference to AC to schedule checks
-	ac.configResolver = cr
-	cr.Listen()
 }
 
 // pollConfigs periodically calls Collect() on all the configuration

@@ -39,19 +39,22 @@ type ConfigResolver struct {
 }
 
 // NewConfigResolver returns a config resolver
-func NewConfigResolver(coll *collector.Collector, ac *AutoConfig, newSvc chan listeners.Service, delSvc chan listeners.Service) *ConfigResolver {
-	tpls := make(map[check.ID][]check.Config)
-	stop := make(chan bool)
-	return &ConfigResolver{
+func newConfigResolver(coll *collector.Collector, ac *AutoConfig) *ConfigResolver {
+	cr := &ConfigResolver{
 		ac:               ac,
 		collector:        coll,
-		templates:        tpls,
+		templates:        make(map[check.ID][]check.Config),
 		configToServices: make(map[check.ID][]listeners.Service, 0),
 		serviceToChecks:  make(map[listeners.ID][]check.ID, 0),
-		newService:       newSvc,
-		delService:       delSvc,
-		stop:             stop,
+		newService:       make(chan listeners.Service),
+		delService:       make(chan listeners.Service),
+		stop:             make(chan bool),
 	}
+
+	// start listening
+	cr.Listen()
+
+	return cr
 }
 
 // Listen waits on services and templates and process them as they come.
