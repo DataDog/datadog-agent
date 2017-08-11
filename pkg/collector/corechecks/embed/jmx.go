@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build jmx
 
 package embed
@@ -350,9 +355,6 @@ func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
 	return nil
 }
 
-// InitSender initializes a sender but we don't need any
-func (c *JMXCheck) InitSender() {}
-
 // Interval returns the scheduling time for the check, this will be scheduled only once
 // since `Run` won't return, thus implementing a long running check.
 func (c *JMXCheck) Interval() time.Duration {
@@ -376,6 +378,11 @@ func (c *JMXCheck) Stop() {
 			log.Errorf("unable to stop JMX check: %s", err)
 		}
 	}
+}
+
+// GetWarnings does not return anything in JMX
+func (c *JMXCheck) GetWarnings() []error {
+	return []error{}
 }
 
 func init() {

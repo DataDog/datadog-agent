@@ -1,10 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // Package common provides a set of common symbols needed by different packages,
 // to avoid circular dependencies.
 package common
 
 import (
-	"path/filepath"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -30,6 +33,4 @@ var (
 
 	// utility variables
 	_here, _ = osext.ExecutableFolder()
-	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	PyChecksPath = filepath.Join(_here, "..", "..", "agent", "checks.d")
 )

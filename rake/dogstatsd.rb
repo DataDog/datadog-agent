@@ -11,16 +11,16 @@ namespace :dogstatsd do
     race_opt = ENV['race'] == "true" ? "-race" : ""
     build_type_opt = ENV['incremental'] == "true" ? "-i" : "-a"
     static_bin = ENV['static'] == "true"
+    build_tags = ENV['tags'] || "zlib"
 
     bin_path = DOGSTATSD_BIN_PATH
-    commit = `git rev-parse --short HEAD`.strip
-    ldflags = "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
+    ldflags = get_base_ldflags()
     if static_bin then
-      ldflags += " -s -w -extldflags \"-static\""
+      ldflags << " -s -w -linkmode external -extldflags \"-static\""
       bin_path = STATIC_BIN_PATH
     end
 
-    sh("go build #{race_opt} #{build_type_opt} -tags '#{go_build_tags}' -o #{bin_path}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags}\" #{REPO_PATH}/cmd/dogstatsd/")
+    sh("go build #{race_opt} #{build_type_opt} -tags '#{build_tags}' -o #{bin_path}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/dogstatsd/")
   end
 
   desc "Run Dogstatsd"
@@ -38,7 +38,7 @@ namespace :dogstatsd do
     puts "Starting DogStatsD system tests"
     root = `git rev-parse --show-toplevel`.strip
     bin_path = File.join(root, DOGSTATSD_BIN_PATH, "dogstatsd")
-    sh("DOGSTATSD_BIN=\"#{bin_path}\" go test -v #{REPO_PATH}/test/system/dogstatsd/")
+    sh("DOGSTATSD_BIN=\"#{bin_path}\" go test -tags '#{go_build_tags}' -v #{REPO_PATH}/test/system/dogstatsd/")
   end
 
   desc "Run Dogstatsd size test [skip_rebuild=false]"

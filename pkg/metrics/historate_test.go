@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package metrics
 
 import (
@@ -8,7 +13,7 @@ import (
 )
 
 func TestHistorateEmptyFlush(t *testing.T) {
-	h := Historate{}
+	h := NewHistorate(1)
 
 	// Flush w/o samples: error
 	_, err := h.flush(50)
@@ -16,7 +21,7 @@ func TestHistorateEmptyFlush(t *testing.T) {
 }
 
 func TestHistorateAddSampleOnce(t *testing.T) {
-	h := Historate{}
+	h := NewHistorate(1)
 	h.addSample(&MetricSample{Value: 1}, 50)
 
 	// Flush one sample: error
@@ -25,7 +30,7 @@ func TestHistorateAddSampleOnce(t *testing.T) {
 }
 
 func TestHistorateAddSample(t *testing.T) {
-	h := Historate{}
+	h := NewHistorate(1)
 
 	h.addSample(&MetricSample{Value: 1}, 50)
 	h.addSample(&MetricSample{Value: 2}, 51)

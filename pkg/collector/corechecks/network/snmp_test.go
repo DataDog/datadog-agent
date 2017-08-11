@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build !windows
 // +build snmp
 
@@ -7,6 +12,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/k-sone/snmpgo"
 )
 
@@ -191,7 +197,7 @@ func TestSubmitSNMP(t *testing.T) {
 	initCNetSnmpLib(nil)
 
 	mock := new(MockSender)
-	snmpCheck.sender = mock
+	aggregator.SetSender(mock, snmpCheck.ID())
 
 	if err := cfg.Parse(bytes.NewBufferString(basicCfg).Bytes(), []byte{}); err != nil {
 		t.Fatalf("Unable to parse configuration: %v", err)

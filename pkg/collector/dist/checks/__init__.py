@@ -1,3 +1,8 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2017 Datadog, Inc.
+
 import copy
 import json
 import traceback
@@ -37,6 +42,7 @@ class AgentCheck(object):
         self.name = kwargs.get('name', '')
         self.init_config = kwargs.get('init_config', {})
         self.agentConfig = kwargs.get('agentConfig', {})
+        self.warnings = []
 
         if len(args) > 0:
             self.name = args[0]
@@ -81,7 +87,7 @@ class AgentCheck(object):
         if hostname is None:
             hostname = ""
 
-        aggregator.submit_metric(self, mtype, name, value, tags, hostname)
+        aggregator.submit_metric(self, self.check_id, mtype, name, value, tags, hostname)
 
     def gauge(self, name, value, tags=None, hostname=None, device_name=None):
         self._submit_metric(aggregator.GAUGE, name, value, tags=tags, hostname=hostname, device_name=device_name)
@@ -119,7 +125,7 @@ class AgentCheck(object):
 
     def service_check(self, name, status, tags=None, message=""):
         tags = self._normalize_tags_type(tags)
-        aggregator.submit_service_check(self, name, status, tags, message)
+        aggregator.submit_service_check(self, self.check_id, name, status, tags, message)
 
     def event(self, event):
         # Enforce types of some fields, considerably facilitates handling in go bindings downstream
@@ -137,7 +143,10 @@ class AgentCheck(object):
             event['timestamp'] = int(event['timestamp'])
         if event.get('aggregation_key'):
             event['aggregation_key'] = str(event['aggregation_key'])
-        aggregator.submit_event(self, event)
+        aggregator.submit_event(self, self.check_id, event)
+
+    def increment(self, name, value, tags=None):
+        pass
 
     def check(self, instance):
         raise NotImplementedError
@@ -234,10 +243,17 @@ class AgentCheck(object):
         return normalized_tags
 
     def warning(self, warning_message):
-        # TODO: add the warning message to the info page, and send the warning as a service check
-        # to DD so that it shows up on the infrastructure page
         warning_message = str(warning_message)
         self.log.warning(warning_message)
+        self.warnings.append(warning_message)
+
+    def get_warnings(self):
+        """
+        Return the list of warnings messages to be displayed in the info page
+        """
+        warnings = self.warnings
+        self.warnings = []
+        return warnings
 
     def run(self):
         try:

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package runner
 
 import (
@@ -18,7 +23,6 @@ type TestCheck struct {
 func (c *TestCheck) String() string                                     { return "TestCheck" }
 func (c *TestCheck) Stop()                                              {}
 func (c *TestCheck) Configure(check.ConfigData, check.ConfigData) error { return nil }
-func (c *TestCheck) InitSender()                                        {}
 func (c *TestCheck) Interval() time.Duration                            { return 1 }
 func (c *TestCheck) Run() error {
 	if c.doErr {
@@ -28,7 +32,8 @@ func (c *TestCheck) Run() error {
 	c.hasRun = true
 	return nil
 }
-func (c *TestCheck) ID() check.ID { return check.ID(c.String()) }
+func (c *TestCheck) ID() check.ID         { return check.ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error { return nil }
 
 func TestNewRunner(t *testing.T) {
 	r := NewRunner(1)

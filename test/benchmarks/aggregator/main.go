@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package main
 
 import (
@@ -92,9 +97,9 @@ func main() {
 
 	config.SetupLogger("error", "")
 	f := forwarder.NewDefaultForwarder(map[string][]string{})
-	s := &serializer.Serializer{forwarder: f}
+	s := &serializer.Serializer{Forwarder: f}
 
-	agg := aggregator.NewBufferedAggregator(s, "benchmark")
+	agg := aggregator.InitAggregator(s, "hostname")
 	flush := make(chan time.Time)
 	agg.TickerChan = flush
 

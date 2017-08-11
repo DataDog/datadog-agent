@@ -1,13 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package api
 
 import (
 	"net"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/Microsoft/go-winio"
 )
-
-const pipename = `\\.\pipe\ddagent`
 
 // getListener returns a listening connection to a Windows named
 // pipe for IPC
@@ -36,13 +40,13 @@ func getListener() (net.Listener, error) {
 	c := winio.PipeConfig{
 		SecurityDescriptor: secDesc,
 	}
-	return winio.ListenPipe(pipename, &c)
+	return winio.ListenPipe(config.Datadog.GetString("cmd_pipe_name"), &c)
 }
 
 // HTTP doesn't need anything from the transport, so we can use
 // a named pipe
 func fakeDial(proto, addr string) (conn net.Conn, err error) {
-	return winio.DialPipe(pipename, nil)
+	return winio.DialPipe(config.Datadog.GetString("cmd_pipe_name"), nil)
 }
 
 // GetClient is a convenience function returning an http

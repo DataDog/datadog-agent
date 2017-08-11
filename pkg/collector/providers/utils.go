@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package providers
 
 import (
@@ -89,10 +94,10 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []ch
 		instance := check.ConfigData(instances[idx])
 
 		templates = append(templates, check.Config{
-			ID:         check.ID(key),
-			Name:       checkNames[idx],
-			InitConfig: check.ConfigData(initConfigs[idx]),
-			Instances:  []check.ConfigData{instance},
+			Name:          checkNames[idx],
+			InitConfig:    check.ConfigData(initConfigs[idx]),
+			Instances:     []check.ConfigData{instance},
+			ADIdentifiers: []string{key},
 		})
 	}
 	return templates

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package metadata
 
 import (
@@ -66,4 +71,9 @@ func (c *Scheduler) firstRun() error {
 		panic("Unable to find 'host' metadata collector in the catalog!")
 	}
 	return p.Send(c.srl)
+}
+
+// RegisterCollector adds a Metadata Collector to the catalog
+func RegisterCollector(name string, metadataCollector Collector) {
+	catalog[name] = metadataCollector
 }

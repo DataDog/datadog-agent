@@ -23,6 +23,9 @@ build do
     move 'bin/agent/dist/datadog.yaml', '/etc/dd-agent/datadog.yaml.example'
     mkdir '/etc/dd-agent/checks.d'
 
+    # Change DIRPATH to the absolute path so that a symlink to `bin/agent/agent` works
+    command "sed -i -e s@DIRPATH=.*@DIRPATH=#{install_dir}/bin/agent@ #{install_dir}/bin/agent/agent"
+
     mkdir "/etc/init/"
     if debian? || redhat?
       erb source: "upstart.conf.erb",

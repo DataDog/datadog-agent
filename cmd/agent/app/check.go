@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package app
 
 import (
@@ -59,7 +64,7 @@ var checkCmd = &cobra.Command{
 		s := &serializer.Serializer{Forwarder: common.Forwarder}
 		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 10000000000)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
-		cs := common.AC.GetCheck(checkName)
+		cs := common.AC.GetChecksByName(checkName)
 		if len(cs) == 0 {
 			fmt.Println("no check found")
 			os.Exit(1)
@@ -94,7 +99,8 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	for i < times {
 		t0 := time.Now()
 		err := c.Run()
-		s.Add(time.Since(t0), err)
+		warnings := c.GetWarnings()
+		s.Add(time.Since(t0), err, warnings)
 		i++
 	}
 

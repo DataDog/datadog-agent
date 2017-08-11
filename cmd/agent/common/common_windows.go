@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package common
 
 import (
@@ -7,9 +12,14 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-const defaultConfPath = "c:\\programdata\\datadog"
+var (
+	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
+	PyChecksPath = filepath.Join(_here, "..", "agent", "checks.d")
+	distPath     string
+)
 
-var distPath string
+const defaultConfPath = "c:\\programdata\\datadog"
+const defaultLogPath = "c:\\programdata\\datadog\\logs\\agent.log"
 
 // EnableLoggingToFile -- set up logging to file
 func EnableLoggingToFile() {

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package metrics
 
 import (
@@ -32,9 +37,9 @@ func (m ContextMetrics) AddSample(contextKey string, sample *MetricSample, times
 		case MonotonicCountType:
 			m[contextKey] = &MonotonicCount{}
 		case HistogramType:
-			m[contextKey] = &Histogram{} // default histogram configuration for now
+			m[contextKey] = NewHistogram(interval) // default histogram configuration (no call to `configure`) for now
 		case HistorateType:
-			m[contextKey] = &Historate{} // internal histogram have the configuration for now
+			m[contextKey] = NewHistorate(interval) // internal histogram has the configuration for now
 		case SetType:
 			m[contextKey] = NewSet()
 		case CounterType:

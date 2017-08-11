@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package system
 
 import (
@@ -16,7 +21,7 @@ var uptime = host.Uptime
 
 // UptimeCheck doesn't need additional fields
 type UptimeCheck struct {
-	sender aggregator.Sender
+	lastWarnings []error
 }
 
 func (c *UptimeCheck) String() string {
@@ -25,14 +30,19 @@ func (c *UptimeCheck) String() string {
 
 // Run executes the check
 func (c *UptimeCheck) Run() error {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return err
+	}
+
 	t, err := uptime()
 	if err != nil {
 		log.Errorf("system.UptimeCheck: could not retrieve uptime: %s", err)
 		return err
 	}
 
-	c.sender.Gauge("system.uptime", float64(t), "", nil)
-	c.sender.Commit()
+	sender.Gauge("system.uptime", float64(t), "", nil)
+	sender.Commit()
 
 	return nil
 }
@@ -41,17 +51,6 @@ func (c *UptimeCheck) Run() error {
 func (c *UptimeCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	// do nothing
 	return nil
-}
-
-// InitSender initializes a sender
-func (c *UptimeCheck) InitSender() {
-	s, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	c.sender = s
 }
 
 // Interval returns the scheduling time for the check
@@ -66,6 +65,29 @@ func (c *UptimeCheck) ID() check.ID {
 
 // Stop does nothing
 func (c *UptimeCheck) Stop() {}
+
+// GetWarnings grabs the last warnings from the sender
+func (c *UptimeCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *UptimeCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *UptimeCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
 
 func uptimeFactory() check.Check {
 	return &UptimeCheck{}

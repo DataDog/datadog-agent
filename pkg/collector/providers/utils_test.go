@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package providers
 
 import (
@@ -96,12 +101,14 @@ func TestBuildTemplates(t *testing.T) {
 		[]check.ConfigData{check.ConfigData("{}"), check.ConfigData("{1:2}")})
 	require.Len(t, res, 2)
 
-	assert.Equal(t, res[0].ID, check.ID("id"))
+	assert.Len(t, res[0].ADIdentifiers, 1)
+	assert.Equal(t, "id", res[0].ADIdentifiers[0])
 	assert.Equal(t, res[0].Name, "a")
 	assert.Equal(t, res[0].InitConfig, check.ConfigData("{\"test\": 1}"))
 	assert.Equal(t, res[0].Instances, []check.ConfigData{check.ConfigData("{}")})
 
-	assert.Equal(t, res[1].ID, check.ID("id"))
+	assert.Len(t, res[1].ADIdentifiers, 1)
+	assert.Equal(t, "id", res[1].ADIdentifiers[0])
 	assert.Equal(t, res[1].Name, "b")
 	assert.Equal(t, res[1].InitConfig, check.ConfigData("{}"))
 	assert.Equal(t, res[1].Instances, []check.ConfigData{check.ConfigData("{1:2}")})

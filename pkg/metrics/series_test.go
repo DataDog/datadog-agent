@@ -1,6 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package metrics
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
@@ -87,4 +93,99 @@ func TestMarshalJSONSeries(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
 	assert.Equal(t, payload, []byte("{\"series\":[{\"metric\":\"test.metrics\",\"points\":[[12345,21.21],[67890,12.12]],\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"device\":\"/dev/sda1\",\"type\":\"gauge\",\"interval\":0,\"source_type_name\":\"System\"}]}\n"))
+}
+
+func TestSplitSeries(t *testing.T) {
+	var series = Series{}
+	for i := 0; i < 2; i++ {
+		s := Serie{
+			Points: []Point{
+				{Ts: 12345.0, Value: float64(21.21)},
+				{Ts: 67890.0, Value: float64(12.12)},
+			},
+			MType: APIGaugeType,
+			Name:  "test.metrics",
+			Host:  "localHost",
+			Tags:  []string{"tag1", "tag2:yes"},
+		}
+		series = append(series, &s)
+	}
+
+	newSeries, err := series.SplitPayload(2)
+	require.Nil(t, err)
+	require.Len(t, newSeries, 2)
+	newSeries, err = series.SplitPayload(3)
+	require.Nil(t, err)
+	require.Len(t, newSeries, 2)
+
+	series = Series{{
+		Points: []Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
+		MType: APIGaugeType,
+		Name:  "test.metrics",
+		Host:  "localHost",
+		Tags:  []string{"tag1", "tag2:yes"},
+	}}
+	newSeries, err = series.SplitPayload(2)
+	require.Nil(t, err)
+	require.Len(t, newSeries, 2)
+	for _, s := range newSeries {
+		ser := s.(Series)
+		require.Len(t, ser[0].Points, 1)
+	}
+	newSeries, err = series.SplitPayload(3)
+	require.Nil(t, err)
+	require.Len(t, newSeries, 2)
+	for _, s := range newSeries {
+		ser := s.(Series)
+		require.Len(t, ser[0].Points, 1)
+	}
+}
+
+func TestUnmarshalSeriesJSON(t *testing.T) {
+	// Test one for each value of the API Type
+	series := Series{{
+		Points: []Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
+		MType:    APIGaugeType,
+		Name:     "test.metrics",
+		Interval: 1,
+		Host:     "localHost",
+		Tags:     []string{"tag1", "tag2:yes"},
+	}, {
+		Points: []Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
+		MType:    APIRateType,
+		Name:     "test.metrics",
+		Interval: 1,
+		Host:     "localHost",
+		Tags:     []string{"tag1", "tag2:yes"},
+	}, {
+		Points: []Point{
+			{Ts: 12345.0, Value: float64(21.21)},
+			{Ts: 67890.0, Value: float64(12.12)},
+		},
+		MType:    APICountType,
+		Name:     "test.metrics",
+		Interval: 1,
+		Host:     "localHost",
+		Tags:     []string{"tag1", "tag2:yes"},
+	}}
+
+	seriesJSON, err := series.MarshalJSON()
+	require.Nil(t, err)
+	var newSeries map[string]Series
+	err = json.Unmarshal(seriesJSON, &newSeries)
+	require.Nil(t, err)
+
+	badPointJSON := []byte(`[12345,21.21,1]`)
+	var badPoint Point
+	err = json.Unmarshal(badPointJSON, &badPoint)
+	require.NotNil(t, err)
 }

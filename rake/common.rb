@@ -15,8 +15,19 @@ end
 
 # `tags` option
 def go_build_tags
-  build_tags = ENV['tags'] || "zstd snmp etcd zk cpython jmx apm docker ec2 gce"
+  build_tags = ENV['tags'] || "zlib snmp etcd zk cpython jmx apm docker ec2 gce process"
   build_tags = ENV['puppy'] == 'true' ? 'zlib' : build_tags
+end
+
+def get_base_ldflags()
+  # get agent-payload version
+  agent_payload_version = get_payload_version()
+  commit = `git rev-parse --short HEAD`.strip
+
+  ldflags = [
+    "-X #{REPO_PATH}/pkg/version.commit=#{commit}",
+    "-X #{REPO_PATH}/pkg/serializer.AgentPayloadVersion=#{agent_payload_version}",
+  ]
 end
 
 def go_fmt(path, fail_on_mod)
@@ -56,4 +67,43 @@ def bin_name(name)
   else
     name
   end
+end
+
+# extract the agent payload version from `Gopkg.toml` without requiring an
+# external package
+def get_payload_version()
+
+  current = {}
+
+  # parse the TOML file line by line
+  File.readlines("Gopkg.lock").each do |line|
+    # skip empty lines and comments
+    if line.length == 0 || line.start_with?("#")
+      next
+    end
+
+    # change the parser "state" when we find a [[projects]] section
+    if line.include? "[[projects]]"
+      # see if the current section is what we're searching for
+      if current.fetch('name', nil) == "github.com/DataDog/agent-payload"
+        return current["version"]
+      end
+
+      # if not, reset the "state" and proceed with the next line
+      current = {}
+      next
+    end
+
+    # search for an assignment, ignore subsequent `=` chars
+    toks = line.split('=', 2)
+    if toks.length == 2
+      # strip whitespaces
+      key = toks.first.strip
+      # strip whitespaces and quotes
+      value = toks.last.tr('"', '').strip
+      current[key] = value
+    end
+  end
+
+  return ""
 end

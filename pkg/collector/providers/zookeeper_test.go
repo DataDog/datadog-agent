@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build zk
 
 package providers
@@ -10,8 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 //
@@ -107,13 +110,15 @@ func TestZKGetTemplates(t *testing.T) {
 	assert.NotNil(t, res)
 	assert.Len(t, res, 2)
 
-	assert.Equal(t, check.ID("/config/"), res[0].ID)
+	assert.Len(t, res[0].ADIdentifiers, 1)
+	assert.Equal(t, "/config/", res[0].ADIdentifiers[0])
 	assert.Equal(t, "first_name", res[0].Name)
 	assert.Equal(t, "{\"a\":\"b\"}", string(res[0].InitConfig))
 	require.Len(t, res[0].Instances, 1)
 	assert.Equal(t, "{\"test\":21,\"test2\":\"data\"}", string(res[0].Instances[0]))
 
-	assert.Equal(t, check.ID("/config/"), res[1].ID)
+	assert.Len(t, res[1].ADIdentifiers, 1)
+	assert.Equal(t, "/config/", res[1].ADIdentifiers[0])
 	assert.Equal(t, "second_name", res[1].Name)
 	assert.Equal(t, "{}", string(res[1].InitConfig))
 	require.Len(t, res[1].Instances, 1)
@@ -142,19 +147,22 @@ func TestZKCollect(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Len(t, res, 3)
 
-	assert.Equal(t, check.ID("/datadog/check_configs/config_folder_1"), res[0].ID)
+	assert.Len(t, res[0].ADIdentifiers, 1)
+	assert.Equal(t, "/datadog/check_configs/config_folder_1", res[0].ADIdentifiers[0])
 	assert.Equal(t, "first_name", res[0].Name)
 	assert.Equal(t, "{}", string(res[0].InitConfig))
 	require.Len(t, res[0].Instances, 1)
 	assert.Equal(t, "{}", string(res[0].Instances[0]))
 
-	assert.Equal(t, check.ID("/datadog/check_configs/config_folder_1"), res[1].ID)
+	assert.Len(t, res[1].ADIdentifiers, 1)
+	assert.Equal(t, "/datadog/check_configs/config_folder_1", res[1].ADIdentifiers[0])
 	assert.Equal(t, "second_name", res[1].Name)
 	assert.Equal(t, "{}", string(res[1].InitConfig))
 	require.Len(t, res[1].Instances, 1)
 	assert.Equal(t, "{}", string(res[1].Instances[0]))
 
-	assert.Equal(t, check.ID("/datadog/check_configs/config_folder_2"), res[2].ID)
+	assert.Len(t, res[2].ADIdentifiers, 1)
+	assert.Equal(t, "/datadog/check_configs/config_folder_2", res[2].ADIdentifiers[0])
 	assert.Equal(t, "third_name", res[2].Name)
 	assert.Equal(t, "{}", string(res[2].InitConfig))
 	require.Len(t, res[2].Instances, 1)

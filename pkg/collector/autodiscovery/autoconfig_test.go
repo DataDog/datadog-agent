@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package autodiscovery
 
 import (
@@ -25,6 +30,18 @@ type MockLoader struct{}
 
 func (l *MockLoader) Load(config check.Config) ([]check.Check, error) { return []check.Check{}, nil }
 
+type MockListener struct {
+	ListenCount int
+}
+
+func (l *MockListener) Listen() {
+	l.ListenCount++
+}
+
+func (l *MockListener) Stop() {
+	return
+}
+
 func TestAddProvider(t *testing.T) {
 	ac := NewAutoConfig(nil)
 	ac.StartPolling()
@@ -33,7 +50,7 @@ func TestAddProvider(t *testing.T) {
 	ac.AddProvider(mp, false)
 	ac.AddProvider(mp, false) // this should be a noop
 	ac.AddProvider(&MockProvider2{}, true)
-	ac.LoadConfigs()
+	ac.LoadAndRun()
 	require.Len(t, ac.providers, 2)
 	assert.Equal(t, 1, mp.CollectCounter)
 	assert.False(t, ac.providers[0].poll)
@@ -46,6 +63,15 @@ func TestAddLoader(t *testing.T) {
 	ac.AddLoader(&MockLoader{})
 	ac.AddLoader(&MockLoader{}) // noop
 	assert.Len(t, ac.loaders, 1)
+}
+
+func TestAddListener(t *testing.T) {
+	ac := NewAutoConfig(nil)
+	assert.Len(t, ac.listeners, 0)
+	ml := &MockListener{}
+	ac.AddListener(ml)
+	require.Len(t, ac.listeners, 1)
+	assert.Equal(t, 1, ml.ListenCount)
 }
 
 func TestContains(t *testing.T) {

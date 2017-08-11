@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package metrics
 
 import (
@@ -169,7 +174,7 @@ func TestContextMetricsHistogramSampling(t *testing.T) {
 		},
 		&Serie{
 			ContextKey: contextKey,
-			Points:     []Point{{12351.0, 4.}},
+			Points:     []Point{{12351.0, 0.4}},
 			MType:      APIRateType,
 			NameSuffix: ".count",
 		},
@@ -229,7 +234,7 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 	AssertSerieEqual(t,
 		&Serie{
 			ContextKey: contextKey,
-			Points:     []Point{{12351.0, 3.}},
+			Points:     []Point{{12351.0, 0.3}},
 			MType:      APIRateType,
 			NameSuffix: ".count",
 		},
