@@ -38,14 +38,13 @@ type providerDescriptor struct {
 // different sources and then create, update or destroy check instances.
 // It owns and orchestrates several key modules:
 //  - it owns a reference to the `collector.Collector` that it uses to schedule checks when template or container updates warrant them
-//	- it holds a list of `providers.ConfigProvider`s and poll them according to their policy
-//	- it holds a list of `check.Loader`s to load configurations into `Check` objects
-//	- it holds a list of `listeners.ServiceListener`s` used to listen to container lifecycle events
-//	- it runs the `ConfigResolver` that resolves a configuration template to an actual configuration based on data it extracts from a service that matches it the template
+//  - it holds a list of `providers.ConfigProvider`s and poll them according to their policy
+//  - it holds a list of `check.Loader`s to load configurations into `Check` objects
+//  - it holds a list of `listeners.ServiceListener`s` used to listen to container lifecycle events
+//  - it runs the `ConfigResolver` that resolves a configuration template to an actual configuration based on data it extracts from a service that matches it the template
 //
 // Notice the `AutoConfig` public API speaks in terms of `check.Config`,
-// meaning that you cannot use it to schedule check instances directly: the
-// `Collector` is only used internally.
+// meaning that you cannot use it to schedule check instances directly.
 type AutoConfig struct {
 	collector         *collector.Collector
 	providers         []*providerDescriptor
@@ -121,7 +120,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 	ac.providers = append(ac.providers, pd)
 }
 
-// LoadAndRun loads all of the configs it can find and schedule the corresponding
+// LoadAndRun loads all of the configs it can find and schedules the corresponding
 // Check instances. Should always be run once so providers that don't need
 // polling will be queried at least once
 func (ac *AutoConfig) LoadAndRun() {
@@ -140,15 +139,10 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	// try to also match `FooCheck` if `foo` was passed
 	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
 	checks := []check.Check{}
-	configs := ac.getAllConfigs()
 
-	for _, config := range configs {
-		// load the check instances
-		checks, _ := ac.GetChecks(config)
-		for _, check := range checks {
-			if checkName == check.String() || titleCheck == check.String() {
-				checks = append(checks, check)
-			}
+	for _, check := range ac.getAllChecks() {
+		if checkName == check.String() || titleCheck == check.String() {
+			checks = append(checks, check)
 		}
 	}
 
