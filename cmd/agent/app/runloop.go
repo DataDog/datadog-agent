@@ -25,8 +25,8 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 
 	// register metadata providers
-	_ "github.com/DataDog/datadog-agent/pkg/metadata/host"
-	_ "github.com/DataDog/datadog-agent/pkg/metadata/resources"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
+	_ "github.com/DataDog/datadog-agent/pkg/metadata"
 )
 
 var (
