@@ -29,3 +29,7 @@ To start working on the Agent, you can build the `master` branch:
 
 ## Tests
 Some tests have specific requirements, see [System Tests](test/README.md).
+
+## Contributing
+
+In order for your contributions you will be required to sign a CLA. When a PR is opened a bot will prompt you to sign the CLA. Once signed you will be set for all contributions going forward.
