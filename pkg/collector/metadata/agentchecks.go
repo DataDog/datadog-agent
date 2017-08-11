@@ -3,7 +3,8 @@ package metadata
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/agentchecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/metadata/agentchecks"
+	md "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -21,5 +22,5 @@ func (hp *AgentChecksCollector) Send(s *serializer.Serializer) error {
 }
 
 func init() {
-	catalog["agent_checks"] = new(AgentChecksCollector)
+	md.RegisterCollector("agent_checks", new(AgentChecksCollector))
 }

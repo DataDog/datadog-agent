@@ -118,6 +118,7 @@ run_dogstatsd_size_test:
 # run integration tests for deb-x64
 run_docker_integration_tests_deb-x64:
   stage: integration_test
+  allow_failure: true  # FIXME: when we publish the datadog/dogstatsd:master docker image
   dependencies:
     - dogstatsd_static-x64 # Reuse artifact from build stage
   tags:

@@ -67,3 +67,8 @@ func (c *Scheduler) firstRun() error {
 	}
 	return p.Send(c.srl)
 }
+
+// RegisterCollector adds a Metadata Collector to the catalog
+func RegisterCollector(name string, metadataCollector Collector) {
+	catalog[name] = metadataCollector
+}

@@ -11,6 +11,7 @@ namespace :dogstatsd do
     race_opt = ENV['race'] == "true" ? "-race" : ""
     build_type_opt = ENV['incremental'] == "true" ? "-i" : "-a"
     static_bin = ENV['static'] == "true"
+    build_tags = ENV['tags'] || "zlib"
 
     bin_path = DOGSTATSD_BIN_PATH
     ldflags = get_base_ldflags()
@@ -19,7 +20,7 @@ namespace :dogstatsd do
       bin_path = STATIC_BIN_PATH
     end
 
-    sh("go build #{race_opt} #{build_type_opt} -tags '#{go_build_tags}' -o #{bin_path}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/dogstatsd/")
+    sh("go build #{race_opt} #{build_type_opt} -tags '#{build_tags}' -o #{bin_path}/#{bin_name("dogstatsd")} -ldflags \"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/dogstatsd/")
   end
 
   desc "Run Dogstatsd"
