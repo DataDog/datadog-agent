@@ -16,7 +16,7 @@ namespace :dogstatsd do
     bin_path = DOGSTATSD_BIN_PATH
     ldflags = get_base_ldflags()
     if static_bin then
-      ldflags << " -s -w -extldflags \"-static\""
+      ldflags << " -s -w -linkmode external -extldflags \"-static\""
       bin_path = STATIC_BIN_PATH
     end
 
