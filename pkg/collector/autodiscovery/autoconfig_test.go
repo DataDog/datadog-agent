@@ -45,7 +45,7 @@ func TestAddProvider(t *testing.T) {
 	ac.AddProvider(mp, false)
 	ac.AddProvider(mp, false) // this should be a noop
 	ac.AddProvider(&MockProvider2{}, true)
-	ac.LoadConfigs()
+	ac.LoadAndRun()
 	require.Len(t, ac.providers, 2)
 	assert.Equal(t, 1, mp.CollectCounter)
 	assert.False(t, ac.providers[0].poll)
