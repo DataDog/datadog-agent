@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // NOTICE: See TestMain function in `utils_test.go` for Python initialization
 package py
 
@@ -104,7 +109,7 @@ func TestInitNewSignatureCheck(t *testing.T) {
 
 func TestInitException(t *testing.T) {
 	_, err := getCheckInstance("init_exception", "TestCheck")
-	assert.EqualError(t, err, "could not invoke python check constructor: ['Traceback (most recent call last):\\n', '  File \"tests/init_exception.py\", line 6, in __init__\\n    raise RuntimeError(\"unexpected error\")\\n', 'RuntimeError: unexpected error\\n']")
+	assert.EqualError(t, err, "could not invoke python check constructor: ['Traceback (most recent call last):\\n', '  File \"tests/init_exception.py\", line 11, in __init__\\n    raise RuntimeError(\"unexpected error\")\\n', 'RuntimeError: unexpected error\\n']")
 }
 
 func TestInitNoTracebackException(t *testing.T) {
