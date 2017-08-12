@@ -128,8 +128,8 @@ func GetDefaultSender() (Sender, error) {
 // Commit commits the metric samples that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
-	s.cyclemetricStats()
 	s.smsOut <- senderMetricSample{s.id, &metrics.MetricSample{}, true}
+	go s.cyclemetricStats()
 }
 
 func (s *checkSender) GetMetricStats() map[string]int64 {
@@ -170,11 +170,13 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 		Timestamp:  timeNowNano(),
 	}
 
-	s.metricStats.Lock.Lock()
-	s.metricStats.Metrics++
-	s.metricStats.Lock.Unlock()
-
 	s.smsOut <- senderMetricSample{s.id, metricSample, false}
+
+	go func() {
+		s.metricStats.Lock.Lock()
+		s.metricStats.Metrics++
+		s.metricStats.Lock.Unlock()
+	}()
 }
 
 // Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
@@ -221,22 +223,26 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 		Message:   message,
 	}
 
-	s.metricStats.Lock.Lock()
-	s.metricStats.ServiceChecks++
-	s.metricStats.Lock.Unlock()
-
 	s.serviceCheckOut <- serviceCheck
+
+	go func() {
+		s.metricStats.Lock.Lock()
+		s.metricStats.ServiceChecks++
+		s.metricStats.Lock.Unlock()
+	}()
 }
 
 // Event submits an event
 func (s *checkSender) Event(e metrics.Event) {
 	log.Debug("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
 
-	s.metricStats.Lock.Lock()
-	s.metricStats.Events++
-	s.metricStats.Lock.Unlock()
-
 	s.eventOut <- e
+
+	go func() {
+		s.metricStats.Lock.Lock()
+		s.metricStats.Events++
+		s.metricStats.Lock.Unlock()
+	}()
 }
 
 func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
