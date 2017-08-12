@@ -1,2 +1,2 @@
 targets: [pkg, cmd]
-use_system_py: False
+use_system_libs: false
