@@ -1,2 +1,4 @@
-targets: [pkg, cmd]
+targets: [./pkg, ./cmd]
 use_system_libs: false
+test:
+  race: false
