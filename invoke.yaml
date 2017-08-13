@@ -1,5 +1,12 @@
 targets: [./pkg, ./cmd]
 use_system_libs: false
-build_tags: [all]
+
 test:
   race: false
+
+agent:
+  puppy: false
+  incremental: true
+  race: false
+  build_include: [all]
+  build_exclude: []

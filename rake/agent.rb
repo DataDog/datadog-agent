@@ -65,10 +65,11 @@ namespace :agent do
 
     command = "go build #{race_opt} #{build_type} -tags \"#{go_build_tags}\" -o #{BIN_PATH}/#{agent_bin_name} -gcflags=\"#{gcflags.join(" ")}\" -ldflags=\"#{ldflags.join(" ")}\" #{REPO_PATH}/cmd/agent"
     puts command
-    build_success = system(env, command)
-    fail "Agent build failed with code #{$?.exitstatus}" if !build_success
+    puts env
+    # build_success = system(env, command)
+    # fail "Agent build failed with code #{$?.exitstatus}" if !build_success
 
-    Rake::Task["agent:refresh_assets"].invoke
+    # Rake::Task["agent:refresh_assets"].invoke
   end
 
   desc "Refresh the build assets"

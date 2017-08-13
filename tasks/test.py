@@ -37,9 +37,9 @@ def test(ctx, targets=None, race=False):
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
 
-    env = {}
-    if not ctx.use_system_libs:
-        env["PKG_CONFIG_LIBDIR"] = pkg_config_path()
+    env = {
+        "PKG_CONFIG_LIBDIR": pkg_config_path(ctx.use_system_libs)
+    }
 
     if race:
         # atomic is quite expensive but it's the only way to run

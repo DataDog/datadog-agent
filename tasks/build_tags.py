@@ -18,13 +18,13 @@ ALL_TAGS = set([
 ])
 
 
-def get_build_tags(include="all", exclude=""):
+def get_build_tags(include=["all"], exclude=""):
     """
     Build the list of tags based on inclusions and exclusions passed through
     the command line
     """
     # special case, include == all
-    if include == "all":
+    if "all" in include:
         return ALL_TAGS
 
     # filter out unrecognised tags
