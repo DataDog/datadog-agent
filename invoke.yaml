@@ -1,4 +1,5 @@
 targets: [./pkg, ./cmd]
 use_system_libs: false
+build_tags: [all]
 test:
   race: false

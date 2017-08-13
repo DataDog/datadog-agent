@@ -7,10 +7,10 @@ import os
 import fnmatch
 
 from invoke import task
-from invoke import call
 
 from .utils import pkg_config_path
 from .go import fmt, lint, vet
+from .build_tags import get_build_tags
 
 PROFILE_COV = "profile.cov"
 
@@ -26,9 +26,10 @@ def test(ctx, targets=None, race=False):
     """
     targets_list = ctx.targets if targets is None else targets.split(',')
     race = race or ctx.test.race
+    build_tags = get_build_tags()  # pass all the build flags for tests
 
     # explicitly run these tasks instead of using pre-tasks so we can
-    # pass the `target` param
+    # pass the `target` param (pre-tasks are invoked without parameters)
     fmt(ctx, targets=targets)
     lint(ctx, targets=targets)
     vet(ctx, targets=targets)
@@ -58,9 +59,9 @@ def test(ctx, targets=None, race=False):
 
     for match in matches:
         profile_tmp = "{}/profile.tmp".format(match)
-        cmd = "go test -tags '{go_build_tags}' {race_opt} -short {covermode_opt} -coverprofile={profile_tmp} ./{pkg_folder}"
+        cmd = "go test -tags '{go_build_tags}' {race_opt} -short {covermode_opt} -coverprofile={profile_tmp} {pkg_folder}"
         args = {
-            "go_build_tags": "",
+            "go_build_tags": " ".join(build_tags),
             "race_opt": race_opt,
             "covermode_opt": covermode_opt,
             "profile_tmp": profile_tmp,
