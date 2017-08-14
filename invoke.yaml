@@ -20,3 +20,6 @@ dogstatsd:
   static: false
   build_include: [zlib]
   build_exclude: []
+
+pylauncher:
+  incremental: false

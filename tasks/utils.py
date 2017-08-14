@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import os
 import platform
+from subprocess import check_output
 
 import invoke
 
@@ -97,3 +98,10 @@ def get_payload_version():
                 current[key] = value
 
     return ""
+
+
+def get_root():
+    """
+    Get the root of the Go project
+    """
+    return check_output(['git', 'rev-parse', '--show-toplevel']).strip()
