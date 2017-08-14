@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	log "github.com/cihub/seelog"
 )
 
@@ -136,6 +137,13 @@ func getHostAliases() []string {
 		log.Errorf("no Azure Host Aliases: %s", err)
 	} else if azureAliases != "" {
 		aliases = append(aliases, azureAliases)
+	}
+
+	gceAliases, err := gce.GetHostAlias()
+	if err != nil {
+		log.Errorf("no GCE Host Aliases: %s", err)
+	} else {
+		aliases = append(aliases, gceAliases)
 	}
 	return aliases
 }
