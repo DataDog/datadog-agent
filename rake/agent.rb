@@ -26,23 +26,26 @@ namespace :agent do
     gcflags = []
     ldflags = get_base_ldflags()
     if !ENV["USE_SYSTEM_LIBS"]
-      if os == "windows"
-        env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}"
-        ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}"
-      else
-        env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
-        ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}:#{ENV["PKG_CONFIG_PATH"]}"
-      end
+      env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
+      ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
       libdir = `pkg-config --variable=libdir python-2.7`.strip
-      puts "libdir #{libdir}"
       fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
       ldflags << "-r #{libdir}"
+    else
+      if os == "windows"
+        # set PKG_CONFIG_SYSTEM to point to where your local .pc files are. ENV["PKG_CONFIG_PATH"] is already set up, 
+        # and you can't really concatenate onto it.
+        env["PKG_CONFIG_PATH"] = "#{ENV["PKG_CONFIG_SYSTEM"]}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
+        ENV["PKG_CONFIG_PATH"] = "#{ENV["PKG_CONFIG_SYSTEM"]}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
+        libdir = `pkg-config --variable=libdir python-2.7`.strip
+        fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
+        ldflags << "-r #{libdir}"
+      end
     end
 
     if os == "windows"
       # This generates the manifest resource. The manifest resource is necessary for
       # being able to load the ancient C-runtime that comes along with Python 2.7
-      #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
 
       # fixme -- still need to calculate correct *_VER numbers at build time rather than
       # hard-coded here.
@@ -118,7 +121,7 @@ namespace :agent do
       system("bundle install --without development")
       case os
       when "windows"
-        system("omnibus.bat build #{project_name} --log-level=#{log_level} #{overrides_cmd}")
+        system("bundle exec omnibus.bat build #{project_name} --log-level=#{log_level} #{overrides_cmd}")
       else
         system("omnibus build #{project_name} --log-level=#{log_level} #{overrides_cmd}")
       end
