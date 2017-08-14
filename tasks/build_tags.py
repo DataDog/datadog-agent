@@ -24,8 +24,8 @@ def get_build_tags(include=["all"], exclude=[]):
     the command line
     """
     # special case, include == all
-    if "all" in include:
-        return ALL_TAGS
+    if 'all' in include:
+        return list(ALL_TAGS - set(exclude))
 
     # filter out unrecognised tags
     include = ALL_TAGS.intersection(set(include))
