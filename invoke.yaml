@@ -13,3 +13,10 @@ agent:
 
 benchmarks:
   incremental: false
+
+dogstatsd:
+  incremental: false
+  race: false
+  static: false
+  build_include: [zlib]
+  build_exclude: []

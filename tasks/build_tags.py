@@ -18,7 +18,7 @@ ALL_TAGS = set([
 ])
 
 
-def get_build_tags(include=["all"], exclude=""):
+def get_build_tags(include=["all"], exclude=[]):
     """
     Build the list of tags based on inclusions and exclusions passed through
     the command line
@@ -28,8 +28,8 @@ def get_build_tags(include=["all"], exclude=""):
         return ALL_TAGS
 
     # filter out unrecognised tags
-    include = ALL_TAGS.intersection(set(include.split(",")))
-    exclude = ALL_TAGS.intersection(set(exclude.split(",")))
+    include = ALL_TAGS.intersection(set(include))
+    exclude = ALL_TAGS.intersection(set(exclude))
     return list(include - exclude)
 
 

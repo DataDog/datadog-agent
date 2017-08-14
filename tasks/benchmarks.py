@@ -21,8 +21,8 @@ def build_aggregator(ctx, incremental=None):
     """
     Build the Aggregator benchmarks.
     """
-    incremental = incremental or ctx.test.incremental
-    build_tags = get_build_tags()  # pass all the build flags for tests
+    incremental = incremental or ctx.benchmarks.incremental
+    build_tags = get_build_tags()  # pass all the build flags
 
     ldflags = ""
     gcflags = ""
@@ -52,7 +52,7 @@ def build_dogstatsd(ctx):
     """
     Build Dogstatsd benchmarks.
     """
-    build_tags = get_build_tags()  # pass all the build flags for tests
+    build_tags = get_build_tags()  # pass all the build flags
 
     cmd = "go build -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/dogstatsd"
     args = {
