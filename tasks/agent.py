@@ -40,9 +40,10 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
     ldflags = get_ldflags(ctx)
     gcflags = ""
 
-    env = {
-        "PKG_CONFIG_LIBDIR": pkg_config_path(ctx.use_system_libs)
-    }
+    env = {}
+    pkg_config = pkg_config_path(ctx.use_system_libs)
+    if pkg_config:
+        env["PKG_CONFIG_LIBDIR"] = pkg_config
 
     if invoke.platform.WINDOWS:
         # This generates the manifest resource. The manifest resource is necessary for
