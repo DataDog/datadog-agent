@@ -19,6 +19,17 @@ namespace :benchmark do
 
       system("go build #{build_type} -tags '#{go_build_tags}' -o #{BENCHMARK_BIN_PATH}/#{bin_name("aggregator")} #{flags} #{REPO_PATH}/test/benchmarks/aggregator") or exit!(1)
     end
+
+    desc "Run the aggregator benchmark"
+    task :run do
+      branch = `git rev-parse --abbrev-ref HEAD`.strip()
+      options = ""
+      if ENV["DD_AGENT_API_KEY"]
+        options = " -api-key #{ENV["DD_AGENT_API_KEY"]}"
+      end
+
+      system("#{BENCHMARK_BIN_PATH}/#{bin_name("aggregator")} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json -branch #{branch} #{options}") or exit!(1)
+    end
   end
 
   namespace :dogstatsd do

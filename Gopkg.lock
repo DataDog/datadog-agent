@@ -43,6 +43,12 @@
   revision = "cb3dae3a7588ae35829eb5724df611cd75152fba"
 
 [[projects]]
+  name = "github.com/cenkalti/backoff"
+  packages = ["."]
+  revision = "32cd0c5b3aef12c76ed64aaf678f6c79736be7dc"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/cihub/seelog"
   packages = ["."]
   revision = "d2c6e5aa9fbfdd1c624e140287063c7730654115"
@@ -326,9 +332,15 @@
   packages = ["."]
   revision = "cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b"
 
+[[projects]]
+  name = "gopkg.in/zorkian/go-datadog-api.v2"
+  packages = ["."]
+  revision = "659bba33a1626ab76f393d6878dc3e4f13253f6d"
+  version = "v2.3"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d62b0eff218ba491d085ef7c1bd436b28f5c416fc267a81f1f96d845100dc41f"
+  inputs-digest = "85926e0b1725c7c85c78cae3ef15f44a0e4f8816c3453a5bbb2c8e4992c81bfc"
   solver-name = "gps-cdcl"
   solver-version = 1
