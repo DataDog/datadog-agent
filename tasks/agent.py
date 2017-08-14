@@ -3,6 +3,8 @@ Agent namespaced tasks
 """
 from __future__ import print_function
 import os
+import shutil
+from distutils.dir_util import copy_tree
 
 import invoke
 from invoke import task
@@ -74,5 +76,88 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
     }
 
     ctx.run(cmd.format(**args), env={})
+    refresh_assets(ctx)
 
-    # TODO: Rake::Task["agent:refresh_assets"].invoke
+
+@task
+def refresh_assets(ctx):
+    """
+    Clean up and refresh Collector's assets and config files
+    """
+    # ensure BIN_PATH exists
+    if not os.path.exists(BIN_PATH):
+        os.mkdir(BIN_PATH)
+
+    dist_folder = os.path.join(BIN_PATH, "dist")
+    if os.path.exists(dist_folder):
+        shutil.rmtree(dist_folder)
+    copy_tree("./pkg/collector/dist/", dist_folder)
+    copy_tree("./pkg/status/dist/", dist_folder)
+    copy_tree("./dev/dist/", dist_folder)
+
+    bin_agent = os.path.join(BIN_PATH, "agent")
+    shutil.move(os.path.join(dist_folder, "agent"), bin_agent)
+    os.chmod(bin_agent, 755)
+
+
+@task
+def run(ctx, incremental=None, race=None, build_include=None, build_exclude=None,
+        puppy=None, skip_build=False):
+    """
+    Execute the agent binary.
+
+    By default it builds the agent before executing it, unless --skip-build was
+    passed. It accepts the same set of options as agent.build.
+    """
+    if not skip_build:
+        build(ctx, incremental, race, build_include, build_exclude, puppy)
+
+    ctx.run(os.path.join(BIN_PATH, bin_name("agent")))
+
+
+@task
+def system_tests(ctx):
+    """
+    Run the system testsuite.
+    """
+    gopath = os.environ.get("GOPATH")
+    sys_test_dir = "{}/src/{}/test/integration/config_providers/zookeeper"
+    with ctx.cd(sys_test_dir.format(gopath, REPO_PATH)):
+        ctx.run("bash ./test.sh")
+
+
+@task
+def omnibus_build(ctx, puppy=None):
+    """
+    Build the Agent packages with Omnibus Installer.
+    """
+    puppy = puppy or ctx.agent.puppy
+
+    # omnibus config overrides
+    overrides = []
+
+    # base dir (can be overridden through env vars)
+    base_dir = os.environ.get("AGENT_OMNIBUS_BASE_DIR")
+    if base_dir:
+        overrides.append("base_dir:{}".format(base_dir))
+
+    # package_dir (can be overridden through env vars)
+    package_dir = os.environ.get("AGENT_OMNIBUS_PACKAGE_DIR")
+    if package_dir:
+        overrides.append("package_dir:{}".format(package_dir))
+
+    overrides_cmd = ""
+    if overrides:
+        overrides_cmd = "--override=" + " ".join(overrides)
+
+    with ctx.cd("omnibus"):
+        ctx.run("bundle install --without development")
+        omnibus = "omnibus.bat" if invoke.platform.WINDOWS else "omnibus"
+        cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
+        args = {
+            "omnibus": omnibus,
+            "project_name": "puppy" if puppy else "datadog-agent6",
+            "log_level": os.environ.get("AGENT_OMNIBUS_LOG_LEVEL", "info"),
+            "overrides": overrides_cmd
+        }
+        ctx.run(cmd.format(**args))
