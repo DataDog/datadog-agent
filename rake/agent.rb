@@ -33,6 +33,8 @@ namespace :agent do
       ldflags << "-r #{libdir}"
     else
       if os == "windows"
+        # set PKG_CONFIG_SYSTEM to point to where your local .pc files are. ENV["PKG_CONFIG_PATH"] is already set up, 
+        # and you can't really concatenate onto it.
         env["PKG_CONFIG_PATH"] = "#{ENV["PKG_CONFIG_SYSTEM"]}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
         ENV["PKG_CONFIG_PATH"] = "#{ENV["PKG_CONFIG_SYSTEM"]}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
         libdir = `pkg-config --variable=libdir python-2.7`.strip
