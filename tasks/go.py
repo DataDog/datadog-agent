@@ -66,3 +66,13 @@ def vet(ctx, targets=None):
     # go vet exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("go vet found no issues")
+
+
+@task
+def deps(ctx):
+    """
+    Setup Go dependencies
+    """
+    ctx.run("go get -u github.com/golang/dep/cmd/dep")
+    ctx.run("go get -u github.com/golang/lint/golint")
+    ctx.run("dep ensure")
