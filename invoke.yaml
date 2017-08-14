@@ -10,3 +10,6 @@ agent:
   race: false
   build_include: [all]
   build_exclude: []
+
+benchmarks:
+  incremental: false

@@ -14,7 +14,7 @@ from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_puppy_build_tags
 
 #constants
-BIN_PATH = "./bin/agent"
+BIN_PATH = os.path.join(".", "bin", "agent")
 
 
 @task

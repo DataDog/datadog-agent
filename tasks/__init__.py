@@ -3,7 +3,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 """
 from invoke import Collection
 
-import tasks.agent
+from . import agent, benchmarks
 
 from .go import fmt, lint, vet
 from .test import test
@@ -19,4 +19,5 @@ ns.add_task(vet)
 ns.add_task(test)
 
 # add namespaced tasks to the root
-ns.add_collection(tasks.agent)
+ns.add_collection(agent)
+ns.add_collection(benchmarks, name="bench")
