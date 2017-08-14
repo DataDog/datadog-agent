@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package collector
 
 import (
@@ -17,10 +22,10 @@ type TestCheck struct {
 func (c *TestCheck) String() string                        { return "TestCheck" }
 func (c *TestCheck) Stop()                                 { c.stop <- true }
 func (c *TestCheck) Configure(a, b check.ConfigData) error { return nil }
-func (c *TestCheck) InitSender()                           {}
 func (c *TestCheck) Interval() time.Duration               { return 1 * time.Minute }
 func (c *TestCheck) Run() error                            { <-c.stop; return nil }
 func (c *TestCheck) ID() check.ID                          { return check.ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error                  { return []error{} }
 
 func NewCheck() *TestCheck { return &TestCheck{stop: make(chan bool)} }
 
@@ -55,13 +60,14 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	ch := NewCheck()
 
 	// schedule a check
-	err := suite.c.RunCheck(ch)
+	id, err := suite.c.RunCheck(ch)
+	assert.NotNil(suite.T(), id)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 1, len(suite.c.checks))
 	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"])
 
 	// schedule the same check twice
-	err = suite.c.RunCheck(ch)
+	_, err = suite.c.RunCheck(ch)
 	assert.NotNil(suite.T(), err)
 	assert.Equal(suite.T(), "a check with ID TestCheck is already running", err.Error())
 }
@@ -71,7 +77,7 @@ func (suite *CollectorTestSuite) TestReloadCheck() {
 	empty := check.ConfigData{}
 
 	// schedule a check
-	err := suite.c.RunCheck(ch)
+	_, err := suite.c.RunCheck(ch)
 
 	// check doesn't exist
 	err = suite.c.ReloadCheck("foo", empty, empty)
@@ -87,7 +93,7 @@ func (suite *CollectorTestSuite) TestStopCheck() {
 	ch := NewCheck()
 
 	// schedule a check
-	err := suite.c.RunCheck(ch)
+	_, err := suite.c.RunCheck(ch)
 
 	// all good
 	err = suite.c.StopCheck("TestCheck")

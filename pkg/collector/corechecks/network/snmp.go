@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build !windows
 // +build snmp
 
@@ -97,9 +102,9 @@ type snmpConfig struct {
 
 // SNMPCheck grabs SNMP metrics
 type SNMPCheck struct {
-	id     check.ID
-	cfg    *snmpConfig
-	sender aggregator.Sender
+	id           check.ID
+	lastWarnings []error
+	cfg          *snmpConfig
 }
 
 func (c *SNMPCheck) String() string {
@@ -449,6 +454,10 @@ func (c *snmpConfig) Parse(data []byte, initData []byte) error {
 }
 
 func (c *SNMPCheck) submitSNMP(oids snmpgo.Oids, vbs snmpgo.VarBinds) error {
+	sender, err := aggregator.GetSender(c.id)
+	if err != nil {
+		return err
+	}
 
 	for _, oid := range oids {
 		varbinds := vbs.MatchBaseOids(oid)
@@ -534,11 +543,11 @@ func (c *SNMPCheck) submitSNMP(oids snmpgo.Oids, vbs snmpgo.VarBinds) error {
 				case "Gauge32", "Integer", "gauge":
 					log.Debugf("Submitting gauge: %v = %v tagged with: %v", metricName, value, tagbundle)
 					//should report instance has hostname
-					c.sender.Gauge(metricName, float64(value.Int64()), "", tagbundle)
+					sender.Gauge(metricName, float64(value.Int64()), "", tagbundle)
 				case "Counter64", "Counter32":
 					log.Debugf("Submitting rate: %v = %v tagged with: %v", metricName, value, tagbundle)
 					//should report instance has hostname
-					c.sender.Rate(metricName, float64(value.Int64()), "", tagbundle)
+					sender.Rate(metricName, float64(value.Int64()), "", tagbundle)
 				case "OctetString":
 				default:
 					continue
@@ -547,7 +556,7 @@ func (c *SNMPCheck) submitSNMP(oids snmpgo.Oids, vbs snmpgo.VarBinds) error {
 		}
 	}
 
-	c.sender.Commit()
+	sender.Commit()
 
 	return nil
 }
@@ -705,17 +714,6 @@ func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData
 	return nil
 }
 
-// InitSender initializes a sender
-func (c *SNMPCheck) InitSender() {
-	s, err := aggregator.GetSender(c.id)
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	c.sender = s
-}
-
 // Interval returns the scheduling time for the check
 func (c *SNMPCheck) Interval() time.Duration {
 	return check.DefaultCheckInterval
@@ -738,6 +736,29 @@ func (c *SNMPCheck) Run() error {
 	}
 
 	return nil
+}
+
+// GetWarnings grabs the last warnings from the sender
+func (c *SNMPCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *SNMPCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *SNMPCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
 }
 
 func snmpFactory() check.Check {

@@ -84,6 +84,22 @@ dogstatsd_static-x64:
     paths:
       - dogstatsd
 
+# build benchmarks
+benchmarks-x64:
+  stage: binary_build
+  image: $DEB_X64
+  tags:
+    - docker
+  variables:
+    USE_SYSTEM_LIBS: "1"
+  script:
+    - rake benchmark:aggregator:build
+    - rake benchmark:dogstatsd:build
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - benchmarks
+
 # check the size of the static dogstatsd binary
 run_dogstatsd_size_test:
   stage: integration_test

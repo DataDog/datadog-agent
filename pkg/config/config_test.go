@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package config
 
 import (
@@ -6,7 +11,10 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+const targetDomain string = "6-0-0-app.agent"
 
 func TestDefaults(t *testing.T) {
 	assert.Equal(t, Datadog.GetString("dd_url"), "http://localhost:17123")
@@ -37,13 +45,13 @@ additional_endpoints:
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
+		"https://foo.datadoghq.com": {
+			"someapikey",
+		},
+		"https://" + targetDomain + ".datadoghq.com": {
 			"fakeapikey",
 			"fakeapikey2",
 			"fakeapikey3",
-		},
-		"https://foo.datadoghq.com": {
-			"someapikey",
 		},
 	}
 
@@ -62,7 +70,7 @@ api_key: fakeapikey
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
+		"https://" + targetDomain + ".datadoghq.com": {
 			"fakeapikey",
 		},
 	}
@@ -90,7 +98,7 @@ additional_endpoints:
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
+		"https://" + targetDomain + ".datadoghq.com": {
 			"fakeapikey",
 			"fakeapikey2",
 		},
@@ -123,7 +131,7 @@ additional_endpoints:
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://app.datadoghq.com": {
+		"https://" + targetDomain + ".datadoghq.com": {
 			"fakeapikey",
 			"fakeapikey2",
 		},
@@ -135,4 +143,18 @@ additional_endpoints:
 
 	assert.Nil(t, err)
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+func TestAddAgentVersionToDomain(t *testing.T) {
+	newURL, err := addAgentVersionToDomain("https://app.datadoghq.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://6-0-0-app.agent.datadoghq.com", newURL)
+
+	newURL, err = addAgentVersionToDomain("https://app.datadoghq.com", "flare")
+	require.Nil(t, err)
+	assert.Equal(t, "https://6-0-0-flare.agent.datadoghq.com", newURL)
+
+	newURL, err = addAgentVersionToDomain("https://app.myproxy.com", "app")
+	require.Nil(t, err)
+	assert.Equal(t, "https://app.myproxy.com", newURL)
 }

@@ -1,7 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package system
 
 import (
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 func uptimeSampler() (uint64, error) {
@@ -14,7 +21,7 @@ func TestUptimeCheckLinux(t *testing.T) {
 	uptimeCheck.Configure(nil, nil)
 
 	mock := new(MockSender)
-	uptimeCheck.sender = mock
+	aggregator.SetSender(mock, uptimeCheck.ID())
 
 	mock.On("Gauge", "system.uptime", 555.0, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package host
 
 import (
@@ -7,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/shirou/gopsutil/cpu"
@@ -32,12 +38,19 @@ func GetPayload(hostname string) *Payload {
 		UUID:             getHostInfo().HostID,
 		SystemStats:      getSystemStats(),
 		Meta:             meta,
+		HostTags:         getHostTags(),
 	}
 }
 
 // GetStatusInformation just returns an InfoStat object, we need some additional information that's not
 func GetStatusInformation() *host.InfoStat {
 	return getHostInfo()
+}
+
+func getHostTags() *tags {
+	return &tags{
+		System: config.Datadog.GetStringSlice("tags"),
+	}
 }
 
 func getSystemStats() *systemStats {

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package system
 
 import (
@@ -9,7 +14,6 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"gopkg.in/yaml.v2"
 )
 
@@ -37,17 +41,6 @@ func (c *IOCheck) commonConfigure(data check.ConfigData, initConfig check.Config
 	return err
 }
 
-// InitSender initializes a sender
-func (c *IOCheck) InitSender() {
-	s, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	c.sender = s
-}
-
 // Interval returns the scheduling time for the check
 func (c *IOCheck) Interval() time.Duration {
 	return check.DefaultCheckInterval
@@ -60,6 +53,29 @@ func (c *IOCheck) ID() check.ID {
 
 // Stop does nothing
 func (c *IOCheck) Stop() {}
+
+// GetWarnings grabs the last warnings from the sender
+func (c *IOCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *IOCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *IOCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
 
 func init() {
 	core.RegisterCheck("io", ioFactory)

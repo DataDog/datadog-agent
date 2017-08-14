@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package percentile
 
 import (
@@ -5,8 +10,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-
-	agentpayload "github.com/DataDog/agent-payload/gogen"
 )
 
 // EPSILON represents the accuracy of the sketch.
@@ -16,8 +19,8 @@ const EPSILON float64 = 0.01
 // http://infolab.stanford.edu/~datar/courses/cs361a/papers/quantiles.pdf
 type Entry struct {
 	V     float64 `json:"v"`
-	G     int     `json:"g"`
-	Delta int     `json:"d"`
+	G     uint32  `json:"g"`
+	Delta uint32  `json:"d"`
 }
 
 //Entries is a slice of Entry
@@ -35,15 +38,27 @@ type GKArray struct {
 	// TODO[Charles]: incorporate min in entries so that we can get rid of the field.
 	Min   float64 `json:"min"`
 	Max   float64 `json:"max"`
-	Count int     `json:"n"`
+	Count int64   `json:"cnt"`
 	Sum   float64 `json:"sum"`
 	Avg   float64 `json:"avg"`
 }
 
-func unmarshalEntries(sketchEntries []agentpayload.SketchPayload_Summary_Sketch_Entry) Entries {
-	entries := Entries{}
-	for _, e := range sketchEntries {
-		entries = append(entries, Entry{V: e.V, G: int(e.G), Delta: int(e.Delta)})
+func marshalEntries(entries Entries) ([]float64, []uint32, []uint32) {
+	v := make([]float64, 0, len(entries))
+	g := make([]uint32, 0, len(entries))
+	delta := make([]uint32, 0, len(entries))
+	for _, e := range entries {
+		v = append(v, e.V)
+		g = append(g, e.G)
+		delta = append(delta, e.Delta)
+	}
+	return v, g, delta
+}
+
+func unmarshalEntries(v []float64, g []uint32, delta []uint32) Entries {
+	entries := make(Entries, 0, len(v))
+	for i := 0; i < len(v); i++ {
+		entries = append(entries, Entry{V: v[i], G: g[i], Delta: delta[i]})
 	}
 	return entries
 }
@@ -60,8 +75,8 @@ func (e *Entry) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	e.V = values[0]
-	e.G = int(values[1])
-	e.Delta = int(values[2])
+	e.G = uint32(values[1])
+	e.Delta = uint32(values[2])
 	return nil
 }
 
@@ -87,7 +102,7 @@ func (s GKArray) Add(v float64) GKArray {
 	if v > s.Max {
 		s.Max = v
 	}
-	if s.Count%int(1/EPSILON) == 0 {
+	if s.Count%int64(1/EPSILON) == 0 {
 		return s.compress(nil)
 	}
 
@@ -95,6 +110,9 @@ func (s GKArray) Add(v float64) GKArray {
 }
 
 // Quantile returns an epsilon estimate of the element at quantile q.
+// If calling Quantile() repeatedly on the same sketch, it would be more
+// efficient to Compress() the sketch beforehand since each Quantile()
+// calls Compress() if incoming is not empty.
 func (s GKArray) Quantile(q float64) float64 {
 	if q < 0 || q > 1 {
 		panic("Quantile out of bounds")
@@ -105,7 +123,7 @@ func (s GKArray) Quantile(q float64) float64 {
 	}
 
 	// Interpolate the quantile when there are only a few values.
-	if s.Count < int(1/EPSILON) {
+	if s.Count < int64(1/EPSILON) {
 		return s.interpolatedQuantile(q)
 	}
 
@@ -118,14 +136,14 @@ func (s GKArray) Quantile(q float64) float64 {
 		s = s.compress(nil)
 	}
 
-	rank := int(q * float64(s.Count-1))
-	spread := int(EPSILON * float64(s.Count-1))
-	gSum := 0
+	rank := int64(q * float64(s.Count-1))
+	spread := int64(EPSILON * float64(s.Count-1))
+	gSum := int64(0)
 	i := 0
 	for ; i < len(s.Entries); i++ {
-		gSum += s.Entries[i].G
+		gSum += int64(s.Entries[i].G)
 		// mininum rank is 0 but gSum starts from 1, hence the -1.
-		if gSum+s.Entries[i].Delta-1 > rank+spread {
+		if gSum+int64(s.Entries[i].Delta)-1 > rank+spread {
 			break
 		}
 	}
@@ -140,7 +158,7 @@ func (s GKArray) Quantile(q float64) float64 {
 // less than 1/EPSILON
 func (s GKArray) interpolatedQuantile(q float64) float64 {
 	rank := q * float64(s.Count-1)
-	indexBelow := int(rank)
+	indexBelow := int64(rank)
 	indexAbove := indexBelow + 1
 	if indexAbove > s.Count-1 {
 		indexAbove = s.Count - 1
@@ -158,20 +176,13 @@ func (s GKArray) interpolatedQuantile(q float64) float64 {
 // Merge another GKArray into this in-place.
 func (s GKArray) Merge(o GKArray) GKArray {
 	if o.Count == 0 {
-		return s
+		return s.compress(nil)
 	}
 	if s.Count == 0 {
-		s.Entries = o.Entries
-		s.Count = o.Count
-		s.incoming = o.incoming
-		s.Min = o.Min
-		s.Max = o.Max
-		s.Sum = o.Sum
-		s.Avg = o.Avg
-		return s
+		return o.compress(nil)
 	}
 	o = o.compress(nil)
-	spread := int(EPSILON * float64(o.Count-1))
+	spread := uint32(EPSILON * float64(o.Count-1))
 
 	/*
 			Here is one way to merge summaries so that the sketch is one-way mergeable: we extract an epsilon-approximate
@@ -232,7 +243,7 @@ func (s GKArray) compress(incomingEntries Entries) GKArray {
 	}
 	sort.Sort(incomingEntries)
 
-	removalThreshold := 2 * int(EPSILON*float64(s.Count-1))
+	removalThreshold := 2 * uint32(EPSILON*float64(s.Count-1))
 	merged := make([]Entry, 0, len(s.Entries)+len(incomingEntries))
 
 	// TODO[Charles]: The compression algo might not be optimal. We need to revisit it if we need to improve space

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package metrics
 
 // Historate tracks the distribution of samples added over one flush period for
@@ -8,6 +13,13 @@ type Historate struct {
 	previousSample    float64
 	previousTimestamp float64
 	sampled           bool
+}
+
+// NewHistorate returns a newly-initialized historate
+func NewHistorate(interval int64) *Historate {
+	return &Historate{
+		histogram: *NewHistogram(interval),
+	}
 }
 
 func (h *Historate) addSample(sample *MetricSample, timestamp float64) {

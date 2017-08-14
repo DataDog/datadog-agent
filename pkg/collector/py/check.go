@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package py
 
 import (
@@ -20,20 +25,22 @@ import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
-	id         check.ID
-	Instance   *python.PyObject
-	Class      *python.PyObject
-	ModuleName string
-	Config     *python.PyObject
-	interval   time.Duration
+	id           check.ID
+	Instance     *python.PyObject
+	Class        *python.PyObject
+	ModuleName   string
+	Config       *python.PyObject
+	interval     time.Duration
+	lastWarnings []error
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
 func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
 	return &PythonCheck{
-		ModuleName: name,
-		Class:      class,
-		interval:   check.DefaultCheckInterval,
+		ModuleName:   name,
+		Class:        class,
+		interval:     check.DefaultCheckInterval,
+		lastWarnings: []error{},
 	}
 }
 
@@ -56,12 +63,15 @@ func (c *PythonCheck) Run() error {
 		return errors.New(pyErr)
 	}
 
-	s, err := aggregator.GetDefaultSender()
+	s, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 	}
 
 	s.Commit()
+
+	// grab the warnings and add them to the struct
+	c.lastWarnings = c.getPythonWarnings(gstate)
 
 	var resultStr = python.PyString_AsString(result)
 	if resultStr == "" {
@@ -77,6 +87,39 @@ func (c *PythonCheck) Stop() {}
 // String representation (for debug and logging)
 func (c *PythonCheck) String() string {
 	return c.ModuleName
+}
+
+// GetWarnings grabs the last warnings from the struct
+func (c *PythonCheck) GetWarnings() []error {
+	warnings := c.lastWarnings
+	c.lastWarnings = []error{}
+	return warnings
+}
+
+// getPythonWarnings grabs the last warnings from the python check
+func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
+	/**
+	This function must be run before the GIL is unlocked, otherwise it will return nothing.
+	**/
+	warnings := []error{}
+	emptyTuple := python.PyTuple_New(0)
+	ws := c.Instance.CallMethod("get_warnings", emptyTuple)
+	if ws == nil {
+		pyErr, err := gstate.getPythonError()
+		if err != nil {
+			log.Errorf("An error occurred while grabbing python check and couldn't be formatted: %v", err)
+		}
+		log.Infof("Python error: %v", pyErr)
+		return warnings
+	}
+	numWarnings := python.PyList_Size(ws)
+	idx := 0
+	for idx < numWarnings {
+		w := python.PyList_GetItem(ws, idx)
+		warnings = append(warnings, fmt.Errorf("%v", python.PyString_AsString(w)))
+		idx++
+	}
+	return warnings
 }
 
 // getInstance invokes the constructor on the Python class stored in
@@ -184,13 +227,15 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	}
 	log.Debugf("python check configure done %s", c.ModuleName)
 
+	// The Check ID is set in Python so that the python check
+	// can use it afterwards to submit to the proper sender in the aggregator
+	pyID := python.PyString_FromString(string(c.ID()))
+	instance.SetAttrString("check_id", pyID)
+
 	c.Instance = instance
 	c.Config = kwargs
-	return nil
-}
 
-// InitSender does nothing here because all python checks use the default sender
-func (c *PythonCheck) InitSender() {
+	return nil
 }
 
 // Interval returns the scheduling time for the check

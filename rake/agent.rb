@@ -24,7 +24,7 @@ namespace :agent do
     # default to the embedded one.
     env = {}
     gcflags = []
-    ldflags = []
+    ldflags = get_base_ldflags()
     if !ENV["USE_SYSTEM_LIBS"]
       env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
       ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
@@ -54,8 +54,6 @@ namespace :agent do
       build_success = system(env, command)
       fail "Agent build failed with code #{$?.exitstatus}" if !build_success
     end
-    commit = `git rev-parse --short HEAD`.strip
-    ldflags << "-X #{REPO_PATH}/pkg/version.commit=#{commit}"
     if ENV["DELVE"]
       gcflags << "-N" << "-l"
       if os == "windows"
@@ -79,6 +77,7 @@ namespace :agent do
     FileUtils.rm_rf("#{BIN_PATH}/dist")
     FileUtils.cp_r("./pkg/collector/dist/", "#{BIN_PATH}", :remove_destination => true)
     FileUtils.cp_r("./pkg/status/dist/", "#{BIN_PATH}", :remove_destination => true)
+    FileUtils.cp_r("./dev/dist/", "#{BIN_PATH}", :remove_destination => true)
     FileUtils.mv("#{BIN_PATH}/dist/agent", "#{BIN_PATH}/agent")
     FileUtils.chmod(0755, "#{BIN_PATH}/agent")
   end

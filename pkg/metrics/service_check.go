@@ -1,13 +1,20 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package metrics
 
 import (
 	"bytes"
 	"encoding/json"
+	"expvar"
 	"fmt"
 
 	"github.com/gogo/protobuf/proto"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 // ServiceCheckStatus represents the status associated with a service check
@@ -20,6 +27,8 @@ const (
 	ServiceCheckCritical ServiceCheckStatus = 2
 	ServiceCheckUnknown  ServiceCheckStatus = 3
 )
+
+var serviceCheckExpvar = expvar.NewMap("ServiceCheck")
 
 // GetServiceCheckStatus returns the ServiceCheckStatus from and integer value
 func GetServiceCheckStatus(val int) (ServiceCheckStatus, error) {
@@ -97,4 +106,30 @@ func (sc ServiceChecks) MarshalJSON() ([]byte, error) {
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(ServiceChecksAlias(sc))
 	return reqBody.Bytes(), err
+}
+
+// SplitPayload breaks the payload into times number of pieces
+func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+	serviceCheckExpvar.Add("TimesSplit", 1)
+	// only split it up as much as possible
+	if len(sc) < times {
+		serviceCheckExpvar.Add("ServiceChecksShorter", 1)
+		times = len(sc)
+	}
+	splitPayloads := make([]marshaler.Marshaler, times)
+	batchSize := len(sc) / times
+	n := 0
+	for i := 0; i < times; i++ {
+		var end int
+		// the batch size will not be perfect, only split it as much as possible
+		if i < times-1 {
+			end = n + batchSize
+		} else {
+			end = len(sc)
+		}
+		newSC := ServiceChecks(sc[n:end])
+		splitPayloads[i] = newSC
+		n += batchSize
+	}
+	return splitPayloads, nil
 }

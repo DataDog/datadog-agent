@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build apm
 
 package embed
@@ -106,9 +111,6 @@ func (c *APMCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 	return nil
 }
 
-// InitSender initializes a sender but we don't need any
-func (c *APMCheck) InitSender() {}
-
 // Interval returns the scheduling time for the check, this will be scheduled only once
 // since `Run` won't return, thus implementing a long running check.
 func (c *APMCheck) Interval() time.Duration {
@@ -126,6 +128,11 @@ func (c *APMCheck) Stop() {
 	if err != nil {
 		log.Errorf("unable to stop APM check: %s", err)
 	}
+}
+
+// GetWarnings does not return anything in APM
+func (c *APMCheck) GetWarnings() []error {
+	return []error{}
 }
 
 func init() {

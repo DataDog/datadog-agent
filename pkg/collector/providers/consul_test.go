@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package providers
 
 import (
@@ -154,13 +159,15 @@ func TestConsulGetTemplates(t *testing.T) {
 	require.Len(t, res, 2)
 	assert.NotNil(t, idx)
 
-	assert.Equal(t, check.ID("nginx"), res[0].ID)
+	assert.Len(t, res[0].ADIdentifiers, 1)
+	assert.Equal(t, "nginx", res[0].ADIdentifiers[0])
 	assert.Equal(t, "nginx", res[0].Name)
 	assert.Equal(t, "{}", string(res[0].InitConfig))
 	require.Len(t, res[0].Instances, 1)
 	assert.Equal(t, "{\"host\":\"localhost\",\"port\":21}", string(res[0].Instances[0]))
 
-	assert.Equal(t, check.ID("nginx"), res[1].ID)
+	assert.Len(t, res[1].ADIdentifiers, 1)
+	assert.Equal(t, "nginx", res[1].ADIdentifiers[0])
 	assert.Equal(t, "haproxy", res[1].Name)
 	assert.Equal(t, "{}", string(res[1].InitConfig))
 	require.Len(t, res[1].Instances, 1)
@@ -289,19 +296,22 @@ func TestConsulCollect(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Len(t, res, 3)
 
-	assert.Equal(t, check.ID("consul"), res[0].ID)
+	assert.Len(t, res[0].ADIdentifiers, 1)
+	assert.Equal(t, "consul", res[0].ADIdentifiers[0])
 	assert.Equal(t, "consul", res[0].Name)
 	assert.Equal(t, "{}", string(res[0].InitConfig))
 	require.Len(t, res[0].Instances, 1)
 	assert.Equal(t, "{\"host\":\"localhost\",\"port\":4500}", string(res[0].Instances[0]))
 
-	assert.Equal(t, check.ID("nginx"), res[1].ID)
+	assert.Len(t, res[1].ADIdentifiers, 1)
+	assert.Equal(t, "nginx", res[1].ADIdentifiers[0])
 	assert.Equal(t, "nginx", res[1].Name)
 	assert.Equal(t, "{}", string(res[1].InitConfig))
 	require.Len(t, res[1].Instances, 1)
 	assert.Equal(t, "{\"host\":\"localhost\",\"port\":21}", string(res[1].Instances[0]))
 
-	assert.Equal(t, check.ID("nginx"), res[2].ID)
+	assert.Len(t, res[2].ADIdentifiers, 1)
+	assert.Equal(t, "nginx", res[2].ADIdentifiers[0])
 	assert.Equal(t, "haproxy", res[2].Name)
 	assert.Equal(t, "{}", string(res[2].InitConfig))
 	require.Len(t, res[2].Instances, 1)

@@ -1,8 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package system
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/shirou/gopsutil/load"
 )
 
@@ -25,7 +31,7 @@ func TestLoadCheckLinux(t *testing.T) {
 	loadCheck.Configure(nil, nil)
 
 	mock := new(MockSender)
-	loadCheck.sender = mock
+	aggregator.SetSender(mock, loadCheck.ID())
 
 	var nbCPU float64
 	info, _ := cpuInfo()

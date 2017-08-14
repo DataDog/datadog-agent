@@ -1,6 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package forwarder
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -79,7 +85,7 @@ func TestProcess(t *testing.T) {
 
 	client := &http.Client{}
 
-	err := transaction.Process(client)
+	err := transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 	assert.Equal(t, transaction.ErrorCount, 0)
 }
@@ -93,7 +99,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 
 	client := &http.Client{}
 
-	err := transaction.Process(client)
+	err := transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 	assert.Equal(t, transaction.ErrorCount, 0)
 }
@@ -107,7 +113,7 @@ func TestProcessNetworkError(t *testing.T) {
 
 	client := &http.Client{}
 
-	err := transaction.Process(client)
+	err := transaction.Process(context.Background(), client)
 	assert.NotNil(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 }
@@ -128,18 +134,34 @@ func TestProcessHTTPError(t *testing.T) {
 
 	client := &http.Client{}
 
-	err := transaction.Process(client)
+	err := transaction.Process(context.Background(), client)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "Error '503 Service Unavailable' while sending transaction")
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusBadRequest
-	err = transaction.Process(client)
+	err = transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusRequestEntityTooLarge
-	err = transaction.Process(client)
+	err = transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
+}
+
+func TestProcessCancel(t *testing.T) {
+	transaction := NewHTTPTransaction()
+	transaction.Domain = "example.com"
+	transaction.Endpoint = "/endpoint/test"
+	payload := []byte("test payload")
+	transaction.Payload = &payload
+
+	client := &http.Client{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := transaction.Process(ctx, client)
+	assert.Nil(t, err)
+	assert.Equal(t, transaction.ErrorCount, 0)
 }

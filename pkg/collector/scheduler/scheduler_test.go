@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package scheduler
 
 import (
@@ -13,11 +18,11 @@ type TestCheck struct{ intl time.Duration }
 
 func (c *TestCheck) String() string                                     { return "TestCheck" }
 func (c *TestCheck) Configure(check.ConfigData, check.ConfigData) error { return nil }
-func (c *TestCheck) InitSender()                                        {}
 func (c *TestCheck) Interval() time.Duration                            { return c.intl }
 func (c *TestCheck) Run() error                                         { return nil }
 func (c *TestCheck) Stop()                                              {}
 func (c *TestCheck) ID() check.ID                                       { return check.ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error                               { return []error{} }
 
 // wait 1s for a predicate function to return true, use polling
 // instead of a giant sleep.

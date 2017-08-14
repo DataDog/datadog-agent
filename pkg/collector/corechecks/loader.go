@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package corecheck
 
 import (
@@ -42,7 +47,6 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 			log.Errorf("core.loader: could not configure check %s: %s", newCheck, err)
 			continue
 		}
-		newCheck.InitSender()
 		checks = append(checks, newCheck)
 	}
 

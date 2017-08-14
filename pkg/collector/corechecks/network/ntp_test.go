@@ -1,8 +1,14 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package network
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -21,7 +27,7 @@ func TestNTP(t *testing.T) {
 	ntpCheck.Configure(ntpCfg, ntpInitCfg)
 
 	mockSender := new(MockSender)
-	ntpCheck.sender = mockSender
+	aggregator.SetSender(mockSender, ntpCheck.ID())
 
 	mockSender.On("Gauge", "ntp.offset", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package common
 
 import (
@@ -12,8 +17,9 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// SetupAutoConfig instantiate the global AutoConfig object and sets up
-// the Agent configuration providers and check loaders
+// SetupAutoConfig configures the global AutoConfig:
+//   1. add the configuration providers
+//   2. add the check loaders
 func SetupAutoConfig(confdPath string) {
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment
@@ -31,26 +37,36 @@ func SetupAutoConfig(confdPath string) {
 		log.Debugf("Added %s to AutoConfig", loader)
 	}
 
-	// add the configuration providers
-	// File Provider
+	// Add the configuration providers
+	// File Provider is hardocded and always enabled
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(GetDistPath(), "conf.d"),
 	}
 	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
 
-	// Register Providers
+	// Register additional configuration providers
 	for backend, provider := range providers.ProviderCatalog {
 		AC.AddProvider(provider, true)
 		log.Infof("Registering %s config provider", backend)
 	}
+
+	// Docker listener
+	// docker, err := listeners.NewDockerListener(newService, delService)
+	// if err != nil {
+	// 	log.Errorf("Failed to create a Docker listener. Is Docker accessible by the agent? %s", err)
+	// } else {
+	// 	AC.AddListener(docker)
+	// }
 }
 
-// StartAutoConfig starts the autoconfig polling and loads the configs
-func StartAutoConfig(confdPath string) {
-	SetupAutoConfig(confdPath)
+// StartAutoConfig starts the autoconfig:
+//   1. start polling the providers
+//   2. load all the configurations available at startup
+//   3. run all the Checks for each configuration found
+func StartAutoConfig() {
 	AC.StartPolling()
-	AC.LoadConfigs()
+	AC.LoadAndRun()
 }
 
 // SetupConfig fires up the configuration system

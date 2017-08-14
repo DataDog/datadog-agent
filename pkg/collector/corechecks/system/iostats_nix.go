@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build !windows
 
 package system
@@ -7,11 +12,10 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/disk"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 /*
@@ -35,10 +39,10 @@ const (
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
-	sender    aggregator.Sender
-	blacklist *regexp.Regexp
-	ts        int64
-	stats     map[string]disk.IOCountersStat
+	blacklist    *regexp.Regexp
+	lastWarnings []error
+	ts           int64
+	stats        map[string]disk.IOCountersStat
 }
 
 // Configure the IOstats check
@@ -47,6 +51,10 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 	return err
 }
 func (c *IOCheck) nixIO() error {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return err
+	}
 	// See: https://www.xaprb.com/blog/2010/01/09/how-linux-iostat-computes-its-results/
 	//      https://www.kernel.org/doc/Documentation/iostats.txt
 	iomap, err := ioCounters()
@@ -69,10 +77,10 @@ func (c *IOCheck) nixIO() error {
 		tagbuff.WriteString(device)
 		tags := []string{tagbuff.String()}
 
-		c.sender.Rate("system.io.r_s", float64(ioStats.ReadCount), "", tags)
-		c.sender.Rate("system.io.w_s", float64(ioStats.WriteCount), "", tags)
-		c.sender.Rate("system.io.rrqm_s", float64(ioStats.MergedReadCount), "", tags)
-		c.sender.Rate("system.io.wrqm_s", float64(ioStats.MergedWriteCount), "", tags)
+		sender.Rate("system.io.r_s", float64(ioStats.ReadCount), "", tags)
+		sender.Rate("system.io.w_s", float64(ioStats.WriteCount), "", tags)
+		sender.Rate("system.io.rrqm_s", float64(ioStats.MergedReadCount), "", tags)
+		sender.Rate("system.io.wrqm_s", float64(ioStats.MergedWriteCount), "", tags)
 
 		if c.ts == 0 {
 			continue
@@ -118,21 +126,21 @@ func (c *IOCheck) nixIO() error {
 			svctime = util / tput
 		}
 
-		c.sender.Gauge("system.io.rkb_s", rkbs/delta, "", tags)
-		c.sender.Gauge("system.io.wkb_s", wkbs/delta, "", tags)
-		c.sender.Gauge("system.io.avg_rq_sz", avgrqsz/delta, "", tags)
-		c.sender.Gauge("system.io.await", aWait/delta, "", tags)
-		c.sender.Gauge("system.io.r_await", rAwait/delta, "", tags)
-		c.sender.Gauge("system.io.w_await", wAwait/delta, "", tags)
-		c.sender.Gauge("system.io.avg_q_sz", avgqusz/delta, "", tags)
+		sender.Gauge("system.io.rkb_s", rkbs/delta, "", tags)
+		sender.Gauge("system.io.wkb_s", wkbs/delta, "", tags)
+		sender.Gauge("system.io.avg_rq_sz", avgrqsz/delta, "", tags)
+		sender.Gauge("system.io.await", aWait/delta, "", tags)
+		sender.Gauge("system.io.r_await", rAwait/delta, "", tags)
+		sender.Gauge("system.io.w_await", wAwait/delta, "", tags)
+		sender.Gauge("system.io.avg_q_sz", avgqusz/delta, "", tags)
 		if hz > 0 { // only send if we were able to collect HZ
-			c.sender.Gauge("system.io.svctm", svctime/delta, "", tags)
+			sender.Gauge("system.io.svctm", svctime/delta, "", tags)
 		}
 
 		// Stats should be per device no device groups.
 		// If device groups ever become a thing - util / 10.0 / n_devs_in_group
 		// See more: (https://github.com/sysstat/sysstat/blob/v11.5.6/iostat.c#L1033-L1040)
-		c.sender.Gauge("system.io.util", (util / 10.0 / delta), "", tags)
+		sender.Gauge("system.io.util", (util / 10.0 / delta), "", tags)
 
 	}
 
@@ -143,11 +151,14 @@ func (c *IOCheck) nixIO() error {
 
 // Run executes the check
 func (c *IOCheck) Run() error {
-	var err error
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return err
+	}
 	err = c.nixIO()
 
 	if err == nil {
-		c.sender.Commit()
+		sender.Commit()
 	}
 	return err
 }

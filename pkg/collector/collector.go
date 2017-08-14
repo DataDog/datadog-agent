@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package collector
 
 import (
@@ -66,25 +71,27 @@ func (c *Collector) Stop() {
 }
 
 // RunCheck sends a Check in the execution queue
-func (c *Collector) RunCheck(check check.Check) error {
+func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
+	var emptyID check.ID
+
 	if c.state != started {
-		return fmt.Errorf("the collector is not running")
+		return emptyID, fmt.Errorf("the collector is not running")
 	}
 
-	if _, found := c.checks[check.ID()]; found {
-		return fmt.Errorf("a check with ID %s is already running", check.ID())
+	if _, found := c.checks[ch.ID()]; found {
+		return emptyID, fmt.Errorf("a check with ID %s is already running", ch.ID())
 	}
 
-	err := c.scheduler.Enter(check)
+	err := c.scheduler.Enter(ch)
 	if err != nil {
-		return fmt.Errorf("unable to schedule the check: %s", err)
+		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
-	c.checks[check.ID()] = check
-	return nil
+	c.checks[ch.ID()] = ch
+	return ch.ID(), nil
 }
 
 // ReloadCheck stops and restart a check with a new configuration

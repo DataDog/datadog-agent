@@ -1,7 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package forwarder
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -57,8 +63,14 @@ func (t *HTTPTransaction) GetCreatedAt() time.Time {
 	return t.createdAt
 }
 
+// GetTarget return the url used by the transaction
+func (t *HTTPTransaction) GetTarget() string {
+	url := t.Domain + t.Endpoint
+	return apiKeyRegExp.ReplaceAllString(url, apiKeyReplacement) // sanitized url that can be logged
+}
+
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
-func (t *HTTPTransaction) Process(client *http.Client) error {
+func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) error {
 	reader := bytes.NewReader(*t.Payload)
 	url := t.Domain + t.Endpoint
 	logURL := apiKeyRegExp.ReplaceAllString(url, apiKeyReplacement) // sanitized url that can be logged
@@ -69,12 +81,18 @@ func (t *HTTPTransaction) Process(client *http.Client) error {
 		transactionsCreation.Add("Errors", 1)
 		return nil
 	}
+	req = req.WithContext(ctx)
 	req.Header = t.Headers
 	resp, err := client.Do(req)
+
 	if err != nil {
+		// Do not requeue transaction if that one was canceled
+		if ctx.Err() == context.Canceled {
+			return nil
+		}
 		t.ErrorCount++
 		transactionsCreation.Add("Errors", 1)
-		return fmt.Errorf("Error while sending transaction to '%s', rescheduling it: %s", logURL, err)
+		return fmt.Errorf("Error while sending transaction, rescheduling it: %s", apiKeyRegExp.ReplaceAllString(err.Error(), apiKeyReplacement))
 	}
 	defer resp.Body.Close()
 

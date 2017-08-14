@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package system
 
 import (
@@ -18,10 +23,10 @@ var cpuInfo = cpu.Info
 
 // CPUCheck doesn't need additional fields
 type CPUCheck struct {
-	sender      aggregator.Sender
-	nbCPU       float64
-	lastNbCycle float64
-	lastTimes   cpu.TimesStat
+	nbCPU        float64
+	lastNbCycle  float64
+	lastWarnings []error
+	lastTimes    cpu.TimesStat
 }
 
 func (c *CPUCheck) String() string {
@@ -30,6 +35,11 @@ func (c *CPUCheck) String() string {
 
 // Run executes the check
 func (c *CPUCheck) Run() error {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return err
+	}
+
 	cpuTimes, err := times(false)
 	if err != nil {
 		log.Errorf("system.CPUCheck: could not retrieve cpu stats: %s", err)
@@ -54,13 +64,13 @@ func (c *CPUCheck) Run() error {
 		stolen := (t.Stolen - c.lastTimes.Stolen) / c.nbCPU
 		guest := (t.Guest - c.lastTimes.Guest) / c.nbCPU
 
-		c.sender.Gauge("system.cpu.user", user*toPercent, "", nil)
-		c.sender.Gauge("system.cpu.system", system*toPercent, "", nil)
-		c.sender.Gauge("system.cpu.iowait", iowait*toPercent, "", nil)
-		c.sender.Gauge("system.cpu.idle", idle*toPercent, "", nil)
-		c.sender.Gauge("system.cpu.stolen", stolen*toPercent, "", nil)
-		c.sender.Gauge("system.cpu.guest", guest*toPercent, "", nil)
-		c.sender.Commit()
+		sender.Gauge("system.cpu.user", user*toPercent, "", nil)
+		sender.Gauge("system.cpu.system", system*toPercent, "", nil)
+		sender.Gauge("system.cpu.iowait", iowait*toPercent, "", nil)
+		sender.Gauge("system.cpu.idle", idle*toPercent, "", nil)
+		sender.Gauge("system.cpu.stolen", stolen*toPercent, "", nil)
+		sender.Gauge("system.cpu.guest", guest*toPercent, "", nil)
+		sender.Commit()
 	}
 
 	c.lastNbCycle = nbCycle
@@ -81,17 +91,6 @@ func (c *CPUCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 	return nil
 }
 
-// InitSender initializes a sender
-func (c *CPUCheck) InitSender() {
-	s, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		log.Error(err)
-		return
-	}
-
-	c.sender = s
-}
-
 // Interval returns the scheduling time for the check
 func (c *CPUCheck) Interval() time.Duration {
 	return check.DefaultCheckInterval
@@ -104,6 +103,29 @@ func (c *CPUCheck) ID() check.ID {
 
 // Stop does nothing
 func (c *CPUCheck) Stop() {}
+
+// GetWarnings grabs the last warnings from the sender
+func (c *CPUCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *CPUCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *CPUCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
 
 func cpuFactory() check.Check {
 	return &CPUCheck{}

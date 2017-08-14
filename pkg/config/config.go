@@ -1,11 +1,21 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package config
 
 import (
+	"fmt"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Datadog is the global configuration object
@@ -39,15 +49,28 @@ func init() {
 	// BUG(massi): make the listener_windows.go module actually use the following:
 	Datadog.SetDefault("cmd_pipe_name", `\\.\pipe\ddagent`)
 	Datadog.SetDefault("check_runners", int64(4))
+	if IsContainerized() {
+		Datadog.SetDefault("proc_root", "/host/proc")
+	} else {
+		Datadog.SetDefault("proc_root", "/proc")
+	}
+	// Serializer
+	Datadog.SetDefault("use_v2_api.series", false)
+	Datadog.SetDefault("use_v2_api.events", false)
+	Datadog.SetDefault("use_v2_api.service_checks", false)
+	// Forwarder
 	Datadog.SetDefault("forwarder_timeout", 20)
+	Datadog.SetDefault("forwarder_retry_queue_max_size", 30)
 	// Dogstatsd
 	Datadog.SetDefault("use_dogstatsd", true)
 	Datadog.SetDefault("dogstatsd_port", 8125)
 	Datadog.SetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
 	Datadog.SetDefault("dogstatsd_non_local_traffic", false)
 	Datadog.SetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
+	Datadog.SetDefault("dogstatsd_stats_port", 5000)
 	Datadog.SetDefault("dogstatsd_stats_enable", false)
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
+	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
 	// JMX
 	Datadog.SetDefault("jmx_pipe_path", defaultJMXPipePath)
 	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
@@ -64,40 +87,85 @@ func init() {
 	Datadog.BindEnv("cmd_sock")
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("enable_metadata_collection")
+	Datadog.BindEnv("dogstatsd_port")
+	Datadog.BindEnv("proc_root")
 	Datadog.BindEnv("dogstatsd_socket")
+	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
+	Datadog.BindEnv("log_file")
+	Datadog.BindEnv("log_level")
 	Datadog.BindEnv("kubernetes_kubelet_host")
 	Datadog.BindEnv("kubernetes_http_kubelet_port")
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
+	Datadog.BindEnv("forwarder_timeout")
+	Datadog.BindEnv("forwarder_retry_queue_max_size")
 }
+
+var (
+	ddURLs = map[string]interface{}{
+		"app.datadoghq.com": nil,
+		"app.datad0g.com":   nil,
+	}
+)
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
 func GetMultipleEndpoints() (map[string][]string, error) {
 	return getMultipleEndpoints(Datadog)
 }
 
+// addAgentVersionToDomain prefix the domain with the agent version: X-Y-Z.domain
+func addAgentVersionToDomain(domain string, app string) (string, error) {
+	u, err := url.Parse(domain)
+	if err != nil {
+		return "", err
+	}
+
+	// we don't udpdate unknown URL (ie: proxy or custom StatsD server)
+	if _, found := ddURLs[u.Host]; !found {
+		return domain, nil
+	}
+
+	v, _ := version.New(version.AgentVersion)
+	subdomain := strings.Split(u.Host, ".")[0]
+	newSubdomain := fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
+
+	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
+	return u.String(), nil
+}
+
 // getMultipleEndpoints implements the logic to extract the api keys per domain from an agent config
 func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
+	ddURL := config.GetString("dd_url")
+	updatedDDUrl, err := addAgentVersionToDomain(ddURL, "app")
+	if err != nil {
+		return nil, fmt.Errorf("Could not parse 'dd_url': %s", err)
+	}
+
 	keysPerDomain := map[string][]string{
-		config.GetString("dd_url"): {
+		updatedDDUrl: {
 			config.GetString("api_key"),
 		},
 	}
 
 	var additionalEndpoints map[string][]string
-	err := config.UnmarshalKey("additional_endpoints", &additionalEndpoints)
+	err = config.UnmarshalKey("additional_endpoints", &additionalEndpoints)
 	if err != nil {
 		return keysPerDomain, err
 	}
 
 	// merge additional endpoints into keysPerDomain
 	for domain, apiKeys := range additionalEndpoints {
-		if _, ok := keysPerDomain[domain]; ok {
+		updatedDomain, err := addAgentVersionToDomain(domain, "app")
+		if err != nil {
+			return nil, fmt.Errorf("Could not parse url from 'additional_endpoints' %s: %s", domain, err)
+		}
+
+		if _, ok := keysPerDomain[updatedDomain]; ok {
 			for _, apiKey := range apiKeys {
-				keysPerDomain[domain] = append(keysPerDomain[domain], apiKey)
+				keysPerDomain[updatedDomain] = append(keysPerDomain[updatedDomain], apiKey)
 			}
 		} else {
-			keysPerDomain[domain] = apiKeys
+			keysPerDomain[updatedDomain] = apiKeys
 		}
 	}
 
@@ -122,4 +190,9 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 	}
 
 	return keysPerDomain, nil
+}
+
+// IsContainerized returns whether the Agent is running on a Docker container
+func IsContainerized() bool {
+	return os.Getenv("DOCKER_DD_AGENT") == "yes"
 }
