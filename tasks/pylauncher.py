@@ -31,11 +31,14 @@ def build(ctx, incremental=None):
     ctx.run(cmd.format(**args))
 
 
-@task(pre=[build])
-def system_tests(ctx):
+@task()
+def system_tests(ctx, skip_build=False):
     """
     Run the system testsuite.
     """
+    if not skip_build:
+        build(ctx)
+
     env = {
         "PYLAUNCHER_BIN": os.path.join(PYLAUNCHER_BIN_PATH, bin_name("pylauncher"))
     }
