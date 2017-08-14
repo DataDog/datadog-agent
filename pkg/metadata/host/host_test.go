@@ -72,10 +72,18 @@ func TestGetMeta(t *testing.T) {
 
 func TestGetHostTags(t *testing.T) {
 	config.Datadog.Set("tags", []string{"tag1:value1", "tag2", "tag3"})
+	defer config.Datadog.Set("tags", nil)
 
 	hostTags := getHostTags()
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, hostTags.System, []string{"tag1:value1", "tag2", "tag3"})
+}
+
+func TestGetEmptyHostTags(t *testing.T) {
+	// getHostTags should never return a nil value under System even when there are no host tags
+	hostTags := getHostTags()
+	assert.NotNil(t, hostTags.System)
+	assert.Equal(t, hostTags.System, []string{})
 }
 
 func TestBuildKey(t *testing.T) {
