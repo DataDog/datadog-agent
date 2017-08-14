@@ -58,6 +58,7 @@ type AutoConfig struct {
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
 	configsPollTicker *time.Ticker
+	config2checks     map[string][]check.ID // cache the ID of checks we load for each config
 	stop              chan bool
 	m                 sync.RWMutex
 }
@@ -69,6 +70,7 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		providers:     make([]*providerDescriptor, 0, 5),
 		loaders:       make([]check.Loader, 0, 5),
 		templateCache: NewTemplateCache(),
+		config2checks: make(map[string][]check.ID),
 		stop:          make(chan bool),
 	}
 	ac.configResolver = newConfigResolver(collector, ac)
@@ -234,28 +236,77 @@ func (ac *AutoConfig) pollConfigs() {
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
-						if config.IsTemplate() {
-							// try to resolve the template
-							resolved := ac.configResolver.ResolveTemplate(config)
-							if len(resolved) > 0 {
-								// TODO: if success, schedule the check for running
-							} else {
-								// TODO: if failed, notify we couldn't resolve it for now (it might happen later)
-							}
+						// store the checks we schedule for this config locally
+						configDigest := config.Digest()
+						ac.config2checks[configDigest] = []check.ID{}
 
+						if config.IsTemplate() {
 							// store the template in the cache in any case
 							if err := ac.templateCache.Set(config); err != nil {
-								log.Errorf("Unable to process Check configuration: %s", err)
+								log.Errorf("Unable to store Check configuration in the cache: %s", err)
+							}
+
+							// try to resolve the template
+							resolvedConfigs := ac.configResolver.ResolveTemplate(config)
+							if len(resolvedConfigs) == 0 {
+								log.Infof("Couldn't resolve the template for %s, adding to the template cache...", config.Name)
+								continue
+							}
+
+							// If success, get the checks for each config resolved
+							// and schedule for running, each template can resolve
+							// to multiple configs
+							for _, config := range resolvedConfigs {
+								// each config could resolve to multiple checks
+								checks, err := ac.GetChecks(config)
+								if err != nil {
+									log.Errorf("Unable to load check from template: %s", err)
+									continue
+								}
+								// ask the Collector to schedule the checks
+								for _, check := range checks {
+									_, err := ac.collector.RunCheck(check)
+									if err != nil {
+										log.Errorf("Unable to schedule check for running: %s", err)
+										continue
+									}
+									ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
+								}
 							}
 						} else {
-							// TODO: just schedule the check for running
+							// the config is not a template, just schedule the checks for running
+							checks, err := ac.GetChecks(config)
+							if err != nil {
+								log.Errorf("Unable to load check from template: %s", err)
+							}
+							// ask the Collector to schedule the checks
+							for _, check := range checks {
+								_, err := ac.collector.RunCheck(check)
+								if err != nil {
+									log.Errorf("Unable to schedule check for running: %s", err)
+									continue
+								}
+								ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
+							}
 						}
 					}
 
 					for _, config := range removedConfigs {
-						// TODO: unschedule the checks corresponding to this config
+						// unschedule all the checks corresponding to this config
+						digest := config.Digest()
+						ids := ac.config2checks[digest]
+						for _, id := range ids {
+							err := ac.collector.StopCheck(id)
+							if err != nil {
+								log.Errorf("Error stopping check %s: %s", id, err)
+							}
+						}
+
+						// remove the entry from `config2checks`
+						delete(ac.config2checks, digest)
+
+						// if the config is a template, remove it from the cache
 						if config.IsTemplate() {
-							// if the config is a template, remove it from the cache
 							ac.templateCache.Del(config)
 						}
 					}
