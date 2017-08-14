@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -20,9 +21,46 @@ var (
 
 // GetHostname returns the hostname querying GCE Metadata api
 func GetHostname() (string, error) {
-	res, err := getResponse(metadataURL + "/instance/hostname")
+	hostname, err := getResponse(metadataURL + "/instance/hostname")
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
+	}
+	return hostname, nil
+}
+
+// GetHostAlias returns the host alias from GCE
+func GetHostAlias() (string, error) {
+	instanceName, err := getResponse(metadataURL + "/instance/hostname")
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
+	}
+	instanceName = strings.SplitN(instanceName, ".", 2)[0]
+
+	projectID, err := getResponse(metadataURL + "/project/project-id")
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve project ID from GCE: %s", err)
+	}
+	return fmt.Sprintf("%s.%s", instanceName, projectID), nil
+}
+
+func getResponse(url string) (string, error) {
+	client := http.Client{
+		Timeout: timeout,
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Add("Metadata-Flavor", "Google")
+	res, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+
+	if res.StatusCode != 200 {
+		return "", fmt.Errorf("status code %d trying to GET %s", res.StatusCode, url)
 	}
 
 	defer res.Body.Close()
@@ -32,29 +70,6 @@ func GetHostname() (string, error) {
 	}
 
 	return string(all), nil
-}
-
-func getResponse(url string) (*http.Response, error) {
-	client := http.Client{
-		Timeout: timeout,
-	}
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Metadata-Flavor", "Google")
-	res, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("status code %d trying to GET %s", res.StatusCode, url)
-	}
-
-	return res, nil
 }
 
 // HostnameProvider GCE implementation of the HostnameProvider
