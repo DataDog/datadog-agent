@@ -110,3 +110,9 @@ def get_root():
     Get the root of the Go project
     """
     return check_output(['git', 'rev-parse', '--show-toplevel']).strip()
+
+def get_git_branch_name():
+    """
+    Return the name of the current git branch
+    """
+    return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()

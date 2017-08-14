@@ -9,6 +9,7 @@ from invoke import task
 
 from .build_tags import get_build_tags
 from .utils import bin_name
+from .utils import get_git_branch_name
 from .utils import REPO_PATH
 
 
@@ -70,3 +71,17 @@ def dogstastd(ctx):
     """
     bin_path = os.path.join(BENCHMARKS_BIN_PATH, bin_name("dogstatsd"))
     ctx.run("{} -pps=5000 -dur 45 -ser 5 -brk -inc 1000".format(bin_path))
+
+@task(pre=[build_aggregator])
+def aggregator(ctx):
+    """
+    Run the Aggregator Benchmarks.
+    """
+    bin_path = os.path.join(BENCHMARKS_BIN_PATH, bin_name("aggregator"))
+    options = "-branch {}".format(get_git_branch_name())
+
+    key = os.environ.get("DD_AGENT_API_KEY")
+    if key:
+      options +=" -api-key {}".format(key)
+
+    ctx.run("{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json {}".format(bin_path, options))

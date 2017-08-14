@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -35,10 +34,57 @@ var (
 		"1,10,100",
 		"comma-separated list of number of series to create per metrics.")
 
-	plotFile = flag.String("plot",
+	jsonOutput = flag.Bool("json",
+		false,
+		"if set, the results will be output in JSON.")
+
+	apiKey = flag.String("api-key",
 		"",
-		"if set, the file where to write results to be plot with gnuplot.")
+		"if set, results will be push to datadog.")
+
+	logLevel = flag.String("log-level",
+		"info",
+		"Silence the default output.")
+
+	branchName = flag.String("branch",
+		"",
+		"Add a 'branch' tag to every metrics equal to the value given.")
+
+	agg   *aggregator.BufferedAggregator
+	flush = make(chan time.Time)
 )
+
+type forwarderBenchStub struct{}
+
+func (f *forwarderBenchStub) Start() error { return nil }
+func (f *forwarderBenchStub) Stop()        {}
+func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	return nil
+}
+func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	return nil
+}
+func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	return nil
+}
+func (f *forwarderBenchStub) SubmitSeries(payload forwarder.Payloads, extraHeaders map[string]string) error {
+	return nil
+}
+func (f *forwarderBenchStub) SubmitEvents(payload forwarder.Payloads, extraHeaders map[string]string) error {
+	return nil
+}
+func (f *forwarderBenchStub) SubmitServiceChecks(payload forwarder.Payloads, extraHeaders map[string]string) error {
+	return nil
+}
+func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extraHeaders map[string]string) error {
+	return nil
+}
+func (f *forwarderBenchStub) SubmitHostMetadata(payload forwarder.Payloads, extraHeaders map[string]string) error {
+	return nil
+}
+func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders map[string]string) error {
+	return nil
+}
 
 type aggregatorStats struct {
 	Flush map[string]aggregator.Stats
@@ -66,27 +112,62 @@ func getExpvarJSON() (*aggregatorStats, error) {
 	return &res.Aggregator, nil
 }
 
-func report(agg *aggregator.BufferedAggregator, flush chan time.Time, lastInfo *aggregatorStats, waitingKey string) *aggregatorStats {
+func waitForAggregatorEmptyQueue() {
 	// waiting for the aggregator to consume every event
 	for agg.IsInputQueueEmpty() == false {
+		log.Debug("Queue is not empty, waiting a 0.2s")
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func report(lastInfo *aggregatorStats, waitingKey string) *aggregatorStats {
+	// waiting for the aggregator to consume every event
+	for agg.IsInputQueueEmpty() == false {
+		log.Debug("Queue is not empty, waiting a 0.2s")
+		time.Sleep(200 * time.Millisecond)
 	}
 	flush <- time.Now()
 
+	i := 0
 	for {
 		stats, err := getExpvarJSON()
 		if err != nil {
-			log.Errorf("got error from getExpvarJSON: %v", err)
-			log.Flush()
-			return nil
+			log.Criticalf("got error from getExpvarJSON: %v", err)
 		}
 
-		if lastInfo != nil && lastInfo.Flush[waitingKey].LastFlush == stats.Flush[waitingKey].LastFlush {
-			log.Info("flush Time is not over, waiting a second")
-			time.Sleep(1 * time.Second)
+		if lastInfo != nil && lastInfo.Flush[waitingKey].FlushIndex == stats.Flush[waitingKey].FlushIndex {
+			time.Sleep(200 * time.Millisecond)
+			i++
+
+			// Sometime the flush event was handle before the commit message was finished: resending a flush
+			if i > 10 {
+				flush <- time.Now()
+			}
+
 			continue
 		}
 		return stats
 	}
+}
+
+func setupLogger(logLevel string) error {
+	configTemplate := `<seelog minlevel="%s">
+    <outputs formatid="common"><console/></outputs>
+    <formats>
+        <format id="common" format="%%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>
+    </formats>
+</seelog>`
+	config := fmt.Sprintf(configTemplate, strings.ToLower(logLevel))
+
+	logger, err := log.LoggerFromConfigAsString(config)
+	if err != nil {
+		return err
+	}
+	err = log.ReplaceLogger(logger)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func main() {
@@ -95,12 +176,20 @@ func main() {
 	rand.Seed(123)
 	flag.Parse()
 
-	config.SetupLogger("error", "")
-	f := forwarder.NewDefaultForwarder(map[string][]string{})
+	if err := setupLogger(*logLevel); err != nil {
+		fmt.Printf("could not set loggger: %s", err)
+		return
+	}
+
+	if *branchName == "" {
+		log.Criticalf("Error: '-branch' parameter is mandatory")
+		return
+	}
+
+	f := &forwarderBenchStub{}
 	s := &serializer.Serializer{Forwarder: f}
 
-	agg := aggregator.InitAggregator(s, "hostname")
-	flush := make(chan time.Time)
+	agg = aggregator.InitAggregator(s, "hostname")
 	agg.TickerChan = flush
 
 	aggregator.SetDefaultAggregator(agg)
@@ -115,13 +204,13 @@ func main() {
 	generateEvent(1, sender)
 	generateServiceCheck(1, sender)
 	sender.Commit()
-	startInfo := report(agg, flush, nil, "")
+	startInfo := report(nil, "")
 
 	nbPoints := []int{}
 	for _, n := range strings.Split(*points, ",") {
 		res, err := strconv.Atoi(n)
 		if err != nil {
-			fmt.Printf("Could not parse 'points' arguments '%s': %s", n, err)
+			log.Errorf("Could not parse 'points' arguments '%s': %s", n, err)
 			return
 		}
 		nbPoints = append(nbPoints, res)
@@ -136,9 +225,21 @@ func main() {
 		nbSeries = append(nbSeries, res)
 	}
 
-	fmt.Printf("Starting benchmark with %v series of %v points.\n\n", nbSeries, nbPoints)
-	plotRes := benchmarkMetrics(agg, nbSeries, nbPoints, sender, flush, startInfo)
-	if *plotFile != "" {
-		ioutil.WriteFile(*plotFile, []byte(plotRes), 0666)
+	log.Infof("Starting benchmark with %v series of %v points.\n\n", nbSeries, nbPoints)
+	results := benchmarkMetrics(nbSeries, nbPoints, sender, startInfo, *branchName)
+	if *jsonOutput {
+		data, err := json.Marshal(results)
+		if err != nil {
+			fmt.Printf("Error serializing results to JSON: %s\n", err)
+		} else {
+			fmt.Println(string(data))
+		}
+	}
+
+	if *apiKey != "" {
+		log.Infof("Pushing results to DataDog backend")
+		pushMetricsToDatadog(*apiKey, results)
+	} else {
+		log.Infof("No API key provided: no results was push to the DataDog backend")
 	}
 }
