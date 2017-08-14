@@ -29,6 +29,7 @@ namespace :agent do
       env["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
       ENV["PKG_CONFIG_PATH"] = "#{PKG_CONFIG_EMBEDDED_PATH}" + File::PATH_SEPARATOR + "#{ENV["PKG_CONFIG_PATH"]}"
       libdir = `pkg-config --variable=libdir python-2.7`.strip
+      puts "libdir #{libdir}"
       fail "Can't find path to embedded lib directory with pkg-config" if libdir.empty?
       ldflags << "-r #{libdir}"
     else
@@ -46,7 +47,10 @@ namespace :agent do
     if os == "windows"
       # This generates the manifest resource. The manifest resource is necessary for
       # being able to load the ancient C-runtime that comes along with Python 2.7
-      command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
+
+      # fixme -- still need to calculate correct *_VER numbers at build time rather than
+      # hard-coded here.
+      command = "windres --define MAJ_VER=6 --define MIN_VER=0 --define PATCH_VER=0 -i cmd/agent/agent.rc --target=pe-x86-64 -O coff -o cmd/agent/rsrc.syso"
       puts command
       build_success = system(env, command)
       fail "Agent build failed with code #{$?.exitstatus}" if !build_success
