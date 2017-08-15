@@ -53,6 +53,7 @@ func (c *PythonCheck) Run() error {
 	// call run function, it takes no args so we pass an empty tuple
 	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
 	emptyTuple := python.PyTuple_New(0)
+	defer emptyTuple.DecRef()
 	result := c.Instance.CallMethod("run", emptyTuple)
 	log.Debugf("Run returned for %s %s", c.ModuleName, c.id)
 	if result == nil {
@@ -62,6 +63,7 @@ func (c *PythonCheck) Run() error {
 		}
 		return errors.New(pyErr)
 	}
+	defer result.DecRef()
 
 	s, err := aggregator.GetSender(c.ID())
 	if err != nil {
@@ -103,6 +105,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 	**/
 	warnings := []error{}
 	emptyTuple := python.PyTuple_New(0)
+	defer emptyTuple.DecRef()
 	ws := c.Instance.CallMethod("get_warnings", emptyTuple)
 	if ws == nil {
 		pyErr, err := gstate.getPythonError()
@@ -112,6 +115,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 		log.Infof("Python error: %v", pyErr)
 		return warnings
 	}
+	defer ws.DecRef()
 	numWarnings := python.PyList_Size(ws)
 	idx := 0
 	for idx < numWarnings {
