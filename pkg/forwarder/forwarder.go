@@ -315,6 +315,16 @@ func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extraHeaders ma
 	return f.sendHTTPTransactions(transactions)
 }
 
+// SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
+func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extraHeaders map[string]string) error {
+	transactions, err := f.createHTTPTransactions(sketchSeriesEndpoint, payload, true, extraHeaders)
+	if err != nil {
+		return err
+	}
+	transactionsCreation.Add("SketchSeries", 1)
+	return f.sendHTTPTransactions(transactions)
+}
+
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extraHeaders map[string]string) error {
 	transactions, err := f.createHTTPTransactions(hostMetadataEndpoint, payload, false, extraHeaders)
