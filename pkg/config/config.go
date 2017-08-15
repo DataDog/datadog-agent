@@ -38,6 +38,7 @@ func init() {
 	Datadog.SetDefault("proxy", "")
 	Datadog.SetDefault("skip_ssl_validation", false)
 	Datadog.SetDefault("hostname", "")
+	Datadog.SetDefault("tags", []string{})
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
