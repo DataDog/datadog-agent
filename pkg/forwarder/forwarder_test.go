@@ -152,7 +152,7 @@ func TestSubmit(t *testing.T) {
 	require.Len(t, forwarder.retryQueue, 0)
 
 	expectedPayload = []byte("SubmitSketchSeries payload")
-	expectedEndpoint = "/api/v2/sketches"
+	expectedEndpoint = "/api/beta/sketches"
 	expectAPIKeyInQuery = true
 	payloads = []*[]byte{}
 	payloads = append(payloads, &expectedPayload)
@@ -185,16 +185,6 @@ func TestSubmit(t *testing.T) {
 	payloads = []*[]byte{}
 	payloads = append(payloads, &expectedPayload)
 	assert.Nil(t, forwarder.SubmitV1Series(payloads, map[string]string{"Content-Type": "application/unit-test"}))
-	<-wait
-	<-wait
-	require.Len(t, forwarder.retryQueue, 0)
-
-	expectedPayload = []byte("SubmitV1SketchSeries payload")
-	expectedEndpoint = "/api/v1/sketches"
-	expectAPIKeyInQuery = true
-	payloads = []*[]byte{}
-	payloads = append(payloads, &expectedPayload)
-	assert.Nil(t, forwarder.SubmitV1SketchSeries(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
 	require.Len(t, forwarder.retryQueue, 0)

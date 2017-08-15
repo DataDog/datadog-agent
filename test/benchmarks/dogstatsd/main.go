@@ -81,10 +81,6 @@ func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extr
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1SketchSeries(payloads forwarder.Payloads, extraHeaders map[string]string) error {
-	f.computeStats(payloads)
-	return nil
-}
 func (f *forwarderBenchStub) SubmitSeries(payload forwarder.Payloads, extraHeaders map[string]string) error {
 	return fmt.Errorf("v2 endpoint submission unimplemented")
 }
