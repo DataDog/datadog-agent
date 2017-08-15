@@ -57,7 +57,7 @@ const (
 	seriesEndpoint        = "/api/v2/series"
 	eventsEndpoint        = "/api/v2/events"
 	serviceChecksEndpoint = "/api/v2/service_checks"
-	sketchSeriesEndpoint  = "/api/v2/sketches"
+	sketchSeriesEndpoint  = "/api/beta/sketches"
 	hostMetadataEndpoint  = "/api/v2/host_metadata"
 	metadataEndpoint      = "/api/v2/metadata"
 
@@ -90,7 +90,6 @@ type Forwarder interface {
 	SubmitV1Series(payload Payloads, extraHeaders map[string]string) error
 	SubmitV1Intake(payload Payloads, extraHeaders map[string]string) error
 	SubmitV1CheckRuns(payload Payloads, extraHeaders map[string]string) error
-	SubmitV1SketchSeries(payload Payloads, extraHeaders map[string]string) error
 	SubmitSeries(payload Payloads, extraHeaders map[string]string) error
 	SubmitEvents(payload Payloads, extraHeaders map[string]string) error
 	SubmitServiceChecks(payload Payloads, extraHeaders map[string]string) error
@@ -316,8 +315,7 @@ func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extraHeaders ma
 	return f.sendHTTPTransactions(transactions)
 }
 
-// SubmitSketchSeries will send payloads to v2 endpoint - PROTOTYPE FOR PERCENTILE
-// Prototype for Percentiles: same as for SubmitV1SketchSeries method for now.
+// SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extraHeaders map[string]string) error {
 	transactions, err := f.createHTTPTransactions(sketchSeriesEndpoint, payload, true, extraHeaders)
 	if err != nil {
@@ -386,15 +384,5 @@ func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extraHeaders map[str
 	}
 
 	transactionsCreation.Add("IntakeV1", 1)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitV1SketchSeries will send payloads to v1 endpoint
-func (f *DefaultForwarder) SubmitV1SketchSeries(payload Payloads, extraHeaders map[string]string) error {
-	transactions, err := f.createHTTPTransactions(v1SketchSeriesEndpoint, payload, true, extraHeaders)
-	if err != nil {
-		return err
-	}
-	transactionsCreation.Add("SketchSeriesV1", 1)
 	return f.sendHTTPTransactions(transactions)
 }

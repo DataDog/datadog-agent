@@ -75,11 +75,6 @@ func (tf *MockedForwarder) SubmitV1CheckRuns(payload Payloads, extraHeaders map[
 	return tf.Called(payload, extraHeaders).Error(0)
 }
 
-// SubmitV1SketchSeries updates the internal mock struct
-func (tf *MockedForwarder) SubmitV1SketchSeries(payload Payloads, extraHeaders map[string]string) error {
-	return tf.Called(payload, extraHeaders).Error(0)
-}
-
 // SubmitSeries updates the internal mock struct
 func (tf *MockedForwarder) SubmitSeries(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
