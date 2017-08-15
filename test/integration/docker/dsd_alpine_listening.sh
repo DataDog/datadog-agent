@@ -1,10 +1,10 @@
+#!/bin/bash
+
 # Unless explicitly stated otherwise all files in this repository are licensed
 # under the Apache License Version 2.0.
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2017 Datadog, Inc.
 
-#!/bin/bash
-#
 # System check for the dsd-alpine image. Runs the image both in UDP and
 # socket mode. With lsof, we test that dogstatsd is running and listening
 # on the right interface
@@ -73,7 +73,7 @@ if [ $TEST_FAIL -eq 0 ]; then
     echo "OK"
 fi
 
-# Cleanup 
+# Cleanup
 
 docker stop $UDP_CO $SOCKET_CO > /dev/null
 
