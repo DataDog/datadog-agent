@@ -249,7 +249,7 @@ func (ac *AutoConfig) pollConfigs() {
 							// try to resolve the template
 							resolvedConfigs := ac.configResolver.ResolveTemplate(config)
 							if len(resolvedConfigs) == 0 {
-								log.Infof("Couldn't resolve the template for %s, adding to the template cache...", config.Name)
+								log.Infof("Can't resolve the template for %s at this moment.", config.Name)
 								continue
 							}
 
