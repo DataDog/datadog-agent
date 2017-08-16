@@ -3,6 +3,7 @@
 package system
 
 import (
+	//"bytes"
 	"io/ioutil"
 	"strconv"
 	"strings"
@@ -15,50 +16,80 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
+// For testing
+var fileNrHandle = "/proc/sys/fs/file-nr"
+var fileNrValues []string
+
 type fhCheck struct{}
 
 func (c *fhCheck) String() string {
 	return "disk"
 }
 
-func e_check(e error) error {
-	if e != nil {
-		return e
+func (c *fhCheck) getFileNrValues(fn string) []string {
+	dat, err := ioutil.ReadFile(fn)
+	if err != nil {
+		log.Error(err.Error())
 	}
-	return e
+
+	s := strings.Split(strings.TrimRight(string(dat), "\n"), "\t")
+	return s
 }
 
 // Run executes the check
 func (c *fhCheck) Run() error {
 	// https://www.kernel.org/doc/Documentation/sysctl/fs.txt
-	file_nr_handle := "/proc/sys/fs/file-nr"
+	//fileNrHandle := "/proc/sys/fs/file-nr"
+	//fileNrValues := getFileNrValues(fileNrHandle)
+	//FileNrValues = getFileNrValues(FileNrHandle)
+	//s := getFileNrValues(fileNrHandle)
+	//log.Errorf(getFileNrValues(fileNrHandle))
+	fileNrValues = c.getFileNrValues(fileNrHandle)
+	log.Errorf("lsoto : fileNrHandle %s", fileNrHandle)
+	log.Errorf("lsoto : capacity %d", cap(fileNrValues))
+	log.Errorf("lsoto : len %d", len(fileNrValues))
+	log.Errorf("lsoto : values %s", fileNrValues)
+	log.Errorf("lsoto : getFileNrValues(fileNrHandle) %s", c.getFileNrValues(fileNrHandle))
 
 	sender, err := aggregator.GetSender(c.ID())
-	e_check(err)
-	if sender == nil {
+	if err != nil {
 		return err
 	}
 
-	dat, err := ioutil.ReadFile(file_nr_handle)
+	/*
+		dat, err := ioutil.ReadFile(fileNrHandle)
+		if err != nil {
+			log.Errorf(err.Error())
+		}
+
+		fileNrValues := strings.Split(strings.TrimRight(string(dat), "\n"), "\t")
+	*/
+
+	allocatedFh, err := strconv.ParseFloat(fileNrValues[0], 64)
 	if err != nil {
-		log.Errorf(err.Error())
+		log.Errorf("Could not gather \"allocated file handle\" value")
+		return err
 	}
+	log.Debugf("allocated file handles: %f", allocatedFh)
 
-	file_nr_values := strings.Split(strings.TrimRight(string(dat), "\n"), "\t")
+	allocatedUnusedFh, err := strconv.ParseFloat(fileNrValues[1], 64)
+	if err != nil {
+		log.Errorf("Could not gather \"allocated unused file handle\" value")
+		return err
+	}
+	log.Debugf("allocated unused file handles: %f", allocatedUnusedFh)
 
-	allocated_fh, err := strconv.ParseFloat(file_nr_values[0], 64)
-	e_check(err)
-	log.Debugf("Allocated File Handles: %f", allocated_fh)
-	allocated_unused_fh, err := strconv.ParseFloat(file_nr_values[1], 64)
-	e_check(err)
-	log.Debugf("Allocated Unused File Handles: %f", allocated_unused_fh)
-	max_fh, err := strconv.ParseFloat(file_nr_values[2], 64)
-	e_check(err)
+	maxFh, err := strconv.ParseFloat(fileNrValues[2], 64)
+	if err != nil {
+		log.Errorf("Could not parse \"maximum file handle\" value")
+		return err
+	}
+	log.Debugf("maximum file handles: %f", maxFh)
 
-	fh_in_use := (allocated_fh - allocated_unused_fh) / max_fh
-	log.Debugf("File Handles In Use: %f", fh_in_use)
+	fhInUse := (allocatedFh - allocatedUnusedFh) / maxFh
+	log.Debugf("file handles in use: %f", fhInUse)
 
-	sender.Gauge("system.fs.file_handles.in_use", fh_in_use, "", nil)
+	sender.Gauge("system.fs.file_handles.in_use", fhInUse, "", nil)
 	sender.Commit()
 
 	return nil
