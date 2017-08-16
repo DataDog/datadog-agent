@@ -9,13 +9,11 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
-	"net"
-	"os"
-	"strings"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -26,16 +24,14 @@ var (
 
 // Server represent a Dogstatsd server
 type Server struct {
-	conn       net.PacketConn
+	listeners  []listeners.StatsdListener
+	payloadIn  chan *listeners.Payload // Unbuffered channel as payloads processing is done in goroutines
 	Statistics *util.Stats
 	Started    bool
 }
 
 // NewServer returns a running Dogstatsd server
 func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) (*Server, error) {
-	var conn net.PacketConn
-	var err error
-
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") == true {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -46,33 +42,39 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		stats = s
 	}
 
+	payloadChannel := make(chan *listeners.Payload)
+	intakes := make([]listeners.StatsdListener, 0, 2)
+
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
-	if len(socketPath) == 0 {
-		var url string
-
-		if config.Datadog.GetBool("dogstatsd_non_local_traffic") == true {
-			// Listen to all network interfaces
-			url = fmt.Sprintf(":%d", config.Datadog.GetInt("dogstatsd_port"))
+	if len(socketPath) > 0 {
+		unixListener, err := listeners.NewUnixListener(payloadChannel)
+		if err != nil {
+			log.Errorf(err.Error())
 		} else {
-			url = fmt.Sprintf("localhost:%d", config.Datadog.GetInt("dogstatsd_port"))
+			intakes = append(intakes, unixListener)
 		}
-
-		conn, err = net.ListenPacket("udp", url)
-	} else {
-		conn, err = net.ListenPacket("unixgram", socketPath)
+	}
+	if config.Datadog.GetInt("dogstatsd_port") > 0 {
+		udpListener, err := listeners.NewUdpListener(payloadChannel)
+		if err != nil {
+			log.Errorf(err.Error())
+		} else {
+			intakes = append(intakes, udpListener)
+		}
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("can't listen: %s", err)
+	if len(intakes) == 0 {
+		return nil, fmt.Errorf("listening on neither udp nor socket, please check your configuration")
 	}
 
 	s := &Server{
 		Started:    true,
 		Statistics: stats,
-		conn:       conn,
+		payloadIn:  payloadChannel,
+		listeners:  intakes,
 	}
 	go s.handleMessages(metricOut, eventOut, serviceCheckOut)
-	log.Infof("dogstatsd: listening on %s", conn.LocalAddr())
+
 	return s, nil
 }
 
@@ -81,26 +83,23 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 		go s.Statistics.Process()
 		defer s.Statistics.Stop()
 	}
+
+	for _, l := range s.listeners {
+		go l.Listen()
+	}
+
 	for {
-		buf := make([]byte, config.Datadog.GetInt("dogstatsd_buffer_size"))
-		n, _, err := s.conn.ReadFrom(buf)
-		if err != nil {
-			// connection has been closed
-			if strings.HasSuffix(err.Error(), " use of closed network connection") {
-				return
-			}
+		payload := <-s.payloadIn
 
-			log.Errorf("dogstatsd: error reading packet: %v", err)
-			dogstatsdExpvar.Add("PacketReadingErrors", 1)
-			continue
+		if payload.Container != "" {
+			log.Debugf("dogstatsd receive from %s: %s", payload.Container, payload.Contents)
+		} else {
+			log.Debugf("dogstatsd receive: %s", payload.Contents)
 		}
-
-		datagram := buf[:n]
-		log.Debugf("dogstatsd receive: %s", datagram)
 
 		go func() {
 			for {
-				packet := nextPacket(&datagram)
+				packet := nextPacket(&payload.Contents)
 				if packet == nil {
 					break
 				}
@@ -144,15 +143,8 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 
 // Stop stops a running Dogstatsd server
 func (s *Server) Stop() {
-	s.conn.Close()
-
-	// Socket cleanup on exit
-	socketPath := config.Datadog.GetString("dogstatsd_socket")
-	if len(socketPath) > 0 {
-		err := os.Remove(socketPath)
-		if err != nil {
-			log.Infof("dogstatsd: error removing socket file: %s", err)
-		}
+	for _, l := range s.listeners {
+		l.Stop()
 	}
 	s.Started = false
 }
