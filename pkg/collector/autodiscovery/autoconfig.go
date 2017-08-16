@@ -295,15 +295,32 @@ func (ac *AutoConfig) pollConfigs() {
 						// unschedule all the checks corresponding to this config
 						digest := config.Digest()
 						ids := ac.config2checks[digest]
+						stopped := map[check.ID]struct{}{}
 						for _, id := range ids {
+							// `StopCheck` might time out so we don't risk to block
+							// the polling loop forever
 							err := ac.collector.StopCheck(id)
 							if err != nil {
 								log.Errorf("Error stopping check %s: %s", id, err)
+							} else {
+								stopped[id] = struct{}{}
 							}
 						}
 
 						// remove the entry from `config2checks`
-						delete(ac.config2checks, digest)
+						if len(stopped) == len(ac.config2checks[digest]) {
+							// we managed to stop all the checks for this config
+							delete(ac.config2checks, digest)
+						} else {
+							// keep the checks we failed to stop in `config2checks`
+							dangling := []check.ID{}
+							for _, id := range ac.config2checks[digest] {
+								if _, found := stopped[id]; !found {
+									dangling = append(dangling, id)
+								}
+							}
+							ac.config2checks[digest] = dangling
+						}
 
 						// if the config is a template, remove it from the cache
 						if config.IsTemplate() {
