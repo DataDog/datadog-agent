@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"testing"
+
 	payload "github.com/DataDog/agent-payload/gogen"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 var nextTestResponse string
@@ -27,7 +28,7 @@ func runServer(t *testing.T, exit chan bool) {
 		w.Write([]byte(nextTestResponse))
 	})
 
-	s := &http.Server{Addr: fmt.Sprintf(":%d", DefaultAgentPort)}
+	s := &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", DefaultAgentPort)}
 	go s.ListenAndServe()
 	<-exit
 	s.Close()
