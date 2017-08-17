@@ -58,9 +58,11 @@ def run(ctx, incremental=None, race=None, build_include=None, build_exclude=None
     --skip-build was passed.
     """
     if not skip_build:
+        print("Building dogstatsd...")
         build(ctx, incremental, race, build_include, build_exclude)
 
-    ctx.run(os.path.join(DOGSTATSD_BIN_PATH, bin_name("dogstatsd")))
+    target = os.path.join(DOGSTATSD_BIN_PATH, bin_name("dogstatsd"))
+    ctx.run("{} start".format(target))
 
 
 @task
