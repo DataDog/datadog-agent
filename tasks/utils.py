@@ -28,13 +28,9 @@ def pkg_config_path(use_system_libs):
     """
     Prepend the full path to either the `system` or `embedded` pkg-config
     folders provided by the agent to the existing value of `PKG_CONFIG_PATH`
-    environment var. If the env var is not set, do nothing and return an
-    empty string.
+    environment var.
     """
     retval = ""
-
-    if not os.environ.get("PKG_CONFIG_PATH"):
-        return retval
 
     base = os.path.join(os.path.dirname("."), "pkg-config", platform.system().lower())
     if use_system_libs:
@@ -43,7 +39,7 @@ def pkg_config_path(use_system_libs):
         retval = os.path.abspath(os.path.join(base, "embedded"))
 
     # append the system wide value of PKG_CONFIG_PATH
-    retval += ":{}".format(os.environ.get("PKG_CONFIG_PATH"))
+    retval += ":{}".format(os.environ.get("PKG_CONFIG_PATH", ""))
 
     return retval
 
