@@ -25,7 +25,7 @@ var (
 // Server represent a Dogstatsd server
 type Server struct {
 	listeners  []listeners.StatsdListener
-	payloadIn  chan *listeners.Payload // Unbuffered channel as payloads processing is done in goroutines
+	packetIn   chan *listeners.Packet // Unbuffered channel as packets processing is done in goroutines
 	Statistics *util.Stats
 	Started    bool
 }
@@ -42,36 +42,36 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		stats = s
 	}
 
-	payloadChannel := make(chan *listeners.Payload)
-	intakes := make([]listeners.StatsdListener, 0, 2)
+	packetChannel := make(chan *listeners.Packet)
+	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUnixListener(payloadChannel)
+		unixListener, err := listeners.NewUDSListener(packetChannel)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
-			intakes = append(intakes, unixListener)
+			tmpListeners = append(tmpListeners, unixListener)
 		}
 	}
 	if config.Datadog.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUdpListener(payloadChannel)
+		udpListener, err := listeners.NewUDPListener(packetChannel)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
-			intakes = append(intakes, udpListener)
+			tmpListeners = append(tmpListeners, udpListener)
 		}
 	}
 
-	if len(intakes) == 0 {
+	if len(tmpListeners) == 0 {
 		return nil, fmt.Errorf("listening on neither udp nor socket, please check your configuration")
 	}
 
 	s := &Server{
 		Started:    true,
 		Statistics: stats,
-		payloadIn:  payloadChannel,
-		listeners:  intakes,
+		packetIn:   packetChannel,
+		listeners:  tmpListeners,
 	}
 	go s.handleMessages(metricOut, eventOut, serviceCheckOut)
 
@@ -89,17 +89,17 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 	}
 
 	for {
-		payload := <-s.payloadIn
+		packet := <-s.packetIn
 
-		if payload.Container != "" {
-			log.Debugf("dogstatsd receive from %s: %s", payload.Container, payload.Contents)
+		if packet.Container != "" {
+			log.Debugf("dogstatsd receive from %s: %s", packet.Container, packet.Contents)
 		} else {
-			log.Debugf("dogstatsd receive: %s", payload.Contents)
+			log.Debugf("dogstatsd receive: %s", packet.Contents)
 		}
 
 		go func() {
 			for {
-				packet := nextPacket(&payload.Contents)
+				packet := nextPacket(&packet.Contents)
 				if packet == nil {
 					break
 				}

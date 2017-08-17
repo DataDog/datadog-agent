@@ -1,6 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package listeners
 
 import (
+	"expvar"
 	"fmt"
 	"net"
 	"strings"
@@ -10,18 +16,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// UdpListener implements the StatsdListener interface for UDP protocol.
-// It listens to a given UDP address and sends back payloads ready to be
+var (
+	udpExpvar = expvar.NewMap("dogstatsd-udp")
+)
+
+// UDPListener implements the StatsdListener interface for UDP protocol.
+// It listens to a given UDP address and sends back packets ready to be
 // processed.
 // Origin detection is not implemented for UDP.
-type UdpListener struct {
-	conn       net.PacketConn
-	payloadOut chan *Payload
-	Started    bool
+type UDPListener struct {
+	conn      net.PacketConn
+	packetOut chan *Packet
+	Started   bool
 }
 
-// NewUdpListener returns an idle UDP Statsd listener
-func NewUdpListener(payloadOut chan *Payload) (*UdpListener, error) {
+// NewUDPListener returns an idle UDP Statsd listener
+func NewUDPListener(packetOut chan *Packet) (*UDPListener, error) {
 	var conn net.PacketConn
 	var err error
 	var url string
@@ -39,41 +49,42 @@ func NewUdpListener(payloadOut chan *Payload) (*UdpListener, error) {
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
 
-	listener := &UdpListener{
-		Started:    false,
-		payloadOut: payloadOut,
-		conn:       conn,
+	listener := &UDPListener{
+		Started:   false,
+		packetOut: packetOut,
+		conn:      conn,
 	}
-	log.Infof("dogstatsd: listening on %s", conn.LocalAddr())
+	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
 }
 
 // Listen runs the intake loop. Should be called in its own goroutine
-func (s *UdpListener) Listen() {
+func (l *UDPListener) Listen() {
+	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
 		buf := make([]byte, config.Datadog.GetInt("dogstatsd_buffer_size"))
-		n, _, err := s.conn.ReadFrom(buf)
+		n, _, err := l.conn.ReadFrom(buf)
 		if err != nil {
 			// connection has been closed
 			if strings.HasSuffix(err.Error(), " use of closed network connection") {
 				return
 			}
 
-			log.Errorf("dogstatsd: error reading packet: %v", err)
-			//FIXME//dogstatsdExpvar.Add("PacketReadingErrors", 1)
+			log.Errorf("dogstatsd-udp: error reading packet: %v", err)
+			udpExpvar.Add("PacketReadingErrors", 1)
 			continue
 		}
 
-		payload := &Payload{
+		packet := &Packet{
 			Contents: buf[:n],
 		}
-		s.payloadOut <- payload
+		l.packetOut <- packet
 
 	}
 }
 
 // Stop closes the UDP connection and stops listening
-func (l *UdpListener) Stop() {
+func (l *UDPListener) Stop() {
 	l.Started = false
 	l.conn.Close()
 }
