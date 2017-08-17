@@ -38,7 +38,7 @@ type ConfigResolver struct {
 	templates       *TemplateCache
 	services        map[listeners.ID]listeners.Service // Service.ID --> []Service
 	serviceToChecks map[listeners.ID][]check.ID        // Service.ID --> []CheckID
-	adIDToService   map[string][]listeners.ID          // AD id --> services that have it
+	adIDToServices  map[string][]listeners.ID          // AD id --> services that have it
 	newService      chan listeners.Service
 	delService      chan listeners.Service
 	stop            chan bool
@@ -52,7 +52,7 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 		collector:       coll,
 		templates:       tc,
 		serviceToChecks: make(map[listeners.ID][]check.ID, 0),
-		adIDToService:   make(map[string][]listeners.ID),
+		adIDToServices:  make(map[string][]listeners.ID),
 		newService:      make(chan listeners.Service),
 		delService:      make(chan listeners.Service),
 		stop:            make(chan bool),
@@ -104,7 +104,7 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 	// go through the AD identifiers provided by the template
 	for _, id := range tpl.ADIdentifiers {
 		// chek out whether any service we know has this identifier
-		serviceIds, found := cr.adIDToService[id]
+		serviceIds, found := cr.adIDToServices[id]
 		if !found {
 			log.Debugf("No service found with this AD identifier: %s", id)
 			continue
@@ -161,7 +161,7 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 	templates := []check.Config{}
 	for _, adID := range svc.ADIdentifiers {
 		// map the AD identifier to this service for reverse lookup
-		cr.adIDToService[adID] = append(cr.adIDToService[adID], svc.ID)
+		cr.adIDToServices[adID] = append(cr.adIDToServices[adID], svc.ID)
 		tpls, err := cr.templates.Get(adID)
 		if err != nil {
 			log.Errorf("Unable to fetch templates from the cache: %v", err)
