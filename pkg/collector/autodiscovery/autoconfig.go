@@ -73,7 +73,7 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		config2checks: make(map[string][]check.ID),
 		stop:          make(chan bool),
 	}
-	ac.configResolver = newConfigResolver(collector, ac)
+	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
 
 	return ac
 }
