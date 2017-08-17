@@ -28,8 +28,8 @@ var (
 type UDSListener struct {
 	conn            *net.UnixConn
 	packetOut       chan *Packet
+	bufferSize      int
 	oobSize         int
-	Started         bool
 	OriginDetection bool
 }
 
@@ -60,9 +60,9 @@ func NewUDSListener(packetOut chan *Packet) (*UDSListener, error) {
 	}
 
 	listener := &UDSListener{
-		Started:         false,
 		OriginDetection: originDection,
 		oobSize:         getUDSAncillarySize(),
+		bufferSize:      config.Datadog.GetInt("dogstatsd_buffer_size"),
 		packetOut:       packetOut,
 		conn:            conn,
 	}
@@ -75,7 +75,7 @@ func NewUDSListener(packetOut chan *Packet) (*UDSListener, error) {
 func (l *UDSListener) Listen() {
 	log.Infof("dogstatsd-uds: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		buf := make([]byte, config.Datadog.GetInt("dogstatsd_buffer_size"))
+		buf := make([]byte, l.bufferSize)
 		var n int
 		var err error
 		packet := &Packet{}
@@ -118,7 +118,6 @@ func (l *UDSListener) Listen() {
 
 // Stop closes the UDS connection and stops listening
 func (l *UDSListener) Stop() {
-	l.Started = false
 	l.conn.Close()
 
 	// Socket cleanup on exit

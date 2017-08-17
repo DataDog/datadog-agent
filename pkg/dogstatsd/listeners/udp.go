@@ -25,9 +25,9 @@ var (
 // processed.
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
-	conn      net.PacketConn
-	packetOut chan *Packet
-	Started   bool
+	conn       net.PacketConn
+	bufferSize int
+	packetOut  chan *Packet
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
@@ -50,9 +50,9 @@ func NewUDPListener(packetOut chan *Packet) (*UDPListener, error) {
 	}
 
 	listener := &UDPListener{
-		Started:   false,
-		packetOut: packetOut,
-		conn:      conn,
+		packetOut:  packetOut,
+		bufferSize: config.Datadog.GetInt("dogstatsd_buffer_size"),
+		conn:       conn,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil
@@ -62,7 +62,7 @@ func NewUDPListener(packetOut chan *Packet) (*UDPListener, error) {
 func (l *UDPListener) Listen() {
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		buf := make([]byte, config.Datadog.GetInt("dogstatsd_buffer_size"))
+		buf := make([]byte, l.bufferSize)
 		n, _, err := l.conn.ReadFrom(buf)
 		if err != nil {
 			// connection has been closed
@@ -85,6 +85,5 @@ func (l *UDPListener) Listen() {
 
 // Stop closes the UDP connection and stops listening
 func (l *UDPListener) Stop() {
-	l.Started = false
 	l.conn.Close()
 }
