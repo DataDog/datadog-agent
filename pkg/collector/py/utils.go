@@ -6,6 +6,7 @@
 package py
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"runtime"
@@ -155,9 +156,11 @@ func Initialize(paths ...string) *python.PyThreadState {
 	// We still hold a lock from calling `C.PyEval_InitThreads()` above, so we can
 	// safely use go-python here without any additional loking operation.
 	if len(paths) > 0 {
-		path := python.PySys_GetObject("path")
+		path := python.PySys_GetObject("path") // borrowed ref
 		for _, p := range paths {
-			python.PyList_Append(path, python.PyString_FromString(p))
+			newPath := python.PyString_FromString(p)
+			defer newPath.DecRef()
+			python.PyList_Append(path, newPath)
 		}
 	}
 
@@ -186,8 +189,8 @@ func Initialize(paths ...string) *python.PyThreadState {
 }
 
 // Search in module for a class deriving from baseClass and return the first match if any.
-// Notice: the GIL must be acquired before calling this method
-func findSubclassOf(base, module *python.PyObject) (*python.PyObject, error) {
+// Notice: the passed `stickyLock` must be locked
+func findSubclassOf(base, module *python.PyObject, gstate *stickyLock) (*python.PyObject, error) {
 	if base == nil || module == nil {
 		return nil, fmt.Errorf("both base class and module must be not nil")
 	}
@@ -203,12 +206,24 @@ func findSubclassOf(base, module *python.PyObject) (*python.PyObject, error) {
 	}
 
 	dir := module.PyObject_Dir()
+	defer dir.DecRef()
 	var class *python.PyObject
 	for i := 0; i < python.PyList_GET_SIZE(dir); i++ {
 		symbolName := python.PyString_AsString(python.PyList_GET_ITEM(dir, i))
-		class = module.GetAttrString(symbolName)
+		class = module.GetAttrString(symbolName) // new ref, don't DecRef because we return it (caller is owner)
+
+		if class == nil {
+			pyErr, err := gstate.getPythonError()
+
+			if err != nil {
+				return nil, fmt.Errorf("An error occurred while searching for the AgentCheck class and couldn't be formatted: %v", err)
+			}
+			return nil, errors.New(pyErr)
+		}
 
 		if !python.PyType_Check(class) {
+			// ignore this item
+			class.DecRef()
 			continue
 		}
 
@@ -226,64 +241,4 @@ func getModuleName(modulePath string) string {
 	toks := strings.Split(modulePath, ".")
 	// no need to check toks length, worst case it contains only an empty string
 	return toks[len(toks)-1]
-}
-
-// getPythonError returns string-formatted info about a Python interpreter error that occurred,
-// and clears the error flag in the Python interpreter
-// WARNINGS:
-// - make sure a StickyLock is locked when calling this function
-// - make sure the same StickyLock was already locked when the error flag was set on the python interpreter
-func getPythonError() (string, error) {
-	if python.PyErr_Occurred() == nil { // borrowed ref, no decref needed
-		return "", fmt.Errorf("the error indicator is not set on the python interpreter")
-	}
-
-	ptype, pvalue, ptraceback := python.PyErr_Fetch() // new references, have to be decref'd
-	defer python.PyErr_Clear()
-	defer ptype.DecRef()
-	defer pvalue.DecRef()
-	defer ptraceback.DecRef()
-
-	// Make sure exception values are normalized, as per python C API docs. No error to handle here
-	python.PyErr_NormalizeException(ptype, pvalue, ptraceback)
-
-	if ptraceback != nil && ptraceback.GetCPointer() != nil {
-		// There's a traceback, try to format it nicely
-		traceback := python.PyImport_ImportModule("traceback")
-		formatExcFn := traceback.GetAttrString("format_exception")
-		if formatExcFn != nil {
-			defer formatExcFn.DecRef()
-			pyFormattedExc := formatExcFn.CallFunction(ptype, pvalue, ptraceback)
-			if pyFormattedExc != nil {
-				defer pyFormattedExc.DecRef()
-				pyStringExc := pyFormattedExc.Str()
-				if pyStringExc != nil {
-					defer pyStringExc.DecRef()
-					return python.PyString_AsString(pyStringExc), nil
-				}
-			}
-		}
-
-		// If we reach this point, there was an error while formatting the exception
-		return "", fmt.Errorf("can't format exception")
-	}
-
-	// we sometimes do not get a traceback but an error in pvalue
-	if pvalue != nil && pvalue.GetCPointer() != nil {
-		strPvalue := pvalue.Str()
-		if strPvalue != nil {
-			defer strPvalue.DecRef()
-			return python.PyString_AsString(strPvalue), nil
-		}
-	}
-
-	if ptype != nil {
-		strPtype := ptype.Str()
-		if strPtype != nil {
-			defer strPtype.DecRef()
-			return python.PyString_AsString(strPtype), nil
-		}
-	}
-
-	return "", fmt.Errorf("unknown error")
 }

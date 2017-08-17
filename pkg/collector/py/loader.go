@@ -36,8 +36,9 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 		log.Errorf("Unable to import Python module: %s", agentCheckModuleName)
 		return nil, fmt.Errorf("unable to initialize AgentCheck module")
 	}
+	defer agentCheckModule.DecRef()
 
-	agentCheckClass := agentCheckModule.GetAttrString(agentCheckClassName)
+	agentCheckClass := agentCheckModule.GetAttrString(agentCheckClassName) // don't `DecRef` for now since we keep the ref around in the returned PythonCheckLoader
 	if agentCheckClass == nil {
 		log.Errorf("Unable to import %s class from Python module: %s", agentCheckClassName, agentCheckModuleName)
 		return nil, errors.New("unable to initialize AgentCheck class")
@@ -65,8 +66,10 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		}
 		return nil, errors.New(pyErr)
 	}
+
 	// Try to find a class inheriting from AgentCheck within the module
-	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule)
+	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule, glock) // FIXME: the reference to checkClass is currently leaked
+	checkModule.DecRef()
 	glock.unlock()
 	if err != nil {
 		msg := fmt.Sprintf("Unable to find a check class in the module: %v", err)

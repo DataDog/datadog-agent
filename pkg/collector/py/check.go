@@ -24,6 +24,8 @@ import (
 import "C"
 
 // PythonCheck represents a Python check, implements `Check` interface
+// FIXME: when an instance of PythonCheck is discarded we should `DecRef`
+// its *PyObject fields to avoid python ref leaks
 type PythonCheck struct {
 	id           check.ID
 	Instance     *python.PyObject
@@ -119,7 +121,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 	numWarnings := python.PyList_Size(ws)
 	idx := 0
 	for idx < numWarnings {
-		w := python.PyList_GetItem(ws, idx)
+		w := python.PyList_GetItem(ws, idx) // borrowed ref
 		warnings = append(warnings, fmt.Errorf("%v", python.PyString_AsString(w)))
 		idx++
 	}
@@ -139,6 +141,7 @@ func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObje
 
 	if args == nil {
 		args = python.PyTuple_New(0)
+		defer args.DecRef()
 	}
 
 	// invoke class constructor
@@ -194,14 +197,14 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	conf["instances"] = []interface{}{rawInstances}
 
 	// Convert the RawConfigMap to a Python dictionary
-	kwargs, err := ToPython(&conf)
+	kwargs, err := ToPython(&conf) // don't `DecRef` kwargs since we keep it around in c.Config
 	if err != nil {
 		log.Errorf("Error parsing python check configuration: %v", err)
 		return err
 	}
 
 	// try getting an instance with the new style api, without passing agentConfig
-	instance, err := c.getInstance(nil, kwargs)
+	instance, err := c.getInstance(nil, kwargs) // don't `DecRef` instance since we keep it around in c.Instance
 	if err != nil {
 		log.Warnf("could not get a check instance with the new api: %s", err)
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
@@ -210,6 +213,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 		// we pass initConfig but emit a deprecation notice
 		allSettings := config.Datadog.AllSettings()
 		agentConfig, err := ToPython(allSettings)
+		defer agentConfig.DecRef()
 		if err != nil {
 			log.Errorf("could not convert agent configuration to python: %s", err)
 			return fmt.Errorf("could not convert agent configuration to python: %s", err)
@@ -218,6 +222,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 		// Add new 'agentConfig' key to the dict...
 		gstate := newStickyLock()
 		key := python.PyString_FromString("agentConfig")
+		defer key.DecRef()
 		python.PyDict_SetItem(kwargs, key, agentConfig)
 		gstate.unlock()
 
@@ -234,6 +239,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	// The Check ID is set in Python so that the python check
 	// can use it afterwards to submit to the proper sender in the aggregator
 	pyID := python.PyString_FromString(string(c.ID()))
+	defer pyID.DecRef()
 	instance.SetAttrString("check_id", pyID)
 
 	c.Instance = instance
