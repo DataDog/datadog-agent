@@ -67,7 +67,7 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
         "REPO_PATH": REPO_PATH,
     }
 
-    ctx.run(cmd.format(**args), env={})
+    ctx.run(cmd.format(**args), env=env)
     refresh_assets(ctx)
 
 
