@@ -37,7 +37,7 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
         build_tags = get_puppy_build_tags()
     else:
         build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags, ext = get_ldflags(ctx)
+    ldflags, gcflags = get_ldflags(ctx)
 
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(ctx.use_system_libs)
@@ -55,8 +55,7 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
         ctx.run(command, env=env)
 
     cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
-    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" "
-    cmd += "-extldflags=\"{ext}\" {REPO_PATH}/cmd/agent"
+    cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
     args = {
         "race_opt": "-race" if race else "",
         "build_type": "-i" if incremental else "-a",
@@ -64,7 +63,6 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
         "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
         "gcflags": gcflags,
         "ldflags": ldflags,
-        "ext": ext,
         "REPO_PATH": REPO_PATH,
     }
 
