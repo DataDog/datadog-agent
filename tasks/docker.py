@@ -6,6 +6,8 @@ from shutil import copy2
 
 from invoke import task
 
+from .dogstatsd import build
+
 # constants
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
@@ -16,8 +18,7 @@ def build_dogstatsd(ctx, skip_build=False):
     Build the static version of Dogstasd to ship with Docker images
     """
     if not skip_build:
-        # Rake::Task["dogstatsd:build"].invoke
-        pass
+        build(ctx)
 
     copy2("bin/static/dogstatsd", "Dockerfiles/dogstatsd/alpine/")
     ctx.run("docker build -t {} Dockerfiles/dogstatsd/alpine/".format(DOGSTATSD_TAG))
