@@ -16,6 +16,7 @@ from .utils import REPO_PATH
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
+MAX_BINARY_SIZE = 15 * 1024
 
 @task
 def build(ctx, incremental=None, race=False, static=None, build_include=None, build_exclude=None):
@@ -28,20 +29,20 @@ def build(ctx, incremental=None, race=False, static=None, build_include=None, bu
     build_include = ctx.dogstatsd.build_include if build_include is None else build_include.split(",")
     build_exclude = ctx.dogstatsd.build_exclude if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
-    ldflags = get_ldflags(ctx)
+    ldflags, gcflags = get_ldflags(ctx, static=static)
     bin_path = DOGSTATSD_BIN_PATH
 
     if static:
-        ldflags += " -s -w -linkmode external -extldflags \"-static\""
         bin_path = STATIC_BIN_PATH
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
-    cmd += "-ldflags \"{ldflags}\" {REPO_PATH}/cmd/dogstatsd/"
+    cmd += "-gcflags=\"{gcflags}\" -ldflags \"{ldflags}\" {REPO_PATH}/cmd/dogstatsd/"
     args = {
         "race_opt": "-race" if race else "",
         "build_type": "-i" if incremental else "-a",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(bin_path, bin_name("dogstatsd")),
+        "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
@@ -62,7 +63,7 @@ def run(ctx, incremental=None, race=None, build_include=None, build_exclude=None
     ctx.run(os.path.join(DOGSTATSD_BIN_PATH, bin_name("dogstatsd")))
 
 
-@task(pre=[build])
+@task
 def system_tests(ctx, skip_build=False):
     """
     Run the system testsuite.
@@ -72,11 +73,13 @@ def system_tests(ctx, skip_build=False):
 
     env = {
         "DOGSTATSD_BIN": os.path.join(DOGSTATSD_BIN_PATH, "dogstatsd"),
+    }
+    cmd = "go test -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
+    args = {
         "build_tags": " ".join(get_build_tags()),
         "REPO_PATH": REPO_PATH,
     }
-    cmd = "go test -tags '{build_tags}' -v #{REPO_PATH}/test/system/dogstatsd/"
-    ctx.run(cmd, env=env)
+    ctx.run(cmd.format(**args), env=env)
 
 @task
 def size_test(ctx, skip_build=False):
@@ -90,7 +93,7 @@ def size_test(ctx, skip_build=False):
     stat_info = os.stat(bin_path)
     size = stat_info.st_size / 1024
 
-    if size > 15 * 1024:
+    if size > MAX_BINARY_SIZE:
         print("DogStatsD static build size too big: {} kB".format(size))
         print("This means your PR added big classes or dependencies in the packages dogstatsd uses")
         raise Exit(1)
