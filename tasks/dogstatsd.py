@@ -19,7 +19,7 @@ STATIC_BIN_PATH = os.path.join(".", "bin", "static")
 MAX_BINARY_SIZE = 15 * 1024
 
 @task
-def build(ctx, incremental=None, race=False, static=None, build_include=None, build_exclude=None):
+def build(ctx, incremental=None, race=False, static=False, build_include=None, build_exclude=None):
     """
     Build Dogstatsd
     """
