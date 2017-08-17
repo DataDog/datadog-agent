@@ -68,7 +68,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	}
 
 	// Try to find a class inheriting from AgentCheck within the module
-	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule, glock) // FIXME: the reference to checkClass is currently leaked
+	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule, glock)
 	checkModule.DecRef()
 	glock.unlock()
 	if err != nil {
@@ -86,6 +86,10 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		}
 		checks = append(checks, check)
 	}
+	glock = newStickyLock()
+	defer glock.unlock()
+	checkClass.DecRef()
+
 	log.Debugf("python loader: done loading check %s", moduleName)
 	return checks, nil
 }

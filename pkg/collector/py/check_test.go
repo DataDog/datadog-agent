@@ -63,7 +63,7 @@ func TestNewPythonCheck(t *testing.T) {
 	tuple := python.PyTuple_New(0)
 	res := NewPythonCheck("FooBar", tuple)
 
-	assert.Equal(t, tuple, res.Class)
+	assert.Equal(t, tuple, res.class)
 	assert.Equal(t, "FooBar", res.ModuleName)
 }
 
