@@ -151,7 +151,7 @@ func (c *Collector) StopCheck(id check.ID) error {
 		return fmt.Errorf("an error occurred while cancelling the check schedule: %s", err)
 	}
 
-	// stop the instance
+	// stop the instance, this might time out
 	err = c.runner.StopCheck(id)
 	if err != nil {
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
