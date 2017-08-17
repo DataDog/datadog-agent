@@ -9,7 +9,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags
-from .utils import get_ldflags, bin_name
+from .utils import get_ldflags, bin_name, get_root
 from .utils import REPO_PATH
 
 
@@ -71,10 +71,11 @@ def system_tests(ctx, skip_build=False):
     Run the system testsuite.
     """
     if not skip_build:
+        print("Building dogstatsd...")
         build(ctx)
 
     env = {
-        "DOGSTATSD_BIN": os.path.join(DOGSTATSD_BIN_PATH, "dogstatsd"),
+        "DOGSTATSD_BIN": os.path.join(get_root(), DOGSTATSD_BIN_PATH, bin_name("dogstatsd")),
     }
     cmd = "go test -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
     args = {
@@ -89,6 +90,7 @@ def size_test(ctx, skip_build=False):
     Run the size test for the static binary
     """
     if not skip_build:
+        print("Building dogstatsd...")
         build(ctx, static=True)
 
     bin_path = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
@@ -100,7 +102,7 @@ def size_test(ctx, skip_build=False):
         print("This means your PR added big classes or dependencies in the packages dogstatsd uses")
         raise Exit(1)
 
-    print("DogStatsD static build size OK: #{size} kB")
+    print("DogStatsD static build size OK: {} kB".format(size))
 
 
 @task
