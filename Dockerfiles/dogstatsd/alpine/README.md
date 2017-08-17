@@ -32,8 +32,11 @@ spec:
             value: ___value___
           - name: DD_DOGSTATSD_SOCKET
             value: "/socket/statsd.socket"
+          - name: DD_SEND_HOST_METADATA
+            # Legacy option name, to keep during beta phase
+            value: "false"
           - name: DD_ENABLE_METADATA_COLLECTION
-            value: false
+            value: "false"
           - name: DD_HOSTNAME
             valueFrom:
               fieldRef:
@@ -45,4 +48,40 @@ spec:
         - hostPath:
             path: /var/run/dogstatsd
           name: dsdsocket
+```
+
+If you want to use the UDP protocol on port 8125, running alongside an existing agent5:
+
+```
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: dogstatsd
+spec:
+  template:
+    metadata:
+      labels:
+        app: dogstatsd
+      name: dogstatsd
+    spec:
+      containers:
+      - image: datadog/dogstatsd:beta
+        imagePullPolicy: Always
+        name: dogstatsd
+        ports:
+          - containerPort: 8125
+            name: dogstatsdport
+            protocol: UDP
+        env:
+          - name: DD_API_KEY
+            value: ___value___
+          - name: DD_SEND_HOST_METADATA
+            # Legacy option name, to keep during beta phase
+            value: "false"
+          - name: DD_ENABLE_METADATA_COLLECTION
+            value: "false"
+          - name: DD_HOSTNAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
 ```
