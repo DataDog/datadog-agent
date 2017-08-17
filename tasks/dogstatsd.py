@@ -36,7 +36,7 @@ def build(ctx, incremental=None, race=False, static=False, build_include=None, b
         bin_path = STATIC_BIN_PATH
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
-    cmd += "-gcflags=\"{gcflags}\" -ldflags \"{ldflags}\" {REPO_PATH}/cmd/dogstatsd/"
+    cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd/"
     args = {
         "race_opt": "-race" if race else "",
         "build_type": "-i" if incremental else "-a",

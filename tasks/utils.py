@@ -58,7 +58,7 @@ def get_ldflags(ctx, static=False):
     ldflags = "-X {}/pkg/version.commit={} ".format(REPO_PATH, commit)
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
     if static:
-        ldflags += "-s -w -linkmode external -extldflags \"-static\" "
+        ldflags += "-s -w -linkmode external -extldflags '-static' "
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
