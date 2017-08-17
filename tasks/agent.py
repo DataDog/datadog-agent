@@ -39,10 +39,9 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
         build_tags = get_build_tags(build_include, build_exclude)
     ldflags, gcflags = get_ldflags(ctx)
 
-    env = {}
-    pkg_config = pkg_config_path(ctx.use_system_libs)
-    if pkg_config:
-        env["PKG_CONFIG_PATH"] = pkg_config
+    env = {
+        "PKG_CONFIG_PATH": pkg_config_path(ctx.use_system_libs)
+    }
 
     if invoke.platform.WINDOWS:
         # This generates the manifest resource. The manifest resource is necessary for
@@ -89,7 +88,7 @@ def refresh_assets(ctx):
 
     bin_agent = os.path.join(BIN_PATH, "agent")
     shutil.move(os.path.join(dist_folder, "agent"), bin_agent)
-    os.chmod(bin_agent, 755)
+    os.chmod(bin_agent, 0755)
 
 
 @task
