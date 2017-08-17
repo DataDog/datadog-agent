@@ -37,8 +37,7 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
         build_tags = get_puppy_build_tags()
     else:
         build_tags = get_build_tags(build_include, build_exclude)
-    ldflags = get_ldflags(ctx)
-    gcflags = ""
+    ldflags, gcflags = get_ldflags(ctx)
 
     env = {}
     pkg_config = pkg_config_path(ctx.use_system_libs)
@@ -55,14 +54,6 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
         command = "windres --define MAJ_VER=6 --define MIN_VER=0 --define PATCH_VER=0 "
         command += "-i cmd/agent/agent.rc --target=pe-x86-64 -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
-
-    if os.environ.get("DELVE"):
-        gcflags = "-N -l"
-        if invoke.platform.WINDOWS:
-            # On windows, need to build with the extra argument -ldflags="-linkmode internal"
-            # if you want to be able to use the delve debugger.
-            ldflags += " -linkmode internal"
-
 
     cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
@@ -152,7 +143,7 @@ def omnibus_build(ctx, puppy=None):
         overrides_cmd = "--override=" + " ".join(overrides)
 
     with ctx.cd("omnibus"):
-        ctx.run("bundle install --without development")
+        ctx.run("bundle install")
         omnibus = "omnibus.bat" if invoke.platform.WINDOWS else "omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
         args = {

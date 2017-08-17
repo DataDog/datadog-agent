@@ -48,9 +48,9 @@ def pkg_config_path(use_system_libs):
     return retval
 
 
-def get_ldflags(ctx):
+def get_ldflags(ctx, static=False):
     """
-    Build the common value for ldflags.
+    Build the common value for both ldflags and gcflags.
 
     We need to invoke external processes here so this function need the
     Context object.
@@ -58,11 +58,20 @@ def get_ldflags(ctx):
     payload_v = get_payload_version()
     commit = ctx.run("git rev-parse --short HEAD", hide=True).stdout.strip()
 
+    gcflags = ""
+    ldflags = "-X {}/pkg/version.commit={} ".format(REPO_PATH, commit)
+    ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
+    if static:
+        ldflags += "-s -w -linkmode external -extldflags \"-static\" "
 
-    ret = "-X {}/pkg/version.commit={} ".format(REPO_PATH, commit)
-    ret += "-X {}/pkg/serializer.AgentPayloadVersion={}".format(REPO_PATH, payload_v)
+    if os.environ.get("DELVE"):
+        gcflags = "-N -l"
+        if invoke.platform.WINDOWS:
+            # On windows, need to build with the extra argument -ldflags="-linkmode internal"
+            # if you want to be able to use the delve debugger.
+            ldflags += "-linkmode internal "
 
-    return ret
+    return ldflags, gcflags
 
 
 def get_payload_version():
