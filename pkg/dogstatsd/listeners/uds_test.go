@@ -9,7 +9,6 @@
 package listeners
 
 import (
-	//"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -31,6 +30,8 @@ func TestNewUDSListener(t *testing.T) {
 	config.Datadog.Set("dogstatsd_socket", socketPath)
 
 	s, err := NewUDSListener(nil)
+	defer s.Stop()
+
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 }
