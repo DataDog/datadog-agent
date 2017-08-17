@@ -40,7 +40,8 @@ def lint(ctx, targets=None):
         inv lint --targets=./pkg/collector/check,./pkg/aggregator
     """
     targets_list = ctx.targets if targets is None else targets.split(',')
-
+    # add the /... suffix to the targets
+    targets_list = ["{}/...".format(t) for t in targets_list]
     result = ctx.run("golint {}".format(' '.join(targets_list)))
     if result.stdout:
         files = {x for x in result.stdout.split('\n') if x}
