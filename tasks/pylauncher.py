@@ -37,6 +37,7 @@ def system_tests(ctx, skip_build=False):
     Run the system testsuite.
     """
     if not skip_build:
+        print("Building pylauncher...")
         build(ctx)
 
     env = {
