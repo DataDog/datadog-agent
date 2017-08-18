@@ -51,25 +51,25 @@ func TestFindSubclassOf(t *testing.T) {
 	barClass := barModule.GetAttrString("Bar")
 
 	// invalid input
-	sclass, err := findSubclassOf(nil, nil)
+	sclass, err := findSubclassOf(nil, nil, gstate)
 	assert.NotNil(t, err)
 
 	// pass something that's not a Type
-	sclass, err = findSubclassOf(python.PyTuple_New(0), fooModule)
+	sclass, err = findSubclassOf(python.PyTuple_New(0), fooModule, gstate)
 	assert.NotNil(t, err)
-	sclass, err = findSubclassOf(fooClass, python.PyTuple_New(0))
+	sclass, err = findSubclassOf(fooClass, python.PyTuple_New(0), gstate)
 	assert.NotNil(t, err)
 
 	// Foo in foo module, only Foo itself found
-	sclass, err = findSubclassOf(fooClass, fooModule)
+	sclass, err = findSubclassOf(fooClass, fooModule, gstate)
 	assert.NotNil(t, err)
 
 	// Bar in foo module, no class found
-	sclass, err = findSubclassOf(barClass, fooModule)
+	sclass, err = findSubclassOf(barClass, fooModule, gstate)
 	assert.NotNil(t, err)
 
 	// Foo in bar module, get Bar
-	sclass, err = findSubclassOf(fooClass, barModule)
+	sclass, err = findSubclassOf(fooClass, barModule, gstate)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, sclass.RichCompareBool(barClass, python.Py_EQ))
 }
