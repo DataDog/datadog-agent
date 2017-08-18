@@ -40,6 +40,7 @@ func TestFhCheckLinux(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to create temporary file-nr file: %v", err)
 	}
+	defer os.Remove(tmpFile.Name()) // clean up
 
 	fileNrHandle = writeSampleFile(tmpFile, samplecontent1)
 
@@ -57,12 +58,11 @@ func TestFhCheckLinux(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Gauge", 1)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 
-	defer os.Remove(tmpFile.Name()) // clean up
-
 	tmpFile, err = getFileNr()
 	if err != nil {
 		t.Fatalf("unable to create temporary file-nr file: %v", err)
 	}
+	defer os.Remove(tmpFile.Name()) // clean up
 
 	fileNrHandle = writeSampleFile(tmpFile, samplecontent2)
 
@@ -74,5 +74,5 @@ func TestFhCheckLinux(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Gauge", 2)
 	mock.AssertNumberOfCalls(t, "Commit", 2)
 
-	defer os.Remove(tmpFile.Name()) // clean up
+	//defer os.Remove(tmpFile.Name()) // clean up
 }
