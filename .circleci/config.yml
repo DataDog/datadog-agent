@@ -30,11 +30,13 @@ jobs:
           name: grab go deps
           command: rake deps
       - save_cache:
-          key: v1-godeps-{{ checksum "Gopkg.lock" }}
+          key: v1-govendordeps-{{ checksum "Gopkg.lock" }}
+          paths:
+            - /go/src/github.com/DataDog/datadog-agent/vendor
+      - save_cache:
+          key: v1-gobindeps
           paths:
             - /go/bin
-            - /go/src/github.com/golang
-            - /go/src/github.com/DataDog/datadog-agent/vendor
 
   unittests:
     docker:
@@ -51,7 +53,10 @@ jobs:
             - v1-repo-{{ checksum ".circle-sha" }}
       - restore_cache:
           keys:
-            - v1-godeps-{{ checksum "Gopkg.lock" }}
+            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+      - restore_cache:
+          keys:
+            - v1-gobindeps
       - run:
           name: run unit tests
           command: rake test race=true
@@ -71,7 +76,7 @@ jobs:
             - v1-repo-{{ checksum ".circle-sha" }}
       - restore_cache:
           keys:
-            - v1-godeps-{{ checksum "Gopkg.lock" }}
+            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
       - run:
           name: build the deb artifact
           command: rake agent:omnibus
