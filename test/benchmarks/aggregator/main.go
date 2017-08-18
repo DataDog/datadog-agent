@@ -80,7 +80,7 @@ func report(agg *aggregator.BufferedAggregator, flush chan time.Time, lastInfo *
 			return nil
 		}
 
-		if lastInfo != nil && lastInfo.Flush[waitingKey].LastFlushTime == stats.Flush[waitingKey].LastFlushTime {
+		if lastInfo != nil && lastInfo.Flush[waitingKey].LastFlush == stats.Flush[waitingKey].LastFlush {
 			log.Info("flush Time is not over, waiting a second")
 			time.Sleep(1 * time.Second)
 			continue
