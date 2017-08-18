@@ -28,14 +28,24 @@ use any additional tool it might need.
 
 ## System or Embedded?
 
-The official Agent packages ship all the libraries needed for the build along
-with the header files, so if an Agent is already installed on the dev env system,
-those libraries can be used to locally build the binary. This behavior can be
-configured adjusting the `use_system_libs` boolean flag (either setting the
-proper env var, changing the `invoke.yaml` file or passing the corresponding
-arg to `invoke`). If you set `use_sytem_libs: false` you don't need anything
-else an installed agent to complete the build. If not, go ahead and install the
-following dependencies.
+When building system packages with Omnibus, all the external dependencies needed
+are built locally and put in the Omnibus cache. Such dependencies are then used
+to build the Agent binary that will be included in the final package.
+
+Despite this is not expected to be that common, it might be desirable to build
+the agent using the very same bits that are used in the official packages even
+in a development enviroment. This behavior can be configured adjusting the
+`use_system_libs` boolean flag (either setting the proper env var, changing the
+`invoke.yaml` file or passing the corresponding arg to `invoke`). If you set
+`use_sytem_libs: false` and run Omnibus, you don't need any external dependency
+to build the Agent, though you might need to setup your dev env to build such
+dependencies, so don't think this is a shortcut.
+
+If you don't care about building an exact clone of the official Agent at the
+binary level, and this should be the case most of the times, you can set
+`use_sytem_libs: true` and avoid running Omnibus, which might be quite time
+consuming. In this case you need to provide the external dependencies by
+yourself, go ahead to see how to do it.
 
 ### Python
 
