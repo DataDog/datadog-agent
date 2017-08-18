@@ -32,9 +32,9 @@ jobs:
       - save_cache:
           key: v1-godeps-{{ checksum "Gopkg.lock" }}
           paths:
-            - /go/src/github.com/DataDog/datadog-agent/vendor
-            - /go/src/github.com/golang
             - /go/bin
+            - /go/src/github.com/golang
+            - /go/src/github.com/DataDog/datadog-agent/vendor
 
   unittests:
     docker:
