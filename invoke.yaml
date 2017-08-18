@@ -1,5 +1,5 @@
 targets: [./pkg, ./cmd]
-use_system_libs: false
+use_system_libs: true
 
 test:
   race: false
