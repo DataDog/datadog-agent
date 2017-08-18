@@ -102,6 +102,6 @@ workflows:
       - unittests:
           requires:
             - dependencies
-      - agent-deb_x64:
+      - agent_deb-x64:
           requires:
             - unittests
