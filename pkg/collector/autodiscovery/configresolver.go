@@ -103,7 +103,7 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 
 	// go through the AD identifiers provided by the template
 	for _, id := range tpl.ADIdentifiers {
-		// chek out whether any service we know has this identifier
+		// check out whether any service we know has this identifier
 		serviceIds, found := cr.adIDToServices[id]
 		if !found {
 			log.Debugf("No service found with this AD identifier: %s", id)
@@ -215,11 +215,11 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 		}
 
 		// remove the entry from `serviceToChecks`
-		if len(stopped) == len(cr.serviceToChecks) {
+		if len(stopped) == len(cr.serviceToChecks[svc.ID]) {
 			// we managed to stop all the checks for this config
 			delete(cr.serviceToChecks, svc.ID)
 		} else {
-			// keep the checks we failed to stop in `serviceToChecks`
+			// keep the checks we failed to stop in `serviceToChecks[svc.ID]`
 			dangling := []check.ID{}
 			for _, id := range cr.serviceToChecks[svc.ID] {
 				if _, found := stopped[id]; !found {
