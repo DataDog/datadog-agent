@@ -19,7 +19,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 
 @task
 def build(ctx, incremental=None, race=None, build_include=None, build_exclude=None,
-          puppy=None):
+          puppy=None, use_system_libs=None):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -32,6 +32,7 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
     build_include = ctx.agent.build_include if build_include is None else build_include.split(",")
     build_exclude = ctx.agent.build_exclude if build_exclude is None else build_exclude.split(",")
     puppy = puppy or ctx.agent.puppy
+    use_system_libs = use_system_libs or ctx.use_system_libs
 
     if puppy:
         build_tags = get_puppy_build_tags()
@@ -40,7 +41,7 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
     ldflags, gcflags = get_ldflags(ctx)
 
     env = {
-        "PKG_CONFIG_PATH": pkg_config_path(ctx.use_system_libs)
+        "PKG_CONFIG_PATH": pkg_config_path(use_system_libs)
     }
 
     if invoke.platform.WINDOWS:
