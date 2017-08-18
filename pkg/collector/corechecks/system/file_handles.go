@@ -1,9 +1,12 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
 // +build !windows
 
 package system
 
 import (
-	//"bytes"
 	"io/ioutil"
 	"strconv"
 	"strings"
@@ -18,7 +21,6 @@ import (
 
 // For testing
 var fileNrHandle = "/proc/sys/fs/file-nr"
-var fileNrValues []string
 
 type fhCheck struct{}
 
@@ -38,32 +40,12 @@ func (c *fhCheck) getFileNrValues(fn string) []string {
 
 // Run executes the check
 func (c *fhCheck) Run() error {
-	// https://www.kernel.org/doc/Documentation/sysctl/fs.txt
-	//fileNrHandle := "/proc/sys/fs/file-nr"
-	//fileNrValues := getFileNrValues(fileNrHandle)
-	//FileNrValues = getFileNrValues(FileNrHandle)
-	//s := getFileNrValues(fileNrHandle)
-	//log.Errorf(getFileNrValues(fileNrHandle))
-	fileNrValues = c.getFileNrValues(fileNrHandle)
-	log.Errorf("lsoto : fileNrHandle %s", fileNrHandle)
-	log.Errorf("lsoto : capacity %d", cap(fileNrValues))
-	log.Errorf("lsoto : len %d", len(fileNrValues))
-	log.Errorf("lsoto : values %s", fileNrValues)
-	log.Errorf("lsoto : getFileNrValues(fileNrHandle) %s", c.getFileNrValues(fileNrHandle))
+	fileNrValues := c.getFileNrValues(fileNrHandle)
 
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
 	}
-
-	/*
-		dat, err := ioutil.ReadFile(fileNrHandle)
-		if err != nil {
-			log.Errorf(err.Error())
-		}
-
-		fileNrValues := strings.Split(strings.TrimRight(string(dat), "\n"), "\t")
-	*/
 
 	allocatedFh, err := strconv.ParseFloat(fileNrValues[0], 64)
 	if err != nil {
