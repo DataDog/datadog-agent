@@ -62,6 +62,8 @@ jobs:
             - $AGENT_OMNIBUS_BASE_DIR
 
   unittests:
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.2
     working_directory: /go/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
     steps:
       - run:
