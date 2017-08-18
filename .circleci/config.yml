@@ -84,6 +84,9 @@ jobs:
           keys:
             - v1-govendordeps-{{ checksum "Gopkg.lock" }}
       - run:
+          name: prepare git
+          command: git config --global user.email 'dev@datadoghq.com' && git config --global user.name 'Monsieur Croissant'
+      - run:
           name: build the deb artifact
           command: rake agent:omnibus
       - save_cache:
