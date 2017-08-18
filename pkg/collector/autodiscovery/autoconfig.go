@@ -58,6 +58,7 @@ type AutoConfig struct {
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
 	configsPollTicker *time.Ticker
+	config2checks     map[string][]check.ID // cache the ID of checks we load for each config
 	stop              chan bool
 	m                 sync.RWMutex
 }
@@ -69,6 +70,7 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		providers:     make([]*providerDescriptor, 0, 5),
 		loaders:       make([]check.Loader, 0, 5),
 		templateCache: NewTemplateCache(),
+		config2checks: make(map[string][]check.ID),
 		stop:          make(chan bool),
 	}
 	ac.configResolver = newConfigResolver(collector, ac)
@@ -234,28 +236,94 @@ func (ac *AutoConfig) pollConfigs() {
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
-						if config.IsTemplate() {
-							// try to resolve the template
-							resolved := ac.configResolver.ResolveTemplate(config)
-							if len(resolved) > 0 {
-								// TODO: if success, schedule the check for running
-							} else {
-								// TODO: if failed, notify we couldn't resolve it for now (it might happen later)
-							}
+						// store the checks we schedule for this config locally
+						configDigest := config.Digest()
+						ac.config2checks[configDigest] = []check.ID{}
 
+						if config.IsTemplate() {
 							// store the template in the cache in any case
 							if err := ac.templateCache.Set(config); err != nil {
-								log.Errorf("Unable to process Check configuration: %s", err)
+								log.Errorf("Unable to store Check configuration in the cache: %s", err)
+							}
+
+							// try to resolve the template
+							resolvedConfigs := ac.configResolver.ResolveTemplate(config)
+							if len(resolvedConfigs) == 0 {
+								log.Infof("Can't resolve the template for %s at this moment.", config.Name)
+								continue
+							}
+
+							// If success, get the checks for each config resolved
+							// and schedule for running, each template can resolve
+							// to multiple configs
+							for _, config := range resolvedConfigs {
+								// each config could resolve to multiple checks
+								checks, err := ac.GetChecks(config)
+								if err != nil {
+									log.Errorf("Unable to load check from template: %s", err)
+									continue
+								}
+								// ask the Collector to schedule the checks
+								for _, check := range checks {
+									_, err := ac.collector.RunCheck(check)
+									if err != nil {
+										log.Errorf("Unable to schedule check for running: %s", err)
+										continue
+									}
+									ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
+								}
 							}
 						} else {
-							// TODO: just schedule the check for running
+							// the config is not a template, just schedule the checks for running
+							checks, err := ac.GetChecks(config)
+							if err != nil {
+								log.Errorf("Unable to load check from template: %s", err)
+							}
+							// ask the Collector to schedule the checks
+							for _, check := range checks {
+								_, err := ac.collector.RunCheck(check)
+								if err != nil {
+									log.Errorf("Unable to schedule check for running: %s", err)
+									continue
+								}
+								ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
+							}
 						}
 					}
 
 					for _, config := range removedConfigs {
-						// TODO: unschedule the checks corresponding to this config
+						// unschedule all the checks corresponding to this config
+						digest := config.Digest()
+						ids := ac.config2checks[digest]
+						stopped := map[check.ID]struct{}{}
+						for _, id := range ids {
+							// `StopCheck` might time out so we don't risk to block
+							// the polling loop forever
+							err := ac.collector.StopCheck(id)
+							if err != nil {
+								log.Errorf("Error stopping check %s: %s", id, err)
+							} else {
+								stopped[id] = struct{}{}
+							}
+						}
+
+						// remove the entry from `config2checks`
+						if len(stopped) == len(ac.config2checks[digest]) {
+							// we managed to stop all the checks for this config
+							delete(ac.config2checks, digest)
+						} else {
+							// keep the checks we failed to stop in `config2checks`
+							dangling := []check.ID{}
+							for _, id := range ac.config2checks[digest] {
+								if _, found := stopped[id]; !found {
+									dangling = append(dangling, id)
+								}
+							}
+							ac.config2checks[digest] = dangling
+						}
+
+						// if the config is a template, remove it from the cache
 						if config.IsTemplate() {
-							// if the config is a template, remove it from the cache
 							ac.templateCache.Del(config)
 						}
 					}
