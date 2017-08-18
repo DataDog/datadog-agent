@@ -26,9 +26,6 @@ jobs:
       - restore_cache:
           keys:
             - v1-repo-{{ checksum ".circle-sha" }}
-      - restore_cache:
-          keys:
-            - v1-godeps-{{ checksum "Gopkg.lock" }}
       - run:
           name: grab go deps
           command: rake deps
@@ -36,6 +33,24 @@ jobs:
           key: v1-godeps-{{ checksum "Gopkg.lock" }}
           paths:
             - /go/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/vendor
+
+  unittests:
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.2
+    working_directory: /go/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - v1-repo-{{ checksum ".circle-sha" }}
+      - restore_cache:
+          keys:
+            - v1-godeps-{{ checksum "Gopkg.lock" }}
+      - run:
+          name: run unit tests
+          command: rake test race=true
 
   agent_deb-x64:
     docker:
@@ -60,24 +75,6 @@ jobs:
           key: v1-omnibus-{{ checksum ".circle-sha" }}
           paths:
             - $AGENT_OMNIBUS_BASE_DIR
-
-  unittests:
-    docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.2
-    working_directory: /go/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
-    steps:
-      - run:
-          name: save SHA to a file
-          command: echo $CIRCLE_SHA1 > .circle-sha
-      - restore_cache:
-          keys:
-            - v1-repo-{{ checksum ".circle-sha" }}
-      - restore_cache:
-          keys:
-            - v1-godeps-{{ checksum "Gopkg.lock" }}
-      - run:
-          name: run unit tests
-          command: rake test race=true
 
 workflows:
   version: 2
