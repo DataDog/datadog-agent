@@ -26,7 +26,7 @@ To start working on the Agent, you can build the `master` branch:
    Make sure that `GOPATH/bin` is in your `PATH` otherwise this step might fail.
    Alternatively  you can install [dep](https://github.com/golang/dep) manually
    on your system before running `invoke deps`.
-3. build the whole project with `invoke agent.build --use-system-libs=true --build-exclude=snmp`
+3. build the whole project with `invoke agent.build --build-exclude=snmp`
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 
