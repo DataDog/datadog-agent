@@ -1,0 +1,25 @@
+targets: [./pkg, ./cmd]
+use_system_libs: false
+
+test:
+  race: false
+
+agent:
+  puppy: false
+  incremental: true
+  race: false
+  build_include: [all]
+  build_exclude: []
+
+benchmarks:
+  incremental: false
+
+dogstatsd:
+  incremental: false
+  race: false
+  static: false
+  build_include: [zlib]
+  build_exclude: []
+
+pylauncher:
+  incremental: false

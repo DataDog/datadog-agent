@@ -64,7 +64,7 @@ func init() {
 	Datadog.SetDefault("forwarder_retry_queue_max_size", 30)
 	// Dogstatsd
 	Datadog.SetDefault("use_dogstatsd", true)
-	Datadog.SetDefault("dogstatsd_port", 8125)
+	Datadog.SetDefault("dogstatsd_port", 8125)          // Notice: 0 means UDP port closed
 	Datadog.SetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
 	Datadog.SetDefault("dogstatsd_non_local_traffic", false)
 	Datadog.SetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
@@ -72,6 +72,8 @@ func init() {
 	Datadog.SetDefault("dogstatsd_stats_enable", false)
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
+	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
+
 	// JMX
 	Datadog.SetDefault("jmx_pipe_path", defaultJMXPipePath)
 	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
