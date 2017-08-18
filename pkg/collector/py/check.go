@@ -8,6 +8,7 @@ package py
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -26,22 +27,27 @@ import "C"
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
 	id           check.ID
-	Instance     *python.PyObject
-	Class        *python.PyObject
+	instance     *python.PyObject
+	class        *python.PyObject
 	ModuleName   string
-	Config       *python.PyObject
+	config       *python.PyObject
 	interval     time.Duration
 	lastWarnings []error
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
 func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
-	return &PythonCheck{
+	glock := newStickyLock()
+	class.IncRef() // own the ref
+	glock.unlock()
+	pyCheck := &PythonCheck{
 		ModuleName:   name,
-		Class:        class,
+		class:        class,
 		interval:     check.DefaultCheckInterval,
 		lastWarnings: []error{},
 	}
+	runtime.SetFinalizer(pyCheck, pythonCheckFinalizer)
+	return pyCheck
 }
 
 // Run a Python check
@@ -53,7 +59,8 @@ func (c *PythonCheck) Run() error {
 	// call run function, it takes no args so we pass an empty tuple
 	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
 	emptyTuple := python.PyTuple_New(0)
-	result := c.Instance.CallMethod("run", emptyTuple)
+	defer emptyTuple.DecRef()
+	result := c.instance.CallMethod("run", emptyTuple)
 	log.Debugf("Run returned for %s %s", c.ModuleName, c.id)
 	if result == nil {
 		pyErr, err := gstate.getPythonError()
@@ -62,6 +69,7 @@ func (c *PythonCheck) Run() error {
 		}
 		return errors.New(pyErr)
 	}
+	defer result.DecRef()
 
 	s, err := aggregator.GetSender(c.ID())
 	if err != nil {
@@ -103,7 +111,8 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 	**/
 	warnings := []error{}
 	emptyTuple := python.PyTuple_New(0)
-	ws := c.Instance.CallMethod("get_warnings", emptyTuple)
+	defer emptyTuple.DecRef()
+	ws := c.instance.CallMethod("get_warnings", emptyTuple)
 	if ws == nil {
 		pyErr, err := gstate.getPythonError()
 		if err != nil {
@@ -112,10 +121,11 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 		log.Infof("Python error: %v", pyErr)
 		return warnings
 	}
+	defer ws.DecRef()
 	numWarnings := python.PyList_Size(ws)
 	idx := 0
 	for idx < numWarnings {
-		w := python.PyList_GetItem(ws, idx)
+		w := python.PyList_GetItem(ws, idx) // borrowed ref
 		warnings = append(warnings, fmt.Errorf("%v", python.PyString_AsString(w)))
 		idx++
 	}
@@ -123,7 +133,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // getInstance invokes the constructor on the Python class stored in
-// `c.Class` passing a tuple for args and a dictionary for keyword args.
+// `c.class` passing a tuple for args and a dictionary for keyword args.
 //
 // This function contains deferred calls to go-python: when you change
 // this code, please ensure the Python thread unlock is always at the bottom
@@ -135,10 +145,11 @@ func (c *PythonCheck) getInstance(args, kwargs *python.PyObject) (*python.PyObje
 
 	if args == nil {
 		args = python.PyTuple_New(0)
+		defer args.DecRef()
 	}
 
 	// invoke class constructor
-	instance := c.Class.Call(args, kwargs)
+	instance := c.class.Call(args, kwargs)
 	if instance != nil {
 		return instance, nil
 	}
@@ -190,14 +201,14 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	conf["instances"] = []interface{}{rawInstances}
 
 	// Convert the RawConfigMap to a Python dictionary
-	kwargs, err := ToPython(&conf)
+	kwargs, err := ToPython(&conf) // don't `DecRef` kwargs since we keep it around in c.config
 	if err != nil {
 		log.Errorf("Error parsing python check configuration: %v", err)
 		return err
 	}
 
 	// try getting an instance with the new style api, without passing agentConfig
-	instance, err := c.getInstance(nil, kwargs)
+	instance, err := c.getInstance(nil, kwargs) // don't `DecRef` instance since we keep it around in c.instance
 	if err != nil {
 		log.Warnf("could not get a check instance with the new api: %s", err)
 		log.Warn("trying to instantiate the check with the old api, passing agentConfig to the constructor")
@@ -206,6 +217,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 		// we pass initConfig but emit a deprecation notice
 		allSettings := config.Datadog.AllSettings()
 		agentConfig, err := ToPython(allSettings)
+		defer agentConfig.DecRef()
 		if err != nil {
 			log.Errorf("could not convert agent configuration to python: %s", err)
 			return fmt.Errorf("could not convert agent configuration to python: %s", err)
@@ -214,6 +226,7 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 		// Add new 'agentConfig' key to the dict...
 		gstate := newStickyLock()
 		key := python.PyString_FromString("agentConfig")
+		defer key.DecRef()
 		python.PyDict_SetItem(kwargs, key, agentConfig)
 		gstate.unlock()
 
@@ -230,10 +243,11 @@ func (c *PythonCheck) Configure(data check.ConfigData, initConfig check.ConfigDa
 	// The Check ID is set in Python so that the python check
 	// can use it afterwards to submit to the proper sender in the aggregator
 	pyID := python.PyString_FromString(string(c.ID()))
+	defer pyID.DecRef()
 	instance.SetAttrString("check_id", pyID)
 
-	c.Instance = instance
-	c.Config = kwargs
+	c.instance = instance
+	c.config = kwargs
 
 	return nil
 }
@@ -246,4 +260,22 @@ func (c *PythonCheck) Interval() time.Duration {
 // ID returns the ID of the check
 func (c *PythonCheck) ID() check.ID {
 	return c.id
+}
+
+// pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned
+// by the PythonCheck.
+func pythonCheckFinalizer(c *PythonCheck) {
+	// Run in a separate goroutine because acquiring the python lock might take some time,
+	// and we're in a finalizer
+	go func(c *PythonCheck) {
+		glock := newStickyLock() // acquire lock to call DecRef
+		defer glock.unlock()
+		c.class.DecRef()
+		if c.instance != nil {
+			c.instance.DecRef()
+		}
+		if c.config != nil {
+			c.config.DecRef()
+		}
+	}(c)
 }
