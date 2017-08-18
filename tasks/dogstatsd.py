@@ -9,7 +9,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags
-from .utils import get_ldflags, bin_name, get_root
+from .utils import get_ldflags, bin_name, get_root, is_affirmative
 from .utils import REPO_PATH
 
 

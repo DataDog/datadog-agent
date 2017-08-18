@@ -9,7 +9,7 @@ from distutils.dir_util import copy_tree
 import invoke
 from invoke import task
 
-from .utils import bin_name, get_ldflags, pkg_config_path
+from .utils import bin_name, get_ldflags, is_affirmative, pkg_config_path
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_puppy_build_tags
 
