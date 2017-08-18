@@ -73,6 +73,4 @@ func TestFhCheckLinux(t *testing.T) {
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 2)
 	mock.AssertNumberOfCalls(t, "Commit", 2)
-
-	//defer os.Remove(tmpFile.Name()) // clean up
 }
