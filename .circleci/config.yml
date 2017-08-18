@@ -4,7 +4,7 @@ jobs:
   checkout_code:
     docker:
       - image: jfullaondo/datadog-agent-builder-deb:0.0.2
-    working_directory: /go/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
+    working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
       - run:
@@ -13,12 +13,12 @@ jobs:
       - save_cache:
           key: v1-repo-{{ checksum ".circle-sha" }}
           paths:
-            - /go/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
+            - /go/src/github.com/DataDog/datadog-agent
 
   dependencies:
     docker:
       - image: jfullaondo/datadog-agent-builder-deb:0.0.2
-    working_directory: /go/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
+    working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - run:
           name: save SHA to a file
@@ -32,12 +32,12 @@ jobs:
       - save_cache:
           key: v1-godeps-{{ checksum "Gopkg.lock" }}
           paths:
-            - /go/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME/vendor
+            - /go/src/github.com/DataDog/datadog-agent/vendor
 
   unittests:
     docker:
       - image: jfullaondo/datadog-agent-builder-deb:0.0.2
-    working_directory: /go/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
+    working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - run:
           name: save SHA to a file
@@ -57,7 +57,7 @@ jobs:
       - image: jfullaondo/datadog-agent-builder-deb:0.0.2
         environment:
           AGENT_OMNIBUS_BASE_DIR: $CIRCLE_WORKING_DIRECTORY/.omnibus/var/
-    working_directory: /go/src/github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
+    working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - run:
           name: save SHA to a file
