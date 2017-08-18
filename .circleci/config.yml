@@ -33,10 +33,14 @@ jobs:
           key: v1-godeps-{{ checksum "Gopkg.lock" }}
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
+            - /go/src/github.com/golang
+            - /go/bin
 
   unittests:
     docker:
       - image: jfullaondo/datadog-agent-builder-deb:0.0.2
+        environment:
+          USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - run:
