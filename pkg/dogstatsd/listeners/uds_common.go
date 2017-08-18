@@ -85,15 +85,14 @@ func (l *UDSListener) Listen() {
 			oob := make([]byte, l.oobSize)
 			var oobn int
 			n, oobn, _, _, err = l.conn.ReadMsgUnix(buf, oob)
-			log.Infof("dogstatsd-uds: n %d oobn %d of %d", n, oobn, l.oobSize) // FIXME remove
 
-			// Extract PID from credentials
+			// Extract container id from credentials
 			container, err := processUDSOrigin(oob[:oobn])
 			if err != nil {
 				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", err)
 				socketExpvar.Add("OriginDetectionErrors", 1)
 			} else {
-				packet.Container = container
+				packet.Origin = container
 			}
 		} else {
 			// Read only datagram contents with no credentials
