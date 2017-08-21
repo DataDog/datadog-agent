@@ -23,7 +23,9 @@ TEST_FAIL=0
 # Starting containers and waiting one second for dsd to listen (avoid flaky test)
 
 UDP_CO=`docker run --rm -d $DD_ARGS $DOCKER_IMAGE`
-SOCKET_CO=`docker run --rm -d -e DD_DOGSTATSD_SOCKET=$SOCKET_PATH $DD_ARGS $DOCKER_IMAGE`
+SOCKET_CO=`docker run --rm -d -e DD_DOGSTATSD_SOCKET=$SOCKET_PATH -e DD_DOGSTATSD_PORT=0 $DD_ARGS $DOCKER_IMAGE`
+BOTH_CO=`docker run --rm -d -e DD_DOGSTATSD_SOCKET=$SOCKET_PATH -e DD_DOGSTATSD_PORT=8125 $DD_ARGS $DOCKER_IMAGE`
+
 sleep 1
 
 # UDP_CO should listen on UDP 8125, but not on the socket
@@ -73,9 +75,32 @@ if [ $TEST_FAIL -eq 0 ]; then
     echo "OK"
 fi
 
+# BOTH_CO should listento both the socket and UDP 8125
+
+echo "Testing udp+socket container:"
+docker exec $BOTH_CO apk add --no-cache lsof > /dev/null
+
+OUT=`docker exec $BOTH_CO lsof -U | grep $SOCKET_PATH`
+if [ $? -ne 0 ]; then
+    TEST_FAIL=1
+    echo "Error: not listening on socket"
+    echo $OUT
+fi
+
+OUT=`docker exec $BOTH_CO lsof -i | grep 8125`
+if [ $? -ne 0 ]; then
+    TEST_FAIL=1
+    echo "Error: not listening on UDP"
+    echo $OUT
+fi
+
+if [ $TEST_FAIL -eq 0 ]; then
+    echo "OK"
+fi
+
 # Cleanup
 
-docker stop $UDP_CO $SOCKET_CO > /dev/null
+docker stop $UDP_CO $SOCKET_CO $BOTH_CO > /dev/null
 
 # Conclusion
 
