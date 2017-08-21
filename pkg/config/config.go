@@ -82,6 +82,9 @@ func init() {
 	// Kubernetes
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
+	// Cloud Foundry
+	Datadog.SetDefault("cloud_foundry", false)
+	Datadog.SetDefault("bosh_id", "")
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
@@ -102,6 +105,8 @@ func init() {
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
+	Datadog.BindEnv("cloud_foundry")
+	Datadog.BindEnv("bosh_id")
 }
 
 var (
