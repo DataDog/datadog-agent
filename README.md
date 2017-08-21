@@ -2,18 +2,17 @@
 
 [![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/master.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/master)
 
-This repo contains the code needed to build different tools: for more informations
-about specific projects, see the README files for:
- * [Agent](cmd/agent/README.md)
- * [Dogstatsd](cmd/dogstatsd/README.md)
+The Datadog Agent faithfully collects events and metrics and brings them to
+[Datadog](https://app.datadoghq.com) on your behalf so that you can do something
+useful with your monitoring and performance data.
 
 ## Getting started
 
 To build the Agent you need:
- * [go](https://golang.org/doc/install) 1.8.x.
- * A working Python 2.7.x environment along with development libraries.
+ * [Go](https://golang.org/doc/install) 1.8 or later.
+ * Python 2.7 along with development libraries.
  * [Invoke](http://www.pyinvoke.org/installing.html), you can install it via
-   `pip install invoke` or via [Homebrew](https://brew.sh) on Mac OSX with
+   `pip install invoke` or via [Homebrew](https://brew.sh) on OSX/macOS with
    `brew install invoke`.
 
 Builds and tests are orchestrated with `invoke`, type `invoke --list` on a shell
@@ -29,6 +28,17 @@ To start working on the Agent, you can build the `master` branch:
 3. build the whole project with `invoke agent.build --build-exclude=snmp`
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
+
+## Run
+
+To start the agent type `agent start` from the `bin/agent` folder, it will take
+care of adjusting paths and run the binary in foreground.
+
+You need to provide a valid API key, either through the config file or passing
+the environment variable like:
+```
+DD_API_KEY=12345678990 ./bin/agent/agent
+```
 
 ## Contributing
 
