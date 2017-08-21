@@ -103,8 +103,8 @@ func benchmarkMetrics(agg *aggregator.BufferedAggregator, numberOfSeries []int, 
 					nbSerie, name, nbPoint,
 					float64(genTime)/float64(time.Millisecond),
 					float64(commitTime)/float64(time.Millisecond),
-					float64(info.Flush["FlushTime"].LastFlushTime)/float64(time.Millisecond),
-					float64(info.Flush["ChecksMetricSampleFlushTime"].LastFlushTime)/float64(time.Millisecond))
+					float64(info.Flush["FlushTime"].LastFlush)/float64(time.Millisecond),
+					float64(info.Flush["ChecksMetricSampleFlushTime"].LastFlush)/float64(time.Millisecond))
 
 				plotRes += fmt.Sprintf(" %f", float64(genTime)/float64(time.Millisecond))
 			}
@@ -121,8 +121,8 @@ func benchmarkMetrics(agg *aggregator.BufferedAggregator, numberOfSeries []int, 
 				nbPoint,
 				float64(genTime)/float64(time.Millisecond),
 				float64(commitTime)/float64(time.Millisecond),
-				float64(info.Flush["FlushTime"].LastFlushTime)/float64(time.Millisecond),
-				float64(info.Flush["EventFlushTime"].LastFlushTime)/float64(time.Millisecond))
+				float64(info.Flush["FlushTime"].LastFlush)/float64(time.Millisecond),
+				float64(info.Flush["EventFlushTime"].LastFlush)/float64(time.Millisecond))
 			plotRes += fmt.Sprintf(" %f", float64(genTime)/float64(time.Millisecond))
 		}
 
@@ -137,8 +137,8 @@ func benchmarkMetrics(agg *aggregator.BufferedAggregator, numberOfSeries []int, 
 				nbPoint,
 				float64(genTime)/float64(time.Millisecond),
 				float64(commitTime)/float64(time.Millisecond),
-				float64(info.Flush["FlushTime"].LastFlushTime)/float64(time.Millisecond),
-				float64(info.Flush["ServiceCheckFlushTime"].LastFlushTime)/float64(time.Millisecond))
+				float64(info.Flush["FlushTime"].LastFlush)/float64(time.Millisecond),
+				float64(info.Flush["ServiceCheckFlushTime"].LastFlush)/float64(time.Millisecond))
 			plotRes += fmt.Sprintf(" %f", float64(genTime)/float64(time.Millisecond))
 		}
 
