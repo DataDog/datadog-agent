@@ -25,6 +25,7 @@ type acErrorStats struct {
 func newAcErrorStats() *acErrorStats {
 	return &acErrorStats{
 		loader: make(map[string]LoaderErrors),
+		run:    make(map[check.ID]string),
 	}
 }
 
