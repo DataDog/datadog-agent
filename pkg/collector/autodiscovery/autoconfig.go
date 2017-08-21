@@ -400,14 +400,6 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 	return []check.Check{}, fmt.Errorf("unable to load any check from config '%s'", config.Name)
 }
 
-// ReloadCheck extracts initConfig and instance from a config and instructs
-// the collector to re-configure a running check with them.
-func (ac *AutoConfig) ReloadCheck(id check.ID, config check.Config) error {
-	initConfig := config.InitConfig
-	instance := config.Instances[0]
-	return ac.collector.ReloadCheck(id, instance, initConfig)
-}
-
 // check if the descriptor contains the Config passed
 func (pd *providerDescriptor) contains(c *check.Config) bool {
 	for _, config := range pd.configs {
