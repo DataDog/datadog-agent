@@ -3,7 +3,8 @@
 ## Invoke
 
 [Invoke](http://www.pyinvoke.org/installing.html) is a task runner written in
-Python that is extensively used to orchestrate builds and test runs.
+Python that is extensively used in this project to orchestrate builds and test
+runs.
 
 The easiest way to install it on any supported platform is using `pip`:
 ```
@@ -15,7 +16,7 @@ OSX users can install it via [Homebrew](https://brew.sh) with:
 brew install invoke
 ```
 
-Tasks are usually parametrised and Invoke comes with some default values that
+Tasks are usually parameterized and Invoke comes with some default values that
 are used in the official build. Such values are listed in the `invoke.yaml`
 file at the root of this repo and can be overridden by setting `INVOKE_*` env
 variables (see Invoke docs for more details).
@@ -23,8 +24,8 @@ variables (see Invoke docs for more details).
 ## Golang
 
 You must install [go](https://golang.org/doc/install) version 1.8 or above. Make
-sure that `GOPATH/bin` is in your `PATH` (all platforms) otherwise Invoke cannot
-use any additional tool it might need.
+sure that `$GOPATH/bin` is in your `$PATH` otherwise Invoke cannot use any
+additional tool it might need.
 
 ## System or Embedded?
 

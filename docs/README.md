@@ -1,6 +1,6 @@
 # Documentation
 
-This folder contains docs, guides and resources to better use this repo.
+This directory contains docs, guides and resources to better use this repo.
 
 ## Developer Guide
 

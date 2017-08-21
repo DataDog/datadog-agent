@@ -30,7 +30,7 @@ This is the complete list of the available components:
  * `ec2`: enable EC2 hostname detection and metadata collection.
  * `gce`: enable GCE hostname detection and metadata collection.
 
-Please notice you might need to provide some extra dependencies in your dev
+Please note you might need to provide some extra dependencies in your dev
 enviroment to build certain bits (see [development enviroment][dev-env]).
 
 ## Additional details

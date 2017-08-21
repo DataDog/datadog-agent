@@ -2,23 +2,20 @@
 
 First of all, thanks for contributing!
 
-This document aims to provide some basic guidelines to contribute to this repository,
-but keep in mind that these are just guidelines, not rules; use your best judgment
-and feel free to propose changes to this document in a pull request.
+This document provides some basic guidelines for contributing to this repository.
+To propose improvements, feel free to submit a PR.
 
 ## Submitting issues
 
-  * You can first take a look at the [Troubleshooting][troubleshooting] section of
-    our [Knowledge base][kb].
+  * If you think you've found an issue, please search the [Troubleshooting][troubleshooting]
+    section of our [Knowledge base][kb] to see if it's known.
   * If you can't find anything useful, please contact our [support][support] and
     [send them your logs][flare].
-  * Finally, you can open a Github issue respecting this [convention](#commits-titles)
-    (it helps us triage).
+  * Finally, you can open a Github issue.
 
 ## Pull Requests
 
-You wrote some code/added a new check and want to share it? Thanks a lot for your
-interest!
+You fixed a bug or wrote a new check and want to share it? Many thanks!
 
 In order to ease/speed up our review, here are some items you can check/improve
 when submitting your PR:
@@ -29,49 +26,20 @@ when submitting your PR:
   * summarize your PR with an explanatory title and a message describing your
     changes, cross-referencing any related bugs/PRs.
 
-Your Pull Request **must** always pass all the CI tests before being merged, if
-you think the error is not due to your changes, you can have a talk with us on
-Slack (datadoghq.slack.com) or send us an email to support _at_ datadoghq _dot_ com.
-
-## Integrations
-
-Most of the checks live in the [Integration Core repo][core]. Please look there
-to submit related issues, PRs, or review the latest changes. For new integrations,
-please open a pull request in the [Integrations Extras repo][extras]
-
-## Commits
+Your pull request must pass all CI tests before we will merge it. If you're seeing
+an error and don't think it's your fault, it may not be! [Join us on Slack][slack]
+or send  us an email, and together we'll get it sorted out.
 
 ### Keep it small, focused
 
-Avoid changing too many things at once, for instance if you're fixing the ntp
-integration and at the same time shipping a dogstatsd improvement, it makes
-reviewing harder (devs specialize in different parts of the code) and the _time-to-release_
-longer.
+Avoid changing too many things at once. For instance if you're fixing the NTP
+check and at the same time shipping a dogstatsd improvement, it makes reviewing
+harder and the _time-to-release_ longer.
 
-### Bisectability
+### Commit Messages
 
-Every commit should lead to a valid code, at least a code in a better state than
-before. That means that every revision should be able to pass unit and integration
-tests ([more about testing](#tests))
-
-An **example** of something which breaks bisectability:
-
-  * commit 1: _Added feature X_
-  * commit 2: _forgot a column_
-  * commit 3: _fix typo_
-
-To avoid that, please rebase your changes and create valid commits. It keeps
-history cleaner, it's easier to revert things, and it makes developers happier
-too.
-
-### Messages
-
-Please don't use `git commit -m "Fixed stuff"`, it usually means that you just
-wrote the very first thing that came to your mind without much thought. Also it
-makes navigating through the code history harder.
-
-Instead, the commit shortlog should focus on describing the change in a sane way
-and be **short** (72 columns is best).
+Please don't be this person: `git commit -m "Fixed stuff"`. Take a moment to
+write meaningful commit messages.
 
 The commit message should describe the reason for the change and give extra details
 that will allow someone later on to understand in 5 seconds the thing you've been
@@ -79,8 +47,20 @@ working on for a day.
 
 If your commit is only shipping documentation changes or example files, and is a
 complete no-op for the test suite, please add **[skip ci]** in the commit message
-body to skip the build and let you build slot to someone else _in need :wink:_
-For more general guidance, [this should help](http://chris.beams.io/posts/git-commit/).
+body to skip the build and give that slot to someone else who does need it.
+
+### Squash your commits
+
+Please rebase your changes on `master` and  squash your commits whenever possible,
+it keeps history cleaner and it's easier to revert things. It also makes developers
+happier!
+
+## Integrations
+
+Also called checks, all officially supported Agent integrations live in the
+[integrations-core][core] repo. Please look there to submit related issues, PRs,
+or review the latest changes. For new integrations, please open a pull request
+in the [integrations-extras][extras] repo.
 
 
 [troubleshooting]: https://datadog.zendesk.com/hc/en-us/sections/200766955-Troubleshooting
@@ -89,3 +69,4 @@ For more general guidance, [this should help](http://chris.beams.io/posts/git-co
 [flare]: https://github.com/DataDog/dd-agent/wiki/Send-logs-to-support
 [extras]: https://github.com/DataDog/integrations-extras
 [core]: https://github.com/DataDog/integrations-core
+[slack]: http://datadoghq.slack.com
