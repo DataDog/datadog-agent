@@ -23,6 +23,8 @@ import (
 const (
 	// DefaultAgentPort is the default port used by the ECS Agent.
 	DefaultAgentPort = 51678
+	// DefaultECSContainer is the default container used by ECS.
+	DefaultECSContainer = "amazon-ecs-agent"
 )
 
 // DetectedAgentURL stores the URL of the ECS agent. After the first call to
@@ -89,7 +91,7 @@ func GetPayload() (metadata.Payload, error) {
 // ECS agent being detected. This is a used as a way to check if is available
 // or if the host is not in an ECS cluster.
 func IsAgentNotDetected(err error) bool {
-	return strings.Contains(err.Error(), "could not detect Agent URL")
+	return strings.Contains(err.Error(), "could not detect ECS Agent")
 }
 
 // detectAgentURL finds a hostname for the ECS-agent either via Docker, if
@@ -97,15 +99,17 @@ func IsAgentNotDetected(err error) bool {
 func detectAgentURL() (string, error) {
 	urls := make([]string, 0, 3)
 	if config.IsContainerized() {
-		client, err := client.NewEnvClient()
+		cli, err := client.NewEnvClient()
 		if err != nil {
 			return "", err
 		}
-		defer client.Close()
+		defer cli.Close()
 
 		// Try all networks available on the ecs container.
-		ecsConfig, err := client.ContainerInspect(context.TODO(), "amazon-ecs-agent")
-		if err != nil {
+		ecsConfig, err := cli.ContainerInspect(context.TODO(), DefaultECSContainer)
+		if client.IsErrContainerNotFound(err) {
+			return "", fmt.Errorf("could not detect ECS agent, missing %s container", DefaultECSContainer)
+		} else if err != nil {
 			return "", err
 		}
 		for _, network := range ecsConfig.NetworkSettings.Networks {
@@ -133,7 +137,7 @@ func detectAgentURL() (string, error) {
 	if detected != "" {
 		return detected, nil
 	}
-	return "", fmt.Errorf("could not detect Agent URL, tried: %s", urls)
+	return "", fmt.Errorf("could not detect ECS agent, tried URLs: %s", urls)
 }
 
 // testURLs trys a set of URLs and returns the first one that succeeds.
