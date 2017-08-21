@@ -14,11 +14,10 @@ from .utils import REPO_PATH, bin_name, get_root
 PYLAUNCHER_BIN_PATH = os.path.join(get_root(), "bin", "pylauncher")
 
 @task
-def build(ctx, incremental=None):
+def build(ctx, incremental=False):
     """
     Build the pylauncher executable
     """
-    incremental = incremental or ctx.pylauncher.incremental
     build_tags = get_build_tags()  # pass all the build flags
 
     cmd = "go build {build_type} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/cmd/py-launcher/"

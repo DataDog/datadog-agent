@@ -17,11 +17,10 @@ BENCHMARKS_BIN_PATH = os.path.join(".", "bin", "benchmarks")
 
 
 @task
-def build_aggregator(ctx, incremental=None):
+def build_aggregator(ctx, incremental=False):
     """
     Build the Aggregator benchmarks.
     """
-    incremental = incremental or ctx.benchmarks.incremental
     build_tags = get_build_tags()  # pass all the build flags
 
     ldflags = ""

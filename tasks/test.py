@@ -16,7 +16,7 @@ PROFILE_COV = "profile.cov"
 
 
 @task()
-def test(ctx, targets=None, race=False):
+def test(ctx, targets=None, race=False, use_system_libs=True):
     """
     Run all the tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -25,7 +25,6 @@ def test(ctx, targets=None, race=False):
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
     """
     targets_list = ctx.targets if targets is None else targets.split(',')
-    race = race or ctx.test.race
     build_tags = get_build_tags()  # pass all the build flags for tests
 
     # explicitly run these tasks instead of using pre-tasks so we can
@@ -38,7 +37,7 @@ def test(ctx, targets=None, race=False):
         f_cov.write("mode: count")
 
     env = {
-        "PKG_CONFIG_PATH": pkg_config_path(ctx.use_system_libs)
+        "PKG_CONFIG_PATH": pkg_config_path(use_system_libs)
     }
 
     if race:

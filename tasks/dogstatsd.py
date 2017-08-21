@@ -19,13 +19,10 @@ STATIC_BIN_PATH = os.path.join(".", "bin", "static")
 MAX_BINARY_SIZE = 15 * 1024
 
 @task
-def build(ctx, incremental=None, race=False, static=False, build_include=None, build_exclude=None):
+def build(ctx, incremental=False, race=False, static=False, build_include=None, build_exclude=None):
     """
     Build Dogstatsd
     """
-    incremental = incremental or ctx.dogstatsd.incremental
-    race = race or ctx.dogstatsd.race
-    static = static or ctx.dogstatsd.static
     build_include = ctx.dogstatsd.build_include if build_include is None else build_include.split(",")
     build_exclude = ctx.dogstatsd.build_exclude if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
@@ -51,7 +48,7 @@ def build(ctx, incremental=None, race=False, static=False, build_include=None, b
 
 
 @task
-def run(ctx, incremental=None, race=None, build_include=None, build_exclude=None,
+def run(ctx, incremental=False, race=False, build_include=None, build_exclude=None,
         skip_build=False):
     """
     Run Dogstatsd binary. Build the binary before executing, unless
@@ -59,7 +56,7 @@ def run(ctx, incremental=None, race=None, build_include=None, build_exclude=None
     """
     if not skip_build:
         print("Building dogstatsd...")
-        build(ctx, incremental, race, build_include, build_exclude)
+        build(ctx, incremental=incremental, race=race, build_include=build_include, build_exclude=build_exclude)
 
     target = os.path.join(DOGSTATSD_BIN_PATH, bin_name("dogstatsd"))
     ctx.run("{} start".format(target))
