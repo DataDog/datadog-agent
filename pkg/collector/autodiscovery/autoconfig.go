@@ -93,12 +93,20 @@ func (ac *AutoConfig) StartPolling() {
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
 func (ac *AutoConfig) Stop() {
+	// stop the poller
 	ac.stop <- true
-	ac.collector.Stop()
+
+	// stop the collector
+	if ac.collector != nil {
+		ac.collector.Stop()
+	}
+
+	// stop the config resolver
 	if ac.configResolver != nil {
 		ac.configResolver.Stop()
 	}
 
+	// stop all the listeners
 	for _, l := range ac.listeners {
 		l.Stop()
 	}
