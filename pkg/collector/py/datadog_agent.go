@@ -56,10 +56,12 @@ func Headers(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	for k, v := range h {
 		cKey := C.CString(k)
 		pyKey := C.PyString_FromString(cKey)
+		defer C.Py_DecRef(pyKey)
 		C.free(unsafe.Pointer(cKey))
 
 		cVal := C.CString(v)
 		pyVal := C.PyString_FromString(cVal)
+		defer C.Py_DecRef(pyVal)
 		C.free(unsafe.Pointer(cVal))
 
 		C.PyDict_SetItem(dict, pyKey, pyVal)

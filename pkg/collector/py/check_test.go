@@ -16,6 +16,7 @@ import (
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -62,7 +63,7 @@ func TestNewPythonCheck(t *testing.T) {
 	tuple := python.PyTuple_New(0)
 	res := NewPythonCheck("FooBar", tuple)
 
-	assert.Equal(t, tuple, res.Class)
+	assert.Equal(t, tuple, res.class)
 	assert.Equal(t, "FooBar", res.ModuleName)
 }
 
@@ -70,6 +71,16 @@ func TestRun(t *testing.T) {
 	check, _ := getCheckInstance("testcheck", "TestCheck")
 	err := check.Run()
 	assert.Nil(t, err)
+}
+
+func TestWarning(t *testing.T) {
+	check, _ := getCheckInstance("testwarnings", "TestCheck")
+	err := check.Run()
+	assert.Nil(t, err)
+
+	warnings := check.GetWarnings()
+	require.Len(t, warnings, 1)
+	assert.Equal(t, "The cake is a lie", warnings[0].Error())
 }
 
 func TestStr(t *testing.T) {

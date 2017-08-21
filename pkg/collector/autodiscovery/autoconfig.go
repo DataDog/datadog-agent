@@ -22,13 +22,18 @@ import (
 var (
 	configsPollIntl = 10 * time.Second
 	configPipeBuf   = 100
-	loaderStats     *expvar.Map
-	loaderErrors    = newLoaderErrorStats()
+	acErrors        *expvar.Map
+	errorStats      = newAcErrorStats()
 )
 
 func init() {
-	loaderStats = expvar.NewMap("loader")
-	loaderStats.Set("Errors", expvar.Func(expLoaderErrors))
+	acErrors = expvar.NewMap("autoconfig")
+	acErrors.Set("LoaderErrors", expvar.Func(func() interface{} {
+		return errorStats.getLoaderErrors()
+	}))
+	acErrors.Set("RunErrors", expvar.Func(func() interface{} {
+		return errorStats.getRunErrors()
+	}))
 }
 
 // providerDescriptor keeps track of the configurations loaded by a certain
@@ -268,6 +273,7 @@ func (ac *AutoConfig) pollConfigs() {
 									_, err := ac.collector.RunCheck(check)
 									if err != nil {
 										log.Errorf("Unable to schedule check for running: %s", err)
+										errorStats.setRunError(check.ID(), err.Error())
 										continue
 									}
 									ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
@@ -284,6 +290,7 @@ func (ac *AutoConfig) pollConfigs() {
 								_, err := ac.collector.RunCheck(check)
 								if err != nil {
 									log.Errorf("Unable to schedule check for running: %s", err)
+									errorStats.setRunError(check.ID(), err.Error())
 									continue
 								}
 								ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
@@ -302,6 +309,7 @@ func (ac *AutoConfig) pollConfigs() {
 							err := ac.collector.StopCheck(id)
 							if err != nil {
 								log.Errorf("Error stopping check %s: %s", id, err)
+								errorStats.setRunError(id, err.Error())
 							} else {
 								stopped[id] = struct{}{}
 							}
@@ -373,11 +381,11 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 		res, err := loader.Load(config)
 		if err == nil {
 			log.Infof("%v: successfully loaded check '%s'", loader, config.Name)
-			loaderErrors.removeCheckErrors(config.Name)
+			errorStats.removeLoaderErrors(config.Name)
 			return res, nil
 		}
 
-		loaderErrors.setError(config.Name, fmt.Sprintf("%v", loader), err.Error())
+		errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
 		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
 	}
 
@@ -403,11 +411,7 @@ func (pd *providerDescriptor) contains(c *check.Config) bool {
 	return false
 }
 
-func expLoaderErrors() interface{} {
-	return loaderErrors.getErrors()
-}
-
 // GetLoaderErrors gets the errors from the loaderErrors struct
 func GetLoaderErrors() map[string]LoaderErrors {
-	return loaderErrors.getErrors()
+	return errorStats.getLoaderErrors()
 }

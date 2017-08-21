@@ -46,12 +46,14 @@ func (w *walker) Primitive(v reflect.Value) error {
 
 // push the old container to the stack and start using the new one
 // Notice: the GIL must be acquired before calling this method
+// push steals the reference to the passed *PyObject
 func (w *walker) push(newc *python.PyObject) {
 	// special case: init
 	if w.result == nil {
 		w.containersStack = append(w.containersStack, newc)
 		w.currentContainer = newc
 		w.result = newc
+		newc.IncRef() // the first assignment steals the ref, we need to IncRef for the 2nd assignment
 		return
 	}
 
@@ -59,9 +61,10 @@ func (w *walker) push(newc *python.PyObject) {
 	// we can safely assume it's either a `list` or a `dict`
 	if python.PyDict_Check(w.currentContainer) {
 		k := python.PyString_FromString(w.lastKey)
-		python.PyDict_SetItem(w.currentContainer, k, newc)
+		defer k.DecRef()
+		python.PyDict_SetItem(w.currentContainer, k, newc) // steal the ref, no IncRef
 	} else {
-		python.PyList_Append(w.currentContainer, newc)
+		python.PyList_Append(w.currentContainer, newc) // steal the ref, no IncRef
 	}
 
 	// push it like there's no tomorrow
@@ -74,6 +77,7 @@ func (w *walker) push(newc *python.PyObject) {
 func (w *walker) pop() {
 	l := len(w.containersStack)
 	if l > 0 {
+		w.currentContainer.DecRef()
 		w.currentContainer = w.containersStack[l-1]
 		w.containersStack = w.containersStack[:l-1]
 	}
@@ -168,10 +172,12 @@ func (w *walker) MapElem(m, k, v reflect.Value) error {
 
 	w.lastKey = k.Interface().(string)
 	dictKey := python.PyString_FromString(w.lastKey)
+	defer dictKey.DecRef()
 
 	// set the converted value in the Python dict
 	pyval := ifToPy(v)
 	if pyval != nil {
+		defer pyval.DecRef()
 		python.PyDict_SetItem(w.currentContainer, dictKey, pyval)
 	}
 
@@ -186,6 +192,7 @@ func (w *walker) SliceElem(i int, v reflect.Value) error {
 
 	pyval := ifToPy(v)
 	if pyval != nil {
+		defer pyval.DecRef()
 		python.PyList_Append(w.currentContainer, pyval)
 	}
 
