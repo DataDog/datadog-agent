@@ -58,13 +58,23 @@ instances:
         type: rate
 
       # aggregator monitoring
-      - path: aggregator/Flush/ChecksMetricSampleFlushTime/LastFlushTime
+      - path: aggregator/Flush/ChecksMetricSampleFlushTime/LastFlush
         type: gauge
-      - path: aggregator/Flush/ServiceCheckFlushTime/LastFlushTime
+      - path: aggregator/Flush/ServiceCheckFlushTime/LastFlush
         type: gauge
-      - path: aggregator/Flush/EventFlushTime/LastFlushTime
+      - path: aggregator/Flush/EventFlushTime/LastFlush
         type: gauge
-      - path: aggregator/Flush/MainFlushTime/LastFlushTime
+      - path: aggregator/Flush/MetricSketchFlushTime/LastFlush
+        type: gauge
+      - path: aggregator/Flush/MainFlushTime/LastFlush
+        type: gauge
+      - path: aggregator/FlushCount/ServiceChecks/LastFlush
+        type: gauge
+      - path: aggregator/FlushCount/Series/LastFlush
+        type: gauge
+      - path: aggregator/FlushCount/Events/LastFlush
+        type: gauge
+      - path: aggregator/FlushCount/Sketches/LastFlush
         type: gauge
       - path: aggregator/SeriesFlushed
         type: rate
