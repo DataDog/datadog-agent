@@ -20,11 +20,9 @@ to see the available tasks.
 
 To start working on the Agent, you can build the `master` branch:
 
-1. checkout the repo within your `GOPATH`.
+1. checkout the repo within your `$GOPATH`.
 2. install the project's dependencies: `invoke deps`.
-   Make sure that `GOPATH/bin` is in your `PATH` otherwise this step might fail.
-   Alternatively  you can install [dep](https://github.com/golang/dep) manually
-   on your system before running `invoke deps`.
+   Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
 3. build the whole project with `invoke agent.build --build-exclude=snmp`
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
@@ -42,6 +40,6 @@ DD_API_KEY=12345678990 ./bin/agent/agent
 
 ## Contributing
 
-In order for your contributions to be accepted, you will be required to sign a CLA.
-When a PR is opened a bot will prompt you to sign the CLA. Once signed you will
+You must sign a CLA before we can accept your contributions. If you submit a PR
+without having signed it, our bot will prompt you to do so. Once signed you will
 be set for all contributions going forward.
