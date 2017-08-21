@@ -19,6 +19,7 @@ import (
 	"github.com/shirou/gopsutil/host"
 
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
 	log "github.com/cihub/seelog"
@@ -132,18 +133,25 @@ func getHostInfo() *host.InfoStat {
 func getHostAliases() []string {
 	aliases := []string{}
 
-	azureAliases, err := azure.GetHostAlias()
+	azureAlias, err := azure.GetHostAlias()
 	if err != nil {
-		log.Errorf("no Azure Host Aliases: %s", err)
-	} else if azureAliases != "" {
-		aliases = append(aliases, azureAliases)
+		log.Errorf("no Azure Host Alias: %s", err)
+	} else if azureAlias != "" {
+		aliases = append(aliases, azureAlias)
 	}
 
-	gceAliases, err := gce.GetHostAlias()
+	gceAlias, err := gce.GetHostAlias()
 	if err != nil {
-		log.Errorf("no GCE Host Aliases: %s", err)
+		log.Errorf("no GCE Host Alias: %s", err)
 	} else {
-		aliases = append(aliases, gceAliases)
+		aliases = append(aliases, gceAlias)
+	}
+
+	cfAlias, err := cloudfoudry.GetHostAlias()
+	if err != nil {
+		log.Errorf("no Cloud Foundry Host Alias: %s", err)
+	} else if cfAlias != "" {
+		aliases = append(aliases, cfAlias)
 	}
 	return aliases
 }
