@@ -28,31 +28,55 @@ use any additional tool it might need.
 
 ## System or Embedded?
 
-When building system packages with Omnibus, all the external dependencies needed
-are built locally and put in the Omnibus cache. Such dependencies are then used
-to build the Agent binary that will be included in the final package.
+When working on the Agent codebase you can choose among two different ways to
+build the binary, informally named _System_ and _Embedded_ builds. For most
+contribution scenarios you should rely on the System build (the default) and use
+the Embedded one only for specific use cases, let's the differences in detail.
 
-Despite this is not expected to be that common, it might be desirable to build
-the agent using the very same bits that are used in the official packages even
-in a development enviroment. This behavior can be configured adjusting the
-`use_system_libs` boolean flag (either setting the proper env var, changing the
-`invoke.yaml` file or passing the corresponding arg to `invoke`). If you set
-`use_sytem_libs: false` and run Omnibus, you don't need any external dependency
-to build the Agent, though you might need to setup your dev env to build such
-dependencies, so don't think this is a shortcut.
+### System build
 
-If you don't care about building an exact clone of the official Agent at the
-binary level, and this should be the case most of the times, you can set
-`use_sytem_libs: true` and avoid running Omnibus, which might be quite time
-consuming. In this case you need to provide the external dependencies by
-yourself, go ahead to see how to do it.
+When performing a _System build_, libraries that could be found in your system
+will be used to satisfy external dependencies, meaning that building the same
+version of the Agent repo from two different environments (let's say macOS 10.11
+and macOS 10.12) will produce slightly different binaries. If you are building
+the agent only with the purpose of checking out how it works or to contribute a
+patch, getting a different binary from the one Datadog ships with the official
+packages won't be an issue most of the times. The tradeoff here is between build
+reproducibility and ease of setup: this process relies on tooling available on
+your system which you should be able to easily provide via the usual methods (apt,
+yum, brew, etc) - you can see the other sections of this document if you need
+details on how to setup them. If build reproducibility is not a requirement,
+you should use a System build. System build is the default for all the build and
+test tasks so there's no configuration steps to take.
+
+### Embedded build
+
+When performing an _Embedded build_, all the external dependencies needed by the
+Agent are built locally from sources at specific versions. This is as slow as it
+sounds so you should use Embedded builds only when you care about reproducible
+builds, for example:
+
+  * you want to build an agent binary that can be used as-is to replace the binary
+    of an existing agent installation
+  * some dependencies are not available on your system
+  * you're working or debugging at a very low level: let's say you're adding a
+    function to the Python bindings, you want to make sure you're using the exact
+    same versions of Python as the official Agent packages
+
+If you want to perform an Embedded build, you need to set the `use_system_libs`
+boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_LIBS=false`,
+changing the `invoke.yaml` file or passing the corresponding arg to the build and
+test tasks, like `invoke build --use-system-libs=false`.
+
+Embedded builds make use of Omnibus, so it's important to note that you also need
+to setup `ruby` and `bundle`.
 
 ### Python
 
-The Agent embeds a full fledget CPython interpreter so it requires the development
+The Agent embeds a full-fledged CPython interpreter so it requires the development
 files to be available in the dev env.
 
-If you're on OSX, installing Python 2.7 with [Homebrew](https://brew.sh) will
+If you're on OSX/macOS, installing Python 2.7 with [Homebrew](https://brew.sh) will
 bring along all the development files needed:
 ```
 brew install python
@@ -72,7 +96,7 @@ sudo apt-get install python2.7-dev
 The new SNMP check is written in Go, so the Agent must be built against few
 libraries.
 
-On OSX with [Homebrew](https://brew.sh):
+On OSX/macOS with [Homebrew](https://brew.sh):
 ```
 brew install net-snmp
 ```
@@ -83,6 +107,12 @@ On Ubuntu:
 ```
 sudo apt-get install libsnmp-base libsnmp-dev snmp-mibs-downloader
 ```
+
+**Please notice:** the package `snmp-mibs-downloader` is only available in the
+`multiverse` Ubuntu repo and in `non-free` Debian repo. If you don't really
+need to work/debug on the SNMP integration, you could just build the agent without
+it (see [Building the Agent][building] for how to do it) and avoid the dependencies
+setup efforts altogether.
 
 ## Building the system packages
 
@@ -99,3 +129,4 @@ dev environment.
 
 
 [testing]: agent_tests.md
+[building]: agent_build.md
