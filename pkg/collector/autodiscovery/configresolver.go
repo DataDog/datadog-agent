@@ -59,14 +59,14 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 	}
 
 	// start listening
-	cr.Listen()
+	cr.listen()
 
 	return cr
 }
 
-// Listen waits on services and templates and process them as they come.
+// listen waits on services and templates and process them as they come.
 // It can trigger scheduling decisions using its AC reference or just update its cache.
-func (cr *ConfigResolver) Listen() {
+func (cr *ConfigResolver) listen() {
 	go func() {
 		for {
 			select {
