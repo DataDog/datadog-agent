@@ -19,7 +19,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 
 @task
 def build(ctx, incremental=True, race=False, build_include=None, build_exclude=None,
-          puppy=False, use_system_libs=True):
+          puppy=False, use_embedded_libs=False):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -37,7 +37,7 @@ def build(ctx, incremental=True, race=False, build_include=None, build_exclude=N
     ldflags, gcflags = get_ldflags(ctx)
 
     env = {
-        "PKG_CONFIG_PATH": pkg_config_path(use_system_libs)
+        "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
 
     if invoke.platform.WINDOWS:

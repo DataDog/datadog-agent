@@ -16,7 +16,7 @@ PROFILE_COV = "profile.cov"
 
 
 @task()
-def test(ctx, targets=None, race=False, use_system_libs=True):
+def test(ctx, targets=None, race=False, use_embedded_libs=False):
     """
     Run all the tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -37,7 +37,7 @@ def test(ctx, targets=None, race=False, use_system_libs=True):
         f_cov.write("mode: count")
 
     env = {
-        "PKG_CONFIG_PATH": pkg_config_path(use_system_libs)
+        "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
 
     if race:
