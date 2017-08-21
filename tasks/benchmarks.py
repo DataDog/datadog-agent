@@ -8,7 +8,7 @@ import invoke
 from invoke import task
 
 from .build_tags import get_build_tags
-from .utils import bin_name
+from .utils import bin_name, is_affirmative
 from .utils import REPO_PATH
 
 
@@ -21,7 +21,7 @@ def build_aggregator(ctx, incremental=None):
     """
     Build the Aggregator benchmarks.
     """
-    incremental = incremental or ctx.benchmarks.incremental
+    incremental = ctx.benchmarks.incremental if incremental is None else is_affirmative(incremental)
     build_tags = get_build_tags()  # pass all the build flags
 
     ldflags = ""

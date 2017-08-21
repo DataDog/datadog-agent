@@ -7,7 +7,7 @@ import os
 from invoke import task
 
 from .build_tags import get_build_tags
-from .utils import REPO_PATH, bin_name, get_root
+from .utils import REPO_PATH, bin_name, get_root, is_affirmative
 
 
 #constants
@@ -18,7 +18,7 @@ def build(ctx, incremental=None):
     """
     Build the pylauncher executable
     """
-    incremental = incremental or ctx.pylauncher.incremental
+    incremental =  ctx.pylauncher.incremental if incremental is None else is_affirmative(incremental)
     build_tags = get_build_tags()  # pass all the build flags
 
     cmd = "go build {build_type} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/cmd/py-launcher/"

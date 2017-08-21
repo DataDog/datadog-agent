@@ -110,3 +110,14 @@ def get_root():
     Get the root of the Go project
     """
     return check_output(['git', 'rev-parse', '--show-toplevel']).strip()
+
+
+def is_affirmative(s):
+    """
+    Return a boolean that reflects the truthiness of the passed integer or string
+    """
+    # int or real bool
+    if isinstance(s, int):
+        return bool(s)
+    # try string cast
+    return s.lower() in ('yes', 'true', '1')

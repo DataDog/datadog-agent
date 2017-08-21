@@ -9,7 +9,7 @@ from distutils.dir_util import copy_tree
 import invoke
 from invoke import task
 
-from .utils import bin_name, get_ldflags, pkg_config_path
+from .utils import bin_name, get_ldflags, is_affirmative, pkg_config_path
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_puppy_build_tags
 
@@ -27,12 +27,12 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
     Example invokation:
         inv agent.build --build-exclude=snmp
     """
-    incremental = incremental or ctx.agent.incremental
-    race = race or ctx.agent.race
+    incremental = ctx.agent.incremental if incremental is None else is_affirmative(incremental)
+    race = ctx.agent.race if race is None else is_affirmative(puppy)
     build_include = ctx.agent.build_include if build_include is None else build_include.split(",")
     build_exclude = ctx.agent.build_exclude if build_exclude is None else build_exclude.split(",")
-    puppy = puppy or ctx.agent.puppy
-    use_system_libs = use_system_libs or ctx.use_system_libs
+    puppy = ctx.agent.puppy if puppy is None else is_affirmative(puppy)
+    use_system_libs = ctx.use_system_libs if use_system_libs is None else is_affirmative(use_system_libs)
 
     if puppy:
         build_tags = get_puppy_build_tags()

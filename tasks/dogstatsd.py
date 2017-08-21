@@ -9,7 +9,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags
-from .utils import get_ldflags, bin_name, get_root
+from .utils import get_ldflags, bin_name, get_root, is_affirmative
 from .utils import REPO_PATH
 
 
@@ -23,7 +23,7 @@ def build(ctx, incremental=None, race=False, static=False, build_include=None, b
     """
     Build Dogstatsd
     """
-    incremental = incremental or ctx.dogstatsd.incremental
+    incremental = ctx.dogstatsd.incremental if incremental is None else is_affirmative(incremental)
     race = race or ctx.dogstatsd.race
     static = static or ctx.dogstatsd.static
     build_include = ctx.dogstatsd.build_include if build_include is None else build_include.split(",")
