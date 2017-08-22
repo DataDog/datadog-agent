@@ -15,7 +15,7 @@ To propose improvements, feel free to submit a PR.
 
 ## Pull Requests
 
-You fixed a bug or wrote a new check and want to share it? Many thanks!
+Have you fixed a bug or written a new check and want to share it? Many thanks!
 
 In order to ease/speed up our review, here are some items you can check/improve
 when submitting your PR:

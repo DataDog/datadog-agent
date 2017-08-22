@@ -32,30 +32,26 @@ additional tool it might need.
 When working on the Agent codebase you can choose among two different ways to
 build the binary, informally named _System_ and _Embedded_ builds. For most
 contribution scenarios you should rely on the System build (the default) and use
-the Embedded one only for specific use cases, let's the differences in detail.
+the Embedded one only for specific use cases. Let's explore the differences.
 
 ### System build
 
-When performing a _System build_, libraries that could be found in your system
-will be used to satisfy external dependencies, meaning that building the same
-version of the Agent repo from two different environments (let's say macOS 10.11
-and macOS 10.12) will produce slightly different binaries. If you are building
-the agent only with the purpose of checking out how it works or to contribute a
-patch, getting a different binary from the one Datadog ships with the official
-packages won't be an issue most of the times. The tradeoff here is between build
-reproducibility and ease of setup: this process relies on tooling available on
-your system which you should be able to easily provide via the usual methods (apt,
-yum, brew, etc) - you can see the other sections of this document if you need
-details on how to setup them. If build reproducibility is not a requirement,
-you should use a System build. System build is the default for all the build and
-test tasks so there's no configuration steps to take.
+_System_ builds use your operating system's standard system libraries to satisfy
+the Agent's external dependencies. Since, for example, macOS 10.11 may provide a
+different version of Python than macOS 10.12, system builds on each of these
+platforms may produce different Agent binaries. If this doesn't matter to
+you—perhaps you just want to contribute a quick bugfix—do a System build; it's
+easier and faster than an Embedded build. System build is the default for all
+build and test tasks, so you don't need to configure anything there. But to make
+sure you have system copies of all the Agent's dependencies, skip the
+_Embedded build_ section below and read on to see how to install them via your
+usual package manager (apt, yum, brew, etc).
 
 ### Embedded build
 
-When performing an _Embedded build_, all the external dependencies needed by the
-Agent are built locally from sources at specific versions. This is as slow as it
-sounds so you should use Embedded builds only when you care about reproducible
-builds, for example:
+_Embedded_ builds use specifically-versioned dependencies that are downloaded and
+built locally from sources. This is as slow as it sounds so you should use
+Embedded builds only when you care about reproducible builds, for example:
 
   * you want to build an agent binary that can be used as-is to replace the binary
     of an existing agent installation
@@ -69,8 +65,7 @@ boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_L
 changing the `invoke.yaml` file or passing the corresponding arg to the build and
 test tasks, like `invoke build --use-system-libs=false`.
 
-Embedded builds make use of Omnibus, so it's important to note that you also need
-to setup `ruby` and `bundle`.
+Embedded builds use Omnibus, so you also need to setup `ruby` and `bundle`.
 
 ### Python
 
@@ -109,7 +104,7 @@ On Ubuntu:
 sudo apt-get install libsnmp-base libsnmp-dev snmp-mibs-downloader
 ```
 
-**Please notice:** the package `snmp-mibs-downloader` is only available in the
+**Please note:** the package `snmp-mibs-downloader` is only available in the
 `multiverse` Ubuntu repo and in `non-free` Debian repo. If you don't really
 need to work/debug on the SNMP integration, you could just build the agent without
 it (see [Building the Agent][building] for how to do it) and avoid the dependencies
