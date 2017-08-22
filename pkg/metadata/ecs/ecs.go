@@ -91,7 +91,7 @@ func GetPayload() (metadata.Payload, error) {
 // ECS agent being detected. This is a used as a way to check if is available
 // or if the host is not in an ECS cluster.
 func IsAgentNotDetected(err error) bool {
-	return strings.Contains(err.Error(), "could not detect ECS Agent")
+	return strings.Contains(err.Error(), "could not detect ECS agent")
 }
 
 // detectAgentURL finds a hostname for the ECS-agent either via Docker, if
