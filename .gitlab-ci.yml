@@ -4,6 +4,7 @@ stages:
   - integration_test
   - package_build
   - deploy
+  - statistics
 
 variables:
   DOCKER_REGISTRY: 727006795293.dkr.ecr.us-east-1.amazonaws.com
@@ -201,3 +202,15 @@ deploy_deb:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --no-tty --digest-algo SHA512" --preserve_versions $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
 
 # TODO: deploy rpm packages
+
+# run benchmarks on master and push result to DataDog
+run_benchmarks:
+  stage: statistics
+  image: $DEB_X64
+  tags:
+    - docker
+  variables:
+    USE_SYSTEM_LIBS: "1"
+  script:
+    - rake benchmark:aggregator:build
+    - rake benchmark:aggregator:run

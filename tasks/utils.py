@@ -24,7 +24,7 @@ def bin_name(name):
     return "{}.bin".format(name)
 
 
-def pkg_config_path(use_system_libs):
+def pkg_config_path(use_embedded_libs):
     """
     Prepend the full path to either the `system` or `embedded` pkg-config
     folders provided by the agent to the existing value of `PKG_CONFIG_PATH`
@@ -33,10 +33,10 @@ def pkg_config_path(use_system_libs):
     retval = ""
 
     base = os.path.join(os.path.dirname("."), "pkg-config", platform.system().lower())
-    if use_system_libs:
-        retval = os.path.abspath(os.path.join(base, "system"))
-    else:
+    if use_embedded_libs:
         retval = os.path.abspath(os.path.join(base, "embedded"))
+    else:
+        retval = os.path.abspath(os.path.join(base, "system"))
 
     # append the system wide value of PKG_CONFIG_PATH
     retval += ":{}".format(os.environ.get("PKG_CONFIG_PATH", ""))
@@ -110,3 +110,9 @@ def get_root():
     Get the root of the Go project
     """
     return check_output(['git', 'rev-parse', '--show-toplevel']).strip()
+
+def get_git_branch_name():
+    """
+    Return the name of the current git branch
+    """
+    return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
