@@ -22,7 +22,7 @@ namespace :benchmark do
 
     desc "Run the aggregator benchmark"
     task :run do
-      branch = `git rev-parse --abbrev-ref HEAD`.strip()
+      branch = ENV["DD_REPO_BRANCH_NAME"] or `git rev-parse --abbrev-ref HEAD`.strip()
       options = ""
       if ENV["DD_AGENT_API_KEY"]
         options = " -api-key #{ENV["DD_AGENT_API_KEY"]}"

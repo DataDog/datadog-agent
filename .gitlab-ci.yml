@@ -213,4 +213,4 @@ run_benchmarks:
     USE_SYSTEM_LIBS: "1"
   script:
     - rake benchmark:aggregator:build
-    - rake benchmark:aggregator:run
+    - DD_REPO_BRANCH_NAME="${CI_COMMIT_REF_NAME}" rake benchmark:aggregator:run

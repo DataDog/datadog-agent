@@ -77,7 +77,8 @@ def aggregator(ctx):
     Run the Aggregator Benchmarks.
     """
     bin_path = os.path.join(BENCHMARKS_BIN_PATH, bin_name("aggregator"))
-    options = "-branch {}".format(get_git_branch_name())
+    branch_name = os.environ.get("DD_REPO_BRANCH_NAME") or get_git_branch_name()
+    options = "-branch {}".format(branch_name)
 
     key = os.environ.get("DD_AGENT_API_KEY")
     if key:
