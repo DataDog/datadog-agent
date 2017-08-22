@@ -136,19 +136,19 @@ func (suite *ZkTestSuite) TestCollect() {
 	assert.Nil(suite.T(), err)
 	assert.Len(suite.T(), templates, 3)
 
-	// assert.Equal(suite.T(), "/datadog/check_configs/nginx", templates[0].Digest())
+	// FIXME: assert.Equal(suite.T(), "/datadog/check_configs/nginx", templates[0].Digest())
 	assert.Equal(suite.T(), "nginx_a", templates[0].Name)
 	assert.Equal(suite.T(), "{}", string(templates[0].InitConfig))
 	require.Len(suite.T(), templates[0].Instances, 1)
 	assert.Equal(suite.T(), "{\"key\":2}", string(templates[0].Instances[0]))
 
-	// assert.Equal(suite.T(), check.ID("/datadog/check_configs/nginx"), templates[1].ID)
+	// FIXME: assert.Equal(suite.T(), check.ID("/datadog/check_configs/nginx"), templates[1].ID)
 	assert.Equal(suite.T(), "nginx_b", templates[1].Name)
 	assert.Equal(suite.T(), "{\"key\":3}", string(templates[1].InitConfig))
 	require.Len(suite.T(), templates[1].Instances, 1)
 	assert.Equal(suite.T(), "{}", string(templates[1].Instances[0]))
 
-	// assert.Equal(suite.T(), check.ID("/datadog/check_configs/redis"), templates[2].ID)
+	// FIXME: assert.Equal(suite.T(), check.ID("/datadog/check_configs/redis"), templates[2].ID)
 	assert.Equal(suite.T(), "redis_a", templates[2].Name)
 	assert.Equal(suite.T(), "{}", string(templates[2].InitConfig))
 	require.Len(suite.T(), templates[2].Instances, 1)
