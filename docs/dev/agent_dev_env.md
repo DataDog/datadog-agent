@@ -60,12 +60,17 @@ Embedded builds only when you care about reproducible builds, for example:
     function to the Python bindings, you want to make sure you're using the exact
     same versions of Python as the official Agent packages
 
+Another use case for Embedded builds is the Agent packages officially distributed
+by Datadog - the Agent binaries contained in the packages are built this way.
+
+Embedded builds rely on [Omnibus](https://github.com/chef/omnibus) to download
+and build dependencies, so you need a recent `ruby` environment with `bundler`
+installed.
+
 If you want to perform an Embedded build, you need to set the `use_system_libs`
 boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_LIBS=false`,
 changing the `invoke.yaml` file or passing the corresponding arg to the build and
 test tasks, like `invoke build --use-system-libs=false`.
-
-Embedded builds use Omnibus, so you also need to setup `ruby` and `bundle`.
 
 ### Python
 
@@ -109,13 +114,6 @@ sudo apt-get install libsnmp-base libsnmp-dev snmp-mibs-downloader
 need to work/debug on the SNMP integration, you could just build the agent without
 it (see [Building the Agent][building] for how to do it) and avoid the dependencies
 setup efforts altogether.
-
-## Building the system packages
-
-The Agent uses [Omnibus](https://github.com/chef/omnibus) to build the official
-packages for all the platforms Datadog supports. In order to build a system
-package, and only in this case, you need a recent and working `ruby` environment
-with `bundler` installed.
 
 ## Docker
 
