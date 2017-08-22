@@ -115,6 +115,9 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 			config, err := cr.resolve(tpl, cr.services[serviceID])
 			if err == nil {
 				resolvedSet[config.Digest()] = config
+			} else {
+				log.Debugf("Error resolving template %s for service %s: %v",
+					config.Name, serviceID, err)
 			}
 		}
 	}
