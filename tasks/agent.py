@@ -18,8 +18,8 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 
 
 @task
-def build(ctx, incremental=None, race=None, build_include=None, build_exclude=None,
-          puppy=None, use_system_libs=None):
+def build(ctx, incremental=True, race=False, build_include=None, build_exclude=None,
+          puppy=False, use_embedded_libs=False):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -27,12 +27,8 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
     Example invokation:
         inv agent.build --build-exclude=snmp
     """
-    incremental = incremental or ctx.agent.incremental
-    race = race or ctx.agent.race
     build_include = ctx.agent.build_include if build_include is None else build_include.split(",")
     build_exclude = ctx.agent.build_exclude if build_exclude is None else build_exclude.split(",")
-    puppy = puppy or ctx.agent.puppy
-    use_system_libs = use_system_libs or ctx.use_system_libs
 
     if puppy:
         build_tags = get_puppy_build_tags()
@@ -41,7 +37,7 @@ def build(ctx, incremental=None, race=None, build_include=None, build_exclude=No
     ldflags, gcflags = get_ldflags(ctx)
 
     env = {
-        "PKG_CONFIG_PATH": pkg_config_path(use_system_libs)
+        "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
 
     if invoke.platform.WINDOWS:
@@ -93,8 +89,8 @@ def refresh_assets(ctx):
 
 
 @task
-def run(ctx, incremental=None, race=None, build_include=None, build_exclude=None,
-        puppy=None, skip_build=False):
+def run(ctx, incremental=True, race=False, build_include=None, build_exclude=None,
+        puppy=False, skip_build=False):
     """
     Execute the agent binary.
 
@@ -119,12 +115,10 @@ def system_tests(ctx):
 
 
 @task
-def omnibus_build(ctx, puppy=None):
+def omnibus_build(ctx, puppy=False):
     """
     Build the Agent packages with Omnibus Installer.
     """
-    puppy = puppy or ctx.agent.puppy
-
     # omnibus config overrides
     overrides = []
 
