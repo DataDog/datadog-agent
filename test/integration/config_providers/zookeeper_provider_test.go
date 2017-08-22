@@ -3,22 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package main
+package configproviders
 
 import (
-	"fmt"
-	"os"
+	"context"
 	"testing"
 	"time"
 
 	log "github.com/cihub/seelog"
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 	"github.com/samuel/go-zookeeper/zk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
 var (
@@ -63,21 +65,59 @@ var (
 		[]string{"/datadog/check_configs/json_error3/instances", "[{}]"},
 		[]string{"/datadog/check_configs/json_error3/init_configs", "[{}]"},
 	}
-
-	zookeeperURL = os.Getenv("ZK_URL")
 )
 
-func zkSetup() error {
-	c, _, err := zk.Connect([]string{zookeeperURL}, 2*time.Second)
-	if err != nil {
-		return fmt.Errorf("ZookeeperConfigProvider: couldn't connect zookeeper on port 2181: %s", err)
-	}
-	defer c.Close()
+const (
+	zookeeperURL = "127.0.0.1"
+)
 
+type ZkTestSuite struct {
+	suite.Suite
+	templates     map[string]string
+	client        *zk.Conn
+	containerName string
+}
+
+func (suite *ZkTestSuite) SetupSuite() {
+	var err error
+	suite.client, _, err = zk.Connect([]string{zookeeperURL}, 2*time.Second)
+	if err != nil {
+		panic(err)
+	}
+
+	// pull the latest image, create a standalone zk container
+	suite.containerName = "datadog-agent-test-zk"
+	utils.StartZkContainer("zookeeper:latest", suite.containerName)
+
+	// wait for zk to start
+	time.Sleep(1 * time.Second)
+}
+
+func (suite *ZkTestSuite) TearDownSuite() {
+	cli, err := client.NewEnvClient()
+	if err != nil {
+		panic(err)
+	}
+
+	ctx := context.Background()
+
+	cli.ContainerRemove(ctx, suite.containerName, types.ContainerRemoveOptions{Force: true})
+}
+
+// put configuration back in a known state before each test
+func (suite *ZkTestSuite) SetupTest() {
+	config.Datadog.Set("autoconf_template_url", zookeeperURL)
+	config.Datadog.Set("autoconf_template_dir", "/datadog/check_configs")
+	config.Datadog.Set("autoconf_template_username", "")
+	config.Datadog.Set("autoconf_template_password", "")
+
+	suite.populate()
+}
+
+func (suite *ZkTestSuite) populate() error {
 	// create test data
 	for _, node := range zkDataTree {
-		_, err := c.Create(node[0], []byte(node[1]), 0, zk.WorldACL(zk.PermAll))
-		log.Errorf("creating node: %s", node[0])
+		_, err := suite.client.Create(node[0], []byte(node[1]), 0, zk.WorldACL(zk.PermAll))
 		if err != nil && err != zk.ErrNodeExists {
 			log.Errorf("Could not create path %s with value '%s': %s", node[0], node[1], err)
 			return err
@@ -87,34 +127,34 @@ func zkSetup() error {
 	return nil
 }
 
-func TestCollect(t *testing.T) {
-	err := zkSetup()
-	require.Nil(t, err)
-
-	config.Datadog.Set("autoconf_template_url", zookeeperURL)
+func (suite *ZkTestSuite) TestCollect() {
 	zk, err := providers.NewZookeeperConfigProvider()
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 
 	templates, err := zk.Collect()
 
-	assert.Nil(t, err)
-	assert.Len(t, templates, 3)
+	assert.Nil(suite.T(), err)
+	assert.Len(suite.T(), templates, 3)
 
-	assert.Equal(t, check.ID("/datadog/check_configs/nginx"), templates[0].ID)
-	assert.Equal(t, "nginx_a", templates[0].Name)
-	assert.Equal(t, "{}", string(templates[0].InitConfig))
-	require.Len(t, templates[0].Instances, 1)
-	assert.Equal(t, "{\"key\":2}", string(templates[0].Instances[0]))
+	// assert.Equal(suite.T(), "/datadog/check_configs/nginx", templates[0].Digest())
+	assert.Equal(suite.T(), "nginx_a", templates[0].Name)
+	assert.Equal(suite.T(), "{}", string(templates[0].InitConfig))
+	require.Len(suite.T(), templates[0].Instances, 1)
+	assert.Equal(suite.T(), "{\"key\":2}", string(templates[0].Instances[0]))
 
-	assert.Equal(t, check.ID("/datadog/check_configs/nginx"), templates[1].ID)
-	assert.Equal(t, "nginx_b", templates[1].Name)
-	assert.Equal(t, "{\"key\":3}", string(templates[1].InitConfig))
-	require.Len(t, templates[1].Instances, 1)
-	assert.Equal(t, "{}", string(templates[1].Instances[0]))
+	// assert.Equal(suite.T(), check.ID("/datadog/check_configs/nginx"), templates[1].ID)
+	assert.Equal(suite.T(), "nginx_b", templates[1].Name)
+	assert.Equal(suite.T(), "{\"key\":3}", string(templates[1].InitConfig))
+	require.Len(suite.T(), templates[1].Instances, 1)
+	assert.Equal(suite.T(), "{}", string(templates[1].Instances[0]))
 
-	assert.Equal(t, check.ID("/datadog/check_configs/redis"), templates[2].ID)
-	assert.Equal(t, "redis_a", templates[2].Name)
-	assert.Equal(t, "{}", string(templates[2].InitConfig))
-	require.Len(t, templates[2].Instances, 1)
-	assert.Equal(t, "{}", string(templates[2].Instances[0]))
+	// assert.Equal(suite.T(), check.ID("/datadog/check_configs/redis"), templates[2].ID)
+	assert.Equal(suite.T(), "redis_a", templates[2].Name)
+	assert.Equal(suite.T(), "{}", string(templates[2].InitConfig))
+	require.Len(suite.T(), templates[2].Instances, 1)
+	assert.Equal(suite.T(), "{}", string(templates[2].Instances[0]))
+}
+
+func TestZkSuite(t *testing.T) {
+	suite.Run(t, new(ZkTestSuite))
 }

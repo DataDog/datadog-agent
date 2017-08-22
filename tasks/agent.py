@@ -10,7 +10,7 @@ import invoke
 from invoke import task
 
 from .utils import bin_name, get_ldflags, pkg_config_path
-from .utils import REPO_PATH
+from .utils import REPO_PATH, get_root
 from .build_tags import get_build_tags, get_puppy_build_tags
 
 #constants
@@ -108,10 +108,28 @@ def system_tests(ctx):
     """
     Run the system testsuite.
     """
-    gopath = os.environ.get("GOPATH")
-    sys_test_dir = "{}/src/{}/test/integration/config_providers/zookeeper"
-    with ctx.cd(sys_test_dir.format(gopath, REPO_PATH)):
-        ctx.run("bash ./test.sh")
+    pass
+
+
+@task
+def integration_tests(ctx):
+    """
+    Run integration tests for the Agent
+    """
+    build_tags = get_build_tags()
+    root = get_root()
+
+    # config_providers
+    cmd = "go test -tags '{}' ./test/integration/config_providers/..."
+    ctx.run(cmd.format(" ".join(build_tags)))
+
+    # autodiscovery
+
+
+    # listeners
+
+
+    # metadata_providers
 
 
 @task
