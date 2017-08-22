@@ -124,13 +124,13 @@ def integration_tests(ctx):
     ctx.run(cmd.format(" ".join(build_tags)))
 
     # autodiscovery
-
+    # TODO
 
     # listeners
-
+    # TODO
 
     # metadata_providers
-
+    # TODO
 
 @task
 def omnibus_build(ctx, puppy=False):
