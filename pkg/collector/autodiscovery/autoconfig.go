@@ -93,12 +93,20 @@ func (ac *AutoConfig) StartPolling() {
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
 func (ac *AutoConfig) Stop() {
+	// stop the poller
 	ac.stop <- true
-	ac.collector.Stop()
+
+	// stop the collector
+	if ac.collector != nil {
+		ac.collector.Stop()
+	}
+
+	// stop the config resolver
 	if ac.configResolver != nil {
 		ac.configResolver.Stop()
 	}
 
+	// stop all the listeners
 	for _, l := range ac.listeners {
 		l.Stop()
 	}
@@ -390,14 +398,6 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 	}
 
 	return []check.Check{}, fmt.Errorf("unable to load any check from config '%s'", config.Name)
-}
-
-// ReloadCheck extracts initConfig and instance from a config and instructs
-// the collector to re-configure a running check with them.
-func (ac *AutoConfig) ReloadCheck(id check.ID, config check.Config) error {
-	initConfig := config.InitConfig
-	instance := config.Instances[0]
-	return ac.collector.ReloadCheck(id, instance, initConfig)
 }
 
 // check if the descriptor contains the Config passed
