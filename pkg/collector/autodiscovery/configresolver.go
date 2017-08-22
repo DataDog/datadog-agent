@@ -51,6 +51,7 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 		ac:              ac,
 		collector:       coll,
 		templates:       tc,
+		services:        make(map[listeners.ID]listeners.Service),
 		serviceToChecks: make(map[listeners.ID][]check.ID, 0),
 		adIDToServices:  make(map[string][]listeners.ID),
 		newService:      make(chan listeners.Service),
@@ -59,14 +60,14 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 	}
 
 	// start listening
-	cr.Listen()
+	cr.listen()
 
 	return cr
 }
 
-// Listen waits on services and templates and process them as they come.
+// listen waits on services and templates and process them as they come.
 // It can trigger scheduling decisions using its AC reference or just update its cache.
-func (cr *ConfigResolver) Listen() {
+func (cr *ConfigResolver) listen() {
 	go func() {
 		for {
 			select {
@@ -112,8 +113,11 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 
 		for _, serviceID := range serviceIds {
 			config, err := cr.resolve(tpl, cr.services[serviceID])
-			if err != nil {
+			if err == nil {
 				resolvedSet[config.Digest()] = config
+			} else {
+				log.Debugf("Error resolving template %s for service %s: %v",
+					config.Name, serviceID, err)
 			}
 		}
 	}
@@ -231,15 +235,6 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 	}
 }
 
-// IsConfigMatching checks if a Service ConfigID and a config ID are a match
-// TODO: decomp the Service ConfigID for more advanced matching
-func IsConfigMatching(sID check.ID, tID check.ID) bool {
-	if sID == tID {
-		return true
-	}
-	return false
-}
-
 // TODO (use svc.Hosts)
 func getHost(tplVar []byte, tpl check.Config, svc listeners.Service) []byte {
 	return []byte("127.0.0.1")
@@ -278,7 +273,7 @@ func getOptTags(tplVar []byte, tpl check.Config, svc listeners.Service) []byte {
 // and the key (or index if it can be cast to an int)
 func parseTemplateVar(v []byte) (name, key []byte) {
 	stripped := bytes.Map(func(r rune) rune {
-		if unicode.IsSpace(r) {
+		if unicode.IsSpace(r) || r == '%' {
 			return -1
 		}
 		return r

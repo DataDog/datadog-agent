@@ -62,8 +62,9 @@ func (cache *TemplateCache) Get(adID string) ([]check.Config, error) {
 	cache.m.RLock()
 	defer cache.m.RUnlock()
 
+	// do we know the identifier?
 	if digests, found := cache.id2digests[adID]; found {
-		templates := make([]check.Config, len(digests))
+		templates := []check.Config{}
 		for _, digest := range digests {
 			templates = append(templates, cache.digest2template[digest])
 		}

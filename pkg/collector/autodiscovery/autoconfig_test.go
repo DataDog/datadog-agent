@@ -14,11 +14,11 @@ import (
 )
 
 type MockProvider struct {
-	CollectCounter int
+	collectCounter int
 }
 
 func (p *MockProvider) Collect() ([]check.Config, error) {
-	p.CollectCounter++
+	p.collectCounter++
 	return []check.Config{}, nil
 }
 
@@ -31,16 +31,12 @@ type MockLoader struct{}
 func (l *MockLoader) Load(config check.Config) ([]check.Check, error) { return []check.Check{}, nil }
 
 type MockListener struct {
-	ListenCount int
+	ListenCount  int
+	stopReceived bool
 }
 
-func (l *MockListener) Listen() {
-	l.ListenCount++
-}
-
-func (l *MockListener) Stop() {
-	return
-}
+func (l *MockListener) Listen() { l.ListenCount++ }
+func (l *MockListener) Stop()   { l.stopReceived = true }
 
 func TestAddProvider(t *testing.T) {
 	ac := NewAutoConfig(nil)
@@ -52,7 +48,7 @@ func TestAddProvider(t *testing.T) {
 	ac.AddProvider(&MockProvider2{}, true)
 	ac.LoadAndRun()
 	require.Len(t, ac.providers, 2)
-	assert.Equal(t, 1, mp.CollectCounter)
+	assert.Equal(t, 1, mp.collectCounter)
 	assert.False(t, ac.providers[0].poll)
 	assert.True(t, ac.providers[1].poll)
 }
@@ -81,4 +77,17 @@ func TestContains(t *testing.T) {
 	pd.configs = append(pd.configs, c1)
 	assert.True(t, pd.contains(&c1))
 	assert.False(t, pd.contains(&c2))
+}
+
+func TestStop(t *testing.T) {
+	ac := NewAutoConfig(nil)
+	ac.StartPolling() // otherwise Stop would block
+
+	ml := &MockListener{}
+	ac.AddListener(ml)
+
+	ac.Stop()
+
+	assert.True(t, ml.stopReceived)
+	assert.True(t, ml.stopReceived)
 }
