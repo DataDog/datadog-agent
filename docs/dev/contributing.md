@@ -51,7 +51,7 @@ body to skip the build and give that slot to someone else who does need it.
 
 ### Squash your commits
 
-Please rebase your changes on `master` and  squash your commits whenever possible,
+Please rebase your changes on `master` and squash your commits whenever possible,
 it keeps history cleaner and it's easier to revert things. It also makes developers
 happier!
 

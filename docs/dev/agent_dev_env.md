@@ -49,9 +49,11 @@ usual package manager (apt, yum, brew, etc).
 
 ### Embedded build
 
-_Embedded_ builds use specifically-versioned dependencies that are downloaded and
-built locally from sources. This is as slow as it sounds so you should use
-Embedded builds only when you care about reproducible builds, for example:
+_Embedded_ builds download specifically-versioned dependencies and compile them
+locally from sources. We run Embedded builds to create Datadog's official Agent
+releases (i.e. RPMs, debs, etc), and while you can run the same builds while
+developing locally, the process is as slow as it sounds. Hence, you should only
+use them when you care about reproducible builds. For example:
 
   * you want to build an agent binary that can be used as-is to replace the binary
     of an existing agent installation
@@ -59,9 +61,6 @@ Embedded builds only when you care about reproducible builds, for example:
   * you're working or debugging at a very low level: let's say you're adding a
     function to the Python bindings, you want to make sure you're using the exact
     same versions of Python as the official Agent packages
-
-Another use case for Embedded builds is the Agent packages officially distributed
-by Datadog - the Agent binaries contained in the packages are built this way.
 
 Embedded builds rely on [Omnibus](https://github.com/chef/omnibus) to download
 and build dependencies, so you need a recent `ruby` environment with `bundler`
