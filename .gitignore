@@ -1,16 +1,16 @@
 # dogstatsd image temporary file
 Dockerfiles/dogstatsd/alpine/dogstatsd
 
+# folders
 vendor/
 bin/
-dev/
-.vscode
+./dev/
 
+# files
 .DS_Store
 *.cov
 *.pyc
 *.swp
 *.exe
 *.syso
-
 *.log

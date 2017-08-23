@@ -2,43 +2,44 @@
 
 [![CircleCI](https://circleci.com/gh/DataDog/datadog-agent/tree/master.svg?style=svg&circle-token=dbcee3f02b9c3fe5f142bfc5ecb735fdec34b643)](https://circleci.com/gh/DataDog/datadog-agent/tree/master)
 
-This repo contains the code needed to build different tools: for more informations about specific projects,
-see the README files for:
- * [Agent](cmd/agent/README.md)
- * [Dogstatsd](cmd/dogstatsd/README.md)
+The Datadog Agent faithfully collects events and metrics and brings them to
+[Datadog](https://app.datadoghq.com) on your behalf so that you can do something
+useful with your monitoring and performance data.
 
-## Requirements
+## Getting started
+
 To build the Agent you need:
- * `go` 1.8+.
- * A Python 2.7.x environment along with development libraries.
+ * [Go](https://golang.org/doc/install) 1.8 or later.
+ * Python 2.7 along with development libraries.
  * [Invoke](http://www.pyinvoke.org/installing.html), you can install it via
-   `pip install invoke` or via [Homebrew](https://brew.sh) on Mac OSX with
+   `pip install invoke` or via [Homebrew](https://brew.sh) on OSX/macOS with
    `brew install invoke`.
 
 Builds and tests are orchestrated with `invoke`, type `invoke --list` on a shell
 to see the available tasks.
 
-If you want to build the system packages, you also need a recent and working
-`ruby` environment with `bundler` installed.
-
-We use `pkg-config` to make compilers and linkers aware of Python. If you need
-to adjust the build for your specific configuration, add or edit the files within
-the `pkg-config` folder.
-
-## Getting started
 To start working on the Agent, you can build the `master` branch:
 
-1. checkout the repo within your `GOPATH`.
+1. checkout the repo within your `$GOPATH`.
 2. install the project's dependencies: `invoke deps`.
-   Make sure that `GOPATH/bin` is in your `PATH` otherwise this step might fail.
-   Alternatively  you can install [dep](https://github.com/golang/dep) manually
-   on your system before running `invoke deps`.
-3. build the whole project with `invoke build`, see [the Agent README](cmd/agent/README.md)
-   for more details on how to build the Agent alone.
+   Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
+3. build the whole project with `invoke agent.build --build-exclude=snmp`
 
-## Tests
-Some tests have specific requirements, see [System Tests](test/README.md).
+Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
+
+## Run
+
+To start the agent type `agent start` from the `bin/agent` folder, it will take
+care of adjusting paths and run the binary in foreground.
+
+You need to provide a valid API key, either through the config file or passing
+the environment variable like:
+```
+DD_API_KEY=12345678990 ./bin/agent/agent
+```
 
 ## Contributing
 
-In order for your contributions you will be required to sign a CLA. When a PR is opened a bot will prompt you to sign the CLA. Once signed you will be set for all contributions going forward.
+You must sign a CLA before we can accept your contributions. If you submit a PR
+without having signed it, our bot will prompt you to do so. Once signed you will
+be set for all contributions going forward.
