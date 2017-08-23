@@ -117,11 +117,10 @@ def integration_tests(ctx):
     Run integration tests for the Agent
     """
     build_tags = get_build_tags()
-    root = get_root()
 
     # config_providers
-    cmd = "go test -tags '{}' ./test/integration/config_providers/..."
-    ctx.run(cmd.format(" ".join(build_tags)))
+    cmd = "go test -tags '{}' {}/test/integration/config_providers/..."
+    ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
 
     # autodiscovery
     # TODO
