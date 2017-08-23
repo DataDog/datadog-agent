@@ -10,7 +10,7 @@ import invoke
 from invoke import task
 
 from .utils import bin_name, get_ldflags, pkg_config_path
-from .utils import REPO_PATH, get_root
+from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_puppy_build_tags
 
 #constants
