@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package configproviders
+package etcd
 
 import (
 	"context"
@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	etcdImg  string = "quay.io/coreos/etcd:latest"
 	etcdURL  string = "http://127.0.0.1:2379/"
 	etcdUser string = "root"
 	etcdPass string = "root"
@@ -35,6 +34,15 @@ type EtcdTestSuite struct {
 	templates     map[string]string
 	clientCfg     etcd_client.Config
 	containerName string
+	etcdVersion   string
+}
+
+// use a constructor to make the suite parametric
+func NewEtcdTestSuite(etcdVersion, containerName string) *EtcdTestSuite {
+	return &EtcdTestSuite{
+		containerName: containerName,
+		etcdVersion:   etcdVersion,
+	}
 }
 
 func (suite *EtcdTestSuite) SetupSuite() {
@@ -52,11 +60,13 @@ func (suite *EtcdTestSuite) SetupSuite() {
 	}
 
 	// pull the latest etcd image, create a standalone etcd container
-	suite.containerName = "datadog-agent-etcd0"
-	utils.StartEtcdContainer(etcdImg, suite.containerName)
-
-	// wait for etcd to start
-	time.Sleep(1 * time.Second)
+	etcdImg := "quay.io/coreos/etcd:" + suite.etcdVersion
+	err := utils.StartEtcdContainer(etcdImg, suite.containerName)
+	if err != nil {
+		// failing in SetupSuite won't call TearDownSuite, do it manually
+		suite.TearDownSuite()
+		suite.FailNow(err.Error())
+	}
 
 	suite.setEtcdPassword()
 }
@@ -188,5 +198,5 @@ func (suite *EtcdTestSuite) TestBadAuth() {
 }
 
 func TestEtcdSuite(t *testing.T) {
-	suite.Run(t, new(EtcdTestSuite))
+	suite.Run(t, NewEtcdTestSuite("v3.2.6", "datadog-agent-test-etcd"))
 }

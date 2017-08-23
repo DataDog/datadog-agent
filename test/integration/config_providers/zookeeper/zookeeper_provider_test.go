@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package configproviders
+package zookeeper
 
 import (
 	"context"
@@ -76,6 +76,15 @@ type ZkTestSuite struct {
 	templates     map[string]string
 	client        *zk.Conn
 	containerName string
+	zkVersion     string
+}
+
+// use a constructor to make the suite parametric
+func NewZkTestSuite(zkVersion, containerName string) *ZkTestSuite {
+	return &ZkTestSuite{
+		containerName: containerName,
+		zkVersion:     zkVersion,
+	}
 }
 
 func (suite *ZkTestSuite) SetupSuite() {
@@ -85,12 +94,14 @@ func (suite *ZkTestSuite) SetupSuite() {
 		panic(err)
 	}
 
-	// pull the latest image, create a standalone zk container
-	suite.containerName = "datadog-agent-test-zk"
-	utils.StartZkContainer("zookeeper:latest", suite.containerName)
-
-	// wait for zk to start
-	time.Sleep(1 * time.Second)
+	// pull the image, create a standalone zk container
+	imageName := "docker.io/library/zookeeper:" + suite.zkVersion
+	err = utils.StartZkContainer(imageName, suite.containerName)
+	if err != nil {
+		// failing in SetupSuite won't call TearDownSuite, do it manually
+		suite.TearDownSuite()
+		suite.FailNow(err.Error())
+	}
 }
 
 func (suite *ZkTestSuite) TearDownSuite() {
@@ -156,5 +167,6 @@ func (suite *ZkTestSuite) TestCollect() {
 }
 
 func TestZkSuite(t *testing.T) {
-	suite.Run(t, new(ZkTestSuite))
+	suite.Run(t, NewZkTestSuite("3.3.6", "datadog-agent-test-zk"))
+	suite.Run(t, NewZkTestSuite("3.4.10", "datadog-agent-test-zk"))
 }

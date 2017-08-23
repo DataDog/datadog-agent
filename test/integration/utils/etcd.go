@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -13,39 +14,38 @@ import (
 )
 
 // StartEtcdContainer downloads the image and starts an Etcd container
-func StartEtcdContainer(imageName string, containerName string) {
+func StartEtcdContainer(imageName string, containerName string) error {
 	cli, err := client.NewEnvClient()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	ctx := context.Background()
 
-	l, err := cli.ImageList(ctx, types.ImageListOptions{})
+	match, err := FindDockerImage(imageName)
 	if err != nil {
-		panic(err)
-	}
-
-	match := false
-	for _, img := range l {
-		if img.RepoTags[0] == imageName {
-			fmt.Printf("Found image %s locally\n", imageName)
-			match = true
-			break
-		}
+		return err
 	}
 
 	if !match {
 		fmt.Printf("Image %s not found, pulling\n", imageName)
 		resp, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
 		if err != nil {
-			panic(err)
+			return err
 		}
 		_, err = ioutil.ReadAll(resp) // Necessary for image pull to complete
 		resp.Close()
 		if err != nil {
-			panic(err)
+			return err
 		}
+	} else {
+		fmt.Printf("Found image %s locally\n", imageName)
+	}
+
+	healthCheck := &container.HealthConfig{
+		Test:     []string{"CMD", "wget", "--spider", "http://localhost:2379/health"},
+		Interval: 1 * time.Second,
+		Timeout:  1 * time.Second,
 	}
 
 	containerConfig := &container.Config{
@@ -55,6 +55,7 @@ func StartEtcdContainer(imageName string, containerName string) {
 			"-advertise-client-urls", "http://127.0.0.1:2379",
 			"-listen-client-urls", "http://0.0.0.0:2379",
 		},
+		Healthcheck: healthCheck,
 	}
 
 	hostConfig := &container.HostConfig{
@@ -70,6 +71,14 @@ func StartEtcdContainer(imageName string, containerName string) {
 	}
 
 	if err := cli.ContainerStart(ctx, containerName, types.ContainerStartOptions{}); err != nil {
-		panic(err)
+		return err
 	}
+
+	// wait for the container to start
+	err = waitFor(func() bool {
+		res, err := cli.ContainerInspect(ctx, containerName)
+		return err == nil && res.ContainerJSONBase.State.Health.Status == "healthy"
+	}, 5*time.Second)
+
+	return err
 }
