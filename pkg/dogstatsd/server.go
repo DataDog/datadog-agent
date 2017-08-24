@@ -91,8 +91,8 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 	for {
 		packet := <-s.packetIn
 
-		if packet.Container != "" {
-			log.Debugf("dogstatsd receive from %s: %s", packet.Container, packet.Contents)
+		if packet.Origin != "" {
+			log.Debugf("dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
 		} else {
 			log.Debugf("dogstatsd receive: %s", packet.Contents)
 		}

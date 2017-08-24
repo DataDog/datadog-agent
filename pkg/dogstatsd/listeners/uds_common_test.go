@@ -22,7 +22,7 @@ import (
 )
 
 func TestNewUDSListener(t *testing.T) {
-	dir, err := ioutil.TempDir("", "example")
+	dir, err := ioutil.TempDir("", "dd-test-")
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
@@ -37,13 +37,13 @@ func TestNewUDSListener(t *testing.T) {
 }
 
 func TestStartStopUDSListener(t *testing.T) {
-	dir, err := ioutil.TempDir("", "example")
+	dir, err := ioutil.TempDir("", "dd-test-")
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
 
 	config.Datadog.Set("dogstatsd_socket", socketPath)
-
+	config.Datadog.Set("dogstatsd_origin_detection", false)
 	s, err := NewUDSListener(nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
@@ -59,12 +59,14 @@ func TestStartStopUDSListener(t *testing.T) {
 }
 
 func TestUDSReceive(t *testing.T) {
-	dir, err := ioutil.TempDir("", "example")
+	dir, err := ioutil.TempDir("", "dd-test-")
 	assert.Nil(t, err)
 	defer os.RemoveAll(dir) // clean up
 	socketPath := filepath.Join(dir, "dsd.socket")
 
 	config.Datadog.Set("dogstatsd_socket", socketPath)
+	config.Datadog.Set("dogstatsd_origin_detection", false)
+
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 
 	packetChannel := make(chan *Packet)
@@ -83,7 +85,7 @@ func TestUDSReceive(t *testing.T) {
 	case packet := <-packetChannel:
 		assert.NotNil(t, packet)
 		assert.Equal(t, packet.Contents, contents)
-		assert.Equal(t, packet.Container, "")
+		assert.Equal(t, packet.Origin, "")
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

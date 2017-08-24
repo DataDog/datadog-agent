@@ -8,9 +8,17 @@ package listeners
 import (
 	"fmt"
 	"net"
+	"path"
+	"strconv"
 
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"golang.org/x/sys/unix"
+)
+
+const (
+	// PIDToContainerKeyPrefix holds the name prefix for cache keys
+	PIDToContainerKeyPrefix = "pid_to_container"
 )
 
 // getUDSAncillarySize gets the needed buffer size to retrieve the ancillary data
@@ -53,8 +61,25 @@ func processUDSOrigin(ancillary []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	log.Debugf("dogstatsd-uds: packet from PID %d", cred.Pid)
+	container, err := getContainerForPID(cred.Pid)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("docker://%s", container), nil
+}
 
-	// FIXME: resolve PID to container name in another PR
-	return fmt.Sprintf("pid:%d", cred.Pid), nil
+// getContainerForPID returns the docker container id and caches the value for future lookups
+// As the result is cached and the lookup is really fast (parsing a local file), it can be
+// called from the intake goroutine.
+func getContainerForPID(pid int32) (string, error) {
+	key := path.Join(util.AgentCachePrefix, PIDToContainerKeyPrefix, strconv.Itoa(int(pid)))
+	if x, found := util.Cache.Get(key); found {
+		return x.(string), nil
+	}
+	value, err := docker.ContainerIDForPID(int(pid))
+	if err != nil {
+		return "", err
+	}
+	util.Cache.Set(key, value, 0)
+	return value, err
 }
