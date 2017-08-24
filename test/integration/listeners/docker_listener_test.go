@@ -3,170 +3,151 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package integration
+package listeners
 
 import (
 	"context"
-	"io/ioutil"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
-const (
-	redisImage         string = "redis:latest"
-	redisContainerName string = "datadog-integration-redis"
-)
+type DockerListenerTestSuite struct {
+	suite.Suite
+	containerName string
+	redisImage    string
+	containerID   listeners.ID
+	listener      *listeners.DockerListener
+	newSvc        chan listeners.Service
+	delSvc        chan listeners.Service
+	stop          chan struct{}
+	m             sync.RWMutex
+}
 
-func ResetContainers() {
-	c, err := client.NewEnvClient()
+// use a constructor to make the suite parametric
+func NewDockerListenerTestSuite(redisVersion, containerName string) *DockerListenerTestSuite {
+	return &DockerListenerTestSuite{
+		containerName: containerName,
+		redisImage:    "redis:" + redisVersion,
+		stop:          make(chan struct{}, 1),
+	}
+}
+
+func (suite *DockerListenerTestSuite) SetupSuite() {
+	utils.PullImage(suite.redisImage)
+}
+
+func (suite *DockerListenerTestSuite) SetupTest() {
+	suite.m.Lock()
+	defer suite.m.Unlock()
+
+	suite.newSvc = make(chan listeners.Service)
+	suite.delSvc = make(chan listeners.Service)
+
+	dl, err := listeners.NewDockerListener(suite.newSvc, suite.delSvc)
 	if err != nil {
 		panic(err)
 	}
 
-	c.ContainerRemove(context.Background(), redisContainerName, types.ContainerRemoveOptions{Force: true})
+	suite.listener = dl
 }
 
-func removeFromImage(image string) {
-	c, err := client.NewEnvClient()
+func (suite *DockerListenerTestSuite) TearDownTest() {
+	suite.listener = nil
+	suite.containerID = ""
+	suite.stop <- struct{}{}
+}
+
+func (suite *DockerListenerTestSuite) containerStart() {
+	id, err := utils.StartRedisContainer(suite.redisImage, suite.containerName)
+	if err != nil {
+		panic(err)
+	}
+	suite.containerID = listeners.ID(id)
+	fmt.Println("started " + suite.containerID)
+}
+
+func (suite *DockerListenerTestSuite) containerRemove() {
+	cli, err := client.NewEnvClient()
+	if err != nil {
+		panic(err)
+	}
+
 	ctx := context.Background()
-
-	if err != nil {
-		panic(err)
-	}
-
-	l, err := c.ContainerList(ctx, types.ContainerListOptions{})
-	if err != nil {
-		panic(err)
-	}
-
-	for _, ctr := range l {
-		if ctr.Image == image {
-			c.ContainerRemove(ctx, ctr.ID, types.ContainerRemoveOptions{Force: true})
-		}
-	}
+	cli.ContainerRemove(ctx, suite.containerName, types.ContainerRemoveOptions{Force: true})
 }
 
-// runFromImage runs a dead-simple container based on
-// an image name passed to it, and returns its ID
-func runFromImage(image string) (string, error) {
-	c, err := client.NewEnvClient()
-	ctx := context.Background()
-
-	if err != nil {
-		panic(err)
-	}
-
-	l, err := c.ImageList(ctx, types.ImageListOptions{})
-	if err != nil {
-		panic(err)
-	}
-
-	match := false
-	for _, img := range l {
-		if img.RepoTags[0] == image {
-			match = true
-			break
-		}
-	}
-
-	if !match {
-		resp, err := c.ImagePull(ctx, image, types.ImagePullOptions{})
-		if err != nil {
-			panic(err)
-		}
-		_, err = ioutil.ReadAll(resp) // Necessary for image pull to complete
-		resp.Close()
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	resp, err := c.ContainerCreate(ctx, &container.Config{Image: image}, nil, nil, redisContainerName)
-	if err != nil {
-		panic(err)
-	}
-
-	if err := c.ContainerStart(ctx, redisContainerName, types.ContainerStartOptions{}); err != nil {
-		panic(err)
-	}
-
-	return resp.ID, nil
-}
-
-// this tests getHostsFromPs, getPortsFromPs, and getTagsFromPs as well
-func GetCurrentServicesTest(t *testing.T) {
-	newSvc, delSvc := make(chan listeners.Service), make(chan listeners.Service)
-	stop := make(chan bool)
-
-	// make sure we don't block on writes to channels
+func (suite *DockerListenerTestSuite) TestInit() {
+	// GetCurrentServices sends to newSvc channel, grab the messages so we don't
+	// block the test
 	go func() {
+		suite.m.RLock()
+		defer suite.m.RUnlock()
+
 		for {
 			select {
-			case <-newSvc:
-			case <-delSvc:
-			case <-stop:
+			case <-suite.stop:
+				return
+			case <-suite.newSvc:
 			}
 		}
 	}()
 
-	dl, err := listeners.NewDockerListener(stop, newSvc, delSvc)
-	if err != nil {
-		panic(err)
-	}
+	suite.listener.Init()
+	services := suite.listener.GetServices()
+	// services might contain other, unrelated containers running on the host,
+	// we specifically search for our redis container
+	assert.NotContains(suite.T(), services, suite.containerID)
 
-	// make sure you stop running containers before running this test
-	// this tests a blank run
-	res := dl.GetCurrentServices()
-	assert.Len(t, res, 0)
+	suite.containerStart()
 
-	// same test but with a simple redis container this time
-	id, _ := runFromImage(redisImage)
-	res = dl.GetCurrentServices()
+	suite.listener.Init()
+	services = suite.listener.GetServices()
+	service, found := services[suite.containerID]
+	assert.True(suite.T(), found)
+	assert.Len(suite.T(), service.Hosts, 1)
+	assert.Len(suite.T(), service.Tags, 0)
 
-	assert.Len(t, res, 1)
-	assert.Equal(t, id, res[id].ID)
-	assert.Equal(t, 1, len(res[id].Hosts))
-	assert.Equal(t, "redis:latest", res[id].ConfigID)
-	assert.Equal(t, 0, len(res[id].Tags))
+	suite.containerRemove()
 }
 
 // this tests processEvent, createService and removeService as well
-func ListenTest(t *testing.T) {
-	newSvc, delSvc := make(chan listeners.Service), make(chan listeners.Service)
-	stop := make(chan bool)
+func (suite *DockerListenerTestSuite) TestListen() {
+	suite.m.RLock()
+	defer suite.m.RUnlock()
 
-	dl, err := listeners.NewDockerListener(stop, newSvc, delSvc)
-	if err != nil {
-		panic(err)
-	}
+	suite.listener.Listen()
 
-	dl.Listen()
+	suite.containerStart()
 
-	id, _ := runFromImage(redisImage)
-	createdSvc := <-newSvc
+	// the listener should have posted the new service
+	createdSvc := <-suite.newSvc
 
-	assert.Equal(t, 1, len(dl.Services))
-	assert.Equal(t, createdSvc, dl.Services[id])
-	assert.Equal(t, id, createdSvc.ID)
+	services := suite.listener.GetServices()
+	assert.Len(suite.T(), services, 1)
+	assert.Equal(suite.T(), createdSvc, services[suite.containerID])
+	assert.Equal(suite.T(), suite.containerID, createdSvc.ID)
 
-	removeFromImage(redisImage)
+	suite.containerRemove()
 
-	oldSvc := <-delSvc
-	assert.Equal(t, 0, len(dl.Services))
-	assert.Equal(t, oldSvc, createdSvc)
+	// the listener should have put the service in the delSvc channel at
+	// this point, grab it
+	oldSvc := <-suite.delSvc
+
+	services = suite.listener.GetServices()
+
+	assert.Len(suite.T(), services, 0)
+	assert.Equal(suite.T(), oldSvc, createdSvc)
 }
 
-// actually run tests. Make sure to stop running containers on the machine before running this
-// otherwise it will block
-func TestDockerListener(t *testing.T) {
-	t.Run("GetCurrentServicesTest", func(t *testing.T) { GetCurrentServicesTest(t) })
-	ResetContainers()
-	t.Run("Listen", func(t *testing.T) { ListenTest(t) })
-	ResetContainers()
+func TestDockerListenerSuite(t *testing.T) {
+	suite.Run(t, NewDockerListenerTestSuite("latest", "datadog-agent-test-redis"))
 }
