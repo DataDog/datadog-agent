@@ -22,7 +22,7 @@ before_script:
   # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
-  - rake deps && pip install -r test/requirements-test.txt
+  - rake deps
 
 # run tests for deb-x64
 run_tests_deb-x64:
