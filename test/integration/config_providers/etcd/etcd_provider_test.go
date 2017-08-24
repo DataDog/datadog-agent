@@ -3,39 +3,46 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package integration
+package etcd
 
 import (
 	"context"
-	"io/ioutil"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/providers"
+	"github.com/DataDog/datadog-agent/test/integration/utils"
+
 	etcd_client "github.com/coreos/etcd/client"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
-	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (
-	etcdImg       string = "quay.io/coreos/etcd:latest"
-	containerName string = "datadog-agent-etcd0"
-	etcdURL       string = "http://127.0.0.1:2379/"
-	etcdUser      string = "root"
-	etcdPass      string = "root"
+	etcdURL  string = "http://127.0.0.1:2379/"
+	etcdUser string = "root"
+	etcdPass string = "root"
 )
 
 type EtcdTestSuite struct {
 	suite.Suite
-	templates map[string]string
-	clientCfg etcd_client.Config
+	templates     map[string]string
+	clientCfg     etcd_client.Config
+	containerName string
+	etcdVersion   string
+}
+
+// use a constructor to make the suite parametric
+func NewEtcdTestSuite(etcdVersion, containerName string) *EtcdTestSuite {
+	return &EtcdTestSuite{
+		containerName: containerName,
+		etcdVersion:   etcdVersion,
+	}
 }
 
 func (suite *EtcdTestSuite) SetupSuite() {
@@ -53,10 +60,13 @@ func (suite *EtcdTestSuite) SetupSuite() {
 	}
 
 	// pull the latest etcd image, create a standalone etcd container
-	suite.createEtcd()
-
-	// wait for etcd to start
-	time.Sleep(1 * time.Second)
+	etcdImg := "quay.io/coreos/etcd:" + suite.etcdVersion
+	err := utils.StartEtcdContainer(etcdImg, suite.containerName)
+	if err != nil {
+		// failing in SetupSuite won't call TearDownSuite, do it manually
+		suite.TearDownSuite()
+		suite.FailNow(err.Error())
+	}
 
 	suite.setEtcdPassword()
 }
@@ -69,7 +79,7 @@ func (suite *EtcdTestSuite) TearDownSuite() {
 
 	ctx := context.Background()
 
-	cli.ContainerRemove(ctx, containerName, types.ContainerRemoveOptions{Force: true})
+	cli.ContainerRemove(ctx, suite.containerName, types.ContainerRemoveOptions{Force: true})
 }
 
 // put configuration back in a known state before each test
@@ -81,67 +91,6 @@ func (suite *EtcdTestSuite) SetupTest() {
 
 	suite.populateEtcd()
 	suite.toggleEtcdAuth(false)
-}
-
-func (suite *EtcdTestSuite) createEtcd() {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-
-	ctx := context.Background()
-
-	l, err := cli.ImageList(ctx, types.ImageListOptions{})
-	if err != nil {
-		panic(err)
-	}
-
-	match := false
-	for _, img := range l {
-		if img.RepoTags[0] == etcdImg {
-			suite.T().Logf("Found image %s", etcdImg)
-			match = true
-			break
-		}
-	}
-
-	if !match {
-		suite.T().Logf("Image %s not found, pulling", etcdImg)
-		resp, err := cli.ImagePull(ctx, etcdImg, types.ImagePullOptions{})
-		if err != nil {
-			panic(err)
-		}
-		_, err = ioutil.ReadAll(resp) // Necessary for image pull to complete
-		resp.Close()
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	containerConfig := &container.Config{
-		Image: etcdImg,
-		Cmd: []string{
-			"/usr/local/bin/etcd",
-			"-advertise-client-urls", "http://127.0.0.1:2379",
-			"-listen-client-urls", "http://0.0.0.0:2379",
-		},
-	}
-
-	hostConfig := &container.HostConfig{
-		PortBindings: nat.PortMap{
-			"2379/tcp": []nat.PortBinding{nat.PortBinding{HostPort: "2379"}},
-		},
-	}
-
-	_, err = cli.ContainerCreate(ctx, containerConfig, hostConfig, nil, containerName)
-	if err != nil {
-		// containers already exists
-		suite.T().Logf("Error creating container %s: %s", containerName, err)
-	}
-
-	if err := cli.ContainerStart(ctx, containerName, types.ContainerStartOptions{}); err != nil {
-		panic(err)
-	}
 }
 
 func (suite *EtcdTestSuite) populateEtcd() {
@@ -249,5 +198,5 @@ func (suite *EtcdTestSuite) TestBadAuth() {
 }
 
 func TestEtcdSuite(t *testing.T) {
-	suite.Run(t, new(EtcdTestSuite))
+	suite.Run(t, NewEtcdTestSuite("v3.2.6", "datadog-agent-test-etcd"))
 }

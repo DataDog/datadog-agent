@@ -108,11 +108,28 @@ def system_tests(ctx):
     """
     Run the system testsuite.
     """
-    gopath = os.environ.get("GOPATH")
-    sys_test_dir = "{}/src/{}/test/integration/config_providers/zookeeper"
-    with ctx.cd(sys_test_dir.format(gopath, REPO_PATH)):
-        ctx.run("bash ./test.sh")
+    pass
 
+
+@task
+def integration_tests(ctx):
+    """
+    Run integration tests for the Agent
+    """
+    build_tags = get_build_tags()
+
+    # config_providers
+    cmd = "go test -tags '{}' {}/test/integration/config_providers/..."
+    ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+
+    # autodiscovery
+    # TODO
+
+    # listeners
+    # TODO
+
+    # metadata_providers
+    # TODO
 
 @task
 def omnibus_build(ctx, puppy=False):
