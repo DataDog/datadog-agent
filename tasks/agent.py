@@ -12,6 +12,7 @@ from invoke import task
 from .utils import bin_name, get_ldflags, pkg_config_path
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_puppy_build_tags
+from .go import deps
 
 #constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -112,10 +113,13 @@ def system_tests(ctx):
 
 
 @task
-def integration_tests(ctx):
+def integration_tests(ctx, install_deps=False):
     """
     Run integration tests for the Agent
     """
+    if install_deps:
+        deps(ctx)
+
     build_tags = get_build_tags()
 
     # config_providers
