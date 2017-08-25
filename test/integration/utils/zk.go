@@ -2,12 +2,8 @@ package utils
 
 import (
 	"context"
-	"fmt"
-	"io/ioutil"
-	"os"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
@@ -15,33 +11,6 @@ import (
 
 // StartZkContainer downloads the image and starts a Zk container
 func StartZkContainer(imageName string, containerName string) error {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		return err
-	}
-
-	ctx := context.Background()
-
-	match, err := FindDockerImage(imageName)
-	if err != nil {
-		return err
-	}
-
-	if !match {
-		fmt.Printf("Image %s not found, pulling\n", imageName)
-		resp, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
-		if err != nil {
-			return err
-		}
-		_, err = ioutil.ReadAll(resp) // Necessary for image pull to complete
-		resp.Close()
-		if err != nil {
-			return err
-		}
-	} else {
-		fmt.Printf("Found image %s locally\n", imageName)
-	}
-
 	healthCheck := &container.HealthConfig{
 		Test:     []string{"CMD", "echo", "srvr", "|", "nc", "localhost", "2180", "|", "grep", "Mode"},
 		Interval: 1 * time.Second,
@@ -59,13 +28,19 @@ func StartZkContainer(imageName string, containerName string) error {
 		},
 	}
 
-	_, err = cli.ContainerCreate(ctx, containerConfig, hostConfig, nil, containerName)
+	cli, err := client.NewEnvClient()
 	if err != nil {
-		// containers already exists
-		fmt.Fprintf(os.Stderr, "Error creating container %s: %s\n", containerName, err)
+		return err
+	}
+	ctx := context.Background()
+
+	err = PullImage(imageName)
+	if err != nil {
+		return err
 	}
 
-	if err := cli.ContainerStart(ctx, containerName, types.ContainerStartOptions{}); err != nil {
+	_, err = StartContainer(containerName, containerConfig, hostConfig)
+	if err != nil {
 		return err
 	}
 
