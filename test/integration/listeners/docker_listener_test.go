@@ -7,7 +7,6 @@ package listeners
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 
@@ -72,7 +71,6 @@ func (suite *DockerListenerTestSuite) containerStart() {
 		panic(err)
 	}
 	suite.containerID = listeners.ID(id)
-	fmt.Println("started " + suite.containerID)
 }
 
 func (suite *DockerListenerTestSuite) containerRemove() {

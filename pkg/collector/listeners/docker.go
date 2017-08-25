@@ -137,7 +137,6 @@ func (l *DockerListener) GetServices() map[ID]Service {
 // figure out if the ConfigResolver could be interested to inspect it.
 func (l *DockerListener) processEvent(e events.Message) {
 	cID := ID(e.Actor.ID)
-	fmt.Println(e.Action + " " + e.Actor.ID)
 
 	l.m.RLock()
 	_, found := l.services[cID]
@@ -150,15 +149,15 @@ func (l *DockerListener) processEvent(e events.Message) {
 			panic("TODO - this shouldn't happen, expected die")
 		}
 	} else {
+		// we might receive a `die` event for an unrelated container we don't
+		// care about, let's ignore it.
 		if e.Action == "start" {
 			l.createService(cID)
-		} else {
-			panic("TODO - this shouldn't happen, expected start")
 		}
 	}
 }
 
-// startService takes a container ID, create a service for it in its cache
+// createService takes a container ID, create a service for it in its cache
 // and tells the ConfigResolver that this service started.
 func (l *DockerListener) createService(cID ID) {
 	co, err := l.Client.ContainerInspect(context.Background(), string(cID))
@@ -227,7 +226,7 @@ func (l *DockerListener) getConfigIDFromInspect(co types.ContainerJSON) []string
 	return ids
 }
 
-// getHosts gets the addresss (for now IP address only) of a container on all its networks.
+// getHostsFromInspect gets the addresss (for now IP address only) of a container on all its networks.
 // TODO: use the k8s API when no network config is found
 func (l *DockerListener) getHostsFromInspect(co types.ContainerJSON) map[string]string {
 	ips := make(map[string]string)
@@ -239,7 +238,7 @@ func (l *DockerListener) getHostsFromInspect(co types.ContainerJSON) map[string]
 	return ips
 }
 
-// getPorts gets the service ports of a container.
+// getPortsFromInspect gets the service ports of a container.
 // TODO: use the k8s API
 func (l *DockerListener) getPortsFromInspect(co types.ContainerJSON) []int {
 	ports := make([]int, 0)
@@ -250,7 +249,7 @@ func (l *DockerListener) getPortsFromInspect(co types.ContainerJSON) []int {
 	return ports
 }
 
-// getTags gets tags for a container.
+// getTagsFromInspect gets tags for a container.
 // TODO: use the container ID only and rely on container metadata providers?
 func (l *DockerListener) getTagsFromInspect(co types.ContainerJSON) []string {
 	return []string{}
@@ -284,7 +283,7 @@ func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
 	return ids
 }
 
-// getHosts gets the addresss (for now IP address only) of a container on all its networks.
+// getHostsFromPs gets the addresss (for now IP address only) of a container on all its networks.
 // TODO: use the k8s API when no network config is found
 func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 	ips := make(map[string]string)
@@ -296,7 +295,7 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 	return ips
 }
 
-// getPorts gets the service ports of a container.
+// getPortsFromPs gets the service ports of a container.
 // TODO: use the k8s API
 func (l *DockerListener) getPortsFromPs(co types.Container) []int {
 	ports := make([]int, 0)
@@ -307,7 +306,7 @@ func (l *DockerListener) getPortsFromPs(co types.Container) []int {
 	return ports
 }
 
-// getTags gets tags for a container.
+// getTagsFromPs gets tags for a container.
 // TODO: use the container ID only and rely on container metadata providers?
 func (l *DockerListener) getTagsFromPs(co types.Container) []string {
 	return []string{}
