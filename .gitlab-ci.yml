@@ -11,6 +11,8 @@ variables:
   SRC_PATH: /src/github.com/DataDog/datadog-agent
   DEB_X64: $DOCKER_REGISTRY/datadog-agent-builders:deb_x64
   RPM_X64: $DOCKER_REGISTRY/datadog-agent-builders:rpm_x64
+  DEB_TEST_X64: $DOCKER_REGISTRY/datadog-agent-builders:deb_test_x64
+  RPM_TEST_X64: $DOCKER_REGISTRY/datadog-agent-builders:rpm_test_x64
   DEPLOY: $DOCKER_REGISTRY/datadog-agent-builders:deploy # For now, just a renamed version of the image datadog/mars-jenkins-scripts
   AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   STATIC_BINARIES_DIR: bin/static
@@ -54,7 +56,7 @@ run_test_rpm-x64:
 # run system tests for deb-x64
 run_system_tests_deb-x64:
   stage: source_test
-  image: $DEB_X64
+  image: $DEB_TEST_X64
   tags:
     - docker
   variables:
