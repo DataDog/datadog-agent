@@ -120,7 +120,7 @@ def integration_tests(ctx):
 
     # config_providers
     cmd = "go test -tags '{}' {}/test/integration/config_providers/..."
-    #ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+    ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
 
     # listeners
     cmd = "go test -tags '{}' {}/test/integration/listeners/..."
@@ -128,7 +128,6 @@ def integration_tests(ctx):
 
     # autodiscovery
     # TODO
-
 
     # metadata_providers
     # TODO
