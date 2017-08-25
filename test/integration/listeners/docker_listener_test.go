@@ -84,7 +84,7 @@ func (suite *DockerListenerTestSuite) containerRemove() {
 }
 
 func (suite *DockerListenerTestSuite) TestInit() {
-	// GetCurrentServices sends to newSvc channel, grab the messages so we don't
+	// Init sends to the newSvc channel, grab the messages so we don't
 	// block the test
 	go func() {
 		suite.m.RLock()
@@ -126,7 +126,7 @@ func (suite *DockerListenerTestSuite) TestListen() {
 
 	suite.containerStart()
 
-	// the listener should have posted the new service
+	// the listener should have posted the new service at this point
 	createdSvc := <-suite.newSvc
 
 	services := suite.listener.GetServices()
