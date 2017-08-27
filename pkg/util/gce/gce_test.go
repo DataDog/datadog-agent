@@ -6,7 +6,9 @@
 package gce
 
 import (
+	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -50,4 +52,31 @@ func TestGetHostAliases(t *testing.T) {
 	val, err := GetHostAlias()
 	assert.Nil(t, err)
 	assert.Equal(t, "gce-hostname.gce-project", val)
+}
+
+func TestGetHostTags(t *testing.T) {
+	lastRequests := []*http.Request{}
+	content, err := ioutil.ReadFile("test/gce_metadata.json")
+	if err != nil {
+		assert.Fail(t, fmt.Sprintf("Error getting test data: %v", err))
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, string(content))
+		lastRequests = append(lastRequests, r)
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	tags, err := GetTags()
+	if err != nil {
+		assert.Fail(t, fmt.Sprintf("Error getting tags: %v", err))
+	}
+
+	assert.Len(t, tags, 7)
+	expectedTags := []string{"tag", "zone:us-east1-b", "instance-type:n1-standard-1", "internal-hostname:dd-test.c.datadog-dd-test.internal", "instance-id:1111111111111111111", "project:432248815146", "numeric_project_id:432248815146"}
+	for i, actual := range tags {
+		expected := expectedTags[i]
+		assert.Equal(t, expected, actual)
+	}
 }

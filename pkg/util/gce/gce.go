@@ -6,6 +6,7 @@
 package gce
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -18,6 +19,16 @@ var (
 	metadataURL = "http://169.254.169.254/computeMetadata/v1"
 	timeout     = 300 * time.Millisecond
 )
+
+type gceMetadata struct {
+	ID               int64
+	Tags             []string
+	Zone             string
+	MachineType      string
+	Hostname         string
+	ProjectID        int64
+	NumericProjectID int64
+}
 
 // GetHostname returns the hostname querying GCE Metadata api
 func GetHostname() (string, error) {
@@ -70,6 +81,47 @@ func getResponse(url string) (string, error) {
 	}
 
 	return string(all), nil
+}
+
+// GetTags gets the tags from GCE
+func GetTags() ([]string, error) {
+	tags := []string{}
+
+	metadataResponse, err := getResponse(metadataURL + "/instance")
+	if err != nil {
+		return tags, err
+	}
+
+	metadata := gceMetadata{}
+
+	err = json.Unmarshal([]byte(metadataResponse), &metadata)
+	if err != nil {
+		return tags, err
+	}
+
+	tags = metadata.Tags
+	if metadata.Zone != "" {
+		ts := strings.Split(metadata.Zone, "/")
+		tags = append(tags, fmt.Sprintf("zone:%s", ts[len(ts)-1]))
+	}
+	if metadata.MachineType != "" {
+		ts := strings.Split(metadata.MachineType, "/")
+		tags = append(tags, fmt.Sprintf("instance-type:%s", ts[len(ts)-1]))
+	}
+	if metadata.Hostname != "" {
+		tags = append(tags, fmt.Sprintf("internal-hostname:%s", metadata.Hostname))
+	}
+	if metadata.ID != 0 {
+		tags = append(tags, fmt.Sprintf("instance-id:%d", metadata.ID))
+	}
+	if metadata.ProjectID != 0 {
+		tags = append(tags, fmt.Sprintf("project:%d", metadata.ProjectID))
+	}
+	if metadata.NumericProjectID != 0 {
+		tags = append(tags, fmt.Sprintf("numeric_project_id:%d", metadata.NumericProjectID))
+	}
+
+	return tags, nil
 }
 
 // HostnameProvider GCE implementation of the HostnameProvider
