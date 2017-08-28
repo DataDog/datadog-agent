@@ -16,6 +16,7 @@ variables:
   AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   STATIC_BINARIES_DIR: bin/static
   DEB_S3_BUCKET: apt-agent6.datad0g.com
+  DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
 
 before_script:
   # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing

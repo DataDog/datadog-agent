@@ -69,7 +69,14 @@ def dogstastd(ctx):
     Run Dogstatsd Benchmarks.
     """
     bin_path = os.path.join(BENCHMARKS_BIN_PATH, bin_name("dogstatsd"))
-    ctx.run("{} -pps=5000 -dur 45 -ser 5 -brk -inc 1000".format(bin_path))
+    branch_name = os.environ.get("DD_REPO_BRANCH_NAME") or get_git_branch_name()
+    options = "-branch {}".format(branch_name)
+
+    key = os.environ.get("DD_AGENT_API_KEY")
+    if key:
+      options +=" -api-key {}".format(key)
+
+    ctx.run("{} -pps=5000 -dur 45 -ser 5 -brk -inc 1000 {}".format(bin_path, options))
 
 @task(pre=[build_aggregator])
 def aggregator(ctx):
