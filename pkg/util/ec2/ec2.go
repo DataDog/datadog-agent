@@ -6,6 +6,7 @@
 package ec2
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -13,14 +14,19 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	log "github.com/cihub/seelog"
 )
 
 // declare these as vars not const to ease testing
 var (
-	metadataURL     = "http://169.254.169.254/latest/meta-data"
-	timeout         = 100 * time.Millisecond
-	defaultPrefixes = []string{"ip-", "domu"}
+	metadataURL         = "http://169.254.169.254/latest/meta-data"
+	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document"
+	timeout             = 100 * time.Millisecond
+	defaultPrefixes     = []string{"ip-", "domu"}
 )
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API
@@ -68,6 +74,82 @@ func getResponse(url string) (*http.Response, error) {
 	}
 
 	return res, nil
+}
+
+func GetTags() ([]string, error) {
+	tags := []string{}
+	res1, err := getResponse(metadataURL + "/iam/security-credentials/")
+	if err != nil {
+		return tags, fmt.Errorf("unable to fetch EC2 API, %s", err)
+	}
+
+	defer res1.Body.Close()
+	all, err := ioutil.ReadAll(res1.Body)
+	if err != nil {
+		return tags, fmt.Errorf("unable to read security credentials body, %s", err)
+	}
+	iamRole := string(all)
+
+	res2, err := getResponse(metadataURL + "/iam/security-credentials/" + iamRole + "/")
+	if err != nil {
+		return tags, fmt.Errorf("unable to fetch EC2 API, %s", err)
+	}
+	defer res2.Body.Close()
+	all, err = ioutil.ReadAll(res2.Body)
+	if err != nil {
+		return tags, fmt.Errorf("unable to read iam role body, %s", err)
+	}
+	iamParams := map[string]string{}
+	err = json.Unmarshal(all, &iamParams)
+	if err != nil {
+		return tags, fmt.Errorf("unable to unmarshall json, %s", err)
+	}
+
+	awsCreds := credentials.NewStaticCredentials(iamParams["AccessKeyId"], iamParams["SecretAccessKey"], iamParams["Token"])
+
+	res3, err := getResponse(instanceIdentityURL + "/latest/dynamic/instance-identity/document")
+	if err != nil {
+		return tags, fmt.Errorf("unable to fetch EC2 API, %s", err)
+	}
+	defer res3.Body.Close()
+	all, err = ioutil.ReadAll(res3.Body)
+	if err != nil {
+		return tags, fmt.Errorf("unable to read identity body, %s", err)
+	}
+	instanceIdentity := map[string]string{}
+	err = json.Unmarshal(all, &instanceIdentity)
+	if err != nil {
+		return tags, fmt.Errorf("unable to unmarshall json, %s", err)
+	}
+
+	awsConfig := aws.Config{
+		Region:      aws.String(instanceIdentity["region"]),
+		Credentials: awsCreds,
+	}
+
+	awsSess, err := session.NewSession(&awsConfig)
+	if err != nil {
+		return tags, fmt.Errorf("unable to get aws session, %s", err)
+	}
+
+	connection := ec2.New(awsSess)
+	grabbedTags, err := connection.DescribeTags(&ec2.DescribeTagsInput{
+		Filters: []*ec2.Filter{&ec2.Filter{
+			Name: aws.String("resource-id"),
+			Values: []*string{
+				aws.String(instanceIdentity["instanceId"]),
+			},
+		}},
+	})
+	if err != nil {
+		return tags, fmt.Errorf("unable to get tags from aws, %s", err)
+	}
+
+	for _, tag := range grabbedTags.Tags {
+		tags = append(tags, fmt.Sprintf("%s:%s", *tag.Key, *tag.Value))
+	}
+
+	return tags, nil
 }
 
 // IsDefaultHostname returns whether the given hostname is a default one for EC2
