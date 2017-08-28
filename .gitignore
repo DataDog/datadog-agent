@@ -4,7 +4,7 @@ Dockerfiles/dogstatsd/alpine/dogstatsd
 # folders
 vendor/
 bin/
-./dev/
+/dev/
 
 # files
 .DS_Store
