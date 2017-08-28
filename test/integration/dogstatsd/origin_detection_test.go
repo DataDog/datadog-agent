@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
 const (
@@ -70,7 +71,6 @@ func TestUDSOriginDetection(t *testing.T) {
 	// Run proxy docker image
 	runCmd := exec.Command("docker", "run", "-d", "--rm",
 		"-v", fmt.Sprintf("%s:/socket/statsd.socket", socketPath),
-		"-p", "8125:8125/udp",
 		socatImg)
 	output, err = runCmd.CombinedOutput()
 	if err != nil {
@@ -80,12 +80,19 @@ func TestUDSOriginDetection(t *testing.T) {
 	containerId := strings.Trim(string(output), "\n")
 	assert.Equal(t, 64, len(containerId))
 
-	t.Logf("Running socat container: %s", containerId)
+	// Get socat's IP
+	socatIp, err := utils.GetContainerIP(containerId)
+	if err != nil {
+		t.Logf("Error getting socat's IP: %s", string(output))
+		panic(err)
+	}
+
+	t.Logf("Running socat container: %s on IP %s", containerId, socatIp)
 	stopCmd := exec.Command("docker", "stop", containerId)
 	defer stopCmd.Run()
 
 	// Send test data through proxy via UDP
-	conn, err := net.Dial("udp", "127.0.0.1:8125")
+	conn, err := net.Dial("udp", fmt.Sprintf("%s:8125", socatIp))
 	assert.Nil(t, err)
 	defer conn.Close()
 	conn.Write(contents)

@@ -107,3 +107,26 @@ func StartContainer(containerName string, containerConfig *container.Config,
 
 	return string(resp.ID), nil
 }
+
+// StartContainer with given image, name and configuration
+func GetContainerIP(containerID string) (string, error) {
+	cli, err := client.NewEnvClient()
+	if err != nil {
+		return "", err
+	}
+	ctx := context.Background()
+
+	resp, err := cli.ContainerInspect(ctx, containerID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error inspecting container %s: %s\n", containerID, err)
+		return "", err
+	}
+
+	for _, network := range resp.NetworkSettings.Networks {
+		// return first network's IP
+		return network.IPAddress, nil
+	}
+
+	// No network found
+	return "", fmt.Errorf("no IP found for container %s", containerID)
+}
