@@ -3,10 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build !linux
+
 package dogstatsd
 
 import "testing"
 
-func TestUDSOriginDetection(t *testing.T) {
-	testUDSOriginDetection(t)
+// noop version for unsupported platforms
+func testUDSOriginDetection(t *testing.T) {
+	t.Log("Unsupported platform, skip...")
 }

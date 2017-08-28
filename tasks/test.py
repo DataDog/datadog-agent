@@ -11,6 +11,8 @@ from invoke import task
 from .utils import pkg_config_path
 from .go import fmt, lint, vet
 from .build_tags import get_build_tags
+from .agent import integration_tests as agent_integration_tests
+from .dogstatsd import integration_tests as dsd_integration_tests
 
 PROFILE_COV = "profile.cov"
 
@@ -73,3 +75,12 @@ def test(ctx, targets=None, race=False, use_embedded_libs=False):
             os.remove(profile_tmp)
 
     ctx.run("go tool cover -func {}".format(PROFILE_COV))
+
+
+@task
+def integration_tests(ctx, install_deps=False):
+    """
+    Run all the available integration tests
+    """
+    agent_integration_tests(ctx, install_deps)
+    dsd_integration_tests(ctx, install_deps)
