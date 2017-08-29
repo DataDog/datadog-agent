@@ -107,7 +107,7 @@ run_integration_tests_deb-x64:
     # disable global before_script
     - pwd
   script:
-    - docker run --rm --user root --net=host -v /var/run/docker.sock:/var/run/docker.sock -v $(pwd):$SRC_PATH --workdir $SRC_PATH -e CI_PIPELINE_ID=$CI_PIPELINE_ID -e CI_COMMIT_SHA=$CI_COMMIT_SHA $DEB_X64_TEST inv integration-tests --install-deps
+    - docker run --rm --user root --pid=host -v /var/run/docker.sock:/var/run/docker.sock -v /tmp:/tmp -v $(pwd):$SRC_PATH --workdir $SRC_PATH -e CI_PIPELINE_ID=$CI_PIPELINE_ID -e CI_COMMIT_SHA=$CI_COMMIT_SHA $DEB_X64_TEST inv integration-tests --install-deps
 
 # check the size of the static dogstatsd binary
 run_dogstatsd_size_test:
