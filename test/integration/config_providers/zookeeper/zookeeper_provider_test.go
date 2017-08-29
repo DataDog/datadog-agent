@@ -66,16 +66,13 @@ var (
 	}
 )
 
-const (
-	zookeeperURL = "127.0.0.1"
-)
-
 type ZkTestSuite struct {
 	suite.Suite
 	templates     map[string]string
 	client        *zk.Conn
 	containerName string
 	zkVersion     string
+	zkURL         string
 }
 
 // use a constructor to make the suite parametric
@@ -88,16 +85,24 @@ func NewZkTestSuite(zkVersion, containerName string) *ZkTestSuite {
 
 func (suite *ZkTestSuite) SetupSuite() {
 	var err error
-	suite.client, _, err = zk.Connect([]string{zookeeperURL}, 2*time.Second)
-	if err != nil {
-		panic(err)
-	}
 
 	// pull the image, create a standalone zk container
-	imageName := "docker.io/library/zookeeper:" + suite.zkVersion
-	err = utils.StartZkContainer(imageName, suite.containerName)
+	imageName := "zookeeper:" + suite.zkVersion
+	containerID, err := utils.StartZkContainer(imageName, suite.containerName)
 	if err != nil {
 		// failing in SetupSuite won't call TearDownSuite, do it manually
+		suite.TearDownSuite()
+		suite.FailNow(err.Error())
+	}
+
+	suite.zkURL, err = utils.GetContainerIP(containerID)
+	if err != nil {
+		suite.TearDownSuite()
+		suite.FailNow(err.Error())
+	}
+
+	suite.client, _, err = zk.Connect([]string{suite.zkURL}, 2*time.Second)
+	if err != nil {
 		suite.TearDownSuite()
 		suite.FailNow(err.Error())
 	}
@@ -116,7 +121,7 @@ func (suite *ZkTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *ZkTestSuite) SetupTest() {
-	config.Datadog.Set("autoconf_template_url", zookeeperURL)
+	config.Datadog.Set("autoconf_template_url", suite.zkURL)
 	config.Datadog.Set("autoconf_template_dir", "/datadog/check_configs")
 	config.Datadog.Set("autoconf_template_username", "")
 	config.Datadog.Set("autoconf_template_password", "")

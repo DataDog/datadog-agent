@@ -10,7 +10,7 @@ import (
 )
 
 // StartEtcdContainer starts an Etcd container and waits for the healthcheck
-func StartEtcdContainer(imageName string, containerName string) error {
+func StartEtcdContainer(imageName string, containerName string) (string, error) {
 	healthCheck := &container.HealthConfig{
 		Test:     []string{"CMD", "wget", "--spider", "http://localhost:2379/health"},
 		Interval: 1 * time.Second,
@@ -35,17 +35,17 @@ func StartEtcdContainer(imageName string, containerName string) error {
 
 	err := PullImage(imageName)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	_, err = StartContainer(containerName, containerConfig, hostConfig)
+	id, err := StartContainer(containerName, containerConfig, hostConfig)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	cli, err := client.NewEnvClient()
 	if err != nil {
-		return err
+		return "", err
 	}
 	ctx := context.Background()
 
@@ -55,5 +55,5 @@ func StartEtcdContainer(imageName string, containerName string) error {
 		return err == nil && res.ContainerJSONBase.State.Health.Status == "healthy"
 	}, 5*time.Second)
 
-	return err
+	return id, err
 }
