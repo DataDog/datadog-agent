@@ -75,7 +75,6 @@ func StartAgent() {
 	if err != nil {
 		panic(err)
 	}
-
 	// store the computed hostname in the global cache
 	key := path.Join(util.AgentCachePrefix, "hostname")
 	util.Cache.Set(key, hostname, util.NoExpiration)
@@ -115,6 +114,7 @@ func StartAgent() {
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 
+	log.Debugf("commonCollector created")
 	// setup the metadata collector, this needs a working Python env to function
 	if config.Datadog.GetBool("enable_metadata_collection") {
 		common.MetadataScheduler = metadata.NewScheduler(s, hostname)

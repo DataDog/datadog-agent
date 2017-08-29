@@ -1,0 +1,273 @@
+<!doctype html>
+  <head>
+    <style>
+    /* common classes */
+      .hidden { display: none !important; visibility: hidden; } /* Hide from both screenreaders and browsers */
+      .center { text-align: center; }
+    /* general */
+    a {
+      text-decoration: none;
+      color: #39c;
+    }
+    a:hover {
+      color:#246b8f;
+      color:#1966aa;
+    }
+    hr {
+      width: 148px;
+      border-bottom: 1px solid #fafafa;
+      border-top: 0;
+      height: 1px;
+      box-shadow: 1px 1px #fafafa;
+      margin: 8px;
+    }
+    hr::before {
+      content: "";
+      position: absolute; /* #element must be position:relative */
+      height: 1px; /* change to suit your needs */
+      width: 148px; /* change to suit your needs */
+      background: #EADFF5; /* raise your hand if you like having six different prefixes/syntax */
+      background: -webkit-gradient(linear, left top, right top, color-stop(0%,#fff), color-stop(50%,#EADFF5), color-stop(100%,#fff));
+      background: -webkit-linear-gradient(left, #FFF 0%,#EADFF5 50%,#fff 100%);
+      background: -moz-linear-gradient(left, #FFF 0%, #EADFF5 50%, #fff 100%);
+      background: -ms-linear-gradient(left, #FFF 0%,#EADFF5 50%,#fff 100%);
+      background: -o-linear-gradient(left, #FFF 0%,#EADFF5 50%,#fff 100%);
+      background: linear-gradient(left, #FFF 0%,#EADFF5 50%,#fff 100%);
+    }
+    .status-ok {
+      color: green;
+      font-weight: bold;
+      }
+    .status-warning {
+      color: orange;
+      font-weight: bold;
+    }
+    .status-error {
+      color: red;
+      font-weight: bold;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 0;
+      font-weight: 500;
+    }
+    @font-face {
+      font-family: 'Open Sans';
+      src: local("Open Sans"), url("./OpenSans-Regular-webfont.ttf") format("truetype");;
+      font-weight: normal;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Open Sans';
+      src: local("Open Sans"), url("./OpenSans-Bold-webfont.ttf") format("truetype");;
+      font-weight: bold;
+      font-style: normal;
+    }
+    /* layout */
+    html {
+      height: 100%;
+    }
+    #body {
+      margin-left: 30px;
+      color: #333;
+      font-family: 'Open Sans', 'Lucida Sans','Lucida Sans Unicode',Arial, sans-serif;
+      height: 100%;
+      background: #ffffff;
+      letter-spacing: 1px;
+      text-rendering: optimizeLegibility;
+    }
+    #container {
+      margin: 0;
+      padding: 3em;
+      height: 100%;
+    }
+
+    /* Status page */
+    h2 {
+      margin-top: 2em;
+    }
+    h1, h2, h3 {
+      color: #6f56a2;
+    }
+    h4 {
+      font-weight: bold;
+    }
+    ul {
+      margin-bottom: 10px;
+      padding-left: 0px;
+      list-style-type: none;
+
+    }
+    ul ul {
+      margin-left: 0;
+      padding-left: 40px;
+    }
+    /*ul li{
+    margin-left: 2em;
+    padding-left: 0;
+    }*/
+    ul ul li {
+      list-style-type: disc;
+    }
+    dt::after {
+      content: ':';
+    }
+    dt {
+      width: 180px;
+      font-weight: bold;
+    }
+    ul dl {
+      margin: 0px;
+    }
+    ul dt {
+      width: 145px;
+      font-weight: normal;
+    }
+
+    </style>
+  </head>
+
+  <body id="body">
+    <div id="container">
+      <div id="status-content">
+        <div id="status">
+          <h1 id="status-header">Agent info</h1>
+
+          <!-- General information -->
+          <h2>All General information</h2>
+
+          <dl>
+            <dt>Agent version</dt>    <dd>{{ agent_version }}</dd>
+            <dt>Platform</dt>         <dd>{{ platform }}</dd>
+            <dt>Python version</dt>   <dd>{{ python_version }}, {{ python_architecture }}</dd>
+            <dt>Logger</dt>           <dd>{{ logger_info }}</dd>
+          </dl>
+
+          <!-- Collector -->
+          <h2>Collector</h2>
+
+          <dl>
+            <dt>Status date</dt>      <dd>{{ collector['status_date'] }}</dd>
+            <dt>Pid</dt>              <dd>{{ collector['pid'] }}</dd>
+            <dt>Path to conf.d</dt>      <dd>{{ collector['confd_path'] }}</dd>
+            <dt>Path to checks.d</dt>    <dd>{{ collector['checksd_path'] }}</dd>
+          </dl>
+
+          <h3>Clocks</h3>
+
+          <dl>
+              <dt>NTP offset:</dt>          <dd><span class="{{ ['status-ok','status-error'][collector['ntp_warning']] }}">{{ collector['ntp_offset'] }}</span></dd>
+            <dt>System UTC time:</dt>     <dd>{{ collector['utc_time'] }}</dd>
+          </dl>
+
+          <h3>Hostnames</h3>
+
+          {% if collector['hostnames'] %}
+          <dl>
+            {% for key, host in collector['hostnames'].iteritems() %}
+            <dt>{{ key }}</dt>      <dd>{{ host }}</dd>
+            {% end %}
+          </dl>
+          {% else %}
+          <p>No host information available yet.</p>
+          {% end %}
+
+          <h3>Checks</h3>
+
+          {% if collector['checks'] %}
+          <ul id="checks" style ="list-style-type: None; padding-left: 0;">
+            {% for name, check in collector['checks'].iteritems() %}
+            <li><h4>{{ name }} ({{ check.get('check_version') }})</h4>
+            <ul>
+            {% if check['init_failed'] %}
+              <li>Initialization error: {{check['traceback']}}</li></ul>
+            {% else %}
+            {% for id, instance in check['instances'].iteritems() %}
+            <li>
+              <dl>
+                <dt>Instance #{{ id }}</dt> <dd class="{{ ['status-ok','status-warning','status-error', 'status-error'][2 * instance['has_error'] + 1 * instance['has_warnings']] }}">{{ instance['status'] }}</dd>
+                {% if instance['has_error'] %}
+                <dt>Error</dt> <dd>{{ instance['error'] }}</dd>
+                {% end %}
+                {% if instance['has_warnings'] %}
+                <dt>Warnings</dt>
+                <dd>
+                  {% if len(instance['warnings']) > 1 %}
+                  <br/>
+                  {% end %}
+                  {% for warning in instance['warnings'] %}
+                  {{warning}}<br />
+                  {% end %}
+                </dd>
+                {% end %}
+              </dl>
+            </li>
+            {% end %}
+            <li>Collected {{ check['metric_count'] }} metrics, {{ check['event_count'] }} events and {{ check['service_check_count'] }} service check</li>
+            </ul></li>
+            {% end %}
+          {% end %}
+          </ul>
+          {% else %}
+          <p>No checks have run yet.</p>
+          {% end %}
+
+          <h3>Emitter</h3>
+
+          {% if collector['emitter'] %}
+          <dl>
+            {% for status in collector['emitter'] %}
+            <dt>{{ status['name'] }}</dt>
+            <dd>
+              <span class="{{ ['status-ok','status-error'][status['has_error']] }}">{{ status['status'] }}</span>
+              {% if status['has_error'] %}
+              <br />Error: {{ status['error'] }}
+              {% end %}
+            </dd>
+            {% end %}
+          </dl>
+          {% else %}
+          <p>No emitters have run yet.</p>
+          {% end %}
+
+
+          <!-- Forwarder -->
+          <h2>Forwarder</h2>
+
+          <dl>
+            <dt>Status date</dt>      <dd>{{ forwarder['status_date'] }}</dd>
+            <dt>Pid</dt>              <dd>{{ forwarder['pid'] }}</dd>
+          </dl>
+
+          <dl>
+            <dt>Flush count</dt>        <dd>{{ forwarder['flush_count'] }}</dd>
+            <dt>Queue size</dt>         <dd>{{ forwarder['queue_size'] }} bytes</dd>
+            <dt>Queue length</dt>       <dd>{{ forwarder['queue_length'] }}</dd>
+            <dt>Transactions received</dt> <dd>{{ forwarder['transactions_received'] }}</dd>
+            <dt>Transactions flushed</dt> <dd>{{ forwarder['transactions_flushed'] }}</dd>
+            <dt>Transactions rejected</dt>       <dd>{{ forwarder['transactions_rejected'] }}</dd>
+          </dl>
+
+          <!-- Dogstatsd -->
+          <h2>DogstatsD</h2>
+
+          <dl>
+            <dt>Status date</dt>      <dd>{{ dogstatsd['status_date'] }}</dd>
+            <dt>Pid</dt>              <dd>{{ dogstatsd['pid'] }}</dd>
+          </dl>
+
+          <dl>
+            <dt>Flush count</dt>        <dd>{{ dogstatsd['flush_count'] }}</dd>
+            <dt>Packet count</dt>       <dd>{{ dogstatsd['packet_count'] }}</dd>
+            <dt>Packets per second</dt> <dd>{{ dogstatsd['packets_per_second'] }}</dd>
+            <dt>Metric count</dt>       <dd>{{ dogstatsd['metric_count'] }}</dd>
+            <dt>Event count</dt>        <dd>{{ dogstatsd['event_count'] }}</dd>
+          </dl>
+
+        </div>
+
+        <h4 id="by">Powered by <a href="http://www.datadoghq.com/">Datadog</a></h4>
+      </div><!-- #content -->
+
+    </div><!-- #container -->
+  </body>
+</html>
