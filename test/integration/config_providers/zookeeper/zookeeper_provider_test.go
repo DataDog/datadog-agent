@@ -14,7 +14,6 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/samuel/go-zookeeper/zk"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -144,26 +143,26 @@ func (suite *ZkTestSuite) TestCollect() {
 
 	templates, err := zk.Collect()
 
-	assert.Nil(suite.T(), err)
-	assert.Len(suite.T(), templates, 3)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), templates, 3)
 
-	// FIXME: assert.Equal(suite.T(), "/datadog/check_configs/nginx", templates[0].Digest())
-	assert.Equal(suite.T(), "nginx_a", templates[0].Name)
-	assert.Equal(suite.T(), "{}", string(templates[0].InitConfig))
+	// FIXME: require.Equal(suite.T(), "/datadog/check_configs/nginx", templates[0].Digest())
+	require.Equal(suite.T(), "nginx_a", templates[0].Name)
+	require.Equal(suite.T(), "{}", string(templates[0].InitConfig))
 	require.Len(suite.T(), templates[0].Instances, 1)
-	assert.Equal(suite.T(), "{\"key\":2}", string(templates[0].Instances[0]))
+	require.Equal(suite.T(), "{\"key\":2}", string(templates[0].Instances[0]))
 
-	// FIXME: assert.Equal(suite.T(), check.ID("/datadog/check_configs/nginx"), templates[1].ID)
-	assert.Equal(suite.T(), "nginx_b", templates[1].Name)
-	assert.Equal(suite.T(), "{\"key\":3}", string(templates[1].InitConfig))
+	// FIXME: require.Equal(suite.T(), check.ID("/datadog/check_configs/nginx"), templates[1].ID)
+	require.Equal(suite.T(), "nginx_b", templates[1].Name)
+	require.Equal(suite.T(), "{\"key\":3}", string(templates[1].InitConfig))
 	require.Len(suite.T(), templates[1].Instances, 1)
-	assert.Equal(suite.T(), "{}", string(templates[1].Instances[0]))
+	require.Equal(suite.T(), "{}", string(templates[1].Instances[0]))
 
-	// FIXME: assert.Equal(suite.T(), check.ID("/datadog/check_configs/redis"), templates[2].ID)
-	assert.Equal(suite.T(), "redis_a", templates[2].Name)
-	assert.Equal(suite.T(), "{}", string(templates[2].InitConfig))
+	// FIXME: require.Equal(suite.T(), check.ID("/datadog/check_configs/redis"), templates[2].ID)
+	require.Equal(suite.T(), "redis_a", templates[2].Name)
+	require.Equal(suite.T(), "{}", string(templates[2].InitConfig))
 	require.Len(suite.T(), templates[2].Instances, 1)
-	assert.Equal(suite.T(), "{}", string(templates[2].Instances[0]))
+	require.Equal(suite.T(), "{}", string(templates[2].Instances[0]))
 }
 
 func TestZkSuite(t *testing.T) {
