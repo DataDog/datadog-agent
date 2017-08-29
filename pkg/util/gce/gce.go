@@ -83,7 +83,7 @@ func getResponse(url string) (string, error) {
 	return string(all), nil
 }
 
-// GetTags gets the tags from GCE
+// GetTags gets the tags from the GCE api
 func GetTags() ([]string, error) {
 	tags := []string{}
 

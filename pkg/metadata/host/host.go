@@ -59,7 +59,7 @@ func GetMeta() *Meta {
 
 func getHostTags() *tags {
 	hostTags := config.Datadog.GetStringSlice("tags")
-	gcpTags := []string{}
+	var gcpTags []string
 
 	ec2Tags, err := ec2.GetTags()
 	if err != nil {

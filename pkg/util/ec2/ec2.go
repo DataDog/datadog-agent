@@ -76,6 +76,7 @@ func getResponse(url string) (*http.Response, error) {
 	return res, nil
 }
 
+// GetTags grabs the host tags from the EC2 api
 func GetTags() ([]string, error) {
 	tags := []string{}
 	res1, err := getResponse(metadataURL + "/iam/security-credentials/")
