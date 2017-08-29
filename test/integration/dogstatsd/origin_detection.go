@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
@@ -52,19 +53,16 @@ func testUDSOriginDetection(t *testing.T) {
 		"-t", socatImg,
 		"../../../Dockerfiles/dogstatsd/socat-proxy/")
 	output, err := buildCmd.CombinedOutput()
-	if err != nil {
-		t.Logf("Error building docker image: %s", string(output))
-		panic(err)
-	}
+	require.Nil(t, err)
+
 	rmImageCmd := exec.Command("docker", "image", "rm", socatImg)
 	defer rmImageCmd.Run()
 
 	// Start DSD
 	packetChannel := make(chan *listeners.Packet)
 	s, err := listeners.NewUDSListener(packetChannel)
-	if err != nil {
-		panic(err)
-	}
+	require.Nil(t, err)
+
 	go s.Listen()
 	defer s.Stop()
 
@@ -73,19 +71,14 @@ func testUDSOriginDetection(t *testing.T) {
 		"-v", fmt.Sprintf("%s:/socket/statsd.socket", socketPath),
 		socatImg)
 	output, err = runCmd.CombinedOutput()
-	if err != nil {
-		t.Logf("Error running docker image: %s", string(output))
-		panic(err)
-	}
+	require.Nil(t, err)
+
 	containerId := strings.Trim(string(output), "\n")
 	assert.Equal(t, 64, len(containerId))
 
 	// Get socat's IP
 	socatIp, err := utils.GetContainerIP(containerId)
-	if err != nil {
-		t.Logf("Error getting socat's IP: %s", string(output))
-		panic(err)
-	}
+	require.Nil(t, err)
 
 	t.Logf("Running socat container: %s on IP %s", containerId, socatIp)
 	stopCmd := exec.Command("docker", "stop", containerId)
@@ -93,7 +86,8 @@ func testUDSOriginDetection(t *testing.T) {
 
 	// Send test data through proxy via UDP
 	conn, err := net.Dial("udp", fmt.Sprintf("%s:8125", socatIp))
-	assert.Nil(t, err)
+	require.Nil(t, err)
+
 	defer conn.Close()
 	conn.Write(contents)
 
