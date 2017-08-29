@@ -100,8 +100,8 @@ func testUDSOriginDetection(t *testing.T) {
 	select {
 	case packet := <-packetChannel:
 		assert.NotNil(t, packet)
-		assert.Equal(t, packet.Contents, contents)
-		assert.Equal(t, packet.Origin, fmt.Sprintf("docker://%s", containerId))
+		assert.Equal(t, contents, packet.Contents)
+		assert.Equal(t, fmt.Sprintf("docker://%s", containerId), packet.Origin)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
