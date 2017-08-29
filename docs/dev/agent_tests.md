@@ -34,7 +34,8 @@ only testing single functions.
 
 System tests cover any use case that doesn't fit an integration test, like executing
 a special binary built using a subset of packages and validate specific operations,
-answering simple questions like _is dogstatsd correctly forwarding metrics_?
+answering simple questions like _is dogstatsd correctly forwarding metrics?_ or
+_are the Python bindings working?_.
 
 System Tests might contain Go code, Python or shell scripts but to ease maintenance
 and keep the execution environment simple, it's preferable to keep the number of
