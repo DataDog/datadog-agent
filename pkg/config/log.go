@@ -37,3 +37,12 @@ func SetupLogger(logLevel, logFile string) error {
 	log.ReplaceLogger(logger)
 	return nil
 }
+
+// ErrorLogWriter is a Writer that logs all written messages with the global seelog logger
+// at an error level
+type ErrorLogWriter struct{}
+
+func (s *ErrorLogWriter) Write(p []byte) (n int, err error) {
+	log.Error(string(p))
+	return len(p), nil
+}
