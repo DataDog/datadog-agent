@@ -24,9 +24,10 @@ from urlparse import urlparse
 
 # 3p
 import simplejson as json
+import yaml
 
 # project
-from util import check_yaml, config_to_yaml
+from util import check_yaml, config_to_yaml, yLoader
 from utils.platform import Platform, get_os
 from utils.proxy import get_proxy
 from utils.sdk import load_manifest
@@ -43,6 +44,7 @@ from utils.windows_configuration import get_registry_conf, get_windows_sdk_check
 # CONSTANTS
 AGENT_VERSION = "5.13.0"
 DATADOG_CONF = "datadog.conf"
+DATADOG_YAML = "datadog.yaml"
 UNIX_CONFIG_PATH = '/etc/dd-agent'
 MAC_CONFIG_PATH = '/opt/datadog-agent/etc'
 DEFAULT_CHECK_FREQUENCY = 15   # seconds
@@ -197,7 +199,7 @@ def _windows_checksd_path():
 
 
 def _config_path(directory):
-    path = os.path.join(directory, DATADOG_CONF)
+    path = os.path.join(directory, DATADOG_YAML)
     if os.path.exists(path):
         return path
     raise PathNotFound(path)
@@ -1228,81 +1230,64 @@ def get_logging_config(cfg_path=None):
         'log_level': None,
         'log_to_event_viewer': False,
         'log_to_syslog': False,
-        'syslog_host': None,
-        'syslog_port': None,
+        'syslog_uri': None,
     }
+    log_file_map = [
+        ['log_file', 'agent.log'],
+        #['jmx_log_file', 'jmxfetch.log'],
+        ['trace-agent_log_file', 'trace-agent.log']
+    ]
     if system_os == 'windows':
-        logging_config['collector_log_file'] = os.path.join(_windows_commondata_path(), 'Datadog', 'logs', 'collector.log')
-        logging_config['forwarder_log_file'] = os.path.join(_windows_commondata_path(), 'Datadog', 'logs', 'forwarder.log')
-        logging_config['dogstatsd_log_file'] = os.path.join(_windows_commondata_path(), 'Datadog', 'logs', 'dogstatsd.log')
-        logging_config['jmxfetch_log_file'] = os.path.join(_windows_commondata_path(), 'Datadog', 'logs', 'jmxfetch.log')
-        logging_config['service_log_file'] = os.path.join(_windows_commondata_path(), 'Datadog', 'logs', 'service.log')
+        for key, val in log_file_map:
+            logging_config[key] = os.path.join(_windows_commondata_path(), 'Datadog', 'logs', val)
         logging_config['log_to_syslog'] = False
     else:
-        logging_config['collector_log_file'] = '/var/log/datadog/collector.log'
-        logging_config['forwarder_log_file'] = '/var/log/datadog/forwarder.log'
-        logging_config['dogstatsd_log_file'] = '/var/log/datadog/dogstatsd.log'
-        logging_config['jmxfetch_log_file'] = '/var/log/datadog/jmxfetch.log'
-        logging_config['go-metro_log_file'] = '/var/log/datadog/go-metro.log'
-        logging_config['trace-agent_log_file'] = '/var/log/datadog/trace-agent.log'
+        for key, val in log_file_map:
+            logging_config[key] = os.path.join(_windows_commondata_path(), 'Datadog', 'logs', val)
+        #logging_config['go-metro_log_file'] = '/var/log/datadog/go-metro.log'
         logging_config['log_to_syslog'] = True
 
-    config_path = get_config_path(cfg_path, os_name=system_os)
-    config = ConfigParser.ConfigParser()
-    config.readfp(skip_leading_wsp(open(config_path)))
+    try:
+        config_path = get_config_path(cfg_path, os_name=system_os)
+        config = None
+        f = None
+        with open(config_path, 'r') as filestream:
+            try:
+                config = yaml.load(filestream, Loader=yLoader)
+            except Exception as e:
+                f = str(e)
+        levels = {
+            'CRITICAL': logging.CRITICAL,
+            'DEBUG': logging.DEBUG,
+            'ERROR': logging.ERROR,
+            'FATAL': logging.FATAL,
+            'INFO': logging.INFO,
+            'WARN': logging.WARN,
+            'WARNING': logging.WARNING,
+        }
+        if 'log_level' in config:
+            level = config['log_level'].upper()
+            if level in levels:
+                logging_config['log_level'] = levels.get(level)
 
-    if config.has_section('handlers') or config.has_section('loggers') or config.has_section('formatters'):
-        if system_os == 'windows':
-            config_example_file = "https://github.com/DataDog/dd-agent/blob/master/packaging/datadog-agent/win32/install_files/datadog_win32.conf"
-        else:
-            config_example_file = "https://github.com/DataDog/dd-agent/blob/master/datadog.conf.example"
+        if 'log_to_syslog' in config:
+            logtosyslog = str(config['log_to_syslog']).lower()
+            logging_config['log_to_syslog'] = logtosyslog in ['yes', 'true', '1']
 
-        sys.stderr.write("""Python logging config is no longer supported and will be ignored.
-            To configure logging, update the logging portion of 'datadog.conf' to match:
-             '%s'.
-             """ % config_example_file)
+        # still deciding if we're deprecating
+        #if config.has_option('Main', 'log_to_event_viewer'):
+        #    logging_config['log_to_event_viewer'] = config.get('Main', 'log_to_event_viewer').strip().lower() in ['yes', 'true', 1]
 
-    for option in logging_config:
-        if config.has_option('Main', option):
-            logging_config[option] = config.get('Main', option)
+        if 'syslog_uri' in config:
+            logging_config['syslog_uri'] = config['syslog_uri']
 
-    levels = {
-        'CRITICAL': logging.CRITICAL,
-        'DEBUG': logging.DEBUG,
-        'ERROR': logging.ERROR,
-        'FATAL': logging.FATAL,
-        'INFO': logging.INFO,
-        'WARN': logging.WARN,
-        'WARNING': logging.WARNING,
-    }
-    if config.has_option('Main', 'log_level'):
-        logging_config['log_level'] = levels.get(config.get('Main', 'log_level'))
-
-    if config.has_option('Main', 'log_to_syslog'):
-        logging_config['log_to_syslog'] = config.get('Main', 'log_to_syslog').strip().lower() in ['yes', 'true', 1]
-
-    if config.has_option('Main', 'log_to_event_viewer'):
-        logging_config['log_to_event_viewer'] = config.get('Main', 'log_to_event_viewer').strip().lower() in ['yes', 'true', 1]
-
-    if config.has_option('Main', 'syslog_host'):
-        host = config.get('Main', 'syslog_host').strip()
-        if host:
-            logging_config['syslog_host'] = host
-        else:
-            logging_config['syslog_host'] = None
-
-    if config.has_option('Main', 'syslog_port'):
-        port = config.get('Main', 'syslog_port').strip()
-        try:
-            logging_config['syslog_port'] = int(port)
-        except Exception:
-            logging_config['syslog_port'] = None
-
-    if config.has_option('Main', 'disable_file_logging'):
-        logging_config['disable_file_logging'] = config.get('Main', 'disable_file_logging').strip().lower() in ['yes', 'true', 1]
-    else:
-        logging_config['disable_file_logging'] = False
-
+        #if config.has_option('Main', 'disable_file_logging'):
+        #    logging_config['disable_file_logging'] = config.get('Main', 'disable_file_logging').strip().lower() in ['yes', 'true', 1]
+        #else:
+        #    logging_config['disable_file_logging'] = False
+    except:
+        pass
+        
     return logging_config
 
 
