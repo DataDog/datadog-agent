@@ -121,10 +121,15 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	json.Unmarshal(runnerStatsJSON, &runnerStats)
 	stats["runnerStats"] = runnerStats
 
-	loaderStatsJSON := []byte(expvar.Get("loader").String())
-	loaderStats := make(map[string]interface{})
-	json.Unmarshal(loaderStatsJSON, &loaderStats)
-	stats["loaderStats"] = loaderStats
+	if expvar.Get("loader") != nil {
+
+		loaderStatsJSON := []byte(expvar.Get("loader").String())
+		loaderStats := make(map[string]interface{})
+		json.Unmarshal(loaderStatsJSON, &loaderStats)
+		stats["loaderStats"] = loaderStats
+	} else {
+		log.Debugf("expvar.Get(loader) is nil")
+	}
 
 	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
 	aggregatorStats := make(map[string]interface{})

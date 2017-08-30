@@ -12,7 +12,10 @@ import logging
 from collections import defaultdict
 
 import aggregator
-import datadog_agent
+try:
+    import datadog_agent
+except:
+    pass
 
 class AgentLogHandler(logging.Handler):
     """

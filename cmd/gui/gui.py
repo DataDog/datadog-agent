@@ -207,11 +207,14 @@ class EditorFile(object):
 
 class DatadogConf(EditorFile):
     def __init__(self, config_path):
-        EditorFile.__init__(self, config_path, "Agent settings file: datadog.conf")
+        EditorFile.__init__(self, config_path, "Agent settings file: datadog.yaml")
 
     @property
     def api_key(self):
-        config = get_config(parse_args=False, cfg_path=self.file_path)
+        try:
+            config = yaml.load(self.content, Loader=yLoader)
+        except:
+            return None
         api_key = config.get('api_key', None)
         if not api_key or api_key == 'APIKEYHERE':
             return None
@@ -245,6 +248,11 @@ class DatadogConf(EditorFile):
                     agent_manager("stop")
             else:
                 self.check_api_key(editor)
+
+    def save(self, content):
+        check_yaml_syntax(content)
+        EditorFile.save(self, content)
+
 
 
 class AgentCheck(EditorFile):
@@ -440,22 +448,12 @@ class MainWindow(QSplitter):
         self.menu_button = QPushButton(get_icon("settings.png"),
                                        "Actions", self)
         self.settings = [
-            ("Forwarder Logs", lambda: [self.properties.set_log_file(self.forwarder_log_file),
+            ("Agent Logs", lambda: [self.properties.set_log_file(self.collector_log_file),
                 self.show_html(self.properties.group_code, self.properties.html_window, False)]),
-            ("Collector Logs", lambda: [self.properties.set_log_file(self.collector_log_file),
-                self.show_html(self.properties.group_code, self.properties.html_window, False)]),
-            ("Dogstatsd Logs", lambda: [self.properties.set_log_file(self.dogstatsd_log_file),
-                self.show_html(self.properties.group_code, self.properties.html_window, False)]),
-            ("JMX Fetch Logs", lambda: [self.properties.set_log_file(self.jmxfetch_log_file),
-                self.show_html(self.properties.group_code, self.properties.html_window, False)]),
+            #("JMX Fetch Logs", lambda: [self.properties.set_log_file(self.jmxfetch_log_file),
+            #    self.show_html(self.properties.group_code, self.properties.html_window, False)]),
 
         ]
-
-        if Platform.is_windows():
-            self.settings.extend([
-                ("Service Logs", lambda: [self.properties.set_log_file(self.service_log_file),
-                    self.show_html(self.properties.group_code, self.properties.html_window, False)]),
-            ])
 
         self.settings.extend([
             ("Agent Status", lambda: [self.properties.html_window.setHtml(self.properties.html_window.latest_status()),
@@ -540,27 +538,14 @@ class MainWindow(QSplitter):
             html.setVisible(False)
 
     def create_logs_files_windows(self, config):
-        self.forwarder_log_file = EditorFile(
-            config.get('forwarder_log_file'),
-            "Forwarder log file"
-        )
         self.collector_log_file = EditorFile(
-            config.get('collector_log_file'),
-            "Collector log file"
+            config.get('log_file'),
+            "Agent log file"
         )
-        self.dogstatsd_log_file = EditorFile(
-            config.get('dogstatsd_log_file'),
-            "Dogstatsd log file"
-        )
-        self.jmxfetch_log_file = EditorFile(
-            config.get('jmxfetch_log_file'),
-            "JMX log file"
-        )
-        if Platform.is_windows():
-            self.service_log_file = EditorFile(
-                config.get('service_log_file'),
-                "Service log file"
-            )
+        #self.jmxfetch_log_file = EditorFile(
+        #    config.get('jmxfetch_log_file'),
+        #    "JMX log file"
+        #)
 
     def show(self):
         QSplitter.show(self)
@@ -874,7 +859,7 @@ if __name__ == '__main__':
     else:
         win = MainWindow()
     # Let's start the agent if he's not already started
-    if agent_status() not in [AGENT_RUNNING, AGENT_START_PENDING]:
-        agent_manager('start')
+    #if agent_status() not in [AGENT_RUNNING, AGENT_START_PENDING]:
+    #    agent_manager('start')
     win.show()
     app.exec_()

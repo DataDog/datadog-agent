@@ -13,6 +13,7 @@ import (
 	"io"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/kardianos/osext"
 )
 
@@ -23,7 +24,7 @@ var (
 )
 
 func init() {
-	templateFolder = filepath.Join(here, "dist", "templates")
+	templateFolder = filepath.Join(common.GetDistPath(), "templates")
 }
 
 // FormatStatus takes a json bytestring and prints out the formatted statuspage
