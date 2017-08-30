@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"runtime"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -108,8 +109,13 @@ func StartContainer(containerName string, containerConfig *container.Config,
 	return string(resp.ID), nil
 }
 
-// StartContainer with given image, name and configuration
+// GetContainerIP inspects the container and returns its IP address
 func GetContainerIP(containerID string) (string, error) {
+	// docker doesn't support bridge network mode on OSX, fallback to host
+	if runtime.GOOS == "darwin" {
+		return "127.0.0.1", nil
+	}
+
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		return "", err
