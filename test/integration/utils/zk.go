@@ -48,8 +48,12 @@ func StartZkContainer(imageName string, containerName string) (string, error) {
 	// wait for the container to start
 	err = waitFor(func() bool {
 		res, err := cli.ContainerInspect(ctx, containerName)
-		fmt.Println(res.ContainerJSONBase.State.Health.Status)
-		return err == nil && res.ContainerJSONBase.State.Health.Status == "healthy"
+		if err == nil {
+			fmt.Println(res.ContainerJSONBase.State.Health.Status)
+			return res.ContainerJSONBase.State.Health.Status == "healthy"
+		} else {
+			return false
+		}
 	}, 5*time.Second)
 
 	return containerID, err
