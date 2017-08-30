@@ -151,3 +151,17 @@ def integration_tests(ctx, install_deps=False):
     # config_providers
     cmd = "go test -tags '{}' {}/test/integration/dogstatsd/..."
     ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+
+
+@task
+def clean(ctx):
+    """
+    Remove temporary objects and binary artifacts
+    """
+    # go clean
+    print("Executing go clean")
+    ctx.run("go clean")
+
+    # remove the bin/dogstatsd folder
+    print("Remove agent binary folder")
+    ctx.run("rm -rf ./bin/dogstatsd")

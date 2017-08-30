@@ -5,7 +5,7 @@ from invoke import Collection
 
 from . import agent, benchmarks, docker, dogstatsd, pylauncher
 
-from .go import fmt, lint, vet, deps
+from .go import fmt, lint, vet, deps, reset
 from .test import test, integration_tests
 
 
@@ -19,6 +19,7 @@ ns.add_task(vet)
 ns.add_task(test)
 ns.add_task(integration_tests)
 ns.add_task(deps)
+ns.add_task(reset)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
