@@ -12,6 +12,7 @@ from .build_tags import get_build_tags
 from .utils import get_ldflags, bin_name, get_root
 from .utils import REPO_PATH
 
+from .go import deps
 
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
@@ -81,6 +82,7 @@ def system_tests(ctx, skip_build=False):
     }
     ctx.run(cmd.format(**args), env=env)
 
+
 @task
 def size_test(ctx, skip_build=False):
     """
@@ -134,3 +136,32 @@ def omnibus_build(ctx):
             "overrides": overrides_cmd
         }
         ctx.run(cmd.format(**args))
+
+
+@task
+def integration_tests(ctx, install_deps=False):
+    """
+    Run integration tests for the Agent
+    """
+    if install_deps:
+        deps(ctx)
+
+    build_tags = get_build_tags()
+
+    # config_providers
+    cmd = "go test -tags '{}' {}/test/integration/dogstatsd/..."
+    ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+
+
+@task
+def clean(ctx):
+    """
+    Remove temporary objects and binary artifacts
+    """
+    # go clean
+    print("Executing go clean")
+    ctx.run("go clean")
+
+    # remove the bin/dogstatsd folder
+    print("Remove agent binary folder")
+    ctx.run("rm -rf ./bin/dogstatsd")

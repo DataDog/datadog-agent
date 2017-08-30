@@ -136,6 +136,7 @@ def integration_tests(ctx, install_deps=False):
     # metadata_providers
     # TODO
 
+
 @task
 def omnibus_build(ctx, puppy=False):
     """
@@ -169,3 +170,17 @@ def omnibus_build(ctx, puppy=False):
             "overrides": overrides_cmd
         }
         ctx.run(cmd.format(**args))
+
+
+@task
+def clean(ctx):
+    """
+    Remove temporary objects and binary artifacts
+    """
+    # go clean
+    print("Executing go clean")
+    ctx.run("go clean")
+
+    # remove the bin/agent folder
+    print("Remove agent binary folder")
+    ctx.run("rm -rf ./bin/agent")

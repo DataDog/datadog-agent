@@ -18,10 +18,10 @@ Collector
 {{- if .LastWarnings}} {{- range .LastWarnings }}
       Warning: {{.}}
 {{- end -}} {{- end -}} {{- end -}} {{- end -}}
-{{- with .LoaderStats -}} {{- if .Errors}}
+{{- with .AutoConfigStats -}} {{- if .LoaderErrors}}
   Loading Errors
   ==============
-{{- range $checkname, $errors := .Errors}}
+{{- range $checkname, $errors := .LoaderErrors}}
     {{$checkname}}
     {{printDashes $checkname "-"}}
 {{- range $kind, $err := $errors -}}

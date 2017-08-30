@@ -12,11 +12,13 @@ package api
 
 import (
 	"fmt"
+	stdLog "log"
 	"net"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gorilla/mux"
 )
 
@@ -42,7 +44,12 @@ func StartServer() {
 		panic(fmt.Sprintf("Unable to create the api server: %v", err))
 	}
 
-	go http.Serve(listener, r)
+	server := &http.Server{
+		Handler:  r,
+		ErrorLog: stdLog.New(&config.ErrorLogWriter{}, "", 0), // log errors to seelog
+	}
+
+	go server.Serve(listener)
 }
 
 // StopServer closes the connection and the server

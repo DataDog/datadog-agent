@@ -7,6 +7,7 @@ package etcd
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +25,6 @@ import (
 )
 
 const (
-	etcdURL  string = "http://127.0.0.1:2379/"
 	etcdUser string = "root"
 	etcdPass string = "root"
 )
@@ -35,6 +35,7 @@ type EtcdTestSuite struct {
 	clientCfg     etcd_client.Config
 	containerName string
 	etcdVersion   string
+	etcdURL       string
 }
 
 // use a constructor to make the suite parametric
@@ -46,26 +47,35 @@ func NewEtcdTestSuite(etcdVersion, containerName string) *EtcdTestSuite {
 }
 
 func (suite *EtcdTestSuite) SetupSuite() {
+	// pull the latest etcd image, create a standalone etcd container
+	etcdImg := "quay.io/coreos/etcd:" + suite.etcdVersion
+	containerID, err := utils.StartEtcdContainer(etcdImg, suite.containerName)
+	if err != nil {
+		// failing in SetupSuite won't call TearDownSuite, do it manually
+		suite.TearDownSuite()
+		suite.FailNow(err.Error())
+	}
+
+	etcdIP, err := utils.GetContainerIP(containerID)
+	if err != nil {
+		suite.TearDownSuite()
+		suite.FailNow(err.Error())
+	}
+
 	suite.templates = map[string]string{
 		"/foo/nginx/check_names":  `["http_check", "nginx"]`,
 		"/foo/nginx/init_configs": `[{}, {}]`,
 		"/foo/nginx/instances":    `[{"name": "test", "url": "http://%25%25host%25%25/", "timeout": 5}, {"foo": "bar"}]`,
 	}
+
+	suite.etcdURL = fmt.Sprintf("http://%s:2379/", etcdIP)
+
 	suite.clientCfg = etcd_client.Config{
-		Endpoints:               []string{etcdURL},
+		Endpoints:               []string{suite.etcdURL},
 		Transport:               etcd_client.DefaultTransport,
 		HeaderTimeoutPerRequest: 1 * time.Second,
 		Username:                etcdUser,
 		Password:                etcdPass,
-	}
-
-	// pull the latest etcd image, create a standalone etcd container
-	etcdImg := "quay.io/coreos/etcd:" + suite.etcdVersion
-	err := utils.StartEtcdContainer(etcdImg, suite.containerName)
-	if err != nil {
-		// failing in SetupSuite won't call TearDownSuite, do it manually
-		suite.TearDownSuite()
-		suite.FailNow(err.Error())
 	}
 
 	suite.setEtcdPassword()
@@ -84,7 +94,7 @@ func (suite *EtcdTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *EtcdTestSuite) SetupTest() {
-	config.Datadog.Set("autoconf_template_url", etcdURL)
+	config.Datadog.Set("autoconf_template_url", suite.etcdURL)
 	config.Datadog.Set("autoconf_template_dir", "/foo/")
 	config.Datadog.Set("autoconf_template_username", "")
 	config.Datadog.Set("autoconf_template_password", "")
