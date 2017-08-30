@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -48,12 +47,7 @@ func StartZkContainer(imageName string, containerName string) (string, error) {
 	// wait for the container to start
 	err = waitFor(func() bool {
 		res, err := cli.ContainerInspect(ctx, containerName)
-		if err == nil {
-			fmt.Println(res.ContainerJSONBase.State.Health.Status)
-			return res.ContainerJSONBase.State.Health.Status == "healthy"
-		} else {
-			return false
-		}
+		return err == nil && res.ContainerJSONBase.State.Health.Status == "healthy"
 	}, 5*time.Second)
 
 	return containerID, err
