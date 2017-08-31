@@ -172,11 +172,9 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 
 	s.smsOut <- senderMetricSample{s.id, metricSample, false}
 
-	go func() {
-		s.metricStats.Lock.Lock()
-		s.metricStats.Metrics++
-		s.metricStats.Lock.Unlock()
-	}()
+	s.metricStats.Lock.Lock()
+	s.metricStats.Metrics++
+	s.metricStats.Lock.Unlock()
 }
 
 // Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
@@ -225,11 +223,9 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 
 	s.serviceCheckOut <- serviceCheck
 
-	go func() {
-		s.metricStats.Lock.Lock()
-		s.metricStats.ServiceChecks++
-		s.metricStats.Lock.Unlock()
-	}()
+	s.metricStats.Lock.Lock()
+	s.metricStats.ServiceChecks++
+	s.metricStats.Lock.Unlock()
 }
 
 // Event submits an event
@@ -238,11 +234,9 @@ func (s *checkSender) Event(e metrics.Event) {
 
 	s.eventOut <- e
 
-	go func() {
-		s.metricStats.Lock.Lock()
-		s.metricStats.Events++
-		s.metricStats.Lock.Unlock()
-	}()
+	s.metricStats.Lock.Lock()
+	s.metricStats.Events++
+	s.metricStats.Lock.Unlock()
 }
 
 func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
