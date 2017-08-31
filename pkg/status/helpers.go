@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/cihub/seelog"
+
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -95,14 +97,19 @@ func printDashes(s string, dash string) string {
 	return dashes
 }
 
-func mkHuman(i int64) string {
-	if i > 100000 {
-		return "over 100K"
-	} else if i > 1000000 {
-		return "over 1M"
-	} else {
-		return string(i)
+func mkHuman(f float64) string {
+	i := int64(f)
+	str := fmt.Sprintf("%d", i)
+
+	if i > 1000000 {
+		str = "over 1M"
+	} else if i > 100000 {
+		str = "over 100K"
 	}
+
+	log.Infof("printing this int: %d with this string: %s", i, str)
+
+	return fmt.Sprintf("%d", i)
 }
 
 func stringLength(s string) int {
