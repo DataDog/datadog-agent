@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/cihub/seelog"
-
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -107,9 +105,7 @@ func mkHuman(f float64) string {
 		str = "over 100K"
 	}
 
-	log.Infof("printing this int: %d with this string: %s", i, str)
-
-	return fmt.Sprintf("%d", i)
+	return str
 }
 
 func stringLength(s string) int {
