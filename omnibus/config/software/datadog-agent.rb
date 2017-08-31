@@ -12,6 +12,7 @@ relative_path 'datadog-agent'
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
+  command 'invoke deps'
   command "invoke agent.build -r"
   copy('bin', install_dir)
 

@@ -6,6 +6,7 @@ relative_path 'dogstatsd'
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
+  command 'invoke deps'
   command 'invoke dogstatsd.build -r'
   copy('bin', install_dir)
 

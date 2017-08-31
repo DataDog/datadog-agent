@@ -9,6 +9,7 @@ whitelist_file ".*"  # temporary hack, TODO: build libz with omnibus
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
+  command 'invoke deps'
   command "invoke agent.build -p -r"
   copy('bin', install_dir)
 
