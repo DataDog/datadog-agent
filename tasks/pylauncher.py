@@ -14,7 +14,7 @@ from .utils import REPO_PATH, bin_name, get_root
 PYLAUNCHER_BIN_PATH = os.path.join(get_root(), "bin", "pylauncher")
 
 @task
-def build(ctx, incremental=False):
+def build(ctx, rebuild=False):
     """
     Build the pylauncher executable
     """
@@ -22,7 +22,7 @@ def build(ctx, incremental=False):
 
     cmd = "go build {build_type} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/cmd/py-launcher/"
     args = {
-        "build_type": "-i" if incremental else "-a",
+        "build_type": "-a" if rebuild else "",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(PYLAUNCHER_BIN_PATH, bin_name("pylauncher")),
         "REPO_PATH": REPO_PATH,

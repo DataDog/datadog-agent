@@ -20,7 +20,7 @@ STATIC_BIN_PATH = os.path.join(".", "bin", "static")
 MAX_BINARY_SIZE = 15 * 1024
 
 @task
-def build(ctx, incremental=False, race=False, static=False, build_include=None, build_exclude=None):
+def build(ctx, rebuild=False, race=False, static=False, build_include=None, build_exclude=None):
     """
     Build Dogstatsd
     """
@@ -37,7 +37,7 @@ def build(ctx, incremental=False, race=False, static=False, build_include=None, 
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/dogstatsd/"
     args = {
         "race_opt": "-race" if race else "",
-        "build_type": "-i" if incremental else "-a",
+        "build_type": "-a" if rebuild else "",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(bin_path, bin_name("dogstatsd")),
         "gcflags": gcflags,
@@ -49,7 +49,7 @@ def build(ctx, incremental=False, race=False, static=False, build_include=None, 
 
 
 @task
-def run(ctx, incremental=False, race=False, build_include=None, build_exclude=None,
+def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
         skip_build=False):
     """
     Run Dogstatsd binary. Build the binary before executing, unless
@@ -57,7 +57,7 @@ def run(ctx, incremental=False, race=False, build_include=None, build_exclude=No
     """
     if not skip_build:
         print("Building dogstatsd...")
-        build(ctx, incremental=incremental, race=race, build_include=build_include, build_exclude=build_exclude)
+        build(ctx, rebuild=rebuild, race=race, build_include=build_include, build_exclude=build_exclude)
 
     target = os.path.join(DOGSTATSD_BIN_PATH, bin_name("dogstatsd"))
     ctx.run("{} start".format(target))
