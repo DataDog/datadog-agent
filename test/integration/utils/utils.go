@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"runtime"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -106,4 +107,32 @@ func StartContainer(containerName string, containerConfig *container.Config,
 	}
 
 	return string(resp.ID), nil
+}
+
+// GetContainerIP inspects the container and returns its IP address
+func GetContainerIP(containerID string) (string, error) {
+	// docker doesn't support bridge network mode on OSX, fallback to host
+	if runtime.GOOS == "darwin" {
+		return "127.0.0.1", nil
+	}
+
+	cli, err := client.NewEnvClient()
+	if err != nil {
+		return "", err
+	}
+	ctx := context.Background()
+
+	resp, err := cli.ContainerInspect(ctx, containerID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error inspecting container %s: %s\n", containerID, err)
+		return "", err
+	}
+
+	for _, network := range resp.NetworkSettings.Networks {
+		// return first network's IP
+		return network.IPAddress, nil
+	}
+
+	// No network found
+	return "", fmt.Errorf("no IP found for container %s", containerID)
 }

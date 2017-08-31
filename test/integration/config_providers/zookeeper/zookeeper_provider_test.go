@@ -14,7 +14,6 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/samuel/go-zookeeper/zk"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -67,16 +66,13 @@ var (
 	}
 )
 
-const (
-	zookeeperURL = "127.0.0.1"
-)
-
 type ZkTestSuite struct {
 	suite.Suite
 	templates     map[string]string
 	client        *zk.Conn
 	containerName string
 	zkVersion     string
+	zkURL         string
 }
 
 // use a constructor to make the suite parametric
@@ -89,16 +85,24 @@ func NewZkTestSuite(zkVersion, containerName string) *ZkTestSuite {
 
 func (suite *ZkTestSuite) SetupSuite() {
 	var err error
-	suite.client, _, err = zk.Connect([]string{zookeeperURL}, 2*time.Second)
-	if err != nil {
-		panic(err)
-	}
 
 	// pull the image, create a standalone zk container
-	imageName := "docker.io/library/zookeeper:" + suite.zkVersion
-	err = utils.StartZkContainer(imageName, suite.containerName)
+	imageName := "zookeeper:" + suite.zkVersion
+	containerID, err := utils.StartZkContainer(imageName, suite.containerName)
 	if err != nil {
 		// failing in SetupSuite won't call TearDownSuite, do it manually
+		suite.TearDownSuite()
+		suite.FailNow(err.Error())
+	}
+
+	suite.zkURL, err = utils.GetContainerIP(containerID)
+	if err != nil {
+		suite.TearDownSuite()
+		suite.FailNow(err.Error())
+	}
+
+	suite.client, _, err = zk.Connect([]string{suite.zkURL}, 2*time.Second)
+	if err != nil {
 		suite.TearDownSuite()
 		suite.FailNow(err.Error())
 	}
@@ -117,7 +121,7 @@ func (suite *ZkTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *ZkTestSuite) SetupTest() {
-	config.Datadog.Set("autoconf_template_url", zookeeperURL)
+	config.Datadog.Set("autoconf_template_url", suite.zkURL)
 	config.Datadog.Set("autoconf_template_dir", "/datadog/check_configs")
 	config.Datadog.Set("autoconf_template_username", "")
 	config.Datadog.Set("autoconf_template_password", "")
@@ -144,26 +148,26 @@ func (suite *ZkTestSuite) TestCollect() {
 
 	templates, err := zk.Collect()
 
-	assert.Nil(suite.T(), err)
-	assert.Len(suite.T(), templates, 3)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), templates, 3)
 
-	// FIXME: assert.Equal(suite.T(), "/datadog/check_configs/nginx", templates[0].Digest())
-	assert.Equal(suite.T(), "nginx_a", templates[0].Name)
-	assert.Equal(suite.T(), "{}", string(templates[0].InitConfig))
+	// FIXME: require.Equal(suite.T(), "/datadog/check_configs/nginx", templates[0].Digest())
+	require.Equal(suite.T(), "nginx_a", templates[0].Name)
+	require.Equal(suite.T(), "{}", string(templates[0].InitConfig))
 	require.Len(suite.T(), templates[0].Instances, 1)
-	assert.Equal(suite.T(), "{\"key\":2}", string(templates[0].Instances[0]))
+	require.Equal(suite.T(), "{\"key\":2}", string(templates[0].Instances[0]))
 
-	// FIXME: assert.Equal(suite.T(), check.ID("/datadog/check_configs/nginx"), templates[1].ID)
-	assert.Equal(suite.T(), "nginx_b", templates[1].Name)
-	assert.Equal(suite.T(), "{\"key\":3}", string(templates[1].InitConfig))
+	// FIXME: require.Equal(suite.T(), check.ID("/datadog/check_configs/nginx"), templates[1].ID)
+	require.Equal(suite.T(), "nginx_b", templates[1].Name)
+	require.Equal(suite.T(), "{\"key\":3}", string(templates[1].InitConfig))
 	require.Len(suite.T(), templates[1].Instances, 1)
-	assert.Equal(suite.T(), "{}", string(templates[1].Instances[0]))
+	require.Equal(suite.T(), "{}", string(templates[1].Instances[0]))
 
-	// FIXME: assert.Equal(suite.T(), check.ID("/datadog/check_configs/redis"), templates[2].ID)
-	assert.Equal(suite.T(), "redis_a", templates[2].Name)
-	assert.Equal(suite.T(), "{}", string(templates[2].InitConfig))
+	// FIXME: require.Equal(suite.T(), check.ID("/datadog/check_configs/redis"), templates[2].ID)
+	require.Equal(suite.T(), "redis_a", templates[2].Name)
+	require.Equal(suite.T(), "{}", string(templates[2].InitConfig))
 	require.Len(suite.T(), templates[2].Instances, 1)
-	assert.Equal(suite.T(), "{}", string(templates[2].Instances[0]))
+	require.Equal(suite.T(), "{}", string(templates[2].Instances[0]))
 }
 
 func TestZkSuite(t *testing.T) {

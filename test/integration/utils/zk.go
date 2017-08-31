@@ -10,7 +10,7 @@ import (
 )
 
 // StartZkContainer downloads the image and starts a Zk container
-func StartZkContainer(imageName string, containerName string) error {
+func StartZkContainer(imageName string, containerName string) (string, error) {
 	healthCheck := &container.HealthConfig{
 		Test:     []string{"CMD", "echo", "srvr", "|", "nc", "localhost", "2180", "|", "grep", "Mode"},
 		Interval: 1 * time.Second,
@@ -30,18 +30,18 @@ func StartZkContainer(imageName string, containerName string) error {
 
 	cli, err := client.NewEnvClient()
 	if err != nil {
-		return err
+		return "", err
 	}
 	ctx := context.Background()
 
 	err = PullImage(imageName)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	_, err = StartContainer(containerName, containerConfig, hostConfig)
+	containerID, err := StartContainer(containerName, containerConfig, hostConfig)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// wait for the container to start
@@ -50,5 +50,5 @@ func StartZkContainer(imageName string, containerName string) error {
 		return err == nil && res.ContainerJSONBase.State.Health.Status == "healthy"
 	}, 5*time.Second)
 
-	return err
+	return containerID, err
 }

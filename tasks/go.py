@@ -77,3 +77,21 @@ def deps(ctx):
     ctx.run("go get -u github.com/golang/dep/cmd/dep")
     ctx.run("go get -u github.com/golang/lint/golint")
     ctx.run("dep ensure")
+
+
+@task
+def reset(ctx):
+    """
+    Clean everything and remove vendoring
+    """
+    # go clean
+    print("Executing go clean")
+    ctx.run("go clean")
+
+    # remove the bin/ folder
+    print("Remove agent binary folder")
+    ctx.run("rm -rf ./bin/")
+
+    # remove vendor folder
+    print("Remove vendor folder")
+    ctx.run("rm -rf ./vendor")
