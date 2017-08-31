@@ -46,9 +46,31 @@ func SetupAutoConfig(confdPath string) {
 	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
 
 	// Register additional configuration providers
-	for backend, provider := range providers.ProviderCatalog {
-		AC.AddProvider(provider, true)
-		log.Infof("Registering %s config provider", backend)
+	var CP []config.ConfigurationProviders
+	err := config.Datadog.UnmarshalKey("config_providers", &CP)
+	if err == nil {
+		for _, cp := range CP {
+			_, found := providers.ProviderCatalog[cp.Name]
+			if found {
+				var err = fmt.Errorf("provider %v is not supported", cp.Name)
+				var configProvider providers.ConfigProvider
+				switch cp.Name {
+				case "etcd":
+					configProvider, err = providers.NewEtcdConfigProvider(cp)
+				case "consul":
+					configProvider, err = providers.NewConsulConfigProvider(cp)
+				case "zookeeper":
+					configProvider, err = providers.NewZookeeperConfigProvider(cp)
+				}
+
+				if err == nil {
+					AC.AddProvider(configProvider, cp.Polling)
+					log.Infof("Registering %s config provider", cp.Name)
+				} else {
+					log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
+				}
+			}
+		}
 	}
 
 	// Docker listener
