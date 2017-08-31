@@ -6,7 +6,7 @@ relative_path 'dogstatsd'
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  command 'rake dogstatsd:build'
+  command 'invoke dogstatsd.build'
   copy('bin', install_dir)
 
   if debian?

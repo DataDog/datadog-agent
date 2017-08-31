@@ -9,7 +9,7 @@ whitelist_file ".*"  # temporary hack, TODO: build libz with omnibus
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  command "rake agent:build puppy=true"
+  command "invoke agent.build -p"
   copy('bin', install_dir)
 
   mkdir "#{install_dir}/run/"

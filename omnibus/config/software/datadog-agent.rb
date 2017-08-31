@@ -12,7 +12,7 @@ relative_path 'datadog-agent'
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  command "rake agent:build"
+  command "invoke agent.build"
   copy('bin', install_dir)
 
   mkdir "#{install_dir}/run/"
