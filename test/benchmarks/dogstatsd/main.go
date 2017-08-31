@@ -12,10 +12,13 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"os"
 	"runtime"
 	"strconv"
 	"sync"
 	"time"
+
+	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -33,15 +36,17 @@ const (
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 var (
-	mode = flag.Int("mode", 1, "1: duration, 2: packets.")
-	dur  = flag.Int("dur", 60, "duration for the test in seconds.")
-	num  = flag.Int("num", 10000, "number of packets to submit.")
-	pps  = flag.Int("pps", 1000, "packets per second.")
-	pad  = flag.Int("pad", 2, "tag padding - determines packet size.")
-	ser  = flag.Int("ser", 10, "number of distinct series.")
-	inc  = flag.Int("inc", 1000, "pps increments per iteration.")
-	rnd  = flag.Bool("rnd", false, "random series.")
-	brk  = flag.Bool("brk", false, "find breaking point.")
+	mode       = flag.Int("mode", 1, "1: duration, 2: packets.")
+	dur        = flag.Int("dur", 60, "duration for the test in seconds.")
+	num        = flag.Int("num", 10000, "number of packets to submit.")
+	pps        = flag.Int("pps", 1000, "packets per second.")
+	pad        = flag.Int("pad", 2, "tag padding - determines packet size.")
+	ser        = flag.Int("ser", 10, "number of distinct series.")
+	inc        = flag.Int("inc", 1000, "pps increments per iteration.")
+	rnd        = flag.Bool("rnd", false, "random series.")
+	brk        = flag.Bool("brk", false, "find breaking point.")
+	apiKey     = flag.String("api-key", "", "if set, results will be push to datadog.")
+	branchName = flag.String("branch", "", "Add a 'branch' tag to every metrics equal to the value given.")
 )
 
 type forwarderBenchStub struct {
@@ -81,23 +86,29 @@ func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extr
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSeries(payload forwarder.Payloads, extraHeaders map[string]string) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
+func (f *forwarderBenchStub) SubmitSeries(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	f.computeStats(payloads)
+	return nil
 }
-func (f *forwarderBenchStub) SubmitEvents(payload forwarder.Payloads, extraHeaders map[string]string) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
+func (f *forwarderBenchStub) SubmitEvents(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	f.computeStats(payloads)
+	return nil
 }
-func (f *forwarderBenchStub) SubmitServiceChecks(payload forwarder.Payloads, extraHeaders map[string]string) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
+func (f *forwarderBenchStub) SubmitServiceChecks(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	f.computeStats(payloads)
+	return nil
 }
-func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extraHeaders map[string]string) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
+func (f *forwarderBenchStub) SubmitSketchSeries(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	f.computeStats(payloads)
+	return nil
 }
-func (f *forwarderBenchStub) SubmitHostMetadata(payload forwarder.Payloads, extraHeaders map[string]string) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
+func (f *forwarderBenchStub) SubmitHostMetadata(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	f.computeStats(payloads)
+	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders map[string]string) error {
-	return fmt.Errorf("v2 endpoint submission unimplemented")
+func (f *forwarderBenchStub) SubmitMetadata(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+	f.computeStats(payloads)
+	return nil
 }
 
 // NewStatsdGenerator returns a generator server
@@ -177,6 +188,21 @@ func randomString(size int) string {
 		b[i] = letterBytes[rand.Intn(len(letterBytes))]
 	}
 	return string(b)
+}
+
+func createMetric(value float64, tags []string, name string, t int64) datadog.Metric {
+	unit := "package"
+	metricType := "gauge"
+	hostname, _ := os.Hostname()
+
+	return datadog.Metric{
+		Metric: &name,
+		Points: []datadog.DataPoint{{float64(t), value}},
+		Type:   &metricType,
+		Host:   &hostname,
+		Tags:   tags,
+		Unit:   &unit,
+	}
 }
 
 func main() {
@@ -285,7 +311,7 @@ func main() {
 					case <-quitStatter:
 						quit = true
 					case v := <-statsd.Statistics.Aggregated:
-						log.Infof("[stats] [mem: %v] proceesed %v packets @%v ", memstats.Alloc, v.Val, v.Ts)
+						log.Infof("[stats] [mem: %v] processed %v packets @%v ", memstats.Alloc, v.Val, v.Ts)
 						if quit && v.Val == 0 {
 							return
 						}
@@ -304,11 +330,34 @@ func main() {
 
 			wg.Wait()
 			ticker.Stop()
-			log.Infof("[generator] rate for iteration in pps: %v", rate)
+			log.Infof("[generator] submit on packet every: %v", time.Second/time.Duration(rate))
+			log.Infof("[generator] rate for iteration: %v", rate)
+			log.Infof("[generator] pps for iteration: %v", float64(processed)/float64(*dur))
 			log.Infof("[generator] packets submitted: %v", sent)
 			log.Infof("[dogstatsd] packets processed: %v", processed)
 			log.Infof("[forwarder stats] packets received: %v", f.received)
 			log.Infof("[forwarder stats] bytes received: %v", f.receivedBytes)
+
+			if *apiKey != "" && *brk && processed != sent {
+				log.Infof("Pushing results to DataDog backend")
+
+				t := time.Now().Unix()
+				client := datadog.NewClient(*apiKey, "")
+				tags := []string{}
+				if *branchName != "" {
+					log.Infof("Adding branchName to tags")
+					tags = []string{fmt.Sprintf("branch:%s", *branchName)}
+				}
+
+				results := []datadog.Metric{}
+				results = append(results, createMetric(float64(rate), tags, "benchmark.dogstatsd.rate.loss", t))
+				results = append(results, createMetric(float64(processed)/float64(*dur), tags, "benchmark.dogstatsd.pps.loss", t))
+
+				err := client.PostMetrics(results)
+				if err != nil {
+					log.Errorf("Could not post metrics: %s", err)
+				}
+			}
 
 			f.reset()
 			iteration++

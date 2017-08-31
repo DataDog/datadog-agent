@@ -18,7 +18,7 @@ BENCHMARKS_BIN_PATH = os.path.join(".", "bin", "benchmarks")
 
 
 @task
-def build_aggregator(ctx, incremental=False):
+def build_aggregator(ctx, rebuild=False):
     """
     Build the Aggregator benchmarks.
     """
@@ -37,7 +37,7 @@ def build_aggregator(ctx, incremental=False):
     cmd = "go build {build_type} -tags \"{build_tags}\" -o {bin_name} "
     cmd += "{ldflags} {gcflags} {REPO_PATH}/test/benchmarks/aggregator"
     args = {
-        "build_type": "-i" if incremental else "-a",
+        "build_type": "-a" if rebuild else "",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(BENCHMARKS_BIN_PATH, bin_name("aggregator")),
         "ldflags": ldflags,
@@ -69,7 +69,14 @@ def dogstastd(ctx):
     Run Dogstatsd Benchmarks.
     """
     bin_path = os.path.join(BENCHMARKS_BIN_PATH, bin_name("dogstatsd"))
-    ctx.run("{} -pps=5000 -dur 45 -ser 5 -brk -inc 1000".format(bin_path))
+    branch_name = os.environ.get("DD_REPO_BRANCH_NAME") or get_git_branch_name()
+    options = "-branch {}".format(branch_name)
+
+    key = os.environ.get("DD_AGENT_API_KEY")
+    if key:
+      options +=" -api-key {}".format(key)
+
+    ctx.run("{} -pps=5000 -dur 45 -ser 5 -brk -inc 1000 {}".format(bin_path, options))
 
 @task(pre=[build_aggregator])
 def aggregator(ctx):

@@ -19,7 +19,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 
 
 @task
-def build(ctx, incremental=True, race=False, build_include=None, build_exclude=None,
+def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
           puppy=False, use_embedded_libs=False):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -56,7 +56,7 @@ def build(ctx, incremental=True, race=False, build_include=None, build_exclude=N
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
     args = {
         "race_opt": "-race" if race else "",
-        "build_type": "-i" if incremental else "-a",
+        "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
         "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
         "gcflags": gcflags,
@@ -90,7 +90,7 @@ def refresh_assets(ctx):
 
 
 @task
-def run(ctx, incremental=True, race=False, build_include=None, build_exclude=None,
+def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
         puppy=False, skip_build=False):
     """
     Execute the agent binary.
@@ -99,7 +99,7 @@ def run(ctx, incremental=True, race=False, build_include=None, build_exclude=Non
     passed. It accepts the same set of options as agent.build.
     """
     if not skip_build:
-        build(ctx, incremental, race, build_include, build_exclude, puppy)
+        build(ctx, rebuild, race, build_include, build_exclude, puppy)
 
     ctx.run(os.path.join(BIN_PATH, bin_name("agent")))
 
