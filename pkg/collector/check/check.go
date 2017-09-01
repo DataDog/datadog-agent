@@ -127,15 +127,21 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 
 	if m, ok := metricStats["Metrics"]; ok {
 		cs.Metrics = m
-		cs.TotalMetrics += m
+		if cs.TotalMetrics <= 1000001 {
+			cs.TotalMetrics += m
+		}
 	}
 	if ev, ok := metricStats["Events"]; ok {
 		cs.Events = ev
-		cs.TotalEvents += ev
+		if cs.TotalEvents <= 1000001 {
+			cs.TotalEvents += ev
+		}
 	}
 	if sc, ok := metricStats["ServiceChecks"]; ok {
 		cs.ServiceChecks = sc
-		cs.TotalServiceChecks += sc
+		if cs.TotalServiceChecks <= 1000001 {
+			cs.TotalServiceChecks += sc
+		}
 	}
 }
 
