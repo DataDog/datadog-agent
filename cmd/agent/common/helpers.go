@@ -46,9 +46,25 @@ func SetupAutoConfig(confdPath string) {
 	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
 
 	// Register additional configuration providers
-	for backend, provider := range providers.ProviderCatalog {
-		AC.AddProvider(provider, true)
-		log.Infof("Registering %s config provider", backend)
+	var CP []config.ConfigurationProviders
+	err := config.Datadog.UnmarshalKey("config_providers", &CP)
+	if err == nil {
+		for _, cp := range CP {
+			factory, found := providers.ProviderCatalog[cp.Name]
+			if found {
+				configProvider, err := factory(cp)
+				if err == nil {
+					AC.AddProvider(configProvider, cp.Polling)
+					log.Infof("Registering %s config provider", cp.Name)
+				} else {
+					log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
+				}
+			} else {
+				log.Errorf("Unable to find this provider in the catalog: %v", cp.Name)
+			}
+		}
+	} else {
+		log.Errorf("Error while reading 'config_providers' settings: %v", err)
 	}
 
 	// Docker listener

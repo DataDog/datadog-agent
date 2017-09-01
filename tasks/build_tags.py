@@ -16,6 +16,7 @@ ALL_TAGS = set([
     "gce",
     "process",
     "zk",
+    "consul",
 ])
 
 

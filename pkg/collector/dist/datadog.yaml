@@ -86,6 +86,35 @@ metadata_collectors:
 #
 # Directory containing configuration templates
 # autoconf_template_dir: /datadog/check_configs
+#
+# The providers the Agent should call to collect checks configurations.
+# Please note the File Configuration Provider is enabled by default and cannot
+# be configured.
+# config_providers:
+#   - name: etcd
+#     polling: true
+#     template_dir: /datadog/check_configs
+#     template_url: http://127.0.0.1
+#     username:
+#     password:
+
+#   - name: consul
+#     polling: true
+#     template_dir: /datadog/check_configs
+#     template_url: http://127.0.0.1
+#     ca_file:
+#     ca_path:
+#     cert_file:
+#     key_file:
+#     username:
+#     password:
+
+#   - name: zookeeper
+#     polling: true
+#     template_dir: /datadog/check_configs
+#     template_url: 127.0.0.1
+#     username:
+#     password:
 
 # Logging
 #

@@ -141,7 +141,7 @@ func TestZKCollect(t *testing.T) {
 	backend.On("Get", "/datadog/check_configs/config_folder_2/instances").Return([]byte("[{}]"), nil).Times(1)
 	backend.On("Get", "/datadog/check_configs/config_folder_2/init_configs").Return([]byte("[{}]"), nil).Times(1)
 
-	zk := ZookeeperConfigProvider{client: backend}
+	zk := ZookeeperConfigProvider{client: backend, templateDir: "/datadog/check_configs"}
 
 	res, err := zk.Collect()
 	assert.Nil(t, err)

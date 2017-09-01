@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build consul
+
 package providers
 
 import (
@@ -48,22 +50,11 @@ type ConsulConfigProvider struct {
 }
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
-func NewConsulConfigProvider() (*ConsulConfigProvider, error) {
-	tplDir := config.Datadog.GetString("autoconf_template_dir")
-	tplURL := config.Datadog.GetString("autoconf_template_url")
-
-	consulCAFile := config.Datadog.GetString("autoconf_consul_cafile")
-	consulCAPath := config.Datadog.GetString("autoconf_consul_capath")
-	consulCertFile := config.Datadog.GetString("autoconf_consul_cert")
-	consulKeyFile := config.Datadog.GetString("autoconf_consul_key")
-
-	consulURL, err := url.Parse(tplURL)
+func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+	consulURL, err := url.Parse(config.TemplateURL)
 	if err != nil {
 		return nil, err
 	}
-
-	consulUsername := config.Datadog.GetString("autoconf_template_username")
-	consulPassword := config.Datadog.GetString("autoconf_template_password")
 
 	clientCfg := consul.DefaultConfig()
 	clientCfg.Address = consulURL.Host
@@ -72,19 +63,19 @@ func NewConsulConfigProvider() (*ConsulConfigProvider, error) {
 	if consulURL.Scheme == "https" {
 		clientCfg.TLSConfig = consul.TLSConfig{
 			Address:            consulURL.Host,
-			CAFile:             consulCAFile,
-			CAPath:             consulCAPath,
-			CertFile:           consulCertFile,
-			KeyFile:            consulKeyFile,
+			CAFile:             config.CAFile,
+			CAPath:             config.CAPath,
+			CertFile:           config.CertFile,
+			KeyFile:            config.KeyFile,
 			InsecureSkipVerify: false,
 		}
 	}
 
-	if len(consulUsername) > 0 && len(consulPassword) > 0 {
-		log.Infof("Using provided consul credentials (username): %s", consulUsername)
+	if len(config.Username) > 0 && len(config.Password) > 0 {
+		log.Infof("Using provided consul credentials (username): %s", config.Username)
 		auth := &consul.HttpBasicAuth{
-			Username: consulUsername,
-			Password: consulPassword,
+			Username: config.Username,
+			Password: config.Password,
 		}
 		clientCfg.HttpAuth = auth
 	}
@@ -100,7 +91,7 @@ func NewConsulConfigProvider() (*ConsulConfigProvider, error) {
 
 	return &ConsulConfigProvider{
 		Client:      c,
-		TemplateDir: tplDir,
+		TemplateDir: config.TemplateDir,
 		Cache:       make(map[string][]check.Config),
 		cacheIdx:    make(map[string]ADEntryIndex),
 	}, nil
@@ -327,8 +318,5 @@ func isTemplateField(key string) bool {
 }
 
 func init() {
-	provider, err := NewConsulConfigProvider()
-	if err == nil {
-		RegisterProvider("consul", provider)
-	}
+	RegisterProvider("consul", NewConsulConfigProvider)
 }

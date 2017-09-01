@@ -27,22 +27,17 @@ type EtcdConfigProvider struct {
 }
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
-func NewEtcdConfigProvider() (*EtcdConfigProvider, error) {
-	tplURL := config.Datadog.GetString("autoconf_template_url")
-
+func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	clientCfg := client.Config{
-		Endpoints:               []string{tplURL},
+		Endpoints:               []string{config.TemplateURL},
 		Transport:               client.DefaultTransport,
 		HeaderTimeoutPerRequest: time.Second,
 	}
 
-	etcdUsername := config.Datadog.GetString("autoconf_template_username")
-	etcdPassword := config.Datadog.GetString("autoconf_template_password")
-
-	if len(etcdUsername) > 0 && len(etcdPassword) > 0 {
-		log.Info("Using provided etcd credentials: username ", etcdUsername)
-		clientCfg.Username = etcdUsername
-		clientCfg.Password = etcdPassword
+	if len(config.Username) > 0 && len(config.Password) > 0 {
+		log.Info("Using provided etcd credentials: username ", config.Username)
+		clientCfg.Username = config.Username
+		clientCfg.Password = config.Password
 	}
 
 	cl, err := client.New(clientCfg)
@@ -179,8 +174,5 @@ func hasTemplateFields(nodes client.Nodes) bool {
 }
 
 func init() {
-	provider, err := NewEtcdConfigProvider()
-	if err == nil {
-		RegisterProvider("etcd", provider)
-	}
+	RegisterProvider("etcd", NewEtcdConfigProvider)
 }
