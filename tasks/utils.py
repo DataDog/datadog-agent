@@ -44,7 +44,7 @@ def pkg_config_path(use_embedded_libs):
     return retval
 
 
-def get_ldflags(ctx, static=False):
+def get_build_flags(ctx, static=False, use_embedded_libs=False):
     """
     Build the common value for both ldflags and gcflags.
 
@@ -59,6 +59,11 @@ def get_ldflags(ctx, static=False):
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
     if static:
         ldflags += "-s -w -linkmode external -extldflags '-static' "
+    elif use_embedded_libs:
+        embedded_lib_path = ctx.run(
+                "pkg-config --variable=libdir python-2.7", env={"PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)}, hide=True
+            ).stdout.strip()
+        ldflags += "-r {} ".format(embedded_lib_path)
 
     if os.environ.get("DELVE"):
         gcflags = "-N -l"
@@ -110,6 +115,7 @@ def get_root():
     Get the root of the Go project
     """
     return check_output(['git', 'rev-parse', '--show-toplevel']).strip()
+
 
 def get_git_branch_name():
     """

@@ -29,10 +29,12 @@ ns.add_collection(docker)
 ns.add_collection(dogstatsd)
 ns.add_collection(pylauncher)
 
-# workaround waiting for a fix being merged on Invoke,
-# see https://github.com/pyinvoke/invoke/pull/407
 ns.configure({
     'run': {
+        # by default, always echo commands as they're run
+        'echo': True,
+        # workaround waiting for a fix being merged on Invoke,
+        # see https://github.com/pyinvoke/invoke/pull/407
         'shell': os.environ.get('COMSPEC', os.environ.get('SHELL'))
     }
 })
