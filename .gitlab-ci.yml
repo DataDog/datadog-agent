@@ -103,6 +103,7 @@ run_benchmarks-deb_x64:
 # run integration tests on the test image for deb-x64
 run_integration_tests_deb-x64:
   stage: integration_test
+  allow_failure: true  # FIXME when the root-user related issues are fixed on gitlab
   tags:
     - container-builder
   before_script:
@@ -129,6 +130,7 @@ run_dogstatsd_size_test:
 # run integration tests for deb-x64
 run_docker_integration_tests_deb-x64:
   stage: integration_test
+  allow_failure: true  # FIXME when the root-user related issues are fixed on gitlab
   dependencies:
     - build_dogstatsd_static-deb_x64 # Reuse artifact from build stage
   tags:
