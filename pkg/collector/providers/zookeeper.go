@@ -35,7 +35,7 @@ type ZookeeperConfigProvider struct {
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
-func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (*ZookeeperConfigProvider, error) {
+func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
 	urls := strings.Split(cfg.TemplateURL, ",")
 	c, _, err := zk.Connect(urls, sessionTimeout)
 	if err != nil {
@@ -146,5 +146,5 @@ func (z *ZookeeperConfigProvider) getJSONValue(key string) ([]check.ConfigData, 
 }
 
 func init() {
-	RegisterProvider("zookeeper")
+	RegisterProvider("zookeeper", NewZookeeperConfigProvider)
 }

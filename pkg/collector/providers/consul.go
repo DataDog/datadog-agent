@@ -50,7 +50,7 @@ type ConsulConfigProvider struct {
 }
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
-func NewConsulConfigProvider(config config.ConfigurationProviders) (*ConsulConfigProvider, error) {
+func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	consulURL, err := url.Parse(config.TemplateURL)
 	if err != nil {
 		return nil, err
@@ -318,5 +318,5 @@ func isTemplateField(key string) bool {
 }
 
 func init() {
-	RegisterProvider("consul")
+	RegisterProvider("consul", NewConsulConfigProvider)
 }

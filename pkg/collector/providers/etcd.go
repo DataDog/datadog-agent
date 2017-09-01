@@ -27,7 +27,7 @@ type EtcdConfigProvider struct {
 }
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
-func NewEtcdConfigProvider(config config.ConfigurationProviders) (*EtcdConfigProvider, error) {
+func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	clientCfg := client.Config{
 		Endpoints:               []string{config.TemplateURL},
 		Transport:               client.DefaultTransport,
@@ -174,5 +174,5 @@ func hasTemplateFields(nodes client.Nodes) bool {
 }
 
 func init() {
-	RegisterProvider("etcd")
+	RegisterProvider("etcd", NewEtcdConfigProvider)
 }

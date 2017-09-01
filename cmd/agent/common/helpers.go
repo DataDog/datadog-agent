@@ -50,27 +50,21 @@ func SetupAutoConfig(confdPath string) {
 	err := config.Datadog.UnmarshalKey("config_providers", &CP)
 	if err == nil {
 		for _, cp := range CP {
-			_, found := providers.ProviderCatalog[cp.Name]
+			factory, found := providers.ProviderCatalog[cp.Name]
 			if found {
-				var err = fmt.Errorf("provider %v is not supported", cp.Name)
-				var configProvider providers.ConfigProvider
-				switch cp.Name {
-				case "etcd":
-					configProvider, err = providers.NewEtcdConfigProvider(cp)
-				case "consul":
-					configProvider, err = providers.NewConsulConfigProvider(cp)
-				case "zookeeper":
-					configProvider, err = providers.NewZookeeperConfigProvider(cp)
-				}
-
+				configProvider, err := factory(cp)
 				if err == nil {
 					AC.AddProvider(configProvider, cp.Polling)
 					log.Infof("Registering %s config provider", cp.Name)
 				} else {
 					log.Errorf("Error while adding config provider %v: %v", cp.Name, err)
 				}
+			} else {
+				log.Errorf("Unable to find this provider in the catalog: %v", cp.Name)
 			}
 		}
+	} else {
+		log.Errorf("Error while reading 'config_providers' settings: %v", err)
 	}
 
 	// Docker listener
