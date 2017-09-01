@@ -9,7 +9,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags
-from .utils import get_ldflags, bin_name, get_root
+from .utils import get_build_flags, bin_name, get_root
 from .utils import REPO_PATH
 
 from .go import deps
@@ -20,14 +20,14 @@ STATIC_BIN_PATH = os.path.join(".", "bin", "static")
 MAX_BINARY_SIZE = 15 * 1024
 
 @task
-def build(ctx, rebuild=False, race=False, static=False, build_include=None, build_exclude=None):
+def build(ctx, rebuild=False, race=False, static=False, build_include=None, build_exclude=None, use_embedded_libs=False):
     """
     Build Dogstatsd
     """
     build_include = ctx.dogstatsd.build_include if build_include is None else build_include.split(",")
     build_exclude = ctx.dogstatsd.build_exclude if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags = get_ldflags(ctx, static=static)
+    ldflags, gcflags = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
     bin_path = DOGSTATSD_BIN_PATH
 
     if static:

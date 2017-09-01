@@ -9,7 +9,7 @@ from distutils.dir_util import copy_tree
 import invoke
 from invoke import task
 
-from .utils import bin_name, get_ldflags, pkg_config_path
+from .utils import bin_name, get_build_flags, pkg_config_path
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_puppy_build_tags
 from .go import deps
@@ -35,7 +35,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         build_tags = get_puppy_build_tags()
     else:
         build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags = get_ldflags(ctx)
+    ldflags, gcflags = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
