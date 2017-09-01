@@ -145,7 +145,8 @@ class AgentCheck(object):
             event['aggregation_key'] = str(event['aggregation_key'])
         aggregator.submit_event(self, self.check_id, event)
 
-    def increment(self, name, value, tags=None):
+    # TODO(olivier): implement service_metadata if it's worth it
+    def service_metadata(self, meta_name, value):
         pass
 
     def check(self, instance):
