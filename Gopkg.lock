@@ -8,9 +8,10 @@
   version = "4.4"
 
 [[projects]]
+  branch = "master"
   name = "github.com/DataDog/gohai"
   packages = ["cpu","filesystem","memory","network","platform","processes","processes/gops"]
-  revision = "92686dde04c3c01d4b1268d21e31ecbfffd29606"
+  revision = "d80d0f562a71fa2380fbeccc93ba5a2e325606e4"
 
 [[projects]]
   branch = "1.x"
@@ -37,7 +38,6 @@
   revision = "ea383cf3ba6ec950874b8486cd72356d007c768f"
 
 [[projects]]
-  branch = "master"
   name = "github.com/beevik/ntp"
   packages = ["."]
   revision = "cb3dae3a7588ae35829eb5724df611cd75152fba"
@@ -341,6 +341,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2a9cb517eee74de0d8c17c07c4739d79dbc2ef60f24587486ea52a2fb0f54c90"
+  inputs-digest = "38412c8e448fd5ade342ab8c1c7baaa82a06e818abaf167af4861e7b863c2ea5"
   solver-name = "gps-cdcl"
   solver-version = 1
