@@ -14,13 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/cihub/seelog"
+
+	log "github.com/cihub/seelog"
 )
 
 // GetPayload builds a payload of all the agentchecks metadata
 func GetPayload() *Payload {
-	seelog.Info("here!!")
-	agentChecksPayload := AgentChecksPayload{}
+	agentChecksPayload := ACPayload{}
 
 	checkStats := runner.GetCheckStats()
 
@@ -49,7 +49,7 @@ func GetPayload() *Payload {
 	for check, errs := range loaderErrors {
 		jsonErrs, err := json.Marshal(errs)
 		if err != nil {
-			seelog.Warnf("Error formatting loader error from check %s: %v", check, err)
+			log.Warnf("Error formatting loader error from check %s: %v", check, err)
 		}
 		status := []interface{}{
 			check, check, "initialization", "ERROR", string(jsonErrs),
@@ -57,12 +57,16 @@ func GetPayload() *Payload {
 		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 	}
 
+	// This is cached and we grab it from the cache
 	hostPayload := host.Payload{}
 	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostMeta"))
 	if found {
 		hostPayload = x.(host.Payload)
+	} else {
+		log.Debug("Grabbing the host payload has failed, the agent checks payload will likely fail to be parsed post")
 	}
 
+	// This is all queried information, so it does not need to be cached
 	cp := common.GetPayload()
 	payload := &Payload{
 		CommonPayload{*cp},

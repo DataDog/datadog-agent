@@ -18,18 +18,21 @@ import (
 type Payload struct {
 	CommonPayload
 	HostPayload
-	AgentChecksPayload
+	ACPayload
 }
 
+// HostPayload wraps Payload from the host package (this is cached)
 type HostPayload struct {
 	host.Payload
 }
 
+// CommonPayload wraps Payload from the common package
 type CommonPayload struct {
 	common.Payload
 }
 
-type AgentChecksPayload struct {
+// ACPayload wraps the Agent Checks payload
+type ACPayload struct {
 	AgentChecks []interface{} `json:"agent_checks"`
 }
 
