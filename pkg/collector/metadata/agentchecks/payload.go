@@ -9,18 +9,24 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
+	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
+	CommonPayload
+	HostPayload
 	AgentChecksPayload
-	V5Payload
 }
 
-type V5Payload struct {
-	v5.Payload
+type HostPayload struct {
+	host.Payload
+}
+
+type CommonPayload struct {
+	common.Payload
 }
 
 type AgentChecksPayload struct {

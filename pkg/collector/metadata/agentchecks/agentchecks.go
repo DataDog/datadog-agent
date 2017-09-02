@@ -6,11 +6,13 @@
 package agentchecks
 
 import (
+	"encoding/json"
 	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
-	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
+	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/cihub/seelog"
 )
@@ -18,51 +20,55 @@ import (
 // GetPayload builds a payload of all the agentchecks metadata
 func GetPayload() *Payload {
 	seelog.Info("here!!")
-	agentChecksPayload := &AgentChecksPayload{}
+	agentChecksPayload := AgentChecksPayload{}
 
 	checkStats := runner.GetCheckStats()
 
-	for check, stats := range checkStats {
+	for _, stats := range checkStats {
 		var status []interface{}
 		if stats.LastError != "" {
 			status = []interface{}{
-				check, "", stats.CheckID, stats.LastError, "ERROR", "",
+				stats.CheckName, stats.CheckName, stats.CheckID, "ERROR", stats.LastError, "",
 			}
 		} else if len(stats.LastWarnings) != 0 {
 			status = []interface{}{
-				check, "", stats.CheckID, stats.LastWarnings, "WARNING", "",
+				stats.CheckName, stats.CheckName, stats.CheckID, "WARNING", stats.LastWarnings, "",
 			}
 		} else {
 			status = []interface{}{
-				check, "", stats.CheckID, stats.LastWarnings, "OK", "",
+				stats.CheckName, stats.CheckName, stats.CheckID, "OK", "", "",
 			}
 		}
-		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
+		if status != nil {
+			agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
+		}
 	}
 
 	loaderErrors := autodiscovery.GetLoaderErrors()
 
 	for check, errs := range loaderErrors {
+		jsonErrs, err := json.Marshal(errs)
+		if err != nil {
+			seelog.Warnf("Error formatting loader error from check %s: %v", check, err)
+		}
 		status := []interface{}{
-			check, "", "initialization", "ERROR", errs,
+			check, check, "initialization", "ERROR", string(jsonErrs),
 		}
 		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 	}
 
-	v5Payload := v5.Payload{}
-	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "metav5"))
+	hostPayload := host.Payload{}
+	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostMeta"))
 	if found {
-		v5Payload = x.(v5.Payload)
+		hostPayload = x.(host.Payload)
 	}
 
-	metaPayload := V5Payload{v5Payload}
-
+	cp := common.GetPayload()
 	payload := &Payload{
-		*agentChecksPayload,
-		metaPayload,
+		CommonPayload{*cp},
+		HostPayload{hostPayload},
+		agentChecksPayload,
 	}
-
-	seelog.Infof("payload: %v", payload)
 
 	return payload
 }
