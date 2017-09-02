@@ -20,6 +20,7 @@ func GetPayload(hostname string) *Payload {
 	hp := host.GetPayload(hostname)
 	rp := resources.GetPayload(hostname)
 	gp := gohai.GetPayload()
+
 	return &Payload{
 		CommonPayload:    CommonPayload{*cp},
 		HostPayload:      HostPayload{*hp},
