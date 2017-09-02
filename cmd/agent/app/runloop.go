@@ -48,7 +48,7 @@ var (
 const hostMetadataCollectorInterval = 14400
 
 // run the agent checks metadata collector every 600 seconds (10 minutes)
-const agentChecksMetadataCollectorInterval = 30
+const agentChecksMetadataCollectorInterval = 600
 
 // StartAgent Initializes the agent process
 func StartAgent() {
