@@ -121,6 +121,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	transactionsCreation.Add("Success", 1)
 	apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyValid)
 	log.Debugf("successfully posted payload to '%s': %s", logURL, string(body))
+	log.Debugf("successfully posted payload to '%s': %s", logURL, string(body))
 	return nil
 }
 

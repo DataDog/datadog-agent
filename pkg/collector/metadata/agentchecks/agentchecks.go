@@ -6,17 +6,19 @@
 package agentchecks
 
 import (
+	"path"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
+	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/cihub/seelog"
 )
 
 // GetPayload builds a payload of all the agentchecks metadata
 func GetPayload() *Payload {
-	seelog.Info("I got here!!!!")
-	payload := &Payload{
-		AgentChecks: []interface{}{},
-	}
+	seelog.Info("here!!")
+	agentChecksPayload := &AgentChecksPayload{}
 
 	checkStats := runner.GetCheckStats()
 
@@ -35,7 +37,7 @@ func GetPayload() *Payload {
 				check, "", stats.CheckID, stats.LastWarnings, "OK", "",
 			}
 		}
-		payload.AgentChecks = append(payload.AgentChecks, status)
+		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 	}
 
 	loaderErrors := autodiscovery.GetLoaderErrors()
@@ -44,8 +46,23 @@ func GetPayload() *Payload {
 		status := []interface{}{
 			check, "", "initialization", "ERROR", errs,
 		}
-		payload.AgentChecks = append(payload.AgentChecks, status)
+		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 	}
+
+	v5Payload := v5.Payload{}
+	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "metav5"))
+	if found {
+		v5Payload = x.(v5.Payload)
+	}
+
+	metaPayload := V5Payload{v5Payload}
+
+	payload := &Payload{
+		*agentChecksPayload,
+		metaPayload,
+	}
+
+	seelog.Infof("payload: %v", payload)
 
 	return payload
 }
