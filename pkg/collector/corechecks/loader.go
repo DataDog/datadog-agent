@@ -23,6 +23,15 @@ func RegisterCheck(name string, c checkFactory) {
 	catalog[name] = c
 }
 
+// GetCheckFactory grabs factory for specific check
+func GetCheckFactory(name string) checkFactory {
+	f, ok := catalog[name]
+	if !ok {
+		return nil
+	}
+	return f
+}
+
 // GoCheckLoader is a specific loader for checks living in this package
 type GoCheckLoader struct{}
 

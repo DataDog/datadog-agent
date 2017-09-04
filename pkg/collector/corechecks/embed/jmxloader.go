@@ -8,12 +8,13 @@
 package embed
 
 import (
-	"bytes"
+	// "bytes"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -29,7 +30,8 @@ const (
 
 // JMXCheckLoader is a specific loader for checks living in this package
 type JMXCheckLoader struct {
-	ipc util.NamedPipe
+	ipc    util.NamedPipe
+	checks []string
 }
 
 // NewJMXCheckLoader creates a loader for go checks
@@ -62,7 +64,7 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 		return nil, errors.New("unable to initialize pipe")
 	}
 
-	return &JMXCheckLoader{ipc: pipe}, nil
+	return &JMXCheckLoader{ipc: pipe, checks: []string{}}, nil
 }
 
 // Load returns an (empty?) list of checks and nil if it all works out
@@ -102,12 +104,26 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		}
 	}
 
-	var yamlBuff bytes.Buffer
-	yamlBuff.Write([]byte(fmt.Sprintf("%s\n", autoDiscoveryToken)))
-	yamlBuff.Write([]byte(fmt.Sprintf("# %s_0\n", config.Name)))
-	yamlBuff.Write([]byte(config.String()))
+	// TODO: writing to a pipe will block - this will instead drop the config in
+	//       the GRPC cache, and let JMXFetch collect the configs on-demand.
+	//       Commenting out for now.
+	// var yamlBuff bytes.Buffer
+	// yamlBuff.Write([]byte(fmt.Sprintf("%s\n", autoDiscoveryToken)))
+	// yamlBuff.Write([]byte(fmt.Sprintf("# %s_0\n", config.Name)))
+	// yamlBuff.Write([]byte(config.String()))
 
-	_, err = jl.ipc.Write([]byte(yamlBuff.String()))
+	// _, err = jl.ipc.Write([]byte(yamlBuff.String()))
+	factory := core.GetCheckFactory("jmx")
+	if factory == nil {
+		return checks, fmt.Errorf("Check jmx not found in Catalog")
+	}
+
+	launcher := factory()
+	j, ok := launcher.(*JMXCheck)
+	if ok {
+		j.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
+		checks = append(checks, j)
+	}
 
 	return checks, err
 }

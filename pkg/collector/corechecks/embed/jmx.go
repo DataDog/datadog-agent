@@ -195,8 +195,12 @@ func readJMXConf(checkConf *checkCfg, filename string) (
 // JMXCheck keeps track of the running command
 type JMXCheck struct {
 	cmd          *exec.Cmd
+	checks       map[string]struct{}
 	ExitFilePath string
 }
+
+// singleton for the JMXCheck
+var jmxLauncher *JMXCheck
 
 func (c *JMXCheck) String() string {
 	return "JMX Check"
@@ -204,6 +208,16 @@ func (c *JMXCheck) String() string {
 
 // Run executes the check
 func (c *JMXCheck) Run() error {
+
+	if len(c.checks) == 0 {
+		return fmt.Errorf("No JMX checks configured - skipping.")
+	}
+
+	checkArgs := []string{"--check"}
+	for check, _ := range c.checks {
+		checkArgs = append(checkArgs, check)
+	}
+	c.cmd.Args = append(c.cmd.Args, checkArgs...)
 
 	// remove the exit file trigger (windows)
 	if jmxExitFile != "" {
@@ -274,6 +288,7 @@ func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
 
 		if checkJavaBinPath, checkJavaOptions, checkToolsJarPath, checkCustomJarPaths, err := readJMXConf(checkConf, confFile); err == nil {
 			jmxChecks = append(jmxChecks, confFile)
+			c.checks[confFile] = struct{}{}
 			if javaBinPath == "" && checkJavaBinPath != "" {
 				javaBinPath = checkJavaBinPath
 			}
@@ -387,7 +402,11 @@ func (c *JMXCheck) GetWarnings() []error {
 
 func init() {
 	factory := func() check.Check {
-		return &JMXCheck{}
+		if jmxLauncher != nil {
+			return jmxLauncher
+		}
+		jmxLauncher = &JMXCheck{checks: make(map[string]struct{})}
+		return jmxLauncher
 	}
 	core.RegisterCheck("jmx", factory)
 }
