@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-// +build jmx,disabled
+// +build jmx
 
 package embed
 
 import (
 	"errors"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -46,13 +45,18 @@ func TestLoadCheckConfig(t *testing.T) {
 	cfgs, err := fp.Collect()
 	assert.Nil(t, err)
 
-	// should be two valid instances
-	assert.Len(t, cfgs, 2)
-	for _, cfg := range cfgs {
-		// parallel because reader/writers block
-		go func(c check.Config) {
-			_, err := jl.Load(cfg)
-			assert.Nil(t, err)
-		}(cfg)
+	// should be three valid instances
+	assert.Len(t, cfgs, 3)
+	for name, cfg := range cfgs {
+		_, err := jl.Load(cfg)
+		assert.Nil(t, err)
+
+		found := false
+		for c := range jl.checks {
+			if c == fmt.Sprintf("%s.yaml", name) {
+				found = true
+			}
+		}
+		assert.True(t, found)
 	}
 }
