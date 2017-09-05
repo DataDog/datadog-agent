@@ -29,7 +29,6 @@ const (
 
 // JMXCheckLoader is a specific loader for checks living in this package
 type JMXCheckLoader struct {
-	ipc    util.NamedPipe
 	checks []string
 }
 
@@ -63,17 +62,13 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 		return nil, errors.New("unable to initialize pipe")
 	}
 
-	return &JMXCheckLoader{ipc: pipe, checks: []string{}}, nil
+	return &JMXCheckLoader{checks: []string{}}, nil
 }
 
 // Load returns an (empty?) list of checks and nil if it all works out
 func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	var err error
 	checks := []check.Check{}
-
-	if !jl.ipc.Ready() {
-		return checks, errors.New("pipe unavailable - cannot load check configuration")
-	}
 
 	isJMX := false
 	for _, check := range jmxChecks {
@@ -90,15 +85,10 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		isJMX = true
 	}
 
-	// TODO: writing to a pipe will block - this will instead drop the config in
+	// TODO: implement IPC - this will instead drop the config in
 	//       the GRPC cache, and let JMXFetch collect the configs on-demand.
 	//       Commenting out for now.
-	// var yamlBuff bytes.Buffer
-	// yamlBuff.Write([]byte(fmt.Sprintf("%s\n", autoDiscoveryToken)))
-	// yamlBuff.Write([]byte(fmt.Sprintf("# %s_0\n", config.Name)))
-	// yamlBuff.Write([]byte(config.String()))
 
-	// _, err = jl.ipc.Write([]byte(yamlBuff.String()))
 	factory := core.GetCheckFactory("jmx")
 	if factory == nil {
 		return checks, fmt.Errorf("check jmx not found in catalog")
