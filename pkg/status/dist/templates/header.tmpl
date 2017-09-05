@@ -10,7 +10,7 @@
   Log Level: {{.config.log_level}}
   Paths
   =====
-    Config File: {{if .conf_file_used}}{{.conf_file_used}}{{else}}There is no config file{{end}}
+    Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}
     conf.d: {{.config.confd_path}}
     checks.d: {{.config.additional_checksd}}
   Clocks
