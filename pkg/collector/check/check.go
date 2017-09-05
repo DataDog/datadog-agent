@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -192,4 +194,24 @@ func (c *Config) Digest() string {
 	}
 
 	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+func IsConfigJMX(initConf ConfigData) bool {
+	rawInitConfig := ConfigRawMap{}
+	err := yaml.Unmarshal(initConf, &rawInitConfig)
+	if err != nil {
+		return false
+	}
+
+	x, ok := rawInitConfig["is_jmx"]
+	if !ok {
+		return false
+	}
+
+	isJMX, ok := x.(bool)
+	if !isJMX || !ok {
+		return false
+	}
+
+	return true
 }

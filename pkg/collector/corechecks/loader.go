@@ -13,19 +13,18 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// CheckFactory function pointer that returns a Check
-type CheckFactory func() check.Check
+type checkFactory func() check.Check
 
 // Catalog keeps track of Go checks by name
-var catalog = make(map[string]CheckFactory)
+var catalog = make(map[string]checkFactory)
 
 // RegisterCheck adds a check to the catalog
-func RegisterCheck(name string, c CheckFactory) {
+func RegisterCheck(name string, c checkFactory) {
 	catalog[name] = c
 }
 
 // GetCheckFactory grabs factory for specific check
-func GetCheckFactory(name string) CheckFactory {
+func GetCheckFactory(name string) checkFactory {
 	f, ok := catalog[name]
 	if !ok {
 		return nil
@@ -43,12 +42,12 @@ func NewGoCheckLoader() (*GoCheckLoader, error) {
 
 // Load returns a list of checks, one for every configuration instance found in `config`
 func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Debugf("Recovered in gocheckloader Load(): %v", r)
-		}
-	}()
 	checks := []check.Check{}
+
+	// If JMX check, just skip - coincidence
+	if check.IsConfigJMX(config.InitConfig) {
+		return checks, fmt.Errorf("check %s appears to be a JMX check - skipping", config.Name)
+	}
 
 	factory, found := catalog[config.Name]
 	if !found {
@@ -58,7 +57,6 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 	for _, instance := range config.Instances {
 		newCheck := factory()
-                log.Debugf("factory being used is: %v creating %v", factory, newCheck)
 		if err := newCheck.Configure(instance, config.InitConfig); err != nil {
 			log.Errorf("core.loader: could not configure check %s: %s", newCheck, err)
 			continue

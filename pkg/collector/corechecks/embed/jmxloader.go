@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -85,22 +84,9 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	}
 
 	if !isJMX {
-		// Unmarshal initConfig to a RawConfigMap
-		rawInitConfig := check.ConfigRawMap{}
-		err = yaml.Unmarshal(config.InitConfig, &rawInitConfig)
-		if err != nil {
-			log.Errorf("error in yaml %s", err)
-			return checks, err
-		}
-
-		x, ok := rawInitConfig["is_jmx"]
-		if !ok {
-			return checks, errors.New("not a JMX check")
-		}
-
-		isJMX, ok := x.(bool)
-		if !isJMX || !ok {
-			return checks, errors.New("unable to determine if check is JMX compatible")
+		isJMX = check.IsConfigJMX(config.InitConfig)
+		if !isJMX {
+			return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
 		}
 	}
 
