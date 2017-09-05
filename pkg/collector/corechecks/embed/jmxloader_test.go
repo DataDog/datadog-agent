@@ -9,17 +9,26 @@ package embed
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
+
+func getFile() (string, error) {
+	_, fileName, _, ok := runtime.Caller(1)
+	if !ok {
+		return "", errors.New("could not get current (caller) file")
+	}
+	return fileName, nil
+}
 
 func TestLoadCheckConfig(t *testing.T) {
 
@@ -36,6 +45,11 @@ func TestLoadCheckConfig(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, jl)
 
+	f, err := getFile()
+	if err != nil {
+		t.FailNow()
+	}
+
 	d := filepath.Dir(f)
 
 	paths := []string{filepath.Join(d, "fixtures/")}
@@ -47,14 +61,29 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	// should be three valid instances
 	assert.Len(t, cfgs, 3)
-	for name, cfg := range cfgs {
+	for _, cfg := range cfgs {
 		_, err := jl.Load(cfg)
 		assert.Nil(t, err)
 
+	}
+
+	factory := core.GetCheckFactory("jmx")
+	if factory == nil {
+		t.Errorf("Cannot find JMX factory")
+	}
+
+	launcher := factory()
+	j, ok := launcher.(*JMXCheck)
+	if !ok {
+		t.Errorf("factory returned unexpeced checky")
+	}
+
+	for _, cfg := range cfgs {
 		found := false
-		for c := range jl.checks {
-			if c == fmt.Sprintf("%s.yaml", name) {
+		for k, _ := range j.checks {
+			if k == fmt.Sprintf("%s.yaml", cfg.Name) {
 				found = true
+				break
 			}
 		}
 		assert.True(t, found)

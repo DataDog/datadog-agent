@@ -153,7 +153,6 @@ func (ac *AutoConfig) LoadAndRun() {
 
 }
 
-ad
 // GetChecksByName returns any Check instance we can load for the given
 // check name
 func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
