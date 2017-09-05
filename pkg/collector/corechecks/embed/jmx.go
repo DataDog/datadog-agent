@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -78,7 +79,7 @@ type JMXCheck struct {
 	javaToolsJarPath   string
 	javaCustomJarPaths []string
 	isAttachAPI        bool
-	running            bool
+	running            uint32
 }
 
 // singleton for the JMXCheck
@@ -95,7 +96,7 @@ func (c *JMXCheck) Run() error {
 		return fmt.Errorf("No JMX checks configured - skipping.")
 	}
 
-	if c.running {
+	if atomic.LoadUint32(&c.running) == 1 {
 		log.Info("JMX already running.")
 		return nil
 	}
@@ -198,9 +199,9 @@ func (c *JMXCheck) Run() error {
 		return err
 	}
 
-	c.running = true
+	atomic.StoreUint32(&c.running, 1)
 	err = c.cmd.Wait()
-	c.running = false
+	atomic.StoreUint32(&c.running, 0)
 
 	return err
 }
@@ -288,7 +289,7 @@ func (c *JMXCheck) Stop() {
 			log.Errorf("unable to stop JMX check: %s", err)
 		}
 	}
-	c.running = true
+	atomic.StoreUint32(&c.running, 0)
 }
 
 // GetWarnings does not return anything in JMX
