@@ -43,6 +43,11 @@ func NewGoCheckLoader() (*GoCheckLoader, error) {
 
 // Load returns a list of checks, one for every configuration instance found in `config`
 func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Debugf("Recovered in gocheckloader Load(): %v", r)
+		}
+	}()
 	checks := []check.Check{}
 
 	factory, found := catalog[config.Name]
@@ -53,6 +58,7 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 	for _, instance := range config.Instances {
 		newCheck := factory()
+                log.Debugf("factory being used is: %v creating %v", factory, newCheck)
 		if err := newCheck.Configure(instance, config.InitConfig); err != nil {
 			log.Errorf("core.loader: could not configure check %s: %s", newCheck, err)
 			continue

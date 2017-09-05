@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	jmxJarName                        = "jmxfetch-0.14.0-jar-with-dependencies.jar"
+	jmxJarName                        = "jmxfetch-0.13.0-jar-with-dependencies.jar"
 	jmxMainClass                      = "org.datadog.jmxfetch.App"
 	jmxCollectCommand                 = "collect"
 	jvmDefaultMaxMemoryAllocation     = " -Xmx200m"
@@ -44,12 +44,6 @@ var jmxChecks = [...]string{
 	"kafka",
 }
 
-// Structures to parse the config of an actual jmx check
-type conf struct {
-	Include map[string]interface{} `yaml:"include,omitempty"`
-	Exclude map[string]interface{} `yaml:"exclude,omitempty"`
-}
-
 type checkInstanceCfg struct {
 	Host               string            `yaml:"host,omitempty"`
 	Port               int               `yaml:"port,omitempty"`
@@ -65,7 +59,6 @@ type checkInstanceCfg struct {
 	ProcessNameRegex   string            `yaml:"process_name_regex,omitempty"`
 	RefreshBeans       int               `yaml:"refresh_beans,omitempty"`
 	Tags               map[string]string `yaml:"tags,omitempty"`
-	Conf               []conf            `yaml:"conf,omitempty"`
 }
 
 type checkInitCfg struct {
@@ -73,7 +66,6 @@ type checkInitCfg struct {
 	ToolsJarPath   string   `yaml:"tools_jar_path,omitempty"`
 	JavaBinPath    string   `yaml:"java_bin_path,omitempty"`
 	JavaOptions    string   `yaml:"java_options,omitempty"`
-	Conf           []conf   `yaml:"conf,omitempty"`
 }
 
 // JMXCheck keeps track of the running command
@@ -201,6 +193,7 @@ func (c *JMXCheck) Run() error {
 		}
 	}()
 
+        log.Debugf("Args: %v", subprocessArgs)
 	if err = c.cmd.Start(); err != nil {
 		return err
 	}
@@ -218,26 +211,40 @@ func (c *JMXCheck) Parse(data, initConfig check.ConfigData) error {
 	var instanceConf checkInstanceCfg
 
 	// unmarshall instance info
-	if err := yaml.Unmarshal(data, instanceConf); err != nil {
+	if err := yaml.Unmarshal(data, &instanceConf); err != nil {
 		return err
 	}
 
 	// unmarshall init config
-	if err := yaml.Unmarshal(data, initConf); err != nil {
+	if err := yaml.Unmarshal(initConfig, &initConf); err != nil {
 		return err
 	}
 
 	if c.javaBinPath == "" {
-		c.javaBinPath = initConf.JavaBinPath
+		if instanceConf.JavaBinPath != "" {
+			c.javaBinPath = instanceConf.JavaBinPath
+		} else if initConf.JavaBinPath != "" {
+			c.javaBinPath = initConf.JavaBinPath
+		}
 	}
 	if c.javaOptions == "" {
-		c.javaOptions = initConf.JavaOptions
+		if instanceConf.JavaOptions != "" {
+			c.javaOptions = instanceConf.JavaOptions
+		} else if initConf.JavaOptions != "" {
+			c.javaOptions = initConf.JavaOptions
+		}
 	}
 	if c.javaToolsJarPath == "" {
-		c.javaToolsJarPath = initConf.ToolsJarPath
+		if instanceConf.ToolsJarPath != "" {
+			c.javaToolsJarPath = instanceConf.ToolsJarPath
+		} else if initConf.ToolsJarPath != "" {
+			c.javaToolsJarPath = initConf.ToolsJarPath
+		}
 	}
 	if c.javaCustomJarPaths != nil {
-		c.javaCustomJarPaths = initConf.CustomJarPaths
+		if initConf.CustomJarPaths != nil {
+			c.javaCustomJarPaths = initConf.CustomJarPaths
+		}
 	}
 
 	if instanceConf.ProcessNameRegex != "" {
