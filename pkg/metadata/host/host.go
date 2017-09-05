@@ -34,19 +34,27 @@ func GetPayload(hostname string) *Payload {
 	meta.Hostname = hostname
 
 	return &Payload{
-		Os:               runtime.GOOS,
-		PythonVersion:    getPythonVersion(),
-		InternalHostname: hostname,
-		UUID:             getHostInfo().HostID,
-		SystemStats:      getSystemStats(),
-		Meta:             meta,
-		HostTags:         getHostTags(),
+		Os:            runtime.GOOS,
+		PythonVersion: getPythonVersion(),
+		SystemStats:   getSystemStats(),
+		Meta:          meta,
+		HostTags:      getHostTags(),
 	}
 }
 
 // GetStatusInformation just returns an InfoStat object, we need some additional information that's not
 func GetStatusInformation() *host.InfoStat {
 	return getHostInfo()
+}
+
+// GetMeta grabs the metadata from the cache and returns it,
+// if the cache is empty, then it queries the information directly
+func GetMeta() *Meta {
+	key := buildKey("meta")
+	if x, found := util.Cache.Get(key); found {
+		return x.(*Meta)
+	}
+	return getMeta()
 }
 
 func getHostTags() *tags {
@@ -156,18 +164,25 @@ func getHostAliases() []string {
 	return aliases
 }
 
-func getMeta() *meta {
+// getMeta grabs the information and refreshes the cache
+func getMeta() *Meta {
 	hostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname()
 
-	return &meta{
+	m := &Meta{
 		SocketHostname: hostname,
 		Timezones:      []string{tzname},
 		SocketFqdn:     util.Fqdn(hostname),
 		EC2Hostname:    ec2Hostname,
 		HostAliases:    getHostAliases(),
 	}
+
+	// Cache the metadata for use in other payload
+	key := buildKey("meta")
+	util.Cache.Set(key, m, util.NoExpiration)
+
+	return m
 }
 
 func buildKey(key string) string {

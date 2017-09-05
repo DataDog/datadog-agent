@@ -9,11 +9,30 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
+	CommonPayload
+	MetaPayload
+	ACPayload
+}
+
+// MetaPayload wraps Meta from the host package (this is cached)
+type MetaPayload struct {
+	host.Meta `json:"meta"`
+}
+
+// CommonPayload wraps Payload from the common package
+type CommonPayload struct {
+	common.Payload
+}
+
+// ACPayload wraps the Agent Checks payload
+type ACPayload struct {
 	AgentChecks []interface{} `json:"agent_checks"`
 }
 
