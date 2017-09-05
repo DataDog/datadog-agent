@@ -13,18 +13,19 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-type checkFactory func() check.Check
+// CheckFactory factory function type to instantiate checks
+type CheckFactory func() check.Check
 
 // Catalog keeps track of Go checks by name
-var catalog = make(map[string]checkFactory)
+var catalog = make(map[string]CheckFactory)
 
 // RegisterCheck adds a check to the catalog
-func RegisterCheck(name string, c checkFactory) {
+func RegisterCheck(name string, c CheckFactory) {
 	catalog[name] = c
 }
 
 // GetCheckFactory grabs factory for specific check
-func GetCheckFactory(name string) checkFactory {
+func GetCheckFactory(name string) CheckFactory {
 	f, ok := catalog[name]
 	if !ok {
 		return nil

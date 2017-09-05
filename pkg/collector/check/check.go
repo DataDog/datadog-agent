@@ -196,6 +196,7 @@ func (c *Config) Digest() string {
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
+// IsConfigJMX checks if a certain YAML config is a JMX config
 func IsConfigJMX(initConf ConfigData) bool {
 	rawInitConfig := ConfigRawMap{}
 	err := yaml.Unmarshal(initConf, &rawInitConfig)
