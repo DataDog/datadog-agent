@@ -26,13 +26,14 @@ var (
 const CachePrefix = "metadata"
 
 // GetPayload fills and return the common metadata payload
-func GetPayload() *Payload {
+func GetPayload(hostname string) *Payload {
 	return &Payload{
 		// olivier: I _think_ `APIKey` is only a legacy field, and
 		// is not actually used by the backend
-		AgentVersion: version.AgentVersion,
-		APIKey:       getAPIKey(),
-		UUID:         getUUID(),
+		AgentVersion:     version.AgentVersion,
+		APIKey:           getAPIKey(),
+		UUID:             getUUID(),
+		InternalHostname: hostname,
 	}
 }
 

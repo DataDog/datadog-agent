@@ -7,7 +7,8 @@ package common
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	APIKey       string `json:"apiKey"`
-	AgentVersion string `json:"agentVersion"`
-	UUID         string `json:"uuid"`
+	APIKey           string `json:"apiKey"`
+	AgentVersion     string `json:"agentVersion"`
+	UUID             string `json:"uuid"`
+	InternalHostname string `json:"internalHostname"`
 }

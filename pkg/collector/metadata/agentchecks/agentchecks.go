@@ -22,6 +22,13 @@ import (
 func GetPayload() *Payload {
 	agentChecksPayload := ACPayload{}
 
+	// Grab the hostname from the cache
+	var hostname string
+	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
+	if found {
+		hostname = x.(string)
+	}
+
 	checkStats := runner.GetCheckStats()
 
 	for _, stats := range checkStats {
@@ -57,19 +64,10 @@ func GetPayload() *Payload {
 		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 	}
 
+	// Grab the non agent checks information
 	metaPayload := host.GetMeta()
-
-	// Grab the hostname from the cache and put it where it's needed
-	var hostname string
-	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
-	if found {
-		hostname = x.(string)
-		metaPayload.Hostname = hostname
-		agentChecksPayload.InternalHostname = hostname
-	}
-
-	// This is all queried information, so it does not need to be cached
-	cp := common.GetPayload()
+	metaPayload.Hostname = hostname
+	cp := common.GetPayload(hostname)
 	payload := &Payload{
 		CommonPayload{*cp},
 		MetaPayload{*metaPayload},

@@ -15,9 +15,10 @@ import (
 
 func TestGetPayload(t *testing.T) {
 	apiKey = "foo"
-	p := GetPayload()
+	p := GetPayload("hostname")
 	assert.Equal(t, p.APIKey, "foo")
 	assert.Equal(t, p.AgentVersion, version.AgentVersion)
+	assert.Equal(t, p.InternalHostname, "hostname")
 	apiKey = ""
 }
 

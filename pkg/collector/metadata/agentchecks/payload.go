@@ -33,8 +33,7 @@ type CommonPayload struct {
 
 // ACPayload wraps the Agent Checks payload
 type ACPayload struct {
-	AgentChecks      []interface{} `json:"agent_checks"`
-	InternalHostname string        `json:"internalHostname"`
+	AgentChecks []interface{} `json:"agent_checks"`
 }
 
 // MarshalJSON serialization a Payload to JSON

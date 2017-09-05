@@ -17,6 +17,7 @@ type systemStats struct {
 	Winver    osVersion `json:"winV"`
 }
 
+// Meta is the metadata nested under the meta key
 type Meta struct {
 	SocketHostname string   `json:"socket-hostname"`
 	Timezones      []string `json:"timezones"`
@@ -32,10 +33,9 @@ type tags struct {
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Os               string       `json:"os"`
-	PythonVersion    string       `json:"python"`
-	InternalHostname string       `json:"internalHostname"`
-	SystemStats      *systemStats `json:"systemStats"`
-	Meta             *Meta        `json:"meta"`
-	HostTags         *tags        `json:"host-tags"`
+	Os            string       `json:"os"`
+	PythonVersion string       `json:"python"`
+	SystemStats   *systemStats `json:"systemStats"`
+	Meta          *Meta        `json:"meta"`
+	HostTags      *tags        `json:"host-tags"`
 }

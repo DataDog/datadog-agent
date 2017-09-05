@@ -21,7 +21,6 @@ func TestGetPayload(t *testing.T) {
 	p := GetPayload("myhostname")
 	assert.NotEmpty(t, p.Os)
 	assert.NotEmpty(t, p.PythonVersion)
-	assert.Equal(t, "myhostname", p.InternalHostname)
 	assert.NotNil(t, p.SystemStats)
 	assert.NotNil(t, p.Meta)
 	assert.NotNil(t, p.HostTags)
