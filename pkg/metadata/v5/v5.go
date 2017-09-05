@@ -16,7 +16,7 @@ import (
 
 // GetPayload returns the complete metadata payload as seen in Agent v5
 func GetPayload(hostname string) *Payload {
-	cp := common.GetPayload()
+	cp := common.GetPayload(hostname)
 	hp := host.GetPayload(hostname)
 	rp := resources.GetPayload(hostname)
 	gp := gohai.GetPayload()
