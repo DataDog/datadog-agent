@@ -84,10 +84,10 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	}
 
 	if !isJMX {
-		isJMX = check.IsConfigJMX(config.InitConfig)
-		if !isJMX {
+		if !check.IsConfigJMX(config.InitConfig) {
 			return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
 		}
+		isJMX = true
 	}
 
 	// TODO: writing to a pipe will block - this will instead drop the config in
@@ -101,14 +101,27 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	// _, err = jl.ipc.Write([]byte(yamlBuff.String()))
 	factory := core.GetCheckFactory("jmx")
 	if factory == nil {
-		return checks, fmt.Errorf("Check jmx not found in Catalog")
+		return checks, fmt.Errorf("check jmx not found in catalog")
 	}
 
 	launcher := factory()
 	j, ok := launcher.(*JMXCheck)
 	if ok {
-		j.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
-		checks = append(checks, j)
+		configured := false
+		for _, instance := range config.Instances {
+			if err := j.Configure(instance, config.InitConfig); err != nil {
+				log.Errorf("jmx.loader: could not configure check %s: %s", j, err)
+				continue
+			}
+			configured = true
+		}
+
+		if configured {
+			j.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
+			checks = append(checks, j)
+		} else {
+			err = fmt.Errorf("No instances successfully configured.")
+		}
 	}
 
 	return checks, err

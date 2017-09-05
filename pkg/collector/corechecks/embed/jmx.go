@@ -193,7 +193,7 @@ func (c *JMXCheck) Run() error {
 		}
 	}()
 
-        log.Debugf("Args: %v", subprocessArgs)
+	log.Debugf("Args: %v", subprocessArgs)
 	if err = c.cmd.Start(); err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func (c *JMXCheck) Parse(data, initConfig check.ConfigData) error {
 			c.javaToolsJarPath = initConf.ToolsJarPath
 		}
 	}
-	if c.javaCustomJarPaths != nil {
+	if c.javaCustomJarPaths == nil {
 		if initConf.CustomJarPaths != nil {
 			c.javaCustomJarPaths = initConf.CustomJarPaths
 		}
