@@ -17,7 +17,7 @@ type systemStats struct {
 	Winver    osVersion `json:"winV"`
 }
 
-type meta struct {
+type Meta struct {
 	SocketHostname string   `json:"socket-hostname"`
 	Timezones      []string `json:"timezones"`
 	SocketFqdn     string   `json:"socket-fqdn"`
@@ -35,8 +35,7 @@ type Payload struct {
 	Os               string       `json:"os"`
 	PythonVersion    string       `json:"python"`
 	InternalHostname string       `json:"internalHostname"`
-	UUID             string       `json:"uuid"`
 	SystemStats      *systemStats `json:"systemStats"`
-	Meta             *meta        `json:"meta"`
+	Meta             *Meta        `json:"meta"`
 	HostTags         *tags        `json:"host-tags"`
 }

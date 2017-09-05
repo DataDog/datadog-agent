@@ -57,20 +57,22 @@ func GetPayload() *Payload {
 		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
 	}
 
-	// This is cached and we grab it from the cache
-	hostPayload := host.Payload{}
-	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostMeta"))
+	metaPayload := host.GetMeta()
+
+	// Grab the hostname from the cache and put it where it's needed
+	var hostname string
+	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
 	if found {
-		hostPayload = x.(host.Payload)
-	} else {
-		log.Debug("Grabbing the host payload has failed, the agent checks payload will likely fail to be parsed post")
+		hostname = x.(string)
+		metaPayload.Hostname = hostname
+		agentChecksPayload.InternalHostname = hostname
 	}
 
 	// This is all queried information, so it does not need to be cached
 	cp := common.GetPayload()
 	payload := &Payload{
 		CommonPayload{*cp},
-		HostPayload{hostPayload},
+		MetaPayload{*metaPayload},
 		agentChecksPayload,
 	}
 

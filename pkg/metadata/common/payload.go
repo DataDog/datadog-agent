@@ -9,4 +9,5 @@ package common
 type Payload struct {
 	APIKey       string `json:"apiKey"`
 	AgentVersion string `json:"agentVersion"`
+	UUID         string `json:"uuid"`
 }

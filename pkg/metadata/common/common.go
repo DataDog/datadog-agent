@@ -6,10 +6,15 @@
 package common
 
 import (
+	"path"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	log "github.com/cihub/seelog"
+	gopsutilhost "github.com/shirou/gopsutil/host"
 )
 
 var (
@@ -27,6 +32,7 @@ func GetPayload() *Payload {
 		// is not actually used by the backend
 		AgentVersion: version.AgentVersion,
 		APIKey:       getAPIKey(),
+		UUID:         getUUID(),
 	}
 }
 
@@ -36,4 +42,20 @@ func getAPIKey() string {
 	}
 
 	return apiKey
+}
+
+func getUUID() string {
+	key := path.Join(CachePrefix, "uuid")
+	if x, found := util.Cache.Get(key); found {
+		return x.(string)
+	}
+
+	info, err := gopsutilhost.Info()
+	if err != nil {
+		// don't cache and return zero value
+		log.Errorf("failed to retrieve host info: %s", err)
+		return ""
+	}
+	util.Cache.Set(key, info.HostID, util.NoExpiration)
+	return info.HostID
 }

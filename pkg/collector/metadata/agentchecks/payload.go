@@ -17,13 +17,13 @@ import (
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	CommonPayload
-	HostPayload
+	MetaPayload
 	ACPayload
 }
 
-// HostPayload wraps Payload from the host package (this is cached)
-type HostPayload struct {
-	host.Payload
+// MetaPayload wraps Meta from the host package (this is cached)
+type MetaPayload struct {
+	host.Meta `json:"meta"`
 }
 
 // CommonPayload wraps Payload from the common package
@@ -33,7 +33,8 @@ type CommonPayload struct {
 
 // ACPayload wraps the Agent Checks payload
 type ACPayload struct {
-	AgentChecks []interface{} `json:"agent_checks"`
+	AgentChecks      []interface{} `json:"agent_checks"`
+	InternalHostname string        `json:"internalHostname"`
 }
 
 // MarshalJSON serialization a Payload to JSON

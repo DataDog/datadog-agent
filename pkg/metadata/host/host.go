@@ -37,15 +37,10 @@ func GetPayload(hostname string) *Payload {
 		Os:               runtime.GOOS,
 		PythonVersion:    getPythonVersion(),
 		InternalHostname: hostname,
-		UUID:             getHostInfo().HostID,
 		SystemStats:      getSystemStats(),
 		Meta:             meta,
 		HostTags:         getHostTags(),
 	}
-
-	// Cache the metadata for use in other payload
-	key := path.Join(util.AgentCachePrefix, "hostMeta")
-	util.Cache.Set(key, hostPayload, util.NoExpiration)
 
 	return &hostPayload
 }
@@ -53,6 +48,10 @@ func GetPayload(hostname string) *Payload {
 // GetStatusInformation just returns an InfoStat object, we need some additional information that's not
 func GetStatusInformation() *host.InfoStat {
 	return getHostInfo()
+}
+
+func GetMeta() *Meta {
+	return getMeta()
 }
 
 func getHostTags() *tags {
@@ -162,18 +161,24 @@ func getHostAliases() []string {
 	return aliases
 }
 
-func getMeta() *meta {
+func getMeta() *Meta {
 	hostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname()
 
-	return &meta{
+	m := &Meta{
 		SocketHostname: hostname,
 		Timezones:      []string{tzname},
 		SocketFqdn:     util.Fqdn(hostname),
 		EC2Hostname:    ec2Hostname,
 		HostAliases:    getHostAliases(),
 	}
+
+	// Cache the metadata for use in other payload
+	key := path.Join(util.AgentCachePrefix, "meta")
+	util.Cache.Set(key, m, util.NoExpiration)
+
+	return m
 }
 
 func buildKey(key string) string {
