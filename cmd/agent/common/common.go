@@ -8,7 +8,10 @@
 package common
 
 import (
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -34,3 +37,14 @@ var (
 	// utility variables
 	_here, _ = osext.ExecutableFolder()
 )
+
+// GetPythonPaths returns the paths (in order of precedence) from where the agent
+// should load python modules and checks
+func GetPythonPaths() []string {
+	return []string{
+		GetDistPath(),                                  // some common modules are shipped in the dist path directly
+		filepath.Join(GetDistPath(), "checks"),         // other common modules (e.g. `AgentCheck` class)
+		config.Datadog.GetString("additional_checksd"), // custom checks, have precedence over integrations-core checks
+		PyChecksPath,                                   // integrations-core checks
+	}
+}
