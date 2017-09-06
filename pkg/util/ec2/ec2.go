@@ -24,7 +24,7 @@ import (
 // declare these as vars not const to ease testing
 var (
 	metadataURL         = "http://169.254.169.254/latest/meta-data"
-	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document"
+	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
 	timeout             = 100 * time.Millisecond
 	defaultPrefixes     = []string{"ip-", "domu"}
 )
@@ -80,6 +80,11 @@ func getResponse(url string) (*http.Response, error) {
 func GetTags() ([]string, error) {
 	tags := []string{}
 
+	instanceIdentity, err := getInstanceIdentity()
+	if err != nil {
+		return tags, err
+	}
+
 	iamParams, err := getSecurityCreds()
 	if err != nil {
 		return tags, err
@@ -87,17 +92,10 @@ func GetTags() ([]string, error) {
 
 	awsCreds := credentials.NewStaticCredentials(iamParams["AccessKeyId"], iamParams["SecretAccessKey"], iamParams["Token"])
 
-	instanceIdentity, err := getInstanceIdentity()
-	if err != nil {
-		return tags, err
-	}
-
-	awsConfig := aws.Config{
+	awsSess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(instanceIdentity["region"]),
 		Credentials: awsCreds,
-	}
-
-	awsSess, err := session.NewSession(&awsConfig)
+	})
 	if err != nil {
 		return tags, fmt.Errorf("unable to get aws session, %s", err)
 	}
@@ -144,7 +142,7 @@ func HostnameProvider(hostName string) (string, error) {
 func getInstanceIdentity() (map[string]string, error) {
 	instanceIdentity := map[string]string{}
 
-	res, err := getResponse(instanceIdentityURL + "/latest/dynamic/instance-identity/document")
+	res, err := getResponse(instanceIdentityURL)
 	if err != nil {
 		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API, %s", err)
 	}
