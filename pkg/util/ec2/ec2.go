@@ -79,48 +79,17 @@ func getResponse(url string) (*http.Response, error) {
 // GetTags grabs the host tags from the EC2 api
 func GetTags() ([]string, error) {
 	tags := []string{}
-	res1, err := getResponse(metadataURL + "/iam/security-credentials/")
-	if err != nil {
-		return tags, fmt.Errorf("unable to fetch EC2 API, %s", err)
-	}
 
-	defer res1.Body.Close()
-	all, err := ioutil.ReadAll(res1.Body)
+	iamParams, err := getSecurityCreds()
 	if err != nil {
-		return tags, fmt.Errorf("unable to read security credentials body, %s", err)
-	}
-	iamRole := string(all)
-
-	res2, err := getResponse(metadataURL + "/iam/security-credentials/" + iamRole + "/")
-	if err != nil {
-		return tags, fmt.Errorf("unable to fetch EC2 API, %s", err)
-	}
-	defer res2.Body.Close()
-	all, err = ioutil.ReadAll(res2.Body)
-	if err != nil {
-		return tags, fmt.Errorf("unable to read iam role body, %s", err)
-	}
-	iamParams := map[string]string{}
-	err = json.Unmarshal(all, &iamParams)
-	if err != nil {
-		return tags, fmt.Errorf("unable to unmarshall json, %s", err)
+		return tags, err
 	}
 
 	awsCreds := credentials.NewStaticCredentials(iamParams["AccessKeyId"], iamParams["SecretAccessKey"], iamParams["Token"])
 
-	res3, err := getResponse(instanceIdentityURL + "/latest/dynamic/instance-identity/document")
+	instanceIdentity, err := getInstanceIdentity()
 	if err != nil {
-		return tags, fmt.Errorf("unable to fetch EC2 API, %s", err)
-	}
-	defer res3.Body.Close()
-	all, err = ioutil.ReadAll(res3.Body)
-	if err != nil {
-		return tags, fmt.Errorf("unable to read identity body, %s", err)
-	}
-	instanceIdentity := map[string]string{}
-	err = json.Unmarshal(all, &instanceIdentity)
-	if err != nil {
-		return tags, fmt.Errorf("unable to unmarshall json, %s", err)
+		return tags, err
 	}
 
 	awsConfig := aws.Config{
@@ -170,4 +139,66 @@ func HostnameProvider(hostName string) (string, error) {
 		return GetInstanceID()
 	}
 	return "", nil
+}
+
+func getInstanceIdentity() (map[string]string, error) {
+	instanceIdentity := map[string]string{}
+
+	res, err := getResponse(instanceIdentityURL + "/latest/dynamic/instance-identity/document")
+	if err != nil {
+		return instanceIdentity, fmt.Errorf("unable to fetch EC2 API, %s", err)
+	}
+
+	defer res.Body.Close()
+	all, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return instanceIdentity, fmt.Errorf("unable to read identity body, %s", err)
+	}
+
+	err = json.Unmarshal(all, &instanceIdentity)
+	if err != nil {
+		return instanceIdentity, fmt.Errorf("unable to unmarshall json, %s", err)
+	}
+
+	return instanceIdentity, nil
+}
+
+func getSecurityCreds() (map[string]string, error) {
+	iamParams := map[string]string{}
+
+	iamRole, err := getIAMRole()
+	if err != nil {
+		return iamParams, err
+	}
+
+	res, err := getResponse(metadataURL + "/iam/security-credentials/" + iamRole + "/")
+	if err != nil {
+		return iamParams, fmt.Errorf("unable to fetch EC2 API, %s", err)
+	}
+
+	defer res.Body.Close()
+	all, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return iamParams, fmt.Errorf("unable to read iam role body, %s", err)
+	}
+
+	err = json.Unmarshal(all, &iamParams)
+	if err != nil {
+		return iamParams, fmt.Errorf("unable to unmarshall json, %s", err)
+	}
+	return iamParams, nil
+}
+
+func getIAMRole() (string, error) {
+	res, err := getResponse(metadataURL + "/iam/security-credentials/")
+	if err != nil {
+		return "", fmt.Errorf("unable to fetch EC2 API, %s", err)
+	}
+
+	defer res.Body.Close()
+	all, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return "", fmt.Errorf("unable to read security credentials body, %s", err)
+	}
+	return string(all), nil
 }
