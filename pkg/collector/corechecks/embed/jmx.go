@@ -90,6 +90,7 @@ func (c *JMXCheck) Run() error {
 		log.Info("JMX already running.")
 		return nil
 	}
+	atomic.StoreUint32(&c.running, 1)
 
 	here, _ := osext.ExecutableFolder()
 	jmxConfPath := config.Datadog.GetString("confd_path")
@@ -189,7 +190,6 @@ func (c *JMXCheck) Run() error {
 		return err
 	}
 
-	atomic.StoreUint32(&c.running, 1)
 	err = c.cmd.Wait()
 	atomic.StoreUint32(&c.running, 0)
 
