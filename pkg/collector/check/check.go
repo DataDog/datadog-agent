@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -32,6 +34,16 @@ var (
 		"tags",
 	}
 )
+
+var jmxChecks = [...]string{
+	"activemq",
+	"activemq_58",
+	"cassandra",
+	"jmx",
+	"solr",
+	"tomcat",
+	"kafka",
+}
 
 // ConfigData contains YAML code
 type ConfigData []byte
@@ -192,4 +204,32 @@ func (c *Config) Digest() string {
 	}
 
 	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// IsConfigJMX checks if a certain YAML config is a JMX config
+func IsConfigJMX(name string, initConf ConfigData) bool {
+
+	for _, check := range jmxChecks {
+		if check == name {
+			return true
+		}
+	}
+
+	rawInitConfig := ConfigRawMap{}
+	err := yaml.Unmarshal(initConf, &rawInitConfig)
+	if err != nil {
+		return false
+	}
+
+	x, ok := rawInitConfig["is_jmx"]
+	if !ok {
+		return false
+	}
+
+	isJMX, ok := x.(bool)
+	if !isJMX || !ok {
+		return false
+	}
+
+	return true
 }
