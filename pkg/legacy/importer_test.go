@@ -6,6 +6,7 @@
 package legacy
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
@@ -20,6 +21,10 @@ func TestLoadConfig(t *testing.T) {
 
 	// load configuration with the old Python code
 	configModule := python.PyImport_ImportModule("config")
+	if configModule == nil {
+		_, err, _ := python.PyErr_Fetch()
+		fmt.Println(python.PyString_AsString(err.Str()))
+	}
 	require.NotNil(t, configModule)
 	agentConfigPy := configModule.CallMethod("main")
 	require.NotNil(t, agentConfigPy)

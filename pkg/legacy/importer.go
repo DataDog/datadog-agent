@@ -48,29 +48,32 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 		"service_discovery_backend",
 		"use_dogstatsd",
 		"dogstatsd_port",
-		"dogstatsd_target",
 		"statsd_metric_namespace",
 		"log_level",
 		"collector_log_file",
 		"log_to_syslog",
-		"log_to_event_viewer",
+		"log_to_event_viewer", // maybe deprecated, ignore for now
 		"syslog_host",
 		"syslog_port",
 		"collect_instance_metadata",
-		"listen_port",
-		"non_local_traffic",
-		"create_dd_check_tags",
-		"collect_instance_metadata",
-		"proxy_forbid_method_switch",
-		"collect_orchestrator_tags",
-		"gce_updated_hostname",
-		"use_curl_http_client",
-		"bind_host",
+		"listen_port",                // not for 6.0, ignore for now
+		"non_local_traffic",          // not for 6.0, ignore for now
+		"create_dd_check_tags",       // not for 6.0, ignore for now
+		"bind_host",                  // not for 6.0, ignore for now
+		"proxy_forbid_method_switch", // deprecated
+		"collect_orchestrator_tags",  // deprecated
+		"use_curl_http_client",       // deprecated
+		"dogstatsd_target",           // deprecated
+		"gce_updated_hostname",       // deprecated
 	}
 
 	for _, supportedValue := range supportedValues {
 		if value, err := main.GetKey(supportedValue); err == nil {
 			config[supportedValue] = value.String()
+		} else {
+			// provide an empty default value so we don't need to check for
+			// key existence when browsing the old configuration
+			config[supportedValue] = ""
 		}
 	}
 
