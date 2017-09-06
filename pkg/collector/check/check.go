@@ -35,6 +35,16 @@ var (
 	}
 )
 
+var jmxChecks = [...]string{
+	"activemq",
+	"activemq_58",
+	"cassandra",
+	"jmx",
+	"solr",
+	"tomcat",
+	"kafka",
+}
+
 // ConfigData contains YAML code
 type ConfigData []byte
 
@@ -197,7 +207,14 @@ func (c *Config) Digest() string {
 }
 
 // IsConfigJMX checks if a certain YAML config is a JMX config
-func IsConfigJMX(initConf ConfigData) bool {
+func IsConfigJMX(name string, initConf ConfigData) bool {
+
+	for _, check := range jmxChecks {
+		if check == name {
+			return true
+		}
+	}
+
 	rawInitConfig := ConfigRawMap{}
 	err := yaml.Unmarshal(initConf, &rawInitConfig)
 	if err != nil {

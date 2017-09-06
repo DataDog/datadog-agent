@@ -35,16 +35,6 @@ const (
 	linkToDoc                         = "See http://docs.datadoghq.com/integrations/java/ for more information"
 )
 
-var jmxChecks = [...]string{
-	"activemq",
-	"activemq_58",
-	"cassandra",
-	"jmx",
-	"solr",
-	"tomcat",
-	"kafka",
-}
-
 type checkInstanceCfg struct {
 	Host               string            `yaml:"host,omitempty"`
 	Port               int               `yaml:"port,omitempty"`
@@ -102,7 +92,7 @@ func (c *JMXCheck) Run() error {
 	}
 
 	here, _ := osext.ExecutableFolder()
-	jmxConfPath := path.Join(config.Datadog.GetString("confd_path"), "jmx")
+	jmxConfPath := config.Datadog.GetString("confd_path")
 	classpath := path.Join(here, "dist", "jmx", jmxJarName)
 	if c.javaToolsJarPath != "" {
 		classpath = fmt.Sprintf("%s:%s", c.javaToolsJarPath, classpath)

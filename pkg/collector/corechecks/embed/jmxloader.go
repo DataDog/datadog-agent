@@ -8,7 +8,6 @@
 package embed
 
 import (
-	// "bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -70,19 +69,8 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	var err error
 	checks := []check.Check{}
 
-	isJMX := false
-	for _, check := range jmxChecks {
-		if check == config.Name {
-			isJMX = true
-			break
-		}
-	}
-
-	if !isJMX {
-		if !check.IsConfigJMX(config.InitConfig) {
-			return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
-		}
-		isJMX = true
+	if !check.IsConfigJMX(config.Name, config.InitConfig) {
+		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
 	}
 
 	// TODO: implement IPC - this will instead drop the config in
