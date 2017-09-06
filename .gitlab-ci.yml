@@ -6,6 +6,7 @@ stages:
   - deploy
 
 variables:
+  AGENT_VERSION: 6
   DOCKER_REGISTRY: 727006795293.dkr.ecr.us-east-1.amazonaws.com
   SRC_PATH: /src/github.com/DataDog/datadog-agent
   DEB_X64: $DOCKER_REGISTRY/datadog-agent-builders:deb_x64

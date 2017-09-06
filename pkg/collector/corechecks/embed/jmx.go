@@ -239,6 +239,9 @@ func (c *JMXCheck) Parse(data, initConfig check.ConfigData) error {
 	}
 
 	if instanceConf.ProcessNameRegex != "" {
+		if c.javaToolsJarPath == "" {
+			return fmt.Errorf("You must specify the path to tools.jar. %s", linkToDoc)
+		}
 		c.isAttachAPI = true
 	}
 
