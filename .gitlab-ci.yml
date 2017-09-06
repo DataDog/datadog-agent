@@ -6,7 +6,6 @@ stages:
   - deploy
 
 variables:
-  AGENT_VERSION: 6
   DOCKER_REGISTRY: 727006795293.dkr.ecr.us-east-1.amazonaws.com
   SRC_PATH: /src/github.com/DataDog/datadog-agent
   DEB_X64: $DOCKER_REGISTRY/datadog-agent-builders:deb_x64
@@ -161,7 +160,6 @@ agent_deb-x64:
     AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
     # Uncomment the following to see debug logs from omnibus, it defaults to info
     # AGENT_OMNIBUS_LOG_LEVEL: debug
-    JMX_VERSION: 0.16.0
   script:
     - inv agent.omnibus-build
     - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/*.deb
@@ -188,7 +186,6 @@ agent_rpm-x64:
     AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
     # Uncomment the following to see debug logs from omnibus, it defaults to info
     # AGENT_OMNIBUS_LOG_LEVEL: debug
-    JMX_VERSION: 0.16.0
   script:
     - inv agent.omnibus-build
     - rpm -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
