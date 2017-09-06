@@ -94,7 +94,11 @@ run_benchmarks-deb_x64:
     - docker
   script:
     - inv bench.aggregator
-    - inv bench.dogstastd
+    # FIXME: in our docker image, non ascii characters printed by the benchmark
+    # make invoke traceback. For now, the workaround is to call the benchmarks
+    # manually
+    - inv bench.build-dogstatsd
+    - ./bin/benchmarks/dogstatsd.bin -pps=5000 -dur 45 -ser 5 -brk -inc 1000 -branch $DD_REPO_BRANCH_NAME -api-key $DD_AGENT_API_KEY
   artifacts:
     expire_in: 2 weeks
     paths:
