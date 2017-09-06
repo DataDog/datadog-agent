@@ -168,7 +168,7 @@ def omnibus_build(ctx, puppy=False):
 
     with ctx.cd("omnibus"):
         ctx.run("bundle install")
-        omnibus = "omnibus.bat" if invoke.platform.WINDOWS else "omnibus"
+        omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,

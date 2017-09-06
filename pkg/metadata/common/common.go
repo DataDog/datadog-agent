@@ -6,10 +6,15 @@
 package common
 
 import (
+	"path"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	log "github.com/cihub/seelog"
+	gopsutilhost "github.com/shirou/gopsutil/host"
 )
 
 var (
@@ -21,12 +26,14 @@ var (
 const CachePrefix = "metadata"
 
 // GetPayload fills and return the common metadata payload
-func GetPayload() *Payload {
+func GetPayload(hostname string) *Payload {
 	return &Payload{
 		// olivier: I _think_ `APIKey` is only a legacy field, and
 		// is not actually used by the backend
-		AgentVersion: version.AgentVersion,
-		APIKey:       getAPIKey(),
+		AgentVersion:     version.AgentVersion,
+		APIKey:           getAPIKey(),
+		UUID:             getUUID(),
+		InternalHostname: hostname,
 	}
 }
 
@@ -36,4 +43,20 @@ func getAPIKey() string {
 	}
 
 	return apiKey
+}
+
+func getUUID() string {
+	key := path.Join(CachePrefix, "uuid")
+	if x, found := util.Cache.Get(key); found {
+		return x.(string)
+	}
+
+	info, err := gopsutilhost.Info()
+	if err != nil {
+		// don't cache and return zero value
+		log.Errorf("failed to retrieve host info: %s", err)
+		return ""
+	}
+	util.Cache.Set(key, info.HostID, util.NoExpiration)
+	return info.HostID
 }

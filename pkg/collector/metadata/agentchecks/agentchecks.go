@@ -6,45 +6,72 @@
 package agentchecks
 
 import (
+	"encoding/json"
+	"path"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
-	"github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/util"
+
+	log "github.com/cihub/seelog"
 )
 
 // GetPayload builds a payload of all the agentchecks metadata
 func GetPayload() *Payload {
-	seelog.Info("I got here!!!!")
-	payload := &Payload{
-		AgentChecks: []interface{}{},
+	agentChecksPayload := ACPayload{}
+
+	// Grab the hostname from the cache
+	var hostname string
+	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
+	if found {
+		hostname = x.(string)
 	}
 
 	checkStats := runner.GetCheckStats()
 
-	for check, stats := range checkStats {
+	for _, stats := range checkStats {
 		var status []interface{}
 		if stats.LastError != "" {
 			status = []interface{}{
-				check, "", stats.CheckID, stats.LastError, "ERROR", "",
+				stats.CheckName, stats.CheckName, stats.CheckID, "ERROR", stats.LastError, "",
 			}
 		} else if len(stats.LastWarnings) != 0 {
 			status = []interface{}{
-				check, "", stats.CheckID, stats.LastWarnings, "WARNING", "",
+				stats.CheckName, stats.CheckName, stats.CheckID, "WARNING", stats.LastWarnings, "",
 			}
 		} else {
 			status = []interface{}{
-				check, "", stats.CheckID, stats.LastWarnings, "OK", "",
+				stats.CheckName, stats.CheckName, stats.CheckID, "OK", "", "",
 			}
 		}
-		payload.AgentChecks = append(payload.AgentChecks, status)
+		if status != nil {
+			agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
+		}
 	}
 
 	loaderErrors := autodiscovery.GetLoaderErrors()
 
 	for check, errs := range loaderErrors {
-		status := []interface{}{
-			check, "", "initialization", "ERROR", errs,
+		jsonErrs, err := json.Marshal(errs)
+		if err != nil {
+			log.Warnf("Error formatting loader error from check %s: %v", check, err)
 		}
-		payload.AgentChecks = append(payload.AgentChecks, status)
+		status := []interface{}{
+			check, check, "initialization", "ERROR", string(jsonErrs),
+		}
+		agentChecksPayload.AgentChecks = append(agentChecksPayload.AgentChecks, status)
+	}
+
+	// Grab the non agent checks information
+	metaPayload := host.GetMeta()
+	metaPayload.Hostname = hostname
+	cp := common.GetPayload(hostname)
+	payload := &Payload{
+		CommonPayload{*cp},
+		MetaPayload{*metaPayload},
+		agentChecksPayload,
 	}
 
 	return payload

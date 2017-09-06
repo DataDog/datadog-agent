@@ -19,6 +19,7 @@ import (
 var (
 	customerEmail string
 	caseID        string
+	autoconfirm   bool
 )
 
 func init() {
@@ -27,6 +28,7 @@ func init() {
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().StringVarP(&caseID, "case-id", "c", "", "Your case ID")
 	flareCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to datadog.yaml")
+	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
@@ -79,10 +81,12 @@ func requestFlare() error {
 	}
 
 	fmt.Printf("%s is going to be uploaded to Datadog\n", filePath)
-	confirmation := flare.AskForConfirmation("Are you sure you want to upload a flare? [Y/N]")
-	if !confirmation {
-		fmt.Printf("Aborting. (You can still use %s) \n", filePath)
-		return nil
+	if !autoconfirm {
+		confirmation := flare.AskForConfirmation("Are you sure you want to upload a flare? [Y/N]")
+		if !confirmation {
+			fmt.Printf("Aborting. (You can still use %s) \n", filePath)
+			return nil
+		}
 	}
 
 	response, e := flare.SendFlare(filePath, caseID, customerEmail)

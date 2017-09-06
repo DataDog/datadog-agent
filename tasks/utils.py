@@ -14,7 +14,6 @@ import invoke
 ORG_PATH = "github.com/DataDog"
 REPO_PATH = "{}/datadog-agent".format(ORG_PATH)
 
-
 def bin_name(name):
     """
     Generate platform dependent names for binaries
@@ -39,7 +38,7 @@ def pkg_config_path(use_embedded_libs):
         retval = os.path.abspath(os.path.join(base, "system"))
 
     # append the system wide value of PKG_CONFIG_PATH
-    retval += ":{}".format(os.environ.get("PKG_CONFIG_PATH", ""))
+    retval += "{}{}".format(os.pathsep, os.environ.get("PKG_CONFIG_PATH", ""))
 
     return retval
 
