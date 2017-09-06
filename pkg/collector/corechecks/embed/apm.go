@@ -152,7 +152,7 @@ func getHostname() string {
 
 func getAPMAgentDefaultBinPath() (string, error) {
 	here, _ := osext.ExecutableFolder()
-	binPath := path.Join(here, "..", "..", "embedded", "bin", "trace-agent")
+	binPath := path.Join(here, "..", "..", "embedded", "bin", apm_binary_name)
 	if _, err := os.Stat(binPath); err == nil {
 		return binPath, nil
 	}
