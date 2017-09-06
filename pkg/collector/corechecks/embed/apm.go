@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 
 	log "github.com/cihub/seelog"
-	"github.com/kardianos/osext"
 	"gopkg.in/yaml.v2"
 )
 
@@ -148,13 +147,4 @@ func getHostname() string {
 		return hname.(string)
 	}
 	return ""
-}
-
-func getAPMAgentDefaultBinPath() (string, error) {
-	here, _ := osext.ExecutableFolder()
-	binPath := path.Join(here, "..", "..", "embedded", "bin", apm_binary_name)
-	if _, err := os.Stat(binPath); err == nil {
-		return binPath, nil
-	}
-	return binPath, fmt.Errorf("Can't access the default apm binary at %s", binPath)
 }

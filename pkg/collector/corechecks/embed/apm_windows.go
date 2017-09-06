@@ -8,4 +8,23 @@
 
 package embed
 
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	log "github.com/cihub/seelog"
+	"github.com/kardianos/osext"
+)
+
 const apm_binary_name = "trace-agent.exe"
+
+func getAPMAgentDefaultBinPath() (string, error) {
+	here, _ := osext.ExecutableFolder()
+	binPath := filepath.Join(here, "bin", apm_binary_name)
+	if _, err := os.Stat(binPath); err == nil {
+		log.Debug("Found APM binary path at %s", binPath)
+		return binPath, nil
+	}
+	return binPath, fmt.Errorf("Can't access the default apm binary at %s", binPath)
+}

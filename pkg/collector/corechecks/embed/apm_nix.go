@@ -8,4 +8,21 @@
 
 package embed
 
-const apm_binary_name = "trace-agent.exe"
+import (
+	"fmt"
+	"os"
+	"path"
+
+	"github.com/kardianos/osext"
+)
+
+const apm_binary_name = "trace-agent"
+
+func getAPMAgentDefaultBinPath() (string, error) {
+	here, _ := osext.ExecutableFolder()
+	binPath := path.Join(here, "..", "..", "embedded", "bin", apm_binary_name)
+	if _, err := os.Stat(binPath); err == nil {
+		return binPath, nil
+	}
+	return binPath, fmt.Errorf("Can't access the default apm binary at %s", binPath)
+}
