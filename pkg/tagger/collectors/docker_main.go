@@ -34,7 +34,7 @@ func DockerEntityName(cid string) string {
 // and feed a stram of TagInfo. It requires access to the docker socket.
 // It will also embed DockerExtractor collectors for container tagging.
 type DockerCollector struct {
-	Client  *client.Client
+	client  *client.Client
 	stop    chan bool
 	infoOut chan<- []*TagInfo
 }
@@ -46,7 +46,7 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 	if err != nil {
 		return NoCollection, fmt.Errorf("Failed to connect to Docker, docker tagging will not work: %s", err)
 	}
-	c.Client = client
+	c.client = client
 	c.stop = make(chan bool)
 	c.infoOut = out
 
@@ -69,7 +69,7 @@ func (c *DockerCollector) Stream() error {
 		Filters: filters,
 	}
 
-	messages, errs := c.Client.Events(context.Background(), eventOptions)
+	messages, errs := c.client.Events(context.Background(), eventOptions)
 
 	for {
 		select {
@@ -93,10 +93,10 @@ func (c *DockerCollector) Stop() error {
 }
 
 // Fetch inspect a given container to get its tags on-demand (cache miss)
-func (c *DockerCollector) Fetch(entity string) ([]string, []string, error) {
-	cid := strings.TrimPrefix(entity, DockerEntityPrefix)
-	if cid == entity {
-		return nil, nil, fmt.Errorf("entity name is not a docker container: %s", entity)
+func (c *DockerCollector) Fetch(container string) ([]string, []string, error) {
+	cid := strings.TrimPrefix(container, DockerEntityPrefix)
+	if cid == container {
+		return nil, nil, fmt.Errorf("name is not a docker container: %s", container)
 	}
 	return c.fetchForDockerID(cid)
 }
@@ -116,7 +116,7 @@ func (c *DockerCollector) processEvent(e events.Message) {
 }
 
 func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, error) {
-	co, err := c.Client.ContainerInspect(context.Background(), string(cID))
+	co, err := c.client.ContainerInspect(context.Background(), string(cID))
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 		return nil, nil, err
