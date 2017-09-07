@@ -5,5 +5,5 @@ agent:
   build_exclude: []
 
 dogstatsd:
-  build_include: [zlib]
+  build_include: [zlib, docker]
   build_exclude: []
