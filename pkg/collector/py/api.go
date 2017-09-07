@@ -66,7 +66,7 @@ func SubmitMetric(check *C.PyObject, checkID *C.char, mt C.MetricType, name *C.c
 
 // SubmitServiceCheck is the method exposed to Python scripts to submit service checks
 //export SubmitServiceCheck
-func SubmitServiceCheck(check *C.PyObject, checkID *C.char, name *C.char, status C.int, tags *C.PyObject, message *C.char) *C.PyObject {
+func SubmitServiceCheck(check *C.PyObject, checkID *C.char, name *C.char, status C.int, tags *C.PyObject, hostname *C.char, message *C.char) *C.PyObject {
 
 	goCheckID := C.GoString(checkID)
 	var sender aggregator.Sender
@@ -86,9 +86,10 @@ func SubmitServiceCheck(check *C.PyObject, checkID *C.char, name *C.char, status
 		log.Error(err)
 		return nil
 	}
+	_hostname := C.GoString(hostname)
 	_message := C.GoString(message)
 
-	sender.ServiceCheck(_name, _status, "", _tags, _message)
+	sender.ServiceCheck(_name, _status, _hostname, _tags, _message)
 
 	return C._none()
 }
