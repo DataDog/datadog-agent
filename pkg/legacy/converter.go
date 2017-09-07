@@ -34,8 +34,8 @@ func FromAgentConfig(agentConfig Config) error {
 
 	enabled, err = isAffirmative(agentConfig["apm_enabled"])
 	if err == nil && !enabled {
-		// apm is enabled by default through the check config file
-		// TODO: disable APM check
+		// apm is enabled by default through the check config file `apm.yaml.default`
+		config.Datadog.Set("apm_enabled", false)
 	}
 
 	config.Datadog.Set("tags", strings.Split(agentConfig["tags"], ","))
