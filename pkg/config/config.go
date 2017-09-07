@@ -72,6 +72,7 @@ func init() {
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
+	Datadog.SetDefault("log_to_syslog", false)
 	Datadog.SetDefault("syslog_uri", "")
 	Datadog.SetDefault("syslog_rfc", false)
 	Datadog.SetDefault("syslog_tls", false)
@@ -242,7 +243,10 @@ func GetSyslogURI() string {
 	uri := Datadog.GetString("syslog_uri")
 
 	if runtime.GOOS == "windows" {
-		enabled = false
+		if enabled {
+			log.Infof("logging to syslog is not available on windows.")
+		}
+		return ""
 	}
 
 	if enabled {
