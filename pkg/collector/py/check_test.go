@@ -138,6 +138,9 @@ func TestAggregatorLink(t *testing.T) {
 	mockSender.On("ServiceCheck",
 		"testservicecheck", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
 		[]string(nil), mock.AnythingOfType("string")).Return().Times(1)
+	mockSender.On("ServiceCheck",
+		"testservicecheckwithhostname", mock.AnythingOfType("metrics.ServiceCheckStatus"), "testhostname",
+		[]string{"foo", "bar"}, "a message").Return().Times(1)
 	mockSender.On("Gauge", "testmetric", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
 	mockSender.On("Event", mock.AnythingOfType("metrics.Event")).Return().Times(1)
 	mockSender.On("Commit").Return().Times(1)
@@ -157,6 +160,9 @@ func TestAggregatorLinkTwoRuns(t *testing.T) {
 	mockSender.On("ServiceCheck",
 		"testservicecheck", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
 		[]string(nil), mock.AnythingOfType("string")).Return().Times(2)
+	mockSender.On("ServiceCheck",
+		"testservicecheckwithhostname", mock.AnythingOfType("metrics.ServiceCheckStatus"), "testhostname",
+		[]string{"foo", "bar"}, "a message").Return().Times(2)
 	mockSender.On("Gauge", "testmetric", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(2)
 	mockSender.On("Event", mock.AnythingOfType("metrics.Event")).Return().Times(2)
 	mockSender.On("Commit").Return().Times(2)

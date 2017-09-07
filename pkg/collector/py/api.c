@@ -1,7 +1,7 @@
 #include "api.h"
 
 PyObject* SubmitMetric(PyObject*, char*, MetricType, char*, float, PyObject*, char*);
-PyObject* SubmitServiceCheck(PyObject*, char*, char*, int, PyObject*, char*);
+PyObject* SubmitServiceCheck(PyObject*, char*, char*, int, PyObject*, char*, char*);
 PyObject* SubmitEvent(PyObject*, char*, PyObject*);
 
 // _must_ be in the same order as the MetricType enum
@@ -41,20 +41,21 @@ static PyObject *submit_service_check(PyObject *self, PyObject *args) {
     char *name;
     int status;
     PyObject *tags = NULL;
+    char *hostname;
     char *message = NULL;
     char *check_id;
 
     PyGILState_STATE gstate;
     gstate = PyGILState_Ensure();
 
-    // aggregator.submit_service_check(self, check_id, name, status, tags, message)
-    if (!PyArg_ParseTuple(args, "OssiOs", &check, &check_id, &name, &status, &tags, &message)) {
+    // aggregator.submit_service_check(self, check_id, name, status, tags, hostname, message)
+    if (!PyArg_ParseTuple(args, "OssiOss", &check, &check_id, &name, &status, &tags, &hostname, &message)) {
       PyGILState_Release(gstate);
       return NULL;
     }
 
     PyGILState_Release(gstate);
-    return SubmitServiceCheck(check, check_id, name, status, tags, message);
+    return SubmitServiceCheck(check, check_id, name, status, tags, hostname, message);
 }
 
 static PyObject *submit_event(PyObject *self, PyObject *args) {

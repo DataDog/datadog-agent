@@ -123,9 +123,12 @@ class AgentCheck(object):
             self.log.warning(self._deprecations[deprecation_key][1])
             self._deprecations[deprecation_key][0] = True
 
-    def service_check(self, name, status, tags=None, message=""):
+    def service_check(self, name, status, tags=None, hostname=None, message=""):
         tags = self._normalize_tags_type(tags)
-        aggregator.submit_service_check(self, self.check_id, name, status, tags, message)
+        if hostname is None:
+            hostname = ""
+
+        aggregator.submit_service_check(self, self.check_id, name, status, tags, hostname, message)
 
     def event(self, event):
         # Enforce types of some fields, considerably facilitates handling in go bindings downstream
