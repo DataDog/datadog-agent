@@ -116,6 +116,11 @@ metadata_collectors:
 #     username:
 #     password:
 
+# Autodiscovery
+#
+listeners:
+  - name: docker
+
 # Logging
 #
 # log_level: info
