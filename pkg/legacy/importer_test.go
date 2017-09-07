@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadConfig(t *testing.T) {
+func TestGetAgentConfig(t *testing.T) {
 	py.Initialize("tests")
 	python.PyGILState_Ensure()
 

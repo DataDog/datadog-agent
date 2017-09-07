@@ -113,8 +113,10 @@ func buildProxySettings(agentConfig Config) (string, error) {
 		return "", nil
 	}
 
-	u, err := url.Parse(agentConfig["proxy_host"])
-	if err != nil {
+	var err error
+	var u *url.URL
+
+	if u, err = url.Parse(agentConfig["proxy_host"]); err != nil {
 		return "", fmt.Errorf("unable to import value of settings 'proxy_host': %v", err)
 	}
 
@@ -122,10 +124,8 @@ func buildProxySettings(agentConfig Config) (string, error) {
 		u.Host = u.Host + ":" + agentConfig["proxy_port"]
 	}
 
-	user := agentConfig["proxy_user"]
-	pass := agentConfig["proxy_password"]
-	if user != "" {
-		if pass != "" {
+	if user := agentConfig["proxy_user"]; user != "" {
+		if pass := agentConfig["proxy_password"]; pass != "" {
 			u.User = url.UserPassword(user, pass)
 		} else {
 			u.User = url.User(user)
