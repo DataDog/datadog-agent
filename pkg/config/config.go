@@ -107,6 +107,9 @@ func init() {
 	Datadog.SetDefault("bosh_id", "")
 	// APM
 	Datadog.SetDefault("apm_enabled", true) // this is to support the transition to the new config file
+	// Go_expvar server port
+        Datadog.SetDefault("expvar_port", "127.0.0.1:5000")
+
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
