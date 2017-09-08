@@ -1,6 +1,8 @@
 name "datadog-trace-agent"
 source git: 'https://github.com/DataDog/datadog-trace-agent.git'
 
+require "./lib/ostools.rb"
+
 trace_agent_branch = ENV['TRACE_AGENT_BRANCH']
 if trace_agent_branch.nil? || trace_agent_branch.empty?
   trace_agent_branch = 'master'
@@ -12,10 +14,15 @@ if ENV.has_key?('TRACE_AGENT_ADD_BUILD_VARS') && ENV['TRACE_AGENT_ADD_BUILD_VARS
   trace_agent_add_build_vars = false
 end
 
+if windows?
+  trace_agent_binary = "trace-agent.exe"
+else
+  trace_agent_binary = "trace-agent"
+end
 dd_agent_version = ENV['AGENT_VERSION']
 gopath = ENV['GOPATH']
 
-agent_source_dir = "#{Omnibus::Config.source_dir}/datadog-trace-agent"
+agent_source_dir = "#{Omnibus::Config.source_dir}\\datadog-trace-agent"
 glide_cache_dir = "#{gopath}/src/github.com/Masterminds/glide"
 agent_cache_dir = "#{gopath}/src/github.com/DataDog/datadog-trace-agent"
 
@@ -30,8 +37,9 @@ build do
    ship_license "https://raw.githubusercontent.com/DataDog/datadog-trace-agent/#{version}/LICENSE"
 
    # Put datadog-trace-agent into a valid GOPATH
+   puts "source dir #{agent_source_dir}"
    mkdir "#{gopath}/src/github.com/DataDog/"
-   delete "#{gopath}/src/github.com/DataDog/datadog-trace-agent"
+   delete "#{gopath}\\src\\github.com\\DataDog\\datadog-trace-agent"
    move agent_source_dir, "#{gopath}/src/github.com/DataDog/"
 
    # Checkout datadog-trace-agent's build dependencies
@@ -42,7 +50,7 @@ build do
    command "go install github.com/Masterminds/glide", :env => env, :cwd => glide_cache_dir
 
    # Build datadog-trace-agent
-   command "$GOPATH/bin/glide install", :env => env, :cwd => agent_cache_dir
+   command "#{gopath}/bin/glide install", :env => env, :cwd => agent_cache_dir
    command "rake build", :env => env, :cwd => agent_cache_dir
-   command "mv ./trace-agent #{install_dir}/embedded/bin/", :env => env, :cwd => agent_cache_dir
+   command "mv ./#{trace_agent_binary} #{install_dir}/embedded/bin/", :env => env, :cwd => agent_cache_dir
 end
