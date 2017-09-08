@@ -44,7 +44,6 @@ func New(version string) (Version, error) {
 
 	// save Meta infos after removing leading `+`
 	meta := strings.Replace(toks[3], "+", "", 1)
-	fmt.Printf("commit: %s\n", commit)
 
 	av := Version{
 		Major:  major,

@@ -56,7 +56,6 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
 
     gcflags = ""
     ldflags = "-X {}/pkg/version.commit={} ".format(REPO_PATH, commit)
-    print(commit)
     ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(include_git=True))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
     if static:
