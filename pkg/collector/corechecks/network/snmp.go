@@ -70,24 +70,26 @@ type metric struct {
 }
 
 type snmpInstanceCfg struct {
-	Host          string                  `yaml:"ip_address"`
-	Port          uint                    `yaml:"port"`
-	User          string                  `yaml:"user,omitempty"`
-	Community     string                  `yaml:"community_string,omitempty"`
-	Version       int                     `yaml:"snmp_version,omitempty"`
-	AuthKey       string                  `yaml:"authKey,omitempty"`
-	PrivKey       string                  `yaml:"privKey,omitempty"`
-	AuthProtocol  string                  `yaml:"authProtocol,omitempty"`
-	PrivProtocol  string                  `yaml:"privProtocol,omitempty"`
-	Timeout       uint                    `yaml:"timeout,omitempty"`
-	Retries       uint                    `yaml:"retries,omitempty"`
-	Metrics       []metric                `yaml:"metrics,omitempty"`
-	Tags          []string                `yaml:"tags,omitempty"`
-	OIDTranslator *util.BiMap             `yaml:",omitempty"` //will not be in yaml
-	NameLookup    map[string]string       `yaml:",omitempty"` //will not be in yaml
-	MetricMap     map[string]*metric      `yaml:",omitempty"` //will not be in yaml
-	TagMap        map[string][]*metricTag `yaml:",omitempty"` //will not be in yaml
-	snmp          *snmpgo.SNMP
+	Host            string                  `yaml:"ip_address"`
+	Port            uint                    `yaml:"port"`
+	User            string                  `yaml:"user,omitempty"`
+	Community       string                  `yaml:"community_string,omitempty"`
+	Version         int                     `yaml:"snmp_version,omitempty"`
+	AuthKey         string                  `yaml:"authKey,omitempty"`
+	PrivKey         string                  `yaml:"privKey,omitempty"`
+	AuthProtocol    string                  `yaml:"authProtocol,omitempty"`
+	PrivProtocol    string                  `yaml:"privProtocol,omitempty"`
+	ContextEngineId string                  `yaml:"context_engine_id,omitempty"`
+	ContextName     string                  `yaml:"context_name,omitempty"`
+	Timeout         uint                    `yaml:"timeout,omitempty"`
+	Retries         uint                    `yaml:"retries,omitempty"`
+	Metrics         []metric                `yaml:"metrics,omitempty"`
+	Tags            []string                `yaml:"tags,omitempty"`
+	OIDTranslator   *util.BiMap             `yaml:",omitempty"` //will not be in yaml
+	NameLookup      map[string]string       `yaml:",omitempty"` //will not be in yaml
+	MetricMap       map[string]*metric      `yaml:",omitempty"` //will not be in yaml
+	TagMap          map[string][]*metricTag `yaml:",omitempty"` //will not be in yaml
+	snmp            *snmpgo.SNMP
 }
 
 type snmpInitCfg struct {
@@ -679,17 +681,19 @@ func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData
 	}
 
 	c.cfg.instance.snmp, err = snmpgo.NewSNMP(snmpgo.SNMPArguments{
-		Version:       snmpver,
-		Address:       net.JoinHostPort(c.cfg.instance.Host, strconv.Itoa(int(c.cfg.instance.Port))),
-		Retries:       c.cfg.instance.Retries,
-		Timeout:       time.Duration(c.cfg.instance.Timeout) * time.Second,
-		UserName:      c.cfg.instance.User,
-		Community:     c.cfg.instance.Community,
-		AuthPassword:  c.cfg.instance.AuthKey,
-		AuthProtocol:  snmpgo.AuthProtocol(c.cfg.instance.AuthProtocol),
-		PrivPassword:  c.cfg.instance.PrivKey,
-		PrivProtocol:  snmpgo.PrivProtocol(c.cfg.instance.PrivProtocol),
-		SecurityLevel: seclevel,
+		Version:         snmpver,
+		Address:         net.JoinHostPort(c.cfg.instance.Host, strconv.Itoa(int(c.cfg.instance.Port))),
+		Retries:         c.cfg.instance.Retries,
+		Timeout:         time.Duration(c.cfg.instance.Timeout) * time.Second,
+		UserName:        c.cfg.instance.User,
+		Community:       c.cfg.instance.Community,
+		AuthPassword:    c.cfg.instance.AuthKey,
+		AuthProtocol:    snmpgo.AuthProtocol(c.cfg.instance.AuthProtocol),
+		PrivPassword:    c.cfg.instance.PrivKey,
+		PrivProtocol:    snmpgo.PrivProtocol(c.cfg.instance.PrivProtocol),
+		ContextEngineId: c.cfg.instance.ContextEngineId,
+		ContextName:     c.cfg.instance.ContextName,
+		SecurityLevel:   seclevel,
 	})
 	if err != nil {
 		// Failed to create snmpgo.SNMP object
