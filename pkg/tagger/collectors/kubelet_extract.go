@@ -10,6 +10,7 @@ import (
 	"regexp"
 	//log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -21,12 +22,12 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 	var output []*TagInfo
 	for _, pod := range pods {
 		for _, container := range pod.Status.Containers {
-			tags := newTagList()
+			tags := utils.NewTagList()
 
 			// Pod name
-			tags.addHigh("pod_name", pod.Metadata.Name)
-			tags.addLow("kube_namespace", pod.Metadata.Namespace)
-			tags.addLow("kube_container_name", container.Name)
+			tags.AddHigh("pod_name", pod.Metadata.Name)
+			tags.AddLow("kube_namespace", pod.Metadata.Namespace)
+			tags.AddLow("kube_container_name", container.Name)
 
 			// TODO labels with configurable list
 
@@ -37,27 +38,27 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				}
 				switch owner.Kind {
 				case "Deployment":
-					tags.addLow("kube_deployment", owner.Name)
+					tags.AddLow("kube_deployment", owner.Name)
 				case "DaemonSet":
-					tags.addLow("kube_daemon_set", owner.Name)
+					tags.AddLow("kube_daemon_set", owner.Name)
 				case "ReplicationController":
-					tags.addLow("kube_replication_controller", owner.Name)
+					tags.AddLow("kube_replication_controller", owner.Name)
 				case "StatefulSet":
-					tags.addLow("kube_stateful_set", owner.Name)
+					tags.AddLow("kube_stateful_set", owner.Name)
 				case "Job":
-					tags.addHigh("kube_job", owner.Name) // TODO detect if no from cronjob, then low card
+					tags.AddHigh("kube_job", owner.Name) // TODO detect if no from cronjob, then low card
 				case "ReplicaSet":
 					deployment := c.parseDeploymentForReplicaset(owner.Name)
 					if len(deployment) > 0 {
-						tags.addHigh("kube_replica_set", owner.Name)
-						tags.addLow("kube_deployment", deployment)
+						tags.AddHigh("kube_replica_set", owner.Name)
+						tags.AddLow("kube_deployment", deployment)
 					} else {
-						tags.addLow("kube_replica_set", owner.Name)
+						tags.AddLow("kube_replica_set", owner.Name)
 					}
 				}
 			}
 
-			low, high := tags.compute()
+			low, high := tags.Compute()
 			info := &TagInfo{
 				Source:       kubeletCollectorName,
 				Entity:       container.ID,

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package collectors
+package utils
 
 import (
 	"testing"
@@ -12,11 +12,11 @@ import (
 )
 
 func TestNewTagList(t *testing.T) {
-	list := newTagList()
+	list := NewTagList()
 	require.NotNil(t, list)
 	require.NotNil(t, list.lowCardTags)
 	require.NotNil(t, list.highCardTags)
-	low, high := list.compute()
+	low, high := list.Compute()
 	require.NotNil(t, low)
 	require.Empty(t, low)
 	require.NotNil(t, high)
@@ -24,9 +24,9 @@ func TestNewTagList(t *testing.T) {
 }
 
 func TestAddLow(t *testing.T) {
-	list := newTagList()
-	list.addLow("foo", "bar")
-	list.add("faa", "baz", false)
+	list := NewTagList()
+	list.AddLow("foo", "bar")
+	list.Add("faa", "baz", false)
 	require.Empty(t, list.highCardTags)
 	require.Len(t, list.lowCardTags, 2)
 	require.Equal(t, "bar", list.lowCardTags["foo"])
@@ -34,9 +34,9 @@ func TestAddLow(t *testing.T) {
 }
 
 func TestAddHigh(t *testing.T) {
-	list := newTagList()
-	list.addHigh("foo", "bar")
-	list.add("faa", "baz", true)
+	list := NewTagList()
+	list.AddHigh("foo", "bar")
+	list.Add("faa", "baz", true)
 	require.Empty(t, 0, list.lowCardTags)
 	require.Len(t, list.highCardTags, 2)
 	require.Equal(t, "bar", list.highCardTags["foo"])
@@ -44,12 +44,12 @@ func TestAddHigh(t *testing.T) {
 }
 
 func TestCompute(t *testing.T) {
-	list := newTagList()
-	list.addHigh("foo", "bar")
-	list.addLow("faa", "baz")
-	list.addLow("low", "yes")
+	list := NewTagList()
+	list.AddHigh("foo", "bar")
+	list.AddLow("faa", "baz")
+	list.AddLow("low", "yes")
 
-	low, high := list.compute()
+	low, high := list.Compute()
 	require.Len(t, low, 2)
 	require.Contains(t, low, "faa:baz")
 	require.Contains(t, low, "low:yes")

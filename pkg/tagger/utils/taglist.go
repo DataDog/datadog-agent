@@ -3,45 +3,46 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package collectors
+package utils
 
 import (
 	"fmt"
 )
 
-// tagList allows collector to incremently build a tag list
+// TagList allows collector to incremently build a tag list
 // then export it easily to []string format
-type tagList struct {
+type TagList struct {
 	lowCardTags  map[string]string
 	highCardTags map[string]string
 }
 
-func newTagList() *tagList {
-	return &tagList{
+// NewTagList creates a new object ready to use
+func NewTagList() *TagList {
+	return &TagList{
 		lowCardTags:  make(map[string]string),
 		highCardTags: make(map[string]string),
 	}
 }
 
-func (l *tagList) add(name string, value string, highCard bool) {
+func (l *TagList) Add(name string, value string, highCard bool) {
 	if highCard {
-		l.addHigh(name, value)
+		l.AddHigh(name, value)
 	} else {
-		l.addLow(name, value)
+		l.AddLow(name, value)
 	}
 }
 
-func (l *tagList) addHigh(name string, value string) {
+func (l *TagList) AddHigh(name string, value string) {
 	l.highCardTags[name] = value
 }
 
-func (l *tagList) addLow(name string, value string) {
+func (l *TagList) AddLow(name string, value string) {
 	l.lowCardTags[name] = value
 }
 
-// compute returns two string arrays in the format "tag:value"
+// Compute returns two string arrays in the format "tag:value"
 // first array is low cardinality tags, second is high card ones
-func (l *tagList) compute() ([]string, []string) {
+func (l *TagList) Compute() ([]string, []string) {
 	low := make([]string, len(l.lowCardTags))
 	high := make([]string, len(l.highCardTags))
 
