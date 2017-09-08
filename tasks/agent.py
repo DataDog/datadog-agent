@@ -4,6 +4,7 @@ Agent namespaced tasks
 from __future__ import print_function
 import os
 import shutil
+import sys
 from distutils.dir_util import copy_tree
 
 import invoke
@@ -46,9 +47,12 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         # being able to load the ancient C-runtime that comes along with Python 2.7
         #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
 
-        # fixme -- still need to calculate correct *_VER numbers at build time rather than
-        # hard-coded here.
-        command = "windres --define MAJ_VER=6 --define MIN_VER=0 --define PATCH_VER=0 "
+        build_maj, build_min, build_patch = get_version().split(".")
+        command = "windres --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
+            build_maj=build_maj,
+            build_min=build_min,
+            build_patch=build_patch
+        )
         command += "-i cmd/agent/agent.rc --target=pe-x86-64 -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
 
@@ -63,7 +67,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
-
+    
     ctx.run(cmd.format(**args), env=env)
     refresh_assets(ctx)
 
