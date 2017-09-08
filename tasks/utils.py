@@ -125,7 +125,10 @@ def get_git_branch_name():
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
 
 def query_version():
-    described_version = check_output(["git", "describe", "--tags"]).strip()
+    try:
+        described_version = check_output(["git", "describe", "--tags"], stderr=subprocess.STDOUT).strip()
+    except:
+        described_version = ""
     version_match = re.findall(r"^v?(\d+\.\d+\.\d+)", described_version)
 
     if version_match and version_match[0]:
