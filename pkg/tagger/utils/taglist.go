@@ -24,6 +24,7 @@ func NewTagList() *TagList {
 	}
 }
 
+// Add adds a new tag to the list, or replace if name already exists
 func (l *TagList) Add(name string, value string, highCard bool) {
 	if highCard {
 		l.AddHigh(name, value)
@@ -32,10 +33,12 @@ func (l *TagList) Add(name string, value string, highCard bool) {
 	}
 }
 
+// AddHigh adds a new high cardinality tag to the list, or replace if name already exists
 func (l *TagList) AddHigh(name string, value string) {
 	l.highCardTags[name] = value
 }
 
+// AddLow adds a new low cardinality tag to the list, or replace if name already exists
 func (l *TagList) AddLow(name string, value string) {
 	l.lowCardTags[name] = value
 }

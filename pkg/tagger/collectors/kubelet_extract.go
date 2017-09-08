@@ -14,6 +14,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
+/* Deltas from agent5:
+
+   Moved to cluster agent:
+     - kube_server
+   To implement:
+     - pod labels
+     -
+   To deprecate:
+     - kube_replicate_controller added everytime, just keep if real owner
+     - pod_name does not include the namespace anymore, redundant with kube_namespace
+     - removing the no_pod tags
+     - container_alias tags
+*/
+
 // KubeReplicaSetRegexp allows to extract parent deployment name from replicaset
 var KubeReplicaSetRegexp = regexp.MustCompile("^(\\S+)-[0-9]+$")
 
