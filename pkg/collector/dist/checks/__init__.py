@@ -58,6 +58,8 @@ class AgentCheck(object):
                 # new-style init: the 3rd argument is `instances`
                 self.instances = args[2]
 
+        self.hostname = datadog_agent.get_hostname()  # `self.hostname` is deprecated, use `datadog_agent.get_hostname()` instead
+
         # the agent5 'AgentCheck' setup a log attribute.
         self.log = logging.getLogger('%s.%s' % (__name__, self.name))
         # let every log pass through and let the Go logger filter them.
