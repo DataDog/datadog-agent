@@ -186,11 +186,6 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths 
 }
 
 func walkConfigFilePaths(zipFile *archivex.ZipFile, hostname string, confSearchPaths SearchPaths) error {
-	// confSearchPaths := map[string]string{
-	// 	"":        config.Datadog.GetString("confd_path"),
-	// 	"dist":    filepath.Join(common.GetDistPath(), "conf.d"),
-	// 	"checksd": common.PyChecksPath,
-	// }
 	for prefix, filePath := range confSearchPaths {
 		err := filepath.Walk(filePath, func(path string, f os.FileInfo, err error) error {
 			if f == nil {
