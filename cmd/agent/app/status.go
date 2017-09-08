@@ -48,7 +48,7 @@ func requestStatus() error {
 	fmt.Printf("Getting the status from the agent.\n\n")
 	var e error
 	var s string
-	c := GetClient()
+	c := common.GetClient()
 	urlstr := "http://" + sockname + "/agent/status"
 
 	r, e := common.DoGet(c, urlstr)

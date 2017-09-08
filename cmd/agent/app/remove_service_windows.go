@@ -18,7 +18,7 @@ func init() {
 }
 
 var removesvcCommand = &cobra.Command{
-	Use:   "removeservice",
+	Use:   "remove-service",
 	Short: "Removes the agent from the service control manager",
 	Long:  ``,
 	RunE:  removeService,

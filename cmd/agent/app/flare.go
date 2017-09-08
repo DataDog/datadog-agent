@@ -58,7 +58,7 @@ var flareCmd = &cobra.Command{
 func requestFlare() error {
 	fmt.Println("Asking the agent to build the flare archive.")
 	var e error
-	c := GetClient()
+	c := common.GetClient()
 	urlstr := "http://" + sockname + "/agent/flare"
 
 	r, e := common.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
@@ -71,7 +71,7 @@ func requestFlare() error {
 		}
 		fmt.Println("Initiating flare locally.")
 
-		filePath, e = flare.CreateArchive(true)
+		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

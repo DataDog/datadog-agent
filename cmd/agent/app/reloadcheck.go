@@ -15,34 +15,37 @@ import (
 )
 
 func init() {
-	AgentCmd.AddCommand(reloadCheckCommand)
-	reloadCheckCommand.Flags().StringVarP(&checkname, "checkname", "c", "", "name of check")
+	// TODO: re-enable when the API endpoint is implemented
+	// AgentCmd.AddCommand(reloadCheckCommand)
+	checkCmd.SetArgs([]string{"checkName"})
 }
 
 var reloadCheckCommand = &cobra.Command{
-	Use:   "reloadCheck",
-	Short: "Reload a running check.",
+	Use:   "reload-check <check_name>",
+	Short: "Reload a running check",
 	Long:  ``,
 	RunE:  doreloadCheck,
 }
 
 // query for the version
 func doreloadCheck(cmd *cobra.Command, args []string) error {
-
-	if len(checkname) == 0 {
+	if len(args) != 0 {
+		checkName = args[0]
+	} else {
 		return fmt.Errorf("Must supply a check name to query")
 	}
-	c := GetClient()
-	urlstr := "http://" + sockname + "/check/" + checkname + "/reload"
+
+	c := common.GetClient()
+	urlstr := "http://" + sockname + "/check/" + checkName + "/reload"
 
 	postbody := ""
 
 	body, e := common.DoPost(c, urlstr, "application/json", strings.NewReader(postbody))
 
 	if e != nil {
-		fmt.Printf("Error getting check status for check %s: %s\n", checkname, e)
-		return e
+		return fmt.Errorf("error getting check status for check %s: %v", checkName, e)
 	}
-	fmt.Printf("Reload check %s: %s\n", checkname, body)
+
+	fmt.Printf("Reload check %s: %s\n", checkName, body)
 	return nil
 }

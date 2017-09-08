@@ -30,8 +30,7 @@ monitoring and performance data.`,
 	}
 
 	// flags variables
-	sockname  string
-	checkname string
+	sockname string
 )
 
 func init() {
