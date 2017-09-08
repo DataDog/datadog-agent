@@ -182,7 +182,7 @@ func buildConfigProviders(agentConfig Config) ([]config.ConfigurationProviders, 
 		cp.Name = "etcd"
 	case "consul":
 		cp.Name = "consul"
-		// what to do with "consul_token" ?
+		cp.Token = agentConfig["consul_token"]
 	case "zk":
 		cp.Name = "zookeeper" // name is different in v6
 	}
