@@ -44,6 +44,7 @@ func New(version string) (Version, error) {
 
 	// save Meta infos after removing leading `+`
 	meta := strings.Replace(toks[3], "+", "", 1)
+	fmt.Printf("commit: %s\n", commit)
 
 	av := Version{
 		Major:  major,
@@ -79,4 +80,13 @@ func (v *Version) String() string {
 // GetNumber returns a string containing version numbers only, e.g. `0.0.0`
 func (v *Version) GetNumber() string {
 	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+}
+
+// GetNumberAndPre returns a string containing version number and the pre only, e.g. `0.0.0-beta.1`
+func (v *Version) GetNumberAndPre() string {
+	version := fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+	if v.Pre != "" {
+		version = fmt.Sprintf("%s-%s", version, v.Pre)
+	}
+	return version
 }

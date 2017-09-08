@@ -9,7 +9,7 @@ from distutils.dir_util import copy_tree
 import invoke
 from invoke import task
 
-from .utils import bin_name, get_build_flags, pkg_config_path
+from .utils import bin_name, get_build_flags, pkg_config_path, get_version
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_puppy_build_tags
 from .go import deps
@@ -147,7 +147,7 @@ def omnibus_build(ctx, puppy=False):
     if not os.environ.get("JMX_VERSION"):
         env["JMX_VERSION"] = "0.16.0"
     if not os.environ.get("AGENT_VERSION"):
-        env["AGENT_VERSION"] = "6"
+        env["AGENT_VERSION"] = get_version()
 
     # omnibus config overrides
     overrides = []
