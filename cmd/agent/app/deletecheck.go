@@ -8,6 +8,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/spf13/cobra"
 )
 
@@ -34,7 +35,7 @@ func doDeleteCheck(cmd *cobra.Command, args []string) error {
 	var e error
 	var body []byte
 	// todo, change to DELETE
-	body, e = doGet(c, urlstr)
+	body, e = common.DoGet(c, urlstr)
 
 	if e != nil {
 		fmt.Printf("Error deleting check  %s: %s\n", checkname, e)

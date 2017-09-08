@@ -61,7 +61,7 @@ func requestFlare() error {
 	c := GetClient()
 	urlstr := "http://" + sockname + "/agent/flare"
 
-	r, e := doPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	r, e := common.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string
 	if e != nil {
 		if r != nil && string(r) != "" {

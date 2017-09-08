@@ -10,6 +10,7 @@ import (
 
 	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/spf13/cobra"
 )
 
@@ -36,7 +37,7 @@ func doreloadCheck(cmd *cobra.Command, args []string) error {
 
 	postbody := ""
 
-	body, e := doPost(c, urlstr, "application/json", strings.NewReader(postbody))
+	body, e := common.DoPost(c, urlstr, "application/json", strings.NewReader(postbody))
 
 	if e != nil {
 		fmt.Printf("Error getting check status for check %s: %s\n", checkname, e)

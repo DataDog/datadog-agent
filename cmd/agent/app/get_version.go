@@ -8,6 +8,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +29,7 @@ func doGetVersion(cmd *cobra.Command, args []string) error {
 	c := GetClient()
 	urlstr := "http://" + sockname + "/agent/version"
 
-	body, e := doGet(c, urlstr)
+	body, e := common.DoGet(c, urlstr)
 	if e != nil {
 		fmt.Printf("Error getting version string: %s\n", e)
 		return e

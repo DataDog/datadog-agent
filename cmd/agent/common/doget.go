@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package app
+package common
 
 import (
 	"fmt"
@@ -12,7 +12,8 @@ import (
 	"net/http"
 )
 
-func doGet(c *http.Client, url string) (body []byte, e error) {
+// DoGet is a wrapper around performing HTTP GET requests
+func DoGet(c *http.Client, url string) (body []byte, e error) {
 	r, e := c.Get(url)
 	if e != nil {
 		return body, e
@@ -29,7 +30,8 @@ func doGet(c *http.Client, url string) (body []byte, e error) {
 
 }
 
-func doPost(c *http.Client, url string, contentType string, body io.Reader) (resp []byte, e error) {
+// DoPost is a wrapper around performing HTTP POST requests
+func DoPost(c *http.Client, url string, contentType string, body io.Reader) (resp []byte, e error) {
 	r, e := c.Post(url, contentType, body)
 	if e != nil {
 		return resp, e

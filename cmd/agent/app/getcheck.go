@@ -8,6 +8,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +34,7 @@ func doGetCheck(cmd *cobra.Command, args []string) error {
 	urlstr := "http://" + sockname + "/check/" + checkname
 	var e error
 	var body []byte
-	body, e = doGet(c, urlstr)
+	body, e = common.DoGet(c, urlstr)
 
 	if e != nil {
 		fmt.Printf("Error getting check status for check %s: %s\n", checkname, e)
