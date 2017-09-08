@@ -317,6 +317,7 @@ def from_time(year=None, month=None, day=None, hours=None, minutes=None, seconds
 
     return wmi_time
 
+
 def to_time(wmi_time):
     """Convenience wrapper to take a WMI datetime string of the form
     yyyymmddHHMMSS.mmmmmm+UUU and return a 9-tuple containing the

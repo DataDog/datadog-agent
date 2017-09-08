@@ -7,12 +7,21 @@ import copy
 import json
 import traceback
 import re
-import time
 import logging
+import unicodedata
 from collections import defaultdict
 
 import aggregator
 import datadog_agent
+from config import (
+    _is_affirmative,
+    _get_py_loglevel
+)
+from utils.proxy import (
+    get_requests_proxy,
+    config_proxy_skip
+)
+
 
 class AgentLogHandler(logging.Handler):
     """
@@ -21,11 +30,12 @@ class AgentLogHandler(logging.Handler):
     """
 
     def emit(self, record):
-        msg =  self.format(record)
+        msg = self.format(record)
         datadog_agent.log("(%s:%s) | %s" % (record.filename, record.lineno, msg), record.levelno)
 
 rootLogger = logging.getLogger()
 rootLogger.addHandler(AgentLogHandler())
+rootLogger.setLevel(_get_py_loglevel(datadog_agent.get_config('log_level')))
 
 class CheckException(Exception):
     pass
@@ -62,14 +72,19 @@ class AgentCheck(object):
 
         # the agent5 'AgentCheck' setup a log attribute.
         self.log = logging.getLogger('%s.%s' % (__name__, self.name))
-        # let every log pass through and let the Go logger filter them.
-        # FIXME: get the log level from the agent global config and apply it to the python one.
-        self.log.setLevel(logging.DEBUG)
+
+        # Set proxy settings
+        self.proxies = get_requests_proxy(self.agentConfig)
+        if not self.init_config:
+            self._use_agent_proxy = True
+        else:
+            self._use_agent_proxy = _is_affirmative(
+                self.init_config.get("use_agent_proxy", True))
 
         self.default_integration_http_timeout = float(self.agentConfig.get('default_integration_http_timeout', 9))
 
         self._deprecations = {
-            'increment' : [
+            'increment': [
                 False,
                 "DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, sending these " +
                 "metrics with `AgentCheck.count` and a '_count' suffix instead",
@@ -80,9 +95,10 @@ class AgentCheck(object):
             ],
         }
 
-    # FIXME(olivier): implement this method
     def get_instance_proxy(self, instance, uri):
-        return {}
+        proxies = self.proxies.copy()
+
+        return config_proxy_skip(proxies, uri, _is_affirmative(instance.get('no_proxy', False)))
 
     def _submit_metric(self, mtype, name, value, tags=None, hostname=None, device_name=None):
         if value is None:
@@ -171,7 +187,7 @@ class AgentCheck(object):
                         the metric name returned is in underscore_case
         """
         if isinstance(metric, unicode):
-            metric_name = unicodedata.normalize('NFKD', metric).encode('ascii','ignore')
+            metric_name = unicodedata.normalize('NFKD', metric).encode('ascii', 'ignore')
         else:
             metric_name = metric
 
