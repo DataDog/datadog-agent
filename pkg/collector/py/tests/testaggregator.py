@@ -14,9 +14,11 @@ class TestAggregatorCheck(AgentCheck):
         unit tests. Doing anything is ok here.
         """
         self.service_check("testservicecheck", AgentCheck.OK, tags=None, message="")
+        self.service_check("testservicecheckwithhostname", AgentCheck.OK, tags=["foo", "bar"], hostname="testhostname", message="a message")
         # _send_metric is not used in tests, so it should not be used to test it.
         # Instead call gauge, which is the one that checks will be using
         self.gauge("testmetric", 0, tags=None)
+        self.gauge("testmetricnonevalue", None) # metrics with None values should be ignored by AgentCheck
         self.event({
             "event_type": "new.event",
             "msg_title": "new test event",

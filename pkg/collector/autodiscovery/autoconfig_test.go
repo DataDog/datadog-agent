@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,8 +36,8 @@ type MockListener struct {
 	stopReceived bool
 }
 
-func (l *MockListener) Listen() { l.ListenCount++ }
-func (l *MockListener) Stop()   { l.stopReceived = true }
+func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) { l.ListenCount++ }
+func (l *MockListener) Stop()                                          { l.stopReceived = true }
 
 func TestAddProvider(t *testing.T) {
 	ac := NewAutoConfig(nil)

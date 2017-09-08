@@ -108,6 +108,7 @@ metadata_collectors:
 #     key_file:
 #     username:
 #     password:
+#     token:
 
 #   - name: zookeeper
 #     polling: true
@@ -115,6 +116,11 @@ metadata_collectors:
 #     template_url: 127.0.0.1
 #     username:
 #     password:
+
+# Autodiscovery
+#
+# listeners:
+#   - name: docker
 
 # Logging
 #

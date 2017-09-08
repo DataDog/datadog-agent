@@ -59,6 +59,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 	clientCfg := consul.DefaultConfig()
 	clientCfg.Address = consulURL.Host
 	clientCfg.Address = consulURL.Scheme
+	clientCfg.Token = config.Token
 
 	if consulURL.Scheme == "https" {
 		clientCfg.TLSConfig = consul.TLSConfig{

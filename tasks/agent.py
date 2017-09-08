@@ -142,6 +142,13 @@ def omnibus_build(ctx, puppy=False):
     """
     Build the Agent packages with Omnibus Installer.
     """
+    # env overrides
+    env = {}
+    if not os.environ.get("JMX_VERSION"):
+        env["JMX_VERSION"] = "0.16.0"
+    if not os.environ.get("AGENT_VERSION"):
+        env["AGENT_VERSION"] = "6"
+
     # omnibus config overrides
     overrides = []
 
@@ -169,7 +176,7 @@ def omnibus_build(ctx, puppy=False):
             "log_level": os.environ.get("AGENT_OMNIBUS_LOG_LEVEL", "info"),
             "overrides": overrides_cmd
         }
-        ctx.run(cmd.format(**args))
+        ctx.run(cmd.format(**args), env=env)
 
 
 @task

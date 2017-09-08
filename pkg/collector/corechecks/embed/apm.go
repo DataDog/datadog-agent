@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
 	log "github.com/cihub/seelog"
@@ -72,6 +73,11 @@ func (c *APMCheck) Run() error {
 
 // Configure the APMCheck
 func (c *APMCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+	// handle the case when apm agent is disabled via the old `datadog.conf` file
+	if enabled := config.Datadog.GetBool("apm_enabled"); !enabled {
+		return fmt.Errorf("APM agent disabled through main configuration file")
+	}
+
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
 		return err

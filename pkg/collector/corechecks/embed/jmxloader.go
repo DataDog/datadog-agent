@@ -8,17 +8,16 @@
 package embed
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -29,7 +28,7 @@ const (
 
 // JMXCheckLoader is a specific loader for checks living in this package
 type JMXCheckLoader struct {
-	ipc util.NamedPipe
+	checks []string
 }
 
 // NewJMXCheckLoader creates a loader for go checks
@@ -62,7 +61,7 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 		return nil, errors.New("unable to initialize pipe")
 	}
 
-	return &JMXCheckLoader{ipc: pipe}, nil
+	return &JMXCheckLoader{checks: []string{}}, nil
 }
 
 // Load returns an (empty?) list of checks and nil if it all works out
@@ -70,44 +69,38 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	var err error
 	checks := []check.Check{}
 
-	if !jl.ipc.Ready() {
-		return checks, errors.New("pipe unavailable - cannot load check configuration")
+	if !check.IsConfigJMX(config.Name, config.InitConfig) {
+		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
 	}
 
-	isJMX := false
-	for _, check := range jmxChecks {
-		if check == config.Name {
-			isJMX = true
-			break
-		}
+	// TODO: implement IPC - this will instead drop the config in
+	//       the GRPC cache, and let JMXFetch collect the configs on-demand.
+	//       Commenting out for now.
+
+	factory := core.GetCheckFactory("jmx")
+	if factory == nil {
+		return checks, fmt.Errorf("check jmx not found in catalog")
 	}
 
-	if !isJMX {
-		// Unmarshal initConfig to a RawConfigMap
-		rawInitConfig := check.ConfigRawMap{}
-		err = yaml.Unmarshal(config.InitConfig, &rawInitConfig)
-		if err != nil {
-			log.Errorf("error in yaml %s", err)
-			return checks, err
+	launcher := factory()
+	j, ok := launcher.(*JMXCheck)
+	if ok {
+		configured := false
+		for _, instance := range config.Instances {
+			if err := j.Configure(instance, config.InitConfig); err != nil {
+				log.Errorf("jmx.loader: could not configure check %s: %s", j, err)
+				continue
+			}
+			configured = true
 		}
 
-		x, ok := rawInitConfig["is_jmx"]
-		if !ok {
-			return checks, errors.New("not a JMX check")
-		}
-
-		isJMX, ok := x.(bool)
-		if !isJMX || !ok {
-			return checks, errors.New("unable to determine if check is JMX compatible")
+		if configured {
+			j.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
+			checks = append(checks, j)
+		} else {
+			err = fmt.Errorf("No instances successfully configured.")
 		}
 	}
-
-	var yamlBuff bytes.Buffer
-	yamlBuff.Write([]byte(fmt.Sprintf("%s\n", autoDiscoveryToken)))
-	yamlBuff.Write([]byte(fmt.Sprintf("# %s_0\n", config.Name)))
-	yamlBuff.Write([]byte(config.String()))
-
-	_, err = jl.ipc.Write([]byte(yamlBuff.String()))
 
 	return checks, err
 }

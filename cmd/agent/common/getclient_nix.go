@@ -5,7 +5,7 @@
 
 // +build !windows
 
-package app
+package common
 
 import (
 	"net"

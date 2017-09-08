@@ -24,7 +24,7 @@ before_script:
   # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
   - rsync -azr --delete ./ $SRC_PATH
   - cd $SRC_PATH
-  - inv deps
+  - inv -e deps
 
 
 #
@@ -39,7 +39,7 @@ run_tests_deb-x64:
   tags:
     - docker
   script:
-    - inv test
+    - inv -e test
 
 # run tests for rpm-x64
 run_test_rpm-x64:
@@ -48,7 +48,7 @@ run_test_rpm-x64:
   tags:
     - docker
   script:
-    - inv test
+    - inv -e test
 
 
 #
@@ -63,7 +63,7 @@ build_dogstatsd_static-deb_x64:
   tags:
     - docker
   script:
-    - inv dogstatsd.build --static
+    - inv -e dogstatsd.build --static
     - cp $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd.bin $CI_PROJECT_DIR
   artifacts:
     expire_in: 2 weeks
@@ -77,7 +77,7 @@ build_dogstatsd_static-rpm_x64:
   tags:
     - docker
   script:
-    - inv dogstatsd.build --static
+    - inv -e dogstatsd.build --static
     - cp $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd.bin $CI_PROJECT_DIR
 
 
@@ -93,8 +93,12 @@ run_benchmarks-deb_x64:
   tags:
     - docker
   script:
-    - inv bench.aggregator
-    - inv bench.dogstastd
+    - inv -e bench.aggregator
+    # FIXME: in our docker image, non ascii characters printed by the benchmark
+    # make invoke traceback. For now, the workaround is to call the benchmarks
+    # manually
+    - inv -e bench.build-dogstatsd
+    - ./bin/benchmarks/dogstatsd.bin -pps=5000 -dur 45 -ser 5 -brk -inc 1000 -branch $DD_REPO_BRANCH_NAME -api-key $DD_AGENT_API_KEY
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -125,7 +129,7 @@ run_dogstatsd_size_test:
     - mkdir -p $STATIC_BINARIES_DIR
     - ln dogstatsd.bin $STATIC_BINARIES_DIR/dogstatsd.bin
   script:
-    - inv dogstatsd.size-test --skip-build
+    - inv -e dogstatsd.size-test --skip-build
 
 # run integration tests for deb-x64
 run_docker_integration_tests_deb-x64:
@@ -161,7 +165,7 @@ agent_deb-x64:
     # Uncomment the following to see debug logs from omnibus, it defaults to info
     # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
-    - inv agent.omnibus-build
+    - inv -e agent.omnibus-build
     - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/*.deb
   cache:
     # cache per branch
@@ -187,7 +191,7 @@ agent_rpm-x64:
     # Uncomment the following to see debug logs from omnibus, it defaults to info
     # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
-    - inv agent.omnibus-build
+    - inv -e agent.omnibus-build
     - rpm -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
   cache:
     # cache per branch

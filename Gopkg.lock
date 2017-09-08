@@ -244,7 +244,7 @@
   branch = "master"
   name = "github.com/sbinet/go-python"
   packages = ["."]
-  revision = "ba7e58341058bdefb92b359870caf2dc0a05cfcf"
+  revision = "6d13f941744b9332d6ed00dc2cd2722acd79a47e"
 
 [[projects]]
   name = "github.com/shirou/gopsutil"
@@ -328,6 +328,12 @@
   revision = "9badcbe49be523255546b669968041d707ece12e"
 
 [[projects]]
+  name = "gopkg.in/ini.v1"
+  packages = ["."]
+  revision = "20b96f641a5ea98f2f8619ff4f3e061cff4833bd"
+  version = "v1.28.2"
+
+[[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   revision = "cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b"
@@ -341,6 +347,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "38412c8e448fd5ade342ab8c1c7baaa82a06e818abaf167af4861e7b863c2ea5"
+  inputs-digest = "4f8c995588db39de1ea16dce38b30cf8159ae0f485a3c136a1cae8cb353ce083"
   solver-name = "gps-cdcl"
   solver-version = 1

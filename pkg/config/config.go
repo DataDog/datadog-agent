@@ -39,6 +39,12 @@ type ConfigurationProviders struct {
 	CAPath      string `mapstructure:"ca_path"`
 	CertFile    string `mapstructure:"cert_file"`
 	KeyFile     string `mapstructure:"key_file"`
+	Token       string `mapstructure:"token"`
+}
+
+// Listeners helps unmarshalling `listeners` config param
+type Listeners struct {
+	Name string `mapstructure:"name"`
 }
 
 func init() {
@@ -99,7 +105,8 @@ func init() {
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)
 	Datadog.SetDefault("bosh_id", "")
-
+	// APM
+	Datadog.SetDefault("apm_enabled", true) // this is to support the transition to the new config file
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
