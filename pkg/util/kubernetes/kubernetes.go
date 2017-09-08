@@ -26,28 +26,6 @@ const (
 	KubeletHealthPath = "/healthz"
 )
 
-// Pod contains fields for unmarshalling a Pod
-type Pod struct {
-	Spec   Spec   `json:"spec,omitempty"`
-	Status Status `json:"status,omitempty"`
-}
-
-// PodList contains fields for unmarshalling a PodList
-type PodList struct {
-	Items []*Pod `json:"items,omitempty"`
-}
-
-// Spec contains fields for unmarshalling a PodSpec
-type Spec struct {
-	HostNetwork bool   `json:"hostNetwork,omitempty"`
-	Hostname    string `json:"hostname,omitempty"`
-}
-
-// Status contains fields for unmarshalling a PodStatus
-type Status struct {
-	HostIP string `json:"hostIP,omitempty"`
-}
-
 // KubeUtil is a struct to hold the kubelet api url
 // Instanciate with NewKubeUtil
 type KubeUtil struct {
