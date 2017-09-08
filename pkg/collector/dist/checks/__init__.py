@@ -83,6 +83,10 @@ class AgentCheck(object):
         return {}
 
     def _submit_metric(self, mtype, name, value, tags=None, hostname=None, device_name=None):
+        if value is None:
+            # ignore metric sample
+            return
+
         tags = self._normalize_tags(tags, device_name)
         if hostname is None:
             hostname = ""

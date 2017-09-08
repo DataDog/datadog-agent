@@ -18,6 +18,7 @@ class TestAggregatorCheck(AgentCheck):
         # _send_metric is not used in tests, so it should not be used to test it.
         # Instead call gauge, which is the one that checks will be using
         self.gauge("testmetric", 0, tags=None)
+        self.gauge("testmetricnonevalue", None) # metrics with None values should be ignored by AgentCheck
         self.event({
             "event_type": "new.event",
             "msg_title": "new test event",
