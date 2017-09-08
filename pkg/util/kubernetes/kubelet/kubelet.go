@@ -3,10 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package kubernetes
+package kubelet
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -15,14 +14,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+
 	log "github.com/cihub/seelog"
-	"github.com/ericchiang/k8s"
-	"github.com/ericchiang/k8s/api/v1"
 )
 
 // Kubelet constants
 const (
-	AuthTokenPath     = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	KubeletHealthPath = "/healthz"
 )
 
@@ -60,22 +58,6 @@ func (ku *KubeUtil) GetNodeInfo() (ip, name string, err error) {
 	}
 
 	return "", "", fmt.Errorf("Failed to get node info")
-}
-
-// GetGlobalPodList returns the list of pods running on the cluster where this pod is running
-// This function queries the API server which could put heavy load on it so use with caution
-func GetGlobalPodList() ([]*v1.Pod, error) {
-	client, err := k8s.NewInClusterClient()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get client: %s", err)
-	}
-
-	pods, err := client.CoreV1().ListPods(context.Background(), "")
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get pods: %s", err)
-	}
-
-	return pods.GetItems(), nil
 }
 
 // GetLocalPodList returns the list of pods running on the node where this pod is running
@@ -133,7 +115,7 @@ func PerformKubeletQuery(url string) ([]byte, error) {
 	}
 
 	if strings.HasPrefix(url, "https") {
-		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", getAuthToken()))
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", kubernetes.GetAuthToken()))
 	}
 
 	res, err := http.Get(url)
@@ -147,14 +129,4 @@ func PerformKubeletQuery(url string) ([]byte, error) {
 		return nil, fmt.Errorf("Error reading response from %s: %s", url, err)
 	}
 	return body, nil
-}
-
-// Read the kubelet token
-func getAuthToken() string {
-	token, err := ioutil.ReadFile(AuthTokenPath)
-	if err != nil {
-		log.Errorf("Could not read token from %s: %s", AuthTokenPath, err)
-		return ""
-	}
-	return string(token)
 }

@@ -10,14 +10,14 @@ import (
 	"regexp"
 	//log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 // KubeReplicaSetRegexp allows to extract parent deployment name from replicaset
 var KubeReplicaSetRegexp = regexp.MustCompile("^(\\S+)-[0-9]+$")
 
 // parsePods convert Pods from the PodWatcher to TagInfo objects
-func (c *KubeletCollector) parsePods(pods []*kubernetes.Pod) ([]*TagInfo, error) {
+func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 	var output []*TagInfo
 	for _, pod := range pods {
 		for _, container := range pod.Status.Containers {

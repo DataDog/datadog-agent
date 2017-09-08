@@ -11,7 +11,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 // tags. It is to be supplemented by the cluster agent collector for tags from
 // the apiserver.
 type KubeletCollector struct {
-	watcher    *kubernetes.PodWatcher
+	watcher    *kubelet.PodWatcher
 	infoOut    chan<- []*TagInfo
 	lastExpire time.Time
 	expireFreq time.Duration
@@ -31,7 +31,7 @@ type KubeletCollector struct {
 
 // Detect tries to connect to the kubelet
 func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	watcher, err := kubernetes.NewPodWatcher()
+	watcher, err := kubelet.NewPodWatcher()
 	if err != nil {
 		return NoCollection, fmt.Errorf("Failed to connect to kubelet, Kubernetes tagging will not work: %s", err)
 	}

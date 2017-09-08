@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 func requireMatchInfo(t *testing.T, expected []*TagInfo, item *TagInfo) bool {
@@ -44,7 +44,7 @@ func requireMatchInfo(t *testing.T, expected []*TagInfo, item *TagInfo) bool {
 func TestKubeletPodTags(t *testing.T) {
 	raw, err := ioutil.ReadFile("./test/kubelet/podlist_1.6.json")
 	require.Nil(t, err)
-	var podlist kubernetes.PodList
+	var podlist kubelet.PodList
 	json.Unmarshal(raw, &podlist)
 
 	raw, err = ioutil.ReadFile("./test/kubelet/podlist_1.6_result.json")
