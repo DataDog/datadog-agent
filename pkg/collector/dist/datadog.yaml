@@ -108,6 +108,7 @@ metadata_collectors:
 #     key_file:
 #     username:
 #     password:
+#     token:
 
 #   - name: zookeeper
 #     polling: true

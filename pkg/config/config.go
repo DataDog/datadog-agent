@@ -39,6 +39,7 @@ type ConfigurationProviders struct {
 	CAPath      string `mapstructure:"ca_path"`
 	CertFile    string `mapstructure:"cert_file"`
 	KeyFile     string `mapstructure:"key_file"`
+	Token       string `mapstructure:"token"`
 }
 
 // Listeners helps unmarshalling `listeners` config param
