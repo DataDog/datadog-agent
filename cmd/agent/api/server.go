@@ -11,15 +11,17 @@ sending commands and receiving infos.
 package api
 
 import (
-	"fmt"
 	stdLog "log"
 	"net"
 	"net/http"
+	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gorilla/mux"
+
+	log "github.com/cihub/seelog"
 )
 
 var (
@@ -41,7 +43,8 @@ func StartServer() {
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
-		panic(fmt.Sprintf("Unable to create the api server: %v", err))
+		log.Errorf("Unable to create the api server: %v", err)
+		os.Exit(1)
 	}
 
 	server := &http.Server{
