@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -123,6 +124,14 @@ func start(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
+	}
+
+	// container tagging initialisation if origin detection is on
+	if config.Datadog.GetBool("dogstatsd_origin_detection") {
+		err = tagger.Init()
+		if err != nil {
+			log.Criticalf("Unable to start tagging system: %s", err)
+		}
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname)

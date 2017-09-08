@@ -65,7 +65,7 @@ func processUDSOrigin(ancillary []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("docker://%s", container), nil
+	return container, nil
 }
 
 // getContainerForPID returns the docker container id and caches the value for future lookups
@@ -76,10 +76,12 @@ func getContainerForPID(pid int32) (string, error) {
 	if x, found := util.Cache.Get(key); found {
 		return x.(string), nil
 	}
-	value, err := docker.ContainerIDForPID(int(pid))
+	id, err := docker.ContainerIDForPID(int(pid))
 	if err != nil {
 		return "", err
 	}
+	value := fmt.Sprintf("docker://%s", id)
+
 	util.Cache.Set(key, value, 0)
 	return value, err
 }

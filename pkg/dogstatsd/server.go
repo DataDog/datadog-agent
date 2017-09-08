@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
@@ -90,9 +91,17 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 
 	for {
 		packet := <-s.packetIn
+		var originTags []string
 
 		if packet.Origin != "" {
+			var err error
 			log.Debugf("dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
+			originTags, err = tagger.Tag(packet.Origin, false)
+			if err != nil {
+				log.Errorf(err.Error())
+			}
+			log.Debugf("tags for %s: %s", packet.Origin, originTags)
+
 		} else {
 			log.Debugf("dogstatsd receive: %s", packet.Contents)
 		}
@@ -115,6 +124,9 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 						dogstatsdExpvar.Add("ServiceCheckParseErrors", 1)
 						continue
 					}
+					if len(originTags) > 0 {
+						serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
+					}
 					dogstatsdExpvar.Add("ServiceCheckPackets", 1)
 					serviceCheckOut <- *serviceCheck
 				} else if bytes.HasPrefix(packet, []byte("_e")) {
@@ -124,6 +136,9 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 						dogstatsdExpvar.Add("EventParseErrors", 1)
 						continue
 					}
+					if len(originTags) > 0 {
+						event.Tags = append(event.Tags, originTags...)
+					}
 					dogstatsdExpvar.Add("EventPackets", 1)
 					eventOut <- *event
 				} else {
@@ -132,6 +147,9 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 						log.Errorf("dogstatsd: error parsing metrics: %s", err)
 						dogstatsdExpvar.Add("MetricParseErrors", 1)
 						continue
+					}
+					if len(originTags) > 0 {
+						sample.Tags = append(sample.Tags, originTags...)
 					}
 					dogstatsdExpvar.Add("MetricPackets", 1)
 					metricOut <- sample
