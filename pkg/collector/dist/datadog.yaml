@@ -118,8 +118,8 @@ metadata_collectors:
 
 # Autodiscovery
 #
-listeners:
-  - name: docker
+# listeners:
+#   - name: docker
 
 # Logging
 #
