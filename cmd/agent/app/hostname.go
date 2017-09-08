@@ -8,31 +8,30 @@ package app
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/spf13/cobra"
 )
 
 func init() {
 	AgentCmd.AddCommand(getHostnameCommand)
-
 }
 
 var getHostnameCommand = &cobra.Command{
-	Use:   "gethostname",
-	Short: "Query the running agent for the hostname.",
+	Use:   "hostname",
+	Short: "Print the hostname used by the Agent",
 	Long:  ``,
 	RunE:  doGetHostname,
 }
 
 // query for the version
 func doGetHostname(cmd *cobra.Command, args []string) error {
-	c := GetClient()
-	urlstr := "http://" + sockname + "/agent/hostname"
-
-	body, e := doGet(c, urlstr)
-	if e != nil {
-		fmt.Printf("Error getting version string: %s\n", e)
-		return e
+	config.SetupLogger("off", "")
+	hname, err := util.GetHostname()
+	if err != nil {
+		return fmt.Errorf("Error getting the hostname: %v", err)
 	}
-	fmt.Printf("Hostname: %s\n", body)
+
+	fmt.Println(hname)
 	return nil
 }

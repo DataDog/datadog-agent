@@ -20,7 +20,7 @@ func init() {
 }
 
 var startsvcCommand = &cobra.Command{
-	Use:   "startservice",
+	Use:   "start-service",
 	Short: "starts the agent within the service control manager",
 	Long:  ``,
 	RunE:  startService,

@@ -48,10 +48,10 @@ func requestStatus() error {
 	fmt.Printf("Getting the status from the agent.\n\n")
 	var e error
 	var s string
-	c := GetClient()
+	c := common.GetClient()
 	urlstr := "http://" + sockname + "/agent/status"
 
-	r, e := doGet(c, urlstr)
+	r, e := common.DoGet(c, urlstr)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, errMap)

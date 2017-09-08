@@ -8,27 +8,28 @@ package app
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	AgentCmd.AddCommand(listCheckCommand)
-
+	// TODO: re-enable when the API endpoint is implemented
+	// AgentCmd.AddCommand(listCheckCommand)
 }
 
 var listCheckCommand = &cobra.Command{
-	Use:   "listchecks",
-	Short: "Query the running agent for the hostname.",
+	Use:   "list-checks",
+	Short: "Query the agent for the list of checks running",
 	Long:  ``,
 	RunE:  doListChecks,
 }
 
 // query for the version
 func doListChecks(cmd *cobra.Command, args []string) error {
-	c := GetClient()
+	c := common.GetClient()
 	urlstr := "http://" + sockname + "/check/"
 
-	body, e := doGet(c, urlstr)
+	body, e := common.DoGet(c, urlstr)
 	if e != nil {
 		fmt.Printf("Error getting version string: %s\n", e)
 		return e
