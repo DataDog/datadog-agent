@@ -99,7 +99,8 @@ func init() {
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)
 	Datadog.SetDefault("bosh_id", "")
-
+	// APM
+	Datadog.SetDefault("apm_enabled", true) // this is to support the transition to the new config file
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")

@@ -6,6 +6,7 @@
 package legacy
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
@@ -14,12 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadConfig(t *testing.T) {
+func TestGetAgentConfig(t *testing.T) {
 	py.Initialize("tests")
 	python.PyGILState_Ensure()
 
 	// load configuration with the old Python code
 	configModule := python.PyImport_ImportModule("config")
+	if configModule == nil {
+		_, err, _ := python.PyErr_Fetch()
+		fmt.Println(python.PyString_AsString(err.Str()))
+	}
 	require.NotNil(t, configModule)
 	agentConfigPy := configModule.CallMethod("main")
 	require.NotNil(t, agentConfigPy)
