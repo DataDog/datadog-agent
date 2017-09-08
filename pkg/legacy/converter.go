@@ -17,31 +17,28 @@ import (
 // FromAgentConfig reads the old agentConfig configuration, converts and merges
 // the values into the current config.Datadog object
 func FromAgentConfig(agentConfig Config) error {
+
 	config.Datadog.Set("dd_url", agentConfig["dd_url"])
 
-	proxy, err := buildProxySettings(agentConfig)
-	if err == nil {
+	if proxy, err := buildProxySettings(agentConfig); err == nil {
 		config.Datadog.Set("proxy", proxy)
 	}
 
-	enabled, err := isAffirmative(agentConfig["skip_ssl_validation"])
-	if err == nil {
+	if enabled, err := isAffirmative(agentConfig["skip_ssl_validation"]); err == nil {
 		config.Datadog.Set("skip_ssl_validation", enabled)
 	}
 
 	config.Datadog.Set("api_key", agentConfig["api_key"])
 	config.Datadog.Set("hostname", agentConfig["hostname"])
 
-	enabled, err = isAffirmative(agentConfig["apm_enabled"])
-	if err == nil && !enabled {
+	if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil && !enabled {
 		// apm is enabled by default through the check config file `apm.yaml.default`
 		config.Datadog.Set("apm_enabled", false)
 	}
 
 	config.Datadog.Set("tags", strings.Split(agentConfig["tags"], ","))
 
-	value, err := strconv.Atoi(agentConfig["forwarder_timeout"])
-	if err == nil {
+	if value, err := strconv.Atoi(agentConfig["forwarder_timeout"]); err == nil {
 		config.Datadog.Set("forwarder_timeout", value)
 	}
 
@@ -58,17 +55,25 @@ func FromAgentConfig(agentConfig Config) error {
 	// TODO: histogram_percentiles
 
 	if agentConfig["service_discovery_backend"] == "docker" {
-		// this means SD is enabled on the old config
-		// TODO: enable Autodiscovery
+		// `docker` is the only possible value also on the Agent v5
+		dockerListener := config.Listeners{Name: "docker"}
+		config.Datadog.Set("listeners", []config.Listeners{dockerListener})
 	}
 
-	enabled, err = isAffirmative(agentConfig["use_dogstatsd"])
-	if err == nil {
+	if providers, err := buildConfigProviders(agentConfig); err != nil {
+		config.Datadog.Set("config_providers", providers)
+	}
+
+	// config.Datadog has a default value for this, do nothing if the value is empty
+	if agentConfig["sd_template_dir"] != "" {
+		config.Datadog.Set("autoconf_template_dir", agentConfig["sd_template_dir"])
+	}
+
+	if enabled, err := isAffirmative(agentConfig["use_dogstatsd"]); err == nil {
 		config.Datadog.Set("use_dogstatsd", enabled)
 	}
 
-	value, err = strconv.Atoi(agentConfig["dogstatsd_port"])
-	if err == nil {
+	if value, err := strconv.Atoi(agentConfig["dogstatsd_port"]); err == nil {
 		config.Datadog.Set("dogstatsd_port", value)
 	}
 
@@ -84,14 +89,12 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("log_file", agentConfig["collector_log_file"])
 	}
 
-	enabled, err = isAffirmative(agentConfig["log_to_syslog"])
-	if err == nil {
+	if enabled, err := isAffirmative(agentConfig["log_to_syslog"]); err == nil {
 		config.Datadog.Set("log_to_syslog", enabled)
 	}
 	config.Datadog.Set("syslog_uri", buildSyslogURI(agentConfig))
 
-	enabled, err = isAffirmative(agentConfig["collect_instance_metadata"])
-	if err == nil {
+	if enabled, err := isAffirmative(agentConfig["collect_instance_metadata"]); err == nil {
 		config.Datadog.Set("enable_metadata_collection", enabled)
 	}
 
@@ -148,4 +151,41 @@ func buildSyslogURI(agentConfig Config) string {
 	}
 
 	return host
+}
+
+func buildConfigProviders(agentConfig Config) ([]config.ConfigurationProviders, error) {
+	// the list of SD_CONFIG_BACKENDS supported in v5
+	SdConfigBackends := map[string]struct{}{
+		"etcd":   struct{}{},
+		"consul": struct{}{},
+		"zk":     struct{}{},
+	}
+
+	if _, found := SdConfigBackends[agentConfig["sd_config_backend"]]; !found {
+		return nil, fmt.Errorf("configuration backend %s is invalid", agentConfig["sd_config_backend"])
+	}
+
+	url := agentConfig["sd_backend_host"]
+	if agentConfig["sd_backend_port"] != "" {
+		url = url + ":" + agentConfig["sd_backend_port"]
+	}
+
+	cp := config.ConfigurationProviders{
+		Username:    agentConfig["sd_backend_username"],
+		Password:    agentConfig["sd_backend_password"],
+		TemplateURL: url,
+	}
+
+	// v5 supported only one configuration provider at a time
+	switch agentConfig["sd_config_backend"] {
+	case "etcd":
+		cp.Name = "etcd"
+	case "consul":
+		cp.Name = "consul"
+		// what to do with "consul_token" ?
+	case "zk":
+		cp.Name = "zookeeper" // name is different in v6
+	}
+
+	return []config.ConfigurationProviders{cp}, nil
 }

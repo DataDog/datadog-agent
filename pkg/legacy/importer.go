@@ -46,6 +46,13 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 		"histogram_aggregates",
 		"histogram_percentiles",
 		"service_discovery_backend",
+		"sd_config_backend",
+		"sd_backend_host",
+		"sd_backend_port",
+		"sd_backend_username",
+		"sd_backend_password",
+		"sd_template_dir",
+		"consul_token",
 		"use_dogstatsd",
 		"dogstatsd_port",
 		"statsd_metric_namespace",
@@ -92,6 +99,7 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 	config["endpoints"] = "{}"
 	config["version"] = "5.18.0"
 	config["proxy_settings"] = "{'host': 'my-proxy.com', 'password': 'password', 'port': 3128, 'user': 'user'}"
+	config["service_discovery"] = "True"
 
 	return config, nil
 }
