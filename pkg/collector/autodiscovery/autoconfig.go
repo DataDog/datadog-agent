@@ -210,7 +210,7 @@ func (ac *AutoConfig) AddListener(listener listeners.ServiceListener) {
 	}
 
 	ac.listeners = append(ac.listeners, listener)
-	listener.Listen()
+	listener.Listen(ac.configResolver.newService, ac.configResolver.delService)
 }
 
 // AddLoader adds a new Loader that AutoConfig can use to load a check.

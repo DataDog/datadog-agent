@@ -38,30 +38,28 @@ type DockerListener struct {
 
 // NewDockerListener creates a client connection to Docker and instanciate a DockerListener with it
 // TODO: TLS support
-func NewDockerListener(newSvc, delSvc chan<- Service) (*DockerListener, error) {
+func NewDockerListener() (*DockerListener, error) {
 	c, err := client.NewEnvClient()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to connect to Docker, auto discovery will not work: %s", err)
 	}
 
 	return &DockerListener{
-		Client:     c,
-		services:   make(map[ID]Service),
-		newService: newSvc,
-		delService: delSvc,
-		stop:       make(chan bool),
+		Client:   c,
+		services: make(map[ID]Service),
+		stop:     make(chan bool),
 	}, nil
 }
 
-// Start fills the services list with already running containers and starts
-// listening to events
-func (l *DockerListener) Start() {
-	l.Init()
-	l.Listen()
-}
-
 // Listen streams container-related events from Docker and report said containers as Services.
-func (l *DockerListener) Listen() {
+func (l *DockerListener) Listen(newSvc, delSvc chan<- Service) {
+	// setup the I/O channels
+	l.newService = newSvc
+	l.delService = delSvc
+
+	// process containers that might be already running
+	l.Init()
+
 	// filters only match start/stop container events
 	filters := filters.NewArgs()
 	filters.Add("type", "container")

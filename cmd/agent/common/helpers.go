@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -64,13 +65,23 @@ func SetupAutoConfig(confdPath string) {
 		log.Errorf("Error while reading 'config_providers' settings: %v", err)
 	}
 
-	// Docker listener
-	// docker, err := listeners.NewDockerListener(newService, delService)
-	// if err != nil {
-	// 	log.Errorf("Failed to create a Docker listener. Is Docker accessible by the agent? %s", err)
-	// } else {
-	// 	AC.AddListener(docker)
-	// }
+	// Autodiscovery listeners
+	// for now, no need to implement a registry of available listeners since we
+	// have only docker
+	var Listeners []config.Listeners
+	if err = config.Datadog.UnmarshalKey("listeners", &Listeners); err == nil {
+		for _, l := range Listeners {
+			if l.Name == "docker" {
+				docker, err := listeners.NewDockerListener()
+				if err != nil {
+					log.Errorf("Failed to create a Docker listener. Is Docker accessible by the agent? %s", err)
+				} else {
+					AC.AddListener(docker)
+				}
+				break
+			}
+		}
+	}
 }
 
 // StartAutoConfig starts the autoconfig:

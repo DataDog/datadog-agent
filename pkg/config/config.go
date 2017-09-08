@@ -41,6 +41,11 @@ type ConfigurationProviders struct {
 	KeyFile     string `mapstructure:"key_file"`
 }
 
+// Listeners helps unmarshalling `listeners` config param
+type Listeners struct {
+	Name string `mapstructure:"name"`
+}
+
 func init() {
 	// config identifiers
 	Datadog.SetConfigName("datadog")

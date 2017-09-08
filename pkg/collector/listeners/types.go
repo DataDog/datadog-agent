@@ -24,6 +24,6 @@ type Service struct {
 // It holds a cache of running services, listens to new/killed services and
 // updates its cache, and the ConfigResolver with these events.
 type ServiceListener interface {
-	Listen()
+	Listen(newSvc, delSvc chan<- Service)
 	Stop()
 }
