@@ -13,6 +13,7 @@ CONFIG_DIR=/etc/dd-agent
 
 # Remove the symlink to the binary.
 rm -f "/usr/bin/datadog-agent"
+rm -f "/usr/bin/dd-agent"
 
 if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
     set -e

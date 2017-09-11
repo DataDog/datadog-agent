@@ -86,6 +86,8 @@ def refresh_assets(ctx):
 
     bin_agent = os.path.join(BIN_PATH, "agent")
     shutil.move(os.path.join(dist_folder, "agent"), bin_agent)
+    bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
+    shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
     os.chmod(bin_agent, 0755)
 
 
