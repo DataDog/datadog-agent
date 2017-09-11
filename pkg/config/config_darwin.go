@@ -6,8 +6,8 @@
 package config
 
 const (
-	defaultConfdPath            = "/opt/datadog-agent/etc/conf.d"
-	defaultAdditionalChecksPath = "/opt/datadog-agent/etc/checks.d"
+	defaultConfdPath            = "/opt/datadog-agent6/etc/conf.d"
+	defaultAdditionalChecksPath = "/opt/datadog-agent6/etc/checks.d"
 	defaultLogPath              = "/var/log/datadog/agent.log"
-	defaultJMXPipePath          = "/opt/datadog-agent/run"
+	defaultJMXPipePath          = "/opt/datadog-agent6/run"
 )

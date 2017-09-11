@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-const defaultConfPath = "/opt/datadog-agent/etc"
+const defaultConfPath = "/opt/datadog-agent6/etc"
 
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
