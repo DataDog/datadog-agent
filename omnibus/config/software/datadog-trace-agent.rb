@@ -22,7 +22,7 @@ end
 dd_agent_version = ENV['AGENT_VERSION']
 gopath = ENV['GOPATH']
 
-agent_source_dir = "#{Omnibus::Config.source_dir}\\datadog-trace-agent"
+agent_source_dir = File.join(Omnibus::Config.source_dir, "datadog-trace-agent")
 glide_cache_dir = "#{gopath}/src/github.com/Masterminds/glide"
 agent_cache_dir = "#{gopath}/src/github.com/DataDog/datadog-trace-agent"
 
@@ -39,7 +39,7 @@ build do
    # Put datadog-trace-agent into a valid GOPATH
    puts "source dir #{agent_source_dir}"
    mkdir "#{gopath}/src/github.com/DataDog/"
-   delete "#{gopath}\\src\\github.com\\DataDog\\datadog-trace-agent"
+   delete File.join(gopath, "src", "github.com", "DataDog", "datadog-trace-agent")
    move agent_source_dir, "#{gopath}/src/github.com/DataDog/"
 
    # Checkout datadog-trace-agent's build dependencies
