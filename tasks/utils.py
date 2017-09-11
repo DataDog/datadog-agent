@@ -125,10 +125,13 @@ def get_git_branch_name():
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
 
 def query_version():
+    # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
+    # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     try:
         described_version = check_output(["git", "describe", "--tags"], stderr=subprocess.STDOUT).strip()
     except:
         described_version = ""
+    # For the tag 6.0.0-beta.0, this will match 6.0.0
     version_match = re.findall(r"^v?(\d+\.\d+\.\d+)", described_version)
 
     if version_match and version_match[0]:
@@ -136,6 +139,7 @@ def query_version():
     else:
         version = "6.0.0"
 
+    # for the example above, 6.0.0-beta.0-1-g4f19118, this will be 1
     commits_since_version_match = re.findall(r"^.*-(\d+)\-g[0-9a-f]+$", described_version)
     git_sha_match = re.findall(r"g([0-9a-f]+)$", described_version)
 
@@ -145,6 +149,9 @@ def query_version():
         commits_since_version = 0
 
     pre_regex = ""
+    # for the ouput, 6.0.0-beta.0-1-g4f19118, this will match beta.0
+    # if there have been no commits since, it will be just 6.0.0-beta.0,
+    # and it will match beta.0
     if commits_since_version == 0:
         pre_regex = r"^v?\d+\.\d+\.\d+(?:-|\.)([0-9A-Za-z.-]+)$"
     else:
@@ -155,6 +162,7 @@ def query_version():
     if pre_match and pre_match[0]:
         pre = pre_match[0]
 
+    # for the ouput, 6.0.0-beta.0-1-g4f19118, this will match g4f19118
     git_sha = ""
     if git_sha_match and git_sha_match[0]:
         git_sha = git_sha_match[0]
