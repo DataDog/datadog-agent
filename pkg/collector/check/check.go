@@ -106,9 +106,11 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error) {
 	if err != nil {
 		cs.TotalErrors++
 		cs.LastError = err.Error()
+	} else {
+		cs.LastError = ""
 	}
+	cs.LastWarnings = []string{}
 	if len(warnings) != 0 {
-		cs.LastWarnings = []string{}
 		for _, w := range warnings {
 			cs.TotalWarnings++
 			cs.LastWarnings = append(cs.LastWarnings, w.Error())
