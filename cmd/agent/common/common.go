@@ -48,3 +48,9 @@ func GetPythonPaths() []string {
 		PyChecksPath,                                   // integrations-core checks
 	}
 }
+
+// GetSessionToken
+func GetSessionToken() string {
+	// FIXME: make this a real session id
+	return "datadog-agent"
+}

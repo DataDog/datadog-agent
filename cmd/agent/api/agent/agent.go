@@ -10,6 +10,7 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	log "github.com/cihub/seelog"
@@ -33,7 +34,24 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 }
 
+func validate(r *http.Request) error {
+	tok := r.Header.Get("Session-Token")
+	if tok == "" {
+		return fmt.Errorf("no session token available")
+	}
+
+	if tok != common.GetSessionToken() {
+		return fmt.Errorf("invalid session token")
+	}
+
+	return nil
+}
+
 func getVersion(w http.ResponseWriter, r *http.Request) {
+	if err := validate(r); err != nil {
+		http.Error(w, err.Error(), 403)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.New(version.AgentVersion)
 	j, _ := json.Marshal(av)
@@ -41,6 +59,10 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
+	if err := validate(r); err != nil {
+		http.Error(w, err.Error(), 403)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	hname, err := util.GetHostname()
 	if err != nil {
@@ -52,6 +74,11 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
+	if err := validate(r); err != nil {
+		http.Error(w, err.Error(), 403)
+		return
+	}
+
 	log.Infof("Making a flare")
 	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath)
 	if err != nil || filePath == "" {
@@ -66,6 +93,11 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 }
 
 func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
+	if err := validate(r); err != nil {
+		http.Error(w, err.Error(), 403)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	decoder := json.NewDecoder(r.Body)
 
@@ -79,6 +111,11 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 }
 
 func setJMXStatus(w http.ResponseWriter, r *http.Request) {
+	if err := validate(r); err != nil {
+		http.Error(w, err.Error(), 403)
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 
 	var jmxStatus status.JMXStatus
@@ -90,6 +127,11 @@ func setJMXStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
+	if err := validate(r); err != nil {
+		http.Error(w, err.Error(), 403)
+		return
+	}
+
 	log.Info("Got a request for the status. Making status.")
 	s, err := status.GetStatus()
 	w.Header().Set("Content-Type", "application/json")
@@ -112,6 +154,11 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
+	if err := validate(r); err != nil {
+		http.Error(w, err.Error(), 403)
+		return
+	}
+
 	log.Info("Got a request for the formatted status. Making formatted status.")
 	s, err := status.GetAndFormatStatus()
 	if err != nil {
