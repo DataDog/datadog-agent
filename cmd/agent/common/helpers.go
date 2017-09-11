@@ -101,7 +101,7 @@ func SetupConfig(confFilePath string) {
 		// add that first so it's first in line
 		config.Datadog.AddConfigPath(confFilePath)
 	}
-	config.Datadog.AddConfigPath(defaultConfPath)
+	config.Datadog.AddConfigPath(DefaultConfPath)
 	config.Datadog.AddConfigPath(GetDistPath())
 
 	// load the configuration

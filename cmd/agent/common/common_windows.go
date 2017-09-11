@@ -18,7 +18,8 @@ var (
 	distPath     string
 )
 
-const defaultConfPath = "c:\\programdata\\datadog"
+// DefaultConfPath points to the folder containing datadog.yaml
+const DefaultConfPath = "c:\\programdata\\datadog"
 const defaultLogPath = "c:\\programdata\\datadog\\logs\\agent.log"
 
 // EnableLoggingToFile -- set up logging to file

@@ -31,6 +31,9 @@ monitoring and performance data.`,
 
 	// flags variables
 	sockname string
+	// confFilePath holds the path to the folder containing the configuration
+	// file, to allow overrides from the command line
+	confFilePath string
 )
 
 func init() {
@@ -42,4 +45,5 @@ func init() {
 		defaultSockName = strings.SplitAfter(config.Datadog.GetString("cmd_sock"), "tmp/")[1]
 	}
 	AgentCmd.Flags().StringVarP(&sockname, "name", "n", defaultSockName, "name of socket/pipe")
+	startCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to directory containing datadog.yaml")
 }

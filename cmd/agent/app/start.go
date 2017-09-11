@@ -55,9 +55,6 @@ var (
 	runForeground bool
 	pidfilePath   string
 	confdPath     string
-	// ConfFilePath holds the path to the folder containing the configuration
-	// file, for override from the command line
-	confFilePath string
 )
 
 // run the host metadata collector every 14400 seconds (4 hours)
@@ -73,7 +70,6 @@ func init() {
 	// local flags
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	startCmd.Flags().StringVarP(&confdPath, "confd", "c", "", "path to the confd folder")
-	startCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to directory containing datadog.yaml")
 	config.Datadog.BindPFlag("confd_path", startCmd.Flags().Lookup("confd"))
 }
 
