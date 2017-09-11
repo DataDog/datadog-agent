@@ -76,12 +76,12 @@ func (w *PodWatcher) computechanges(podlist []*Pod) ([]*Pod, error) {
 			}
 		}
 		// Detect new/updated pods
+		newPod := false
 		if version > w.latestResVersion {
-			updatedPods = append(updatedPods, pod)
+			newPod = true
 			if version > newResVersion {
 				newResVersion = version
 			}
-			continue
 		}
 		// Detect new containers within existing pods
 		newContainer := false
@@ -91,9 +91,8 @@ func (w *PodWatcher) computechanges(podlist []*Pod) ([]*Pod, error) {
 			}
 			w.lastSeen[container.ID] = now
 		}
-		if newContainer {
+		if newPod || newContainer {
 			updatedPods = append(updatedPods, pod)
-			continue
 		}
 	}
 	log.Debugf("found %d changed pods out of %d, new resversion %d",

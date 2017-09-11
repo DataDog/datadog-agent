@@ -53,7 +53,7 @@ func (ku *KubeUtil) GetNodeInfo() (ip, name string, err error) {
 
 	for _, pod := range pods {
 		if !pod.Spec.HostNetwork {
-			return pod.Status.HostIP, pod.Spec.Hostname, nil
+			return pod.Status.HostIP, pod.Spec.NodeName, nil
 		}
 	}
 
@@ -91,14 +91,16 @@ func locateKubelet() (string, error) {
 
 	port := config.Datadog.GetInt("kubernetes_http_kubelet_port")
 	url := fmt.Sprintf("http://%s:%d", host, port)
-	if _, err := PerformKubeletQuery(url); err == nil {
+	healthzURL := fmt.Sprintf("%s%s", url, KubeletHealthPath)
+	if _, err := PerformKubeletQuery(healthzURL); err == nil {
 		return url, nil
 	}
 	log.Debugf("Couldn't query kubelet over HTTP, assuming it's not in no_auth mode.")
 
 	port = config.Datadog.GetInt("kubernetes_https_kubelet_port")
 	url = fmt.Sprintf("https://%s:%d", host, port)
-	if _, err := PerformKubeletQuery(url); err == nil {
+	healthzURL = fmt.Sprintf("%s%s", url, KubeletHealthPath)
+	if _, err := PerformKubeletQuery(healthzURL); err == nil {
 		return url, nil
 	}
 
