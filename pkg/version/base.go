@@ -8,4 +8,12 @@
 package version
 
 // AgentVersion contains the version of the Agent
-const AgentVersion = "6.0.0+Χελωνη"
+var AgentVersion string
+
+var agentVersionDefault = "6.0.0"
+
+func init() {
+	if AgentVersion == "" {
+		AgentVersion = agentVersionDefault
+	}
+}
