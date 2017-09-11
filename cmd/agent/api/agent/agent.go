@@ -27,6 +27,8 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
+	r.HandleFunc("/jmxstatus", setJMXStatus).Methods("POST")
+	r.HandleFunc("/jmxconfigs", getJMXConfigs).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 }
@@ -61,6 +63,31 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
+}
+
+func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	decoder := json.NewDecoder(r.Body)
+
+	var tsjson map[string]interface{}
+	err := decoder.Decode(&tsjson)
+	if err != nil {
+		log.Errorf("unable to parse jmx status: %s", err)
+		http.Error(w, err.Error(), 500)
+	}
+	log.Debugf("Getting latest JMX Configs as of: %v", tsjson["timestamp"])
+}
+
+func setJMXStatus(w http.ResponseWriter, r *http.Request) {
+	log.Debugf("Setting JMX Statuses...")
+	decoder := json.NewDecoder(r.Body)
+
+	var jmxStatus status.JMXStatus
+	err := decoder.Decode(&jmxStatus)
+	if err != nil {
+		log.Errorf("unable to parse jmx status: %s", err)
+		http.Error(w, err.Error(), 500)
+	}
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {

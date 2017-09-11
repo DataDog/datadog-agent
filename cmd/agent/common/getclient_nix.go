@@ -10,15 +10,11 @@ package common
 import (
 	"net"
 	"net/http"
-	"strings"
 )
 
 // HTTP doesn't need anything from TCP so we can use a Unix socket to dial
 func fakeDial(proto, addr string) (conn net.Conn, err error) {
-	sockname := "/tmp/" + addr
-	sockname = strings.Split(sockname, ":")[0]
-
-	return net.Dial("unix", sockname)
+	return net.Dial("tcp", "localhost:5555")
 }
 
 // GetClient is a convenience function returning an http
