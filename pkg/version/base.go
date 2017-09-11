@@ -10,10 +10,10 @@ package version
 // AgentVersion contains the version of the Agent
 var AgentVersion string
 
-var agentVersionDefault = "6.0.0"
+var agentVersionDefault = "0.0.0"
 
 func init() {
 	if AgentVersion == "" {
-		AgentVersion = "6.0.0"
+		AgentVersion = agentVersionDefault
 	}
 }
