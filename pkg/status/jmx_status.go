@@ -13,8 +13,8 @@ type instanceStatus struct {
 }
 
 type checkStatus struct {
-	InitializedChecks map[string]instanceStatus `json:"initialized_checks"`
-	FailedChecks      map[string]instanceStatus `json:"failed_checks"`
+	InitializedChecks map[string][]instanceStatus `json:"initialized_checks"`
+	FailedChecks      map[string][]instanceStatus `json:"failed_checks"`
 }
 
 type JMXStatus struct {

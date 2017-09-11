@@ -126,12 +126,12 @@ func (c *JMXCheck) Run() error {
 	subprocessArgs = append(subprocessArgs,
 		"-classpath", classpath,
 		jmxMainClass,
+		"--agent", "6", // Agent6
 		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
 		"--conf_directory", jmxConfPath, // Path of the conf directory that will be read by jmxfetch,
 		"--log_level", "INFO", //FIXME : Use agent log level when available
 		"--log_location", path.Join(here, "dist", "jmx", "jmxfetch.log"), // FIXME : Path of the log file. At some point we should have a `run` folder
 		"--reporter", reporter, // Reporter to use
-		"--status_location", path.Join(here, "dist", "jmx", "jmx_status.yaml"), // FIXME : Path to the status file to write. At some point we should have a `run` folder
 		jmxCollectCommand, // Name of the command
 	)
 	if len(c.checks) > 0 {

@@ -79,7 +79,6 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 }
 
 func setJMXStatus(w http.ResponseWriter, r *http.Request) {
-	log.Debugf("Setting JMX Statuses...")
 	decoder := json.NewDecoder(r.Body)
 
 	var jmxStatus status.JMXStatus
