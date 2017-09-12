@@ -8,7 +8,6 @@ package collector
 import (
 	"fmt"
 	"path"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -53,8 +52,7 @@ func NewCollector(paths ...string) *Collector {
 
 	// print the Python info
 	cached, _ := util.Cache.Get(path.Join(util.AgentCachePrefix, "pythonVersion"))
-	pythonVer := strings.Replace(cached.(string), "\n", "", -1)
-	log.Infof("Embedding Python %s", pythonVer)
+	log.Infof("Embedding Python %s", cached.(string))
 
 	cached, _ = util.Cache.Get(path.Join(util.AgentCachePrefix, "pythonHome"))
 	log.Debugf("Python Home: %s", cached.(string))
