@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gorilla/mux"
 )
@@ -43,6 +44,7 @@ func StartServer() {
 		// no way we can recover from this error
 		panic(fmt.Sprintf("Unable to create the api server: %v", err))
 	}
+	common.SetSessionToken()
 
 	server := &http.Server{
 		Handler:  r,

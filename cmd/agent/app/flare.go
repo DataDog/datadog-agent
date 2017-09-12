@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 
+	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -59,7 +60,10 @@ func requestFlare() error {
 	fmt.Println("Asking the agent to build the flare archive.")
 	var e error
 	c := common.GetClient()
-	urlstr := "http://" + sockname + "/agent/flare"
+	urlstr := fmt.Sprintf("http://localhost:%v/agent/flare", config.Datadog.GetInt("cmd_port"))
+
+	// Set session token
+	apicommon.SetSessionToken()
 
 	r, e := common.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string

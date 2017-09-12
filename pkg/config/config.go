@@ -64,11 +64,9 @@ func init() {
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
-	Datadog.SetDefault("cmd_sock", "/tmp/agent.sock")
+	Datadog.SetDefault("cmd_port", 5001)
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
-	// BUG(massi): make the listener_windows.go module actually use the following:
-	Datadog.SetDefault("cmd_pipe_name", `\\.\pipe\ddagent`)
 	Datadog.SetDefault("check_runners", int64(4))
 	if IsContainerized() {
 		Datadog.SetDefault("proc_root", "/host/proc")
@@ -114,7 +112,7 @@ func init() {
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
 	Datadog.BindEnv("hostname")
-	Datadog.BindEnv("cmd_sock")
+	Datadog.BindEnv("cmd_port")
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("enable_metadata_collection")
 	Datadog.BindEnv("dogstatsd_port")

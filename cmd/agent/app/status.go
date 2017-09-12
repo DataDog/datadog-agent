@@ -12,7 +12,9 @@ import (
 	"io/ioutil"
 	"os"
 
+	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/spf13/cobra"
 )
@@ -49,7 +51,10 @@ func requestStatus() error {
 	var e error
 	var s string
 	c := common.GetClient()
-	urlstr := "http://" + sockname + "/agent/status"
+	urlstr := fmt.Sprintf("http://localhost:%v/agent/status", config.Datadog.GetInt("cmd_port"))
+
+	// Set session token
+	apicommon.SetSessionToken()
 
 	r, e := common.DoGet(c, urlstr)
 	if e != nil {

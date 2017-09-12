@@ -10,11 +10,25 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/api/common"
 )
+
+// GetClient is a convenience function returning an http client
+func GetClient() *http.Client {
+	return &http.Client{}
+}
 
 // DoGet is a wrapper around performing HTTP GET requests
 func DoGet(c *http.Client, url string) (body []byte, e error) {
-	r, e := c.Get(url)
+	req, e := http.NewRequest("GET", url, nil)
+	if e != nil {
+		return body, e
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Session-Token", common.GetSessionToken())
+
+	r, e := c.Do(req)
 	if e != nil {
 		return body, e
 	}
@@ -32,7 +46,14 @@ func DoGet(c *http.Client, url string) (body []byte, e error) {
 
 // DoPost is a wrapper around performing HTTP POST requests
 func DoPost(c *http.Client, url string, contentType string, body io.Reader) (resp []byte, e error) {
-	r, e := c.Post(url, contentType, body)
+	req, e := http.NewRequest("POST", url, body)
+	if e != nil {
+		return resp, e
+	}
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("Session-Token", common.GetSessionToken())
+
+	r, e := c.Do(req)
 	if e != nil {
 		return resp, e
 	}

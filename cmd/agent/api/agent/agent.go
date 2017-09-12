@@ -10,11 +10,11 @@ package agent
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	log "github.com/cihub/seelog"
 
+	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -34,21 +34,8 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 }
 
-func validate(r *http.Request) error {
-	tok := r.Header.Get("Session-Token")
-	if tok == "" {
-		return fmt.Errorf("no session token available")
-	}
-
-	if tok != common.GetSessionToken() {
-		return fmt.Errorf("invalid session token")
-	}
-
-	return nil
-}
-
 func getVersion(w http.ResponseWriter, r *http.Request) {
-	if err := validate(r); err != nil {
+	if err := apicommon.Validate(r); err != nil {
 		http.Error(w, err.Error(), 403)
 		return
 	}
@@ -59,7 +46,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
-	if err := validate(r); err != nil {
+	if err := apicommon.Validate(r); err != nil {
 		http.Error(w, err.Error(), 403)
 		return
 	}
@@ -74,7 +61,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	if err := validate(r); err != nil {
+	if err := apicommon.Validate(r); err != nil {
 		http.Error(w, err.Error(), 403)
 		return
 	}
@@ -93,7 +80,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 }
 
 func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
-	if err := validate(r); err != nil {
+	if err := apicommon.Validate(r); err != nil {
 		http.Error(w, err.Error(), 403)
 		return
 	}
@@ -111,7 +98,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 }
 
 func setJMXStatus(w http.ResponseWriter, r *http.Request) {
-	if err := validate(r); err != nil {
+	if err := apicommon.Validate(r); err != nil {
 		http.Error(w, err.Error(), 403)
 		return
 	}
@@ -127,7 +114,7 @@ func setJMXStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
-	if err := validate(r); err != nil {
+	if err := apicommon.Validate(r); err != nil {
 		http.Error(w, err.Error(), 403)
 		return
 	}
@@ -154,7 +141,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
-	if err := validate(r); err != nil {
+	if err := apicommon.Validate(r); err != nil {
 		http.Error(w, err.Error(), 403)
 		return
 	}

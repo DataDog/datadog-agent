@@ -7,8 +7,10 @@ package app
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -21,13 +23,19 @@ var listCheckCommand = &cobra.Command{
 	Use:   "list-checks",
 	Short: "Query the agent for the list of checks running",
 	Long:  ``,
-	RunE:  doListChecks,
+	Run: func(cmd *cobra.Command, args []string) {
+		common.SetupConfig(confFilePath)
+		err := doListChecks()
+		if err != nil {
+			os.Exit(1)
+		}
+	},
 }
 
 // query for the version
-func doListChecks(cmd *cobra.Command, args []string) error {
+func doListChecks() error {
 	c := common.GetClient()
-	urlstr := "http://" + sockname + "/check/"
+	urlstr := fmt.Sprintf("http://localhost:%v/check/", config.Datadog.GetInt("cmd_port"))
 
 	body, e := common.DoGet(c, urlstr)
 	if e != nil {

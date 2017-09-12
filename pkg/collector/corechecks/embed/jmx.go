@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	api "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -155,6 +156,12 @@ func (c *JMXCheck) Run() error {
 		javaBinPath = "java"
 	}
 	c.cmd = exec.Command(javaBinPath, subprocessArgs...)
+
+	// set environment + token
+	c.cmd.Env = append(
+		os.Environ(),
+		fmt.Sprintf("SESSION_TOKEN=%s", api.GetSessionToken()),
+	)
 
 	// remove the exit file trigger (windows)
 	if jmxExitFile != "" {

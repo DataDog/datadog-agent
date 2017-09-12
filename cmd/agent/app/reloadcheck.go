@@ -7,10 +7,12 @@ package app
 
 import (
 	"fmt"
+	"os"
 
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -24,24 +26,34 @@ var reloadCheckCommand = &cobra.Command{
 	Use:   "reload-check <check_name>",
 	Short: "Reload a running check",
 	Long:  ``,
-	RunE:  doreloadCheck,
+	Run: func(cmd *cobra.Command, args []string) {
+		var checkName string
+		if len(args) != 0 {
+			checkName = args[0]
+		} else {
+			os.Exit(1)
+		}
+
+		common.SetupConfig(confFilePath)
+		err := doReloadCheck(checkName)
+		if err != nil {
+			os.Exit(1)
+		}
+	},
 }
 
-// query for the version
-func doreloadCheck(cmd *cobra.Command, args []string) error {
-	if len(args) != 0 {
-		checkName = args[0]
-	} else {
+// reload check
+func doReloadCheck(checkName string) error {
+	if checkName == "" {
 		return fmt.Errorf("Must supply a check name to query")
 	}
 
 	c := common.GetClient()
-	urlstr := "http://" + sockname + "/check/" + checkName + "/reload"
+	urlstr := fmt.Sprintf("http://localhost:%v/check/%s/reload", config.Datadog.GetInt("cmd_port"), checkName)
 
 	postbody := ""
 
 	body, e := common.DoPost(c, urlstr, "application/json", strings.NewReader(postbody))
-
 	if e != nil {
 		return fmt.Errorf("error getting check status for check %s: %v", checkName, e)
 	}
