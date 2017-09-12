@@ -99,7 +99,7 @@ func unmarshalSketches(payloadSketches []agentpayload.SketchPayload_Sketch_Distr
 						Avg:      s.Avg,
 						Sum:      s.Sum,
 						Entries:  unmarshalEntries(s.V, s.G, s.Delta),
-						incoming: make([]float64, 0, int(1/EPSILON))}},
+						Incoming: s.Buf}},
 			})
 	}
 	return sketches
@@ -132,6 +132,7 @@ func marshalSketches(sketches []Sketch) []agentpayload.SketchPayload_Sketch_Dist
 				V:     v,
 				G:     g,
 				Delta: delta,
+				Buf:   s.Sketch.Incoming,
 			})
 	}
 	return sketchesPayload

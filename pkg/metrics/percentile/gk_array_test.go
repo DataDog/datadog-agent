@@ -97,7 +97,8 @@ func EvaluateSketch(t *testing.T, n int, gen Generator) {
 		s = s.Add(value)
 		d.Add(value)
 	}
-	s = s.Compress()
+	// Need to compress before querying for quantiles
+	s = s.compressWithIncoming(nil)
 	eps := float64(1.0e-6)
 	for _, q := range testQuantiles {
 		assert.InDelta(t, d.Quantile(q), s.Quantile(q), EPSILON*(float64(n)))
@@ -125,7 +126,8 @@ func TestConstant(t *testing.T) {
 			s = s.Add(value)
 			d.Add(value)
 		}
-		s = s.Compress()
+		// Need to compress before querying for quantiles
+		s = s.compressWithIncoming(nil)
 		for _, q := range testQuantiles {
 			assert.Equal(t, 42.0, s.Quantile(q))
 		}
@@ -210,7 +212,7 @@ func TestMergeNormal(t *testing.T) {
 			assert.InEpsilon(t, d.Avg(), s1.Avg, eps)
 			assert.InEpsilon(t, d.Sum(), s1.Sum, eps)
 			assert.InEpsilon(t, d.Count, s1.Count, eps)
-			assert.Equal(t, 0, len(s1.incoming))
+			assert.Equal(t, 0, len(s1.Incoming))
 		}
 	}
 }
@@ -236,7 +238,7 @@ func TestMergeEmpty(t *testing.T) {
 			assert.InEpsilon(t, d.Avg(), s1.Avg, eps)
 			assert.InEpsilon(t, d.Sum(), s1.Sum, eps)
 			assert.InEpsilon(t, d.Count, s1.Count, eps)
-			assert.Equal(t, 0, len(s1.incoming))
+			assert.Equal(t, 0, len(s1.Incoming))
 		}
 
 		// Merge an empty sketch to a non-empty sketch
@@ -249,7 +251,7 @@ func TestMergeEmpty(t *testing.T) {
 			assert.InEpsilon(t, d.Avg(), s2.Avg, eps)
 			assert.InEpsilon(t, d.Sum(), s2.Sum, eps)
 			assert.InEpsilon(t, d.Count, s2.Count, eps)
-			assert.Equal(t, 0, len(s2.incoming))
+			assert.Equal(t, 0, len(s2.Incoming))
 		}
 	}
 }
@@ -289,7 +291,7 @@ func TestMergeMixed(t *testing.T) {
 			assert.InEpsilon(t, d.Avg(), s1.Avg, eps)
 			assert.InEpsilon(t, d.Sum(), s1.Sum, eps)
 			assert.InEpsilon(t, d.Count, s1.Count, eps)
-			assert.Equal(t, 0, len(s1.incoming))
+			assert.Equal(t, 0, len(s1.Incoming))
 		}
 	}
 }
@@ -301,7 +303,7 @@ func TestInterpolatedQuantile(t *testing.T) {
 			for i := 0; i < n; i++ {
 				s = s.Add(float64(i))
 			}
-			s = s.Compress()
+			s = s.compressWithIncoming(nil)
 			for _, q := range testQuantiles {
 				expected := q * (float64(n) - 1)
 				assert.Equal(t, expected, s.Quantile(q))
