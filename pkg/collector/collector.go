@@ -29,12 +29,15 @@ type Collector struct {
 	checks    map[check.ID]check.Check
 	state     uint32
 	m         sync.RWMutex
+	numChecks int64
 }
 
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
 	run := runner.NewRunner(config.Datadog.GetInt("check_runners"))
 	sched := scheduler.NewScheduler(run.GetChan())
+
+	log.Debug("scheduler created")
 	sched.Run()
 
 	c := &Collector{
@@ -42,6 +45,7 @@ func NewCollector(paths ...string) *Collector {
 		runner:    run,
 		checks:    make(map[check.ID]check.Check),
 		state:     started,
+		numChecks: int64(0),
 	}
 	pyVer, pyHome, pyPath := pySetup(paths...)
 
@@ -93,6 +97,12 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 	if err != nil {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
+
+	// Track the total number of checks running (minus one-time checks) to have an appropriate number of workers
+	if ch.Interval() != 0 {
+		c.numChecks++
+	}
+	c.runner.UpdateNumWorkers(c.numChecks)
 
 	c.checks[ch.ID()] = ch
 	return ch.ID(), nil

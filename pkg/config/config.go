@@ -83,7 +83,8 @@ func init() {
 	Datadog.SetDefault("cmd_port", 5001)
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
-	Datadog.SetDefault("check_runners", int64(20))
+
+	Datadog.SetDefault("check_runners", int64(0))
 	Datadog.SetDefault("expvar_port", "5000")
 	if IsContainerized() {
 		Datadog.SetDefault("container_proc_root", "/host/proc")

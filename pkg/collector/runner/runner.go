@@ -6,8 +6,12 @@
 package runner
 
 import (
+	"encoding/json"
 	"expvar"
 	"fmt"
+	"io/ioutil"
+
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,8 +24,11 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
-const stopAllChecksTimeout time.Duration = 2 * time.Second    // Time to wait for all checks to stop
+const (
+	defaultNumWorkers                  = 6
+	stopCheckTimeout     time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
+	stopAllChecksTimeout time.Duration = 2 * time.Second        // Time to wait for all checks to stop
+)
 
 // checkStats holds the stats from the running checks
 type runnerCheckStats struct {
@@ -44,20 +51,26 @@ func init() {
 
 // Runner ...
 type Runner struct {
-	pending       chan check.Check         // The channel where checks come from
-	done          chan bool                // Guard for the main loop
-	runningChecks map[check.ID]check.Check // the list of checks running
-	m             sync.Mutex               // to control races on runningChecks
-	running       uint32                   // Flag to see if the Runner is, well, running
+	pending          chan check.Check         // The channel where checks come from
+	done             chan bool                // Guard for the main loop
+	runningChecks    map[check.ID]check.Check // The list of checks running
+	m                sync.Mutex               // To control races on runningChecks
+	running          uint32                   // Flag to see if the Runner is, well, running
+	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
 func NewRunner(numWorkers int) *Runner {
 	r := &Runner{
 		// initialize the channel
-		pending:       make(chan check.Check),
-		runningChecks: make(map[check.ID]check.Check),
-		running:       1,
+		pending:          make(chan check.Check),
+		runningChecks:    make(map[check.ID]check.Check),
+		running:          1,
+		staticNumWorkers: numWorkers != 0, // numWorkers == 0 is the default value in the config file
+	}
+
+	if !r.staticNumWorkers {
+		numWorkers = defaultNumWorkers
 	}
 
 	// start the workers
@@ -68,6 +81,46 @@ func NewRunner(numWorkers int) *Runner {
 	log.Infof("Runner started with %d workers.", numWorkers)
 	runnerStats.Add("Workers", int64(numWorkers))
 	return r
+}
+
+// UpdateNumWorkers checks if the current number of workers is reasonable, and adds more if needed
+func (r *Runner) UpdateNumWorkers(numChecks int64) {
+	numWorkers, _ := strconv.Atoi(runnerStats.Get("Workers").String())
+
+	if r.staticNumWorkers {
+		return
+	}
+
+	d, e := ioutil.ReadFile("pkg/collector/runner/check_workers.json")
+	if e != nil {
+		log.Infof("Can't open check_workers.json: " + e.Error())
+		return
+	}
+
+	var ranges []interface{}
+	json.Unmarshal(d, &ranges)
+	for _, v := range ranges {
+		ran, _ := v.(map[string]interface{})
+		// Find which range the number of checks we're running falls in
+		if float64(numChecks) >= ran["min"].(float64) && float64(numChecks) <= ran["max"].(float64) {
+			added := 0
+			for {
+				if float64(numWorkers) >= ran["n"].(float64) {
+					break
+				}
+				// Add workers if we don't have enough for this range
+				runnerStats.Add("Workers", 1)
+				go r.work()
+				numWorkers++
+				added++
+			}
+			if added > 0 {
+				log.Infof("Currently running between "+strconv.FormatFloat(ran["min"].(float64), 'f', 0, 64)+
+					"-"+strconv.FormatFloat(ran["max"].(float64), 'f', 0, 64)+" checks. "+
+					"Added %d workers to runner: now at "+runnerStats.Get("Workers").String()+" workers.", added)
+			}
+		}
+	}
 }
 
 // Stop closes the pending channel so all workers will exit their loop and terminate
