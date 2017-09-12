@@ -49,18 +49,15 @@ func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error)
 // Pull triggers a podlist refresh and sends new info. It also triggers
 // container deletion computation every 'expireFreq'
 func (c *KubeletCollector) Pull() error {
-	////log.Warnf("pull called")
 	// Compute new/updated pods
 	updatedPods, err := c.watcher.PullChanges()
 	if err != nil {
 		return err
 	}
-	////log.Warnf("pods: %s", updatedPods)
 	updates, err := c.parsePods(updatedPods)
 	if err != nil {
 		return err
 	}
-	////log.Warnf("updates: %s", updates)
 	c.infoOut <- updates
 
 	// Throttle deletion computations
