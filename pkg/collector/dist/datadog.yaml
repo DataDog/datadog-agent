@@ -23,8 +23,8 @@ api_key:
 # By default, uses the checks.d folder located in the agent configuration folder.
 # additional_checksd:
 
-# The port for _expvar server
-# expvar_port: 127.0.0.1:5000
+# The port for the go_expvar server
+# expvar_server: 127.0.0.1:5000
 
 # The path to the Unix Socket where the IPC api listens on *nix
 # cmd_sock: /tmp/agent.sock

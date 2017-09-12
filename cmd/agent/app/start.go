@@ -109,7 +109,7 @@ func StartAgent() {
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
 	// Setup expvar server
-        var port = config.Datadog.GetString("expvar_port")
+        var port = config.Datadog.GetString("expvar_server")
         go http.ListenAndServe(port, http.DefaultServeMux)
 
 	if pidfilePath != "" {
