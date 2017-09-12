@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 
 	log "github.com/cihub/seelog"
 
@@ -27,18 +28,35 @@ func HTTPHeaders() map[string]string {
 	}
 }
 
-// CreateHTTPTransport creates an *http.Transport for use in the agent
-func CreateHTTPTransport() *http.Transport {
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
-		},
-	}
+// GetProxyTransportFunc return a proxy function for a http.Transport that
+// would return the right proxy depending on the configuration.
+func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error) {
+	return func(r *http.Request) (*url.URL, error) {
+		// check no_proxy list first
+		for _, host := range p.NoProxy {
+			if r.URL.Host == host {
+				log.Debugf("URL match no_proxy list item '%s': not using any proxy", host)
+				return nil, nil
+			}
+		}
 
-	if confProxy := config.Datadog.GetString("proxy"); confProxy != "" {
-		if proxyURL, err := url.Parse(confProxy); err != nil {
-			log.Error("Could not parse the URL in 'proxy' from configuration")
+		// check proxy by scheme
+		confProxy := ""
+		if r.URL.Scheme == "http" {
+			confProxy = p.HTTP
+		} else if r.URL.Scheme == "https" {
+			confProxy = p.HTTPS
 		} else {
+			log.Warnf("Proxy configuration do not support scheme '%s'", r.URL.Scheme)
+		}
+
+		if confProxy != "" {
+			proxyURL, err := url.Parse(confProxy)
+			if err != nil {
+				err := fmt.Errorf("Could not parse the proxy URL for scheme %s from configuration: %s", r.URL.Scheme, err)
+				log.Error(err.Error())
+				return nil, err
+			}
 			userInfo := ""
 			if proxyURL.User != nil {
 				if _, isSet := proxyURL.User.Password(); isSet {
@@ -48,9 +66,35 @@ func CreateHTTPTransport() *http.Transport {
 				}
 			}
 
-			log.Infof("Using proxy from configuration over ENV: %s://%s%s", proxyURL.Scheme, userInfo, proxyURL.Host)
-			transport.Proxy = http.ProxyURL(proxyURL)
+			log.Debugf("Using proxy %s://%s%s for URL '%s'", proxyURL.Scheme, userInfo, proxyURL.Host, r.URL)
+			return proxyURL, nil
 		}
+
+		// no proxy set for this request
+		return nil, nil
+	}
+}
+
+// CreateHTTPTransport creates an *http.Transport for use in the agent
+func CreateHTTPTransport() *http.Transport {
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
+		},
+	}
+
+	if proxies := config.Datadog.Get("proxy"); proxies != nil {
+		proxies := &config.Proxy{}
+		if err := config.Datadog.UnmarshalKey("proxy", proxies); err != nil {
+			log.Errorf("Could not load the proxy configuration: %s", err)
+		} else {
+			transport.Proxy = GetProxyTransportFunc(proxies)
+		}
+	}
+
+	if os.Getenv("http_proxy") != "" || os.Getenv("https_proxy") != "" ||
+		os.Getenv("HTTP_PROXY") != "" || os.Getenv("HTTPS_PROXY") != "" {
+		log.Warn("Env variables 'http_proxy' and 'https_proxy' are not enforced by the agent, please use the configuration file.")
 	}
 
 	return transport

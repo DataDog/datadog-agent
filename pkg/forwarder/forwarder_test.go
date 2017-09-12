@@ -225,7 +225,7 @@ func TestSubmitWithProxy(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	config.Datadog.Set("proxy", ts.URL)
+	config.Datadog.Set("proxy", map[string]interface{}{"http": ts.URL})
 	defer config.Datadog.Set("proxy", nil)
 
 	forwarder := NewDefaultForwarder(map[string][]string{targetURL: []string{firstKey}})
@@ -261,7 +261,7 @@ func TestSubmitWithProxyAndPassword(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	config.Datadog.Set("proxy", fmt.Sprintf("http://%s@%s", userInfo, ts.URL[7:]))
+	config.Datadog.Set("proxy", map[string]interface{}{"http": fmt.Sprintf("http://%s@%s", userInfo, ts.URL[7:])})
 	defer config.Datadog.Set("proxy", nil)
 
 	forwarder := NewDefaultForwarder(map[string][]string{targetURL: []string{firstKey}})

@@ -47,6 +47,13 @@ type Listeners struct {
 	Name string `mapstructure:"name"`
 }
 
+// Proxy represents the configuration for proxies in the agent
+type Proxy struct {
+	HTTP    string   `mapstructure:"http"`
+	HTTPS   string   `mapstructure:"https"`
+	NoProxy []string `mapstructure:"no_proxy"`
+}
+
 func init() {
 	// config identifiers
 	Datadog.SetConfigName("datadog")
@@ -55,7 +62,7 @@ func init() {
 	// Configuration defaults
 	// Agent
 	Datadog.SetDefault("dd_url", "http://localhost:17123")
-	Datadog.SetDefault("proxy", "")
+	Datadog.SetDefault("proxy", nil)
 	Datadog.SetDefault("skip_ssl_validation", false)
 	Datadog.SetDefault("hostname", "")
 	Datadog.SetDefault("tags", []string{})
