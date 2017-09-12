@@ -8,7 +8,7 @@ from invoke.exceptions import Exit
 
 
 @task
-def fmt(ctx, targets=None, fail_on_mod=False):
+def fmt(ctx, targets=None, fail_on_fmt=False):
     """
     Run go fmt on targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -24,7 +24,7 @@ def fmt(ctx, targets=None, fail_on_mod=False):
     if result.stdout:
         files = {x for x in result.stdout.split("\n") if x}
         print("Reformatted the following files: {}".format(','.join(files)))
-        if fail_on_mod:
+        if fail_on_fmt:
             print("Code was not properly formatted, exiting...")
             raise Exit(1)
     print("go fmt found no issues")

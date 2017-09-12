@@ -18,7 +18,7 @@ PROFILE_COV = "profile.cov"
 
 
 @task()
-def test(ctx, targets=None, race=False, use_embedded_libs=False):
+def test(ctx, targets=None, race=False, use_embedded_libs=False, fail_on_fmt=False):
     """
     Run all the tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -31,7 +31,7 @@ def test(ctx, targets=None, race=False, use_embedded_libs=False):
 
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
-    fmt(ctx, targets=targets)
+    fmt(ctx, targets=targets, fail_on_fmt=fail_on_fmt)
     lint(ctx, targets=targets)
     vet(ctx, targets=targets)
 
