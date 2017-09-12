@@ -142,17 +142,10 @@ def integration_tests(ctx, install_deps=False):
 
 
 @task
-def omnibus_build(ctx, puppy=False):
+def omnibus_build(ctx, puppy=False, log_level="info"):
     """
     Build the Agent packages with Omnibus Installer.
     """
-    # env overrides
-    env = {}
-    if not os.environ.get("JMX_VERSION"):
-        env["JMX_VERSION"] = "0.17.0"
-    if not os.environ.get("AGENT_VERSION"):
-        env["AGENT_VERSION"] = get_version()
-
     # omnibus config overrides
     overrides = []
 
@@ -177,10 +170,10 @@ def omnibus_build(ctx, puppy=False):
         args = {
             "omnibus": omnibus,
             "project_name": "puppy" if puppy else "datadog-agent6",
-            "log_level": os.environ.get("AGENT_OMNIBUS_LOG_LEVEL", "info"),
+            "log_level": log_level,
             "overrides": overrides_cmd
         }
-        ctx.run(cmd.format(**args), env=env)
+        ctx.run(cmd.format(**args))
 
 
 @task

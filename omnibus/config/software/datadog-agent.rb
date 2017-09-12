@@ -8,7 +8,7 @@ end
 
 source path: '..'
 
-relative_path 'datadog-agent'
+# relative_path 'datadog-agent'
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
