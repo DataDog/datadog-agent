@@ -111,6 +111,8 @@ func setJMXStatus(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("unable to parse jmx status: %s", err)
 		http.Error(w, err.Error(), 500)
 	}
+
+	status.SetJMXStatus(jmxStatus)
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
