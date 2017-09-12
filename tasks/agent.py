@@ -41,6 +41,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
+    print(env)
 
     if invoke.platform.WINDOWS:
         # This generates the manifest resource. The manifest resource is necessary for
@@ -67,7 +68,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
-    
+
     ctx.run(cmd.format(**args), env=env)
     refresh_assets(ctx)
 
@@ -87,12 +88,9 @@ def refresh_assets(ctx):
     copy_tree("./pkg/collector/dist/", dist_folder)
     copy_tree("./pkg/status/dist/", dist_folder)
     copy_tree("./dev/dist/", dist_folder)
-
-    bin_agent = os.path.join(BIN_PATH, "agent")
-    shutil.move(os.path.join(dist_folder, "agent"), bin_agent)
+    # copy the dd-agent placeholder to the bin folder
     bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
     shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
-    os.chmod(bin_agent, 0755)
 
 
 @task

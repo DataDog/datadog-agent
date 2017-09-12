@@ -1,5 +1,0 @@
-#! /bin/sh
-
-EMBEDDEDPATH=/opt/datadog-agent6/embedded
-DIRPATH=`dirname $0`
-exec env PYTHONHOME=$EMBEDDEDPATH $DIRPATH/agent.bin "$@"

@@ -21,7 +21,7 @@ def bin_name(name):
     """
     if invoke.platform.WINDOWS:
         return "{}.exe".format(name)
-    return "{}.bin".format(name)
+    return name
 
 
 def pkg_config_path(use_embedded_libs):
@@ -61,9 +61,14 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
     if static:
         ldflags += "-s -w -linkmode external -extldflags '-static' "
     elif use_embedded_libs:
-        embedded_lib_path = ctx.run(
-                "pkg-config --variable=libdir python-2.7", env={"PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)}, hide=True
-            ).stdout.strip()
+        env = {
+            "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
+        }
+        embedded_lib_path = ctx.run("pkg-config --variable=libdir python-2.7",
+                                    env=env, hide=True).stdout.strip()
+        embedded_prefix = ctx.run("pkg-config --variable=prefix python-2.7",
+                                  env=env, hide=True).stdout.strip()
+        ldflags += "-X {}/pkg/collector/py.pythonHome={} ".format(REPO_PATH, embedded_prefix)
         ldflags += "-r {} ".format(embedded_lib_path)
 
     if os.environ.get("DELVE"):

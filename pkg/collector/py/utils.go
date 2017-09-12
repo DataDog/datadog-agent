@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/sbinet/go-python"
@@ -19,6 +20,10 @@ import (
 
 // #include <Python.h>
 import "C"
+
+// The PYTHONHOME variable typically comes from -ldflags
+// it's needed in case the agent was built using embedded libs
+var pythonHome = ""
 
 // stickyLock is a convenient wrapper to interact with the Python GIL
 // from go code when using `go-python`.
@@ -133,6 +138,20 @@ func (sl *stickyLock) getPythonError() (string, error) {
 // configure the environment. This function should be called at most once in the
 // Agent lifetime.
 func Initialize(paths ...string) *python.PyThreadState {
+	// Set the Python Home from within the agent if needed
+	if pythonHome != "" {
+		fmt.Println("SETTING PYTHONHOME:", pythonHome)
+		pythonHomePy := C.CString(pythonHome)
+		defer C.free(unsafe.Pointer(pythonHomePy))
+
+		C.Py_SetPythonHome(pythonHomePy)
+	}
+
+	// store the final value of Python Home in the cache
+	pythonHomePy := C.Py_GetPythonHome()
+	key := path.Join(util.AgentCachePrefix, "pythonHome")
+	util.Cache.Set(key, C.GoString(pythonHomePy), util.NoExpiration)
+
 	// Start the interpreter
 	if C.Py_IsInitialized() == 0 {
 		C.Py_Initialize()
@@ -170,6 +189,11 @@ func Initialize(paths ...string) *python.PyThreadState {
 		key := path.Join(util.AgentCachePrefix, "pythonVersion")
 		util.Cache.Set(key, C.GoString(res), util.NoExpiration)
 	}
+
+	// store the Python path in the global cache
+	pythonPath := python.PySys_GetObject("path") // borrowed ref
+	key = path.Join(util.AgentCachePrefix, "pythonPath")
+	util.Cache.Set(key, python.PyString_AS_STRING(pythonPath.Str()), util.NoExpiration)
 
 	// We acquired the GIL as a side effect of threading initialization (see above)
 	// but from this point on we don't need it anymore. Let's reset the current thread

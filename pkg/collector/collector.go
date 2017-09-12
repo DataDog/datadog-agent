@@ -7,6 +7,8 @@ package collector
 
 import (
 	"fmt"
+	"path"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
 )
 
@@ -40,7 +43,6 @@ func NewCollector(paths ...string) *Collector {
 	sched.Run()
 
 	log.Debug("Creating collector")
-	log.Infof("Initializing python interpreter with paths: %v", paths)
 	c := &Collector{
 		scheduler: sched,
 		runner:    run,
@@ -48,7 +50,19 @@ func NewCollector(paths ...string) *Collector {
 		state:     started,
 	}
 	pySetup(paths...)
-	log.Debug("created collector")
+
+	// print the Python info
+	cached, _ := util.Cache.Get(path.Join(util.AgentCachePrefix, "pythonVersion"))
+	pythonVer := strings.Replace(cached.(string), "\n", "", -1)
+	log.Infof("Embedding Python %s", pythonVer)
+
+	cached, _ = util.Cache.Get(path.Join(util.AgentCachePrefix, "pythonHome"))
+	log.Debugf("Python Home: %s", cached.(string))
+
+	cached, _ = util.Cache.Get(path.Join(util.AgentCachePrefix, "pythonPath"))
+	log.Debugf("Python paths: %s", cached.(string))
+
+	log.Debug("Collector created")
 	return c
 }
 
