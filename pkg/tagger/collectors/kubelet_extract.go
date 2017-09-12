@@ -6,8 +6,9 @@
 package collectors
 
 import (
-	//"fmt"
+	"fmt"
 	"regexp"
+	"strings"
 	//log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -18,9 +19,7 @@ import (
 
    Moved to cluster agent:
      - kube_server
-   To implement:
-     - pod labels
-     -
+	 - node tags
    To deprecate:
      - kube_replicate_controller added everytime, just keep if real owner
      - pod_name does not include the namespace anymore, redundant with kube_namespace
@@ -43,7 +42,23 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			tags.AddLow("kube_namespace", pod.Metadata.Namespace)
 			tags.AddLow("kube_container_name", container.Name)
 
-			// TODO labels with configurable list
+			// Pod labels
+			for key, value := range pod.Metadata.Labels {
+				var tagName string
+				if c.labelTagPrefix == "" {
+					tagName = key
+				} else {
+					tagName = fmt.Sprintf("%s%s", c.labelTagPrefix, key)
+				}
+				switch {
+				case strings.HasSuffix(key, "-template-generation"):
+					tags.AddHigh(tagName, value)
+				case strings.HasSuffix(key, "-template-hash"):
+					tags.AddHigh(tagName, value)
+				default:
+					tags.AddLow(tagName, value)
+				}
+			}
 
 			// Creator
 			for _, owner := range pod.Metadata.Owners {

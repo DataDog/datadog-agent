@@ -56,6 +56,11 @@ func TestKubeletPodTags(t *testing.T) {
 	kubeCollector := &KubeletCollector{}
 
 	infos, err := kubeCollector.parsePods(podlist.Items)
+
+	// To export new result json
+	//outJSON, err := json.Marshal(infos)
+	//t.Logf("Results:\n%s", outJSON)
+
 	require.Nil(t, err)
 	require.Len(t, infos, 5)
 
@@ -63,4 +68,21 @@ func TestKubeletPodTags(t *testing.T) {
 		t.Logf("testing entity %s", item.Entity)
 		require.True(t, requireMatchInfo(t, expected, item))
 	}
+}
+
+func TestKubeletPodLabelPrefix(t *testing.T) {
+	raw, err := ioutil.ReadFile("./test/kubelet/podlist_1.6.json")
+	require.Nil(t, err)
+	var podlist kubelet.PodList
+	json.Unmarshal(raw, &podlist)
+
+	kubeCollector := &KubeletCollector{
+		labelTagPrefix: "kube_",
+	}
+
+	infos, err := kubeCollector.parsePods(podlist.Items[0:1])
+	result := infos[0]
+
+	require.Contains(t, result.LowCardTags, "kube_app:dd-agent")
+	require.NotContains(t, result.LowCardTags, "app:dd-agent")
 }
