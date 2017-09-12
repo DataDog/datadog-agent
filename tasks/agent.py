@@ -41,7 +41,6 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
-    print(env)
 
     if invoke.platform.WINDOWS:
         # This generates the manifest resource. The manifest resource is necessary for
