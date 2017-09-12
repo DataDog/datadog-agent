@@ -24,7 +24,7 @@ api_key:
 # additional_checksd:
 
 # The port for the go_expvar server
-# expvar_server: 127.0.0.1:5000
+# expvar_port: 5000
 
 # The path to the Unix Socket where the IPC api listens on *nix
 # cmd_sock: /tmp/agent.sock

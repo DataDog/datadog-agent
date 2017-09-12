@@ -12,7 +12,7 @@ import (
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"net/http"
-        _ "net/http/pprof" // Blank import used because this isn't directly used in this file
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"os"
 	"os/signal"
@@ -109,8 +109,8 @@ func StartAgent() {
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
 	// Setup expvar server
-        var port = config.Datadog.GetString("expvar_server")
-        go http.ListenAndServe(port, http.DefaultServeMux)
+	var port = config.Datadog.GetString("expvar_port")
+	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
 
 	if pidfilePath != "" {
 		err := pidfile.WritePID(pidfilePath)
