@@ -7,7 +7,6 @@ package collector
 
 import (
 	"fmt"
-	"path"
 	"sync"
 	"sync/atomic"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
 )
 
@@ -35,32 +33,26 @@ type Collector struct {
 
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
-	log.Debug("NewCollector")
 	run := runner.NewRunner(config.Datadog.GetInt("check_runners"))
 	sched := scheduler.NewScheduler(run.GetChan())
-	log.Debug("scheduler created")
 	sched.Run()
 
-	log.Debug("Creating collector")
 	c := &Collector{
 		scheduler: sched,
 		runner:    run,
 		checks:    make(map[check.ID]check.Check),
 		state:     started,
 	}
-	pySetup(paths...)
+	pyVer, pyHome, pyPath := pySetup(paths...)
 
-	// print the Python info
-	cached, _ := util.Cache.Get(path.Join(util.AgentCachePrefix, "pythonVersion"))
-	log.Infof("Embedding Python %s", cached.(string))
+	// print the Python info if the interpreter was embedded
+	if pyVer != "" {
+		log.Infof("Embedding Python %s", pyVer)
+		log.Debugf("Python Home: %s", pyHome)
+		log.Debugf("Python path: %s", pyPath)
+	}
 
-	cached, _ = util.Cache.Get(path.Join(util.AgentCachePrefix, "pythonHome"))
-	log.Debugf("Python Home: %s", cached.(string))
-
-	cached, _ = util.Cache.Get(path.Join(util.AgentCachePrefix, "pythonPath"))
-	log.Debugf("Python paths: %s", cached.(string))
-
-	log.Debug("Collector created")
+	log.Debug("Collector up and running!")
 	return c
 }
 

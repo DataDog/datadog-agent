@@ -14,8 +14,9 @@ import (
 
 var pyState *python.PyThreadState
 
-func pySetup(paths ...string) {
+func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 	pyState = py.Initialize(paths...)
+	return py.PythonVersion, py.PythonHome, py.PythonPath
 }
 
 func pyTeardown() {
