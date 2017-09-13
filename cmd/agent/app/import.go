@@ -78,7 +78,9 @@ func doImport(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("unable to unmarshal config to YAML: %v", err)
 	}
-	if err = ioutil.WriteFile(datadogYamlPath, b, 0644); err != nil {
+	// file permissions will be used only to create the file if doesn't exist,
+	// please note on Windows such permissions have no effect.
+	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
 		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
 	}
 
