@@ -157,13 +157,10 @@ func (r *Runner) work() {
 		err := check.Run()
 		warnings := check.GetWarnings()
 
-		sender, e := aggregator.GetSender(check.ID())
+		// use the default sender for the service checks
+		sender, e := aggregator.GetDefaultSender()
 		if e != nil {
-			log.Debugf("Error getting sender: %v for check %s. trying to get default sender", e, check)
-			sender, e = aggregator.GetDefaultSender()
-			if e != nil {
-				log.Errorf("Error getting default sender: %v. Not sending status check for %s", e, check)
-			}
+			log.Errorf("Error getting default sender: %v. Not sending status check for %s", e, check)
 		}
 		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String())}
 		serviceCheckStatus := metrics.ServiceCheckOK
