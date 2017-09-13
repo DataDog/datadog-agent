@@ -46,6 +46,7 @@ build do
   end
 
   if windows?
+    mkdir "../../extra_package_files/EXAMPLECONFSLOCATION"
     copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
   end
 
