@@ -58,8 +58,23 @@ func GetMeta() *Meta {
 }
 
 func getHostTags() *tags {
+	hostTags := config.Datadog.GetStringSlice("tags")
+	var gceTags []string
+
+	ec2Tags, err := ec2.GetTags()
+	if err != nil {
+		log.Warnf("No EC2 host tags %v", err)
+	}
+	hostTags = append(hostTags, ec2Tags...)
+
+	gceTags, err = gce.GetTags()
+	if err != nil {
+		log.Warnf("No GCE host tags %v", err)
+	}
+
 	return &tags{
-		System: config.Datadog.GetStringSlice("tags"),
+		System:              hostTags,
+		GoogleCloudPlatform: gceTags,
 	}
 }
 
