@@ -60,7 +60,7 @@ func requestFlare() error {
 	fmt.Println("Asking the agent to build the flare archive.")
 	var e error
 	c := common.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("http://localhost:%v/agent/flare", config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
 	apicommon.SetSessionToken()

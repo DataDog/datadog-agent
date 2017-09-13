@@ -35,7 +35,7 @@ var listCheckCommand = &cobra.Command{
 // query for the version
 func doListChecks() error {
 	c := common.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("http://localhost:%v/check/", config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/check/", config.Datadog.GetInt("cmd_port"))
 
 	body, e := common.DoGet(c, urlstr)
 	if e != nil {

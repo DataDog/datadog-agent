@@ -49,7 +49,7 @@ func doReloadCheck(checkName string) error {
 	}
 
 	c := common.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("http://localhost:%v/check/%s/reload", config.Datadog.GetInt("cmd_port"), checkName)
+	urlstr := fmt.Sprintf("https://localhost:%v/check/%s/reload", config.Datadog.GetInt("cmd_port"), checkName)
 
 	postbody := ""
 
