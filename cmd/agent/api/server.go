@@ -35,7 +35,7 @@ var (
 	listener net.Listener
 )
 
-// create a public/private keypair
+// GenerateKeyPair create a public/private keypair
 func GenerateKeyPair(bits int) (*rsa.PrivateKey, error) {
 	privKey, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
@@ -45,6 +45,7 @@ func GenerateKeyPair(bits int) (*rsa.PrivateKey, error) {
 	return privKey, nil
 }
 
+// CertTemplate create x509 certificate template
 func CertTemplate() (*x509.Certificate, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
@@ -67,6 +68,7 @@ func CertTemplate() (*x509.Certificate, error) {
 	return &template, nil
 }
 
+// GenerateRootCert generates a root certificate
 func GenerateRootCert(hosts []string, bits int) (
 	cert *x509.Certificate, certPEM []byte, rootKey *rsa.PrivateKey, err error) {
 

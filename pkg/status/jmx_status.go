@@ -14,6 +14,7 @@ type jmxCheckStatus struct {
 	FailedChecks      map[string]interface{} `json:"failed_checks"`
 }
 
+// JMXStatus holds status for JMX checks
 type JMXStatus struct {
 	ChecksStatus jmxCheckStatus `json:"checks"`
 	Timestamp    int64          `json:"timestamp"`
@@ -24,6 +25,7 @@ var (
 	m             sync.RWMutex
 )
 
+// SetJMXStatus sets the last JMX Status
 func SetJMXStatus(s JMXStatus) {
 	m.Lock()
 	defer m.Unlock()
@@ -31,6 +33,7 @@ func SetJMXStatus(s JMXStatus) {
 	lastJMXStatus = s
 }
 
+// GetJMXStatus retrieves latest JMX Status
 func GetJMXStatus() JMXStatus {
 	m.RLock()
 	defer m.RUnlock()

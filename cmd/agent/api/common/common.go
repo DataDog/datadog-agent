@@ -9,22 +9,24 @@ import (
 
 var token string
 
-// SetSessionToken
+// SetSessionToken sets the session token
 func SetSessionToken() error {
 	if token != "" {
 		return fmt.Errorf("session token already set")
 	}
 
-	token = config.Datadog.GetString("api_key") //encode this into JWT
+	// token is only set once, no need to mutex protect
+	token = config.Datadog.GetString("api_key") // FIXME: encode this into JWT?
 	return nil
 }
 
-// GetSessionToken
+// GetSessionToken gets the session token
 func GetSessionToken() string {
 	// FIXME: make this a real session id
 	return token
 }
 
+// Validate validates an http request
 func Validate(r *http.Request) error {
 	tok := r.Header.Get("Session-Token")
 	if tok == "" {
