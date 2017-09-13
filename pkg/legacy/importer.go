@@ -5,7 +5,7 @@
 
 package legacy
 
-import ini "gopkg.in/ini.v1"
+import "github.com/go-ini/ini"
 
 // Config is a simple key/value representation of the legacy agentConfig
 // dictionary
