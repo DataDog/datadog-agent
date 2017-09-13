@@ -50,8 +50,8 @@ func requestStatus() error {
 	fmt.Printf("Getting the status from the agent.\n\n")
 	var e error
 	var s string
-	c := common.GetClient()
-	urlstr := fmt.Sprintf("http://localhost:%v/agent/status", config.Datadog.GetInt("cmd_port"))
+	c := common.GetClient(false) // FIX: get certificates right then make this true
+	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
 	apicommon.SetSessionToken()

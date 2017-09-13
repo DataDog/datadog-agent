@@ -6,6 +6,7 @@
 package common
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,8 +16,16 @@ import (
 )
 
 // GetClient is a convenience function returning an http client
-func GetClient() *http.Client {
-	return &http.Client{}
+func GetClient(verify bool) *http.Client {
+	if verify {
+		return &http.Client{}
+	}
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	return &http.Client{Transport: tr}
 }
 
 // DoGet is a wrapper around performing HTTP GET requests

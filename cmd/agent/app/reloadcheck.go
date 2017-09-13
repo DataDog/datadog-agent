@@ -48,7 +48,7 @@ func doReloadCheck(checkName string) error {
 		return fmt.Errorf("Must supply a check name to query")
 	}
 
-	c := common.GetClient()
+	c := common.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("http://localhost:%v/check/%s/reload", config.Datadog.GetInt("cmd_port"), checkName)
 
 	postbody := ""

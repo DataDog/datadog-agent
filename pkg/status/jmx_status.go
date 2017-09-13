@@ -9,13 +9,6 @@ import (
 	"sync"
 )
 
-// type instanceStatus struct {
-// 	InstanceName string `json:"instance_name"`
-// 	MCount       int    `json:"metric_count"`
-// 	ScCount      int    `json:"service_check_count"`
-// 	Message      string `json:"initialized_checks"`
-// }
-
 type jmxCheckStatus struct {
 	InitializedChecks map[string]interface{} `json:"initialized_checks"`
 	FailedChecks      map[string]interface{} `json:"failed_checks"`
