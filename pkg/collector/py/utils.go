@@ -8,12 +8,10 @@ package py
 import (
 	"errors"
 	"fmt"
-	"path"
 	"runtime"
 	"strings"
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/sbinet/go-python"
 )
 
@@ -127,65 +125,6 @@ func (sl *stickyLock) getPythonError() (string, error) {
 	}
 
 	return "", fmt.Errorf("unknown error")
-}
-
-// Initialize wraps all the operations needed to start the Python interpreter and
-// configure the environment. This function should be called at most once in the
-// Agent lifetime.
-func Initialize(paths ...string) *python.PyThreadState {
-	// Start the interpreter
-	if C.Py_IsInitialized() == 0 {
-		C.Py_Initialize()
-	}
-	if C.Py_IsInitialized() == 0 {
-		panic("python: could not initialize the python interpreter")
-	}
-
-	// make sure the Python threading facilities are correctly initialized,
-	// please notice this will also lock the GIL, see [0] for reference.
-	//
-	// [0]: https://docs.python.org/2/c-api/init.html#c.PyEval_InitThreads
-	if C.PyEval_ThreadsInitialized() == 0 {
-		C.PyEval_InitThreads()
-	}
-	if C.PyEval_ThreadsInitialized() == 0 {
-		panic("python: could not initialize the GIL")
-	}
-
-	// Set the PYTHONPATH if needed.
-	// We still hold a lock from calling `C.PyEval_InitThreads()` above, so we can
-	// safely use go-python here without any additional loking operation.
-	if len(paths) > 0 {
-		path := python.PySys_GetObject("path") // borrowed ref
-		for _, p := range paths {
-			newPath := python.PyString_FromString(p)
-			defer newPath.DecRef()
-			python.PyList_Append(path, newPath)
-		}
-	}
-
-	// store the Python version in the global cache
-	res := C.Py_GetVersion()
-	if res != nil {
-		key := path.Join(util.AgentCachePrefix, "pythonVersion")
-		util.Cache.Set(key, C.GoString(res), util.NoExpiration)
-	}
-
-	// We acquired the GIL as a side effect of threading initialization (see above)
-	// but from this point on we don't need it anymore. Let's reset the current thread
-	// state and release the GIL, meaning that from now on any piece of code needing
-	// Python needs to take care of thread state and the GIL on its own.
-	// The previous thread state is returned to the caller so it can be stored and
-	// reused when needed (e.g. to finalize the interpreter on exit).
-	state := python.PyEval_SaveThread()
-
-	// inject synthetic modules into the global namespace of the embedded interpreter
-	// (all these calls will take care of the GIL)
-	initAPI()          // `aggregator` module
-	initDatadogAgent() // `datadog_agent` module
-
-	// return the state so the caller can resume
-	return state
 }
 
 // Search in module for a class deriving from baseClass and return the first match if any.

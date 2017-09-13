@@ -33,22 +33,26 @@ type Collector struct {
 
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
-	log.Debug("NewCollector")
 	run := runner.NewRunner(config.Datadog.GetInt("check_runners"))
 	sched := scheduler.NewScheduler(run.GetChan())
-	log.Debug("scheduler created")
 	sched.Run()
 
-	log.Debug("Creating collector")
-	log.Infof("Initializing python interpreter with paths: %v", paths)
 	c := &Collector{
 		scheduler: sched,
 		runner:    run,
 		checks:    make(map[check.ID]check.Check),
 		state:     started,
 	}
-	pySetup(paths...)
-	log.Debug("created collector")
+	pyVer, pyHome, pyPath := pySetup(paths...)
+
+	// print the Python info if the interpreter was embedded
+	if pyVer != "" {
+		log.Infof("Embedding Python %s", pyVer)
+		log.Debugf("Python Home: %s", pyHome)
+		log.Debugf("Python path: %s", pyPath)
+	}
+
+	log.Debug("Collector up and running!")
 	return c
 }
 

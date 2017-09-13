@@ -7,6 +7,8 @@
 
 package collector
 
-func pySetup(paths ...string) {}
+func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
+	return "", "", ""
+}
 
 func pyTeardown() {}
