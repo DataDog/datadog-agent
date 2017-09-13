@@ -25,6 +25,7 @@ func init() {
 		"pythonLoaderError":  pythonLoaderError,
 		"printDashes":        printDashes,
 		"formatUnixTime":     formatUnixTime,
+		"humanize":           mkHuman,
 	}
 }
 
@@ -92,6 +93,19 @@ func printDashes(s string, dash string) string {
 		dashes += dash
 	}
 	return dashes
+}
+
+func mkHuman(f float64) string {
+	i := int64(f)
+	str := fmt.Sprintf("%d", i)
+
+	if i > 1000000 {
+		str = "over 1M"
+	} else if i > 100000 {
+		str = "over 100K"
+	}
+
+	return str
 }
 
 func stringLength(s string) int {

@@ -23,6 +23,7 @@ func (c *TestCheck) Run() error                                         { return
 func (c *TestCheck) Stop()                                              {}
 func (c *TestCheck) ID() check.ID                                       { return check.ID(c.String()) }
 func (c *TestCheck) GetWarnings() []error                               { return []error{} }
+func (c *TestCheck) GetMetricStats() (map[string]int64, error)          { return make(map[string]int64), nil }
 
 // wait 1s for a predicate function to return true, use polling
 // instead of a giant sleep.

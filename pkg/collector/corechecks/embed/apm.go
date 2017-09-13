@@ -140,6 +140,11 @@ func (c *APMCheck) GetWarnings() []error {
 	return []error{}
 }
 
+// GetMetricStats returns the stats from the last run of the check, but there aren't any
+func (c *APMCheck) GetMetricStats() (map[string]int64, error) {
+	return make(map[string]int64), nil
+}
+
 func init() {
 	factory := func() check.Check {
 		return &APMCheck{}

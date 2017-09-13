@@ -127,6 +127,15 @@ func (c *CPUCheck) warnf(format string, params ...interface{}) error {
 	return w
 }
 
+// GetMetricStats returns the stats from the last run of the check
+func (c *CPUCheck) GetMetricStats() (map[string]int64, error) {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return nil, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+	}
+	return sender.GetMetricStats(), nil
+}
+
 func cpuFactory() check.Check {
 	return &CPUCheck{}
 }

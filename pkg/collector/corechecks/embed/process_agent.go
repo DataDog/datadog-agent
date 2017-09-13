@@ -154,6 +154,11 @@ func (c *ProcessAgentCheck) Stop() {
 	}
 }
 
+// GetMetricStats returns the stats from the last run of the check, but there aren't any yet
+func (c *ProcessAgentCheck) GetMetricStats() (map[string]int64, error) {
+	return make(map[string]int64), nil
+}
+
 func init() {
 	factory := func() check.Check {
 		return &ProcessAgentCheck{}
