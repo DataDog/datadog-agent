@@ -5,6 +5,8 @@
 
 package legacy
 
+// `aws-sdk-go` imports go-ini like this instead of `gopkg.in/ini.v1`, let's do
+// the same to avoid checking in the dependency twice with different names.
 import "github.com/go-ini/ini"
 
 // Config is a simple key/value representation of the legacy agentConfig
