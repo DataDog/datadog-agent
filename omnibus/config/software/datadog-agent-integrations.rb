@@ -6,7 +6,7 @@ relative_path 'integrations-core'
 whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
-default_version 'master'
+default_version 'db/wmi_check_ambiguity'
 
 build do
   # The checks
