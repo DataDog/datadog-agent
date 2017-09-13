@@ -18,9 +18,10 @@ import (
 
 // declare these as vars not const to ease testing
 var (
-	metadataURL     = "http://169.254.169.254/latest/meta-data"
-	timeout         = 100 * time.Millisecond
-	defaultPrefixes = []string{"ip-", "domu"}
+	metadataURL         = "http://169.254.169.254/latest/meta-data"
+	instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-identity/document/"
+	timeout             = 100 * time.Millisecond
+	defaultPrefixes     = []string{"ip-", "domu"}
 )
 
 // GetInstanceID fetches the instance id for current host from the EC2 metadata API

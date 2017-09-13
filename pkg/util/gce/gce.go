@@ -19,6 +19,16 @@ var (
 	timeout     = 300 * time.Millisecond
 )
 
+type gceMetadata struct {
+	ID               int64
+	Tags             []string
+	Zone             string
+	MachineType      string
+	Hostname         string
+	ProjectID        int64
+	NumericProjectID int64
+}
+
 // GetHostname returns the hostname querying GCE Metadata api
 func GetHostname() (string, error) {
 	hostname, err := getResponse(metadataURL + "/instance/hostname")

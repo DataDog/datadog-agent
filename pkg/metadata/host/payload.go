@@ -28,7 +28,8 @@ type Meta struct {
 }
 
 type tags struct {
-	System []string `json:"system"`
+	System              []string `json:"system"`
+	GoogleCloudPlatform []string `json:"google cloud platform"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
