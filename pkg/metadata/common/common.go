@@ -7,7 +7,9 @@ package common
 
 import (
 	"path"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -30,10 +32,11 @@ func GetPayload(hostname string) *Payload {
 	return &Payload{
 		// olivier: I _think_ `APIKey` is only a legacy field, and
 		// is not actually used by the backend
-		AgentVersion:     version.AgentVersion,
-		APIKey:           getAPIKey(),
-		UUID:             getUUID(),
-		InternalHostname: hostname,
+		AgentVersion:        version.AgentVersion,
+		APIKey:              getAPIKey(),
+		UUID:                getUUID(),
+		InternalHostname:    hostname,
+		CollectionTimestamp: strconv.FormatFloat(float64(time.Now().UnixNano())/1000000, 'f', 3, 64),
 	}
 }
 
@@ -57,6 +60,7 @@ func getUUID() string {
 		log.Errorf("failed to retrieve host info: %s", err)
 		return ""
 	}
+
 	util.Cache.Set(key, info.HostID, util.NoExpiration)
 	return info.HostID
 }
