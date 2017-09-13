@@ -7,9 +7,9 @@ package collectors
 
 import (
 	"fmt"
+	log "github.com/cihub/seelog"
 	"regexp"
 	"strings"
-	//log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -18,7 +18,7 @@ import (
 /* Deltas from agent5:
 
    Moved to cluster agent:
-     - kube_server
+     - kube_service
 	 - node tags
    To deprecate:
      - kube_replicate_controller added everytime, just keep if real owner
@@ -62,10 +62,9 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 			// Creator
 			for _, owner := range pod.Metadata.Owners {
-				if len(owner.Name) < 1 {
-					continue
-				}
 				switch owner.Kind {
+				case "":
+					continue
 				case "Deployment":
 					tags.AddLow("kube_deployment", owner.Name)
 				case "DaemonSet":
@@ -84,6 +83,8 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 					} else {
 						tags.AddLow("kube_replica_set", owner.Name)
 					}
+				default:
+					log.Debugf("unknown owner kind %s for pod %s", owner.Kind, pod.Metadata.Name)
 				}
 			}
 
@@ -100,10 +101,10 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 	return output, nil
 }
 
-// parseDeploymentForReplicaset gets the deployment name fron a replicaset,
+// parseDeploymentForReplicaset gets the deployment name from a replicaset,
 // or returns an empty string if no parent deployment is found.
 func (c *KubeletCollector) parseDeploymentForReplicaset(name string) string {
-	// TODO optionnaly query the cluster agent instead of assuming?
+	// TODO optionaly query the cluster agent instead of assuming?
 	match := KubeReplicaSetRegexp.FindStringSubmatch(name)
 	if len(match) < 2 {
 		return ""

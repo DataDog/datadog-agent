@@ -33,14 +33,20 @@ func (l *TagList) Add(name string, value string, highCard bool) {
 	}
 }
 
-// AddHigh adds a new high cardinality tag to the list, or replace if name already exists
+// AddHigh adds a new high cardinality tag to the list, or replace if name already exists.
+// It will skip empty values/names, so it's safe to use without verifying the value is not empty.
 func (l *TagList) AddHigh(name string, value string) {
-	l.highCardTags[name] = value
+	if len(name) > 0 && len(value) > 0 {
+		l.highCardTags[name] = value
+	}
 }
 
-// AddLow adds a new low cardinality tag to the list, or replace if name already exists
+// AddLow adds a new low cardinality tag to the list, or replace if name already exists.
+// It will skip empty values/names, so it's safe to use without verifying the value is not empty.
 func (l *TagList) AddLow(name string, value string) {
-	l.lowCardTags[name] = value
+	if len(name) > 0 && len(value) > 0 {
+		l.lowCardTags[name] = value
+	}
 }
 
 // Compute returns two string arrays in the format "tag:value"

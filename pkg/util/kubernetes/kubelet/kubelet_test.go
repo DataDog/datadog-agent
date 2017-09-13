@@ -144,7 +144,7 @@ func TestGetNodeInfo(t *testing.T) {
 	ip, name, err := kubeutil.GetNodeInfo()
 	require.Nil(t, err)
 	require.Equal(t, ip, "10.132.0.9")
-	require.Equal(t, name, "gke-xvello-kube-default-pool-57257b56-jp3g")
+	require.Equal(t, name, "hostname")
 
 	select {
 	case r := <-kubelet.Requests:
