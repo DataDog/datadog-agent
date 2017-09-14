@@ -89,7 +89,10 @@ class Platform(object):
     @staticmethod
     def is_ecs_instance():
         from utils.dockerutil import DockerUtil
-        return DockerUtil().is_ecs()
+        try:
+            return DockerUtil().is_ecs()
+        except Exception:
+            return False
 
     @staticmethod
     def is_containerized():
@@ -97,4 +100,34 @@ class Platform(object):
 
     @staticmethod
     def is_k8s():
-        return 'KUBERNETES_PORT' in os.environ
+        from utils.dockerutil import DockerUtil
+        try:
+            return DockerUtil().is_k8s()
+        except Exception:
+            return False
+
+    @staticmethod
+    def is_rancher():
+        from utils.dockerutil import DockerUtil
+        try:
+            return DockerUtil().is_rancher()
+        except Exception:
+            return False
+
+    @staticmethod
+    def is_swarm():
+        from utils.dockerutil import DockerUtil
+        try:
+            return DockerUtil().is_swarm()
+        except Exception:
+            return False
+
+    @staticmethod
+    def is_nomad():
+        from utils.orchestrator import NomadUtil
+        return NomadUtil.is_detected()
+
+    @staticmethod
+    def is_mesos():
+        from utils.orchestrator import MesosUtil
+        return MesosUtil.is_detected()
