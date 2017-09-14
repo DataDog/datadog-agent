@@ -97,7 +97,15 @@ func StartAgent() {
 	common.SetupConfig(confFilePath)
 
 	// Setup logger
-	err := config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
+	syslogURI := config.GetSyslogURI()
+	err := config.SetupLogger(
+		config.Datadog.GetString("log_level"),
+		config.Datadog.GetString("log_file"),
+		syslogURI,
+		config.Datadog.GetBool("syslog_rfc"),
+		config.Datadog.GetBool("syslog_tls"),
+		config.Datadog.GetString("syslog_pem"),
+	)
 	if err != nil {
 		panic(err)
 	}
