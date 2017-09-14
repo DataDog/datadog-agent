@@ -54,7 +54,7 @@ func requestStatus() error {
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	apicommon.SetSessionToken()
+	apicommon.SetAuthToken()
 
 	r, e := common.DoGet(c, urlstr)
 	if e != nil {

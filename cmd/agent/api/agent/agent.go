@@ -29,14 +29,13 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/jmxstatus", setJMXStatus).Methods("POST")
-	r.HandleFunc("/jmxconfigs", getJMXConfigs).Methods("POST")
+	r.HandleFunc("/jmxconfigs", getJMXConfigs).Methods("GET")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(r); err != nil {
-		http.Error(w, err.Error(), 403)
+	if err := apicommon.Validate(w, r); err != nil {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -46,8 +45,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(r); err != nil {
-		http.Error(w, err.Error(), 403)
+	if err := apicommon.Validate(w, r); err != nil {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -61,8 +59,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(r); err != nil {
-		http.Error(w, err.Error(), 403)
+	if err := apicommon.Validate(w, r); err != nil {
 		return
 	}
 
@@ -80,8 +77,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 }
 
 func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(r); err != nil {
-		http.Error(w, err.Error(), 403)
+	if err := apicommon.Validate(w, r); err != nil {
 		return
 	}
 
@@ -94,12 +90,16 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("unable to parse jmx status: %s", err)
 		http.Error(w, err.Error(), 500)
 	}
+
 	log.Debugf("Getting latest JMX Configs as of: %v", tsjson["timestamp"])
+	// stub for now...
+	j, _ := json.Marshal(map[string]interface{}{
+		"configurations": map[string]interface{}{}})
+	w.Write(j)
 }
 
 func setJMXStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(r); err != nil {
-		http.Error(w, err.Error(), 403)
+	if err := apicommon.Validate(w, r); err != nil {
 		return
 	}
 
@@ -116,8 +116,7 @@ func setJMXStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(r); err != nil {
-		http.Error(w, err.Error(), 403)
+	if err := apicommon.Validate(w, r); err != nil {
 		return
 	}
 
@@ -143,8 +142,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(r); err != nil {
-		http.Error(w, err.Error(), 403)
+	if err := apicommon.Validate(w, r); err != nil {
 		return
 	}
 

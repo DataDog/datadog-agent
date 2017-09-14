@@ -8,14 +8,15 @@ package common
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var token string
 
-// SetSessionToken sets the session token
-func SetSessionToken() error {
+// SetAuthToken sets the session token
+func SetAuthToken() error {
 	if token != "" {
 		return fmt.Errorf("session token already set")
 	}
@@ -25,22 +26,33 @@ func SetSessionToken() error {
 	return nil
 }
 
-// GetSessionToken gets the session token
-func GetSessionToken() string {
-	// FIXME: make this a real session id
+// GetAuthToken gets the session token
+func GetAuthToken() string {
 	return token
 }
 
 // Validate validates an http request
-func Validate(r *http.Request) error {
-	tok := r.Header.Get("Session-Token")
-	if tok == "" {
-		return fmt.Errorf("no session token available")
+func Validate(w http.ResponseWriter, r *http.Request) (err error) {
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		w.Header().Set("WWW-Authenticate", "Bearer realm=\"Datadog Agent\"")
+		err = fmt.Errorf("no session token provided")
+		http.Error(w, err.Error(), 401)
+		return
 	}
 
-	if tok != GetSessionToken() {
-		return fmt.Errorf("invalid session token")
+	tok := strings.Split(auth, " ")
+	if tok[0] != "Bearer" {
+		w.Header().Set("WWW-Authenticate", "Bearer realm=\"Datadog Agent\"")
+		err = fmt.Errorf("Unsupported authorization scheme: %s", tok[0])
+		http.Error(w, err.Error(), 401)
+		return
 	}
 
-	return nil
+	if tok[1] != GetAuthToken() {
+		err = fmt.Errorf("invalid session token")
+		http.Error(w, err.Error(), 403)
+	}
+
+	return
 }

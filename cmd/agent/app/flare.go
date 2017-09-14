@@ -63,7 +63,7 @@ func requestFlare() error {
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	apicommon.SetSessionToken()
+	apicommon.SetAuthToken()
 
 	r, e := common.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string

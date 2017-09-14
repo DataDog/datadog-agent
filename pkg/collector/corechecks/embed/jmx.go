@@ -160,7 +160,7 @@ func (c *JMXCheck) Run() error {
 	// set environment + token
 	c.cmd.Env = append(
 		os.Environ(),
-		fmt.Sprintf("SESSION_TOKEN=%s", api.GetSessionToken()),
+		fmt.Sprintf("SESSION_TOKEN=%s", api.GetAuthToken()),
 	)
 
 	// remove the exit file trigger (windows)

@@ -35,7 +35,7 @@ func DoGet(c *http.Client, url string) (body []byte, e error) {
 		return body, e
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Session-Token", common.GetSessionToken())
+	req.Header.Set("Session-Token", common.GetAuthToken())
 
 	r, e := c.Do(req)
 	if e != nil {
@@ -60,7 +60,7 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 		return resp, e
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("Session-Token", common.GetSessionToken())
+	req.Header.Set("Session-Token", common.GetAuthToken())
 
 	r, e := c.Do(req)
 	if e != nil {

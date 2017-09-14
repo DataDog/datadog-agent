@@ -47,7 +47,7 @@ func StartServer() {
 		// no way we can recover from this error
 		panic(fmt.Sprintf("Unable to create the api server: %v", err))
 	}
-	common.SetSessionToken()
+	common.SetAuthToken()
 
 	//
 	hosts := []string{"127.0.0.1", "localhost"}
