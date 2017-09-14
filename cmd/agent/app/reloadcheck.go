@@ -7,7 +7,6 @@ package app
 
 import (
 	"fmt"
-	"os"
 
 	"strings"
 
@@ -26,19 +25,16 @@ var reloadCheckCommand = &cobra.Command{
 	Use:   "reload-check <check_name>",
 	Short: "Reload a running check",
 	Long:  ``,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		var checkName string
 		if len(args) != 0 {
 			checkName = args[0]
 		} else {
-			os.Exit(1)
+			return fmt.Errorf("missing arguments")
 		}
 
 		common.SetupConfig(confFilePath)
-		err := doReloadCheck(checkName)
-		if err != nil {
-			os.Exit(1)
-		}
+		return doReloadCheck(checkName)
 	},
 }
 

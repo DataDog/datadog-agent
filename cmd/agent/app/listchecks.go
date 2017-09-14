@@ -7,7 +7,6 @@ package app
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,12 +22,9 @@ var listCheckCommand = &cobra.Command{
 	Use:   "list-checks",
 	Short: "Query the agent for the list of checks running",
 	Long:  ``,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		common.SetupConfig(confFilePath)
-		err := doListChecks()
-		if err != nil {
-			os.Exit(1)
-		}
+		return doListChecks()
 	},
 }
 

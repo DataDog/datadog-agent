@@ -8,7 +8,6 @@ package app
 import (
 	"bytes"
 	"fmt"
-	"os"
 
 	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -37,7 +36,7 @@ var flareCmd = &cobra.Command{
 	Use:   "flare [caseID]",
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		common.SetupConfig(confFilePath)
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
 		config.SetupLogger("off", "")
@@ -46,13 +45,10 @@ var flareCmd = &cobra.Command{
 			customerEmail, err = flare.AskForEmail()
 			if err != nil {
 				fmt.Println("Error reading email, please retry or contact support")
-				os.Exit(1)
+				return err
 			}
 		}
-		err := requestFlare()
-		if err != nil {
-			os.Exit(1)
-		}
+		return requestFlare()
 	},
 }
 
