@@ -60,7 +60,7 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("listeners", []config.Listeners{dockerListener})
 	}
 
-	if providers, err := buildConfigProviders(agentConfig); err != nil {
+	if providers, err := buildConfigProviders(agentConfig); err == nil {
 		config.Datadog.Set("config_providers", providers)
 	}
 
@@ -111,7 +111,9 @@ func isAffirmative(value string) (bool, error) {
 }
 
 func buildProxySettings(agentConfig Config) (string, error) {
-	if agentConfig["proxy_host"] == "" {
+	proxyHost := agentConfig["proxy_host"]
+
+	if proxyHost == "" {
 		// this is expected, not an error
 		return "", nil
 	}
@@ -119,8 +121,13 @@ func buildProxySettings(agentConfig Config) (string, error) {
 	var err error
 	var u *url.URL
 
-	if u, err = url.Parse(agentConfig["proxy_host"]); err != nil {
+	if u, err = url.Parse(proxyHost); err != nil {
 		return "", fmt.Errorf("unable to import value of settings 'proxy_host': %v", err)
+	}
+
+	// set scheme if missing
+	if u.Scheme == "" {
+		u, _ = url.Parse("http://" + proxyHost)
 	}
 
 	if agentConfig["proxy_port"] != "" {
@@ -174,6 +181,7 @@ func buildConfigProviders(agentConfig Config) ([]config.ConfigurationProviders, 
 		Username:    agentConfig["sd_backend_username"],
 		Password:    agentConfig["sd_backend_password"],
 		TemplateURL: url,
+		Polling:     true,
 	}
 
 	// v5 supported only one configuration provider at a time

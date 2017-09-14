@@ -11,7 +11,8 @@ import (
 	"path/filepath"
 )
 
-const defaultConfPath = "/etc/dd-agent"
+// DefaultConfPath points to the folder containing datadog.yaml
+const DefaultConfPath = "/etc/dd-agent"
 
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
