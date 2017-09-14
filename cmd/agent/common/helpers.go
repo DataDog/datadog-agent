@@ -6,8 +6,10 @@
 package common
 
 import (
-	"fmt"
+	"os"
 	"path/filepath"
+
+	stdLog "log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
@@ -107,6 +109,8 @@ func SetupConfig(confFilePath string) {
 	// load the configuration
 	err := config.Datadog.ReadInConfig()
 	if err != nil {
-		panic(fmt.Errorf("unable to load Datadog config file: %s", err))
+		// if it cannot load the config, the agent must exit
+		stdLog.Fatalf("unable to load Datadog config file: %s", err)
+		os.Exit(1)
 	}
 }

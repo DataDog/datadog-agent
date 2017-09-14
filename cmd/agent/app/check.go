@@ -60,7 +60,8 @@ var checkCmd = &cobra.Command{
 		// Setup logger
 		err := config.SetupLogger("off", "", "", false, false, "")
 		if err != nil {
-			panic(err)
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			os.Exit(1)
 		}
 
 		if len(args) != 0 {
@@ -76,7 +77,8 @@ var checkCmd = &cobra.Command{
 		key := path.Join(util.AgentCachePrefix, "hostname")
 		util.Cache.Set(key, hostname, util.NoExpiration)
 		if err != nil {
-			panic(err)
+			fmt.Printf("Cannot get hostname, exiting: %v\n", err)
+			os.Exit(1)
 		}
 
 		s := &serializer.Serializer{Forwarder: common.Forwarder}
