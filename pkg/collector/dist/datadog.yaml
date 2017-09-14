@@ -6,8 +6,17 @@ dd_url: https://app.datadoghq.com
 # https://app.datadoghq.com/account/settings
 api_key:
 
-# If you need a proxy to connect to the Internet, provide it here (default: disabled)
-# proxy: http://user:password@host:port
+# If you need a proxy to connect to the Internet, provide it here (default:
+# disabled). You can use the 'no_proxy' list to specify hosts that should bypass the
+# proxy. These settings might impact your checks requests, please refer to the
+# specific check documentation for more details.
+#
+# proxy:
+#   http: http(s)://user:password@proxy_for_http:port
+#   https: http(s)://user:password@proxy_for_https:port
+#   no_proxy:
+#     - host1
+#     - host2
 
 # If you run the agent behind haproxy, you might want to set this to yes
 # skip_ssl_validation: no

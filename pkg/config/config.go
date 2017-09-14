@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -47,6 +48,13 @@ type Listeners struct {
 	Name string `mapstructure:"name"`
 }
 
+// Proxy represents the configuration for proxies in the agent
+type Proxy struct {
+	HTTP    string   `mapstructure:"http"`
+	HTTPS   string   `mapstructure:"https"`
+	NoProxy []string `mapstructure:"no_proxy"`
+}
+
 func init() {
 	// config identifiers
 	Datadog.SetConfigName("datadog")
@@ -55,7 +63,7 @@ func init() {
 	// Configuration defaults
 	// Agent
 	Datadog.SetDefault("dd_url", "http://localhost:17123")
-	Datadog.SetDefault("proxy", "")
+	Datadog.SetDefault("proxy", nil)
 	Datadog.SetDefault("skip_ssl_validation", false)
 	Datadog.SetDefault("hostname", "")
 	Datadog.SetDefault("tags", []string{})
@@ -64,6 +72,11 @@ func init() {
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
+	Datadog.SetDefault("log_to_syslog", false)
+	Datadog.SetDefault("syslog_uri", "")
+	Datadog.SetDefault("syslog_rfc", false)
+	Datadog.SetDefault("syslog_tls", false)
+	Datadog.SetDefault("syslog_pem", "")
 	Datadog.SetDefault("cmd_port", 5001)
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
@@ -220,6 +233,27 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 	}
 
 	return keysPerDomain, nil
+}
+
+// GetSyslogURI returns the configured/default syslog uri
+func GetSyslogURI() string {
+	enabled := Datadog.GetBool("log_to_syslog")
+	uri := Datadog.GetString("syslog_uri")
+
+	if runtime.GOOS == "windows" {
+		if enabled {
+			log.Infof("logging to syslog is not available on windows.")
+		}
+		return ""
+	}
+
+	if enabled {
+		if uri == "" {
+			uri = defaultSyslogURI
+		}
+	}
+
+	return uri
 }
 
 // IsContainerized returns whether the Agent is running on a Docker container
