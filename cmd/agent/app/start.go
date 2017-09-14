@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -84,10 +85,14 @@ func start(cmd *cobra.Command, args []string) {
 	for {
 		// Block here until we receive the interrupt signal
 		select {
-		case <-common.Stopper:
+		case <-signals.Stopper:
 			log.Info("Received stop command, shutting down...")
 			StopAgent()
 			return
+		case <-signals.ErrorStopper:
+			log.Info("The Agent has encountered an error, shutting down...")
+			StopAgent()
+			os.Exit(1)
 		case sig := <-signalCh:
 			log.Infof("Received signal '%s', shutting down...", sig)
 			StopAgent()

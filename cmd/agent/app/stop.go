@@ -9,6 +9,7 @@ package app
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/spf13/cobra"
 )
 
@@ -30,5 +31,5 @@ func stop(*cobra.Command, []string) {
 	// Global Agent configuration
 	common.SetupConfig("")
 	// get an API client
-	common.Stopper <- true
+	signals.Stopper <- true
 }
