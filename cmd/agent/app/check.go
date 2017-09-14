@@ -58,7 +58,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		// Setup logger
-		err := config.SetupLogger(logLevel, "")
+		err := config.SetupLogger("off", "", "", false, false, "")
 		if err != nil {
 			panic(err)
 		}
@@ -69,7 +69,6 @@ var checkCmd = &cobra.Command{
 			cmd.Help()
 			os.Exit(0)
 		}
-		config.SetupLogger("off", "", "", false, false, "")
 
 		common.SetupConfig(confFilePath)
 
