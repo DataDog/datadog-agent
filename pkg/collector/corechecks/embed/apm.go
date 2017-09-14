@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util"
 
 	log "github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"
@@ -152,9 +152,6 @@ func init() {
 }
 
 func getHostname() string {
-	hname, found := cache.Cache.Get(cache.BuildAgentKey("hostname"))
-	if found {
-		return hname.(string)
-	}
-	return ""
+	hostname, _ := util.GetHostname()
+	return hostname
 }

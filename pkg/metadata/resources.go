@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // ResourcesCollector sends the old metadata payload used in the
@@ -19,11 +19,7 @@ type ResourcesCollector struct{}
 
 // Send collects the data needed and submits the payload
 func (rp *ResourcesCollector) Send(s *serializer.Serializer) error {
-	var hostname string
-	x, found := cache.Cache.Get(cache.BuildAgentKey("hostname"))
-	if found {
-		hostname = x.(string)
-	}
+	hostname, _ := util.GetHostname()
 
 	payload := map[string]interface{}{
 		"resources": resources.GetPayload(hostname),

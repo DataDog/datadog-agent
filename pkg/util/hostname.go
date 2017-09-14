@@ -15,6 +15,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
@@ -87,6 +88,11 @@ func Fqdn(hostname string) string {
 // * os
 // * EC2
 func GetHostname() (string, error) {
+	cacheHostnameKey := cache.BuildAgentKey("hostname")
+	if cacheHostname, found := cache.Cache.Get(cacheHostnameKey); found {
+		return cacheHostname.(string), nil
+	}
+
 	var hostName string
 	var err error
 
@@ -139,6 +145,7 @@ func GetHostname() (string, error) {
 		err = fmt.Errorf("Unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
 	}
 
+	cache.Cache.Set(cacheHostnameKey, hostName, cache.NoExpiration)
 	return hostName, err
 }
 
