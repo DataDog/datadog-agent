@@ -17,10 +17,30 @@ import (
 
 func TestUnmarshalJSONSketchSeries(t *testing.T) {
 
-	payload := []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag:yes\"],\"host\":\"localHost\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[[1,1,0]],\"min\":1,\"max\":1,\"cnt\":1,\"sum\":1,\"avg\":1}}]}]}\n")
+	payload := []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag:yes\"],\"host\":\"localHost\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[[1,1,0]],\"buf\":[],\"min\":1,\"max\":1,\"cnt\":1,\"sum\":1,\"avg\":1}}]}]}\n")
 
 	sketch := QSketch{
-		GKArray{Entries: []Entry{{1, 1, 0}},
+		GKArray{Entries: []Entry{{1, 1, 0}}, Incoming: []float64{},
+			Min: 1, Count: 1, Sum: 1, Avg: 1, Max: 1},
+	}
+
+	data, err := UnmarshalJSONSketchSeries(payload)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(data))
+
+	assert.Equal(t, "test.metrics", data[0].Name)
+	assert.Equal(t, "tag:yes", data[0].Tags[0])
+	assert.Equal(t, "localHost", data[0].Host)
+	assert.Equal(t, int64(0), data[0].Interval)
+	assert.Equal(t, Sketch{Timestamp: 12345, Sketch: sketch}, data[0].Sketches[0])
+}
+
+func TestUnmarshalJSONSketchSeriesWithBuf(t *testing.T) {
+
+	payload := []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag:yes\"],\"host\":\"localHost\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[],\"buf\":[1],\"min\":1,\"max\":1,\"cnt\":1,\"sum\":1,\"avg\":1}}]}]}\n")
+
+	sketch := QSketch{
+		GKArray{Entries: []Entry{}, Incoming: []float64{1},
 			Min: 1, Count: 1, Sum: 1, Avg: 1, Max: 1},
 	}
 
@@ -38,12 +58,14 @@ func TestUnmarshalJSONSketchSeries(t *testing.T) {
 func createSketchSeries() []*SketchSeries {
 	sketch1 := QSketch{
 		GKArray: GKArray{
-			Entries: []Entry{{V: 1, G: 1, Delta: 0}},
-			Min:     1, Count: 1, Sum: 1, Avg: 1, Max: 1}}
+			Entries:  []Entry{},
+			Incoming: []float64{1},
+			Min:      1, Count: 1, Sum: 1, Avg: 1, Max: 1}}
 	sketch2 := QSketch{
 		GKArray: GKArray{
-			Entries: []Entry{{V: 10, G: 1, Delta: 0}, {V: 14, G: 3, Delta: 0}, {V: 21, G: 2, Delta: 0}},
-			Min:     10, Count: 6, Sum: 96, Avg: 16, Max: 21}}
+			Entries:  []Entry{{V: 10, G: 1, Delta: 0}, {V: 14, G: 3, Delta: 0}, {V: 21, G: 2, Delta: 0}},
+			Incoming: []float64{},
+			Min:      10, Count: 6, Sum: 96, Avg: 16, Max: 21}}
 	series := []*SketchSeries{{
 		ContextKey: "test_context",
 		Sketches:   []Sketch{{Timestamp: int64(12345), Sketch: sketch1}, {Timestamp: int64(67890), Sketch: sketch2}},
@@ -57,7 +79,6 @@ func createSketchSeries() []*SketchSeries {
 
 func TestMarshal(t *testing.T) {
 	series := createSketchSeries()
-
 	payload, err := SketchSeriesList(series).Marshal()
 	assert.Nil(t, err)
 
@@ -82,12 +103,11 @@ func TestMarshal(t *testing.T) {
 	assert.Equal(t, float64(1), decodedPayload.Sketches[0].Distributions[0].Avg)
 	assert.Equal(t, float64(1), decodedPayload.Sketches[0].Distributions[0].Sum)
 
-	require.Len(t, decodedPayload.Sketches[0].Distributions[0].V, 1)
-	require.Len(t, decodedPayload.Sketches[0].Distributions[0].G, 1)
-	require.Len(t, decodedPayload.Sketches[0].Distributions[0].Delta, 1)
-	assert.Equal(t, float64(1), decodedPayload.Sketches[0].Distributions[0].V[0])
-	assert.Equal(t, uint32(1), decodedPayload.Sketches[0].Distributions[0].G[0])
-	assert.Equal(t, uint32(0), decodedPayload.Sketches[0].Distributions[0].Delta[0])
+	require.Len(t, decodedPayload.Sketches[0].Distributions[0].V, 0)
+	require.Len(t, decodedPayload.Sketches[0].Distributions[0].G, 0)
+	require.Len(t, decodedPayload.Sketches[0].Distributions[0].Delta, 0)
+	require.Len(t, decodedPayload.Sketches[0].Distributions[0].Buf, 1)
+	assert.Equal(t, float64(1), decodedPayload.Sketches[0].Distributions[0].Buf[0])
 
 	// second sketch
 	assert.Equal(t, int64(67890), decodedPayload.Sketches[0].Distributions[1].Ts)
@@ -109,6 +129,7 @@ func TestMarshal(t *testing.T) {
 	assert.Equal(t, float64(21), decodedPayload.Sketches[0].Distributions[1].V[2])
 	assert.Equal(t, uint32(2), decodedPayload.Sketches[0].Distributions[1].G[2])
 	assert.Equal(t, uint32(0), decodedPayload.Sketches[0].Distributions[1].Delta[2])
+	require.Len(t, decodedPayload.Sketches[0].Distributions[1].Buf, 0)
 }
 
 func TestMarshalJSON(t *testing.T) {
@@ -118,6 +139,6 @@ func TestMarshalJSON(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, payload)
 
-	expectedPayload := []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[[1,1,0]],\"min\":1,\"max\":1,\"cnt\":1,\"sum\":1,\"avg\":1}},{\"timestamp\":67890,\"qsketch\":{\"entries\":[[10,1,0],[14,3,0],[21,2,0]],\"min\":10,\"max\":21,\"cnt\":6,\"sum\":96,\"avg\":16}}]}]}\n")
+	expectedPayload := []byte("{\"sketch_series\":[{\"metric\":\"test.metrics\",\"tags\":[\"tag1\",\"tag2:yes\"],\"host\":\"localHost\",\"interval\":0,\"sketches\":[{\"timestamp\":12345,\"qsketch\":{\"entries\":[],\"buf\":[1],\"min\":1,\"max\":1,\"cnt\":1,\"sum\":1,\"avg\":1}},{\"timestamp\":67890,\"qsketch\":{\"entries\":[[10,1,0],[14,3,0],[21,2,0]],\"buf\":[],\"min\":10,\"max\":21,\"cnt\":6,\"sum\":96,\"avg\":16}}]}]}\n")
 	assert.Equal(t, payload, []byte(expectedPayload))
 }
