@@ -8,8 +8,6 @@
 package common
 
 import (
-	"path/filepath"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
