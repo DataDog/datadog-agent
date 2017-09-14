@@ -76,31 +76,39 @@ func init() {
 
 // Start the main loop
 func start(cmd *cobra.Command, args []string) {
+	var err bool
+
+	defer func() {
+		StopAgent()
+		if err {
+			os.Exit(1)
+		}
+	}()
+
 	started := false
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGINT)
 
+	// Loop through this before we start the agent so that the signals are ready
 	for {
 		// Block here until we receive the interrupt signal
 		select {
 		case <-signals.Stopper:
 			log.Info("Received stop command, shutting down...")
-			StopAgent()
 			return
 		case <-signals.ErrorStopper:
 			log.Info("The Agent has encountered an error, shutting down...")
-			StopAgent()
-			os.Exit(1)
+			err = true
+			return
 		case sig := <-signalCh:
 			log.Infof("Received signal '%s', shutting down...", sig)
-			StopAgent()
 			return
 		default:
+			// start the agent on the first run through
 			if !started {
 				if StartAgent() != nil {
-					StopAgent()
 					return
 				}
 				started = true
