@@ -11,6 +11,9 @@ sending commands and receiving infos.
 package api
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	stdLog "log"
 	"net"
@@ -18,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
+	"github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gorilla/mux"
 )
@@ -43,13 +47,40 @@ func StartServer() {
 		// no way we can recover from this error
 		panic(fmt.Sprintf("Unable to create the api server: %v", err))
 	}
+	common.SetAuthToken()
 
-	server := &http.Server{
-		Handler:  r,
-		ErrorLog: stdLog.New(&config.ErrorLogWriter{}, "", 0), // log errors to seelog
+	//
+	hosts := []string{"127.0.0.1", "localhost"}
+	_, rootCertPEM, rootKey, err := common.GenerateRootCert(hosts, 2048)
+	if err != nil {
+		stdLog.Fatalf("unable to start TLS server")
+		return
 	}
 
-	go server.Serve(listener)
+	// PEM encode the private key
+	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
+	})
+
+	// Create a TLS cert using the private key and certificate
+	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
+	if err != nil {
+		stdLog.Fatalf("invalid key pair: %v", err)
+		return
+	}
+
+	tlsConfig := tls.Config{
+		Certificates: []tls.Certificate{rootTLSCert},
+	}
+
+	srv := &http.Server{
+		Handler:   r,
+		ErrorLog:  stdLog.New(&config.ErrorLogWriter{}, "", 0), // log errors to seelog
+		TLSConfig: &tlsConfig,
+	}
+	tlsListener := tls.NewListener(listener, &tlsConfig)
+
+	go srv.Serve(tlsListener)
 }
 
 // StopServer closes the connection and the server

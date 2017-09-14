@@ -36,10 +36,12 @@ func FormatStatus(data []byte) (string, error) {
 	runnerStats := stats["runnerStats"]
 	autoConfigStats := stats["autoConfigStats"]
 	aggregatorStats := stats["aggregatorStats"]
+	jmxStats := stats["JMXStatus"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
 	renderChecksStats(b, runnerStats, autoConfigStats, "")
+	renderJMXFetchStatus(b, jmxStats)
 	renderForwarderStatus(b, forwarderStats)
 	renderAggregatorStatus(b, aggregatorStats)
 
@@ -93,4 +95,15 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	renderChecksStats(b, runnerStats, autoConfigStats, checkName)
 
 	return b.String(), nil
+}
+
+func renderJMXFetchStatus(w io.Writer, jmxStats interface{}) {
+	stats := make(map[string]interface{})
+	stats["JMXStatus"] = jmxStats
+	t := template.Must(template.New("jmxfetch.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "jmxfetch.tmpl")))
+
+	err := t.Execute(w, stats)
+	if err != nil {
+		fmt.Println(err)
+	}
 }

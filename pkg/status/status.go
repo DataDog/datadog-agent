@@ -53,6 +53,8 @@ func GetStatus() (map[string]interface{}, error) {
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
 
+	stats["JMXStatus"] = GetJMXStatus()
+
 	return stats, nil
 }
 

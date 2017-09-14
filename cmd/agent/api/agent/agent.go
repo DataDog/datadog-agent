@@ -14,6 +14,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -27,11 +28,16 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
+	r.HandleFunc("/jmxstatus", setJMXStatus).Methods("POST")
+	r.HandleFunc("/jmxconfigs", getJMXConfigs).Methods("GET")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
+	if err := apicommon.Validate(w, r); err != nil {
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.New(version.AgentVersion)
 	j, _ := json.Marshal(av)
@@ -39,6 +45,9 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
+	if err := apicommon.Validate(w, r); err != nil {
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	hname, err := util.GetHostname()
 	if err != nil {
@@ -50,6 +59,10 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
+	if err := apicommon.Validate(w, r); err != nil {
+		return
+	}
+
 	log.Infof("Making a flare")
 	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath)
 	if err != nil || filePath == "" {
@@ -63,7 +76,50 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(filePath))
 }
 
+func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
+	if err := apicommon.Validate(w, r); err != nil {
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	decoder := json.NewDecoder(r.Body)
+
+	var tsjson map[string]interface{}
+	err := decoder.Decode(&tsjson)
+	if err != nil {
+		log.Errorf("unable to parse jmx status: %s", err)
+		http.Error(w, err.Error(), 500)
+	}
+
+	log.Debugf("Getting latest JMX Configs as of: %v", tsjson["timestamp"])
+	// stub for now...
+	j, _ := json.Marshal(map[string]interface{}{
+		"configurations": map[string]interface{}{}})
+	w.Write(j)
+}
+
+func setJMXStatus(w http.ResponseWriter, r *http.Request) {
+	if err := apicommon.Validate(w, r); err != nil {
+		return
+	}
+
+	decoder := json.NewDecoder(r.Body)
+
+	var jmxStatus status.JMXStatus
+	err := decoder.Decode(&jmxStatus)
+	if err != nil {
+		log.Errorf("unable to parse jmx status: %s", err)
+		http.Error(w, err.Error(), 500)
+	}
+
+	status.SetJMXStatus(jmxStatus)
+}
+
 func getStatus(w http.ResponseWriter, r *http.Request) {
+	if err := apicommon.Validate(w, r); err != nil {
+		return
+	}
+
 	log.Info("Got a request for the status. Making status.")
 	s, err := status.GetStatus()
 	w.Header().Set("Content-Type", "application/json")
@@ -86,6 +142,10 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
+	if err := apicommon.Validate(w, r); err != nil {
+		return
+	}
+
 	log.Info("Got a request for the formatted status. Making formatted status.")
 	s, err := status.GetAndFormatStatus()
 	if err != nil {
