@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/spf13/cobra"
 )
 
@@ -76,7 +75,6 @@ var checkCmd = &cobra.Command{
 		}
 
 		hostname, err := util.GetHostname()
-		cache.Cache.Set(cache.BuildAgentKey("hostname"), hostname, cache.NoExpiration)
 		if err != nil {
 			fmt.Printf("Cannot get hostname, exiting: %v\n", err)
 			return err
