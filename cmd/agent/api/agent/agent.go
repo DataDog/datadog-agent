@@ -16,6 +16,7 @@ import (
 
 	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -29,9 +30,22 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/jmxstatus", setJMXStatus).Methods("POST")
+	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/jmxconfigs", getJMXConfigs).Methods("GET")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
+}
+
+func stopAgent(w http.ResponseWriter, r *http.Request) {
+	if err := apicommon.Validate(w, r); err != nil {
+		return
+	}
+	go func() {
+		signals.Stopper <- true
+	}()
+	w.Header().Set("Content-Type", "application/json")
+	j, _ := json.Marshal("")
+	w.Write(j)
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
