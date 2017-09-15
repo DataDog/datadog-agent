@@ -21,7 +21,7 @@ BIN_PATH = os.path.join(".", "bin", "agent")
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-          puppy=False, use_embedded_libs=False):
+          puppy=False, use_embedded_libs=False, development=True):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -69,11 +69,11 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     }
 
     ctx.run(cmd.format(**args), env=env)
-    refresh_assets(ctx)
+    refresh_assets(ctx, development=development)
 
 
 @task
-def refresh_assets(ctx):
+def refresh_assets(ctx, development=True):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -86,7 +86,8 @@ def refresh_assets(ctx):
         shutil.rmtree(dist_folder)
     copy_tree("./pkg/collector/dist/", dist_folder)
     copy_tree("./pkg/status/dist/", dist_folder)
-    copy_tree("./dev/dist/", dist_folder)
+    if development:
+        copy_tree("./dev/dist/", dist_folder)
     # copy the dd-agent placeholder to the bin folder
     bin_ddagent = os.path.join(BIN_PATH, "dd-agent")
     shutil.move(os.path.join(dist_folder, "dd-agent"), bin_ddagent)
