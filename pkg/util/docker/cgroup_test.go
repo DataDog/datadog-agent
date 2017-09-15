@@ -6,6 +6,44 @@ import (
 	"testing"
 )
 
+func TestParseCgroupMountPoints(t *testing.T) {
+	for _, tc := range []struct {
+		contents []string
+		expected map[string]string
+	}{
+		{
+			contents: []string{
+				"",
+				"foo bar",
+				"cgroup /sys/fs/cgroup/cpuset cgroup rw,relatime,cpuset 0 0",
+				"cgroup /sys/fs/cgroup/cpu,cpuacct cgroup ro,nosuid,nodev,noexec,relatime,cpu,cpuacct 0 0",
+				"cgroup /sys/fs/cgroup/devices cgroup rw,relatime,devices 0 0",
+				"cgroup /sys/fs/cgroup/perf_event cgroup rw,relatime,perf_event 0 0",
+				"cgroup /sys/fs/cgroup/hugetlb cgroup rw,relatime,hugetlb 0 0",
+			},
+			expected: map[string]string{
+				"cpuset":     "/sys/fs/cgroup/cpuset",
+				"cpu":        "/sys/fs/cgroup/cpu,cpuacct",
+				"cpuacct":    "/sys/fs/cgroup/cpu,cpuacct",
+				"devices":    "/sys/fs/cgroup/devices",
+				"perf_event": "/sys/fs/cgroup/perf_event",
+				"hugetlb":    "/sys/fs/cgroup/hugetlb",
+			},
+		},
+		{
+			contents: []string{
+				"",
+				"",
+				"",
+			},
+			expected: map[string]string{},
+		},
+	} {
+		contents := strings.NewReader(strings.Join(tc.contents, "\n"))
+		assert.Equal(t, tc.expected, parseCgroupMountPoints(contents))
+	}
+}
+
 func TestParseCgroupPaths(t *testing.T) {
 	for _, tc := range []struct {
 		contents          []string
