@@ -96,7 +96,7 @@ func start(cmd *cobra.Command, args []string) error {
 			log.Info("Received stop command, shutting down...")
 			stopCh <- nil
 		case <-signals.ErrorStopper:
-			log.Info("The Agent has encountered an error, shutting down...")
+			log.Critical("The Agent has encountered an error, shutting down...")
 			stopCh <- fmt.Errorf("shutting down because of an error")
 		case sig := <-signalCh:
 			log.Infof("Received signal '%s', shutting down...", sig)
