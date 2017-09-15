@@ -22,6 +22,7 @@ import (
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 var (
@@ -283,14 +284,14 @@ func IsContainerized() bool {
 // otherwise it returns either a valid client or an error.
 func connectToDocker() (*client.Client, error) {
 	// If we don't have a docker.sock then return a known error.
-	sockPath := util.GetEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock")
-	if !util.PathExists(sockPath) {
+	sockPath := GetEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock")
+	if !PathExists(sockPath) {
 		return nil, ErrDockerNotAvailable
 	}
 	// The /proc/mounts file won't be availble on non-Linux systems
 	// and we only support Linux for now.
 	mountsFile := "/proc/mounts"
-	if !util.PathExists(mountsFile) {
+	if !PathExists(mountsFile) {
 		return nil, ErrDockerNotAvailable
 	}
 
@@ -398,7 +399,7 @@ func (d *dockerUtil) containers() ([]*Container, error) {
 
 	// Get the containers either from our cache or with API queries.
 	var containers []*Container
-	cached, hit := cache.Get(cacheKey)
+	cached, hit := cache.Cache.Get(cacheKey)
 	if hit {
 		var ok bool
 		containers, ok = cached.([]*Container)
@@ -436,7 +437,7 @@ func (d *dockerUtil) containers() ([]*Container, error) {
 				log.Debugf("cgroup cpu limit: %s", err)
 			}
 		}
-		cache.SetWithTTL(cacheKey, containers, d.cfg.CacheDuration)
+		cache.Cache.Set(cacheKey, containers, d.cfg.CacheDuration)
 	}
 
 	// Fill in the latest statistics from the cgroups
@@ -623,12 +624,12 @@ func findDockerNetworks(containerID string, pid int, netSettings *types.SummaryN
 	}
 
 	// Read contents of file. Handle missing or unreadable file in case container was stopped.
-	procNetFile := util.HostProc(strconv.Itoa(int(pid)), "net", "route")
-	if !util.PathExists(procNetFile) {
+	procNetFile := HostProc(strconv.Itoa(int(pid)), "net", "route")
+	if !PathExists(procNetFile) {
 		log.Debugf("Missing %s for container %s", procNetFile, containerID)
 		return nil
 	}
-	lines, err := util.ReadLines(procNetFile)
+	lines, err := ReadLines(procNetFile)
 	if err != nil {
 		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
 		return nil
@@ -660,12 +661,12 @@ func findDockerNetworks(containerID string, pid int, netSettings *types.SummaryN
 }
 
 func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) (*NetworkStat, error) {
-	procNetFile := util.HostProc(strconv.Itoa(int(pid)), "net", "dev")
-	if !util.PathExists(procNetFile) {
+	procNetFile := HostProc(strconv.Itoa(int(pid)), "net", "dev")
+	if !PathExists(procNetFile) {
 		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
 		return &NetworkStat{}, nil
 	}
-	lines, err := util.ReadLines(procNetFile)
+	lines, err := ReadLines(procNetFile)
 	if err != nil {
 		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
 		return &NetworkStat{}, nil
