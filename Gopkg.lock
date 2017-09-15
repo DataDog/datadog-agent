@@ -8,10 +8,22 @@
   version = "4.5"
 
 [[projects]]
+  name = "github.com/DataDog/datadog-process-agent"
+  packages = ["util"]
+  revision = "6f98780a6e979d56d3506b9819916dd6368d23c8"
+  version = "5.17.1"
+
+[[projects]]
   branch = "master"
   name = "github.com/DataDog/gohai"
   packages = ["cpu","filesystem","memory","network","platform","processes","processes/gops"]
   revision = "d80d0f562a71fa2380fbeccc93ba5a2e325606e4"
+
+[[projects]]
+  branch = "dd"
+  name = "github.com/DataDog/gopsutil"
+  packages = ["cpu","host","internal/common","mem","net","process"]
+  revision = "df069044fce2744779f4ba1fb60c12938b4f2951"
 
 [[projects]]
   branch = "1.x"
@@ -359,6 +371,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "07bfe7b77493c407ebc1392034e1b30f0146ed6b40b7a68fa922c64150b3fe90"
+  inputs-digest = "18b74390f59f4dc5efde1188dd70f07e8d9c4dbf9bd14dc728736902594fb9a2"
   solver-name = "gps-cdcl"
   solver-version = 1
