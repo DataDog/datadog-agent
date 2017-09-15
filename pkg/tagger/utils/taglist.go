@@ -24,15 +24,6 @@ func NewTagList() *TagList {
 	}
 }
 
-// Add adds a new tag to the list, or replace if name already exists
-func (l *TagList) Add(name string, value string, highCard bool) {
-	if highCard {
-		l.AddHigh(name, value)
-	} else {
-		l.AddLow(name, value)
-	}
-}
-
 // AddHigh adds a new high cardinality tag to the list, or replace if name already exists.
 // It will skip empty values/names, so it's safe to use without verifying the value is not empty.
 func (l *TagList) AddHigh(name string, value string) {

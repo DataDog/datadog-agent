@@ -26,7 +26,7 @@ func TestNewTagList(t *testing.T) {
 func TestAddLow(t *testing.T) {
 	list := NewTagList()
 	list.AddLow("foo", "bar")
-	list.Add("faa", "baz", false)
+	list.AddLow("faa", "baz")
 	require.Empty(t, list.highCardTags)
 	require.Len(t, list.lowCardTags, 2)
 	require.Equal(t, "bar", list.lowCardTags["foo"])
@@ -36,7 +36,7 @@ func TestAddLow(t *testing.T) {
 func TestAddHigh(t *testing.T) {
 	list := NewTagList()
 	list.AddHigh("foo", "bar")
-	list.Add("faa", "baz", true)
+	list.AddHigh("faa", "baz")
 	require.Empty(t, 0, list.lowCardTags)
 	require.Len(t, list.highCardTags, 2)
 	require.Equal(t, "bar", list.highCardTags["foo"])

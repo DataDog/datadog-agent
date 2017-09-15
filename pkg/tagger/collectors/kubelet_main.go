@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	log "github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -81,7 +79,6 @@ func (c *KubeletCollector) Pull() error {
 
 // Fetch fetches tags for a given container, within the new pods
 func (c *KubeletCollector) Fetch(container string) ([]string, []string, error) {
-	log.Warnf("fetch called")
 	updatedPods, err := c.watcher.PullChanges()
 	if err != nil {
 		return []string{}, []string{}, err
