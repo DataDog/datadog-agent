@@ -240,12 +240,16 @@ func StopAgent() {
 	if common.DSD != nil {
 		common.DSD.Stop()
 	}
-	common.AC.Stop()
+	if common.AC != nil {
+		common.AC.Stop()
+	}
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}
 	api.StopServer()
-	common.Forwarder.Stop()
+	if common.Forwarder != nil {
+		common.Forwarder.Stop()
+	}
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()

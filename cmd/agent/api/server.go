@@ -85,5 +85,7 @@ func StartServer() error {
 // StopServer closes the connection and the server
 // stops listening to new commands.
 func StopServer() {
-	listener.Close()
+	if listener != nil {
+		listener.Close()
+	}
 }
