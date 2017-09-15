@@ -26,6 +26,8 @@ def get_requests_proxy(agentConfig):
 
     # First we read the proxy configuration from datadog.conf
     proxies = config.get('proxy', datadog_agent.get_config('proxy'))
+    if proxies:
+        proxies = proxies.copy()
 
     # requests compliant dict
     if proxies and 'no_proxy' in proxies:

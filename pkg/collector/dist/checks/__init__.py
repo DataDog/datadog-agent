@@ -98,7 +98,8 @@ class AgentCheck(object):
     def get_instance_proxy(self, instance, uri):
         proxies = self.proxies.copy()
 
-        return config_proxy_skip(proxies, uri, _is_affirmative(instance.get('no_proxy', False)))
+        skip = _is_affirmative(instance.get('no_proxy', not self._use_agent_proxy))
+        return config_proxy_skip(proxies, uri, skip)
 
     def _submit_metric(self, mtype, name, value, tags=None, hostname=None, device_name=None):
         if value is None:
