@@ -6,6 +6,7 @@
 package app
 
 import (
+	"fmt"
 	"path"
 	"syscall"
 	"time"
@@ -47,7 +48,7 @@ var (
 		Use:   "start",
 		Short: "Start the Agent",
 		Long:  `Runs the agent in the foreground`,
-		Run:   start,
+		RunE:  start,
 	}
 )
 
@@ -75,14 +76,9 @@ func init() {
 }
 
 // Start the main loop
-func start(cmd *cobra.Command, args []string) {
-	var err bool
-
+func start(cmd *cobra.Command, args []string) error {
 	defer func() {
 		StopAgent()
-		if err {
-			os.Exit(1)
-		}
 	}()
 
 	started := false
@@ -97,19 +93,18 @@ func start(cmd *cobra.Command, args []string) {
 		select {
 		case <-signals.Stopper:
 			log.Info("Received stop command, shutting down...")
-			return
+			return nil
 		case <-signals.ErrorStopper:
 			log.Info("The Agent has encountered an error, shutting down...")
-			err = true
-			return
+			return fmt.Errorf("shutting down because of an error")
 		case sig := <-signalCh:
 			log.Infof("Received signal '%s', shutting down...", sig)
-			return
+			return nil
 		default:
 			// start the agent on the first run through
 			if !started {
-				if StartAgent() != nil {
-					return
+				if err := StartAgent(); err != nil {
+					return err
 				}
 				started = true
 			}
@@ -120,11 +115,14 @@ func start(cmd *cobra.Command, args []string) {
 // StartAgent Initializes the agent process
 func StartAgent() error {
 	// Global Agent configuration
-	common.SetupConfig(confFilePath)
+	err := common.SetupConfig(confFilePath)
+	if err != nil {
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
 
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
-	err := config.SetupLogger(
+	err = config.SetupLogger(
 		config.Datadog.GetString("log_level"),
 		config.Datadog.GetString("log_file"),
 		syslogURI,
