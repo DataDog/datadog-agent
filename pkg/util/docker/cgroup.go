@@ -177,7 +177,7 @@ func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
 // exist or there is no limit then this will default to 0.
 func (c ContainerCgroup) MemLimit() (uint64, error) {
 	statfile := c.cgroupFilePath("memory", "memory.limit_in_bytes")
-	lines, err := util.ReadLines(statfile)
+	lines, err := ReadLines(statfile)
 	if os.IsNotExist(err) {
 		log.Debugf("missing cgroup file: %s", statfile)
 		return 0, nil
@@ -246,14 +246,14 @@ func (c ContainerCgroup) CPU() (*CgroupTimesStat, error) {
 func (c ContainerCgroup) CPULimit() (float64, error) {
 	periodFile := c.cgroupFilePath("cpu", "cpu.cfs_period_us")
 	quotaFile := c.cgroupFilePath("cpu", "cpu.cfs_quota_us")
-	plines, err := util.ReadLines(periodFile)
+	plines, err := ReadLines(periodFile)
 	if os.IsNotExist(err) {
 		log.Debugf("missing cgroup file: %s", periodFile)
 		return 100, nil
 	} else if err != nil {
 		return 0, err
 	}
-	qlines, err := util.ReadLines(quotaFile)
+	qlines, err := ReadLines(quotaFile)
 	if os.IsNotExist(err) {
 		log.Debugf("missing cgroup file: %s", quotaFile)
 		return 100, nil
@@ -327,7 +327,7 @@ func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
 // this should work because the cgroup dir for the container would be created only when it's started
 func (c ContainerCgroup) ContainerStartTime() (int64, error) {
 	cgroupDir := c.cgroupFilePath("cpuacct", "")
-	if !util.PathExists(cgroupDir) {
+	if !PathExists(cgroupDir) {
 		return 0, fmt.Errorf("could not get cgroup dir, directory doesn't exist")
 	}
 	stat, err := os.Stat(cgroupDir)
@@ -368,7 +368,7 @@ func (c ContainerCgroup) cgroupFilePath(target, file string) string {
 // Returns a map for every target (cpuset, cpu, cpuacct) => path
 func cgroupMountPoints() (map[string]string, error) {
 	mountsFile := "/proc/mounts"
-	if !util.PathExists(mountsFile) {
+	if !PathExists(mountsFile) {
 		return nil, fmt.Errorf("/proc/mounts does not exist")
 	}
 	f, err := os.Open(mountsFile)
@@ -390,7 +390,7 @@ func parseCgroupMountPoints(r io.Reader) map[string]string {
 
 			// Re-point /sys cgroups to /proc/sys
 			if strings.HasPrefix(cgroupPath, "/sys") {
-				cgroupPath = util.HostSys(strings.TrimPrefix(cgroupPath, "/sys"))
+				cgroupPath = HostSys(strings.TrimPrefix(cgroupPath, "/sys"))
 			}
 
 			// Target can be comma-separate values like cpu,cpuacct
@@ -413,7 +413,7 @@ func CgroupsForPids(pids []int32) (map[string]*ContainerCgroup, error) {
 
 	cgs := make(map[string]*ContainerCgroup)
 	for _, pid := range pids {
-		cgPath := util.HostProc(strconv.Itoa(int(pid)), "cgroup")
+		cgPath := HostProc(strconv.Itoa(int(pid)), "cgroup")
 		containerID, paths, err := readCgroupPaths(cgPath)
 		if containerID == "" {
 			continue
