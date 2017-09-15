@@ -6,6 +6,7 @@
 package app
 
 import (
+	"fmt"
 	"path"
 	"syscall"
 	"time"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -46,7 +48,7 @@ var (
 		Use:   "start",
 		Short: "Start the Agent",
 		Long:  `Runs the agent in the foreground`,
-		Run:   start,
+		RunE:  start,
 	}
 )
 
@@ -74,31 +76,55 @@ func init() {
 }
 
 // Start the main loop
-func start(cmd *cobra.Command, args []string) {
-	StartAgent()
+func start(cmd *cobra.Command, args []string) error {
+	defer func() {
+		StopAgent()
+	}()
+
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGINT)
 
-	// Block here until we receive the interrupt signal
-	select {
-	case <-common.Stopper:
-		log.Info("Received stop command, shutting down...")
-	case sig := <-signalCh:
-		log.Infof("Received signal '%s', shutting down...", sig)
+	// Make a channel to exit the function
+	stopCh := make(chan error)
+
+	go func() {
+		// Set up the signals async so we can Start the agent
+		select {
+		case <-signals.Stopper:
+			log.Info("Received stop command, shutting down...")
+			stopCh <- nil
+		case <-signals.ErrorStopper:
+			log.Critical("The Agent has encountered an error, shutting down...")
+			stopCh <- fmt.Errorf("shutting down because of an error")
+		case sig := <-signalCh:
+			log.Infof("Received signal '%s', shutting down...", sig)
+			stopCh <- nil
+		}
+	}()
+
+	if err := StartAgent(); err != nil {
+		return err
 	}
-	StopAgent()
+
+	select {
+	case err := <-stopCh:
+		return err
+	}
 }
 
 // StartAgent Initializes the agent process
-func StartAgent() {
+func StartAgent() error {
 	// Global Agent configuration
-	common.SetupConfig(confFilePath)
+	err := common.SetupConfig(confFilePath)
+	if err != nil {
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
 
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
-	err := config.SetupLogger(
+	err = config.SetupLogger(
 		config.Datadog.GetString("log_level"),
 		config.Datadog.GetString("log_file"),
 		syslogURI,
@@ -107,7 +133,7 @@ func StartAgent() {
 		config.Datadog.GetString("syslog_pem"),
 	)
 	if err != nil {
-		panic(err)
+		return log.Errorf("Error while setting up logging, exiting: %v", err)
 	}
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
@@ -117,16 +143,16 @@ func StartAgent() {
 	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
 
 	if pidfilePath != "" {
-		err := pidfile.WritePID(pidfilePath)
+		err = pidfile.WritePID(pidfilePath)
 		if err != nil {
-			panic(err)
+			return log.Errorf("Error while writing PID file, exiting: %v", err)
 		}
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
 	}
 
 	hostname, err := util.GetHostname()
 	if err != nil {
-		panic(err)
+		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
 
 	// store the computed hostname in the global cache
@@ -136,7 +162,9 @@ func StartAgent() {
 	log.Infof("Hostname is: %s", hostname)
 
 	// start the cmd HTTP server
-	api.StartServer()
+	if err = api.StartServer(); err != nil {
+		return log.Errorf("Error while starting api server, exiting: %v", err)
+	}
 
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()
@@ -193,15 +221,17 @@ func StartAgent() {
 		// Should be always true, except in some edge cases (multiple agents per host)
 		err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
 		if err != nil {
-			panic("Host metadata is supposed to be always available in the catalog!")
+			return log.Error("Host metadata is supposed to be always available in the catalog!")
 		}
 		err = common.MetadataScheduler.AddCollector("agent_checks", agentChecksMetadataCollectorInterval*time.Second)
 		if err != nil {
-			panic("Agent Checks metadata is supposed to be always available in the catalog!")
+			return log.Error("Agent Checks metadata is supposed to be always available in the catalog!")
 		}
 	} else {
 		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
 	}
+
+	return nil
 }
 
 // StopAgent Tears down the agent process
@@ -210,12 +240,16 @@ func StopAgent() {
 	if common.DSD != nil {
 		common.DSD.Stop()
 	}
-	common.AC.Stop()
+	if common.AC != nil {
+		common.AC.Stop()
+	}
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}
 	api.StopServer()
-	common.Forwarder.Stop()
+	if common.Forwarder != nil {
+		common.Forwarder.Stop()
+	}
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()

@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os"
 
 	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -37,12 +36,16 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Print the current status",
 	Long:  ``,
-	Run: func(cmd *cobra.Command, args []string) {
-		common.SetupConfig(confFilePath)
-		err := requestStatus()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		err := common.SetupConfig(confFilePath)
 		if err != nil {
-			os.Exit(1)
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
+		err = requestStatus()
+		if err != nil {
+			return err
+		}
+		return nil
 	},
 }
 

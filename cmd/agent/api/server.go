@@ -31,7 +31,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer() {
+func StartServer() error {
 	// create the root HTTP router
 	r := mux.NewRouter()
 
@@ -45,7 +45,7 @@ func StartServer() {
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
-		panic(fmt.Sprintf("Unable to create the api server: %v", err))
+		return fmt.Errorf("Unable to create the api server: %v", err)
 	}
 	common.SetAuthToken()
 
@@ -53,8 +53,7 @@ func StartServer() {
 	hosts := []string{"127.0.0.1", "localhost"}
 	_, rootCertPEM, rootKey, err := common.GenerateRootCert(hosts, 2048)
 	if err != nil {
-		stdLog.Fatalf("unable to start TLS server")
-		return
+		return fmt.Errorf("unable to start TLS server")
 	}
 
 	// PEM encode the private key
@@ -65,8 +64,7 @@ func StartServer() {
 	// Create a TLS cert using the private key and certificate
 	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
 	if err != nil {
-		stdLog.Fatalf("invalid key pair: %v", err)
-		return
+		return fmt.Errorf("invalid key pair: %v", err)
 	}
 
 	tlsConfig := tls.Config{
@@ -81,10 +79,13 @@ func StartServer() {
 	tlsListener := tls.NewListener(listener, &tlsConfig)
 
 	go srv.Serve(tlsListener)
+	return nil
 }
 
 // StopServer closes the connection and the server
 // stops listening to new commands.
 func StopServer() {
-	listener.Close()
+	if listener != nil {
+		listener.Close()
+	}
 }
