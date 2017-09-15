@@ -74,9 +74,15 @@ def deps(ctx):
     """
     Setup Go dependencies
     """
-    ctx.run("go get -u github.com/golang/dep/cmd/dep")
-    ctx.run("go get -u github.com/golang/lint/golint")
+    ctx.run("go get -u -f github.com/golang/dep/cmd/dep")
+    ctx.run("go get -u -f github.com/golang/lint/golint")
     ctx.run("dep ensure")
+    # prune packages from /vendor, remove this hack
+    # as soon as `dep prune` is merged within `dep ensure`,
+    # see https://github.com/golang/dep/issues/944
+    ctx.run("mv vendor/github.com/shirou/gopsutil/host/include .")
+    ctx.run("dep prune")
+    ctx.run("mv include vendor/github.com/shirou/gopsutil/host/")
 
 
 @task

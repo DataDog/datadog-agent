@@ -7,6 +7,7 @@ stages:
 
 variables:
   SRC_PATH: /src/github.com/DataDog/datadog-agent
+  AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/
   AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   STATIC_BINARIES_DIR: bin/static
   DEB_S3_BUCKET_DEPRECATED: apt-agent6.datad0g.com
@@ -152,14 +153,11 @@ agent_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
-  variables:
-    # Artifacts and cache must live within project directory but we run omnibus from the GOPATH (see above).
-    # We then instrument `rake` to invoke `omnibus` with custom parameter, pointing to a gitlab-friendly location.
-    AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
-    # Uncomment the following to see debug logs from omnibus, it defaults to info
-    # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
-    - inv -e agent.omnibus-build
+    # Artifacts and cache must live within project directory but we run omnibus
+    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
+    # pointing to a gitlab-friendly location.
+    - inv -e agent.omnibus-build --base-dir $AGENT_OMNIBUS_BASE_DIR
     - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/*.deb
   cache:
     # cache per branch
@@ -176,19 +174,16 @@ agent_rpm-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
-  variables:
-    # Artifacts and cache must live within project directory but we run omnibus from the GOPATH (see above).
-    # We then instrument `rake` to invoke `omnibus` with custom parameter, pointing to a gitlab-friendly location.
-    AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/var/
-    # Uncomment the following to see debug logs from omnibus, it defaults to info
-    # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
+    # Artifacts and cache must live within project directory but we run omnibus
+    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
+    # pointing to a gitlab-friendly location.
     - set +x
     - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key --with-decryption --query "Parameter.Value" --out text)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
-    - inv -e agent.omnibus-build
+    - inv -e agent.omnibus-build --base-dir $AGENT_OMNIBUS_BASE_DIR
     - rpm -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
   cache:
     # cache per branch

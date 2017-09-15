@@ -142,22 +142,17 @@ def integration_tests(ctx, install_deps=False):
 
 
 @task
-def omnibus_build(ctx, puppy=False, log_level="info"):
+def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None):
     """
     Build the Agent packages with Omnibus Installer.
     """
     # omnibus config overrides
     overrides = []
 
-    # base dir (can be overridden through env vars)
-    base_dir = os.environ.get("AGENT_OMNIBUS_BASE_DIR")
+    # base dir (can be overridden through env vars, command line takes precendence)
+    base_dir = base_dir or os.environ.get("AGENT_OMNIBUS_BASE_DIR")
     if base_dir:
         overrides.append("base_dir:{}".format(base_dir))
-
-    # package_dir (can be overridden through env vars)
-    package_dir = os.environ.get("AGENT_OMNIBUS_PACKAGE_DIR")
-    if package_dir:
-        overrides.append("package_dir:{}".format(package_dir))
 
     overrides_cmd = ""
     if overrides:
@@ -165,11 +160,11 @@ def omnibus_build(ctx, puppy=False, log_level="info"):
 
     with ctx.cd("omnibus"):
         ctx.run("bundle install")
-        omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "omnibus"
+        omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
-            "project_name": "puppy" if puppy else "datadog-agent6",
+            "project_name": "puppy" if puppy else "agent",
             "log_level": log_level,
             "overrides": overrides_cmd
         }
