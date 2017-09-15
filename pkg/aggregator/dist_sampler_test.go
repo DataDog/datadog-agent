@@ -104,7 +104,6 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 	expectedSketch := percentile.NewQSketch()
 	expectedSketch = expectedSketch.Add(1)
 	expectedSketch = expectedSketch.Add(2)
-	expectedSketch = expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		Name:     "test.metric.name",
 		Tags:     []string{"a", "b"},
@@ -148,7 +147,6 @@ func TestDistSamplerContextSampling(t *testing.T) {
 
 	expectedSketch := percentile.NewQSketch()
 	expectedSketch = expectedSketch.Add(1)
-	expectedSketch = expectedSketch.Compress()
 	expectedSeries1 := &percentile.SketchSeries{
 		Name:     "test.metric.name1",
 		Tags:     []string{"a", "b"},

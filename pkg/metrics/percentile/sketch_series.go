@@ -53,11 +53,6 @@ func (q QSketch) Add(v float64) QSketch {
 	return QSketch{GKArray: q.GKArray.Add(v)}
 }
 
-// Compress the qsketch
-func (q QSketch) Compress() QSketch {
-	return QSketch{GKArray: q.GKArray.Compress()}
-}
-
 // NoSketchError is the error returned when not enough samples have been
 //submitted to generate a sketch
 type NoSketchError struct{}
