@@ -3,14 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-// +build !cgo
+// +build !windows
+// +build cgo
 
-package x
+package xc
 
-import "fmt"
+/*
+#include <unistd.h>
+#include <sys/types.h>
+#include <stdlib.h>
+*/
+import "C"
 
 // GetSystemFreq grabs the system clock frequency
-// NOP on cross-compiled systems
 func GetSystemFreq() (int64, error) {
-	return 0, fmt.Errorf("frequency unavailable")
+	var scClkTck C.long
+
+	scClkTck = C.sysconf(C._SC_CLK_TCK)
+	return int64(scClkTck), nil
 }

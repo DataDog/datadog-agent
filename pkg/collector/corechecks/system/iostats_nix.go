@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/util/x"
+	"github.com/DataDog/datadog-agent/pkg/util/xc"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/disk"
 )
@@ -159,7 +159,7 @@ func (c *IOCheck) Run() error {
 
 func init() {
 	var err error
-	hz, err = x.GetSystemFreq()
+	hz, err = xc.GetSystemFreq()
 	if err != nil {
 		hz = 0
 	}
