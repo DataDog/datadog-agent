@@ -8,16 +8,19 @@
 {{- if .runnerStats.Workers}}
   Check Runners: {{.runnerStats.Workers -}} {{end}}
   Log Level: {{.config.log_level}}
+
   Paths
   =====
     Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}
     conf.d: {{.config.confd_path}}
     checks.d: {{.config.additional_checksd}}
+
   Clocks
   ======
 {{- if .ntpOffset}}
     NTP offset: {{.ntpOffset}} s {{end}}
     System UTC time: {{.time}}
+
   Host Info
   =========
     {{- range $type, $value := .hostinfo -}}
@@ -28,6 +31,7 @@
     {{- $value -}}
     {{- end -}}
     {{end -}} {{end -}} {{end -}} {{- end}}
+
   Hostnames
   =========
     {{- range $type, $value := .metadata.meta -}} {{- if ne $type "timezones" -}} {{- if $value}}
