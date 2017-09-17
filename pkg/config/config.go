@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -233,27 +232,6 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 	}
 
 	return keysPerDomain, nil
-}
-
-// GetSyslogURI returns the configured/default syslog uri
-func GetSyslogURI() string {
-	enabled := Datadog.GetBool("log_to_syslog")
-	uri := Datadog.GetString("syslog_uri")
-
-	if runtime.GOOS == "windows" {
-		if enabled {
-			log.Infof("logging to syslog is not available on windows.")
-		}
-		return ""
-	}
-
-	if enabled {
-		if uri == "" {
-			uri = defaultSyslogURI
-		}
-	}
-
-	return uri
 }
 
 // IsContainerized returns whether the Agent is running on a Docker container
