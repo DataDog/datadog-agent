@@ -12,6 +12,41 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestCPU(t *testing.T) {
+	tempFolder, err := newTempFolder("cpu-stats")
+	assert.Nil(t, err)
+
+	cpuStats := dummyCgroupStat{
+		"nr_throttled": 10,
+	}
+	tempFolder.add("cpu/cpu.stat", cpuStats.String())
+	cpuacctStats := dummyCgroupStat{
+		"user":   64140,
+		"system": 18327,
+	}
+	tempFolder.add("cpuacct/cpuacct.stat", cpuacctStats.String())
+	tempFolder.add("cpuacct/cpuacct.usage", "915266418275")
+
+	cgroup := &ContainerCgroup{
+		ContainerID: "dummy",
+		Mounts: map[string]string{
+			"cpu":     tempFolder.RootPath,
+			"cpuacct": tempFolder.RootPath,
+		},
+		Paths: map[string]string{
+			"cpu":     "cpu",
+			"cpuacct": "cpuacct",
+		},
+	}
+
+	timeStat, err := cgroup.CPU()
+	assert.Nil(t, err)
+	assert.Equal(t, timeStat.ContainerID, "dummy")
+	assert.Equal(t, timeStat.User, uint64(64140))
+	assert.Equal(t, timeStat.System, uint64(18327))
+	assert.Equal(t, timeStat.UsageTotal, float64(91526.6418275))
+}
+
 func TestParseCgroupMountPoints(t *testing.T) {
 	for _, tc := range []struct {
 		contents []string
