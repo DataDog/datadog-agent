@@ -8,7 +8,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
@@ -17,7 +16,6 @@ import (
 func main() {
 	// Invoke the Agent
 	if err := app.AgentCmd.Execute(); err != nil {
-		fmt.Println(err)
 		os.Exit(-1)
 	}
 }

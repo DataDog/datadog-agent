@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	api "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -126,12 +127,12 @@ func (c *JMXCheck) Run() error {
 	subprocessArgs = append(subprocessArgs,
 		"-classpath", classpath,
 		jmxMainClass,
+		"--ipc_port", fmt.Sprintf("%v", config.Datadog.GetInt("cmd_port")),
 		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
 		"--conf_directory", jmxConfPath, // Path of the conf directory that will be read by jmxfetch,
 		"--log_level", "INFO", //FIXME : Use agent log level when available
 		"--log_location", path.Join(here, "dist", "jmx", "jmxfetch.log"), // FIXME : Path of the log file. At some point we should have a `run` folder
 		"--reporter", reporter, // Reporter to use
-		"--status_location", path.Join(here, "dist", "jmx", "jmx_status.yaml"), // FIXME : Path to the status file to write. At some point we should have a `run` folder
 		jmxCollectCommand, // Name of the command
 	)
 	if len(c.checks) > 0 {
@@ -155,6 +156,12 @@ func (c *JMXCheck) Run() error {
 		javaBinPath = "java"
 	}
 	c.cmd = exec.Command(javaBinPath, subprocessArgs...)
+
+	// set environment + token
+	c.cmd.Env = append(
+		os.Environ(),
+		fmt.Sprintf("SESSION_TOKEN=%s", api.GetAuthToken()),
+	)
 
 	// remove the exit file trigger (windows)
 	if jmxExitFile != "" {
@@ -268,6 +275,11 @@ func (c *JMXCheck) Interval() time.Duration {
 // ID returns the name of the check since there should be only one instance running
 func (c *JMXCheck) ID() check.ID {
 	return "JMX_Check"
+}
+
+// GetMetricStats returns the stats from the last run of the check, but there aren't any yet
+func (c *JMXCheck) GetMetricStats() (map[string]int64, error) {
+	return make(map[string]int64), nil
 }
 
 // Stop sends a termination signal to the JMXFetch process

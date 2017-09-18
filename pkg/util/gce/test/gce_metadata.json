@@ -1,0 +1,56 @@
+{
+  "attributes": {},
+  "cpuPlatform": "Intel Haswell",
+  "description": "",
+  "disks": [{
+    "deviceName": "dd-test",
+    "index": 0,
+    "mode": "READ_WRITE",
+    "type": "PERSISTENT"
+  }],
+  "hostname": "dd-test.c.datadog-dd-test.internal",
+  "id": 1111111111111111111,
+  "image": "projects/debian-cloud/global/images/debian-9-stretch-v20170816",
+  "licenses": [{
+    "id": "1000205"
+  }],
+  "projectId": 111111111111,
+  "NumericProjectId": 111111111111,
+  "machineType": "projects/111111111111/machineTypes/n1-standard-1",
+  "maintenanceEvent": "NONE",
+  "name": "dd-test",
+  "networkInterfaces": [{
+    "accessConfigs": [{
+      "externalIp": "111.111.111.11",
+      "type": "ONE_TO_ONE_NAT"
+    }],
+    "forwardedIps": [],
+    "ip": "10.142.0.2",
+    "ipAliases": [],
+    "mac": "42:01:0a:8e:00:02",
+    "network": "projects/111111111111/networks/default",
+    "targetInstanceIps": []
+  }],
+  "scheduling": {
+    "automaticRestart": "TRUE",
+    "onHostMaintenance": "MIGRATE",
+    "preemptible": "FALSE"
+  },
+  "serviceAccounts": {
+    "111111111111-compute@developer.gserviceaccount.com": {
+      "aliases": ["default"],
+      "email": "111111111111-compute@developer.gserviceaccount.com",
+      "scopes": ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/trace.append"]
+    },
+    "default": {
+      "aliases": ["default"],
+      "email": "111111111111-compute@developer.gserviceaccount.com",
+      "scopes": ["https://www.googleapis.com/auth/devstorage.read_only", "https://www.googleapis.com/auth/logging.write", "https://www.googleapis.com/auth/monitoring.write", "https://www.googleapis.com/auth/servicecontrol", "https://www.googleapis.com/auth/service.management.readonly", "https://www.googleapis.com/auth/trace.append"]
+    }
+  },
+  "tags": ["tag"],
+  "virtualClock": {
+    "driftToken": "0"
+  },
+  "zone": "projects/111111111111/zones/us-east1-b"
+}

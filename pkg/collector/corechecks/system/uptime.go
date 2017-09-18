@@ -6,6 +6,7 @@
 package system
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -87,6 +88,15 @@ func (c *UptimeCheck) warnf(format string, params ...interface{}) error {
 	c.lastWarnings = append(c.lastWarnings, w)
 
 	return w
+}
+
+// GetMetricStats returns the stats from the last run of the check
+func (c *UptimeCheck) GetMetricStats() (map[string]int64, error) {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return nil, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+	}
+	return sender.GetMetricStats(), nil
 }
 
 func uptimeFactory() check.Check {

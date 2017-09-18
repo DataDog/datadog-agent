@@ -66,3 +66,8 @@ func (m *MockSender) Event(e metrics.Event) {
 func (m *MockSender) Commit() {
 	m.Called()
 }
+
+func (m *MockSender) GetMetricStats() map[string]int64 {
+	m.Called()
+	return map[string]int64{}
+}

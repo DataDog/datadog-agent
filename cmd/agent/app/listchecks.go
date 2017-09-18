@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -21,13 +22,19 @@ var listCheckCommand = &cobra.Command{
 	Use:   "list-checks",
 	Short: "Query the agent for the list of checks running",
 	Long:  ``,
-	RunE:  doListChecks,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		err := common.SetupConfig(confFilePath)
+		if err != nil {
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		}
+		return doListChecks()
+	},
 }
 
 // query for the version
-func doListChecks(cmd *cobra.Command, args []string) error {
-	c := common.GetClient()
-	urlstr := "http://" + sockname + "/check/"
+func doListChecks() error {
+	c := common.GetClient(false) // FIX: get certificates right then make this true
+	urlstr := fmt.Sprintf("https://localhost:%v/check/", config.Datadog.GetInt("cmd_port"))
 
 	body, e := common.DoGet(c, urlstr)
 	if e != nil {

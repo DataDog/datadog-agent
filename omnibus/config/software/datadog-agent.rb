@@ -14,7 +14,7 @@ build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
   # the go deps needs to be installed (invoke dep) before running omnibus
   # TODO: enable omnibus to run invoke deps while building the project
-  command "invoke agent.build --rebuild --use-embedded-libs"
+  command "invoke agent.build --rebuild --use-embedded-libs --no-development"
   copy('bin', install_dir)
 
   mkdir "#{install_dir}/run/"
@@ -46,6 +46,7 @@ build do
   end
 
   if windows?
+    mkdir "../../extra_package_files/EXAMPLECONFSLOCATION"
     copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
   end
 

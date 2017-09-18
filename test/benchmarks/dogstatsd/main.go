@@ -60,8 +60,8 @@ func (f *forwarderBenchStub) reset() {
 }
 
 func (f *forwarderBenchStub) computeStats(payloads forwarder.Payloads) {
-	f.received++
 	for _, payload := range payloads {
+		f.received++
 		f.receivedBytes += uint64(len(*payload))
 	}
 }
@@ -133,7 +133,7 @@ func NewStatsdGenerator(uri string) (*net.UDPConn, error) {
 }
 
 func initLogging() error {
-	err := config.SetupLogger("info", "")
+	err := config.SetupLogger("info", "", "", false, false, "")
 	if err != nil {
 		return fmt.Errorf("Unable to initiate logger: %s", err)
 	}

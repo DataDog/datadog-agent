@@ -10,9 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os"
 
+	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/spf13/cobra"
 )
@@ -35,12 +36,16 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Print the current status",
 	Long:  ``,
-	Run: func(cmd *cobra.Command, args []string) {
-		common.SetupConfig(confFilePath)
-		err := requestStatus()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		err := common.SetupConfig(confFilePath)
 		if err != nil {
-			os.Exit(1)
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
+		err = requestStatus()
+		if err != nil {
+			return err
+		}
+		return nil
 	},
 }
 
@@ -48,8 +53,11 @@ func requestStatus() error {
 	fmt.Printf("Getting the status from the agent.\n\n")
 	var e error
 	var s string
-	c := common.GetClient()
-	urlstr := "http://" + sockname + "/agent/status"
+	c := common.GetClient(false) // FIX: get certificates right then make this true
+	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.Datadog.GetInt("cmd_port"))
+
+	// Set session token
+	apicommon.SetAuthToken()
 
 	r, e := common.DoGet(c, urlstr)
 	if e != nil {

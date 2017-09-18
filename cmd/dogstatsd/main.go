@@ -81,7 +81,15 @@ func start(cmd *cobra.Command, args []string) error {
 	confErr := config.Datadog.ReadInConfig()
 
 	// Setup logger
-	err := config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
+	syslogURI := config.GetSyslogURI()
+	err := config.SetupLogger(
+		config.Datadog.GetString("log_level"),
+		config.Datadog.GetString("log_file"),
+		syslogURI,
+		config.Datadog.GetBool("syslog_rfc"),
+		config.Datadog.GetBool("syslog_tls"),
+		config.Datadog.GetString("syslog_pem"),
+	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
@@ -115,12 +123,13 @@ func start(cmd *cobra.Command, args []string) error {
 	var metaScheduler *metadata.Scheduler
 	if config.Datadog.GetBool("enable_metadata_collection") {
 		// start metadata collection
-		metaScheduler := metadata.NewScheduler(s, hname)
+		metaScheduler = metadata.NewScheduler(s, hname)
 
 		// add the host metadata collector
 		err = metaScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
 		if err != nil {
-			panic("Host metadata is supposed to be always available in the catalog!")
+			metaScheduler.Stop()
+			return log.Error("Host metadata is supposed to be always available in the catalog!")
 		}
 	} else {
 		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")

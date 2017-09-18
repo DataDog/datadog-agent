@@ -8,8 +8,6 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -19,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/spf13/cobra"
 )
 
@@ -26,6 +25,7 @@ var (
 	checkRate  bool
 	checkName  string
 	checkDelay int
+	logLevel   string
 )
 
 const checkCmdFlushInterval = 10000000000
@@ -33,8 +33,9 @@ const checkCmdFlushInterval = 10000000000
 func init() {
 	AgentCmd.AddCommand(checkCmd)
 
-	checkCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to datadog.yaml")
+	checkCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to directory containing datadog.yaml")
 	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice")
+	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off')")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
 	checkCmd.SetArgs([]string{"checkName"})
 }
@@ -43,22 +44,41 @@ var checkCmd = &cobra.Command{
 	Use:   "check <check_name>",
 	Short: "Run the specified check",
 	Long:  `Use this to run a specific check with a specific rate`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Global Agent configuration
+		err := common.SetupConfig(confFilePath)
+		if err != nil {
+			fmt.Printf("Cannot setup config, exiting: %v\n", err)
+			return err
+		}
+
+		if logLevel == "" {
+			if confFilePath != "" {
+				logLevel = config.Datadog.GetString("log_level")
+			} else {
+				logLevel = "off"
+			}
+		}
+
+		// Setup logger
+		err = config.SetupLogger("off", "", "", false, false, "")
+		if err != nil {
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
+		}
+
 		if len(args) != 0 {
 			checkName = args[0]
 		} else {
 			cmd.Help()
-			os.Exit(0)
+			return nil
 		}
-		config.SetupLogger("off", "")
-
-		common.SetupConfig(confFilePath)
 
 		hostname, err := util.GetHostname()
-		key := path.Join(util.AgentCachePrefix, "hostname")
-		util.Cache.Set(key, hostname, util.NoExpiration)
+		cache.Cache.Set(cache.BuildAgentKey("hostname"), hostname, cache.NoExpiration)
 		if err != nil {
-			panic(err)
+			fmt.Printf("Cannot get hostname, exiting: %v\n", err)
+			return err
 		}
 
 		s := &serializer.Serializer{Forwarder: common.Forwarder}
@@ -67,7 +87,7 @@ var checkCmd = &cobra.Command{
 		cs := common.AC.GetChecksByName(checkName)
 		if len(cs) == 0 {
 			fmt.Println("no check found")
-			os.Exit(1)
+			return fmt.Errorf("no check found")
 		}
 
 		if len(cs) > 1 {
@@ -86,6 +106,7 @@ var checkCmd = &cobra.Command{
 			fmt.Println(string(checkStatus))
 		}
 
+		return nil
 	},
 }
 
@@ -100,7 +121,8 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 		t0 := time.Now()
 		err := c.Run()
 		warnings := c.GetWarnings()
-		s.Add(time.Since(t0), err, warnings)
+		mStats, _ := c.GetMetricStats()
+		s.Add(time.Since(t0), err, warnings, mStats)
 		i++
 	}
 
@@ -111,36 +133,28 @@ func getMetrics(agg *aggregator.BufferedAggregator) {
 	series := agg.GetSeries()
 	if len(series) != 0 {
 		fmt.Println("Series: ")
-		for _, s := range series {
-			j, _ := json.Marshal(s)
-			fmt.Println(string(j))
-		}
+		j, _ := json.MarshalIndent(series, "", "  ")
+		fmt.Println(string(j))
 	}
 
 	sketches := agg.GetSketches()
 	if len(sketches) != 0 {
 		fmt.Println("Sketches: ")
-		for _, s := range sketches {
-			j, _ := json.Marshal(s)
-			fmt.Println(string(j))
-		}
+		j, _ := json.MarshalIndent(sketches, "", "  ")
+		fmt.Println(string(j))
 	}
 
 	serviceChecks := agg.GetServiceChecks()
 	if len(serviceChecks) != 0 {
 		fmt.Println("Service Checks: ")
-		for _, s := range serviceChecks {
-			j, _ := json.Marshal(s)
-			fmt.Println(string(j))
-		}
+		j, _ := json.MarshalIndent(serviceChecks, "", "  ")
+		fmt.Println(string(j))
 	}
 
 	events := agg.GetEvents()
 	if len(events) != 0 {
 		fmt.Println("Events: ")
-		for _, e := range events {
-			j, _ := json.Marshal(e)
-			fmt.Println(string(j))
-		}
+		j, _ := json.MarshalIndent(events, "", "  ")
+		fmt.Println(string(j))
 	}
 }

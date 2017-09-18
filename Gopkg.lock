@@ -4,8 +4,8 @@
 [[projects]]
   name = "github.com/DataDog/agent-payload"
   packages = ["gogen"]
-  revision = "878e17eb68c0ab47f62a702158bf01c7d6e1452b"
-  version = "4.4"
+  revision = "d6a2f74c00f08246bc0ca160ffa9d28756968065"
+  version = "4.5"
 
 [[projects]]
   branch = "master"
@@ -36,6 +36,12 @@
   name = "github.com/StackExchange/wmi"
   packages = ["."]
   revision = "ea383cf3ba6ec950874b8486cd72356d007c768f"
+
+[[projects]]
+  name = "github.com/aws/aws-sdk-go"
+  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","internal/shareddefaults","private/protocol","private/protocol/ec2query","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/xml/xmlutil","service/ec2","service/sts"]
+  revision = "e63027ac6e05f6d4ae9f97ce0294d7468ca652da"
+  version = "v1.10.33"
 
 [[projects]]
   name = "github.com/beevik/ntp"
@@ -105,6 +111,12 @@
   revision = "854377f11dfb81f04121879829bc53487e377739"
 
 [[projects]]
+  name = "github.com/go-ini/ini"
+  packages = ["."]
+  revision = "20b96f641a5ea98f2f8619ff4f3e061cff4833bd"
+  version = "v1.28.2"
+
+[[projects]]
   name = "github.com/go-ole/go-ole"
   packages = [".","oleutil"]
   revision = "de8695c8edbf8236f30d6e1376e20b198a028d42"
@@ -169,6 +181,12 @@
   name = "github.com/jhoonb/archivex"
   packages = ["."]
   revision = "be4efa7ec0c38ab76d56037014c90d48d6b13037"
+
+[[projects]]
+  name = "github.com/jmespath/go-jmespath"
+  packages = ["."]
+  revision = "3433f3ea46d9f8019119e7dd41274e112a2359a9"
+  version = "0.2.2"
 
 [[projects]]
   name = "github.com/k-sone/snmpgo"
@@ -328,12 +346,6 @@
   revision = "9badcbe49be523255546b669968041d707ece12e"
 
 [[projects]]
-  name = "gopkg.in/ini.v1"
-  packages = ["."]
-  revision = "20b96f641a5ea98f2f8619ff4f3e061cff4833bd"
-  version = "v1.28.2"
-
-[[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   revision = "cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b"
@@ -347,6 +359,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4f8c995588db39de1ea16dce38b30cf8159ae0f485a3c136a1cae8cb353ce083"
+  inputs-digest = "07bfe7b77493c407ebc1392034e1b30f0146ed6b40b7a68fa922c64150b3fe90"
   solver-name = "gps-cdcl"
   solver-version = 1

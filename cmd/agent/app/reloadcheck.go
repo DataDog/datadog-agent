@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -24,24 +25,34 @@ var reloadCheckCommand = &cobra.Command{
 	Use:   "reload-check <check_name>",
 	Short: "Reload a running check",
 	Long:  ``,
-	RunE:  doreloadCheck,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		var checkName string
+		if len(args) != 0 {
+			checkName = args[0]
+		} else {
+			return fmt.Errorf("missing arguments")
+		}
+
+		err := common.SetupConfig(confFilePath)
+		if err != nil {
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		}
+		return doReloadCheck(checkName)
+	},
 }
 
-// query for the version
-func doreloadCheck(cmd *cobra.Command, args []string) error {
-	if len(args) != 0 {
-		checkName = args[0]
-	} else {
+// reload check
+func doReloadCheck(checkName string) error {
+	if checkName == "" {
 		return fmt.Errorf("Must supply a check name to query")
 	}
 
-	c := common.GetClient()
-	urlstr := "http://" + sockname + "/check/" + checkName + "/reload"
+	c := common.GetClient(false) // FIX: get certificates right then make this true
+	urlstr := fmt.Sprintf("https://localhost:%v/check/%s/reload", config.Datadog.GetInt("cmd_port"), checkName)
 
 	postbody := ""
 
 	body, e := common.DoPost(c, urlstr, "application/json", strings.NewReader(postbody))
-
 	if e != nil {
 		return fmt.Errorf("error getting check status for check %s: %v", checkName, e)
 	}

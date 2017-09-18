@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
@@ -81,7 +82,8 @@ func (l *DockerListener) Listen(newSvc, delSvc chan<- Service) {
 				l.processEvent(msg)
 			case err := <-errs:
 				if err != nil && err != io.EOF {
-					panic(err)
+					log.Errorf("Docker listener error: %v", err)
+					signals.ErrorStopper <- true
 				}
 				return
 			}
@@ -144,7 +146,9 @@ func (l *DockerListener) processEvent(e events.Message) {
 		if e.Action == "die" {
 			l.removeService(cID)
 		} else {
-			panic("TODO - this shouldn't happen, expected die")
+			log.Error("TODO - this shouldn't happen, expected die")
+			signals.ErrorStopper <- true
+			return
 		}
 	} else {
 		// we might receive a `die` event for an unrelated container we don't

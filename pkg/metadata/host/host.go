@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
 
@@ -51,22 +52,37 @@ func GetStatusInformation() *host.InfoStat {
 // if the cache is empty, then it queries the information directly
 func GetMeta() *Meta {
 	key := buildKey("meta")
-	if x, found := util.Cache.Get(key); found {
+	if x, found := cache.Cache.Get(key); found {
 		return x.(*Meta)
 	}
 	return getMeta()
 }
 
 func getHostTags() *tags {
+	hostTags := config.Datadog.GetStringSlice("tags")
+	var gceTags []string
+
+	ec2Tags, err := ec2.GetTags()
+	if err != nil {
+		log.Warnf("No EC2 host tags %v", err)
+	}
+	hostTags = append(hostTags, ec2Tags...)
+
+	gceTags, err = gce.GetTags()
+	if err != nil {
+		log.Warnf("No GCE host tags %v", err)
+	}
+
 	return &tags{
-		System: config.Datadog.GetStringSlice("tags"),
+		System:              hostTags,
+		GoogleCloudPlatform: gceTags,
 	}
 }
 
 func getSystemStats() *systemStats {
 	var stats *systemStats
 	key := buildKey("systemStats")
-	if x, found := util.Cache.Get(key); found {
+	if x, found := cache.Cache.Get(key); found {
 		stats = x.(*systemStats)
 	} else {
 		cpuInfo := getCPUInfo()
@@ -82,7 +98,7 @@ func getSystemStats() *systemStats {
 
 		// fill the platform dependent bits of info
 		fillOsVersion(stats, hostInfo)
-		util.Cache.Set(key, stats, util.NoExpiration)
+		cache.Cache.Set(key, stats, cache.NoExpiration)
 	}
 
 	return stats
@@ -94,8 +110,7 @@ func getSystemStats() *systemStats {
 // using this package without embedding Python.
 func getPythonVersion() string {
 	// retrieve the Python version from the Agent cache
-	key := path.Join(util.AgentCachePrefix, "pythonVersion")
-	if x, found := util.Cache.Get(key); found {
+	if x, found := cache.Cache.Get(cache.BuildAgentKey("pythonVersion")); found {
 		return x.(string)
 	}
 
@@ -105,7 +120,7 @@ func getPythonVersion() string {
 // getCPUInfo returns InfoStat for the first CPU gopsutil found
 func getCPUInfo() *cpu.InfoStat {
 	key := buildKey("cpuInfo")
-	if x, found := util.Cache.Get(key); found {
+	if x, found := cache.Cache.Get(key); found {
 		return x.(*cpu.InfoStat)
 	}
 
@@ -116,13 +131,13 @@ func getCPUInfo() *cpu.InfoStat {
 		return &cpu.InfoStat{}
 	}
 	info := &i[0]
-	util.Cache.Set(key, info, util.NoExpiration)
+	cache.Cache.Set(key, info, cache.NoExpiration)
 	return info
 }
 
 func getHostInfo() *host.InfoStat {
 	key := buildKey("hostInfo")
-	if x, found := util.Cache.Get(key); found {
+	if x, found := cache.Cache.Get(key); found {
 		return x.(*host.InfoStat)
 	}
 
@@ -132,7 +147,7 @@ func getHostInfo() *host.InfoStat {
 		log.Errorf("failed to retrieve host info: %s", err)
 		return &host.InfoStat{}
 	}
-	util.Cache.Set(key, info, util.NoExpiration)
+	cache.Cache.Set(key, info, cache.NoExpiration)
 	return info
 }
 
@@ -180,7 +195,7 @@ func getMeta() *Meta {
 
 	// Cache the metadata for use in other payload
 	key := buildKey("meta")
-	util.Cache.Set(key, m, util.NoExpiration)
+	cache.Cache.Set(key, m, cache.NoExpiration)
 
 	return m
 }

@@ -44,7 +44,7 @@ func TestBuildProxySettings(t *testing.T) {
 	_, err = buildProxySettings(agentConfig)
 	assert.NotNil(t, err)
 
-	agentConfig["proxy_host"] = "http://foobar.baz"
+	agentConfig["proxy_host"] = "foobar.baz"
 
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
@@ -84,4 +84,41 @@ func TestBuildSyslogURI(t *testing.T) {
 	agentConfig["syslog_host"] = "127.0.0.1"
 	agentConfig["syslog_port"] = "1234"
 	assert.Equal(t, "127.0.0.1:1234", buildSyslogURI(agentConfig))
+}
+
+func TestBuildConfigProviders(t *testing.T) {
+	agentConfig := make(Config)
+
+	// unknown config provider
+	agentConfig["sd_config_backend"] = "foo"
+	_, err := buildConfigProviders(agentConfig)
+	assert.NotNil(t, err)
+
+	// etcd
+	agentConfig["sd_config_backend"] = "etcd"
+	agentConfig["sd_backend_host"] = "127.0.0.1"
+	agentConfig["sd_backend_port"] = "1234"
+	agentConfig["sd_backend_username"] = "user"
+	agentConfig["sd_backend_password"] = "pass"
+	providers, err := buildConfigProviders(agentConfig)
+	assert.Nil(t, err)
+	assert.Len(t, providers, 1)
+	p := providers[0]
+	assert.Equal(t, "etcd", p.Name)
+	assert.Equal(t, "127.0.0.1:1234", p.TemplateURL)
+	assert.Equal(t, "user", p.Username)
+	assert.Equal(t, "pass", p.Password)
+	assert.True(t, p.Polling)
+	assert.Empty(t, p.Token)
+
+	// consul has specific settings
+	agentConfig = make(Config)
+	agentConfig["sd_config_backend"] = "consul"
+	agentConfig["consul_token"] = "123456"
+	providers, err = buildConfigProviders(agentConfig)
+	assert.Nil(t, err)
+	assert.Len(t, providers, 1)
+	p = providers[0]
+	assert.Equal(t, "consul", p.Name)
+	assert.Equal(t, "123456", p.Token)
 }

@@ -1,0 +1,32 @@
+========
+JMXFetch
+========
+{{- with .JMXStatus -}}
+{{- if and (not .timestamp) (not .checks)}}
+no JMX status available
+{{- else }}
+    initialized checks:
+{{- range $check,$instances := .checks.initialized_checks }}
+        {{ $check -}}
+{{- range $instance := $instances }}
+{{- range $k,$v := $instance }}
+            {{ $k }} : {{ $v }}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+    failed checks:
+{{- if (not .checks.failed_checks)}}
+        no failed checks
+{{ else }}
+{{- range $check,$instances := .checks.failed_checks }}
+        {{ $check }}
+{{- range $instance := $instances }}
+{{- range $k,$v := $instance }}
+            {{ $k }} : {{ $v }}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
