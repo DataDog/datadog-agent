@@ -6,7 +6,9 @@
 package docker
 
 import (
+	"math"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -63,6 +65,38 @@ func TestCPUNrThrottled(t *testing.T) {
 	value, err = cgroup.CPUNrThrottled()
 	assert.Nil(t, err)
 	assert.Equal(t, value, uint64(10))
+}
+
+func TestMemLimit(t *testing.T) {
+	tempFolder, err := newTempFolder("mem-limit")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "memory")
+
+	// No file
+	value, err := cgroup.MemLimit()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(0))
+
+	// Invalid file
+	tempFolder.add("memory/memory.limit_in_bytes", "ab")
+	value, err = cgroup.MemLimit()
+	assert.NotNil(t, err)
+	assert.IsType(t, err, &strconv.NumError{})
+	assert.Equal(t, value, uint64(0))
+
+	// Overflow value
+	tempFolder.add("memory/memory.limit_in_bytes", strconv.Itoa(int(math.Pow(2, 61))))
+	value, err = cgroup.MemLimit()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(0))
+
+	// Valid value
+	tempFolder.add("memory/memory.limit_in_bytes", "1234")
+	value, err = cgroup.MemLimit()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(1234))
 }
 
 func TestParseSingleStat(t *testing.T) {
@@ -180,6 +214,32 @@ func TestParseCgroupPaths(t *testing.T) {
 				"cpuset":  "/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
 				// CPU is mising so we will automatically use from cpuacct
 				"cpu": "/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+			},
+		},
+		{
+			// Melting pot of known cgroup formats
+			contents: []string{
+				// Kubernetes < 1.6
+				"1:kube1.6:/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+				// New CoreOS / most systems
+				"2:classic:/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+				// Rancher
+				"3:rancher:/docker/864daa0a0b19aa4703231b6c76f85c6f369b2452a5a7f777f0c9101c0fd5772a/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+				// Kubernetes 1.7+
+				"4:kube1.7:/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+				// Legacy CoreOS 7xx
+				"5:coreos_7xx:/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+				// Legacy systems
+				"6:legacy:a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+			},
+			expectedContainer: "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+			expectedPaths: map[string]string{
+				"kube1.6":    "/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+				"classic":    "/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+				"rancher":    "/docker/864daa0a0b19aa4703231b6c76f85c6f369b2452a5a7f777f0c9101c0fd5772a/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+				"kube1.7":    "/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+				"coreos_7xx": "/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+				"legacy":     "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
 			},
 		},
 	} {
