@@ -8,6 +8,8 @@
 package common
 
 import (
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -37,7 +39,8 @@ var (
 // should load python modules and checks
 func GetPythonPaths() []string {
 	return []string{
-		GetDistPath(),                                  // common modules are shipped in the dist path directly or under "checks" of the dist path
+		GetDistPath(),                                  // common modules are shipped in the dist path directly or under the "checks/" sub-dir
+		filepath.Join(GetDistPath(), "checks.d"),       // custom checks in the "checks.d/" sub-dir of the dist path
 		config.Datadog.GetString("additional_checksd"), // custom checks, have precedence over integrations-core checks
 		PyChecksPath,                                   // integrations-core checks
 	}
