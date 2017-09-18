@@ -188,19 +188,12 @@ func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
 // MemLimit returns the memory limit of the cgroup, if it exists. If the file does not
 // exist or there is no limit then this will default to 0.
 func (c ContainerCgroup) MemLimit() (uint64, error) {
-	statfile := c.cgroupFilePath("memory", "memory.limit_in_bytes")
-	lines, err := ReadLines(statfile)
+	v, err := c.ParseSingleStat("memory", "memory.limit_in_bytes")
 	if os.IsNotExist(err) {
-		log.Debugf("missing cgroup file: %s", statfile)
+		log.Debugf("missing cgroup file: %s",
+			c.cgroupFilePath("memory", "memory.limit_in_bytes"))
 		return 0, nil
 	} else if err != nil {
-		return 0, err
-	}
-	if len(lines) != 1 {
-		return 0, fmt.Errorf("wrong format file: %s", statfile)
-	}
-	v, err := strconv.ParseUint(lines[0], 10, 64)
-	if err != nil {
 		return 0, err
 	}
 	// limit_in_bytes is a special case here, it's possible that it shows a ridiculous number,
