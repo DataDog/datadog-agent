@@ -5,7 +5,10 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"path"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
@@ -55,11 +58,13 @@ func GetEnv(key string, dfault string, combineWith ...string) string {
 // HostProc returns the location of a host's procfs. This can and will be
 // overriden when running inside a container.
 func HostProc(combineWith ...string) string {
-	return GetEnv("HOST_PROC", "/proc", combineWith...)
+	parts := append([]string{config.Datadog.GetString("proc_root")}, combineWith...)
+	return path.Join(parts...)
 }
 
 // HostSys returns the location of a host's /sys. This can and will be overriden
 // when running inside a container.
+// TODO: use config value instead of envvar
 func HostSys(combineWith ...string) string {
 	return GetEnv("HOST_SYS", "/sys", combineWith...)
 }
