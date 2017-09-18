@@ -51,7 +51,10 @@ func doImport(cmd *cobra.Command, args []string) error {
 	}
 
 	// Global Agent configuration
-	common.SetupConfig(confFilePath)
+	err = common.SetupConfig(confFilePath)
+	if err != nil {
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
 
 	// store the current datadog.yaml path
 	datadogYamlPath := config.Datadog.ConfigFileUsed()

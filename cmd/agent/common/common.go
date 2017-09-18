@@ -29,9 +29,6 @@ var (
 	// Forwarder is the global forwarder instance
 	Forwarder forwarder.Forwarder
 
-	// Stopper is the channel used by other packages to ask for stopping the agent
-	Stopper = make(chan bool)
-
 	// utility variables
 	_here, _ = osext.ExecutableFolder()
 )

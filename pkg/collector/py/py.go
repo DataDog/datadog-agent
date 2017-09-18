@@ -8,6 +8,8 @@ package py
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	log "github.com/cihub/seelog"
 	python "github.com/sbinet/go-python"
 )
 
@@ -54,7 +56,8 @@ func Initialize(paths ...string) *python.PyThreadState {
 		C.Py_Initialize()
 	}
 	if C.Py_IsInitialized() == 0 {
-		panic("python: could not initialize the python interpreter")
+		log.Error("python: could not initialize the python interpreter")
+		signals.ErrorStopper <- true
 	}
 
 	// make sure the Python threading facilities are correctly initialized,
@@ -65,7 +68,8 @@ func Initialize(paths ...string) *python.PyThreadState {
 		C.PyEval_InitThreads()
 	}
 	if C.PyEval_ThreadsInitialized() == 0 {
-		panic("python: could not initialize the GIL")
+		log.Error("python: could not initialize the GIL")
+		signals.ErrorStopper <- true
 	}
 
 	// Set the PYTHONPATH if needed.

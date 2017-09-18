@@ -3,17 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package util
+package cache
 
 import (
+	"path"
 	"time"
 
 	cache "github.com/patrickmn/go-cache"
 )
 
 const (
-	defaultCacheExpire = 5 * time.Minute
-	defaultCachePurge  = 30 * time.Second
+	defaultExpire = 5 * time.Minute
+	defaultPurge  = 30 * time.Second
 	// AgentCachePrefix is the common root to use to prefix all the cache
 	// keys for any value regarding the Agent
 	AgentCachePrefix = "agent"
@@ -25,4 +26,12 @@ const (
 )
 
 // Cache provides an in-memory key:value store similar to memcached
-var Cache = cache.New(defaultCacheExpire, defaultCachePurge)
+var Cache = cache.New(defaultExpire, defaultPurge)
+
+// BuildAgentKey creates a cache key by joining the constant AgentCachePrefix
+// and path elements passed as arguments. It is to be used by core agent
+// packages to reuse the prefix constant
+func BuildAgentKey(keys ...string) string {
+	keys = append([]string{AgentCachePrefix}, keys...)
+	return path.Join(keys...)
+}

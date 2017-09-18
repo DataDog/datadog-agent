@@ -8,8 +8,6 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -19,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/spf13/cobra"
 )
 
@@ -45,9 +44,13 @@ var checkCmd = &cobra.Command{
 	Use:   "check <check_name>",
 	Short: "Run the specified check",
 	Long:  `Use this to run a specific check with a specific rate`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Global Agent configuration
-		common.SetupConfig(confFilePath)
+		err := common.SetupConfig(confFilePath)
+		if err != nil {
+			fmt.Printf("Cannot setup config, exiting: %v\n", err)
+			return err
+		}
 
 		if logLevel == "" {
 			if confFilePath != "" {
@@ -58,25 +61,24 @@ var checkCmd = &cobra.Command{
 		}
 
 		// Setup logger
-		err := config.SetupLogger("off", "", "", false, false, "")
+		err = config.SetupLogger("off", "", "", false, false, "")
 		if err != nil {
-			panic(err)
+			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+			return err
 		}
 
 		if len(args) != 0 {
 			checkName = args[0]
 		} else {
 			cmd.Help()
-			os.Exit(0)
+			return nil
 		}
 
-		common.SetupConfig(confFilePath)
-
 		hostname, err := util.GetHostname()
-		key := path.Join(util.AgentCachePrefix, "hostname")
-		util.Cache.Set(key, hostname, util.NoExpiration)
+		cache.Cache.Set(cache.BuildAgentKey("hostname"), hostname, cache.NoExpiration)
 		if err != nil {
-			panic(err)
+			fmt.Printf("Cannot get hostname, exiting: %v\n", err)
+			return err
 		}
 
 		s := &serializer.Serializer{Forwarder: common.Forwarder}
@@ -85,7 +87,7 @@ var checkCmd = &cobra.Command{
 		cs := common.AC.GetChecksByName(checkName)
 		if len(cs) == 0 {
 			fmt.Println("no check found")
-			os.Exit(1)
+			return fmt.Errorf("no check found")
 		}
 
 		if len(cs) > 1 {
@@ -104,6 +106,7 @@ var checkCmd = &cobra.Command{
 			fmt.Println(string(checkStatus))
 		}
 
+		return nil
 	},
 }
 

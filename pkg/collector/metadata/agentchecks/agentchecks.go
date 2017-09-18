@@ -7,13 +7,12 @@ package agentchecks
 
 import (
 	"encoding/json"
-	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	log "github.com/cihub/seelog"
 )
@@ -24,7 +23,7 @@ func GetPayload() *Payload {
 
 	// Grab the hostname from the cache
 	var hostname string
-	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
+	x, found := cache.Cache.Get(cache.BuildAgentKey("hostname"))
 	if found {
 		hostname = x.(string)
 	}
