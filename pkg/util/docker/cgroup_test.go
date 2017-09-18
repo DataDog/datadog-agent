@@ -6,11 +6,97 @@
 package docker
 
 import (
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestCPU(t *testing.T) {
+	tempFolder, err := newTempFolder("cpu-stats")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	cpuacctStats := dummyCgroupStat{
+		"user":   64140,
+		"system": 18327,
+	}
+	tempFolder.add("cpuacct/cpuacct.stat", cpuacctStats.String())
+	tempFolder.add("cpuacct/cpuacct.usage", "915266418275")
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpuacct")
+
+	timeStat, err := cgroup.CPU()
+	assert.Nil(t, err)
+	assert.Equal(t, timeStat.ContainerID, "dummy")
+	assert.Equal(t, timeStat.User, uint64(64140))
+	assert.Equal(t, timeStat.System, uint64(18327))
+	assert.InDelta(t, timeStat.UsageTotal, 91526.6418275, 0.0000001)
+}
+
+func TestCPUNrThrottled(t *testing.T) {
+	tempFolder, err := newTempFolder("cpu-throttled")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
+
+	// No file
+	value, err := cgroup.CPUNrThrottled()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(0))
+
+	// Invalid file
+	tempFolder.add("cpu/cpu.stat", "200")
+	_, err = cgroup.CPUNrThrottled()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(0))
+
+	// Valid file
+	cpuStats := dummyCgroupStat{
+		"nr_periods":     0,
+		"nr_throttled":   10,
+		"throttled_time": 18327,
+	}
+	tempFolder.add("cpu/cpu.stat", cpuStats.String())
+	value, err = cgroup.CPUNrThrottled()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(10))
+}
+
+func TestParseSingleStat(t *testing.T) {
+	tempFolder, err := newTempFolder("test-parse-single-stat")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
+
+	// No file
+	_, err = cgroup.ParseSingleStat("cpu", "notfound")
+	assert.NotNil(t, err)
+	assert.True(t, os.IsNotExist(err))
+
+	// Several lines
+	tempFolder.add("cpu/cpu.test", "1234\nbla")
+	_, err = cgroup.ParseSingleStat("cpu", "cpu.test")
+	assert.NotNil(t, err)
+	t.Log(err)
+	assert.Contains(t, err.Error(), "wrong file format")
+
+	// Not int
+	tempFolder.add("cpu/cpu.test", "1234bla")
+	_, err = cgroup.ParseSingleStat("cpu", "cpu.test")
+	assert.NotNil(t, err)
+	t.Log(err)
+	assert.Equal(t, err.Error(), "strconv.ParseUint: parsing \"1234bla\": invalid syntax")
+
+	// Valid file
+	tempFolder.add("cpu/cpu.test", "1234")
+	value, err := cgroup.ParseSingleStat("cpu", "cpu.test")
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(1234))
+}
 
 func TestParseCgroupMountPoints(t *testing.T) {
 	for _, tc := range []struct {

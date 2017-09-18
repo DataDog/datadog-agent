@@ -244,9 +244,9 @@ func (c ContainerCgroup) CPU() (*CgroupTimesStat, error) {
 		return ret, fmt.Errorf("error reading %s: %s", statfile, err)
 	}
 
-	usage, err := c.ParseFloatStat("cpuacct", "cpuacct.usage")
+	usage, err := c.ParseSingleStat("cpuacct", "cpuacct.usage")
 	if err == nil {
-		ret.UsageTotal = usage / NanoToUserHZDivisor
+		ret.UsageTotal = float64(usage) / NanoToUserHZDivisor
 	} else {
 		log.Debugf("missing total cpu usage stat for %s: %s", c.ContainerID, err.Error())
 	}
@@ -371,32 +371,15 @@ func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
 	return ret, nil
 }
 
-// ParseFloatStat reads and converts a cgroup stat file content to float64.
-func (c ContainerCgroup) ParseFloatStat(target, file string) (float64, error) {
+// ParseSingleStat reads and converts a single-value cgroup stat file content to uint64.
+func (c ContainerCgroup) ParseSingleStat(target, file string) (uint64, error) {
 	statFile := c.cgroupFilePath(target, file)
 	lines, err := ReadLines(statFile)
 	if err != nil {
 		return 0, err
 	}
 	if len(lines) != 1 {
-		return 0, fmt.Errorf("wrong format file: %s", statFile)
-	}
-	value, err := strconv.ParseFloat(lines[0], 64)
-	if err != nil {
-		return 0, err
-	}
-	return value, nil
-}
-
-// ParseUintStat reads and converts a cgroup stat file content to uint64.
-func (c ContainerCgroup) ParseUintStat(target, file string) (uint64, error) {
-	statFile := c.cgroupFilePath(target, file)
-	lines, err := ReadLines(statFile)
-	if err != nil {
-		return 0, err
-	}
-	if len(lines) != 1 {
-		return 0, fmt.Errorf("wrong format file: %s", statFile)
+		return 0, fmt.Errorf("wrong file format: %s", statFile)
 	}
 	value, err := strconv.ParseUint(lines[0], 10, 64)
 	if err != nil {

@@ -8,8 +8,6 @@
 package docker
 
 import (
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -24,10 +22,11 @@ import (
 
 func TestFindDockerNetworks(t *testing.T) {
 	assert := assert.New(t)
-	dummyProcDir, err := ioutil.TempDir("", "test-find-docker-networks")
+
+	dummyProcDir, err := newTempFolder("test-find-docker-networks")
 	assert.Nil(err)
-	defer os.RemoveAll(dummyProcDir) // clean up
-	config.Datadog.SetDefault("proc_root", dummyProcDir)
+	defer dummyProcDir.removeAll() // clean up
+	config.Datadog.SetDefault("proc_root", dummyProcDir.RootPath)
 
 	containerID := "test-find-docker-networks"
 	for _, tc := range []struct {
@@ -126,15 +125,10 @@ func TestFindDockerNetworks(t *testing.T) {
 		},
 	} {
 		// Create temporary files on disk with the routes and stats.
-		routePath := filepath.Join(dummyProcDir, strconv.Itoa(int(tc.pid)), "net")
-		err := os.MkdirAll(routePath, 0777)
+		err = dummyProcDir.add(filepath.Join(strconv.Itoa(int(tc.pid)), "net", "route"), tc.routes)
 		assert.NoError(err)
-		f1, err := os.Create(filepath.Join(dummyProcDir, strconv.Itoa(int(tc.pid)), "net", "route"))
+		err = dummyProcDir.add(filepath.Join(strconv.Itoa(int(tc.pid)), "net", "dev"), tc.dev)
 		assert.NoError(err)
-		f1.WriteString(tc.routes)
-		f2, err := os.Create(filepath.Join(dummyProcDir, strconv.Itoa(int(tc.pid)), "net", "dev"))
-		assert.NoError(err)
-		f2.WriteString(tc.dev)
 
 		// Use the routes file and settings to get our networks.
 		networks := findDockerNetworks(containerID, tc.pid, tc.settings)
@@ -144,9 +138,6 @@ func TestFindDockerNetworks(t *testing.T) {
 		stat, err := collectNetworkStats(containerID, tc.pid, networks)
 		assert.NoError(err)
 		assert.Equal(tc.stat, stat)
-
-		f1.Close()
-		f2.Close()
 	}
 }
 
