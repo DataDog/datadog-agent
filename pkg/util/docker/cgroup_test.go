@@ -15,11 +15,8 @@ import (
 func TestCPU(t *testing.T) {
 	tempFolder, err := newTempFolder("cpu-stats")
 	assert.Nil(t, err)
+	defer tempFolder.removeAll()
 
-	cpuStats := dummyCgroupStat{
-		"nr_throttled": 10,
-	}
-	tempFolder.add("cpu/cpu.stat", cpuStats.String())
 	cpuacctStats := dummyCgroupStat{
 		"user":   64140,
 		"system": 18327,
@@ -44,7 +41,44 @@ func TestCPU(t *testing.T) {
 	assert.Equal(t, timeStat.ContainerID, "dummy")
 	assert.Equal(t, timeStat.User, uint64(64140))
 	assert.Equal(t, timeStat.System, uint64(18327))
-	assert.Equal(t, timeStat.UsageTotal, float64(91526.6418275))
+	assert.InDelta(t, timeStat.UsageTotal, 91526.6418275, 0.0000001)
+}
+
+func TestCPUNrThrottled(t *testing.T) {
+	tempFolder, err := newTempFolder("cpu-throttled")
+	assert.Nil(t, err)
+	//defer tempFolder.removeAll()
+
+	cgroup := &ContainerCgroup{
+		Mounts: map[string]string{
+			"cpu": tempFolder.RootPath,
+		},
+		Paths: map[string]string{
+			"cpu": "cpu",
+		},
+	}
+
+	// No file
+	value, err := cgroup.CPUNrThrottled()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(0))
+
+	// Invalid file
+	tempFolder.add("cpu/cpu.stat", "200")
+	_, err = cgroup.CPUNrThrottled()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(0))
+
+	// Valid file
+	cpuStats := dummyCgroupStat{
+		"nr_periods":     0,
+		"nr_throttled":   10,
+		"throttled_time": 18327,
+	}
+	tempFolder.add("cpu/cpu.stat", cpuStats.String())
+	value, err = cgroup.CPUNrThrottled()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(10))
 }
 
 func TestParseCgroupMountPoints(t *testing.T) {
