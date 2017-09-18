@@ -110,6 +110,12 @@ if linux?
   dependency 'sysstat'
 end
 
+# Windows-specific dependencies
+if windows?
+  dependency 'datadog-upgrade-helper'
+  dependency 'pywin32'
+end
+
 # creates required build directories
 dependency 'preparation'
 
@@ -119,16 +125,9 @@ dependency 'datadog-agent'
 # Additional software
 dependency 'datadog-agent-integrations'
 dependency 'jmxfetch'
-
-
 dependency 'datadog-trace-agent'
 unless windows?
   dependency 'datadog-process-agent'
-end
-
-if windows?
-  dependency 'datadog-upgrade-helper'
-  dependency 'pywin32'
 end
 
 # Remove pyc/pyo files from package
@@ -139,6 +138,19 @@ end
 
 # version manifest file
 dependency 'version-manifest'
+
+# this dependency puts few files out of the omnibus install dir and move them
+# in the final destination. This way such files will be listed in the packages
+# manifest and owned by the package manager. This is the only point in the build
+# process where we operate outside the omnibus install dir, thus the need of
+# the `extra_package_file` directive.
+# This *has* to be the latest dependency in the project.
+dependency 'datadog-agent-finalize'
+if linux?
+  extra_package_file '/etc/init/datadog-agent.conf'
+  extra_package_file '/lib/systemd/system/datadog-agent.service'
+  extra_package_file '/etc/datadog-agent/'
+end
 
 exclude '\.git*'
 exclude 'bundler\/git'

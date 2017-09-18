@@ -10,15 +10,6 @@
 CONFIG_DIR=/etc/datadog-agent
 SERVICE_NAME=datadog-agent
 
-# Create symlink to the agent's binary
-ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
-ln -sf $INSTALL_DIR/bin/agent/dd-agent /usr/bin/dd-agent
-
-# Setup configuration files
-cp $INSTALL_DIR/etc/datadog-agent/datadog.yaml.example $CONFIG_DIR
-cp -r $INSTALL_DIR/etc/datadog-agent/conf.d $CONFIG_DIR/conf.d
-ln -sf $INSTALL_DIR/agent/checks.d $CONFIG_DIR/checks.d
-
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
 # and avoid restarting when a check conf is invalid
 if [ -f "$CONFIG_DIR/datadog.yaml" ]; then

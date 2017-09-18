@@ -44,15 +44,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                     echo "Adding dd-agent user to dd-agent group"
                     usermod -g dd-agent dd-agent
                 fi
-
-                # Create symlink to the agent's binary
-                ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
-                ln -sf $INSTALL_DIR/bin/agent/dd-agent /usr/bin/dd-agent
-
-                # Copy/link configuration files
-                cp $INSTALL_DIR/etc/datadog-agent/datadog.yaml.example $CONFIG_DIR
-                cp -r $INSTALL_DIR/etc/datadog-agent/conf.d $CONFIG_DIR
-                ln -sf $INSTALL_DIR/agent/checks.d $CONFIG_DIR
             ;;
             abort-upgrade|abort-remove|abort-deconfigure)
             ;;
