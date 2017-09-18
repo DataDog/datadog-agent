@@ -40,9 +40,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 	if err := apicommon.Validate(w, r); err != nil {
 		return
 	}
-	go func() {
-		signals.Stopper <- true
-	}()
+	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
 	w.Write(j)
