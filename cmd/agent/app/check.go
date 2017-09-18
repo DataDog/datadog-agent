@@ -8,7 +8,6 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"path"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/spf13/cobra"
 )
 
@@ -75,8 +75,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		hostname, err := util.GetHostname()
-		key := path.Join(util.AgentCachePrefix, "hostname")
-		util.Cache.Set(key, hostname, util.NoExpiration)
+		cache.Cache.Set(cache.BuildAgentKey("hostname"), hostname, cache.NoExpiration)
 		if err != nil {
 			fmt.Printf("Cannot get hostname, exiting: %v\n", err)
 			return err

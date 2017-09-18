@@ -8,7 +8,6 @@ package runner
 import (
 	"expvar"
 	"fmt"
-	"path"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	log "github.com/cihub/seelog"
 )
 
@@ -232,7 +231,7 @@ func GetCheckStats() map[check.ID]*check.Stats {
 }
 
 func getHostname() string {
-	hname, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
+	hname, found := cache.Cache.Get(cache.BuildAgentKey("hostname"))
 	if found {
 		return hname.(string)
 	}
