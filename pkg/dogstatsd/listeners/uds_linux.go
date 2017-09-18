@@ -8,10 +8,9 @@ package listeners
 import (
 	"fmt"
 	"net"
-	"path"
 	"strconv"
 
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"golang.org/x/sys/unix"
 )
@@ -72,8 +71,8 @@ func processUDSOrigin(ancillary []byte) (string, error) {
 // As the result is cached and the lookup is really fast (parsing a local file), it can be
 // called from the intake goroutine.
 func getContainerForPID(pid int32) (string, error) {
-	key := path.Join(util.AgentCachePrefix, PIDToContainerKeyPrefix, strconv.Itoa(int(pid)))
-	if x, found := util.Cache.Get(key); found {
+	key := cache.BuildAgentKey(PIDToContainerKeyPrefix, strconv.Itoa(int(pid)))
+	if x, found := cache.Cache.Get(key); found {
 		return x.(string), nil
 	}
 	id, err := docker.ContainerIDForPID(int(pid))
@@ -82,6 +81,6 @@ func getContainerForPID(pid int32) (string, error) {
 	}
 	value := fmt.Sprintf("docker://%s", id)
 
-	util.Cache.Set(key, value, 0)
+	cache.Cache.Set(key, value, 0)
 	return value, err
 }

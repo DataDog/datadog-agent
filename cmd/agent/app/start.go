@@ -7,7 +7,6 @@ package app
 
 import (
 	"fmt"
-	"path"
 	"syscall"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
@@ -156,8 +156,7 @@ func StartAgent() error {
 	}
 
 	// store the computed hostname in the global cache
-	key := path.Join(util.AgentCachePrefix, "hostname")
-	util.Cache.Set(key, hostname, util.NoExpiration)
+	cache.Cache.Set(cache.BuildAgentKey("hostname"), hostname, cache.NoExpiration)
 
 	log.Infof("Hostname is: %s", hostname)
 

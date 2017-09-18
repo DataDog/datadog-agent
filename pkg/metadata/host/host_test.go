@@ -6,11 +6,10 @@
 package host
 
 import (
-	"path"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +29,7 @@ func TestGetSystemStats(t *testing.T) {
 	assert.NotNil(t, getSystemStats())
 	fakeStats := &systemStats{Machine: "fooMachine"}
 	key := buildKey("systemStats")
-	util.Cache.Set(key, fakeStats, util.NoExpiration)
+	cache.Cache.Set(key, fakeStats, cache.NoExpiration)
 	s := getSystemStats()
 	assert.NotNil(t, s)
 	assert.Equal(t, fakeStats.Machine, s.Machine)
@@ -38,8 +37,8 @@ func TestGetSystemStats(t *testing.T) {
 
 func TestGetPythonVersion(t *testing.T) {
 	require.Equal(t, "n/a", getPythonVersion())
-	key := path.Join(util.AgentCachePrefix, "pythonVersion")
-	util.Cache.Set(key, "Python 2.8", util.NoExpiration)
+	key := cache.BuildAgentKey("pythonVersion")
+	cache.Cache.Set(key, "Python 2.8", cache.NoExpiration)
 	require.Equal(t, "Python 2.8", getPythonVersion())
 }
 
@@ -47,7 +46,7 @@ func TestGetCPUInfo(t *testing.T) {
 	assert.NotNil(t, getCPUInfo())
 	fakeInfo := &cpu.InfoStat{Cores: 42}
 	key := buildKey("cpuInfo")
-	util.Cache.Set(key, fakeInfo, util.NoExpiration)
+	cache.Cache.Set(key, fakeInfo, cache.NoExpiration)
 	info := getCPUInfo()
 	assert.Equal(t, int32(42), info.Cores)
 }
@@ -56,7 +55,7 @@ func TestGetHostInfo(t *testing.T) {
 	assert.NotNil(t, getHostInfo())
 	fakeInfo := &host.InfoStat{HostID: "FOOBAR"}
 	key := buildKey("hostInfo")
-	util.Cache.Set(key, fakeInfo, util.NoExpiration)
+	cache.Cache.Set(key, fakeInfo, cache.NoExpiration)
 	info := getHostInfo()
 	assert.Equal(t, "FOOBAR", info.HostID)
 }
