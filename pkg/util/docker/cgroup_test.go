@@ -6,6 +6,7 @@
 package docker
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -24,17 +25,7 @@ func TestCPU(t *testing.T) {
 	tempFolder.add("cpuacct/cpuacct.stat", cpuacctStats.String())
 	tempFolder.add("cpuacct/cpuacct.usage", "915266418275")
 
-	cgroup := &ContainerCgroup{
-		ContainerID: "dummy",
-		Mounts: map[string]string{
-			"cpu":     tempFolder.RootPath,
-			"cpuacct": tempFolder.RootPath,
-		},
-		Paths: map[string]string{
-			"cpu":     "cpu",
-			"cpuacct": "cpuacct",
-		},
-	}
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpuacct")
 
 	timeStat, err := cgroup.CPU()
 	assert.Nil(t, err)
@@ -47,16 +38,9 @@ func TestCPU(t *testing.T) {
 func TestCPUNrThrottled(t *testing.T) {
 	tempFolder, err := newTempFolder("cpu-throttled")
 	assert.Nil(t, err)
-	//defer tempFolder.removeAll()
+	defer tempFolder.removeAll()
 
-	cgroup := &ContainerCgroup{
-		Mounts: map[string]string{
-			"cpu": tempFolder.RootPath,
-		},
-		Paths: map[string]string{
-			"cpu": "cpu",
-		},
-	}
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
 
 	// No file
 	value, err := cgroup.CPUNrThrottled()
@@ -79,6 +63,39 @@ func TestCPUNrThrottled(t *testing.T) {
 	value, err = cgroup.CPUNrThrottled()
 	assert.Nil(t, err)
 	assert.Equal(t, value, uint64(10))
+}
+
+func TestParseSingleStat(t *testing.T) {
+	tempFolder, err := newTempFolder("test-parse-single-stat")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
+
+	// No file
+	_, err = cgroup.ParseSingleStat("cpu", "notfound")
+	assert.NotNil(t, err)
+	assert.True(t, os.IsNotExist(err))
+
+	// Several lines
+	tempFolder.add("cpu/cpu.test", "1234\nbla")
+	_, err = cgroup.ParseSingleStat("cpu", "cpu.test")
+	assert.NotNil(t, err)
+	t.Log(err)
+	assert.Contains(t, err.Error(), "wrong file format")
+
+	// Not int
+	tempFolder.add("cpu/cpu.test", "1234bla")
+	_, err = cgroup.ParseSingleStat("cpu", "cpu.test")
+	assert.NotNil(t, err)
+	t.Log(err)
+	assert.Equal(t, err.Error(), "strconv.ParseUint: parsing \"1234bla\": invalid syntax")
+
+	// Valid file
+	tempFolder.add("cpu/cpu.test", "1234")
+	value, err := cgroup.ParseSingleStat("cpu", "cpu.test")
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(1234))
 }
 
 func TestParseCgroupMountPoints(t *testing.T) {

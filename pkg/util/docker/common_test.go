@@ -61,3 +61,16 @@ func (c dummyCgroupStat) String() string {
 
 	return strings.Join(lines, "\n")
 }
+
+func newDummyContainerCgroup(rootPath string, targets ...string) *ContainerCgroup {
+	cgroup := &ContainerCgroup{
+		ContainerID: "dummy",
+		Mounts:      make(map[string]string),
+		Paths:       make(map[string]string),
+	}
+	for _, target := range targets {
+		cgroup.Mounts[target] = rootPath
+		cgroup.Paths[target] = target
+	}
+	return cgroup
+}
