@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -29,7 +30,7 @@ type dockerConfig struct {
 	//CollectExitCodes       bool               `yaml:"collect_exit_codes"`
 	//ExcludeContainers      []string           `yaml:"exclude"`
 	//IncludeContainers      []string           `yaml:"include"`
-	//Tags                   []string           `yaml:"tags"`
+	Tags []string `yaml:"tags"`
 	//ECSTags                []string           `yaml:"ecs_tags"`
 	//PerformanceTags        []string           `yaml:"performance_tags"`
 	//ContainrTags           []string           `yaml:"container_tags"`
@@ -61,7 +62,13 @@ func (d *DockerCheck) Run() error {
 	}
 
 	for _, c := range containers {
-		tags := []string{fmt.Sprintf("image:%s", c.Image), fmt.Sprintf("image_id:%s", c.ImageID)}
+		tags, err := tagger.Tag(c.EntityID, true)
+		if err != nil {
+			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
+			tags = []string{}
+		}
+		tags = append(tags, d.instance.Tags...)
+
 		sender.Rate("docker.cpu.system", float64(c.CPU.System), "", tags)
 		sender.Rate("docker.cpu.user", float64(c.CPU.User), "", tags)
 		sender.Rate("docker.cpu.usage", c.CPU.UsageTotal, "", tags)
