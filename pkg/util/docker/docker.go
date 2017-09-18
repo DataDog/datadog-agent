@@ -212,6 +212,15 @@ type Container struct {
 	cgroup *ContainerCgroup
 }
 
+func (c *Container) Inspect(withSize bool) (types.ContainerJSON, error) {
+	if globalDockerUtil == nil {
+		return types.ContainerJSON{}, fmt.Errorf("DockerUtil not initialized")
+	}
+
+	res, _, err := globalDockerUtil.cli.ContainerInspectWithRaw(context.Background(), c.ID, withSize)
+	return res, err
+}
+
 type dockerNetwork struct {
 	iface      string
 	dockerName string
