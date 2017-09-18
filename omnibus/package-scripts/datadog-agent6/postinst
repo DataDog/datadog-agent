@@ -3,8 +3,8 @@
 # Perform necessary datadog-agent setup steps after package is installed.
 # NOTE: for .rpm, see posttrans instead
 #
-# .deb: STEP2/5
-# .rpm: STEP3/6
+# .deb: STEP 2 of 5
+# .rpm: STEP 3 of 6
 
 INSTALL_DIR=/opt/datadog-agent6
 LOG_DIR=/var/log/datadog

@@ -5,7 +5,7 @@
 # It is NOT run on removal of the package
 #
 # .deb: n/a
-# .rpm: STEP6/6
+# .rpm: STEP 6 of 6
 
 CONFIG_DIR=/etc/datadog-agent
 SERVICE_NAME=datadog-agent
