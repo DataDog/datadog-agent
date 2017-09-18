@@ -5,12 +5,12 @@ import (
 	"math"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	log "github.com/cihub/seelog"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -53,7 +53,6 @@ type DockerCheck struct {
 
 // Run executes the check
 func (d *DockerCheck) Run() error {
-	log.Error("Running the docker go check !!!!")
 	sender, err := aggregator.GetSender(d.ID())
 
 	containers, err := docker.AllContainers()
@@ -69,7 +68,7 @@ func (d *DockerCheck) Run() error {
 		sender.Rate("docker.cpu.throttled", float64(c.CPUNrThrottled), "", tags)
 		sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)
 		sender.Gauge("docker.mem.rss", float64(c.Memory.RSS), "", tags)
-		if C.Memory.SwapPresent == true {
+		if c.Memory.SwapPresent == true {
 			sender.Gauge("docker.mem.swap", float64(c.Memory.Swap), "", tags)
 		}
 
@@ -90,6 +89,21 @@ func (d *DockerCheck) Run() error {
 
 		sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
 		sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
+
+		sender.Rate("docker.net.bytes_sent", float64(c.Network.BytesSent), "", tags)
+		sender.Rate("docker.net.bytes_rcvd", float64(c.Network.BytesRcvd), "", tags)
+
+		if d.instance.CollectContainerSize {
+			info, err := c.Inspect(true)
+			if err != nil {
+				log.Errorf("Failed to inspect container %s - %s", c.ID[:12], err)
+			} else if info.SizeRw == nil || info.SizeRootFs == nil {
+				log.Warnf("Docker inspect did not return the container size")
+			} else {
+				sender.Gauge("docker.container.size_rw", float64(*info.SizeRw), "", tags)
+				sender.Gauge("docker.container.size_rootfs", float64(*info.SizeRootFs), "", tags)
+			}
+		}
 	}
 	sender.Commit()
 	return nil
@@ -105,7 +119,7 @@ func (d *DockerCheck) String() string {
 func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 	docker.InitDockerUtil(&docker.Config{
 		CacheDuration:  10 * time.Second,
-		CollectNetwork: false,
+		CollectNetwork: true,
 	})
 	d.instance = &dockerConfig{}
 	d.instance.Parse(config)
