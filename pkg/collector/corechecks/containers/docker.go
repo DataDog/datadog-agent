@@ -36,7 +36,9 @@ func (d *DockerCheck) Run() error {
 		sender.Rate("docker.cpu.throttled", float64(c.CPUNrThrottled), "", tags)
 		sender.Gauge("docker.mem.cache", float64(c.Memory.Cache), "", tags)
 		sender.Gauge("docker.mem.rss", float64(c.Memory.RSS), "", tags)
-		sender.Gauge("docker.mem.swap", float64(c.Memory.Swap), "", tags)
+		if C.Memory.SwapPresent == true {
+			sender.Gauge("docker.mem.swap", float64(c.Memory.Swap), "", tags)
+		}
 
 		if c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
 			sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
@@ -45,7 +47,7 @@ func (d *DockerCheck) Run() error {
 			}
 		}
 
-		if c.Memory.HierarchicalMemSWLimit < uint64(math.Pow(2, 60)) {
+		if c.Memory.HierarchicalMemSWLimit > 0 && c.Memory.HierarchicalMemSWLimit < uint64(math.Pow(2, 60)) {
 			sender.Gauge("docker.mem.sw_limit", float64(c.Memory.HierarchicalMemSWLimit), "", tags)
 			if c.Memory.HierarchicalMemSWLimit != 0 {
 				sender.Gauge("docker.mem.sw_in_use",
