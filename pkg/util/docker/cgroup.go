@@ -249,6 +249,34 @@ func (c ContainerCgroup) CPU() (*CgroupTimesStat, error) {
 	return ret, nil
 }
 
+// CPUNrThrottled returns the number of times the cgroup has been
+// throttle/limited because of CPU quota / limit
+// If the cgroup file does not exist then we just log debug and return 0.
+func (c ContainerCgroup) CPUNrThrottled() (uint64, error) {
+	statfile := c.cgroupFilePath("cpu", "cpu.stat")
+	f, err := os.Open(statfile)
+	if os.IsNotExist(err) {
+		log.Debugf("missing cgroup file: %s", statfile)
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		fields := strings.Split(scanner.Text(), " ")
+		if fields[0] == "nr_throttled" {
+			value, err := strconv.ParseUint(fields[1], 10, 64)
+			if err != nil {
+				return 0, err
+			}
+			return value, nil
+		}
+	}
+	log.Debugf("missing nr_throttled line in %s", statfile)
+	return 0, nil
+}
+
 // CPULimit would show CPU limit for this cgroup.
 // It does so by checking the cpu period and cpu quota config
 // if a user does this:
@@ -355,7 +383,7 @@ func (c ContainerCgroup) ParseFloatStat(target, file string) (float64, error) {
 	return value, nil
 }
 
-// ParseFloatStat reads and converts a cgroup stat file content to uint64.
+// ParseUintStat reads and converts a cgroup stat file content to uint64.
 func (c ContainerCgroup) ParseUintStat(target, file string) (uint64, error) {
 	statFile := c.cgroupFilePath(target, file)
 	lines, err := ReadLines(statFile)

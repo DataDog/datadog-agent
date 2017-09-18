@@ -192,13 +192,14 @@ type Container struct {
 	Health  string
 	Pids    []int32
 
-	CPULimit  float64
-	MemLimit  uint64
-	CPU       *CgroupTimesStat
-	Memory    *CgroupMemStat
-	IO        *CgroupIOStat
-	Network   *NetworkStat
-	StartedAt int64
+	CPULimit       float64
+	MemLimit       uint64
+	CPUNrThrottled uint64
+	CPU            *CgroupTimesStat
+	Memory         *CgroupMemStat
+	IO             *CgroupIOStat
+	Network        *NetworkStat
+	StartedAt      int64
 
 	// For internal use only
 	cgroup *ContainerCgroup
@@ -463,6 +464,11 @@ func (d *dockerUtil) containers() ([]*Container, error) {
 		container.CPU, err = cgroup.CPU()
 		if err != nil {
 			log.Debugf("cgroup cpu: %s", err)
+			continue
+		}
+		container.CPUNrThrottled, err = cgroup.CPUNrThrottled()
+		if err != nil {
+			log.Debugf("cgroup cpuNrThrottled: %s", err)
 			continue
 		}
 		container.IO, err = cgroup.IO()
