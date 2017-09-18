@@ -15,14 +15,47 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	log "github.com/cihub/seelog"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
+type dockerConfig struct {
+	//Url                    string             `yaml:"url"`
+	//CollectEvent           bool               `yaml:"collect_events"`
+	//FilteredEventType      []string           `yaml:"filtered_event_types"`
+	CollectContainerSize bool `yaml:"collect_container_size"`
+	//CustomCGroup           bool               `yaml:"custom_cgroups"`
+	//HealthServiceWhitelist []string           `yaml:"health_service_check_whitelist"`
+	//CollectContainerCount  bool               `yaml:"collect_container_count"`
+	//CollectVolumCount      bool               `yaml:"collect_volume_count"`
+	//CollectImagesStats     bool               `yaml:"collect_images_stats"`
+	//CollectImageSize       bool               `yaml:"collect_image_size"`
+	//CollectDistStats       bool               `yaml:"collect_disk_stats"`
+	//CollectExitCodes       bool               `yaml:"collect_exit_codes"`
+	//ExcludeContainers      []string           `yaml:"exclude"`
+	//IncludeContainers      []string           `yaml:"include"`
+	//Tags                   []string           `yaml:"tags"`
+	//ECSTags                []string           `yaml:"ecs_tags"`
+	//PerformanceTags        []string           `yaml:"performance_tags"`
+	//ContainrTags           []string           `yaml:"container_tags"`
+	//EventAttributesAsTags  []string           `yaml:"event_attributes_as_tags"`
+	//CappedMetrics          map[string]float64 `yaml:"capped_metrics"`
+}
+
+func (c *dockerConfig) Parse(data []byte) error {
+	if err := yaml.Unmarshal(data, c); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // DockerCheck grabs docker metrics
 type DockerCheck struct {
 	lastWarnings []error
+	instance     *dockerConfig
 }
 
 // Run executes the check
@@ -82,6 +115,8 @@ func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 		CacheDuration:  10 * time.Second,
 		CollectNetwork: false,
 	})
+	d.instance = &dockerConfig{}
+	d.instance.Parse(config)
 	return nil
 }
 
