@@ -1,17 +1,18 @@
 #!/bin/sh
 #
-# Perform necessary datadog-agent setup steps
-# after package is installed.
+# Perform necessary datadog-agent setup steps after package is installed.
+# NOTE: for .rpm, see posttrans instead
 #
+# .deb: STEP2/5
+# .rpm: STEP3/6
 
 INSTALL_DIR=/opt/datadog-agent6
 LOG_DIR=/var/log/datadog
-SERVICE_NAME=datadog-agent6
+CONFIG_DIR=/etc/datadog-agent
+SERVICE_NAME=datadog-agent
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || uname -s)
-
-mkdir -p ${LOG_DIR}
 
 # If we are inside the Docker container, do nothing
 if [ -n "$DOCKER_DD_AGENT" ]; then
@@ -24,8 +25,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
         DISTRIBUTION_FAMILY="Debian"
     fi
-
-    CONFIG_DIR=/etc/datadog-agent
 
     if [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
         set -e
@@ -49,6 +48,11 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                 # Create symlink to the agent's binary
                 ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
                 ln -sf $INSTALL_DIR/bin/agent/dd-agent /usr/bin/dd-agent
+
+                # Copy/link configuration files
+                cp $INSTALL_DIR/etc/datadog-agent/datadog.yaml.example $CONFIG_DIR
+                cp -r $INSTALL_DIR/etc/datadog-agent/conf.d $CONFIG_DIR
+                ln -sf $INSTALL_DIR/agent/checks.d $CONFIG_DIR
             ;;
             abort-upgrade|abort-remove|abort-deconfigure)
             ;;
@@ -67,10 +71,11 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     # Only supports systemd and upstart
     echo "Enabling service $SERVICE_NAME"
     if command -v systemctl >/dev/null 2>&1; then
+        cp $INSTALL_DIR/scripts/datadog-agent.service /lib/systemd/system
         systemctl enable $SERVICE_NAME
     elif command -v initctl >/dev/null 2>&1; then
-        # Nothing to do, this is defined directly in the upstart job file
-        :
+        cp $INSTALL_DIR/scripts/datadog-agent.conf /etc/init
+        # start/stop policy is already defined in the upstart job file
     else
         echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
         exit 1

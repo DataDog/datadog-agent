@@ -46,7 +46,7 @@ build do
         vars: { install_dir: install_dir }
 
     erb source: "systemd.service.erb",
-        dest: "#{install_dir}/scripts/datadog-agent6.service",
+        dest: "#{install_dir}/scripts/datadog-agent.service",
         mode: 0755,
         vars: { install_dir: install_dir }
   end

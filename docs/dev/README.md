@@ -8,9 +8,11 @@ This guide will help you to develop and contribute code to the project.
   * Read the [contributing][contributing] guidelines.
   * Setup your [development enviroment][dev-env].
   * Learn about [testing][testing].
+  * [Build][agent-omnibus] your own packages.
 
 
 [legal]: legal.md
 [dev-env]: agent_dev_env.md
 [testing]: agent_tests.md
 [contributing]: contributing.md
+[agent-omnibus]: agent_omnibus.md
