@@ -23,6 +23,11 @@ var (
 	ErrMissingTarget = errors.New("Missing cgroup target")
 )
 
+// NanoToUserHZDivisor holds the divisor to convert cpu.usage to the
+// same unit as cpu.system (USER_HZ = 1/100)
+// TODO: get USER_HZ from gopsutil? Needs to patch it
+const NanoToUserHZDivisor float64 = 1e9 / 100
+
 // CgroupMemStat stores memory statistics about a cgroup.
 type CgroupMemStat struct {
 	ContainerID             string
@@ -61,10 +66,12 @@ type CgroupMemStat struct {
 }
 
 // CgroupTimesStat stores CPU times for a cgroup.
+// Unit is userspace scheduling unit (USER_HZ, usually 1/100)
 type CgroupTimesStat struct {
 	ContainerID string
 	System      uint64
 	User        uint64
+	UsageTotal  float64
 }
 
 // CgroupIOStat store I/O statistics about a cgroup.
@@ -231,6 +238,14 @@ func (c ContainerCgroup) CPU() (*CgroupTimesStat, error) {
 	if err := scanner.Err(); err != nil {
 		return ret, fmt.Errorf("error reading %s: %s", statfile, err)
 	}
+
+	usage, err := c.ParseFloatStat("cpuacct", "cpuacct.usage")
+	if err == nil {
+		ret.UsageTotal = usage / NanoToUserHZDivisor
+	} else {
+		log.Debugf("missing total cpu usage stat for %s: %s", c.ContainerID, err.Error())
+	}
+
 	return ret, nil
 }
 
@@ -321,6 +336,40 @@ func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
 		return ret, fmt.Errorf("error reading %s: %s", statfile, err)
 	}
 	return ret, nil
+}
+
+// ParseFloatStat reads and converts a cgroup stat file content to float64.
+func (c ContainerCgroup) ParseFloatStat(target, file string) (float64, error) {
+	statFile := c.cgroupFilePath(target, file)
+	lines, err := ReadLines(statFile)
+	if err != nil {
+		return 0, err
+	}
+	if len(lines) != 1 {
+		return 0, fmt.Errorf("wrong format file: %s", statFile)
+	}
+	value, err := strconv.ParseFloat(lines[0], 64)
+	if err != nil {
+		return 0, err
+	}
+	return value, nil
+}
+
+// ParseFloatStat reads and converts a cgroup stat file content to uint64.
+func (c ContainerCgroup) ParseUintStat(target, file string) (uint64, error) {
+	statFile := c.cgroupFilePath(target, file)
+	lines, err := ReadLines(statFile)
+	if err != nil {
+		return 0, err
+	}
+	if len(lines) != 1 {
+		return 0, fmt.Errorf("wrong format file: %s", statFile)
+	}
+	value, err := strconv.ParseUint(lines[0], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return value, nil
 }
 
 // ContainerStartTime gets the stat for cgroup directory and use the mtime for that dir to determine the start time for the container
