@@ -27,6 +27,8 @@ var (
 type CgroupMemStat struct {
 	ContainerID             string
 	Cache                   uint64
+	Swap                    uint64 // See SwapPresent to make sure it's a real zero
+	SwapPresent             bool
 	RSS                     uint64
 	RSSHuge                 uint64
 	MappedFile              uint64
@@ -40,6 +42,7 @@ type CgroupMemStat struct {
 	ActiveFile              uint64
 	Unevictable             uint64
 	HierarchicalMemoryLimit uint64
+	HierarchicalMemSWLimit  uint64 // One can safely assume 0 == absent
 	TotalCache              uint64
 	TotalRSS                uint64
 	TotalRSSHuge            uint64
@@ -105,6 +108,9 @@ func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
 		switch fields[0] {
 		case "cache":
 			ret.Cache = v
+		case "swap":
+			ret.Swap = v
+			ret.SwapPresent = true
 		case "rss":
 			ret.RSS = v
 		case "rssHuge":
@@ -131,6 +137,8 @@ func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
 			ret.Unevictable = v
 		case "hierarchicalMemoryLimit":
 			ret.HierarchicalMemoryLimit = v
+		case "hierarchical_memsw_limit":
+			ret.HierarchicalMemSWLimit = v
 		case "totalCache":
 			ret.TotalCache = v
 		case "totalRss":
@@ -432,8 +440,11 @@ func CgroupsForPids(pids []int32) (map[string]*ContainerCgroup, error) {
 // container ID for origin detection. Returns container id as a string, empty if
 // the PID is not in a container.
 func ContainerIDForPID(pid int) (string, error) {
-       cgPath := filepath.Join(config.Datadog.GetString("proc_root"), strconv.Itoa(pid), "cgroup")
-       containerID, _, err := readCgroupPaths(cgPath)
+	cgPath := filepath.Join(config.Datadog.GetString("proc_root"), strconv.Itoa(pid), "cgroup")
+	containerID, _, err := readCgroupPaths(cgPath)
+
+	return containerID, err
+}
 
 // readCgroupPaths reads the cgroups from a /sys/$pid/cgroup path.
 func readCgroupPaths(pidCgroupPath string) (string, map[string]string, error) {
