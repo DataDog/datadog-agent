@@ -39,7 +39,7 @@ run_tests_deb-x64:
   tags:
     - docker
   script:
-    - inv -e test
+    - inv -e test --coverage
 
 # run tests for rpm-x64
 run_test_rpm-x64:
@@ -48,7 +48,7 @@ run_test_rpm-x64:
   tags:
     - docker
   script:
-    - inv -e test
+    - inv -e test --coverage
 
 
 #
