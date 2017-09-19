@@ -38,9 +38,11 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 		}
 	}
 
-	for _, label := range c.labelsAsTags {
-		if value, found := co.Config.Labels[label]; found {
-			low = append(low, fmt.Sprintf("%s:%s", label, value))
+	if len(c.labelsAsTags) > 0 {
+		for label_name, label_value := range co.Config.Labels {
+			if tag_name, found := c.labelsAsTags[strings.ToLower(label_name)]; found {
+				low = append(low, fmt.Sprintf("%s:%s", tag_name, label_value))
+			}
 		}
 	}
 
@@ -50,10 +52,8 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 			if len(parts) != 2 {
 				continue
 			}
-			for _, envAsTagConfigEntry := range c.envAsTags {
-				if parts[0] == envAsTagConfigEntry {
-					low = append(low, fmt.Sprintf("%s:%s", parts[0], parts[1]))
-				}
+			if tag_name, found := c.envAsTags[strings.ToLower(parts[0])]; found {
+				low = append(low, fmt.Sprintf("%s:%s", tag_name, parts[1]))
 			}
 		}
 	}
