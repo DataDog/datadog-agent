@@ -293,6 +293,29 @@ func AllContainers(includeExited bool) ([]*Container, error) {
 	return nil, nil
 }
 
+// ResolveImageName resolves a docker image name, probably containing
+// sha256 checksum as tag in a name:tag format string.
+// This requires InitDockerUtil to be called before.
+func ResolveImageName(image string) (string, error) {
+	if globalDockerUtil != nil {
+		return globalDockerUtil.extractImageName(image), nil
+	}
+	return "", errors.New("dockerutil not initialised")
+}
+
+// SplitImageName splits a valid image name (from ResolveImageName)
+// into the name and tag parts.
+func SplitImageName(image string) (string, string, error) {
+	if image == "" {
+		return "", "", errors.New("empty image name")
+	}
+	parts := strings.SplitN(image, ":", 2)
+	if len(parts) < 2 {
+		return image, "", errors.New("could not find tag")
+	}
+	return parts[0], parts[1], nil
+}
+
 // GetHostname returns the Docker hostname.
 func GetHostname() (string, error) {
 	if globalDockerUtil == nil {
@@ -370,6 +393,15 @@ func InitDockerUtil(cfg *Config) error {
 		lastInvalidate:  time.Now(),
 	}
 	return nil
+}
+
+// NeedInit returns true if InitDockerUtil has to be called
+// before using the package
+func NeedInit() bool {
+	if globalDockerUtil == nil {
+		return true
+	}
+	return false
 }
 
 // dockerContainers returns a list of Docker info for active containers using the

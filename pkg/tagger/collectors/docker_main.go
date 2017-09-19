@@ -19,6 +19,9 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
 const (
@@ -34,9 +37,10 @@ func DockerEntityName(cid string) string {
 // and feed a stram of TagInfo. It requires access to the docker socket.
 // It will also embed DockerExtractor collectors for container tagging.
 type DockerCollector struct {
-	client  *client.Client
-	stop    chan bool
-	infoOut chan<- []*TagInfo
+	client       *client.Client
+	stop         chan bool
+	infoOut      chan<- []*TagInfo
+	labelsAsTags []string
 }
 
 // Detect tries to connect to the docker socket and returns success
@@ -49,6 +53,14 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 	c.client = client
 	c.stop = make(chan bool)
 	c.infoOut = out
+	c.labelsAsTags = config.Datadog.GetStringSlice("docker_labels_as_tags")
+
+	if docker.NeedInit() {
+		err := docker.InitDockerUtil(&docker.Config{})
+		if err != nil {
+			return NoCollection, fmt.Errorf("Failed initialise dockerutils, docker tagging will not work: %s", err)
+		}
+	}
 
 	// TODO: list and inspect existing containers once docker utils are merged
 
