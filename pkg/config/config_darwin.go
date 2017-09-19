@@ -12,17 +12,3 @@ const (
 	defaultJMXPipePath          = "/opt/datadog-agent/run"
 	defaultSyslogURI            = "unixgram:///var/run/syslog"
 )
-
-// GetSyslogURI returns the configured/default syslog uri
-func GetSyslogURI() string {
-	enabled := Datadog.GetBool("log_to_syslog")
-	uri := Datadog.GetString("syslog_uri")
-
-	if enabled {
-		if uri == "" {
-			uri = defaultSyslogURI
-		}
-	}
-
-	return uri
-}

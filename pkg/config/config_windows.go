@@ -5,22 +5,9 @@
 
 package config
 
-import (
-	log "github.com/cihub/seelog"
-)
-
 const (
 	defaultConfdPath            = "c:\\programdata\\datadog\\conf.d"
 	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
 	defaultJMXPipePath          = "\\\\.\\pipe\\"
 	defaultLogPath              = "c:\\programdata\\datadog\\logs\\agent.log"
 )
-
-func GetSyslogURI() string {
-	enabled := Datadog.GetBool("log_to_syslog")
-
-	if enabled {
-		log.Infof("logging to syslog is not available on windows.")
-	}
-	return ""
-}
