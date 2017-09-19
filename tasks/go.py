@@ -74,8 +74,8 @@ def deps(ctx):
     """
     Setup Go dependencies
     """
-    ctx.run("go get -u -f github.com/golang/dep/cmd/dep")
-    ctx.run("go get -u -f github.com/golang/lint/golint")
+    ctx.run("go get -u github.com/golang/dep/cmd/dep")
+    ctx.run("go get -u github.com/golang/lint/golint")
     ctx.run("dep ensure")
     # prune packages from /vendor, remove this hack
     # as soon as `dep prune` is merged within `dep ensure`,
