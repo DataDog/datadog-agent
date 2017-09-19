@@ -26,7 +26,7 @@ type dockerConfig struct {
 	//HealthServiceWhitelist []string           `yaml:"health_service_check_whitelist"`
 	//CollectContainerCount  bool               `yaml:"collect_container_count"`
 	//CollectVolumCount      bool               `yaml:"collect_volume_count"`
-	//CollectImagesStats     bool               `yaml:"collect_images_stats"`
+	CollectImagesStats bool `yaml:"collect_images_stats"`
 	//CollectImageSize       bool               `yaml:"collect_image_size"`
 	//CollectDistStats       bool               `yaml:"collect_disk_stats"`
 	//CollectExitCodes       bool               `yaml:"collect_exit_codes"`
@@ -67,7 +67,6 @@ func UpdateImageCount(images map[string]*imageCount, c *docker.Container) {
 		return
 	}
 
-	imageTags = append(imageTags, fmt.Sprintf("image:%s", c.Image))
 	sort.Strings(imageTags)
 	key := strings.Join(imageTags, "|")
 	if _, found := images[key]; !found {
@@ -79,6 +78,30 @@ func UpdateImageCount(images map[string]*imageCount, c *docker.Container) {
 	} else if c.State == docker.ContainerExitedState {
 		images[key].stopped += 1
 	}
+}
+
+func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
+	if d.instance.CollectImagesStats == false {
+		return nil
+	}
+
+	images, err := docker.AllImages(true)
+	if err != nil {
+		return log.Errorf("could not query images from docker: %s", err)
+	}
+
+	imageAvailable := 0
+	imageIntermediate := 0
+	for _, i := range images {
+		if len(i.RepoTags) == 0 || i.RepoTags[0] == "<none>:<none>" {
+			imageIntermediate += 1
+		} else {
+			imageAvailable += 1
+		}
+	}
+	sender.Gauge("docker.images.available", float64(imageAvailable), "", d.instance.Tags)
+	sender.Gauge("docker.images.Intermediate", float64(imageIntermediate), "", d.instance.Tags)
+	return nil
 }
 
 // Run executes the check
@@ -151,6 +174,8 @@ func (d *DockerCheck) Run() error {
 		sender.Gauge("docker.containers.running", float64(image.running), "", image.tags)
 		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", image.tags)
 	}
+
+	d.countAndWeightImages(sender)
 
 	sender.Commit()
 	return nil
