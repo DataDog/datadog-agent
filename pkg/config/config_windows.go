@@ -11,7 +11,3 @@ const (
 	defaultJMXPipePath          = "\\\\.\\pipe\\"
 	defaultLogPath              = "c:\\programdata\\datadog\\logs\\agent.log"
 )
-
-func GetSyslogURI() string {
-	return ""
-}
