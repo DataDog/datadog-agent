@@ -10,6 +10,8 @@ package containers
 import (
 	"fmt"
 	"math"
+	"sort"
+	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -45,6 +47,12 @@ type dockerConfig struct {
 	//CappedMetrics          map[string]float64 `yaml:"capped_metrics"`
 }
 
+type containerPerImage struct {
+	tags    []string
+	running int64
+	stopped int64
+}
+
 func (c *dockerConfig) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
@@ -59,16 +67,42 @@ type DockerCheck struct {
 	instance     *dockerConfig
 }
 
+func updateContainerRunningCount(images map[string]*containerPerImage, c *docker.Container) {
+	imageTags, err := tagger.Tag(c.EntityID, false)
+	if err != nil {
+		log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
+		return
+	}
+
+	imageTags = append(imageTags, fmt.Sprintf("image:%s", c.Image))
+	sort.Strings(imageTags)
+	key := strings.Join(imageTags, "|")
+	if _, found := images[key]; !found {
+		images[key] = &containerPerImage{tags: imageTags, running: 0, stopped: 0}
+	}
+
+	if c.State == docker.ContainerRunningState {
+		images[key].running++
+	} else if c.State == docker.ContainerExitedState {
+		images[key].stopped++
+	}
+}
+
 // Run executes the check
 func (d *DockerCheck) Run() error {
 	sender, err := aggregator.GetSender(d.ID())
 
-	containers, err := docker.AllContainers()
+	containers, err := docker.AllContainers(true)
 	if err != nil {
 		return fmt.Errorf("Could not list containers: %s", err)
 	}
 
+	images := map[string]*containerPerImage{}
 	for _, c := range containers {
+		updateContainerRunningCount(images, c)
+		if c.State != docker.ContainerRunningState {
+			continue
+		}
 		tags, err := tagger.Tag(c.EntityID, true)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
@@ -119,6 +153,12 @@ func (d *DockerCheck) Run() error {
 			}
 		}
 	}
+
+	for _, image := range images {
+		sender.Gauge("docker.containers.running", float64(image.running), "", image.tags)
+		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", image.tags)
+	}
+
 	sender.Commit()
 	return nil
 }
