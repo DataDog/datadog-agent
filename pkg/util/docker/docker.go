@@ -53,6 +53,15 @@ var (
 	}
 )
 
+const (
+	ContainerCreatedState    string = "created"
+	ContainerRunningState    string = "running"
+	ContainerRestartingState string = "restarting"
+	ContainerPausedState     string = "paused"
+	ContainerExitedState     string = "exited"
+	ContainerDeadState       string = "dead"
+)
+
 // NetworkStat stores network statistics about a Docker container.
 type NetworkStat struct {
 	BytesSent   uint64
@@ -271,9 +280,9 @@ type dockerUtil struct {
 // Expose module-level functions that will interact with a Singleton dockerUtil.
 
 // AllContainers returns a slice of all running containers.
-func AllContainers() ([]*Container, error) {
+func AllContainers(includeExited bool) ([]*Container, error) {
 	if globalDockerUtil != nil {
-		r, err := globalDockerUtil.containers()
+		r, err := globalDockerUtil.containers(includeExited)
 		if err != nil && err.Error() != lastErr {
 			log.Warnf("unable to collect docker stats: %s", err)
 			lastErr = err.Error()
@@ -366,8 +375,8 @@ func InitDockerUtil(cfg *Config) error {
 // dockerContainers returns a list of Docker info for active containers using the
 // Docker API. This requires the running user to be in the "docker" user group
 // or have access to /tmp/docker.sock.
-func (d *dockerUtil) dockerContainers() ([]*Container, error) {
-	containers, err := d.cli.ContainerList(context.Background(), types.ContainerListOptions{})
+func (d *dockerUtil) dockerContainers(includeExited bool) ([]*Container, error) {
+	containers, err := d.cli.ContainerList(context.Background(), types.ContainerListOptions{All: includeExited})
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}
@@ -414,8 +423,11 @@ func (d *dockerUtil) dockerContainers() ([]*Container, error) {
 
 // containers gets a list of all containers on the current node using a mix of
 // the Docker APIs and cgroups stats. We attempt to limit syscalls where possible.
-func (d *dockerUtil) containers() ([]*Container, error) {
+func (d *dockerUtil) containers(includeExited bool) ([]*Container, error) {
 	cacheKey := "dockerutil.containers"
+	if includeExited {
+		cacheKey = "dockerUtil.all_containers"
+	}
 
 	// Get the containers either from our cache or with API queries.
 	var containers []*Container
@@ -437,7 +449,7 @@ func (d *dockerUtil) containers() ([]*Container, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not get cgroups for pids: %s", err)
 		}
-		containers, err = d.dockerContainers()
+		containers, err = d.dockerContainers(includeExited)
 		if err != nil {
 			return nil, fmt.Errorf("could not get docker containers: %s", err)
 		}
@@ -466,6 +478,10 @@ func (d *dockerUtil) containers() ([]*Container, error) {
 	var err error
 	newContainers := make([]*Container, 0, len(containers))
 	for _, lastContainer := range containers {
+		if includeExited && lastContainer.State == ContainerExitedState {
+			newContainers = append(newContainers, lastContainer)
+			continue
+		}
 		container := &Container{}
 		*container = *lastContainer
 
