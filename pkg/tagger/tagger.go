@@ -148,6 +148,7 @@ func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
 		return cachedTags, nil
 	}
 	// Else, partial cache miss, query missing data
+	// TODO: get logging on that to make sure we should optimize
 	tagArrays := [][]string{cachedTags}
 
 	t.RLock()

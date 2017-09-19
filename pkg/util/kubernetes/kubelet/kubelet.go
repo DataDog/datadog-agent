@@ -7,6 +7,7 @@ package kubelet
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -74,6 +75,31 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	}
 
 	return v.Items, nil
+}
+
+// GetPodForContainerID fetches the podlist and returns the pod running
+// a given container on the node. Returns a nil pointer if not found.
+func (ku *KubeUtil) GetPodForContainerID(containerID string) (*Pod, error) {
+	pods, err := ku.GetLocalPodList()
+	if err != nil {
+		return nil, err
+	}
+
+	return ku.searchPodForContainerID(pods, containerID)
+}
+
+func (ku *KubeUtil) searchPodForContainerID(podlist []*Pod, containerID string) (*Pod, error) {
+	if containerID == "" {
+		return nil, errors.New("containerID is empty")
+	}
+	for _, pod := range podlist {
+		for _, container := range pod.Status.Containers {
+			if container.ID == containerID {
+				return pod, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("container %s not found in podlist", containerID)
 }
 
 // Try and find the hostname to query the kubelet

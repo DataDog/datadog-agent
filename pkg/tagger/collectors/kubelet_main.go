@@ -77,13 +77,14 @@ func (c *KubeletCollector) Pull() error {
 	return nil
 }
 
-// Fetch fetches tags for a given container, within the new pods
+// Fetch fetches tags for a given container by iterating on the whole podlist
+// TODO: optimize if called too often on production
 func (c *KubeletCollector) Fetch(container string) ([]string, []string, error) {
-	updatedPods, err := c.watcher.PullChanges()
+	pod, err := c.watcher.GetPodForContainerID(container)
 	if err != nil {
 		return []string{}, []string{}, err
 	}
-	updates, err := c.parsePods(updatedPods)
+	updates, err := c.parsePods([]*kubelet.Pod{pod})
 	if err != nil {
 		return []string{}, []string{}, err
 	}
@@ -95,7 +96,7 @@ func (c *KubeletCollector) Fetch(container string) ([]string, []string, error) {
 		}
 	}
 	// container not found in updates
-	return []string{}, []string{}, fmt.Errorf("entity %s not found in kubelet", container)
+	return []string{}, []string{}, fmt.Errorf("entity %s not found in podlist", container)
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects

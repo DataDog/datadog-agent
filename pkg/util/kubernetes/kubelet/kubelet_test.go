@@ -154,3 +154,40 @@ func TestGetNodeInfo(t *testing.T) {
 		require.FailNow(t, "Timeout on receive channel")
 	}
 }
+
+func TestGetPodForContainerID(t *testing.T) {
+	kubelet, err := newDummyKubelet("./test/podlist_1.6.json")
+	require.Nil(t, err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(t, err)
+
+	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
+	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
+
+	kubeutil, err := NewKubeUtil()
+	require.Nil(t, err)
+	require.NotNil(t, kubeutil)
+	<-kubelet.Requests // Throwing away /healthz GET
+
+	// Empty container ID
+	pod, err := kubeutil.GetPodForContainerID("")
+	<-kubelet.Requests // Throwing away /pods GET
+	require.Nil(t, pod)
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), "containerID is empty")
+
+	// Invalid container ID
+	pod, err = kubeutil.GetPodForContainerID("invalid")
+	<-kubelet.Requests // Throwing away /pods GET
+	require.Nil(t, pod)
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), "container invalid not found in podlist")
+
+	// Valid container ID
+	pod, err = kubeutil.GetPodForContainerID("docker://1ce04128b3cccd7de0ae383516c28e0fe35cbb093195a72661723bdc06934840")
+	<-kubelet.Requests // Throwing away /pods GET
+	require.Nil(t, err)
+	require.NotNil(t, pod)
+	require.Equal(t, pod.Metadata.Name, "kube-dns-1829567597-2xtct")
+}
