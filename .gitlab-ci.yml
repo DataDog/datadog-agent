@@ -10,6 +10,7 @@ variables:
   AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   STATIC_BINARIES_DIR: bin/static
   DEB_S3_BUCKET: apt-agent6.datad0g.com
+  RPM_S3_BUCKET: yum.datad0g.com
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
 
 before_script:
@@ -182,6 +183,9 @@ agent_rpm-x64:
     # Uncomment the following to see debug logs from omnibus, it defaults to info
     # AGENT_OMNIBUS_LOG_LEVEL: debug
   script:
+    - # grab rpm keys
+    - export RPM_SIGNING_PASSPHRASE=$RPM_SIGNING_PASSPHRASE # need to set this in environment, omnibus uses it
+    - # gpg --import $RPM_GPG_KEY # this just needs to be put on gpg keychain and that's it
     - inv -e agent.omnibus-build
     - rpm -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
   cache:
@@ -224,4 +228,22 @@ deploy_deb:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
 
-# TODO: deploy rpm packages
+# deploy rpm packages to yum staging repo
+deploy_rpm:
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest # For now, just a renamed version of the image datadog/mars-jenkins-scripts
+  before_script:
+    - ls $AGENT_OMNIBUS_PACKAGE_DIR
+  only:
+    - master
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+    - mkdir -p ./rpmrepo/x86_64/
+    - s3cmd sync -v s3://$RPM_S3_BUCKET/beta/ ./rpmrepo/
+    - cp $AGENT_OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/x86_64
+    - s3cmd sync -v --delete-removed ./rpmrepo/ s3://$RPM_S3_BUCKET/beta/
+
+# TODO: deploy and build SUSE packages
