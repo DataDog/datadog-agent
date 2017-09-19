@@ -134,8 +134,15 @@ func (c *DockerCollector) processEvent(e events.Message) {
 func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, error) {
 	co, err := c.client.ContainerInspect(context.Background(), string(cID))
 	if err != nil {
-		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
+		log.Errorf("failed to inspect container %s - %s", cID[:12], err)
 		return nil, nil, err
+	}
+	// TODO : move to dockerutil
+	image_name, err := docker.ResolveImageName(co.Image)
+	if err != nil {
+		log.Warnf("failed to inspect image %s - %s", co.Image, err)
+	} else {
+		co.Image = image_name
 	}
 	return c.extractFromInspect(co)
 }

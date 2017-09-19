@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -21,23 +22,25 @@ import (
 func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, error) {
 	var low, high []string
 
-	docker_image, err := docker.ResolveImageName(co.Image)
-	if err != nil {
-		log.Debugf("error resolving image %s: %s", co.Image, err)
-
-	} else {
-		image_name, image_tag, err := docker.SplitImageName(docker_image)
-
-		low = append(low, fmt.Sprintf("docker_image:%s", docker_image))
-
-		if err != nil {
-			log.Debugf("error spliting %s: %s", docker_image, err)
-		} else {
-			low = append(low, fmt.Sprintf("image_name:%s", image_name))
-			low = append(low, fmt.Sprintf("image_tag:%s", image_tag))
-		}
+	// Sanity check
+	// TODO: move to dockerutil
+	if co.ContainerJSONBase == nil {
+		return low, high, errors.New("invalid container inspect")
 	}
 
+	// Docker image tags
+	image_name, image_tag, err := docker.SplitImageName(co.Image)
+
+	low = append(low, fmt.Sprintf("docker_image:%s", co.Image))
+
+	if err != nil {
+		log.Debugf("error spliting %s: %s", co.Image, err)
+	} else {
+		low = append(low, fmt.Sprintf("image_name:%s", image_name))
+		low = append(low, fmt.Sprintf("image_tag:%s", image_tag))
+	}
+
+	// Container label tags
 	if len(c.labelsAsTags) > 0 {
 		for label_name, label_value := range co.Config.Labels {
 			if tag_name, found := c.labelsAsTags[strings.ToLower(label_name)]; found {
@@ -50,6 +53,7 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 		}
 	}
 
+	// Container envvar tags
 	if len(c.envAsTags) > 0 {
 		for _, envvar := range co.Config.Env {
 			parts := strings.SplitN(envvar, "=", 2)
@@ -66,6 +70,7 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 		}
 	}
 
+	// Container ID/name High-card tags
 	high = append(high, fmt.Sprintf("container_name:%s", co.Name))
 	high = append(high, fmt.Sprintf("container_id:%s", co.ID))
 
