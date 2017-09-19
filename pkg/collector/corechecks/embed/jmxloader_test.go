@@ -16,7 +16,6 @@ import (
 	"runtime"
 	"testing"
 
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
@@ -67,20 +66,9 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	}
 
-	factory := core.GetCheckFactory("jmx")
-	if factory == nil {
-		t.Errorf("Cannot find JMX factory")
-	}
-
-	launcher := factory()
-	j, ok := launcher.(*JMXCheck)
-	if !ok {
-		t.Errorf("factory returned unexpeced checky")
-	}
-
 	for _, cfg := range cfgs {
 		found := false
-		for k, _ := range j.checks {
+		for k, _ := range jmxLauncher.checks {
 			if k == fmt.Sprintf("%s.yaml", cfg.Name) {
 				found = true
 				break
