@@ -85,34 +85,30 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
 		return nil
 	}
 
-	images, err := docker.AllImages(true)
+	availableImages, err := docker.AllImages(false)
+	if err != nil {
+		return log.Errorf("could not query images from docker: %s", err)
+	}
+	allImages, err := docker.AllImages(true)
 	if err != nil {
 		return log.Errorf("could not query images from docker: %s", err)
 	}
 
-	imageAvailable := 0
-	imageIntermediate := 0
-	for _, i := range images {
-		if len(i.RepoTags) == 0 || i.RepoTags[0] == "<none>:<none>" {
-			imageIntermediate += 1
-		} else {
-			imageAvailable += 1
-
-			if d.instance.CollectImageSize {
-				name, tag, err := docker.SplitImageName(i.RepoTags[0])
-				if err != nil {
-					log.Errorf("could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
-					continue
-				}
-				tags := append(d.instance.Tags, fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag))
-
-				sender.Gauge("docker.image.virtual_size", float64(i.VirtualSize), "", tags)
-				sender.Gauge("docker.image.size", float64(i.Size), "", tags)
+	if d.instance.CollectImageSize {
+		for _, i := range availableImages {
+			name, tag, err := docker.SplitImageName(i.RepoTags[0])
+			if err != nil {
+				log.Errorf("could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
+				continue
 			}
+			tags := append(d.instance.Tags, fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag))
+
+			sender.Gauge("docker.image.virtual_size", float64(i.VirtualSize), "", tags)
+			sender.Gauge("docker.image.size", float64(i.Size), "", tags)
 		}
 	}
-	sender.Gauge("docker.images.available", float64(imageAvailable), "", d.instance.Tags)
-	sender.Gauge("docker.images.Intermediate", float64(imageIntermediate), "", d.instance.Tags)
+	sender.Gauge("docker.images.available", float64(len(availableImages)), "", d.instance.Tags)
+	sender.Gauge("docker.images.Intermediate", float64(len(allImages)-len(availableImages)), "", d.instance.Tags)
 	return nil
 }
 
