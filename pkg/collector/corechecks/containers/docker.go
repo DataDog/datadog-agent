@@ -33,8 +33,8 @@ type dockerConfig struct {
 	//HealthServiceWhitelist []string           `yaml:"health_service_check_whitelist"`
 	//CollectContainerCount  bool               `yaml:"collect_container_count"`
 	//CollectVolumCount      bool               `yaml:"collect_volume_count"`
-	//CollectImagesStats     bool               `yaml:"collect_images_stats"`
-	//CollectImageSize       bool               `yaml:"collect_image_size"`
+	CollectImagesStats bool `yaml:"collect_images_stats"`
+	CollectImageSize   bool `yaml:"collect_image_size"`
 	//CollectDistStats       bool               `yaml:"collect_disk_stats"`
 	//CollectExitCodes       bool               `yaml:"collect_exit_codes"`
 	//ExcludeContainers      []string           `yaml:"exclude"`
@@ -74,7 +74,6 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *docker
 		return
 	}
 
-	imageTags = append(imageTags, fmt.Sprintf("image:%s", c.Image))
 	sort.Strings(imageTags)
 	key := strings.Join(imageTags, "|")
 	if _, found := images[key]; !found {
@@ -86,6 +85,38 @@ func updateContainerRunningCount(images map[string]*containerPerImage, c *docker
 	} else if c.State == docker.ContainerExitedState {
 		images[key].stopped++
 	}
+}
+
+func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
+	if d.instance.CollectImagesStats == false {
+		return nil
+	}
+
+	availableImages, err := docker.AllImages(false)
+	if err != nil {
+		return log.Errorf("could not query images from docker: %s", err)
+	}
+	allImages, err := docker.AllImages(true)
+	if err != nil {
+		return log.Errorf("could not query images from docker: %s", err)
+	}
+
+	if d.instance.CollectImageSize {
+		for _, i := range availableImages {
+			name, tag, err := docker.SplitImageName(i.RepoTags[0])
+			if err != nil {
+				log.Errorf("could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
+				continue
+			}
+			tags := append(d.instance.Tags, fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag))
+
+			sender.Gauge("docker.image.virtual_size", float64(i.VirtualSize), "", tags)
+			sender.Gauge("docker.image.size", float64(i.Size), "", tags)
+		}
+	}
+	sender.Gauge("docker.images.available", float64(len(availableImages)), "", d.instance.Tags)
+	sender.Gauge("docker.images.intermediate", float64(len(allImages)-len(availableImages)), "", d.instance.Tags)
+	return nil
 }
 
 // Run executes the check
@@ -158,6 +189,8 @@ func (d *DockerCheck) Run() error {
 		sender.Gauge("docker.containers.running", float64(image.running), "", image.tags)
 		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", image.tags)
 	}
+
+	d.countAndWeightImages(sender)
 
 	sender.Commit()
 	return nil
