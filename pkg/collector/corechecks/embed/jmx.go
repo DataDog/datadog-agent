@@ -20,7 +20,6 @@ import (
 
 	api "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/kardianos/osext"
@@ -73,8 +72,7 @@ type JMXCheck struct {
 	running            uint32
 }
 
-// singleton for the JMXCheck
-var jmxLauncher *JMXCheck
+var jmxLauncher JMXCheck = JMXCheck{checks: make(map[string]struct{})}
 
 func (c *JMXCheck) String() string {
 	return "JMX Check"
@@ -300,15 +298,4 @@ func (c *JMXCheck) Stop() {
 // GetWarnings does not return anything in JMX
 func (c *JMXCheck) GetWarnings() []error {
 	return []error{}
-}
-
-func init() {
-	factory := func() check.Check {
-		if jmxLauncher != nil {
-			return jmxLauncher
-		}
-		jmxLauncher = &JMXCheck{checks: make(map[string]struct{})}
-		return jmxLauncher
-	}
-	core.RegisterCheck("jmx", factory)
 }

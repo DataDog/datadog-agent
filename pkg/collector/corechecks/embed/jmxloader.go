@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -77,29 +76,20 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	//       the GRPC cache, and let JMXFetch collect the configs on-demand.
 	//       Commenting out for now.
 
-	factory := core.GetCheckFactory("jmx")
-	if factory == nil {
-		return checks, fmt.Errorf("check jmx not found in catalog")
+	configured := false
+	for _, instance := range config.Instances {
+		if err := jmxLauncher.Configure(instance, config.InitConfig); err != nil {
+			log.Errorf("jmx.loader: could not configure check: %s", err)
+			continue
+		}
+		configured = true
 	}
 
-	launcher := factory()
-	j, ok := launcher.(*JMXCheck)
-	if ok {
-		configured := false
-		for _, instance := range config.Instances {
-			if err := j.Configure(instance, config.InitConfig); err != nil {
-				log.Errorf("jmx.loader: could not configure check %s: %s", j, err)
-				continue
-			}
-			configured = true
-		}
-
-		if configured {
-			j.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
-			checks = append(checks, j)
-		} else {
-			err = fmt.Errorf("No instances successfully configured.")
-		}
+	if configured {
+		jmxLauncher.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
+		checks = append(checks, &jmxLauncher)
+	} else {
+		err = fmt.Errorf("No instances successfully configured.")
 	}
 
 	return checks, err
