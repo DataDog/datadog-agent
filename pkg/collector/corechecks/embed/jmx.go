@@ -72,7 +72,7 @@ type JMXCheck struct {
 	running            uint32
 }
 
-var jmxLauncher JMXCheck = JMXCheck{checks: make(map[string]struct{})}
+var jmxLauncher = JMXCheck{checks: make(map[string]struct{})}
 
 func (c *JMXCheck) String() string {
 	return "JMX Check"
