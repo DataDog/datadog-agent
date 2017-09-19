@@ -61,7 +61,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		// Setup logger
-		err = config.SetupLogger("off", "", "", false, false, "")
+		err = config.SetupLogger(logLevel, "", "", false, false, "")
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err
