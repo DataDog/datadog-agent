@@ -138,3 +138,10 @@ metadata_collectors:
 #
 # log_level: info
 # log_file: /var/log/datadog/agent.log
+
+# Docker
+#
+# docker_labels_as_tags:
+#   - label_name
+# docker_env_as_tags:
+#   - ENVVAR_NAME

@@ -41,6 +41,7 @@ type DockerCollector struct {
 	stop         chan bool
 	infoOut      chan<- []*TagInfo
 	labelsAsTags []string
+	envAsTags    []string
 }
 
 // Detect tries to connect to the docker socket and returns success
@@ -54,6 +55,7 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 	c.stop = make(chan bool)
 	c.infoOut = out
 	c.labelsAsTags = config.Datadog.GetStringSlice("docker_labels_as_tags")
+	c.envAsTags = config.Datadog.GetStringSlice("docker_env_as_tags")
 
 	if docker.NeedInit() {
 		err := docker.InitDockerUtil(&docker.Config{})
@@ -133,7 +135,7 @@ func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, erro
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 		return nil, nil, err
 	}
-	return c.ExtractFromInspect(co)
+	return c.extractFromInspect(co)
 }
 
 func dockerFactory() Collector {
