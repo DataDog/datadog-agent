@@ -11,12 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -24,6 +26,8 @@ const (
 	unixToken          = '/'
 	autoDiscoveryToken = "#### AUTO-DISCOVERY ####\n"
 )
+
+var JMXConfigCache = make(map[string]check.ConfigRawMap)
 
 // JMXCheckLoader is a specific loader for checks living in this package
 type JMXCheckLoader struct {
@@ -67,25 +71,42 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	var err error
 	checks := []check.Check{}
+	mapConfig := make(map[interface{}]interface{})
+	mapConfig["instances"] = []interface{}{}
 
 	if !check.IsConfigJMX(config.Name, config.InitConfig) {
 		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
 	}
 
-	// TODO: implement IPC - this will instead drop the config in
-	//       the GRPC cache, and let JMXFetch collect the configs on-demand.
-	//       Commenting out for now.
-
-	configured := false
-	for _, instance := range config.Instances {
-		if err := jmxLauncher.Configure(instance, config.InitConfig); err != nil {
-			log.Errorf("jmx.loader: could not configure check: %s", err)
-			continue
-		}
-		configured = true
+	rawInitConfig := check.ConfigRawMap{}
+	err = yaml.Unmarshal(config.InitConfig, &rawInitConfig)
+	if err != nil {
+		log.Errorf("jmx.loader: could not unmarshal instance config: %s", err)
+		return checks, err
 	}
+	mapConfig["name"] = config.Name
+	mapConfig["timestamp"] = time.Now().Unix()
+	mapConfig["init_config"] = rawInitConfig
 
-	if configured {
+	rawInstances := []check.ConfigRawMap{}
+	for _, instance := range config.Instances {
+		if err = jmxLauncher.Configure(instance, config.InitConfig); err != nil {
+			log.Errorf("jmx.loader: could not configure check: %s", err)
+			return checks, err
+		} else {
+			rawInstanceConfig := check.ConfigRawMap{}
+			err := yaml.Unmarshal(instance, &rawInstanceConfig)
+			if err != nil {
+				log.Errorf("jmx.loader: could not unmarshal instance config: %s", err)
+				continue
+			}
+			rawInstances = append(rawInstances, rawInstanceConfig)
+		}
+	}
+	mapConfig["instances"] = rawInstances
+
+	if len(rawInstances) > 0 {
+		JMXConfigCache[config.Name] = mapConfig
 		jmxLauncher.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
 		checks = append(checks, &jmxLauncher)
 	} else {
