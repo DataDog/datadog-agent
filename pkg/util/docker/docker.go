@@ -8,6 +8,8 @@
 package docker
 
 import (
+	"encoding/json"
+	"bytes"
 	"bufio"
 	"context"
 	"encoding/binary"
@@ -325,4 +327,29 @@ func IsAvailable() bool {
 		return false
 	}
 	return true
+}
+
+func ContainerSelfInspect() ([]byte, error) {
+
+	var out bytes.Buffer
+
+	cID, _, err := readCgroupPaths("/proc/self/cgroup")
+
+	client, err := client.NewEnvClient()
+	defer client.Close()
+
+	if err != nil {
+		return nil, err
+	}
+	co, err := client.ContainerInspect(context.Background(), string(cID))
+	if err != nil {
+		return nil, fmt.Errorf("unable to get Docker inspect: %s", err)
+	}
+
+	jsonStats, err := json.Marshal(co)
+
+	json.Indent(&out, jsonStats, "", "\t")
+	byteArray := out.Bytes()
+
+	return byteArray, err
 }

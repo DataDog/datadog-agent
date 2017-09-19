@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"expvar"
 	"os"
+	"fmt"
 	"path"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/jhoonb/archivex"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -74,7 +76,25 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths) 
 		return "", err
 	}
 
+	err = zipDockerSelfInspect(zipFile, hostname)
+	if err != nil {
+		return "", err
+	}
+
 	return zipFilePath, nil
+}
+
+func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error{
+
+	co, err := docker.ContainerSelfInspect()
+	if err != nil {
+		return err
+	}
+	err = zipFile.Add(filepath.Join(hostname, "docker_inspect.log"), co)
+	if err != nil {
+		return err
+	}
+	return err
 }
 
 func zipStatusFile(zipFile *archivex.ZipFile, hostname string) error {
@@ -96,7 +116,6 @@ func zipStatusFile(zipFile *archivex.ZipFile, hostname string) error {
 func zipLogFiles(zipFile *archivex.ZipFile, hostname string) error {
 	logFile := config.Datadog.GetString("log_file")
 	logFilePath := path.Dir(logFile)
-
 	err := filepath.Walk(logFilePath, func(path string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil
