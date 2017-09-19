@@ -16,11 +16,15 @@ import (
 
 	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
@@ -89,13 +93,60 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("unable to parse jmx status: %s", err)
 		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	log.Debugf("Getting latest JMX Configs as of: %v", tsjson["timestamp"])
-	// stub for now...
-	j, _ := json.Marshal(map[string]interface{}{
-		"configurations": map[string]interface{}{}})
-	w.Write(j)
+	j := map[string]interface{}{}
+	configs := map[string]check.ConfigJSONMap{}
+	for name, config := range embed.JMXConfigCache {
+		m, ok := config.(map[string]interface{})
+		if !ok {
+			log.Errorf("wrong type in cache: %s", err)
+			http.Error(w, err.Error(), 500)
+			return
+		}
+
+		cfg, ok := m["config"].(check.Config)
+		if !ok {
+			log.Errorf("wrong type for config: %s", err)
+			http.Error(w, err.Error(), 500)
+			return
+		}
+
+		var rawInitConfig check.ConfigRawMap
+		err = yaml.Unmarshal(cfg.InitConfig, &rawInitConfig)
+		if err != nil {
+			log.Errorf("unable to parse JMX configuration: %s", err)
+			http.Error(w, err.Error(), 500)
+			return
+		}
+
+		c := map[string]interface{}{}
+		c["init_config"] = util.GetJSONSerializableMap(rawInitConfig)
+		instances := []check.ConfigJSONMap{}
+		for _, instance := range cfg.Instances {
+			var rawInstanceConfig check.ConfigJSONMap
+			err = yaml.Unmarshal(instance, &rawInstanceConfig)
+			if err != nil {
+				log.Errorf("unable to parse JMX configuration: %s", err)
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			instances = append(instances, util.GetJSONSerializableMap(rawInstanceConfig).(check.ConfigJSONMap))
+		}
+
+		c["instances"] = instances
+		configs[name] = c
+	}
+	j["configs"] = configs
+	jsonPayload, err := json.Marshal(util.GetJSONSerializableMap(j))
+	if err != nil {
+		log.Errorf("unable to parse JMX configuration: %s", err)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Write(jsonPayload)
 }
 
 func setJMXStatus(w http.ResponseWriter, r *http.Request) {

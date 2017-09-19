@@ -27,7 +27,7 @@ const (
 	autoDiscoveryToken = "#### AUTO-DISCOVERY ####\n"
 )
 
-var JMXConfigCache = make(map[string]check.ConfigRawMap)
+var JMXConfigCache = map[string]interface{}{}
 
 // JMXCheckLoader is a specific loader for checks living in this package
 type JMXCheckLoader struct {
@@ -71,8 +71,7 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	var err error
 	checks := []check.Check{}
-	mapConfig := make(map[interface{}]interface{})
-	mapConfig["instances"] = []interface{}{}
+	mapConfig := map[string]interface{}{}
 
 	if !check.IsConfigJMX(config.Name, config.InitConfig) {
 		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
@@ -86,32 +85,18 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	}
 	mapConfig["name"] = config.Name
 	mapConfig["timestamp"] = time.Now().Unix()
-	mapConfig["init_config"] = rawInitConfig
 
-	rawInstances := []check.ConfigRawMap{}
 	for _, instance := range config.Instances {
 		if err = jmxLauncher.Configure(instance, config.InitConfig); err != nil {
 			log.Errorf("jmx.loader: could not configure check: %s", err)
 			return checks, err
-		} else {
-			rawInstanceConfig := check.ConfigRawMap{}
-			err := yaml.Unmarshal(instance, &rawInstanceConfig)
-			if err != nil {
-				log.Errorf("jmx.loader: could not unmarshal instance config: %s", err)
-				continue
-			}
-			rawInstances = append(rawInstances, rawInstanceConfig)
 		}
 	}
-	mapConfig["instances"] = rawInstances
 
-	if len(rawInstances) > 0 {
-		JMXConfigCache[config.Name] = mapConfig
-		jmxLauncher.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
-		checks = append(checks, &jmxLauncher)
-	} else {
-		err = fmt.Errorf("No instances successfully configured.")
-	}
+	JMXConfigCache[config.Name] = mapConfig
+	jmxLauncher.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
+	checks = append(checks, &jmxLauncher)
+	mapConfig["config"] = config
 
 	return checks, err
 }
