@@ -27,7 +27,7 @@ type dockerConfig struct {
 	//CollectContainerCount  bool               `yaml:"collect_container_count"`
 	//CollectVolumCount      bool               `yaml:"collect_volume_count"`
 	CollectImagesStats bool `yaml:"collect_images_stats"`
-	//CollectImageSize       bool               `yaml:"collect_image_size"`
+	CollectImageSize   bool `yaml:"collect_image_size"`
 	//CollectDistStats       bool               `yaml:"collect_disk_stats"`
 	//CollectExitCodes       bool               `yaml:"collect_exit_codes"`
 	//ExcludeContainers      []string           `yaml:"exclude"`
@@ -97,6 +97,18 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
 			imageIntermediate += 1
 		} else {
 			imageAvailable += 1
+
+			if d.instance.CollectImageSize {
+				name, tag, err := docker.SplitImageName(i.RepoTags[0])
+				if err != nil {
+					log.Errorf("could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
+					continue
+				}
+				tags := append(d.instance.Tags, fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag))
+
+				sender.Gauge("docker.image.virtual_size", float64(i.VirtualSize), "", tags)
+				sender.Gauge("docker.image.size", float64(i.Size), "", tags)
+			}
 		}
 	}
 	sender.Gauge("docker.images.available", float64(imageAvailable), "", d.instance.Tags)
