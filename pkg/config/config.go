@@ -120,6 +120,8 @@ func init() {
 	Datadog.SetDefault("apm_enabled", true) // this is to support the transition to the new config file
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
+	// Agent GUI access port
+	Datadog.SetDefault("GUI_port", "8080")
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")

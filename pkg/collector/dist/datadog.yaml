@@ -35,6 +35,9 @@ api_key:
 # The port for the go_expvar server
 # expvar_port: 5000
 
+# The port for the GUI to be served
+# GUI_port: 8080
+
 # The path to the Unix Socket where the IPC api listens on *nix
 # cmd_sock: /tmp/agent.sock
 
