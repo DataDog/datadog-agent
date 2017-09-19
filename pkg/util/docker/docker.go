@@ -189,15 +189,16 @@ func (cf containerFilter) IsExcluded(container *Container) bool {
 // Container represents a single Docker container on a machine
 // and includes Cgroup-level statistics about the container.
 type Container struct {
-	Type    string
-	ID      string
-	Name    string
-	Image   string
-	ImageID string
-	Created int64
-	State   string
-	Health  string
-	Pids    []int32
+	Type     string
+	ID       string
+	EntityID string
+	Name     string
+	Image    string
+	ImageID  string
+	Created  int64
+	State    string
+	Health   string
+	Pids     []int32
 
 	CPULimit       float64
 	MemLimit       uint64
@@ -387,15 +388,17 @@ func (d *dockerUtil) dockerContainers() ([]*Container, error) {
 			d.Unlock()
 		}
 
+		entityID := fmt.Sprintf("docker://%s", c.ID)
 		container := &Container{
-			Type:    "Docker",
-			ID:      c.ID,
-			Name:    c.Names[0],
-			Image:   d.extractImageName(c.Image),
-			ImageID: c.ImageID,
-			Created: c.Created,
-			State:   c.State,
-			Health:  parseContainerHealth(c.Status),
+			Type:     "Docker",
+			ID:       entityID[9:],
+			EntityID: entityID,
+			Name:     c.Names[0],
+			Image:    d.extractImageName(c.Image),
+			ImageID:  c.ImageID,
+			Created:  c.Created,
+			State:    c.State,
+			Health:   parseContainerHealth(c.Status),
 		}
 		if !d.cfg.filter.IsExcluded(container) {
 			ret = append(ret, container)
