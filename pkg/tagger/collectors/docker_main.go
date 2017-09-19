@@ -40,8 +40,8 @@ type DockerCollector struct {
 	client       *client.Client
 	stop         chan bool
 	infoOut      chan<- []*TagInfo
-	labelsAsTags []string
-	envAsTags    []string
+	labelsAsTags map[string]string
+	envAsTags    map[string]string
 }
 
 // Detect tries to connect to the docker socket and returns success
@@ -54,8 +54,10 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 	c.client = client
 	c.stop = make(chan bool)
 	c.infoOut = out
-	c.labelsAsTags = config.Datadog.GetStringSlice("docker_labels_as_tags")
-	c.envAsTags = config.Datadog.GetStringSlice("docker_env_as_tags")
+
+	// viper lower-cases map keys, so extractor must lowercase before matching
+	c.labelsAsTags = config.Datadog.GetStringMapString("docker_labels_as_tags")
+	c.envAsTags = config.Datadog.GetStringMapString("docker_env_as_tags")
 
 	if docker.NeedInit() {
 		err := docker.InitDockerUtil(&docker.Config{})
