@@ -293,6 +293,14 @@ func AllContainers(includeExited bool) ([]*Container, error) {
 	return nil, nil
 }
 
+// AllImages returns a slice of all images.
+func AllImages(includeIntermediate bool) ([]types.ImageSummary, error) {
+	if globalDockerUtil != nil {
+		return globalDockerUtil.dockerImages(includeIntermediate)
+	}
+	return nil, nil
+}
+
 // GetHostname returns the Docker hostname.
 func GetHostname() (string, error) {
 	if globalDockerUtil == nil {
@@ -370,6 +378,15 @@ func InitDockerUtil(cfg *Config) error {
 		lastInvalidate:  time.Now(),
 	}
 	return nil
+}
+
+// dockerImages returns a list of Docker info for images.
+func (d *dockerUtil) dockerImages(includeIntermediate bool) ([]types.ImageSummary, error) {
+	images, err := d.cli.ImageList(context.Background(), types.ImageListOptions{All: includeIntermediate})
+	if err != nil {
+		return nil, fmt.Errorf("error listing images: %s", err)
+	}
+	return images, nil
 }
 
 // dockerContainers returns a list of Docker info for active containers using the
