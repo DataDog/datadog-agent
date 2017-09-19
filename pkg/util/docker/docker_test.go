@@ -156,9 +156,11 @@ func detab(str string) string {
 // Sanity-check that all containers works with different settings.
 func TestAllContainers(t *testing.T) {
 	InitDockerUtil(&Config{CollectNetwork: true})
-	AllContainers()
+	AllContainers(false)
+	AllContainers(true)
 	InitDockerUtil(&Config{CollectNetwork: false})
-	AllContainers()
+	AllContainers(false)
+	AllContainers(true)
 }
 
 func TestContainerFilter(t *testing.T) {
