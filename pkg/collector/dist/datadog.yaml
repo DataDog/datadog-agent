@@ -139,9 +139,14 @@ metadata_collectors:
 # log_level: info
 # log_file: /var/log/datadog/agent.log
 
-# Docker
+# Docker tag extraction
+#
+# We can extract container label or environment variables
+# as metric tags. If you prefix your tag name with +, it
+# will only be added to high cardinality metrics (docker check)
 #
 # docker_labels_as_tags:
-#   - label_name
+#   label_name:             tag_name
+#   high_cardinality_label: +tag_name
 # docker_env_as_tags:
-#   - ENVVAR_NAME
+#   ENVVAR_NAME: tag_name
