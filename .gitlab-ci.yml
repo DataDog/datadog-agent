@@ -243,9 +243,12 @@ deploy_rpm:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/x86_64/
-    - s3cmd sync -v s3://$RPM_S3_BUCKET/beta/ ./rpmrepo/
+    - aws s3 sync s3://$RPM_S3_BUCKET/beta/ ./rpmrepo/
+    # - s3cmd sync -v s3://$RPM_S3_BUCKET/beta/ ./rpmrepo/
     - cp $AGENT_OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/x86_64
-    - s3cmd sync -v --delete-removed ./rpmrepo/ s3://$RPM_S3_BUCKET/beta/
+    # - s3cmd sync -v --delete-removed ./rpmrepo/ s3://$RPM_S3_BUCKET/beta/
+    - aws s3 sync --delete ./rpmrepo/ s3://$RPM_S3_BUCKET/beta/
+
 
 # TODO: deploy and build SUSE packages
