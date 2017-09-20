@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -34,6 +35,7 @@ import (
 	"github.com/spf13/cobra"
 
 	// register core checks
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
@@ -163,6 +165,12 @@ func StartAgent() error {
 	// start the cmd HTTP server
 	if err = api.StartServer(); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
+	}
+
+	// start tagging system for containers
+	err = tagger.Init()
+	if err != nil {
+		return log.Errorf("Unable to start tagging system: %s", err)
 	}
 
 	// setup the forwarder

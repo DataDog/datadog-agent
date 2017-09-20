@@ -109,6 +109,9 @@ func init() {
 	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
+	// Docker
+	Datadog.SetDefault("docker_labels_as_tags", map[string]string{})
+	Datadog.SetDefault("docker_env_as_tags", map[string]string{})
 	// Kubernetes
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
