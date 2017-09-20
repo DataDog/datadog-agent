@@ -14,12 +14,6 @@
   revision = "d80d0f562a71fa2380fbeccc93ba5a2e325606e4"
 
 [[projects]]
-  branch = "dd"
-  name = "github.com/DataDog/gopsutil"
-  packages = ["cpu","host","internal/common","mem","net","process"]
-  revision = "df069044fce2744779f4ba1fb60c12938b4f2951"
-
-[[projects]]
   branch = "1.x"
   name = "github.com/DataDog/zstd"
   packages = ["."]
@@ -365,6 +359,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c57242100ebad351aa0633cfa681dc94ef4ca9dc80c9c970275fc77ec87e23be"
+  inputs-digest = "2aff2c76538a08462ca01fa0b24fc8da07c64591e0b01c97298782fae56a8235"
   solver-name = "gps-cdcl"
   solver-version = 1
