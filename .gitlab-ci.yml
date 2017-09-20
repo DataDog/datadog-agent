@@ -237,6 +237,7 @@ deploy_rpm:
     - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
     - master
+    - greg/rpm-pipeline
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
