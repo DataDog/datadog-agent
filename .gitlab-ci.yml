@@ -185,7 +185,6 @@ agent_rpm-x64:
     - set +x
     - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key --with-decryption --query "Parameter.Value" --out text)
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_ID
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
     - inv -e agent.omnibus-build
