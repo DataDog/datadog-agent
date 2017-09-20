@@ -208,6 +208,7 @@ type Container struct {
 	State    string
 	Health   string
 	Pids     []int32
+	Excluded bool
 
 	CPULimit       float64
 	MemLimit       uint64
@@ -279,10 +280,32 @@ type dockerUtil struct {
 //
 // Expose module-level functions that will interact with a Singleton dockerUtil.
 
-// AllContainers returns a slice of all running containers.
-func AllContainers(includeExited bool) ([]*Container, error) {
+type ContainerListConfig struct {
+	IncludeExited bool
+	FlagExcluded  bool
+}
+
+func (cfg *ContainerListConfig) GetCacheKey() string {
+	cacheKey := "dockerutil.containers"
+	if cfg.IncludeExited {
+		cacheKey += ".with_exited"
+	} else {
+		cacheKey += ".without_exited"
+	}
+
+	if cfg.FlagExcluded {
+		cacheKey += ".with_excluded"
+	} else {
+		cacheKey += ".without_excluded"
+	}
+
+	return cacheKey
+}
+
+// AllContainers returns a slice of all containers.
+func AllContainers(cfg *ContainerListConfig) ([]*Container, error) {
 	if globalDockerUtil != nil {
-		r, err := globalDockerUtil.containers(includeExited)
+		r, err := globalDockerUtil.containers(cfg)
 		if err != nil {
 			return nil, log.Errorf("unable to list Docker containers: %s", err)
 		}
@@ -422,8 +445,8 @@ func NeedInit() bool {
 // dockerContainers returns a list of Docker info for active containers using the
 // Docker API. This requires the running user to be in the "docker" user group
 // or have access to /tmp/docker.sock.
-func (d *dockerUtil) dockerContainers(includeExited bool) ([]*Container, error) {
-	containers, err := d.cli.ContainerList(context.Background(), types.ContainerListOptions{All: includeExited})
+func (d *dockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, error) {
+	containers, err := d.cli.ContainerList(context.Background(), types.ContainerListOptions{All: cfg.IncludeExited})
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}
@@ -456,9 +479,12 @@ func (d *dockerUtil) dockerContainers(includeExited bool) ([]*Container, error) 
 			State:    c.State,
 			Health:   parseContainerHealth(c.Status),
 		}
-		if !d.cfg.filter.IsExcluded(container) {
-			ret = append(ret, container)
+
+		container.Excluded = d.cfg.filter.IsExcluded(container)
+		if container.Excluded && !cfg.FlagExcluded {
+			continue
 		}
+		ret = append(ret, container)
 	}
 
 	if d.lastInvalidate.Add(invalidationInterval).After(time.Now()) {
@@ -470,11 +496,8 @@ func (d *dockerUtil) dockerContainers(includeExited bool) ([]*Container, error) 
 
 // containers gets a list of all containers on the current node using a mix of
 // the Docker APIs and cgroups stats. We attempt to limit syscalls where possible.
-func (d *dockerUtil) containers(includeExited bool) ([]*Container, error) {
-	cacheKey := "dockerutil.containers"
-	if includeExited {
-		cacheKey = "dockerUtil.all_containers"
-	}
+func (d *dockerUtil) containers(cfg *ContainerListConfig) ([]*Container, error) {
+	cacheKey := cfg.GetCacheKey()
 
 	// Get the containers either from our cache or with API queries.
 	var containers []*Container
@@ -496,12 +519,15 @@ func (d *dockerUtil) containers(includeExited bool) ([]*Container, error) {
 		if err != nil {
 			return nil, fmt.Errorf("could not get cgroups for pids: %s", err)
 		}
-		containers, err = d.dockerContainers(includeExited)
+		containers, err = d.dockerContainers(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not get docker containers: %s", err)
 		}
 
 		for _, container := range containers {
+			if container.Excluded {
+				continue
+			}
 			cgroup, ok := cgByContainer[container.ID]
 			if !ok {
 				continue
@@ -525,10 +551,11 @@ func (d *dockerUtil) containers(includeExited bool) ([]*Container, error) {
 	var err error
 	newContainers := make([]*Container, 0, len(containers))
 	for _, lastContainer := range containers {
-		if includeExited && lastContainer.State == ContainerExitedState {
+		if (cfg.IncludeExited && lastContainer.State == ContainerExitedState) || lastContainer.Excluded {
 			newContainers = append(newContainers, lastContainer)
 			continue
 		}
+
 		container := &Container{}
 		*container = *lastContainer
 

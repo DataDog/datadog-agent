@@ -128,7 +128,7 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
 func (d *DockerCheck) Run() error {
 	sender, err := aggregator.GetSender(d.ID())
 
-	containers, err := docker.AllContainers(true)
+	containers, err := docker.AllContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: false})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		return err
