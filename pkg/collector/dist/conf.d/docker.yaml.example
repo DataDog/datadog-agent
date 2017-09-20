@@ -54,7 +54,7 @@ instances:
     # collect_events: false
 
     # By default we do not collect events with a status ['top', 'exec_start', 'exec_create'].
-    # Here can be added additional statuses to be filtered. 
+    # Here can be added additional statuses to be filtered.
     # List of available statuses can be found here https://docs.docker.com/engine/reference/commandline/events/#object-types
     # filtered_event_types:
     #    - 'top'
@@ -125,30 +125,40 @@ instances:
     #
     # collect_exit_codes: true
 
-
-    # Exclude containers based on their tags
+    # Exclude containers based on their name or image
     # An excluded container will not get any individual container metric reported for it.
     # However it will still appear in the container count since ignoring it here would give
     # a wrong impression about the docker daemon load.
     #
-    # The rule is a regex on the tags.
-    #
     # How it works: exclude first.
-    # If a tag matches an exclude rule, it won't be included unless it also matches an include rule.
-    # Examples:
-    # exclude all, except ubuntu and debian.
-    # exclude: [".*"]
-    # include: ["docker_image:ubuntu", "docker_image:debian"]
+    # If a container matches an exclude rule, it won't be included unless it also matches an include rule.
     #
-    # include all, except ubuntu and Kubernetes pause containers.
-    # exclude: ["docker_image:ubuntu", "image_name:gcr.io/google_containers/pause.*", "image_name:openshift/origin-pod"]
+    # Rules are regexp.
+    #
+    # Examples:
+    # exclude all, except containers based on the 'ubuntu' image or the 'debian' image.
+    # exclude: ["image:.*"]
+    # include: ["image:ubuntu", "image:debian"]
+    #
+    # include all, except containers based on the 'ubuntu' image.
+    # exclude: ["image:ubuntu"]
     # include: []
     #
-    # Default: include all containers except for Kubernetes pause containers.
-    # Warning: pause containers exclusion works only if you deploy the agent the recommended way (in a pod).
-    # To customize this default behavior, override exclude.
-    # If you do so, default exclusion patterns won't apply anymore and will need to be added explicitly.
+    # exclude all debian images except containers with a name starting with 'frontend'.
+    # exclude: ["image:debian"]
+    # include: ["name:frontend.*"]
+    #
+    # exclude: []
+    # include: []
 
+    # Exclude default pause containers from orchestrators.
+    #
+    # By default the agent will not monitor kubernetes/openshift pause
+    # container. They will still be counted in the container count (just like
+    # excluded containers) since ignoring them would give a wrong impression
+    # about the docker daemon load.
+    #
+    # exclude_pause_container: true
 
 
     ## Tagging

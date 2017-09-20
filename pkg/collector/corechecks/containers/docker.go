@@ -27,20 +27,21 @@ import (
 
 type dockerConfig struct {
 	//Url                    string             `yaml:"url"`
+	CollectContainerSize  bool     `yaml:"collect_container_size"`
+	CollectImagesStats    bool     `yaml:"collect_images_stats"`
+	CollectImageSize      bool     `yaml:"collect_image_size"`
+	Exclude               []string `yaml:"exclude"`
+	Include               []string `yaml:"include"`
+	ExcludePauseContainer bool     `yaml:"exclude_pause_container"`
+	Tags                  []string `yaml:"tags"`
 	//CollectEvent           bool               `yaml:"collect_events"`
 	//FilteredEventType      []string           `yaml:"filtered_event_types"`
-	CollectContainerSize bool `yaml:"collect_container_size"`
 	//CustomCGroup           bool               `yaml:"custom_cgroups"`
 	//HealthServiceWhitelist []string           `yaml:"health_service_check_whitelist"`
 	//CollectContainerCount  bool               `yaml:"collect_container_count"`
 	//CollectVolumCount      bool               `yaml:"collect_volume_count"`
-	CollectImagesStats bool `yaml:"collect_images_stats"`
-	CollectImageSize   bool `yaml:"collect_image_size"`
 	//CollectDistStats       bool               `yaml:"collect_disk_stats"`
 	//CollectExitCodes       bool               `yaml:"collect_exit_codes"`
-	//ExcludeContainers      []string           `yaml:"exclude"`
-	//IncludeContainers      []string           `yaml:"include"`
-	Tags []string `yaml:"tags"`
 	//ECSTags                []string           `yaml:"ecs_tags"`
 	//PerformanceTags        []string           `yaml:"performance_tags"`
 	//ContainrTags           []string           `yaml:"container_tags"`
@@ -50,6 +51,9 @@ type dockerConfig struct {
 
 const (
 	DockerServiceUp string = "docker.service_up"
+
+	pauseContainerGCR       string = "image:gcr.io/google_containers/pause.*"
+	pauseContainerOpenshift string = "image:openshift/origin-pod"
 )
 
 type containerPerImage struct {
@@ -63,6 +67,9 @@ func (c *dockerConfig) Parse(data []byte) error {
 		return err
 	}
 
+	if c.ExcludePauseContainer {
+		c.Exclude = append(c.Exclude, pauseContainerGCR, pauseContainerOpenshift)
+	}
 	return nil
 }
 
@@ -128,7 +135,7 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
 func (d *DockerCheck) Run() error {
 	sender, err := aggregator.GetSender(d.ID())
 
-	containers, err := docker.AllContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: false})
+	containers, err := docker.AllContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
 		return err
@@ -137,7 +144,7 @@ func (d *DockerCheck) Run() error {
 	images := map[string]*containerPerImage{}
 	for _, c := range containers {
 		updateContainerRunningCount(images, c)
-		if c.State != docker.ContainerRunningState {
+		if c.State != docker.ContainerRunningState || c.Excluded {
 			continue
 		}
 		tags, err := tagger.Tag(c.EntityID, true)
@@ -216,12 +223,17 @@ func (d *DockerCheck) String() string {
 
 // Configure parses the check configuration and init the check
 func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
+	d.instance = &dockerConfig{
+		ExcludePauseContainer: true,
+	}
+	d.instance.Parse(config)
+
 	docker.InitDockerUtil(&docker.Config{
 		CacheDuration:  10 * time.Second,
 		CollectNetwork: true,
+		Whitelist:      d.instance.Include,
+		Blacklist:      d.instance.Exclude,
 	})
-	d.instance = &dockerConfig{}
-	d.instance.Parse(config)
 	return nil
 }
 
