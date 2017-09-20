@@ -149,7 +149,7 @@ def omnibus_build(ctx, puppy=False):
     # env overrides
     env = {}
     if not os.environ.get("JMX_VERSION"):
-        env["JMX_VERSION"] = "0.16.0"
+        env["JMX_VERSION"] = "0.17.0"
     if not os.environ.get("AGENT_VERSION"):
         env["AGENT_VERSION"] = get_version()
 
