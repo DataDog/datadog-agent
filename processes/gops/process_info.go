@@ -46,8 +46,7 @@ func GetProcesses() ([]*ProcessInfo, error) {
 			log.Debugf("Process with pid %d disappeared while scanning: %s", pid, err)
 			continue
 		}
-
-		processInfo, err := newProcessInfo(p, pid, totalMem)
+		processInfo, err := newProcessInfo(p, totalMem)
 		if err != nil {
 			log.Infof("Error fetching info for pid %d: %s", pid, err)
 			continue
@@ -63,12 +62,12 @@ func GetProcesses() ([]*ProcessInfo, error) {
 }
 
 // Make a new ProcessInfo from a Process from gopsutil
-func newProcessInfo(p *process.Process, pid int32, totalMem float64) (*ProcessInfo, error) {
+func newProcessInfo(p *process.Process, totalMem float64) (*ProcessInfo, error) {
 	memInfo, err := p.MemoryInfo()
 	if err != nil {
 		return nil, err
 	}
-
+	pid := p.Pid
 	ppid, err := p.Ppid()
 	if err != nil {
 		return nil, err

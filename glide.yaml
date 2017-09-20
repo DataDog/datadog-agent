@@ -4,6 +4,8 @@ import:
   version: v2.6
 - package: github.com/shirou/gopsutil
   version: v2.0.0
+- package: github.com/stretchr/testify
+  version: v1.0
   subpackages:
   - mem
   - process
