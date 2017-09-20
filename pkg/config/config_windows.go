@@ -10,4 +10,5 @@ const (
 	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
 	defaultJMXPipePath          = "\\\\.\\pipe\\"
 	defaultLogPath              = "c:\\programdata\\datadog\\logs\\agent.log"
+	defaultSyslogURI            = ""
 )
