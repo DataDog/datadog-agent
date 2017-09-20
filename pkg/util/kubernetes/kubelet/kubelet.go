@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package kubernetes
+package kubelet
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -15,38 +15,15 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+
 	log "github.com/cihub/seelog"
-	"github.com/ericchiang/k8s"
-	"github.com/ericchiang/k8s/api/v1"
 )
 
 // Kubelet constants
 const (
-	AuthTokenPath     = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	KubeletHealthPath = "/healthz"
 )
-
-// Pod contains fields for unmarshalling a Pod
-type Pod struct {
-	Spec   Spec   `json:"spec,omitempty"`
-	Status Status `json:"status,omitempty"`
-}
-
-// PodList contains fields for unmarshalling a PodList
-type PodList struct {
-	Items []*Pod `json:"items,omitempty"`
-}
-
-// Spec contains fields for unmarshalling a PodSpec
-type Spec struct {
-	HostNetwork bool   `json:"hostNetwork,omitempty"`
-	Hostname    string `json:"hostname,omitempty"`
-}
-
-// Status contains fields for unmarshalling a PodStatus
-type Status struct {
-	HostIP string `json:"hostIP,omitempty"`
-}
 
 // KubeUtil is a struct to hold the kubelet api url
 // Instanciate with NewKubeUtil
@@ -77,27 +54,11 @@ func (ku *KubeUtil) GetNodeInfo() (ip, name string, err error) {
 
 	for _, pod := range pods {
 		if !pod.Spec.HostNetwork {
-			return pod.Status.HostIP, pod.Spec.Hostname, nil
+			return pod.Status.HostIP, pod.Spec.NodeName, nil
 		}
 	}
 
 	return "", "", fmt.Errorf("Failed to get node info")
-}
-
-// GetGlobalPodList returns the list of pods running on the cluster where this pod is running
-// This function queries the API server which could put heavy load on it so use with caution
-func GetGlobalPodList() ([]*v1.Pod, error) {
-	client, err := k8s.NewInClusterClient()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get client: %s", err)
-	}
-
-	pods, err := client.CoreV1().ListPods(context.Background(), "")
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get pods: %s", err)
-	}
-
-	return pods.GetItems(), nil
 }
 
 // GetLocalPodList returns the list of pods running on the node where this pod is running
@@ -116,6 +77,31 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	return v.Items, nil
 }
 
+// GetPodForContainerID fetches the podlist and returns the pod running
+// a given container on the node. Returns a nil pointer if not found.
+func (ku *KubeUtil) GetPodForContainerID(containerID string) (*Pod, error) {
+	pods, err := ku.GetLocalPodList()
+	if err != nil {
+		return nil, err
+	}
+
+	return ku.searchPodForContainerID(pods, containerID)
+}
+
+func (ku *KubeUtil) searchPodForContainerID(podlist []*Pod, containerID string) (*Pod, error) {
+	if containerID == "" {
+		return nil, errors.New("containerID is empty")
+	}
+	for _, pod := range podlist {
+		for _, container := range pod.Status.Containers {
+			if container.ID == containerID {
+				return pod, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("container %s not found in podlist", containerID)
+}
+
 // Try and find the hostname to query the kubelet
 // TODO: Add TLS verification
 func locateKubelet() (string, error) {
@@ -131,14 +117,16 @@ func locateKubelet() (string, error) {
 
 	port := config.Datadog.GetInt("kubernetes_http_kubelet_port")
 	url := fmt.Sprintf("http://%s:%d", host, port)
-	if _, err := PerformKubeletQuery(url); err == nil {
+	healthzURL := fmt.Sprintf("%s%s", url, KubeletHealthPath)
+	if _, err := PerformKubeletQuery(healthzURL); err == nil {
 		return url, nil
 	}
 	log.Debugf("Couldn't query kubelet over HTTP, assuming it's not in no_auth mode.")
 
 	port = config.Datadog.GetInt("kubernetes_https_kubelet_port")
 	url = fmt.Sprintf("https://%s:%d", host, port)
-	if _, err := PerformKubeletQuery(url); err == nil {
+	healthzURL = fmt.Sprintf("%s%s", url, KubeletHealthPath)
+	if _, err := PerformKubeletQuery(healthzURL); err == nil {
 		return url, nil
 	}
 
@@ -155,7 +143,7 @@ func PerformKubeletQuery(url string) ([]byte, error) {
 	}
 
 	if strings.HasPrefix(url, "https") {
-		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", getAuthToken()))
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", kubernetes.GetAuthToken()))
 	}
 
 	res, err := http.Get(url)
@@ -169,14 +157,4 @@ func PerformKubeletQuery(url string) ([]byte, error) {
 		return nil, fmt.Errorf("Error reading response from %s: %s", url, err)
 	}
 	return body, nil
-}
-
-// Read the kubelet token
-func getAuthToken() string {
-	token, err := ioutil.ReadFile(AuthTokenPath)
-	if err != nil {
-		log.Errorf("Could not read token from %s: %s", AuthTokenPath, err)
-		return ""
-	}
-	return string(token)
 }
