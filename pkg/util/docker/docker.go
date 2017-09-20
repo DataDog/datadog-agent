@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	// TODO: investigate using upstream instead
 	"github.com/DataDog/gopsutil/process"
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
