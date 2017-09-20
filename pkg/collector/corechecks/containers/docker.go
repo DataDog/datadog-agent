@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
@@ -46,6 +47,10 @@ type dockerConfig struct {
 	//EventAttributesAsTags  []string           `yaml:"event_attributes_as_tags"`
 	//CappedMetrics          map[string]float64 `yaml:"capped_metrics"`
 }
+
+const (
+	DockerServiceUp string = "docker.service_up"
+)
 
 type containerPerImage struct {
 	tags    []string
@@ -94,11 +99,11 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
 
 	availableImages, err := docker.AllImages(false)
 	if err != nil {
-		return log.Errorf("could not query images from docker: %s", err)
+		return err
 	}
 	allImages, err := docker.AllImages(true)
 	if err != nil {
-		return log.Errorf("could not query images from docker: %s", err)
+		return err
 	}
 
 	if d.instance.CollectImageSize {
@@ -125,7 +130,8 @@ func (d *DockerCheck) Run() error {
 
 	containers, err := docker.AllContainers(true)
 	if err != nil {
-		return fmt.Errorf("Could not list containers: %s", err)
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
+		return err
 	}
 
 	images := map[string]*containerPerImage{}
@@ -190,7 +196,12 @@ func (d *DockerCheck) Run() error {
 		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", image.tags)
 	}
 
-	d.countAndWeightImages(sender)
+	if err := d.countAndWeightImages(sender); err != nil {
+		log.Error(err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
+		return err
+	}
+	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", nil, "")
 
 	sender.Commit()
 	return nil
