@@ -39,7 +39,7 @@ func (pg *ProcessNameGroup) VMS() uint64 {
 // Return a slice of the usernames, sorted alphabetically
 func (pg *ProcessNameGroup) Usernames() []string {
 	var usernameStringSlice sort.StringSlice
-	for username, _ := range pg.usernames {
+	for username := range pg.usernames {
 		usernameStringSlice = append(usernameStringSlice, username)
 	}
 

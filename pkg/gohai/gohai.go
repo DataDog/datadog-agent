@@ -104,7 +104,7 @@ func versionString() string {
 // Implement the flag.Value interface
 func (sc *SelectedCollectors) String() string {
 	collectorSlice := make([]string, 0)
-	for collectorName, _ := range *sc {
+	for collectorName := range *sc {
 		collectorSlice = append(collectorSlice, collectorName)
 	}
 	return fmt.Sprint(collectorSlice)
