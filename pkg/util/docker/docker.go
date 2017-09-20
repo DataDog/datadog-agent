@@ -283,12 +283,10 @@ type dockerUtil struct {
 func AllContainers(includeExited bool) ([]*Container, error) {
 	if globalDockerUtil != nil {
 		r, err := globalDockerUtil.containers(includeExited)
-		if err != nil && err.Error() != lastErr {
-			log.Warnf("unable to collect docker stats: %s", err)
-			lastErr = err.Error()
-		} else {
-			return r, nil
+		if err != nil {
+			return nil, log.Errorf("unable to list Docker containers: %s", err)
 		}
+		return r, nil
 	}
 	return nil, nil
 }
@@ -407,7 +405,7 @@ func InitDockerUtil(cfg *Config) error {
 func (d *dockerUtil) dockerImages(includeIntermediate bool) ([]types.ImageSummary, error) {
 	images, err := d.cli.ImageList(context.Background(), types.ImageListOptions{All: includeIntermediate})
 	if err != nil {
-		return nil, fmt.Errorf("error listing images: %s", err)
+		return nil, fmt.Errorf("unable to list docker images: %s", err)
 	}
 	return images, nil
 }
