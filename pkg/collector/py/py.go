@@ -6,10 +6,13 @@
 package py
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	log "github.com/cihub/seelog"
+	"github.com/kardianos/osext"
 	python "github.com/sbinet/go-python"
 )
 
@@ -42,11 +45,8 @@ var (
 // configure the environment. This function should be called at most once in the
 // Agent lifetime.
 func Initialize(paths ...string) *python.PyThreadState {
-	// Set the Python Home from within the agent if needed
-	if pythonHome != "" {
-		pPythonHome := C.CString(pythonHome)
-		C.Py_SetPythonHome(pPythonHome)
-	}
+
+	setPythonPath()
 
 	// store the final value of Python Home in the cache
 	PythonHome = C.GoString(C.Py_GetPythonHome())
@@ -109,4 +109,20 @@ func Initialize(paths ...string) *python.PyThreadState {
 
 	// return the state so the caller can resume
 	return state
+}
+
+func setPythonPath() {
+	_here, _ := osext.ExecutableFolder()
+	embeddedDirectory := filepath.Join(_here, "..", "..", "embedded")
+	pythonLibDir := filepath.Join(embeddedDirectory, "lib", "python2.7")
+	_, err := os.Stat(pythonLibDir)
+	if !os.IsNotExist(err) {
+		pythonHome = embeddedDirectory
+	}
+
+	// Set the Python Home from within the agent if needed
+	if pythonHome != "" {
+		pPythonHome := C.CString(pythonHome)
+		C.Py_SetPythonHome(pPythonHome)
+	}
 }
