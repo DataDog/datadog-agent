@@ -99,17 +99,11 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	decoder := json.NewDecoder(r.Body)
 
-	var tsjson map[string]interface{}
-	err := decoder.Decode(&tsjson)
-	if err != nil {
-		log.Errorf("unable to parse jmx status: %s", err)
-		http.Error(w, err.Error(), 500)
-		return
-	}
+	queries = r.URL.Query()
+	ts, _ := queries["timestamp"]
 
-	log.Debugf("Getting latest JMX Configs as of: %#v", tsjson["timestamp"])
+	log.Debugf("Getting latest JMX Configs as of: %#v", ts)
 	j := map[string]interface{}{}
 	configs := map[string]check.ConfigJSONMap{}
 	for name, config := range embed.JMXConfigCache {
