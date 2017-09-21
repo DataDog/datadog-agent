@@ -125,6 +125,7 @@ func (c *JMXCheck) Run() error {
 	subprocessArgs = append(subprocessArgs,
 		"-classpath", classpath,
 		jmxMainClass,
+		"--ipc_host", "localhost",
 		"--ipc_port", fmt.Sprintf("%v", config.Datadog.GetInt("cmd_port")),
 		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
 		"--conf_directory", jmxConfPath, // Path of the conf directory that will be read by jmxfetch,
