@@ -10,6 +10,7 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -94,13 +95,14 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 }
 
 func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	var err error
+	if err = apicommon.Validate(w, r); err != nil {
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 
-	queries = r.URL.Query()
+	queries := r.URL.Query()
 	ts, _ := queries["timestamp"]
 
 	log.Debugf("Getting latest JMX Configs as of: %#v", ts)
@@ -109,14 +111,16 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	for name, config := range embed.JMXConfigCache {
 		m, ok := config.(map[string]interface{})
 		if !ok {
-			log.Errorf("wrong type in cache: %s", err)
+			err = fmt.Errorf("wrong type in cache.")
+			log.Errorf("%s", err.Error())
 			http.Error(w, err.Error(), 500)
 			return
 		}
 
 		cfg, ok := m["config"].(check.Config)
 		if !ok {
-			log.Errorf("wrong type for config: %s", err)
+			err = fmt.Errorf("wrong type for config")
+			log.Errorf("%s", err.Error())
 			http.Error(w, err.Error(), 500)
 			return
 		}
