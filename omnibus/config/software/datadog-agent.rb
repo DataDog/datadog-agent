@@ -27,8 +27,7 @@ build do
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
 
-  # the go deps needs to be installed before running omnibus
-  command "invoke agent.deps", env: env
+  # we assume the go deps are already installed before running omnibus
   command "invoke agent.build --rebuild --use-embedded-libs --no-development", env: env
 
   mkdir "#{install_dir}/etc/datadog-agent"

@@ -23,7 +23,7 @@ else
 end
 
 build_version do
-  source :git, from_dependency: 'datadog-agent'
+  source :git
   output_format :dd_agent_format
 end
 
@@ -117,7 +117,7 @@ if windows?
 end
 
 # creates required build directories
-dependency 'preparation'
+dependency 'datadog-agent-prepare'
 
 # Datadog agent
 dependency 'datadog-agent'
@@ -155,3 +155,4 @@ end
 
 exclude '\.git*'
 exclude 'bundler\/git'
+exclude 'omnibus'

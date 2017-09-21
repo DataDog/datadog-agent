@@ -9,6 +9,7 @@
 name "datadog-agent-finalize"
 description "steps required to finalize the build"
 default_version "1.0.0"
+skip_transitive_dependency_licensing true
 
 build do
     # Create symlink to the agent"s binary
@@ -17,8 +18,8 @@ build do
 
     # Move checks and configuration files
     mkdir "/etc/datadog-agent"
-    move "#{install_dir}/etc/datadog-agent/datadog.yaml", "/etc/datadog-agent"
-    move "#{install_dir}/etc/conf.d", "/etc/datadog-agent"
+    move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
+    move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent"
     move "#{install_dir}/agent/checks.d", "/etc/datadog-agent"
 
     # Move system service files

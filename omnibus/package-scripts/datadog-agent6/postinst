@@ -62,11 +62,10 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     # Only supports systemd and upstart
     echo "Enabling service $SERVICE_NAME"
     if command -v systemctl >/dev/null 2>&1; then
-        cp $INSTALL_DIR/scripts/datadog-agent.service /lib/systemd/system
         systemctl enable $SERVICE_NAME
     elif command -v initctl >/dev/null 2>&1; then
-        cp $INSTALL_DIR/scripts/datadog-agent.conf /etc/init
         # start/stop policy is already defined in the upstart job file
+        ;
     else
         echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
         exit 1
