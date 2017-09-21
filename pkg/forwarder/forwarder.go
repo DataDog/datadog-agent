@@ -259,7 +259,12 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payl
 				t.Endpoint = transactionEndpoint
 				t.Payload = payload
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
-				t.apiKeyStatusKey = fmt.Sprintf("%s,%s", domain, fmt.Sprintf("*************************%s", apiKey[len(apiKey)-5:]))
+
+				t.apiKeyStatusKey = fmt.Sprintf("%s,*************************", domain)
+				if len(apiKey) > 5 {
+					t.apiKeyStatusKey += apiKey[len(apiKey)-5:]
+				}
+
 				for k, v := range extraHeaders {
 					t.Headers.Set(k, v)
 				}
