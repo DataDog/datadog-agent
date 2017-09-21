@@ -35,6 +35,19 @@ const (
 	linkToDoc                         = "See http://docs.datadoghq.com/integrations/java/ for more information"
 )
 
+var (
+	jmxLogLevelMap = map[string]string{
+		"trace":    "TRACE",
+		"debug":    "DEBUG",
+		"info":     "INFO",
+		"warn":     "WARN",
+		"warning":  "WARN",
+		"error":    "ERROR",
+		"err":      "ERROR",
+		"critical": "FATAL",
+	}
+)
+
 type checkInstanceCfg struct {
 	Host               string            `yaml:"host,omitempty"`
 	Port               int               `yaml:"port,omitempty"`
@@ -122,6 +135,10 @@ func (c *JMXCheck) Run() error {
 
 	subprocessArgs = append(subprocessArgs, strings.Fields(javaOptions)...)
 
+	jmxLogLevel, ok := jmxLogLevelMap[strings.ToLower(config.Datadog.GetString("log_level"))]
+	if !ok {
+		jmxLogLevel = "INFO"
+	}
 	subprocessArgs = append(subprocessArgs,
 		"-classpath", classpath,
 		jmxMainClass,
@@ -129,7 +146,7 @@ func (c *JMXCheck) Run() error {
 		"--ipc_port", fmt.Sprintf("%v", config.Datadog.GetInt("cmd_port")),
 		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
 		"--conf_directory", jmxConfPath, // Path of the conf directory that will be read by jmxfetch,
-		"--log_level", "INFO", //FIXME : Use agent log level when available
+		"--log_level", jmxLogLevel,
 		"--log_location", path.Join(here, "dist", "jmx", "jmxfetch.log"), // FIXME : Path of the log file. At some point we should have a `run` folder
 		"--reporter", reporter, // Reporter to use
 		jmxCollectCommand, // Name of the command
