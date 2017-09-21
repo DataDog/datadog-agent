@@ -37,7 +37,10 @@ var flareCmd = &cobra.Command{
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		common.SetupConfig(confFilePath)
+		err := common.SetupConfig(confFilePath)
+		if err != nil {
+			return err
+		}
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
 		config.SetupLogger("off", "", "", false, false, "")
 		if customerEmail == "" && caseID == "" {

@@ -19,6 +19,9 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
 const (
@@ -34,9 +37,11 @@ func DockerEntityName(cid string) string {
 // and feed a stram of TagInfo. It requires access to the docker socket.
 // It will also embed DockerExtractor collectors for container tagging.
 type DockerCollector struct {
-	client  *client.Client
-	stop    chan bool
-	infoOut chan<- []*TagInfo
+	client       *client.Client
+	stop         chan bool
+	infoOut      chan<- []*TagInfo
+	labelsAsTags map[string]string
+	envAsTags    map[string]string
 }
 
 // Detect tries to connect to the docker socket and returns success
@@ -49,6 +54,17 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 	c.client = client
 	c.stop = make(chan bool)
 	c.infoOut = out
+
+	// viper lower-cases map keys, so extractor must lowercase before matching
+	c.labelsAsTags = config.Datadog.GetStringMapString("docker_labels_as_tags")
+	c.envAsTags = config.Datadog.GetStringMapString("docker_env_as_tags")
+
+	if docker.NeedInit() {
+		err := docker.InitDockerUtil(&docker.Config{})
+		if err != nil {
+			return NoCollection, fmt.Errorf("Failed initialise dockerutils, docker tagging will not work: %s", err)
+		}
+	}
 
 	// TODO: list and inspect existing containers once docker utils are merged
 
@@ -121,7 +137,7 @@ func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, erro
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 		return nil, nil, err
 	}
-	return c.ExtractFromInspect(co)
+	return c.extractFromInspect(co)
 }
 
 func dockerFactory() Collector {

@@ -14,16 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/xc"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/disk"
 )
-
-/*
-#include <unistd.h>
-#include <sys/types.h>
-#include <stdlib.h>
-*/
-import "C"
 
 // For testing purpose
 var ioCounters = disk.IOCounters
@@ -164,10 +158,11 @@ func (c *IOCheck) Run() error {
 }
 
 func init() {
-	var scClkTck C.long
-
-	scClkTck = C.sysconf(C._SC_CLK_TCK)
-	hz = int64(scClkTck)
+	var err error
+	hz, err = xc.GetSystemFreq()
+	if err != nil {
+		hz = 0
+	}
 
 	if hz <= 0 {
 		log.Errorf("Unable to grab HZ: perhaps unavailable in your architecture" +

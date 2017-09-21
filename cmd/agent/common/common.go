@@ -31,9 +31,6 @@ var (
 	// Forwarder is the global forwarder instance
 	Forwarder forwarder.Forwarder
 
-	// Stopper is the channel used by other packages to ask for stopping the agent
-	Stopper = make(chan bool)
-
 	// utility variables
 	_here, _ = osext.ExecutableFolder()
 )
@@ -42,8 +39,8 @@ var (
 // should load python modules and checks
 func GetPythonPaths() []string {
 	return []string{
-		GetDistPath(),                                  // some common modules are shipped in the dist path directly
-		filepath.Join(GetDistPath(), "checks"),         // other common modules (e.g. `AgentCheck` class)
+		GetDistPath(),                                  // common modules are shipped in the dist path directly or under the "checks/" sub-dir
+		filepath.Join(GetDistPath(), "checks.d"),       // custom checks in the "checks.d/" sub-dir of the dist path
 		config.Datadog.GetString("additional_checksd"), // custom checks, have precedence over integrations-core checks
 		PyChecksPath,                                   // integrations-core checks
 	}

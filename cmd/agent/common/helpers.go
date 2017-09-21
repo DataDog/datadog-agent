@@ -94,7 +94,7 @@ func StartAutoConfig() {
 }
 
 // SetupConfig fires up the configuration system
-func SetupConfig(confFilePath string) {
+func SetupConfig(confFilePath string) error {
 	// set the paths where a config file is expected
 	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,
@@ -107,6 +107,7 @@ func SetupConfig(confFilePath string) {
 	// load the configuration
 	err := config.Datadog.ReadInConfig()
 	if err != nil {
-		panic(fmt.Errorf("unable to load Datadog config file: %s", err))
+		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
+	return nil
 }

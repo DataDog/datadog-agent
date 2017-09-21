@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	log "github.com/cihub/seelog"
 )
@@ -68,7 +69,8 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 func (c *Scheduler) firstRun() error {
 	p, found := catalog["host"]
 	if !found {
-		panic("Unable to find 'host' metadata collector in the catalog!")
+		log.Error("Unable to find 'host' metadata collector in the catalog!")
+		signals.ErrorStopper <- true
 	}
 	return p.Send(c.srl)
 }

@@ -18,7 +18,7 @@ PROFILE_COV = "profile.cov"
 
 
 @task()
-def test(ctx, targets=None, race=False, use_embedded_libs=False, fail_on_fmt=False):
+def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False, fail_on_fmt=False):
     """
     Run all the tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -42,39 +42,51 @@ def test(ctx, targets=None, race=False, use_embedded_libs=False, fail_on_fmt=Fal
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
 
-    if race:
-        # atomic is quite expensive but it's the only way to run
-        # both the coverage and the race detector at the same time
-        # without getting false positives from the cover counter
-        covermode_opt = "-covermode=atomic"
-        race_opt = "-race"
-    else:
-        covermode_opt = "-covermode=count"
-        race_opt = ""
 
-    matches = []
-    for target in targets_list:
-        for root, _, filenames in os.walk(target):
-            if fnmatch.filter(filenames, "*.go"):
-                matches.append(root)
+    race_opt = ""
+    covermode_opt = ""
+    if race:
+        race_opt = "-race"
+    if coverage:
+        if race:
+            # atomic is quite expensive but it's the only way to run
+            # both the coverage and the race detector at the same time
+            # without getting false positives from the cover counter
+            covermode_opt = "-covermode=atomic"
+        else:
+            covermode_opt = "-covermode=count"
+
+    if race or coverage:
+        matches = []
+        for target in targets_list:
+            for root, _, filenames in os.walk(target):
+                if fnmatch.filter(filenames, "*.go"):
+                    matches.append(root)
+    else:
+        matches = ["{}/...".format(t) for t in targets_list]
 
     for match in matches:
-        profile_tmp = "{}/profile.tmp".format(match)
-        cmd = "go test -tags '{go_build_tags}' {race_opt} -short {covermode_opt} -coverprofile={profile_tmp} {pkg_folder}"
+        coverprofile = ""
+        if coverage:
+            profile_tmp = "{}/profile.tmp".format(match)
+            coverprofile = "-coverprofile={}".format(profile_tmp)
+        cmd = "go test -tags '{go_build_tags}' {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}"
         args = {
             "go_build_tags": " ".join(build_tags),
             "race_opt": race_opt,
             "covermode_opt": covermode_opt,
-            "profile_tmp": profile_tmp,
+            "coverprofile": coverprofile,
             "pkg_folder": match,
         }
         ctx.run(cmd.format(**args), env=env)
 
-        if os.path.exists(profile_tmp):
-            ctx.run("cat {} | tail -n +2 >> {}".format(profile_tmp, PROFILE_COV))
-            os.remove(profile_tmp)
+        if coverage:
+            if os.path.exists(profile_tmp):
+                ctx.run("cat {} | tail -n +2 >> {}".format(profile_tmp, PROFILE_COV))
+                os.remove(profile_tmp)
 
-    ctx.run("go tool cover -func {}".format(PROFILE_COV))
+    if coverage:
+        ctx.run("go tool cover -func {}".format(PROFILE_COV))
 
 
 @task

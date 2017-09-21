@@ -23,7 +23,10 @@ var listCheckCommand = &cobra.Command{
 	Short: "Query the agent for the list of checks running",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		common.SetupConfig(confFilePath)
+		err := common.SetupConfig(confFilePath)
+		if err != nil {
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		}
 		return doListChecks()
 	},
 }

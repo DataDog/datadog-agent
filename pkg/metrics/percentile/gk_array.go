@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	log "github.com/cihub/seelog"
 )
 
 // EPSILON represents the accuracy of the sketch.
@@ -135,7 +137,8 @@ func (s GKArray) compressAndAllocateBuf() GKArray {
 // no need to check Incoming or Compress().
 func (s GKArray) Quantile(q float64) float64 {
 	if q < 0 || q > 1 {
-		panic("Quantile out of bounds")
+		log.Errorf("Quantile out of bounds")
+		return math.NaN()
 	}
 
 	if s.Count == 0 {
