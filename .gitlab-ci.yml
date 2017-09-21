@@ -28,7 +28,7 @@ before_script:
 
 
 # run tests for deb-x64
-run_tests_deb-x64:
+.run_tests_deb-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -36,7 +36,7 @@ run_tests_deb-x64:
     - inv -e test --coverage
 
 # run tests for rpm-x64
-run_test_rpm-x64:
+.run_test_rpm-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -50,7 +50,7 @@ run_test_rpm-x64:
 
 
 # build dogstatsd static for deb-x64
-build_dogstatsd_static-deb_x64:
+.build_dogstatsd_static-deb_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -63,7 +63,7 @@ build_dogstatsd_static-deb_x64:
       - dogstatsd
 
 # build dogstatsd static for rpm-x64
-build_dogstatsd_static-rpm_x64:
+.build_dogstatsd_static-rpm_x64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -77,7 +77,7 @@ build_dogstatsd_static-rpm_x64:
 #
 
 # run benchmarks on deb
-run_benchmarks-deb_x64:
+.run_benchmarks-deb_x64:
   stage: integration_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   allow_failure: true  # FIXME: this was set to true to temporarily unblock the pipeline
@@ -100,7 +100,7 @@ run_benchmarks-deb_x64:
       - benchmarks
 
 # run integration tests on the test image for deb-x64
-run_integration_tests_deb-x64:
+.run_integration_tests_deb-x64:
   stage: integration_test
   allow_failure: true  # FIXME when the root-user related issues are fixed on gitlab
   tags:
@@ -112,7 +112,7 @@ run_integration_tests_deb-x64:
     - docker run --rm --user root --pid=host -v /var/run/docker.sock:/var/run/docker.sock -v /tmp:/tmp -v $(pwd):$SRC_PATH --workdir $SRC_PATH -e CI_PIPELINE_ID=$CI_PIPELINE_ID -e CI_COMMIT_SHA=$CI_COMMIT_SHA 727006795293.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders:deb_test_x64 inv integration-tests --install-deps
 
 # check the size of the static dogstatsd binary
-run_dogstatsd_size_test:
+.run_dogstatsd_size_test:
   stage: integration_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -126,7 +126,7 @@ run_dogstatsd_size_test:
     - inv -e dogstatsd.size-test --skip-build
 
 # run integration tests for deb-x64
-run_docker_integration_tests_deb-x64:
+.run_docker_integration_tests_deb-x64:
   stage: integration_test
   allow_failure: true  # FIXME when the root-user related issues are fixed on gitlab
   dependencies:
