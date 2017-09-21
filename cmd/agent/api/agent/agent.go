@@ -10,8 +10,8 @@ package agent
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -95,15 +95,17 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 }
 
 func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
-	var err error
-	if err = apicommon.Validate(w, r); err != nil {
+	if err := apicommon.Validate(w, r); err != nil {
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 
-	queries := r.URL.Query()
-	ts, _ := queries["timestamp"]
+	var ts int
+	queries = r.URL.Query()
+	if timestamps, ok := queries["timestamp"]; ok {
+		ts = strconv.Atoi(timestamps[0])
+	}
 
 	log.Debugf("Getting latest JMX Configs as of: %#v", ts)
 	j := map[string]interface{}{}
@@ -111,16 +113,14 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	for name, config := range embed.JMXConfigCache {
 		m, ok := config.(map[string]interface{})
 		if !ok {
-			err = fmt.Errorf("wrong type in cache.")
-			log.Errorf("%s", err.Error())
+			log.Errorf("wrong type in cache: %s", err)
 			http.Error(w, err.Error(), 500)
 			return
 		}
 
 		cfg, ok := m["config"].(check.Config)
 		if !ok {
-			err = fmt.Errorf("wrong type for config")
-			log.Errorf("%s", err.Error())
+			log.Errorf("wrong type for config: %s", err)
 			http.Error(w, err.Error(), 500)
 			return
 		}
