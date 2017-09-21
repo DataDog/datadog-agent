@@ -203,7 +203,6 @@ func TestMergeNormal(t *testing.T) {
 			d.Add(value)
 		}
 		s1 = s1.Merge(s3)
-
 		eps := float64(1e-6)
 		for _, q := range testQuantiles {
 			assert.InDelta(t, d.Quantile(q), s1.Quantile(q), 2*EPSILON*float64(n))

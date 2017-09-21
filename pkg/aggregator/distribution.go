@@ -32,8 +32,6 @@ func (d *Distribution) flush(timestamp float64) (*percentile.SketchSeries, error
 	if d.count == 0 {
 		return &percentile.SketchSeries{}, percentile.NoSketchError{}
 	}
-	// compress the sketch before flushing
-	d.sketch = d.sketch.Compress()
 	sketch := &percentile.SketchSeries{
 		Sketches: []percentile.Sketch{{Timestamp: int64(timestamp),
 			Sketch: d.sketch}},

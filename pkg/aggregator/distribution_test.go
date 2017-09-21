@@ -36,7 +36,6 @@ func TestDistributionSampling(t *testing.T) {
 	expectedSketch = expectedSketch.Add(1)
 	expectedSketch = expectedSketch.Add(10)
 	expectedSketch = expectedSketch.Add(5)
-	expectedSketch = expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		Sketches: []percentile.Sketch{{Timestamp: int64(15), Sketch: expectedSketch}}}
 
