@@ -7,28 +7,26 @@
 
 package flare
 
-
 import (
-    "path/filepath"
-    "github.com/DataDog/datadog-agent/pkg/util/docker"
-    "github.com/jhoonb/archivex"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/jhoonb/archivex"
+	"path/filepath"
 )
 
+func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
 
-func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error{
-
-    co, err := docker.ContainerSelfInspect()
-    if err != nil {
-        return err
-    }
-    // Clean it up
-    cleaned, err := credentialsCleanerBytes(co)
-    if err != nil {
-        return err
-    }
-    err = zipFile.Add(filepath.Join(hostname, "docker_inspect.log"), cleaned)
-    if err != nil {
-        return err
-    }
-    return err
+	co, err := docker.ContainerSelfInspect()
+	if err != nil {
+		return err
+	}
+	// Clean it up
+	cleaned, err := credentialsCleanerBytes(co)
+	if err != nil {
+		return err
+	}
+	err = zipFile.Add(filepath.Join(hostname, "docker_inspect.log"), cleaned)
+	if err != nil {
+		return err
+	}
+	return err
 }

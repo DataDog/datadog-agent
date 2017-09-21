@@ -8,11 +8,11 @@
 package docker
 
 import (
-	"encoding/json"
-	"bytes"
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"

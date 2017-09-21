@@ -8,13 +8,12 @@
 package flare
 
 import (
-    "path"
-    "path/filepath"
-    "strings"
-    "github.com/jhoonb/archivex"
+	"github.com/jhoonb/archivex"
+	"path"
+	"path/filepath"
+	"strings"
 )
 
-
-func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error{
-    return nil
+func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
+	return nil
 }
