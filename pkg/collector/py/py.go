@@ -8,6 +8,7 @@ package py
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -113,7 +114,15 @@ func Initialize(paths ...string) *python.PyThreadState {
 
 func setPythonPath() {
 	_here, _ := osext.ExecutableFolder()
-	embeddedDirectory := filepath.Join(_here, "..", "..", "embedded")
+
+	var embeddedDirectory string
+	switch os := runtime.GOOS; os {
+	case "windows":
+		embeddedDirectory = _here
+	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
+		embeddedDirectory = filepath.Join(_here, "..", "..", "embedded")
+	}
+
 	pythonLibDir := filepath.Join(embeddedDirectory, "lib", "python2.7")
 	_, err := os.Stat(pythonLibDir)
 	if !os.IsNotExist(err) {
