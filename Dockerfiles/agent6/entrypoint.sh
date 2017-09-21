@@ -15,6 +15,6 @@ fi
 
 ##### Starting up #####
 
-export PATH="/opt/datadog-agent6/bin/agent/:/opt/datadog-agent6/bin/:$PATH"
+export PATH="/opt/datadog-agent/bin/agent/:/opt/datadog-agent/bin/:$PATH"
 
 exec "$@"

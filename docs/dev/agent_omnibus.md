@@ -67,7 +67,7 @@ docker build -t datadog-agent-builders:deb_x64 -f deb-x64/Dockerfile .
 
 From the Agent source folder, start a Docker container like this:
 ```
-docker run -v "$PWD:/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent6:/opt/datadog-agent6" -v"/tmp/gems:/gems" --workdir=/datadog-agent datadog-agent-builders:deb_x64 inv -e agent.omnibus-build --base-dir=/omnibus --gem-path=/gems
+docker run -v "$PWD:/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent:/opt/datadog-agent" -v"/tmp/gems:/gems" --workdir=/datadog-agent datadog-agent-builders:deb_x64 inv -e agent.omnibus-build --base-dir=/omnibus --gem-path=/gems
 ```
 
 The container will share 3 volumes with the host to avoid starting from scratch

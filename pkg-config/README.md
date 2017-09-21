@@ -9,7 +9,7 @@ During a build, pkg-config will search for a module file in these directories, i
 3. default pkg-config paths of the environment
 
 The "embedded/" module files define the flags to compile and link against the libraries
-provided in the datadog-agent6 package.
+provided in the datadog-agent package.
 
 The "system/" files should only be present for dependencies that don't provide pkg-config files
 for the platform. They define the flags to compile and link against the libraries provided by the system.
