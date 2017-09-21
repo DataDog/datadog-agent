@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 )
 
@@ -438,6 +437,7 @@ func cgroupMountPoints() (map[string]string, error) {
 }
 
 func parseCgroupMountPoints(r io.Reader) map[string]string {
+
 	mountPoints := make(map[string]string)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
@@ -446,9 +446,9 @@ func parseCgroupMountPoints(r io.Reader) map[string]string {
 			tokens := strings.Split(mount, " ")
 			cgroupPath := tokens[1]
 
-			// Re-point /sys cgroups to /proc/sys
-			if strings.HasPrefix(cgroupPath, "/sys") {
-				cgroupPath = HostSys(strings.TrimPrefix(cgroupPath, "/sys"))
+			// Ignore mountpoints not mounted under /{host/}sys
+			if !strings.HasPrefix(cgroupPath, HostSys()) {
+				continue
 			}
 
 			// Target can be comma-separate values like cpu,cpuacct
@@ -461,17 +461,34 @@ func parseCgroupMountPoints(r io.Reader) map[string]string {
 	return mountPoints
 }
 
-// CgroupsForPids returns ContainerCgroup for every container that's in a Cgroup.
+// ScrapeAllCgroups returns ContainerCgroup for every container that's in a Cgroup.
+// This version iterates on /{host/}proc to retrieve processes out of the namespace.
 // We return as a map[containerID]Cgroup for easy look-up.
-func CgroupsForPids(pids []int32) (map[string]*ContainerCgroup, error) {
+func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 	mountPoints, err := cgroupMountPoints()
 	if err != nil {
 		return nil, err
 	}
 
 	cgs := make(map[string]*ContainerCgroup)
-	for _, pid := range pids {
-		cgPath := HostProc(strconv.Itoa(int(pid)), "cgroup")
+
+	// Opening proc dir
+	procDir, err := os.Open(HostProc())
+	if err != nil {
+		return cgs, err
+	}
+	defer procDir.Close()
+	dirNames, err := procDir.Readdirnames(-1)
+	if err != nil {
+		return cgs, err
+	}
+
+	for _, dirName := range dirNames {
+		pid, err := strconv.ParseInt(dirName, 10, 32)
+		if err != nil {
+			continue
+		}
+		cgPath := HostProc(dirName, "cgroup")
 		containerID, paths, err := readCgroupPaths(cgPath)
 		if containerID == "" {
 			continue
@@ -482,11 +499,11 @@ func CgroupsForPids(pids []int32) (map[string]*ContainerCgroup, error) {
 		}
 		if cg, ok := cgs[containerID]; ok {
 			// Assumes that the paths will always be the same for a container id.
-			cg.Pids = append(cg.Pids, pid)
+			cg.Pids = append(cg.Pids, int32(pid))
 		} else {
 			cgs[containerID] = &ContainerCgroup{
 				ContainerID: containerID,
-				Pids:        []int32{pid},
+				Pids:        []int32{int32(pid)},
 				Paths:       paths,
 				Mounts:      mountPoints}
 		}
@@ -498,13 +515,13 @@ func CgroupsForPids(pids []int32) (map[string]*ContainerCgroup, error) {
 // container ID for origin detection. Returns container id as a string, empty if
 // the PID is not in a container.
 func ContainerIDForPID(pid int) (string, error) {
-	cgPath := filepath.Join(config.Datadog.GetString("proc_root"), strconv.Itoa(pid), "cgroup")
+	cgPath := HostProc(strconv.Itoa(pid), "cgroup")
 	containerID, _, err := readCgroupPaths(cgPath)
 
 	return containerID, err
 }
 
-// readCgroupPaths reads the cgroups from a /sys/$pid/cgroup path.
+// readCgroupPaths reads the cgroups from a /proc/$pid/cgroup path.
 func readCgroupPaths(pidCgroupPath string) (string, map[string]string, error) {
 	f, err := os.Open(pidCgroupPath)
 	if os.IsNotExist(err) {

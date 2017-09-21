@@ -26,7 +26,6 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/shirou/gopsutil/process"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -510,15 +509,14 @@ func (d *dockerUtil) containers(cfg *ContainerListConfig) ([]*Container, error) 
 			hit = false
 		}
 	} else {
-		pids, err := process.Pids()
+		var cgByContainer map[string]*ContainerCgroup
+		var err error
+
+		cgByContainer, err = ScrapeAllCgroups()
 		if err != nil {
-			return nil, fmt.Errorf("could not get pids: %s", err)
+			return nil, fmt.Errorf("could not get cgroups: %s", err)
 		}
 
-		cgByContainer, err := CgroupsForPids(pids)
-		if err != nil {
-			return nil, fmt.Errorf("could not get cgroups for pids: %s", err)
-		}
 		containers, err = d.dockerContainers(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not get docker containers: %s", err)
@@ -561,7 +559,7 @@ func (d *dockerUtil) containers(cfg *ContainerListConfig) ([]*Container, error) 
 
 		cgroup := container.cgroup
 		if cgroup == nil {
-			log.Debugf("container id %s has an empty cgroup, skipping", container.ID)
+			log.Errorf("container id %s has an empty cgroup, skipping", container.ID[:12])
 			continue
 		}
 

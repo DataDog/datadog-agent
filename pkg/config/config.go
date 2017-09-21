@@ -81,10 +81,14 @@ func init() {
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("check_runners", int64(4))
 	if IsContainerized() {
-		Datadog.SetDefault("proc_root", "/host/proc")
+		Datadog.SetDefault("container_proc_root", "/host/proc")
+		Datadog.SetDefault("container_sysfs_root", "/host/sys")
+
 	} else {
-		Datadog.SetDefault("proc_root", "/proc")
+		Datadog.SetDefault("container_proc_root", "/proc")
+		Datadog.SetDefault("container_sysfs_root", "/sys")
 	}
+	Datadog.SetDefault("proc_root", "/proc")
 	// Serializer
 	Datadog.SetDefault("use_v2_api.series", false)
 	Datadog.SetDefault("use_v2_api.events", false)
@@ -134,6 +138,8 @@ func init() {
 	Datadog.BindEnv("enable_metadata_collection")
 	Datadog.BindEnv("dogstatsd_port")
 	Datadog.BindEnv("proc_root")
+	Datadog.BindEnv("container_proc_root")
+	Datadog.BindEnv("container_sysfs_root")
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")

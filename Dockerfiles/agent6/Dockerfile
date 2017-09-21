@@ -18,6 +18,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 COPY entrypoint.sh /entrypoint.sh
+COPY docker.yaml /etc/dd-agent/conf.d/
 
 EXPOSE 8125/udp
 
