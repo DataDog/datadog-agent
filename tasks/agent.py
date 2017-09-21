@@ -142,10 +142,14 @@ def integration_tests(ctx, install_deps=False):
 
 
 @task
-def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=None):
+def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=None,
+                  skip_deps=False):
     """
     Build the Agent packages with Omnibus Installer.
     """
+    if not skip_deps:
+        deps(ctx)
+
     # omnibus config overrides
     overrides = []
 
