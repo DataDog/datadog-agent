@@ -199,8 +199,8 @@ func (d *DockerCheck) Run() error {
 	}
 
 	for _, image := range images {
-		sender.Gauge("docker.containers.running", float64(image.running), "", image.tags)
-		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", image.tags)
+		sender.Gauge("docker.containers.running", float64(image.running), "", append(d.instance.Tags, image.tags...))
+		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", append(d.instance.Tags, image.tags...))
 	}
 
 	if err := d.countAndWeightImages(sender); err != nil {
