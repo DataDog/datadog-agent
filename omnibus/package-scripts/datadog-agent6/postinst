@@ -6,7 +6,7 @@
 # .deb: STEP 2 of 5
 # .rpm: STEP 3 of 6
 
-INSTALL_DIR=/opt/datadog-agent6
+INSTALL_DIR=/opt/datadog-agent
 LOG_DIR=/var/log/datadog
 CONFIG_DIR=/etc/datadog-agent
 SERVICE_NAME=datadog-agent

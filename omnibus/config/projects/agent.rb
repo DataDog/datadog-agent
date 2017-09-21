@@ -5,20 +5,19 @@
 
 require "./lib/ostools.rb"
 
-name 'datadog-agent6'
+name 'agent'
+package_name 'datadog-agent'
 
 homepage 'http://www.datadoghq.com'
 
 if ohai['platform'] == "windows"
-  # Note: this is not the final install dir, not even the default one, just a convenient
-  # spaceless dir in which the agent will be built.
-  # Omnibus doesn't quote the Git commands it launches unfortunately, which makes it impossible
-  # to put a space here...
-  install_dir "C:/opt/datadog-agent6/"
-  # Windows doesn't want our e-mail address :(
-  maintainer 'Datadog Inc.'
+  # Note: this is the path used by Omnibus to build the agent, the final install
+  # dir will be determined by the Windows installer. This path must not contain
+  # spaces because Omnibus doesn't quote the Git commands it launches.
+  install_dir "C:/opt/datadog-agent/"
+  maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir '/opt/datadog-agent6'
+  install_dir '/opt/datadog-agent'
   maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 
@@ -155,4 +154,3 @@ end
 
 exclude '\.git*'
 exclude 'bundler\/git'
-exclude 'omnibus'
