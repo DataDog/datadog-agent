@@ -142,7 +142,7 @@ def integration_tests(ctx, install_deps=False):
 
 
 @task
-def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None):
+def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=None):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -159,7 +159,10 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None):
         overrides_cmd = "--override=" + " ".join(overrides)
 
     with ctx.cd("omnibus"):
-        ctx.run("bundle install")
+        cmd = "bundle install"
+        if gem_path:
+            cmd += " --path {}".format(gem_path)
+        ctx.run(cmd)
         omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
         args = {
