@@ -1,3 +1,10 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# Copyright 2017 Datadog, Inc.
+
+require "./lib/ostools.rb"
+
 name 'datadog-agent-integrations'
 
 dependency 'pip'
@@ -16,6 +23,7 @@ build do
   # The confs
   conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
   mkdir conf_dir
+  mkdir "#{conf_dir}/auto_conf"
 
   # TODO
   # if windows?
@@ -26,12 +34,10 @@ build do
   block do
     all_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
 
-    Dir.glob('*/').each do |check|
-      check.slice! '/'
-
+    Dir.glob("#{project_dir}/*").each do |check_dir|
       # Check the manifest to be sure that this check is enabled on this system
       # or skip this iteration
-      manifest_file_path = "#{check}/manifest.json"
+      manifest_file_path = "#{check_dir}/manifest.json"
 
       # If there is no manifest file, then we should assume the folder does not
       # contain a working check and move onto the next
@@ -40,31 +46,33 @@ build do
       manifest = JSON.parse(File.read(manifest_file_path))
       manifest['supported_os'].include?(os) || next
 
+      check = check_dir.split('/').last
+
       # Copy the checks over
-      if File.exist? "#{check}/check.py"
-        copy "#{check}/check.py", "#{checks_dir}/#{check}.py"
+      if File.exist? "#{check_dir}/check.py"
+        copy "#{check_dir}/check.py", "#{checks_dir}/#{check}.py"
       end
 
       # Copy the check config to the conf directories
-      if File.exist? "#{check}/conf.yaml.example"
-        copy "#{check}/conf.yaml.example", "#{conf_dir}/#{check}.yaml.example"
+      if File.exist? "#{check_dir}/conf.yaml.example"
+        copy "#{check_dir}/conf.yaml.example", "#{conf_dir}/#{check}.yaml.example"
       end
 
       # Copy the default config, if it exists
-      if File.exist? "#{check}/conf.yaml.default"
-        copy "#{check}/conf.yaml.default", "#{conf_dir}/#{check}.yaml.default"
+      if File.exist? "#{check_dir}/conf.yaml.default"
+        copy "#{check_dir}/conf.yaml.default", "#{conf_dir}/#{check}.yaml.default"
       end
 
       # We don't have auto_conf on windows yet
       if os != 'windows'
-        if File.exist? "#{check}/auto_conf.yaml"
-          copy "#{check}/auto_conf.yaml", "#{conf_dir}/auto_conf/#{check}.yaml"
+        if File.exist? "#{check_dir}/auto_conf.yaml"
+          copy "#{check_dir}/auto_conf.yaml", "#{conf_dir}/auto_conf/#{check}.yaml"
         end
       end
 
-      next unless File.exist?("#{check}/requirements.txt") && !manifest['use_omnibus_reqs']
+      next unless File.exist?("#{check_dir}/requirements.txt") && !manifest['use_omnibus_reqs']
 
-      reqs = File.open("#{check}/requirements.txt", 'r').read
+      reqs = File.open("#{check_dir}/requirements.txt", 'r').read
       reqs.each_line do |line|
         all_reqs_file.puts line if line[0] != '#'
       end
