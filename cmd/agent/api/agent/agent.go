@@ -11,6 +11,7 @@ package agent
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -96,7 +97,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Debugf("Getting latest JMX Configs as of: %v", tsjson["timestamp"])
+	log.Debugf("Getting latest JMX Configs as of: %#v", tsjson["timestamp"])
 	j := map[string]interface{}{}
 	configs := map[string]check.ConfigJSONMap{}
 	for name, config := range embed.JMXConfigCache {
@@ -140,6 +141,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 		configs[name] = c
 	}
 	j["configs"] = configs
+	j["timestamp"] = time.Now().Unix()
 	jsonPayload, err := json.Marshal(util.GetJSONSerializableMap(j))
 	if err != nil {
 		log.Errorf("unable to parse JMX configuration: %s", err)
