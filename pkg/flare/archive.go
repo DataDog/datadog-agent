@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/jhoonb/archivex"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -73,31 +72,13 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths) 
 	if err != nil {
 		return "", err
 	}
-
-	err = zipDockerSelfInspect(zipFile, hostname)
-	if err != nil {
-		return "", err
+	if config.IsContainerized(){
+		err = zipDockerSelfInspect(zipFile, hostname)
+		if err != nil {
+			return "", err
+		}
 	}
-
 	return zipFilePath, nil
-}
-
-func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error{
-
-	co, err := docker.ContainerSelfInspect()
-	if err != nil {
-		return err
-	}
-	// Clean it up
-	cleaned, err := credentialsCleanerBytes(co)
-	if err != nil {
-		return err
-	}
-	err = zipFile.Add(filepath.Join(hostname, "docker_inspect.log"), cleaned)
-	if err != nil {
-		return err
-	}
-	return err
 }
 
 func zipStatusFile(zipFile *archivex.ZipFile, hostname string) error {
