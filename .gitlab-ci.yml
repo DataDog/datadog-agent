@@ -209,7 +209,7 @@ agent_rpm-x64:
 # deploy debian packages to apt staging repo
 deploy_deb:
   stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest # For now, just a renamed version of the image datadog/mars-jenkins-scripts
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
   before_script:
     - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
