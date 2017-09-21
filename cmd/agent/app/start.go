@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/cmd/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -165,6 +166,11 @@ func StartAgent() error {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
+	// start the GUI server
+	if err = gui.StartGUIServer(); err != nil {
+		return log.Errorf("Error while starting gui, exiting: %v", err)
+	}
+
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -249,6 +255,7 @@ func StopAgent() {
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
 	}
+	gui.StopGUIServer()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()

@@ -1,0 +1,101 @@
+body {
+  background-color: #f5f5f5;
+  font-family: 'OpenSans','Lucida Grande','Lucida Sans Unicode',sans-serif;
+  margin: 0;
+  overflow-x: hidden; }
+
+#sidebar {
+  height: 100%;
+  width: 160px;
+  background-image: linear-gradient(to bottom, #443e4a 0, #110617 100%);
+  position: absolute;
+  top: 0px;
+  left: 0px; }
+  #sidebar ul {
+    list-style: none; }
+  #sidebar #logo {
+    opacity: 0.85;
+    height: 130px;
+    width: 100%;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    margin-left: auto;
+    margin-right: auto; }
+  #sidebar #logo:hover {
+    opacity: 1;
+    background-color: #110617; }
+  #sidebar .navbar {
+    width: 100%;
+    padding: 0;
+    position: absolute;
+    left: 0px; }
+    #sidebar .navbar a {
+      text-decoration: none;
+      color: inherit; }
+    #sidebar .navbar .nav_item {
+      position: relative;
+      width: 150px;
+      padding-left: 10px;
+      height: 50px;
+      line-height: 50px;
+      font-size: 0.8em;
+      color: #b4b4b4; }
+    #sidebar .navbar .nav_item:hover {
+      color: white;
+      background-color: #110617; }
+      #sidebar .navbar .nav_item:hover .side_menu {
+        color: #b4b4b4; }
+    #sidebar .navbar .side_menu {
+      display: none;
+      padding: 0;
+      z-index: 10;
+      position: relative;
+      margin-left: -10px;
+      left: 160px;
+      top: -50px;
+      width: 100px;
+      background-color: #110617; }
+    #sidebar .navbar .multi:hover .side_menu {
+      display: block; }
+    #sidebar .navbar .side_menu_item {
+      width: 100%;
+      height: 50px;
+      display: inline-block;
+      text-indent: 20px; }
+    #sidebar .navbar .side_menu_item:hover {
+      color: white;
+      background-color: gray; }
+    #sidebar .navbar .active {
+      color: white; }
+
+#main {
+  position: absolute;
+  margin-left: 160px;
+  width: 100%; }
+  #main .top_bar {
+    width: 100%;
+    height: 80px;
+    background-color: white;
+    position: absolute;
+    top: 0px;
+    border-bottom: 1px solid #e4e4e4; }
+    #main .top_bar #title {
+      color: #b4b4b4;
+      font-weight: bold;
+      position: absolute;
+      height: 100%;
+      line-height: 80px;
+      text-indent: 27.5px;
+      font-size: 25px; }
+
+#response {
+  position: absolute;
+  top: 100px;
+  left: 20px;
+  width: 800px;
+  height: 400px;
+  border: 1px solid #e4e4e4;
+  padding: 10px;
+  background-color: white; }
+
+/*# sourceMappingURL=stylesheet.css.map */

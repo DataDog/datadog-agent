@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title> DataDog Agent 6 </title>
+    <link rel="stylesheet" href="view/css/stylesheet.css">
+    <link rel="stylesheet" href="view/css/font-awesome.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"> </script>
+    <script src="view/js/javascript.js"> </script>
+</head>
+<body>
+  <div id="sidebar">
+    <img id="logo" src="view/images/datadog_icon_white.svg">
+
+    <ul class="navbar">
+      <li class="nav_item"><a href="javascript:void(0)" onclick='fetch("status")'>
+        <i class="fa fa-bar-chart fa-fw"> </i>&nbsp;
+        Status
+      </a></li>
+      <li class="nav_item"><a href="javascript:void(0)" onclick='fetch("version")'>
+        <i class="fa fa-info fa-fw"> </i>&nbsp;
+        Version
+      </a></li>
+      <li class="nav_item"><a href="javascript:void(0)" onclick='fetch("hostname")'>
+        <i class="fa fa-info fa-fw"> </i>&nbsp;
+        Hostname
+      </a></li>
+      <li class="nav_item"><a href="javascript:void(0)" onclick='set("flare")'>
+        <i class="fa fa-info fa-fw"> </i>&nbsp;
+        Flare
+      </a></li>
+      <li class="nav_item multi">
+        <i class="fa fa-info fa-fw"> </i>&nbsp;
+        Test connection
+        <i class="fa fa-chevron-down fa-rotate-270"> </i>
+        <div class="side_menu">
+          <a href="javascript:void(0)" onclick="testSuccess()" class="side_menu_item">Good</a>
+          <a href="javascript:void(0)" onclick="testBadReq_1()" class="side_menu_item">Bad 1</a>
+          <a href="javascript:void(0)" onclick="testBadReq_2()" class="side_menu_item">Bad 2</a>
+          <a href="javascript:void(0)" onclick="testBadReq_3()" class="side_menu_item">Bad 3</a>
+          <a href="javascript:void(0)" onclick="testBadReq_4()" class="side_menu_item">Bad 4</a>
+        </div>
+      </li>
+    </ul>
+  </div>
+  <div id="main">
+    <div class="top_bar">
+      <div id="title">Datadog Agent Manager</div>
+    </div>
+    <br><br>
+    <div id="response"></div>
+
+  </div>
+
+</body>
