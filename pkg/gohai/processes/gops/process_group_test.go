@@ -1,8 +1,8 @@
 package gops
 
 import (
-	"testing"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestUsernames(t *testing.T) {
@@ -13,16 +13,16 @@ func TestUsernames(t *testing.T) {
 
 func getProcessNameGroup() *ProcessNameGroup {
 	return &ProcessNameGroup{
-		pids: []int32 {1, 3, 56, 234, 784},
-		rss : uint64(54328),
+		pids:   []int32{1, 3, 56, 234, 784},
+		rss:    uint64(54328),
 		pctMem: 56.9,
-		vms: uint64(2515828),
-		name: "pgroup1",
-		usernames: map[string]bool {
-			"sample_user" : true,
-			"user_foo" : true,
-			"foo_user" : true,
-			"test_user" : true,
+		vms:    uint64(2515828),
+		name:   "pgroup1",
+		usernames: map[string]bool{
+			"sample_user": true,
+			"user_foo":    true,
+			"foo_user":    true,
+			"test_user":   true,
 		},
 	}
 }
