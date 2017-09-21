@@ -127,7 +127,7 @@ run_dogstatsd_size_test:
     - inv -e dogstatsd.size-test --skip-build
 
 # run integration tests for deb-x64
-.run_docker_integration_tests_deb-x64:
+run_docker_integration_tests_deb-x64:
   stage: integration_test
   allow_failure: true  # FIXME when the root-user related issues are fixed on gitlab
   dependencies:
