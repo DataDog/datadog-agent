@@ -8,7 +8,7 @@ respawn
 console none
 
 script
-  exec su -s /bin/sh -c 'exec "$0" "$@"' username -- <%= install_dir %>/bin/agent/agent start -p <%= install_dir %>/run/agent.pid
+  exec su -s /bin/sh -c 'exec "$0" "$@"' dd-agent -- <%= install_dir %>/bin/agent/agent start -p <%= install_dir %>/run/agent.pid
 end script
 
 post-stop script
