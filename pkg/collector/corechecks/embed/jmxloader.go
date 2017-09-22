@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	log "github.com/cihub/seelog"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -27,7 +28,7 @@ const (
 	autoDiscoveryToken = "#### AUTO-DISCOVERY ####\n"
 )
 
-var JMXConfigCache = map[string]interface{}{}
+var JMXConfigCache = cache.NewBasicCache()
 
 // JMXCheckLoader is a specific loader for checks living in this package
 type JMXCheckLoader struct {
@@ -93,7 +94,7 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		}
 	}
 
-	JMXConfigCache[config.Name] = mapConfig
+	JMXConfigCache.Add(config.Name, mapConfig)
 	jmxLauncher.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
 	checks = append(checks, &jmxLauncher)
 	mapConfig["config"] = config
