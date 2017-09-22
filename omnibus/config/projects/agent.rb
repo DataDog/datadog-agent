@@ -143,13 +143,14 @@ dependency 'version-manifest'
 # manifest and owned by the package manager. This is the only point in the build
 # process where we operate outside the omnibus install dir, thus the need of
 # the `extra_package_file` directive.
-# This *has* to be the latest dependency in the project.
+# This must be the last dependency in the project.
 if linux?
   dependency 'datadog-agent-finalize'
 
   extra_package_file '/etc/init/datadog-agent.conf'
   extra_package_file '/lib/systemd/system/datadog-agent.service'
   extra_package_file '/etc/datadog-agent/'
+  extra_package_file '/usr/bin/dd-agent'
 end
 
 exclude '\.git*'

@@ -12,9 +12,8 @@ default_version "1.0.0"
 skip_transitive_dependency_licensing true
 
 build do
-    # Create symlink to the agent"s binary
-    link "#{install_dir}/bin/agent/agent", "/usr/bin/datadog-agent"
-    link "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
+    # Move the deprecation placeholder
+    move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
 
     # Move checks and configuration files
     mkdir "/etc/datadog-agent"
