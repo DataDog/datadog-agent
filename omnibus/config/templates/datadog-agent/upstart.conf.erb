@@ -5,11 +5,12 @@ stop on runlevel [!2345]
 
 respawn
 
-setuid dd-agent
 console none
 
 script
-  exec <%= install_dir %>/bin/agent/agent start -p <%= install_dir %>/run/agent.pid
+  # setuid is not available in versions of upstart before 1.4. CentOS/RHEL6 use an earlier version of upstart.
+  # This is the best way to set the user in the absence of setuid.
+  exec su -s /bin/sh -c 'exec "$0" "$@"' dd-agent -- <%= install_dir %>/bin/agent/agent start -p <%= install_dir %>/run/agent.pid
 end script
 
 post-stop script
