@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -249,4 +250,10 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 // IsContainerized returns whether the Agent is running on a Docker container
 func IsContainerized() bool {
 	return os.Getenv("DOCKER_DD_AGENT") == "yes"
+}
+
+// FileUsedDir returns the absolute path to the folder containing the config
+// file used to populate the registry
+func FileUsedDir() string {
+	return filepath.Dir(Datadog.ConfigFileUsed())
 }

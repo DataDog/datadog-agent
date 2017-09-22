@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	log "github.com/cihub/seelog"
 	"github.com/kardianos/osext"
@@ -110,19 +111,18 @@ func (c *ProcessAgentCheck) Configure(data check.ConfigData, initConfig check.Co
 		binPath = defaultBinPath
 	}
 
-	// let the process-agent use its own default config file if we haven't explicitly configured one
-	ddConfigOption := ""
-	if checkConf.ConfPath != "" {
-		ddConfigOption = fmt.Sprintf("-ddconfig=%s", checkConf.ConfPath)
+	// let the trace-agent use its own config file provided by the Agent package
+	// if we haven't found one in the apm.yaml check config
+	configFile := checkConf.ConfPath
+	if configFile == "" {
+		configFile = path.Join(config.FileUsedDir, "process-agent.ini")
 	}
 
-	c.cmd = exec.Command(binPath, ddConfigOption)
+	c.cmd = exec.Command(binPath, fmt.Sprintf("-ddconfig=%s", configFile))
 
 	env := os.Environ()
-	env = append(env,
-		fmt.Sprintf("DD_HOSTNAME=%s", getHostname()),
-		"DD_PROCESS_AGENT_ENABLED=true",
-	)
+	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.Datadog.GetString("api_key")))
+	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", getHostname()))
 	c.cmd.Env = env
 
 	return nil
