@@ -41,7 +41,23 @@ func (b *BasicCache) Get(k string) (interface{}, error) {
 	return nil, fmt.Errorf("item not in cache")
 }
 
-// Get gets interface for specified key or error
+// Remove removes an entry from the cache if it exists
+func (b *BasicCache) Remove(k string) {
+	b.m.Lock()
+	defer b.m.Unlock()
+
+	delete(b.cache, k)
+}
+
+// Size returns the current size of the cache
+func (b *BasicCache) Size() int {
+	b.m.Lock()
+	defer b.m.Unlock()
+
+	return len(b.cache)
+}
+
+// GetModified gets interface for specified key or error
 func (b *BasicCache) GetModified() int64 {
 	b.m.RLock()
 	defer b.m.RUnlock()
