@@ -194,8 +194,9 @@ else
 fi
 
 restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
-if command -v invoke-rc.d >/dev/null 2>&1; then
-    restart_cmd="$sudo_cmd invoke-rc.d datadog-agent restart"
+# Upstart
+if command -v start >/dev/null 2>&1; then
+    restart_cmd="$sudo_cmd start datadog-agent restart"
 fi
 
 if $no_start; then
