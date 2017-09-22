@@ -98,6 +98,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 
 	if int64(ts) > embed.JMXConfigCache.GetModified() {
 		w.WriteHeader(http.StatusNoContent)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
