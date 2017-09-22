@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 )
@@ -29,13 +30,10 @@ func StopGUIServer() {
 }
 
 func StartGUIServer() error {
-	log.Infof("GUI: setting up server...")
+	log.Infof("GUI - Setting up server...")
 
-	port, e := setUp()
-	if e != nil {
-		log.Errorf("Error: " + e.Error())
-		return e
-	}
+	apiKey = config.Datadog.GetString("api_key")
+	port := ":" + config.Datadog.GetString("GUI_port")
 
 	// Instantiate the gorilla/mux router
 	router := mux.NewRouter()
@@ -49,7 +47,7 @@ func StartGUIServer() error {
 	// Handle requests from clients
 	router.Handle("/req", authenticate(http.HandlerFunc(handler))).Methods("POST")
 
-	listener, e = net.Listen("tcp", port)
+	listener, e := net.Listen("tcp", port)
 	if e != nil {
 		log.Errorf("Error: " + e.Error())
 		return e
@@ -57,7 +55,7 @@ func StartGUIServer() error {
 
 	go http.Serve(listener, router)
 
-	log.Infof("GUI: server started")
+	log.Infof("GUI - Server started.")
 	return nil
 }
 
@@ -121,10 +119,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		// TODO
 
 		w.Write([]byte("Not implemented yet."))
-		log.Infof("Flare not implemented yet.")
 
 	default:
-		w.Write([]byte("Received unknown request: " + m.Data))
-		log.Infof("Received unknown request: %v ", m.Data)
+		w.Write([]byte("Received unknown request type: " + m.Req_type))
+		log.Infof("GUI - Received unknown request type: %v ", m.Req_type)
 	}
 }

@@ -32,7 +32,7 @@ function readTextFile(file) {
 }
 */
 
-function sendMessage(data) {
+function sendMessage(data, callback) {
   $.ajax({
     url: 'http://localhost:8080/req',
     type: 'post',
@@ -41,7 +41,12 @@ function sendMessage(data) {
         Authorization: 'Bearer ' + API_KEY
     },
     success: function(data, status, xhr) {
-      $('#response').html(data)
+      var ct = xhr.getResponseHeader("content-type") || "";
+      if (ct.indexOf('json') != -1 ) {
+        data = JSON.stringify(data);
+      }
+      $('#response').html("Received response. Status: " + status +
+                        "<br> Content: " + data);
     }, error: function(xhr, status, err) {
       $('#response').html(status + " " + err)
     }

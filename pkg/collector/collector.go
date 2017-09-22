@@ -94,6 +94,13 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
 	}
 
+<<<<<<< Updated upstream
+=======
+	// Track the total number of checks running in order to have an appropriate number of workers
+	c.checkInstances++
+	c.runner.UpdateNumWorkers(c.checkInstances)
+
+>>>>>>> Stashed changes
 	c.checks[ch.ID()] = ch
 	return ch.ID(), nil
 }

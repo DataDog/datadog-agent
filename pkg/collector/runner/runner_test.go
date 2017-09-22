@@ -29,6 +29,10 @@ func (c *TestCheck) Run() error {
 		msg := "A tremendous error occurred."
 		return errors.New(msg)
 	}
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
 	c.hasRun = true
 	return nil
 }

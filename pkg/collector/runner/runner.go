@@ -19,7 +19,18 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+<<<<<<< Updated upstream
 const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
+=======
+// Wg is used for testing purposes only
+var Wg sync.WaitGroup
+
+const (
+	defaultNumWorkers               = 4
+	maxNumWorkers                   = 25
+	stopCheckTimeout  time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
+)
+>>>>>>> Stashed changes
 
 // checkStats holds the stats from the running checks
 type runnerCheckStats struct {
@@ -68,6 +79,49 @@ func NewRunner(numWorkers int) *Runner {
 	return r
 }
 
+<<<<<<< Updated upstream
+=======
+// UpdateNumWorkers checks if the current number of workers is reasonable, and adds more if needed
+func (r *Runner) UpdateNumWorkers(numChecks int64) {
+	numWorkers, _ := strconv.Atoi(runnerStats.Get("Workers").String())
+
+	if r.staticNumWorkers {
+		return
+	}
+
+	// Find which range the number of checks we're running falls in
+	var desiredNumWorkers int
+	switch {
+	case numChecks <= 10:
+		desiredNumWorkers = 4
+	case numChecks <= 15:
+		desiredNumWorkers = 10
+	case numChecks <= 20:
+		desiredNumWorkers = 15
+	case numChecks <= 25:
+		desiredNumWorkers = 20
+	default:
+		desiredNumWorkers = maxNumWorkers // max = 25
+	}
+
+	// Add workers if we don't have enough for this range
+	added := 0
+	for {
+		if numWorkers >= desiredNumWorkers {
+			break
+		}
+		runnerStats.Add("Workers", 1)
+		Wg.Add(1)
+		go r.work()
+		numWorkers++
+		added++
+	}
+	if added > 0 {
+		log.Infof("Added %d workers to runner: now at "+runnerStats.Get("Workers").String()+" workers.", added)
+	}
+}
+
+>>>>>>> Stashed changes
 // Stop closes the pending channel so all workers will exit their loop and terminate
 func (r *Runner) Stop() {
 	if atomic.LoadUint32(&r.running) == 0 {

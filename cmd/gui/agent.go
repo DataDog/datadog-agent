@@ -4,47 +4,44 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 )
 
-func setUp() (string, error) {
-	apiKey = config.Datadog.GetString("api_key")
-	port := ":" + config.Datadog.GetString("GUI_port")
-
-	log.Infof("GUI: loaded apiKey %v and port %v from config file.", apiKey, port)
-
-	return port, nil
-}
-
 func fetch(w http.ResponseWriter, req string) {
+	log.Infof("GUI - Received request to fetch " + req)
 	switch req {
 
 	case "status":
+		// ALTERNATIVE
+		//status, e := status.GetAndFormatStatus()
+
 		status, e := status.GetStatus() // returns a map[string]interface{}
 		if e != nil {
-			log.Errorf("Error getting status: " + e.Error())
+			log.Errorf("GUI - Error getting status: " + e.Error())
 			w.Write([]byte("Error getting status: " + e.Error()))
 			return
 		}
 
 		res, e := json.Marshal(status)
 		if e != nil {
-			log.Errorf("Error marshalling status: " + e.Error())
+			log.Errorf("GUI - Error marshalling status: " + e.Error())
 			w.Write([]byte("Error marshalling status: " + e.Error()))
 			return
 		}
-
-		// ALTERNATIVE
-		//status, e := status.GetAndFormatStatus()
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(res)
 
 	case "version":
-		version, _ := version.New(version.AgentVersion)
+		version, e := version.New(version.AgentVersion)
+		if e != nil {
+			log.Errorf("GUI - Error getting version: " + e.Error())
+			w.Write([]byte("Error getting version: " + e.Error()))
+			return
+		}
+
 		res, _ := json.Marshal(version)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(res)
@@ -52,10 +49,11 @@ func fetch(w http.ResponseWriter, req string) {
 	case "hostname":
 		hostname, e := util.GetHostname()
 		if e != nil {
-			log.Errorf("Error getting hostname: " + e.Error())
+			log.Errorf("GUI - Error getting hostname: " + e.Error())
 			w.Write([]byte("Error getting hostname: " + e.Error()))
 			return
 		}
+
 		res, _ := json.Marshal(hostname)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(res)
@@ -65,18 +63,16 @@ func fetch(w http.ResponseWriter, req string) {
 		// TODO
 
 		w.Write([]byte("Not implemented yet."))
-		log.Infof("Flare not implemented yet.")
 
 	case "conf":
 
 		// TODO
 
 		w.Write([]byte("Not implemented yet."))
-		log.Infof("Flare not implemented yet.")
 
 	default:
 		w.Write([]byte("Received unknown fetch request: " + req))
-		log.Infof("Received unknown fetch request: %v ", req)
+		log.Infof("GUI - Received unknown fetch request: %v ", req)
 	}
 }
 
@@ -98,14 +94,12 @@ func set(w http.ResponseWriter, req string) {
 		*/
 
 		w.Write([]byte("Not implemented yet."))
-		log.Infof("Flare not implemented yet.")
 
 	case "conf":
 
-		// TODO...
+		// TODO
 
 		w.Write([]byte("Not implemented yet."))
-		log.Infof("Flare not implemented yet.")
 
 	}
 }
