@@ -80,9 +80,6 @@ func init() {
 // Start the main loop
 func start(cmd *cobra.Command, args []string) error {
 	defer func() {
-		if r := recover(); r != nil {
-			log.Infof("Recovered from a panic: %v", r)
-		}
 		StopAgent()
 	}()
 
