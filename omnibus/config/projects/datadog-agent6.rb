@@ -155,6 +155,13 @@ if linux?
   dependency 'py-compiled-cleanup'
 end
 
+unless windows?
+  dependency 'datadog-trace-agent'
+end
+
+if windows?
+  dependency 'datadog-upgrade-helper'
+end
 # version manifest file
 dependency 'version-manifest'
 
