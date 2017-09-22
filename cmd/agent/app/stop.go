@@ -8,10 +8,12 @@
 package app
 
 import (
+	"bytes"
 	"fmt"
 
+	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -31,11 +33,18 @@ func init() {
 
 func stop(*cobra.Command, []string) error {
 	// Global Agent configuration
-	err := common.SetupConfig("")
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	common.SetupConfig("")
+	c := common.GetClient(false) // FIX: get certificates right then make this true
+
+	// Set session token
+	apicommon.SetAuthToken()
+
+	urlstr := fmt.Sprintf("https://localhost:%v/agent/stop", config.Datadog.GetInt("cmd_port"))
+
+	_, e := common.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	if e != nil {
+		return fmt.Errorf("Error stopping the agent: %v", e)
 	}
-	// get an API client
-	signals.Stopper <- true
+
 	return nil
 }
