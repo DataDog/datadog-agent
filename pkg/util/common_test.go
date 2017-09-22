@@ -130,6 +130,6 @@ func TestJSONConverter(t *testing.T) {
 	j["configurations"] = c
 
 	//json encode
-	m, err := json.Marshal(GetJSONSerializableMap(j))
+	_, err := json.Marshal(GetJSONSerializableMap(j))
 	assert.Nil(t, err)
 }
