@@ -1,9 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build !windows
 
 package app
 
 import (
+	"bytes"
+	"fmt"
+
+	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -12,7 +22,7 @@ var (
 		Use:   "stop",
 		Short: "Stop the Agent",
 		Long:  ``,
-		Run:   stop,
+		RunE:  stop,
 	}
 )
 
@@ -21,9 +31,20 @@ func init() {
 	AgentCmd.AddCommand(stopCmd)
 }
 
-func stop(*cobra.Command, []string) {
+func stop(*cobra.Command, []string) error {
 	// Global Agent configuration
 	common.SetupConfig("")
-	// get an API client
-	common.Stopper <- true
+	c := common.GetClient(false) // FIX: get certificates right then make this true
+
+	// Set session token
+	apicommon.SetAuthToken()
+
+	urlstr := fmt.Sprintf("https://localhost:%v/agent/stop", config.Datadog.GetInt("cmd_port"))
+
+	_, e := common.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	if e != nil {
+		return fmt.Errorf("Error stopping the agent: %v", e)
+	}
+
+	return nil
 }

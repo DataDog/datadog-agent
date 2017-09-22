@@ -5,8 +5,10 @@ Forwarder
 {{- range $key, $value := .TransactionsCreated}}
   {{$key}}: {{$value}}
 {{- end -}}
+
 {{- end}}
 {{- if .APIKeyStatus}}
+
   API Keys status
   ---------------
   {{- range $key, $value := .APIKeyStatus}}

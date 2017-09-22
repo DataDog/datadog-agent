@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package aggregator
 
 import (
@@ -17,34 +22,44 @@ import (
 const defaultFlushInterval = 15 // flush interval in seconds
 const bucketSize = 10           // fixed for now
 
-// Stats collect several flush duration allowing computation like median or percentiles
+// Stats stores a statistic from several past flushes allowing computations like median or percentiles
 type Stats struct {
-	FlushTime     [32]int64 // circular buffer of recent run durations
-	FlushIndex    int       // last flush time position in circular buffer
-	LastFlushTime int64     // most recent flush duration, provided for convenience
-	Name          string
-	m             sync.Mutex
+	Flushes    [32]int64 // circular buffer of recent flushes stat
+	FlushIndex int       // last flush position in circular buffer
+	LastFlush  int64     // most recent flush stat, provided for convenience
+	Name       string
+	m          sync.Mutex
 }
 
-func (s *Stats) add(duration int64) {
+func (s *Stats) add(stat int64) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
 	s.FlushIndex = (s.FlushIndex + 1) % 32
-	s.FlushTime[s.FlushIndex] = duration
-	s.LastFlushTime = duration
+	s.Flushes[s.FlushIndex] = stat
+	s.LastFlush = stat
 }
 
-func newStats(name string) {
-	flushStats[name] = &Stats{Name: name, FlushIndex: -1}
+func newFlushTimeStats(name string) {
+	flushTimeStats[name] = &Stats{Name: name, FlushIndex: -1}
 }
 
 func addFlushTime(name string, value int64) {
-	flushStats[name].add(value)
+	flushTimeStats[name].add(value)
 }
 
-func expStats() interface{} {
-	return flushStats
+func newFlushCountStats(name string) {
+	flushCountStats[name] = &Stats{Name: name, FlushIndex: -1}
+}
+
+func addFlushCount(name string, value int64) {
+	flushCountStats[name].add(value)
+}
+
+func expStatsMap(statsMap map[string]*Stats) func() interface{} {
+	return func() interface{} {
+		return statsMap
+	}
 }
 
 func timeNowNano() float64 {
@@ -56,16 +71,23 @@ var (
 	aggregatorInit     sync.Once
 
 	aggregatorExpvar = expvar.NewMap("aggregator")
-	flushStats       = make(map[string]*Stats)
+	flushTimeStats   = make(map[string]*Stats)
+	flushCountStats  = make(map[string]*Stats)
 )
 
 func init() {
-	newStats("ChecksMetricSampleFlushTime")
-	newStats("ServiceCheckFlushTime")
-	newStats("EventFlushTime")
-	newStats("MainFlushTime")
-	newStats("MetricSketchFlushTime")
-	aggregatorExpvar.Set("Flush", expvar.Func(expStats))
+	newFlushTimeStats("ChecksMetricSampleFlushTime")
+	newFlushTimeStats("ServiceCheckFlushTime")
+	newFlushTimeStats("EventFlushTime")
+	newFlushTimeStats("MainFlushTime")
+	newFlushTimeStats("MetricSketchFlushTime")
+	aggregatorExpvar.Set("Flush", expvar.Func(expStatsMap(flushTimeStats)))
+
+	newFlushCountStats("ServiceChecks")
+	newFlushCountStats("Series")
+	newFlushCountStats("Events")
+	newFlushCountStats("Sketches")
+	aggregatorExpvar.Set("FlushCount", expvar.Func(expStatsMap(flushCountStats)))
 }
 
 // InitAggregator returns the Singleton instance
@@ -257,6 +279,7 @@ func (agg *BufferedAggregator) GetSeries() metrics.Series {
 func (agg *BufferedAggregator) flushSeries() {
 	start := time.Now()
 	series := agg.GetSeries()
+	addFlushCount("Series", int64(len(series)))
 
 	if len(series) == 0 {
 		return
@@ -294,6 +317,7 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 	})
 
 	serviceChecks := agg.GetServiceChecks()
+	addFlushCount("ServiceChecks", int64(len(serviceChecks)))
 
 	// Serialize and forward in a separate goroutine
 	go func() {
@@ -319,9 +343,11 @@ func (agg *BufferedAggregator) flushSketches() {
 	// Serialize and forward in a separate goroutine
 	start := time.Now()
 	sketchSeries := agg.GetSketches()
+	addFlushCount("Sketches", int64(len(sketchSeries)))
 	if len(sketchSeries) == 0 {
 		return
 	}
+
 	go func() {
 		log.Debug("Flushing ", len(sketchSeries), " sketches to the forwarder")
 		err := agg.serializer.SendSketch(sketchSeries)
@@ -351,6 +377,7 @@ func (agg *BufferedAggregator) flushEvents() {
 	if len(events) == 0 {
 		return
 	}
+	addFlushCount("Events", int64(len(events)))
 
 	go func() {
 		log.Debug("Flushing ", len(events), " events to the forwarder")

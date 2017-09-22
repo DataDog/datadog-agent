@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package providers
 
 import (
@@ -81,7 +86,7 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []ch
 
 	// sanity check
 	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
-		log.Error("Template entries don't all have the same length in etcd, not using them.")
+		log.Error("Template entries don't all have the same length, not using them.")
 		return templates
 	}
 

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package aggregator
 
 import (
@@ -99,7 +104,6 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 	expectedSketch := percentile.NewQSketch()
 	expectedSketch = expectedSketch.Add(1)
 	expectedSketch = expectedSketch.Add(2)
-	expectedSketch = expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		Name:     "test.metric.name",
 		Tags:     []string{"a", "b"},
@@ -143,7 +147,6 @@ func TestDistSamplerContextSampling(t *testing.T) {
 
 	expectedSketch := percentile.NewQSketch()
 	expectedSketch = expectedSketch.Add(1)
-	expectedSketch = expectedSketch.Compress()
 	expectedSeries1 := &percentile.SketchSeries{
 		Name:     "test.metric.name1",
 		Tags:     []string{"a", "b"},

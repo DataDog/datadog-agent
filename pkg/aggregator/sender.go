@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package aggregator
 
 import (
@@ -27,14 +32,24 @@ type Sender interface {
 	Historate(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
 	Event(e metrics.Event)
+	GetMetricStats() map[string]int64
+}
+
+type metricStats struct {
+	Metrics       int64
+	Events        int64
+	ServiceChecks int64
+	Lock          sync.RWMutex
 }
 
 // checkSender implements Sender
 type checkSender struct {
-	id              check.ID
-	smsOut          chan<- senderMetricSample
-	serviceCheckOut chan<- metrics.ServiceCheck
-	eventOut        chan<- metrics.Event
+	id               check.ID
+	metricStats      metricStats
+	priormetricStats metricStats
+	smsOut           chan<- senderMetricSample
+	serviceCheckOut  chan<- metrics.ServiceCheck
+	eventOut         chan<- metrics.Event
 }
 
 type senderMetricSample struct {
@@ -56,10 +71,12 @@ func init() {
 
 func newCheckSender(id check.ID, smsOut chan<- senderMetricSample, serviceCheckOut chan<- metrics.ServiceCheck, eventOut chan<- metrics.Event) *checkSender {
 	return &checkSender{
-		id:              id,
-		smsOut:          smsOut,
-		serviceCheckOut: serviceCheckOut,
-		eventOut:        eventOut,
+		id:               id,
+		smsOut:           smsOut,
+		serviceCheckOut:  serviceCheckOut,
+		eventOut:         eventOut,
+		metricStats:      metricStats{},
+		priormetricStats: metricStats{},
 	}
 }
 
@@ -112,6 +129,32 @@ func GetDefaultSender() (Sender, error) {
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
 	s.smsOut <- senderMetricSample{s.id, &metrics.MetricSample{}, true}
+	go s.cyclemetricStats()
+}
+
+func (s *checkSender) GetMetricStats() map[string]int64 {
+	s.priormetricStats.Lock.RLock()
+	defer s.priormetricStats.Lock.RUnlock()
+
+	metricStats := make(map[string]int64)
+	metricStats["Metrics"] = s.priormetricStats.Metrics
+	metricStats["Events"] = s.priormetricStats.Events
+	metricStats["ServiceChecks"] = s.priormetricStats.ServiceChecks
+
+	return metricStats
+}
+
+func (s *checkSender) cyclemetricStats() {
+	s.metricStats.Lock.Lock()
+	s.priormetricStats.Lock.Lock()
+	s.priormetricStats.Metrics = s.metricStats.Metrics
+	s.priormetricStats.Events = s.metricStats.Events
+	s.priormetricStats.ServiceChecks = s.metricStats.ServiceChecks
+	s.metricStats.Metrics = 0
+	s.metricStats.Events = 0
+	s.metricStats.ServiceChecks = 0
+	s.metricStats.Lock.Unlock()
+	s.priormetricStats.Lock.Unlock()
 }
 
 func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType metrics.MetricType) {
@@ -128,6 +171,10 @@ func (s *checkSender) sendMetricSample(metric string, value float64, hostname st
 	}
 
 	s.smsOut <- senderMetricSample{s.id, metricSample, false}
+
+	s.metricStats.Lock.Lock()
+	s.metricStats.Metrics++
+	s.metricStats.Lock.Unlock()
 }
 
 // Gauge should be used to send a simple gauge value to the aggregator. Only the last value sampled is kept at commit time.
@@ -175,6 +222,10 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 	}
 
 	s.serviceCheckOut <- serviceCheck
+
+	s.metricStats.Lock.Lock()
+	s.metricStats.ServiceChecks++
+	s.metricStats.Lock.Unlock()
 }
 
 // Event submits an event
@@ -182,6 +233,10 @@ func (s *checkSender) Event(e metrics.Event) {
 	log.Debug("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
 
 	s.eventOut <- e
+
+	s.metricStats.Lock.Lock()
+	s.metricStats.Events++
+	s.metricStats.Lock.Unlock()
 }
 
 func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {

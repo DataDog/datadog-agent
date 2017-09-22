@@ -1,29 +1,6 @@
-
-# Gopkg.toml example
-#
-# Refer to https://github.com/golang/dep/blob/master/docs/Gopkg.toml.md
-# for detailed Gopkg.toml documentation.
-#
-# required = ["github.com/user/thing/cmd/thing"]
-# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
-#
-# [[constraint]]
-#   name = "github.com/user/project"
-#   version = "1.0.0"
-#
-# [[constraint]]
-#   name = "github.com/user/project2"
-#   branch = "dev"
-#   source = "github.com/myfork/project2"
-#
-# [[override]]
-#  name = "github.com/x/y"
-#  version = "2.4.0"
-
-
 [[constraint]]
   name = "github.com/DataDog/agent-payload"
-  version = "=4.4.0"
+  version = "=4.5.0"
 
 [[constraint]]
   name = "github.com/DataDog/gohai"
@@ -33,7 +10,7 @@
 
 [[constraint]]
   name = "github.com/Microsoft/go-winio"
-  version = "0.3.8"
+  version = "0.4.4"
 
 [[constraint]]
   branch = "master"
@@ -41,6 +18,7 @@
 
 [[constraint]]
   name = "github.com/beevik/ntp"
+  revision = "cb3dae3a7588ae35829eb5724df611cd75152fba"
 
 [[constraint]]
   name = "github.com/cihub/seelog"
@@ -101,3 +79,10 @@
 
 [[constraint]]
   name = "gopkg.in/yaml.v2"
+
+[[constraint]]
+  name = "gopkg.in/zorkian/go-datadog-api.v2"
+
+[[constraint]]
+  name = "github.com/aws/aws-sdk-go"
+  version = "v1.10.33"

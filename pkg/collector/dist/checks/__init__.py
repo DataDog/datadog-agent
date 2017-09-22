@@ -1,13 +1,27 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2017 Datadog, Inc.
+
 import copy
 import json
 import traceback
 import re
-import time
 import logging
+import unicodedata
 from collections import defaultdict
 
 import aggregator
 import datadog_agent
+from config import (
+    _is_affirmative,
+    _get_py_loglevel
+)
+from utils.proxy import (
+    get_requests_proxy,
+    config_proxy_skip
+)
+
 
 class AgentLogHandler(logging.Handler):
     """
@@ -16,11 +30,12 @@ class AgentLogHandler(logging.Handler):
     """
 
     def emit(self, record):
-        msg =  self.format(record)
+        msg = self.format(record)
         datadog_agent.log("(%s:%s) | %s" % (record.filename, record.lineno, msg), record.levelno)
 
 rootLogger = logging.getLogger()
 rootLogger.addHandler(AgentLogHandler())
+rootLogger.setLevel(_get_py_loglevel(datadog_agent.get_config('log_level')))
 
 class CheckException(Exception):
     pass
@@ -37,6 +52,7 @@ class AgentCheck(object):
         self.name = kwargs.get('name', '')
         self.init_config = kwargs.get('init_config', {})
         self.agentConfig = kwargs.get('agentConfig', {})
+        self.warnings = []
 
         if len(args) > 0:
             self.name = args[0]
@@ -52,16 +68,23 @@ class AgentCheck(object):
                 # new-style init: the 3rd argument is `instances`
                 self.instances = args[2]
 
+        self.hostname = datadog_agent.get_hostname()  # `self.hostname` is deprecated, use `datadog_agent.get_hostname()` instead
+
         # the agent5 'AgentCheck' setup a log attribute.
         self.log = logging.getLogger('%s.%s' % (__name__, self.name))
-        # let every log pass through and let the Go logger filter them.
-        # FIXME: get the log level from the agent global config and apply it to the python one.
-        self.log.setLevel(logging.DEBUG)
+
+        # Set proxy settings
+        self.proxies = get_requests_proxy(self.agentConfig)
+        if not self.init_config:
+            self._use_agent_proxy = True
+        else:
+            self._use_agent_proxy = _is_affirmative(
+                self.init_config.get("use_agent_proxy", True))
 
         self.default_integration_http_timeout = float(self.agentConfig.get('default_integration_http_timeout', 9))
 
         self._deprecations = {
-            'increment' : [
+            'increment': [
                 False,
                 "DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, sending these " +
                 "metrics with `AgentCheck.count` and a '_count' suffix instead",
@@ -72,16 +95,22 @@ class AgentCheck(object):
             ],
         }
 
-    # FIXME(olivier): implement this method
     def get_instance_proxy(self, instance, uri):
-        return {}
+        proxies = self.proxies.copy()
+
+        skip = _is_affirmative(instance.get('no_proxy', not self._use_agent_proxy))
+        return config_proxy_skip(proxies, uri, skip)
 
     def _submit_metric(self, mtype, name, value, tags=None, hostname=None, device_name=None):
+        if value is None:
+            # ignore metric sample
+            return
+
         tags = self._normalize_tags(tags, device_name)
         if hostname is None:
             hostname = ""
 
-        aggregator.submit_metric(self, self.check_id, mtype, name, value, tags, hostname)
+        aggregator.submit_metric(self, self.check_id, mtype, name, float(value), tags, hostname)
 
     def gauge(self, name, value, tags=None, hostname=None, device_name=None):
         self._submit_metric(aggregator.GAUGE, name, value, tags=tags, hostname=hostname, device_name=device_name)
@@ -117,9 +146,12 @@ class AgentCheck(object):
             self.log.warning(self._deprecations[deprecation_key][1])
             self._deprecations[deprecation_key][0] = True
 
-    def service_check(self, name, status, tags=None, message=""):
+    def service_check(self, name, status, tags=None, hostname=None, message=""):
         tags = self._normalize_tags_type(tags)
-        aggregator.submit_service_check(self, self.check_id, name, status, tags, message)
+        if hostname is None:
+            hostname = ""
+
+        aggregator.submit_service_check(self, self.check_id, name, status, tags, hostname, message)
 
     def event(self, event):
         # Enforce types of some fields, considerably facilitates handling in go bindings downstream
@@ -139,7 +171,8 @@ class AgentCheck(object):
             event['aggregation_key'] = str(event['aggregation_key'])
         aggregator.submit_event(self, self.check_id, event)
 
-    def increment(self, name, value, tags=None):
+    # TODO(olivier): implement service_metadata if it's worth it
+    def service_metadata(self, meta_name, value):
         pass
 
     def check(self, instance):
@@ -155,7 +188,7 @@ class AgentCheck(object):
                         the metric name returned is in underscore_case
         """
         if isinstance(metric, unicode):
-            metric_name = unicodedata.normalize('NFKD', metric).encode('ascii','ignore')
+            metric_name = unicodedata.normalize('NFKD', metric).encode('ascii', 'ignore')
         else:
             metric_name = metric
 
@@ -237,10 +270,17 @@ class AgentCheck(object):
         return normalized_tags
 
     def warning(self, warning_message):
-        # TODO: add the warning message to the info page, and send the warning as a service check
-        # to DD so that it shows up on the infrastructure page
         warning_message = str(warning_message)
         self.log.warning(warning_message)
+        self.warnings.append(warning_message)
+
+    def get_warnings(self):
+        """
+        Return the list of warnings messages to be displayed in the info page
+        """
+        warnings = self.warnings
+        self.warnings = []
+        return warnings
 
     def run(self):
         try:

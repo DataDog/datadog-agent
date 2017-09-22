@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package network
 
 import (
@@ -60,4 +65,10 @@ func (m *MockSender) Event(e metrics.Event) {
 //Commit enables the commit mock call.
 func (m *MockSender) Commit() {
 	m.Called()
+}
+
+//GetMetricStats enables the get metric stats mock call.
+func (m *MockSender) GetMetricStats() map[string]int64 {
+	m.Called()
+	return make(map[string]int64)
 }

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package collector
 
 import (
@@ -28,22 +33,26 @@ type Collector struct {
 
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
-	log.Debug("NewCollector")
 	run := runner.NewRunner(config.Datadog.GetInt("check_runners"))
 	sched := scheduler.NewScheduler(run.GetChan())
-	log.Debug("scheduler created")
 	sched.Run()
 
-	log.Debug("Creating collector")
-	log.Infof("Initializing python interpreter with paths: %v", paths)
 	c := &Collector{
 		scheduler: sched,
 		runner:    run,
 		checks:    make(map[check.ID]check.Check),
 		state:     started,
 	}
-	pySetup(paths...)
-	log.Debug("created collector")
+	pyVer, pyHome, pyPath := pySetup(paths...)
+
+	// print the Python info if the interpreter was embedded
+	if pyVer != "" {
+		log.Infof("Embedding Python %s", pyVer)
+		log.Debugf("Python Home: %s", pyHome)
+		log.Debugf("Python path: %s", pyPath)
+	}
+
+	log.Debug("Collector up and running!")
 	return c
 }
 
@@ -146,7 +155,7 @@ func (c *Collector) StopCheck(id check.ID) error {
 		return fmt.Errorf("an error occurred while cancelling the check schedule: %s", err)
 	}
 
-	// stop the instance
+	// stop the instance, this might time out
 	err = c.runner.StopCheck(id)
 	if err != nil {
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)

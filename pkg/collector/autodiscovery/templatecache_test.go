@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package autodiscovery
 
 import (
@@ -20,8 +25,11 @@ func TestSet(t *testing.T) {
 
 	tpl1 := check.Config{ADIdentifiers: []string{"foo", "bar"}}
 	err := cache.Set(tpl1)
-
 	require.Nil(t, err)
+	// adding again should be no-op
+	err = cache.Set(tpl1)
+	require.Nil(t, err)
+
 	assert.Len(t, cache.id2digests, 2)
 	assert.Len(t, cache.id2digests["foo"], 1)
 	assert.Len(t, cache.id2digests["bar"], 1)
@@ -37,6 +45,12 @@ func TestSet(t *testing.T) {
 	assert.Len(t, cache.id2digests["bar"], 1)
 	assert.Len(t, cache.digest2ids, 2)
 	assert.Len(t, cache.digest2template, 2)
+
+	// no identifiers at all
+	tpl3 := check.Config{ADIdentifiers: []string{}}
+	err = cache.Set(tpl3)
+
+	require.NotNil(t, err)
 }
 
 func TestDel(t *testing.T) {
@@ -53,4 +67,24 @@ func TestDel(t *testing.T) {
 	assert.Len(t, cache.id2digests["bar"], 0)
 	assert.Len(t, cache.digest2ids, 0)
 	assert.Len(t, cache.digest2template, 0)
+
+	// delete for an unknown identifier
+	err = cache.Del(check.Config{ADIdentifiers: []string{"baz"}})
+	require.NotNil(t, err)
+}
+
+func TestGet(t *testing.T) {
+	cache := NewTemplateCache()
+	tpl := check.Config{ADIdentifiers: []string{"foo", "bar"}}
+	cache.Set(tpl)
+
+	ret, err := cache.Get("foo")
+	require.Nil(t, err)
+	assert.Len(t, ret, 1)
+	tpl2 := ret[0]
+	assert.True(t, tpl.Equal(&tpl2))
+
+	// id not in cache
+	_, err = cache.Get("baz")
+	assert.NotNil(t, err)
 }

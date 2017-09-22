@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package flare
 
 import (
@@ -9,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -17,13 +21,21 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+// SearchPaths is just an alias for a map of strings
+type SearchPaths map[string]string
+
 // CreateArchive packages up the files
-func CreateArchive(local bool) (string, error) {
+func CreateArchive(local bool, distPath, pyChecksPath string) (string, error) {
 	zipFilePath := mkFilePath()
-	return createArchive(zipFilePath, local)
+	confSearchPaths := SearchPaths{
+		"":        config.Datadog.GetString("confd_path"),
+		"dist":    filepath.Join(distPath, "conf.d"),
+		"checksd": pyChecksPath,
+	}
+	return createArchive(zipFilePath, local, confSearchPaths)
 }
 
-func createArchive(zipFilePath string, local bool) (string, error) {
+func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths) (string, error) {
 	zipFile := new(archivex.ZipFile)
 	zipFile.Create(zipFilePath)
 
@@ -52,7 +64,7 @@ func createArchive(zipFilePath string, local bool) (string, error) {
 		return "", err
 	}
 
-	err = zipConfigFiles(zipFile, hostname)
+	err = zipConfigFiles(zipFile, hostname, confSearchPaths)
 	if err != nil {
 		return "", err
 	}
@@ -132,7 +144,7 @@ func zipExpVar(zipFile *archivex.ZipFile, hostname string) error {
 	return nil
 }
 
-func zipConfigFiles(zipFile *archivex.ZipFile, hostname string) error {
+func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths SearchPaths) error {
 	c, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
 		return err
@@ -147,7 +159,7 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string) error {
 		return err
 	}
 
-	err = walkConfigFilePaths(zipFile, hostname)
+	err = walkConfigFilePaths(zipFile, hostname, confSearchPaths)
 	if err != nil {
 		return err
 	}
@@ -173,12 +185,7 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string) error {
 	return err
 }
 
-func walkConfigFilePaths(zipFile *archivex.ZipFile, hostname string) error {
-	confSearchPaths := map[string]string{
-		"":        config.Datadog.GetString("confd_path"),
-		"dist":    filepath.Join(common.GetDistPath(), "conf.d"),
-		"checksd": common.PyChecksPath,
-	}
+func walkConfigFilePaths(zipFile *archivex.ZipFile, hostname string, confSearchPaths SearchPaths) error {
 	for prefix, filePath := range confSearchPaths {
 		err := filepath.Walk(filePath, func(path string, f os.FileInfo, err error) error {
 			if f == nil {

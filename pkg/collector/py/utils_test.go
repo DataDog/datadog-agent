@@ -1,15 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package py
 
 import (
 	"os"
-	"path"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // Setup the test module
@@ -28,14 +30,6 @@ func TestMain(m *testing.M) {
 	os.Exit(ret)
 }
 
-func TestInitialize(t *testing.T) {
-	key := path.Join(util.AgentCachePrefix, "pythonVersion")
-	x, found := util.Cache.Get(key)
-	require.True(t, found)
-	require.NotEmpty(t, x)
-	require.NotEqual(t, "n/a", x)
-}
-
 func TestFindSubclassOf(t *testing.T) {
 	gstate := newStickyLock()
 	defer gstate.unlock()
@@ -46,25 +40,25 @@ func TestFindSubclassOf(t *testing.T) {
 	barClass := barModule.GetAttrString("Bar")
 
 	// invalid input
-	sclass, err := findSubclassOf(nil, nil)
+	sclass, err := findSubclassOf(nil, nil, gstate)
 	assert.NotNil(t, err)
 
 	// pass something that's not a Type
-	sclass, err = findSubclassOf(python.PyTuple_New(0), fooModule)
+	sclass, err = findSubclassOf(python.PyTuple_New(0), fooModule, gstate)
 	assert.NotNil(t, err)
-	sclass, err = findSubclassOf(fooClass, python.PyTuple_New(0))
+	sclass, err = findSubclassOf(fooClass, python.PyTuple_New(0), gstate)
 	assert.NotNil(t, err)
 
 	// Foo in foo module, only Foo itself found
-	sclass, err = findSubclassOf(fooClass, fooModule)
+	sclass, err = findSubclassOf(fooClass, fooModule, gstate)
 	assert.NotNil(t, err)
 
 	// Bar in foo module, no class found
-	sclass, err = findSubclassOf(barClass, fooModule)
+	sclass, err = findSubclassOf(barClass, fooModule, gstate)
 	assert.NotNil(t, err)
 
 	// Foo in bar module, get Bar
-	sclass, err = findSubclassOf(fooClass, barModule)
+	sclass, err = findSubclassOf(fooClass, barModule, gstate)
 	assert.Nil(t, err)
 	assert.Equal(t, 1, sclass.RichCompareBool(barClass, python.Py_EQ))
 }

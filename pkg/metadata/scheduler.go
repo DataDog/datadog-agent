@@ -1,9 +1,15 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package metadata
 
 import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	log "github.com/cihub/seelog"
 )
@@ -63,7 +69,13 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 func (c *Scheduler) firstRun() error {
 	p, found := catalog["host"]
 	if !found {
-		panic("Unable to find 'host' metadata collector in the catalog!")
+		log.Error("Unable to find 'host' metadata collector in the catalog!")
+		signals.ErrorStopper <- true
 	}
 	return p.Send(c.srl)
+}
+
+// RegisterCollector adds a Metadata Collector to the catalog
+func RegisterCollector(name string, metadataCollector Collector) {
+	catalog[name] = metadataCollector
 }

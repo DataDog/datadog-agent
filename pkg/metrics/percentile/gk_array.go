@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package percentile
 
 import (
@@ -5,6 +10,8 @@ import (
 	"fmt"
 	"math"
 	"sort"
+
+	log "github.com/cihub/seelog"
 )
 
 // EPSILON represents the accuracy of the sketch.
@@ -26,10 +33,22 @@ func (slice Entries) Less(i, j int) bool { return slice[i].V < slice[j].V }
 func (slice Entries) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
 
 // GKArray is a version of GK with a buffer for the incoming values.
+// The expected usage is that Add() is called in the agent, while Merge() and
+// Quantile() are called in the backend; in other words, values are added to
+// the sketch in the agent, sketches are sent to the backend where they are
+// merged with other sketches, and quantile queries are made to the merged
+// sketches only. This allows us to ignore the Incoming buffer once the
+// sketch goes through a Merge.
+// GKArray therefore has two versions of compress:
+// 1. compressWithIncoming(incomingEntries []Entry) is used during Merge(), and sets
+//	Incoming to nil after compressing so that merged sketches do not allocate
+//	unnecessary storage.
+// 2. compressAndAllocateBuf() is used during Add(), and allocates Incoming after
+//	compressing for further addition of values to the sketch.
 type GKArray struct {
 	// the last item of Entries will always be the max inserted value
-	Entries  Entries `json:"entries"`
-	incoming []float64
+	Entries  Entries   `json:"entries"`
+	Incoming []float64 `json:"buf"`
 	// TODO[Charles]: incorporate min in entries so that we can get rid of the field.
 	Min   float64 `json:"min"`
 	Max   float64 `json:"max"`
@@ -79,7 +98,7 @@ func (e *Entry) UnmarshalJSON(b []byte) error {
 func NewGKArray() GKArray {
 	return GKArray{
 		// preallocate the incoming array for better insert throughput (5% faster)
-		incoming: make([]float64, 0, int(1/EPSILON)),
+		Incoming: make([]float64, 0, int(1/EPSILON)+1),
 		Min:      math.Inf(1),
 		Max:      math.Inf(-1),
 	}
@@ -90,27 +109,36 @@ func (s GKArray) Add(v float64) GKArray {
 	s.Count++
 	s.Sum += v
 	s.Avg += (v - s.Avg) / float64(s.Count)
-	s.incoming = append(s.incoming, v)
+	s.Incoming = append(s.Incoming, v)
 	if v < s.Min {
 		s.Min = v
 	}
 	if v > s.Max {
 		s.Max = v
 	}
-	if s.Count%int64(1/EPSILON) == 0 {
-		return s.compress(nil)
+	if s.Count%(int64(1/EPSILON)+1) == 0 {
+		return s.compressAndAllocateBuf()
 	}
 
 	return s
 }
 
+// compressAndAllocateBuf compresses Incoming into Entries, then allocates
+// an empty Incoming for futher addition of values.
+func (s GKArray) compressAndAllocateBuf() GKArray {
+	s = s.compressWithIncoming(nil)
+	// allocate Incoming
+	s.Incoming = make([]float64, 0, int(1/EPSILON)+1)
+	return s
+}
+
 // Quantile returns an epsilon estimate of the element at quantile q.
-// If calling Quantile() repeatedly on the same sketch, it would be more
-// efficient to Compress() the sketch beforehand since each Quantile()
-// calls Compress() if incoming is not empty.
+// The incoming buffer is empty during the quantile query phase, so there's
+// no need to check Incoming or Compress().
 func (s GKArray) Quantile(q float64) float64 {
 	if q < 0 || q > 1 {
-		panic("Quantile out of bounds")
+		log.Errorf("Quantile out of bounds")
+		return math.NaN()
 	}
 
 	if s.Count == 0 {
@@ -120,15 +148,6 @@ func (s GKArray) Quantile(q float64) float64 {
 	// Interpolate the quantile when there are only a few values.
 	if s.Count < int64(1/EPSILON) {
 		return s.interpolatedQuantile(q)
-	}
-
-	if len(s.Entries) == 0 {
-		sort.Float64s(s.incoming)
-		return s.incoming[int(q*float64(s.Count-1))]
-	}
-
-	if len(s.incoming) > 0 {
-		s = s.compress(nil)
 	}
 
 	rank := int64(q * float64(s.Count-1))
@@ -150,7 +169,8 @@ func (s GKArray) Quantile(q float64) float64 {
 
 // interpolatedQuantile returns an estimate of the element at quantile q,
 // but interpolates between the lower and higher elements when Count is
-// less than 1/EPSILON
+// less than 1/EPSILON.
+// Again, the incoming buffer is empty during the quantile query phase.
 func (s GKArray) interpolatedQuantile(q float64) float64 {
 	rank := q * float64(s.Count-1)
 	indexBelow := int64(rank)
@@ -161,9 +181,6 @@ func (s GKArray) interpolatedQuantile(q float64) float64 {
 	weightAbove := rank - float64(indexBelow)
 	weightBelow := 1.0 - weightAbove
 
-	if len(s.incoming) > 0 {
-		s = s.compress(nil)
-	}
 	// When Count is less than 1/EPSILON, all the entries will have G = 1, Delta = 0.
 	return weightBelow*s.Entries[indexBelow].V + weightAbove*s.Entries[indexAbove].V
 }
@@ -171,12 +188,12 @@ func (s GKArray) interpolatedQuantile(q float64) float64 {
 // Merge another GKArray into this in-place.
 func (s GKArray) Merge(o GKArray) GKArray {
 	if o.Count == 0 {
-		return s.compress(nil)
+		return s.compressWithIncoming(nil)
 	}
 	if s.Count == 0 {
-		return o.compress(nil)
+		return o.compressWithIncoming(nil)
 	}
-	o = o.compress(nil)
+	o = o.compressWithIncoming(nil)
 	spread := uint32(EPSILON * float64(o.Count-1))
 
 	/*
@@ -192,22 +209,22 @@ func (s GKArray) Merge(o GKArray) GKArray {
 			can notice that each of the quantiles that are queried from o is a v of one of the entry of o. Instead of actually
 			querying for those quantiles, we can count the number of times each v will be returned (when querying the quantiles
 		        i/(o.valCount-1)); we end up with the values n below. Then instead of successively inserting each v n times, we can
-			actually directly append them to s.incoming as new entries where g = n. This is possible because the values of n
+			actually directly append them to s.Incoming as new entries where g = n. This is possible because the values of n
 			will never violate the condition n <= int(s.eps * (s.Count+o.Count-1)). Also, we need to make sure that
-			compress() can handle entries in incoming where g > 1.
+			compress() can handle entries in Incoming where g > 1.
 	*/
 
-	incomingEntries := make([]Entry, 0, len(o.Entries))
+	IncomingEntries := make([]Entry, 0, len(o.Entries)+1)
 	if n := o.Entries[0].G + o.Entries[0].Delta - spread - 1; n > 0 {
-		incomingEntries = append(incomingEntries, Entry{V: o.Min, G: n, Delta: 0})
+		IncomingEntries = append(IncomingEntries, Entry{V: o.Min, G: n, Delta: 0})
 	}
 	for i := 0; i < len(o.Entries)-1; i++ {
 		if n := o.Entries[i+1].G + o.Entries[i+1].Delta - o.Entries[i].Delta; n > 0 { // TODO[Charles]: is the check necessary?
-			incomingEntries = append(incomingEntries, Entry{V: o.Entries[i].V, G: n, Delta: 0})
+			IncomingEntries = append(IncomingEntries, Entry{V: o.Entries[i].V, G: n, Delta: 0})
 		}
 	}
 	if n := spread + 1 - o.Entries[len(o.Entries)-1].Delta; n > 0 { // TODO[Charles]: is the check necessary?
-		incomingEntries = append(incomingEntries, Entry{V: o.Entries[len(o.Entries)-1].V, G: n, Delta: 0})
+		IncomingEntries = append(IncomingEntries, Entry{V: o.Entries[len(o.Entries)-1].V, G: n, Delta: 0})
 	}
 
 	s.Count += o.Count
@@ -219,34 +236,33 @@ func (s GKArray) Merge(o GKArray) GKArray {
 	if o.Max > s.Max {
 		s.Max = o.Max
 	}
-	return s.compress(incomingEntries)
+	return s.compressWithIncoming(IncomingEntries)
 }
 
-// Compress merges the incoming buffer into entries and compresses it.
-func (s GKArray) Compress() GKArray {
-	if len(s.incoming) == 0 {
-		return s
-	}
-	return s.compress(nil)
-}
+// compressWithIncoming merges an optional incomingEntries and Incoming buffer into
+// Entries and compresses. Incoming buffer is set to nil after compressing.
+func (s GKArray) compressWithIncoming(incomingEntries Entries) GKArray {
 
-func (s GKArray) compress(incomingEntries Entries) GKArray {
-
-	// TODO[Charles]: use s.incoming and incomingEntries directly instead of merging them prior to compressing
-	for _, v := range s.incoming {
-		incomingEntries = append(incomingEntries, Entry{V: v, G: 1, Delta: 0})
+	// TODO[Charles]: use s.Incoming and incomingEntries directly instead of merging them prior to compressing
+	if len(s.Incoming) > 0 {
+		newIncoming := make([]Entry, len(incomingEntries), len(incomingEntries)+len(s.Incoming))
+		copy(newIncoming, incomingEntries)
+		incomingEntries = newIncoming
+		for _, v := range s.Incoming {
+			incomingEntries = append(incomingEntries, Entry{V: v, G: 1, Delta: 0})
+		}
 	}
 	sort.Sort(incomingEntries)
 
 	removalThreshold := 2 * uint32(EPSILON*float64(s.Count-1))
-	merged := make([]Entry, 0, len(s.Entries)+len(incomingEntries))
+	merged := make([]Entry, 0, len(s.Entries)+len(incomingEntries)/3)
 
 	// TODO[Charles]: The compression algo might not be optimal. We need to revisit it if we need to improve space
 	// complexity (e.g., by compressing incoming entries).
 	i, j := 0, 0
 	for i < len(incomingEntries) || j < len(s.Entries) {
 		if i == len(incomingEntries) {
-			// done with incoming; now only considering the sketch
+			// done with Incoming; now only considering the sketch
 			if j+1 < len(s.Entries) &&
 				s.Entries[j].G+s.Entries[j+1].G+s.Entries[j+1].Delta <= removalThreshold {
 				// removable from sketch
@@ -256,10 +272,10 @@ func (s GKArray) compress(incomingEntries Entries) GKArray {
 			}
 			j++
 		} else if j == len(s.Entries) {
-			// done with sketch; now only considering incoming
+			// done with sketch; now only considering Incoming
 			if i+1 < len(incomingEntries) &&
 				incomingEntries[i].G+incomingEntries[i+1].G+incomingEntries[i+1].Delta <= removalThreshold {
-				// removable from incoming
+				// removable from Incoming
 				incomingEntries[i+1].G += incomingEntries[i].G
 			} else {
 				merged = append(merged, incomingEntries[i])
@@ -267,7 +283,7 @@ func (s GKArray) compress(incomingEntries Entries) GKArray {
 			i++
 		} else if incomingEntries[i].V < s.Entries[j].V {
 			if incomingEntries[i].G+s.Entries[j].G+s.Entries[j].Delta <= removalThreshold {
-				// removable from incoming
+				// removable from Incoming
 				s.Entries[j].G += incomingEntries[i].G
 			} else {
 				incomingEntries[i].Delta = s.Entries[j].G + s.Entries[j].Delta - incomingEntries[i].G
@@ -286,6 +302,7 @@ func (s GKArray) compress(incomingEntries Entries) GKArray {
 		}
 	}
 	s.Entries = merged
-	s.incoming = make([]float64, 0, int(1/EPSILON))
+	// set Incoming to nil, since it is not used after merge
+	s.Incoming = nil
 	return s
 }

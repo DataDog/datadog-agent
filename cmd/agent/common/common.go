@@ -1,9 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // Package common provides a set of common symbols needed by different packages,
 // to avoid circular dependencies.
 package common
 
 import (
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
@@ -23,9 +31,17 @@ var (
 	// Forwarder is the global forwarder instance
 	Forwarder forwarder.Forwarder
 
-	// Stopper is the channel used by other packages to ask for stopping the agent
-	Stopper = make(chan bool)
-
 	// utility variables
 	_here, _ = osext.ExecutableFolder()
 )
+
+// GetPythonPaths returns the paths (in order of precedence) from where the agent
+// should load python modules and checks
+func GetPythonPaths() []string {
+	return []string{
+		GetDistPath(),                                  // common modules are shipped in the dist path directly or under the "checks/" sub-dir
+		filepath.Join(GetDistPath(), "checks.d"),       // custom checks in the "checks.d/" sub-dir of the dist path
+		config.Datadog.GetString("additional_checksd"), // custom checks, have precedence over integrations-core checks
+		PyChecksPath,                                   // integrations-core checks
+	}
+}

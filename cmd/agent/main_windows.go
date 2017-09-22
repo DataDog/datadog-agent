@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package main
 
 import (
@@ -10,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -62,7 +68,7 @@ loop:
 			default:
 				elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
 			}
-		case <-common.Stopper:
+		case <-signals.Stopper:
 			elog.Info(1, "Received stop command, shutting down...")
 			app.StopAgent()
 			break loop

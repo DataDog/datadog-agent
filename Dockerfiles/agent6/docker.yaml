@@ -1,0 +1,6 @@
+init_config:
+
+instances:
+  - ## Placeholder configuration file to start the docker check by default
+    ## Please see https://github.com/DataDog/datadog-agent/blob/master/pkg/collector/dist/conf.d/docker.yaml.example
+    ## for supported options

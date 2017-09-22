@@ -1,4 +1,9 @@
-package corecheck
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
+package corechecks
 
 import (
 	"fmt"
@@ -8,14 +13,24 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-type checkFactory func() check.Check
+// CheckFactory factory function type to instantiate checks
+type CheckFactory func() check.Check
 
 // Catalog keeps track of Go checks by name
-var catalog = make(map[string]checkFactory)
+var catalog = make(map[string]CheckFactory)
 
 // RegisterCheck adds a check to the catalog
-func RegisterCheck(name string, c checkFactory) {
+func RegisterCheck(name string, c CheckFactory) {
 	catalog[name] = c
+}
+
+// GetCheckFactory grabs factory for specific check
+func GetCheckFactory(name string) CheckFactory {
+	f, ok := catalog[name]
+	if !ok {
+		return nil
+	}
+	return f
 }
 
 // GoCheckLoader is a specific loader for checks living in this package
@@ -29,6 +44,11 @@ func NewGoCheckLoader() (*GoCheckLoader, error) {
 // Load returns a list of checks, one for every configuration instance found in `config`
 func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checks := []check.Check{}
+
+	// If JMX check, just skip - coincidence
+	if check.IsConfigJMX(config.Name, config.InitConfig) {
+		return checks, fmt.Errorf("check %s appears to be a JMX check - skipping", config.Name)
+	}
 
 	factory, found := catalog[config.Name]
 	if !found {

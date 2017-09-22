@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package status
 
 import (
@@ -35,7 +40,7 @@ func GetStatus() (map[string]interface{}, error) {
 		stats["metadata"] = host.GetPayload(hostname)
 	}
 
-	stats["config"] = getConfig()
+	stats["config"] = getPartialConfig()
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 
 	platformPayload, err := new(platform.Platform).Collect()
@@ -47,6 +52,8 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["hostinfo"] = host.GetStatusInformation()
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
+
+	stats["JMXStatus"] = GetJMXStatus()
 
 	return stats, nil
 }
@@ -93,15 +100,14 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 	return []byte(st), nil
 }
 
-func getConfig() map[string]interface{} {
-	var conf = config.Datadog.AllSettings()
-	newConf := make(map[string]interface{})
-	for k, v := range conf {
-		if k != "api_key" && k != "metadata_collectors" {
-			newConf[k] = v
-		}
-	}
-	return newConf
+// getPartialConfig returns config parameters of interest for the status page
+func getPartialConfig() map[string]string {
+	conf := make(map[string]string)
+	conf["log_file"] = config.Datadog.GetString("log_file")
+	conf["log_level"] = config.Datadog.GetString("log_level")
+	conf["confd_path"] = config.Datadog.GetString("confd_path")
+	conf["additional_checksd"] = config.Datadog.GetString("additional_checksd")
+	return conf
 }
 
 func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
@@ -116,10 +122,10 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	json.Unmarshal(runnerStatsJSON, &runnerStats)
 	stats["runnerStats"] = runnerStats
 
-	loaderStatsJSON := []byte(expvar.Get("loader").String())
-	loaderStats := make(map[string]interface{})
-	json.Unmarshal(loaderStatsJSON, &loaderStats)
-	stats["loaderStats"] = loaderStats
+	autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
+	autoConfigStats := make(map[string]interface{})
+	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats)
+	stats["autoConfigStats"] = autoConfigStats
 
 	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
 	aggregatorStats := make(map[string]interface{})

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package status
 
 import (
@@ -20,6 +25,7 @@ func init() {
 		"pythonLoaderError":  pythonLoaderError,
 		"printDashes":        printDashes,
 		"formatUnixTime":     formatUnixTime,
+		"humanize":           mkHuman,
 	}
 }
 
@@ -46,7 +52,10 @@ func lastError(value string) template.HTML {
 func lastErrorTraceback(value string) template.HTML {
 	var lastErrorArray []map[string]string
 
-	json.Unmarshal([]byte(value), &lastErrorArray)
+	err := json.Unmarshal([]byte(value), &lastErrorArray)
+	if err != nil || len(lastErrorArray) == 0 {
+		return template.HTML("No traceback")
+	}
 	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "\n", "\n      ", -1)
 	lastErrorArray[0]["traceback"] = strings.TrimRight(lastErrorArray[0]["traceback"], "\n\t ")
 	return template.HTML(lastErrorArray[0]["traceback"])
@@ -54,9 +63,13 @@ func lastErrorTraceback(value string) template.HTML {
 
 func lastErrorMessage(value string) template.HTML {
 	var lastErrorArray []map[string]string
-
-	json.Unmarshal([]byte(value), &lastErrorArray)
-	return template.HTML(lastErrorArray[0]["message"])
+	err := json.Unmarshal([]byte(value), &lastErrorArray)
+	if err == nil && len(lastErrorArray) > 0 {
+		if _, ok := lastErrorArray[0]["message"]; ok {
+			return template.HTML(lastErrorArray[0]["message"])
+		}
+	}
+	return template.HTML("UNKNOWN ERROR")
 }
 
 func formatUnixTime(unixTime float64) string {
@@ -80,6 +93,19 @@ func printDashes(s string, dash string) string {
 		dashes += dash
 	}
 	return dashes
+}
+
+func mkHuman(f float64) string {
+	i := int64(f)
+	str := fmt.Sprintf("%d", i)
+
+	if i > 1000000 {
+		str = "over 1M"
+	} else if i > 100000 {
+		str = "over 100K"
+	}
+
+	return str
 }
 
 func stringLength(s string) int {

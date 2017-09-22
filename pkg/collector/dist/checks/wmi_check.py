@@ -1,3 +1,8 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2017 Datadog, Inc.
+
 # (C) Datadog, Inc. 2010-2016
 # All rights reserved
 # Licensed under Simplified BSD License (see LICENSE)
@@ -311,6 +316,7 @@ def from_time(year=None, month=None, day=None, hours=None, minutes=None, seconds
                 wmi_time += str_or_stars(timezone, 3)
 
     return wmi_time
+
 
 def to_time(wmi_time):
     """Convenience wrapper to take a WMI datetime string of the form

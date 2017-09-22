@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build jmx
 
 package embed
@@ -9,93 +14,77 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseJmxCfg(t *testing.T) {
-	jmxConf := new(jmxCfg)
-
-	// Test instance with no listed JMX conf files
-	instance := []byte("files:")
-	err := jmxConf.Parse(instance)
-	assert.EqualError(t, err, "Error parsing configuration: no config files")
-
-	// Test valid instance
-	instance = []byte("files:\n  - kafka.yml")
-	err = jmxConf.Parse(instance)
-	assert.Nil(t, err)
-	if assert.Equal(t, 1, len(jmxConf.instance.Files)) {
-		assert.Equal(t, "kafka.yml", jmxConf.instance.Files[0])
-	}
-}
-
 func TestReadJMXConf(t *testing.T) {
-	checkConf := new(checkCfg)
+	check := new(JMXCheck)
 
 	// Test for no instances in jmx check conf file
-	checkConfYaml := []byte("" +
-		"init_config:\n" +
-		"instances:\n")
-	checkConf.Parse(checkConfYaml)
-	_, _, _, _, err := readJMXConf(checkConf, "")
-	assert.EqualError(t, err, "You need to have at least one instance "+
-		"defined in the YAML file for this check")
+	initConfYaml := []byte("")
+	instanceConfYaml := []byte("")
 
-	// Test for no name with jmx_url
-	checkConfYaml = []byte("" +
-		"init_config:\n" +
-		"instances:\n" +
-		" - jmx_url: foo\n")
-	checkConf.Parse(checkConfYaml)
-	_, _, _, _, err = readJMXConf(checkConf, "")
-	assert.EqualError(t, err, "A name must be specified when using a jmx_url")
+	err := check.Configure(instanceConfYaml, initConfYaml)
+	assert.Nil(t, err)
 
-	// Test for no host
-	checkConfYaml = []byte("" +
-		"init_config:\n" +
-		"instances:\n" +
-		" - host:")
-	checkConf.Parse(checkConfYaml)
-	_, _, _, _, err = readJMXConf(checkConf, "")
-	assert.EqualError(t, err, "A host must be specified")
+	// Test basic jmx_url
+	instanceConfYaml = []byte("jmx_url: foo\n")
+	initConfYaml = []byte(" tools_jar_path: some/path")
+	err = check.Configure(instanceConfYaml, initConfYaml)
+	assert.Nil(t, err)
+	assert.Equal(t, check.javaToolsJarPath, "some/path")
 
-	// Test for no port
-	checkConfYaml = []byte("" +
-		"init_config:\n" +
-		"instances:\n" +
-		" - host: foo\n")
-	checkConf.Parse(checkConfYaml)
-	_, _, _, _, err = readJMXConf(checkConf, "")
-	assert.EqualError(t, err, "A numeric port must be specified")
+	// Test options precedence
+	check.javaToolsJarPath = ""
+	instanceConfYaml = []byte("jmx_url: foo\n" +
+		"tools_jar_path: some/other/path")
+	err = check.Configure(instanceConfYaml, initConfYaml)
+	assert.Nil(t, err)
+	assert.Equal(t, check.javaToolsJarPath, "some/other/path")
 
-	// Test for no include in conf
-	checkConfYaml = []byte("" +
-		"init_config:\n" +
-		" conf:\n" +
-		"  - include:\n" +
-		"instances:\n" +
-		" - host: foo\n" +
-		"   port: 1234\n")
-	checkConf.Parse(checkConfYaml)
-	_, _, _, _, err = readJMXConf(checkConf, "")
-	assert.EqualError(t, err, fmt.Sprintf("Each configuration must have an"+
-		" 'include' section. %s", linkToDoc))
+	// Test jar paths
+	initConfYaml = []byte("custom_jar_paths:\n" +
+		"  - foo/\n" +
+		"  - bar/\n")
+	err = check.Configure(instanceConfYaml, initConfYaml)
+	assert.Nil(t, err)
+	assert.Equal(t, len(check.javaCustomJarPaths), 2)
+	assert.Contains(t, check.javaCustomJarPaths, "foo/")
+	assert.Contains(t, check.javaCustomJarPaths, "bar/")
 
-	// Test for no tools.jar if isAttachAPI
-	checkConfYaml = []byte("" +
-		"init_config:\n" +
-		"instances:\n" +
-		" - host: foo\n" +
-		"   port: 1234\n" +
-		"   process_name_regex: regex")
-	checkConf.Parse(checkConfYaml)
-	_, _, _, _, err = readJMXConf(checkConf, "")
+	// Test java options
+	instanceConfYaml = []byte("java_options: -Xmx200 -Xms40\n")
+	err = check.Configure(instanceConfYaml, initConfYaml)
+	assert.Nil(t, err)
+	assert.Equal(t, check.javaOptions, "-Xmx200 -Xms40")
+
+	// Test java bin options
+	instanceConfYaml = []byte("java_bin_path: /usr/local/java8/bin/java\n")
+	err = check.Configure(instanceConfYaml, initConfYaml)
+	assert.Nil(t, err)
+	assert.Equal(t, check.javaBinPath, "/usr/local/java8/bin/java")
+
+	// Once an option is set, it's set - further changes will not be enforced
+	instanceConfYaml = []byte("java_bin_path: /opt/java/bin/java\n")
+	err = check.Configure(instanceConfYaml, initConfYaml)
+	assert.Nil(t, err)
+	assert.Equal(t, check.javaBinPath, "/usr/local/java8/bin/java")
+
+	// Test process regex with no tools - should fail
+	check.javaToolsJarPath = ""
+	instanceConfYaml = []byte("process_name_regex: regex\n")
+	err = check.Configure(instanceConfYaml, initConfYaml)
 	assert.EqualError(t, err, fmt.Sprintf("You must specify the path to tools.jar. %s", linkToDoc))
 
-	// Test valid conf
-	checkConfYaml = []byte("" +
-		"init_config:\n" +
-		"instances:\n" +
-		" - host: foo\n" +
-		"   port: 1234\n")
-	checkConf.Parse(checkConfYaml)
-	_, _, _, _, err = readJMXConf(checkConf, "")
+	instanceConfYaml = []byte("process_name_regex: regex\n" +
+		"tools_jar_path: some/other/path")
+	err = check.Configure(instanceConfYaml, initConfYaml)
 	assert.Nil(t, err)
+	assert.True(t, check.isAttachAPI)
+
+	// Configurations "pile" up
+	assert.Equal(t, check.javaToolsJarPath, "some/other/path")
+	assert.Equal(t, check.javaBinPath, "/usr/local/java8/bin/java")
+	assert.Equal(t, check.javaOptions, "-Xmx200 -Xms40")
+	assert.Equal(t, len(check.javaCustomJarPaths), 2)
+	assert.Contains(t, check.javaCustomJarPaths, "foo/")
+	assert.Contains(t, check.javaCustomJarPaths, "bar/")
+	assert.True(t, check.isAttachAPI)
 }

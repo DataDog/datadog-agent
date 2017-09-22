@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package autodiscovery
 
 import (
@@ -9,8 +14,8 @@ import (
 
 // TemplateCache is a data structure to store configuration templates
 type TemplateCache struct {
-	id2digests      map[string][]string     // map an AD identifier to the all the configs that have it
-	digest2ids      map[string][]string     // map a config to the list of AD identifiers it has
+	id2digests      map[string][]string     // map an AD identifier to all the configs that have it
+	digest2ids      map[string][]string     // map a config digest to the list of AD identifiers it has
 	digest2template map[string]check.Config // map a digest to the corresponding config object
 	m               sync.RWMutex
 }
@@ -57,8 +62,9 @@ func (cache *TemplateCache) Get(adID string) ([]check.Config, error) {
 	cache.m.RLock()
 	defer cache.m.RUnlock()
 
+	// do we know the identifier?
 	if digests, found := cache.id2digests[adID]; found {
-		templates := make([]check.Config, len(digests))
+		templates := []check.Config{}
 		for _, digest := range digests {
 			templates = append(templates, cache.digest2template[digest])
 		}

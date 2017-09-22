@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package aggregator
 
 import (
@@ -31,7 +36,6 @@ func TestDistributionSampling(t *testing.T) {
 	expectedSketch = expectedSketch.Add(1)
 	expectedSketch = expectedSketch.Add(10)
 	expectedSketch = expectedSketch.Add(5)
-	expectedSketch = expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		Sketches: []percentile.Sketch{{Timestamp: int64(15), Sketch: expectedSketch}}}
 

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package forwarder
 
 import (
@@ -67,11 +72,6 @@ func (tf *MockedForwarder) SubmitV1Intake(payload Payloads, extraHeaders map[str
 
 // SubmitV1CheckRuns updates the internal mock struct
 func (tf *MockedForwarder) SubmitV1CheckRuns(payload Payloads, extraHeaders map[string]string) error {
-	return tf.Called(payload, extraHeaders).Error(0)
-}
-
-// SubmitV1SketchSeries updates the internal mock struct
-func (tf *MockedForwarder) SubmitV1SketchSeries(payload Payloads, extraHeaders map[string]string) error {
 	return tf.Called(payload, extraHeaders).Error(0)
 }
 
