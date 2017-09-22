@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -36,6 +37,13 @@ func (c *fhCheck) getFileNrValues(fn string) ([]string, error) {
 	}
 
 	s := strings.Split(strings.TrimRight(string(dat), "\n"), "\t")
+
+    if len(s) != 3 {
+    	log.Error("Unexpected number of arguments in file-nr, expected %s, got %s", 3, len(s))
+        err := errors.New("Unexpected number of args in file-nr")
+        return nil, err
+    }
+
 	return s, err
 }
 
@@ -96,6 +104,16 @@ func (c *fhCheck) Interval() time.Duration {
 func (c *fhCheck) ID() check.ID {
 	return check.ID(c.String())
 }
+
+// GetMetricStats returns the stats from the last run of the check
+func (c *fhCheck) GetMetricStats() (map[string]int64, error) {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return nil, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+	}
+	return sender.GetMetricStats(), nil
+}
+
 
 // Stop does nothing
 func (c *fhCheck) Stop() {}
