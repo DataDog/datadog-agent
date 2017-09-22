@@ -7,11 +7,11 @@
 package system
 
 import (
+	"errors"
 	"io/ioutil"
 	"strconv"
 	"strings"
 	"time"
-	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -23,7 +23,7 @@ import (
 // For testing
 var fileNrHandle = "/proc/sys/fs/file-nr"
 
-type fhCheck struct{
+type fhCheck struct {
 	lastWarnings []error
 }
 
@@ -40,11 +40,11 @@ func (c *fhCheck) getFileNrValues(fn string) ([]string, error) {
 
 	s := strings.Split(strings.TrimRight(string(dat), "\n"), "\t")
 
-    if len(s) != 3 {
-    	log.Error("Unexpected number of arguments in file-nr, expected %s, got %s", 3, len(s))
-        err := errors.New("Unexpected number of args in file-nr")
-        return nil, err
-    }
+	if len(s) != 3 {
+		log.Error("Unexpected number of arguments in file-nr, expected %s, got %s", 3, len(s))
+		err := errors.New("Unexpected number of args in file-nr")
+		return nil, err
+	}
 
 	return s, err
 }
@@ -52,9 +52,9 @@ func (c *fhCheck) getFileNrValues(fn string) ([]string, error) {
 // Run executes the check
 func (c *fhCheck) Run() error {
 	fileNrValues, err := c.getFileNrValues(fileNrHandle)
-    if err != nil {
-    	return err
-    }
+	if err != nil {
+		return err
+	}
 
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
@@ -115,7 +115,6 @@ func (c *fhCheck) GetMetricStats() (map[string]int64, error) {
 	}
 	return sender.GetMetricStats(), nil
 }
-
 
 // GetWarnings grabs the last warnings from the sender
 func (c *fhCheck) GetWarnings() []error {
