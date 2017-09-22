@@ -26,7 +26,7 @@ func TestFindDockerNetworks(t *testing.T) {
 	dummyProcDir, err := newTempFolder("test-find-docker-networks")
 	assert.Nil(err)
 	defer dummyProcDir.removeAll() // clean up
-	config.Datadog.SetDefault("proc_root", dummyProcDir.RootPath)
+	config.Datadog.SetDefault("container_proc_root", dummyProcDir.RootPath)
 
 	containerID := "test-find-docker-networks"
 	for _, tc := range []struct {
