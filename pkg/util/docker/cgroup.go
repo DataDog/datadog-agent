@@ -19,6 +19,8 @@ import (
 	"strings"
 
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -437,7 +439,7 @@ func cgroupMountPoints() (map[string]string, error) {
 }
 
 func parseCgroupMountPoints(r io.Reader) map[string]string {
-
+	cgroupRoot := config.Datadog.GetString("container_cgroup_root")
 	mountPoints := make(map[string]string)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
@@ -447,7 +449,7 @@ func parseCgroupMountPoints(r io.Reader) map[string]string {
 			cgroupPath := tokens[1]
 
 			// Ignore mountpoints not mounted under /{host/}sys
-			if !strings.HasPrefix(cgroupPath, HostSys()) {
+			if !strings.HasPrefix(cgroupPath, cgroupRoot) {
 				continue
 			}
 

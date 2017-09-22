@@ -67,14 +67,6 @@ func HostProc(combineWith ...string) string {
 	return path.Join(parts...)
 }
 
-// HostSys returns the location of a host's /sys. This can and will be overriden
-// when running inside a container.
-// TODO: use config value instead of envvar
-func HostSys(combineWith ...string) string {
-	parts := append([]string{config.Datadog.GetString("container_sysfs_root")}, combineWith...)
-	return path.Join(parts...)
-}
-
 // PathExists returns a boolean indicating if the given path exists on the file system.
 func PathExists(filename string) bool {
 	if _, err := os.Stat(filename); err == nil {

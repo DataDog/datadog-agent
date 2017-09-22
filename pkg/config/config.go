@@ -82,11 +82,11 @@ func init() {
 	Datadog.SetDefault("check_runners", int64(4))
 	if IsContainerized() {
 		Datadog.SetDefault("container_proc_root", "/host/proc")
-		Datadog.SetDefault("container_sysfs_root", "/host/sys")
+		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
 
 	} else {
 		Datadog.SetDefault("container_proc_root", "/proc")
-		Datadog.SetDefault("container_sysfs_root", "/sys")
+		Datadog.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 	}
 	Datadog.SetDefault("proc_root", "/proc")
 	// Serializer
@@ -139,7 +139,7 @@ func init() {
 	Datadog.BindEnv("dogstatsd_port")
 	Datadog.BindEnv("proc_root")
 	Datadog.BindEnv("container_proc_root")
-	Datadog.BindEnv("container_sysfs_root")
+	Datadog.BindEnv("container_cgroup_root")
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
