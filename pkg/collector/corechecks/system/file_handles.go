@@ -28,19 +28,23 @@ func (c *fhCheck) String() string {
 	return "disk"
 }
 
-func (c *fhCheck) getFileNrValues(fn string) []string {
+func (c *fhCheck) getFileNrValues(fn string) ([]string, error) {
 	dat, err := ioutil.ReadFile(fn)
 	if err != nil {
 		log.Error(err.Error())
+		return nil, err
 	}
 
 	s := strings.Split(strings.TrimRight(string(dat), "\n"), "\t")
-	return s
+	return s, err
 }
 
 // Run executes the check
 func (c *fhCheck) Run() error {
-	fileNrValues := c.getFileNrValues(fileNrHandle)
+	fileNrValues, err := c.getFileNrValues(fileNrHandle)
+    if err != nil {
+    	return err
+    }
 
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
