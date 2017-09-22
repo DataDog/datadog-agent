@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
@@ -40,7 +41,7 @@ type DockerListener struct {
 // NewDockerListener creates a client connection to Docker and instanciate a DockerListener with it
 // TODO: TLS support
 func NewDockerListener() (*DockerListener, error) {
-	c, err := client.NewEnvClient()
+	c, err := docker.ConnectToDocker()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to connect to Docker, auto discovery will not work: %s", err)
 	}
