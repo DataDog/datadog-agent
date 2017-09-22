@@ -47,7 +47,7 @@ type DockerCollector struct {
 // Detect tries to connect to the docker socket and returns success
 func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	// TODO: refactor with collector.listeners.DockerListener
-	client, err := client.NewEnvClient()
+	client, err := docker.ConnectToDocker()
 	if err != nil {
 		return NoCollection, fmt.Errorf("Failed to connect to Docker, docker tagging will not work: %s", err)
 	}
