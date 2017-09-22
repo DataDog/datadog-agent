@@ -18,6 +18,7 @@ build do
     # Move checks and configuration files
     mkdir "/etc/datadog-agent"
     move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
+    move "#{install_dir}/etc/datadog-agent/trace-agent.ini", "/etc/datadog-agent"
     move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent"
     move "#{install_dir}/agent/checks.d", "/etc/datadog-agent"
 

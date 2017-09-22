@@ -37,6 +37,7 @@ build do
   # move around bin and config files
   copy 'bin', install_dir
   move 'bin/agent/dist/datadog.yaml', "#{install_dir}/etc/datadog-agent/datadog.yaml.example"
+  move 'bin/agent/dist/trace-agent.ini', "#{install_dir}/etc/datadog-agent/"
 
   if linux?
     erb source: "upstart.conf.erb",
