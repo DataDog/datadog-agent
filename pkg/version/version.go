@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package version
 
 import (
@@ -74,4 +79,13 @@ func (v *Version) String() string {
 // GetNumber returns a string containing version numbers only, e.g. `0.0.0`
 func (v *Version) GetNumber() string {
 	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+}
+
+// GetNumberAndPre returns a string containing version number and the pre only, e.g. `0.0.0-beta.1`
+func (v *Version) GetNumberAndPre() string {
+	version := fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+	if v.Pre != "" {
+		version = fmt.Sprintf("%s-%s", version, v.Pre)
+	}
+	return version
 }

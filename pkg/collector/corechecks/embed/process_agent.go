@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build process
 
 package embed
@@ -149,6 +154,11 @@ func (c *ProcessAgentCheck) Stop() {
 	}
 }
 
+// GetMetricStats returns the stats from the last run of the check, but there aren't any yet
+func (c *ProcessAgentCheck) GetMetricStats() (map[string]int64, error) {
+	return make(map[string]int64), nil
+}
+
 func init() {
 	factory := func() check.Check {
 		return &ProcessAgentCheck{}
@@ -163,4 +173,9 @@ func getProcessAgentDefaultBinPath() (string, error) {
 		return binPath, nil
 	}
 	return binPath, fmt.Errorf("Can't access the default process-agent binary at %s", binPath)
+}
+
+// GetWarnings does not return anything
+func (c *ProcessAgentCheck) GetWarnings() []error {
+	return []error{}
 }

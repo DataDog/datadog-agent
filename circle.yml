@@ -9,6 +9,7 @@ machine:
     - curl -sL -o ~/bin/gimme https://raw.githubusercontent.com/travis-ci/gimme/master/gimme
     - chmod +x ~/bin/gimme
     - sudo rm -rf /usr/local/go
+    - pip install invoke
 
 dependencies:
   pre:
@@ -23,9 +24,7 @@ dependencies:
 
 test:
   override:
-    - cd "$IMPORT_PATH" && eval "$(gimme)" && rake deps && rake test race=true:
-        environment:
-          USE_SYSTEM_LIBS: 1
+    - cd "$IMPORT_PATH" && eval "$(gimme)" && inv deps && inv test --coverage --race --fail-on-fmt
 
   post:
     - cd "$IMPORT_PATH" && eval "$(gimme)" && go tool cover -html=profile.cov -o $CIRCLE_ARTIFACTS/coverage.html

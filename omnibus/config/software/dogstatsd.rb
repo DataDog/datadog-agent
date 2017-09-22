@@ -6,7 +6,9 @@ relative_path 'dogstatsd'
 
 build do
   ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  command 'rake dogstatsd:build'
+  # the go deps needs to be installed (invoke dep) before running omnibus
+  # TODO: enable omnibus to run invoke deps while building the project
+  command 'invoke dogstatsd.build --rebuild --use-embedded-libs'
   copy('bin', install_dir)
 
   if debian?

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package system
 
 import (
@@ -41,8 +46,9 @@ type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
-	blacklist *regexp.Regexp
-	drivemap  map[string]Win32_PerfRawData_PerfDisk_LogicalDisk
+	blacklist    *regexp.Regexp
+	drivemap     map[string]Win32_PerfRawData_PerfDisk_LogicalDisk
+	lastWarnings []error
 }
 
 // Configure the IOstats check
@@ -122,7 +128,7 @@ func (c *IOCheck) Run() error {
 	}
 
 	var dst []Win32_PerfRawData_PerfDisk_LogicalDisk
-	err := wmi.Query("SELECT Name, DiskWriteBytesPerSec, DiskWritesPerSec, DiskReadBytesPerSec, DiskReadsPerSec, CurrentDiskQueueLength, Timestamp_Sys100NS, Frequency_Sys100NS FROM Win32_PerfRawData_PerfDisk_LogicalDisk ", &dst)
+	err = wmi.Query("SELECT Name, DiskWriteBytesPerSec, DiskWritesPerSec, DiskReadBytesPerSec, DiskReadsPerSec, CurrentDiskQueueLength, Timestamp_Sys100NS, Frequency_Sys100NS FROM Win32_PerfRawData_PerfDisk_LogicalDisk ", &dst)
 	if err != nil {
 		log.Errorf("Error in WMI query %s", err.Error())
 		return err

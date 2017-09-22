@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build zk
 
 package providers
@@ -15,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+const sessionTimeout = 1 * time.Second
+
 type zkBackend interface {
 	Get(key string) ([]byte, *zk.Stat, error)
 	Children(key string) ([]string, *zk.Stat, error)
@@ -23,21 +30,22 @@ type zkBackend interface {
 // ZookeeperConfigProvider implements the Config Provider interface It should
 // be called periodically and returns templates from Zookeeper for AutoConf.
 type ZookeeperConfigProvider struct {
-	client zkBackend
+	client      zkBackend
+	templateDir string
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
-func NewZookeeperConfigProvider() (*ZookeeperConfigProvider, error) {
-	tplURL := config.Datadog.GetString("autoconf_template_url")
-	tplTimeout := config.Datadog.GetInt("autoconf_template_url_timeout")
-
-	urls := strings.Split(tplURL, ",")
-	c, _, err := zk.Connect(urls, time.Duration(tplTimeout)*time.Second)
+func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
+	urls := strings.Split(cfg.TemplateURL, ",")
+	c, _, err := zk.Connect(urls, sessionTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to '%s': %s", tplURL, err)
+		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to '%s': %s", cfg.TemplateURL, err)
 	}
 
-	return &ZookeeperConfigProvider{client: c}, nil
+	return &ZookeeperConfigProvider{
+		client:      c,
+		templateDir: cfg.TemplateDir,
+	}, nil
 }
 
 func (z *ZookeeperConfigProvider) String() string {
@@ -48,7 +56,7 @@ func (z *ZookeeperConfigProvider) String() string {
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
 func (z *ZookeeperConfigProvider) Collect() ([]check.Config, error) {
 	configs := make([]check.Config, 0)
-	identifiers, err := z.getIdentifiers(config.Datadog.GetString("autoconf_template_dir"))
+	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
 		return nil, err
 	}
@@ -138,8 +146,5 @@ func (z *ZookeeperConfigProvider) getJSONValue(key string) ([]check.ConfigData, 
 }
 
 func init() {
-	provider, err := NewZookeeperConfigProvider()
-	if err == nil {
-		RegisterProvider("zk", provider)
-	}
+	RegisterProvider("zookeeper", NewZookeeperConfigProvider)
 }

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build apm
 
 package embed
@@ -7,15 +12,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	log "github.com/cihub/seelog"
-	"github.com/kardianos/osext"
 	"gopkg.in/yaml.v2"
 )
 
@@ -68,6 +72,11 @@ func (c *APMCheck) Run() error {
 
 // Configure the APMCheck
 func (c *APMCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+	// handle the case when apm agent is disabled via the old `datadog.conf` file
+	if enabled := config.Datadog.GetBool("apm_enabled"); !enabled {
+		return fmt.Errorf("APM agent disabled through main configuration file")
+	}
+
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
 		return err
@@ -125,6 +134,16 @@ func (c *APMCheck) Stop() {
 	}
 }
 
+// GetWarnings does not return anything in APM
+func (c *APMCheck) GetWarnings() []error {
+	return []error{}
+}
+
+// GetMetricStats returns the stats from the last run of the check, but there aren't any
+func (c *APMCheck) GetMetricStats() (map[string]int64, error) {
+	return make(map[string]int64), nil
+}
+
 func init() {
 	factory := func() check.Check {
 		return &APMCheck{}
@@ -133,18 +152,9 @@ func init() {
 }
 
 func getHostname() string {
-	hname, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
+	hname, found := cache.Cache.Get(cache.BuildAgentKey("hostname"))
 	if found {
 		return hname.(string)
 	}
 	return ""
-}
-
-func getAPMAgentDefaultBinPath() (string, error) {
-	here, _ := osext.ExecutableFolder()
-	binPath := path.Join(here, "..", "..", "embedded", "bin", "trace-agent")
-	if _, err := os.Stat(binPath); err == nil {
-		return binPath, nil
-	}
-	return binPath, fmt.Errorf("Can't access the default apm binary at %s", binPath)
 }

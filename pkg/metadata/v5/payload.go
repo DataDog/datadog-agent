@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package v5
 
 import (
@@ -26,7 +31,7 @@ type ResourcesPayload struct {
 
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
-	// use an alias to avoid infinit recursion while serializing
+	// use an alias to avoid infinite recursion while serializing
 	type PayloadAlias Payload
 
 	return json.Marshal((*PayloadAlias)(p))

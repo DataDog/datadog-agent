@@ -1,3 +1,8 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2017 Datadog, Inc.
+
 ## {{{ http://code.activestate.com/recipes/576519/ (r9)
 # Author: David Decotigny, Oct 1 2008
 # @brief Pool of threads similar to multiprocessing.Pool

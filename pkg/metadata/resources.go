@@ -1,12 +1,16 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package metadata
 
 import (
 	"fmt"
-	"path"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 // ResourcesCollector sends the old metadata payload used in the
@@ -16,7 +20,7 @@ type ResourcesCollector struct{}
 // Send collects the data needed and submits the payload
 func (rp *ResourcesCollector) Send(s *serializer.Serializer) error {
 	var hostname string
-	x, found := util.Cache.Get(path.Join(util.AgentCachePrefix, "hostname"))
+	x, found := cache.Cache.Get(cache.BuildAgentKey("hostname"))
 	if found {
 		hostname = x.(string)
 	}

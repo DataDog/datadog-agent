@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package aggregator
 
 import (
@@ -22,7 +27,6 @@ func TestContextSketchSampling(t *testing.T) {
 	expectedSketch := percentile.NewQSketch()
 	expectedSketch = expectedSketch.Add(1)
 	expectedSketch = expectedSketch.Add(5)
-	expectedSketch = expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		ContextKey: contextKey,
 		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch}}}
@@ -61,13 +65,11 @@ func TestContextSketchSamplingMultiContexts(t *testing.T) {
 	expectedSketch1 := percentile.NewQSketch()
 	expectedSketch1 = expectedSketch1.Add(1)
 	expectedSketch1 = expectedSketch1.Add(3)
-	expectedSketch1 = expectedSketch1.Compress()
 	expectedSeries1 := &percentile.SketchSeries{
 		ContextKey: contextKey1,
 		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch1}}}
 	expectedSketch2 := percentile.NewQSketch()
 	expectedSketch2 = expectedSketch2.Add(1)
-	expectedSketch2 = expectedSketch2.Compress()
 	expectedSeries2 := &percentile.SketchSeries{
 		ContextKey: contextKey2,
 		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch2}}}

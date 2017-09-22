@@ -1,3 +1,6 @@
+# net-snmp doesn't provide support for pkg-config, this file is provided for
+# convenience but some adjustments might be needed to match what's in your
+# system.
 prefix=/usr/include/net-snmp
 exec_prefix=${prefix}
 includedir=${prefix}/library

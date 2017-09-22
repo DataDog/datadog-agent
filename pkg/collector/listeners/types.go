@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package listeners
 
 // ID is the representation of the unique ID of a Service
@@ -19,6 +24,6 @@ type Service struct {
 // It holds a cache of running services, listens to new/killed services and
 // updates its cache, and the ConfigResolver with these events.
 type ServiceListener interface {
-	Listen()
+	Listen(newSvc, delSvc chan<- Service)
 	Stop()
 }

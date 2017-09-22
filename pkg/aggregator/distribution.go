@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package aggregator
 
 import (
@@ -27,8 +32,6 @@ func (d *Distribution) flush(timestamp float64) (*percentile.SketchSeries, error
 	if d.count == 0 {
 		return &percentile.SketchSeries{}, percentile.NoSketchError{}
 	}
-	// compress the sketch before flushing
-	d.sketch = d.sketch.Compress()
 	sketch := &percentile.SketchSeries{
 		Sketches: []percentile.Sketch{{Timestamp: int64(timestamp),
 			Sketch: d.sketch}},

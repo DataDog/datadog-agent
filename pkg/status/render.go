@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package status
 
 import (
@@ -29,12 +34,14 @@ func FormatStatus(data []byte) (string, error) {
 	json.Unmarshal(data, &stats)
 	forwarderStats := stats["forwarderStats"]
 	runnerStats := stats["runnerStats"]
-	loaderStats := stats["loaderStats"]
+	autoConfigStats := stats["autoConfigStats"]
 	aggregatorStats := stats["aggregatorStats"]
+	jmxStats := stats["JMXStatus"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
-	renderChecksStats(b, runnerStats, loaderStats, "")
+	renderChecksStats(b, runnerStats, autoConfigStats, "")
+	renderJMXFetchStatus(b, jmxStats)
 	renderForwarderStatus(b, forwarderStats)
 	renderAggregatorStatus(b, aggregatorStats)
 
@@ -65,10 +72,10 @@ func renderForwarderStatus(w io.Writer, forwarderStats interface{}) {
 	}
 }
 
-func renderChecksStats(w io.Writer, runnerStats interface{}, loaderStats interface{}, onlyCheck string) {
+func renderChecksStats(w io.Writer, runnerStats interface{}, autoConfigStats interface{}, onlyCheck string) {
 	checkStats := make(map[string]interface{})
 	checkStats["RunnerStats"] = runnerStats
-	checkStats["LoaderStats"] = loaderStats
+	checkStats["AutoConfigStats"] = autoConfigStats
 	checkStats["OnlyCheck"] = onlyCheck
 	t := template.Must(template.New("collector.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "collector.tmpl")))
 
@@ -84,8 +91,19 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats)
 	runnerStats := stats["runnerStats"]
-	loaderStats := stats["loaderStats"]
-	renderChecksStats(b, runnerStats, loaderStats, checkName)
+	autoConfigStats := stats["autoConfigStats"]
+	renderChecksStats(b, runnerStats, autoConfigStats, checkName)
 
 	return b.String(), nil
+}
+
+func renderJMXFetchStatus(w io.Writer, jmxStats interface{}) {
+	stats := make(map[string]interface{})
+	stats["JMXStatus"] = jmxStats
+	t := template.Must(template.New("jmxfetch.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "jmxfetch.tmpl")))
+
+	err := t.Execute(w, stats)
+	if err != nil {
+		fmt.Println(err)
+	}
 }

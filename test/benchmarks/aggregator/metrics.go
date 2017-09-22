@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package main
 
 import (
@@ -6,25 +11,16 @@ import (
 	"strconv"
 	"time"
 
+	log "github.com/cihub/seelog"
+	"gopkg.in/zorkian/go-datadog-api.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
-var gnuplotHeader = `# set terminal png truecolor
-# set autoscale
-# set style data linespoints
-# set xlabel "Number of points per serie"
-# set ylabel "Time in Ms"
-# set grid
-# set key autotitle columnhead
-#
-# plot for [i=2:%d] "%s" u 1:i
-
-`
-
 type senderFunc func(string, float64, string, []string)
 
-func generateMetrics(numberOfSeries int, pointPerSeries int, senderMetric senderFunc) time.Duration {
+func generateMetrics(numberOfSeries int, pointPerSeries int, senderMetric senderFunc) float64 {
 	start := time.Now()
 	for s := 0; s < numberOfSeries; s++ {
 		serieName := "benchmark.metric." + strconv.Itoa(s)
@@ -32,10 +28,11 @@ func generateMetrics(numberOfSeries int, pointPerSeries int, senderMetric sender
 			senderMetric(serieName, float64(rand.Intn(1024)), "localhost", []string{"a", "b:21", "c"})
 		}
 	}
-	return time.Since(start)
+	waitForAggregatorEmptyQueue()
+	return float64(time.Since(start)) / float64(time.Millisecond)
 }
 
-func generateEvent(numberOfEvent int, sender aggregator.Sender) time.Duration {
+func generateEvent(numberOfEvent int, sender aggregator.Sender) float64 {
 	start := time.Now()
 	for i := 0; i < numberOfEvent; i++ {
 		sender.Event(metrics.Event{
@@ -51,18 +48,18 @@ func generateEvent(numberOfEvent int, sender aggregator.Sender) time.Duration {
 			EventType:      "",
 		})
 	}
-	return time.Since(start)
+	return float64(time.Since(start)) / float64(time.Millisecond)
 }
 
-func generateServiceCheck(numberOfSC int, sender aggregator.Sender) time.Duration {
+func generateServiceCheck(numberOfSC int, sender aggregator.Sender) float64 {
 	start := time.Now()
 	for i := 0; i < numberOfSC; i++ {
 		sender.ServiceCheck("benchmark.ServiceCheck."+strconv.Itoa(i), metrics.ServiceCheckOK, "localhost", []string{"a", "b:21", "c"}, "some message")
 	}
-	return time.Since(start)
+	return float64(time.Since(start)) / float64(time.Millisecond)
 }
 
-func benchmarkMetrics(agg *aggregator.BufferedAggregator, numberOfSeries []int, nbPoints []int, sender aggregator.Sender, flush chan time.Time, info *aggregatorStats) string {
+func benchmarkMetrics(numberOfSeries []int, nbPoints []int, sender aggregator.Sender, info *aggregatorStats, branchName string) []datadog.Metric {
 	metrics := map[string]senderFunc{"Gauge": sender.Gauge,
 		"Rate":           sender.Rate,
 		"Count":          sender.Count,
@@ -73,71 +70,83 @@ func benchmarkMetrics(agg *aggregator.BufferedAggregator, numberOfSeries []int, 
 	// this is here to keep the same order between the header and metric
 	metricTypes := []string{"Gauge", "Rate", "Count", "MonotonicCount", "Histogram", "Historate"}
 
-	// add plot header
-	plotRes := fmt.Sprintf(gnuplotHeader, len(metricTypes)*len(numberOfSeries)+2, *plotFile)
-	plotRes += "nbPoint"
-	for _, name := range metricTypes {
-		for _, s := range numberOfSeries {
-			plotRes += fmt.Sprintf(" %d-serie-%s", s, name)
-		}
-	}
-	plotRes += " Event ServiceCheck"
-
-	for _, nbPoint := range nbPoints {
-		plotRes += fmt.Sprintf("\n%d", nbPoint)
-		fmt.Printf("-- Series of %d points ---\n", nbPoint)
+	t := time.Now().Unix()
+	results := []datadog.Metric{}
+	for _, nbSerie := range numberOfSeries {
+		log.Infof("-- Series of %d points ---\n", nbSerie)
 		for _, name := range metricTypes {
-			for _, nbSerie := range numberOfSeries {
+			for _, nbPoint := range nbPoints {
+				tags := []string{
+					fmt.Sprintf("branch:%s", branchName),
+					fmt.Sprintf("nb_point:%d", nbPoint),
+					fmt.Sprintf("nb_serie:%d", nbSerie),
+					fmt.Sprintf("type:%s", name),
+				}
+
 				genTime := generateMetrics(nbSerie, nbPoint, metrics[name])
 				start := time.Now()
 				sender.Commit()
-				commitTime := time.Since(start)
-				info = report(agg, flush, info, "ChecksMetricSampleFlushTime")
+				commitTime := float64(time.Since(start)) / float64(time.Millisecond)
 
-				fmt.Printf("sent %d %s series of %d poins in %f and commited in %f flush in %f serialize in %f\n",
-					nbSerie, name, nbPoint,
-					float64(genTime)/float64(time.Millisecond),
-					float64(commitTime)/float64(time.Millisecond),
-					float64(info.Flush["FlushTime"].LastFlushTime)/float64(time.Millisecond),
-					float64(info.Flush["ChecksMetricSampleFlushTime"].LastFlushTime)/float64(time.Millisecond))
+				info = report(info, "ChecksMetricSampleFlushTime")
+				flushTime := float64(info.Flush["ChecksMetricSampleFlushTime"].LastFlush) / float64(time.Millisecond)
 
-				plotRes += fmt.Sprintf(" %f", float64(genTime)/float64(time.Millisecond))
+				genRes := createMetric(genTime, tags, "benchmark.aggregator.gen", t)
+				commitRes := createMetric(commitTime, tags, "benchmark.aggregator.commit", t)
+				flushRes := createMetric(flushTime, tags, "benchmark.aggregator.flush", t)
+
+				log.Infof("[%d %s] [%d point] sent %f | commit time: %f | flush time: %f", nbSerie, name, nbPoint, genTime, commitTime, flushTime)
+
+				results = append(results, genRes)
+				results = append(results, commitRes)
+				results = append(results, flushRes)
 			}
 		}
-
-		fmt.Printf("-- %d Events ---\n", nbPoint)
-		for _, nbPoint := range nbPoints {
-			genTime := generateEvent(nbPoint, sender)
-			start := time.Now()
-			sender.Commit()
-			commitTime := time.Since(start)
-			info = report(agg, flush, info, "EventFlushTime")
-			fmt.Printf("sent %d Events in %f and commited in %f flush in %f serialize in %f\n",
-				nbPoint,
-				float64(genTime)/float64(time.Millisecond),
-				float64(commitTime)/float64(time.Millisecond),
-				float64(info.Flush["FlushTime"].LastFlushTime)/float64(time.Millisecond),
-				float64(info.Flush["EventFlushTime"].LastFlushTime)/float64(time.Millisecond))
-			plotRes += fmt.Sprintf(" %f", float64(genTime)/float64(time.Millisecond))
-		}
-
-		fmt.Printf("-- %d ServiceChecks ---\n", nbPoint)
-		for _, nbPoint := range nbPoints {
-			genTime := generateServiceCheck(nbPoint, sender)
-			start := time.Now()
-			sender.Commit()
-			commitTime := time.Since(start)
-			info = report(agg, flush, info, "ServiceCheckFlushTime")
-			fmt.Printf("sent %d Service Checks in %f and commited in %f flush in %f serialize in %f\n",
-				nbPoint,
-				float64(genTime)/float64(time.Millisecond),
-				float64(commitTime)/float64(time.Millisecond),
-				float64(info.Flush["FlushTime"].LastFlushTime)/float64(time.Millisecond),
-				float64(info.Flush["ServiceCheckFlushTime"].LastFlushTime)/float64(time.Millisecond))
-			plotRes += fmt.Sprintf(" %f", float64(genTime)/float64(time.Millisecond))
-		}
-
 	}
 
-	return plotRes
+	log.Infof("-- Events ---")
+	for _, nbSerie := range numberOfSeries {
+		tags := []string{fmt.Sprintf("nb_serie:%d", nbSerie), fmt.Sprintf("branch:%s", branchName), "type:event"}
+
+		genTime := generateEvent(nbSerie, sender)
+		start := time.Now()
+		sender.Commit()
+		commitTime := float64(time.Since(start)) / float64(time.Millisecond)
+
+		info := report(info, "EventFlushTime")
+		flushTime := float64(info.Flush["EventFlushTime"].LastFlush) / float64(time.Millisecond)
+
+		genRes := createMetric(genTime, tags, "benchmark.aggregator.gen", t)
+		commitRes := createMetric(commitTime, tags, "benchmark.aggregator.commit", t)
+		flushRes := createMetric(flushTime, tags, "benchmark.aggregator.flush", t)
+
+		results = append(results, genRes)
+		results = append(results, commitRes)
+		results = append(results, flushRes)
+		log.Infof("[%d Event] sent %f | commit time: %f | flush time: %f", nbSerie, genTime, commitTime, flushTime)
+	}
+
+	log.Infof("-- ServiceChecks ---")
+	for _, nbSerie := range numberOfSeries {
+		tags := []string{fmt.Sprintf("nb_serie:%d", nbSerie), fmt.Sprintf("branch:%s", branchName), "type:service_check"}
+
+		genTime := generateServiceCheck(nbSerie, sender)
+		start := time.Now()
+		sender.Commit()
+		commitTime := float64(time.Since(start)) / float64(time.Millisecond)
+
+		info := report(info, "ServiceCheckFlushTime")
+		flushTime := float64(info.Flush["ServiceCheckFlushTime"].LastFlush) / float64(time.Millisecond)
+
+		genRes := createMetric(genTime, tags, "benchmark.aggregator.gen", t)
+		commitRes := createMetric(commitTime, tags, "benchmark.aggregator.commit", t)
+		flushRes := createMetric(flushTime, tags, "benchmark.aggregator.flush", t)
+
+		results = append(results, genRes)
+		results = append(results, commitRes)
+		results = append(results, flushRes)
+		log.Infof("[%d ServiceCheck] sent %f | commit time: %f | flush time: %f", nbSerie, genTime, commitTime, flushTime)
+	}
+
+	return results
 }

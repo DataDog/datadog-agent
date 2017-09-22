@@ -1,29 +1,42 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package app
 
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 )
 
 func init() {
-	AgentCmd.AddCommand(listCheckCommand)
-
+	// TODO: re-enable when the API endpoint is implemented
+	// AgentCmd.AddCommand(listCheckCommand)
 }
 
 var listCheckCommand = &cobra.Command{
-	Use:   "listchecks",
-	Short: "Query the running agent for the hostname.",
+	Use:   "list-checks",
+	Short: "Query the agent for the list of checks running",
 	Long:  ``,
-	RunE:  doListChecks,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		err := common.SetupConfig(confFilePath)
+		if err != nil {
+			return fmt.Errorf("unable to set up global agent configuration: %v", err)
+		}
+		return doListChecks()
+	},
 }
 
 // query for the version
-func doListChecks(cmd *cobra.Command, args []string) error {
-	c := GetClient()
-	urlstr := "http://" + sockname + "/check/"
+func doListChecks() error {
+	c := common.GetClient(false) // FIX: get certificates right then make this true
+	urlstr := fmt.Sprintf("https://localhost:%v/check/", config.Datadog.GetInt("cmd_port"))
 
-	body, e := doGet(c, urlstr)
+	body, e := common.DoGet(c, urlstr)
 	if e != nil {
 		fmt.Printf("Error getting version string: %s\n", e)
 		return e

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package network
 
 import (
@@ -20,8 +25,9 @@ var ntpExpVar = expvar.NewFloat("ntpOffset")
 
 // NTPCheck only has sender and config
 type NTPCheck struct {
-	id  check.ID
-	cfg *ntpConfig
+	id           check.ID
+	lastWarnings []error
+	cfg          *ntpConfig
 }
 
 type ntpInstanceConfig struct {
@@ -142,6 +148,38 @@ func (c *NTPCheck) Run() error {
 	sender.Commit()
 
 	return nil
+}
+
+// GetWarnings grabs the last warnings from the sender
+func (c *NTPCheck) GetWarnings() []error {
+	w := c.lastWarnings
+	c.lastWarnings = []error{}
+	return w
+}
+
+// Warn will log a warning and add it to the warnings
+func (c *NTPCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// Warnf will log a formatted warning and add it to the warnings
+func (c *NTPCheck) warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.lastWarnings = append(c.lastWarnings, w)
+
+	return w
+}
+
+// GetMetricStats returns the stats from the last run of the check
+func (c *NTPCheck) GetMetricStats() (map[string]int64, error) {
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return nil, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
+	}
+	return sender.GetMetricStats(), nil
 }
 
 func ntpFactory() check.Check {

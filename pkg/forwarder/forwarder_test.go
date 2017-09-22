@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package forwarder
 
 import (
@@ -147,7 +152,7 @@ func TestSubmit(t *testing.T) {
 	require.Len(t, forwarder.retryQueue, 0)
 
 	expectedPayload = []byte("SubmitSketchSeries payload")
-	expectedEndpoint = "/api/v2/sketches"
+	expectedEndpoint = "/api/beta/sketches"
 	expectAPIKeyInQuery = true
 	payloads = []*[]byte{}
 	payloads = append(payloads, &expectedPayload)
@@ -180,16 +185,6 @@ func TestSubmit(t *testing.T) {
 	payloads = []*[]byte{}
 	payloads = append(payloads, &expectedPayload)
 	assert.Nil(t, forwarder.SubmitV1Series(payloads, map[string]string{"Content-Type": "application/unit-test"}))
-	<-wait
-	<-wait
-	require.Len(t, forwarder.retryQueue, 0)
-
-	expectedPayload = []byte("SubmitV1SketchSeries payload")
-	expectedEndpoint = "/api/v1/sketches"
-	expectAPIKeyInQuery = true
-	payloads = []*[]byte{}
-	payloads = append(payloads, &expectedPayload)
-	assert.Nil(t, forwarder.SubmitV1SketchSeries(payloads, map[string]string{"Content-Type": "application/unit-test"}))
 	<-wait
 	<-wait
 	require.Len(t, forwarder.retryQueue, 0)
@@ -230,7 +225,7 @@ func TestSubmitWithProxy(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	config.Datadog.Set("proxy", ts.URL)
+	config.Datadog.Set("proxy", map[string]interface{}{"http": ts.URL})
 	defer config.Datadog.Set("proxy", nil)
 
 	forwarder := NewDefaultForwarder(map[string][]string{targetURL: []string{firstKey}})
@@ -266,7 +261,7 @@ func TestSubmitWithProxyAndPassword(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
-	config.Datadog.Set("proxy", fmt.Sprintf("http://%s@%s", userInfo, ts.URL[7:]))
+	config.Datadog.Set("proxy", map[string]interface{}{"http": fmt.Sprintf("http://%s@%s", userInfo, ts.URL[7:])})
 	defer config.Datadog.Set("proxy", nil)
 
 	forwarder := NewDefaultForwarder(map[string][]string{targetURL: []string{firstKey}})

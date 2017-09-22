@@ -9,6 +9,7 @@ SERVICE_NAME=datadog-agent6
 
 # Create symlink to the agent's binary
 ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
+ln -sf $INSTALL_DIR/bin/agent/dd-agent /usr/bin/dd-agent
 
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
 # and avoid restarting when a check conf is invalid

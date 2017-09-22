@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package main
 
 import (
@@ -18,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -75,7 +81,15 @@ func start(cmd *cobra.Command, args []string) error {
 	confErr := config.Datadog.ReadInConfig()
 
 	// Setup logger
-	err := config.SetupLogger(config.Datadog.GetString("log_level"), config.Datadog.GetString("log_file"))
+	syslogURI := config.GetSyslogURI()
+	err := config.SetupLogger(
+		config.Datadog.GetString("log_level"),
+		config.Datadog.GetString("log_file"),
+		syslogURI,
+		config.Datadog.GetBool("syslog_rfc"),
+		config.Datadog.GetBool("syslog_tls"),
+		config.Datadog.GetString("syslog_pem"),
+	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
@@ -109,15 +123,24 @@ func start(cmd *cobra.Command, args []string) error {
 	var metaScheduler *metadata.Scheduler
 	if config.Datadog.GetBool("enable_metadata_collection") {
 		// start metadata collection
-		metaScheduler := metadata.NewScheduler(s, hname)
+		metaScheduler = metadata.NewScheduler(s, hname)
 
 		// add the host metadata collector
 		err = metaScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
 		if err != nil {
-			panic("Host metadata is supposed to be always available in the catalog!")
+			metaScheduler.Stop()
+			return log.Error("Host metadata is supposed to be always available in the catalog!")
 		}
 	} else {
 		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
+	}
+
+	// container tagging initialisation if origin detection is on
+	if config.Datadog.GetBool("dogstatsd_origin_detection") {
+		err = tagger.Init()
+		if err != nil {
+			log.Criticalf("Unable to start tagging system: %s", err)
+		}
 	}
 
 	aggregatorInstance := aggregator.InitAggregator(s, hname)
@@ -145,7 +168,9 @@ func start(cmd *cobra.Command, args []string) error {
 
 func main() {
 	// go_expvar server
-	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)
+	go http.ListenAndServe(
+		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
+		http.DefaultServeMux)
 
 	if err := dogstatsdCmd.Execute(); err != nil {
 		log.Error(err)

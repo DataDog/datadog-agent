@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 // +build !windows
 
 package system
@@ -9,16 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/xc"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/disk"
 )
-
-/*
-#include <unistd.h>
-#include <sys/types.h>
-#include <stdlib.h>
-*/
-import "C"
 
 // For testing purpose
 var ioCounters = disk.IOCounters
@@ -34,9 +33,10 @@ const (
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
-	blacklist *regexp.Regexp
-	ts        int64
-	stats     map[string]disk.IOCountersStat
+	blacklist    *regexp.Regexp
+	lastWarnings []error
+	ts           int64
+	stats        map[string]disk.IOCountersStat
 }
 
 // Configure the IOstats check
@@ -158,10 +158,11 @@ func (c *IOCheck) Run() error {
 }
 
 func init() {
-	var scClkTck C.long
-
-	scClkTck = C.sysconf(C._SC_CLK_TCK)
-	hz = int64(scClkTck)
+	var err error
+	hz, err = xc.GetSystemFreq()
+	if err != nil {
+		hz = 0
+	}
 
 	if hz <= 0 {
 		log.Errorf("Unable to grab HZ: perhaps unavailable in your architecture" +

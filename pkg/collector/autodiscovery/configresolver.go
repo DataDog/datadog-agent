@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package autodiscovery
 
 import (
@@ -6,13 +11,16 @@ import (
 	"sync"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
 	log "github.com/cihub/seelog"
 )
 
+type variableGetter func(key []byte, tpl check.Config, svc listeners.Service) []byte
+
 var (
-	templateVariables = map[string]func(key []byte, tpl check.Config, svc listeners.Service) []byte{
+	templateVariables = map[string]variableGetter{
 		"host":           getHost,
 		"pid":            getPid,
 		"port":           getPort,
@@ -25,36 +33,41 @@ var (
 // services it hears about with templates to create valid configs.
 // It is also responsible to send scheduling orders to AutoConfig
 type ConfigResolver struct {
-	AC               *AutoConfig
-	templates        map[check.ID][]check.Config        // ConfigID --> []Config
-	services         map[listeners.ID]listeners.Service // Service.ID --> []Service
-	configToServices map[check.ID][]listeners.Service   // ConfigID --> []Service
-	serviceToChecks  map[listeners.ID][]check.ID        // Service.ID --> []CheckID
-	newService       chan listeners.Service
-	delService       chan listeners.Service
-	stop             chan bool
-	m                sync.Mutex
+	ac              *AutoConfig
+	collector       *collector.Collector
+	templates       *TemplateCache
+	services        map[listeners.ID]listeners.Service // Service.ID --> []Service
+	serviceToChecks map[listeners.ID][]check.ID        // Service.ID --> []CheckID
+	adIDToServices  map[string][]listeners.ID          // AD id --> services that have it
+	newService      chan listeners.Service
+	delService      chan listeners.Service
+	stop            chan bool
+	m               sync.Mutex
 }
 
 // NewConfigResolver returns a config resolver
-func NewConfigResolver(newSvc chan listeners.Service, delSvc chan listeners.Service) *ConfigResolver {
-	tpls := make(map[check.ID][]check.Config)
-	stop := make(chan bool)
-	return &ConfigResolver{
-		// these two references are set at registry time
-		AC:               nil,
-		templates:        tpls,
-		configToServices: make(map[check.ID][]listeners.Service, 0),
-		serviceToChecks:  make(map[listeners.ID][]check.ID, 0),
-		newService:       newSvc,
-		delService:       delSvc,
-		stop:             stop,
+func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCache) *ConfigResolver {
+	cr := &ConfigResolver{
+		ac:              ac,
+		collector:       coll,
+		templates:       tc,
+		services:        make(map[listeners.ID]listeners.Service),
+		serviceToChecks: make(map[listeners.ID][]check.ID, 0),
+		adIDToServices:  make(map[string][]listeners.ID),
+		newService:      make(chan listeners.Service),
+		delService:      make(chan listeners.Service),
+		stop:            make(chan bool),
 	}
+
+	// start listening
+	cr.listen()
+
+	return cr
 }
 
-// Listen waits on services and templates and process them as they come.
+// listen waits on services and templates and process them as they come.
 // It can trigger scheduling decisions using its AC reference or just update its cache.
-func (cr *ConfigResolver) Listen() {
+func (cr *ConfigResolver) listen() {
 	go func() {
 		for {
 			select {
@@ -74,159 +87,13 @@ func (cr *ConfigResolver) Stop() {
 	cr.stop <- true
 }
 
-// processTemplates receives a template list, updates the ConfigResolver cache with them
-// and may trigger scheduling events if new/deleted templates warrant it.
-//
-// TODO: right now processTemplates only works on a full template list.
-// It needs to support partial updates
-// TODO: move this to Autoconfig
-// func (cr *ConfigResolver) processTemplates(tpls []check.Config) {
-// 	tpls = removeDupeTemplates(tpls)
-// 	cr.m.Lock()
-// 	defer cr.m.Unlock()
-// 	// init
-// 	if len(cr.templates) == 0 {
-// 		for _, t := range tpls {
-// 			cr.templates[t.ID] = append(cr.templates[t.ID], t)
-// 			cr.startChecksForTemplate(t)
-// 		}
-// 		// update
-// 	} else {
-// 		oldTpls := cr.templates
-// 		cr.replaceInUseTemplates(tpls)
-// 		newTpls := cr.templates
-// 		// stop checks associated with templates that disappeared
-// 		for id, templates := range oldTpls {
-// 			if _, ok := newTpls[id]; !ok {
-// 				for _, tpl := range templates {
-// 					err := cr.stopChecksForTemplate(tpl)
-// 					if err == nil {
-// 						delete(cr.configToServices, tpl.ID)
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// }
-
-// replaceInUseTemplates takes care of updating the template cache and
-// running services when the ConfigResolver receives templates that were modified
-// TODO: move this to Autoconfig
-// func (cr *ConfigResolver) replaceInUseTemplates(tpls []check.Config) {
-// 	for _, t := range tpls {
-// 		if cachedTpls, ok := cr.templates[t.ID]; ok {
-// 			addedInPlace := false
-// 			for i, tpl := range cachedTpls {
-// 				if tpl.Name == t.Name {
-// 					cr.templates[t.ID][i] = t
-// 					addedInPlace = true
-// 					// it is an updated template, we need to update its checks
-// 					cr.updateChecksForTemplate(t)
-// 					break
-// 				}
-// 			}
-// 			if addedInPlace == false {
-// 				cr.templates[t.ID] = append(cachedTpls, t)
-// 				// it is a new template, we need to try and run its checks
-// 				cr.startChecksForTemplate(t)
-// 			}
-// 		} else {
-// 			cr.templates[t.ID] = []check.Config{t}
-// 			// in this case it is a new template for sure
-// 			cr.startChecksForTemplate(t)
-// 		}
-// 	}
-// }
-
-// startChecksForTemplate takes a template, finds services that match it
-// and schedules checks based on this matching
-// func (cr *ConfigResolver) startChecksForTemplate(t check.Config) {
-// 	for svcID := range cr.services {
-// 		svc, ok := cr.services[svcID]
-// 		if !ok {
-// 			log.Debugf("Service %s doesn't exist, skipping", svcID)
-// 			continue
-// 		}
-// 		if IsConfigMatching(svc.ConfigID, t.ID) {
-// 			cr.configToServices[t.ID] = append(cr.configToServices[t.ID], svc)
-// 			config, err := cr.ResolveConfig(t, svc)
-// 			if err != nil {
-// 				log.Errorf("Unable to generate a check config with template %s and service %s: %s", t.ID, svc.ConfigID, err)
-// 				return
-// 			}
-// 			ids, err := cr.AC.LoadAndRun(config)
-// 			if err == nil {
-// 				for _, id := range ids {
-// 					cr.serviceToChecks[svc.ID] = append(cr.serviceToChecks[svc.ID], id)
-// 				}
-// 			}
-// 		}
-// 	}
-// 	return
-// }
-
-// stopChecksForTemplate takes a template, find running checks associated with it and stop them.
-// func (cr *ConfigResolver) stopChecksForTemplate(t check.Config) error {
-// 	if services, ok := cr.configToServices[t.ID]; ok {
-// 		toDelete := make([]listeners.ID, 0)
-// 		for _, svc := range services {
-// 			if checks, ok := cr.serviceToChecks[svc.ID]; ok {
-// 				stopFailure := false
-// 				for _, check := range checks {
-// 					err := cr.AC.StopCheck(check)
-// 					if err != nil {
-// 						log.Errorf("Failed to stop check '%s': %s", check, err)
-// 						stopFailure = true
-// 					}
-// 				}
-// 				if !stopFailure {
-// 					toDelete = append(toDelete, svc.ID)
-// 				}
-// 			}
-// 		}
-// 		for _, s := range toDelete {
-// 			delete(cr.serviceToChecks, s)
-// 		}
-// 	}
-// 	return nil
-// }
-
-// updateChecksForTemplate takes a template, find running checks associated with it
-// and update them with a fresh config based on the template's new version.
-// func (cr *ConfigResolver) updateChecksForTemplate(t check.Config) {
-// 	// TODO: does that actually work? the Config ID might not be unique.
-// 	// What happens if several templates apply to the same services?
-// 	// Maybe we need check name + Config.ID as a key?
-// 	if services, ok := cr.configToServices[t.ID]; ok {
-// 		for _, svc := range services {
-// 			config, err := cr.ResolveConfig(t, svc)
-// 			if err != nil {
-// 				log.Errorf("Unable to generate a check config with template %s and service %s: %s", t.ID, svc.ConfigID, err)
-// 				return
-// 			}
-// 			if checks, ok := cr.serviceToChecks[svc.ID]; ok {
-// 				for _, check := range checks {
-// 					err := cr.AC.ReloadCheck(check, config)
-// 					if err != nil {
-// 						log.Errorf("Failed to reload check '%s', previous config left as-is. Error: %s", check, err)
-// 					}
-// 				}
-// 			} else {
-// 				// this should not happen, but if by any chance we can
-// 				// configure a check but not find the previous one
-// 				// let's run it anyway?
-// 				panic("TODO")
-// 			}
-// 		}
-// 	}
-// }
-
 // ResolveTemplate attempts to resolve a configuration template using the AD
 // identifiers in the `check.Config` struct to match a Service.
 //
 // The function might return more than one configuration for a single template,
 // for example when the `ad_identifiers` section of a config.yaml file contains
-// multiple entries.
+// multiple entries, or when more than one Service has the same identifier,
+// e.g. 'redis'.
 //
 // The function might return an empty list in the case the configuration has a
 // list of Autodiscovery identifiers for services that are unknown to the
@@ -234,14 +101,29 @@ func (cr *ConfigResolver) Stop() {
 func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 	// use a map to dedupe configurations
 	resolvedSet := map[string]check.Config{}
-	resolved := []check.Config{}
 
+	// go through the AD identifiers provided by the template
 	for _, id := range tpl.ADIdentifiers {
-		// TODO: render the template using the services known by the resolver
-		fmt.Println(id)
+		// check out whether any service we know has this identifier
+		serviceIds, found := cr.adIDToServices[id]
+		if !found {
+			log.Debugf("No service found with this AD identifier: %s", id)
+			continue
+		}
+
+		for _, serviceID := range serviceIds {
+			config, err := cr.resolve(tpl, cr.services[serviceID])
+			if err == nil {
+				resolvedSet[config.Digest()] = config
+			} else {
+				log.Debugf("Error resolving template %s for service %s: %v",
+					config.Name, serviceID, err)
+			}
+		}
 	}
 
 	// build the slice of configs to return
+	resolved := []check.Config{}
 	for _, v := range resolvedSet {
 		resolved = append(resolved, v)
 	}
@@ -249,9 +131,9 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 	return resolved
 }
 
-// ResolveConfig takes a template and a service and generates a config with
+// resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
-func (cr *ConfigResolver) ResolveConfig(tpl check.Config, svc listeners.Service) (check.Config, error) {
+func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (check.Config, error) {
 	vars := tpl.GetTemplateVariables()
 	for _, v := range vars {
 		name, key := parseTemplateVar(v)
@@ -275,37 +157,50 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 	cr.m.Lock()
 	defer cr.m.Unlock()
 
-	// // in any case, register the service
-	// cr.services[svc.ID] = svc
-	// cr.serviceToChecks[svc.ID] = make([]check.ID, 0)
+	// in any case, register the service
+	cr.services[svc.ID] = svc
+	cr.serviceToChecks[svc.ID] = make([]check.ID, 0)
 
-	// for configID, tpls := range cr.templates {
-	// 	if IsConfigMatching(svc.ConfigID, configID) {
-	// 		// add svc to the list of services matching tpl
-	// 		// this is used when a template is removed and we want to remove its related checks
-	// 		cr.configToServices[configID] = append(cr.configToServices[configID], svc)
+	// get all the templates matching service identifiers
+	templates := []check.Config{}
+	for _, adID := range svc.ADIdentifiers {
+		// map the AD identifier to this service for reverse lookup
+		cr.adIDToServices[adID] = append(cr.adIDToServices[adID], svc.ID)
+		tpls, err := cr.templates.Get(adID)
+		if err != nil {
+			log.Errorf("Unable to fetch templates from the cache: %v", err)
+		}
+		templates = append(templates, tpls...)
+	}
 
-	// 		for _, tpl := range tpls {
-	// 			// actually resolve the config and run the check
-	// 			conf, err := cr.ResolveConfig(tpl, svc)
-	// 			if err != nil {
-	// 				log.Errorf("Unable to generate a check config with template %s and service %s: %s", tpl.Digest(), svc.ConfigID, err)
-	// 			} else {
-	// 				checkIDs, err := cr.AC.LoadAndRun(conf)
-	// 				if err == nil {
-	// 					for _, id := range checkIDs {
-	// 						// add the check to the list of checks running against the service
-	// 						// this is used when a template or a service is removed
-	// 						// and we want to stop their related checks
-	// 						cr.serviceToChecks[svc.ID] = append(cr.serviceToChecks[svc.ID], id)
-	// 					}
-	// 				} else {
-	// 					log.Errorf("Failed to run check(s) based on config %s: %s", conf.Digest(), err)
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
+	for _, template := range templates {
+		// resolve the template
+		config, err := cr.resolve(template, svc)
+		if err != nil {
+			log.Errorf("Unable to resolve configuration template: %v", err)
+			continue
+		}
+
+		// load the checks for this config using Autoconfig
+		checks, err := cr.ac.GetChecks(config)
+		if err != nil {
+			log.Errorf("Unable to load the check: %v", err)
+			continue
+		}
+
+		// ask the Collector to schedule the checks
+		for _, check := range checks {
+			id, err := cr.collector.RunCheck(check)
+			if err != nil {
+				log.Errorf("Unable to schedule the check: %v", err)
+				continue
+			}
+			// add the check to the list of checks running against the service
+			// this is used when a template or a service is removed
+			// and we want to stop their related checks
+			cr.serviceToChecks[svc.ID] = append(cr.serviceToChecks[svc.ID], id)
+		}
+	}
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
@@ -314,44 +209,30 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 	defer cr.m.Unlock()
 
 	if checks, ok := cr.serviceToChecks[svc.ID]; ok {
-		stopFailure := false
-		for _, check := range checks {
-			err := cr.AC.StopCheck(check)
+		stopped := map[check.ID]struct{}{}
+		for _, id := range checks {
+			err := cr.collector.StopCheck(id)
 			if err != nil {
-				log.Errorf("Failed to stop check '%s': %s", check, err)
-				stopFailure = true
+				log.Errorf("Failed to stop check '%s': %s", id, err)
 			}
+			stopped[id] = struct{}{}
 		}
-		if !stopFailure {
+
+		// remove the entry from `serviceToChecks`
+		if len(stopped) == len(cr.serviceToChecks[svc.ID]) {
+			// we managed to stop all the checks for this config
 			delete(cr.serviceToChecks, svc.ID)
+		} else {
+			// keep the checks we failed to stop in `serviceToChecks[svc.ID]`
+			dangling := []check.ID{}
+			for _, id := range cr.serviceToChecks[svc.ID] {
+				if _, found := stopped[id]; !found {
+					dangling = append(dangling, id)
+				}
+			}
+			cr.serviceToChecks[svc.ID] = dangling
 		}
 	}
-}
-
-// removeDupeTemplates walks through a list of templates and removes duplicates
-func removeDupeTemplates(tpls []check.Config) []check.Config {
-	cleanedTpls := make([]check.Config, len(tpls))
-	seenChecks := make(map[string]struct{}, len(tpls))
-
-	for _, t := range tpls {
-		d := t.Digest()
-		if _, found := seenChecks[d]; found {
-			log.Warnf("Duplicate template for resource %s and check %s. Using the first one only.", d, t.Name)
-			continue
-		}
-		seenChecks[d] = struct{}{}
-		cleanedTpls = append(cleanedTpls, t)
-	}
-	return cleanedTpls
-}
-
-// IsConfigMatching checks if a Service ConfigID and a config ID are a match
-// TODO: decomp the Service ConfigID for more advanced matching
-func IsConfigMatching(sID check.ID, tID check.ID) bool {
-	if sID == tID {
-		return true
-	}
-	return false
 }
 
 // TODO (use svc.Hosts)
@@ -392,7 +273,7 @@ func getOptTags(tplVar []byte, tpl check.Config, svc listeners.Service) []byte {
 // and the key (or index if it can be cast to an int)
 func parseTemplateVar(v []byte) (name, key []byte) {
 	stripped := bytes.Map(func(r rune) rune {
-		if unicode.IsSpace(r) {
+		if unicode.IsSpace(r) || r == '%' {
 			return -1
 		}
 		return r

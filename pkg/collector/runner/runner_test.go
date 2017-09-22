@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package runner
 
 import (
@@ -27,7 +32,9 @@ func (c *TestCheck) Run() error {
 	c.hasRun = true
 	return nil
 }
-func (c *TestCheck) ID() check.ID { return check.ID(c.String()) }
+func (c *TestCheck) ID() check.ID                              { return check.ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error                      { return nil }
+func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
 
 func TestNewRunner(t *testing.T) {
 	r := NewRunner(1)

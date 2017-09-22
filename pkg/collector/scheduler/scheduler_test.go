@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
 package scheduler
 
 import (
@@ -17,6 +22,8 @@ func (c *TestCheck) Interval() time.Duration                            { return
 func (c *TestCheck) Run() error                                         { return nil }
 func (c *TestCheck) Stop()                                              {}
 func (c *TestCheck) ID() check.ID                                       { return check.ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error                               { return []error{} }
+func (c *TestCheck) GetMetricStats() (map[string]int64, error)          { return make(map[string]int64), nil }
 
 // wait 1s for a predicate function to return true, use polling
 // instead of a giant sleep.
