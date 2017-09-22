@@ -5,9 +5,9 @@
 
 name "jmxfetch"
 
-default_version "0.16.0"
+default_version "0.17.0"
 source :url => "https://dd-jmxfetch.s3.amazonaws.com/jmxfetch-#{version}-jar-with-dependencies.jar",
-       :sha256 => "7ca7aee7ba63e5938df35bb6327d7b10c86ed800a88e6c8173a4f5931a25641d"
+       :sha256 => "e4bea1b045a3770736fbc1bc41cb37ebfd3b628d2180985e363b4b9cd8e77f95"
 
 jar_dir = "#{install_dir}/bin/agent/dist/jmx"
 
