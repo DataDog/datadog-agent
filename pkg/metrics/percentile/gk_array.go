@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+//
+// NOTE: This module contains a feature in development that is NOT supported.
+//
+
 package percentile
 
 import (
