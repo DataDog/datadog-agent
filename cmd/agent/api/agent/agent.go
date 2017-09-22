@@ -102,18 +102,25 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-
 	var ts int
 	queries := r.URL.Query()
 	if timestamps, ok := queries["timestamp"]; ok {
 		ts, _ = strconv.Atoi(timestamps[0])
 	}
 
+	if int64(ts) > embed.JMXConfigCache.GetModified() {
+		w.WriteHeader(http.StatusNoContent)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	log.Debugf("Getting latest JMX Configs as of: %#v", ts)
+
 	j := map[string]interface{}{}
 	configs := map[string]check.ConfigJSONMap{}
-	for name, config := range embed.JMXConfigCache {
+
+	keys, vals := embed.JMXConfigCache.Iterator()
+	for name := range keys {
+		config := <-vals // there will be as many vals as keys
 		m, ok := config.(map[string]interface{})
 		if !ok {
 			err = fmt.Errorf("wrong type in cache")
@@ -154,6 +161,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 
 		c["instances"] = instances
 		configs[name] = c
+
 	}
 	j["configs"] = configs
 	j["timestamp"] = time.Now().Unix()
