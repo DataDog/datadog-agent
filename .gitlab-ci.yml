@@ -268,7 +268,7 @@ deploy_rpm:
     - cp $AGENT_OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/x86_64
     # - s3cmd sync -v --delete-removed ./rpmrepo/ s3://$RPM_S3_BUCKET/beta/
-    - aws s3 sync ./rpmrepo/ s3://$RPM_S3_BUCKET/beta/ --debug --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 sync ./rpmrepo/ s3://$RPM_S3_BUCKET/beta/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 
 # TODO: deploy and build SUSE packages
