@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/jhoonb/archivex"
 	"path/filepath"
+    "regexp"
 )
 
 func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
@@ -24,6 +25,14 @@ func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
 	if err != nil {
 		return err
 	}
+
+	imageSha := regexp.MustCompile(`\"Image\": \"sha256:\w+"`)
+	cleaned = imageSha.ReplaceAllFunc(cleaned, func(s []byte) []byte {
+        m := string(s[10 : len(s)-1])
+        shaResolvedInspect, _ := docker.ResolveImageName(m)
+        return []byte(shaResolvedInspect)
+    })
+
 	err = zipFile.Add(filepath.Join(hostname, "docker_inspect.log"), cleaned)
 	if err != nil {
 		return err
