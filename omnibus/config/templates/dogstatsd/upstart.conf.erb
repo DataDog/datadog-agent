@@ -8,9 +8,9 @@ respawn
 console log  # redirect daemon's outputs to `/var/log/upstart/dogstatsd.log`
 
 pre-start script
-  lines=$(sed -n '$=' <%= log_dir %>/agent.log)
+  lines=$(sed -n '$=' <%= log_dir %>/agent.stderr.log)
   if test $lines -ge 100; then
-  mv <%= log_dir %>/agent.log <%= log_dir %>/agent.log.1;
+  mv <%= log_dir %>/agent.stderr.log <%= log_dir %>/agent.stderr.log.1;
   end
 end script
 
