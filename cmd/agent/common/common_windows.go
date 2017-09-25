@@ -10,12 +10,12 @@ import (
 	"io/ioutil"
 	"net/url"
 
-	"path/filepath"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	
+	"path/filepath"
+
 	log "github.com/cihub/seelog"
-	yaml "gopkg.in/yaml.v2"
 	"golang.org/x/sys/windows/registry"
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -71,8 +71,8 @@ func GetDistPath() string {
 func ImportRegistryConfig() error {
 
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
-							   "SOFTWARE\\Datadog\\Datadog Agent",
-							   registry.ALL_ACCESS)
+		"SOFTWARE\\Datadog\\Datadog Agent",
+		registry.ALL_ACCESS)
 	if err != nil {
 		if err == registry.ErrNotExist {
 			log.Debug("Windows installation key not found, not updating config")
@@ -81,7 +81,7 @@ func ImportRegistryConfig() error {
 		// otherwise, unexpected error
 		log.Warn("Unexpected error getting registry config %s", err.Error())
 		return err
-	}	
+	}
 	defer k.Close()
 	// Global Agent configuration
 	err = SetupConfig("")
@@ -95,29 +95,29 @@ func ImportRegistryConfig() error {
 	if config.Datadog.GetString("api_key") != "" {
 		return fmt.Errorf("%s seems to contain a valid configuration, not overwriting config",
 			datadogYamlPath)
-	}	
-	
+	}
+
 	var val string
 
-	if val, _, err = k.GetStringValue("api_key") ; err == nil {
+	if val, _, err = k.GetStringValue("api_key"); err == nil {
 		config.Datadog.Set("api_key", val)
 		log.Debug("Setting API key")
 	} else {
 		log.Debug("API key not found, not setting")
 	}
-	if val, _, err = k.GetStringValue("tags") ; err == nil {
+	if val, _, err = k.GetStringValue("tags"); err == nil {
 		config.Datadog.Set("tags", val)
 		log.Debugf("Setting tags %s", val)
 	} else {
 		log.Debug("Tags not found, not setting")
 	}
-	if val, _, err = k.GetStringValue("hostname") ; err == nil {
+	if val, _, err = k.GetStringValue("hostname"); err == nil {
 		config.Datadog.Set("hostname", val)
 		log.Debugf("Setting hostname %s", val)
 	} else {
 		log.Debug("hostname not found, not setting")
 	}
-	if val, _, err = k.GetStringValue("proxy_host") ; err == nil {
+	if val, _, err = k.GetStringValue("proxy_host"); err == nil {
 		var u *url.URL
 		if u, err = url.Parse(val); err != nil {
 			log.Warnf("unable to import value of settings 'proxy_host': %v", err)
@@ -126,7 +126,7 @@ func ImportRegistryConfig() error {
 			if u.Scheme == "" {
 				u, _ = url.Parse("http://" + val)
 			}
-			if val, _, err = k.GetStringValue("proxy_port") ; err == nil {
+			if val, _, err = k.GetStringValue("proxy_port"); err == nil {
 				u.Host = u.Host + ":" + val
 			}
 			if user, _, _ := k.GetStringValue("proxy_user"); user != "" {
@@ -154,7 +154,7 @@ func ImportRegistryConfig() error {
 		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
 	}
 
-	valuenames := []string{"api_key", "tags", "hostname", 
+	valuenames := []string{"api_key", "tags", "hostname",
 		"proxy_host", "proxy_port", "proxy_user", "proxy_password"}
 	for _, valuename := range valuenames {
 		k.DeleteValue(valuename)

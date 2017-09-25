@@ -17,7 +17,6 @@ var (
 		Long:  ``,
 		RunE:  doRegImport,
 	}
-
 )
 
 func init() {

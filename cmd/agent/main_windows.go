@@ -17,10 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
-	log "github.com/cihub/seelog"
 )
 
 var elog debug.Log
@@ -73,7 +73,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
-	if err := common.ImportRegistryConfig() ; err != nil {
+	if err := common.ImportRegistryConfig(); err != nil {
 		elog.Warning(2, fmt.Sprintf("Failed to import config items from registry %s", err.Error()))
 		// continue running agent with existing config
 	}
