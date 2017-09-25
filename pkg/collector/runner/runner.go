@@ -152,8 +152,19 @@ func (r *Runner) work() {
 		log.Infof("Running check %s", check)
 
 		// run the check
+		var err error
 		t0 := time.Now()
-		err := check.Run()
+
+		if check.Interval() == 0 {
+			// retry long running checks, bail out if they return an error 3 times
+			// in a row without running for at least 5 seconds
+			// TODO: this should be check-configurable, with meaningful default values
+			err = retry(5*time.Second, 3, check.Run)
+		} else {
+			// normal check run
+			err = check.Run()
+		}
+
 		warnings := check.GetWarnings()
 
 		// use the default sender for the service checks
@@ -236,4 +247,33 @@ func getHostname() string {
 		return hname.(string)
 	}
 	return ""
+}
+
+func retry(startupTime time.Duration, retries int, callback func() error) (err error) {
+	attempts := 0
+
+	for {
+		t0 := time.Now()
+		err = callback()
+		if err == nil {
+			return nil
+		}
+
+		// how much did the callback run?
+		execTime := time.Now().Sub(t0)
+		if execTime < startupTime {
+			// the callback failed too soon, retry but increment the counter
+			attempts++
+		} else {
+			// the callback failed after the startupTime, reset the counter
+			attempts = 0
+		}
+
+		if attempts == retries {
+			// give up
+			return fmt.Errorf("bail out, last error: %v", err)
+		}
+
+		log.Warnf("Retrying, got an error executing the callback: %v", err)
+	}
 }
