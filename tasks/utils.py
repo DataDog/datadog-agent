@@ -56,7 +56,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
 
     gcflags = ""
     ldflags = "-X {}/pkg/version.commit={} ".format(REPO_PATH, commit)
-    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(include_git=True))
+    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
     if static:
         ldflags += "-s -w -linkmode external -extldflags '-static' "
@@ -129,20 +129,21 @@ def get_git_branch_name():
     """
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
 
-def query_version():
+def query_version(ctx):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     try:
-        described_version = check_output(["git", "describe", "--tags"], stderr=subprocess.STDOUT).strip()
-    except:
-        described_version = ""
+        described_version = ctx.run("git describe --tags", hide=True).stdout.strip()
+    except UnexpectedExit:
+        # FIXME remove this `except` block when we start tagging the repo
+        described_version = "6.0.0"
     # For the tag 6.0.0-beta.0, this will match 6.0.0
     version_match = re.findall(r"^v?(\d+\.\d+\.\d+)", described_version)
 
     if version_match and version_match[0]:
         version = version_match[0]
     else:
-        version = "6.0.0"
+        raise Exception("Could not query valid version from tags of local git repository")
 
     # for the example above, 6.0.0-beta.0-1-g4f19118, this will be 1
     commits_since_version_match = re.findall(r"^.*-(\d+)\-g[0-9a-f]+$", described_version)
@@ -175,10 +176,10 @@ def query_version():
     return version, pre, commits_since_version, git_sha
 
 
-def get_version(include_git=False):
+def get_version(ctx, include_git=False):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
     version = ""
-    version, pre, commits_since_version, git_sha = query_version()
+    version, pre, commits_since_version, git_sha = query_version(ctx)
     if pre:
         version = "{0}-{1}".format(version, pre)
     if commits_since_version and include_git:

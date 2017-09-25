@@ -47,7 +47,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         # being able to load the ancient C-runtime that comes along with Python 2.7
         #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
 
-        build_maj, build_min, build_patch = get_version().split(".")
+        build_maj, build_min, build_patch = get_version(ctx).split(".")
         command = "windres --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
             build_maj=build_maj,
             build_min=build_min,
