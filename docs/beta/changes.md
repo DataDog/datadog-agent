@@ -1,16 +1,16 @@
 # Changes and Deprecations
 
-Agent 6 has maintained a large portion of compatability with Agent 5. However, there are changes and deprecations. This document will list them.
-
-There are a handful of changes. We tried to keep things as equivalent as possible, but there were things we deprecated and changed.
+Datadog Agent 6 contains a large number of changes. While we attempted to make it a drop in replacement, there were a small number of deprecations or changes in behavior which will be listed in this document.
 
 Note: If you see anything that's incorrect about this document (and that's not covered by the [known_issues.md][known-issues] document), do not hesistate to open an issue or submit a Pull Request.
 
 ## Configuration Files
 
-The main configuration file in Agent 5 was `/etc/dd-agent/datadog.conf` and was an ini file. And the `/etc/dd-agent` directory held all of the configuration.
+Prior releases of Datadog Agent stored configuration files in `/etc/dd-agent`. Starting with the 6.0 release configuration files will now be stored in  `/etc/datadog-agent`. 
 
-We have changed the main configuration file to a yaml file `datadog.yaml`, and changed the main configuration directory to `/etc/datadog-agent`. We have an agent command that will move everything to its proper new home and convert the configuration file. You just have to run `datadog-agent import`.
+In addition to the location change, the primary agent configuration file has been transitioned from INI formating to YAML to allow for a more consistent experience across the agent, as such `datadog.conf` is now retired in favor of `datadog.yaml`.
+
+To automatically transition between agent configuration paths and formats, you may use the agent command: `datadog-agent import`
 
 The configuration file itself has some additional changes to it. <!-- detail changes -->
 
