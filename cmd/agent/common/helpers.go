@@ -7,6 +7,7 @@ package common
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -110,4 +111,23 @@ func SetupConfig(confFilePath string) error {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
 	return nil
+}
+
+// PanicHandler handles how we log a crash causing panic
+// output contains the full output (including stack traces)
+func PanicHandler(output string) {
+	// output contains the full output (including stack traces)
+	err := config.SetupLogger(
+		"error", config.Datadog.GetString("log_panic_file"),
+		"", false, false, "")
+
+	msg := fmt.Sprintf("Agent panicked (oh no!):\n\n%s\n", output)
+	if err == nil {
+		log.Error(msg)
+		log.Flush()
+	} else {
+		fmt.Print(msg)
+	}
+
+	os.Exit(1)
 }

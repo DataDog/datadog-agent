@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/mitchellh/panicwrap"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
@@ -33,6 +34,20 @@ func main() {
 		runService(false)
 		return
 	}
+
+	exitStatus, err := panicwrap.BasicWrap(common.PanicHandler)
+	if err != nil {
+		// Something went wrong setting up the panic wrapper. Unlikely,
+		// but possible.
+		panic(err)
+	}
+
+	// If exitStatus >= 0, then we're the parent process and the panicwrap
+	// re-executed ourselves and completed. Just exit with the proper status.
+	if exitStatus >= 0 {
+		os.Exit(exitStatus)
+	}
+
 	// go_expvar server
 	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)
 
