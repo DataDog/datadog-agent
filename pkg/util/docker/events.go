@@ -31,7 +31,7 @@ type ContainerEvent struct {
 	Tags          map[string]string
 }
 
-// pullEvents just wraps the client.Event call with saner argument types. Channels have to be closed by caller.
+// openEventChannel just wraps the client.Event call with saner argument types.
 func (d *dockerUtil) openEventChannel(since, until time.Time, filter map[string]string) (<-chan events.Message, <-chan error) {
 	// Event since/until string can be formatted or hold a timestamp,
 	// see https://github.com/moby/moby/blob/7cbbbb95097f065757d38bcccdb1bbef81d10ddb/api/types/time/timestamp.go#L95
@@ -95,8 +95,8 @@ func (d *dockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 	return event, nil
 }
 
-// LatestEvents returns events matching the filter that occured after the time passed. It returns the latest
-// event timestamp in the slice for the user to store and pass again in the next call.
+// LatestContainerEvents returns events matching the filter that occured after the time passed.
+// It returns the latest event timestamp in the slice for the user to store and pass again in the next call.
 func (d *dockerUtil) LatestContainerEvents(since time.Time) ([]*ContainerEvent, time.Time, error) {
 	var events []*ContainerEvent
 	filters := map[string]string{"type": "container"}
@@ -133,7 +133,8 @@ func (d *dockerUtil) LatestContainerEvents(since time.Time) ([]*ContainerEvent, 
 	return events, maxTimestamp, nil
 }
 
-// AllContainers returns a slice of all running containers.
+// LatestContainerEvents returns events matching the filter that occured after the time passed.
+// It returns the latest event timestamp in the slice for the user to store and pass again in the next call.
 func LatestContainerEvents(since time.Time) ([]*ContainerEvent, time.Time, error) {
 	if globalDockerUtil != nil {
 		return globalDockerUtil.LatestContainerEvents(since)

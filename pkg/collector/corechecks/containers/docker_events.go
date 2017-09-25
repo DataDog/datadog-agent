@@ -31,7 +31,8 @@ type dockerEventBundle struct {
 	countByAction map[string]int
 }
 
-func NewDockerEventBundler(imageName string) *dockerEventBundle {
+//
+func newDockerEventBundler(imageName string) *dockerEventBundle {
 	return &dockerEventBundle{
 		imageName:     imageName,
 		events:        []*docker.ContainerEvent{},
@@ -139,7 +140,7 @@ ITER_EVENT:
 		}
 		bundle, found := eventsByImage[event.ImageName]
 		if found == false {
-			bundle = NewDockerEventBundler(event.ImageName)
+			bundle = newDockerEventBundler(event.ImageName)
 			eventsByImage[event.ImageName] = bundle
 		}
 		bundle.addEvent(event)
