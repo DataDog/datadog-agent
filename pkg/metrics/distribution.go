@@ -5,10 +5,9 @@
 
 // NOTE: This file contains a feature in development that is NOT supported.
 
-package aggregator
+package metrics
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
@@ -24,7 +23,7 @@ func NewDistribution() *Distribution {
 	return &Distribution{sketch: percentile.NewQSketch()}
 }
 
-func (d *Distribution) addSample(sample *metrics.MetricSample, timestamp float64) {
+func (d *Distribution) addSample(sample *MetricSample, timestamp float64) {
 	// Insert sample value into the sketch
 	d.sketch = d.sketch.Add(sample.Value)
 	d.count++

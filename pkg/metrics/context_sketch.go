@@ -5,14 +5,13 @@
 
 // NOTE: This file contains a feature in development that is NOT supported.
 
-package aggregator
+package metrics
 
 import (
 	"math"
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
@@ -22,11 +21,13 @@ import (
 // ContextSketch stores the distributions by context key
 type ContextSketch map[string]*Distribution
 
-func makeContextSketch() ContextSketch {
+// MakeContextSketch returns a new ContextSketch
+func MakeContextSketch() ContextSketch {
 	return ContextSketch(make(map[string]*Distribution))
 }
 
-func (c ContextSketch) addSample(contextKey string, sample *metrics.MetricSample, timestamp float64, interval int64) {
+// AddSample adds a sample to the ContextSketch
+func (c ContextSketch) AddSample(contextKey string, sample *MetricSample, timestamp float64, interval int64) {
 	if math.IsInf(sample.Value, 0) {
 		log.Warn("Ignoring sample with +/-Inf value on context key:", contextKey)
 		return
@@ -37,7 +38,8 @@ func (c ContextSketch) addSample(contextKey string, sample *metrics.MetricSample
 	c[contextKey].addSample(sample, timestamp)
 }
 
-func (c ContextSketch) flush(timestamp float64) []*percentile.SketchSeries {
+// Flush flushes sketches in the ContextSketch
+func (c ContextSketch) Flush(timestamp float64) []*percentile.SketchSeries {
 	var sketches []*percentile.SketchSeries
 
 	for contextKey, distribution := range c {
