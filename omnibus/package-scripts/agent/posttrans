@@ -1,15 +1,17 @@
 #! /bin/sh
-
+#
 # This script is RPM-specific
 # It is run at the very end of an install/upgrade of the package
 # It is NOT run on removal of the package
+#
+# .deb: n/a
+# .rpm: STEP 6 of 6
 
-CONFIG_DIR=/etc/dd-agent
-SERVICE_NAME=datadog-agent6
+CONFIG_DIR=/etc/datadog-agent
+SERVICE_NAME=datadog-agent
 
-# Create symlink to the agent's binary
+# Create a symlink to the agent's binary
 ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
-ln -sf $INSTALL_DIR/bin/agent/dd-agent /usr/bin/dd-agent
 
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
 # and avoid restarting when a check conf is invalid

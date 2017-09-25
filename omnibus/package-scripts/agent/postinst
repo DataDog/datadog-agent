@@ -1,17 +1,18 @@
 #!/bin/sh
 #
-# Perform necessary datadog-agent setup steps
-# after package is installed.
+# Perform necessary datadog-agent setup steps after package is installed.
+# NOTE: for .rpm, see posttrans instead
 #
+# .deb: STEP 2 of 5
+# .rpm: STEP 3 of 6
 
-INSTALL_DIR=/opt/datadog-agent6
+INSTALL_DIR=/opt/datadog-agent
 LOG_DIR=/var/log/datadog
-SERVICE_NAME=datadog-agent6
+CONFIG_DIR=/etc/datadog-agent
+SERVICE_NAME=datadog-agent
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || uname -s)
-
-mkdir -p ${LOG_DIR}
 
 # If we are inside the Docker container, do nothing
 if [ -n "$DOCKER_DD_AGENT" ]; then
@@ -24,8 +25,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
         DISTRIBUTION_FAMILY="Debian"
     fi
-
-    CONFIG_DIR=/etc/dd-agent
 
     if [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
         set -e
@@ -46,9 +45,8 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                     usermod -g dd-agent dd-agent
                 fi
 
-                # Create symlink to the agent's binary
+                # Create a symlink to the agent's binary
                 ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
-                ln -sf $INSTALL_DIR/bin/agent/dd-agent /usr/bin/dd-agent
             ;;
             abort-upgrade|abort-remove|abort-deconfigure)
             ;;
@@ -69,7 +67,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     if command -v systemctl >/dev/null 2>&1; then
         systemctl enable $SERVICE_NAME
     elif command -v initctl >/dev/null 2>&1; then
-        # Nothing to do, this is defined directly in the upstart job file
+        # start/stop policy is already defined in the upstart job file
         :
     else
         echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."

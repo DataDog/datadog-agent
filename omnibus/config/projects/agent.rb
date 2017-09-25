@@ -1,30 +1,28 @@
-#
-# Copyright 2016 Datadog
-#
-# All Rights Reserved.
-#
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# Copyright 2017 Datadog, Inc.
+
 require "./lib/ostools.rb"
 
-name 'datadog-agent6'
-if windows?
-  # Windows doesn't want our e-mail address :(
-  maintainer 'Datadog Inc.'
-else
-  maintainer 'Datadog Packages <package@datadoghq.com>'
-end
+name 'agent'
+package_name 'datadog-agent'
+
 homepage 'http://www.datadoghq.com'
+
 if ohai['platform'] == "windows"
-  # Note: this is not the final install dir, not even the default one, just a convenient
-  # spaceless dir in which the agent will be built.
-  # Omnibus doesn't quote the Git commands it launches unfortunately, which makes it impossible
-  # to put a space here...
-  install_dir "C:/opt/datadog-agent6/"
+  # Note: this is the path used by Omnibus to build the agent, the final install
+  # dir will be determined by the Windows installer. This path must not contain
+  # spaces because Omnibus doesn't quote the Git commands it launches.
+  install_dir "C:/opt/datadog-agent/"
+  maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir '/opt/datadog-agent6'
+  install_dir '/opt/datadog-agent'
+  maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 
 build_version do
-  source :git, from_dependency: 'datadog-agent'
+  source :git
   output_format :dd_agent_format
 end
 
@@ -102,34 +100,23 @@ package :msi do
 end
 
 # ------------------------------------
-# OS specific DSLs and dependencies
+# Dependencies
 # ------------------------------------
 
-# Linux
+# Linux-specific dependencies
 if linux?
-  if debian? || redhat?
-    extra_package_file '/etc/init/datadog-agent6.conf'
-    extra_package_file '/lib/systemd/system/datadog-agent6.service'
-  end
-
-  # Example configuration files for the agent and the checks
-  extra_package_file '/etc/dd-agent/datadog.yaml.example'
-  extra_package_file '/etc/dd-agent/conf.d'
-
-  # Custom checks directory
-  extra_package_file '/etc/dd-agent/checks.d'
-
-  # Linux-specific dependencies
   dependency 'procps-ng'
   dependency 'sysstat'
 end
 
-# ------------------------------------
-# Dependencies
-# ------------------------------------
+# Windows-specific dependencies
+if windows?
+  dependency 'datadog-upgrade-helper'
+  dependency 'pywin32'
+end
 
 # creates required build directories
-dependency 'preparation'
+dependency 'datadog-agent-prepare'
 
 # Datadog agent
 dependency 'datadog-agent'
@@ -137,16 +124,9 @@ dependency 'datadog-agent'
 # Additional software
 dependency 'datadog-agent-integrations'
 dependency 'jmxfetch'
-
-
 dependency 'datadog-trace-agent'
 unless windows?
   dependency 'datadog-process-agent'
-end
-
-if windows?
-  dependency 'datadog-upgrade-helper'
-  dependency 'pywin32'
 end
 
 # Remove pyc/pyo files from package
@@ -157,6 +137,21 @@ end
 
 # version manifest file
 dependency 'version-manifest'
+
+# this dependency puts few files out of the omnibus install dir and move them
+# in the final destination. This way such files will be listed in the packages
+# manifest and owned by the package manager. This is the only point in the build
+# process where we operate outside the omnibus install dir, thus the need of
+# the `extra_package_file` directive.
+# This must be the last dependency in the project.
+if linux?
+  dependency 'datadog-agent-finalize'
+
+  extra_package_file '/etc/init/datadog-agent.conf'
+  extra_package_file '/lib/systemd/system/datadog-agent.service'
+  extra_package_file '/etc/datadog-agent/'
+  extra_package_file '/usr/bin/dd-agent'
+end
 
 exclude '\.git*'
 exclude 'bundler\/git'

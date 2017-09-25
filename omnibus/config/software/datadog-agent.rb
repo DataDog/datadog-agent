@@ -1,57 +1,62 @@
-name 'datadog-agent'
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# Copyright 2017 Datadog, Inc.
+
 require './lib/ostools.rb'
+require 'pathname'
+
+name 'datadog-agent'
 
 dependency 'python'
 unless windows?
   dependency 'net-snmp-lib'
 end
 
-source path: '..'
+license "Apache License Version 2.0"
+license_file "../LICENSE"
 
-relative_path 'datadog-agent'
+source path: '..'
+relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
-  ship_license 'https://raw.githubusercontent.com/DataDog/dd-agent/master/LICENSE'
-  # the go deps needs to be installed (invoke dep) before running omnibus
-  # TODO: enable omnibus to run invoke deps while building the project
-  command "invoke agent.build --rebuild --use-embedded-libs --no-development"
-  copy('bin', install_dir)
+  # set GOPATH on the omnibus source dir for this software
+  gopath = Pathname.new(project_dir) + '../../../..'
+  env = {
+    'GOPATH' => gopath.to_path,
+    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+  }
 
+  # we assume the go deps are already installed before running omnibus
+  command "invoke agent.build --rebuild --use-embedded-libs --no-development", env: env
+
+  mkdir "#{install_dir}/etc/datadog-agent"
   mkdir "#{install_dir}/run/"
+  mkdir "#{install_dir}/scripts/"
+
+  # move around bin and config files
+  copy 'bin', install_dir
+  move 'bin/agent/dist/datadog.yaml', "#{install_dir}/etc/datadog-agent/datadog.yaml.example"
+  move 'bin/agent/dist/trace-agent.ini', "#{install_dir}/etc/datadog-agent/"
+  move 'bin/agent/dist/process-agent.ini', "#{install_dir}/etc/datadog-agent/"
 
   if linux?
-    # Config
-    mkdir '/etc/dd-agent'
-    move 'bin/agent/dist/datadog.yaml', '/etc/dd-agent/datadog.yaml.example'
-    mkdir '/etc/dd-agent/checks.d'
+    erb source: "upstart.conf.erb",
+        dest: "#{install_dir}/scripts/datadog-agent.conf",
+        mode: 0755,
+        vars: { install_dir: install_dir }
 
-    # Change DIRPATH to the absolute path so that a symlink to `bin/agent/agent` works
-    command "sed -i -e s@DIRPATH=.*@DIRPATH=#{install_dir}/bin/agent@ #{install_dir}/bin/agent/agent"
-
-    mkdir "/etc/init/"
-    if debian? || redhat?
-      erb source: "upstart.conf.erb",
-          dest: "/etc/init/datadog-agent6.conf",
-          mode: 0755,
-          vars: { install_dir: install_dir }
-    end
-
-    mkdir "/lib/systemd/system/"
-    if redhat? || debian?
-      erb source: "systemd.service.erb",
-          dest: "/lib/systemd/system/datadog-agent6.service",
-          mode: 0755,
-          vars: { install_dir: install_dir }
-    end
+    erb source: "systemd.service.erb",
+        dest: "#{install_dir}/scripts/datadog-agent.service",
+        mode: 0755,
+        vars: { install_dir: install_dir }
   end
 
-  if windows?
-    mkdir "../../extra_package_files/EXAMPLECONFSLOCATION"
-    copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
-  end
+  # TODO
+  # if windows?
+  #   mkdir "../../extra_package_files/EXAMPLECONFSLOCATION"
+  #   copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
+  # end
 
-  # The file below is touched by software builds that don't put anything in the installation
-  # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
-  # final package
   delete "#{install_dir}/uselessfile"
 end
