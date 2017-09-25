@@ -83,6 +83,11 @@ func (c *ProcessAgentCheck) Run() error {
 
 // Configure the ProcessAgentCheck
 func (c *ProcessAgentCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
+	// handle the case when the agent is disabled via the old `datadog.conf` file
+	if enabled := config.Datadog.GetBool("process_agent_enabled"); !enabled {
+		return fmt.Errorf("Process Agent disabled through main configuration file")
+	}
+
 	var initConf processAgentInitConfig
 	if err := yaml.Unmarshal(initConfig, &initConf); err != nil {
 		return err
