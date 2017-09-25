@@ -41,7 +41,7 @@ func (c *fhCheck) getFileNrValues(fn string) ([]string, error) {
 	s := strings.Split(strings.TrimRight(string(dat), "\n"), "\t")
 
 	if len(s) != 3 {
-		log.Error("Unexpected number of arguments in file-nr, expected %s, got %s", 3, len(s))
+		log.Errorf("Unexpected number of arguments in file-nr, expected %d, got %d", 3, len(s))
 		err := errors.New("Unexpected number of args in file-nr")
 		return nil, err
 	}
