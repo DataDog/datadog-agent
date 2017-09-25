@@ -108,7 +108,7 @@ func (t *Tagger) run() error {
 			t.pullTicker.Stop()
 			return nil
 		case msg := <-t.infoIn:
-			log.Infof("listener message: %s", msg)
+			log.Debugf("listener message: %s", msg)
 			for _, info := range msg {
 				t.tagStore.processTagInfo(info)
 			}
@@ -144,7 +144,6 @@ func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
 	}
 	if len(sources) == len(t.fetchers) {
 		// All sources sent data to cache
-		log.Debugf("all %d sources are in cache", len(sources))
 		return cachedTags, nil
 	}
 	// Else, partial cache miss, query missing data

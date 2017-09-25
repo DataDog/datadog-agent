@@ -161,19 +161,23 @@ func parseFilters(filters []string) (imageFilters, nameFilters []*regexp.Regexp,
 // IsExcluded returns a bool indicating if the container should be excluded
 // based on the filters in the containerFilter instance.
 func (cf containerFilter) IsExcluded(container *Container) bool {
+	return cf.computeIsExcluded(container.Name, container.Image)
+}
+
+func (cf containerFilter) computeIsExcluded(containerName, containerImage string) bool {
 	if !cf.Enabled {
 		return false
 	}
 
 	var excluded bool
 	for _, r := range cf.ImageBlacklist {
-		if r.MatchString(container.Image) {
+		if r.MatchString(containerImage) {
 			excluded = true
 			break
 		}
 	}
 	for _, r := range cf.NameBlacklist {
-		if r.MatchString(container.Name) {
+		if r.MatchString(containerName) {
 			excluded = true
 			break
 		}
@@ -182,12 +186,12 @@ func (cf containerFilter) IsExcluded(container *Container) bool {
 	// Any excluded container could be whitelisted.
 	if excluded {
 		for _, r := range cf.ImageWhitelist {
-			if r.MatchString(container.Image) {
+			if r.MatchString(containerImage) {
 				return false
 			}
 		}
 		for _, r := range cf.NameWhitelist {
-			if r.MatchString(container.Name) {
+			if r.MatchString(containerName) {
 				return false
 			}
 		}
