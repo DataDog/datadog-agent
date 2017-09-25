@@ -99,7 +99,7 @@ func IsAgentNotDetected(err error) bool {
 func detectAgentURL() (string, error) {
 	urls := make([]string, 0, 3)
 	if config.IsContainerized() {
-		cli, err := client.NewEnvClient()
+		cli, err := dockerutil.ConnectToDocker()
 		if err != nil {
 			return "", err
 		}
