@@ -35,10 +35,10 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
-	r.HandleFunc("/jmxstatus", setJMXStatus).Methods("POST")
-	r.HandleFunc("/jmxconfigs", getJMXConfigs).Methods("GET")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
+	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
+	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
@@ -81,6 +81,32 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
+}
+
+func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	component := vars["component"]
+	switch component {
+	case "jmx":
+		getJMXConfigs(w, r)
+	default:
+		err := fmt.Errorf("bad url or resource does not exist")
+		log.Errorf("%s", err.Error())
+		http.Error(w, err.Error(), 404)
+	}
+}
+
+func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	component := vars["component"]
+	switch component {
+	case "jmx":
+		setJMXStatus(w, r)
+	default:
+		err := fmt.Errorf("bad url or resource does not exist")
+		log.Errorf("%s", err.Error())
+		http.Error(w, err.Error(), 404)
+	}
 }
 
 func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
