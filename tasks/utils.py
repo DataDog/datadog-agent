@@ -134,7 +134,7 @@ def query_version(ctx):
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     try:
         described_version = ctx.run("git describe --tags", hide=True).stdout.strip()
-    except UnexpectedExit:
+    except invoke.exceptions.UnexpectedExit:
         # FIXME remove this `except` block when we start tagging the repo
         described_version = "6.0.0"
     # For the tag 6.0.0-beta.0, this will match 6.0.0
