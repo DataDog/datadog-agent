@@ -235,13 +235,14 @@ func (d *DockerCheck) String() string {
 // Configure parses the check configuration and init the check
 func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 	d.instance = &dockerConfig{
+		// Default conf values
 		ExcludePauseContainer: true,
+		CollectEvent:          true,
 	}
 	d.instance.Parse(config)
 
 	docker.InitDockerUtil(&docker.Config{
 		CacheDuration:  10 * time.Second,
-		CollectEvent:   true,
 		CollectNetwork: true,
 		Whitelist:      d.instance.Include,
 		Blacklist:      d.instance.Exclude,

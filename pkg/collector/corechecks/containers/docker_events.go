@@ -33,8 +33,9 @@ type dockerEventBundle struct {
 
 func NewDockerEventBundler(imageName string) *dockerEventBundle {
 	return &dockerEventBundle{
-		imageName: imageName,
-		events:    []*docker.ContainerEvent{},
+		imageName:     imageName,
+		events:        []*docker.ContainerEvent{},
+		countByAction: make(map[string]int),
 	}
 }
 
@@ -45,9 +46,6 @@ func (b *dockerEventBundle) addEvent(event *docker.ContainerEvent) error {
 	b.events = append(b.events, event)
 	if event.Timestamp.After(b.maxTimestamp) {
 		b.maxTimestamp = event.Timestamp
-	}
-	if b.countByAction == nil {
-		b.countByAction = make(map[string]int)
 	}
 	b.countByAction[event.Action] = b.countByAction[event.Action] + 1
 
