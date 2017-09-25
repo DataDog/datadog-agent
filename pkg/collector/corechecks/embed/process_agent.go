@@ -116,8 +116,8 @@ func (c *ProcessAgentCheck) Configure(data check.ConfigData, initConfig check.Co
 		binPath = defaultBinPath
 	}
 
-	// let the trace-agent use its own config file provided by the Agent package
-	// if we haven't found one in the apm.yaml check config
+	// let the process agent use its own config file provided by the Agent package
+	// if we haven't found one in the process-agent.yaml check config
 	configFile := checkConf.ConfPath
 	if configFile == "" {
 		configFile = path.Join(config.FileUsedDir(), "process-agent.ini")
