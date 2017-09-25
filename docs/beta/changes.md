@@ -4,6 +4,8 @@ Agent 6 has maintained a large portion of compatability with Agent 5. However, t
 
 There are a handful of changes. We tried to keep things as equivalent as possible, but there were things we deprecated and changed.
 
+Note: If you see anything that's incorrect about this document (and that's not covered by the [known_issues.md][known-issues] document), do not hesistate to open an issue or submit a Pull Request.
+
 ## Configuration Files
 
 The main configuration file in Agent 5 was `/etc/dd-agent/datadog.conf` and was an ini file. And the `/etc/dd-agent` directory held all of the configuration.
@@ -40,3 +42,13 @@ The following methods have been removed from `AgentCheck`:
 The following things have been changed:
 
 * The function signature of the metric senders used to be `gauge(self, metric, value, tags=None, hostname=None, device_name=None, timestamp=None)`. Now they are `gauge(self, name, value, tags=None, hostname=None, device_name=None)`.
+
+## Python Modules
+
+While we are continuing to ship the python libraries that shipped with Agent 5, some of the embedded libraries have been removed. `util.py` and its associated functions have been removed from the agent. `util.headers(...)` is still included in the agent, but implemented in C and Go and passed through to the check.
+
+Much of the `utils` directory has been removed from the agent as well. However, most of what was removed was not diretly related to checks and wouldn't be imported in almost anyone's checks. The flare module, for example, was removed and reimplemented in Go, but is unlikely to have been used by anyone in a custom check.
+
+
+
+[known-issues]: known_issues.md
