@@ -55,7 +55,7 @@ Much of the `utils` directory has been removed from the agent as well. However, 
 
 ## Dogstream
 
-We have removed dogstream. [A replacement][logmatic] will be coming, but is not yet available.
+We have removed dogstream. We're working at bring a [full featured logging solution][logmatic] into Datadog soon.
 
 ## Custom Emitters
 
