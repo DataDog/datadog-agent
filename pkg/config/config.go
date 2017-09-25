@@ -70,6 +70,7 @@ func init() {
 	Datadog.SetDefault("confd_path", defaultConfdPath)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_file", defaultLogPath)
+	Datadog.SetDefault("log_panic_file", defaultLogPanicPath)
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("log_to_syslog", false)
 	Datadog.SetDefault("syslog_uri", "")

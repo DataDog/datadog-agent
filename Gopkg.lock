@@ -216,6 +216,12 @@
   revision = "cc8532a8e9a55ea36402aa21efdf403a60d34096"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/mitchellh/panicwrap"
+  packages = ["."]
+  revision = "fce601fe55579125e1b3cb0b992287e7290f7b83"
+
+[[projects]]
   name = "github.com/mitchellh/reflectwalk"
   packages = ["."]
   revision = "417edcfd99a4d472c262e58f22b4bfe97580f03e"
@@ -359,6 +365,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e78a12cab3c909b8e056b9beaeb92af835c8104ecf052ec82c97114579b7aede"
+  inputs-digest = "1f5dde17f09c90b2a655ceebc812cd5a0e0fe2c47308752e5905adf07246d192"
   solver-name = "gps-cdcl"
   solver-version = 1
