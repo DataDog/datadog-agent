@@ -1,4 +1,4 @@
-# Agent 6 Beta
+# Datadog Agent 6 Beta
 
 ## What is Agent 6?
 Agent 6 is the latest major version of the Datadog Agent. The big difference between Agent 5 and Agent 6 is that Agent 6 is a complete rewrite of the core Agent in Golang. Don’t worry! We still support the python checks.

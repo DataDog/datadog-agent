@@ -54,7 +54,8 @@ echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://yum.datadoghq.com/be
 
 #### Update your local yum cache and install/update the agent
 ```shell
-sudo yum makecache
+sudo yum clean expire-cache
+sudo yum check-update
 sudo yum install datadog-agent
 ```
 

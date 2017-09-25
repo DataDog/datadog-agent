@@ -4,7 +4,7 @@ There are some issues with the Beta Agent. We apologize for this, but it is a be
 
 ## Checks
 
-The Docker and Kubernetes checks do not work properly. Do not use them or rely upon them.
+The Docker and Kubernetes are being rewritten in go to take advantage to the new internal architecture of the agent. Therefore the python version won't work within Agent 6. The rewrite is not yet finished, however.
 
 Some methods in the `AgentCheck` class are not yet implemented. These include:
 
