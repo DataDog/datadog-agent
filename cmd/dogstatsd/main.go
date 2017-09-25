@@ -17,6 +17,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -26,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/mitchellh/panicwrap"
 )
 
 var (
@@ -167,6 +170,19 @@ func start(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
+	exitStatus, err := panicwrap.BasicWrap(common.PanicHandler)
+	if err != nil {
+		// Something went wrong setting up the panic wrapper. Unlikely,
+		// but possible.
+		panic(err)
+	}
+
+	// If exitStatus >= 0, then we're the parent process and the panicwrap
+	// re-executed ourselves and completed. Just exit with the proper status.
+	if exitStatus >= 0 {
+		os.Exit(exitStatus)
+	}
+
 	// go_expvar server
 	go http.ListenAndServe(
 		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
