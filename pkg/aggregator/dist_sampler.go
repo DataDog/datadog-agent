@@ -19,7 +19,7 @@ import (
 type DistSampler struct {
 	interval            int64
 	contextResolver     *ContextResolver
-	sketchesByTimestamp map[int64]ContextSketch
+	sketchesByTimestamp map[int64]metrics.ContextSketch
 	defaultHostname     string
 }
 
@@ -28,7 +28,7 @@ func NewDistSampler(interval int64, defaultHostname string) *DistSampler {
 	return &DistSampler{
 		interval:            interval,
 		contextResolver:     newContextResolver(),
-		sketchesByTimestamp: map[int64]ContextSketch{},
+		sketchesByTimestamp: map[int64]metrics.ContextSketch{},
 		defaultHostname:     defaultHostname,
 	}
 }
@@ -43,10 +43,10 @@ func (d *DistSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 	bucketStart := d.calculateBucketStart(timestamp)
 	sketch, ok := d.sketchesByTimestamp[bucketStart]
 	if !ok {
-		sketch = makeContextSketch()
+		sketch = metrics.MakeContextSketch()
 		d.sketchesByTimestamp[bucketStart] = sketch
 	}
-	sketch.addSample(contextKey, metricSample, timestamp, d.interval)
+	sketch.AddSample(contextKey, metricSample, timestamp, d.interval)
 }
 
 func (d *DistSampler) flush(timestamp float64) percentile.SketchSeriesList {
@@ -60,7 +60,7 @@ func (d *DistSampler) flush(timestamp float64) percentile.SketchSeriesList {
 			continue
 		}
 
-		sketches := ctxSketch.flush(float64(bucketTimestamp))
+		sketches := ctxSketch.Flush(float64(bucketTimestamp))
 		for _, sketchSeries := range sketches {
 			contextKey := sketchSeries.ContextKey
 
