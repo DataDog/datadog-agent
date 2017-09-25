@@ -15,18 +15,18 @@ build do
     erb source: "upstart.conf.erb",
         dest: "/etc/init/dogstatsd.conf",
         mode: 0755,
-        vars: { install_dir: install_dir }
+        vars: { install_dir: install_dir, log_dir: "/var/log/datadog" }
     erb source: "systemd.service.erb",
         dest: "/lib/systemd/system/dogstatsd.service",
         mode: 0755,
-        vars: { install_dir: install_dir }
+        vars: { install_dir: install_dir, log_dir: "/var/log/datadog" }
   end
 
   if redhat?
     erb source: "systemd.service.erb",
         dest: "/lib/systemd/system/dogstatsd.service",
         mode: 0755,
-        vars: { install_dir: install_dir }
+        vars: { install_dir: install_dir, log_dir: "/var/log/datadog" }
   end
 
   # The file below is touched by software builds that don't put anything in the installation
