@@ -72,6 +72,11 @@ func (d *dockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 		return nil, nil
 	}
 
+	// msg.TimeNano does not hold the nanosecond portion of the timestamp
+	// like it's usual to do in Go, but the whole timestamp value as ns value
+	// We need to substract the second value to get only the nanoseconds.
+	// Keeping that behind a value test in case docker developers fix that
+	// inconsistency in the future.
 	ns := msg.TimeNano
 	if ns > 1e10 {
 		ns = ns - msg.Time*1e9
@@ -133,5 +138,5 @@ func LatestContainerEvents(since time.Time) ([]*ContainerEvent, time.Time, error
 	if globalDockerUtil != nil {
 		return globalDockerUtil.LatestContainerEvents(since)
 	}
-	return []*ContainerEvent{}, time.Now(), errors.New("dockerutil not initialised")
+	return nil, time.Now(), errors.New("dockerutil not initialised")
 }

@@ -31,11 +31,15 @@ type dockerEventBundle struct {
 	countByAction map[string]int
 }
 
+func NewDockerEventBundler(imageName string) *dockerEventBundle {
+	return &dockerEventBundle{
+		imageName: imageName,
+		events:    []*docker.ContainerEvent{},
+	}
+}
+
 func (b *dockerEventBundle) addEvent(event *docker.ContainerEvent) error {
-	if len(b.events) == 0 {
-		b.imageName = event.ImageName
-		b.events = []*docker.ContainerEvent{}
-	} else if event.ImageName != b.imageName {
+	if event.ImageName != b.imageName {
 		return fmt.Errorf("mismatching image name: %s != %s", event.ImageName, b.imageName)
 	}
 	b.events = append(b.events, event)
@@ -81,8 +85,9 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, erro
 		tags, err := tagger.Tag(fmt.Sprintf("docker://%s", cid), true)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", cid, err)
+		} else {
+			output.Tags = append(output.Tags, tags...)
 		}
-		output.Tags = append(output.Tags, tags...)
 	}
 
 	if b.countByAction["oom"]+b.countByAction["kill"] > 0 {
@@ -98,10 +103,10 @@ func (d *DockerCheck) reportEvents(sender aggregator.Sender) error {
 		d.lastEventTime = time.Now().Add(-60 * time.Second)
 	}
 	events, latest, err := docker.LatestContainerEvents(d.lastEventTime)
-
 	if err != nil {
 		return err
 	}
+
 	if latest.IsZero() == false {
 		d.lastEventTime = latest.Add(1 * time.Nanosecond)
 	}
@@ -109,11 +114,10 @@ func (d *DockerCheck) reportEvents(sender aggregator.Sender) error {
 
 	for _, bundle := range bundles {
 		ev, err := bundle.toDatadogEvent(d.dockerHostname)
-		ev.Tags = append(ev.Tags, d.instance.Tags...)
-
 		if err != nil {
 			log.Warnf("can't submit event: %s", err)
 		} else {
+			ev.Tags = append(ev.Tags, d.instance.Tags...)
 			sender.Event(ev)
 		}
 	}
@@ -137,7 +141,7 @@ ITER_EVENT:
 		}
 		bundle, found := eventsByImage[event.ImageName]
 		if found == false {
-			bundle = &dockerEventBundle{}
+			bundle = NewDockerEventBundler(event.ImageName)
 			eventsByImage[event.ImageName] = bundle
 		}
 		bundle.addEvent(event)

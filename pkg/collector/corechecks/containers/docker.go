@@ -65,9 +65,6 @@ type containerPerImage struct {
 }
 
 func (c *dockerConfig) Parse(data []byte) error {
-	// Default values
-	c.CollectEvent = true
-
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
 	}
@@ -244,6 +241,7 @@ func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 
 	docker.InitDockerUtil(&docker.Config{
 		CacheDuration:  10 * time.Second,
+		CollectEvent:   true,
 		CollectNetwork: true,
 		Whitelist:      d.instance.Include,
 		Blacklist:      d.instance.Exclude,
