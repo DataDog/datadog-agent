@@ -93,7 +93,7 @@ build do
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
       "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
-    command "pip install -r #{project_dir}/check_requirements.txt", :env => build_env
+    pip "install -r #{project_dir}/check_requirements.txt", :env => build_env
   end
 
   move "#{project_dir}/check_requirements.txt", "#{install_dir}/agent/"
