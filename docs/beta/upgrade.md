@@ -73,6 +73,6 @@ sudo restart datadog-agent
 
 ### In a cmd.exe shell in the directory you downloaded the installer, run:
 
-```
+```shell
 msiexec /qn /i ddagent-cli-latest.msi APIKEY="your_api_key" HOSTNAME="my_hostname" TAGS="mytag1,mytag2"
 ```
