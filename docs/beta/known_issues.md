@@ -6,6 +6,18 @@ There are some issues with the Beta Agent. We apologize for this, but it is a be
 
 The Docker and Kubernetes checks do not work properly. Do not use them or rely upon them.
 
+Some methods in the `AgentCheck` class are not yet implemented. These include:
+
+* `service_metadata`
+* `get_service_metadata`
+* `get_instance_proxy`
+
+These methods in `AgentCheck` have not yet been implemented, but we have not yet decided if we are going to implement them:
+
+* `generate_historate_func`
+* `generate_histogram_func`
+* `stop`
+
 ## Systems
 
 We do not yet build packages for the full gamut of systems that Agent 5 targets. While some are being dropped as unsupported, others are simply not yet supported.
