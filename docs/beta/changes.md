@@ -49,6 +49,16 @@ While we are continuing to ship the python libraries that shipped with Agent 5, 
 
 Much of the `utils` directory has been removed from the agent as well. However, most of what was removed was not diretly related to checks and wouldn't be imported in almost anyone's checks. The flare module, for example, was removed and reimplemented in Go, but is unlikely to have been used by anyone in a custom check.
 
+## Dogstream
+
+We have removed dogstream. [A replacement][logmatic] will be coming, but is not yet available.
+
+## Custom Emitters
+
+We have deprecated Custom Emitters.
+
+
 
 
 [known-issues]: known_issues.md
+[logmatic]: https://www.datadoghq.com/blog/datadog-acquires-logmatic-io/
