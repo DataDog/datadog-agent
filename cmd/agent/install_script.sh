@@ -195,8 +195,11 @@ Please follow the instructions on the Agent setup page:
 fi
 
 if [ $dd_upgrade ]; then
+  if [ -e /etc/datadog-agent/datadog.yaml ]; then
+    mv /etc/datadog-agent/datadog.yaml /etc/datadog-agent/datadog.yaml.bk
+  fi
   if [ -e /etc/dd-agent/datadog.conf ]; then
-    $sudo_cmd datadog-agent import /etc/dd-agent/datadog.conf -f
+    $sudo_cmd datadog-agent import /etc/dd-agent/datadog.conf /etc/datadog-agent/datadog.yaml
     $sudo_cmd chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml
     $sudo_cmd chmod 640 /etc/datadog-agent/datadog.yaml
   else
