@@ -37,7 +37,7 @@ func init() {
 
 	// local flags
 	importCmd.Flags().StringVarP(&destPath, "dest", "d", "", "destination path where to put datadog.yaml")
-	importCmd.Flags().BoolVarP(&force, "force", "f", force, "force the creation of the yaml file")
+	importCmd.Flags().BoolVarP(&force, "force", "f", force, "overwrite existing files")
 }
 
 func doImport(cmd *cobra.Command, args []string) error {
@@ -123,7 +123,7 @@ func doImport(cmd *cobra.Command, args []string) error {
 		src := filepath.Join(oldConfigDir, "conf.d", f.Name())
 		dst := filepath.Join(newConfigDir, "conf.d", f.Name())
 
-		if err := copyFile(src, dst); err != nil {
+		if err := copyFile(src, dst, force); err != nil {
 			fmt.Fprintf(os.Stderr, "unable to copy %s to %s: %v\n", src, dst, err)
 			continue
 		}
@@ -144,7 +144,7 @@ func doImport(cmd *cobra.Command, args []string) error {
 		src := filepath.Join(oldConfigDir, "conf.d", "auto_conf", f.Name())
 		dst := filepath.Join(newConfigDir, "conf.d", "auto_conf", f.Name())
 
-		if err := copyFile(src, dst); err != nil {
+		if err := copyFile(src, dst, force); err != nil {
 			fmt.Fprintf(os.Stderr, "unable to copy %s to %s: %v\n", src, dst, err)
 			continue
 		}
@@ -155,10 +155,21 @@ func doImport(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// Copy the src file to dst.
-// Any existing file will be overwritten.
-// File attributes won't be copied.
-func copyFile(src, dst string) error {
+// Copy the src file to dst. File attributes won't be copied.
+func copyFile(src, dst string, overwrite bool) error {
+	// if the file exists check whether we can overwrite
+	if _, err := os.Stat(dst); !os.IsNotExist(err) {
+		if overwrite {
+			// we'll overwrite, backup the original file first
+			err = os.Rename(dst, dst+".bak")
+			if err != nil {
+				return fmt.Errorf("unable to create a backup for the existing file: %s", dst)
+			}
+		} else {
+			return fmt.Errorf("destination file %s already exists", dst)
+		}
+	}
+
 	in, err := os.Open(src)
 	if err != nil {
 		return err
