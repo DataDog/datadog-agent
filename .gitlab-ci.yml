@@ -209,6 +209,8 @@ deploy_deb:
     - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
     - master
+    - /^6\.0\..+-alpha\..+/
+    - /^6\.0\..+-beta\..+/
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -253,6 +255,8 @@ deploy_rpm:
     - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
     - master
+    - /^6\.0\..+-alpha\..+/
+    - /^6\.0\..+-beta\..+/
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
