@@ -24,6 +24,11 @@ sudo apt-get update
 sudo apt-get install datadog-agent
 ```
 
+### Import your existing agent configuration
+```shell
+sudo -u dd-agent -- /opt/datadog-agent/bin/agent/agent import /etc/dd-agent/datadog.conf
+```
+
 #### Restart the agent
 ```shell
 # Systemd
@@ -57,6 +62,11 @@ echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://yum.datadoghq.com/be
 sudo yum clean expire-cache
 sudo yum check-update
 sudo yum install datadog-agent
+```
+
+### Import your existing agent configuration
+```shell
+sudo -u dd-agent -- /opt/datadog-agent/bin/agent/agent import /etc/dd-agent/datadog.conf
 ```
 
 #### Restart the agent
