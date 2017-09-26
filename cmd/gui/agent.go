@@ -25,10 +25,12 @@ func fetch(w http.ResponseWriter, req string) {
 			w.Write([]byte("Error getting status: " + e.Error()))
 			return
 		}
+		json, _ := json.Marshal(status)
 
-		res, _ := json.Marshal(status)
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(res)
+		html, e := renderStatus(json)
+
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(html))
 
 	case "version":
 		version, e := version.New(version.AgentVersion)

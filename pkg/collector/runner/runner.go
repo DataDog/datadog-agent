@@ -19,18 +19,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-<<<<<<< Updated upstream
 const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
-=======
-// Wg is used for testing purposes only
-var Wg sync.WaitGroup
-
-const (
-	defaultNumWorkers               = 4
-	maxNumWorkers                   = 25
-	stopCheckTimeout  time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
-)
->>>>>>> Stashed changes
 
 // checkStats holds the stats from the running checks
 type runnerCheckStats struct {
@@ -79,49 +68,6 @@ func NewRunner(numWorkers int) *Runner {
 	return r
 }
 
-<<<<<<< Updated upstream
-=======
-// UpdateNumWorkers checks if the current number of workers is reasonable, and adds more if needed
-func (r *Runner) UpdateNumWorkers(numChecks int64) {
-	numWorkers, _ := strconv.Atoi(runnerStats.Get("Workers").String())
-
-	if r.staticNumWorkers {
-		return
-	}
-
-	// Find which range the number of checks we're running falls in
-	var desiredNumWorkers int
-	switch {
-	case numChecks <= 10:
-		desiredNumWorkers = 4
-	case numChecks <= 15:
-		desiredNumWorkers = 10
-	case numChecks <= 20:
-		desiredNumWorkers = 15
-	case numChecks <= 25:
-		desiredNumWorkers = 20
-	default:
-		desiredNumWorkers = maxNumWorkers // max = 25
-	}
-
-	// Add workers if we don't have enough for this range
-	added := 0
-	for {
-		if numWorkers >= desiredNumWorkers {
-			break
-		}
-		runnerStats.Add("Workers", 1)
-		Wg.Add(1)
-		go r.work()
-		numWorkers++
-		added++
-	}
-	if added > 0 {
-		log.Infof("Added %d workers to runner: now at "+runnerStats.Get("Workers").String()+" workers.", added)
-	}
-}
-
->>>>>>> Stashed changes
 // Stop closes the pending channel so all workers will exit their loop and terminate
 func (r *Runner) Stop() {
 	if atomic.LoadUint32(&r.running) == 0 {
@@ -206,8 +152,19 @@ func (r *Runner) work() {
 		log.Infof("Running check %s", check)
 
 		// run the check
+		var err error
 		t0 := time.Now()
-		err := check.Run()
+
+		if check.Interval() == 0 {
+			// retry long running checks, bail out if they return an error 3 times
+			// in a row without running for at least 5 seconds
+			// TODO: this should be check-configurable, with meaningful default values
+			err = retry(5*time.Second, 3, check.Run)
+		} else {
+			// normal check run
+			err = check.Run()
+		}
+
 		warnings := check.GetWarnings()
 
 		// use the default sender for the service checks
@@ -287,4 +244,33 @@ func GetCheckStats() map[check.ID]*check.Stats {
 func getHostname() string {
 	hostname, _ := util.GetHostname()
 	return hostname
+}
+
+func retry(retryDuration time.Duration, retries int, callback func() error) (err error) {
+	attempts := 0
+
+	for {
+		t0 := time.Now()
+		err = callback()
+		if err == nil {
+			return nil
+		}
+
+		// how much did the callback run?
+		execDuration := time.Now().Sub(t0)
+		if execDuration < retryDuration {
+			// the callback failed too soon, retry but increment the counter
+			attempts++
+		} else {
+			// the callback failed after the retryDuration, reset the counter
+			attempts = 0
+		}
+
+		if attempts == retries {
+			// give up
+			return fmt.Errorf("bail out, last error: %v", err)
+		}
+
+		log.Warnf("Retrying, got an error executing the callback: %v", err)
+	}
 }

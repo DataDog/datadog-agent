@@ -94,6 +94,10 @@ function loadStatus(){
     req_type: "fetch",
     data: "status"
   }), function(data, status, xhr){
+
+    $('#status').html("In progress.. Current response: " + data);
+
+    /*
     var ct = xhr.getResponseHeader("content-type") || "";
     if (ct.indexOf('json') != -1 ) {
       //console.log(JSON.stringify(data, null, 2));
@@ -102,10 +106,13 @@ function loadStatus(){
     }
 
     $('#status').html("Something went wrong. Response: " + data);
+    */
   });
 }
 
 function printStatus(data) {
+  // Load the section titles
+  /*
   $("#status").html(
     '<div id="time" class="stat"><span class="stat_title">Clocks</span></div>' +
     '<div id="s_agent_info" class="stat"><span class="stat_title">Agent Info</span></div>' +
@@ -121,19 +128,67 @@ function printStatus(data) {
 
   $('#time').append("<span class='inserted'><br> System UTC time: " + data["time"] +
                     "<br>NTP Offset: </span>" + data["ntpOffset"]);
+
   $('#s_agent_info').append("<span class='inserted'><br> Version " + data["version"]+
                           "<br> Check workers: " + data["runnerStats"]["Workers"] +
                           "<br> PID: " + data["pid"] +
                           "<br> Platform: " + JSON.stringify(data["platform"]) + "</span>");
+
   $('#config').append("<span class='inserted'><br>Conf file: " + data["conf_file"] +
                       "<br>" + JSON.stringify(data["config"]) + "</span>");
+
   $('#host_info').append("<span class='inserted'><br>" + JSON.stringify(data["hostinfo"]) + "</span>");
+
   $('#metadata').append("<span class='inserted'><br>" + JSON.stringify(data["metadata"]) + "</span>");
-  $('#jmx').append("<span class='inserted'><br>" + JSON.stringify(data["JMXStatus"]) + "</span>");
+
+  //$('#jmx').append("<span class='inserted'><br>" + JSON.stringify(data["JMXStatus"]) + "</span>");
+
   $('#auto_conf').append("<span class='inserted'><br>" + JSON.stringify(data["autoConfigStats"]) + "</span>");
+
   $('#fwder').append("<span class='inserted'><br>" + JSON.stringify(data["forwarderStats"]) + "</span>");
-  $('#agg').append("<span class='inserted'><br>" + JSON.stringify(data["aggregatorStats"]) + "</span>");
+
+  //$('#agg').append("<span class='inserted'><br>" + JSON.stringify(data["aggregatorStats"]) + "</span>");
+
   $('#runner').append("<span class='inserted'><br>" + JSON.stringify(data["runnerStats"]) + "</span>");
+
+  // Parse the data into a clean interface
+  var statusData {
+    "Agent Info": {
+      "Version": data["version"],
+      "Check Workers": data["runnerStats"]["Workers"],
+      "PID": data["pid"],
+      "Log File": data["config"]["log_file"],
+      "Log Level": data["config"]["log_level"],
+      "Config File": data["conf_file"],
+      "Conf.d Path": data["config"]["confd_path"],
+      "Checks.d Path": data["config"]["additional_checksd"]
+    },
+    "System Info": {
+      "System UTC Time": data["time"],
+      "NTP Offset": data["ntpOffset"],
+      "GO Version": data["platform"]["goV"],
+      "Python Version": data["platform"]["pythonV"]
+    },
+    "Host Info": JSON.stringify(data["hostinfo"]) + JSON.stringify(data["metadata"])
+  }
+
+  jmx = data["JMXStatus"];
+  if (jmx["checks"] == null && jmx["timestamp"] == null) {
+    statusData["JMX Fetch"] = "No JMX status available";
+  } else {
+    statusData["JMX Fetch"] = {
+      "Initialized Checks": [],
+      "Failed Checks": []
+    }
+    jmx["checks"]["initialized_checks"].forEach(function(key, value){
+
+    })
+  }
+  collector =
+  aggregator = data["aggregatorStats"];
+  checks = data[""]
+*/
+
 }
 
 
@@ -187,9 +242,12 @@ function loadChecks() {
   }), function(data, status, xhr){
 
     if (loaded) return;
+    data.sort();
     data.forEach(function(item){
-      if (item.substr(item.length - 4) == "yaml" || item.substr(item.length - 7) == "default") {
+      if (item.substr(item.length - 4) == "yaml"){
         $("#checks_list").append('<a href="javascript:void(0)" onclick="showCheck(\'' + item + '\')" class="check enabled">' +  item + '</a>');
+      } else if (item.substr(item.length - 7) == "default") {
+        $("#checks_list").append('<a href="javascript:void(0)" onclick="showCheck(\'' + item + '\')" class="check default">' +  item + '</a>');
       } else {
         $("#checks_list").append('<a href="javascript:void(0)" onclick="showCheck(\'' + item + '\')" class="check disabled">' +  item + '</a>');
       }
@@ -212,7 +270,6 @@ function showCheck(name) {
 }
 
 /* MAYBE: Use this toggle to allow user to enable/disable the check
-
 $(" ").html('<div id="check_switch" class="onoffswitch">' +
                 '<input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="myonoffswitch" checked>' +
                 '<label class="onoffswitch-label" for="myonoffswitch">' +
@@ -222,7 +279,6 @@ $(" ").html('<div id="check_switch" class="onoffswitch">' +
               '</div>')
 
 $("#check_switch").click( );
-
 */
 
 
@@ -249,15 +305,15 @@ function filterCheckList() {
   val = $("#filter_button").val();
   switch (val) {
     case "all":
-      $(".enabled, .disabled").css("display", "inline-block");
+      $(".enabled, .default, .disabled").css("display", "inline-block");
       break;
     case "enabled":
-      $(".disabled").css("display", "none");
+      $(".disabled, .default").css("display", "none");
       $(".enabled").css("display", "inline-block");
       break;
-    case "disabled":
-      $(".enabled").css("display", "none");
-      $(".disabled").css("display", "inline-block");
+    case "default":
+      $(".enabled, .disabled").css("display", "none");
+      $(".default").css("display", "inline-block");
       break;
   }
 }

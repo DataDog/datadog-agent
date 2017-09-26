@@ -163,15 +163,16 @@ func StartAgent() error {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
+	// start the GUI server
+	if err = gui.StartGUIServer(); err != nil {
+		return log.Errorf("Error while starting gui, exiting: %v", err)
+	}
+
 	// start tagging system for containers
 	err = tagger.Init()
 	if err != nil {
 		return log.Errorf("Unable to start tagging system: %s", err)
 	}
-
-	// start the GUI server
-	if err = gui.StartGUIServer(); err != nil {
-		return log.Errorf("Error while starting gui, exiting: %v", err)
 
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()
