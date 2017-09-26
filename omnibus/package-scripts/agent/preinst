@@ -1,14 +1,19 @@
 #!/bin/sh
 #
-# Perform necessary datadog-agent setup steps
-# before package is installed.
+# Perform necessary datadog-agent setup steps before package is installed.
 #
+# .deb: STEP 2 of 5
+# .rpm: STEP 2 of 6
 
-INSTALL_DIR=/opt/datadog-agent6
+INSTALL_DIR=/opt/datadog-agent
 LOG_DIR=/var/log/datadog
-SERVICE_NAME=datadog-agent6
+SERVICE_NAME=datadog-agent
+CONFIG_DIR=/etc/datadog-agent
 
+# create all the paths needed to complete the installation
 mkdir -p $LOG_DIR
+mkdir -p $CONFIG_DIR/conf.d
+mkdir -p $CONFIG_DIR/checks.d
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || uname -s)
@@ -17,7 +22,7 @@ DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || gre
 if [ "$DISTRIBUTION" != "Darwin" ]; then
     set -e
 
-    if [ -f "/lib/systemd/system/datadog-agent6.service" ]; then
+    if [ -f "/lib/systemd/system/datadog-agent.service" ]; then
         # Stop an already running agent
         # Only supports systemd and upstart
         if command -v systemctl >/dev/null 2>&1; then

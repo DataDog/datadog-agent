@@ -47,7 +47,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         # being able to load the ancient C-runtime that comes along with Python 2.7
         #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
 
-        build_maj, build_min, build_patch = get_version().split(".")
+        build_maj, build_min, build_patch = get_version(ctx).split(".")
         command = "windres --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
             build_maj=build_maj,
             build_min=build_min,
@@ -142,45 +142,40 @@ def integration_tests(ctx, install_deps=False):
 
 
 @task
-def omnibus_build(ctx, puppy=False):
+def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=None,
+                  skip_deps=False):
     """
     Build the Agent packages with Omnibus Installer.
     """
-    # env overrides
-    env = {}
-    if not os.environ.get("JMX_VERSION"):
-        env["JMX_VERSION"] = "0.17.0"
-    if not os.environ.get("AGENT_VERSION"):
-        env["AGENT_VERSION"] = get_version()
+    if not skip_deps:
+        deps(ctx)
 
     # omnibus config overrides
     overrides = []
 
-    # base dir (can be overridden through env vars)
-    base_dir = os.environ.get("AGENT_OMNIBUS_BASE_DIR")
+    # base dir (can be overridden through env vars, command line takes precendence)
+    base_dir = base_dir or os.environ.get("AGENT_OMNIBUS_BASE_DIR")
     if base_dir:
         overrides.append("base_dir:{}".format(base_dir))
-
-    # package_dir (can be overridden through env vars)
-    package_dir = os.environ.get("AGENT_OMNIBUS_PACKAGE_DIR")
-    if package_dir:
-        overrides.append("package_dir:{}".format(package_dir))
 
     overrides_cmd = ""
     if overrides:
         overrides_cmd = "--override=" + " ".join(overrides)
 
     with ctx.cd("omnibus"):
-        ctx.run("bundle install")
-        omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "omnibus"
+        cmd = "bundle install"
+        if gem_path:
+            cmd += " --path {}".format(gem_path)
+        ctx.run(cmd)
+        omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
-            "project_name": "puppy" if puppy else "datadog-agent6",
-            "log_level": os.environ.get("AGENT_OMNIBUS_LOG_LEVEL", "info"),
+            "project_name": "puppy" if puppy else "agent",
+            "log_level": log_level,
             "overrides": overrides_cmd
         }
-        ctx.run(cmd.format(**args), env=env)
+        ctx.run(cmd.format(**args))
 
 
 @task

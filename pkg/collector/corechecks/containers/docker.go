@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
+const dockerCheckName = "docker"
+
 type dockerConfig struct {
 	//Url                    string             `yaml:"url"`
 	CollectContainerSize  bool     `yaml:"collect_container_size"`
@@ -34,8 +36,8 @@ type dockerConfig struct {
 	Include               []string `yaml:"include"`
 	ExcludePauseContainer bool     `yaml:"exclude_pause_container"`
 	Tags                  []string `yaml:"tags"`
-	//CollectEvent           bool               `yaml:"collect_events"`
-	//FilteredEventType      []string           `yaml:"filtered_event_types"`
+	CollectEvent          bool     `yaml:"collect_events"`
+	FilteredEventType     []string `yaml:"filtered_event_types"`
 	//CustomCGroup           bool               `yaml:"custom_cgroups"`
 	//HealthServiceWhitelist []string           `yaml:"health_service_check_whitelist"`
 	//CollectContainerCount  bool               `yaml:"collect_container_count"`
@@ -66,6 +68,9 @@ func (c *dockerConfig) Parse(data []byte) error {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
 	}
+	if len(c.FilteredEventType) == 0 {
+		c.FilteredEventType = []string{"top", "exec_create", "exec_start"}
+	}
 
 	if c.ExcludePauseContainer {
 		c.Exclude = append(c.Exclude, pauseContainerGCR, pauseContainerOpenshift)
@@ -75,8 +80,10 @@ func (c *dockerConfig) Parse(data []byte) error {
 
 // DockerCheck grabs docker metrics
 type DockerCheck struct {
-	lastWarnings []error
-	instance     *dockerConfig
+	lastWarnings   []error
+	instance       *dockerConfig
+	lastEventTime  time.Time
+	dockerHostname string
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *docker.Container) {
@@ -199,8 +206,8 @@ func (d *DockerCheck) Run() error {
 	}
 
 	for _, image := range images {
-		sender.Gauge("docker.containers.running", float64(image.running), "", image.tags)
-		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", image.tags)
+		sender.Gauge("docker.containers.running", float64(image.running), "", append(d.instance.Tags, image.tags...))
+		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", append(d.instance.Tags, image.tags...))
 	}
 
 	if err := d.countAndWeightImages(sender); err != nil {
@@ -210,6 +217,10 @@ func (d *DockerCheck) Run() error {
 	}
 	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", nil, "")
 
+	if d.instance.CollectEvent {
+		d.reportEvents(sender)
+	}
+
 	sender.Commit()
 	return nil
 }
@@ -218,13 +229,15 @@ func (d *DockerCheck) Run() error {
 func (d *DockerCheck) Stop() {}
 
 func (d *DockerCheck) String() string {
-	return "docker"
+	return dockerCheckName
 }
 
 // Configure parses the check configuration and init the check
 func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 	d.instance = &dockerConfig{
+		// Default conf values
 		ExcludePauseContainer: true,
+		CollectEvent:          true,
 	}
 	d.instance.Parse(config)
 
@@ -234,6 +247,12 @@ func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 		Whitelist:      d.instance.Include,
 		Blacklist:      d.instance.Exclude,
 	})
+
+	var err error
+	d.dockerHostname, err = docker.GetHostname()
+	if err != nil {
+		log.Warnf("can't get hostname from docker, events will not have it: %s", err)
+	}
 	return nil
 }
 

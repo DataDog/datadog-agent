@@ -38,6 +38,10 @@ the environment variable like:
 DD_API_KEY=12345678990 ./bin/agent/agent
 ```
 
+## Developing custom checks
+
+Please refer to the [Checks](docs/checks/README.md) documentation for more details about creating custom Go or Python checks.
+
 ## Contributing
 
 You must sign a CLA before we can accept your contributions. If you submit a PR

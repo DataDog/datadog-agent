@@ -49,7 +49,7 @@ func Validate(w http.ResponseWriter, r *http.Request) (err error) {
 		return
 	}
 
-	if tok[1] != GetAuthToken() {
+	if len(tok) < 2 || tok[1] != GetAuthToken() {
 		err = fmt.Errorf("invalid session token")
 		http.Error(w, err.Error(), 403)
 	}

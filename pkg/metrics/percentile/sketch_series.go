@@ -3,6 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+//
+// NOTE: This module contains a feature in development that is NOT supported.
+//
+
 package percentile
 
 import (
@@ -51,11 +55,6 @@ func NewQSketch() QSketch {
 // Add a value to the qsketch
 func (q QSketch) Add(v float64) QSketch {
 	return QSketch{GKArray: q.GKArray.Add(v)}
-}
-
-// Compress the qsketch
-func (q QSketch) Compress() QSketch {
-	return QSketch{GKArray: q.GKArray.Compress()}
 }
 
 // NoSketchError is the error returned when not enough samples have been

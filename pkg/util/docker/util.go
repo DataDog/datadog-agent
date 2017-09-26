@@ -63,15 +63,8 @@ func GetEnv(key string, dfault string, combineWith ...string) string {
 // HostProc returns the location of a host's procfs. This can and will be
 // overriden when running inside a container.
 func HostProc(combineWith ...string) string {
-	parts := append([]string{config.Datadog.GetString("proc_root")}, combineWith...)
+	parts := append([]string{config.Datadog.GetString("container_proc_root")}, combineWith...)
 	return path.Join(parts...)
-}
-
-// HostSys returns the location of a host's /sys. This can and will be overriden
-// when running inside a container.
-// TODO: use config value instead of envvar
-func HostSys(combineWith ...string) string {
-	return GetEnv("HOST_SYS", "/sys", combineWith...)
 }
 
 // PathExists returns a boolean indicating if the given path exists on the file system.

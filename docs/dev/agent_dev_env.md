@@ -64,7 +64,8 @@ use them when you care about reproducible builds. For example:
 
 Embedded builds rely on [Omnibus](https://github.com/chef/omnibus) to download
 and build dependencies, so you need a recent `ruby` environment with `bundler`
-installed.
+installed. See [how to build Agent packages with Omnibus][agent-omnibus] for more
+details.
 
 If you want to perform an Embedded build, you need to set the `use_system_libs`
 boolean flag value to _false_, either exporting the env var `INVOKE_USE_SYSTEM_LIBS=false`,
@@ -123,3 +124,4 @@ dev environment.
 
 [testing]: agent_tests.md
 [building]: agent_build.md
+[agent-omnibus]: agent_omnibus.md

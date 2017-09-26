@@ -28,6 +28,7 @@ type Sender interface {
 	Rate(metric string, value float64, hostname string, tags []string)
 	Count(metric string, value float64, hostname string, tags []string)
 	MonotonicCount(metric string, value float64, hostname string, tags []string)
+	Counter(metric string, value float64, hostname string, tags []string)
 	Histogram(metric string, value float64, hostname string, tags []string)
 	Historate(metric string, value float64, hostname string, tags []string)
 	ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string)
@@ -195,6 +196,13 @@ func (s *checkSender) Count(metric string, value float64, hostname string, tags 
 // MonotonicCount should be used to track the increase of a monotonic raw counter
 func (s *checkSender) MonotonicCount(metric string, value float64, hostname string, tags []string) {
 	s.sendMetricSample(metric, value, hostname, tags, metrics.MonotonicCountType)
+}
+
+// Counter is DEPRECATED and only implemented to preserve backward compatibility with python checks. Prefer using either:
+// * `Gauge` if you're counting states
+// * `Count` if you're counting events
+func (s *checkSender) Counter(metric string, value float64, hostname string, tags []string) {
+	s.sendMetricSample(metric, value, hostname, tags, metrics.CounterType)
 }
 
 // Histogram should be used to track the statistical distribution of a set of values during a check run

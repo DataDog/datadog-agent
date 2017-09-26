@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package aggregator
+// NOTE: This file contains a feature in development that is NOT supported.
+
+package metrics
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
@@ -22,7 +23,7 @@ func NewDistribution() *Distribution {
 	return &Distribution{sketch: percentile.NewQSketch()}
 }
 
-func (d *Distribution) addSample(sample *metrics.MetricSample, timestamp float64) {
+func (d *Distribution) addSample(sample *MetricSample, timestamp float64) {
 	// Insert sample value into the sketch
 	d.sketch = d.sketch.Add(sample.Value)
 	d.count++
@@ -32,8 +33,6 @@ func (d *Distribution) flush(timestamp float64) (*percentile.SketchSeries, error
 	if d.count == 0 {
 		return &percentile.SketchSeries{}, percentile.NoSketchError{}
 	}
-	// compress the sketch before flushing
-	d.sketch = d.sketch.Compress()
 	sketch := &percentile.SketchSeries{
 		Sketches: []percentile.Sketch{{Timestamp: int64(timestamp),
 			Sketch: d.sketch}},
