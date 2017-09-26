@@ -120,7 +120,8 @@ func init() {
 	// Kubernetes
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
-	Datadog.SetDefault("kubernetes_pod_label_to_tag_prefix", "")
+	Datadog.SetDefault("kubernetes_pod_label_to_tag_prefix", "kube_")
+
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)
 	Datadog.SetDefault("bosh_id", "")
@@ -143,6 +144,7 @@ func init() {
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
+	Datadog.BindEnv("dogstatsd_origin_detection")
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
 	Datadog.BindEnv("kubernetes_kubelet_host")
