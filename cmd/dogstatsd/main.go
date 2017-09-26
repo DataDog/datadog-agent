@@ -170,7 +170,7 @@ func start(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
-	exitStatus, err := panicwrap.BasicWrap(common.PanicHandler)
+	exitStatus, err := &panicwrap.BasicWrap(common.PanicHandler)
 	if err != nil {
 		// Something went wrong setting up the panic wrapper. Unlikely,
 		// but possible.

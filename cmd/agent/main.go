@@ -16,7 +16,11 @@ import (
 )
 
 func main() {
-	exitStatus, err := panicwrap.BasicWrap(common.PanicHandler)
+	panicConfig := &panicwrap.WrapConfig{
+		Handler:        common.PanicHandler,
+		ForwardSignals: common.GetOSSignalList(),
+	}
+	exitStatus, err := panicwrap.Wrap(panicConfig)
 	if err != nil {
 		// Something went wrong setting up the panic wrapper. Unlikely,
 		// but possible.
