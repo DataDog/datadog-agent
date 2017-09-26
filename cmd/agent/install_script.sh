@@ -205,6 +205,12 @@ if [ $dd_upgrade ]; then
   else
     printf "\033[31mYou don't have a datadog.conf file to convert.\n\033[0m\n"
   fi
+
+  $sudo_cmd cp /etc/dd-agent/conf.d/*.yaml /etc/datadog-agent/conf.d/
+  $sudo_cmd cp /etc/dd-agent/conf.d/auto_conf/*.yaml /etc/datadog-agent/conf.d/auto_conf/
+  $sudo_cmd cp /etc/dd-agent/checks.d/<check>.py /etc/datadog-agent/checks.d/
+  $sudo_cmd chown -R dd-agent:dd-agent /etc/datadog-agent/checks.d/
+  $sudo_cmd chmod -R 640 /etc/datadog-agent/conf.d/
 fi
 
 # Set the configuration
