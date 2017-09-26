@@ -73,8 +73,8 @@ some of the embedded libraries have been removed. `util.py` and its associated
 functions have been removed from the agent. `util.headers(...)` is still included
 in the agent, but implemented in C and Go and passed through to the check.
 
-**Note:** all the official integrations have had these modules removed from them,
-so these changes will only affect custom checks.
+**Note:** all the official integrations have had these obsolete modules removed
+from them, so these changes will only affect custom checks.
 
 Much of the `utils` directory has been removed from the agent as well. However,
 most of what was removed was not diretly related to checks and wouldn't be imported
@@ -84,7 +84,7 @@ To learn more, you can read about the details in the [development documentation]
 
 ## Dogstream
 
-Dogstream is not available at the moment. We're working at bring a [full featured logging solution][sheepdog] into Datadog soon.
+Dogstream is not available at the moment. We're working to bring a [full featured logging solution][sheepdog] into Datadog soon.
 
 ## Custom Emitters
 

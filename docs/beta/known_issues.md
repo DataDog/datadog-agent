@@ -24,7 +24,6 @@ Some methods in the `AgentCheck` class are not yet implemented. These include:
 
 * `service_metadata`
 * `get_service_metadata`
-* `get_instance_proxy`
 
 These methods in `AgentCheck` have not yet been implemented, but we have not yet
 decided if we are going to implement them:
