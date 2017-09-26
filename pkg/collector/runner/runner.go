@@ -249,7 +249,7 @@ func getHostname() string {
 	return ""
 }
 
-func retry(startupTime time.Duration, retries int, callback func() error) (err error) {
+func retry(retryDuration time.Duration, retries int, callback func() error) (err error) {
 	attempts := 0
 
 	for {
@@ -260,12 +260,12 @@ func retry(startupTime time.Duration, retries int, callback func() error) (err e
 		}
 
 		// how much did the callback run?
-		execTime := time.Now().Sub(t0)
-		if execTime < startupTime {
+		execDuration := time.Now().Sub(t0)
+		if execDuration < retryDuration {
 			// the callback failed too soon, retry but increment the counter
 			attempts++
 		} else {
-			// the callback failed after the startupTime, reset the counter
+			// the callback failed after the retryDuration, reset the counter
 			attempts = 0
 		}
 
