@@ -47,7 +47,7 @@ var (
 // Agent lifetime.
 func Initialize(paths ...string) *python.PyThreadState {
 
-	setPythonPath()
+	setPythonHome()
 
 	// store the final value of Python Home in the cache
 	PythonHome = C.GoString(C.Py_GetPythonHome())
@@ -112,26 +112,22 @@ func Initialize(paths ...string) *python.PyThreadState {
 	return state
 }
 
-func setPythonPath() {
+func setPythonHome() {
 	_here, _ := osext.ExecutableFolder()
 
-	var embeddedDirectory string
-	switch os := runtime.GOOS; os {
-	case "windows":
-		embeddedDirectory = _here
-	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
-		embeddedDirectory = filepath.Join(_here, "..", "..", "embedded")
+	if pythonHome == "" {
+		// don't do anything if not set, to support system python builds
+		return
 	}
 
-	pythonLibDir := filepath.Join(embeddedDirectory, "lib", "python2.7")
-	_, err := os.Stat(pythonLibDir)
-	if !os.IsNotExist(err) {
-		pythonHome = embeddedDirectory
+	if runtime.GOOS == "windows" {
+		// on windows, override the hardcoded path set during compile time, but only if that path points to nowhere
+		if _, err := os.Stat(filepath.Join(pythonHome, "lib", "python2.7")); os.IsNotExist(err) {
+			pythonHome = _here
+		}
 	}
 
-	// Set the Python Home from within the agent if needed
-	if pythonHome != "" {
-		pPythonHome := C.CString(pythonHome)
-		C.Py_SetPythonHome(pPythonHome)
-	}
+	// set the python path
+	pPythonHome := C.CString(pythonHome)
+	C.Py_SetPythonHome(pPythonHome)
 }
