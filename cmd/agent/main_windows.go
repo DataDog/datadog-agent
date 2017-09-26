@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/config"
+
 	"github.com/mitchellh/panicwrap"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
@@ -25,17 +27,19 @@ import (
 var elog debug.Log
 
 func main() {
-	exitStatus, err := panicwrap.BasicWrap(common.PanicHandler)
-	if err != nil {
-		// Something went wrong setting up the panic wrapper. Unlikely,
-		// but possible.
-		panic(err)
-	}
+	if config.GetBoolean("panic_wrap") {
+		exitStatus, err := panicwrap.BasicWrap(common.PanicHandler)
+		if err != nil {
+			// Something went wrong setting up the panic wrapper. Unlikely,
+			// but possible.
+			panic(err)
+		}
 
-	// If exitStatus >= 0, then we're the parent process and the panicwrap
-	// re-executed ourselves and completed. Just exit with the proper status.
-	if exitStatus >= 0 {
-		os.Exit(exitStatus)
+		// If exitStatus >= 0, then we're the parent process and the panicwrap
+		// re-executed ourselves and completed. Just exit with the proper status.
+		if exitStatus >= 0 {
+			os.Exit(exitStatus)
+		}
 	}
 
 	isIntSess, err := svc.IsAnInteractiveSession()
@@ -47,7 +51,6 @@ func main() {
 		runService(false)
 		return
 	}
-
 
 	// go_expvar server
 	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)

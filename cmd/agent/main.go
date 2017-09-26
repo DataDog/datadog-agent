@@ -12,25 +12,28 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/mitchellh/panicwrap"
 )
 
 func main() {
-	panicConfig := &panicwrap.WrapConfig{
-		Handler:        common.PanicHandler,
-		ForwardSignals: common.SignalList(),
-	}
-	exitStatus, err := panicwrap.Wrap(panicConfig)
-	if err != nil {
-		// Something went wrong setting up the panic wrapper. Unlikely,
-		// but possible.
-		panic(err)
-	}
+	if config.GetBoolean("panic_wrap") {
+		panicConfig := &panicwrap.WrapConfig{
+			Handler:        common.PanicHandler,
+			ForwardSignals: common.SignalList(),
+		}
+		exitStatus, err := panicwrap.Wrap(panicConfig)
+		if err != nil {
+			// Something went wrong setting up the panic wrapper. Unlikely,
+			// but possible.
+			panic(err)
+		}
 
-	// If exitStatus >= 0, then we're the parent process and the panicwrap
-	// re-executed ourselves and completed. Just exit with the proper status.
-	if exitStatus >= 0 {
-		os.Exit(exitStatus)
+		// If exitStatus >= 0, then we're the parent process and the panicwrap
+		// re-executed ourselves and completed. Just exit with the proper status.
+		if exitStatus >= 0 {
+			os.Exit(exitStatus)
+		}
 	}
 
 	// Invoke the Agent
