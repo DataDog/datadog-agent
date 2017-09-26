@@ -21,6 +21,7 @@ var (
 type Message struct {
 	Req_type string `json:"req_type"`
 	Data     string `json:"data"`
+	Payload  string `json:"payload"`
 }
 
 func StopGUIServer() {
@@ -112,13 +113,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		fetch(w, m.Data)
 
 	case "set":
-		set(w, m.Data)
+		set(w, m.Data, m.Payload)
 
 	case "check":
+		check(w, m.Data, m.Payload)
 
-		// TODO
-
-		w.Write([]byte("Not implemented yet."))
+	case "ping":
+		w.Write([]byte("Pong"))
 
 	default:
 		w.Write([]byte("Received unknown request type: " + m.Req_type))

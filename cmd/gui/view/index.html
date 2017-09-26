@@ -5,32 +5,41 @@
     <title> DataDog Agent 6 </title>
     <link rel="stylesheet" href="view/css/stylesheet.css">
     <link rel="stylesheet" href="view/css/font-awesome.min.css">
+    <link rel="stylesheet" href="view/css/custom-dropdown.css">
+    <link rel="stylesheet" href="view/css/on-off.css">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"> </script>
     <script src="view/js/javascript.js"> </script>
+    <script src="view/js/tests.js"> </script>
 </head>
+
 <body>
   <div id="sidebar">
     <img id="logo" src="view/images/datadog_icon_white.svg">
 
     <ul class="navbar">
-      <li class="nav_item"><a href="javascript:void(0)" onclick='fetch("status")'>
-        <i class="fa fa-bar-chart fa-fw"> </i>&nbsp;
+      <li id="status_button" class="nav_item">
+        <i class="fa fa-info fa-fw"> </i>&nbsp;
         Status
-      </a></li>
-      <li class="nav_item"><a href="javascript:void(0)" onclick='fetch("version")'>
-        <i class="fa fa-info fa-fw"> </i>&nbsp;
-        Version
-      </a></li>
-      <li class="nav_item"><a href="javascript:void(0)" onclick='fetch("hostname")'>
-        <i class="fa fa-info fa-fw"> </i>&nbsp;
-        Hostname
-      </a></li>
-      <li class="nav_item"><a href="javascript:void(0)" onclick='set("flare")'>
-        <i class="fa fa-info fa-fw"> </i>&nbsp;
-        Flare
-      </a></li>
+      </li>
+      <li id="settings_button" class="nav_item">
+        <i class="fa fa-cog fa-fw"> </i>&nbsp;
+        Settings
+      </li>
       <li class="nav_item multi">
-        <i class="fa fa-info fa-fw"> </i>&nbsp;
+        <i class="fa fa-check fa-fw"> </i>&nbsp;
+        Checks
+        <i class="fa fa-chevron-down fa-rotate-270"> </i>
+        <div id="checks_side_menu" class="side_menu">
+          <a href="javascript:void(0)" onclick="loadChecks()" class="side_menu_item">Edit Check Configs</a>
+          <a href="javascript:void(0)" onclick="loadAddCheck()" class="side_menu_item">Add a Check</a>
+        </div>
+      </li>
+      <li id="flare_button" class="nav_item">
+        <i class="fa fa-flag fa-fw"> </i>&nbsp;
+        Flare
+      </li>
+      <li class="nav_item multi">
+        <i class="fa fa-plug fa-fw"> </i>&nbsp;
         Test connection
         <i class="fa fa-chevron-down fa-rotate-270"> </i>
         <div class="side_menu">
@@ -46,10 +55,28 @@
   <div id="main">
     <div class="top_bar">
       <div id="title">Datadog Agent Manager</div>
+      <div id="agent_status">Agent running</div>
+      <div id="agent_info">
+        <div id="version">Version: </div>
+        <div id="hostname">Hostname: </div>
+      </div>
     </div>
-    <br><br>
-    <div id="response"></div>
-
+    <div id="tests" class="page"></div>
+    <div id="status" class="page"></div>
+    <div id="settings" class="page"></div>
+    <div id="checks_settings" class="page">
+      <div id="checks_filter">
+        <span class="custom-dropdown">
+          <select id="filter_button">
+            <option value="all">Show All</option>
+            <option value="enabled">Show Enabled</option>
+            <option value="disabled">Show Disabled</option>
+          </select>
+        </span>
+      </div>
+      <div id="checks_list"></div>
+      <div id="checks_interface"><span class="center">Select a check.</span></div>
+    </div>
+    <div id="flare" class="page">Not yet implemented.</div>
   </div>
-
 </body>

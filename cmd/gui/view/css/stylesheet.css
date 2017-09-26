@@ -2,7 +2,24 @@ body {
   background-color: #f5f5f5;
   font-family: 'OpenSans','Lucida Grande','Lucida Sans Unicode',sans-serif;
   margin: 0;
-  overflow-x: hidden; }
+  overflow-x: hidden;
+  font-size: 15px; }
+
+textarea {
+  resize: none; }
+
+ul {
+  list-style: none; }
+
+a {
+  text-decoration: none;
+  color: inherit; }
+
+.center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%); }
 
 #sidebar {
   height: 100%;
@@ -11,8 +28,6 @@ body {
   position: absolute;
   top: 0px;
   left: 0px; }
-  #sidebar ul {
-    list-style: none; }
   #sidebar #logo {
     opacity: 0.85;
     height: 130px;
@@ -29,22 +44,24 @@ body {
     padding: 0;
     position: absolute;
     left: 0px; }
-    #sidebar .navbar a {
-      text-decoration: none;
-      color: inherit; }
     #sidebar .navbar .nav_item {
       position: relative;
       width: 150px;
       padding-left: 10px;
       height: 50px;
       line-height: 50px;
-      font-size: 0.8em;
-      color: #b4b4b4; }
+      color: #b4b4b4;
+      cursor: pointer;
+      font-size: 13px; }
     #sidebar .navbar .nav_item:hover {
       color: white;
       background-color: #110617; }
       #sidebar .navbar .nav_item:hover .side_menu {
         color: #b4b4b4; }
+    #sidebar .navbar .fa-chevron-down {
+      position: absolute;
+      top: calc(50% - 6.5px);
+      right: 7px; }
     #sidebar .navbar .side_menu {
       display: none;
       padding: 0;
@@ -55,6 +72,8 @@ body {
       top: -50px;
       width: 100px;
       background-color: #110617; }
+    #sidebar .navbar #checks_side_menu {
+      width: 165px; }
     #sidebar .navbar .multi:hover .side_menu {
       display: block; }
     #sidebar .navbar .side_menu_item {
@@ -70,32 +89,171 @@ body {
 
 #main {
   position: absolute;
-  margin-left: 160px;
-  width: 100%; }
+  left: 160px;
+  width: calc(100% - 160px);
+  height: 100%; }
   #main .top_bar {
     width: 100%;
     height: 80px;
     background-color: white;
     position: absolute;
     top: 0px;
-    border-bottom: 1px solid #e4e4e4; }
+    border-bottom: 1px solid #e4e4e4;
+    overflow-x: hidden; }
     #main .top_bar #title {
-      color: #b4b4b4;
+      color: #a2a2a2;
       font-weight: bold;
       position: absolute;
       height: 100%;
       line-height: 80px;
       text-indent: 27.5px;
       font-size: 25px; }
-
-#response {
-  position: absolute;
-  top: 100px;
-  left: 20px;
-  width: 800px;
-  height: 400px;
-  border: 1px solid #e4e4e4;
-  padding: 10px;
-  background-color: white; }
+    #main .top_bar #agent_status {
+      background: linear-gradient(to bottom, #89c403 5%, #77a809 100%);
+      background-color: #89c403;
+      border: 1px solid #74b807;
+      text-shadow: 0px 1px 0px #528009;
+      border-radius: 26px;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      right: 370px;
+      color: #ffffff;
+      padding: 6px 24px;
+      text-decoration: none; }
+    #main .top_bar #agent_info {
+      color: #a2a2a2;
+      position: absolute;
+      text-align: right;
+      top: 50%;
+      transform: translateY(-50%);
+      right: 200px; }
+  #main .page {
+    position: absolute;
+    top: 100px;
+    left: 20px;
+    border: 1px solid #e4e4e4;
+    background-color: white;
+    display: none; }
+  #main #status {
+    width: calc(100% - 40px);
+    height: calc(100% - 120px);
+    overflow-y: scroll; }
+    #main #status .fa-spinner {
+      color: #a2a2a2; }
+    #main #status .stat {
+      margin-top: 20px; }
+      #main #status .stat .stat_title {
+        font-size: 18px;
+        text-decoration: underline; }
+  #main #tests, #main #flare {
+    width: 800px;
+    height: 400px;
+    padding: 10px; }
+  #main #settings {
+    width: calc(100% - 40px);
+    height: calc(100% - 120px);
+    overflow-y: hidden;
+    overflow-x: scroll; }
+    #main #settings ::-webkit-scrollbar {
+      -webkit-appearance: none;
+      width: 7px; }
+    #main #settings ::-webkit-scrollbar-thumb {
+      border-radius: 4px;
+      background-color: rgba(0, 0, 0, 0.5);
+      -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, 0.5); }
+  #main #submit_settings .success {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    right: -30px;
+    color: green; }
+  #main #submit_settings .unsuccessful {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    right: -30px;
+    color: red; }
+  #main #settings_input, #main #check_input {
+    border: none;
+    width: calc(100% - 5px);
+    height: calc(100% - 60px);
+    font-size: 15px; }
+  #main #submit_settings, #main #submit_check {
+    box-shadow: inset 0px 1px 0px 0px #3dc21b;
+    background: linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
+    background-color: #44c767;
+    border-radius: 3px;
+    border: 1px solid #18ab29;
+    width: 50px;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 10px;
+    cursor: pointer;
+    color: #ffffff;
+    font-size: 15px;
+    padding: 6px 10px;
+    text-decoration: none;
+    text-shadow: 0px 1px 0px #2f6627; }
+  #main #submit_settings:hover, #main #submit_check:hover {
+    background: linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
+    background-color: #5cbf2a; }
+  #main #submit_settings:active, #main #submit_check:active {
+    position: relative;
+    top: 1px; }
+  #main #checks_settings {
+    width: calc(100% - 40px);
+    height: calc(100% - 120px); }
+    #main #checks_settings #checks_filter {
+      position: absolute;
+      height: 100%;
+      width: 200px;
+      border: 1px solid #e4e4e4; }
+    #main #checks_settings #checks_list {
+      position: absolute;
+      top: 50px;
+      height: calc(100% - 50px);
+      width: 200px;
+      overflow-y: scroll; }
+    #main #checks_settings .check {
+      font-size: 13.5px;
+      padding: 5px;
+      width: calc(100% - 10px);
+      display: inline-block; }
+    #main #checks_settings .check:hover {
+      background-color: #e4e4e4; }
+    #main #checks_settings #checks_interface {
+      position: absolute;
+      height: 100%;
+      width: calc(100% - 200px);
+      left: 200px;
+      border: 1px solid #e4e4e4; }
+    #main #checks_settings #check_title {
+      position: absolute;
+      left: 10px;
+      top: 15px; }
+    #main #checks_settings #check_input {
+      position: absolute;
+      top: 55px; }
+    #main #checks_settings #submit_check {
+      position: absolute;
+      left: auto;
+      right: 0px;
+      transform: none;
+      top: 0px;
+      margin: 10px; }
+      #main #checks_settings #submit_check .success {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        left: -30px;
+        color: green; }
+      #main #checks_settings #submit_check .unsuccessful {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        left: -30px;
+        color: red; }
 
 /*# sourceMappingURL=stylesheet.css.map */

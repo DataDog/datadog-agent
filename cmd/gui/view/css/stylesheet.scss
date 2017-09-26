@@ -4,12 +4,35 @@ $border: #e4e4e4;
 $bkgrnd: #f5f5f5;
 $sidebar_hover: #110617;
 $unselected_font: #b4b4b4;
+$title: #a2a2a2;
+$font_size: 15px;
 
 body {
   background-color: $bkgrnd;
   font-family: 'OpenSans','Lucida Grande','Lucida Sans Unicode',sans-serif;
   margin: 0;
   overflow-x: hidden;
+  font-size: $font_size;
+}
+
+textarea {
+   resize: none;
+}
+
+ul {
+  list-style: none;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 #sidebar {
@@ -19,10 +42,6 @@ body {
   position: absolute;
   top: 0px;
   left: 0px;
-
-  ul {
-    list-style: none;
-  }
 
   #logo {
     opacity: 0.85;
@@ -45,19 +64,15 @@ body {
     position: absolute;
     left: 0px;
 
-    a {
-      text-decoration: none;
-      color: inherit;
-    }
-
     .nav_item {
       position: relative;
       width: 150px;
       padding-left: 10px;
       height: 50px;
       line-height: 50px;
-      font-size: 0.8em;
       color: $unselected_font;
+      cursor: pointer;
+      font-size: 13px;
     }
 
     .nav_item:hover {
@@ -67,6 +82,12 @@ body {
       .side_menu {
         color: $unselected_font;  // don't automatically highlight
       }
+    }
+
+    .fa-chevron-down {
+      position: absolute;
+      top: calc(50% - 6.5px);
+      right: 7px;
     }
 
     .side_menu {
@@ -79,6 +100,10 @@ body {
       top: -50px;
       width: 100px;
       background-color: $sidebar_hover;
+    }
+
+    #checks_side_menu {
+      width: 165px;
     }
 
     .multi:hover {
@@ -107,8 +132,9 @@ body {
 
 #main {
   position: absolute;
-  margin-left: 160px;
-  width: 100%;
+  left: 160px;
+  width: calc(100% - 160px);
+  height: 100%;
 
   .top_bar {
     width: 100%;
@@ -117,9 +143,10 @@ body {
     position: absolute;
     top: 0px;
     border-bottom: 1px solid $border;
+    overflow-x: hidden;
 
     #title {
-      color: #b4b4b4;
+      color: $title;
       font-weight: bold;
       position: absolute;
       height: 100%;
@@ -127,16 +154,216 @@ body {
       text-indent: 27.5px;
       font-size: 25px;
     }
-  }
-}
 
-#response {
-  position: absolute;
-  top: 100px;
-  left: 20px;
-  width: 800px;
-  height: 400px;
-  border: 1px solid $border;
-  padding: 10px;
-  background-color: white;
+    #agent_status {
+      // Default: green status
+      background:linear-gradient(to bottom, #89c403 5%, #77a809 100%);
+      background-color:#89c403;
+      border:1px solid #74b807;
+      text-shadow:0px 1px 0px #528009;
+
+    	border-radius:26px;
+    	position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      right: 370px;
+    	color:#ffffff;
+    	padding:6px 24px;
+    	text-decoration:none;
+    }
+
+    #agent_info {
+      color: $title;
+      position: absolute;
+      text-align: right;
+      top: 50%;
+      transform: translateY(-50%);
+      right: 200px;
+    }
+  }
+
+  .page {
+    position: absolute;
+    top: 100px;
+    left: 20px;
+    border: 1px solid $border;
+    background-color: white;
+    display: none;
+  }
+
+  #status {
+    width: calc(100% - 40px);
+    height: calc(100% - 120px);
+    overflow-y: scroll;
+
+    .fa-spinner {
+      color: $title;
+    }
+
+    .stat {
+      margin-top: 20px;
+
+      .stat_title {
+        font-size: $font_size * 1.2;
+        text-decoration: underline;
+      }
+
+      .inserted {
+
+      }
+    }
+  }
+
+  #tests, #flare {
+    width: 800px;
+    height: 400px;
+    padding: 10px;
+  }
+
+  #settings {
+    width: calc(100% - 40px);
+    height: calc(100% - 120px);
+    overflow-y: hidden;
+    overflow-x: scroll;
+
+    // keep the scrollbar always showing
+    ::-webkit-scrollbar {
+      -webkit-appearance: none;
+      width: 7px;
+    }
+    ::-webkit-scrollbar-thumb {
+      border-radius: 4px;
+      background-color: rgba(0, 0, 0, .5);
+      -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, .5);
+    }
+  }
+
+  #submit_settings {
+    .success {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      right: -30px;
+      color: green;
+    }
+
+    .unsuccessful {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      right: -30px;
+      color: red;
+    }
+  }
+
+  #settings_input, #check_input {
+    border: none;
+    width: calc(100% - 5px);
+    height: calc(100% - 60px);
+    font-size: $font_size;
+  }
+
+  #submit_settings, #submit_check {
+    box-shadow:inset 0px 1px 0px 0px #3dc21b;
+    background:linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
+    background-color:#44c767;
+    border-radius:3px;
+    border:1px solid #18ab29;
+
+    width: 50px;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 10px;
+
+    cursor:pointer;
+    color:#ffffff;
+    font-size: $font_size;
+    padding:6px 10px;
+    text-decoration:none;
+    text-shadow:0px 1px 0px #2f6627;
+  }
+  #submit_settings:hover, #submit_check:hover {
+    background:linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
+    background-color:#5cbf2a;
+  }
+  #submit_settings:active, #submit_check:active {
+    position:relative;
+    top:1px;
+  }
+
+  #checks_settings {
+    width: calc(100% - 40px);
+    height: calc(100% - 120px);
+
+    #checks_filter {
+      position: absolute;
+      height: 100%;
+      width: 200px;
+      border: 1px solid $border;
+    }
+
+    #checks_list {
+      position: absolute;
+      top: 50px;
+      height: calc(100% - 50px);
+      width: 200px;
+      overflow-y: scroll;
+    }
+
+    .check {
+      font-size: $font_size * 0.9;
+      padding: 5px;
+      width: calc(100% - 10px);
+      display: inline-block;
+    }
+
+    .check:hover {
+      background-color: $border;
+    }
+
+    #checks_interface {
+      position: absolute;
+      height: 100%;
+      width: calc(100% - 200px);
+      left: 200px;
+      border: 1px solid $border;
+    }
+
+    #check_title {
+      position: absolute;
+      left: 10px;
+      top: 15px;
+    }
+
+    #check_input {
+      position: absolute;
+      top: 55px;
+    }
+
+    #submit_check  {
+      position: absolute;
+      left: auto;
+      right: 0px;
+      transform: none;
+      top: 0px;
+      margin: 10px;
+
+      .success {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        left: -30px;
+        color: green;
+      }
+
+      .unsuccessful {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        left: -30px;
+        color: red;
+      }
+    }
+  }
 }
