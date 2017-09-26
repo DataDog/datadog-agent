@@ -24,9 +24,21 @@ sudo apt-get update
 sudo apt-get install datadog-agent
 ```
 
-### Import your existing agent configuration
+#### Additional custom AutoDiscovery tempates (optional)
+You may have added additional custom AutoDiscovery templates, if so you might want to import
+them:
+
 ```shell
-sudo -u dd-agent -- /opt/datadog-agent/bin/agent/agent import /etc/dd-agent/datadog.conf
+sudo -u dd-agent -- cp /etc/dd-agent/conf.d/auto_conf/*.yaml /etc/datadog-agent/conf.d/auto_conf/
+```
+
+#### Enable desired custom checks (optional)
+Since we cannot guarantee all your custom checks will work on Agent 6, we'll let you enable
+these manually. Just copy them over to the `additional_checksd` location (defaults to
+`/etc/datadog-agent/checks.d/` for Agent 6:
+
+```shell
+sudo -u dd-agent -- cp /etc/dd-agent/checks.d/<check>.py /etc/datadog-agent/checks.d/
 ```
 
 #### Restart the agent
@@ -64,9 +76,21 @@ sudo yum check-update
 sudo yum install datadog-agent
 ```
 
-### Import your existing agent configuration
+#### Additional custom AutoDiscovery tempates (optional)
+You may have added additional custom AutoDiscovery templates, if so you might want to import
+them:
+
 ```shell
-sudo -u dd-agent -- /opt/datadog-agent/bin/agent/agent import /etc/dd-agent/datadog.conf
+sudo -u dd-agent -- cp /etc/dd-agent/conf.d/auto_conf/*.yaml /etc/datadog-agent/conf.d/auto_conf/
+```
+
+#### Enable desired custom checks (optional)
+Since we cannot guarantee all your custom checks will work on Agent 6, we'll let you enable
+these manually. Just copy them over to the `additional_checksd` location (defaults to
+`/etc/datadog-agent/checks.d/` for Agent 6:
+
+```shell
+sudo -u dd-agent -- cp /etc/dd-agent/checks.d/<check>.py /etc/datadog-agent/checks.d/
 ```
 
 #### Restart the agent
