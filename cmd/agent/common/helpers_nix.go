@@ -16,7 +16,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-func GetOSSignalList() []os.Signal {
+func SignalList() []os.Signal {
 	return []os.Signal{
 		syscall.SIGABRT,
 		syscall.SIGALRM,
@@ -38,16 +38,9 @@ func GetOSSignalList() []os.Signal {
 		syscall.SIGSYS,
 		syscall.SIGTERM,
 		syscall.SIGTRAP,
-		syscall.SIGTSTP,
-		syscall.SIGTTIN,
-		syscall.SIGTTOU,
 		syscall.SIGURG,
 		syscall.SIGUSR1,
 		syscall.SIGUSR2,
-		syscall.SIGVTALRM,
-		syscall.SIGWINCH,
-		syscall.SIGXCPU,
-		syscall.SIGXFSZ,
 	}
 
 }

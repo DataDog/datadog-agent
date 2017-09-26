@@ -18,7 +18,7 @@ import (
 func main() {
 	panicConfig := &panicwrap.WrapConfig{
 		Handler:        common.PanicHandler,
-		ForwardSignals: common.GetOSSignalList(),
+		ForwardSignals: common.SignalList(),
 	}
 	exitStatus, err := panicwrap.Wrap(panicConfig)
 	if err != nil {
