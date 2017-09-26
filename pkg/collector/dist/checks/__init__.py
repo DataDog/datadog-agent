@@ -86,8 +86,8 @@ class AgentCheck(object):
         self._deprecations = {
             'increment': [
                 False,
-                "DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, sending these " +
-                "metrics with `AgentCheck.count` and a '_count' suffix instead",
+                "DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, please use " +
+                "`AgentCheck.gauge` or `AgentCheck.count` instead, with a different metric name",
             ],
             'device_name': [
                 False,
@@ -132,11 +132,11 @@ class AgentCheck(object):
 
     def increment(self, name, value=1, tags=None, hostname=None, device_name=None):
         self._log_deprecation("increment")
-        self.count(name + "_count", value, tags=tags, hostname=hostname, device_name=device_name)
+        self._submit_metric(aggregator.COUNTER, name, value, tags=tags, hostname=hostname, device_name=device_name)
 
     def decrement(self, name, value=-1, tags=None, hostname=None, device_name=None):
         self._log_deprecation("increment")
-        self.count(name + "_count", value, tags=tags, hostname=hostname, device_name=device_name)
+        self._submit_metric(aggregator.COUNTER, name, value, tags=tags, hostname=hostname, device_name=device_name)
 
     def _log_deprecation(self, deprecation_key):
         """

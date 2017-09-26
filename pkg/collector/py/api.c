@@ -10,6 +10,7 @@ char* MetricTypeNames[] = {
   "RATE",
   "COUNT",
   "MONOTONIC_COUNT",
+  "COUNTER",
   "HISTOGRAM",
   "HISTORATE"
 };
