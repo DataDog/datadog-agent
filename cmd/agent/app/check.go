@@ -33,7 +33,6 @@ const checkCmdFlushInterval = 10000000000
 func init() {
 	AgentCmd.AddCommand(checkCmd)
 
-	checkCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to directory containing datadog.yaml")
 	checkCmd.Flags().BoolVarP(&checkRate, "check-rate", "r", false, "check rates by running the check twice")
 	checkCmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off')")
 	checkCmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
