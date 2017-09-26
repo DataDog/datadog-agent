@@ -105,7 +105,7 @@ func (c *APMCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 	// if we haven't found one in the apm.yaml check config
 	configFile := checkConf.ConfPath
 	if configFile == "" {
-		configFile = path.Join(config.FileUsedDir(), "trace-agent.ini")
+		configFile = path.Join(config.FileUsedDir(), "trace-agent.conf")
 	}
 
 	c.cmd = exec.Command(binPath, fmt.Sprintf("-ddconfig=%s", configFile))
