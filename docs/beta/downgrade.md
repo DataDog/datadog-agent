@@ -38,6 +38,9 @@ sudo -u dd-agent -- cp /etc/datadog-agent/conf.d/*.yaml /etc/dd-agent/conf.d/
 sudo -u dd-agent -- cp /etc/datadog-agent/conf.d/auto_conf/*.yaml /etc/dd-agent/conf.d/auto_conf/
 ```
 
+Note: please beware that if you have made any changes to your configurations to
+support new agent6-only options, these will not work anymore with agent5.
+
 #### Back-sync custom checks (optional)
 If you made any changes or added any new custom checks while testing Agent 6 you might want
 to enable them back on Agent 5. Note: you only need to copy back checks you changed.
@@ -50,7 +53,7 @@ sudo -u dd-agent -- cp /etc/datadog-agent/checks.d/<check>.py /etc/dd-agent/chec
 # Systemd
 sudo systemctl restart datadog-agent
 # Upstart
-sudo restart datadog-agent
+sudo /etc/init.d/datadog-agent restart
 ```
 
 #### Clean out /etc/datadog-agent (optional)
@@ -88,13 +91,15 @@ to enable them back on Agent 5. Note: you only need to copy back checks you chan
 ```shell
 sudo -u dd-agent -- cp /etc/datadog-agent/checks.d/<check>.py /etc/dd-agent/checks.d/
 ```
+Note: please beware that if you have made any changes to your configurations to
+support new agent6-only options, these will not work anymore with agent5.
 
 #### Restart the agent
 ```shell
 # Systemd
 sudo systemctl restart datadog-agent
 # Upstart
-sudo restart datadog-agent
+sudo /etc/init.d/datadog-agent restart
 ```
 
 #### Clean out /etc/datadog-agent (optional)

@@ -24,7 +24,7 @@ sudo apt-get update
 sudo apt-get install datadog-agent
 ```
 
-#### Additional custom AutoDiscovery tempates (optional)
+#### Additional custom AutoDiscovery templates (optional)
 You may have added additional custom AutoDiscovery templates, if so you might want to import
 them:
 
@@ -76,7 +76,7 @@ sudo yum check-update
 sudo yum install datadog-agent
 ```
 
-#### Additional custom AutoDiscovery tempates (optional)
+#### Additional custom AutoDiscovery templates (optional)
 You may have added additional custom AutoDiscovery templates, if so you might want to import
 them:
 
