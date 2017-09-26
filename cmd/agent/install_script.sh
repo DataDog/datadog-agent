@@ -61,9 +61,18 @@ else
   dd_url="datadoghq.com"
 fi
 
+if [ -n "$DD_UPGRADE" ]; then
+  dd_upgrade=true
+else
+  dd_upgrade=false
+fi
+
 if [ ! $apikey ]; then
+  # if it's an upgrade, then we will use the transition script
+  if [ ! $dd_upgrade ]; then
     printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
     exit 1;
+  fi
 fi
 
 # OS/Distro Detection
@@ -185,19 +194,33 @@ Please follow the instructions on the Agent setup page:
     exit;
 fi
 
-# Set the configuration
-if [ -e /etc/datadog-agent/datadog.yaml ]; then
-    printf "\033[34m\n* Keeping old datadog.conf configuration file\n\033[0m\n"
-else
-    printf "\033[34m\n* Adding your API key to the Agent configuration: /etc/dd-agent/datadog.conf\n\033[0m\n"
-    $sudo_cmd sh -c "sed 's/api_key:.*/api_key: $apikey/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml"
-    if [ $dd_hostname ]; then
-        printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: /etc/dd-agent/datadog.conf\n\033[0m\n"
-        $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $dd_hostname/' /etc/dd-agent/datadog.conf"
-    fi
+if [ $dd_upgrade ]; then
+  if [ -e /etc/dd-agent/datadog.conf ]; then
+    $sudo_cmd datadog-agent import /etc/dd-agent/datadog.conf -f
     $sudo_cmd chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml
     $sudo_cmd chmod 640 /etc/datadog-agent/datadog.yaml
+  else
+    printf "\033[31mYou don't have a datadog.conf file to convert.\n\033[0m\n"
+  fi
 fi
+
+# Set the configuration
+if [ -e /etc/datadog-agent/datadog.yaml -a ! $dd_upgrade ]; then
+  printf "\033[34m\n* Keeping old datadog.yaml configuration file\n\033[0m\n"
+else
+  if [ ! -e /etc/datadog-agent/datadog.yaml ]; then
+    $sudo_cmd cp /etc/datadog-agent/datadog.yaml.example /etc/datadog-agent/datadog.yaml
+  fi
+  printf "\033[34m\n* Adding your API key to the Agent configuration: /etc/dd-agent/datadog.conf\n\033[0m\n"
+  $sudo_cmd sh -c "sed 's/api_key:.*/api_key: $apikey/' /etc/datadog-agent/datadog.yaml"
+  if [ $dd_hostname ]; then
+    printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: /etc/dd-agent/datadog.yaml\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $dd_hostname/' /etc/dd-agent/datadog.yaml"
+  fi
+  $sudo_cmd chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml
+  $sudo_cmd chmod 640 /etc/datadog-agent/datadog.yaml
+fi
+
 
 restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
 # Upstart
