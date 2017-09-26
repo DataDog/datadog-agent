@@ -28,7 +28,6 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
             echo "Force-deleting $INSTALL_DIR"
             rm -rf $INSTALL_DIR
             rm -rf $LOG_DIR
-            rm -rf $CONFIG_DIR
         ;;
         *)
         ;;
