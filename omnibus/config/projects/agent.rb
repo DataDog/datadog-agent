@@ -93,8 +93,8 @@ package :msi do
   parameters({
     'InstallDir' => install_dir,
     'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/datadog-agent/bin/agent",
-    'DistFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/datadog-agent/pkg/collector/dist",
+    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent",
+    'DistFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/pkg/collector/dist",
     'PerUserUpgradeCode' => per_user_upgrade_code
   })
 end
@@ -109,14 +109,14 @@ if linux?
   dependency 'sysstat'
 end
 
+# creates required build directories
+dependency 'datadog-agent-prepare'
+
 # Windows-specific dependencies
 if windows?
   dependency 'datadog-upgrade-helper'
   dependency 'pywin32'
 end
-
-# creates required build directories
-dependency 'datadog-agent-prepare'
 
 # Datadog agent
 dependency 'datadog-agent'

@@ -21,14 +21,15 @@ build do
   mkdir checks_dir
 
   # The confs
-  conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
+  if windows?
+    conf_dir = "../../extra_package_files/EXAMPLECONFSLOCATION"
+  else
+    conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
+  end
   mkdir conf_dir
   mkdir "#{conf_dir}/auto_conf"
 
-  # TODO
-  # if windows?
-  #   conf_directory = "../../extra_package_files/EXAMPLECONFSLOCATION"
-  # end
+  
 
   # Copy the checks and generate the global requirements file
   block do

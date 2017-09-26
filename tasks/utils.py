@@ -185,3 +185,7 @@ def get_version(ctx, include_git=False):
     if commits_since_version and include_git:
         version = "{0}+git.{1}.{2}".format(version, commits_since_version,git_sha)
     return version
+
+def get_version_numeric_only(ctx, include_git=False):
+    version, pre, commits_since_version, git_sha = query_version(ctx)
+    return version
