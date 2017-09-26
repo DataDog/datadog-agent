@@ -1,56 +1,37 @@
-name "datadog-trace-agent"
-source git: 'https://github.com/DataDog/datadog-trace-agent.git'
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# Copyright 2017 Datadog, Inc.
 
 require "./lib/ostools.rb"
+require 'pathname'
 
-trace_agent_branch = ENV['TRACE_AGENT_BRANCH']
-if trace_agent_branch.nil? || trace_agent_branch.empty?
-  trace_agent_branch = 'master'
-end
-default_version trace_agent_branch
+name "datadog-trace-agent"
 
-trace_agent_add_build_vars = true
-if ENV.has_key?('TRACE_AGENT_ADD_BUILD_VARS') && ENV['TRACE_AGENT_ADD_BUILD_VARS'] == 'false'
-  trace_agent_add_build_vars = false
-end
+default_version "5.17.1"
+
+source git: 'https://github.com/DataDog/datadog-trace-agent.git'
+relative_path 'src/github.com/DataDog/datadog-trace-agent'
 
 if windows?
   trace_agent_binary = "trace-agent.exe"
 else
   trace_agent_binary = "trace-agent"
 end
-dd_agent_version = ENV['AGENT_VERSION']
-gopath = ENV['GOPATH']
-
-agent_source_dir = File.join(Omnibus::Config.source_dir, "datadog-trace-agent")
-glide_cache_dir = "#{gopath}/src/github.com/Masterminds/glide"
-agent_cache_dir = "#{gopath}/src/github.com/DataDog/datadog-trace-agent"
-
-env = {
-  "GOPATH" => gopath,
-  "PATH" => "#{gopath}/bin:#{ENV["PATH"]}",
-  "TRACE_AGENT_VERSION" => dd_agent_version, # used by gorake.rb in the trace-agent
-  "TRACE_AGENT_ADD_BUILD_VARS" => trace_agent_add_build_vars.to_s(),
-}
 
 build do
-   ship_license "https://raw.githubusercontent.com/DataDog/datadog-trace-agent/#{version}/LICENSE"
+  ship_license "https://raw.githubusercontent.com/DataDog/datadog-trace-agent/#{version}/LICENSE"
 
-   # Put datadog-trace-agent into a valid GOPATH
-   puts "source dir #{agent_source_dir}"
-   mkdir "#{gopath}/src/github.com/DataDog/"
-   delete File.join(gopath, "src", "github.com", "DataDog", "datadog-trace-agent")
-   move agent_source_dir, "#{gopath}/src/github.com/DataDog/"
+  # set GOPATH on the omnibus source dir for this software
+  gopath = Pathname.new(project_dir) + '../../../..'
+  env = {
+    'GOPATH' => gopath.to_path,
+    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+    'TRACE_AGENT_VERSION' => default_version, # used by gorake.rb in the trace-agent
+  }
 
-   # Checkout datadog-trace-agent's build dependencies
-   command "go get -d github.com/Masterminds/glide", :env => env, :cwd => agent_cache_dir
-
-   # Pin build deps to known versions
-   command "git reset --hard v0.12.3", :env => env, :cwd => glide_cache_dir
-   command "go install github.com/Masterminds/glide", :env => env, :cwd => glide_cache_dir
-
-   # Build datadog-trace-agent
-   command "#{gopath}/bin/glide install", :env => env, :cwd => agent_cache_dir
-   command "rake build", :env => env, :cwd => agent_cache_dir
-   command "mv ./#{trace_agent_binary} #{install_dir}/embedded/bin/", :env => env, :cwd => agent_cache_dir
+  command "go get github.com/Masterminds/glide", :env => env
+  command "glide install", :env => env
+  command "rake build", :env => env
+  copy trace_agent_binary, "#{install_dir}/embedded/bin"
 end

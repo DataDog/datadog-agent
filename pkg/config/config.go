@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -80,6 +81,7 @@ func init() {
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("check_runners", int64(4))
+	Datadog.SetDefault("expvar_port", "5000")
 	if IsContainerized() {
 		Datadog.SetDefault("container_proc_root", "/host/proc")
 		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
@@ -107,7 +109,6 @@ func init() {
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
 	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
-
 	// JMX
 	Datadog.SetDefault("jmx_pipe_path", defaultJMXPipePath)
 	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
@@ -119,15 +120,15 @@ func init() {
 	// Kubernetes
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
-	Datadog.SetDefault("kubernetes_pod_label_to_tag_prefix", "")
+	Datadog.SetDefault("kubernetes_pod_label_to_tag_prefix", "kube_")
 
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)
 	Datadog.SetDefault("bosh_id", "")
 	// APM
 	Datadog.SetDefault("apm_enabled", true) // this is to support the transition to the new config file
-	// Go_expvar server port
-	Datadog.SetDefault("expvar_port", "5000")
+	// Proess Agent
+	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
@@ -143,6 +144,7 @@ func init() {
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
+	Datadog.BindEnv("dogstatsd_origin_detection")
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
 	Datadog.BindEnv("kubernetes_kubelet_host")
@@ -249,4 +251,10 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 // IsContainerized returns whether the Agent is running on a Docker container
 func IsContainerized() bool {
 	return os.Getenv("DOCKER_DD_AGENT") == "yes"
+}
+
+// FileUsedDir returns the absolute path to the folder containing the config
+// file used to populate the registry
+func FileUsedDir() string {
+	return filepath.Dir(Datadog.ConfigFileUsed())
 }

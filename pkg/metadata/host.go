@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/v5"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // HostCollector fills and sends the old metadata payload used in the
@@ -19,11 +19,7 @@ type HostCollector struct{}
 
 // Send collects the data needed and submits the payload
 func (hp *HostCollector) Send(s *serializer.Serializer) error {
-	var hostname string
-	x, found := cache.Cache.Get(cache.BuildAgentKey("hostname"))
-	if found {
-		hostname = x.(string)
-	}
+	hostname, _ := util.GetHostname()
 
 	payload := v5.GetPayload(hostname)
 	if err := s.SendMetadata(payload); err != nil {

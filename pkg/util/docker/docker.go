@@ -25,6 +25,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -160,19 +161,23 @@ func parseFilters(filters []string) (imageFilters, nameFilters []*regexp.Regexp,
 // IsExcluded returns a bool indicating if the container should be excluded
 // based on the filters in the containerFilter instance.
 func (cf containerFilter) IsExcluded(container *Container) bool {
+	return cf.computeIsExcluded(container.Name, container.Image)
+}
+
+func (cf containerFilter) computeIsExcluded(containerName, containerImage string) bool {
 	if !cf.Enabled {
 		return false
 	}
 
 	var excluded bool
 	for _, r := range cf.ImageBlacklist {
-		if r.MatchString(container.Image) {
+		if r.MatchString(containerImage) {
 			excluded = true
 			break
 		}
 	}
 	for _, r := range cf.NameBlacklist {
-		if r.MatchString(container.Name) {
+		if r.MatchString(containerName) {
 			excluded = true
 			break
 		}
@@ -181,12 +186,12 @@ func (cf containerFilter) IsExcluded(container *Container) bool {
 	// Any excluded container could be whitelisted.
 	if excluded {
 		for _, r := range cf.ImageWhitelist {
-			if r.MatchString(container.Image) {
+			if r.MatchString(containerImage) {
 				return false
 			}
 		}
 		for _, r := range cf.NameWhitelist {
-			if r.MatchString(container.Name) {
+			if r.MatchString(containerName) {
 				return false
 			}
 		}
@@ -357,10 +362,10 @@ func IsContainerized() bool {
 	return os.Getenv("DOCKER_DD_AGENT") == "yes"
 }
 
-// connectToDocker connects to a local docker socket.
+// ConnectToDocker connects to a local docker socket.
 // Returns ErrDockerNotAvailable if the socket or mounts file is missing
 // otherwise it returns either a valid client or an error.
-func connectToDocker() (*client.Client, error) {
+func ConnectToDocker() (*client.Client, error) {
 	// If we don't have a docker.sock then return a known error.
 	sockPath := GetEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock")
 	if !PathExists(sockPath) {
@@ -373,24 +378,31 @@ func connectToDocker() (*client.Client, error) {
 		return nil, ErrDockerNotAvailable
 	}
 
-	serverVersion, err := detectServerAPIVersion()
-	if err != nil {
-		return nil, err
-	}
-	os.Setenv("DOCKER_API_VERSION", serverVersion)
-
 	// Connect again using the known server version.
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		return nil, err
 	}
 
-	return cli, err
+	// TODO: remove this logic when "client.NegotiateAPIVersion" function is released by moby/docker
+	serverVersion, err := detectServerAPIVersion()
+	if err != nil || serverVersion == "" {
+		log.Errorf("Could not determine docker server API version (using the client version): %s", err)
+		return cli, nil
+	}
+
+	clientVersion := cli.ClientVersion()
+	if versions.LessThan(serverVersion, clientVersion) {
+		log.Debugf("Docker server APIVersion ('%s') is lower than the client ('%s'): using version from the server",
+			serverVersion, clientVersion)
+		cli.UpdateClientVersion(serverVersion)
+	}
+	return cli, nil
 }
 
 // IsAvailable returns true if Docker is available on this machine via a socket.
 func IsAvailable() bool {
-	if _, err := connectToDocker(); err != nil {
+	if _, err := ConnectToDocker(); err != nil {
 		if err != ErrDockerNotAvailable {
 			log.Warnf("unable to connect to docker: %s", err)
 		}
@@ -402,7 +414,7 @@ func IsAvailable() bool {
 // InitDockerUtil initializes the global dockerUtil singleton. This _must_ be
 // called before accessing any of the top-level docker calls.
 func InitDockerUtil(cfg *Config) error {
-	cli, err := connectToDocker()
+	cli, err := ConnectToDocker()
 	if err != nil {
 		return err
 	}
@@ -677,9 +689,6 @@ func (d *dockerUtil) invalidateCaches(containers []types.Container) {
 }
 
 func detectServerAPIVersion() (string, error) {
-	if os.Getenv("DOCKER_API_VERSION") != "" {
-		return os.Getenv("DOCKER_API_VERSION"), nil
-	}
 	host := os.Getenv("DOCKER_HOST")
 	if host == "" {
 		host = client.DefaultDockerHost

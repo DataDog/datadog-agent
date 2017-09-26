@@ -28,6 +28,9 @@ class TestAggregatorCheck(AgentCheck):
         else:
             raise Exception("Expected gauge to raise ValueError")
 
+        self.increment("test.increment", tags=['foo', 'bar'])
+        self.decrement("test.decrement", tags=['foo', 'bar', 'baz'])
+
         self.event({
             "event_type": "new.event",
             "msg_title": "new test event",

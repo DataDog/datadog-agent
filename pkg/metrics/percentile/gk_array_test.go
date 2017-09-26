@@ -223,7 +223,7 @@ func TestMergeEmpty(t *testing.T) {
 		s1 := NewGKArray()
 		s2 := NewGKArray()
 		generator := NewExponential(5)
-		for i := 0; i < 30; i++ {
+		for i := 0; i < n; i++ {
 			value := generator.Generate()
 			s2 = s2.Add(value)
 			d.Add(value)

@@ -36,6 +36,11 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("apm_enabled", false)
 	}
 
+	if enabled, err := isAffirmative(agentConfig["process_agent_enabled"]); err == nil && !enabled {
+		// process agent is enabled by default through the check config file `process_agent.yaml.default`
+		config.Datadog.Set("process_agent_enabled", false)
+	}
+
 	config.Datadog.Set("tags", strings.Split(agentConfig["tags"], ","))
 
 	if value, err := strconv.Atoi(agentConfig["forwarder_timeout"]); err == nil {

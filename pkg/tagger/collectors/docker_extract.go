@@ -66,7 +66,7 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 		}
 	}
 
-	high = append(high, fmt.Sprintf("container_name:%s", co.Name))
+	high = append(high, fmt.Sprintf("container_name:%s", strings.TrimPrefix(co.Name, "/")))
 	high = append(high, fmt.Sprintf("container_id:%s", co.ID))
 
 	return low, high, nil

@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
@@ -156,10 +155,6 @@ func StartAgent() error {
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-
-	// store the computed hostname in the global cache
-	cache.Cache.Set(cache.BuildAgentKey("hostname"), hostname, cache.NoExpiration)
-
 	log.Infof("Hostname is: %s", hostname)
 
 	// start the cmd HTTP server

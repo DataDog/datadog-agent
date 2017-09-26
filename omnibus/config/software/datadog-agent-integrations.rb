@@ -1,3 +1,10 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# Copyright 2017 Datadog, Inc.
+
+require "./lib/ostools.rb"
+
 name 'datadog-agent-integrations'
 
 dependency 'pip'
@@ -14,39 +21,82 @@ build do
   mkdir checks_dir
 
   # The confs
-  if linux?
-    conf_directory = "/etc/dd-agent/conf.d"
-  elsif osx?
-    conf_directory = "#{install_dir}/etc"
-  elsif windows?
-    conf_directory = "../../extra_package_files/EXAMPLECONFSLOCATION"
-  end
+  conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
+  mkdir conf_dir
+  mkdir "#{conf_dir}/auto_conf"
+
+  # TODO
+  # if windows?
+  #   conf_directory = "../../extra_package_files/EXAMPLECONFSLOCATION"
+  # end
 
   # Copy the checks and generate the global requirements file
-  command 'gem install bundle'
-  command 'bundle install'
-  command "rake copy_checks conf_dir=#{conf_directory} checks_dir=#{checks_dir} merge_requirements_to=."
-  # Enqueue "core" dependencies that are not listed in the checks requirements
-  command "echo requests==2.11.1 >> check_requirements.txt"
+  block do
+    all_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
 
-  # FIXME: when the package is renamed `datadog-agent` and replaces the agent5 pkg,
-  # ship all the '/etc/dd-agent/conf.d/*' files
-  delete '/etc/dd-agent/conf.d/*'
+    Dir.glob("#{project_dir}/*").each do |check_dir|
+      # Check the manifest to be sure that this check is enabled on this system
+      # or skip this iteration
+      manifest_file_path = "#{check_dir}/manifest.json"
+
+      # If there is no manifest file, then we should assume the folder does not
+      # contain a working check and move onto the next
+      File.exist?(manifest_file_path) || next
+
+      manifest = JSON.parse(File.read(manifest_file_path))
+      manifest['supported_os'].include?(os) || next
+
+      check = check_dir.split('/').last
+
+      # Copy the checks over
+      if File.exist? "#{check_dir}/check.py"
+        copy "#{check_dir}/check.py", "#{checks_dir}/#{check}.py"
+      end
+
+      # Copy the check config to the conf directories
+      if File.exist? "#{check_dir}/conf.yaml.example"
+        copy "#{check_dir}/conf.yaml.example", "#{conf_dir}/#{check}.yaml.example"
+      end
+
+      # Copy the default config, if it exists
+      if File.exist? "#{check_dir}/conf.yaml.default"
+        copy "#{check_dir}/conf.yaml.default", "#{conf_dir}/#{check}.yaml.default"
+      end
+
+      # We don't have auto_conf on windows yet
+      if os != 'windows'
+        if File.exist? "#{check_dir}/auto_conf.yaml"
+          copy "#{check_dir}/auto_conf.yaml", "#{conf_dir}/auto_conf/#{check}.yaml"
+        end
+      end
+
+      next unless File.exist?("#{check_dir}/requirements.txt") && !manifest['use_omnibus_reqs']
+
+      reqs = File.open("#{check_dir}/requirements.txt", 'r').read
+      reqs.each_line do |line|
+        all_reqs_file.puts line if line[0] != '#'
+      end
+    end
+
+    # Manually add "core" dependencies that are not listed in the checks requirements
+    all_reqs_file.puts "requests==2.11.1"
+
+    all_reqs_file.close
+  end
 
   # Install all the requirements
   if windows?
-    pip_args = "install  -r check_requirements.txt"
-  
+    pip_args = "install  -r #{project_dir}/check_requirements.txt"
     command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{pip_args}"
   else
     pip_args = "install --install-option=\"--install-scripts=#{windows_safe_path(install_dir)}/bin\" -r check_requirements.txt"
   
     build_env = {
       "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
-      "PATH" => "/#{install_dir}/embedded/bin:#{ENV['PATH']}",
+      "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
     }
-    pip "install -r check_requirements.txt", :env => build_env
+    pip "install -r #{project_dir}/check_requirements.txt", :env => build_env
   end
 
-  copy '/check_requirements.txt', "#{install_dir}/agent/"
+  move "#{project_dir}/check_requirements.txt", "#{install_dir}/agent/"
 end

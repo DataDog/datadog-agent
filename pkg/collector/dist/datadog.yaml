@@ -70,17 +70,22 @@ metadata_collectors:
 # If you don't want to enable the DogStatsd server, set this option to no
 # use_dogstatsd: yes
 #
-# Make sure your client is sending to the same port
+# Make sure your client is sending to the same UDP port
 # dogstatsd_port: 8125
 #
 # Whether dogstatsd should listen to a Unix Socket instead of UDP (*nix only).
 # Set to a valid filesystem path to enable
 # dogstatsd_socket:
 #
+# Whether origin detection and container tagging should be enabled for Unix
+# Socket incoming metrics. This feature is experimental for now.
+#
+# dogstatsd_origin_detection: false
+#
 # The buffer size use to receive statsd packet, in bytes
 # dogstatsd_buffer_size: 1024
 #
-# Whether dogstatsd should listen to non local traffic
+# Whether dogstatsd should listen to non local UDP traffic
 # dogstatsd_non_local_traffic: no
 #
 # Publish dogstatsd's internal stats as Go epxvars
@@ -150,3 +155,8 @@ metadata_collectors:
 #   high_cardinality_label: +tag_name
 # docker_env_as_tags:
 #   ENVVAR_NAME: tag_name
+
+# Kubernetes tag extraction
+#
+# kubernetes_pod_label_to_tag_prefix: "kube_"
+#
