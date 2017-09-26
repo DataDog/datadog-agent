@@ -120,7 +120,7 @@ func (c *ProcessAgentCheck) Configure(data check.ConfigData, initConfig check.Co
 	// if we haven't found one in the process-agent.yaml check config
 	configFile := checkConf.ConfPath
 	if configFile == "" {
-		configFile = path.Join(config.FileUsedDir(), "process-agent.ini")
+		configFile = path.Join(config.FileUsedDir(), "process-agent.conf")
 	}
 
 	c.cmd = exec.Command(binPath, fmt.Sprintf("-ddconfig=%s", configFile))
