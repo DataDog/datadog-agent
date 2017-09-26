@@ -36,11 +36,6 @@ func StartGUIServer() error {
 	apiKey = config.Datadog.GetString("api_key")
 	port := ":" + config.Datadog.GetString("GUI_port")
 
-	// TODO: see what broke...
-
-	log.Infof("GUI - Fetched api key: " + apiKey)
-	apiKey = "test123"
-
 	// Instantiate the gorilla/mux router
 	router := mux.NewRouter()
 

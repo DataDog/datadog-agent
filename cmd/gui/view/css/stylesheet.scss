@@ -205,11 +205,13 @@ a {
 
       .stat_title {
         font-size: $font_size * 1.2;
+        font-weight: bold;
         text-decoration: underline;
       }
 
-      .inserted {
-
+      .stat_subtitle {
+        font-size: $font_size * 1.1;
+        font-weight: bold;
       }
     }
   }
@@ -361,7 +363,7 @@ a {
         position: absolute;
         top: 50%;
         transform: translateY(-50%);
-        lefty: -30px;
+        left: -30px;
         color: red;
       }
     }

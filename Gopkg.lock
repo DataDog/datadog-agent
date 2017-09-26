@@ -72,12 +72,6 @@
   revision = "6d212800a42e8ab5c146b8ace3490ee17e5225f9"
 
 [[projects]]
-  name = "github.com/dgrijalva/jwt-go"
-  packages = ["."]
-  revision = "d2709f9f1f31ebcda9651b03077758c1f3a0018c"
-  version = "v3.0.0"
-
-[[projects]]
   name = "github.com/docker/distribution"
   packages = ["digestset","reference"]
   revision = "5cfdfbdce59c0b1854b9d82189e9c6164d54456a"

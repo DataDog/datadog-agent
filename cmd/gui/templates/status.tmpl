@@ -1,0 +1,179 @@
+<div class="stat">
+  <span class="stat_title">Agent Info</span>
+  {{- if .runnerStats.Workers}}
+    <br>Check Workers: {{.runnerStats.Workers}}
+  {{end}}
+  <br>PID: {{.pid}}
+  <br>Log File: {{.config.log_file}}
+  <br>Log Level: {{.config.log_level}}
+  <br>Config File: {{if .conf_file}}{{.conf_file}}
+                   {{else}}There is no config file
+                   {{end}}
+  <br>Conf.d Path: {{.config.confd_path}}
+  <br>Checks.d Path: {{.config.additional_checksd}}
+</div>
+
+<div class="stat">
+  <span class="stat_title">System Info</span>
+  <br>System UTC Time: {{.time}}
+  {{- if .ntpOffset}}
+    <br>NTP Offset: {{.ntpOffset}}s
+  {{end}}
+  <br>Go Version: {{.platform.goV}}
+  <br>Python Version: {{.platform.pythonV}}
+</div>
+
+<div class="stat">
+  <span class="stat_title">Host Info</span>
+  {{- range $type, $value := .hostinfo -}}
+    {{- if ne $type "hostname" -}}
+      {{- if ne $type "hostid" -}}
+        {{if $value}}
+          <br>{{$type}}: {{if eq $type "bootTime" -}}{{- formatUnixTime $value -}}
+                          {{- else -}}{{- $value -}}
+                          {{- end -}}
+        {{end -}}
+      {{end -}}
+    {{end -}}
+  {{- end}}
+  <br><br><span class="stat_subtitle">Hostnames</span>
+  {{- range $type, $value := .metadata.meta -}}
+    {{- if ne $type "timezones" -}}
+      {{- if $value}}
+        <br>{{$type}}: {{$value -}}
+      {{end -}}
+    {{- end -}}
+  {{- end}}
+</div>
+
+<div class="stat">
+  <span class="stat_title">Collector</span>
+  <br><span class="stat_subtitle">Running Checks</span>
+  {{- with .runnerStats -}}
+    {{- if and (not .Runs) (not .Checks)}}
+      <br>No checks have run yet
+    {{end -}}
+
+    {{- range .Checks}}
+      <br><br><span class="stat_subtitle_sm">{{.CheckName}}</span>
+        <br>Total Runs: {{.TotalRuns}}
+        <br>Metrics: {{.Metrics}}, Total Metrics: {{humanize .TotalMetrics}}
+        <br>Events: {{.Events}}, Total Events: {{humanize .TotalEvents}}
+        <br>Service Checks: {{.ServiceChecks}}, Total Service Checks: {{humanize .TotalServiceChecks}}
+      {{- if .LastError}}
+        <br>Error: {{lastErrorMessage .LastError}}
+                    {{lastErrorTraceback .LastError -}}
+      {{- end -}}
+      {{- if .LastWarnings}}
+        {{- range .LastWarnings }}
+          <br>Warning: {{.}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+
+  {{- with .autoConfigStats -}}
+    {{- if .LoaderErrors}}
+      <span class="stat_subtitle">Loading Errors</span>
+      {{- range $checkname, $errors := .LoaderErrors}}
+        <br><br><span class="stat_subtitle_sm">{{$checkname}}</span>
+        {{- range $kind, $err := $errors -}}
+          {{- if eq $kind "Python Check Loader"}}
+            <br>{{$kind}}: {{ pythonLoaderError $err -}}
+          {{- else}}
+            <br>{{$kind}}: {{ doNotEscape $err -}}
+          {{end -}}
+        {{end -}}
+      {{end -}}
+    {{- end}}
+  {{end -}}
+</div>
+
+<div class="stat">
+  <span class="stat_title">JMX Status</span>
+  {{- with .JMXStatus -}}
+    {{- if and (not .timestamp) (not .checks)}}
+      <br>No JMX status available
+    {{- else }}
+      <br><span class="stat_subtitle">Initialized Checks</span>
+      {{- if (not .checks.initialized_checks)}}
+        <br>No initialized checks
+      {{ else }}
+        {{- range $check,$instances := .checks.initialized_checks }}
+          <br>{{ $check -}}
+          {{- range $instance := $instances }}
+            {{- range $k,$v := $instance }}
+                <br>{{ $k }} : {{ $v }}
+            {{- end -}}
+          {{- end -}}
+        {{- end }}
+      {{- end -}}
+      <br><br><span class="stat_subtitle">Failed Checks</span>
+        {{- if (not .checks.failed_checks)}}
+          <br>No failed checks
+        {{ else }}
+          {{- range $check,$instances := .checks.failed_checks }}
+            <br>{{ $check }}
+            {{- range $instance := $instances }}
+              {{- range $k,$v := $instance }}
+              <br>{{ $k }} : {{ $v }}
+              {{- end -}}
+            {{- end -}}
+          {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+
+</div>
+<div class="stat">
+  <span class="stat_title">Forwarder</span>
+  {{- with .forwarderStats -}}
+    {{- if .TransactionsCreated -}}
+      {{- range $key, $value := .TransactionsCreated}}
+        <br>{{$key}}: {{$value}}
+      {{- end -}}
+    {{- end}}
+    {{- if .APIKeyStatus}}
+      <br><span class="stat_subtitle">API Keys Status</span>
+      {{- range $key, $value := .APIKeyStatus}}
+        <br>{{$key}}: {{$value}}
+      {{- end -}}
+    {{- end}}
+  {{- end -}}
+</div>
+
+<div class="stat">
+  <span class="stat_title">DogStatsD</span>
+  {{- with .aggregatorStats -}}
+    {{- if .ChecksMetricSample}}
+      <br>Checks Metric Sample: {{.ChecksMetricSample}}
+    {{- end -}}
+    {{- if .Event}}
+      <br>Event: {{.Event}}
+    {{- end -}}
+    {{- if .EventsFlushed}}
+      <br>Events Flushed: {{.EventsFlushed}}
+    {{- end -}}
+    {{- if .NumberOfFlush}}
+      <br>Number Of Flushes: {{.NumberOfFlush}}
+    {{- end -}}
+    {{- if .SeriesFlushed}}
+      <br>Series Flushed: {{.SeriesFlushed}}
+    {{- end -}}
+    {{- if .ServiceCheck}}
+      <br>Service Check: {{.ServiceCheck}}
+    {{- end -}}
+    {{- if .ServiceCheckFlushed}}
+      <br>Service Checks Flushed: {{.ServiceCheckFlushed}}
+    {{- end -}}
+    {{- if .SketchesFlushed}}
+      <br>Sketches Flushed: {{.SketchesFlushed}}
+    {{- end -}}
+    {{- if .HostnameUpdate}}
+      <br>Hostname Update: {{.HostnameUpdate}}
+    {{- end -}}
+    {{- if .DogstatsdMetricSample}}
+      <br>Dogstatsd Metric Sample: {{.DogstatsdMetricSample}}
+    {{- end}}
+  {{- end -}}
+</div>

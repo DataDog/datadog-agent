@@ -145,7 +145,11 @@ a {
       margin-top: 20px; }
       #main #status .stat .stat_title {
         font-size: 18px;
+        font-weight: bold;
         text-decoration: underline; }
+      #main #status .stat .stat_subtitle {
+        font-size: 16.5px;
+        font-weight: bold; }
   #main #tests, #main #flare {
     width: 800px;
     height: 400px;

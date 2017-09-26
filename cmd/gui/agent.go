@@ -26,8 +26,12 @@ func fetch(w http.ResponseWriter, req string) {
 			return
 		}
 		json, _ := json.Marshal(status)
-
 		html, e := renderStatus(json)
+		if e != nil {
+			log.Errorf("GUI - Error generating status html: " + e.Error())
+			w.Write([]byte("Error generating status html: " + e.Error()))
+			return
+		}
 
 		w.Header().Set("Content-Type", "text/html")
 		w.Write([]byte(html))
