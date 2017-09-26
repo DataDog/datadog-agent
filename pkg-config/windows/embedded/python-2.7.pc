@@ -1,4 +1,4 @@
-prefix=C:/opt/datadog-agent6/embedded
+prefix=C:/opt/datadog-agent/embedded
 exec_prefix=${prefix}
 libdir=${exec_prefix}/libs
 includedir=${prefix}/include

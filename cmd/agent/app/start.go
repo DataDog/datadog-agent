@@ -28,13 +28,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
 	// register core checks
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
@@ -155,10 +156,6 @@ func StartAgent() error {
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-
-	// store the computed hostname in the global cache
-	cache.Cache.Set(cache.BuildAgentKey("hostname"), hostname, cache.NoExpiration)
-
 	log.Infof("Hostname is: %s", hostname)
 
 	// start the cmd HTTP server
@@ -166,10 +163,15 @@ func StartAgent() error {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
+	// start tagging system for containers
+	err = tagger.Init()
+	if err != nil {
+		return log.Errorf("Unable to start tagging system: %s", err)
+	}
+
 	// start the GUI server
 	if err = gui.StartGUIServer(); err != nil {
 		return log.Errorf("Error while starting gui, exiting: %v", err)
-	}
 
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()

@@ -39,4 +39,4 @@ def get_puppy_build_tags():
     """
     Return the list of tags composing the puppy version
     """
-    return "zlib"
+    return ["zlib"]

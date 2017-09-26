@@ -24,7 +24,7 @@ dependencies:
 
 test:
   override:
-    - cd "$IMPORT_PATH" && eval "$(gimme)" && inv deps && inv test --race --fail-on-fmt
+    - cd "$IMPORT_PATH" && eval "$(gimme)" && inv deps && inv test --coverage --race --fail-on-fmt
 
   post:
     - cd "$IMPORT_PATH" && eval "$(gimme)" && go tool cover -html=profile.cov -o $CIRCLE_ARTIFACTS/coverage.html

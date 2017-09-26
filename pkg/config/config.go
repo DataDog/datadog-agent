@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"runtime"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -81,11 +81,16 @@ func init() {
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("check_runners", int64(4))
+	Datadog.SetDefault("expvar_port", "5000")
 	if IsContainerized() {
-		Datadog.SetDefault("proc_root", "/host/proc")
+		Datadog.SetDefault("container_proc_root", "/host/proc")
+		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
+
 	} else {
-		Datadog.SetDefault("proc_root", "/proc")
+		Datadog.SetDefault("container_proc_root", "/proc")
+		Datadog.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 	}
+	Datadog.SetDefault("proc_root", "/proc")
 	// Serializer
 	Datadog.SetDefault("use_v2_api.series", false)
 	Datadog.SetDefault("use_v2_api.events", false)
@@ -104,15 +109,19 @@ func init() {
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
 	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
-
 	// JMX
 	Datadog.SetDefault("jmx_pipe_path", defaultJMXPipePath)
 	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
+	// Docker
+	Datadog.SetDefault("docker_labels_as_tags", map[string]string{})
+	Datadog.SetDefault("docker_env_as_tags", map[string]string{})
 	// Kubernetes
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
+	Datadog.SetDefault("kubernetes_pod_label_to_tag_prefix", "kube_")
+
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)
 	Datadog.SetDefault("bosh_id", "")
@@ -122,6 +131,8 @@ func init() {
 	Datadog.SetDefault("expvar_port", "5000")
 	// Agent GUI access port
 	Datadog.SetDefault("GUI_port", "8080")
+	// Proess Agent
+	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
@@ -132,14 +143,18 @@ func init() {
 	Datadog.BindEnv("enable_metadata_collection")
 	Datadog.BindEnv("dogstatsd_port")
 	Datadog.BindEnv("proc_root")
+	Datadog.BindEnv("container_proc_root")
+	Datadog.BindEnv("container_cgroup_root")
 	Datadog.BindEnv("dogstatsd_socket")
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
+	Datadog.BindEnv("dogstatsd_origin_detection")
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
 	Datadog.BindEnv("kubernetes_kubelet_host")
 	Datadog.BindEnv("kubernetes_http_kubelet_port")
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
+	Datadog.BindEnv("kubernetes_pod_label_to_tag_prefix")
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
 	Datadog.BindEnv("cloud_foundry")
@@ -237,28 +252,13 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 	return keysPerDomain, nil
 }
 
-// GetSyslogURI returns the configured/default syslog uri
-func GetSyslogURI() string {
-	enabled := Datadog.GetBool("log_to_syslog")
-	uri := Datadog.GetString("syslog_uri")
-
-	if runtime.GOOS == "windows" {
-		if enabled {
-			log.Infof("logging to syslog is not available on windows.")
-		}
-		return ""
-	}
-
-	if enabled {
-		if uri == "" {
-			uri = defaultSyslogURI
-		}
-	}
-
-	return uri
-}
-
 // IsContainerized returns whether the Agent is running on a Docker container
 func IsContainerized() bool {
 	return os.Getenv("DOCKER_DD_AGENT") == "yes"
+}
+
+// FileUsedDir returns the absolute path to the folder containing the config
+// file used to populate the registry
+func FileUsedDir() string {
+	return filepath.Dir(Datadog.ConfigFileUsed())
 }

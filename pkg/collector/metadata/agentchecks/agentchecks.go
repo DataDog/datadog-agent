@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util"
 
 	log "github.com/cihub/seelog"
 )
@@ -20,14 +20,7 @@ import (
 // GetPayload builds a payload of all the agentchecks metadata
 func GetPayload() *Payload {
 	agentChecksPayload := ACPayload{}
-
-	// Grab the hostname from the cache
-	var hostname string
-	x, found := cache.Cache.Get(cache.BuildAgentKey("hostname"))
-	if found {
-		hostname = x.(string)
-	}
-
+	hostname, _ := util.GetHostname()
 	checkStats := runner.GetCheckStats()
 
 	for _, stats := range checkStats {

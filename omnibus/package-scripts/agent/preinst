@@ -1,0 +1,63 @@
+#!/bin/sh
+#
+# Perform necessary datadog-agent setup steps before package is installed.
+#
+# .deb: STEP 2 of 5
+# .rpm: STEP 2 of 6
+
+INSTALL_DIR=/opt/datadog-agent
+LOG_DIR=/var/log/datadog
+SERVICE_NAME=datadog-agent
+CONFIG_DIR=/etc/datadog-agent
+
+# create all the paths needed to complete the installation
+mkdir -p $LOG_DIR
+mkdir -p $CONFIG_DIR/conf.d
+mkdir -p $CONFIG_DIR/checks.d
+
+KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
+DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || uname -s)
+
+# Linux installation
+if [ "$DISTRIBUTION" != "Darwin" ]; then
+    set -e
+
+    if [ -f "/lib/systemd/system/datadog-agent.service" ]; then
+        # Stop an already running agent
+        # Only supports systemd and upstart
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl stop $SERVICE_NAME || true
+        elif command -v initctl >/dev/null 2>&1; then
+            initctl stop $SERVICE_NAME || true
+        else
+            echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
+            exit 1
+        fi
+    fi
+
+    if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIBUTION" = "Ubuntu" ]; then
+        # Nothing specific on Debian
+        :
+        #DEBHELPER#
+    elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
+        # Set up `dd-agent` user and group
+        getent group dd-agent >/dev/null || groupadd -r dd-agent
+        getent passwd dd-agent >/dev/null || \
+            useradd -r -M -g dd-agent -d $INSTALL_DIR -s /bin/sh \
+                -c "Datadog Agent" dd-agent
+
+        # Delete all the .pyc/.pyo files in the embedded dir that are part of the old agent's package
+        if [ -f "$INSTALL_DIR/embedded/.py_compiled_files.txt" ]; then
+            # (commented lines are filtered out)
+            cat $INSTALL_DIR/embedded/.py_compiled_files.txt | grep -v '^#' | xargs rm -f
+        fi
+    else
+        echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
+        exit 1;
+    fi
+else
+    echo "macOS: Not implemented yet"
+    exit 1
+fi
+
+exit 0

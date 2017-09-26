@@ -15,50 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
 
-func AssertSketchSeriesEqual(t *testing.T, expected, actual *percentile.SketchSeries) {
-	assert.Equal(t, expected.Name, actual.Name)
-	if expected.Tags != nil {
-		assert.NotNil(t, actual.Tags)
-		metrics.AssertTagsEqual(t, expected.Tags, actual.Tags)
-	}
-	assert.Equal(t, expected.Host, actual.Host)
-	assert.Equal(t, expected.Interval, actual.Interval)
-	if expected.ContextKey != "" {
-		assert.Equal(t, expected.ContextKey, actual.ContextKey)
-	}
-	if expected.Sketches != nil {
-		assert.NotNil(t, actual.Sketches)
-		AssertSketchesEqual(t, expected.Sketches, actual.Sketches)
-	}
-}
-
-func AssertSketchesEqual(t *testing.T, expected, actual []percentile.Sketch) {
-	if assert.Equal(t, len(expected), len(actual)) {
-		actualOrdered := OrderedSketches{actual}
-		sort.Sort(actualOrdered)
-		for i, sketch := range expected {
-			assert.Equal(t, sketch, actualOrdered.sketches[i])
-		}
-	}
-}
-
-// OrderedSketches used to sort []Sketch
-type OrderedSketches struct {
-	sketches []percentile.Sketch
-}
-
-func (os OrderedSketches) Len() int {
-	return len(os.sketches)
-}
-
-func (os OrderedSketches) Less(i, j int) bool {
-	return os.sketches[i].Timestamp < os.sketches[j].Timestamp
-}
-
-func (os OrderedSketches) Swap(i, j int) {
-	os.sketches[i], os.sketches[j] = os.sketches[j], os.sketches[i]
-}
-
 // OrderedSketchSeries used to sort []*SketchSeries
 type OrderedSketchSeries struct {
 	sketchSeries []*percentile.SketchSeries
@@ -104,7 +60,6 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 	expectedSketch := percentile.NewQSketch()
 	expectedSketch = expectedSketch.Add(1)
 	expectedSketch = expectedSketch.Add(2)
-	expectedSketch = expectedSketch.Compress()
 	expectedSeries := &percentile.SketchSeries{
 		Name:     "test.metric.name",
 		Tags:     []string{"a", "b"},
@@ -116,7 +71,7 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 		ContextKey: "test.metric.name,a,b,",
 	}
 	assert.Equal(t, 1, len(sketchSeries))
-	AssertSketchSeriesEqual(t, expectedSeries, sketchSeries[0])
+	metrics.AssertSketchSeriesEqual(t, expectedSeries, sketchSeries[0])
 
 	// The samples added after the flush time remains in the dist sampler
 	assert.Equal(t, 1, len(distSampler.sketchesByTimestamp))
@@ -148,7 +103,6 @@ func TestDistSamplerContextSampling(t *testing.T) {
 
 	expectedSketch := percentile.NewQSketch()
 	expectedSketch = expectedSketch.Add(1)
-	expectedSketch = expectedSketch.Compress()
 	expectedSeries1 := &percentile.SketchSeries{
 		Name:     "test.metric.name1",
 		Tags:     []string{"a", "b"},
@@ -169,6 +123,6 @@ func TestDistSamplerContextSampling(t *testing.T) {
 	}
 
 	assert.Equal(t, 2, len(sketchSeries))
-	AssertSketchSeriesEqual(t, expectedSeries1, sketchSeries[0])
-	AssertSketchSeriesEqual(t, expectedSeries2, sketchSeries[1])
+	metrics.AssertSketchSeriesEqual(t, expectedSeries1, sketchSeries[0])
+	metrics.AssertSketchSeriesEqual(t, expectedSeries2, sketchSeries[1])
 }

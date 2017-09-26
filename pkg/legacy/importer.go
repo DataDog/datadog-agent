@@ -74,6 +74,7 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 		"use_curl_http_client",       // deprecated
 		"dogstatsd_target",           // deprecated
 		"gce_updated_hostname",       // deprecated
+		"process_agent_enabled",
 	}
 
 	for _, supportedValue := range supportedValues {

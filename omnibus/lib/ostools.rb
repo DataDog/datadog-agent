@@ -20,3 +20,16 @@ end
 def windows?()
     return ohai['platform_family'] == 'windows'
 end
+
+def os
+    case RUBY_PLATFORM
+    when /linux/
+      'linux'
+    when /darwin/
+      'mac_os'
+    when /x64-mingw32/
+      'windows'
+    else
+      raise 'Unsupported OS'
+    end
+  end

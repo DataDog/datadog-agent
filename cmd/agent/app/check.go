@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/spf13/cobra"
 )
 
@@ -61,7 +61,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		// Setup logger
-		err = config.SetupLogger("off", "", "", false, false, "")
+		err = config.SetupLogger(logLevel, "", "", false, false, "")
 		if err != nil {
 			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 			return err
@@ -75,9 +75,15 @@ var checkCmd = &cobra.Command{
 		}
 
 		hostname, err := util.GetHostname()
-		cache.Cache.Set(cache.BuildAgentKey("hostname"), hostname, cache.NoExpiration)
 		if err != nil {
 			fmt.Printf("Cannot get hostname, exiting: %v\n", err)
+			return err
+		}
+
+		// start tagging system for containers
+		err = tagger.Init()
+		if err != nil {
+			fmt.Printf("Unable to start tagging system: %s", err)
 			return err
 		}
 

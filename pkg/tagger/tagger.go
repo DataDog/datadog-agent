@@ -6,6 +6,9 @@
 package tagger
 
 import (
+	"sync"
+	"time"
+
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -16,12 +19,14 @@ import (
 // and handles the query logic. One can use the package methods to use the default
 // tagger instead of instanciating one.
 type Tagger struct {
-	tagStore  *tagStore
-	pullers   map[string]collectors.Puller
-	streamers map[string]collectors.Streamer
-	fetchers  map[string]collectors.Fetcher
-	infoIn    chan []*collectors.TagInfo
-	stop      chan bool
+	sync.RWMutex
+	tagStore   *tagStore
+	pullers    map[string]collectors.Puller
+	streamers  map[string]collectors.Streamer
+	fetchers   map[string]collectors.Fetcher
+	infoIn     chan []*collectors.TagInfo
+	pullTicker *time.Ticker
+	stop       chan bool
 }
 
 // NewTagger returns an allocated tagger. You still have to run Init()
@@ -32,12 +37,13 @@ func NewTagger() (*Tagger, error) {
 		return nil, err
 	}
 	t := &Tagger{
-		tagStore:  store,
-		pullers:   make(map[string]collectors.Puller),
-		streamers: make(map[string]collectors.Streamer),
-		fetchers:  make(map[string]collectors.Fetcher),
-		infoIn:    make(chan []*collectors.TagInfo),
-		stop:      make(chan bool),
+		tagStore:   store,
+		pullers:    make(map[string]collectors.Puller),
+		streamers:  make(map[string]collectors.Streamer),
+		fetchers:   make(map[string]collectors.Fetcher),
+		infoIn:     make(chan []*collectors.TagInfo, 5),
+		pullTicker: time.NewTicker(5 * time.Second),
+		stop:       make(chan bool),
 	}
 
 	return t, nil
@@ -47,6 +53,7 @@ func NewTagger() (*Tagger, error) {
 // for this host. It then starts the collection logic and is ready for
 // requests.
 func (t *Tagger) Init(catalog collectors.Catalog) error {
+	t.Lock()
 	for name, factory := range catalog {
 		log.Debugf("initialising tag collector %s", name)
 
@@ -77,7 +84,10 @@ func (t *Tagger) Init(catalog collectors.Catalog) error {
 			}
 		}
 	}
+	t.Unlock()
+
 	go t.run()
+	go t.pull()
 
 	return nil
 }
@@ -87,20 +97,36 @@ func (t *Tagger) run() error {
 	for {
 		select {
 		case <-t.stop:
+			t.RLock()
 			for name, collector := range t.streamers {
 				err := collector.Stop()
 				if err != nil {
 					log.Warnf("error stopping %s: %s", name, err)
 				}
 			}
+			t.RUnlock()
+			t.pullTicker.Stop()
 			return nil
 		case msg := <-t.infoIn:
-			log.Infof("listener message: %s", msg)
+			log.Debugf("listener message: %s", msg)
 			for _, info := range msg {
 				t.tagStore.processTagInfo(info)
 			}
+		case <-t.pullTicker.C:
+			go t.pull()
 		}
 	}
+}
+
+func (t *Tagger) pull() {
+	t.RLock()
+	for _, puller := range t.pullers {
+		err := puller.Pull()
+		if err != nil {
+			log.Warnf("%s", err.Error())
+		}
+	}
+	t.RUnlock()
 }
 
 // Stop queues a shutdown of Tagger
@@ -118,12 +144,13 @@ func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
 	}
 	if len(sources) == len(t.fetchers) {
 		// All sources sent data to cache
-		log.Debugf("all %d sources are in cache", len(sources))
 		return cachedTags, nil
 	}
 	// Else, partial cache miss, query missing data
+	// TODO: get logging on that to make sure we should optimize
 	tagArrays := [][]string{cachedTags}
 
+	t.RLock()
 ITER_COLLECTORS:
 	for name, collector := range t.fetchers {
 		for _, s := range sources {
@@ -149,6 +176,7 @@ ITER_COLLECTORS:
 			HighCardTags: high,
 		})
 	}
+	t.RUnlock()
 
 	return utils.ConcatenateTags(tagArrays), nil
 }

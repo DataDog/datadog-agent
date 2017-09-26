@@ -1,5 +1,5 @@
 #include "version.h"
-#define RT_MANIFEST 24 
+#define RT_MANIFEST 24
 #define APP_MANIFEST 1
 
 
@@ -9,9 +9,9 @@ APP_MANIFEST RT_MANIFEST agent.exe.manifest
 #define ICON_16_16 2
 #define ICON_32_32 3
 
-MAIN_ICON ICON "..\\..\\omnibus\\resources\\datadog-agent6\\msi\\assets\\project.ico"
-ICON_16_16 ICON "..\\..\\omnibus\\resources\\datadog-agent6\\msi\\assets\\project_16x16.ico"
-ICON_32_32 ICON "..\\..\\omnibus\\resources\\datadog-agent6\\msi\\assets\\project_32x32.ico"
+MAIN_ICON ICON "..\\..\\omnibus\\resources\\datadog-agent\\msi\\assets\\project.ico"
+ICON_16_16 ICON "..\\..\\omnibus\\resources\\datadog-agent\\msi\\assets\\project_16x16.ico"
+ICON_32_32 ICON "..\\..\\omnibus\\resources\\datadog-agent\\msi\\assets\\project_32x32.ico"
 
 #define VS_VERSION_INFO 1
 VS_VERSION_INFO VERSIONINFO

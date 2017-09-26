@@ -1,0 +1,34 @@
+#! /bin/sh
+#
+# This script is RPM-specific
+# It is run at the very end of an install/upgrade of the package
+# It is NOT run on removal of the package
+#
+# .deb: n/a
+# .rpm: STEP 6 of 6
+
+CONFIG_DIR=/etc/datadog-agent
+SERVICE_NAME=datadog-agent
+
+# Create a symlink to the agent's binary
+ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
+
+# TODO: Use a configcheck command on the agent to determine if it's safe to restart,
+# and avoid restarting when a check conf is invalid
+if [ -f "$CONFIG_DIR/datadog.yaml" ]; then
+    echo "(Re)starting $SERVICE_NAME now..."
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl restart $SERVICE_NAME || true
+    elif command -v initctl >/dev/null 2>&1; then
+        initctl start $SERVICE_NAME || initctl restart $SERVICE_NAME || true
+    else
+        echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
+        exit 1
+    fi
+else
+    # No datadog.yaml file is present. This is probably a clean install made with the
+    # step-by-step instructions/an automation tool, and the config file will be added next.
+    echo "No datadog.yaml file detected, not starting the agent"
+fi
+
+exit 0
