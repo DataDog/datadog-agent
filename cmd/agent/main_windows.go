@@ -25,16 +25,6 @@ import (
 var elog debug.Log
 
 func main() {
-	isIntSess, err := svc.IsAnInteractiveSession()
-	if err != nil {
-		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
-	}
-	if !isIntSess {
-		common.EnableLoggingToFile()
-		runService(false)
-		return
-	}
-
 	exitStatus, err := panicwrap.BasicWrap(common.PanicHandler)
 	if err != nil {
 		// Something went wrong setting up the panic wrapper. Unlikely,
@@ -47,6 +37,17 @@ func main() {
 	if exitStatus >= 0 {
 		os.Exit(exitStatus)
 	}
+
+	isIntSess, err := svc.IsAnInteractiveSession()
+	if err != nil {
+		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
+	}
+	if !isIntSess {
+		common.EnableLoggingToFile()
+		runService(false)
+		return
+	}
+
 
 	// go_expvar server
 	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)
