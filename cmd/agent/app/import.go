@@ -154,11 +154,7 @@ func doImport(cmd *cobra.Command, args []string) error {
 	}
 
 	// Extract trace-agent specific info and dump it to its own config file.
-	// Overwrite is safe at this point, if the script was run by mistake, we'd
-	// have already been returned. On the other side, we cannot really know if
-	// we're overwriting the default config file shipped with the package or a
-	// customized version. Worst case, we have a backup file.
-	if err := processTraceAgent(datadogConfPath, traceAgentConfPath, true); err != nil {
+	if err := processTraceAgent(datadogConfPath, traceAgentConfPath, force); err != nil {
 		return fmt.Errorf("failed to import Trace Agent specific settings: %v", err)
 	}
 	fmt.Printf("Copied Trace Agent specific settings to %s\n", traceAgentConfPath)

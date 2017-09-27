@@ -108,7 +108,14 @@ func (c *APMCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 		configFile = path.Join(config.FileUsedDir(), "trace-agent.conf")
 	}
 
-	c.cmd = exec.Command(binPath, fmt.Sprintf("-ddconfig=%s", configFile))
+	commandOpts := []string{}
+
+	// if the trace-agent.conf file is available, use it
+	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
+		commandOpts = append(commandOpts, fmt.Sprintf("-ddconfig=%s", configFile))
+	}
+
+	c.cmd = exec.Command(binPath, commandOpts...)
 
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.Datadog.GetString("api_key")))
