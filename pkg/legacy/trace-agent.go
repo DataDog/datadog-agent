@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	// whitelist the sections we want to import
 	traceAgentSections = map[string]struct{}{
 		"DEFAULT":        struct{}{}, // removing this section would mess up the ini file
 		"trace.sampler":  struct{}{},
@@ -36,8 +37,8 @@ func ImportTraceAgentConfig(datadogConfPath, traceAgentConfPath string) error {
 		}
 	}
 
-	// only dump the file if we have Sections
-	if len(iniFile.SectionStrings()) > 0 {
+	// only write the file if we have other Sections than DEFAULT
+	if len(iniFile.SectionStrings()) > 1 {
 		return iniFile.SaveTo(traceAgentConfPath)
 	}
 
