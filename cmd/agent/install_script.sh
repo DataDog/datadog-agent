@@ -119,16 +119,7 @@ if [ $OS = "RedHat" ]; then
         ARCHI="x86_64"
     fi
 
-    # Versions of yum on RedHat 5 and lower embed M2Crypto with SSL that doesn't support TLS1.2
-    if [ -f /etc/redhat-release ]; then
-        REDHAT_MAJOR_VERSION=$(grep -Eo "[0-9].[0-9]{1,2}" /etc/redhat-release | head -c 1)
-    fi
-    if [ -n "$REDHAT_MAJOR_VERSION" ] && [ "$REDHAT_MAJOR_VERSION" -le "5" ]; then
-        PROTOCOL="http"
-    else
-        PROTOCOL="https"
-    fi
-    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = $PROTOCOL://yum.${dd_url}/beta/$ARCHI/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=$PROTOCOL://yum.${dd_url}/DATADOG_RPM_KEY.public\n       $PROTOCOL://yum.${dd_url}/DATADOG_RPM_KEY_E09422B3.public' > /etc/yum.repos.d/datadog-beta.repo"
+    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://yum.${dd_url}/beta/$ARCHI/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.${dd_url}/DATADOG_RPM_KEY.public\n       https://yum.${dd_url}/DATADOG_RPM_KEY_E09422B3.public' > /etc/yum.repos.d/datadog-beta.repo"
 
     printf "\033[34m* Installing the Datadog Agent package\n\033[0m\n"
 
@@ -238,7 +229,7 @@ fi
 if $no_start; then
     printf "\033[34m
 * DD_INSTALL_ONLY environment variable set: the newly installed version of the agent
-will not start by itself. You will have to do it manually using the following
+will not be started. You will have to do it manually using the following
 command:
 
     $restart_cmd
