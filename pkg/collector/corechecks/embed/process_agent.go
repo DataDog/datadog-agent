@@ -123,11 +123,20 @@ func (c *ProcessAgentCheck) Configure(data check.ConfigData, initConfig check.Co
 		configFile = path.Join(config.FileUsedDir(), "process-agent.conf")
 	}
 
-	c.cmd = exec.Command(binPath, fmt.Sprintf("-ddconfig=%s", configFile))
+	commandOpts := []string{}
+
+	// if the process-agent.conf file is available, use it
+	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
+		commandOpts = append(commandOpts, fmt.Sprintf("-ddconfig=%s", configFile))
+	}
+
+	c.cmd = exec.Command(binPath, commandOpts...)
 
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.Datadog.GetString("api_key")))
 	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", getHostname()))
+	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
+	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
 	c.cmd.Env = env
 
 	return nil

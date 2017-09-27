@@ -54,6 +54,7 @@ func doImport(cmd *cobra.Command, args []string) error {
 	datadogConfPath := filepath.Join(oldConfigDir, "datadog.conf")
 	datadogYamlPath := filepath.Join(newConfigDir, "datadog.yaml")
 	traceAgentConfPath := filepath.Join(newConfigDir, "trace-agent.conf")
+	processAgentConfPath := filepath.Join(newConfigDir, "process-agent.conf")
 
 	// read the old configuration in memory
 	agentConfig, err := legacy.GetAgentConfig(datadogConfPath)
@@ -154,10 +155,22 @@ func doImport(cmd *cobra.Command, args []string) error {
 	}
 
 	// Extract trace-agent specific info and dump it to its own config file.
-	if err := processTraceAgent(datadogConfPath, traceAgentConfPath, force); err != nil {
+	imported, err := configTraceAgent(datadogConfPath, traceAgentConfPath, force)
+	if err != nil {
 		return fmt.Errorf("failed to import Trace Agent specific settings: %v", err)
 	}
-	fmt.Printf("Copied Trace Agent specific settings to %s\n", traceAgentConfPath)
+	if imported {
+		fmt.Printf("Wrote Trace Agent specific settings to %s\n", traceAgentConfPath)
+	}
+
+	// Extract process-agent specific info and dump it to its own config file.
+	imported, err = configProcessAgent(datadogConfPath, processAgentConfPath, force)
+	if err != nil {
+		return fmt.Errorf("failed to import Process Agent specific settings: %v", err)
+	}
+	if imported {
+		fmt.Printf("Wrote Process Agent specific settings to %s\n", processAgentConfPath)
+	}
 
 	return nil
 }
@@ -196,20 +209,38 @@ func copyFile(src, dst string, overwrite bool) error {
 	return out.Close()
 }
 
-// processTraceAgent extracts trace-agent specific info and dump to its own config file
-func processTraceAgent(datadogConfPath, traceAgentConfPath string, overwrite bool) error {
+// configTraceAgent extracts trace-agent specific info and dump to its own config file
+func configTraceAgent(datadogConfPath, traceAgentConfPath string, overwrite bool) (bool, error) {
 	// if the file exists check whether we can overwrite
 	if _, err := os.Stat(traceAgentConfPath); !os.IsNotExist(err) {
 		if overwrite {
 			// we'll overwrite, backup the original file first
 			err = os.Rename(traceAgentConfPath, traceAgentConfPath+".bak")
 			if err != nil {
-				return fmt.Errorf("unable to create a backup for the existing file: %s", traceAgentConfPath)
+				return false, fmt.Errorf("unable to create a backup for the existing file: %s", traceAgentConfPath)
 			}
 		} else {
-			return fmt.Errorf("destination file %s already exists, run the command again with --force or -f to overwrite it", traceAgentConfPath)
+			return false, fmt.Errorf("destination file %s already exists, run the command again with --force or -f to overwrite it", traceAgentConfPath)
 		}
 	}
 
 	return legacy.ImportTraceAgentConfig(datadogConfPath, traceAgentConfPath)
+}
+
+// configProcessAgent extracts process-agent specific info and dump to its own config file
+func configProcessAgent(datadogConfPath, processAgentConfPath string, overwrite bool) (bool, error) {
+	// if the file exists check whether we can overwrite
+	if _, err := os.Stat(processAgentConfPath); !os.IsNotExist(err) {
+		if overwrite {
+			// we'll overwrite, backup the original file first
+			err = os.Rename(processAgentConfPath, processAgentConfPath+".bak")
+			if err != nil {
+				return false, fmt.Errorf("unable to create a backup for the existing file: %s", processAgentConfPath)
+			}
+		} else {
+			return false, fmt.Errorf("destination file %s already exists, run the command again with --force or -f to overwrite it", processAgentConfPath)
+		}
+	}
+
+	return legacy.ImportProcessAgentConfig(datadogConfPath, processAgentConfPath)
 }
