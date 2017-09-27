@@ -10,9 +10,10 @@ by [integrations-core](https://github.com/DataDog/integrations-core) are not qui
 ready yet. This is the list of checks that are expected to fail if run within the
 beta Agent:
 
+* agent_metrics
+* docker_daemon
 * kubernetes
 * kubernetes_state
-* docker_daemon
 * vsphere
 
 The Docker and Kubernetes checks in particular are being rewritten in Go to take
