@@ -202,14 +202,17 @@ fi
 if [ -e /etc/datadog-agent/datadog.yaml -a ! $dd_upgrade ]; then
   printf "\033[34m\n* Keeping old datadog.yaml configuration file\n\033[0m\n"
 else
-  # If the import script failed for any reason, we might end here also in case
-  # of upgrade.
   if [ ! -e /etc/datadog-agent/datadog.yaml ]; then
     $sudo_cmd cp /etc/datadog-agent/datadog.yaml.example /etc/datadog-agent/datadog.yaml
   fi
   if [ $apikey ]; then
     printf "\033[34m\n* Adding your API key to the Agent configuration: /etc/datadog-agent/datadog.yaml\n\033[0m\n"
     $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' /etc/datadog-agent/datadog.yaml"
+  else
+    # If the import script failed for any reason, we might end here also in case
+    # of upgrade, let's not start the agent or it would fail because the api key
+    # is missing
+    $no_start=true
   fi
   if [ $dd_hostname ]; then
     printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: /etc/datadog-agent/datadog.yaml\n\033[0m\n"
