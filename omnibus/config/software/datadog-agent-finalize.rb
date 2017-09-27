@@ -20,8 +20,8 @@ build do
     # Move checks and configuration files
     mkdir "/etc/datadog-agent"
     move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
-    move "#{install_dir}/etc/datadog-agent/trace-agent.conf", "/etc/datadog-agent"
-    move "#{install_dir}/etc/datadog-agent/process-agent.conf", "/etc/datadog-agent"
+    move "#{install_dir}/etc/datadog-agent/trace-agent.conf", "/etc/datadog-agent/trace-agent.conf.example"
+    move "#{install_dir}/etc/datadog-agent/process-agent.conf", "/etc/datadog-agent/process-agent.conf.example"
     move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent"
     move "#{install_dir}/bin/agent/dist/conf.d/*", "/etc/datadog-agent/conf.d"
     move "#{install_dir}/agent/checks.d", "#{install_dir}/checks.d"
@@ -34,6 +34,8 @@ build do
 
     # cleanup clutter
     delete "#{install_dir}/etc" if !osx?
-    delete "#{install_dir}/sources"
     delete "#{install_dir}/bin/agent/dist/conf.d"
+    delete "#{install_dir}/bin/agent/dist/*.conf"
+    delete "#{install_dir}/bin/agent/dist/*.yaml"
+
 end
