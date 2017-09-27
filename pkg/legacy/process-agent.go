@@ -11,33 +11,31 @@ import (
 
 var (
 	// whitelist the sections we want to import
-	traceAgentSections = map[string]struct{}{
+	processAgentSections = map[string]struct{}{
 		"DEFAULT":        struct{}{}, // removing this section would mess up the ini file
-		"trace.sampler":  struct{}{},
-		"trace.receiver": struct{}{},
-		"trace.ignore":   struct{}{},
+		"process.config": struct{}{},
 	}
 )
 
-// ImportTraceAgentConfig reads `datadog.conf` and returns an ini config object,
+// ImportProcessAgentConfig reads `datadog.conf` and returns an ini config object,
 // ready to be dumped to a .ini file.
-func ImportTraceAgentConfig(datadogConfPath, traceAgentConfPath string) (bool, error) {
+func ImportProcessAgentConfig(datadogConfPath, processAgentConfPath string) (bool, error) {
 	// read datadog.conf
 	iniFile, err := ini.Load(datadogConfPath)
 	if err != nil {
 		return false, err
 	}
 
-	// remove any section that's not trace-agent specific
+	// remove any section that's not process-agent specific
 	for _, section := range iniFile.SectionStrings() {
-		if _, found := traceAgentSections[section]; !found {
+		if _, found := processAgentSections[section]; !found {
 			iniFile.DeleteSection(section)
 		}
 	}
 
 	// only write the file if we have other Sections than DEFAULT
 	if len(iniFile.SectionStrings()) > 1 {
-		return true, iniFile.SaveTo(traceAgentConfPath)
+		return true, iniFile.SaveTo(processAgentConfPath)
 	}
 
 	return false, nil
