@@ -2,22 +2,33 @@
 
 ## Linux
 
-### Script
+### One-step install
 
-A script is available to automatically upgrade the agent, much like the script we have to install the agent now. It will set up the repos for you and install the agent fresh or upgrade the agent from a prior version (and move the proper files).
+A script is available to automatically install or upgrade the new Agent. It will
+set up the repos and install the package for you; in case of upgrade, the import
+tool will also search for an existing `datadog.conf` file and will try to read
+Agent and checks configurations from a prior version and move it to the new
+format and path.
 
-#### To Upgrade:
+#### To Upgrade
 
+In case you have an Agent version 5.17 or later and you want to import the
+existing configuration:
 ```shell
  DD_UPGRADE=true bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
 ```
 
-#### To Install Fresh:
+**Note:** the import process won't automatically move custom checks, this is by
+design since we cannot guarantee full backwards compatibility out of the box.
+
+#### To Install Fresh
+
+In case you want to install on a clean box you have to provide an api key:
 ```shell
  DD_API_KEY=YOUR_API_KEY bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
 ```
 
-### Debian Flavored Systems
+### Manual install: Debian Flavored Systems
 
 #### Set up apt so it can download through https
 
@@ -64,7 +75,7 @@ sudo systemctl restart datadog-agent
 sudo restart datadog-agent
 ```
 
-### Red Hat Flavored Systems
+### Manual install: Red Hat Flavored Systems
 
 #### Set up Datadog's Yum repo on your system:
 ```
