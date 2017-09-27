@@ -21,11 +21,7 @@ build do
   mkdir checks_dir
 
   # The confs
-  if windows?
-    conf_dir = "../../extra_package_files/EXAMPLECONFSLOCATION"
-  else
-    conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
-  end
+  conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
   mkdir conf_dir
   mkdir "#{conf_dir}/auto_conf"
 

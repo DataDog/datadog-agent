@@ -192,15 +192,23 @@
                        KeyPath="yes"/>
       </Component>
     </DirectoryRef>
-
+    
     <DirectoryRef Id="APPLICATIONDATADIRECTORY">
-      <Component Id="datadog.conf"
+      <Component Id="datadog.yaml.example"
                  Guid="83461594-01AC-11E2-BE35-37EC6088709B"
                  NeverOverwrite="yes"
                  Permanent="yes">
-        <File Id="datadog.yaml"
-              Name="datadog.yaml"
-              Source="$(var.DistFiles)\datadog.yaml"/>
+        <File Id="datadog.yaml.example"
+              Name="datadog.yaml.example"
+              Source="$(var.EtcFiles)\datadog.yaml.example"/>
+      </Component>
+      <Component Id="trace_agent.conf"
+        Guid="CE6515EE-3103-417E-8810-0B465545EB0B"
+        NeverOverwrite="yes"
+        Permanent="yes">
+        <File Id="trace_agent.conf"
+          Name="trace-agent.conf"
+          Source="$(var.EtcFiles)\trace-agent.ini"/>
       </Component>
 
       <Directory Id="checks.d" Name="checks.d">
@@ -235,7 +243,8 @@
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
     <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
       <ComponentGroupRef Id="ProjectDir" />
-      <ComponentRef Id="datadog.conf" />
+      <ComponentRef Id="datadog.yaml.example" />
+      <ComponentRef Id="trace_agent.conf" />
       <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="checks.d" />

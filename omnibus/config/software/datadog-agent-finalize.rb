@@ -11,21 +11,41 @@ description "steps required to finalize the build"
 default_version "1.0.0"
 skip_transitive_dependency_licensing true
 
-build do
-    # Move the deprecation placeholder
-    move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
+if windows?
+    build do
+        conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
+        conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
+        mkdir conf_dir
+        move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
+        move "#{install_dir}/etc/datadog-agent/trace-agent.ini", conf_dir_root, :force=>true
+        #move "#{install_dir}/etc/datadog-agent/process-agent.ini", conf_dir
+        move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
+        #move "#{install_dir}/agent/checks.d", conf_dir
+        delete "#{install_dir}/bin/agent/agent.exe"
+        # TODO why does this get generated at all
+        delete "#{install_dir}/bin/agent/agent.exe~"
+        
 
-    # Move checks and configuration files
-    mkdir "/etc/datadog-agent"
-    move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
-    move "#{install_dir}/etc/datadog-agent/trace-agent.ini", "/etc/datadog-agent"
-    move "#{install_dir}/etc/datadog-agent/process-agent.ini", "/etc/datadog-agent"
-    move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent"
-    move "#{install_dir}/agent/checks.d", "/etc/datadog-agent"
+    end
+else
+    build do
+        # Move the deprecation placeholder
+        move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
 
-    # Move system service files
-    mkdir "/etc/init"
-    move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
-    mkdir "/lib/systemd/system"
-    move "#{install_dir}/scripts/datadog-agent.service", "/lib/systemd/system"
+        # Move checks and configuration files
+        mkdir "/etc/datadog-agent"
+        move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
+        move "#{install_dir}/etc/datadog-agent/trace-agent.ini", "/etc/datadog-agent"
+        move "#{install_dir}/etc/datadog-agent/process-agent.ini", "/etc/datadog-agent"
+        move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent"
+        move "#{install_dir}/agent/checks.d", "/etc/datadog-agent"
+
+        # Move system service files
+        mkdir "/etc/init"
+        move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
+        mkdir "/lib/systemd/system"
+        move "#{install_dir}/scripts/datadog-agent.service", "/lib/systemd/system"
+    end
 end
+
+        
