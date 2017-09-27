@@ -212,6 +212,7 @@ else
     # If the import script failed for any reason, we might end here also in case
     # of upgrade, let's not start the agent or it would fail because the api key
     # is missing
+    printf "\033[31mThe Agent won't start automatically at the end of the script because the Api key is missing, please add one in datadog.yaml and start the agent manually.\n\033[0m\n"
     $no_start=true
   fi
   if [ $dd_hostname ]; then
