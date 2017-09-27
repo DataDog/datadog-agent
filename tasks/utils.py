@@ -132,11 +132,7 @@ def get_git_branch_name():
 def query_version(ctx):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
-    try:
-        described_version = ctx.run("git describe --tags", hide=True).stdout.strip()
-    except invoke.exceptions.UnexpectedExit:
-        # FIXME remove this `except` block when we start tagging the repo
-        described_version = "6.0.0"
+    described_version = ctx.run("git describe --tags", hide=True).stdout.strip()
     # For the tag 6.0.0-beta.0, this will match 6.0.0
     version_match = re.findall(r"^v?(\d+\.\d+\.\d+)", described_version)
 

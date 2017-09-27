@@ -3,7 +3,7 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2017 Datadog, Inc.
 
-require "./lib/ostools.rb"
+require './lib/ostools.rb'
 
 name 'datadog-agent-integrations'
 
@@ -14,6 +14,14 @@ whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 default_version 'master'
+
+blacklist = [
+  'agent_metrics',
+  'docker_daemon',
+  'kubernetes',
+  'kubernetes_state',
+  'vsphere',
+]
 
 build do
   # The checks
@@ -32,6 +40,9 @@ build do
     all_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
 
     Dir.glob("#{project_dir}/*").each do |check_dir|
+      check = check_dir.split('/').last
+
+      next if blacklist.include? check
       # Check the manifest to be sure that this check is enabled on this system
       # or skip this iteration
       manifest_file_path = "#{check_dir}/manifest.json"
@@ -42,8 +53,6 @@ build do
 
       manifest = JSON.parse(File.read(manifest_file_path))
       manifest['supported_os'].include?(os) || next
-
-      check = check_dir.split('/').last
 
       # Copy the checks over
       if File.exist? "#{check_dir}/check.py"

@@ -6,6 +6,8 @@
 # This software definition doesn"t build anything, it"s the place where we create
 # files outside the omnibus installation directory, so that we can add them to
 # the package manifest using `extra_package_file` in the project definition.
+require './lib/ostools.rb'
+
 name "datadog-agent-finalize"
 description "steps required to finalize the build"
 default_version "1.0.0"
@@ -17,8 +19,8 @@ if windows?
         conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
         mkdir conf_dir
         move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
-        move "#{install_dir}/etc/datadog-agent/trace-agent.ini", conf_dir_root, :force=>true
-        #move "#{install_dir}/etc/datadog-agent/process-agent.ini", conf_dir
+        move "#{install_dir}/etc/datadog-agent/trace-agent.conf", conf_dir_root, :force=>true
+        #move "#{install_dir}/etc/datadog-agent/process-agent.conf", conf_dir
         move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
         #move "#{install_dir}/agent/checks.d", conf_dir
         delete "#{install_dir}/bin/agent/agent.exe"
@@ -29,22 +31,26 @@ if windows?
     end
 else
     build do
-        # Move the deprecation placeholder
-        move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
-
         # Move checks and configuration files
         mkdir "/etc/datadog-agent"
         move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
-        move "#{install_dir}/etc/datadog-agent/trace-agent.ini", "/etc/datadog-agent"
-        move "#{install_dir}/etc/datadog-agent/process-agent.ini", "/etc/datadog-agent"
+        move "#{install_dir}/etc/datadog-agent/trace-agent.conf", "/etc/datadog-agent/trace-agent.conf.example"
+        move "#{install_dir}/etc/datadog-agent/process-agent.conf", "/etc/datadog-agent/process-agent.conf.example"
         move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent"
-        move "#{install_dir}/agent/checks.d", "/etc/datadog-agent"
+        move "#{install_dir}/bin/agent/dist/conf.d/*", "/etc/datadog-agent/conf.d"
+        move "#{install_dir}/agent/checks.d", "#{install_dir}/checks.d"
 
         # Move system service files
         mkdir "/etc/init"
         move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
         mkdir "/lib/systemd/system"
         move "#{install_dir}/scripts/datadog-agent.service", "/lib/systemd/system"
+
+        # cleanup clutter
+        delete "#{install_dir}/etc" if !osx?
+        delete "#{install_dir}/bin/agent/dist/conf.d"
+        delete "#{install_dir}/bin/agent/dist/*.conf"
+        delete "#{install_dir}/bin/agent/dist/*.yaml"
     end
 end
 
