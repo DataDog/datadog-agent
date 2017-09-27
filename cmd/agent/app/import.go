@@ -53,6 +53,7 @@ func doImport(cmd *cobra.Command, args []string) error {
 	newConfigDir := args[1]
 	datadogConfPath := filepath.Join(oldConfigDir, "datadog.conf")
 	datadogYamlPath := filepath.Join(newConfigDir, "datadog.yaml")
+	traceAgentConfPath := filepath.Join(newConfigDir, "trace-agent.conf")
 
 	// read the old configuration in memory
 	agentConfig, err := legacy.GetAgentConfig(datadogConfPath)
@@ -124,13 +125,13 @@ func doImport(cmd *cobra.Command, args []string) error {
 		dst := filepath.Join(newConfigDir, "conf.d", f.Name())
 
 		if err := copyFile(src, dst, force); err != nil {
-			fmt.Fprintf(os.Stderr, "unable to copy %s to %s: %v\n", src, dst, err)
-			continue
+			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
 		}
 
 		fmt.Printf("Copied %s over the new conf.d directory\n", f.Name())
 	}
 
+	// move existing config templates to the new auto_conf directory
 	autoConfFiles, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d", "auto_conf"))
 	if err != nil {
 		return fmt.Errorf("unable to list auto_conf files from %s: %v", oldConfigDir, err)
@@ -152,6 +153,12 @@ func doImport(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Copied %s over the new auto_conf directory\n", f.Name())
 	}
 
+	// Extract trace-agent specific info and dump it to its own config file.
+	if err := processTraceAgent(datadogConfPath, traceAgentConfPath, force); err != nil {
+		return fmt.Errorf("failed to import Trace Agent specific settings: %v", err)
+	}
+	fmt.Printf("Copied Trace Agent specific settings to %s\n", traceAgentConfPath)
+
 	return nil
 }
 
@@ -163,10 +170,10 @@ func copyFile(src, dst string, overwrite bool) error {
 			// we'll overwrite, backup the original file first
 			err = os.Rename(dst, dst+".bak")
 			if err != nil {
-				return fmt.Errorf("unable to create a backup for the existing file: %s", dst)
+				return fmt.Errorf("unable to create a backup copy of the destination file: %v", err)
 			}
 		} else {
-			return fmt.Errorf("destination file %s already exists", dst)
+			return fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
 	}
 
@@ -187,4 +194,22 @@ func copyFile(src, dst string, overwrite bool) error {
 		return err
 	}
 	return out.Close()
+}
+
+// processTraceAgent extracts trace-agent specific info and dump to its own config file
+func processTraceAgent(datadogConfPath, traceAgentConfPath string, overwrite bool) error {
+	// if the file exists check whether we can overwrite
+	if _, err := os.Stat(traceAgentConfPath); !os.IsNotExist(err) {
+		if overwrite {
+			// we'll overwrite, backup the original file first
+			err = os.Rename(traceAgentConfPath, traceAgentConfPath+".bak")
+			if err != nil {
+				return fmt.Errorf("unable to create a backup for the existing file: %s", traceAgentConfPath)
+			}
+		} else {
+			return fmt.Errorf("destination file %s already exists, run the command again with --force or -f to overwrite it", traceAgentConfPath)
+		}
+	}
+
+	return legacy.ImportTraceAgentConfig(datadogConfPath, traceAgentConfPath)
 }
