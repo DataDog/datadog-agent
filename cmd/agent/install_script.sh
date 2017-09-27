@@ -195,36 +195,34 @@ Please follow the instructions on the Agent setup page:
 fi
 
 if [ $dd_upgrade ]; then
-  if [ -e /etc/datadog-agent/datadog.yaml ]; then
-    mv /etc/datadog-agent/datadog.yaml /etc/datadog-agent/datadog.yaml.bk
-  fi
   if [ -e /etc/dd-agent/datadog.conf ]; then
-    $sudo_cmd datadog-agent import /etc/dd-agent/datadog.conf /etc/datadog-agent/datadog.yaml
-    $sudo_cmd chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml
-    $sudo_cmd chmod 640 /etc/datadog-agent/datadog.yaml
+    # try to import the config file from the previous version
+    icmd="datadog-agent import /etc/dd-agent /etc/datadog-agent"
+    $sudo_cmd $icmd || printf "\033[31mAutomatic import failed, you can still try to manually run: $icmd\n\033[0m\n"
+    # fix file permissions since the script moves around some files
+    $sudo_cmd chown -R dd-agent:dd-agent /etc/datadog-agent
+    $sudo_cmd chmod -R 640 /etc/datadog-agent
   else
     printf "\033[31mYou don't have a datadog.conf file to convert.\n\033[0m\n"
   fi
-
-  $sudo_cmd cp /etc/dd-agent/conf.d/*.yaml /etc/datadog-agent/conf.d/
-  $sudo_cmd cp /etc/dd-agent/conf.d/auto_conf/*.yaml /etc/datadog-agent/conf.d/auto_conf/
-  $sudo_cmd cp /etc/dd-agent/checks.d/<check>.py /etc/datadog-agent/checks.d/
-  $sudo_cmd chown -R dd-agent:dd-agent /etc/datadog-agent/checks.d/
-  $sudo_cmd chmod -R 640 /etc/datadog-agent/conf.d/
 fi
 
 # Set the configuration
 if [ -e /etc/datadog-agent/datadog.yaml -a ! $dd_upgrade ]; then
   printf "\033[34m\n* Keeping old datadog.yaml configuration file\n\033[0m\n"
 else
+  # If the import script failed for any reason, we might end here also in case
+  # of upgrade.
   if [ ! -e /etc/datadog-agent/datadog.yaml ]; then
     $sudo_cmd cp /etc/datadog-agent/datadog.yaml.example /etc/datadog-agent/datadog.yaml
   fi
-  printf "\033[34m\n* Adding your API key to the Agent configuration: /etc/dd-agent/datadog.conf\n\033[0m\n"
-  $sudo_cmd sh -c "sed 's/api_key:.*/api_key: $apikey/' /etc/datadog-agent/datadog.yaml"
+  if [ $apikey ]; then
+    printf "\033[34m\n* Adding your API key to the Agent configuration: /etc/datadog-agent/datadog.yaml\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' /etc/datadog-agent/datadog.yaml"
+  fi
   if [ $dd_hostname ]; then
-    printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: /etc/dd-agent/datadog.yaml\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $dd_hostname/' /etc/dd-agent/datadog.yaml"
+    printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: /etc/datadog-agent/datadog.yaml\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $dd_hostname/' /etc/datadog-agent/datadog.yaml"
   fi
   $sudo_cmd chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml
   $sudo_cmd chmod 640 /etc/datadog-agent/datadog.yaml
