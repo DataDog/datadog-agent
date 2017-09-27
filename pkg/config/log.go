@@ -61,7 +61,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string) error
 	}
 	configTemplate += `</outputs>
     <formats>
-        <format id="common" format="%%Date(%s) | %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>`
+        <format id="common" format="%%Date(%s) | %%LEVEL | (%%File:%%Line in %%FuncShort) | %%Msg%%n"/>`
 	if syslog {
 		if rfc {
 			configTemplate += `<format id="syslog" format="%%CustomSyslogHeader(20,true) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`

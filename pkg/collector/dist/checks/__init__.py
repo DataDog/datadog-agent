@@ -96,7 +96,18 @@ class AgentCheck(object):
                 False,
                 "DEPRECATION NOTICE: `device_name` is deprecated, please use a `device:` tag in the `tags` list instead",
             ],
+            'in_developer_mode': [
+                False,
+                "DEPRECATION NOTICE: `in_developer_mode` is deprecated, please stop using it.",
+            ],
         }
+
+
+    @property
+    def in_developer_mode(self):
+        self._log_deprecation('in_developer_mode')
+        return False
+
 
     def get_instance_proxy(self, instance, uri):
         proxies = self.proxies.copy()
