@@ -209,6 +209,7 @@ deploy_deb:
     - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
     - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -253,6 +254,7 @@ deploy_rpm:
     - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
     - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
