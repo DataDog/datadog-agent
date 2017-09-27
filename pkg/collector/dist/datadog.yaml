@@ -134,51 +134,15 @@ metadata_collectors:
 #     username:
 #     password:
 
-# Logging
-#
-# log_level: info
-# log_file: /var/log/datadog/agent.log
-
 # Autodiscovery
 #
 # listeners:
 #   - name: docker
+
+# Logging
 #
-# Exclude containers based on their name or image
-# An excluded container will not get any individual container metric reported for it.
-# However it will still appear in the container count since ignoring it here would give
-# a wrong impression about the docker daemon load.
-#
-# How it works: exclude first.
-# If a container matches an exclude rule, it won't be included unless it also matches an include rule.
-#
-# Rules are regexp.
-#
-# Examples:
-# exclude all, except containers based on the 'ubuntu' image or the 'debian' image.
-# ac_exclude: ["image:.*"]
-# ac_include: ["image:ubuntu", "image:debian"]
-#
-# include all, except containers based on the 'ubuntu' image.
-# ac_exclude: ["image:ubuntu"]
-# ac_include: []
-#
-# exclude all debian images except containers with a name starting with 'frontend'.
-# ac_exclude: ["image:debian"]
-# ac_include: ["name:frontend.*"]
-#
-# ac_exclude: []
-# ac_include: []
-#
-#
-# Exclude default pause containers from orchestrators.
-#
-# By default the agent will not monitor kubernetes/openshift pause
-# container. They will still be counted in the container count (just like
-# excluded containers) since ignoring them would give a wrong impression
-# about the docker daemon load.
-#
-# exclude_pause_container: true
+# log_level: info
+# log_file: /var/log/datadog/agent.log
 
 # Docker tag extraction
 #
