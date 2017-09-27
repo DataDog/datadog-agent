@@ -6,9 +6,9 @@
 
 A script is available to automatically install or upgrade the new Agent. It will
 set up the repos and install the package for you; in case of upgrade, the import
-tool will also search for an existing `datadog.conf` file and will try to read
-Agent and checks configurations from a prior version and move it to the new
-format and path.
+tool will also search for an existing `datadog.conf` from a prior version and will
+convert Agent and checks configurations according to the new file format and
+filesystem layout.
 
 #### To Upgrade
 
