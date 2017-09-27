@@ -10,8 +10,8 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"golang.org/x/sys/windows/svc/eventlog"
 	log "github.com/cihub/seelog"
+	"golang.org/x/sys/windows/svc/eventlog"
 )
 
 // PanicHandler handles how we log a crash causing panic

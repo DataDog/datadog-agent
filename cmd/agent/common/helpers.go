@@ -111,4 +111,3 @@ func SetupConfig(confFilePath string) error {
 	}
 	return nil
 }
-

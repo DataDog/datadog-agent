@@ -16,33 +16,31 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+// SignalList is a slice of the most common unix signals
 func SignalList() []os.Signal {
 	return []os.Signal{
+		syscall.SIGHUP,
+		syscall.SIGILL,
+		syscall.SIGINT,
+		syscall.SIGQUIT,
+		syscall.SIGSEGV,
+		syscall.SIGKILL,
+		syscall.SIGTERM,
 		syscall.SIGABRT,
+		syscall.SIGPIPE,
+		syscall.SIGPROF,
+		syscall.SIGTRAP,
+		syscall.SIGURG,
+		syscall.SIGUSR1,
+		syscall.SIGUSR2,
 		syscall.SIGALRM,
 		syscall.SIGBUS,
 		syscall.SIGCHLD,
 		syscall.SIGCONT,
 		syscall.SIGFPE,
-		syscall.SIGHUP,
-		syscall.SIGILL,
-		syscall.SIGINT,
 		syscall.SIGIO,
 		syscall.SIGIOT,
-		syscall.SIGKILL,
-		syscall.SIGPIPE,
-		syscall.SIGPROF,
-		syscall.SIGQUIT,
-		syscall.SIGSEGV,
-		syscall.SIGSTOP,
-		syscall.SIGSYS,
-		syscall.SIGTERM,
-		syscall.SIGTRAP,
-		syscall.SIGURG,
-		syscall.SIGUSR1,
-		syscall.SIGUSR2,
 	}
-
 }
 
 // PanicHandler handles how we log a crash causing panic
