@@ -103,10 +103,4 @@ sudo restart datadog-agent
 
 ## Windows
 
-### Download the [Datadog Installer](https://s3.amazonaws.com/ddagent-windows-test/ddagent-cli-beta-latest.msi)
-
-### In a cmd.exe shell in the directory you downloaded the installer, run:
-
-```shell
-msiexec /qn /i ddagent-cli-beta-latest.msi APIKEY="your_api_key" HOSTNAME="my_hostname" TAGS="mytag1,mytag2"
-```
+Coming soon.

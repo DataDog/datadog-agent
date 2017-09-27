@@ -78,4 +78,6 @@ Beta is currently available on these platforms:
 * Debian x86_64 version 7 (wheezy) and above
 * Ubuntu x86_64 version 12.04 and above
 * RedHat/CentOS x86_64 version 6 and above
+
+Next on the pipeline but still unavailable:
 * Windows 64-bit
