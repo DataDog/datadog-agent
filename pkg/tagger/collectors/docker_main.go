@@ -59,6 +59,13 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 	c.labelsAsTags = config.Datadog.GetStringMapString("docker_labels_as_tags")
 	c.envAsTags = config.Datadog.GetStringMapString("docker_env_as_tags")
 
+	if docker.NeedInit() {
+		err := docker.InitDockerUtil(&docker.Config{})
+		if err != nil {
+			return NoCollection, fmt.Errorf("Failed initialise dockerutils, docker tagging will not work: %s", err)
+		}
+	}
+
 	// TODO: list and inspect existing containers once docker utils are merged
 
 	return StreamCollection, nil
