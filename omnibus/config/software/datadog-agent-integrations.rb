@@ -15,6 +15,14 @@ whitelist_file "embedded/lib/python2.7"
 source git: 'https://github.com/DataDog/integrations-core.git'
 default_version 'master'
 
+blacklist = [
+  'agent_metrics',
+  'docker_daemon',
+  'kubernetes',
+  'kubernetes_state',
+  'vsphere',
+]
+
 build do
   # The checks
   checks_dir = "#{install_dir}/agent/checks.d"
@@ -35,6 +43,7 @@ build do
     all_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
 
     Dir.glob("#{project_dir}/*").each do |check_dir|
+      next if blacklist.include? check_dir
       # Check the manifest to be sure that this check is enabled on this system
       # or skip this iteration
       manifest_file_path = "#{check_dir}/manifest.json"
