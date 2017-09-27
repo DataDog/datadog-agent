@@ -26,9 +26,8 @@ func init() {
 	AgentCmd.AddCommand(flareCmd)
 
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
-	flareCmd.Flags().StringVarP(&caseID, "case-id", "c", "", "Your case ID")
-	flareCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to datadog.yaml")
-	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation")
+	flareCmd.Flags().StringVarP(&caseID, "case-id", "i", "", "Your case ID")
+	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 

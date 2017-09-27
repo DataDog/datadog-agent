@@ -13,6 +13,7 @@ variables:
   DEB_S3_BUCKET_DEPRECATED: apt-agent6.datad0g.com
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
+  DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
 
 before_script:
@@ -209,6 +210,7 @@ deploy_deb:
     - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
     - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
@@ -242,8 +244,8 @@ deploy_deb:
     - PACKAGE_VERSION=`ls $AGENT_OMNIBUS_PACKAGE_DIR/ | grep _amd64.deb | sed s/datadog-agent_// | sed s/_amd64.deb//`
     - if curl --output /dev/null --silent --head --fail -v "https://s3.amazonaws.com/apt.datad0g.com/pool/d/da/datadog-agent_${PACKAGE_VERSION}_amd64.deb"; then echo "datadog-agent_${PACKAGE_VERSION}_amd64.deb already exists in the APT pool, releasing this one instead of the latest build."; rm -f $AGENT_OMNIBUS_PACKAGE_DIR/datadog-agent_${PACKAGE_VERSION}_amd64.deb; curl -v -o $AGENT_OMNIBUS_PACKAGE_DIR "https://s3.amazonaws.com/apt.datad0g.com/pool/d/da/datadog-agent_${PACKAGE_VERSION}_${1}.deb"; fi;
 
-    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c nightly -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
-    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c nightly -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
 
 # deploy rpm packages to yum staging repo
 deploy_rpm:
@@ -253,15 +255,16 @@ deploy_rpm:
     - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
     - master
+    - tags
   tags: [ "runner:main", "size:large" ]
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/x86_64/
-    - aws s3 sync s3://$RPM_S3_BUCKET/nightly/ ./rpmrepo/
+    - aws s3 sync s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ ./rpmrepo/
     - cp $AGENT_OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/x86_64
-    - aws s3 sync ./rpmrepo/ s3://$RPM_S3_BUCKET/beta/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 sync ./rpmrepo/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 
 # TODO: deploy and build SUSE packages

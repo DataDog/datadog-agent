@@ -17,6 +17,15 @@ in there.
 The beta is open for everyone! Take a look at the document about how to
 [install the agent][upgrade] and you'll be ready to go.
 
+## That was cool, but I need to go back to `stable`
+
+We've tried to keep it easy and straight-forward to downgrade back to
+agent 5 until things are more mature for you on agent 6.
+
+Please check out our [downgrade guide][downgrade] for instructions on
+how to get back on the `stable` agent 5 repo.
+
 [changes]: changes.md
 [known-issues]: known_issues.md
 [upgrade]: upgrade.md
+[downgrade]: downgrade.md
