@@ -2,6 +2,21 @@
 
 ## Linux
 
+### Script
+
+A script is available to automatically upgrade the agent, much like the script we have to install the agent now. It will set up the repos for you and install the agent fresh or upgrade the agent from a prior version (and move the proper files).
+
+#### To Upgrade:
+
+```shell
+ DD_UPGRADE=true bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
+```
+
+#### To Install Fresh:
+```shell
+ DD_API_KEY=YOUR_API_KEY bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
+```
+
 ### Debian Flavored Systems
 
 #### Set up apt so it can download through https
