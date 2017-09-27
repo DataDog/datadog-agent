@@ -125,8 +125,7 @@ func doImport(cmd *cobra.Command, args []string) error {
 		dst := filepath.Join(newConfigDir, "conf.d", f.Name())
 
 		if err := copyFile(src, dst, force); err != nil {
-			fmt.Fprintf(os.Stderr, "unable to copy %s to %s: %v\n", src, dst, err)
-			continue
+			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
 		}
 
 		fmt.Printf("Copied %s over the new conf.d directory\n", f.Name())
@@ -154,12 +153,15 @@ func doImport(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Copied %s over the new auto_conf directory\n", f.Name())
 	}
 
-	// extract trace-agent specific info and dump to its own config file
-	if err := processTraceAgent(datadogConfPath, traceAgentConfPath, force); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to import Trace Agent specific settings: %v\n", err)
-	} else {
-		fmt.Printf("Copied Trace Agent specific settings to %s\n", traceAgentConfPath)
+	// Extract trace-agent specific info and dump it to its own config file.
+	// Overwrite is safe at this point, if the script was run by mistake, we'd
+	// have already been returned. On the other side, we cannot really know if
+	// we're overwriting the default config file shipped with the package or a
+	// customized version. Worst case, we have a backup file.
+	if err := processTraceAgent(datadogConfPath, traceAgentConfPath, true); err != nil {
+		return fmt.Errorf("failed to import Trace Agent specific settings: %v", err)
 	}
+	fmt.Printf("Copied Trace Agent specific settings to %s\n", traceAgentConfPath)
 
 	return nil
 }
@@ -172,10 +174,10 @@ func copyFile(src, dst string, overwrite bool) error {
 			// we'll overwrite, backup the original file first
 			err = os.Rename(dst, dst+".bak")
 			if err != nil {
-				return fmt.Errorf("unable to create a backup for the existing file: %s", dst)
+				return fmt.Errorf("unable to create a backup copy of the destination file: %v", err)
 			}
 		} else {
-			return fmt.Errorf("destination file %s already exists, run the command again with --force or -f to overwrite it", dst)
+			return fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
 	}
 
