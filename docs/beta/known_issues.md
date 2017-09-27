@@ -32,6 +32,43 @@ decided if we are going to implement them:
 * `generate_histogram_func`
 * `stop`
 
+## JMX
+
+We still don't have a full featured interface to JMXFetch, so for now you may
+have to run some commands manually to debug the list of beans collected, JVMs,
+etc. A typical manual call will take the following form:
+
+```shell
+/usr/bin/java -Xmx200m -Xms50m -classpath /usr/lib/jvm/java-8-oracle/lib/tools.jar:/opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch-0.17.0-jar-with-dependencies.jar org.datadog.jmxfetch.App --check <check list> --conf_directory /etc/datadog-agent/conf.d --log_level INFO --log_location /opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch.log --reporter console <command>
+```
+
+where `<command>` can be any of:
+- `list_everything`
+- `list_collected_attributes`
+- `list_matching_attributes`
+- `list_not_matching_attributes`
+- `list_limited_attributes`
+- `list_jvms`
+
+and `<check list>` corresponds to a list of valid `yaml` configurations in
+`/etc/datadog-agent/conf.d/`. For instance:
+- `cassandra.yaml`
+- `kafka.yaml`
+- `jmx.yaml`
+- ...
+
+Example:
+```
+/usr/bin/java -Xmx200m -Xms50m -classpath /usr/lib/jvm/java-8-oracle/lib/tools.jar:/opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch-0.17.0-jar-with-dependencies.jar org.datadog.jmxfetch.App --check cassandra.yaml jmx.yaml --conf_directory /etc/datadog-agent/conf.d --log_level INFO --log_location /opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch.log --reporter console list_everything
+```
+
+Note: the location to the JRE tools.jar (`/usr/lib/jvm/java-8-oracle/lib/tools.jar`
+in the example) might reside elsewhere in your system. You should be able to easily
+find it with `sudo find / -type f -name 'tools.jar'`.
+
+Note: you may wish to specify alternative JVM heap parameters `-Xmx`, `-Xms`, the
+values used in the example correspond to the JMXFetch defaults.
+
 ## Systems
 
 We do not yet build packages for the full gamut of systems that Agent 5 targets.
