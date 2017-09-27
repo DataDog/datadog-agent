@@ -27,7 +27,7 @@ import (
 var elog debug.Log
 
 func main() {
-	if config.GetBoolean("panic_wrap") {
+	if config.Datadog.GetBool("panic_wrap") {
 		exitStatus, err := panicwrap.BasicWrap(common.PanicHandler)
 		if err != nil {
 			// Something went wrong setting up the panic wrapper. Unlikely,

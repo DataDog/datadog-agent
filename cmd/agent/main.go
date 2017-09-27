@@ -17,7 +17,7 @@ import (
 )
 
 func main() {
-	if config.GetBoolean("panic_wrap") {
+	if config.Datadog.GetBool("panic_wrap") {
 		panicConfig := &panicwrap.WrapConfig{
 			Handler:        common.PanicHandler,
 			ForwardSignals: common.SignalList(),
