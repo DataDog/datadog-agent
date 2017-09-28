@@ -13,7 +13,7 @@ variables:
   DEB_S3_BUCKET_DEPRECATED: apt-agent6.datad0g.com
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
-  DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
+  DEB_RPM_BUCKET_BRANCH: beta  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
 
 before_script:
