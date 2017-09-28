@@ -76,6 +76,14 @@ sudo yum check-update
 sudo yum install datadog-agent
 ```
 
+#### Create symlink to `datadog-agent` command
+
+_This step is only necessary if you're installing version 6.0.0-beta.1 or lower of the Agent 6.0_
+
+```shell
+sudo ln -sf /opt/datadog-agent/bin/agent/agent /usr/bin/datadog-agent
+```
+
 #### Additional custom AutoDiscovery templates (optional)
 You may have added additional custom AutoDiscovery templates, if so you might want to import
 them:
