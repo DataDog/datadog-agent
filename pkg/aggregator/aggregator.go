@@ -258,7 +258,7 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 // addSample adds the metric sample to either the sampler or distSampler
 func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, timestamp float64) {
 	metricSample.Tags = deduplicateTags(metricSample.Tags)
-	if metricSample.Mtype == metrics.DistributionType {
+	if _, ok := metrics.DistributionMetricTypes[metricSample.Mtype]; ok {
 		agg.distSampler.addSample(metricSample, timestamp)
 	} else {
 		agg.sampler.addSample(metricSample, timestamp)
