@@ -45,8 +45,6 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
                     usermod -g dd-agent dd-agent
                 fi
 
-                # Create a symlink to the agent's binary
-                ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
             ;;
             abort-upgrade|abort-remove|abort-deconfigure)
             ;;
@@ -56,6 +54,9 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
         esac
         #DEBHELPER#
     fi
+
+    # Create a symlink to the agent's binary
+    ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
 
     # Set proper rights to the dd-agent user
     chown -R dd-agent:dd-agent ${CONFIG_DIR}
