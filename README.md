@@ -42,7 +42,7 @@ DD_API_KEY=12345678990 ./bin/agent/agent
 
 Please refer to the [Checks](docs/dev/checks/README.md) documentation for more details about creating custom Go or Python checks.
 
-## Contributing
+## Contributing code
 
 You must sign a CLA before we can accept your contributions. If you submit a PR
 without having signed it, our bot will prompt you to do so. Once signed you will
