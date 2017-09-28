@@ -210,7 +210,6 @@ deploy_deb:
     - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
     - master
-    - beta
     - tags
   tags: [ "runner:main", "size:large" ]
   script:
@@ -256,7 +255,6 @@ deploy_rpm:
     - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
     - master
-    - beta
     - tags
   tags: [ "runner:main", "size:large" ]
   script:
