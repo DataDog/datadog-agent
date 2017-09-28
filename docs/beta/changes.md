@@ -47,8 +47,8 @@ For example, for an Agent installed on Ubuntu, the differences are as follows:
 | `sudo -u dd-agent dd-agent check <check_name>` | `sudo -u dd-agent datadog-agent check <check_name>` | Run a check |
 
 **NB**: If `service` is not available on your system, use:
-* on `upstart`-based systems: `sudo start/stop/restart datadog-agent6`
-* on `systemd`-based systems: `sudo systemctl start/stop/restart datadog-agent6`
+* on `upstart`-based systems: `sudo start/stop/restart datadog-agent`
+* on `systemd`-based systems: `sudo systemctl start/stop/restart datadog-agent`
 
 ## Logs
 
