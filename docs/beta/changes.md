@@ -44,7 +44,7 @@ For example, for an Agent installed on Ubuntu, the differences are as follows:
 | `sudo service datadog-agent info`               | `sudo datadog-agent status`             | Status page of running Agent |
 | `sudo service datadog-agent flare`              | `sudo datadog-agent flare`              | Send flare |
 | `sudo service datadog-agent`                    | `sudo datadog-agent --help`             | Display command usage |
-| `sudo -u dd-agent dd-agent check <check_name>` | `sudo -u dd-agent datadog-agent check <check_name>` | Run a check |
+| `sudo -u dd-agent -- dd-agent check <check_name>` | `sudo -u dd-agent -- datadog-agent check <check_name>` | Run a check |
 
 **NB**: If `service` is not available on your system, use:
 * on `upstart`-based systems: `sudo start/stop/restart datadog-agent`
