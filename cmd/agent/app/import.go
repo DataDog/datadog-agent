@@ -28,8 +28,7 @@ var (
 		SilenceUsage: true,
 	}
 
-	force    = false
-	destPath = ""
+	force = false
 )
 
 func init() {
@@ -37,7 +36,6 @@ func init() {
 	AgentCmd.AddCommand(importCmd)
 
 	// local flags
-	importCmd.Flags().StringVarP(&destPath, "dest", "d", "", "destination path where to put datadog.yaml")
 	importCmd.Flags().BoolVarP(&force, "force", "f", force, "overwrite existing files")
 }
 
