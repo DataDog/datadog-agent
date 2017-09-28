@@ -136,6 +136,22 @@ metadata_collectors:
 
 # Autodiscovery
 #
+# Change the root directory to look at to get cgroup statistics. Useful when running inside a
+# container with host directories mounted on a different folder.
+# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
+# "/host/sys/fs/cgroup" and "/sys/fs/cgroup" if not.
+#
+# Example for the docker-dd-agent container:
+# container_cgroup_root: /host/sys/fs/cgroup/
+#
+# Change the root directory to look at to get proc statistics. Useful when running inside a
+# container with host directories mounted on a different folder.
+# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
+# "/host/proc" and "/proc" if not.
+#
+# Example for the docker-dd-agent container:
+# container_proc_root: /host/proc
+#
 # listeners:
 #   - name: docker
 
