@@ -336,16 +336,25 @@ function loadFlare() {
 
 function submitFlare() {
   ticket = $("#ticket_num").val();
-  email = $("#email").val();
+  if (ticket == "") ticket = "0";
 
-  // TODO: Validate email
-  // TODO: Confirm the user is sure they want to send a flare
+  email = $("#email").val();
+  regex = /\S+@\S+\.\S+/;   // string - @ - string - . - string
+  if ( !regex.test(email) ) {
+      $("#flare_response").html("Please enter a valid email address.");
+      return;
+  }
 
   sendMessage(JSON.stringify({
     req_type: "set",
     data: "flare",
     payload: email + " " + ticket
   }), function(data, status, xhr){
-    $("#flare").append("<br>" + data);
+
+    // TODO (?) ask for confirmation
+
+    $("#flare_response").html(data);
+    $("#ticket_num").val("");
+    $("#email").val("");
   });
 }

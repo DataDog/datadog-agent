@@ -68,15 +68,15 @@
       </li>
     </ul>
   </div>
-  <div id="main">
-    <div class="top_bar">
-      <div id="title">Datadog Agent Manager</div>
-      <div id="agent_status">Connected to Agent</div>
-      <div id="agent_info">
-        <div id="version">Version: </div>
-        <div id="hostname">Hostname: </div>
-      </div>
+  <div class="top_bar">
+    <div id="title">Datadog Agent Manager</div>
+    <div id="agent_status">Connected to Agent</div>
+    <div id="agent_info">
+      <div id="version">Version: </div>
+      <div id="hostname">Hostname: </div>
     </div>
+  </div>
+  <div id="main">
     <div id="tests" class="page"></div>
     <div id="general_status" class="page"></div>
     <div id="collector_status" class="page"></div>
@@ -97,9 +97,13 @@
     </div>
     <div id="add_check" class="page"> Not implemented yet. </div>
     <div id="flare" class="page">
-        <input type="number" id="ticket_num"> Ticket number (if you have one) </input>
-        <input type="email" id="email"> Email address </input>
-        <button id="submit_flare">Submit</button>
+        <div class="description">Your logs and configuration files will be collected and sent to DataDog Support.</div>
+        <form class="flare_input center">
+          <input type="number" id="ticket_num" placeholder="Ticket number, if you have one"/>
+          <input type="email" id="email" placeholder="Email address"/>
+          <input type="button" id="submit_flare" value="Submit"/>
+        </form>
+        <div id="flare_response"></div>
     </div>
   </div>
 </body>

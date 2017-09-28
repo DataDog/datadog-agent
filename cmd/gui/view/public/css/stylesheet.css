@@ -19,6 +19,7 @@ a {
   position: absolute;
   left: 50%;
   top: 50%;
+  display: block;
   transform: translate(-50%, -50%); }
 
 .fa-spinner {
@@ -94,57 +95,63 @@ a {
     #sidebar .navbar .active {
       color: white; }
 
+.top_bar {
+  width: calc(100% - 160px);
+  height: 80px;
+  background-color: white;
+  position: absolute;
+  top: 0px;
+  left: 160px;
+  border-bottom: 1px solid #e4e4e4;
+  overflow-x: hidden; }
+  .top_bar #title {
+    color: #a2a2a2;
+    font-weight: bold;
+    position: absolute;
+    height: 100%;
+    line-height: 80px;
+    text-indent: 27.5px;
+    font-size: 25px; }
+  .top_bar #agent_status {
+    background: linear-gradient(to bottom, #89c403 5%, #77a809 100%);
+    background-color: #89c403;
+    border: 1px solid #74b807;
+    text-shadow: 0px 1px 0px #528009;
+    border-radius: 26px;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    right: 370px;
+    color: #ffffff;
+    padding: 6px 24px;
+    text-decoration: none; }
+  .top_bar #agent_info {
+    color: #a2a2a2;
+    position: absolute;
+    text-align: right;
+    top: 50%;
+    transform: translateY(-50%);
+    right: 200px; }
+
 #main {
   position: absolute;
   left: 160px;
+  top: 80px;
   width: calc(100% - 160px);
-  height: 100%; }
+  height: calc(100% - 80px); }
   #main .page {
     position: absolute;
-    top: 100px;
+    top: 20px;
     left: 20px;
     border: 1px solid #e4e4e4;
     background-color: white;
+    box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
+    -moz-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
+    -webkit-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
     display: none; }
-  #main .top_bar {
-    width: 100%;
-    height: 80px;
-    background-color: white;
-    position: absolute;
-    top: 0px;
-    border-bottom: 1px solid #e4e4e4;
-    overflow-x: hidden; }
-    #main .top_bar #title {
-      color: #a2a2a2;
-      font-weight: bold;
-      position: absolute;
-      height: 100%;
-      line-height: 80px;
-      text-indent: 27.5px;
-      font-size: 25px; }
-    #main .top_bar #agent_status {
-      background: linear-gradient(to bottom, #89c403 5%, #77a809 100%);
-      background-color: #89c403;
-      border: 1px solid #74b807;
-      text-shadow: 0px 1px 0px #528009;
-      border-radius: 26px;
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      right: 370px;
-      color: #ffffff;
-      padding: 6px 24px;
-      text-decoration: none; }
-    #main .top_bar #agent_info {
-      color: #a2a2a2;
-      position: absolute;
-      text-align: right;
-      top: 50%;
-      transform: translateY(-50%);
-      right: 200px; }
   #main #general_status, #main #collector_status {
     width: calc(100% - 40px);
-    height: calc(100% - 120px);
+    height: calc(100% - 40px);
     overflow-y: scroll; }
     #main #general_status .stat, #main #collector_status .stat {
       margin: 10px;
@@ -178,7 +185,7 @@ a {
         font-weight: bold; }
   #main #settings {
     width: calc(100% - 40px);
-    height: calc(100% - 120px);
+    height: calc(100% - 40px);
     overflow-y: hidden;
     overflow-x: scroll; }
     #main #settings ::-webkit-scrollbar {
@@ -245,7 +252,7 @@ a {
     top: 1px; }
   #main #checks_settings {
     width: calc(100% - 40px);
-    height: calc(100% - 120px); }
+    height: calc(100% - 40px); }
     #main #checks_settings #checks_filter {
       position: absolute;
       height: 100%;
@@ -303,9 +310,70 @@ a {
         right: 98px;
         color: black;
         font-size: 14px; }
+  #main #flare {
+    width: 500px;
+    height: 320px;
+    padding: 10px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); }
+    #main #flare .description {
+      padding: 10px;
+      width: calc(100% - 20px);
+      text-align: center;
+      font-size: 18px; }
+    #main #flare #flare_response {
+      padding: 10px;
+      width: calc(100% - 20px);
+      text-align: center;
+      position: absolute;
+      font-size: 16.5px;
+      bottom: 20px; }
+    #main #flare .flare_input {
+      width: 400px;
+      padding: 30px;
+      margin-top: -20px; }
+      #main #flare .flare_input #email:-webkit-autofill {
+        -webkit-box-shadow: 0 0 0px 1000px white inset; }
+      #main #flare .flare_input #ticket_num, #main #flare .flare_input #email {
+        box-sizing: border-box;
+        -webkit-box-sizing: border-box;
+        -moz-box-sizing: border-box;
+        display: block;
+        width: 100%;
+        padding: 7px;
+        border: none;
+        border-bottom: 1px solid #ddd;
+        outline: none;
+        margin-bottom: 10px;
+        font-size: 15px;
+        height: 45px; }
+      #main #flare .flare_input #submit_flare {
+        position: absolute;
+        bottom: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: inline-block;
+        cursor: pointer;
+        font-size: 15px;
+        padding: 8px 18px;
+        outline: none;
+        -moz-box-shadow: inset 0px 1px 0px 0px #45D6D6;
+        -webkit-box-shadow: inset 0px 1px 0px 0px #45D6D6;
+        box-shadow: inset 0px 1px 0px 0px #45D6D6;
+        background-color: #2CBBBB;
+        border-radius: 3px;
+        border: 1px solid #27A0A0;
+        color: #FFFFFF; }
+      #main #flare .flare_input #submit_flare:hover {
+        background: linear-gradient(to bottom, #34CACA 5%, #30C9C9 100%);
+        background-color: #34CACA; }
+      #main #flare .flare_input #submit_flare:active {
+        bottom: -21px; }
   #main #logs {
     width: calc(100% - 70px);
-    height: calc(100% - 140px);
+    height: calc(100% - 60px);
     padding: 15px;
     padding-top: 5px;
     overflow: scroll; }
@@ -328,7 +396,7 @@ a {
       background-color: #b4b4b4; }
     #main #logs .load_more:active {
       background-color: #a2a2a2; }
-  #main #tests, #main #flare, #main #add_check {
+  #main #tests, #main #add_check {
     width: 800px;
     height: 400px;
     padding: 10px; }

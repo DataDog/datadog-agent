@@ -31,7 +31,7 @@ func set(w http.ResponseWriter, req string, payload string) {
 			return
 		}
 
-		w.Write([]byte("User " + customerEmail + " created flare[" + caseID + "]. Zipfile: " + filePath))
+		w.Write([]byte("User " + customerEmail + " created flare[" + caseID + "].<br> Zipfile: " + filePath))
 		return
 
 		/* 	While testing, don't actually send a flare
