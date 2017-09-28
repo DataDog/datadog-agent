@@ -192,7 +192,7 @@ if [ $dd_upgrade ]; then
     $sudo_cmd $icmd || printf "\033[31mAutomatic import failed, you can still try to manually run: $icmd\n\033[0m\n"
     # fix file owner and permissions since the script moves around some files
     $sudo_cmd chown -R dd-agent:dd-agent /etc/datadog-agent
-    find /etc/datadog-agent/ -type f -exec chmod 640 {} \;
+    $sudo_cmd find /etc/datadog-agent/ -type f -exec chmod 640 {} \;
   else
     printf "\033[31mYou don't have a datadog.conf file to convert.\n\033[0m\n"
   fi
