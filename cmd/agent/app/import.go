@@ -28,7 +28,8 @@ var (
 		SilenceUsage: true,
 	}
 
-	force = false
+	force         = false
+	convertDocker = false
 )
 
 func init() {
@@ -37,6 +38,7 @@ func init() {
 
 	// local flags
 	importCmd.Flags().BoolVarP(&force, "force", "f", force, "overwrite existing files")
+	importCmd.Flags().BoolVarP(&convertDocker, "docker", "", convertDocker, "convert docker_daemon.yaml to the new format")
 }
 
 func doImport(cmd *cobra.Command, args []string) error {
@@ -99,21 +101,6 @@ func doImport(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// marshal the config object to YAML
-	b, err := yaml.Marshal(config.Datadog.AllSettings())
-	if err != nil {
-		return fmt.Errorf("unable to unmarshal config to YAML: %v", err)
-	}
-
-	// dump the current configuration to datadog.yaml
-	// file permissions will be used only to create the file if doesn't exist,
-	// please note on Windows such permissions have no effect.
-	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
-		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
-	}
-
-	fmt.Printf("Successfully imported the contents of %s into %s\n", datadogConfPath, datadogYamlPath)
-
 	// move existing config files to the new configuration directory
 	files, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
 	if err != nil {
@@ -127,6 +114,22 @@ func doImport(cmd *cobra.Command, args []string) error {
 
 		src := filepath.Join(oldConfigDir, "conf.d", f.Name())
 		dst := filepath.Join(newConfigDir, "conf.d", f.Name())
+
+		if f.Name() == "docker_daemon.yaml" {
+			if convertDocker {
+				err := legacy.ImportDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.yaml"), force)
+				if err != nil {
+					return err
+				}
+			} else {
+				fmt.Printf("ignoring %s, manualy use '--docker' option to convert it to the new format\n", src)
+			}
+			continue
+		} else if f.Name() == "docker.yaml" {
+			// if people upgrade from a very old version of the agent who ship the old docker check.
+			fmt.Printf("ignoring %s, old docker check has been deprecated.\n", src)
+			continue
+		}
 
 		if err := copyFile(src, dst, force); err != nil {
 			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
@@ -156,6 +159,21 @@ func doImport(cmd *cobra.Command, args []string) error {
 
 		fmt.Printf("Copied %s over the new auto_conf directory\n", f.Name())
 	}
+
+	// marshal the config object to YAML
+	b, err := yaml.Marshal(config.Datadog.AllSettings())
+	if err != nil {
+		return fmt.Errorf("unable to unmarshal config to YAML: %v", err)
+	}
+
+	// dump the current configuration to datadog.yaml
+	// file permissions will be used only to create the file if doesn't exist,
+	// please note on Windows such permissions have no effect.
+	if err = ioutil.WriteFile(datadogYamlPath, b, 0640); err != nil {
+		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
+	}
+
+	fmt.Printf("Successfully imported the contents of %s into %s\n", datadogConfPath, datadogYamlPath)
 
 	// Extract trace-agent specific info and dump it to its own config file.
 	imported, err := configTraceAgent(datadogConfPath, traceAgentConfPath, force)
