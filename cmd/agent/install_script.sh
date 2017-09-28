@@ -226,9 +226,13 @@ fi
 
 
 restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
+stop_instructions="$sudo_cmd systemctl stop datadog-agent"
+start_instructions="$sudo_cmd systemctl start datadog-agent"
 # Upstart
 if command -v start >/dev/null 2>&1; then
     restart_cmd="$sudo_cmd start datadog-agent"
+    stop_instructions="$sudo_cmd stop datadog-agent"
+    start_instructions="$sudo_cmd start datadog-agent"
 fi
 
 if [ $no_start ]; then
@@ -255,10 +259,10 @@ background and submit metrics to Datadog.
 
 If you ever want to stop the Agent, run:
 
-    sudo /etc/init.d/datadog-agent stop
+    $stop_instructions
 
 And to run it again run:
 
-    sudo /etc/init.d/datadog-agent start
+    $start_instructions
 
 \033[0m"
