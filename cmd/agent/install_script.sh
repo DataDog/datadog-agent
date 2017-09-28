@@ -61,10 +61,9 @@ else
   dd_url="datadoghq.com"
 fi
 
+dd_upgrade=
 if [ -n "$DD_UPGRADE" ]; then
-  dd_upgrade=true
-else
-  dd_upgrade=false
+  dd_upgrade=$DD_UPGRADE
 fi
 
 if [ ! $apikey ]; then
@@ -199,7 +198,7 @@ if [ $dd_upgrade ]; then
 fi
 
 # Set the configuration
-if [ -e /etc/datadog-agent/datadog.yaml -a ! $dd_upgrade ]; then
+if [ -e /etc/datadog-agent/datadog.yaml -a -z "$dd_upgrade" ]; then
   printf "\033[34m\n* Keeping old datadog.yaml configuration file\n\033[0m\n"
 else
   if [ ! -e /etc/datadog-agent/datadog.yaml ]; then
