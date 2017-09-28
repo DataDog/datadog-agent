@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -30,6 +31,12 @@ func fetch(w http.ResponseWriter, req string) {
 
 	case "conf_list":
 		sendConfFileList(w)
+
+	case "agentLog", "collectorLog", "dogstatsdLog", "forwarderLog", "jmxfetchLog":
+		sendLog(w, req[0:len(req)-3], true)
+
+	case "agentLog-noflip", "collectorLog-noflip", "dogstatsdLog-noflip", "forwarderLog-noflip", "jmxfetchLog-noflip":
+		sendLog(w, req[0:len(req)-10], false)
 
 	default:
 		w.Write([]byte("Received unknown fetch request: " + req))
@@ -105,4 +112,31 @@ func sendConfFileList(w http.ResponseWriter) {
 	res, _ := json.Marshal(filenames)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(res))
+}
+
+func sendLog(w http.ResponseWriter, name string, flip bool) {
+	// Get the path to agent.log and trim it to make it the path to all logs
+	path := config.Datadog.GetString("log_file")
+	path = path[0 : len(path)-9]
+
+	logFile, e := ioutil.ReadFile(path + name + ".log")
+	if e != nil {
+		log.Errorf("GUI - Error reading " + name + " log file: " + e.Error())
+		w.Write([]byte("Error reading " + name + " log file: " + e.Error()))
+		return
+	}
+
+	html := strings.Replace(string(logFile), "\n", "<br>", -1)
+
+	if flip {
+		// Reverse the order so that the bottom of the file is read first
+		arr := strings.Split(string(logFile), "\n")
+		for i, j := 0, len(arr)-1; i < j; i, j = i+1, j-1 {
+			arr[i], arr[j] = arr[j], arr[i]
+		}
+		html = strings.Join(arr, "<br>")
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
 }

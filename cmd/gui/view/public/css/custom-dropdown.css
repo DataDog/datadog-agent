@@ -3,10 +3,11 @@
   position: relative;
   display: inline-block;
   vertical-align: middle;
-  margin: 10px; /* demo only */
+  margin: 10px;
 }
 
 .custom-dropdown select {
+  outline: none;
   background-color: #e4e4e4;
   color: black;
   font-size: inherit;

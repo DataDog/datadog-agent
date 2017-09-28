@@ -37,6 +37,10 @@ a {
   transform: translate(-50%, -50%);
 }
 
+.fa-spinner {
+  color: $title;
+}
+
 #sidebar {
   height: 100%;
   width: 160px;
@@ -104,12 +108,19 @@ a {
       margin-left: -10px; // to make up for the 10px left padding the nav items have
       left: 160px;
       top: -50px;
-      width: 100px;
       background-color: $sidebar_hover;
+    }
+
+    #status_side_menu {
+      width: 100px;
     }
 
     #checks_side_menu {
       width: 165px;
+    }
+
+    #logs_side_menu {
+      width: 140px;
     }
 
     .multi:hover {
@@ -207,10 +218,6 @@ a {
     height: calc(100% - 120px);
     overflow-y: scroll;
 
-    .fa-spinner {
-      color: $title;
-    }
-
     .stat {
       margin: 10px;
       margin-left: 20px;
@@ -298,7 +305,7 @@ a {
         width: 110px;
         top: 50%;
         transform: translateY(-50%);
-        left: 115px;
+        left: 98px;
         color: black;
         font-size: 14px;
       }
@@ -331,7 +338,7 @@ a {
     border-radius:3px;
     border:1px solid #18ab29;
 
-    width: 50px;
+    width: 32px;
     position: relative;
     left: 50%;
     transform: translateX(-50%);
@@ -431,7 +438,7 @@ a {
         top: 50%;
         transform: translateY(-50%);
         text-align: right;
-        right: 115px;
+        right: 98px;
         color: black;
         font-size: 14px;
       }
@@ -439,13 +446,46 @@ a {
   }
 
 
-//************* Flare page
+//************* Other pages
+
+  #logs {
+    width: calc(100% - 70px);
+    height: calc(100% - 140px);
+    padding: 15px;
+    padding-top: 5px;
+    overflow: scroll;
+
+    .log_title {
+      font-weight: bold;
+    }
+
+    .log_data {
+      max-width: calc(100% - 30px);
+      position: absolute;
+      top: 60px;
+      line-height: 120%;
+      font-size: $font_size * 0.9;
+    }
+
+    .load_more {
+      display: block;
+      height: 20px;
+      width: 80px;
+      padding: 5px 10px 5px 10px;
+      margin: 10px 0px 10px 0px;
+      font-size: $font_size;
+      border-radius: 6px;
+      background-color: #b4b4b4;
+    }
+
+    .load_more:active {
+      background-color: #a2a2a2;
+    }
+  }
 
   #tests, #flare, #add_check {
     width: 800px;
     height: 400px;
     padding: 10px;
-
-
   }
 }

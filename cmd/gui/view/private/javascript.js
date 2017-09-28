@@ -120,6 +120,85 @@ function loadCollectorStatus(){
   });
 }
 
+/***************************** Logs *****************************/
+function getLog(name){
+  $(".page").css("display", "none");
+  $("#logs").css("display", "block");
+
+  $("#logs").html('<i class="fa fa-spinner fa-pulse fa-3x fa-fw center"></i>');
+
+
+  sendMessage(JSON.stringify({
+    req_type: "fetch",
+    data: name + "Log"
+  }), function(data, status, xhr){
+    // Remove newline at the start
+    if (data.substring(0, 4) == "<br>") data = data.substring(4, data.length);
+
+    // Initially load a maximum number of lines (but allow for loading more)
+    data = trimData(data);
+
+    $("#logs").html('<div class="log_title">' + name +  '.log' +
+                    '<span class="custom-dropdown"> <select id="log_view_type">' +
+                    '<option value="recent" selected>Most recent first</option>' +
+                    '<option value="old">Oldest first</option>' +
+                    '</select></span></div>' +
+                    '<div class="log_data">' + data + ' </div>');
+    $("#log_view_type").change(function(){
+      changeLogView(name);
+    });
+  });
+}
+
+function changeLogView(name) {
+  val = $("#log_view_type").val();
+  if (val == "old") message = "-noflip";
+  else message = "";
+
+  sendMessage(JSON.stringify({
+    req_type: "fetch",
+    data: name + "Log" + message
+  }), function(data, status, xhr){
+    if (data.substring(0, 4) == "<br>") data = data.substring(4, data.length);
+    data = trimData(data);
+
+    $(".log_data").html(data);
+  });
+}
+
+var extraData;
+function trimData(data) {
+  linesToLoad = 200;
+  i = -1;
+
+  // Find the index of the 150th occurrence of <br>
+  while (linesToLoad > 0 && i < data.length) {
+    i = data.indexOf("<br>", i);
+    if (i < 0) break;
+    linesToLoad--; i++;
+  }
+
+  if (i > 0) {
+    extraData = data.substring(i+3, data.length);
+    data = data.substring(0, i-1);
+
+    // Add a way to load more
+    data += "<br><a href='javascript:void(0)' onclick='loadMore()' class='load_more'> Load more </a>";
+  }
+  return data;
+}
+
+function loadMore() {
+  data = $(".log_data").html();
+
+  // Remove the load more button
+  i = data.lastIndexOf("<a href=");
+  data = data.substring(0, i);
+
+  // Add the next 150 lines
+  $(".log_data").html(data + trimData(extraData));
+}
+
 /***************************** Settings *****************************/
 
 function loadSettings() {
@@ -127,7 +206,7 @@ function loadSettings() {
   $("#settings").css("display", "block");
 
   $('#settings').html('<textarea id="settings_input"></textarea>' +
-                      '<div id="submit_settings">Submit</div>');
+                      '<div id="submit_settings">Save</div>');
   $("#submit_settings").click(submitSettings);
 
   sendMessage(JSON.stringify({
@@ -196,7 +275,7 @@ function showCheck(name) {
       payload: name
     }), function(data, status, xhr){
       $("#checks_interface").html('<div id="check_title"> Editing: ' + name + '</div>' +
-                                  '<div id="submit_check">Submit</div>' +
+                                  '<div id="submit_check">Save</div>' +
                                   '<textarea id="check_input">' + data + '</textarea>');
       $("#submit_check").click(submitCheckSettings);
     });

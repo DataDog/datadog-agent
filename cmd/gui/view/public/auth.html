@@ -160,14 +160,9 @@
 
   $("#input").keyup(function(event){
       if(event.keyCode == 13){    // enter
-          // Submit the key
+          // Save the API key as a cookie
           key = document.getElementById('input').value;
-
-          // Save the API key as a cookie (expires after 7 days)
-          var date = new Date();
-          date.setTime(date.getTime() + (7 * 24 * 60 * 60 * 1000));
-          var expires = "; expires=" + date.toGMTString();
-          document.cookie = encodeURIComponent("token") + "=" + encodeURIComponent(key) + expires + "; path=/";
+          document.cookie = encodeURIComponent("token") + "=" + encodeURIComponent(key) + "; path=/";
 
           // Reload this page (will be served the correct page if the API key is correct)
           location.reload();
