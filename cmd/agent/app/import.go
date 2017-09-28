@@ -21,10 +21,11 @@ import (
 
 var (
 	importCmd = &cobra.Command{
-		Use:   "import <old_configuration_dir> <destination_dir>",
-		Short: "Import and convert configuration files from previous versions of the Agent",
-		Long:  ``,
-		RunE:  doImport,
+		Use:          "import <old_configuration_dir> <destination_dir>",
+		Short:        "Import and convert configuration files from previous versions of the Agent",
+		Long:         ``,
+		RunE:         doImport,
+		SilenceUsage: true,
 	}
 
 	force    = false
