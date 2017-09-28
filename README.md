@@ -6,6 +6,10 @@ The Datadog Agent faithfully collects events and metrics and brings them to
 [Datadog](https://app.datadoghq.com) on your behalf so that you can do something
 useful with your monitoring and performance data.
 
+The present repository contains the source code of the Datadog Agent version 6,
+currently in Beta. The source code of the stable Datadog Agent 5 is located in the
+[dd-agent](https://github.com/DataDog/dd-agent) repository.
+
 ## Getting started
 
 To build the Agent you need:
@@ -38,9 +42,10 @@ the environment variable like:
 DD_API_KEY=12345678990 ./bin/agent/agent
 ```
 
-## Developing custom checks
+## Documentation
 
-Please refer to the [Checks](docs/dev/checks/README.md) documentation for more details about creating custom Go or Python checks.
+The general documentation of the project (including instructions on the Beta builds, Agent installation,
+development, etc) is located under the [docs](docs) directory of the present repo.
 
 ## Contributing code
 
