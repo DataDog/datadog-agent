@@ -1,4 +1,17 @@
 
+/***************************** Helpers *****************************/
+
+function getAPIKey() {
+  cookies = document.cookie.split(';');
+  for (var i = 0; i < cookies.length; i++) {
+      c = cookies[i];
+      while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+      if (c.indexOf("token=") === 0) {
+        return c.substring(6, c.length);
+      }
+  }
+  return null;
+}
 
 function sendMessage(data, callback) {
   $.ajax({
@@ -6,7 +19,7 @@ function sendMessage(data, callback) {
     type: 'post',
     data: data,
     headers: {
-        Authorization: 'Bearer ' + API_KEY
+        Authorization: 'Bearer ' + getAPIKey()
     },
     success: callback
   })
@@ -14,21 +27,17 @@ function sendMessage(data, callback) {
 
 /***************************** Setup *****************************/
 
-var API_KEY;
 $(document).ready(function(){
-  // Get the path to the datadog.yaml file
-  // TODO: read datadog.yaml to get api key
-  API_KEY = "test123";
-
   $(".nav_item").click(function(){
     $(".active").removeClass("active");
     $(this).addClass("active");
   });
 
-  $("#status_button").click(loadStatus);
+  $("#logo").click(function(){ $(".page").css("display", "none"); });
   $("#settings_button").click(loadSettings);
   $("#flare_button").click(loadFlare);
   $("#filter_button").change(filterCheckList);
+  $("#submit_flare").click(submitFlare);
 
   setupHomePage()
 });
@@ -58,10 +67,10 @@ function checkStatus() {
     type: 'post',
     data: JSON.stringify({ req_type: "ping" }),
     headers: {
-        Authorization: 'Bearer ' + API_KEY
+        Authorization: 'Bearer ' + getAPIKey()
     },
     success: function(data, status, xhr) {
-      $("#agent_status").html("Agent running");
+      $("#agent_status").html("Connected to Agent");
       $("#agent_status").css({
         "background": 'linear-gradient(to bottom, #89c403 5%, #77a809 100%)',
         "background-color": '#89c403',
@@ -70,7 +79,7 @@ function checkStatus() {
       })
     },
     error: function() {
-      $("#agent_status").html("Agent stopped");
+      $("#agent_status").html("Not connected to Agent");
       $("#agent_status").css({
         "background": 'linear-gradient(to bottom, #c62d1f 5%, #f24437 100%)',
         "background-color": '#c62d1f',
@@ -83,18 +92,31 @@ function checkStatus() {
 
 /***************************** Status *****************************/
 
-function loadStatus(){
+function loadGeneralStatus() {
   $(".page").css("display", "none");
-  $("#status").css("display", "block");
+  $("#general_status").css("display", "block");
 
-  // Clear the page and add the loading sign
-  $("#status").html('<i class="fa fa-spinner fa-pulse fa-3x fa-fw center"></i>');
+  // Clear the page and add the loading sign (this request can take a few seconds)
+  $("#general_status").html('<i class="fa fa-spinner fa-pulse fa-3x fa-fw center"></i>');
 
   sendMessage(JSON.stringify({
     req_type: "fetch",
-    data: "status"
+    data: "generalStatus"
   }), function(data, status, xhr){
-    $('#status').html(data);
+    $('#general_status').html(data);
+  });
+}
+
+function loadCollectorStatus(){
+  $(".page").css("display", "none");
+  $("#collector_status").css("display", "block");
+  $("#collector_status").html('<i class="fa fa-spinner fa-pulse fa-3x fa-fw center"></i>');
+
+  sendMessage(JSON.stringify({
+    req_type: "fetch",
+    data: "collectorStatus"
+  }), function(data, status, xhr){
+    $('#collector_status').html(data);
   });
 }
 
@@ -118,19 +140,25 @@ function loadSettings() {
 
 function submitSettings() {
   settings = $("#settings_input").val();
+
   sendMessage(JSON.stringify({
     req_type: "set",
     data: "settings",
     payload: settings
   }), function(data, status, xhr){
-    if (data == "Success") {
-      $("#submit_settings").append('<i class="fa fa-check fa-lg success"></i>');
-      $(".success").delay(3000).fadeOut("slow");
-    } else {
-      $("#submit_settings").append('<i class="fa fa-times fa-lg unsuccessful"></i>');
-      $(".unsuccessful").delay(3000).fadeOut("slow");
+    resClass = "success"; symbol = "fa-check";
+    resMsg = "Restart agent <br> to see changes";
+
+    if (data != "Success") {
       console.log(data);
+      resClass = "unsuccessful"; symbol = "fa-times";
+
+      if (data.includes("permission denied")) resMsg = "Permission <br> denied";
+      else resMsg = "An error <br> occurred";
     }
+
+    $("#submit_settings").append('<i class="fa ' + symbol + ' fa-lg ' + resClass + '"></i><div class="msg">' + resMsg + '</div>');
+    $("." + resClass + ", .msg").delay(3000).fadeOut("slow");
   });
 }
 
@@ -177,19 +205,22 @@ function showCheck(name) {
 function submitCheckSettings() {
   settings = $("#check_input").val();
   name = $("#check_title").html().slice(10);
+
   sendMessage(JSON.stringify({
     req_type: "check",
     data: "set_yaml",
     payload: name + " " + settings
   }), function(data, status, xhr){
-    if (data == "Success") {
-      $("#submit_check").append('<i class="fa fa-check fa-lg success"></i>');
-      $(".success").delay(3000).fadeOut("slow");
-    } else {
-      $("#submit_check").append('<i class="fa fa-times fa-lg unsuccessful"></i>');
-      $(".unsuccessful").delay(3000).fadeOut("slow");
+    resClass = "success"; symbol = "fa-check";
+    resMsg = "Restart agent <br> to see changes";
+    if (data != "Success") {
       console.log(data);
+      resClass = "unsuccessful"; symbol = "fa-times";
+      if (data.includes("permission denied")) resMsg = "Permission <br> denied";
+      else resMsg = "An error <br> occurred";
     }
+    $("#submit_check").append('<i class="fa ' + symbol + ' fa-lg ' + resClass + '"></i><div class="msg">' + resMsg + '</div>');
+    $("." + resClass + ", .msg").delay(3000).fadeOut("slow");
   });
 }
 
@@ -212,7 +243,9 @@ function filterCheckList() {
 
 function loadAddCheck() {
   $(".page").css("display", "none");
-  $("#flare").css("display", "block");
+  $("#add_check").css("display", "block");
+
+  // TODO
 }
 
 /***************************** Flare *****************************/
@@ -220,4 +253,20 @@ function loadAddCheck() {
 function loadFlare() {
   $(".page").css("display", "none");
   $("#flare").css("display", "block");
+}
+
+function submitFlare() {
+  ticket = $("#ticket_num").val();
+  email = $("#email").val();
+
+  // TODO: Validate email
+  // TODO: Confirm the user is sure they want to send a flare
+
+  sendMessage(JSON.stringify({
+    req_type: "set",
+    data: "flare",
+    payload: email + " " + ticket
+  }), function(data, status, xhr){
+    $("#flare").append("<br>" + data);
+  });
 }

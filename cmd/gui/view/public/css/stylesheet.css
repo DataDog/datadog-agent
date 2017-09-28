@@ -29,6 +29,7 @@ a {
   top: 0px;
   left: 0px; }
   #sidebar #logo {
+    cursor: pointer;
     opacity: 0.85;
     height: 130px;
     width: 100%;
@@ -92,6 +93,13 @@ a {
   left: 160px;
   width: calc(100% - 160px);
   height: 100%; }
+  #main .page {
+    position: absolute;
+    top: 100px;
+    left: 20px;
+    border: 1px solid #e4e4e4;
+    background-color: white;
+    display: none; }
   #main .top_bar {
     width: 100%;
     height: 80px;
@@ -128,32 +136,42 @@ a {
       top: 50%;
       transform: translateY(-50%);
       right: 200px; }
-  #main .page {
-    position: absolute;
-    top: 100px;
-    left: 20px;
-    border: 1px solid #e4e4e4;
-    background-color: white;
-    display: none; }
-  #main #status {
+  #main #general_status, #main #collector_status {
     width: calc(100% - 40px);
     height: calc(100% - 120px);
     overflow-y: scroll; }
-    #main #status .fa-spinner {
+    #main #general_status .fa-spinner, #main #collector_status .fa-spinner {
       color: #a2a2a2; }
-    #main #status .stat {
-      margin-top: 20px; }
-      #main #status .stat .stat_title {
-        font-size: 18px;
+    #main #general_status .stat, #main #collector_status .stat {
+      margin: 10px;
+      margin-left: 20px;
+      margin-bottom: 20px;
+      line-height: 140%; }
+      #main #general_status .stat .stat_title, #main #collector_status .stat .stat_title {
+        font-size: 19.5px;
         font-weight: bold;
-        text-decoration: underline; }
-      #main #status .stat .stat_subtitle {
+        color: #6B419A;
+        display: block;
+        padding-top: 10px;
+        padding-bottom: 5px; }
+      #main #general_status .stat .stat_subtitle, #main #collector_status .stat .stat_subtitle {
         font-size: 16.5px;
+        font-weight: bold;
+        display: block;
+        padding-top: 10px;
+        padding-bottom: 3px; }
+      #main #general_status .stat .stat_data, #main #collector_status .stat .stat_data {
+        display: block;
+        padding-left: 15px; }
+      #main #general_status .stat .stat_subdata, #main #collector_status .stat .stat_subdata {
+        display: block;
+        padding-left: 20px; }
+      #main #general_status .stat .error, #main #collector_status .stat .error {
+        color: red;
         font-weight: bold; }
-  #main #tests, #main #flare {
-    width: 800px;
-    height: 400px;
-    padding: 10px; }
+      #main #general_status .stat .warning, #main #collector_status .stat .warning {
+        color: #FFA500;
+        font-weight: bold; }
   #main #settings {
     width: calc(100% - 40px);
     height: calc(100% - 120px);
@@ -166,23 +184,38 @@ a {
       border-radius: 4px;
       background-color: rgba(0, 0, 0, 0.5);
       -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, 0.5); }
-  #main #submit_settings .success {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    right: -30px;
-    color: green; }
-  #main #submit_settings .unsuccessful {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    right: -30px;
-    color: red; }
+    #main #settings #submit_settings .success {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      right: -30px;
+      color: green; }
+    #main #settings #submit_settings .unsuccessful {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      right: -30px;
+      color: red; }
+    #main #settings #submit_settings .msg {
+      position: absolute;
+      width: 110px;
+      top: 50%;
+      transform: translateY(-50%);
+      left: 115px;
+      color: black;
+      font-size: 14px; }
   #main #settings_input, #main #check_input {
     border: none;
-    width: calc(100% - 5px);
-    height: calc(100% - 60px);
-    font-size: 15px; }
+    width: calc(100% - 30px);
+    height: calc(100% - 90px);
+    font-size: 15px;
+    padding: 15px;
+    outline: none; }
+  #main #check_input {
+    border-top: 1px solid #e4e4e4;
+    position: absolute;
+    height: calc(100% - 85px);
+    top: 53px; }
   #main #submit_settings, #main #submit_check {
     box-shadow: inset 0px 1px 0px 0px #3dc21b;
     background: linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
@@ -213,7 +246,8 @@ a {
       position: absolute;
       height: 100%;
       width: 200px;
-      border: 1px solid #e4e4e4; }
+      border: 1px solid #e4e4e4;
+      border-right: none; }
     #main #checks_settings #checks_list {
       position: absolute;
       top: 50px;
@@ -235,11 +269,8 @@ a {
       border: 1px solid #e4e4e4; }
     #main #checks_settings #check_title {
       position: absolute;
-      left: 10px;
-      top: 15px; }
-    #main #checks_settings #check_input {
-      position: absolute;
-      top: 55px; }
+      left: 15px;
+      top: 18px; }
     #main #checks_settings #submit_check {
       position: absolute;
       left: auto;
@@ -259,5 +290,18 @@ a {
         transform: translateY(-50%);
         left: -30px;
         color: red; }
+      #main #checks_settings #submit_check .msg {
+        position: absolute;
+        width: 110px;
+        top: 50%;
+        transform: translateY(-50%);
+        text-align: right;
+        right: 115px;
+        color: black;
+        font-size: 14px; }
+  #main #tests, #main #flare, #main #add_check {
+    width: 800px;
+    height: 400px;
+    padding: 10px; }
 
 /*# sourceMappingURL=stylesheet.css.map */

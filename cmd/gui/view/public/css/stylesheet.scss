@@ -1,4 +1,5 @@
-// sass view/css/stylesheet.scss view/css/stylesheet.css
+
+// sass view/public/css/stylesheet.scss view/public/css/stylesheet.css
 
 $border: #e4e4e4;
 $bkgrnd: #f5f5f5;
@@ -6,6 +7,7 @@ $sidebar_hover: #110617;
 $unselected_font: #b4b4b4;
 $title: #a2a2a2;
 $font_size: 15px;
+$purple: #6B419A;
 
 body {
   background-color: $bkgrnd;
@@ -44,6 +46,7 @@ a {
   left: 0px;
 
   #logo {
+    cursor: pointer;
     opacity: 0.85;
     height: 130px;
     width: 100%;
@@ -57,6 +60,9 @@ a {
     opacity: 1;
     background-color: $sidebar_hover;
   }
+
+
+//************* Navbar (sidebar menu)
 
   .navbar {
     width: 100%;
@@ -136,6 +142,17 @@ a {
   width: calc(100% - 160px);
   height: 100%;
 
+  .page {
+    position: absolute;
+    top: 100px;
+    left: 20px;
+    border: 1px solid $border;
+    background-color: white;
+    display: none;
+  }
+
+//************* Top bar
+
   .top_bar {
     width: 100%;
     height: 80px;
@@ -182,16 +199,10 @@ a {
     }
   }
 
-  .page {
-    position: absolute;
-    top: 100px;
-    left: 20px;
-    border: 1px solid $border;
-    background-color: white;
-    display: none;
-  }
 
-  #status {
+//************* Status pages
+
+  #general_status, #collector_status {
     width: calc(100% - 40px);
     height: calc(100% - 120px);
     overflow-y: scroll;
@@ -201,26 +212,52 @@ a {
     }
 
     .stat {
-      margin-top: 20px;
+      margin: 10px;
+      margin-left: 20px;
+      margin-bottom: 20px;
+      line-height: 140%;
 
       .stat_title {
-        font-size: $font_size * 1.2;
+        font-size: $font_size * 1.3;
         font-weight: bold;
-        text-decoration: underline;
+        color: $purple;
+        display: block;
+        padding-top: 10px;
+        padding-bottom: 5px;
       }
 
       .stat_subtitle {
         font-size: $font_size * 1.1;
         font-weight: bold;
+        display: block;
+        padding-top: 10px;
+        padding-bottom: 3px;
+      }
+
+      .stat_data {
+        display: block;
+        padding-left: 15px;
+      }
+
+      .stat_subdata {
+        display: block;
+        padding-left: 20px;
+      }
+
+      .error {
+        color: red;
+        font-weight: bold;
+      }
+
+      .warning {
+        color: #FFA500;
+        font-weight: bold;
       }
     }
   }
 
-  #tests, #flare {
-    width: 800px;
-    height: 400px;
-    padding: 10px;
-  }
+
+//************* Settings page
 
   #settings {
     width: calc(100% - 40px);
@@ -238,31 +275,53 @@ a {
       background-color: rgba(0, 0, 0, .5);
       -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, .5);
     }
+
+    #submit_settings {
+      .success {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        right: -30px;
+        color: green;
+      }
+
+      .unsuccessful {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        right: -30px;
+        color: red;
+      }
+
+      .msg {
+        position: absolute;
+        width: 110px;
+        top: 50%;
+        transform: translateY(-50%);
+        left: 115px;
+        color: black;
+        font-size: 14px;
+      }
+    }
   }
 
-  #submit_settings {
-    .success {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      right: -30px;
-      color: green;
-    }
 
-    .unsuccessful {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      right: -30px;
-      color: red;
-    }
-  }
+//************* Settings & Checks Input
 
   #settings_input, #check_input {
     border: none;
-    width: calc(100% - 5px);
-    height: calc(100% - 60px);
+    width: calc(100% - 30px);
+    height: calc(100% - 90px);
     font-size: $font_size;
+    padding: 15px;
+    outline: none;
+  }
+
+  #check_input {
+    border-top: 1px solid $border;
+    position: absolute;
+    height: calc(100% - 85px);
+    top: 53px;
   }
 
   #submit_settings, #submit_check {
@@ -294,6 +353,9 @@ a {
     top:1px;
   }
 
+
+//************* Checks pages
+
   #checks_settings {
     width: calc(100% - 40px);
     height: calc(100% - 120px);
@@ -303,6 +365,7 @@ a {
       height: 100%;
       width: 200px;
       border: 1px solid $border;
+      border-right: none;
     }
 
     #checks_list {
@@ -334,13 +397,8 @@ a {
 
     #check_title {
       position: absolute;
-      left: 10px;
-      top: 15px;
-    }
-
-    #check_input {
-      position: absolute;
-      top: 55px;
+      left: 15px;
+      top: 18px;
     }
 
     #submit_check  {
@@ -366,6 +424,28 @@ a {
         left: -30px;
         color: red;
       }
+
+      .msg {
+        position: absolute;
+        width: 110px;
+        top: 50%;
+        transform: translateY(-50%);
+        text-align: right;
+        right: 115px;
+        color: black;
+        font-size: 14px;
+      }
     }
+  }
+
+
+//************* Flare page
+
+  #tests, #flare, #add_check {
+    width: 800px;
+    height: 400px;
+    padding: 10px;
+
+
   }
 }

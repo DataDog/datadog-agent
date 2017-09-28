@@ -6,49 +6,71 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/status"
 	log "github.com/cihub/seelog"
-	"golang.org/x/text/unicode/norm"
 )
 
-func renderStatus(data []byte) (string, error) {
+func sendStatus(w http.ResponseWriter, req string) {
+	status, e := status.GetStatus()
+	if e != nil {
+		log.Errorf("GUI - Error getting status: " + e.Error())
+		w.Write([]byte("Error getting status: " + e.Error()))
+		return
+	}
+	json, _ := json.Marshal(status)
+
+	html, e := renderStatus(json, req)
+	if e != nil {
+		log.Errorf("GUI - Error generating status html: " + e.Error())
+		w.Write([]byte("Error generating status html: " + e.Error()))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
+}
+
+func renderStatus(data []byte, request string) (string, error) {
 	var b = new(bytes.Buffer)
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats)
-	fillTemplate(b, stats)
 
+	e := fillTemplate(b, stats, request)
+	if e != nil {
+		return "", e
+	}
 	return b.String(), nil
 }
 
-func fillTemplate(w io.Writer, stats map[string]interface{}) {
+func fillTemplate(w io.Writer, stats map[string]interface{}, request string) error {
 	fmap := template.FuncMap{
 		"doNotEscape":        doNotEscape,
 		"lastError":          lastError,
 		"lastErrorTraceback": lastErrorTraceback,
 		"lastErrorMessage":   lastErrorMessage,
 		"pythonLoaderError":  pythonLoaderError,
-		"printDashes":        printDashes,
 		"formatUnixTime":     formatUnixTime,
 		"humanize":           mkHuman,
+		"formatTitle":        formatTitle,
 	}
-
-	t := template.New("status.tmpl")
+	t := template.New(request + ".tmpl")
 	t.Funcs(fmap)
-	t, e := t.ParseFiles("templates/status.tmpl")
+	t, e := t.ParseFiles("templates/" + request + ".tmpl")
 	if e != nil {
-		log.Errorf("GUI - Error opening HTML template: " + e.Error())
-		return
+		return e
 	}
 
 	e = t.Execute(w, stats)
-	if e != nil {
-		log.Errorf("GUI - Error filling the HTML template: " + e.Error())
-		return
-	}
+	return e
 }
+
+/****** Helper functions for the template formatting ******/
 
 var timeFormat = "2006-01-02 15:04:05.000000 UTC"
 
@@ -61,8 +83,8 @@ func pythonLoaderError(value string) template.HTML {
 	value = strings.Replace(value, "['", "", -1)
 	value = strings.Replace(value, "\\n']", "", -1)
 	value = strings.Replace(value, "']", "", -1)
-	value = strings.Replace(value, "\\n", "\n      ", -1)
-	value = strings.TrimRight(value, "\n\t ")
+	value = strings.Replace(value, "\\n", "<br>", -1)
+	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1) // unchecked
 	var loaderErrorArray []string
 	json.Unmarshal([]byte(value), &loaderErrorArray)
 	return template.HTML(value)
@@ -79,8 +101,10 @@ func lastErrorTraceback(value string) template.HTML {
 	if err != nil || len(lastErrorArray) == 0 {
 		return template.HTML("No traceback")
 	}
-	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "\n", "\n      ", -1)
-	lastErrorArray[0]["traceback"] = strings.TrimRight(lastErrorArray[0]["traceback"], "\n\t ")
+
+	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "\n", "<br>", -1)
+	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "  ", "&nbsp;&nbsp;&nbsp;", -1)
+
 	return template.HTML(lastErrorArray[0]["traceback"])
 }
 
@@ -110,14 +134,6 @@ func formatUnixTime(unixTime float64) string {
 	return t.Format(timeFormat)
 }
 
-func printDashes(s string, dash string) string {
-	var dashes string
-	for i := 0; i < stringLength(s); i++ {
-		dashes += dash
-	}
-	return dashes
-}
-
 func mkHuman(f float64) string {
 	i := int64(f)
 	str := fmt.Sprintf("%d", i)
@@ -131,19 +147,23 @@ func mkHuman(f float64) string {
 	return str
 }
 
-func stringLength(s string) int {
-	/*
-		len(string) is wrong if the string has unicode characters in it,
-		for example, something like 'Agent (v6.0.0+Χελωνη)' has len(s) == 27.
-		This is a better way of counting a string length
-		(credit goes to https://stackoverflow.com/a/12668840)
-	*/
-	var ia norm.Iter
-	ia.InitString(norm.NFKD, s)
-	nc := 0
-	for !ia.Done() {
-		nc = nc + 1
-		ia.Next()
+func formatTitle(title string) string {
+	if title == "os" {
+		return "OS"
 	}
-	return nc
+
+	// Split camel case words
+	var words []string
+	l := 0
+	for s := title; s != ""; s = s[l:] {
+		l = strings.IndexFunc(s[1:], unicode.IsUpper) + 1
+		if l <= 0 {
+			l = len(s)
+		}
+		words = append(words, s[:l])
+	}
+	title = strings.Join(words, " ")
+
+	// Capitalize the first letter
+	return strings.Title(title)
 }

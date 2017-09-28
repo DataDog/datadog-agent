@@ -18,32 +18,36 @@ var (
 	listener net.Listener
 )
 
+// Message struct is for the JSON messages received from a client POST request
 type Message struct {
-	Req_type string `json:"req_type"`
-	Data     string `json:"data"`
-	Payload  string `json:"payload"`
+	ReqType string `json:"req_type"`
+	Data    string `json:"data"`
+	Payload string `json:"payload"`
 }
 
+// StopGUIServer closes the connection to the HTTP server
 func StopGUIServer() {
 	if listener != nil {
 		listener.Close()
 	}
 }
 
+// StartGUIServer creates the router and starts the HTTP server
 func StartGUIServer() error {
-	log.Infof("GUI - Setting up server...")
-
 	apiKey = config.Datadog.GetString("api_key")
 	port := ":" + config.Datadog.GetString("GUI_port")
 
 	// Instantiate the gorilla/mux router
 	router := mux.NewRouter()
 
-	// Serve the index page on the default endpoint
-	router.Handle("/", http.FileServer(http.Dir("view/")))
+	// Serve the (secured) index page on the default endpoint
+	router.Handle("/", accessAuth(http.FileServer(http.Dir("view/private/"))))
 
-	// Mount our filesystem at the view/{path} route
-	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.FileServer(http.Dir("view/"))))
+	// Mount our public filesystem at the view/{path} route
+	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.FileServer(http.Dir("view/public/"))))
+
+	// Mount our secured filesystem at the private/{path} route
+	router.PathPrefix("/private/").Handler(http.StripPrefix("/private/", accessAuth(http.FileServer(http.Dir("view/private/")))))
 
 	// Handle requests from clients
 	router.Handle("/req", authenticate(http.HandlerFunc(handler))).Methods("POST")
@@ -55,12 +59,29 @@ func StartGUIServer() error {
 	}
 
 	go http.Serve(listener, router)
-
 	log.Infof("GUI - Server started.")
+
 	return nil
 }
 
-// Middleware which prevents requests unauthorized client requests from getting through
+// Block access to secured files by serving the auth page it the client is not authenticated
+func accessAuth(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, _ := r.Cookie("token")
+
+		// Disable caching to ensure client loads the correct file
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+
+		if cookie == nil || cookie.Value != apiKey {
+			// Serve the authentication page
+			http.ServeFile(w, r, "view/public/auth.html")
+		} else {
+			h.ServeHTTP(w, r)
+		}
+	})
+}
+
+// Middleware which blocks prevents POST requests from unauthorized clients
 func authenticate(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		clientToken := r.Header["Authorization"]
@@ -68,15 +89,16 @@ func authenticate(h http.Handler) http.Handler {
 		// If the client has an incorrect authorization scheme, reply with a 401 (Unauthorized) response
 		if len(clientToken) == 0 || clientToken[0] == "" || strings.Split(clientToken[0], " ")[0] != "Bearer" {
 			w.Header().Set("WWW-Authenticate", "Bearer realm=\"Access to Datadog Agent Manager\"")
-			e := fmt.Errorf("invalid authorization scheme.")
+			e := fmt.Errorf("invalid authorization scheme")
 			http.Error(w, e.Error(), 401)
 			return
 		}
 
 		// If they don't have the correct apiKey, send a 403 (Forbidden) response
 		if clientToken = strings.Split(clientToken[0], " "); clientToken[1] != apiKey {
-			e := fmt.Errorf("invalid authorization token.")
+			e := fmt.Errorf("invalid authorization token")
 			http.Error(w, e.Error(), 403)
+
 			return
 		}
 
@@ -84,6 +106,7 @@ func authenticate(h http.Handler) http.Handler {
 	})
 }
 
+// Handler for all authorized POST requests
 func handler(w http.ResponseWriter, r *http.Request) {
 	// Decode the data from the request
 	body, e := ioutil.ReadAll(r.Body)
@@ -101,13 +124,13 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Make sure message received was the correct format
-	if m.Req_type == "" || m.Data == "" {
+	if m.ReqType == "" || m.Data == "" {
 		w.Write([]byte("Invalid message received: incorrect format."))
 		log.Infof("Invalid message received: incorrect format.")
 		return
 	}
 
-	switch m.Req_type {
+	switch m.ReqType {
 
 	case "fetch":
 		fetch(w, m.Data)
@@ -122,7 +145,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Pong"))
 
 	default:
-		w.Write([]byte("Received unknown request type: " + m.Req_type))
-		log.Infof("GUI - Received unknown request type: %v ", m.Req_type)
+		w.Write([]byte("Received unknown request type: " + m.ReqType))
+		log.Infof("GUI - Received unknown request type: %v ", m.ReqType)
 	}
 }

@@ -1,4 +1,16 @@
 
+function getAPIKey() {
+  cookies = document.cookie.split(';');
+  for (var i = 0; i < cookies.length; i++) {
+      c = cookies[i];
+      while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+      if (c.indexOf("token=") === 0) {
+        return c.substring(6, c.length);
+      }
+  }
+  return null;
+}
+
 function testSuccess() {
   $(".page").css("display", "none");
   $("#tests").css("display", "block");
@@ -11,7 +23,7 @@ function testSuccess() {
       data: "test"
     }),
     headers: {
-        Authorization: 'Bearer ' + API_KEY
+        Authorization: 'Bearer ' + getAPIKey()
     },
     success: function(data, status, xhr) {
       var ct = xhr.getResponseHeader("content-type") || "";
@@ -26,7 +38,7 @@ function testSuccess() {
 
 // No headers
 // Expected: returns error 401 (Unauthorized)
-function testBadReq_1() {
+function testBadReq1() {
   $(".page").css("display", "none");
   $("#tests").css("display", "block");
   $.ajax({
@@ -45,7 +57,7 @@ function testBadReq_1() {
 
 // Header present, incorrect format
 // Expected: returns error 401 (Unauthorized)
-function testBadReq_2() {
+function testBadReq2() {
   $(".page").css("display", "none");
   $("#tests").css("display", "block");
   $.ajax({
@@ -67,7 +79,7 @@ function testBadReq_2() {
 
 // Header present, correct format, incorrect key
 // Expected: returns error 403 (Forbidden)
-function testBadReq_3() {
+function testBadReq3() {
   $(".page").css("display", "none");
   $("#tests").css("display", "block");
   $.ajax({
@@ -89,7 +101,7 @@ function testBadReq_3() {
 
 // Wrong type of request
 // Expected: returns error 404 (Not Found)
-function testBadReq_4() {
+function testBadReq4() {
   $(".page").css("display", "none");
   $("#tests").css("display", "block");
   $.ajax({
