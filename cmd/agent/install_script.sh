@@ -49,10 +49,9 @@ if [ -n "$DD_API_KEY" ]; then
     apikey=$DD_API_KEY
 fi
 
+no_start=
 if [ -n "$DD_INSTALL_ONLY" ]; then
     no_start=true
-else
-    no_start=false
 fi
 
 if [ -n "$DD_URL" ]; then
@@ -232,7 +231,7 @@ if command -v start >/dev/null 2>&1; then
     restart_cmd="$sudo_cmd start datadog-agent restart"
 fi
 
-if $no_start; then
+if [ $no_start ]; then
     printf "\033[34m
 * DD_INSTALL_ONLY environment variable set: the newly installed version of the agent
 will not be started. You will have to do it manually using the following
