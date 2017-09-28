@@ -27,7 +27,7 @@ import (
 
 const dockerCheckName = "docker"
 
-type dockerConfig struct {
+type DockerConfig struct {
 	//Url                    string             `yaml:"url"`
 	CollectContainerSize bool     `yaml:"collect_container_size"`
 	CollectImagesStats   bool     `yaml:"collect_images_stats"`
@@ -58,12 +58,12 @@ type containerPerImage struct {
 	stopped int64
 }
 
-func (c *dockerConfig) Parse(data []byte) error {
+func (c *DockerConfig) Parse(data []byte) error {
+	// default values
+	c.CollectEvent = true
+
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
-	}
-	if len(c.FilteredEventType) == 0 {
-		c.FilteredEventType = []string{"top", "exec_create", "exec_start"}
 	}
 	return nil
 }
@@ -71,7 +71,7 @@ func (c *dockerConfig) Parse(data []byte) error {
 // DockerCheck grabs docker metrics
 type DockerCheck struct {
 	lastWarnings   []error
-	instance       *dockerConfig
+	instance       *DockerConfig
 	lastEventTime  time.Time
 	dockerHostname string
 }
@@ -224,11 +224,11 @@ func (d *DockerCheck) String() string {
 
 // Configure parses the check configuration and init the check
 func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
-	d.instance = &dockerConfig{
-		// Default conf values
-		CollectEvent: true,
-	}
 	d.instance.Parse(config)
+
+	if len(d.instance.FilteredEventType) == 0 {
+		d.instance.FilteredEventType = []string{"top", "exec_create", "exec_start"}
+	}
 
 	var err error
 	d.dockerHostname, err = docker.GetHostname()
