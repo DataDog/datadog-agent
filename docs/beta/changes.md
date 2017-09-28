@@ -23,6 +23,40 @@ may use the agent command: `datadog-agent import`.
 
 The configuration file itself has some additional changes to it. <!-- detail changes -->
 
+## CLI
+
+### Linux
+
+There are a few major changes:
+* only the _lifecycle commands_ (i.e. `start`/`stop`/`restart`/`status` on the Agent service) should be run with `sudo service`/`sudo initctl`/`sudo systemctl`
+* all the other commands need to be run with the `datadog-agent` command, located in the `PATH` (`/usr/bin`) by default
+* the `info` command has been renamed `status`
+* the Agent 6 does not ship a SysV-init script (previously located at `/etc/init.d/datadog-agent`)
+
+For example, for an Agent installed on Ubuntu, the differences are as follows:
+
+| Agent5 Command                                  |  Agent6 Command                         | Notes
+| ----------------------------------------------- | --------------------------------------- | ----------------------------- |
+| `sudo service datadog-agent start`              | `sudo service datadog-agent start`      | Start Agent as a service |
+| `sudo service datadog-agent stop`               | `sudo service datadog-agent stop`       | Stop Agent running as a service |
+| `sudo service datadog-agent restart`            | `sudo service datadog-agent restart`    | Restart Agent running as a service |
+| `sudo service datadog-agent status`             | `sudo service datadog-agent status`     | Status of Agent service |
+| `sudo service datadog-agent info`               | `sudo datadog-agent status`             | Status page of running Agent |
+| `sudo service datadog-agent flare`              | `sudo datadog-agent flare`              | Send flare |
+| `sudo service datadog-agent`                    | `sudo datadog-agent --help`             | Display command usage |
+| `sudo -u dd-agent dd-agent check <check_name>` | `sudo -u dd-agent datadog-agent check <check_name>` | Run a check |
+
+**NB**: If `service` is not available on your system, use:
+* on `upstart`-based systems: `sudo start/stop/restart datadog-agent6`
+* on `systemd`-based systems: `sudo systemctl start/stop/restart datadog-agent6`
+
+## Logs
+
+The Agent logs are still located in the `/var/log/datadog/` directory.
+
+Prior releases were logging to multiple files in that directory (`collector.log`,
+`forwarder.log`, `dogstatsd.log`, etc). Starting with 6.0 the Agent logs to a single log file, `agent.log`.
+
 ## Checks
 
 The base class for python checks remains `AgentCheck`, and you will import it in
