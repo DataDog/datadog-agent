@@ -214,7 +214,7 @@ else
     # of upgrade, let's not start the agent or it would fail because the api key
     # is missing
     printf "\033[31mThe Agent won't start automatically at the end of the script because the Api key is missing, please add one in datadog.yaml and start the agent manually.\n\033[0m\n"
-    $no_start=true
+    no_start=true
   fi
   if [ $dd_hostname ]; then
     printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: /etc/datadog-agent/datadog.yaml\n\033[0m\n"
