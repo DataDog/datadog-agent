@@ -53,7 +53,16 @@ func doImport(cmd *cobra.Command, args []string) error {
 	oldConfigDir := args[0]
 	newConfigDir := args[1]
 	datadogConfPath := filepath.Join(oldConfigDir, "datadog.conf")
-	datadogYamlPath := filepath.Join(newConfigDir, "datadog.yaml")
+	datadogYamlPath := ""
+	if destPath != "" {
+		datadogYamlPath = filepath.Join(destPath, "datadog.yaml")
+		// setup the configuration system
+		config.Datadog.AddConfigPath(destPath)
+	} else {
+		datadogYamlPath = filepath.Join(newConfigDir, "datadog.yaml")
+		// setup the configuration system
+		config.Datadog.AddConfigPath(newConfigDir)
+	}
 	traceAgentConfPath := filepath.Join(newConfigDir, "trace-agent.conf")
 	processAgentConfPath := filepath.Join(newConfigDir, "process-agent.conf")
 
@@ -73,7 +82,6 @@ func doImport(cmd *cobra.Command, args []string) error {
 	}
 
 	// setup the configuration system
-	config.Datadog.AddConfigPath(newConfigDir)
 	err = config.Datadog.ReadInConfig()
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
