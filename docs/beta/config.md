@@ -15,7 +15,7 @@ in any way.
 
 | Old Name | New Name | Notes |
 | --- | --- | --- |
-| `proxy_host`  | `proxy`  | The proxy is now expressed as an URI like `http://user:password@proxyurl:port` |
+| `proxy_host`  | `proxy`  | Proxy settings are now expressed as a list of URIs like `http://user:password@proxyurl:port` |
 | `collect_instance_metadata` | `enable_metadata_collection` | This now enabled the new metadata collection mechanism |
 | `collector_log_file` | `log_file` ||
 | `syslog_host`  | `syslog_uri`  | The Syslog configuration is now expressed as an URI |
