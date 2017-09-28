@@ -64,12 +64,14 @@ func doImport(cmd *cobra.Command, args []string) error {
 	}
 
 	// the new config file might not exist, create it
+	created := false
 	if _, err := os.Stat(datadogYamlPath); os.IsNotExist(err) {
 		f, err := os.Create(datadogYamlPath)
 		if err != nil {
 			return fmt.Errorf("error creating %s: %v", datadogYamlPath, err)
 		}
 		f.Close()
+		created = true
 	}
 
 	// setup the configuration system
@@ -92,9 +94,11 @@ func doImport(cmd *cobra.Command, args []string) error {
 	}
 
 	// backup the original datadog.yaml to datadog.yaml.bak
-	err = os.Rename(datadogYamlPath, datadogYamlPath+".bak")
-	if err != nil {
-		return fmt.Errorf("unable to create a backup for the existing file: %s", datadogYamlPath)
+	if !created {
+		err = os.Rename(datadogYamlPath, datadogYamlPath+".bak")
+		if err != nil {
+			return fmt.Errorf("unable to create a backup for the existing file: %s", datadogYamlPath)
+		}
 	}
 
 	// marshal the config object to YAML
