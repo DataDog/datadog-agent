@@ -228,7 +228,7 @@ fi
 restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
 # Upstart
 if command -v start >/dev/null 2>&1; then
-    restart_cmd="$sudo_cmd start datadog-agent restart"
+    restart_cmd="$sudo_cmd start datadog-agent"
 fi
 
 if [ $no_start ]; then
