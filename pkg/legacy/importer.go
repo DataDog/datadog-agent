@@ -13,23 +13,9 @@ import "github.com/go-ini/ini"
 // dictionary
 type Config map[string]string
 
-// GetAgentConfig reads `datadog.conf` and returns a map that contains the same
-// values as the agentConfig dictionary returned by `get_config()` in config.py
-func GetAgentConfig(datadogConfPath string) (Config, error) {
-	config := make(map[string]string)
-	iniFile, err := ini.Load(datadogConfPath)
-	if err != nil {
-		return config, err
-	}
-
-	main, err := iniFile.GetSection("Main")
-	if err != nil {
-		return config, err
-	}
-
-	// Grab the values needed to do a comparison of the Go vs Python algorithm.
+var (
 	// Note: we'll only import a subset of these values.
-	supportedValues := []string{
+	supportedValues = []string{
 		"dd_url",
 		"proxy_host",
 		"proxy_port",
@@ -75,8 +61,31 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 		"dogstatsd_target",           // deprecated
 		"gce_updated_hostname",       // deprecated
 		"process_agent_enabled",
+		// trace-agent specific
+		"extra_sample_rate",
+		"max_traces_per_second",
+		"receiver_port",
+		"connection_limit",
+		"resource",
+	}
+)
+
+// GetAgentConfig reads `datadog.conf` and returns a map that contains the same
+// values as the agentConfig dictionary returned by `get_config()` in config.py
+func GetAgentConfig(datadogConfPath string) (Config, error) {
+	config := make(map[string]string)
+	iniFile, err := ini.Load(datadogConfPath)
+	if err != nil {
+		return config, err
 	}
 
+	// get the Main section
+	main, err := iniFile.GetSection("Main")
+	if err != nil {
+		return config, err
+	}
+
+	// Grab the values needed to do a comparison of the Go vs Python algorithm.
 	for _, supportedValue := range supportedValues {
 		if value, err := main.GetKey(supportedValue); err == nil {
 			config[supportedValue] = value.String()

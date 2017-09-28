@@ -70,7 +70,7 @@ func init() {
 	dogstatsdCmd.AddCommand(versionCmd)
 
 	// local flags
-	startCmd.Flags().StringVarP(&confPath, "cfgpath", "f", "", "path to datadog.yaml")
+	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to datadog.yaml")
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath"))
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket"))

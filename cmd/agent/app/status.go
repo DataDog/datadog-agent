@@ -26,7 +26,6 @@ var (
 
 func init() {
 	AgentCmd.AddCommand(statusCmd)
-	statusCmd.Flags().StringVarP(&confFilePath, "cfgpath", "f", "", "path to folder containing datadog.yaml")
 	statusCmd.Flags().BoolVarP(&jsonStatus, "json", "j", false, "print out raw json")
 	statusCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
 	statusCmd.Flags().StringVarP(&statusFilePath, "file", "o", "", "Output the status command to a file")

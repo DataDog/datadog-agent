@@ -58,7 +58,6 @@ var (
 	// flags variables
 	runForeground bool
 	pidfilePath   string
-	confdPath     string
 )
 
 // run the host metadata collector every 14400 seconds (4 hours)
@@ -73,8 +72,6 @@ func init() {
 
 	// local flags
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
-	startCmd.Flags().StringVarP(&confdPath, "confd", "c", "", "path to the confd folder")
-	config.Datadog.BindPFlag("confd_path", startCmd.Flags().Lookup("confd"))
 }
 
 // Start the main loop

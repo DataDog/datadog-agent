@@ -127,6 +127,7 @@ func TestCheckSenderInterface(t *testing.T) {
 	checkSender.Rate("my.rate_metric", 2.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Count("my.count_metric", 123.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.MonotonicCount("my.monotonic_count_metric", 12.0, "my-hostname", []string{"foo", "bar"})
+	checkSender.Counter("my.counter_metric", 1.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Histogram("my.histo_metric", 3.0, "my-hostname", []string{"foo", "bar"})
 	checkSender.Commit()
 	checkSender.ServiceCheck("my_service.can_connect", metrics.ServiceCheckOK, "my-hostname", []string{"foo", "bar"}, "message")
@@ -162,6 +163,11 @@ func TestCheckSenderInterface(t *testing.T) {
 	assert.EqualValues(t, checkID1, monotonicCountSenderSample.id)
 	assert.Equal(t, metrics.MonotonicCountType, monotonicCountSenderSample.metricSample.Mtype)
 	assert.Equal(t, false, monotonicCountSenderSample.commit)
+
+	CounterSenderSample := <-senderMetricSampleChan
+	assert.EqualValues(t, checkID1, CounterSenderSample.id)
+	assert.Equal(t, metrics.CounterType, CounterSenderSample.metricSample.Mtype)
+	assert.Equal(t, false, CounterSenderSample.commit)
 
 	histoSenderSample := <-senderMetricSampleChan
 	assert.EqualValues(t, checkID1, histoSenderSample.id)

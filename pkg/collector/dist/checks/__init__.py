@@ -86,14 +86,25 @@ class AgentCheck(object):
         self._deprecations = {
             'increment': [
                 False,
-                "DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, sending these " +
-                "metrics with `AgentCheck.count` and a '_count' suffix instead",
+                "DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, please use " +
+                "`AgentCheck.gauge` or `AgentCheck.count` instead, with a different metric name",
             ],
             'device_name': [
                 False,
                 "DEPRECATION NOTICE: `device_name` is deprecated, please use a `device:` tag in the `tags` list instead",
             ],
+            'in_developer_mode': [
+                False,
+                "DEPRECATION NOTICE: `in_developer_mode` is deprecated, please stop using it.",
+            ],
         }
+
+
+    @property
+    def in_developer_mode(self):
+        self._log_deprecation('in_developer_mode')
+        return False
+
 
     def get_instance_proxy(self, instance, uri):
         proxies = self.proxies.copy()
@@ -132,11 +143,11 @@ class AgentCheck(object):
 
     def increment(self, name, value=1, tags=None, hostname=None, device_name=None):
         self._log_deprecation("increment")
-        self.count(name + "_count", value, tags=tags, hostname=hostname, device_name=device_name)
+        self._submit_metric(aggregator.COUNTER, name, value, tags=tags, hostname=hostname, device_name=device_name)
 
     def decrement(self, name, value=-1, tags=None, hostname=None, device_name=None):
         self._log_deprecation("increment")
-        self.count(name + "_count", value, tags=tags, hostname=hostname, device_name=device_name)
+        self._submit_metric(aggregator.COUNTER, name, value, tags=tags, hostname=hostname, device_name=device_name)
 
     def _log_deprecation(self, deprecation_key):
         """
