@@ -2,6 +2,7 @@ package gui
 
 import (
 	"encoding/json"
+	"expvar"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -13,12 +14,12 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-func fetch(w http.ResponseWriter, req string) {
-	log.Infof("GUI - Received request to fetch " + req)
-	switch req {
+func fetch(w http.ResponseWriter, m Message) {
+	log.Infof("GUI - Received request to fetch " + m.Data)
+	switch m.Data {
 
-	case "generalStatus", "collectorStatus":
-		sendStatus(w, req)
+	case "status":
+		sendStatus(w, m.Payload)
 
 	case "version":
 		sendVersion(w)
@@ -26,24 +27,31 @@ func fetch(w http.ResponseWriter, req string) {
 	case "hostname":
 		sendHostname(w)
 
-	case "settings":
+	case "config_file":
 		sendConfig(w)
 
 	case "conf_list":
 		sendConfFileList(w)
 
-	case "agentLog", "collectorLog", "dogstatsdLog", "forwarderLog", "jmxfetchLog":
-		sendLog(w, req[0:len(req)-3], true)
+	case "log":
+		sendLog(w, m.Payload, true)
 
-	case "agentLog-noflip", "collectorLog-noflip", "dogstatsdLog-noflip", "forwarderLog-noflip", "jmxfetchLog-noflip":
-		sendLog(w, req[0:len(req)-10], false)
+	case "log-no-flip":
+		sendLog(w, m.Payload, false)
+
+	case "check_config":
+		sendCheckConfig(w, m.Payload)
+
+	case "running_checks":
+		sendRunningChecks(w)
 
 	default:
-		w.Write([]byte("Received unknown fetch request: " + req))
-		log.Infof("GUI - Received unknown fetch request: %v ", req)
+		w.Write([]byte("Received unknown fetch request: " + m.Data))
+		log.Infof("GUI - Received unknown fetch request: %v ", m.Data)
 	}
 }
 
+// Sends the current Agent version
 func sendVersion(w http.ResponseWriter) {
 	version, e := version.New(version.AgentVersion)
 	if e != nil {
@@ -139,4 +147,40 @@ func sendLog(w http.ResponseWriter, name string, flip bool) {
 
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(html))
+}
+
+func sendCheckConfig(w http.ResponseWriter, name string) {
+	path := config.Datadog.GetString("confd_path") + "/" + name
+
+	file, e := ioutil.ReadFile(path)
+	if e != nil {
+		log.Errorf("GUI - Error reading check file: " + e.Error())
+		w.Write([]byte("Error reading check file: " + e.Error()))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text")
+	w.Write(file)
+}
+
+func sendRunningChecks(w http.ResponseWriter) {
+	runnerStatsJSON := []byte(expvar.Get("runner").String())
+	runnerStats := make(map[string]interface{})
+	json.Unmarshal(runnerStatsJSON, &runnerStats)
+
+	// Parse runnerStatsJSON to get the names of all the current running checks
+	var checksList []string
+	if checks, ok := runnerStats["Checks"].(map[string]interface{}); ok {
+		for _, ch := range checks {
+			if check, ok := ch.(map[string]interface{}); ok {
+				if name, ok := check["CheckName"].(string); ok {
+					checksList = append(checksList, name)
+				}
+			}
+		}
+	}
+
+	res, _ := json.Marshal(checksList)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(res))
 }

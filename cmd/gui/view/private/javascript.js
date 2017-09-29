@@ -101,7 +101,8 @@ function loadGeneralStatus() {
 
   sendMessage(JSON.stringify({
     req_type: "fetch",
-    data: "generalStatus"
+    data: "status",
+    payload: "general"
   }), function(data, status, xhr){
     $('#general_status').html(data);
   });
@@ -114,7 +115,8 @@ function loadCollectorStatus(){
 
   sendMessage(JSON.stringify({
     req_type: "fetch",
-    data: "collectorStatus"
+    data: "status",
+    payload: "collector"
   }), function(data, status, xhr){
     $('#collector_status').html(data);
   });
@@ -130,7 +132,8 @@ function getLog(name){
 
   sendMessage(JSON.stringify({
     req_type: "fetch",
-    data: name + "Log"
+    data: "log",
+    payload: name
   }), function(data, status, xhr){
     // Remove newline at the start
     if (data.substring(0, 4) == "<br>") data = data.substring(4, data.length);
@@ -140,8 +143,8 @@ function getLog(name){
 
     $("#logs").html('<div class="log_title">' + name +  '.log' +
                     '<span class="custom-dropdown"> <select id="log_view_type">' +
-                    '<option value="recent" selected>Most recent first</option>' +
-                    '<option value="old">Oldest first</option>' +
+                    '<option value="recent_first" selected>Most recent first</option>' +
+                    '<option value="old_first">Oldest first</option>' +
                     '</select></span></div>' +
                     '<div class="log_data">' + data + ' </div>');
     $("#log_view_type").change(function(){
@@ -151,13 +154,13 @@ function getLog(name){
 }
 
 function changeLogView(name) {
-  val = $("#log_view_type").val();
-  if (val == "old") message = "-noflip";
-  else message = "";
+  if ($("#log_view_type").val() == "old_first") type = "log-no-flip"
+  else type = "log";
 
   sendMessage(JSON.stringify({
     req_type: "fetch",
-    data: name + "Log" + message
+    data: type,
+    payload: name
   }), function(data, status, xhr){
     if (data.substring(0, 4) == "<br>") data = data.substring(4, data.length);
     data = trimData(data);
@@ -211,7 +214,7 @@ function loadSettings() {
 
   sendMessage(JSON.stringify({
     req_type: "fetch",
-    data: "settings"
+    data: "config_file"
   }), function(data, status, xhr){
     $('#settings_input').val(data);
   });
@@ -222,7 +225,7 @@ function submitSettings() {
 
   sendMessage(JSON.stringify({
     req_type: "set",
-    data: "settings",
+    data: "config_file",
     payload: settings
   }), function(data, status, xhr){
     resClass = "success"; symbol = "fa-check";
@@ -270,8 +273,8 @@ function loadChecks() {
 
 function showCheck(name) {
     sendMessage(JSON.stringify({
-      req_type: "check",
-      data: "get_yaml",
+      req_type: "fetch",
+      data: "check_config",
       payload: name
     }), function(data, status, xhr){
       $("#checks_interface").html('<div id="check_title"> Editing: ' + name + '</div>' +
@@ -286,8 +289,8 @@ function submitCheckSettings() {
   name = $("#check_title").html().slice(10);
 
   sendMessage(JSON.stringify({
-    req_type: "check",
-    data: "set_yaml",
+    req_type: "set",
+    data: "check_config",
     payload: name + " " + settings
   }), function(data, status, xhr){
     resClass = "success"; symbol = "fa-check";
@@ -325,6 +328,33 @@ function loadAddCheck() {
   $("#add_check").css("display", "block");
 
   // TODO
+}
+
+function seeRunningChecks() {
+  $(".page").css("display", "none");
+  $("#running_checks").css("display", "block");
+
+  runningChecks = {}
+  sendMessage(JSON.stringify({
+    req_type: "fetch",
+    data: "running_checks"
+  }), function(data, status, xhr){
+    if (data == null) {
+      $("#running_checks").html("No checks ran yet.");
+      return
+    }
+
+    data.sort();
+    data.forEach(function(name){
+      if (runningChecks.hasOwnProperty(name)) runningChecks[name] += 1;
+      else runningChecks[name] = 1;
+    });
+
+    $("#running_checks").html("");
+    for (check in runningChecks) {
+      $("#running_checks").append("Name: " + check + "<br>&nbsp;&nbsp;Instances: " + runningChecks[check] + "<br>");
+    }
+  });
 }
 
 /***************************** Flare *****************************/

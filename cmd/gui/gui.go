@@ -64,7 +64,7 @@ func StartGUIServer() error {
 	return nil
 }
 
-// Block access to secured files by serving the auth page it the client is not authenticated
+// Middleware which blocks access to secured files by serving the auth page it the client is not authenticated
 func accessAuth(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, _ := r.Cookie("token")
@@ -133,13 +133,10 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	switch m.ReqType {
 
 	case "fetch":
-		fetch(w, m.Data)
+		fetch(w, m)
 
 	case "set":
-		set(w, m.Data, m.Payload)
-
-	case "check":
-		check(w, m.Data, m.Payload)
+		set(w, m)
 
 	case "ping":
 		w.Write([]byte("Pong"))

@@ -575,9 +575,13 @@ a {
     }
   }
 
+  #running_checks {
+    padding: 20px;
+  }
+
   #tests, #add_check {
     width: 800px;
     height: 400px;
-    padding: 10px
+    padding: 10px;
   }
 }

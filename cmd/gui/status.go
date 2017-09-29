@@ -41,7 +41,7 @@ func renderStatus(data []byte, request string) (string, error) {
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats)
 
-	e := fillTemplate(b, stats, request)
+	e := fillTemplate(b, stats, request+"Status")
 	if e != nil {
 		return "", e
 	}

@@ -11,13 +11,13 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-func set(w http.ResponseWriter, req string, payload string) {
-	switch req {
+func set(w http.ResponseWriter, m Message) {
+	switch m.Data {
 
 	case "flare":
-		data := strings.Fields(payload)
+		data := strings.Fields(m.Payload)
 		if len(data) != 2 {
-			w.Write([]byte("Incorrect flare data format: " + payload))
+			w.Write([]byte("Incorrect flare data format: " + m.Payload))
 			return
 		}
 		customerEmail := data[0]
@@ -46,10 +46,10 @@ func set(w http.ResponseWriter, req string, payload string) {
 		log.Infof("GUI - Uploaded a flare to DataDog. Response: " + res)
 		w.Write([]byte("Uploaded a flare to DataDog. Response: " + res))
 		*/
-	case "settings":
+	case "config_file":
 		path := config.Datadog.ConfigFileUsed()
 
-		data := []byte(payload)
+		data := []byte(m.Payload)
 		e := ioutil.WriteFile(path, data, 0644)
 		if e != nil {
 			log.Errorf("GUI - Error writing to config file: " + e.Error())
@@ -60,9 +60,25 @@ func set(w http.ResponseWriter, req string, payload string) {
 		log.Infof("GUI - Successfully wrote new config file.")
 		w.Write([]byte("Success"))
 
+	case "check_config":
+		i := strings.Index(m.Payload, " ")
+		name := m.Payload[0:i]
+		path := config.Datadog.GetString("confd_path")
+		path += "/" + name
+
+		payload := m.Payload[i+1 : len(m.Payload)]
+		data := []byte(payload)
+
+		e := ioutil.WriteFile(path, data, 0644)
+		if e != nil {
+			log.Errorf("GUI - Error writing to " + name + ": " + e.Error())
+			w.Write([]byte("Error writing to " + name + ": " + e.Error()))
+			return
+		}
+
 	default:
-		w.Write([]byte("Received unknown fetch request: " + req))
-		log.Infof("GUI - Received unknown fetch request: %v ", req)
+		w.Write([]byte("Received unknown set request: " + m.Data))
+		log.Infof("GUI - Received unknown set request: " + m.Data)
 
 	}
 }
