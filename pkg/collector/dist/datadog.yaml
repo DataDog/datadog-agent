@@ -139,6 +139,20 @@ metadata_collectors:
 
 # Autodiscovery
 #
+# Change the root directory to look at to get cgroup statistics. Useful when running inside a
+# container with host directories mounted on a different folder.
+# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
+# "/host/sys/fs/cgroup" and "/sys/fs/cgroup" if not.
+#
+# container_cgroup_root: /host/sys/fs/cgroup/
+#
+# Change the root directory to look at to get proc statistics. Useful when running inside a
+# container with host directories mounted on a different folder.
+# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
+# "/host/proc" and "/proc" if not.
+#
+# container_proc_root: /host/proc
+#
 # listeners:
 #   - name: docker
 
@@ -154,10 +168,16 @@ metadata_collectors:
 # will only be added to high cardinality metrics (docker check)
 #
 # docker_labels_as_tags:
-#   label_name:             tag_name
-#   high_cardinality_label: +tag_name
+#   label_name:                  tag_name
+#   high_cardinality_label_name: +tag_name
 # docker_env_as_tags:
 #   ENVVAR_NAME: tag_name
+#
+# Example:
+# docker_labels_as_tags:
+#   com.docker.compose.service: service_name
+#   com.docker.compose.project: +project_name
+#
 
 # Kubernetes tag extraction
 #
