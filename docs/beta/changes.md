@@ -106,6 +106,40 @@ to:
 gauge(self, name, value, tags=None, hostname=None, device_name=None)
 ```
 
+### Docker check
+
+The Docker check is being rewritten in Go to take advantage of the new
+internal architecture of the Agent, mainly bringing a consistent behaviour
+across every container related component. Therefore the Python version will
+never work within Agent 6. The rewrite is not yet finished, but the new
+`docker` check offers basic functionalities.
+
+The new check is named `docker` and no longer `docker_daemon`.
+
+For now we support a subset of metrics, docker events and `docker.status`
+service check. Look into
+[`docker.yaml.example`](/pkg/collector/dist/conf.d/docker.yaml.example) for
+more information.
+
+Main changes:
+
+- Some options have moved from `docker_daemon.yaml` to the main `datadog.yaml`:
+  * `docker_root` option has been split in two options `container_cgroup_root`
+    and `container_proc_root`.
+  * `exclude` and `include` list have been renamed `ac_include` and
+    `ac_exclude`. They will impact every container-related component of the
+    agent. Those only lists supports image name and container name (instead of
+    any tags).
+  * `exclude_pause_container` has been added to exclude pause containers on
+    Kubernetes and Openshift(default to true). This will avoid users removing
+    them from the exclude list by error.
+  * `collect_labels_as_tags` has been renamed `docker_labels_as_tags` and now
+    supports high cardinality tags
+
+The [`import`](#configuration-files) command support a `--docker` flag to convert the old
+`docker_daemon.yaml` to the new `docker.yaml`. The command will also move
+needed settings from `docker_daemon.yaml` to `datadog.yaml`.
+
 ## Python Modules
 
 While we are continuing to ship the python libraries that shipped with Agent 5,
