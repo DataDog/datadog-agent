@@ -48,6 +48,49 @@ Also to exclude pause containers on Kubernetes use `exclude_pause_container`
 (default to true). This will avoid users removing them from the exclude list by
 error.
 
+### Custom Checks
+
+If you happen to use custom checks, there's a chance your code depends on py code
+that was bundled with agent5 that may not longer be available in the with the new
+agent 6 package. This is a list of packages no longer bundled with the agent:
+
+- backports.ssl-match-hostname
+- boto
+- certifi
+- chardet
+- datadog
+- decorator
+- future
+- futures
+- google-apputils
+- pycurl
+- pyOpenSSL
+- python-consul
+- python-dateutil
+- python-etcd
+- python-gflags
+- pytz
+- pyvmomi
+- PyYAML
+- rancher-metadata
+- tornado
+- uptime
+- urllib3
+- uuid
+- websocket-client
+
+If your code depends on any of those packages, it'll break. You can fix that
+by running the following:
+````bash
+sudo -u dd-agent -- /opt/datadog-agent/embedded/bin/pip install <dependency>
+```
+
+Similarly, you may have added a pip package to meet a requirement for a custom
+check while on agent 5. If the added pip package had inner dependencies with
+packages already bundled with agent5 (see list above), those dependencies will
+be missing after the upgrade to agent6 and your custom checks will break.
+You will have to install the missing dependencies manually as described above.
+
 ## JMX
 
 We still don't have a full featured interface to JMXFetch, so for now you may
