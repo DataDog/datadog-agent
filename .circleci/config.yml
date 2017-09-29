@@ -83,6 +83,9 @@ jobs:
       - restore_cache:
           keys:
             - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+      - restore_cache:
+          keys:
+            - v1-omnibus-deb-{{ checksum ".circle-sha" }}
       - run:
           name: prepare git
           command: git config --global user.email 'dev@datadoghq.com' && git config --global user.name 'Monsieur Croissant'
@@ -90,7 +93,37 @@ jobs:
           name: build the deb artifact
           command: rake agent:omnibus
       - save_cache:
-          key: v1-omnibus-{{ checksum ".circle-sha" }}
+          key: v1-omnibus-deb-{{ checksum ".circle-sha" }}
+          paths:
+            - $AGENT_OMNIBUS_BASE_DIR
+
+  agent_rpm-x64:
+    docker:
+      - image: jfullaondo/datadog-agent-builder-rpm:0.0.2
+        environment:
+          AGENT_OMNIBUS_BASE_DIR: $CIRCLE_WORKING_DIRECTORY/.omnibus/var/
+    working_directory: /go/src/github.com/DataDog/datadog-agent
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - v1-repo-{{ checksum ".circle-sha" }}
+      - restore_cache:
+          keys:
+            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+      - restore_cache:
+          keys:
+            - v1-omnibus-rpm-{{ checksum ".circle-sha" }}
+      - run:
+          name: prepare git
+          command: git config --global user.email 'dev@datadoghq.com' && git config --global user.name 'Monsieur Croissant'
+      - run:
+          name: build the rpm artifact
+          command: rake agent:omnibus
+      - save_cache:
+          key: v1-omnibus-rpm-{{ checksum ".circle-sha" }}
           paths:
             - $AGENT_OMNIBUS_BASE_DIR
 
@@ -106,5 +139,8 @@ workflows:
           requires:
             - dependencies
       - agent_deb-x64:
+          requires:
+            - unittests
+      - agent_rpm-x64:
           requires:
             - unittests
