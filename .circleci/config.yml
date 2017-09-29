@@ -28,7 +28,7 @@ jobs:
             - v1-repo-{{ checksum ".circle-sha" }}
       - run:
           name: grab go deps
-          command: rake deps
+          command: invoke deps
       - save_cache:
           key: v1-govendordeps-{{ checksum "Gopkg.lock" }}
           paths:
@@ -65,7 +65,7 @@ jobs:
           command: apt-get update && apt-get install -q -y snmp-mibs-downloader
       - run:
           name: run unit tests
-          command: rake test race=true
+          command: invoke -e test --coverage
 
   agent_deb-x64:
     docker:
@@ -91,7 +91,7 @@ jobs:
           command: git config --global user.email 'dev@datadoghq.com' && git config --global user.name 'Monsieur Croissant'
       - run:
           name: build the deb artifact
-          command: rake agent:omnibus
+          command: invoke agent.omnibus-build
       - save_cache:
           key: v1-omnibus-deb-{{ checksum ".circle-sha" }}
           paths:
@@ -121,7 +121,7 @@ jobs:
           command: git config --global user.email 'dev@datadoghq.com' && git config --global user.name 'Monsieur Croissant'
       - run:
           name: build the rpm artifact
-          command: rake agent:omnibus
+          command: invoke agent.omnibus-build
       - save_cache:
           key: v1-omnibus-rpm-{{ checksum ".circle-sha" }}
           paths:
