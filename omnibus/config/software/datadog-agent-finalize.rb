@@ -13,8 +13,8 @@ description "steps required to finalize the build"
 default_version "1.0.0"
 skip_transitive_dependency_licensing true
 
-if windows?
-    build do
+build do
+    if windows?
         conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
         conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
         mkdir conf_dir
@@ -26,11 +26,7 @@ if windows?
         delete "#{install_dir}/bin/agent/agent.exe"
         # TODO why does this get generated at all
         delete "#{install_dir}/bin/agent/agent.exe~"
-        
-
-    end
-else
-    build do
+    else
         # Move checks and configuration files
         mkdir "/etc/datadog-agent"
         move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
