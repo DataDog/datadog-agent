@@ -31,9 +31,9 @@ type Win32PerfRawDataPerfDiskLogicalDisk struct {
 	DiskReadsPerSec        uint32
 	DiskWriteBytesPerSec   uint64
 	DiskWritesPerSec       uint32
-	Frequency_Sys100NS     uint64
+	FrequencySys100NS      uint64
 	Name                   string
-	Timestamp_Sys100NS     uint64
+	TimestampSys100NS      uint64
 }
 
 // IOCheck doesn't need additional fields
@@ -64,7 +64,7 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 		log.Errorf("IO Factory failed to get drive strings")
 		return err
 	}
-	drivelist := convert_windows_string_list(drivebuf)
+	drivelist := convertWindowsStringList(drivebuf)
 	for _, drive := range drivelist {
 		r, _, _ = procGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(drive + "\\"))))
 		if r != DRIVE_FIXED {
@@ -75,7 +75,6 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 	return error(nil)
 }
 
-//
 func computeValue(pvs Win32PerfRawDataPerfDiskLogicalDisk, cur *Win32PerfRawDataPerfDiskLogicalDisk) (ret map[string]float64, e error) {
 
 	e = nil
@@ -120,7 +119,7 @@ func (c *IOCheck) Run() error {
 	}
 
 	var dst []Win32PerfRawDataPerfDiskLogicalDisk
-	err = wmi.Query("SELECT Name, DiskWriteBytesPerSec, DiskWritesPerSec, DiskReadBytesPerSec, DiskReadsPerSec, CurrentDiskQueueLength, Timestamp_Sys100NS, Frequency_Sys100NS FROM Win32PerfRawDataPerfDiskLogicalDisk ", &dst)
+	err = wmi.Query("SELECT Name, DiskWriteBytesPerSec, DiskWritesPerSec, DiskReadBytesPerSec, DiskReadsPerSec, CurrentDiskQueueLength, TimestampSys100NS, FrequencySys100NS FROM Win32PerfRawDataPerfDiskLogicalDisk ", &dst)
 	if err != nil {
 		log.Errorf("Error in WMI query %s", err.Error())
 		return err
@@ -160,7 +159,7 @@ func (c *IOCheck) Run() error {
 	return nil
 }
 
-func convert_windows_string_list(winput []uint16) []string {
+func convertWindowsStringList(winput []uint16) []string {
 	var retstrings []string
 	var buffer bytes.Buffer
 
