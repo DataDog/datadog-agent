@@ -56,7 +56,7 @@ func (p *WinNamedPipe) Ready() bool {
 // Read from the pipe
 func (p *WinNamedPipe) Read(b []byte) (int, error) {
 	if p.pipe == nil {
-		return 0, errors.New("No pipe to write to.")
+		return 0, errors.New("no pipe to write to")
 	}
 	return p.pipe.Read(b)
 }
