@@ -14,6 +14,17 @@ SERVICE_NAME=datadog-agent
 # Create a symlink to the agent's binary
 ln -sf $INSTALL_DIR/bin/agent/agent /usr/bin/datadog-agent
 
+echo "Enabling service $SERVICE_NAME"
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl enable $SERVICE_NAME
+elif command -v initctl >/dev/null 2>&1; then
+    # start/stop policy is already defined in the upstart job file
+    :
+else
+    echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
+    exit 1
+fi
+
 # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
 # and avoid restarting when a check conf is invalid
 if [ -f "$CONFIG_DIR/datadog.yaml" ]; then
