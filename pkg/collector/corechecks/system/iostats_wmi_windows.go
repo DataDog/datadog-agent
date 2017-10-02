@@ -19,21 +19,13 @@ import (
 )
 
 var (
-	Modkernel32 = syscall.NewLazyDLL("kernel32.dll")
-
-	ProcGetLogicalDriveStringsW = Modkernel32.NewProc("GetLogicalDriveStringsW")
-	ProcGetDriveType            = Modkernel32.NewProc("GetDriveTypeW")
+	modkernel32                 = syscall.NewLazyDLL("kernel32.dll")
+	procGetLogicalDriveStringsW = modkernel32.NewProc("GetLogicalDriveStringsW")
+	procGetDriveType            = modkernel32.NewProc("GetDriveTypeW")
 )
 
-const (
-	ERROR_SUCCESS        = 0
-	ERROR_FILE_NOT_FOUND = 2
-	DRIVE_REMOVABLE      = 2
-	DRIVE_FIXED          = 3
-)
-
-//type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
-type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
+// Win32PerfRawDataPerfDiskLogicalDisk contains perf infos for a drive
+type Win32PerfRawDataPerfDiskLogicalDisk struct {
 	CurrentDiskQueueLength uint32
 	DiskReadBytesPerSec    uint64
 	DiskReadsPerSec        uint32
@@ -47,7 +39,7 @@ type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
 // IOCheck doesn't need additional fields
 type IOCheck struct {
 	blacklist    *regexp.Regexp
-	drivemap     map[string]Win32_PerfRawData_PerfDisk_LogicalDisk
+	drivemap     map[string]Win32PerfRawDataPerfDiskLogicalDisk
 	lastWarnings []error
 }
 
@@ -59,13 +51,13 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 		return err
 	}
 
-	c.drivemap = make(map[string]Win32_PerfRawData_PerfDisk_LogicalDisk, 0)
+	c.drivemap = make(map[string]Win32PerfRawDataPerfDiskLogicalDisk, 0)
 
 	drivebuf := make([]uint16, 256)
 
 	// Windows API GetLogicalDriveStrings returns all of the assigned drive letters
 	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa364975(v=vs.85).aspx
-	r, _, err := ProcGetLogicalDriveStringsW.Call(
+	r, _, err := procGetLogicalDriveStringsW.Call(
 		uintptr(len(drivebuf)),
 		uintptr(unsafe.Pointer(&drivebuf[0])))
 	if r == 0 {
@@ -74,17 +66,17 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 	}
 	drivelist := convert_windows_string_list(drivebuf)
 	for _, drive := range drivelist {
-		r, _, _ = ProcGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(drive + "\\"))))
+		r, _, _ = procGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(drive + "\\"))))
 		if r != DRIVE_FIXED {
 			continue
 		}
-		c.drivemap[drive] = Win32_PerfRawData_PerfDisk_LogicalDisk{}
+		c.drivemap[drive] = Win32PerfRawDataPerfDiskLogicalDisk{}
 	}
 	return error(nil)
 }
 
 //
-func computeValue(pvs Win32_PerfRawData_PerfDisk_LogicalDisk, cur *Win32_PerfRawData_PerfDisk_LogicalDisk) (ret map[string]float64, e error) {
+func computeValue(pvs Win32PerfRawDataPerfDiskLogicalDisk, cur *Win32PerfRawDataPerfDiskLogicalDisk) (ret map[string]float64, e error) {
 
 	e = nil
 	ret = make(map[string]float64, 0)
@@ -127,8 +119,8 @@ func (c *IOCheck) Run() error {
 		return err
 	}
 
-	var dst []Win32_PerfRawData_PerfDisk_LogicalDisk
-	err = wmi.Query("SELECT Name, DiskWriteBytesPerSec, DiskWritesPerSec, DiskReadBytesPerSec, DiskReadsPerSec, CurrentDiskQueueLength, Timestamp_Sys100NS, Frequency_Sys100NS FROM Win32_PerfRawData_PerfDisk_LogicalDisk ", &dst)
+	var dst []Win32PerfRawDataPerfDiskLogicalDisk
+	err = wmi.Query("SELECT Name, DiskWriteBytesPerSec, DiskWritesPerSec, DiskReadBytesPerSec, DiskReadsPerSec, CurrentDiskQueueLength, Timestamp_Sys100NS, Frequency_Sys100NS FROM Win32PerfRawDataPerfDiskLogicalDisk ", &dst)
 	if err != nil {
 		log.Errorf("Error in WMI query %s", err.Error())
 		return err

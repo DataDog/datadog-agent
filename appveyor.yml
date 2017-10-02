@@ -12,6 +12,9 @@ install:
   - go version
   - pip install invoke
 
+cache:
+  - '%GOPATH%/pkg/dep'
+
 build: off
 
 test_script:
