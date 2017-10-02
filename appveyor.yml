@@ -19,5 +19,5 @@ build: off
 
 test_script:
   - cd
-  - inv deps
-  - inv test --coverage --race --fail-on-fmt
+  - inv -e deps
+  - inv -e test --coverage --race --fail-on-fmt
