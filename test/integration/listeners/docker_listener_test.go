@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
@@ -49,6 +50,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		Whitelist:      config.Datadog.GetStringSlice("ac_include"),
 		Blacklist:      config.Datadog.GetStringSlice("ac_exclude"),
 	})
+	tagger.Init()
 	utils.PullImage(suite.redisImage)
 }
 
@@ -110,7 +112,9 @@ func (suite *DockerListenerTestSuite) TestListenWithInit() {
 	ports, _ := service.GetPorts()
 	assert.Len(suite.T(), ports, 1)
 	tags, _ := service.GetTags()
-	assert.Len(suite.T(), tags, 0)
+	assert.Contains(suite.T(), tags, "docker_image:redis:latest", "image_name:redis", "image_tag:latest", "container_name:datadog-agent-test-redis")
+	// The fifth tag should be the container_id
+	assert.Len(suite.T(), tags, 5)
 	assert.Equal(suite.T(), createdSvc, services[suite.containerID])
 	assert.Equal(suite.T(), suite.containerID, createdSvc.GetID())
 
@@ -152,7 +156,9 @@ func (suite *DockerListenerTestSuite) TestListen() {
 	ports, _ := service.GetPorts()
 	assert.Len(suite.T(), ports, 0)
 	tags, _ := service.GetTags()
-	assert.Len(suite.T(), tags, 0)
+	assert.Contains(suite.T(), tags, "docker_image:redis:latest", "image_name:redis", "image_tag:latest", "container_name:datadog-agent-test-redis")
+	// The fifth tag should be the container_id
+	assert.Len(suite.T(), tags, 5)
 	assert.Equal(suite.T(), createdSvc, services[suite.containerID])
 	assert.Equal(suite.T(), suite.containerID, createdSvc.GetID())
 

@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"unicode"
 
@@ -26,7 +27,7 @@ var (
 		"pid":            getPid,
 		"port":           getPort,
 		"container-name": getContainerName,
-		"tags":           getOptTags,
+		"tags":           getTags,
 	}
 )
 
@@ -267,17 +268,13 @@ func getContainerName(tplVar []byte, svc listeners.Service) []byte {
 }
 
 // getTags returns tags that are appended by default to all metrics.
-// TODO (use svc.Tags)
 func getTags(tplVar []byte, svc listeners.Service) []byte {
-	return []byte("[\"tag:foo\", \"tag:bar\"]")
-}
-
-// getOptTags returns tags that are to be applied to templates with %%tags%%.
-// This is generally reserved to high-cardinality tags that we want to provide,
-// but not by default.
-// TODO
-func getOptTags(tplVar []byte, svc listeners.Service) []byte {
-	return []byte("[\"opt:tag1\", \"opt:tag2\"]")
+	tags, err := svc.GetTags()
+	if err != nil {
+		log.Errorf("Failed to get tags for service %s, skipping config - %s", svc.GetID(), err)
+		return nil
+	}
+	return []byte(fmt.Sprintf("[%s]", strings.Join(tags, ",")))
 }
 
 // parseTemplateVar extracts the name of the var
