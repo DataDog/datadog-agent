@@ -70,7 +70,7 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
         if coverage:
             profile_tmp = "{}/profile.tmp".format(match)
             coverprofile = "-coverprofile={}".format(profile_tmp)
-        cmd = "go test -tags '{go_build_tags}' {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}"
+        cmd = 'go test -tags "{go_build_tags}" {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
         args = {
             "go_build_tags": " ".join(build_tags),
             "race_opt": race_opt,
