@@ -227,13 +227,35 @@ type Container struct {
 	cgroup *ContainerCgroup
 }
 
+// Inspect allows getting the full docker inspect of a Container
 func (c *Container) Inspect(withSize bool) (types.ContainerJSON, error) {
-	if globalDockerUtil == nil {
-		return types.ContainerJSON{}, fmt.Errorf("DockerUtil not initialized")
+	cj, err := Inspect(c.ID, withSize)
+	return cj, err
+}
+
+// Inspect returns a docker inspect object for a given container ID.
+// It tries to locate the container in the inspect cache before making the docker inspect call
+func Inspect(id string, withSize bool) (types.ContainerJSON, error) {
+	cacheKey := GetInspectCacheKey(id)
+	var container types.ContainerJSON
+	var err error
+	var ok bool
+
+	if cached, hit := cache.Cache.Get(cacheKey); hit {
+		container, ok = cached.(types.ContainerJSON)
+		if !ok {
+			log.Errorf("invalid cache format, forcing a cache miss")
+		}
+	} else {
+		if globalDockerUtil == nil {
+			return types.ContainerJSON{}, fmt.Errorf("DockerUtil not initialized")
+		}
+		container, _, err = globalDockerUtil.cli.ContainerInspectWithRaw(context.Background(), id, withSize)
+		// cache the inspect for 10 seconds to reduce pressure on the daemon
+		cache.Cache.Set(cacheKey, container, 10*time.Second)
 	}
 
-	res, _, err := globalDockerUtil.cli.ContainerInspectWithRaw(context.Background(), c.ID, withSize)
-	return res, err
+	return container, err
 }
 
 type dockerNetwork struct {
@@ -304,6 +326,11 @@ func (cfg *ContainerListConfig) GetCacheKey() string {
 	}
 
 	return cacheKey
+}
+
+// GetInspectCacheKey returns the key to a given container ID inspect in the agent cache
+func GetInspectCacheKey(ID string) string {
+	return "dockerutil.containers." + ID
 }
 
 // AllContainers returns a slice of all containers.
