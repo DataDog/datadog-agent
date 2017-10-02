@@ -175,27 +175,39 @@ a {
     // Default: green status
     background:linear-gradient(to bottom, #89c403 5%, #77a809 100%);
     background-color:#89c403;
+    background-color: red;
     border:1px solid #74b807;
     text-shadow:0px 1px 0px #528009;
 
-  	border-radius:26px;
-  	position: absolute;
+    position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    right: 370px;
+    left: -150px;
+
+    border-radius:26px;
   	color:#ffffff;
   	padding:6px 24px;
   	text-decoration:none;
+    text-align: center;
   }
 
   #agent_info {
-    color: $title;
     position: absolute;
+    right: 0px;
+    margin-right: 100px;
     text-align: right;
     top: 50%;
     transform: translateY(-50%);
-    right: 200px;
+    color: $title;
   }
+
+/*
+  #hostname {
+    max-width: 250px;
+    overflow-x: scroll;
+    white-space: nowrap;
+  }
+  */
 }
 
 
@@ -452,6 +464,42 @@ a {
     }
   }
 
+  #running_checks {
+    padding: 20px;
+    max-height: calc(100% - 80px);
+    overflow-y: scroll;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+
+    #running_checks_table {
+      th {
+        padding: 5px;
+      }
+
+      td {
+        border-top: 1px solid $border;
+        padding: 5px;
+      }
+
+      .l_space {
+        padding-left: 30px;
+      }
+    }
+
+    #running_checks_info {
+      display: block;
+      padding-top: 15px;
+      text-align: center;
+    }
+  }
+
+  #run_check {
+    width: 800px;
+    height: 400px;
+    padding: 10px;
+  }
+
 //************* Flare
 
    #flare {
@@ -538,7 +586,7 @@ a {
   }
 
 
-//************* Other pages
+//************* Logs
 
   #logs {
     width: calc(100% - 70px);
@@ -573,15 +621,5 @@ a {
     .load_more:active {
       background-color: #a2a2a2;
     }
-  }
-
-  #running_checks {
-    padding: 20px;
-  }
-
-  #tests, #add_check {
-    width: 800px;
-    height: 400px;
-    padding: 10px;
   }
 }

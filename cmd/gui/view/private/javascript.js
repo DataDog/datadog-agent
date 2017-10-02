@@ -13,7 +13,7 @@ function getAPIKey() {
   return null;
 }
 
-function sendMessage(data, callback) {
+function sendMessage(data, callback, callbackErr){
   $.ajax({
     url: 'http://localhost:8080/req',
     type: 'post',
@@ -21,19 +21,25 @@ function sendMessage(data, callback) {
     headers: {
         Authorization: 'Bearer ' + getAPIKey()
     },
-    success: callback
+    success: callback,
+    error: callbackErr
   })
 }
 
 /***************************** Setup *****************************/
 
 $(document).ready(function(){
+  // Add highlighting current item functionality to the nav bar
   $(".nav_item").click(function(){
+    if ($(this).hasClass("multi")) return;
     $(".active").removeClass("active");
     $(this).addClass("active");
   });
+  $(".side_menu_item").click(function(){
+    $(".active").removeClass("active");
+    $(this).closest(".nav_item").addClass("active");
+  })
 
-  $("#logo").click(function(){ $(".page").css("display", "none"); });
   $("#settings_button").click(loadSettings);
   $("#flare_button").click(loadFlare);
   $("#filter_button").change(filterCheckList);
@@ -43,6 +49,10 @@ $(document).ready(function(){
 });
 
 function setupHomePage() {
+  // By default, display the general status page
+  loadGeneralStatus();
+
+  // Load the version and hostname data into the top bar
   sendMessage(JSON.stringify({
     req_type: "fetch",
     data: "version"
@@ -65,26 +75,31 @@ function checkStatus() {
   $.ajax({
     url: 'http://localhost:8080/req',
     type: 'post',
-    data: JSON.stringify({ req_type: "ping" }),
+    data: JSON.stringify({
+      req_type: "ping",
+      data: "none"
+    }),
     headers: {
         Authorization: 'Bearer ' + getAPIKey()
     },
     success: function(data, status, xhr) {
-      $("#agent_status").html("Connected to Agent");
+      $("#agent_status").html("Connected <br>to Agent");
       $("#agent_status").css({
         "background": 'linear-gradient(to bottom, #89c403 5%, #77a809 100%)',
         "background-color": '#89c403',
         "border": '1px solid #74b807',
-        "text-shadow": '0px 1px 0px #528009'
+        "text-shadow": '0px 1px 0px #528009',
+        'left': '-150px'
       })
     },
     error: function() {
-      $("#agent_status").html("Not connected to Agent");
+      $("#agent_status").html("Not connected<br> to Agent");
       $("#agent_status").css({
         "background": 'linear-gradient(to bottom, #c62d1f 5%, #f24437 100%)',
         "background-color": '#c62d1f',
         "border": '1px solid #d02718',
-        "text-shadow": '0px 1px 0px #810e05'
+        "text-shadow": '0px 1px 0px #810e05',
+        'left': '-180px'
       })
     }
   });
@@ -105,6 +120,8 @@ function loadGeneralStatus() {
     payload: "general"
   }), function(data, status, xhr){
     $('#general_status').html(data);
+  }, function(){
+    $('#general_status').html("<span class='center'>An error occurred.</span>");
   });
 }
 
@@ -119,6 +136,8 @@ function loadCollectorStatus(){
     payload: "collector"
   }), function(data, status, xhr){
     $('#collector_status').html(data);
+  }, function(){
+    $('#collector_status').html("<span class='center'>An error occurred.</span>");
   });
 }
 
@@ -150,6 +169,8 @@ function getLog(name){
     $("#log_view_type").change(function(){
       changeLogView(name);
     });
+  }, function(){
+    $('#logs').html("<span class='center'>An error occurred.</span>");
   });
 }
 
@@ -217,6 +238,8 @@ function loadSettings() {
     data: "config_file"
   }), function(data, status, xhr){
     $('#settings_input').val(data);
+  }, function(){
+    $('#settings').html("<span class='center'>An error occurred.</span>");
   });
 }
 
@@ -252,10 +275,26 @@ function loadChecks() {
   $(".page").css("display", "none");
   $("#checks_settings").css("display", "block");
 
+
+
   sendMessage(JSON.stringify({
     req_type: "fetch",
     data: "conf_list"
   }), function(data, status, xhr){
+    if (typeof(data) == "string") {
+      if (data.includes("Empty directory:")) {
+        // Handle the directory being empty
+        path = data.substr(data.indexOf(":") + 1);
+        $("#checks_interface").html("<span class='center'>" + path + " is empty.</span>");
+      } else {
+        // Handle some other error
+        $("#checks_interface").html("<span class='center'>A problem occured. " + data + "</span>");
+      }
+      return
+    }
+
+    $("#checks_interface").html("<span class='center'> Select a check. </span>");
+
     if (loaded) return;
     data.sort();
     data.forEach(function(item){
@@ -268,6 +307,10 @@ function loadChecks() {
       }
     });
     loaded = true;
+  }, function(){
+    $('#checks_interface').html("<span class='center'>An error occurred.</span>");
+    $("#checks_list").html("");
+    loaded = false;
   });
 }
 
@@ -323,13 +366,6 @@ function filterCheckList() {
   }
 }
 
-function loadAddCheck() {
-  $(".page").css("display", "none");
-  $("#add_check").css("display", "block");
-
-  // TODO
-}
-
 function seeRunningChecks() {
   $(".page").css("display", "none");
   $("#running_checks").css("display", "block");
@@ -350,11 +386,26 @@ function seeRunningChecks() {
       else runningChecks[name] = 1;
     });
 
-    $("#running_checks").html("");
+    $("#running_checks").html('<table id="running_checks_table">' +
+                              '<tr> <th>Check Name</th>' +
+                              '<th class="l_space">Number of Instances</th></tr> ' +
+                              '</table>' +
+                              '<div id="running_checks_info"> See Collector Status for more information.</div>');
+
     for (check in runningChecks) {
-      $("#running_checks").append("Name: " + check + "<br>&nbsp;&nbsp;Instances: " + runningChecks[check] + "<br>");
+      $("#running_checks_table").append('<tr> <td>' + check + '</td>' +
+                                        '<td class="l_space">' + runningChecks[check] + '</td></tr> ');
     }
+  }, function() {
+      $("#running_checks").html("An error occurred.");
   });
+}
+
+function loadRunCheck() {
+  $(".page").css("display", "none");
+  $("#run_check").css("display", "block");
+
+  // TODO
 }
 
 /***************************** Flare *****************************/
@@ -386,5 +437,7 @@ function submitFlare() {
     $("#flare_response").html(data);
     $("#ticket_num").val("");
     $("#email").val("");
+  }, function(){
+    $('#flare_response').html("<span class='center'>An error occurred.</span>");
   });
 }

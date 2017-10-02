@@ -76,6 +76,9 @@ func set(w http.ResponseWriter, m Message) {
 			return
 		}
 
+		log.Infof("GUI - Successfully wrote new " + name + " config file.")
+		w.Write([]byte("Success"))
+
 	default:
 		w.Write([]byte("Received unknown set request: " + m.Data))
 		log.Infof("GUI - Received unknown set request: " + m.Data)

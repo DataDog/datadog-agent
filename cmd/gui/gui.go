@@ -37,6 +37,11 @@ func StartGUIServer() error {
 	apiKey = config.Datadog.GetString("api_key")
 	port := ":" + config.Datadog.GetString("GUI_port")
 
+	if config.Datadog.GetString("GUI_port") == "-1" {
+		log.Infof("Port -1 specified: not starting the GUI server.")
+		return nil
+	}
+
 	// Instantiate the gorilla/mux router
 	router := mux.NewRouter()
 
@@ -64,7 +69,7 @@ func StartGUIServer() error {
 	return nil
 }
 
-// Middleware which blocks access to secured files by serving the auth page it the client is not authenticated
+// Middleware which blocks access to secured files by serving the auth page if the client is not authenticated
 func accessAuth(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, _ := r.Cookie("token")
@@ -81,7 +86,7 @@ func accessAuth(h http.Handler) http.Handler {
 	})
 }
 
-// Middleware which blocks prevents POST requests from unauthorized clients
+// Middleware which prevents POST requests from unauthorized clients
 func authenticate(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		clientToken := r.Header["Authorization"]
@@ -91,14 +96,15 @@ func authenticate(h http.Handler) http.Handler {
 			w.Header().Set("WWW-Authenticate", "Bearer realm=\"Access to Datadog Agent Manager\"")
 			e := fmt.Errorf("invalid authorization scheme")
 			http.Error(w, e.Error(), 401)
+			log.Infof("GUI - Received unauthorized request (invalid scheme).")
 			return
 		}
 
 		// If they don't have the correct apiKey, send a 403 (Forbidden) response
-		if clientToken = strings.Split(clientToken[0], " "); clientToken[1] != apiKey {
+		if clientToken = strings.Split(clientToken[0], " "); apiKey != "" && clientToken[1] != apiKey {
 			e := fmt.Errorf("invalid authorization token")
 			http.Error(w, e.Error(), 403)
-
+			log.Infof("GUI - Received unauthorized request (bad token).")
 			return
 		}
 
@@ -126,7 +132,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	// Make sure message received was the correct format
 	if m.ReqType == "" || m.Data == "" {
 		w.Write([]byte("Invalid message received: incorrect format."))
-		log.Infof("Invalid message received: incorrect format.")
+		log.Infof("GUI - Invalid message received: incorrect format.")
 		return
 	}
 

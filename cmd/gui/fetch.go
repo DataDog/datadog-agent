@@ -51,7 +51,7 @@ func fetch(w http.ResponseWriter, m Message) {
 	}
 }
 
-// Sends the current Agent version
+// Sends the current agent version
 func sendVersion(w http.ResponseWriter) {
 	version, e := version.New(version.AgentVersion)
 	if e != nil {
@@ -65,6 +65,7 @@ func sendVersion(w http.ResponseWriter) {
 	w.Write(res)
 }
 
+// Sends the agent's hostname
 func sendHostname(w http.ResponseWriter) {
 	hostname, e := util.GetHostname()
 	if e != nil {
@@ -78,6 +79,7 @@ func sendHostname(w http.ResponseWriter) {
 	w.Write(res)
 }
 
+// Sends the configuration (aka datadog.yaml) file
 func sendConfig(w http.ResponseWriter) {
 	path := config.Datadog.ConfigFileUsed()
 	settings, e := ioutil.ReadFile(path)
@@ -91,6 +93,7 @@ func sendConfig(w http.ResponseWriter) {
 	w.Write(settings)
 }
 
+// Sends a list containing the names of all the files in the conf.d directory
 func sendConfFileList(w http.ResponseWriter) {
 	path := config.Datadog.GetString("confd_path")
 	dir, e := os.Open(path)
@@ -101,13 +104,13 @@ func sendConfFileList(w http.ResponseWriter) {
 	}
 	defer dir.Close()
 
+	// Read the names of all the files in the configured conf.d directory
 	files, e := dir.Readdir(-1)
 	if e != nil {
 		log.Errorf("GUI - Error reading conf.d directory: " + e.Error())
 		w.Write([]byte("Error reading conf.d directory: " + e.Error()))
 		return
 	}
-
 	var filenames []string
 	for _, file := range files {
 		if file.Mode().IsRegular() {
@@ -115,13 +118,18 @@ func sendConfFileList(w http.ResponseWriter) {
 		}
 	}
 
-	// TODO (?) also read the files in ./bin/agent/dist/conf.d/
+	// If there are no files, send a relevant message
+	if len(filenames) == 0 {
+		w.Write([]byte("Empty directory:" + path))
+		return
+	}
 
 	res, _ := json.Marshal(filenames)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(res))
 }
 
+// Sends the specified log file
 func sendLog(w http.ResponseWriter, name string, flip bool) {
 	// Get the path to agent.log and trim it to make it the path to all logs
 	path := config.Datadog.GetString("log_file")
@@ -149,6 +157,7 @@ func sendLog(w http.ResponseWriter, name string, flip bool) {
 	w.Write([]byte(html))
 }
 
+// Sends the specified yaml file (from the conf.d directory)
 func sendCheckConfig(w http.ResponseWriter, name string) {
 	path := config.Datadog.GetString("confd_path") + "/" + name
 
@@ -163,6 +172,7 @@ func sendCheckConfig(w http.ResponseWriter, name string) {
 	w.Write(file)
 }
 
+// Sends a list of all the current running checks
 func sendRunningChecks(w http.ResponseWriter) {
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
 	runnerStats := make(map[string]interface{})

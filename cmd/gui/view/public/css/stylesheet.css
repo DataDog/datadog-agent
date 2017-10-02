@@ -103,7 +103,14 @@ a {
   top: 0px;
   left: 160px;
   border-bottom: 1px solid #e4e4e4;
-  overflow-x: hidden; }
+  overflow-x: hidden;
+  /*
+    #hostname {
+      max-width: 250px;
+      overflow-x: scroll;
+      white-space: nowrap;
+    }
+    */ }
   .top_bar #title {
     color: #a2a2a2;
     font-weight: bold;
@@ -115,23 +122,26 @@ a {
   .top_bar #agent_status {
     background: linear-gradient(to bottom, #89c403 5%, #77a809 100%);
     background-color: #89c403;
+    background-color: red;
     border: 1px solid #74b807;
     text-shadow: 0px 1px 0px #528009;
-    border-radius: 26px;
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    right: 370px;
+    left: -150px;
+    border-radius: 26px;
     color: #ffffff;
     padding: 6px 24px;
-    text-decoration: none; }
+    text-decoration: none;
+    text-align: center; }
   .top_bar #agent_info {
-    color: #a2a2a2;
     position: absolute;
+    right: 0px;
+    margin-right: 100px;
     text-align: right;
     top: 50%;
     transform: translateY(-50%);
-    right: 200px; }
+    color: #a2a2a2; }
 
 #main {
   position: absolute;
@@ -310,6 +320,28 @@ a {
         right: 98px;
         color: black;
         font-size: 14px; }
+  #main #running_checks {
+    padding: 20px;
+    max-height: calc(100% - 80px);
+    overflow-y: scroll;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); }
+    #main #running_checks #running_checks_table th {
+      padding: 5px; }
+    #main #running_checks #running_checks_table td {
+      border-top: 1px solid #e4e4e4;
+      padding: 5px; }
+    #main #running_checks #running_checks_table .l_space {
+      padding-left: 30px; }
+    #main #running_checks #running_checks_info {
+      display: block;
+      padding-top: 15px;
+      text-align: center; }
+  #main #run_check {
+    width: 800px;
+    height: 400px;
+    padding: 10px; }
   #main #flare {
     width: 500px;
     height: 320px;
@@ -396,11 +428,5 @@ a {
       background-color: #b4b4b4; }
     #main #logs .load_more:active {
       background-color: #a2a2a2; }
-  #main #running_checks {
-    padding: 20px; }
-  #main #tests, #main #add_check {
-    width: 800px;
-    height: 400px;
-    padding: 10px; }
 
 /*# sourceMappingURL=stylesheet.css.map */
