@@ -149,7 +149,29 @@ func (r *Runner) work() {
 		}
 		r.m.Unlock()
 
-		log.Infof("Running check %s", check)
+		var doLog bool
+		var lastLog bool
+		checkStats.M.RLock()
+		s, found := checkStats.Stats[check.ID()]
+		if found {
+			if s.TotalRuns <= 5 {
+				doLog = true
+				if s.TotalRuns == 5 {
+					lastLog = true
+				}
+			} else if s.TotalRuns%10 == 0 {
+				doLog = true
+			}
+		} else {
+			doLog = true
+		}
+		checkStats.M.RUnlock()
+
+		if doLog {
+			log.Infof("Running check %s", check)
+		} else {
+			log.Debugf("Running check %s", check)
+		}
 
 		// run the check
 		var err error
@@ -205,7 +227,15 @@ func (r *Runner) work() {
 		mStats, _ := check.GetMetricStats()
 		addWorkStats(check, time.Since(t0), err, warnings, mStats)
 
-		log.Infof("Done running check %s", check)
+		l := "Done running check %s"
+		if doLog {
+			if lastLog {
+				l = l + " first runs done, next runs will be logged every 10 runs"
+			}
+			log.Infof(l, check)
+		} else {
+			log.Debugf(l, check)
+		}
 	}
 
 	log.Debug("Finished processing checks.")
