@@ -9,6 +9,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+// GetSyslogURI returns the configured/default syslog uri
 func GetSyslogURI() string {
 	enabled := Datadog.GetBool("log_to_syslog")
 
