@@ -6,12 +6,8 @@
 name "datadog-logs-agent"
 always_build true
 
-logs_agent_version = ENV['logs_agent_version']
-if logs_agent_version.nil? || logs_agent_version.empty?
-    logs_agent_version = "alpha"
-end
-
 build do
+  logs_agent_version = "alpha"
   binary = "logagent"
   url = "https://s3.amazonaws.com/public.binaries.sheepdog.datad0g.com/agent/#{logs_agent_version}/linux-amd64/#{binary}"
   command "curl #{url} -o #{binary}"
