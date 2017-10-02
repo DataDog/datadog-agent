@@ -1,0 +1,20 @@
+version: '{branch}.{build}'
+shallow_clone: false
+platform: x64
+
+clone_folder: c:\gopath\src\github.com\DataDog\datadog-agent
+
+environment:
+  GOPATH: c:\gopath
+
+install:
+  - set PATH=%GOPATH%\bin;c:\go\bin;%PATH%
+  - go version
+  - pip install invoke
+
+build: off
+
+test_script:
+  - cd
+  - inv deps
+  - inv test --coverage --race --fail-on-fmt

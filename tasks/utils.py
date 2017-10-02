@@ -129,6 +129,7 @@ def get_git_branch_name():
     """
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
 
+
 def query_version(ctx):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
