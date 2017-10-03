@@ -237,7 +237,7 @@ a {
     position: absolute;
     height: calc(100% - 85px);
     top: 53px; }
-  #main #submit_settings, #main #submit_check {
+  #main #submit_settings, #main #submit_check, #main #save_run_check {
     box-shadow: inset 0px 1px 0px 0px #3dc21b;
     background: linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
     background-color: #44c767;
@@ -338,10 +338,115 @@ a {
       display: block;
       padding-top: 15px;
       text-align: center; }
-  #main #run_check {
-    width: 800px;
-    height: 400px;
-    padding: 10px; }
+  #main #add_check {
+    width: calc(100% - 40px);
+    height: calc(100% - 40px); }
+    #main #add_check #add_check_description {
+      width: 100%;
+      height: 50px;
+      display: block;
+      text-align: center;
+      line-height: 50px;
+      border-bottom: 1px solid #e4e4e4; }
+    #main #add_check #add_check_interface {
+      position: absolute;
+      top: 50px;
+      width: 100%;
+      height: calc(100% - 50px); }
+      #main #add_check #add_check_interface .check_files_list {
+        position: absolute;
+        height: 100%;
+        width: 200px;
+        overflow: scroll;
+        border-right: 1px solid #e4e4e4; }
+        #main #add_check #add_check_interface .check_files_list .check_file {
+          white-space: nowrap;
+          font-size: 13.5px;
+          padding: 5px;
+          padding-left: 15px;
+          width: calc(100% - 20px);
+          display: inline-block; }
+        #main #add_check #add_check_interface .check_files_list .check_file:hover {
+          background-color: #e4e4e4; }
+        #main #add_check #add_check_interface .check_files_list .selected {
+          background-color: #e4e4e4;
+          pointer-events: none; }
+        #main #add_check #add_check_interface .check_files_list .example:hover {
+          background-color: white; }
+      #main #add_check #add_check_interface #save_run_check {
+        z-index: 2;
+        width: 75px;
+        position: absolute;
+        transform: none;
+        left: auto;
+        right: 10px;
+        top: 5px;
+        display: block;
+        text-align: center; }
+      #main #add_check #add_check_interface #save_run_check:active {
+        position: absolute;
+        top: 6px; }
+      #main #add_check #add_check_interface #edit_check_file {
+        position: absolute;
+        margin: 1px;
+        padding: 15px;
+        left: 200px;
+        height: calc(100% - 32px);
+        width: calc(100% - 232px);
+        overflow-y: scroll;
+        font-size: 15px;
+        outline: none;
+        border: none; }
+    #main #add_check #popup {
+      height: calc(100% - 100px);
+      width: calc(100% - 300px);
+      min-width: 700px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 5;
+      background-color: #f4f4f4;
+      box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
+      -moz-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
+      -webkit-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22); }
+      #main #add_check #popup #associated_title {
+        z-index: 6;
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        font-size: 16.5px;
+        font-weight: bold; }
+      #main #add_check #popup #associated {
+        position: absolute;
+        top: 45px;
+        padding: 15px;
+        padding-top: 0px;
+        height: calc(100% - 60px);
+        width: calc(100% - 30px);
+        overflow-y: scroll;
+        font-size: 15px;
+        outline: none;
+        border: none;
+        background-color: transparent; }
+      #main #add_check #popup .exit {
+        z-index: 6;
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        margin: 5px;
+        cursor: pointer;
+        width: 20px;
+        height: 20px;
+        color: #fff;
+        border: 1px solid #AEAEAE;
+        border-radius: 30px;
+        background: #605F61;
+        font-size: 20px;
+        font-weight: bold;
+        display: inline-block;
+        text-align: center;
+        line-height: 15px; }
   #main #flare {
     width: 500px;
     height: 320px;

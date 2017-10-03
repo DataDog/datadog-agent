@@ -350,7 +350,7 @@ a {
     top: 53px;
   }
 
-  #submit_settings, #submit_check {
+  #submit_settings, #submit_check, #save_run_check {
     box-shadow:inset 0px 1px 0px 0px #3dc21b;
     background:linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
     background-color:#44c767;
@@ -380,7 +380,7 @@ a {
   }
 
 
-//************* Checks pages
+//************* Configure checks
 
   #checks_settings {
     width: calc(100% - 40px);
@@ -464,6 +464,9 @@ a {
     }
   }
 
+
+//************* List running checks
+
   #running_checks {
     padding: 20px;
     max-height: calc(100% - 80px);
@@ -494,10 +497,149 @@ a {
     }
   }
 
-  #run_check {
-    width: 800px;
-    height: 400px;
-    padding: 10px;
+
+//************* Add a check
+
+  #add_check {
+    width: calc(100% - 40px);
+    height: calc(100% - 40px);
+
+    #add_check_description {
+      width: 100%;
+      height: 50px;
+      display: block;
+      text-align: center;
+      line-height: 50px;
+      border-bottom: 1px solid $border;
+    }
+
+    #add_check_interface {
+      position: absolute;
+      top: 50px;
+      width: 100%;
+      height: calc(100% - 50px);
+
+      .check_files_list {
+        position: absolute;
+        height: 100%;
+        width: 200px;
+        overflow: scroll;
+        border-right: 1px solid $border;
+
+        .check_file {
+          white-space: nowrap;
+          font-size: $font_size * 0.9;
+          padding: 5px;
+          padding-left: 15px;
+          width: calc(100% - 20px);
+          display: inline-block;
+        }
+
+        .check_file:hover {
+          background-color: $border;
+        }
+
+        .selected {
+          background-color: $border;
+          pointer-events: none;
+        }
+
+        .example:hover {
+          background-color: white;
+        }
+      }
+
+      #save_run_check {
+        z-index: 2;
+        width: 75px;
+        position: absolute;
+        transform: none;
+        left: auto;
+        right: 10px;
+        top: 5px;
+        display: block;
+        text-align: center;
+      }
+      #save_run_check:active {
+        position: absolute;
+        top: 6px;
+      }
+
+      #edit_check_file {
+        position: absolute;
+        margin: 1px;
+        padding: 15px;
+        left: 200px;
+        height: calc(100% - 32px);
+        width: calc(100% - 232px);
+        overflow-y: scroll;
+        font-size: $font_size;
+        outline: none;
+        border: none;
+      }
+    }
+
+    #popup {
+      height: calc(100% - 100px);
+      width: calc(100% - 300px);
+      min-width: 700px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+
+      z-index: 5;
+      background-color: #f4f4f4;
+      box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
+      -moz-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
+      -webkit-box-shadow:  0px 0px 15px rgba(0, 0, 0, 0.22);
+
+      #associated_title {
+        z-index: 6;
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        font-size: $font_size * 1.1;
+        font-weight: bold;
+      }
+
+      #associated {
+        position: absolute;
+        top: 45px;
+        padding: 15px;
+        padding-top: 0px;
+        height: calc(100% - 60px);
+        width: calc(100% - 30px);
+        overflow-y: scroll;
+        font-size: $font_size;
+        outline: none;
+        border: none;
+        background-color: transparent;
+      }
+
+      .exit {
+        z-index: 6;
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        margin: 5px;
+
+        cursor: pointer;
+        width: 20px;
+        height: 20px;
+
+        color: #fff;
+        border: 1px solid #AEAEAE;
+        border-radius: 30px;
+        background: #605F61;
+        font-size: 20px;
+        font-weight: bold;
+
+        display: inline-block;
+        text-align: center;
+        line-height: 15px;
+      }
+    }
   }
 
 //************* Flare

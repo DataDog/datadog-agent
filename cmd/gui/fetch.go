@@ -31,7 +31,10 @@ func fetch(w http.ResponseWriter, m Message) {
 		sendConfig(w)
 
 	case "conf_list":
-		sendConfFileList(w)
+		sendFileList(w, "confd_path")
+
+	case "checks_list":
+		sendFileList(w, "additional_checksd")
 
 	case "log":
 		sendLog(w, m.Payload, true)
@@ -93,13 +96,13 @@ func sendConfig(w http.ResponseWriter) {
 	w.Write(settings)
 }
 
-// Sends a list containing the names of all the files in the conf.d directory
-func sendConfFileList(w http.ResponseWriter) {
-	path := config.Datadog.GetString("confd_path")
+// Sends a list containing the names of all the files in the specified directory
+func sendFileList(w http.ResponseWriter, name string) {
+	path := config.Datadog.GetString(name)
 	dir, e := os.Open(path)
 	if e != nil {
-		log.Errorf("GUI - Error opening conf.d directory: " + e.Error())
-		w.Write([]byte("Error opening conf.d directory: " + e.Error()))
+		log.Errorf("GUI - Error opening " + path + " : " + e.Error())
+		w.Write([]byte("Error opening " + path + " : " + e.Error()))
 		return
 	}
 	defer dir.Close()
@@ -107,8 +110,8 @@ func sendConfFileList(w http.ResponseWriter) {
 	// Read the names of all the files in the configured conf.d directory
 	files, e := dir.Readdir(-1)
 	if e != nil {
-		log.Errorf("GUI - Error reading conf.d directory: " + e.Error())
-		w.Write([]byte("Error reading conf.d directory: " + e.Error()))
+		log.Errorf("GUI - Error reading " + path + " : " + e.Error())
+		w.Write([]byte("Error reading " + path + " : " + e.Error()))
 		return
 	}
 	var filenames []string

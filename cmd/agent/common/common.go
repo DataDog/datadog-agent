@@ -10,6 +10,7 @@ package common
 import (
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -21,6 +22,8 @@ import (
 var (
 	// AC is the global object orchestrating checks' loading and running
 	AC *autodiscovery.AutoConfig
+
+	Coll *collector.Collector
 
 	// DSD is the global dogstastd instance
 	DSD *dogstatsd.Server
