@@ -8,7 +8,7 @@ environment:
   GOPATH: C:\gopath
 
 install:
-  - set PATH=%GOPATH%\bin;C:\go\bin;C:\pkg-config;%PATH%
+  - set PATH=%GOPATH%\bin;C:\go\bin;C:\pkg-config\bin;%PATH%
 
   - go version
   - pip install invoke
