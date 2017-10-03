@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -24,17 +25,47 @@ import (
 
 // LogsCheck keeps track of the running command
 type LogsCheck struct {
-	cmd *exec.Cmd
+	running  uint32
+	stop     chan struct{}
+	stopDone chan struct{}
 }
 
 func (c *LogsCheck) String() string {
 	return "Logs Agent"
 }
 
-// Run executes the check
+// Run executes the check with retries
 func (c *LogsCheck) Run() error {
+	atomic.StoreUint32(&c.running, 1)
+	// TODO: retries should be configurable with meaningful default values
+	err := check.Retry(5*time.Second, 3, c.run, c.String())
+	atomic.StoreUint32(&c.running, 0)
+
+	return err
+}
+
+// run executes the check
+func (c *LogsCheck) run() error {
+	select {
+	// poll the stop channel once to make sure no stop was requested since the last call to `Run`
+	case <-c.stop:
+		log.Info("Not starting Logs check: stop requested")
+		c.stopDone <- struct{}{}
+		return nil
+	default:
+	}
+
+	here, _ := osext.ExecutableFolder()
+	bin := path.Join(here, "logs-agent")
+
+	cmd := exec.Command(
+		bin,
+		fmt.Sprintf("-ddconfig=%s", config.Datadog.ConfigFileUsed()),
+		fmt.Sprintf("-ddconfd=%s", config.Datadog.GetString("confd_path")),
+	)
+
 	// forward the standard output to the Agent logger
-	stdout, err := c.cmd.StdoutPipe()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
@@ -46,7 +77,7 @@ func (c *LogsCheck) Run() error {
 	}()
 
 	// forward the standard error to the Agent logger
-	stderr, err := c.cmd.StderrPipe()
+	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err
 	}
@@ -57,24 +88,34 @@ func (c *LogsCheck) Run() error {
 		}
 	}()
 
-	if err = c.cmd.Start(); err != nil {
-		return err
+	if err = cmd.Start(); err != nil {
+		return retryExitError(err)
 	}
 
-	return c.cmd.Wait()
+	processDone := make(chan error)
+	go func() {
+		processDone <- cmd.Wait()
+	}()
+
+	select {
+	case err = <-processDone:
+		return retryExitError(err)
+	case <-c.stop:
+		err := cmd.Process.Signal(os.Kill)
+		if err != nil {
+			log.Errorf("unable to stop Logs check: %s", err)
+		}
+		go func() {
+			// poll the processDone channel to make sure the goroutine sending to it can exit
+			<-processDone
+		}()
+		c.stopDone <- struct{}{}
+		return err
+	}
 }
 
-// Configure the LogsCheck
+// Configure the LogsCheck. nothing to do
 func (c *LogsCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
-	here, _ := osext.ExecutableFolder()
-	bin := path.Join(here, "logs-agent")
-
-	c.cmd = exec.Command(
-		bin,
-		fmt.Sprintf("-ddconfig=%s", config.Datadog.ConfigFileUsed()),
-		fmt.Sprintf("-ddconfd=%s", config.Datadog.GetString("confd_path")),
-	)
-
 	return nil
 }
 
@@ -94,15 +135,21 @@ func (c *LogsCheck) ID() check.ID {
 
 // Stop sends a termination signal to the Logs process
 func (c *LogsCheck) Stop() {
-	err := c.cmd.Process.Signal(os.Kill)
-	if err != nil {
-		log.Errorf("unable to stop Logs check: %s", err)
+	if atomic.LoadUint32(&c.running) == 0 {
+		log.Info("Logs Agent not running.")
+		return
 	}
+
+	c.stop <- struct{}{}
+	<-c.stopDone
 }
 
 func init() {
 	factory := func() check.Check {
-		return &LogsCheck{}
+		return &LogsCheck{
+			stop:     make(chan struct{}),
+			stopDone: make(chan struct{}),
+		}
 	}
 	core.RegisterCheck("logs-agent", factory)
 }

@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -31,17 +32,49 @@ type apmCheckConf struct {
 
 // APMCheck keeps track of the running command
 type APMCheck struct {
-	cmd *exec.Cmd
+	binPath     string
+	commandOpts []string
+	running     uint32
+	stop        chan struct{}
+	stopDone    chan struct{}
 }
 
 func (c *APMCheck) String() string {
 	return "APM Agent"
 }
 
-// Run executes the check
+// Run executes the check with retries
 func (c *APMCheck) Run() error {
+	atomic.StoreUint32(&c.running, 1)
+	// TODO: retries should be configurable with meaningful default values
+	err := check.Retry(5*time.Second, 3, c.run, c.String())
+	atomic.StoreUint32(&c.running, 0)
+
+	return err
+}
+
+// run executes the check
+func (c *APMCheck) run() error {
+	select {
+	// poll the stop channel once to make sure no stop was requested since the last call to `Run`
+	case <-c.stop:
+		log.Info("Not starting APM check: stop requested")
+		c.stopDone <- struct{}{}
+		return nil
+	default:
+	}
+
+	cmd := exec.Command(c.binPath, c.commandOpts...)
+
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.Datadog.GetString("api_key")))
+	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", getHostname()))
+	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
+	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
+	cmd.Env = env
+
 	// forward the standard output to the Agent logger
-	stdout, err := c.cmd.StdoutPipe()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
@@ -53,7 +86,7 @@ func (c *APMCheck) Run() error {
 	}()
 
 	// forward the standard error to the Agent logger
-	stderr, err := c.cmd.StderrPipe()
+	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err
 	}
@@ -64,11 +97,30 @@ func (c *APMCheck) Run() error {
 		}
 	}()
 
-	if err = c.cmd.Start(); err != nil {
-		return err
+	if err = cmd.Start(); err != nil {
+		return retryExitError(err)
 	}
 
-	return c.cmd.Wait()
+	processDone := make(chan error)
+	go func() {
+		processDone <- cmd.Wait()
+	}()
+
+	select {
+	case err = <-processDone:
+		return retryExitError(err)
+	case <-c.stop:
+		err := cmd.Process.Signal(os.Kill)
+		if err != nil {
+			log.Errorf("unable to stop APM check: %s", err)
+		}
+		go func() {
+			// poll the processDone channel to make sure the goroutine sending to it can exit
+			<-processDone
+		}()
+		c.stopDone <- struct{}{}
+		return err
+	}
 }
 
 // Configure the APMCheck
@@ -83,22 +135,22 @@ func (c *APMCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 		return err
 	}
 
-	binPath := ""
+	c.binPath = ""
 	defaultBinPath, defaultBinPathErr := getAPMAgentDefaultBinPath()
 	if checkConf.BinPath != "" {
 		if _, err := os.Stat(checkConf.BinPath); err == nil {
-			binPath = checkConf.BinPath
+			c.binPath = checkConf.BinPath
 		} else {
 			log.Warnf("Can't access apm binary at %s, falling back to default path at %s", checkConf.BinPath, defaultBinPath)
 		}
 	}
 
-	if binPath == "" {
+	if c.binPath == "" {
 		if defaultBinPathErr != nil {
 			return defaultBinPathErr
 		}
 
-		binPath = defaultBinPath
+		c.binPath = defaultBinPath
 	}
 
 	// let the trace-agent use its own config file provided by the Agent package
@@ -108,21 +160,12 @@ func (c *APMCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 		configFile = path.Join(config.FileUsedDir(), "trace-agent.conf")
 	}
 
-	commandOpts := []string{}
+	c.commandOpts = []string{}
 
 	// if the trace-agent.conf file is available, use it
 	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
-		commandOpts = append(commandOpts, fmt.Sprintf("-ddconfig=%s", configFile))
+		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-ddconfig=%s", configFile))
 	}
-
-	c.cmd = exec.Command(binPath, commandOpts...)
-
-	env := os.Environ()
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.Datadog.GetString("api_key")))
-	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", getHostname()))
-	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
-	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
-	c.cmd.Env = env
 
 	return nil
 }
@@ -140,10 +183,13 @@ func (c *APMCheck) ID() check.ID {
 
 // Stop sends a termination signal to the APM process
 func (c *APMCheck) Stop() {
-	err := c.cmd.Process.Signal(os.Kill)
-	if err != nil {
-		log.Errorf("unable to stop APM check: %s", err)
+	if atomic.LoadUint32(&c.running) == 0 {
+		log.Info("APM Agent not running.")
+		return
 	}
+
+	c.stop <- struct{}{}
+	<-c.stopDone
 }
 
 // GetWarnings does not return anything in APM
@@ -158,7 +204,10 @@ func (c *APMCheck) GetMetricStats() (map[string]int64, error) {
 
 func init() {
 	factory := func() check.Check {
-		return &APMCheck{}
+		return &APMCheck{
+			stop:     make(chan struct{}),
+			stopDone: make(chan struct{}),
+		}
 	}
 	core.RegisterCheck("apm", factory)
 }
