@@ -8,7 +8,7 @@ environment:
   GOPATH: C:\gopath
 
 install:
-  - set PATH=%GOPATH%\bin;C:\go\bin;C:\pkg-config-lite-0.28-1\bin;%PATH%
+  - set PATH=%GOPATH%\bin;C:\go\bin;C:\pkg-config-lite-0.28-1\bin;%PATH%;c:\mingw\bin
   - go version
   - pip install invoke
   - appveyor DownloadFile "https://downloads.sourceforge.net/project/pkgconfiglite/0.28-1/pkg-config-lite-0.28-1_bin-win32.zip?r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fpkgconfiglite%2Ffiles%2F0.28-1%2F&ts=1506994037&use_mirror=superb-dca2" -FileName "C:\pkg-config-lite-0.28-1_bin-win32.zip"
@@ -21,6 +21,5 @@ cache:
 build: off
 
 test_script:
-  - cd
-  - inv -e deps
-  - inv -e test --coverage --race --fail-on-fmt
+  - cd \
+  - dir /s/b gcc*.exe
