@@ -62,21 +62,21 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     chown -R dd-agent:dd-agent ${LOG_DIR}
     chown -R dd-agent:dd-agent ${INSTALL_DIR}
 
-    # Only supports systemd and upstart
-    echo "Enabling service $SERVICE_NAME"
-    if command -v systemctl >/dev/null 2>&1; then
-        systemctl enable $SERVICE_NAME
-    elif command -v initctl >/dev/null 2>&1; then
-        # start/stop policy is already defined in the upstart job file
-        :
-    else
-        echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
-        exit 1
-    fi
-
-    # Restart the agent here on Debian platforms
-    # On RHEL, the restart is done in the posttrans script
+    # Enable and restart the agent service here on Debian platforms
+    # On RHEL, this is done in the posttrans script
     if [ "$DISTRIBUTION_FAMILY" = "Debian" ]; then
+        # Only supports systemd and upstart
+        echo "Enabling service $SERVICE_NAME"
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl enable $SERVICE_NAME
+        elif command -v initctl >/dev/null 2>&1; then
+            # Nothing to do, this is defined directly in the upstart job file
+            :
+        else
+            echo "[ ${Red}FAILED ${RCol}]\tUnsupported init system."
+            exit 1
+        fi
+
         # TODO: Use a configcheck command on the agent to determine if it's safe to restart,
         # and avoid restarting when a check conf is invalid
         if [ -f "$CONFIG_DIR/datadog.yaml" ]; then
