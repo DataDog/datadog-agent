@@ -241,14 +241,45 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 	}
 }
 
-// TODO (use svc.Hosts)
-func getHost(tplVar []byte, svc listeners.Service) []byte {
-	return []byte("127.0.0.1")
+// TODO support orchestrators
+func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	hosts, err := svc.GetHosts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it", svc.GetID())
+	}
+
+	// a network was specified
+	if bytes.Contains(tplVar, []byte("_")) {
+		network := bytes.SplitN(tplVar, []byte("_"), 2)[1]
+		if ip, ok := hosts[string(network)]; ok {
+			return []byte(ip), nil
+		}
+		log.Warnf("network %s not found, trying bridge IP instead", string(network))
+	}
+	if ip, ok = svc.Hosts["bridge"]; ok {
+		return []byte(ip), nil
+	}
+	return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it", svc.GetID())
 }
 
-// TODO (use svc.Ports)
-func getPort(tplVar []byte, svc listeners.Service) []byte {
-	return []byte("80")
+// TODO support orchestrators
+func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	ports, err := svc.GetPorts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract port list for container %s, ignoring it", svc.GetID())
+	}
+
+	if bytes.Contains(tplVar, []byte("_")) {
+		idxStr := bytes.SplitN(tplVar, []byte("_"), 2)[1]
+		idx, err := strconv.Atoi(idxStr)
+		if err != nil {
+			return nil, fmt.Errorf("index given for the port template var is not an int, skipping container %s", svc.GetID())
+		}
+		if len(ports) <= idx {
+			return nil, fmt.Errorf("idenx given for the port template var is too big, skipping container %s", svc.GetID())
+		}
+		return ports[idx], nil
+	}
 }
 
 // getPid returns the process identifier of the service
