@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
+// +build !windows
 
 package system
 
@@ -75,8 +76,8 @@ func TestIOCheck(t *testing.T) {
 
 	switch os := runtime.GOOS; os {
 	case "windows":
-		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:C:"}).Return().Times(1)
+		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:C:"}).Return().Times(1)
 	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
 		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
