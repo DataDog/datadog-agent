@@ -10,18 +10,25 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
 	log "github.com/cihub/seelog"
 
 	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/gorilla/mux"
+
+	yaml "gopkg.in/yaml.v2"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
@@ -29,11 +36,11 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
-	r.HandleFunc("/jmxstatus", setJMXStatus).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/jmxconfigs", getJMXConfigs).Methods("GET")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
+	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
+	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -88,26 +95,110 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(filePath))
 }
 
+func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	component := vars["component"]
+	switch component {
+	case "jmx":
+		getJMXConfigs(w, r)
+	default:
+		err := fmt.Errorf("bad url or resource does not exist")
+		log.Errorf("%s", err.Error())
+		http.Error(w, err.Error(), 404)
+	}
+}
+
+func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	component := vars["component"]
+	switch component {
+	case "jmx":
+		setJMXStatus(w, r)
+	default:
+		err := fmt.Errorf("bad url or resource does not exist")
+		log.Errorf("%s", err.Error())
+		http.Error(w, err.Error(), 404)
+	}
+}
+
 func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
+	var err error
+
 	if err := apicommon.Validate(w, r); err != nil {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	decoder := json.NewDecoder(r.Body)
-
-	var tsjson map[string]interface{}
-	err := decoder.Decode(&tsjson)
-	if err != nil {
-		log.Errorf("unable to parse jmx status: %s", err)
-		http.Error(w, err.Error(), 500)
+	var ts int
+	queries := r.URL.Query()
+	if timestamps, ok := queries["timestamp"]; ok {
+		ts, _ = strconv.Atoi(timestamps[0])
 	}
 
-	log.Debugf("Getting latest JMX Configs as of: %v", tsjson["timestamp"])
-	// stub for now...
-	j, _ := json.Marshal(map[string]interface{}{
-		"configurations": map[string]interface{}{}})
-	w.Write(j)
+	if int64(ts) > embed.JMXConfigCache.GetModified() {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	log.Debugf("Getting latest JMX Configs as of: %#v", ts)
+
+	j := map[string]interface{}{}
+	configs := map[string]check.ConfigJSONMap{}
+
+	keys, vals := embed.JMXConfigCache.Iterator()
+	for name := range keys {
+		config := <-vals // there will be as many vals as keys
+		m, ok := config.(map[string]interface{})
+		if !ok {
+			err = fmt.Errorf("wrong type in cache")
+			log.Errorf("%s", err.Error())
+			http.Error(w, err.Error(), 500)
+			return
+		}
+
+		cfg, ok := m["config"].(check.Config)
+		if !ok {
+			err = fmt.Errorf("wrong type for config")
+			log.Errorf("%s", err.Error())
+			http.Error(w, err.Error(), 500)
+			return
+		}
+
+		var rawInitConfig check.ConfigRawMap
+		err = yaml.Unmarshal(cfg.InitConfig, &rawInitConfig)
+		if err != nil {
+			log.Errorf("unable to parse JMX configuration: %s", err)
+			http.Error(w, err.Error(), 500)
+			return
+		}
+
+		c := map[string]interface{}{}
+		c["init_config"] = util.GetJSONSerializableMap(rawInitConfig)
+		instances := []check.ConfigJSONMap{}
+		for _, instance := range cfg.Instances {
+			var rawInstanceConfig check.ConfigJSONMap
+			err = yaml.Unmarshal(instance, &rawInstanceConfig)
+			if err != nil {
+				log.Errorf("unable to parse JMX configuration: %s", err)
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			instances = append(instances, util.GetJSONSerializableMap(rawInstanceConfig).(check.ConfigJSONMap))
+		}
+
+		c["instances"] = instances
+		configs[name] = c
+
+	}
+	j["configs"] = configs
+	j["timestamp"] = time.Now().Unix()
+	jsonPayload, err := json.Marshal(util.GetJSONSerializableMap(j))
+	if err != nil {
+		log.Errorf("unable to parse JMX configuration: %s", err)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Write(jsonPayload)
 }
 
 func setJMXStatus(w http.ResponseWriter, r *http.Request) {
