@@ -11,6 +11,7 @@ const (
 	defaultConfdPath            = "/etc/datadog-agent/conf.d"
 	defaultAdditionalChecksPath = "/etc/datadog-agent/checks.d"
 	defaultLogPath              = "/var/log/datadog/agent.log"
+	defaultLogPanicPath         = "/var/log/datadog/panic.log"
 	defaultJMXPipePath          = "/opt/datadog-agent/run"
 	defaultSyslogURI            = "unixgram:///dev/log"
 )

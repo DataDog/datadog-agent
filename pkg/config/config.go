@@ -127,8 +127,11 @@ func init() {
 	Datadog.SetDefault("bosh_id", "")
 	// APM
 	Datadog.SetDefault("apm_enabled", true) // this is to support the transition to the new config file
-	// Proess Agent
+	// Process Agent
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
+	// Panic Wrap
+	Datadog.SetDefault("panic_wrap", true)
+	Datadog.SetDefault("log_panic_file", defaultLogPanicPath)
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
@@ -155,6 +158,7 @@ func init() {
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
 	Datadog.BindEnv("cloud_foundry")
 	Datadog.BindEnv("bosh_id")
+	Datadog.BindEnv("panic_wrap")
 }
 
 var (
