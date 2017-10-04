@@ -24,12 +24,12 @@ var (
 	procGetDriveType            = modkernel32.NewProc("GetDriveTypeW")
 )
 
-
+// Successful function return
 const (
-	ERROR_SUCCESS        = 0
-	ERROR_FILE_NOT_FOUND = 2
-	DRIVE_REMOVABLE      = 2
-	DRIVE_FIXED          = 3
+	winErrorSuccess      = 0
+	winErrorFileNotFound = 2
+	winDriveRemovable    = 2
+	winDriveFixed        = 3
 )
 
 // Win32PerfRawDataPerfDiskLogicalDisk contains perf infos for a drive
@@ -75,7 +75,7 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 	drivelist := convertWindowsStringList(drivebuf)
 	for _, drive := range drivelist {
 		r, _, _ = procGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(drive + "\\"))))
-		if r != DRIVE_FIXED {
+		if r != winDriveFixed {
 			continue
 		}
 		c.drivemap[drive] = Win32PerfRawDataPerfDiskLogicalDisk{}
