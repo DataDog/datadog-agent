@@ -24,6 +24,14 @@ var (
 	procGetDriveType            = modkernel32.NewProc("GetDriveTypeW")
 )
 
+
+const (
+	ERROR_SUCCESS        = 0
+	ERROR_FILE_NOT_FOUND = 2
+	DRIVE_REMOVABLE      = 2
+	DRIVE_FIXED          = 3
+)
+
 // Win32PerfRawDataPerfDiskLogicalDisk contains perf infos for a drive
 type Win32PerfRawDataPerfDiskLogicalDisk struct {
 	CurrentDiskQueueLength uint32
