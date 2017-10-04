@@ -1,6 +1,6 @@
 FROM debian:jessie
 
-MAINTAINER Datadog <package@datadoghq.com>
+LABEL maintainer "Datadog <package@datadoghq.com>"
 
 ENV DOCKER_DD_AGENT=yes \
     AGENT_VERSION=1:6.0-1 \
