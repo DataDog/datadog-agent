@@ -27,7 +27,6 @@ var (
 		"pid":            getPid,
 		"port":           getPort,
 		"container-name": getContainerName,
-		"tags":           getTags,
 	}
 )
 
@@ -136,20 +135,28 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 // resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
 func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (check.Config, error) {
-	vars := tpl.GetTemplateVariables()
-	for _, v := range vars {
-		name, key := parseTemplateVar(v)
-		if f, ok := templateVariables[string(name)]; ok {
-			resolvedVar := f(key, svc)
-			if resolvedVar != nil {
-				tpl.InitConfig = bytes.Replace(tpl.InitConfig, v, resolvedVar, -1)
-				tpl.Instances[0] = bytes.Replace(tpl.Instances[0], v, resolvedVar, -1)
+	for i, c := range tpl.Instances {
+		vars := tpl.GetTemplateVariablesForInstance(i)
+		for _, v := range vars {
+			name, key := parseTemplateVar(v)
+			if f, ok := templateVariables[string(name)]; ok {
+				resolvedVar := f(key, svc)
+				if resolvedVar != nil {
+					// init config vars are replaced by the first found
+					tpl.InitConfig = bytes.Replace(tpl.InitConfig, v, resolvedVar, -1)
+					c = bytes.Replace(c, v, resolvedVar, -1)
+				}
+			} else {
+				return check.Config{}, fmt.Errorf("template variable %s does not exist", name)
 			}
-		} else {
-			return check.Config{}, fmt.Errorf("template variable %s does not exist", name)
 		}
+		tags, err := svc.GetTags()
+		if err != nil {
+			return tpl, err
+		}
+		c.MergeAdditionalTags(tags)
 	}
-	// TODO: call and add cr.getTags
+
 	return tpl, nil
 }
 
@@ -268,10 +275,10 @@ func getContainerName(tplVar []byte, svc listeners.Service) []byte {
 }
 
 // getTags returns tags that are appended by default to all metrics.
-func getTags(tplVar []byte, svc listeners.Service) []byte {
+func getTags(svc listeners.Service) []byte {
 	tags, err := svc.GetTags()
 	if err != nil {
-		log.Errorf("Failed to get tags for service %s, skipping config - %s", svc.GetID(), err)
+		log.Errorf("Failed to get tags for service %s - %s", svc.GetID(), err)
 		return nil
 	}
 	return []byte(fmt.Sprintf("[%s]", strings.Join(tags, ",")))
