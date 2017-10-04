@@ -6,10 +6,14 @@
 package py
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	log "github.com/cihub/seelog"
+	"github.com/kardianos/osext"
 	python "github.com/sbinet/go-python"
 )
 
@@ -42,11 +46,8 @@ var (
 // configure the environment. This function should be called at most once in the
 // Agent lifetime.
 func Initialize(paths ...string) *python.PyThreadState {
-	// Set the Python Home from within the agent if needed
-	if pythonHome != "" {
-		pPythonHome := C.CString(pythonHome)
-		C.Py_SetPythonHome(pPythonHome)
-	}
+
+	setPythonHome()
 
 	// store the final value of Python Home in the cache
 	PythonHome = C.GoString(C.Py_GetPythonHome())
@@ -109,4 +110,24 @@ func Initialize(paths ...string) *python.PyThreadState {
 
 	// return the state so the caller can resume
 	return state
+}
+
+func setPythonHome() {
+	_here, _ := osext.ExecutableFolder()
+
+	if pythonHome == "" {
+		// don't do anything if not set, to support system python builds
+		return
+	}
+
+	if runtime.GOOS == "windows" {
+		// on windows, override the hardcoded path set during compile time, but only if that path points to nowhere
+		if _, err := os.Stat(filepath.Join(pythonHome, "lib", "python2.7")); os.IsNotExist(err) {
+			pythonHome = _here
+		}
+	}
+
+	// set the python path
+	pPythonHome := C.CString(pythonHome)
+	C.Py_SetPythonHome(pPythonHome)
 }

@@ -54,13 +54,13 @@ func NewDockerListener() (*DockerListener, error) {
 }
 
 // Listen streams container-related events from Docker and report said containers as Services.
-func (l *DockerListener) Listen(newSvc, delSvc chan<- Service) {
+func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
 
 	// process containers that might be already running
-	l.Init()
+	l.init()
 
 	// filters only match start/stop container events
 	filters := filters.NewArgs()
@@ -97,10 +97,10 @@ func (l *DockerListener) Stop() {
 	l.stop <- true
 }
 
-// Init looks at currently running Docker containers,
+// init looks at currently running Docker containers,
 // creates services for them, and pass them to the ConfigResolver.
 // It is typically called at start up.
-func (l *DockerListener) Init() {
+func (l *DockerListener) init() {
 	l.m.Lock()
 	defer l.m.Unlock()
 
@@ -111,13 +111,14 @@ func (l *DockerListener) Init() {
 
 	for _, co := range containers {
 		id := ID(co.ID)
-		ADidentifiers := l.getConfigIDFromPs(co)
-		hosts := l.getHostsFromPs(co)
-		ports := l.getPortsFromPs(co)
-		tags := l.getTagsFromPs(co)
-		svc := Service{id, ADidentifiers, hosts, ports, tags}
-		l.newService <- svc
-		l.services[id] = svc
+		svc := DockerService{
+			ID:            id,
+			ADIdentifiers: l.getConfigIDFromPs(co),
+			Hosts:         l.getHostsFromPs(co),
+			Ports:         l.getPortsFromPs(co),
+		}
+		l.newService <- &svc
+		l.services[id] = &svc
 	}
 }
 
@@ -163,24 +164,35 @@ func (l *DockerListener) processEvent(e events.Message) {
 // createService takes a container ID, create a service for it in its cache
 // and tells the ConfigResolver that this service started.
 func (l *DockerListener) createService(cID ID) {
-	co, err := l.Client.ContainerInspect(context.Background(), string(cID))
+	svc := DockerService{
+		ID: cID,
+	}
+	_, err := svc.GetADIdentifiers()
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
-
 	}
-	svc := Service{
-		cID,
-		l.getConfigIDFromInspect(co),
-		l.getHostsFromInspect(co),
-		l.getPortsFromInspect(co),
-		l.getTagsFromInspect(co),
+	_, err = svc.GetHosts()
+	if err != nil {
+		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
+	}
+	_, err = svc.GetPorts()
+	if err != nil {
+		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
+	}
+	_, err = svc.GetPid()
+	if err != nil {
+		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
+	}
+	_, err = svc.GetTags()
+	if err != nil {
+		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
 
 	l.m.Lock()
-	l.services[ID(cID)] = svc
+	l.services[ID(cID)] = &svc
 	l.m.Unlock()
 
-	l.newService <- svc
+	l.newService <- &svc
 }
 
 // removeService takes a container ID, removes the related service from its cache
@@ -201,36 +213,8 @@ func (l *DockerListener) removeService(cID ID) {
 	}
 }
 
-// getConfigIDFromInspect returns a set of AD identifiers for a container.
-// These id are sorted to reflect the priority we want the ConfigResolver to
-// use when matching a template.
-//
-// When the special identifier label in `identifierLabel` is set by the user,
-// it overrides any other meaning of template identification for the service
-// and the return value will contain only the label value.
-//
-// If the special label was not set, the priority order is the following:
-//   1. Long image name
-//   2. Short image name
-func (l *DockerListener) getConfigIDFromInspect(co types.ContainerJSON) []string {
-	// check for an identifier label
-	for l, v := range co.Config.Labels {
-		if l == identifierLabel {
-			return []string{v}
-		}
-	}
-
-	ids := []string{}
-
-	// use the image name
-	ids = append(ids, co.Image) // TODO: check if it's the sha256
-	// TODO: add the short name with lower priority
-
-	return ids
-}
-
 // getHostsFromInspect gets the addresss (for now IP address only) of a container on all its networks.
-// TODO: use the k8s API when no network config is found
+// TODO: deprectated should be implemented in GetHosts
 func (l *DockerListener) getHostsFromInspect(co types.ContainerJSON) map[string]string {
 	ips := make(map[string]string)
 	if co.NetworkSettings != nil {
@@ -242,7 +226,7 @@ func (l *DockerListener) getHostsFromInspect(co types.ContainerJSON) map[string]
 }
 
 // getPortsFromInspect gets the service ports of a container.
-// TODO: use the k8s API
+// TODO: use the k8s API, deprectated should be implemented in GetPorts
 func (l *DockerListener) getPortsFromInspect(co types.ContainerJSON) []int {
 	ports := make([]int, 0)
 
@@ -250,12 +234,6 @@ func (l *DockerListener) getPortsFromInspect(co types.ContainerJSON) []int {
 		ports = append(ports, p.Int())
 	}
 	return ports
-}
-
-// getTagsFromInspect gets tags for a container.
-// TODO: use the container ID only and rely on container metadata providers?
-func (l *DockerListener) getTagsFromInspect(co types.ContainerJSON) []string {
-	return []string{}
 }
 
 // getConfigIDFromPs returns a set of AD identifiers for a container.
@@ -309,8 +287,75 @@ func (l *DockerListener) getPortsFromPs(co types.Container) []int {
 	return ports
 }
 
-// getTagsFromPs gets tags for a container.
-// TODO: use the container ID only and rely on container metadata providers?
-func (l *DockerListener) getTagsFromPs(co types.Container) []string {
-	return []string{}
+// GetID returns the service ID
+func (s *DockerService) GetID() ID {
+	return s.ID
+}
+
+// GetADIdentifiers returns a set of AD identifiers for a container.
+// These id are sorted to reflect the priority we want the ConfigResolver to
+// use when matching a template.
+//
+// When the special identifier label in `identifierLabel` is set by the user,
+// it overrides any other meaning of template identification for the service
+// and the return value will contain only the label value.
+//
+// If the special label was not set, the priority order is the following:
+//   1. Long image name
+//   2. Short image name
+func (s *DockerService) GetADIdentifiers() ([]string, error) {
+	if len(s.ADIdentifiers) == 0 {
+		cj, err := docker.Inspect(string(s.ID), false)
+		if err != nil {
+			return []string{}, err
+		}
+
+		// check for an identifier label
+		for l, v := range cj.Config.Labels {
+			if l == identifierLabel {
+				return []string{v}, nil
+			}
+		}
+
+		ids := []string{}
+
+		// use the image name
+		ids = append(ids, cj.Image) // TODO: check if it's the sha256
+		// TODO: add the short name with lower priority
+		s.ADIdentifiers = ids
+	}
+
+	return s.ADIdentifiers, nil
+}
+
+// GetHosts returns the container's hosts
+// TODO
+func (s *DockerService) GetHosts() (map[string]string, error) {
+	return s.Hosts, nil
+}
+
+// GetPorts returns the container's ports
+// TODO
+func (s *DockerService) GetPorts() ([]int, error) {
+	return s.Ports, nil
+}
+
+// GetTags returns the container's tags
+// TODO
+func (s *DockerService) GetTags() ([]string, error) {
+	return s.Tags, nil
+}
+
+// GetPid inspect the container an return its pid
+func (s *DockerService) GetPid() (int, error) {
+	// Try to inspect container to get the pid if not defined
+	if s.Pid <= 0 {
+		cj, err := docker.Inspect(string(s.ID), false)
+		if err != nil {
+			return -1, err
+		}
+		s.Pid = cj.State.Pid
+	}
+
+	return s.Pid, nil
 }

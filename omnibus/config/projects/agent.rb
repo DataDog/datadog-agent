@@ -127,6 +127,7 @@ dependency 'jmxfetch'
 dependency 'datadog-trace-agent'
 unless windows?
   dependency 'datadog-process-agent'
+  dependency 'datadog-logs-agent'
 end
 
 # Remove pyc/pyo files from package
