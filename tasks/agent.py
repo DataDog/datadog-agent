@@ -10,7 +10,7 @@ from distutils.dir_util import copy_tree
 import invoke
 from invoke import task
 
-from .utils import bin_name, get_build_flags, pkg_config_path, get_version
+from .utils import bin_name, get_build_flags, pkg_config_path, get_version, get_version_numeric_only
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_puppy_build_tags
 from .go import deps
@@ -46,8 +46,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-
-        build_maj, build_min, build_patch = get_version(ctx).split(".")
+        ver = get_version_numeric_only(ctx)
+        build_maj, build_min, build_patch = ver.split(".")
         command = "windres --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
             build_maj=build_maj,
             build_min=build_min,
