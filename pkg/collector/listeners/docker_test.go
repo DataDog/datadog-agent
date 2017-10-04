@@ -7,6 +7,10 @@ package listeners
 
 import (
 	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -85,26 +89,35 @@ func TestGetPortsFromPs(t *testing.T) {
 	assert.Contains(t, ports, 4321)
 }
 
-func TestGetConfigIDFromInspect(t *testing.T) {
+func TestGetADIdentifiers(t *testing.T) {
+	s := DockerService{ID: ID("deadbeef")}
+
+	// Setting mocked data in cache
 	co := types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{ID: "deadbeef", Image: "test"},
 		Mounts:            make([]types.MountPoint, 0),
 		Config:            &container.Config{},
 		NetworkSettings:   &types.NetworkSettings{},
 	}
-	dl := DockerListener{}
+	cacheKey := docker.GetInspectCacheKey("deadbeef")
+	cache.Cache.Set(cacheKey, co, 10*time.Second)
 
-	ids := dl.getConfigIDFromInspect(co)
+	ids, err := s.GetADIdentifiers()
+	assert.Nil(t, err)
 	assert.Len(t, ids, 1)
 	assert.Equal(t, "test", ids[0])
 
+	s = DockerService{ID: ID("deadbeef")}
 	labeledCo := types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{ID: "deadbeef", Image: "test"},
 		Mounts:            make([]types.MountPoint, 0),
 		Config:            &container.Config{Labels: map[string]string{"io.datadog.check.id": "w00tw00t"}},
 		NetworkSettings:   &types.NetworkSettings{},
 	}
-	ids = dl.getConfigIDFromInspect(labeledCo)
+	cache.Cache.Set(cacheKey, labeledCo, 10*time.Second)
+
+	ids, err = s.GetADIdentifiers()
+	assert.Nil(t, err)
 	assert.Len(t, ids, 1)
 	assert.Equal(t, "w00tw00t", ids[0])
 }
@@ -189,4 +202,27 @@ func TestGetPortsFromInspect(t *testing.T) {
 	assert.Equal(t, 2, len(pts))
 	assert.Contains(t, pts, 1234)
 	assert.Contains(t, pts, 4321)
+}
+
+func TestGetPid(t *testing.T) {
+	s := DockerService{ID: ID("foo")}
+
+	// Should fail because no docker util is init
+	pid, err := s.GetPid()
+	assert.Equal(t, -1, pid)
+
+	// Setting mocked data in cache
+	state := types.ContainerState{Pid: 1337}
+	cBase := types.ContainerJSONBase{
+		ID:    "foo",
+		Image: "test",
+		State: &state,
+	}
+	co := types.ContainerJSON{ContainerJSONBase: &cBase}
+	cacheKey := docker.GetInspectCacheKey("foo")
+	cache.Cache.Set(cacheKey, co, 10*time.Second)
+
+	pid, err = s.GetPid()
+	assert.Equal(t, 1337, pid)
+	assert.Nil(t, err)
 }

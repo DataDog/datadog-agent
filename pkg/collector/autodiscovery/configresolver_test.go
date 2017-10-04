@@ -35,10 +35,10 @@ func TestResolveTemplate(t *testing.T) {
 	res := cr.ResolveTemplate(tpl)
 	assert.Len(t, res, 0)
 
-	service := listeners.Service{
+	service := listeners.DockerService{
 		ADIdentifiers: []string{"redis"},
 	}
-	cr.processNewService(service)
+	cr.processNewService(&service)
 
 	// there are no template vars but it's ok
 	res = cr.ResolveTemplate(tpl)
@@ -65,23 +65,29 @@ func TestParseTemplateVar(t *testing.T) {
 
 func TestResolve(t *testing.T) {
 	cr := newConfigResolver(nil, nil, NewTemplateCache())
-	service := listeners.Service{
+	service := listeners.DockerService{
 		ADIdentifiers: []string{"redis"},
+		Pid:           1337,
 	}
-	cr.processNewService(service)
+	cr.processNewService(&service)
 
 	tpl := check.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
 	}
-	tpl.Instances = []check.ConfigData{check.ConfigData("host: %%host%%")}
 
-	config, err := cr.resolve(tpl, service)
+	tpl.Instances = []check.ConfigData{check.ConfigData("host: %%host%%")}
+	config, err := cr.resolve(tpl, &service)
 	assert.Nil(t, err)
 	assert.Equal(t, "host: 127.0.0.1", string(config.Instances[0]))
 
+	tpl.Instances = []check.ConfigData{check.ConfigData("pid: %%pid%%")}
+	config, err = cr.resolve(tpl, &service)
+	assert.Nil(t, err)
+	assert.Equal(t, "pid: 1337", string(config.Instances[0]))
+
 	// template variable doesn't exist
 	tpl.Instances = []check.ConfigData{check.ConfigData("host: %%FOO%%")}
-	config, err = cr.resolve(tpl, service)
+	config, err = cr.resolve(tpl, &service)
 	assert.NotNil(t, err)
 }
