@@ -12,7 +12,10 @@ import unicodedata
 from collections import defaultdict
 
 import aggregator
-import datadog_agent
+try:
+    import datadog_agent
+except:
+    pass
 from config import (
     _is_affirmative,
     _get_py_loglevel
