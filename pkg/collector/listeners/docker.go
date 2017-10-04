@@ -313,17 +313,13 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	}
 
 	ips := make(map[string]string)
-	c := docker.Container{ID: string(s.ID)}
 
-	cInspect, err := c.Inspect(false)
+	cInspect, err := docker.Inspect(string(s.ID), false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
 	}
 	for net, settings := range cInspect.NetworkSettings.Networks {
 		ips[net] = settings.IPAddress
-	}
-	if _, found := ips["bridge"]; !found && cInspect.NetworkSettings.IPAddress != "" {
-		ips["bridge"] = cInspect.NetworkSettings.IPAddress
 	}
 
 	s.Hosts = ips
@@ -337,9 +333,8 @@ func (s *DockerService) GetPorts() ([]int, error) {
 	}
 
 	ports := make([]int, 0)
-	c := docker.Container{ID: string(s.ID)}
 
-	cInspect, err := c.Inspect(false)
+	cInspect, err := docker.Inspect(string(s.ID), false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
 	}
