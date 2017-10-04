@@ -7,5 +7,5 @@ Name: Python
 Description: Python library
 Requires:
 Version: 2.7
-Libs: -L${libdir} -lpython27 -lpthread -ldl -lm
+Libs: -L${libdir} -lpython27 -lpthread -lm
 Cflags: -I${includedir} -DMS_WIN64
