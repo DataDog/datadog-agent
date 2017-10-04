@@ -10,13 +10,10 @@ package embed
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	log "github.com/cihub/seelog"
 	yaml "gopkg.in/yaml.v2"
