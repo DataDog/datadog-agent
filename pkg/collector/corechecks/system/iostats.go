@@ -15,9 +15,19 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 
 	log "github.com/cihub/seelog"
+	"github.com/shirou/gopsutil/disk"
 
 	"gopkg.in/yaml.v2"
 )
+
+const (
+	// SectorSize is exported in github.com/shirou/gopsutil/disk (but not working!)
+	SectorSize = 512
+	kB         = (1 << 10)
+)
+
+// For testing purpose
+var ioCounters = disk.IOCounters
 
 func (c *IOCheck) String() string {
 	return "io"

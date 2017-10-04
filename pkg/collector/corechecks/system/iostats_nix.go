@@ -19,17 +19,8 @@ import (
 	"github.com/shirou/gopsutil/disk"
 )
 
-// For testing purpose
-var ioCounters = disk.IOCounters
-
 // kernel ticks / sec
 var hz int64
-
-const (
-	// SectorSize is exported in github.com/shirou/gopsutil/disk (but not working!)
-	SectorSize = 512
-	kB         = (1 << 10)
-)
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
