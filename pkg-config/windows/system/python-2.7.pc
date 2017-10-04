@@ -1,4 +1,4 @@
-prefix=C:/python27
+prefix=C:/python27-x64
 exec_prefix=${prefix}
 libdir=${exec_prefix}/libs
 includedir=${prefix}/include
