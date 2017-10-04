@@ -1,17 +1,14 @@
 package gui
 
 import (
-	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	log "github.com/cihub/seelog"
@@ -31,6 +28,9 @@ func set(w http.ResponseWriter, m Message) {
 
 	case "run_check_once":
 		runCheckOnce(w, m.Payload)
+
+	case "reload_check":
+		reloadCheck(w, m.Payload)
 
 	default:
 		w.Write([]byte("Received unknown set request: " + m.Data))
@@ -114,76 +114,66 @@ func setCheckConfigFile(w http.ResponseWriter, payload string) {
 
 // Runs a specified check once
 func runCheckOnce(w http.ResponseWriter, name string) {
-	// Set up a new AutoConfig instance (otherwise, it won't load "old" checks)
-	log.Infof("GUI - Creating new AutoConfig instance.")
-	ac := autodiscovery.NewAutoConfig(common.Coll)
-	for _, loader := range loaders.LoaderCatalog() {
-		ac.AddLoader(loader)
-	}
-	confSearchPaths := []string{config.Datadog.GetString("confd_path")}
-	ac.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
+	// Fetch the desired check
+	instances := common.AC.GetChecksByName(name)
+	if len(instances) == 0 {
+		html, e := renderError(name)
+		if e != nil {
+			log.Errorf("GUI - Error generating html: " + e.Error())
+			w.Write([]byte("Error generating html: " + e.Error()))
+			return
+		}
 
-	// Load the desired check
-	cs := ac.GetChecksByName(name)
-	if len(cs) == 0 {
-		log.Errorf("GUI - Check " + name + " couldn't be loaded.")
-		w.Write([]byte("Check " + name + " had a loading error. See Collector Status for more details."))
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(html))
 		return
 	}
 
-	// Run the check intance(s)
+	// Run the check intance(s) once
 	stats := []*check.Stats{}
-	for _, c := range cs {
-		s := check.NewStats(c)
+	for _, ch := range instances {
+		s := check.NewStats(ch)
 
 		t0 := time.Now()
-		err := c.Run()
-		warnings := c.GetWarnings()
-		mStats, _ := c.GetMetricStats()
+		err := ch.Run()
+		warnings := ch.GetWarnings()
+		mStats, _ := ch.GetMetricStats()
 		s.Add(time.Since(t0), err, warnings, mStats)
 
 		// Without a small delay some of the metrics will not show up
 		time.Sleep(100 * time.Millisecond)
 
-		// TODO: get aggregator metrics (see below)
+		// TODO (?) get aggregator metrics
 
 		stats = append(stats, s)
 	}
-	log.Infof("GUI - Ran check "+name+". Stats: %v", stats)
 
-	res, _ := json.Marshal(stats)
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(res)
+	// Render the stats
+	html, e := renderCheck(name, stats)
+	if e != nil {
+		log.Errorf("GUI - Error generating html: " + e.Error())
+		w.Write([]byte("Error generating html: " + e.Error()))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
 }
 
-/*
-func getMetrics(agg *aggregator.BufferedAggregator) {
-	series := agg.GetSeries()
-	if len(series) != 0 {
-		fmt.Println("Series: ")
-		j, _ := json.MarshalIndent(series, "", "  ")
-		fmt.Println(string(j))
+func reloadCheck(w http.ResponseWriter, name string) {
+	instances := common.AC.GetChecksByName(name)
+	if len(instances) == 0 {
+		log.Errorf("GUI - Can't reload " + name + ": check has no new instances.")
+		w.Write([]byte("Can't reload " + name + ": check has no new instances"))
+		return
 	}
 
-	sketches := agg.GetSketches()
-	if len(sketches) != 0 {
-		fmt.Println("Sketches: ")
-		j, _ := json.MarshalIndent(sketches, "", "  ")
-		fmt.Println(string(j))
+	killed, e := common.Coll.ReloadAllCheckInstances(name, instances)
+	if e != nil {
+		log.Errorf("GUI - Error reloading check: " + e.Error())
+		w.Write([]byte("Error reloading check: " + e.Error()))
+		return
 	}
 
-	serviceChecks := agg.GetServiceChecks()
-	if len(serviceChecks) != 0 {
-		fmt.Println("Service Checks: ")
-		j, _ := json.MarshalIndent(serviceChecks, "", "  ")
-		fmt.Println(string(j))
-	}
-
-	events := agg.GetEvents()
-	if len(events) != 0 {
-		fmt.Println("Events: ")
-		j, _ := json.MarshalIndent(events, "", "  ")
-		fmt.Println(string(j))
-	}
+	w.Write([]byte(fmt.Sprintf("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)))
 }
-*/

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
@@ -52,6 +53,27 @@ func fetch(w http.ResponseWriter, m Message) {
 		w.Write([]byte("Received unknown fetch request: " + m.Data))
 		log.Infof("GUI - Received unknown fetch request: %v ", m.Data)
 	}
+}
+
+// Sends the current agent status
+func sendStatus(w http.ResponseWriter, req string) {
+	status, e := status.GetStatus()
+	if e != nil {
+		log.Errorf("GUI - Error getting status: " + e.Error())
+		w.Write([]byte("Error getting status: " + e.Error()))
+		return
+	}
+	json, _ := json.Marshal(status)
+
+	html, e := renderStatus(json, req)
+	if e != nil {
+		log.Errorf("GUI - Error generating status html: " + e.Error())
+		w.Write([]byte("Error generating status html: " + e.Error()))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
 }
 
 // Sends the current agent version

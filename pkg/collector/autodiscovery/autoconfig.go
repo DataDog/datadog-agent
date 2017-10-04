@@ -150,7 +150,6 @@ func (ac *AutoConfig) LoadAndRun() {
 			log.Errorf("Unable to run Check %s: %v", check, err)
 		}
 	}
-
 }
 
 // GetChecksByName returns any Check instance we can load for the given
@@ -174,7 +173,7 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 func (ac *AutoConfig) getAllConfigs() []check.Config {
 	configs := []check.Config{}
 	for _, pd := range ac.providers {
-		cfgs, _ := ac.collect(pd)
+		cfgs, _ := pd.provider.Collect()
 		configs = append(configs, cfgs...)
 	}
 

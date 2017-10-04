@@ -350,7 +350,7 @@ a {
     top: 53px;
   }
 
-  #submit_settings, #submit_check, #save_run_check {
+  #submit_settings, #submit_check, #save_run_check, #reload_check {
     box-shadow:inset 0px 1px 0px 0px #3dc21b;
     background:linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
     background-color:#44c767;
@@ -370,13 +370,12 @@ a {
     text-decoration:none;
     text-shadow:0px 1px 0px #2f6627;
   }
-  #submit_settings:hover, #submit_check:hover {
+  #submit_settings:hover, #submit_check:hover, #reload_check:hover {
     background:linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
     background-color:#5cbf2a;
   }
-  #submit_settings:active, #submit_check:active {
-    position:relative;
-    top:1px;
+  #submit_settings:active, #submit_check:active, #reload_check:active {
+    margin-top: 11px;
   }
 
 
@@ -430,36 +429,54 @@ a {
     #submit_check  {
       position: absolute;
       left: auto;
+      right: 80px;
+      transform: none;
+      top: 0px;
+      margin: 10px;
+    }
+
+    .success {
+      cursor: default;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      left: -30px;
+      color: green;
+    }
+
+    .unsuccessful {
+      cursor: default;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      left: -30px;
+      color: red;
+    }
+
+    .msg {
+      cursor: default;
+      position: absolute;
+      width: 110px;
+      top: 50%;
+      transform: translateY(-50%);
+      text-align: right;
+      right: 105px;
+      color: black;
+      font-size: 14px;
+    }
+
+    #reload_check {
+      position: absolute;
+      width: 50px;
+      left: auto;
       right: 0px;
       transform: none;
       top: 0px;
       margin: 10px;
 
-      .success {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        left: -30px;
-        color: green;
-      }
-
-      .unsuccessful {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        left: -30px;
-        color: red;
-      }
-
       .msg {
-        position: absolute;
-        width: 110px;
-        top: 50%;
-        transform: translateY(-50%);
-        text-align: right;
-        right: 98px;
-        color: black;
-        font-size: 14px;
+        right: 160px;
+        width: 500px;
       }
     }
   }
@@ -551,7 +568,7 @@ a {
 
       #save_run_check {
         z-index: 2;
-        width: 75px;
+        width: 65px;
         position: absolute;
         transform: none;
         left: auto;
@@ -580,19 +597,64 @@ a {
     }
 
     #popup {
-      height: calc(100% - 100px);
-      width: calc(100% - 300px);
-      min-width: 700px;
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
+      display: block;
+      padding: 15px;
+      height: calc(100% - 130px);
+      width: calc(100% - 330px);
+      min-width: 700px;
 
       z-index: 5;
       background-color: #f4f4f4;
       box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
       -moz-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
       -webkit-box-shadow:  0px 0px 15px rgba(0, 0, 0, 0.22);
+
+      #check_run_results {
+        height: 100%;
+        width: 100%;
+        overflow-y: scroll;
+
+        .stat_title {
+          display: block;
+          font-size: $font_size * 1.25;
+          font-weight: bold;
+        }
+
+        .stat_subtitle {
+          display: block;
+          font-size: $font_size * 1.1;
+          font-weight: bold;
+          padding-top: 10px;
+          padding-bottom: 7px;
+          padding-left: 10px;
+        }
+
+        .stat_data {
+          display: block;
+          padding-left: 20px;
+        }
+
+        .error {
+          color: red;
+          font-weight: bold;
+        }
+
+        .warning {
+          color: #FFA500;
+          font-weight: bold;
+        }
+
+
+        #footnote {
+          display: block;
+          padding: 10px;
+          font-size: $font_size * 1.1;
+        }
+      }
 
       #associated_title {
         z-index: 6;

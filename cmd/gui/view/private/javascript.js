@@ -300,10 +300,9 @@ function loadChecks() {
         $("#checks_list").append('<a href="javascript:void(0)" onclick="showCheck(\'' + item + '\')" class="check enabled">' +  item + '</a>');
       } else if (item.substr(item.length - 7) == "default") {
         $("#checks_list").append('<a href="javascript:void(0)" onclick="showCheck(\'' + item + '\')" class="check default">' +  item + '</a>');
-      } else {
-        $("#checks_list").append('<a href="javascript:void(0)" onclick="showCheck(\'' + item + '\')" class="check disabled">' +  item + '</a>');
       }
     });
+    $(".default").css("display", "none");
     loaded = true;
   }, function(){
     $('#checks_interface').html("<span class='center'>An error occurred.</span>");
@@ -320,8 +319,10 @@ function showCheck(name) {
     }), function(data, status, xhr){
       $("#checks_interface").html('<div id="check_title"> Editing: ' + name + '</div>' +
                                   '<div id="submit_check">Save</div>' +
+                                  '<div id="reload_check">Reload</div>' +
                                   '<textarea id="check_input">' + data + '</textarea>');
       $("#submit_check").click(submitCheckSettings);
+      $("#reload_check").click(reloadCheck);
     });
 }
 
@@ -335,30 +336,42 @@ function submitCheckSettings() {
     payload: name + " " + settings
   }), function(data, status, xhr){
     resClass = "success"; symbol = "fa-check";
-    resMsg = "Saved";
+    resMsg = "Reload check <br> to see changes";
     if (data != "Success") {
       console.log(data);
       resClass = "unsuccessful"; symbol = "fa-times";
       if (data.includes("permission denied")) resMsg = "Permission <br> denied";
       else resMsg = "An error <br> occurred";
     }
+    $("." + resClass + ", .msg").remove();
     $("#submit_check").append('<i class="fa ' + symbol + ' fa-lg ' + resClass + '"></i><div class="msg">' + resMsg + '</div>');
     $("." + resClass + ", .msg").delay(3000).fadeOut("slow");
+  });
+}
+
+function reloadCheck() {
+  name = $("#check_title").html().slice(10);
+
+  sendMessage(JSON.stringify({
+    req_type: "set",
+    data: "reload_check",
+    payload: name.substr(0, name.length - 5) // remove the .yaml ending
+  }), function(data, status, xhr){
+    $("." + resClass + ", .msg").remove();
+    $("#reload_check").append('<div class="msg">' + data + '</div>');
+    $(".msg").delay(4000).fadeOut("slow");
   });
 }
 
 function filterCheckList() {
   val = $("#filter_button").val();
   switch (val) {
-    case "all":
-      $(".enabled, .default, .disabled").css("display", "inline-block");
-      break;
     case "enabled":
-      $(".disabled, .default").css("display", "none");
+      $(".default").css("display", "none");
       $(".enabled").css("display", "inline-block");
       break;
     case "default":
-      $(".enabled, .disabled").css("display", "none");
+      $(".enabled").css("display", "none");
       $(".default").css("display", "inline-block");
       break;
   }
@@ -460,7 +473,7 @@ function showCheckFile(fileName) {
         // Check if it's already an enabled check
         if (item.substr(item.length - 4) == "yaml") {
            enabled = true;
-           displayConfigFile(item)
+           $("#add_check_description").html("This check is already enabled; you can change it's configuration in Edit Check Configs.");
         } else {
           associatedConfigs.push(item);
         }
@@ -474,35 +487,13 @@ function showCheckFile(fileName) {
   });
 }
 
-function displayConfigFile(name) {
-  $("#add_check_description").html("This check is already enabled, but you can still use this interface to test new configurations.");
-
-  $(".check_files_list").html("<div class='check_file selected'>" + name + "</span>");
-
-  // Fetch the configuration file
-  sendMessage(JSON.stringify({
-    req_type: "fetch",
-    data: "check_config",
-    payload: name
-  }), function(data, status, xhr){
-    $("#add_check_interface").append('<textarea id="edit_check_file">' + data + '</textarea>' +
-                                     '<div id="save_run_check">Save and<br>Run Once</div>');
-    $("#save_run_check").click(function() {
-      runNewCheck(name);
-    });
-
-  }, function() {
-    $("#add_check_description").html("An error occurred.");
-    $("#add_check_interface").html("");
-  });
-}
-
 function createNewConfigFile(fileName, associatedConfigs) {
   $("#add_check_description").html("Please create a new configuration file for this check below.");
   $(".check_files_list").html("<div class='check_file selected'>" + fileName + ".yaml </span>");
   $("#add_check_interface").append('<textarea id="edit_check_file">Add your configuration here.</textarea>' +
-                                   '<div id="save_run_check">Save and<br>Run Once</div>');
+                                   '<div id="save_run_check">Save and<br>Test</div>');
   $("#save_run_check").click(function(){
+    $("#save_run_check").css("pointer-events", "none");
     runNewCheck(fileName + ".yaml");
   });
 
@@ -544,10 +535,11 @@ function runCheck(name, page) {
     payload: name.substr(0, name.length-5) // remove the .yaml
   }), function(data, status, xhr){
 
-    $(page).append("<div id='popup'>" + JSON.stringify(data, null, 2) + "<div class='exit'>x</div></div>");
+    $(page).append("<div id='popup'>" + data + "<div class='exit'>x</div></div>");
     $(".exit").click(function() {
       $("#popup").remove();
       $(".exit").remove();
+      $("#save_run_check").css("pointer-events", "auto");
     })
 
   });

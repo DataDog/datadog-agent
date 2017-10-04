@@ -1,39 +1,46 @@
 package gui
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
-	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
-	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 )
 
-func sendStatus(w http.ResponseWriter, req string) {
-	status, e := status.GetStatus()
-	if e != nil {
-		log.Errorf("GUI - Error getting status: " + e.Error())
-		w.Write([]byte("Error getting status: " + e.Error()))
-		return
-	}
-	json, _ := json.Marshal(status)
+var fmap = template.FuncMap{
+	"doNotEscape":        doNotEscape,
+	"lastError":          lastError,
+	"lastErrorTraceback": lastErrorTraceback,
+	"lastErrorMessage":   lastErrorMessage,
+	"pythonLoaderError":  pythonLoaderError,
+	"formatUnixTime":     formatUnixTime,
+	"humanize":           mkHuman,
+	"humanizeInt":        mkHumanInt,
+	"formatTitle":        formatTitle,
+	"add":                add,
+}
 
-	html, e := renderStatus(json, req)
-	if e != nil {
-		log.Errorf("GUI - Error generating status html: " + e.Error())
-		w.Write([]byte("Error generating status html: " + e.Error()))
-		return
-	}
+type CheckStats struct {
+	Name  string
+	Stats []*check.Stats
+}
 
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+type Errors struct {
+	Name       string
+	LoaderErrs map[string]autodiscovery.LoaderErrors
+	ParsingErr string
 }
 
 func renderStatus(data []byte, request string) (string, error) {
@@ -49,16 +56,6 @@ func renderStatus(data []byte, request string) (string, error) {
 }
 
 func fillTemplate(w io.Writer, stats map[string]interface{}, request string) error {
-	fmap := template.FuncMap{
-		"doNotEscape":        doNotEscape,
-		"lastError":          lastError,
-		"lastErrorTraceback": lastErrorTraceback,
-		"lastErrorMessage":   lastErrorMessage,
-		"pythonLoaderError":  pythonLoaderError,
-		"formatUnixTime":     formatUnixTime,
-		"humanize":           mkHuman,
-		"formatTitle":        formatTitle,
-	}
 	t := template.New(request + ".tmpl")
 	t.Funcs(fmap)
 	t, e := t.ParseFiles("templates/" + request + ".tmpl")
@@ -68,6 +65,69 @@ func fillTemplate(w io.Writer, stats map[string]interface{}, request string) err
 
 	e = t.Execute(w, stats)
 	return e
+}
+
+func renderCheck(name string, stats []*check.Stats) (string, error) {
+	var b = new(bytes.Buffer)
+
+	t := template.New("singleCheck.tmpl")
+	t.Funcs(fmap)
+	t, e := t.ParseFiles("templates/singleCheck.tmpl")
+	if e != nil {
+		return "", e
+	}
+
+	cs := CheckStats{name, stats}
+	e = t.Execute(b, cs)
+	if e != nil {
+		return "", e
+	}
+	return b.String(), nil
+}
+
+func renderError(name string) (string, error) {
+	var b = new(bytes.Buffer)
+
+	t := template.New("loaderErr.tmpl")
+	t.Funcs(fmap)
+	t, e := t.ParseFiles("templates/loaderErr.tmpl")
+	if e != nil {
+		return "", e
+	}
+
+	loaderErrs := autodiscovery.GetLoaderErrors()
+
+	// Check if there's a message in the log indicating the config file had an error
+	parserErr := ""
+	logFile, e := os.Open(config.Datadog.GetString("log_file"))
+	if e != nil {
+		log.Errorf("GUI - Error reading log file: " + e.Error())
+		return "", e
+	}
+	scanner := bufio.NewScanner(logFile)
+	for scanner.Scan() {
+		if strings.Contains(scanner.Text(), name+".yaml is not a valid config file:") {
+			parserErr = scanner.Text()
+
+			// Get the lines containing the error
+			for scanner.Scan() {
+				if !(strings.Contains(scanner.Text(), "| WARN |") ||
+					strings.Contains(scanner.Text(), "| INFO |") ||
+					strings.Contains(scanner.Text(), "| ERROR |")) {
+					parserErr += scanner.Text()
+				} else {
+					break
+				}
+			}
+		}
+	}
+
+	errs := Errors{name, loaderErrs, parserErr}
+	e = t.Execute(b, errs)
+	if e != nil {
+		return "", e
+	}
+	return b.String(), nil
 }
 
 /****** Helper functions for the template formatting ******/
@@ -147,6 +207,18 @@ func mkHuman(f float64) string {
 	return str
 }
 
+func mkHumanInt(i int64) string {
+	str := fmt.Sprintf("%d", i)
+
+	if i > 1000000 {
+		str = "over 1M"
+	} else if i > 100000 {
+		str = "over 100K"
+	}
+
+	return str
+}
+
 func formatTitle(title string) string {
 	if title == "os" {
 		return "OS"
@@ -166,4 +238,8 @@ func formatTitle(title string) string {
 
 	// Capitalize the first letter
 	return strings.Title(title)
+}
+
+func add(x, y int) int {
+	return x + y
 }

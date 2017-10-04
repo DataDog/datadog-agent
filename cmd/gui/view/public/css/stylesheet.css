@@ -237,7 +237,7 @@ a {
     position: absolute;
     height: calc(100% - 85px);
     top: 53px; }
-  #main #submit_settings, #main #submit_check, #main #save_run_check {
+  #main #submit_settings, #main #submit_check, #main #save_run_check, #main #reload_check {
     box-shadow: inset 0px 1px 0px 0px #3dc21b;
     background: linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
     background-color: #44c767;
@@ -254,12 +254,11 @@ a {
     padding: 6px 10px;
     text-decoration: none;
     text-shadow: 0px 1px 0px #2f6627; }
-  #main #submit_settings:hover, #main #submit_check:hover {
+  #main #submit_settings:hover, #main #submit_check:hover, #main #reload_check:hover {
     background: linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
     background-color: #5cbf2a; }
-  #main #submit_settings:active, #main #submit_check:active {
-    position: relative;
-    top: 1px; }
+  #main #submit_settings:active, #main #submit_check:active, #main #reload_check:active {
+    margin-top: 11px; }
   #main #checks_settings {
     width: calc(100% - 40px);
     height: calc(100% - 40px); }
@@ -295,31 +294,45 @@ a {
     #main #checks_settings #submit_check {
       position: absolute;
       left: auto;
+      right: 80px;
+      transform: none;
+      top: 0px;
+      margin: 10px; }
+    #main #checks_settings .success {
+      cursor: default;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      left: -30px;
+      color: green; }
+    #main #checks_settings .unsuccessful {
+      cursor: default;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      left: -30px;
+      color: red; }
+    #main #checks_settings .msg {
+      cursor: default;
+      position: absolute;
+      width: 110px;
+      top: 50%;
+      transform: translateY(-50%);
+      text-align: right;
+      right: 105px;
+      color: black;
+      font-size: 14px; }
+    #main #checks_settings #reload_check {
+      position: absolute;
+      width: 50px;
+      left: auto;
       right: 0px;
       transform: none;
       top: 0px;
       margin: 10px; }
-      #main #checks_settings #submit_check .success {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        left: -30px;
-        color: green; }
-      #main #checks_settings #submit_check .unsuccessful {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        left: -30px;
-        color: red; }
-      #main #checks_settings #submit_check .msg {
-        position: absolute;
-        width: 110px;
-        top: 50%;
-        transform: translateY(-50%);
-        text-align: right;
-        right: 98px;
-        color: black;
-        font-size: 14px; }
+      #main #checks_settings #reload_check .msg {
+        right: 160px;
+        width: 500px; }
   #main #running_checks {
     padding: 20px;
     max-height: calc(100% - 80px);
@@ -375,7 +388,7 @@ a {
           background-color: white; }
       #main #add_check #add_check_interface #save_run_check {
         z-index: 2;
-        width: 75px;
+        width: 65px;
         position: absolute;
         transform: none;
         left: auto;
@@ -398,18 +411,48 @@ a {
         outline: none;
         border: none; }
     #main #add_check #popup {
-      height: calc(100% - 100px);
-      width: calc(100% - 300px);
-      min-width: 700px;
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
+      display: block;
+      padding: 15px;
+      height: calc(100% - 130px);
+      width: calc(100% - 330px);
+      min-width: 700px;
       z-index: 5;
       background-color: #f4f4f4;
       box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
       -moz-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
       -webkit-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22); }
+      #main #add_check #popup #check_run_results {
+        height: 100%;
+        width: 100%;
+        overflow-y: scroll; }
+        #main #add_check #popup #check_run_results .stat_title {
+          display: block;
+          font-size: 18.75px;
+          font-weight: bold; }
+        #main #add_check #popup #check_run_results .stat_subtitle {
+          display: block;
+          font-size: 16.5px;
+          font-weight: bold;
+          padding-top: 10px;
+          padding-bottom: 7px;
+          padding-left: 10px; }
+        #main #add_check #popup #check_run_results .stat_data {
+          display: block;
+          padding-left: 20px; }
+        #main #add_check #popup #check_run_results .error {
+          color: red;
+          font-weight: bold; }
+        #main #add_check #popup #check_run_results .warning {
+          color: #FFA500;
+          font-weight: bold; }
+        #main #add_check #popup #check_run_results #footnote {
+          display: block;
+          padding: 10px;
+          font-size: 16.5px; }
       #main #add_check #popup #associated_title {
         z-index: 6;
         position: absolute;
