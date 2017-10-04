@@ -3,9 +3,12 @@ High level testing tasks
 """
 from __future__ import print_function
 
+import codecs
 import os
+import sys
 import fnmatch
 
+import invoke
 from invoke import task
 
 from .utils import pkg_config_path
@@ -16,7 +19,7 @@ from .dogstatsd import integration_tests as dsd_integration_tests
 
 PROFILE_COV = "profile.cov"
 
-
+windows_test_whitelist = ["./pkg\\util\\xc"]
 @task()
 def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False, fail_on_fmt=False):
     """
@@ -26,6 +29,7 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
     """
+    
     targets_list = ctx.targets if targets is None else targets.split(',')
     build_tags = get_build_tags()  # pass all the build flags for tests
 
@@ -66,6 +70,12 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
         matches = ["{}/...".format(t) for t in targets_list]
 
     for match in matches:
+        if invoke.platform.WINDOWS:
+            #print("match is {}\n".format(match))
+            if match in windows_test_whitelist:
+                print("Skipping whitelisted directory {}\n".format(match))
+                continue
+
         coverprofile = ""
         if coverage:
             profile_tmp = "{}/profile.tmp".format(match)

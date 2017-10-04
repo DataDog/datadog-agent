@@ -6,8 +6,10 @@ vendor/
 bin/
 /dev/
 
+**/debug.test
 # files
 .DS_Store
+.vscode
 *.cov
 *.pyc
 *.swp

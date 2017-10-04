@@ -7,6 +7,7 @@ package forwarder
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -25,10 +26,12 @@ func newTestTransaction() *testTransaction {
 }
 
 func (t *testTransaction) GetNextFlush() time.Time {
+	fmt.Printf("GetNextFlush()\n")
 	return t.Called().Get(0).(time.Time)
 }
 
 func (t *testTransaction) GetCreatedAt() time.Time {
+	fmt.Printf("GetCreatedAt()\n")
 	return t.Called().Get(0).(time.Time)
 }
 
