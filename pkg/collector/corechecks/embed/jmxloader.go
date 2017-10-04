@@ -22,12 +22,6 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-const (
-	windowsToken       = '\\'
-	unixToken          = '/'
-	autoDiscoveryToken = "#### AUTO-DISCOVERY ####\n"
-)
-
 var JMXConfigCache = cache.NewBasicCache()
 
 // JMXCheckLoader is a specific loader for checks living in this package
