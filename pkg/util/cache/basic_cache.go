@@ -65,25 +65,15 @@ func (b *BasicCache) GetModified() int64 {
 	return b.modified
 }
 
-// Iterator returns key and value channels to iterate on
-// Not the most performant implementation - but clean and should be fine
-// given that basic caches should be small
-func (b *BasicCache) Iterator() (<-chan string, <-chan interface{}) {
+// Items returns a map with the elements in the cache
+func (b *BasicCache) Items() map[string]interface{} {
+	items := map[string]interface{}{}
+
 	b.m.RLock()
 	defer b.m.RUnlock()
+	for k, v := range b.cache {
+		items[k] = v
+	}
 
-	keyChan := make(chan string, len(b.cache))
-	valueChan := make(chan interface{}, len(b.cache))
-	go func() {
-		b.m.RLock()
-		defer b.m.RUnlock()
-		for k, v := range b.cache {
-			keyChan <- k
-			valueChan <- v
-		}
-		close(keyChan)
-		close(valueChan)
-	}()
-
-	return keyChan, valueChan
+	return items
 }

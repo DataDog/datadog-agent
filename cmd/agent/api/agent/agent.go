@@ -145,9 +145,8 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	j := map[string]interface{}{}
 	configs := map[string]check.ConfigJSONMap{}
 
-	keys, vals := embed.JMXConfigCache.Iterator()
-	for name := range keys {
-		config := <-vals // there will be as many vals as keys
+	configItems := embed.JMXConfigCache.Items()
+	for name, config := range configItems {
 		m, ok := config.(map[string]interface{})
 		if !ok {
 			err = fmt.Errorf("wrong type in cache")
