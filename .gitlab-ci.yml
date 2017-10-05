@@ -35,12 +35,12 @@ build_windows_msi_x64:
   script:
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv agent.omnibus-build
-#  after_script:
-#    - cd
-#    - mkdir artifacts
-#    - copy c:\omnibus-ruby\pkg\*.msi artifacts
-#    - copy c:\omnibus-ruby\pkg\*.exe artifacts
-#  artifacts:
-#    expire_in: 2 weeks
-#    paths:
-#    - artifacts/
+  after_script:
+    - cd
+    - mkdir artifacts
+    - copy c:\omnibus-ruby\pkg\*.msi artifacts
+    - copy c:\omnibus-ruby\pkg\*.exe artifacts
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - artifacts/
