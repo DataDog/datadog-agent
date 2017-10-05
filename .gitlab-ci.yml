@@ -25,22 +25,23 @@ variables:
 build_windows_msi_x64:
   before_script:
   - if exist c:\omnibus-ruby\pkg del /q c:\omnibus-ruby\pkg
-  - if exist c:\dev\go\src\github.com\DataDog\datadog-agent rd /s/q c:\dev\go\src\github.com\DataDog\datadog-agent
-  - mkdir c:\dev\go\src\github.com\DataDog\datadog-agent
-  - xcopy /h/e/s * c:\dev\go\src\github.com\DataDog\datadog-agent
-  - cd c:\dev\go\src\github.com\DataDog\datadog-agent
+  - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
+  - echo mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
+  - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
+  - xcopy /h/e/s * '%GOPATH%\src\github.com\DataDog\datadog-agent'
+  - cd '%GOPATH%\src\github.com\DataDog\datadog-agent'
   - inv -e deps
   stage: package_build
   tags: ["runner:windows"]
   script:
-    - cd c:\dev\go\src\github.com\DataDog\datadog-agent
-    - inv agent.omnibus-build
-  after_script:
-    - cd
-    - mkdir artifacts
-    - copy c:\omnibus-ruby\pkg\*.msi artifacts
-    - copy c:\omnibus-ruby\pkg\*.exe artifacts
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-    - artifacts/
+    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
+#    - inv agent.omnibus-build
+#  after_script:
+#    - cd
+#    - mkdir artifacts
+#    - copy c:\omnibus-ruby\pkg\*.msi artifacts
+#    - copy c:\omnibus-ruby\pkg\*.exe artifacts
+#  artifacts:
+#    expire_in: 2 weeks
+#    paths:
+#    - artifacts/
