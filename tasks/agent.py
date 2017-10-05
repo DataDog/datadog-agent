@@ -167,6 +167,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         if gem_path:
             cmd += " --path {}".format(gem_path)
         ctx.run(cmd)
+        ctx.run("bundle show")
         omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
         args = {

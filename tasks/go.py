@@ -76,7 +76,7 @@ def deps(ctx):
     """
     ctx.run("go get -u github.com/golang/dep/cmd/dep")
     ctx.run("go get -u github.com/golang/lint/golint")
-    ctx.run("dep ensure")
+    ctx.run("dep ensure -v")
     # prune packages from /vendor, remove this hack
     # as soon as `dep prune` is merged within `dep ensure`,
     # see https://github.com/golang/dep/issues/944

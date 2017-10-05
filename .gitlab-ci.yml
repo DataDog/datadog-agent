@@ -27,7 +27,7 @@ build_windows_msi_x64:
     - if exist c:\omnibus-ruby\pkg del /q c:\omnibus-ruby\pkg
     - if exist c:\dev\go\src\github.com\DataDog\datadog-agent rd /s/q c:\dev\go\src\github.com\DataDog\datadog-agent
     - mkdir c:\dev\go\src\github.com\DataDog\datadog-agent
-    - xcopy /h/e/s * c:\dev\go\src\github.com\DataDog\datadog-agent
+    - xcopy /q/h/e/s * c:\dev\go\src\github.com\DataDog\datadog-agent
     - cd c:\dev\go\src\github.com\DataDog\datadog-agent
     - inv -e deps
   stage: package_build
