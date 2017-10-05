@@ -74,8 +74,12 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
 	if err := common.ImportRegistryConfig(); err != nil {
-		elog.Warning(2, fmt.Sprintf("Failed to import config items from registry %s", err.Error()))
+		elog.Warn(2, fmt.Sprintf("Failed to import config items from registry %s", err.Error()))
 		// continue running agent with existing config
+	}
+	if err := common.CheckAndUpgradeConfig(); err != nil {
+		log.Warn("failed to upgrade config %s", err.Error())
+		// continue running with what we have.
 	}
 	app.StartAgent()
 
