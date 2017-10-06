@@ -13,7 +13,7 @@ currently in Beta. The source code of the stable Datadog Agent 5 is located in t
 ## Getting started
 
 To build the Agent you need:
- * [Go](https://golang.org/doc/install) 1.8 or later.
+ * [Go](https://golang.org/doc/install) 1.8.1 or later.
  * Python 2.7 along with development libraries.
  * [Invoke](http://www.pyinvoke.org/installing.html), you can install it via
    `pip install invoke` or via [Homebrew](https://brew.sh) on OSX/macOS with
@@ -24,10 +24,11 @@ to see the available tasks.
 
 To start working on the Agent, you can build the `master` branch:
 
-1. checkout the repo within your `$GOPATH`.
-2. install the project's dependencies: `invoke deps`.
+1. checkout the repo: `git clone https://github.com/DataDog/datadog-agent.git $GOPATH/src/github.com/DataDog/datadog-agent`.
+2. cd into the project folder: `cd $GOPATH/src/github.com/DataDog/datadog-agent`.
+3. install project's dependencies: `invoke deps`.
    Make sure that `$GOPATH/bin` is in your `$PATH` otherwise this step might fail.
-3. build the whole project with `invoke agent.build --build-exclude=snmp`
+4. build the whole project with `invoke agent.build --build-exclude=snmp`
 
 Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details.
 
@@ -44,8 +45,9 @@ DD_API_KEY=12345678990 ./bin/agent/agent
 
 ## Documentation
 
-The general documentation of the project (including instructions on the Beta builds, Agent installation,
-development, etc) is located under the [docs](docs) directory of the present repo.
+The general documentation of the project (including instructions on the Beta builds,
+Agent installation, development, etc) is located under the [docs](docs) directory
+of the present repo.
 
 ## Contributing code
 
