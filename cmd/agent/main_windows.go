@@ -56,8 +56,6 @@ func main() {
 		return
 	}
 	defer log.Flush()
-	// go_expvar server
-	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)
 
 	// Invoke the Agent
 	if err := app.AgentCmd.Execute(); err != nil {
