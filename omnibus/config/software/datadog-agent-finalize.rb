@@ -29,6 +29,7 @@ build do
     else
         # Move checks and configuration files
         mkdir "/etc/datadog-agent"
+        move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
         move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
         move "#{install_dir}/etc/datadog-agent/trace-agent.conf", "/etc/datadog-agent/trace-agent.conf.example"
         move "#{install_dir}/etc/datadog-agent/process-agent.conf", "/etc/datadog-agent/process-agent.conf.example"
