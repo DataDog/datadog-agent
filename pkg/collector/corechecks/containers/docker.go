@@ -27,17 +27,14 @@ import (
 
 const dockerCheckName = "docker"
 
-type dockerConfig struct {
+type DockerConfig struct {
 	//Url                    string             `yaml:"url"`
-	CollectContainerSize  bool     `yaml:"collect_container_size"`
-	CollectImagesStats    bool     `yaml:"collect_images_stats"`
-	CollectImageSize      bool     `yaml:"collect_image_size"`
-	Exclude               []string `yaml:"exclude"`
-	Include               []string `yaml:"include"`
-	ExcludePauseContainer bool     `yaml:"exclude_pause_container"`
-	Tags                  []string `yaml:"tags"`
-	CollectEvent          bool     `yaml:"collect_events"`
-	FilteredEventType     []string `yaml:"filtered_event_types"`
+	CollectContainerSize bool     `yaml:"collect_container_size"`
+	CollectImagesStats   bool     `yaml:"collect_images_stats"`
+	CollectImageSize     bool     `yaml:"collect_image_size"`
+	Tags                 []string `yaml:"tags"`
+	CollectEvent         bool     `yaml:"collect_events"`
+	FilteredEventType    []string `yaml:"filtered_event_types"`
 	//CustomCGroup           bool               `yaml:"custom_cgroups"`
 	//HealthServiceWhitelist []string           `yaml:"health_service_check_whitelist"`
 	//CollectContainerCount  bool               `yaml:"collect_container_count"`
@@ -53,9 +50,6 @@ type dockerConfig struct {
 
 const (
 	DockerServiceUp string = "docker.service_up"
-
-	pauseContainerGCR       string = "image:gcr.io/google_containers/pause.*"
-	pauseContainerOpenshift string = "image:openshift/origin-pod"
 )
 
 type containerPerImage struct {
@@ -64,16 +58,12 @@ type containerPerImage struct {
 	stopped int64
 }
 
-func (c *dockerConfig) Parse(data []byte) error {
+func (c *DockerConfig) Parse(data []byte) error {
+	// default values
+	c.CollectEvent = true
+
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
-	}
-	if len(c.FilteredEventType) == 0 {
-		c.FilteredEventType = []string{"top", "exec_create", "exec_start"}
-	}
-
-	if c.ExcludePauseContainer {
-		c.Exclude = append(c.Exclude, pauseContainerGCR, pauseContainerOpenshift)
 	}
 	return nil
 }
@@ -81,7 +71,7 @@ func (c *dockerConfig) Parse(data []byte) error {
 // DockerCheck grabs docker metrics
 type DockerCheck struct {
 	lastWarnings   []error
-	instance       *dockerConfig
+	instance       *DockerConfig
 	lastEventTime  time.Time
 	dockerHostname string
 }
@@ -234,19 +224,11 @@ func (d *DockerCheck) String() string {
 
 // Configure parses the check configuration and init the check
 func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
-	d.instance = &dockerConfig{
-		// Default conf values
-		ExcludePauseContainer: true,
-		CollectEvent:          true,
-	}
 	d.instance.Parse(config)
 
-	docker.InitDockerUtil(&docker.Config{
-		CacheDuration:  10 * time.Second,
-		CollectNetwork: true,
-		Whitelist:      d.instance.Include,
-		Blacklist:      d.instance.Exclude,
-	})
+	if len(d.instance.FilteredEventType) == 0 {
+		d.instance.FilteredEventType = []string{"top", "exec_create", "exec_start"}
+	}
 
 	var err error
 	d.dockerHostname, err = docker.GetHostname()

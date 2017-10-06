@@ -83,7 +83,7 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 			}
 
 			checkName = checkName[:len(checkName)-len(ext)]
-			conf, err := getCheckConfig(checkName, filepath.Join(path, entry.Name()))
+			conf, err := GetCheckConfigFromFile(checkName, filepath.Join(path, entry.Name()))
 			if err != nil {
 				log.Warnf("%s is not a valid config file: %s", entry.Name(), err)
 				continue
@@ -142,7 +142,7 @@ func collectDir(parentPath string, folder os.FileInfo) []check.Config {
 	for _, sEntry := range subEntries {
 		if !sEntry.IsDir() {
 			filePath := filepath.Join(dirPath, sEntry.Name())
-			conf, err := getCheckConfig(checkName, filePath)
+			conf, err := GetCheckConfigFromFile(checkName, filePath)
 			if err != nil {
 				log.Warnf("%s is not a valid config file: %s", sEntry.Name(), err)
 				continue
@@ -155,8 +155,8 @@ func collectDir(parentPath string, folder os.FileInfo) []check.Config {
 	return configs
 }
 
-// getCheckConfig returns an instance of check.Config if `fpath` points to a valid config file
-func getCheckConfig(name, fpath string) (check.Config, error) {
+// GetCheckConfigFromFile returns an instance of check.Config if `fpath` points to a valid config file
+func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 	cf := configFormat{}
 	config := check.Config{Name: name}
 
