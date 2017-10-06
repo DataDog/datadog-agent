@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -28,6 +29,9 @@ func set(w http.ResponseWriter, m Message) {
 
 	case "run_check_once":
 		runCheckOnce(w, m.Payload)
+
+	case "run_check":
+		runCheck(w, m.Payload)
 
 	case "reload_check":
 		reloadCheck(w, m.Payload)
@@ -124,12 +128,16 @@ func runCheckOnce(w http.ResponseWriter, name string) {
 			return
 		}
 
-		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(html))
+		response := make(map[string]string)
+		response["success"] = "" // empty string evaluates to false in JS
+		response["html"] = html
+		res, _ := json.Marshal(response)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(res)
 		return
 	}
 
-	// Run the check intance(s) once
+	// Run the check intance(s) once, as a test
 	stats := []*check.Stats{}
 	for _, ch := range instances {
 		s := check.NewStats(ch)
@@ -156,10 +164,26 @@ func runCheckOnce(w http.ResponseWriter, name string) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html")
-	w.Write([]byte(html))
+	response := make(map[string]string)
+	response["success"] = "true"
+	response["html"] = html
+	res, _ := json.Marshal(response)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(res)
 }
 
+// Schedules a specific check
+func runCheck(w http.ResponseWriter, name string) {
+	// Fetch the desired check
+	instances := common.AC.GetChecksByName(name)
+
+	for _, ch := range instances {
+		common.Coll.RunCheck(ch)
+	}
+	w.Write([]byte("Ran check " + name))
+}
+
+// Reloads a running check
 func reloadCheck(w http.ResponseWriter, name string) {
 	instances := common.AC.GetChecksByName(name)
 	if len(instances) == 0 {

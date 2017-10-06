@@ -1,5 +1,5 @@
 
-/***************************** Helpers *****************************/
+//************** Helpers
 
 function getAPIKey() {
   cookies = document.cookie.split(';');
@@ -26,7 +26,10 @@ function sendMessage(data, callback, callbackErr){
   })
 }
 
-/***************************** Setup *****************************/
+
+/*************************************************************************
+                                Setup
+*************************************************************************/
 
 $(document).ready(function(){
   // Add highlighting current item functionality to the nav bar
@@ -42,7 +45,7 @@ $(document).ready(function(){
 
   $("#settings_button").click(loadSettings);
   $("#flare_button").click(loadFlare);
-  $("#filter_button").change(filterCheckList);
+  $("#checks_dropdown").change(checkDropdown);
   $("#submit_flare").click(submitFlare);
 
   setupHomePage()
@@ -105,7 +108,10 @@ function checkStatus() {
   });
 }
 
-/***************************** Status *****************************/
+
+/*************************************************************************
+                                Status
+*************************************************************************/
 
 function loadGeneralStatus() {
   $(".page").css("display", "none");
@@ -141,7 +147,11 @@ function loadCollectorStatus(){
   });
 }
 
-/***************************** Logs *****************************/
+
+/*************************************************************************
+                                Logs
+*************************************************************************/
+
 function getLog(name){
   $(".page").css("display", "none");
   $("#logs").css("display", "block");
@@ -223,7 +233,10 @@ function loadMore() {
   $(".log_data").html(data + trimData(extraData));
 }
 
-/***************************** Settings *****************************/
+
+/*************************************************************************
+                              Settings
+*************************************************************************/
 
 function loadSettings() {
   $(".page").css("display", "none");
@@ -267,68 +280,143 @@ function submitSettings() {
   });
 }
 
-/***************************** Edit Check Configs *****************************/
 
-// only load the config files once
-var loaded = false;
-function loadChecks() {
+/*************************************************************************
+                            Manage Checks
+*************************************************************************/
+
+function loadManageChecks() {
   $(".page").css("display", "none");
-  $("#checks_settings").css("display", "block");
+  $("#manage_checks").css("display", "block");
 
+  checkDropdown();
+}
+
+function loadCheckFiles(enabled) {
+  $(".list").html("");
   sendMessage(JSON.stringify({
     req_type: "fetch",
     data: "conf_list"
   }), function(data, status, xhr){
-    if (typeof(data) == "string") {
-      if (data.includes("Empty directory:")) {
-        // Handle the directory being empty
-        path = data.substr(data.indexOf(":") + 1);
-        $("#checks_interface").html("<span class='center'>" + path + " is empty.</span>");
-      } else {
-        // Handle some other error
-        $("#checks_interface").html("<span class='center'>A problem occurred. " + data + "</span>");
-      }
-      return
-    }
+    if (typeof(data) == "string") return displayLoadingError(data);
 
-    $("#checks_interface").html("<span class='center'> Select a check configuration file. </span>");
-
-    if (loaded) return;
+    $("#checks_description").html("Select a check to configure.");
     data.sort();
     data.forEach(function(item){
-      if (item.substr(item.length - 4) == "yaml"){
-        $("#checks_list").append('<a href="javascript:void(0)" onclick="showCheck(\'' + item + '\')" class="check enabled">' +  item + '</a>');
-      } else if (item.substr(item.length - 7) == "default") {
-        $("#checks_list").append('<a href="javascript:void(0)" onclick="showCheck(\'' + item + '\')" class="check default">' +  item + '</a>');
+      if (enabled && (item.substr(item.length - 5) == ".yaml")) {
+        $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
+                          + item  + '\')" class="check">' +  item + '</a>');
+      } else if (!enabled && item.substr(item.length - 13) == ".yaml.default") {
+        $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
+                          + item + '\')" class="check">' +  item + '</a>');
       }
     });
-    $(".default").css("display", "none");
-    loaded = true;
-  }, function(){
-    $('#checks_interface').html("<span class='center'>An error occurred.</span>");
-    $("#checks_list").html("");
-    loaded = false;
+    $(".check").click(function(){
+      $(".active_check").removeClass("active_check");
+      $(this).addClass("active_check");
+    })
+  }, function() {
+    $("#checks_description").html("An error occurred.");
   });
 }
 
-function showCheck(name) {
+function loadNewChecks() {
+  $(".list").html("");
+
+  enabledChecks = [];
+  sendMessage(JSON.stringify({
+    req_type: "fetch",
+    data: "conf_list"
+  }), function(data, status, xhr){
+
+    if (typeof(data) == "string") return;
+    data.sort();
+    data.forEach(function(item){
+      if (item.substr(item.length - 5) == ".yaml") {
+        enabledChecks.push(item.substr(0, item.length - 5));
+      }
+    });
+
     sendMessage(JSON.stringify({
       req_type: "fetch",
-      data: "check_config",
-      payload: name
+      data: "checks_list"
     }), function(data, status, xhr){
-      $("#checks_interface").html('<div id="check_title"> Editing: ' + name + '</div>' +
-                                  '<div id="submit_check">Save</div>' +
-                                  '<div id="reload_check">Reload</div>' +
-                                  '<textarea id="check_input">' + data + '</textarea>');
-      $("#submit_check").click(submitCheckSettings);
-      $("#reload_check").click(reloadCheck);
+      if (typeof(data) == "string") return displayLoadingError(data);
+
+      $("#checks_description").html("Select a check to add.");
+      data.sort();
+      data.forEach(function(item){
+        // Only display checks that aren't already enabled
+        if (item.substr(item.length - 3) != ".py" ||
+            enabledChecks.indexOf(item.substr(0, item.length - 3)) != -1) return;
+
+        $(".list").append('<a href="javascript:void(0)" onclick="addCheck(\'' +
+                          item.substr(0, item.length - 3) + '\')" class="check">' +  item + '</a>');
+      });
+      $(".check").click(function(){
+        $(".active_check").removeClass("active_check");
+        $(this).addClass("active_check");
+      })
+    }, function() {
+      $("#checks_description").html("An error occurred.");
     });
+
+  }, function() {
+    $("#checks_description").html("An error occurred.");
+  });
 }
 
-function submitCheckSettings() {
+function displayLoadingError(data) {
+  if (data.includes("Empty directory:")) {
+    path = data.substr(data.indexOf(":") + 1);
+    $("#checks_description").html(path + " is empty.");
+  } else {
+    $("#checks_description").html("A problem occurred. " + data );
+  }
+}
+
+function checkDropdown() {
+  val = $("#checks_dropdown").val();
+  $(".right").html("");
+  switch (val) {
+    case "enabled":
+      loadCheckFiles(true);
+      break;
+    case "default":
+      loadCheckFiles(false);
+      break;
+    case "add":
+      loadNewChecks();
+      break;
+  }
+}
+
+
+//************* Edit a check configuration
+
+function showCheckConfig(name) {
+  sendMessage(JSON.stringify({
+    req_type: "fetch",
+    data: "check_config",
+    payload: name
+  }), function(data, status, xhr){
+    $(".right").html('<div id="save_check">Save</div>' +
+                     '<div id="reload_check" class="inactive">Reload</div>' +
+                     '<textarea id="check_input" >' + data + '</textarea>');
+
+    // TODO: what about default files?
+    $('#check_input').data('check_name',  name.substr(0, name.length - 5) );
+    $("#save_check").click(saveCheckSettings);
+    $("#reload_check").click(reloadCheck);
+  }, function() {
+    $("#checks_description").html("An error occurred.");
+    $(".right").html("");
+  });
+}
+
+function saveCheckSettings() {
   settings = $("#check_input").val();
-  name = $("#check_title").html().slice(10);
+  name = $('#check_input').data('check_name');
 
   sendMessage(JSON.stringify({
     req_type: "set",
@@ -338,46 +426,176 @@ function submitCheckSettings() {
     resClass = "success"; symbol = "fa-check";
     resMsg = "Reload check <br> to see changes";
     if (data != "Success") {
-      console.log(data);
       resClass = "unsuccessful"; symbol = "fa-times";
       if (data.includes("permission denied")) resMsg = "Permission <br> denied";
-      else resMsg = "An error <br> occurred";
+      else resMsg = "An error occurred: " + data;
     }
     $("." + resClass + ", .msg").remove();
-    $("#submit_check").append('<i class="fa ' + symbol + ' fa-lg ' + resClass + '"></i><div class="msg">' + resMsg + '</div>');
+    $("#save_check").append('<i class="fa ' + symbol + ' fa-lg ' + resClass + '"></i><div class="msg">' + resMsg + '</div>');
     $("." + resClass + ", .msg").delay(3000).fadeOut("slow");
+
+    if (resClass == "success"){
+      $("#reload_check").removeClass("inactive");
+    }
+  }, function() {
+    $("#checks_description").html("An error occurred.");
+    $(".right").html("");
   });
 }
 
 function reloadCheck() {
-  name = $("#check_title").html().slice(10);
+  $("#reload_check").addClass("inactive");
+  name = $('#check_input').data('check_name');
 
+  // Test it once with new configuration
   sendMessage(JSON.stringify({
     req_type: "set",
-    data: "reload_check",
-    payload: name.substr(0, name.length - 5) // remove the .yaml ending
+    data: "run_check_once",
+    payload: name
   }), function(data, status, xhr){
-    $("." + resClass + ", .msg").remove();
-    $("#reload_check").append('<div class="msg">' + data + '</div>');
-    $(".msg").delay(4000).fadeOut("slow");
+      $("#manage_checks").append("<div id='popup'>" + data["html"] + "<div class='exit'>x</div></div>");
+      $(".exit").click(function() {
+        $("#popup").remove();
+        $(".exit").remove();
+      });
+
+      // If check test was successful, reload the check
+      if (data["success"]) {
+        $("#check_run_results").prepend('<div id="summary">Check reloaded: <i class="fa fa-check green"></div>');
+        sendMessage(JSON.stringify({
+          req_type: "set",
+          data: "reload_check",
+          payload: name
+        }), function(data, status, xhr)  {
+          $("#summary").append('<br>Reload results: ' + data);
+        });
+      } else {
+        $("#check_run_results").prepend('<div id="summary"> Check reloaded: <i class="fa fa-times red"></i></div>');
+      }
+  }, function() {
+    $("#checks_description").html("An error occurred.");
+    $(".right").html("");
   });
 }
 
-function filterCheckList() {
-  val = $("#filter_button").val();
-  switch (val) {
-    case "enabled":
-      $(".default").css("display", "none");
-      $(".enabled").css("display", "inline-block");
-      break;
-    case "default":
-      $(".enabled").css("display", "none");
-      $(".default").css("display", "inline-block");
-      break;
-  }
+
+//************* Add a check
+
+function addCheck(checkName) {
+  $(".right").html("");
+  // See if theres an example file for this check
+  sendMessage(JSON.stringify({
+    req_type: "fetch",
+    data: "conf_list"
+  }), function(data, status, xhr){
+    exampleFile = false;
+    if (typeof(data) != "string") {
+      data.forEach(function(item){
+        if (item == checkName + ".yaml.example") exampleFile = true;
+      });
+    }
+    createNewConfigFile(checkName, exampleFile);
+  }, function() {
+    $("#checks_description").html("An error occurred.");
+  });
 }
 
-/***************************** See Running Checks *****************************/
+function createNewConfigFile(checkName, exampleFile) {
+  $("#checks_description").html("Please create a new configuration file for this check below.");
+  $(".right").append('<textarea id="new_config_input">Add your configuration here.</textarea>' +
+                     '<div id="add_check">Add Check</div>');
+
+  $("#add_check").click(function(){
+    $("#add_check").css("pointer-events", "none");
+    addNewCheck(checkName + ".yaml");
+  });
+
+  if (!exampleFile) return;
+  $(".right").append('<div id="see_example">See Example File</div>');
+  $("#see_example").click(function(){ displayExample(checkName); });
+}
+
+function displayExample(checkName) {
+  // Fetch the example configuration file and display it as a popup
+  $("#save_run_check").css("pointer-events", "none");
+  sendMessage(JSON.stringify({
+    req_type: "fetch",
+    data: "check_config",
+    payload: checkName + ".yaml.example"
+  }), function(data, status, xhr){
+    $("#manage_checks").append("<div id='popup'>" +
+                                  "<div id='example_title'>" + checkName + ".yaml example: </div>" +
+                                  "<textarea readonly='readonly' id='example'>" + data + "</textarea>" +
+                                  "<div class='exit'>x</div>" +
+                                "</div>");
+    $(".exit").click(function() {
+      $("#popup").remove();
+      $(".exit").remove();
+      $("#add_check").css("pointer-events", "auto");
+    });
+  }, function() {
+    $("#checks_description").html("An error occurred.");
+    $(".right").html("");
+  });
+}
+
+function addNewCheck(name) {
+  // Save the new configuration file
+  settings = $("#new_config_input").val();
+  sendMessage(JSON.stringify({
+    req_type: "set",
+    data: "check_config",
+    payload: name + " " + settings
+  }), function(data, status, xhr){
+
+    if (data != "Success") return $("#checks_description").html("Error saving configuration: " + data);
+
+    // Run the check once & print the result
+    sendMessage(JSON.stringify({
+      req_type: "set",
+      data: "run_check_once",
+      payload: name.substr(0, name.length-5) // remove the .yaml
+    }), function(data, status, xhr){
+      $("#manage_checks").append("<div id='popup'>" + data["html"] + "<div class='exit'>x</div></div>");
+      $(".exit").click(function() {
+        $("#popup").remove();
+        $(".exit").remove();
+        $("#add_check").css("pointer-events", "auto");
+      })
+
+      // Reload the display, because now this check is now enabled
+      checkDropdown();
+
+      // If check test was successful, schedule the check
+      if (data["success"]) {
+        $("#check_run_results").prepend(
+          '<div id="summary">' +
+            'Check enabled: <i class="fa fa-check green"></i> <br>' +
+            'Check running: <i class="fa fa-check green"></i>' +
+          '</div>');
+        sendMessage(JSON.stringify({
+          req_type: "set",
+          data: "run_check",
+          payload: name.substr(0, name.length-5)
+        }));
+      } else {
+        $("#check_run_results").prepend(
+          '<div id="summary">' +
+            'Check enabled: <i class="fa fa-check green"></i> <br>' +
+            'Check running: <i class="fa fa-times red"></i>' +
+          '</div>');
+      }
+    });
+  }, function() {
+    $("#checks_description").html("An error occurred.");
+    $(".right").html("");
+  });
+}
+
+
+/*************************************************************************
+                            See Running Checks
+*************************************************************************/
 
 function seeRunningChecks() {
   $(".page").css("display", "none");
@@ -414,163 +632,10 @@ function seeRunningChecks() {
   });
 }
 
-/***************************** Run a Check *****************************/
 
-function loadAddCheck() {
-  $(".page").css("display", "none");
-  $("#add_check").css("display", "block");
-
-  sendMessage(JSON.stringify({
-    req_type: "fetch",
-    data: "checks_list"
-  }), function(data, status, xhr){
-    if (typeof(data) == "string") {
-      if (data.includes("Empty directory:")) {
-        path = data.substr(data.indexOf(":") + 1);
-        $("#_description").html("No checks to run - " + path + " is empty.");
-      } else {
-        $("#add_check_description").html("A problem occurred. " + data );
-      }
-      return
-    }
-
-    $("#add_check_description").html("To begin, please select a check to add.");
-    $("#add_check_interface").html("<div class='check_files_list'></div>");
-
-    data.sort();
-    data.forEach(function(item){
-      if (item.substr(item.length - 2) != "py") return;
-      $(".check_files_list").append('<a href="javascript:void(0)" onclick="showCheckFile(\'' +
-                                    item.substr(0, item.length - 3) + '\')" class="check_file">' +  item + '</a>');
-    });
-
-  }, function() {
-    $("#add_check_description").html("An error occurred.");
-    $("#add_check_interface").html("");
-  });
-}
-
-function showCheckFile(fileName) {
-  // See if theres any config files associated with this check
-  sendMessage(JSON.stringify({
-    req_type: "fetch",
-    data: "conf_list"
-  }), function(data, status, xhr){
-
-    if (typeof(data) == "string") {
-      if (data.includes("Empty directory:")) {
-        createNewConfigFile(fileName, );
-      } else {
-        $("#add_check_description").html("A problem occurred. " + data);
-      }
-      return
-    }
-
-    enabled = false;
-    associatedConfigs = [];
-    data.forEach(function(item){
-      if (item.substr(0, fileName.length + 1) == fileName + ".") {
-        // Check if it's already an enabled check
-        if (item.substr(item.length - 4) == "yaml") {
-           enabled = true;
-           $("#add_check_description").html("This check is already enabled; you can change it's configuration in Edit Check Configs.");
-        } else {
-          associatedConfigs.push(item);
-        }
-      }
-    });
-
-    if (!enabled) createNewConfigFile(fileName, associatedConfigs);
-  }, function(){
-    $("#add_check_description").html("An error occurred.");
-    $("#add_check_interface").html("");
-  });
-}
-
-function createNewConfigFile(fileName, associatedConfigs) {
-  $("#add_check_description").html("Please create a new configuration file for this check below.");
-  $(".check_files_list").html("<div class='check_file selected'>" + fileName + ".yaml </span>");
-  $("#add_check_interface").append('<textarea id="edit_check_file">Add your configuration here.</textarea>' +
-                                   '<div id="save_run_check">Save and<br>Test</div>');
-  $("#save_run_check").click(function(){
-    $("#save_run_check").css("pointer-events", "none");
-    runNewCheck(fileName + ".yaml");
-  });
-
-  if (!associatedConfigs || associatedConfigs.length == 0) return;
-
-  $("#add_check_description").append(" Associated configuration files are available to help you.");
-  for (i = 0; i < associatedConfigs.length; i++) {
-    $(".check_files_list").append('<a href="javascript:void(0)" onclick="showAssociated(\'' + associatedConfigs[i] +
-                                  '\')" class="check_file example"> See ' +  associatedConfigs[i] + '</a>');
-  }
-}
-
-function runNewCheck(name) {
-  // Save the new configuration file
-  settings = $("#edit_check_file").val();
-  sendMessage(JSON.stringify({
-    req_type: "set",
-    data: "check_config",
-    payload: name + " " + settings
-  }), function(data, status, xhr){
-
-    if (data != "Success") {
-      // TODO
-      // Error writing new file
-      // if (data.includes("permission denied")) ....
-    }
-
-    // TODO:  Something saying "new check added!"
-
-    runCheck(name, "#add_check");
-  });
-}
-
-function runCheck(name, page) {
-  // Run the check
-  sendMessage(JSON.stringify({
-    req_type: "set",
-    data: "run_check_once",
-    payload: name.substr(0, name.length-5) // remove the .yaml
-  }), function(data, status, xhr){
-
-    $(page).append("<div id='popup'>" + data + "<div class='exit'>x</div></div>");
-    $(".exit").click(function() {
-      $("#popup").remove();
-      $(".exit").remove();
-      $("#save_run_check").css("pointer-events", "auto");
-    })
-
-  });
-}
-
-function showAssociated(name) {
-  $(".example").css("pointer-events", "none");
-  $("#add_check").append("<div id='popup'>" +
-                            "<div id='associated_title'>" + name + ": </div>" +
-                            "<textarea readonly='readonly' id='associated'></textarea>" +
-                            "<div class='exit'>x</div>" +
-                          "</div>");
-
-  $(".exit").click(function() {
-    $("#popup").remove();
-    $(".exit").remove();
-    $(".example").css("pointer-events", "auto");
-  })
-
-  // Fetch the configuration file
-  sendMessage(JSON.stringify({
-    req_type: "fetch",
-    data: "check_config",
-    payload: name
-  }), function(data, status, xhr){
-    $("#associated").append(data);
-  });
-}
-
-
-/***************************** Flare *****************************/
+/*************************************************************************
+                                Flare
+*************************************************************************/
 
 function loadFlare() {
   $(".page").css("display", "none");

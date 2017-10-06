@@ -1,5 +1,5 @@
 <div id="check_run_results">
-  <span class="stat_title">{{.Name}} test</span>
+  <span class="stat_title">{{formatTitle .Name}} run result: </span>
   {{- range $i, $e := .Stats}}
   <span class="stat_subtitle">Instance {{add $i 1}}</span>
     <span class="stat_data">
@@ -18,5 +18,4 @@
       {{- end -}}
     </span>
   {{- end -}}
-  <div id="footnote"> This configuration is saved. Restart the agent to run this check. </div>
 </div>

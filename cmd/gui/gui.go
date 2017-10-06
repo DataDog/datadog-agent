@@ -35,7 +35,7 @@ func StopGUIServer() {
 // StartGUIServer creates the router and starts the HTTP server
 func StartGUIServer() error {
 	apiKey = config.Datadog.GetString("api_key")
-	port := ":" + config.Datadog.GetString("GUI_port")
+	port := config.Datadog.GetString("GUI_port")
 
 	if config.Datadog.GetString("GUI_port") == "-1" {
 		log.Infof("Port -1 specified: not starting the GUI server.")
@@ -57,7 +57,7 @@ func StartGUIServer() error {
 	// Handle requests from clients
 	router.Handle("/req", authenticate(http.HandlerFunc(handler))).Methods("POST")
 
-	listener, e := net.Listen("tcp", port)
+	listener, e := net.Listen("tcp", "127.0.0.1:"+port)
 	if e != nil {
 		log.Errorf("Error: " + e.Error())
 		return e

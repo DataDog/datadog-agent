@@ -303,6 +303,7 @@ a {
     }
 
     #submit_settings {
+
       .success {
         position: absolute;
         top: 50%;
@@ -331,10 +332,7 @@ a {
     }
   }
 
-
-//************* Settings & Checks Input
-
-  #settings_input, #check_input {
+  #settings_input {
     border: none;
     width: calc(100% - 30px);
     height: calc(100% - 90px);
@@ -343,104 +341,44 @@ a {
     outline: none;
   }
 
-  #check_input {
-    border-top: 1px solid $border;
-    position: absolute;
-    height: calc(100% - 85px);
-    top: 53px;
-  }
+//************* Settings & checks buttons
 
-  #submit_settings, #submit_check, #save_run_check, #reload_check {
+  #submit_settings, #save_check, #add_check, #reload_check, #see_example {
     box-shadow:inset 0px 1px 0px 0px #3dc21b;
     background:linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
     background-color:#44c767;
     border-radius:3px;
     border:1px solid #18ab29;
+    color:#ffffff;
+    text-shadow:0px 1px 0px #2f6627;
 
+    z-index: 5;
+    margin-top: 10px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: $font_size;
+    text-decoration: none;
+  }
+
+  #submit_settings {
     width: 32px;
     position: relative;
     left: 50%;
     transform: translateX(-50%);
-    margin-top: 10px;
-
-    cursor:pointer;
-    color:#ffffff;
-    font-size: $font_size;
-    padding:6px 10px;
-    text-decoration:none;
-    text-shadow:0px 1px 0px #2f6627;
-  }
-  #submit_settings:hover, #submit_check:hover, #reload_check:hover {
-    background:linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
-    background-color:#5cbf2a;
-  }
-  #submit_settings:active, #submit_check:active, #reload_check:active {
-    margin-top: 11px;
   }
 
-
-//************* Configure checks
-
-  #checks_settings {
-    width: calc(100% - 40px);
-    height: calc(100% - 40px);
-
-    #checks_filter {
-      position: absolute;
-      height: 100%;
-      width: 200px;
-      border: 1px solid $border;
-      border-right: none;
-    }
-
-    #checks_list {
-      position: absolute;
-      top: 50px;
-      height: calc(100% - 50px);
-      width: 200px;
-      overflow-y: scroll;
-    }
-
-    .check {
-      font-size: $font_size * 0.9;
-      padding: 5px;
-      width: calc(100% - 10px);
-      display: inline-block;
-    }
-
-    .check:hover {
-      background-color: $border;
-    }
-
-    #checks_interface {
-      position: absolute;
-      height: 100%;
-      width: calc(100% - 200px);
-      left: 200px;
-      border: 1px solid $border;
-    }
-
-    #check_title {
-      position: absolute;
-      left: 15px;
-      top: 18px;
-    }
-
-    #submit_check  {
-      position: absolute;
-      left: auto;
-      right: 80px;
-      transform: none;
-      top: 0px;
-      margin: 10px;
-    }
+  #save_check  {
+    position: absolute;
+    right: 80px;
+    top: 0px;
+    margin: 10px;
 
     .success {
       cursor: default;
       position: absolute;
       top: 50%;
       transform: translateY(-50%);
-      left: -30px;
+      left: -37px;
       color: green;
     }
 
@@ -452,147 +390,148 @@ a {
       left: -30px;
       color: red;
     }
+  }
+
+  .msg {
+    z-index: 5;
+    cursor: default;
+    position: absolute;
+    width: 200px;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: right;
+    right: 105px;
+    color: black;
+    font-size: 14px;
+  }
+
+  #reload_check {
+    position: absolute;
+    width: 50px;
+    right: 0px;
+    top: 0px;
+    margin: 10px;
 
     .msg {
-      cursor: default;
-      position: absolute;
-      width: 110px;
-      top: 50%;
-      transform: translateY(-50%);
-      text-align: right;
-      right: 105px;
-      color: black;
-      font-size: 14px;
-    }
-
-    #reload_check {
-      position: absolute;
-      width: 50px;
-      left: auto;
-      right: 0px;
+      top: 40px;
       transform: none;
-      top: 0px;
-      margin: 10px;
-
-      .msg {
-        right: 160px;
-        width: 500px;
-      }
+      right: 0px;
+      width: 240px;
     }
   }
 
-
-//************* List running checks
-
-  #running_checks {
-    padding: 20px;
-    max-height: calc(100% - 80px);
-    overflow-y: scroll;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-
-    #running_checks_table {
-      th {
-        padding: 5px;
-      }
-
-      td {
-        border-top: 1px solid $border;
-        padding: 5px;
-      }
-
-      .l_space {
-        padding-left: 30px;
-      }
-    }
-
-    #running_checks_info {
-      display: block;
-      padding-top: 15px;
-      text-align: center;
-    }
+  #see_example {
+    position: absolute;
+    width: 95px;
+    top: 0px;
+    right: 120px;
+    display: block;
+    text-align: center;
   }
 
+  #submit_settings:hover, #save_check:hover, #reload_check:hover, #see_example:hover {
+    background:linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
+    background-color:#5cbf2a;
+  }
 
-//************* Add a check
+  #submit_settings:active, #save_check:active, #reload_check:active, #see_example:active {
+    margin-top: 11px;
+  }
 
-  #add_check {
+  .inactive {
+    pointer-events: none;
+
+    box-shadow:inset 0px 1px 0px 0px white!important;
+    background:linear-gradient(to bottom, grey 5%, white 100%)!important;
+    background-color: grey!important;
+    border-color: grey!important;
+  }
+
+//************* Manage checks
+
+  #manage_checks {
     width: calc(100% - 40px);
     height: calc(100% - 40px);
 
-    #add_check_description {
+    #checks_description {
       width: 100%;
       height: 50px;
+      border-bottom: 1px solid $border;
       display: block;
       text-align: center;
       line-height: 50px;
-      border-bottom: 1px solid $border;
     }
 
-    #add_check_interface {
+    .interface {
       position: absolute;
-      top: 50px;
       width: 100%;
       height: calc(100% - 50px);
+      top: 50px;
 
-      .check_files_list {
+      .left {
         position: absolute;
         height: 100%;
         width: 200px;
-        overflow: scroll;
         border-right: 1px solid $border;
 
-        .check_file {
-          white-space: nowrap;
-          font-size: $font_size * 0.9;
-          padding: 5px;
-          padding-left: 15px;
-          width: calc(100% - 20px);
-          display: inline-block;
+        .list {
+          position: absolute;
+          top: 50px;
+          height: calc(100% - 50px);
+          width: 100%;
+          overflow-y: scroll;
+
+          .check {
+            font-size: $font_size * 0.9;
+            padding: 5px;
+            width: calc(100% - 10px);
+            display: inline-block;
+          }
+
+          .check:hover {
+            background-color: $border;
+          }
+
+          .active_check {
+            background-color: $border;
+          }
         }
 
-        .check_file:hover {
-          background-color: $border;
-        }
-
-        .selected {
-          background-color: $border;
-          pointer-events: none;
-        }
-
-        .example:hover {
-          background-color: white;
-        }
       }
 
-      #save_run_check {
-        z-index: 2;
-        width: 65px;
+      .right {
         position: absolute;
-        transform: none;
-        left: auto;
-        right: 10px;
-        top: 5px;
-        display: block;
-        text-align: center;
-      }
-      #save_run_check:active {
-        position: absolute;
-        top: 6px;
-      }
-
-      #edit_check_file {
-        position: absolute;
-        margin: 1px;
-        padding: 15px;
+        height: 100%;
+        width: calc(100% - 200px);
         left: 200px;
-        height: calc(100% - 32px);
-        width: calc(100% - 232px);
-        overflow-y: scroll;
-        font-size: $font_size;
-        outline: none;
-        border: none;
+
+        #check_input, #new_config_input {
+          border: none;
+          position: absolute;
+          margin: 1px;
+          width: calc(100% - 32px);
+          height: calc(100% - 32px);
+          font-size: $font_size;
+          padding: 15px;
+          outline: none;
+          overflow-y: scroll;
+        }
+
+        #add_check {
+          z-index: 2;
+          width: 80px;
+          position: absolute;
+          transform: none;
+          left: auto;
+          right: 10px;
+          top: 5px;
+          display: block;
+          text-align: center;
+        }
+        #add_check:active {
+          position: absolute;
+          top: 6px;
+        }
       }
     }
 
@@ -612,6 +551,29 @@ a {
       box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
       -moz-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
       -webkit-box-shadow:  0px 0px 15px rgba(0, 0, 0, 0.22);
+
+      .exit {
+        z-index: 6;
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        margin: 5px;
+
+        cursor: pointer;
+        width: 20px;
+        height: 20px;
+
+        color: #fff;
+        border: 1px solid #AEAEAE;
+        border-radius: 30px;
+        background: #605F61;
+        font-size: 20px;
+        font-weight: bold;
+
+        display: inline-block;
+        text-align: center;
+        line-height: 15px;
+      }
 
       #check_run_results {
         height: 100%;
@@ -648,15 +610,22 @@ a {
           font-weight: bold;
         }
 
+        .green {
+          color: green;
+        }
 
-        #footnote {
+        .red {
+          color: red;
+        }
+
+        #summary {
           display: block;
-          padding: 10px;
+          padding-bottom: 10px;
           font-size: $font_size * 1.1;
         }
       }
 
-      #associated_title {
+      #example_title {
         z-index: 6;
         position: absolute;
         top: 15px;
@@ -665,7 +634,7 @@ a {
         font-weight: bold;
       }
 
-      #associated {
+      #example {
         position: absolute;
         top: 45px;
         padding: 15px;
@@ -678,29 +647,38 @@ a {
         border: none;
         background-color: transparent;
       }
+    }
+  }
 
-      .exit {
-        z-index: 6;
-        position: absolute;
-        top: 0px;
-        right: 0px;
-        margin: 5px;
+//************* List running checks
 
-        cursor: pointer;
-        width: 20px;
-        height: 20px;
+  #running_checks {
+    padding: 20px;
+    max-height: calc(100% - 80px);
+    overflow-y: scroll;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 
-        color: #fff;
-        border: 1px solid #AEAEAE;
-        border-radius: 30px;
-        background: #605F61;
-        font-size: 20px;
-        font-weight: bold;
-
-        display: inline-block;
-        text-align: center;
-        line-height: 15px;
+    #running_checks_table {
+      th {
+        padding: 5px;
       }
+
+      td {
+        border-top: 1px solid $border;
+        padding: 5px;
+      }
+
+      .l_space {
+        padding-left: 30px;
+      }
+    }
+
+    #running_checks_info {
+      display: block;
+      padding-top: 15px;
+      text-align: center;
     }
   }
 
