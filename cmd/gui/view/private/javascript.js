@@ -404,7 +404,6 @@ function showCheckConfig(name) {
                      '<div id="reload_check" class="inactive">Reload</div>' +
                      '<textarea id="check_input" >' + data + '</textarea>');
 
-    // TODO: what about default files?
     $('#check_input').data('check_name',  name.substr(0, name.length - 5) );
     $("#save_check").click(saveCheckSettings);
     $("#reload_check").click(reloadCheck);

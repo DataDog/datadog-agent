@@ -8,11 +8,13 @@ import (
 	"html/template"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -32,11 +34,13 @@ var fmap = template.FuncMap{
 	"add":                add,
 }
 
+// CheckStats is the struct used for filling templates/singleCheck.tmpl
 type CheckStats struct {
 	Name  string
 	Stats []*check.Stats
 }
 
+// Errors is the struct used for filling templates/loaderErr.tmpl
 type Errors struct {
 	Name       string
 	LoaderErrs map[string]autodiscovery.LoaderErrors
@@ -58,7 +62,7 @@ func renderStatus(data []byte, request string) (string, error) {
 func fillTemplate(w io.Writer, stats map[string]interface{}, request string) error {
 	t := template.New(request + ".tmpl")
 	t.Funcs(fmap)
-	t, e := t.ParseFiles("templates/" + request + ".tmpl")
+	t, e := t.ParseFiles(filepath.Join(common.GetViewPath(), "templates/"+request+".tmpl"))
 	if e != nil {
 		return e
 	}
@@ -72,7 +76,7 @@ func renderCheck(name string, stats []*check.Stats) (string, error) {
 
 	t := template.New("singleCheck.tmpl")
 	t.Funcs(fmap)
-	t, e := t.ParseFiles("templates/singleCheck.tmpl")
+	t, e := t.ParseFiles(filepath.Join(common.GetViewPath(), "templates/singleCheck.tmpl"))
 	if e != nil {
 		return "", e
 	}
@@ -90,7 +94,7 @@ func renderError(name string) (string, error) {
 
 	t := template.New("loaderErr.tmpl")
 	t.Funcs(fmap)
-	t, e := t.ParseFiles("templates/loaderErr.tmpl")
+	t, e := t.ParseFiles(filepath.Join(common.GetViewPath(), "templates/loaderErr.tmpl"))
 	if e != nil {
 		return "", e
 	}

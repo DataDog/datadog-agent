@@ -99,7 +99,6 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 }
 
 // ReloadAllCheckInstances completely restarts a check with a new configuration
-// TODO: write a test for ReloadAllCheckInstances
 func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]check.ID, error) {
 	if !c.started() {
 		return nil, fmt.Errorf("The collector is not running")

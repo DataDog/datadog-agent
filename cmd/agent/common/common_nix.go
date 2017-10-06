@@ -19,9 +19,16 @@ var (
 	PyChecksPath = filepath.Join(_here, "..", "..", "checks.d")
 	// DistPath holds the path to the folder containing distribution files
 	distPath = filepath.Join(_here, "dist")
+	// ViewPath holds the path to the folder containing the GUI support files
+	viewPath = filepath.Join(_here, "..", "..", "cmd", "gui", "view")
 )
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {
 	return distPath
+}
+
+// GetViewPath returns the fully qualified path to the 'gui/view' directory
+func GetViewPath() string {
+	return viewPath
 }

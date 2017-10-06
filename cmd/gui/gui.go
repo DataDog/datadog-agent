@@ -6,8 +6,10 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
@@ -46,13 +48,13 @@ func StartGUIServer() error {
 	router := mux.NewRouter()
 
 	// Serve the (secured) index page on the default endpoint
-	router.Handle("/", accessAuth(http.FileServer(http.Dir("view/private/"))))
+	router.Handle("/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewPath(), "private")))))
 
 	// Mount our public filesystem at the view/{path} route
-	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.FileServer(http.Dir("view/public/"))))
+	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.FileServer(http.Dir(filepath.Join(common.GetViewPath(), "public")))))
 
 	// Mount our secured filesystem at the private/{path} route
-	router.PathPrefix("/private/").Handler(http.StripPrefix("/private/", accessAuth(http.FileServer(http.Dir("view/private/")))))
+	router.PathPrefix("/private/").Handler(http.StripPrefix("/private/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewPath(), "private"))))))
 
 	// Handle requests from clients
 	router.Handle("/req", authenticate(http.HandlerFunc(handler))).Methods("POST")
@@ -64,7 +66,7 @@ func StartGUIServer() error {
 	}
 
 	go http.Serve(listener, router)
-	log.Infof("GUI - Server started: Listening on " + listener.Addr().String())
+	log.Infof("GUI - Server started.")
 
 	return nil
 }

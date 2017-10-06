@@ -471,7 +471,7 @@ a {
       .left {
         position: absolute;
         height: 100%;
-        width: 200px;
+        width: 215px;
         border-right: 1px solid $border;
 
         .list {
@@ -502,8 +502,8 @@ a {
       .right {
         position: absolute;
         height: 100%;
-        width: calc(100% - 200px);
-        left: 200px;
+        width: calc(100% - 215px);
+        left: 215px;
 
         #check_input, #new_config_input {
           border: none;
