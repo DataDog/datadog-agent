@@ -33,10 +33,7 @@ build do
   mkdir conf_dir
   mkdir "#{conf_dir}/auto_conf"
 
-  # TODO
-  # if windows?
-  #   conf_directory = "../../extra_package_files/EXAMPLECONFSLOCATION"
-  # end
+  
 
   # Copy the checks and generate the global requirements file
   block do

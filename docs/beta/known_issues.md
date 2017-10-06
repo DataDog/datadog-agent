@@ -20,7 +20,7 @@ The Docker and Kubernetes checks are being rewritten in Go to take advantage of
 the new internal architecture of the Agent, mainly bringing a consistent
 behaviour across every container related component. Therefore the Python
 versions will never work within Agent 6. The rewrite is not yet finished, but
-the new `docker` check offers [basic functionalities](#docker-check).
+the new `docker` check offers [basic functionalities](changes.md#docker-check) .
 
 Some methods in the `AgentCheck` class are not yet implemented. These include:
 
@@ -34,19 +34,49 @@ decided if we are going to implement them:
 * `generate_histogram_func`
 * `stop`
 
-### Docker check
+### Custom Checks
 
-For now we support a subset of metrics, docker events and `docker.status`
-service check. Look into
-[`docker.yaml.example`](/pkg/collector/dist/conf.d/docker.yaml.example) for
-more information.
+If you happen to use custom checks, there's a chance your code depends on py code
+that was bundled with agent5 that may not longer be available in the with the new
+agent 6 package. This is a list of packages no longer bundled with the agent:
 
-The biggest change for now is the `exclude`/`include` list that only supports
-image name and container name (instead of any tags).
+- backports.ssl-match-hostname
+- boto
+- certifi
+- chardet
+- datadog
+- decorator
+- future
+- futures
+- google-apputils
+- pycurl
+- pyOpenSSL
+- python-consul
+- python-dateutil
+- python-etcd
+- python-gflags
+- pytz
+- pyvmomi
+- PyYAML
+- rancher-metadata
+- tornado
+- uptime
+- urllib3
+- uuid
+- websocket-client
 
-Also to exclude pause containers on Kubernetes use `exclude_pause_container`
-(default to true). This will avoid users removing them from the exclude list by
-error.
+If your code depends on any of those packages, it'll break. You can fix that
+by running the following:
+
+````bash
+sudo -u dd-agent -- /opt/datadog-agent/embedded/bin/pip install <dependency>
+```
+
+Similarly, you may have added a pip package to meet a requirement for a custom
+check while on agent 5. If the added pip package had inner dependencies with
+packages already bundled with agent5 (see list above), those dependencies will
+be missing after the upgrade to agent6 and your custom checks will break.
+You will have to install the missing dependencies manually as described above.
 
 ## JMX
 
