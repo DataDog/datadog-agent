@@ -131,6 +131,8 @@ func init() {
 	// Proess Agent
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
 
+	Datadog.SetDefault("logging_frequency", int64(20))
+
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")

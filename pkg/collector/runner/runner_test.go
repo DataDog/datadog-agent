@@ -101,7 +101,7 @@ func TestLogging(t *testing.T) {
 	assert.False(t, doLog)
 	assert.False(t, lastLog)
 
-	s.TotalRuns = 10
+	s.TotalRuns = 20
 	doLog, lastLog = shouldLog(c.ID())
 	assert.True(t, doLog)
 	assert.False(t, lastLog)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
@@ -214,7 +215,7 @@ func (r *Runner) work() {
 		l := "Done running check %s"
 		if doLog {
 			if lastLog {
-				l = l + " first runs done, next runs will be logged every 10 runs"
+				l = l + fmt.Sprintf(" first runs done, next runs will be logged every %v runs", config.Datadog.GetInt64("logging_frequency"))
 			}
 			log.Infof(l, check)
 		} else {
@@ -228,6 +229,9 @@ func (r *Runner) work() {
 func shouldLog(id check.ID) (doLog bool, lastLog bool) {
 	checkStats.M.RLock()
 	defer checkStats.M.RUnlock()
+
+	loggingFrequency := uint64(config.Datadog.GetInt64("logging_frequency"))
+
 	s, found := checkStats.Stats[id]
 	if found {
 		if s.TotalRuns <= 5 {
@@ -235,7 +239,7 @@ func shouldLog(id check.ID) (doLog bool, lastLog bool) {
 			if s.TotalRuns == 5 {
 				lastLog = true
 			}
-		} else if s.TotalRuns%10 == 0 {
+		} else if s.TotalRuns%loggingFrequency == 0 {
 			doLog = true
 		}
 	} else {

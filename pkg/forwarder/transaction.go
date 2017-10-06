@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 )
 
@@ -120,15 +121,19 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 
 	successfulTransactions.Add(1)
 	apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyValid)
+
+	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
+
 	if successfulTransactions.Value() == 1 {
 		log.Infof("successfully posted payload to '%s', the agent will only log transaction success every 20 transactions", logURL, string(body))
 		log.Debugf("payload: %s", logURL, string(body))
-	} else if successfulTransactions.Value()%20 == 0 {
+	} else if successfulTransactions.Value()%loggingFrequency == 0 {
 		log.Infof("successfully posted payload to '%s'", logURL, string(body))
 		log.Debugf("payload: %s", logURL, string(body))
 	} else {
 		log.Debugf("successfully posted payload to '%s': %s", logURL, string(body))
 	}
+
 	return nil
 }
 
