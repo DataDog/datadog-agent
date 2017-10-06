@@ -121,9 +121,15 @@ func StartAgent() error {
 
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
+	logFile := config.Datadog.GetString("log_file")
+	if config.Datadog.GetBool("disable_file_logging") {
+		// this will prevent any logging on file
+		logFile = ""
+	}
+
 	err = config.SetupLogger(
 		config.Datadog.GetString("log_level"),
-		config.Datadog.GetString("log_file"),
+		logFile,
 		syslogURI,
 		config.Datadog.GetBool("syslog_rfc"),
 		config.Datadog.GetBool("syslog_tls"),
