@@ -135,7 +135,7 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 // resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
 func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (check.Config, error) {
-	for i, c := range tpl.Instances {
+	for i := 0; i < len(tpl.Instances); i++ {
 		vars := tpl.GetTemplateVariablesForInstance(i)
 		for _, v := range vars {
 			name, key := parseTemplateVar(v)
@@ -144,7 +144,7 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 				if resolvedVar != nil {
 					// init config vars are replaced by the first found
 					tpl.InitConfig = bytes.Replace(tpl.InitConfig, v, resolvedVar, -1)
-					c = bytes.Replace(c, v, resolvedVar, -1)
+					tpl.Instances[i] = bytes.Replace(tpl.Instances[i], v, resolvedVar, -1)
 				}
 			} else {
 				return check.Config{}, fmt.Errorf("template variable %s does not exist", name)
@@ -154,7 +154,7 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 		if err != nil {
 			return tpl, err
 		}
-		c.MergeAdditionalTags(tags)
+		tpl.Instances[i].MergeAdditionalTags(tags)
 	}
 
 	return tpl, nil

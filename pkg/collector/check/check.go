@@ -213,7 +213,7 @@ func (c *Config) IsTemplate() bool {
 // GetTemplateVariablesForInstance returns a slice of raw template variables
 // it found in a config instance template.
 func (c *Config) GetTemplateVariablesForInstance(i int) (vars [][]byte) {
-	if len(c.Instances) > i {
+	if len(c.Instances) < i {
 		return vars
 	}
 	return tplVarRegex.FindAll(c.Instances[i], -1)
@@ -232,9 +232,13 @@ func (c *ConfigData) MergeAdditionalTags(tags []string) {
 	for i, t := range rTags {
 		cTags[i] = fmt.Sprint(t)
 	}
+	tagList := append(cTags, tags...)
+	if len(tagList) == 0 {
+		return
+	}
 	// use set keys to remove duplicate
 	tagSet := make(map[string]struct{})
-	for _, t := range append(cTags, tags...) {
+	for _, t := range tagList {
 		tagSet[t] = struct{}{}
 	}
 	// override config tags
