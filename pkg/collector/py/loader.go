@@ -54,7 +54,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	moduleName := config.Name
 
 	// import python module containing the check
-	log.Infof("Attempting to load python check %s", moduleName)
+	log.Debugf("Attempting to load python check %s", moduleName)
 	// Lock the GIL while working with go-python directly
 	glock := newStickyLock()
 	checkModule := python.PyImport_ImportModule(moduleName)

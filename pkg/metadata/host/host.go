@@ -34,13 +34,29 @@ func GetPayload(hostname string) *Payload {
 	meta := getMeta()
 	meta.Hostname = hostname
 
-	return &Payload{
+	p := &Payload{
 		Os:            runtime.GOOS,
 		PythonVersion: getPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
 		HostTags:      getHostTags(),
 	}
+
+	// Cache the metadata for use in other payloads
+	key := buildKey("payload")
+	cache.Cache.Set(key, p, cache.NoExpiration)
+
+	return p
+}
+
+// GetPayloadFromCache returns the payload from the cache if it exists, otherwise it creates it.
+// The metadata reporting should always grab it fresh. Any other uses, e.g. status, should use this
+func GetPayloadFromCache(hostname string) *Payload {
+	key := buildKey("payload")
+	if x, found := cache.Cache.Get(key); found {
+		return x.(*Payload)
+	}
+	return GetPayload(hostname)
 }
 
 // GetStatusInformation just returns an InfoStat object, we need some additional information that's not

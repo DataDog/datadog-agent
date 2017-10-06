@@ -81,12 +81,12 @@ func (c *IOCheck) nixIO() error {
 		}
 		lastIOStats, ok := c.stats[device]
 		if !ok {
-			log.Infof("New device stats (possible hotplug) - full stats unavailable this iteration.")
+			log.Debug("New device stats (possible hotplug) - full stats unavailable this iteration.")
 			continue
 		}
 
 		if delta == 0 {
-			log.Infof("No delta to compute - skipping.")
+			log.Debug("No delta to compute - skipping.")
 			continue
 		}
 

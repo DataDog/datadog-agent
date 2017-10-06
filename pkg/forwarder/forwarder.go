@@ -23,9 +23,10 @@ import (
 var (
 	flushInterval = 5 * time.Second
 
-	forwarderExpvar      = expvar.NewMap("forwarder")
-	transactionsCreation = expvar.Map{}
-	retryQueueSize       = expvar.Int{}
+	forwarderExpvar        = expvar.NewMap("forwarder")
+	transactionsCreation   = expvar.Map{}
+	retryQueueSize         = expvar.Int{}
+	successfulTransactions = expvar.Int{}
 
 	apiKeyStatus        = expvar.Map{}
 	apiKeyStatusUnknown = expvar.String{}
@@ -39,6 +40,7 @@ func init() {
 	forwarderExpvar.Set("APIKeyStatus", &apiKeyStatus)
 	forwarderExpvar.Set("TransactionsCreated", &transactionsCreation)
 	transactionsCreation.Set("RetryQueueSize", &retryQueueSize)
+	transactionsCreation.Set("Success", &successfulTransactions)
 
 	apiKeyStatusUnknown.Set("Unable to validate API Key")
 	apiKeyInvalid.Set("API Key invalid")
@@ -204,14 +206,13 @@ func (f *DefaultForwarder) Start() error {
 	}
 	go f.handleFailedTransactions()
 	f.internalState = Started
-	log.Infof("DefaultForwarder started (%v workers)", f.NumberOfWorkers)
 
 	// log endpoints configuration
 	endpointLogs := make([]string, 0, len(f.KeysPerDomains))
 	for domain, apiKeys := range f.KeysPerDomains {
 		endpointLogs = append(endpointLogs, fmt.Sprintf("\"%s\" (%v api key(s))", domain, len(apiKeys)))
 	}
-	log.Infof("DefaultForwarder sending to %v endpoint(s): %s", len(endpointLogs), strings.Join(endpointLogs, " ; "))
+	log.Infof("DefaultForwarder started (%v workers), sending to %v endpoint(s): %s", f.NumberOfWorkers, len(endpointLogs), strings.Join(endpointLogs, " ; "))
 
 	return nil
 }
