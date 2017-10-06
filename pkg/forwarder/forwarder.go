@@ -23,9 +23,10 @@ import (
 var (
 	flushInterval = 5 * time.Second
 
-	forwarderExpvar      = expvar.NewMap("forwarder")
-	transactionsCreation = expvar.Map{}
-	retryQueueSize       = expvar.Int{}
+	forwarderExpvar        = expvar.NewMap("forwarder")
+	transactionsCreation   = expvar.Map{}
+	retryQueueSize         = expvar.Int{}
+	successfulTransactions = expvar.Int{}
 
 	apiKeyStatus        = expvar.Map{}
 	apiKeyStatusUnknown = expvar.String{}
@@ -39,6 +40,7 @@ func init() {
 	forwarderExpvar.Set("APIKeyStatus", &apiKeyStatus)
 	forwarderExpvar.Set("TransactionsCreated", &transactionsCreation)
 	transactionsCreation.Set("RetryQueueSize", &retryQueueSize)
+	transactionsCreation.Set("Success", &successfulTransactions)
 
 	apiKeyStatusUnknown.Set("Unable to validate API Key")
 	apiKeyInvalid.Set("API Key invalid")
