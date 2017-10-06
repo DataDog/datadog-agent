@@ -87,6 +87,7 @@ func CheckAndUpgradeConfig() error {
 	}
 	return ImportConfig(DefaultConfPath, DefaultConfPath, false)
 }
+
 // import settings from Windows registry into datadog.yaml
 func ImportRegistryConfig() error {
 

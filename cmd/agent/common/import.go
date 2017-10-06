@@ -149,7 +149,6 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	return nil
 }
 
-
 // Copy the src file to dst. File attributes won't be copied.
 func copyFile(src, dst string, overwrite bool) error {
 	// if the file exists check whether we can overwrite
