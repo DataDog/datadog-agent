@@ -74,6 +74,7 @@ compress :dmg do
   pkg_position '10, 10'
 end
 
+puts "agent EPF #{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
 # Windows .msi specific flags
 package :msi do
   # previous upgrade code was used for older installs, and generated
@@ -87,14 +88,16 @@ package :msi do
   bundle_theme true
   wix_candle_extension 'WixUtilExtension'
   wix_light_extension 'WixUtilExtension'
+  extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
+#  extra_package_files File.absolute_path("..\\..\\etc\\datadog-agent\\extra_package_files")
   if ENV['SIGN_WINDOWS']
     signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
   end
   parameters({
     'InstallDir' => install_dir,
     'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/datadog-agent/bin/agent",
-    'DistFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/datadog-agent/pkg/collector/dist",
+    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent",
+    'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent",
     'PerUserUpgradeCode' => per_user_upgrade_code
   })
 end
@@ -109,14 +112,14 @@ if linux?
   dependency 'sysstat'
 end
 
+# creates required build directories
+dependency 'datadog-agent-prepare'
+
 # Windows-specific dependencies
 if windows?
   dependency 'datadog-upgrade-helper'
   dependency 'pywin32'
 end
-
-# creates required build directories
-dependency 'datadog-agent-prepare'
 
 # Datadog agent
 dependency 'datadog-agent'
@@ -127,13 +130,12 @@ dependency 'jmxfetch'
 dependency 'datadog-trace-agent'
 unless windows?
   dependency 'datadog-process-agent'
+  dependency 'datadog-logs-agent'
 end
 
 # Remove pyc/pyo files from package
 # should be built after all the other python-related software defs
-if linux?
-  dependency 'py-compiled-cleanup'
-end
+dependency 'py-compiled-cleanup'
 
 # version manifest file
 dependency 'version-manifest'
@@ -144,9 +146,10 @@ dependency 'version-manifest'
 # process where we operate outside the omnibus install dir, thus the need of
 # the `extra_package_file` directive.
 # This must be the last dependency in the project.
-if linux?
-  dependency 'datadog-agent-finalize'
 
+dependency 'datadog-agent-finalize'
+
+if linux?
   extra_package_file '/etc/init/datadog-agent.conf'
   extra_package_file '/lib/systemd/system/datadog-agent.service'
   extra_package_file '/etc/datadog-agent/'

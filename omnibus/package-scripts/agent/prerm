@@ -54,11 +54,12 @@ if [ -f "/etc/debian_version" ] || [ "$DISTRIBUTION" = "Debian" ] || [ "$DISTRIB
     deregister_agent
     remove_py_compiled_files
 elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/SuSE-release" ] || [ "$DISTRIBUTION" = "RedHat" ] || [ "$DISTRIBUTION" = "CentOS" ] || [ "$DISTRIBUTION" = "openSUSE" ] || [ "$DISTRIBUTION" = "Amazon" ] || [ "$DISTRIBUTION" = "SUSE" ] || [ "$DISTRIBUTION" = "Arista" ]; then
+    stop_agent
+    deregister_agent
+
     case "$*" in
         0)
             # We're uninstalling.
-            stop_agent
-            deregister_agent
             remove_py_compiled_files
         ;;
         1)

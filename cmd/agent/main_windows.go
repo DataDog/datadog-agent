@@ -11,17 +11,39 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
 var elog debug.Log
+
+func setupLogger(logLevel string) error {
+	configTemplate := `<seelog minlevel="%s">
+    <outputs formatid="common"><console/></outputs>
+    <formats>
+        <format id="common" format="%%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>
+    </formats>
+</seelog>`
+	config := fmt.Sprintf(configTemplate, strings.ToLower(logLevel))
+
+	logger, err := log.LoggerFromConfigAsString(config)
+	if err != nil {
+		return err
+	}
+	err = log.ReplaceLogger(logger)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func main() {
 	isIntSess, err := svc.IsAnInteractiveSession()
@@ -33,6 +55,7 @@ func main() {
 		runService(false)
 		return
 	}
+	defer log.Flush()
 	// go_expvar server
 	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)
 
@@ -50,6 +73,10 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
+	if err := common.ImportRegistryConfig(); err != nil {
+		elog.Warning(2, fmt.Sprintf("Failed to import config items from registry %s", err.Error()))
+		// continue running agent with existing config
+	}
 	app.StartAgent()
 
 loop:

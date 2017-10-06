@@ -20,7 +20,7 @@ The Docker and Kubernetes checks are being rewritten in Go to take advantage of
 the new internal architecture of the Agent, mainly bringing a consistent
 behaviour across every container related component. Therefore the Python
 versions will never work within Agent 6. The rewrite is not yet finished, but
-the new `docker` check offers [basic functionalities](#docker-check).
+the new `docker` check offers [basic functionalities](changes.md#docker-check) .
 
 Some methods in the `AgentCheck` class are not yet implemented. These include:
 
@@ -33,20 +33,6 @@ decided if we are going to implement them:
 * `generate_historate_func`
 * `generate_histogram_func`
 * `stop`
-
-### Docker check
-
-For now we support a subset of metrics, docker events and `docker.status`
-service check. Look into
-[`docker.yaml.example`](/pkg/collector/dist/conf.d/docker.yaml.example) for
-more information.
-
-The biggest change for now is the `exclude`/`include` list that only supports
-image name and container name (instead of any tags).
-
-Also to exclude pause containers on Kubernetes use `exclude_pause_container`
-(default to true). This will avoid users removing them from the exclude list by
-error.
 
 ### Custom Checks
 
@@ -81,6 +67,7 @@ agent 6 package. This is a list of packages no longer bundled with the agent:
 
 If your code depends on any of those packages, it'll break. You can fix that
 by running the following:
+
 ````bash
 sudo -u dd-agent -- /opt/datadog-agent/embedded/bin/pip install <dependency>
 ```

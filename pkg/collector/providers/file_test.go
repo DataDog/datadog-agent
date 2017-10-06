@@ -15,20 +15,20 @@ import (
 
 func TestGetCheckConfig(t *testing.T) {
 	// file does not exist
-	config, err := getCheckConfig("foo", "")
+	config, err := GetCheckConfigFromFile("foo", "")
 	assert.NotNil(t, err)
 
 	// file contains invalid Yaml
-	config, err = getCheckConfig("foo", "tests/invalid.yaml")
+	config, err = GetCheckConfigFromFile("foo", "tests/invalid.yaml")
 	assert.NotNil(t, err)
 
 	// valid yaml, invalid configuration file
-	config, err = getCheckConfig("foo", "tests/notaconfig.yaml")
+	config, err = GetCheckConfigFromFile("foo", "tests/notaconfig.yaml")
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 
 	// valid configuration file
-	config, err = getCheckConfig("foo", "tests/testcheck.yaml")
+	config, err = GetCheckConfigFromFile("foo", "tests/testcheck.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.Name, "foo")
 	assert.Equal(t, []byte(config.InitConfig), []byte("- test: 21\n"))
@@ -37,10 +37,10 @@ func TestGetCheckConfig(t *testing.T) {
 	assert.Len(t, config.ADIdentifiers, 0)
 
 	// autodiscovery
-	config, err = getCheckConfig("foo", "tests/ad_legacy.yaml")
+	config, err = GetCheckConfigFromFile("foo", "tests/ad_legacy.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.ADIdentifiers, []string{"foo", "bar"})
-	config, err = getCheckConfig("foo", "tests/ad.yaml")
+	config, err = GetCheckConfigFromFile("foo", "tests/ad.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.ADIdentifiers, []string{"foo_id", "bar_id"})
 }
