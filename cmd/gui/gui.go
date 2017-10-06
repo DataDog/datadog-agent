@@ -57,14 +57,14 @@ func StartGUIServer() error {
 	// Handle requests from clients
 	router.Handle("/req", authenticate(http.HandlerFunc(handler))).Methods("POST")
 
-	listener, e := net.Listen("tcp", "127.0.0.1:"+port)
+	listener, e := net.Listen("tcp", ":"+port)
 	if e != nil {
 		log.Errorf("Error: " + e.Error())
 		return e
 	}
 
 	go http.Serve(listener, router)
-	log.Infof("GUI - Server started.")
+	log.Infof("GUI - Server started: Listening on " + listener.Addr().String())
 
 	return nil
 }
