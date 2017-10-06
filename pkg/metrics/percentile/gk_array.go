@@ -137,8 +137,8 @@ func (s GKArray) compressAndAllocateBuf() GKArray {
 }
 
 // Quantile returns an epsilon estimate of the element at quantile q.
-// The incoming buffer is empty during the quantile query phase, so there's
-// no need to check Incoming or Compress().
+// The incoming buffer should be empty during the quantile query phase,
+// so the check for Incoming/Compress() should not run.
 func (s GKArray) Quantile(q float64) float64 {
 	if q < 0 || q > 1 {
 		log.Errorf("Quantile out of bounds")
@@ -147,6 +147,11 @@ func (s GKArray) Quantile(q float64) float64 {
 
 	if s.Count == 0 {
 		return math.NaN()
+	}
+
+	// This shouldn't happen but checking just in case.
+	if len(s.Incoming) > 0 {
+		s = s.compressWithIncoming(nil)
 	}
 
 	// Interpolate the quantile when there are only a few values.
@@ -246,7 +251,6 @@ func (s GKArray) Merge(o GKArray) GKArray {
 // compressWithIncoming merges an optional incomingEntries and Incoming buffer into
 // Entries and compresses. Incoming buffer is set to nil after compressing.
 func (s GKArray) compressWithIncoming(incomingEntries Entries) GKArray {
-
 	// TODO[Charles]: use s.Incoming and incomingEntries directly instead of merging them prior to compressing
 	if len(s.Incoming) > 0 {
 		newIncoming := make([]Entry, len(incomingEntries), len(incomingEntries)+len(s.Incoming))
@@ -309,4 +313,26 @@ func (s GKArray) compressWithIncoming(incomingEntries Entries) GKArray {
 	// set Incoming to nil, since it is not used after merge
 	s.Incoming = nil
 	return s
+}
+
+// IsValid checks that the object is a minimally valid GKArray, i.e., won't
+// cause a panic when calling Add or Merge.
+func (s GKArray) IsValid() bool {
+	// Check that Count is valid
+	if s.Count < 0 {
+		return false
+	}
+	if len(s.Entries) == 0 {
+		if int64(len(s.Incoming)) != s.Count {
+			return false
+		}
+	}
+	gSum := int64(0)
+	for _, e := range s.Entries {
+		gSum += int64(e.G)
+	}
+	if gSum+int64(len(s.Incoming)) != s.Count {
+		return false
+	}
+	return true
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 var (
