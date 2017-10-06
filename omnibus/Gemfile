@@ -8,4 +8,4 @@ gem 'omnibus', git: 'https://github.com/DataDog/omnibus-ruby.git', branch: 'data
 # software definitions, but you can clone/fork Chef's to get you started.
 # TODO: allow to specify the branch as an env var
 
-gem 'omnibus-software', git: 'https://github.com/DataDog/omnibus-software.git', branch: 'db/setuptools_7z'
+gem 'omnibus-software', git: 'https://github.com/DataDog/omnibus-software.git', branch: 'master'
