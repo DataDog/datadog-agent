@@ -23,6 +23,7 @@ var (
 	// AC is the global object orchestrating checks' loading and running
 	AC *autodiscovery.AutoConfig
 
+	// Coll is the global collector instance
 	Coll *collector.Collector
 
 	// DSD is the global dogstastd instance

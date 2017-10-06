@@ -109,7 +109,7 @@ func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Ch
 	for _, id := range ids {
 		e := c.StopCheck(id)
 		if e != nil {
-			return nil, fmt.Errorf("Error stopping check %s: %s", e)
+			return nil, fmt.Errorf("Error stopping check %s: %s", id, e)
 		}
 	}
 

@@ -151,7 +151,7 @@ func runCheckOnce(w http.ResponseWriter, name string) {
 		// Without a small delay some of the metrics will not show up
 		time.Sleep(100 * time.Millisecond)
 
-		// TODO (?) get aggregator metrics
+		// TODO(?) get aggregator metrics
 
 		stats = append(stats, s)
 	}

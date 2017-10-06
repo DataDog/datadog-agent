@@ -43,6 +43,7 @@ $(document).ready(function(){
     $(this).closest(".nav_item").addClass("active");
   })
 
+  // Set handlers for the buttons that are always present
   $("#settings_button").click(loadSettings);
   $("#flare_button").click(loadFlare);
   $("#checks_dropdown").change(checkDropdown);
@@ -62,7 +63,6 @@ function setupHomePage() {
   }), function(data, status, xhr) {
     $("#version").append(data.Major + "." + data.Minor + "." + data.Patch);
   });
-
   sendMessage(JSON.stringify({
     req_type: "fetch",
     data: "hostname"
@@ -74,6 +74,7 @@ function setupHomePage() {
   setInterval(checkStatus, 2000);
 }
 
+// Tests the connection to the Agent and displays the appropriate response in the top bar
 function checkStatus() {
   $.ajax({
     url: 'http://localhost:8080/req',
@@ -113,6 +114,7 @@ function checkStatus() {
                                 Status
 *************************************************************************/
 
+// Loads the general status page
 function loadGeneralStatus() {
   $(".page").css("display", "none");
   $("#general_status").css("display", "block");
@@ -131,6 +133,7 @@ function loadGeneralStatus() {
   });
 }
 
+// Loads the general status page
 function loadCollectorStatus(){
   $(".page").css("display", "none");
   $("#collector_status").css("display", "block");
@@ -152,12 +155,12 @@ function loadCollectorStatus(){
                                 Logs
 *************************************************************************/
 
+// Fetches the specified log file and displays it on the logs page
 function getLog(name){
   $(".page").css("display", "none");
   $("#logs").css("display", "block");
 
   $("#logs").html('<i class="fa fa-spinner fa-pulse fa-3x fa-fw center"></i>');
-
 
   sendMessage(JSON.stringify({
     req_type: "fetch",
@@ -184,6 +187,7 @@ function getLog(name){
   });
 }
 
+// Handler for when the log view dropdown changes
 function changeLogView(name) {
   if ($("#log_view_type").val() == "old_first") type = "log-no-flip"
   else type = "log";
@@ -200,19 +204,21 @@ function changeLogView(name) {
   });
 }
 
+// Helper function which trims the next 200 lines off extraData and returns it
 var extraData;
 function trimData(data) {
   linesToLoad = 200;
   i = -1;
 
-  // Find the index of the 150th occurrence of <br>
+  // Find the index of the 200th occurrence of <br>
   while (linesToLoad > 0 && i < data.length) {
     i = data.indexOf("<br>", i);
     if (i < 0) break;
-    linesToLoad--; i++;
+    linesToLoad--;
+    i++;
   }
 
-  if (i > 0) {
+  if (i > 0) {    // if the 200th <br> exists
     extraData = data.substring(i+3, data.length);
     data = data.substring(0, i-1);
 
@@ -222,6 +228,7 @@ function trimData(data) {
   return data;
 }
 
+// Handler for loading more lines of the currently displayed log file
 function loadMore() {
   data = $(".log_data").html();
 
@@ -238,6 +245,7 @@ function loadMore() {
                               Settings
 *************************************************************************/
 
+// Fetches the configuration file and displays in on the settings page
 function loadSettings() {
   $(".page").css("display", "none");
   $("#settings").css("display", "block");
@@ -256,6 +264,7 @@ function loadSettings() {
   });
 }
 
+// Handler for the 'submit settings' button, sends the configuration file back to the server to save
 function submitSettings() {
   settings = $("#settings_input").val();
 
@@ -275,7 +284,8 @@ function submitSettings() {
       else resMsg = "An error <br> occurred";
     }
 
-    $("#submit_settings").append('<i class="fa ' + symbol + ' fa-lg ' + resClass + '"></i><div class="msg">' + resMsg + '</div>');
+    $("#submit_settings").append('<i class="fa ' + symbol + ' fa-lg ' + resClass + '"></i>' +
+                                  '<div class="msg">' + resMsg + '</div>');
     $("." + resClass + ", .msg").delay(3000).fadeOut("slow");
   });
 }
@@ -285,6 +295,7 @@ function submitSettings() {
                             Manage Checks
 *************************************************************************/
 
+// Displays the 'manage checks' page and loads whatever view the dropdown currently has selected
 function loadManageChecks() {
   $(".page").css("display", "none");
   $("#manage_checks").css("display", "block");
@@ -292,7 +303,9 @@ function loadManageChecks() {
   checkDropdown();
 }
 
-function loadCheckFiles(enabled) {
+// Fetches the names of all the configuration (.yaml) files and fills the list of
+// checks to configure with the configurations for all currently enabled checks
+function loadCheckFiles() {
   $(".list").html("");
   sendMessage(JSON.stringify({
     req_type: "fetch",
@@ -303,14 +316,13 @@ function loadCheckFiles(enabled) {
     $("#checks_description").html("Select a check to configure.");
     data.sort();
     data.forEach(function(item){
-      if (enabled && (item.substr(item.length - 5) == ".yaml")) {
+      if (item.substr(item.length - 5) == ".yaml") {
         $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
                           + item  + '\')" class="check">' +  item + '</a>');
-      } else if (!enabled && item.substr(item.length - 13) == ".yaml.default") {
-        $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
-                          + item + '\')" class="check">' +  item + '</a>');
       }
     });
+
+    // Add highlighting current check functionality
     $(".check").click(function(){
       $(".active_check").removeClass("active_check");
       $(this).addClass("active_check");
@@ -320,9 +332,12 @@ function loadCheckFiles(enabled) {
   });
 }
 
+// Fetches the names of all the check (.py) files and fills the list of checks to add
+// with the checks which are not already enabled
 function loadNewChecks() {
   $(".list").html("");
 
+  // Get a list of all the currently enabled checks
   enabledChecks = [];
   sendMessage(JSON.stringify({
     req_type: "fetch",
@@ -353,6 +368,7 @@ function loadNewChecks() {
         $(".list").append('<a href="javascript:void(0)" onclick="addCheck(\'' +
                           item.substr(0, item.length - 3) + '\')" class="check">' +  item + '</a>');
       });
+      // Add current item highlighting
       $(".check").click(function(){
         $(".active_check").removeClass("active_check");
         $(this).addClass("active_check");
@@ -366,6 +382,7 @@ function loadNewChecks() {
   });
 }
 
+//  Helper for displaying an error at the top of the 'manage checks' page
 function displayLoadingError(data) {
   if (data.includes("Empty directory:")) {
     path = data.substr(data.indexOf(":") + 1);
@@ -375,25 +392,20 @@ function displayLoadingError(data) {
   }
 }
 
+// Handler for the manage checks dropdown, changes the view according to its value
 function checkDropdown() {
   val = $("#checks_dropdown").val();
   $(".right").html("");
-  switch (val) {
-    case "enabled":
-      loadCheckFiles(true);
-      break;
-    case "default":
-      loadCheckFiles(false);
-      break;
-    case "add":
-      loadNewChecks();
-      break;
-  }
+
+  if (val == "enabled") loadCheckFiles();
+  else if (val == "add") loadNewChecks();
 }
 
 
 //************* Edit a check configuration
 
+// Display a currently running check's configuration file for editing and add buttons for
+// saving/reloading the check
 function showCheckConfig(name) {
   sendMessage(JSON.stringify({
     req_type: "fetch",
@@ -413,6 +425,7 @@ function showCheckConfig(name) {
   });
 }
 
+// Handler for the save button, sends a check configuration file to the server to be saved
 function saveCheckSettings() {
   settings = $("#check_input").val();
   name = $('#check_input').data('check_name');
@@ -429,6 +442,7 @@ function saveCheckSettings() {
       if (data.includes("permission denied")) resMsg = "Permission <br> denied";
       else resMsg = "An error occurred: " + data;
     }
+
     $("." + resClass + ", .msg").remove();
     $("#save_check").append('<i class="fa ' + symbol + ' fa-lg ' + resClass + '"></i><div class="msg">' + resMsg + '</div>');
     $("." + resClass + ", .msg").delay(3000).fadeOut("slow");
@@ -442,6 +456,8 @@ function saveCheckSettings() {
   });
 }
 
+// Handler for the reload button, tells the server to run the check once as a test, if it's
+// a success it reloads the check (also displays the tests results as a popup)
 function reloadCheck() {
   $("#reload_check").addClass("inactive");
   name = $('#check_input').data('check_name');
@@ -480,6 +496,7 @@ function reloadCheck() {
 
 //************* Add a check
 
+// Starts the process of adding a new check by seeing if that check has an example config file
 function addCheck(checkName) {
   $(".right").html("");
   // See if theres an example file for this check
@@ -499,6 +516,8 @@ function addCheck(checkName) {
   });
 }
 
+// Creates a text area for the user to create a new configuration file, and if there's an
+// example file for that check displays a button for seeing this example file
 function createNewConfigFile(checkName, exampleFile) {
   $("#checks_description").html("Please create a new configuration file for this check below.");
   $(".right").append('<textarea id="new_config_input">Add your configuration here.</textarea>' +
@@ -514,6 +533,8 @@ function createNewConfigFile(checkName, exampleFile) {
   $("#see_example").click(function(){ displayExample(checkName); });
 }
 
+// Handler for the 'See example file' button, displays the current check's example configuration file
+// as a popup
 function displayExample(checkName) {
   // Fetch the example configuration file and display it as a popup
   $("#save_run_check").css("pointer-events", "none");
@@ -538,6 +559,8 @@ function displayExample(checkName) {
   });
 }
 
+// Handler for the 'add check' button: saves the file, tests the check, schedules it if
+// appropriate and reloads the view
 function addNewCheck(name) {
   // Save the new configuration file
   settings = $("#new_config_input").val();
@@ -549,7 +572,7 @@ function addNewCheck(name) {
 
     if (data != "Success") return $("#checks_description").html("Error saving configuration: " + data);
 
-    // Run the check once & print the result
+    // Run the check once (as a test) & print the result as a popup
     sendMessage(JSON.stringify({
       req_type: "set",
       data: "run_check_once",
@@ -562,10 +585,12 @@ function addNewCheck(name) {
         $("#add_check").css("pointer-events", "auto");
       })
 
-      // Reload the display, because now this check is now enabled
+      // Reload the display (once the config file is saved this check is now enabled,
+      // so it gets moved to the 'Edit Running Checks' section)
       checkDropdown();
 
-      // If check test was successful, schedule the check
+      // If check test was successful, schedule the check (if it wasn't unsuccessful)
+      // scheduling it would only trigger an error because the check doesn't run)
       if (data["success"]) {
         $("#check_run_results").prepend(
           '<div id="summary">' +
@@ -596,6 +621,7 @@ function addNewCheck(name) {
                             See Running Checks
 *************************************************************************/
 
+// Display the list of currently running checks on the running checks page
 function seeRunningChecks() {
   $(".page").css("display", "none");
   $("#running_checks").css("display", "block");
@@ -611,6 +637,7 @@ function seeRunningChecks() {
     }
 
     data.sort();
+    // Count the number of instances of each check
     data.forEach(function(name){
       if (runningChecks.hasOwnProperty(name)) runningChecks[name] += 1;
       else runningChecks[name] = 1;
@@ -636,11 +663,14 @@ function seeRunningChecks() {
                                 Flare
 *************************************************************************/
 
+// Display the 'send a flare' page
 function loadFlare() {
   $(".page").css("display", "none");
   $("#flare").css("display", "block");
 }
 
+// Handler for the 'submit flare' button, validates the email address & then
+// sends the inputted data to the server for creating a flare
 function submitFlare() {
   ticket = $("#ticket_num").val();
   if (ticket == "") ticket = "0";
@@ -657,9 +687,6 @@ function submitFlare() {
     data: "flare",
     payload: email + " " + ticket
   }), function(data, status, xhr){
-
-    // TODO (?) ask for confirmation
-
     $("#flare_response").html(data);
     $("#ticket_num").val("");
     $("#email").val("");
