@@ -133,6 +133,12 @@
   revision = "4bd1920723d7b7c925de087aa32e2187708897f7"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/google/gofuzz"
+  packages = ["."]
+  revision = "24818f796faf91cd76ec7bddd72458fbced7a6c1"
+
+[[projects]]
   name = "github.com/gorilla/context"
   packages = ["."]
   revision = "1ea25387ff6f684839d82767c1733ff4d4d15d0a"
@@ -359,6 +365,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b67df7874f8a07fc7388403b2789662fb925743686f6d6a688f20dc71c7890a6"
+  inputs-digest = "88fbb6eaf256010ccf07d121d7762c748ba461196596b0fd7c102fd35c406160"
   solver-name = "gps-cdcl"
   solver-version = 1
