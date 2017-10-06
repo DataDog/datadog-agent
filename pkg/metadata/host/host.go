@@ -42,7 +42,7 @@ func GetPayload(hostname string) *Payload {
 		HostTags:      getHostTags(),
 	}
 
-	// Cache the metadata for use in other payload
+	// Cache the metadata for use in other payloads
 	key := buildKey("payload")
 	cache.Cache.Set(key, p, cache.NoExpiration)
 
@@ -50,6 +50,7 @@ func GetPayload(hostname string) *Payload {
 }
 
 // GetPayloadFromCache returns the payload from the cache if it exists, otherwise it creates it.
+// The metadata reporting should always grab it fresh. Any other uses, e.g. status, should use this
 func GetPayloadFromCache(hostname string) *Payload {
 	key := buildKey("payload")
 	if x, found := cache.Cache.Get(key); found {
