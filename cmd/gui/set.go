@@ -36,6 +36,14 @@ func set(w http.ResponseWriter, m Message) {
 	case "reload_check":
 		reloadCheck(w, m.Payload)
 
+	case "restart":
+		e := common.Restart()
+		if e != nil {
+			w.Write([]byte(e.Error()))
+			return
+		}
+		w.Write([]byte("Success"))
+
 	default:
 		w.Write([]byte("Received unknown set request: " + m.Data))
 		log.Infof("GUI - Received unknown set request: " + m.Data)

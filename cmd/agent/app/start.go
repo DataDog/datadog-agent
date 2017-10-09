@@ -51,6 +51,13 @@ var (
 		Long:  `Runs the agent in the foreground`,
 		RunE:  start,
 	}
+
+	restartCmd = &cobra.Command{
+		Use:   "restart",
+		Short: "Restart the Agent",
+		Long:  `Kills parent process before starting agent in the foreground`,
+		RunE:  restart,
+	}
 )
 
 var (
@@ -68,9 +75,19 @@ const agentChecksMetadataCollectorInterval = 600
 func init() {
 	// attach the command to the root
 	AgentCmd.AddCommand(startCmd)
+	AgentCmd.AddCommand(restartCmd)
 
 	// local flags
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
+}
+
+// Kill the parent process, then restart the main loop
+func restart(cmd *cobra.Command, args []string) error {
+	parent := syscall.Getppid()
+	log.Infof("Process restarted. Killing parent - PID: %v", parent)
+	syscall.Kill(parent, syscall.SIGTERM)
+
+	return start(cmd, args)
 }
 
 // Start the main loop

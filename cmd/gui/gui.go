@@ -66,7 +66,7 @@ func StartGUIServer() error {
 	}
 
 	go http.Serve(listener, router)
-	log.Infof("GUI - Server started.")
+	log.Infof("GUI Server started at %s", listener.Addr())
 
 	return nil
 }
@@ -81,7 +81,7 @@ func accessAuth(h http.Handler) http.Handler {
 
 		if cookie == nil || cookie.Value != apiKey {
 			// Serve the authentication page
-			http.ServeFile(w, r, "view/public/auth.html")
+			http.ServeFile(w, r, filepath.Join(common.GetViewPath(), "public/auth.html"))
 		} else {
 			h.ServeHTTP(w, r)
 		}

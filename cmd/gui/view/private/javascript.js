@@ -1,6 +1,7 @@
 
 //************** Helpers
 
+// Attempts to fetch the API key from the browsers cookies
 function getAPIKey() {
   cookies = document.cookie.split(';');
   for (var i = 0; i < cookies.length; i++) {
@@ -13,6 +14,7 @@ function getAPIKey() {
   return null;
 }
 
+// Sends a message to the GUI server with the correct authorization/format
 function sendMessage(data, callback, callbackErr){
   $.ajax({
     url: 'http://localhost:8080/req',
@@ -34,7 +36,7 @@ function sendMessage(data, callback, callbackErr){
 $(document).ready(function(){
   // Add highlighting current item functionality to the nav bar
   $(".nav_item").click(function(){
-    if ($(this).hasClass("multi")) return;
+    if ($(this).hasClass("multi") || $(this).hasClass("no-active")) return;
     $(".active").removeClass("active");
     $(this).addClass("active");
   });
@@ -48,6 +50,7 @@ $(document).ready(function(){
   $("#flare_button").click(loadFlare);
   $("#checks_dropdown").change(checkDropdown);
   $("#submit_flare").click(submitFlare);
+  $("#restart_button").click(restartAgent)
 
   setupHomePage()
 });
@@ -692,5 +695,44 @@ function submitFlare() {
     $("#email").val("");
   }, function(){
     $('#flare_response').html("<span class='center'>An error occurred.</span>");
+  });
+}
+
+
+/*************************************************************************
+                            Restart Agent
+*************************************************************************/
+
+function restartAgent() {
+  $(".page").css("display", "none");
+  $(".active").removeClass("active");
+  $("#main").append('<i class="fa fa-spinner fa-pulse fa-3x fa-fw center loading_spinner"></i>');
+
+  $("#agent_status").html("Not connected<br> to Agent");
+  $("#agent_status").css({
+    "background": 'linear-gradient(to bottom, #c62d1f 5%, #f24437 100%)',
+    "background-color": '#c62d1f',
+    "border": '1px solid #d02718',
+    "text-shadow": '0px 1px 0px #810e05',
+    'left': '-180px'
+  })
+
+  sendMessage(JSON.stringify({
+    req_type: "set",
+    data: "restart"
+  }), function(data, status, xhr){
+    // Wait a few seconds to give the server a chance to restart
+    setTimeout(function(){
+      $(".loading_spinner").remove();
+
+      if (data != "Success") {
+        $("#general_status").css("display", "block");
+        $('#general_status').html("<span class='center'>Error restarting agent: " + data + "</span>");
+      } else location.reload(); // Reload the page
+    }, 2000);
+  }, function() {
+    $(".loading_spinner").remove();
+    $("#general_status").css("display", "block");
+    $('#general_status').html("<span class='center'>An error occurred.</span>");
   });
 }

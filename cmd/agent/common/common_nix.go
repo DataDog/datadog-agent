@@ -8,6 +8,9 @@
 package common
 
 import (
+	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 )
 
@@ -31,4 +34,18 @@ func GetDistPath() string {
 // GetViewPath returns the fully qualified path to the 'gui/view' directory
 func GetViewPath() string {
 	return viewPath
+}
+
+// Restart restarts the agent
+func Restart() error {
+	cmd := exec.Command(filepath.Join(_here, "agent"), "restart")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Start()
+	if err != nil {
+		return fmt.Errorf("Failed to fork main process. Error: %v", err)
+	}
+
+	return nil
 }
