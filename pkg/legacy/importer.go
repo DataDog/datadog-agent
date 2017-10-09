@@ -67,6 +67,7 @@ var (
 		"receiver_port",
 		"connection_limit",
 		"resource",
+		"disable_file_logging",
 	}
 )
 

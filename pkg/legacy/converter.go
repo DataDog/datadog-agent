@@ -94,6 +94,11 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("log_file", agentConfig["collector_log_file"])
 	}
 
+	// config.Datadog has a default value for this, do nothing if the value is empty
+	if agentConfig["disable_file_logging"] != "" {
+		config.Datadog.Set("disable_file_logging", agentConfig["disable_file_logging"])
+	}
+
 	if enabled, err := isAffirmative(agentConfig["log_to_syslog"]); err == nil {
 		config.Datadog.Set("log_to_syslog", enabled)
 	}
