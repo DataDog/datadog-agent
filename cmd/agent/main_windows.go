@@ -8,7 +8,6 @@ package main
 import (
 	_ "expvar"
 	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"strings"
@@ -72,7 +71,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
 	if err := common.ImportRegistryConfig(); err != nil {
-		elog.Warn(2, fmt.Sprintf("Failed to import config items from registry %s", err.Error()))
+		elog.Warning(2, fmt.Sprintf("Failed to import config items from registry %s", err.Error()))
 		// continue running agent with existing config
 	}
 	if err := common.CheckAndUpgradeConfig(); err != nil {
