@@ -220,11 +220,11 @@ func (c *Config) GetTemplateVariablesForInstance(i int) (vars [][]byte) {
 }
 
 // MergeAdditionalTags merges additional tags to possible existing config tags
-func (c *ConfigData) MergeAdditionalTags(tags []string) {
+func (c *ConfigData) MergeAdditionalTags(tags []string) error {
 	rawConfig := ConfigRawMap{}
 	err := yaml.Unmarshal(*c, &rawConfig)
 	if err != nil {
-		return
+		return err
 	}
 	rTags, _ := rawConfig["tags"].([]interface{})
 	// convert raw tags to string
@@ -234,7 +234,7 @@ func (c *ConfigData) MergeAdditionalTags(tags []string) {
 	}
 	tagList := append(cTags, tags...)
 	if len(tagList) == 0 {
-		return
+		return nil
 	}
 	// use set keys to remove duplicate
 	tagSet := make(map[string]struct{})
@@ -249,9 +249,11 @@ func (c *ConfigData) MergeAdditionalTags(tags []string) {
 	// modify original config
 	out, err := yaml.Marshal(&rawConfig)
 	if err != nil {
-		return
+		return err
 	}
 	*c = ConfigData(out)
+
+	return nil
 }
 
 // Digest returns an hash value representing the data stored in this configuration

@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 	"unicode"
 
@@ -135,6 +134,10 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 // resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
 func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (check.Config, error) {
+	tags, err := svc.GetTags()
+	if err != nil {
+		return tpl, err
+	}
 	for i := 0; i < len(tpl.Instances); i++ {
 		vars := tpl.GetTemplateVariablesForInstance(i)
 		for _, v := range vars {
@@ -150,11 +153,10 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 				return check.Config{}, fmt.Errorf("template variable %s does not exist", name)
 			}
 		}
-		tags, err := svc.GetTags()
+		err = tpl.Instances[i].MergeAdditionalTags(tags)
 		if err != nil {
 			return tpl, err
 		}
-		tpl.Instances[i].MergeAdditionalTags(tags)
 	}
 
 	return tpl, nil
@@ -272,16 +274,6 @@ func getPid(tplVar []byte, svc listeners.Service) []byte {
 // TODO
 func getContainerName(tplVar []byte, svc listeners.Service) []byte {
 	return []byte("test-container-name")
-}
-
-// getTags returns tags that are appended by default to all metrics.
-func getTags(svc listeners.Service) []byte {
-	tags, err := svc.GetTags()
-	if err != nil {
-		log.Errorf("Failed to get tags for service %s - %s", svc.GetID(), err)
-		return nil
-	}
-	return []byte(fmt.Sprintf("[%s]", strings.Join(tags, ",")))
 }
 
 // parseTemplateVar extracts the name of the var
