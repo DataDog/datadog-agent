@@ -26,7 +26,6 @@ var (
 		"pid":            getPid,
 		"port":           getPort,
 		"container-name": getContainerName,
-		"tags":           getOptTags,
 	}
 )
 
@@ -135,20 +134,31 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 // resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
 func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (check.Config, error) {
-	vars := tpl.GetTemplateVariables()
-	for _, v := range vars {
-		name, key := parseTemplateVar(v)
-		if f, ok := templateVariables[string(name)]; ok {
-			resolvedVar := f(key, svc)
-			if resolvedVar != nil {
-				tpl.InitConfig = bytes.Replace(tpl.InitConfig, v, resolvedVar, -1)
-				tpl.Instances[0] = bytes.Replace(tpl.Instances[0], v, resolvedVar, -1)
+	tags, err := svc.GetTags()
+	if err != nil {
+		return tpl, err
+	}
+	for i := 0; i < len(tpl.Instances); i++ {
+		vars := tpl.GetTemplateVariablesForInstance(i)
+		for _, v := range vars {
+			name, key := parseTemplateVar(v)
+			if f, ok := templateVariables[string(name)]; ok {
+				resolvedVar := f(key, svc)
+				if resolvedVar != nil {
+					// init config vars are replaced by the first found
+					tpl.InitConfig = bytes.Replace(tpl.InitConfig, v, resolvedVar, -1)
+					tpl.Instances[i] = bytes.Replace(tpl.Instances[i], v, resolvedVar, -1)
+				}
+			} else {
+				return check.Config{}, fmt.Errorf("template variable %s does not exist", name)
 			}
-		} else {
-			return check.Config{}, fmt.Errorf("template variable %s does not exist", name)
+		}
+		err = tpl.Instances[i].MergeAdditionalTags(tags)
+		if err != nil {
+			return tpl, err
 		}
 	}
-	// TODO: call and add cr.getTags
+
 	return tpl, nil
 }
 
@@ -264,20 +274,6 @@ func getPid(tplVar []byte, svc listeners.Service) []byte {
 // TODO
 func getContainerName(tplVar []byte, svc listeners.Service) []byte {
 	return []byte("test-container-name")
-}
-
-// getTags returns tags that are appended by default to all metrics.
-// TODO (use svc.Tags)
-func getTags(tplVar []byte, svc listeners.Service) []byte {
-	return []byte("[\"tag:foo\", \"tag:bar\"]")
-}
-
-// getOptTags returns tags that are to be applied to templates with %%tags%%.
-// This is generally reserved to high-cardinality tags that we want to provide,
-// but not by default.
-// TODO
-func getOptTags(tplVar []byte, svc listeners.Service) []byte {
-	return []byte("[\"opt:tag1\", \"opt:tag2\"]")
 }
 
 // parseTemplateVar extracts the name of the var

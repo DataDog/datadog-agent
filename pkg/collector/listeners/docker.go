@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
@@ -340,10 +342,15 @@ func (s *DockerService) GetPorts() ([]int, error) {
 	return s.Ports, nil
 }
 
-// GetTags returns the container's tags
-// TODO
+// GetTags retrieves tags using the Tagger
 func (s *DockerService) GetTags() ([]string, error) {
-	return s.Tags, nil
+	entity := collectors.DockerEntityName(string(s.ID))
+	tags, err := tagger.DefaultTagger.Tag(entity, true)
+	if err != nil {
+		return []string{}, err
+	}
+
+	return tags, nil
 }
 
 // GetPid inspect the container an return its pid

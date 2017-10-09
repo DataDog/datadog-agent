@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	yaml "gopkg.in/yaml.v2"
 )
 
 func TestConfigEqual(t *testing.T) {
@@ -56,6 +57,36 @@ instances:
 - justFoo
 `
 	assert.Equal(t, config.String(), expected)
+}
+
+func TestMergeAdditionalTags(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.Equal(nil))
+
+	config.Name = "foo"
+	config.InitConfig = ConfigData("fooBarBaz")
+	config.Instances = []ConfigData{ConfigData("tags: [\"foo\", \"foo:bar\"]")}
+
+	config.Instances[0].MergeAdditionalTags([]string{"foo", "bar"})
+
+	rawConfig := ConfigRawMap{}
+	err := yaml.Unmarshal(config.Instances[0], &rawConfig)
+	assert.Nil(t, err)
+	assert.Contains(t, rawConfig["tags"], "foo")
+	assert.Contains(t, rawConfig["tags"], "bar")
+	assert.Contains(t, rawConfig["tags"], "foo:bar")
+
+	config.Name = "foo"
+	config.InitConfig = ConfigData("fooBarBaz")
+	config.Instances = []ConfigData{ConfigData("other: foo")}
+
+	config.Instances[0].MergeAdditionalTags([]string{"foo", "bar"})
+
+	rawConfig = ConfigRawMap{}
+	err = yaml.Unmarshal(config.Instances[0], &rawConfig)
+	assert.Nil(t, err)
+	assert.Contains(t, rawConfig["tags"], "foo")
+	assert.Contains(t, rawConfig["tags"], "bar")
 }
 
 func TestDigest(t *testing.T) {
