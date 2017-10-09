@@ -17,7 +17,7 @@ import (
 
 var nextTestResponse string
 
-func runServer(t *testing.T, exit chan bool) {
+func runServer(t *testing.T, ready chan<- bool, exit <-chan bool) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Satisfy the initial check of URLs
 		w.Header().Set("Content-Type", "application/json")
@@ -30,14 +30,17 @@ func runServer(t *testing.T, exit chan bool) {
 
 	s := &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", DefaultAgentPort)}
 	go s.ListenAndServe()
+	ready <- true
 	<-exit
 	s.Close()
 }
 
 func TestGetPayload(t *testing.T) {
 	assert := assert.New(t)
-	exit := make(chan bool)
-	go runServer(t, exit)
+	exit := make(chan bool, 1)
+	ready := make(chan bool, 1)
+	go runServer(t, ready, exit)
+	<-ready
 	for _, tc := range []struct {
 		input    string
 		expected *payload.ECSMetadataPayload
