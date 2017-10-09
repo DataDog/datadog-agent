@@ -63,9 +63,24 @@ func stopService(cmd *cobra.Command, args []string) error {
 }
 
 func restartService(cmd *cobra.Command, args []string) error {
-
-	// TODO
-
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+	s, err := m.OpenService(ServiceName)
+	if err != nil {
+		return fmt.Errorf("could not access service: %v", err)
+	}
+	defer s.Close()
+	err = controlService(svc.Stop, svc.Stopped)
+	if err != nil {
+		return fmt.Errorf("could not stop service: %v", err)
+	}
+	err = s.Start("is", "manual-started")
+	if err != nil {
+		return fmt.Errorf("could not start service: %v", err)
+	}
 	return nil
 }
 

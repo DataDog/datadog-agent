@@ -37,12 +37,7 @@ func set(w http.ResponseWriter, m Message) {
 		reloadCheck(w, m.Payload)
 
 	case "restart":
-		e := common.Restart()
-		if e != nil {
-			w.Write([]byte(e.Error()))
-			return
-		}
-		w.Write([]byte("Success"))
+		restartAgent(w)
 
 	default:
 		w.Write([]byte("Received unknown set request: " + m.Data))
@@ -64,26 +59,22 @@ func makeFlare(w http.ResponseWriter, payload string) {
 	// Initiate the flare locally
 	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath)
 	if e != nil {
-		w.Write([]byte("Error creating the flare zipfile: " + e.Error()))
-		log.Errorf("GUI - Error creating the flare zipfile: " + e.Error())
+		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
+		log.Errorf("GUI - Error creating flare zipfile: " + e.Error())
 		return
 	}
 
-	w.Write([]byte("User " + customerEmail + " created flare[" + caseID + "].<br> Zipfile: " + filePath))
-	return
-
-	/* 	While testing, don't actually send a flare
 	// Send the flare
 	res, e := flare.SendFlare(filePath, caseID, customerEmail)
 	if e != nil {
-		w.Write([]byte("Error sending the flare: " + e.Error()))
-		log.Errorf("GUI - Error sending the flare: " + e.Error())
+		w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + e.Error()))
+		log.Errorf("GUI - Flare zipfile successfully created: " + filePath + "<br><br>" + e.Error())
 		return
 	}
 
-	log.Infof("GUI - Uploaded a flare to DataDog. Response: " + res)
-	w.Write([]byte("Uploaded a flare to DataDog. Response: " + res))
-	*/
+	w.Write([]byte("Flare zipfile successfully created: " + filePath + "<br><br>" + res))
+	log.Errorf("GUI - Flare zipfile successfully created: " + filePath + "<br><br>" + res)
+	return
 }
 
 // Overwrites the main config file (datadog.yaml) with new data
@@ -208,4 +199,14 @@ func reloadCheck(w http.ResponseWriter, name string) {
 	}
 
 	w.Write([]byte(fmt.Sprintf("Removed %v old instance(s) and started %v new instance(s) of %s", len(killed), len(instances), name)))
+}
+
+// Tells service manager to restart the agent
+func restartAgent(w http.ResponseWriter) {
+	e := common.Restart()
+	if e != nil {
+		w.Write([]byte(e.Error()))
+		return
+	}
+	w.Write([]byte("Success"))
 }

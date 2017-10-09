@@ -182,7 +182,7 @@ func ImportRegistryConfig() error {
 	return nil
 }
 
-// Restart restarts the agent
+// Restart is used by the GUI to restart the agent
 func Restart() error {
 	cmd := exec.Command(filepath.Join(_here, "agent"), "restart-service")
 	cmd.Stdin = os.Stdin

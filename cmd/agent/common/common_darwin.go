@@ -34,7 +34,7 @@ func GetViewPath() string {
 	return viewPath
 }
 
-// Restart restarts the agent
+// Restart is used by the GUI to restart the agent
 func Restart() error {
 	cmd := exec.Command(filepath.Join(_here, "agent"), "restart")
 	cmd.Stdin = os.Stdin

@@ -694,20 +694,11 @@ a {
     left: 50%;
     transform: translate(-50%, -50%);
 
-    .description {
+    #flare_description {
       padding: 10px;
       width: calc(100% - 20px);
       text-align: center;
       font-size: $font_size * 1.2;
-    }
-
-    #flare_response {
-      padding: 10px;
-      width: calc(100% - 20px);
-      text-align: center;
-      position: absolute;
-      font-size: $font_size * 1.1;
-      bottom: 20px;
     }
 
     .flare_input {

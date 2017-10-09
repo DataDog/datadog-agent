@@ -669,7 +669,8 @@ function seeRunningChecks() {
 // Display the 'send a flare' page
 function loadFlare() {
   $(".page").css("display", "none");
-  $("#flare").css("display", "block");
+  $("#flare, .flare_input").css("display", "block");
+  $("#flare_description").html("Your logs and configuration files will be collected and sent to DataDog Support.");
 }
 
 // Handler for the 'submit flare' button, validates the email address & then
@@ -681,7 +682,7 @@ function submitFlare() {
   email = $("#email").val();
   regex = /\S+@\S+\.\S+/;   // string - @ - string - . - string
   if ( !regex.test(email) ) {
-      $("#flare_response").html("Please enter a valid email address.");
+      $("#flare_description").html("Please enter a valid email address.");
       return;
   }
 
@@ -690,9 +691,10 @@ function submitFlare() {
     data: "flare",
     payload: email + " " + ticket
   }), function(data, status, xhr){
-    $("#flare_response").html(data);
     $("#ticket_num").val("");
     $("#email").val("");
+    $(".flare_input").css("display", "none");
+    $("#flare_description").html(data);
   }, function(){
     $('#flare_response').html("<span class='center'>An error occurred.</span>");
   });
@@ -715,7 +717,10 @@ function restartAgent() {
     "border": '1px solid #d02718',
     "text-shadow": '0px 1px 0px #810e05',
     'left': '-180px'
-  })
+  });
+
+  // Disable the restart button to prevent multiple consecutive clicks
+  $("#restart_button").css("pointer-events", "none");
 
   sendMessage(JSON.stringify({
     req_type: "set",
@@ -724,6 +729,7 @@ function restartAgent() {
     // Wait a few seconds to give the server a chance to restart
     setTimeout(function(){
       $(".loading_spinner").remove();
+      $("#restart_button").css("pointer-events", "auto");
 
       if (data != "Success") {
         $("#general_status").css("display", "block");
@@ -734,5 +740,6 @@ function restartAgent() {
     $(".loading_spinner").remove();
     $("#general_status").css("display", "block");
     $('#general_status').html("<span class='center'>An error occurred.</span>");
+    $("#restart_button").css("pointer-events", "auto");
   });
 }

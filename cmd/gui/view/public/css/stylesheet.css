@@ -483,7 +483,7 @@ a {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%); }
-    #main #flare .description {
+    #main #flare #flare_description {
       padding: 10px;
       width: calc(100% - 20px);
       text-align: center;
