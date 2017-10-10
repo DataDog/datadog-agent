@@ -98,31 +98,6 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 	return ch.ID(), nil
 }
 
-// ReloadAllCheckInstances completely restarts a check with a new configuration
-func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]check.ID, error) {
-	if !c.started() {
-		return nil, fmt.Errorf("The collector is not running")
-	}
-
-	// Stop all the old instances
-	ids := c.getAllInstanceIDs(name)
-	for _, id := range ids {
-		e := c.StopCheck(id)
-		if e != nil {
-			return nil, fmt.Errorf("Error stopping check %s: %s", id, e)
-		}
-	}
-
-	// Start the new instances
-	for _, check := range newInstances {
-		id, e := c.RunCheck(check)
-		if e != nil {
-			return nil, fmt.Errorf("Error adding check %s: %s", id, e)
-		}
-	}
-	return ids, nil
-}
-
 // ReloadCheck stops and restart a check with a new configuration
 func (c *Collector) ReloadCheck(id check.ID, config, initConfig check.ConfigData) error {
 	if !c.started() {
@@ -227,4 +202,29 @@ func (c *Collector) getAllInstanceIDs(checkName string) []check.ID {
 	}
 
 	return instances
+}
+
+// ReloadAllCheckInstances completely restarts a check with a new configuration
+func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]check.ID, error) {
+	if !c.started() {
+		return nil, fmt.Errorf("The collector is not running")
+	}
+
+	// Stop all the old instances
+	killed := c.getAllInstanceIDs(name)
+	for _, id := range killed {
+		e := c.StopCheck(id)
+		if e != nil {
+			return nil, fmt.Errorf("Error stopping check %s: %s", id, e)
+		}
+	}
+
+	// Start the new instances
+	for _, check := range newInstances {
+		id, e := c.RunCheck(check)
+		if e != nil {
+			return nil, fmt.Errorf("Error adding check %s: %s", id, e)
+		}
+	}
+	return killed, nil
 }
