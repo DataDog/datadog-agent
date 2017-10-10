@@ -67,7 +67,7 @@ func GetDistPath() string {
 	return distPath
 }
 
-// import settings from Windows registry into datadog.yaml
+// ImportRegistryConfig imports settings from Windows registry into datadog.yaml
 func ImportRegistryConfig() error {
 
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
