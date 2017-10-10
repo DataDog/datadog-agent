@@ -14,7 +14,6 @@ type DockerService struct {
 	ADIdentifiers []string          // identifiers on which templates will be matched
 	Hosts         map[string]string // network --> IP address
 	Ports         []int
-	Tags          []string
 	Pid           int // Process identifier
 }
 

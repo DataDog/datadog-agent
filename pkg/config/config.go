@@ -73,6 +73,7 @@ func init() {
 	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("log_to_syslog", false)
+	Datadog.SetDefault("disable_file_logging", false)
 	Datadog.SetDefault("syslog_uri", "")
 	Datadog.SetDefault("syslog_rfc", false)
 	Datadog.SetDefault("syslog_tls", false)
@@ -134,6 +135,8 @@ func init() {
 	Datadog.SetDefault("GUI_port", "8080")
 	// Proess Agent
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
+
+	Datadog.SetDefault("logging_frequency", int64(20))
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
