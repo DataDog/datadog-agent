@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/spf13/cobra"
 )
@@ -76,13 +75,6 @@ var checkCmd = &cobra.Command{
 		hostname, err := util.GetHostname()
 		if err != nil {
 			fmt.Printf("Cannot get hostname, exiting: %v\n", err)
-			return err
-		}
-
-		// start tagging system for containers
-		err = tagger.Init()
-		if err != nil {
-			fmt.Printf("Unable to start tagging system: %s", err)
 			return err
 		}
 

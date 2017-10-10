@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
@@ -149,7 +150,13 @@ func (r *Runner) work() {
 		}
 		r.m.Unlock()
 
-		log.Infof("Running check %s", check)
+		doLog, lastLog := shouldLog(check.ID())
+
+		if doLog {
+			log.Infof("Running check %s", check)
+		} else {
+			log.Debugf("Running check %s", check)
+		}
 
 		// run the check
 		var err error
@@ -205,10 +212,41 @@ func (r *Runner) work() {
 		mStats, _ := check.GetMetricStats()
 		addWorkStats(check, time.Since(t0), err, warnings, mStats)
 
-		log.Infof("Done running check %s", check)
+		l := "Done running check %s"
+		if doLog {
+			if lastLog {
+				l = l + fmt.Sprintf(" first runs done, next runs will be logged every %v runs", config.Datadog.GetInt64("logging_frequency"))
+			}
+			log.Infof(l, check)
+		} else {
+			log.Debugf(l, check)
+		}
 	}
 
 	log.Debug("Finished processing checks.")
+}
+
+func shouldLog(id check.ID) (doLog bool, lastLog bool) {
+	checkStats.M.RLock()
+	defer checkStats.M.RUnlock()
+
+	loggingFrequency := uint64(config.Datadog.GetInt64("logging_frequency"))
+
+	s, found := checkStats.Stats[id]
+	if found {
+		if s.TotalRuns <= 5 {
+			doLog = true
+			if s.TotalRuns == 5 {
+				lastLog = true
+			}
+		} else if s.TotalRuns%loggingFrequency == 0 {
+			doLog = true
+		}
+	} else {
+		doLog = true
+	}
+
+	return
 }
 
 func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []error, mStats map[string]int64) {

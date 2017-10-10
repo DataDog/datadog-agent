@@ -73,6 +73,7 @@ func init() {
 	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("log_to_syslog", false)
+	Datadog.SetDefault("disable_file_logging", false)
 	Datadog.SetDefault("syslog_uri", "")
 	Datadog.SetDefault("syslog_rfc", false)
 	Datadog.SetDefault("syslog_tls", false)
@@ -115,6 +116,7 @@ func init() {
 	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
+	Datadog.SetDefault("exclude_pause_container", true)
 	// Docker
 	Datadog.SetDefault("docker_labels_as_tags", map[string]string{})
 	Datadog.SetDefault("docker_env_as_tags", map[string]string{})
@@ -130,6 +132,8 @@ func init() {
 	Datadog.SetDefault("apm_enabled", true) // this is to support the transition to the new config file
 	// Proess Agent
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
+
+	Datadog.SetDefault("logging_frequency", int64(20))
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")

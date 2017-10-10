@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
@@ -122,9 +121,15 @@ func StartAgent() error {
 
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
+	logFile := config.Datadog.GetString("log_file")
+	if config.Datadog.GetBool("disable_file_logging") {
+		// this will prevent any logging on file
+		logFile = ""
+	}
+
 	err = config.SetupLogger(
 		config.Datadog.GetString("log_level"),
-		config.Datadog.GetString("log_file"),
+		logFile,
 		syslogURI,
 		config.Datadog.GetBool("syslog_rfc"),
 		config.Datadog.GetBool("syslog_tls"),
@@ -157,12 +162,6 @@ func StartAgent() error {
 	// start the cmd HTTP server
 	if err = api.StartServer(); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
-	}
-
-	// start tagging system for containers
-	err = tagger.Init()
-	if err != nil {
-		return log.Errorf("Unable to start tagging system: %s", err)
 	}
 
 	// setup the forwarder

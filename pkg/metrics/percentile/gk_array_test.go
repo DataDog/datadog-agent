@@ -11,6 +11,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -309,4 +310,37 @@ func TestInterpolatedQuantile(t *testing.T) {
 			}
 		}
 	}
+}
+
+// Any random GKArray will not cause panic when Add() or Merge() is called
+// as long as it passes the IsValid() method
+func TestValidDoesNotPanic(t *testing.T) {
+	var s1, s2 GKArray
+	var q float64
+	nTests := 100
+	fuzzer := fuzz.New()
+	for i := 0; i < nTests; i++ {
+		fuzzer.Fuzz(&s1)
+		fuzzer.Fuzz(&s2)
+		fuzzer.Fuzz(&q)
+		s1 = makeValid(s1)
+		s2 = makeValid(s2)
+		assert.True(t, s1.IsValid())
+		assert.True(t, s2.IsValid())
+		assert.NotPanics(t, func() { s1.Quantile(q); s1.Merge(s2) })
+	}
+}
+
+func makeValid(s GKArray) GKArray {
+	if len(s.Entries) == 0 {
+		s.Count = int64(len(s.Entries))
+	}
+
+	gSum := int64(0)
+	for _, e := range s.Entries {
+		gSum += int64(e.G)
+	}
+	s.Count = gSum + int64(len(s.Incoming))
+
+	return s
 }

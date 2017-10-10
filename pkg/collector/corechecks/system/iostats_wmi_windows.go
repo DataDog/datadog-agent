@@ -90,7 +90,7 @@ func computeValue(pvs Win32_PerfRawData_PerfDisk_LogicalDisk, cur *Win32_PerfRaw
 	ret = make(map[string]float64, 0)
 	var f uint64 = pvs.Frequency_Sys100NS
 	var dt uint64 = cur.Timestamp_Sys100NS - pvs.Timestamp_Sys100NS
-	log.Infof("DeltaT is %d (%d)", dt/10000000, dt)
+	log.Debugf("DeltaT is %d (%d)", dt/10000000, dt)
 
 	if f == 0 {
 		log.Errorf("Frequency is zero?")

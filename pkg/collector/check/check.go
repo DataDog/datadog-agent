@@ -7,6 +7,7 @@ package check
 
 import (
 	"bytes"
+	"fmt"
 	"hash/fnv"
 	"regexp"
 	"strconv"
@@ -212,14 +213,50 @@ func (c *Config) IsTemplate() bool {
 	return false
 }
 
-// GetTemplateVariables returns a slice of raw template variables
-// it found in a config template.
-// FIXME: only extracts from the first instance. Do we need more?
-func (c *Config) GetTemplateVariables() (vars [][]byte) {
-	if len(c.Instances) == 0 {
+// GetTemplateVariablesForInstance returns a slice of raw template variables
+// it found in a config instance template.
+func (c *Config) GetTemplateVariablesForInstance(i int) (vars [][]byte) {
+	if len(c.Instances) < i {
 		return vars
 	}
-	return tplVarRegex.FindAll(c.Instances[0], -1)
+	return tplVarRegex.FindAll(c.Instances[i], -1)
+}
+
+// MergeAdditionalTags merges additional tags to possible existing config tags
+func (c *ConfigData) MergeAdditionalTags(tags []string) error {
+	rawConfig := ConfigRawMap{}
+	err := yaml.Unmarshal(*c, &rawConfig)
+	if err != nil {
+		return err
+	}
+	rTags, _ := rawConfig["tags"].([]interface{})
+	// convert raw tags to string
+	cTags := make([]string, len(rTags))
+	for i, t := range rTags {
+		cTags[i] = fmt.Sprint(t)
+	}
+	tagList := append(cTags, tags...)
+	if len(tagList) == 0 {
+		return nil
+	}
+	// use set keys to remove duplicate
+	tagSet := make(map[string]struct{})
+	for _, t := range tagList {
+		tagSet[t] = struct{}{}
+	}
+	// override config tags
+	rawConfig["tags"] = []string{}
+	for k := range tagSet {
+		rawConfig["tags"] = append(rawConfig["tags"].([]string), k)
+	}
+	// modify original config
+	out, err := yaml.Marshal(&rawConfig)
+	if err != nil {
+		return err
+	}
+	*c = ConfigData(out)
+
+	return nil
 }
 
 // Digest returns an hash value representing the data stored in this configuration
