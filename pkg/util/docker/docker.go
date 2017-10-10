@@ -25,6 +25,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
