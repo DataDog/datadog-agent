@@ -8,7 +8,6 @@ package main
 import (
 	_ "expvar"
 	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"strings"
