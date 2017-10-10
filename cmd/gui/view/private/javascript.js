@@ -734,7 +734,7 @@ function restartAgent() {
       if (data != "Success") {
         $("#general_status").css("display", "block");
         $('#general_status').html("<span class='center'>Error restarting agent: " + data + "</span>");
-      } else location.reload(); // Reload the page
+      } else loadGeneralStatus();
     }, 2000);
   }, function() {
     $(".loading_spinner").remove();
