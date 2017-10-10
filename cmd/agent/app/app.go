@@ -5,8 +5,7 @@
 
 /*
 Package app implements the Agent main loop, orchestrating
-all the components and providing the command line interface.
-*/
+all the components and providing the command line interface. */
 package app
 
 import (

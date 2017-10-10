@@ -68,8 +68,8 @@ func GetDistPath() string {
 	return distPath
 }
 
-// check to see if there's an old datadog.conf, and if datadog.yaml is
-// either missing or incomplete (no API key).  If so, upgrade it
+// CheckAndUpgradeConfig checks to see if there's an old datadog.conf, and if
+// datadog.yaml is either missing or incomplete (no API key).  If so, upgrade it
 func CheckAndUpgradeConfig() error {
 	datadogConfPath := filepath.Join(DefaultConfPath, "datadog.conf")
 	if _, err := os.Stat(datadogConfPath); os.IsNotExist(err) {
@@ -88,7 +88,7 @@ func CheckAndUpgradeConfig() error {
 	return ImportConfig(DefaultConfPath, DefaultConfPath, false)
 }
 
-// import settings from Windows registry into datadog.yaml
+// ImportRegistryConfig imports settings from Windows registry into datadog.yaml
 func ImportRegistryConfig() error {
 
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
