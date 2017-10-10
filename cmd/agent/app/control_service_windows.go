@@ -17,6 +17,7 @@ import (
 func init() {
 	AgentCmd.AddCommand(startsvcCommand)
 	AgentCmd.AddCommand(stopsvcCommand)
+	AgentCmd.AddCommand(restartsvcCommand)
 }
 
 var startsvcCommand = &cobra.Command{
@@ -63,23 +64,13 @@ func stopService(cmd *cobra.Command, args []string) error {
 }
 
 func restartService(cmd *cobra.Command, args []string) error {
-	m, err := mgr.Connect()
+	err := controlService(svc.Stop, svc.Stopped)
 	if err != nil {
 		return err
 	}
-	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
+	err = controlService(svc.Start, svc.Started)
 	if err != nil {
-		return fmt.Errorf("could not access service: %v", err)
-	}
-	defer s.Close()
-	err = controlService(svc.Stop, svc.Stopped)
-	if err != nil {
-		return fmt.Errorf("could not stop service: %v", err)
-	}
-	err = s.Start("is", "manual-started")
-	if err != nil {
-		return fmt.Errorf("could not start service: %v", err)
+		return err
 	}
 	return nil
 }
