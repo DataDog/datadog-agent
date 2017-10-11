@@ -28,9 +28,9 @@ func TestBasicCache(t *testing.T) {
 	_, err := c.Get("notincache")
 	assert.NotNil(t, err)
 
-	keys, vals := c.Iterator()
-	for k := range keys {
-		assert.Equal(t, m[k], <-vals)
+	items := c.Items()
+	for k, v := range items {
+		assert.Equal(t, m[k], v)
 	}
 
 	for k := range m {

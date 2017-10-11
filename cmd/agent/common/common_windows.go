@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/url"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"path/filepath"

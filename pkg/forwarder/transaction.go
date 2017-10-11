@@ -79,7 +79,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	req, err := http.NewRequest("POST", url, reader)
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL '%s' (dropping transaction): %s", logURL, err)
-		transactionsCreation.Add("Errors", 1)
+		transactionsExpvar.Add("Errors", 1)
 		return nil
 	}
 	req = req.WithContext(ctx)
@@ -92,7 +92,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 			return nil
 		}
 		t.ErrorCount++
-		transactionsCreation.Add("Errors", 1)
+		transactionsExpvar.Add("Errors", 1)
 		return fmt.Errorf("Error while sending transaction, rescheduling it: %s", apiKeyRegExp.ReplaceAllString(err.Error(), apiKeyReplacement))
 	}
 	defer resp.Body.Close()
@@ -100,19 +100,19 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code '%s' received while sending transaction to '%s': %s, dropping it", resp.Status, logURL, string(body))
-		transactionsCreation.Add("Dropped", 1)
+		transactionsExpvar.Add("Dropped", 1)
 		if apiKeyStatus.Get(t.apiKeyStatusKey) == nil {
 			apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyStatusUnknown)
 		}
 		return nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
-		transactionsCreation.Add("Dropped", 1)
+		transactionsExpvar.Add("Dropped", 1)
 		apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyInvalid)
 		return nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
-		transactionsCreation.Add("Errors", 1)
+		transactionsExpvar.Add("Errors", 1)
 		if apiKeyStatus.Get(t.apiKeyStatusKey) == nil {
 			apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyStatusUnknown)
 		}
