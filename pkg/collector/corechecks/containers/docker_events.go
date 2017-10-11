@@ -9,29 +9,70 @@ package containers
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
-// reportEvents is the check's entrypoint to retrieve, aggregate and send events
-func (d *DockerCheck) reportEvents(sender aggregator.Sender) error {
+// reportEvents handles the event retrieval logic
+func (d *DockerCheck) retrieveEvents() ([]*docker.ContainerEvent, error) {
 	if d.lastEventTime.IsZero() {
 		d.lastEventTime = time.Now().Add(-60 * time.Second)
 	}
 	events, latest, err := docker.LatestContainerEvents(d.lastEventTime)
 	if err != nil {
-		return err
+		return events, err
 	}
 
 	if latest.IsZero() == false {
 		d.lastEventTime = latest.Add(1 * time.Nanosecond)
 	}
+
+	return events, nil
+}
+
+// reportExitCodes monitors events for non zero exit codes and sends service checks
+func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender aggregator.Sender) error {
+	for _, ev := range events {
+		// Filtering
+		if ev.Action != "die" {
+			continue
+		}
+		exitCodeString, codeFound := ev.Attributes["exitCode"]
+		if !codeFound {
+			log.Warnf("skipping event with no exit code: %s", ev)
+			continue
+		}
+		exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 32)
+		if err != nil {
+			log.Warnf("skipping event with invalid exit code: %s", err.Error())
+			continue
+		}
+
+		// Building and sending message
+		message := fmt.Sprintf("Container %s exited with %d", ev.ContainerName, exitCodeInt)
+		status := metrics.ServiceCheckOK
+		if exitCodeInt != 0 {
+			status = metrics.ServiceCheckCritical
+		}
+		sender.ServiceCheck(DockerExit, status, "", nil, message)
+	}
+
+	return nil
+}
+
+// reportEvents aggregates and sends events to the Datadog event feed
+func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggregator.Sender) error {
 	bundles, err := d.aggregateEvents(events)
+	if err != nil {
+		return err
+	}
 
 	for _, bundle := range bundles {
 		ev, err := bundle.toDatadogEvent(d.dockerHostname)

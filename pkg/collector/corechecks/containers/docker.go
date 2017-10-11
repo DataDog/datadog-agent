@@ -43,6 +43,7 @@ type DockerConfig struct {
 
 const (
 	DockerServiceUp string = "docker.service_up"
+	DockerExit      string = "docker.exit"
 )
 
 type containerPerImage struct {
@@ -209,8 +210,24 @@ func (d *DockerCheck) Run() error {
 	}
 	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", nil, "")
 
-	if d.instance.CollectEvent {
-		d.reportEvents(sender)
+	if d.instance.CollectEvent || d.instance.CollectExitCodes {
+		events, err := d.retrieveEvents()
+		if err != nil {
+			log.Warn(err.Error())
+		} else {
+			if d.instance.CollectEvent {
+				err = d.reportEvents(events, sender)
+				if err != nil {
+					log.Warn(err.Error())
+				}
+			}
+			if d.instance.CollectExitCodes {
+				err = d.reportExitCodes(events, sender)
+				if err != nil {
+					log.Warn(err.Error())
+				}
+			}
+		}
 	}
 
 	sender.Commit()
