@@ -7,6 +7,7 @@ package forwarder
 
 import (
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -42,7 +43,7 @@ func TestStart(t *testing.T) {
 
 	assert.Nil(t, err)
 	require.Len(t, forwarder.retryQueue, 0)
-	assert.Equal(t, forwarder.internalState, Started)
+	assert.Equal(t, Started, forwarder.State())
 	assert.NotNil(t, forwarder.waitingPipe)
 	assert.NotNil(t, forwarder.requeuedTransaction)
 	assert.NotNil(t, forwarder.stopRetry)
@@ -61,16 +62,19 @@ func TestInit(t *testing.T) {
 func TestStop(t *testing.T) {
 	forwarder := NewDefaultForwarder(nil)
 	forwarder.Stop() // this should be a noop
+	assert.Equal(t, Stopped, forwarder.State())
 	forwarder.Start()
 	forwarder.Stop()
 	assert.Len(t, forwarder.workers, 0)
 	assert.Len(t, forwarder.retryQueue, 0)
+	assert.Equal(t, Stopped, forwarder.State())
 }
 
 func TestSubmitIfStopped(t *testing.T) {
 	forwarder := NewDefaultForwarder(nil)
 
-	assert.NotNil(t, forwarder)
+	require.NotNil(t, forwarder)
+	require.Equal(t, Stopped, forwarder.State())
 	assert.NotNil(t, forwarder.SubmitSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitEvents(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitServiceChecks(nil, make(http.Header)))
@@ -99,6 +103,8 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, endpoint, transactions[2].Endpoint)
 	assert.Equal(t, endpoint, transactions[3].Endpoint)
 	assert.Len(t, transactions[0].Headers, 2)
+	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
+	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
 	assert.Equal(t, p1, *(transactions[0].Payload))
 	assert.Equal(t, p1, *(transactions[1].Payload))
 	assert.Equal(t, p2, *(transactions[2].Payload))
@@ -153,6 +159,8 @@ func TestRetryTransactions(t *testing.T) {
 	forwarder.retryTransactions(time.Now())
 	assert.Len(t, forwarder.retryQueue, 1)
 	assert.Len(t, forwarder.waitingPipe, 1)
+	dropped, _ := strconv.ParseInt(transactionsExpvar.Get("Dropped").String(), 10, 64)
+	assert.Equal(t, int64(1), dropped)
 }
 
 func TestForwarderRetry(t *testing.T) {

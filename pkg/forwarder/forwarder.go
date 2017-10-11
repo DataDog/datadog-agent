@@ -24,24 +24,24 @@ var (
 	flushInterval = 5 * time.Second
 
 	forwarderExpvar        = expvar.NewMap("forwarder")
-	transactionsCreation   = expvar.Map{}
+	transactionsExpvar     = expvar.Map{}
 	retryQueueSize         = expvar.Int{}
 	successfulTransactions = expvar.Int{}
-
-	apiKeyStatus        = expvar.Map{}
-	apiKeyStatusUnknown = expvar.String{}
-	apiKeyInvalid       = expvar.String{}
-	apiKeyValid         = expvar.String{}
+	apiKeyStatus           = expvar.Map{}
+	apiKeyStatusUnknown    = expvar.String{}
+	apiKeyInvalid          = expvar.String{}
+	apiKeyValid            = expvar.String{}
 )
 
 func init() {
-	transactionsCreation.Init()
+
+	transactionsExpvar.Init()
+	forwarderExpvar.Set("Transactions", &transactionsExpvar)
+	transactionsExpvar.Set("RetryQueueSize", &retryQueueSize)
+	transactionsExpvar.Set("Success", &successfulTransactions)
+
 	apiKeyStatus.Init()
 	forwarderExpvar.Set("APIKeyStatus", &apiKeyStatus)
-	forwarderExpvar.Set("TransactionsCreated", &transactionsCreation)
-	transactionsCreation.Set("RetryQueueSize", &retryQueueSize)
-	transactionsCreation.Set("Success", &successfulTransactions)
-
 	apiKeyStatusUnknown.Set("Unable to validate API Key")
 	apiKeyInvalid.Set("API Key invalid")
 	apiKeyValid.Set("API Key valid")
@@ -135,31 +135,35 @@ func (v byCreatedTime) Less(i, j int) bool { return v[i].GetCreatedAt().After(v[
 
 func (f *DefaultForwarder) retryTransactions(retryBefore time.Time) {
 	newQueue := []Transaction{}
-	droppedTransaction := 0
+	dropped := 0
 
 	sort.Sort(byCreatedTime(f.retryQueue))
 
 	for _, t := range f.retryQueue {
 		if t.GetNextFlush().Before(retryBefore) {
 			f.waitingPipe <- t
-			transactionsCreation.Add("SuccessfullyRetried", 1)
+			transactionsExpvar.Add("Retried", 1)
 		} else if len(newQueue) < f.retryQueueLimit {
 			newQueue = append(newQueue, t)
+			transactionsExpvar.Add("Requeued", 1)
 		} else {
-			transactionsCreation.Add("Dropped", 1)
-			droppedTransaction++
+			dropped++
+			transactionsExpvar.Add("Dropped", 1)
 		}
 	}
+
 	f.retryQueue = newQueue
 	retryQueueSize.Set(int64(len(f.retryQueue)))
-	if droppedTransaction != 0 {
-		log.Warnf("forwarder retry queue size exceed limit from configuration (%d): dropped %d transactions (the oldest ones)", f.retryQueueLimit, droppedTransaction)
+
+	if dropped > 0 {
+		log.Warnf("Retry queue size limit of %d exceeded, dropped %d transactions in this run", f.retryQueueLimit, dropped)
 	}
 }
 
 func (f *DefaultForwarder) requeueTransaction(t Transaction) {
 	f.retryQueue = append(f.retryQueue, t)
-	transactionsCreation.Add("Requeued", 1)
+	transactionsExpvar.Add("Requeued", 1)
+	retryQueueSize.Set(int64(len(f.retryQueue)))
 }
 
 func (f *DefaultForwarder) handleFailedTransactions() {
@@ -219,6 +223,9 @@ func (f *DefaultForwarder) Start() error {
 
 // State returns the internal state of the DefaultForwarder (either Started or Stopped).
 func (f *DefaultForwarder) State() uint32 {
+	f.m.Lock()
+	defer f.m.Unlock()
+
 	return f.internalState
 }
 
@@ -229,7 +236,7 @@ func (f *DefaultForwarder) Stop() {
 	defer f.m.Unlock()
 
 	if f.internalState == Stopped {
-		log.Errorf("the forwarder is already stopped")
+		log.Warnf("the forwarder is already stopped")
 		return
 	}
 	// using atomic to stop createTransactions
@@ -291,42 +298,42 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 // SubmitSeries will send a series type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitSeries(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(seriesEndpoint, payload, false, extra)
-	transactionsCreation.Add("Series", 1)
+	transactionsExpvar.Add("Series", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitEvents will send an event type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitEvents(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(eventsEndpoint, payload, false, extra)
-	transactionsCreation.Add("Events", 1)
+	transactionsExpvar.Add("Events", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitServiceChecks will send a service check type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitServiceChecks(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(serviceChecksEndpoint, payload, false, extra)
-	transactionsCreation.Add("ServiceChecks", 1)
+	transactionsExpvar.Add("ServiceChecks", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *DefaultForwarder) SubmitSketchSeries(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(sketchSeriesEndpoint, payload, true, extra)
-	transactionsCreation.Add("SketchSeries", 1)
+	transactionsExpvar.Add("SketchSeries", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitHostMetadata will send a host_metadata tag type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitHostMetadata(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(hostMetadataEndpoint, payload, false, extra)
-	transactionsCreation.Add("HostMetadata", 1)
+	transactionsExpvar.Add("HostMetadata", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
 // SubmitMetadata will send a metadata type payload to Datadog backend.
 func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(metadataEndpoint, payload, false, extra)
-	transactionsCreation.Add("Metadata", 1)
+	transactionsExpvar.Add("Metadata", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -334,7 +341,7 @@ func (f *DefaultForwarder) SubmitMetadata(payload Payloads, extra http.Header) e
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(v1SeriesEndpoint, payload, true, extra)
-	transactionsCreation.Add("TimeseriesV1", 1)
+	transactionsExpvar.Add("TimeseriesV1", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -342,7 +349,7 @@ func (f *DefaultForwarder) SubmitV1Series(payload Payloads, extra http.Header) e
 // the backend handles v2 endpoints).
 func (f *DefaultForwarder) SubmitV1CheckRuns(payload Payloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(v1CheckRunsEndpoint, payload, true, extra)
-	transactionsCreation.Add("CheckRunsV1", 1)
+	transactionsExpvar.Add("CheckRunsV1", 1)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -355,6 +362,6 @@ func (f *DefaultForwarder) SubmitV1Intake(payload Payloads, extra http.Header) e
 		t.Headers.Set("Content-Type", "application/json")
 	}
 
-	transactionsCreation.Add("IntakeV1", 1)
+	transactionsExpvar.Add("IntakeV1", 1)
 	return f.sendHTTPTransactions(transactions)
 }
