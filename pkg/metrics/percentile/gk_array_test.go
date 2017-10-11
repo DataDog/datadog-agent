@@ -344,3 +344,42 @@ func makeValid(s GKArray) GKArray {
 
 	return s
 }
+
+func TestQuantiles(t *testing.T) {
+	var qVals []float64
+	var vals []float64
+	nTests := 100
+	qFuzzer := fuzz.New().NilChance(0).NumElements(5, 10)
+	vFuzzer := fuzz.New().NilChance(0).NumElements(10, 500)
+	for i := 0; i < nTests; i++ {
+		s := NewGKArray()
+		qFuzzer.Fuzz(&qVals)
+		vFuzzer.Fuzz(&vals)
+		for _, v := range vals {
+			s = s.Add(v)
+		}
+		s = s.compressWithIncoming(nil)
+		quantiles := s.Quantiles(qVals[:])
+		eps := 1.e-6
+		for j, q := range qVals {
+			if q < 0 || q > 1 {
+				assert.True(t, math.IsNaN(quantiles[j]))
+			} else {
+				assert.InEpsilon(t, s.Quantile(q), quantiles[j], eps)
+			}
+		}
+	}
+}
+
+func TestQuantilesInvalid(t *testing.T) {
+	s := NewGKArray()
+	gen := NewNormal(35, 1)
+	qVals := []float64{0.5, 0.9, -0.2, 0.75, 1.2, 0.95}
+	n := 200
+	for i := 0; i < n; i++ {
+		s = s.Add(gen.Generate())
+	}
+	quantiles := s.Quantiles(qVals)
+	assert.True(t, math.IsNaN(quantiles[2]))
+	assert.True(t, math.IsNaN(quantiles[4]))
+}
