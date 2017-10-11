@@ -23,7 +23,7 @@ import (
 
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	PyChecksPath = filepath.Join(_here, "..", "checks.d")
+	PyChecksPath = filepath.Join(_here, "..", "agent", "checks.d")
 	distPath     string
 	// ViewPath holds the path to the folder containing the GUI support files
 	viewPath string
@@ -50,13 +50,13 @@ func getInstallPath() string {
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
 	if err != nil {
 		log.Warn("Failed to open registry key %s", err)
-		return ""
+		return filepath.Join(_here, "..")
 	}
 	defer k.Close()
 	s, _, err := k.GetStringValue("InstallPath")
 	if err != nil {
 		log.Warn("Installpath not found in registry %s", err)
-		return ""
+		return filepath.Join(_here, "..")
 	}
 	return s
 }
@@ -64,7 +64,8 @@ func getInstallPath() string {
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {
 	if len(distPath) == 0 {
-		if s := getInstallPath(); s == "" {
+		var s string
+		if s = getInstallPath(); s == "" {
 			return ""
 		}
 		distPath = filepath.Join(s, `bin/agent/dist`)
@@ -76,15 +77,15 @@ func GetDistPath() string {
 // GetViewPath returns the fully qualified path to the GUI's 'view' directory
 func GetViewPath() string {
 	if len(viewPath) == 0 {
-		if s := getInstallPath(); s == "" {
+		var s string
+		if s = getInstallPath(); s == "" {
 			return ""
 		}
-		viewPath = filepath.Join(s, "cmd", "gui", "view")
+		viewPath = filepath.Join(s, "bin", "agent", "dist", "view")
 		log.Debug("ViewPath is now %s", viewPath)
 	}
 	return viewPath
 }
-
 // import settings from Windows registry into datadog.yaml
 func ImportRegistryConfig() error {
 

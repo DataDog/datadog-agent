@@ -64,15 +64,11 @@ func stopService(cmd *cobra.Command, args []string) error {
 }
 
 func restartService(cmd *cobra.Command, args []string) error {
-	err := controlService(svc.Stop, svc.Stopped)
-	if err != nil {
-		return err
+	var err error
+	if err = stopService(cmd, args) ; err == nil {
+		err = startService(cmd, args)
 	}
-	err = controlService(svc.Start, svc.Started)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err;
 }
 
 func controlService(c svc.Cmd, to svc.State) error {
