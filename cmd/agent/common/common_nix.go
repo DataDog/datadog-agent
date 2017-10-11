@@ -22,8 +22,6 @@ var (
 	PyChecksPath = filepath.Join(_here, "..", "..", "checks.d")
 	// DistPath holds the path to the folder containing distribution files
 	distPath = filepath.Join(_here, "dist")
-	// ViewPath holds the path to the folder containing the GUI support files
-	viewPath = filepath.Join(_here, "..", "..", "cmd", "gui", "view")
 )
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
@@ -33,7 +31,7 @@ func GetDistPath() string {
 
 // GetViewPath returns the fully qualified path to the 'gui/view' directory
 func GetViewPath() string {
-	return viewPath
+	return filepath.Join(distPath, "view")
 }
 
 // Restart is used by the GUI to restart the agent

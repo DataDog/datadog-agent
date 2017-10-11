@@ -8,26 +8,25 @@ package app
 
 import (
 	"syscall"
+
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 )
-	var (
-		restartCmd = &cobra.Command{
-			Use:   "restart",
-			Short: "Restart the Agent",
-			Long:  `Kills parent process before starting agent in the foreground`,
-			RunE:  restart,
-		}
-	)
+
+var (
+	restartCmd = &cobra.Command{
+		Use:   "restart",
+		Short: "Restart the Agent",
+		Long:  `Kills parent process before starting agent in the foreground`,
+		RunE:  restart,
+	}
+)
 
 func init() {
 	// attach the command to the root
 	AgentCmd.AddCommand(restartCmd)
-
-	// local flags
-	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 }
-	
+
 // Kill the parent process, then restart the main loop
 func restart(cmd *cobra.Command, args []string) error {
 	parent := syscall.Getppid()
