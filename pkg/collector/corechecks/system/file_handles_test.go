@@ -43,7 +43,7 @@ func TestFhCheckLinux(t *testing.T) {
 	}
 	defer os.Remove(tmpFile.Name()) // clean up
 
-	fileNrHandle := writeSampleFile(tmpFile, samplecontent1)
+	writeSampleFile(tmpFile, samplecontent1)
 
 	fileHandleCheck := new(fhCheck)
 	fileHandleCheck.Configure(nil, nil)
@@ -65,7 +65,7 @@ func TestFhCheckLinux(t *testing.T) {
 	}
 	defer os.Remove(tmpFile.Name()) // clean up
 
-	fileNrHandle = writeSampleFile(tmpFile, samplecontent2)
+	writeSampleFile(tmpFile, samplecontent2)
 
 	mock.On("Gauge", "system.fs.file_handles.in_use", 0.007883482134058614, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
