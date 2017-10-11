@@ -78,6 +78,7 @@ func init() {
 	Datadog.SetDefault("syslog_rfc", false)
 	Datadog.SetDefault("syslog_tls", false)
 	Datadog.SetDefault("syslog_pem", "")
+	Datadog.SetDefault("cmd_host", "localhost")
 	Datadog.SetDefault("cmd_port", 5001)
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
@@ -110,9 +111,6 @@ func init() {
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
 	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
-	// JMX
-	Datadog.SetDefault("jmx_pipe_path", defaultJMXPipePath)
-	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
 	Datadog.SetDefault("exclude_pause_container", true)

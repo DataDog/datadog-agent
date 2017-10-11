@@ -10,21 +10,16 @@ package embed
 import (
 	"errors"
 	"fmt"
-	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	log "github.com/cihub/seelog"
+	yaml "gopkg.in/yaml.v2"
 )
 
-const (
-	windowsToken       = '\\'
-	unixToken          = '/'
-	autoDiscoveryToken = "#### AUTO-DISCOVERY ####\n"
-)
+var JMXConfigCache = cache.NewBasicCache()
 
 // JMXCheckLoader is a specific loader for checks living in this package
 type JMXCheckLoader struct {
@@ -33,34 +28,6 @@ type JMXCheckLoader struct {
 
 // NewJMXCheckLoader creates a loader for go checks
 func NewJMXCheckLoader() (*JMXCheckLoader, error) {
-	basePath := config.Datadog.GetString("jmx_pipe_path")
-	pipeName := config.Datadog.GetString("jmx_pipe_name")
-
-	var sep byte
-	var pipePath string
-	if strings.Contains(basePath, string(windowsToken)) {
-		sep = byte(windowsToken)
-	} else {
-		sep = byte(unixToken)
-	}
-
-	if basePath[len(basePath)-1] == sep {
-		pipePath = fmt.Sprintf("%s%s", basePath, pipeName)
-	} else {
-		pipePath = fmt.Sprintf("%s%c%s", basePath, sep, pipeName)
-	}
-
-	pipe, err := util.GetPipe(pipePath)
-	if err != nil {
-		log.Errorf("Error getting pipe: %v", err)
-		return nil, errors.New("unable to initialize pipe")
-	}
-
-	if err := pipe.Open(); err != nil {
-		log.Errorf("Error opening pipe: %v", err)
-		return nil, errors.New("unable to initialize pipe")
-	}
-
 	return &JMXCheckLoader{checks: []string{}}, nil
 }
 
@@ -68,39 +35,32 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	var err error
 	checks := []check.Check{}
+	mapConfig := map[string]interface{}{}
 
 	if !check.IsConfigJMX(config.Name, config.InitConfig) {
 		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
 	}
 
-	// TODO: implement IPC - this will instead drop the config in
-	//       the GRPC cache, and let JMXFetch collect the configs on-demand.
-	//       Commenting out for now.
-
-	factory := core.GetCheckFactory("jmx")
-	if factory == nil {
-		return checks, fmt.Errorf("check jmx not found in catalog")
+	rawInitConfig := check.ConfigRawMap{}
+	err = yaml.Unmarshal(config.InitConfig, &rawInitConfig)
+	if err != nil {
+		log.Errorf("jmx.loader: could not unmarshal instance config: %s", err)
+		return checks, err
 	}
+	mapConfig["name"] = config.Name
+	mapConfig["timestamp"] = time.Now().Unix()
 
-	launcher := factory()
-	j, ok := launcher.(*JMXCheck)
-	if ok {
-		configured := false
-		for _, instance := range config.Instances {
-			if err := j.Configure(instance, config.InitConfig); err != nil {
-				log.Errorf("jmx.loader: could not configure check %s: %s", j, err)
-				continue
-			}
-			configured = true
-		}
-
-		if configured {
-			j.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
-			checks = append(checks, j)
-		} else {
-			err = fmt.Errorf("No instances successfully configured.")
+	for _, instance := range config.Instances {
+		if err = jmxLauncher.Configure(instance, config.InitConfig); err != nil {
+			log.Errorf("jmx.loader: could not configure check: %s", err)
+			return checks, err
 		}
 	}
+
+	JMXConfigCache.Add(config.Name, mapConfig)
+	jmxLauncher.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
+	checks = append(checks, &jmxLauncher)
+	mapConfig["config"] = config
 
 	return checks, err
 }
