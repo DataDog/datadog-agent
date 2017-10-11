@@ -113,6 +113,7 @@ func start(cmd *cobra.Command, args []string) error {
 
 // StartAgent Initializes the agent process
 func StartAgent() error {
+
 	// Global Agent configuration
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
