@@ -194,7 +194,7 @@ func (s GKArray) interpolatedQuantile(q float64) float64 {
 	return weightBelow*s.Entries[indexBelow].V + weightAbove*s.Entries[indexAbove].V
 }
 
-// Quantiles accepts a slice of quantiles and returns the epsilon estimates of
+// Quantiles accepts a sorted slice of quantile values and returns the epsilon estimates of
 // elements at those quantiles.
 func (s GKArray) Quantiles(qValues []float64) []float64 {
 	quantiles := make([]float64, 0, len(qValues))
@@ -223,21 +223,24 @@ func (s GKArray) Quantiles(qValues []float64) []float64 {
 		return quantiles
 	}
 
-	// By sorting the qValues, the quantiles can be found in one pass
-	// over the Entries
-	sortedQ := make([]float64, 0, len(qValues))
-	// Filter for invalid values
-	for _, q := range qValues {
-		if q >= 0 && q <= 1 {
-			sortedQ = append(sortedQ, q)
+	// If the qValues are not sorted, just call Quantile for each qValue
+	if !sort.Float64sAreSorted(qValues) {
+		for k, q := range qValues {
+			quantiles[k] = s.Quantile(q)
 		}
+		return quantiles
 	}
-	sort.Float64s(sortedQ)
 
-	results := make(map[float64]float64)
+	// For sorted qValues, the quantiles can be found in one pass
+	// over the Entries
 	ranks := make([]int64, 0, len(qValues))
-	for _, q := range sortedQ {
-		ranks = append(ranks, int64(q*float64(s.Count-1)))
+	invalidQ := false
+	for _, q := range qValues {
+		if q < 0 || q > 1 {
+			invalidQ = true
+		} else {
+			ranks = append(ranks, int64(q*float64(s.Count-1)))
+		}
 	}
 
 	spread := int64(EPSILON * float64(s.Count-1))
@@ -249,24 +252,29 @@ func (s GKArray) Quantiles(qValues []float64) []float64 {
 		// Loop since adjacent ranks could be the same.
 		for ; j < len(ranks) && gSum+int64(s.Entries[i].Delta)-1 > ranks[j]+spread; j++ {
 			if i == 0 {
-				results[sortedQ[j]] = s.Min
+				quantiles = append(quantiles, s.Min)
 			} else {
-				results[sortedQ[j]] = s.Entries[i-1].V
+				quantiles = append(quantiles, s.Entries[i-1].V)
 			}
 		}
 	}
 	// If there're any quantile values that have not been found,
 	// return the max value.
 	for ; j < len(ranks); j++ {
-		results[sortedQ[j]] = s.Max
+		quantiles = append(quantiles, s.Max)
 	}
-	for _, q := range qValues {
-		r, ok := results[q]
-		if ok {
-			quantiles = append(quantiles, r)
-		} else {
-			// Invalid quantile values should return NaN
-			quantiles = append(quantiles, math.NaN())
+	// Invalid qValues should return NaN
+	// This shouldn't happen, since dd controls the qValues, but leaving in
+	// just in case.
+	if invalidQ {
+		for _, q := range qValues {
+			if q < 0 {
+				quantiles = append(quantiles, 0)
+				copy(quantiles[1:], quantiles[:])
+				quantiles[0] = math.NaN()
+			} else if q > 1 {
+				quantiles = append(quantiles, math.NaN())
+			}
 		}
 	}
 	return quantiles

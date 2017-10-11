@@ -354,12 +354,13 @@ func TestQuantiles(t *testing.T) {
 	for i := 0; i < nTests; i++ {
 		s := NewGKArray()
 		qFuzzer.Fuzz(&qVals)
+		sort.Float64s(qVals)
 		vFuzzer.Fuzz(&vals)
 		for _, v := range vals {
 			s = s.Add(v)
 		}
 		s = s.compressWithIncoming(nil)
-		quantiles := s.Quantiles(qVals[:])
+		quantiles := s.Quantiles(qVals)
 		eps := 1.e-6
 		for j, q := range qVals {
 			if q < 0 || q > 1 {
@@ -374,12 +375,33 @@ func TestQuantiles(t *testing.T) {
 func TestQuantilesInvalid(t *testing.T) {
 	s := NewGKArray()
 	gen := NewNormal(35, 1)
-	qVals := []float64{0.5, 0.9, -0.2, 0.75, 1.2, 0.95}
+	qVals := []float64{-0.2, -0.1, 0.5, 0.75, 0.95, 1.2}
 	n := 200
 	for i := 0; i < n; i++ {
 		s = s.Add(gen.Generate())
 	}
 	quantiles := s.Quantiles(qVals)
-	assert.True(t, math.IsNaN(quantiles[2]))
-	assert.True(t, math.IsNaN(quantiles[4]))
+	assert.True(t, math.IsNaN(quantiles[0]))
+	assert.True(t, math.IsNaN(quantiles[1]))
+	assert.True(t, math.IsNaN(quantiles[5]))
+}
+
+// Test that successive Quantile() calls do not modify the sketch
+func TestConsistentQuantile(t *testing.T) {
+	var vals []float64
+	var q float64
+	nTests := 200
+	vfuzzer := fuzz.New().NilChance(0).NumElements(10, 500)
+	fuzzer := fuzz.New()
+	for i := 0; i < nTests; i++ {
+		s := NewGKArray()
+		vfuzzer.Fuzz(&vals)
+		fuzzer.Fuzz(&q)
+		for _, v := range vals {
+			s = s.Add(v)
+		}
+		q1 := s.Quantile(q)
+		q2 := s.Quantile(q)
+		assert.Equal(t, q1, q2)
+	}
 }
