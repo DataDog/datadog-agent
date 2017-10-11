@@ -68,7 +68,7 @@ agent 6 package. This is a list of packages no longer bundled with the agent:
 If your code depends on any of those packages, it'll break. You can fix that
 by running the following:
 
-````bash
+```bash
 sudo -u dd-agent -- /opt/datadog-agent/embedded/bin/pip install <dependency>
 ```
 
