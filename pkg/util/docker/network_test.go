@@ -27,21 +27,149 @@ func TestFindDockerNetworks(t *testing.T) {
 	defer dummyProcDir.removeAll() // clean up
 	config.Datadog.SetDefault("container_proc_root", dummyProcDir.RootPath)
 
-	containerID := "test-find-docker-networks"
+	containerNetworks := make(map[string][]dockerNetwork)
 	for nb, tc := range []struct {
 		pid         int
-		settings    *types.SummaryNetworkSettings
+		container   types.Container
 		routes, dev string
 		networks    []dockerNetwork
 		stat        ContainerNetStats
 		summedStat  *InterfaceNetStats
 	}{
+		// Host network mode
 		{
 			pid: 1245,
-			settings: &types.SummaryNetworkSettings{
-				Networks: map[string]*dockernetwork.EndpointSettings{
-					"eth0": {
-						Gateway: "172.17.0.1/24",
+			container: types.Container{
+				ID: "test-find-docker-networks-host",
+				HostConfig: struct {
+					NetworkMode string `json:",omitempty"`
+				}{
+					NetworkMode: "host",
+				},
+				NetworkSettings: &types.SummaryNetworkSettings{},
+			},
+			routes: detab(`
+                Iface   Destination Gateway     Flags   RefCnt  Use Metric  Mask        MTU Window  IRTT
+                eth0    00000000    010011AC    0003    0   0   0   00000000    0   0   0
+                eth0    000011AC    00000000    0001    0   0   0   0000FFFF    0   0   0
+            `),
+			dev: detab(`
+                Inter-|   Receive                                                |  Transmit
+                 face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+                  eth0:    1345      10    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+                    lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+            `),
+			networks: []dockerNetwork{{iface: "eth0", dockerName: "bridge"}},
+			stat: ContainerNetStats{
+				&InterfaceNetStats{
+					NetworkName: "bridge",
+					BytesRcvd:   1345,
+					PacketsRcvd: 10,
+					BytesSent:   0,
+					PacketsSent: 0,
+				},
+			},
+			summedStat: &InterfaceNetStats{
+				BytesRcvd:   1345,
+				PacketsRcvd: 10,
+				BytesSent:   0,
+				PacketsSent: 0,
+			},
+		},
+		// No network mode, we treat this the same as host for now
+		{
+			pid: 1245,
+			container: types.Container{
+				ID: "test-find-docker-networks-nonetwork",
+				HostConfig: struct {
+					NetworkMode string `json:",omitempty"`
+				}{
+					NetworkMode: "none",
+				},
+				NetworkSettings: &types.SummaryNetworkSettings{},
+			},
+			routes: detab(`
+                Iface   Destination Gateway     Flags   RefCnt  Use Metric  Mask        MTU Window  IRTT
+                eth0    00000000    010011AC    0003    0   0   0   00000000    0   0   0
+                eth0    000011AC    00000000    0001    0   0   0   0000FFFF    0   0   0
+            `),
+			dev: detab(`
+                Inter-|   Receive                                                |  Transmit
+                 face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+                  eth0:    1345      10    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+                    lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+            `),
+			networks: []dockerNetwork{{iface: "eth0", dockerName: "bridge"}},
+			stat: ContainerNetStats{
+				&InterfaceNetStats{
+					NetworkName: "bridge",
+					BytesRcvd:   1345,
+					PacketsRcvd: 10,
+					BytesSent:   0,
+					PacketsSent: 0,
+				},
+			},
+			summedStat: &InterfaceNetStats{
+				BytesRcvd:   1345,
+				PacketsRcvd: 10,
+				BytesSent:   0,
+				PacketsSent: 0,
+			},
+		},
+		// Container network mode
+		{
+			pid: 1245,
+			container: types.Container{
+				ID: "test-find-docker-networks-container",
+				HostConfig: struct {
+					NetworkMode string `json:",omitempty"`
+				}{
+					NetworkMode: "container:test-find-docker-networks-host",
+				},
+				NetworkSettings: &types.SummaryNetworkSettings{},
+			},
+			routes: detab(`
+                Iface   Destination Gateway     Flags   RefCnt  Use Metric  Mask        MTU Window  IRTT
+                eth0    00000000    010011AC    0003    0   0   0   00000000    0   0   0
+                eth0    000011AC    00000000    0001    0   0   0   0000FFFF    0   0   0
+            `),
+			dev: detab(`
+                Inter-|   Receive                                                |  Transmit
+                 face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+                  eth0:    1345      10    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+                    lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
+            `),
+			networks: []dockerNetwork{{iface: "eth0", dockerName: "bridge"}},
+			stat: ContainerNetStats{
+				&InterfaceNetStats{
+					NetworkName: "bridge",
+					BytesRcvd:   1345,
+					PacketsRcvd: 10,
+					BytesSent:   0,
+					PacketsSent: 0,
+				},
+			},
+			summedStat: &InterfaceNetStats{
+				BytesRcvd:   1345,
+				PacketsRcvd: 10,
+				BytesSent:   0,
+				PacketsSent: 0,
+			},
+		},
+		{
+			pid: 1245,
+			container: types.Container{
+				ID: "test-find-docker-networks-gateway",
+				HostConfig: struct {
+					NetworkMode string `json:",omitempty"`
+				}{
+					NetworkMode: "simple",
+				},
+				NetworkSettings: &types.SummaryNetworkSettings{
+					Networks: map[string]*dockernetwork.EndpointSettings{
+						"eth0": {
+							Gateway: "172.17.0.1/24",
+						},
 					},
 				},
 			},
@@ -76,13 +204,16 @@ func TestFindDockerNetworks(t *testing.T) {
 		// Multiple docker networks
 		{
 			pid: 5153,
-			settings: &types.SummaryNetworkSettings{
-				Networks: map[string]*dockernetwork.EndpointSettings{
-					"bridge": {
-						Gateway: "172.17.0.1",
-					},
-					"test": {
-						Gateway: "172.18.0.1",
+			container: types.Container{
+				ID: "test-find-docker-networks-multiple",
+				NetworkSettings: &types.SummaryNetworkSettings{
+					Networks: map[string]*dockernetwork.EndpointSettings{
+						"bridge": {
+							Gateway: "172.17.0.1",
+						},
+						"test": {
+							Gateway: "172.18.0.1",
+						},
 					},
 				},
 			},
@@ -125,64 +256,24 @@ func TestFindDockerNetworks(t *testing.T) {
 				PacketsSent: 3,
 			},
 		},
-		/* TODO: where is this example from?
-				{
-					pid: 5152,
-					settings: &types.SummaryNetworkSettings{
-						Networks: map[string]*dockernetwork.EndpointSettings{
-							"isolated_nw": &dockernetwork.EndpointSettings{
-								Gateway: "172.18.0.1",
-							},
-							"eth0": &dockernetwork.EndpointSettings{
-								Gateway: "172.0.0.4/24",
-							},
-						},
-					},
-					routes: detab(`
-		                Iface   Destination Gateway     Flags   RefCnt  Use Metric  Mask        MTU Window  IRTT
-		                eth0    00000000    010012AC    0003    0   0   0   00000000    0   0   0
-
-		                eth0    000012AC    00000000    0001    0   0   0   0000FFFF    0   0   0
-		            `),
-					dev: detab(`
-		                Inter-|   Receive                                                |  Transmit
-		                 face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
-		                  eth0:    1111       2    0    0    0     0          0         0     1024      80    0    0    0     0       0          0
-		                    lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
-		            `),
-					networks: []dockerNetwork{
-						dockerNetwork{iface: "eth0", dockerName: "eth0"},
-						dockerNetwork{iface: "eth0", dockerName: "isolated_nw"},
-					},
-					stat: &ContainerNetStats{
-						Stats: []*InterfaceNetStats{
-							&InterfaceNetStats{
-								NetworkName: "isolated_nw",
-								BytesRcvd:   1111,
-								PacketsRcvd: 2,
-								BytesSent:   1024,
-								PacketsSent: 80,
-							},
-						},
-					},
-					summedStat: &InterfaceNetStats{
-						BytesRcvd:   1111,
-						PacketsRcvd: 2,
-						BytesSent:   1024,
-						PacketsSent: 80,
-					},
-				},
-		*/
 		// Dumb error case to make sure we don't panic
 		{
 			pid: 5157,
-			settings: &types.SummaryNetworkSettings{
-				Networks: map[string]*dockernetwork.EndpointSettings{
-					"isolated_nw": {
-						Gateway: "172.18.0.1",
-					},
-					"eth0": {
-						Gateway: "172.0.0.4/24",
+			container: types.Container{
+				ID: "test-find-docker-networks-errcase",
+				HostConfig: struct {
+					NetworkMode string `json:",omitempty"`
+				}{
+					NetworkMode: "isolated_nw",
+				},
+				NetworkSettings: &types.SummaryNetworkSettings{
+					Networks: map[string]*dockernetwork.EndpointSettings{
+						"isolated_nw": {
+							Gateway: "172.18.0.1",
+						},
+						"eth0": {
+							Gateway: "172.0.0.4/24",
+						},
 					},
 				},
 			},
@@ -206,14 +297,18 @@ func TestFindDockerNetworks(t *testing.T) {
 		assert.NoError(err)
 
 		// Use the routes file and settings to get our networks.
-		networks := findDockerNetworks(containerID, tc.pid, tc.settings)
+		networks := findDockerNetworks(tc.container.ID, tc.pid, tc.container)
+		containerNetworks[tc.container.ID] = networks
+		// Resolve any container-dependent networks before checking values.
+		// This assumes that the test case can only depend on containers in earlier cases.
+		resolveDockerNetworks(containerNetworks)
+		networks = containerNetworks[tc.container.ID]
 		assert.Equal(tc.networks, networks)
 
 		// And collect the stats on these networks.
-		stat, err := collectNetworkStats(containerID, tc.pid, networks)
+		stat, err := collectNetworkStats(tc.container.ID, tc.pid, networks)
 		assert.NoError(err)
 		assert.Equal(tc.stat, stat)
 		assert.Equal(tc.summedStat, stat.SumInterfaces())
-
 	}
 }

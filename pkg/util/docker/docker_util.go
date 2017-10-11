@@ -182,8 +182,9 @@ func (d *dockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 					log.Debugf("error inspecting container %s: %s", c.ID, err)
 					continue
 				}
-				d.networkMappings[c.ID] = findDockerNetworks(c.ID, i.State.Pid, c.NetworkSettings)
+				d.networkMappings[c.ID] = findDockerNetworks(c.ID, i.State.Pid, c)
 			}
+			resolveDockerNetworks(d.networkMappings)
 			d.Unlock()
 		}
 
