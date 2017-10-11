@@ -28,23 +28,16 @@ import (
 const dockerCheckName = "docker"
 
 type DockerConfig struct {
-	//Url                    string             `yaml:"url"`
 	CollectContainerSize bool     `yaml:"collect_container_size"`
+	CollectExitCodes     bool     `yaml:"collect_exit_codes"`
 	CollectImagesStats   bool     `yaml:"collect_images_stats"`
 	CollectImageSize     bool     `yaml:"collect_image_size"`
 	Tags                 []string `yaml:"tags"`
 	CollectEvent         bool     `yaml:"collect_events"`
 	FilteredEventType    []string `yaml:"filtered_event_types"`
 	//CustomCGroup           bool               `yaml:"custom_cgroups"`
-	//HealthServiceWhitelist []string           `yaml:"health_service_check_whitelist"`
-	//CollectContainerCount  bool               `yaml:"collect_container_count"`
-	//CollectVolumCount      bool               `yaml:"collect_volume_count"`
-	//CollectDistStats       bool               `yaml:"collect_disk_stats"`
-	//CollectExitCodes       bool               `yaml:"collect_exit_codes"`
-	//ECSTags                []string           `yaml:"ecs_tags"`
-	//PerformanceTags        []string           `yaml:"performance_tags"`
-	//ContainrTags           []string           `yaml:"container_tags"`
-	//EventAttributesAsTags  []string           `yaml:"event_attributes_as_tags"`
+	//CollectVolumeCount      bool               `yaml:"collect_volume_count"`
+	//CollectDiskStats       bool               `yaml:"collect_disk_stats"`
 	//CappedMetrics          map[string]float64 `yaml:"capped_metrics"`
 }
 
