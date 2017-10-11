@@ -81,10 +81,10 @@ func TestResolve(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "host: 127.0.0.1", string(config.Instances[0]))
 
-	tpl.Instances = []check.ConfigData{check.ConfigData("pid: %%pid%%")}
+	tpl.Instances = []check.ConfigData{check.ConfigData("pid: %%pid%%\ntags: [\"foo\"]")}
 	config, err = cr.resolve(tpl, &service)
 	assert.Nil(t, err)
-	assert.Equal(t, "pid: 1337", string(config.Instances[0]))
+	assert.Equal(t, "pid: 1337\ntags:\n- foo\n", string(config.Instances[0]))
 
 	// template variable doesn't exist
 	tpl.Instances = []check.ConfigData{check.ConfigData("host: %%FOO%%")}
