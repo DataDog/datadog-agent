@@ -43,7 +43,8 @@ func TestFhCheckLinux(t *testing.T) {
 	}
 	defer os.Remove(tmpFile.Name()) // clean up
 
-	writeSampleFile(tmpFile, samplecontent1)
+	fileNrHandle = writeSampleFile(tmpFile, samplecontent1)
+	t.Logf("Testing from file %s", fileNrHandle) // To pass circle ci tests
 
 	fileHandleCheck := new(fhCheck)
 	fileHandleCheck.Configure(nil, nil)
@@ -65,7 +66,8 @@ func TestFhCheckLinux(t *testing.T) {
 	}
 	defer os.Remove(tmpFile.Name()) // clean up
 
-	writeSampleFile(tmpFile, samplecontent2)
+	fileNrHandle = writeSampleFile(tmpFile, samplecontent2)
+	t.Logf("Testing from file %s", fileNrHandle) // To pass circle ci tests
 
 	mock.On("Gauge", "system.fs.file_handles.in_use", 0.007883482134058614, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
