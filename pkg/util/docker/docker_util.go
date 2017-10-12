@@ -9,13 +9,9 @@ package docker
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
-	"net"
 	"os"
 	"regexp"
-	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,17 +30,6 @@ const (
 	pauseContainerOpenshift string = "image:openshift/origin-pod"
 )
 
-type dockerNetwork struct {
-	iface      string
-	dockerName string
-}
-
-type dockerNetworks []dockerNetwork
-
-func (a dockerNetworks) Len() int           { return len(a) }
-func (a dockerNetworks) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a dockerNetworks) Less(i, j int) bool { return a[i].dockerName < a[j].dockerName }
-
 // NeedInit returns true if InitDockerUtil has to be called
 // before using the package
 func NeedInit() bool {
@@ -52,51 +37,6 @@ func NeedInit() bool {
 		return true
 	}
 	return false
-}
-
-func parseFilters(filters []string) (imageFilters, nameFilters []*regexp.Regexp, err error) {
-	for _, filter := range filters {
-		switch {
-		case strings.HasPrefix(filter, "image:"):
-			pat := strings.TrimPrefix(filter, "image:")
-			r, err := regexp.Compile(strings.TrimPrefix(pat, "image:"))
-			if err != nil {
-				return nil, nil, fmt.Errorf("invalid regex '%s': %s", pat, err)
-			}
-			imageFilters = append(imageFilters, r)
-		case strings.HasPrefix(filter, "name:"):
-			pat := strings.TrimPrefix(filter, "name:")
-			r, err := regexp.Compile(pat)
-			if err != nil {
-				return nil, nil, fmt.Errorf("invalid regex '%s': %s", pat, err)
-			}
-			nameFilters = append(nameFilters, r)
-		}
-	}
-	return imageFilters, nameFilters, nil
-}
-
-// NewcontainerFilter creates a new container filter from a two slices of
-// regexp patterns for a whitelist and blacklist. Each pattern should have
-// the following format: "field:pattern" where field can be: [image, name].
-// An error is returned if any of the expression don't compile.
-func newContainerFilter(whitelist, blacklist []string) (*containerFilter, error) {
-	iwl, nwl, err := parseFilters(whitelist)
-	if err != nil {
-		return nil, err
-	}
-	ibl, nbl, err := parseFilters(blacklist)
-	if err != nil {
-		return nil, err
-	}
-
-	return &containerFilter{
-		Enabled:        len(whitelist) > 0 || len(blacklist) > 0,
-		ImageWhitelist: iwl,
-		NameWhitelist:  nwl,
-		ImageBlacklist: ibl,
-		NameBlacklist:  nbl,
-	}, nil
 }
 
 func detectServerAPIVersion() (string, error) {
@@ -150,14 +90,14 @@ func InitDockerUtil(cfg *Config) error {
 // otherwise it returns either a valid client or an error.
 func ConnectToDocker() (*client.Client, error) {
 	// If we don't have a docker.sock then return a known error.
-	sockPath := GetEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock")
-	if !PathExists(sockPath) {
+	sockPath := getEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock")
+	if !pathExists(sockPath) {
 		return nil, ErrDockerNotAvailable
 	}
 	// The /proc/mounts file won't be availble on non-Linux systems
 	// and we only support Linux for now.
 	mountsFile := "/proc/mounts"
-	if !PathExists(mountsFile) {
+	if !pathExists(mountsFile) {
 		return nil, ErrDockerNotAvailable
 	}
 
@@ -181,131 +121,6 @@ func ConnectToDocker() (*client.Client, error) {
 		cli.UpdateClientVersion(serverVersion)
 	}
 	return cli, nil
-}
-
-var hostNetwork = dockerNetwork{"eth0", "bridge"}
-
-func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) (*NetworkStat, error) {
-	procNetFile := HostProc(strconv.Itoa(int(pid)), "net", "dev")
-	if !PathExists(procNetFile) {
-		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
-		return &NetworkStat{}, nil
-	}
-	lines, err := ReadLines(procNetFile)
-	if err != nil {
-		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
-		return &NetworkStat{}, nil
-	}
-	if len(lines) < 2 {
-		return nil, fmt.Errorf("invalid format for %s", procNetFile)
-	}
-
-	nwByIface := make(map[string]dockerNetwork)
-	for _, nw := range networks {
-		nwByIface[nw.iface] = nw
-	}
-
-	// Format:
-	//
-	// Inter-|   Receive                                                |  Transmit
-	// face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
-	// eth0:    1296      16    0    0    0     0          0         0        0       0    0    0    0     0       0          0
-	// lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
-	//
-	stat := &NetworkStat{}
-	for _, line := range lines[2:] {
-		fields := strings.Fields(line)
-		if len(fields) < 11 {
-			continue
-		}
-		iface := fields[0][:len(fields[0])-1]
-
-		if _, ok := nwByIface[iface]; ok {
-			rcvd, _ := strconv.Atoi(fields[1])
-			stat.BytesRcvd += uint64(rcvd)
-			pktRcvd, _ := strconv.Atoi(fields[2])
-			stat.PacketsRcvd += uint64(pktRcvd)
-			sent, _ := strconv.Atoi(fields[9])
-			stat.BytesSent += uint64(sent)
-			pktSent, _ := strconv.Atoi(fields[10])
-			stat.PacketsSent += uint64(pktSent)
-		}
-	}
-	return stat, nil
-}
-
-func findDockerNetworks(containerID string, pid int, netSettings *types.SummaryNetworkSettings) []dockerNetwork {
-	// Verify that we aren't using an older version of Docker that does
-	// not provider the network settings in container inspect.
-	if netSettings == nil || netSettings.Networks == nil {
-		log.Debugf("No network settings available from docker, defaulting to host network")
-		return []dockerNetwork{hostNetwork}
-	}
-
-	var err error
-	dockerGateways := make(map[string]int64)
-	for netName, netConf := range netSettings.Networks {
-		gw := netConf.Gateway
-		if netName == "host" || gw == "" {
-			log.Debugf("Empty network gateway, container %s is in network host mode, its network metrics are for the whole host", containerID)
-			return []dockerNetwork{hostNetwork}
-		}
-
-		// Check if this is a CIDR or just an IP
-		var ip net.IP
-		if strings.Contains(gw, "/") {
-			ip, _, err = net.ParseCIDR(gw)
-			if err != nil {
-				log.Warnf("Invalid gateway %s for container id %s: %s, skipping", gw, containerID, err)
-				continue
-			}
-		} else {
-			ip = net.ParseIP(gw)
-			if ip == nil {
-				log.Warnf("Invalid gateway %s for container id %s: %s, skipping", gw, containerID, err)
-				continue
-			}
-		}
-
-		// Convert IP to int64 for comparison to network routes.
-		dockerGateways[netName] = int64(binary.BigEndian.Uint32(ip.To4()))
-	}
-
-	// Read contents of file. Handle missing or unreadable file in case container was stopped.
-	procNetFile := HostProc(strconv.Itoa(int(pid)), "net", "route")
-	if !PathExists(procNetFile) {
-		log.Debugf("Missing %s for container %s", procNetFile, containerID)
-		return nil
-	}
-	lines, err := ReadLines(procNetFile)
-	if err != nil {
-		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
-		return nil
-	}
-	if len(lines) < 1 {
-		log.Errorf("empty network file, unable to get docker networks: %s", procNetFile)
-		return nil
-	}
-
-	networks := make([]dockerNetwork, 0)
-	for _, line := range lines[1:] {
-		fields := strings.Fields(line)
-		if len(fields) < 8 {
-			continue
-		}
-		if fields[0] == "00000000" {
-			continue
-		}
-		dest, _ := strconv.ParseInt(fields[1], 16, 32)
-		mask, _ := strconv.ParseInt(fields[7], 16, 32)
-		for net, gw := range dockerGateways {
-			if gw&mask == dest {
-				networks = append(networks, dockerNetwork{fields[0], net})
-			}
-		}
-	}
-	sort.Sort(dockerNetworks(networks))
-	return networks
 }
 
 // dockerUtil wraps interactions with a local docker API.
