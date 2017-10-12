@@ -53,8 +53,8 @@ func TestMemoryCheckLinux(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, memCheck.ID())
+	mock := aggregator.NewMockSender(memCheck.ID())
+
 	runtimeOS = "linux"
 
 	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -85,8 +85,8 @@ func TestMemoryCheckFreebsd(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, memCheck.ID())
+	mock := aggregator.NewMockSender(memCheck.ID())
+
 	runtimeOS = "freebsd"
 
 	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -113,8 +113,8 @@ func TestMemoryCheckDarwin(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, memCheck.ID())
+	mock := aggregator.NewMockSender(memCheck.ID())
+
 	runtimeOS = "darwin"
 
 	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -140,8 +140,8 @@ func TestMemoryError(t *testing.T) {
 	swapMemory = func() (*mem.SwapMemoryStat, error) { return nil, fmt.Errorf("some error") }
 	memCheck := new(MemoryCheck)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, memCheck.ID())
+	mock := aggregator.NewMockSender(memCheck.ID())
+
 	runtimeOS = "linux"
 
 	err := memCheck.Run()
@@ -157,8 +157,8 @@ func TestSwapMemoryError(t *testing.T) {
 	swapMemory = func() (*mem.SwapMemoryStat, error) { return nil, fmt.Errorf("some error") }
 	memCheck := new(MemoryCheck)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, memCheck.ID())
+	mock := aggregator.NewMockSender(memCheck.ID())
+
 	runtimeOS = "linux"
 
 	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -185,8 +185,8 @@ func TestVirtualMemoryError(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, memCheck.ID())
+	mock := aggregator.NewMockSender(memCheck.ID())
+
 	runtimeOS = "linux"
 
 	mock.On("Gauge", "system.swap.total", 100000.0/mbSize, "", []string(nil)).Return().Times(1)
