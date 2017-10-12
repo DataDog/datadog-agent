@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	log "github.com/cihub/seelog"
 )
 
 // NetworkStat stores network statistics about a Docker container.
