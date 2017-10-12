@@ -133,7 +133,6 @@ func TestSendHTTPTransactions(t *testing.T) {
 	forwarder.Start()
 	err = forwarder.sendHTTPTransactions(tr)
 	assert.Nil(t, err)
-	forwarder.Stop()
 }
 
 func TestRequeueTransaction(t *testing.T) {
