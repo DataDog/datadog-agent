@@ -63,14 +63,6 @@ const (
 	DockerEntityPrefix = "docker://"
 )
 
-// NetworkStat stores network statistics about a Docker container.
-type NetworkStat struct {
-	BytesSent   uint64
-	BytesRcvd   uint64
-	PacketsSent uint64
-	PacketsRcvd uint64
-}
-
 // HostnameProvider docker implementation for the hostname provider
 func HostnameProvider(hostName string) (string, error) {
 	return GetHostname()
