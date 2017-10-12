@@ -14,6 +14,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -26,6 +27,40 @@ func HTTPHeaders() map[string]string {
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}
+}
+
+// GetJSONSerializableMap returns a JSON serializable map from a raw map
+func GetJSONSerializableMap(m interface{}) interface{} {
+	switch x := m.(type) {
+	// unbelievably I cannot collapse this into the next (identical) case
+	case map[interface{}]interface{}:
+		j := check.ConfigJSONMap{}
+		for k, v := range x {
+			j[k.(string)] = GetJSONSerializableMap(v)
+		}
+		return j
+	case check.ConfigRawMap:
+		j := check.ConfigJSONMap{}
+		for k, v := range x {
+			j[k.(string)] = GetJSONSerializableMap(v)
+		}
+		return j
+	case check.ConfigJSONMap:
+		j := check.ConfigJSONMap{}
+		for k, v := range x {
+			j[k] = GetJSONSerializableMap(v)
+		}
+		return j
+	case []interface{}:
+		j := make([]interface{}, len(x))
+
+		for i, v := range x {
+			j[i] = GetJSONSerializableMap(v)
+		}
+		return j
+	}
+	return m
+
 }
 
 // GetProxyTransportFunc return a proxy function for a http.Transport that
