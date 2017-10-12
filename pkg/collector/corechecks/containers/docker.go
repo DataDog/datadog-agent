@@ -179,8 +179,17 @@ func (d *DockerCheck) Run() error {
 		sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
 		sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
 
-		sender.Rate("docker.net.bytes_sent", float64(c.Network.BytesSent), "", tags)
-		sender.Rate("docker.net.bytes_rcvd", float64(c.Network.BytesRcvd), "", tags)
+		if c.Network != nil {
+			for _, netStat := range c.Network.Stats {
+				if netStat.NetworkName == "" {
+					log.Debugf("ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
+					continue
+				}
+				ifaceTags := append(tags, fmt.Sprintf("docker_network:%s", netStat.NetworkName))
+				sender.Rate("docker.net.bytes_sent", float64(netStat.BytesSent), "", ifaceTags)
+				sender.Rate("docker.net.bytes_rcvd", float64(netStat.BytesRcvd), "", ifaceTags)
+			}
+		}
 
 		if d.instance.CollectContainerSize {
 			info, err := c.Inspect(true)

@@ -15,24 +15,48 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// NetworkStat stores network statistics about a Docker container.
-type NetworkStat struct {
+// InterfaceNetStats stores network statistics about a Docker network interface
+type InterfaceNetStats struct {
+	NetworkName string
 	BytesSent   uint64
 	BytesRcvd   uint64
 	PacketsSent uint64
 	PacketsRcvd uint64
 }
 
-func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) (*NetworkStat, error) {
+// ContainerNetStats stores network statistics about a Docker container per interface
+type ContainerNetStats struct {
+	Stats []*InterfaceNetStats
+}
+
+func (ns *ContainerNetStats) append(stat *InterfaceNetStats) {
+	ns.Stats = append(ns.Stats, stat)
+}
+
+// SumInterfaces sums stats from all interfaces into a single InterfaceNetStats
+func (ns *ContainerNetStats) SumInterfaces() *InterfaceNetStats {
+	sum := &InterfaceNetStats{}
+	for _, stat := range ns.Stats {
+		sum.BytesSent += stat.BytesSent
+		sum.BytesRcvd += stat.BytesRcvd
+		sum.PacketsSent += stat.PacketsSent
+		sum.PacketsRcvd += stat.PacketsRcvd
+	}
+	return sum
+}
+
+func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) (*ContainerNetStats, error) {
+	netStats := new(ContainerNetStats)
+
 	procNetFile := hostProc(strconv.Itoa(int(pid)), "net", "dev")
 	if !pathExists(procNetFile) {
 		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
-		return &NetworkStat{}, nil
+		return netStats, nil
 	}
 	lines, err := readLines(procNetFile)
 	if err != nil {
 		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
-		return &NetworkStat{}, nil
+		return netStats, nil
 	}
 	if len(lines) < 2 {
 		return nil, fmt.Errorf("invalid format for %s", procNetFile)
@@ -50,7 +74,6 @@ func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) 
 	// eth0:    1296      16    0    0    0     0          0         0        0       0    0    0    0     0       0          0
 	// lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
 	//
-	stat := &NetworkStat{}
 	for _, line := range lines[2:] {
 		fields := strings.Fields(line)
 		if len(fields) < 11 {
@@ -58,16 +81,19 @@ func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) 
 		}
 		iface := fields[0][:len(fields[0])-1]
 
-		if _, ok := nwByIface[iface]; ok {
+		if nw, ok := nwByIface[iface]; ok {
+			stat := &InterfaceNetStats{NetworkName: nw.dockerName}
 			rcvd, _ := strconv.Atoi(fields[1])
-			stat.BytesRcvd += uint64(rcvd)
+			stat.BytesRcvd = uint64(rcvd)
 			pktRcvd, _ := strconv.Atoi(fields[2])
-			stat.PacketsRcvd += uint64(pktRcvd)
+			stat.PacketsRcvd = uint64(pktRcvd)
 			sent, _ := strconv.Atoi(fields[9])
-			stat.BytesSent += uint64(sent)
+			stat.BytesSent = uint64(sent)
 			pktSent, _ := strconv.Atoi(fields[10])
-			stat.PacketsSent += uint64(pktSent)
+			stat.PacketsSent = uint64(pktSent)
+
+			netStats.append(stat)
 		}
 	}
-	return stat, nil
+	return netStats, nil
 }

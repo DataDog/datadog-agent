@@ -33,7 +33,7 @@ func TestFindDockerNetworks(t *testing.T) {
 		settings    *types.SummaryNetworkSettings
 		routes, dev string
 		networks    []dockerNetwork
-		stat        *NetworkStat
+		stat        *ContainerNetStats
 	}{
 		{
 			pid: 1245,
@@ -57,11 +57,16 @@ func TestFindDockerNetworks(t *testing.T) {
                     lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
             `),
 			networks: []dockerNetwork{dockerNetwork{iface: "eth0", dockerName: "eth0"}},
-			stat: &NetworkStat{
-				BytesRcvd:   1296,
-				PacketsRcvd: 16,
-				BytesSent:   0,
-				PacketsSent: 0,
+			stat: &ContainerNetStats{
+				Stats: []*InterfaceNetStats{
+					&InterfaceNetStats{
+						NetworkName: "eth0",
+						BytesRcvd:   1296,
+						PacketsRcvd: 16,
+						BytesSent:   0,
+						PacketsSent: 0,
+					},
+				},
 			},
 		},
 		{
@@ -92,11 +97,16 @@ func TestFindDockerNetworks(t *testing.T) {
 				dockerNetwork{iface: "eth0", dockerName: "eth0"},
 				dockerNetwork{iface: "eth0", dockerName: "isolated_nw"},
 			},
-			stat: &NetworkStat{
-				BytesRcvd:   1111,
-				PacketsRcvd: 2,
-				BytesSent:   1024,
-				PacketsSent: 80,
+			stat: &ContainerNetStats{
+				Stats: []*InterfaceNetStats{
+					&InterfaceNetStats{
+						NetworkName: "isolated_nw",
+						BytesRcvd:   1111,
+						PacketsRcvd: 2,
+						BytesSent:   1024,
+						PacketsSent: 80,
+					},
+				},
 			},
 		},
 		// Dumb error case to make sure we don't panic
@@ -120,7 +130,7 @@ func TestFindDockerNetworks(t *testing.T) {
                   eth0:    1111       2    0    0    0     0          0         0     1024      80    0    0    0     0       0          0
                     lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
             `),
-			stat: &NetworkStat{},
+			stat: &ContainerNetStats{},
 		},
 	} {
 		// Create temporary files on disk with the routes and stats.
