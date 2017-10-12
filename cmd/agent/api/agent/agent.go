@@ -17,9 +17,9 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -44,7 +44,7 @@ func SetupHandlers(r *mux.Router) {
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	signals.Stopper <- true
@@ -54,7 +54,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -64,7 +64,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -78,7 +78,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 
@@ -124,7 +124,7 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	var err error
 
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 
@@ -201,7 +201,7 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 }
 
 func setJMXStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 
@@ -218,7 +218,7 @@ func setJMXStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 
@@ -244,7 +244,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 

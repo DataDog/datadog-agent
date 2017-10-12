@@ -9,8 +9,8 @@ import (
 	"bytes"
 	"fmt"
 
-	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/spf13/cobra"
@@ -61,7 +61,7 @@ func requestFlare() error {
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	apicommon.SetAuthToken()
+	util.SetAuthToken()
 
 	r, e := common.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string

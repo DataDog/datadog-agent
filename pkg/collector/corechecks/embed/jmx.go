@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	api "github.com/DataDog/datadog-agent/cmd/agent/api/common"
+	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
