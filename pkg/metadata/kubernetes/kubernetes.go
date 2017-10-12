@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 
+	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s"
 	"github.com/ericchiang/k8s/api/v1"
 	appsv1beta1 "github.com/ericchiang/k8s/apis/apps/v1beta1"
