@@ -513,7 +513,7 @@ func (d *dockerUtil) getHostname() (string, error) {
 // extractImageName will resolve sha image name to their user-friendly name.
 // For non-sha names we will just return the name as-is.
 func (d *dockerUtil) extractImageName(image string) string {
-	if !strings.HasPrefix(image, "sha256:") {
+	if !strings.Contains(image, "sha256:") {
 		return image
 	}
 

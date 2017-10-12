@@ -265,7 +265,9 @@ func (d *DockerCheck) GetMetricStats() (map[string]int64, error) {
 }
 
 func dockerFactory() check.Check {
-	return &DockerCheck{}
+	return &DockerCheck{
+		instance: &DockerConfig{},
+	}
 }
 
 func init() {
