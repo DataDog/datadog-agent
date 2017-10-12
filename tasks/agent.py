@@ -86,8 +86,7 @@ def refresh_assets(ctx, development=True):
         shutil.rmtree(dist_folder)
     copy_tree("./pkg/collector/dist/", dist_folder)
     copy_tree("./pkg/status/dist/", dist_folder)
-    ct = copy_tree("./cmd/gui/view", os.path.join(dist_folder, "view"))
-    print("ct {}\n".format(ct))
+    copy_tree("./cmd/gui/view", os.path.join(dist_folder, "view"))
     if development:
         copy_tree("./dev/dist/", dist_folder)
     # copy the dd-agent placeholder to the bin folder
