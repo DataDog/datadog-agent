@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/url"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"path/filepath"
@@ -67,7 +68,27 @@ func GetDistPath() string {
 	return distPath
 }
 
-// import settings from Windows registry into datadog.yaml
+// CheckAndUpgradeConfig checks to see if there's an old datadog.conf, and if
+// datadog.yaml is either missing or incomplete (no API key).  If so, upgrade it
+func CheckAndUpgradeConfig() error {
+	datadogConfPath := filepath.Join(DefaultConfPath, "datadog.conf")
+	if _, err := os.Stat(datadogConfPath); os.IsNotExist(err) {
+		log.Debug("Previous config file not found, not upgrading")
+		return nil
+	}
+	config.Datadog.AddConfigPath(DefaultConfPath)
+	err := config.Datadog.ReadInConfig()
+	if err == nil {
+		// was able to read config, check for api key
+		if config.Datadog.GetString("api_key") != "" {
+			log.Debug("Datadog.yaml found, and API key present.  Not upgrading config")
+			return nil
+		}
+	}
+	return ImportConfig(DefaultConfPath, DefaultConfPath, false)
+}
+
+// ImportRegistryConfig imports settings from Windows registry into datadog.yaml
 func ImportRegistryConfig() error {
 
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
