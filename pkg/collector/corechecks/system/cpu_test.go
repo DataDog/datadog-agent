@@ -78,8 +78,8 @@ func TestCPUCheckLinux(t *testing.T) {
 	cpuCheck := new(CPUCheck)
 	cpuCheck.Configure(nil, nil)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, cpuCheck.ID())
+	mock := aggregator.NewMockSender(cpuCheck.ID())
+
 	sample = firstSample
 	cpuCheck.Run()
 

@@ -29,9 +29,11 @@ type Tagger struct {
 	stop       chan bool
 }
 
-// NewTagger returns an allocated tagger. You still have to run Init()
+// newTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
-func NewTagger() (*Tagger, error) {
+// You are probably looking for tagger.Tag() using the global instance
+// instead of creating your own.
+func newTagger() (*Tagger, error) {
 	store, err := newTagStore()
 	if err != nil {
 		return nil, err

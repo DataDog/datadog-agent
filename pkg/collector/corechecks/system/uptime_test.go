@@ -20,8 +20,7 @@ func TestUptimeCheckLinux(t *testing.T) {
 	uptimeCheck := new(UptimeCheck)
 	uptimeCheck.Configure(nil, nil)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, uptimeCheck.ID())
+	mock := aggregator.NewMockSender(uptimeCheck.ID())
 
 	mock.On("Gauge", "system.uptime", 555.0, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
