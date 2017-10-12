@@ -345,7 +345,7 @@ func (s *DockerService) GetPorts() ([]int, error) {
 // GetTags retrieves tags using the Tagger
 func (s *DockerService) GetTags() ([]string, error) {
 	entity := collectors.DockerEntityName(string(s.ID))
-	tags, err := tagger.DefaultTagger.Tag(entity, true)
+	tags, err := tagger.Tag(entity, true)
 	if err != nil {
 		return []string{}, err
 	}

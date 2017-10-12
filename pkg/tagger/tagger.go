@@ -31,6 +31,8 @@ type Tagger struct {
 
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
+// This is exported for system tests, you are probably looking for
+// tagger.Tag() using the global instance instead of creating your own.
 func NewTagger() (*Tagger, error) {
 	store, err := newTagStore()
 	if err != nil {
