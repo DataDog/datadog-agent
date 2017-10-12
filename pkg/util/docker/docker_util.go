@@ -54,51 +54,6 @@ func NeedInit() bool {
 	return false
 }
 
-func parseFilters(filters []string) (imageFilters, nameFilters []*regexp.Regexp, err error) {
-	for _, filter := range filters {
-		switch {
-		case strings.HasPrefix(filter, "image:"):
-			pat := strings.TrimPrefix(filter, "image:")
-			r, err := regexp.Compile(strings.TrimPrefix(pat, "image:"))
-			if err != nil {
-				return nil, nil, fmt.Errorf("invalid regex '%s': %s", pat, err)
-			}
-			imageFilters = append(imageFilters, r)
-		case strings.HasPrefix(filter, "name:"):
-			pat := strings.TrimPrefix(filter, "name:")
-			r, err := regexp.Compile(pat)
-			if err != nil {
-				return nil, nil, fmt.Errorf("invalid regex '%s': %s", pat, err)
-			}
-			nameFilters = append(nameFilters, r)
-		}
-	}
-	return imageFilters, nameFilters, nil
-}
-
-// NewcontainerFilter creates a new container filter from a two slices of
-// regexp patterns for a whitelist and blacklist. Each pattern should have
-// the following format: "field:pattern" where field can be: [image, name].
-// An error is returned if any of the expression don't compile.
-func newContainerFilter(whitelist, blacklist []string) (*containerFilter, error) {
-	iwl, nwl, err := parseFilters(whitelist)
-	if err != nil {
-		return nil, err
-	}
-	ibl, nbl, err := parseFilters(blacklist)
-	if err != nil {
-		return nil, err
-	}
-
-	return &containerFilter{
-		Enabled:        len(whitelist) > 0 || len(blacklist) > 0,
-		ImageWhitelist: iwl,
-		NameWhitelist:  nwl,
-		ImageBlacklist: ibl,
-		NameBlacklist:  nbl,
-	}, nil
-}
-
 func detectServerAPIVersion() (string, error) {
 	host := os.Getenv("DOCKER_HOST")
 	if host == "" {

@@ -18,7 +18,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -72,14 +71,6 @@ type NetworkStat struct {
 	PacketsRcvd uint64
 }
 
-type containerFilter struct {
-	Enabled        bool
-	ImageWhitelist []*regexp.Regexp
-	NameWhitelist  []*regexp.Regexp
-	ImageBlacklist []*regexp.Regexp
-	NameBlacklist  []*regexp.Regexp
-}
-
 // HostnameProvider docker implementation for the hostname provider
 func HostnameProvider(hostName string) (string, error) {
 	return GetHostname()
@@ -118,47 +109,6 @@ func DefaultGateway() (net.IP, error) {
 // ContainerIDToEntityName returns a prefixed entity name from a container ID
 func ContainerIDToEntityName(cid string) string {
 	return fmt.Sprintf("%s%s", DockerEntityPrefix, cid)
-}
-
-// IsExcluded returns a bool indicating if the container should be excluded
-// based on the filters in the containerFilter instance.
-func (cf containerFilter) IsExcluded(container *Container) bool {
-	return cf.computeIsExcluded(container.Name, container.Image)
-}
-
-func (cf containerFilter) computeIsExcluded(containerName, containerImage string) bool {
-	if !cf.Enabled {
-		return false
-	}
-
-	var excluded bool
-	for _, r := range cf.ImageBlacklist {
-		if r.MatchString(containerImage) {
-			excluded = true
-			break
-		}
-	}
-	for _, r := range cf.NameBlacklist {
-		if r.MatchString(containerName) {
-			excluded = true
-			break
-		}
-	}
-
-	// Any excluded container could be whitelisted.
-	if excluded {
-		for _, r := range cf.ImageWhitelist {
-			if r.MatchString(containerImage) {
-				return false
-			}
-		}
-		for _, r := range cf.NameWhitelist {
-			if r.MatchString(containerName) {
-				return false
-			}
-		}
-	}
-	return excluded
 }
 
 // Container represents a single Docker container on a machine
