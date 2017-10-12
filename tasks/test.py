@@ -71,7 +71,6 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
 
     for match in matches:
         if invoke.platform.WINDOWS:
-            #print("match is {}\n".format(match))
             if match in windows_test_whitelist:
                 print("Skipping whitelisted directory {}\n".format(match))
                 continue
