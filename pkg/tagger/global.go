@@ -30,7 +30,7 @@ func Stop() error {
 }
 
 func init() {
-	tagger, err := NewTagger()
+	tagger, err := newTagger()
 	if err != nil {
 		log.Errorf("tagger initialisation failed: %s", err)
 	}
