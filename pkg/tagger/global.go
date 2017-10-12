@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
 
-// defaultTagger is the common tagger to be used by all users
+// defaultTagger is the shared tagger instance backing the global Tag and Init functions
 var defaultTagger *Tagger
 
 // Init must be called once config is available, call it in your cmd
