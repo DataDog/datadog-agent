@@ -28,11 +28,6 @@ const (
 	dockerCollectorName = "docker"
 )
 
-// DockerEntityName returns a prefixed entity name from a container ID
-func DockerEntityName(cid string) string {
-	return fmt.Sprintf("%s%s", DockerEntityPrefix, cid)
-}
-
 // DockerCollector listens to events on the docker socket to get new/dead containers
 // and feed a stram of TagInfo. It requires access to the docker socket.
 // It will also embed DockerExtractor collectors for container tagging.
@@ -103,7 +98,7 @@ func (c *DockerCollector) Stop() error {
 
 // Fetch inspect a given container to get its tags on-demand (cache miss)
 func (c *DockerCollector) Fetch(container string) ([]string, []string, error) {
-	cid := strings.TrimPrefix(container, DockerEntityPrefix)
+	cid := strings.TrimPrefix(container, docker.DockerEntityPrefix)
 	if cid == container {
 		return nil, nil, fmt.Errorf("name is not a docker container: %s", container)
 	}
@@ -116,10 +111,10 @@ func (c *DockerCollector) processEvent(e events.Message) {
 
 	switch e.Action {
 	case "die":
-		out[0] = &TagInfo{Entity: DockerEntityName(cID), Source: dockerCollectorName, DeleteEntity: true}
+		out[0] = &TagInfo{Entity: docker.ContainerIDToEntityName(cID), Source: dockerCollectorName, DeleteEntity: true}
 	case "start":
 		low, high, _ := c.fetchForDockerID(cID)
-		out[0] = &TagInfo{Entity: DockerEntityName(cID), Source: dockerCollectorName, LowCardTags: low, HighCardTags: high}
+		out[0] = &TagInfo{Entity: docker.ContainerIDToEntityName(cID), Source: dockerCollectorName, LowCardTags: low, HighCardTags: high}
 	}
 	c.infoOut <- out
 }
