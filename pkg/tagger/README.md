@@ -2,11 +2,11 @@
 
 The **Tagger** is the central source of truth for client-side entity tagging. It
 runs **Collector**s that detect entities and collect their tags. Tags are then
-stored in memory (by the **TagStore**) and can be queried by the Tagger.Tag()
-method. Calling once Tagger.Init() after the **config** package is ready is
+stored in memory (by the **TagStore**) and can be queried by the tagger.Tag()
+method. Calling once tagger.Init() after the **config** package is ready is
 needed to enable collection.
 
-The package methods use a common **DefaultTagger** object, but we can create
+The package methods use a common **defaultTagger** object, but we can create
 a custom **Tagger** object for testing.
 
 The package will implement an IPC mechanism (a server and a client) to allow
@@ -42,7 +42,7 @@ The Tagger handles the glue between **Collectors** and **TagStore** and the
 cache miss logic. If the tags from the **TagStore** are missing some sources,
 they will be manually queried in a block way, and the cache will be updated.
 
-For convenience, the package creates a **DefaultTagger** object that is used
+For convenience, the package creates a **defaultTagger** object that is used
 when calling the `tagger.Tag()` method.
 
 

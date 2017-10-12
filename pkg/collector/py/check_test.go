@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/sbinet/go-python"
+	python "github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -134,8 +134,7 @@ func TestInitNoTracebackException(t *testing.T) {
 func TestAggregatorLink(t *testing.T) {
 	check, _ := getCheckInstance("testaggregator", "TestAggregatorCheck")
 
-	mockSender := new(MockSender)
-	aggregator.SetSender(mockSender, check.ID())
+	mockSender := aggregator.NewMockSender(check.ID())
 
 	mockSender.On("ServiceCheck",
 		"testservicecheck", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
@@ -159,8 +158,7 @@ func TestAggregatorLink(t *testing.T) {
 func TestAggregatorLinkTwoRuns(t *testing.T) {
 	check, _ := getCheckInstance("testaggregator", "TestAggregatorCheck")
 
-	mockSender := new(MockSender)
-	aggregator.SetSender(mockSender, check.ID())
+	mockSender := aggregator.NewMockSender(check.ID())
 
 	mockSender.On("ServiceCheck",
 		"testservicecheck", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",

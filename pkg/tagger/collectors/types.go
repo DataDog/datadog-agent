@@ -5,9 +5,6 @@
 
 package collectors
 
-// DockerEntityPrefix is the entity prefix for docker containers
-const DockerEntityPrefix = "docker://"
-
 // TagInfo holds the tag information for a given entity and source. It's meant
 // to be created from collectors and read by the store.
 type TagInfo struct {

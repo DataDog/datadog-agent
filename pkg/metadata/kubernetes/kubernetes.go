@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 
+	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s"
 	"github.com/ericchiang/k8s/api/v1"
 	appsv1beta1 "github.com/ericchiang/k8s/apis/apps/v1beta1"
@@ -53,7 +54,10 @@ func GetPayload() (metadata.Payload, error) {
 	if ok && apiErr.Code == http.StatusNotFound {
 		dr = &appsv1beta1.DeploymentList{}
 	} else if err != nil {
-		return nil, fmt.Errorf("failed to get deployments: %s", err)
+		// Allow Deployments API to fail, it's not available in all version and we
+		// can also parse this data from the replica-set name on the backend.
+		log.Warnf("Failed to retrieve Kubernetes deployments: %s", err)
+		dr = &appsv1beta1.DeploymentList{}
 	}
 	rr, err := client.ExtensionsV1Beta1().ListReplicaSets(ctx, "")
 	if err != nil {

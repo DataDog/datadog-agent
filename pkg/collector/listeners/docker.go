@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
@@ -344,8 +343,8 @@ func (s *DockerService) GetPorts() ([]int, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *DockerService) GetTags() ([]string, error) {
-	entity := collectors.DockerEntityName(string(s.ID))
-	tags, err := tagger.DefaultTagger.Tag(entity, true)
+	entity := docker.ContainerIDToEntityName(string(s.ID))
+	tags, err := tagger.Tag(entity, true)
 	if err != nil {
 		return []string{}, err
 	}

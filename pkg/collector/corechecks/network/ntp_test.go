@@ -26,8 +26,7 @@ func TestNTP(t *testing.T) {
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(ntpCfg, ntpInitCfg)
 
-	mockSender := new(MockSender)
-	aggregator.SetSender(mockSender, ntpCheck.ID())
+	mockSender := aggregator.NewMockSender(ntpCheck.ID())
 
 	mockSender.On("Gauge", "ntp.offset", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
 	mockSender.On("ServiceCheck",
