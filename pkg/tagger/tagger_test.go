@@ -96,7 +96,7 @@ func TestInit(t *testing.T) {
 	catalog := collectors.Catalog{"stream": d.getDummyStreamer, "pull": d.getDummyPuller}
 	require.Equal(t, 2, len(catalog))
 
-	tagger, err := NewTagger()
+	tagger, err := newTagger()
 	require.Equal(t, nil, err)
 	err = tagger.Init(catalog)
 	require.Equal(t, nil, err)
@@ -118,7 +118,7 @@ func TestFetchAllMiss(t *testing.T) {
 	d := &Dummies{&DummyStreamer{}, &DummyPuller{}}
 	catalog := collectors.Catalog{"stream": d.getDummyStreamer, "pull": d.getDummyPuller}
 	require.Equal(t, 2, len(catalog))
-	tagger, _ := NewTagger()
+	tagger, _ := newTagger()
 	tagger.Init(catalog)
 
 	tags, err := tagger.Tag("entity_name", false)
@@ -136,7 +136,7 @@ func TestFetchAllCached(t *testing.T) {
 	d := &Dummies{&DummyStreamer{}, &DummyPuller{}}
 	catalog := collectors.Catalog{"stream": d.getDummyStreamer, "pull": d.getDummyPuller}
 	require.Equal(t, 2, len(catalog))
-	tagger, _ := NewTagger()
+	tagger, _ := newTagger()
 	tagger.Init(catalog)
 
 	tagger.tagStore.processTagInfo(&collectors.TagInfo{
@@ -164,7 +164,7 @@ func TestFetchOneCached(t *testing.T) {
 	d := &Dummies{&DummyStreamer{}, &DummyPuller{}}
 	catalog := collectors.Catalog{"stream": d.getDummyStreamer, "pull": d.getDummyPuller}
 	require.Equal(t, 2, len(catalog))
-	tagger, _ := NewTagger()
+	tagger, _ := newTagger()
 	tagger.Init(catalog)
 
 	tagger.tagStore.processTagInfo(&collectors.TagInfo{

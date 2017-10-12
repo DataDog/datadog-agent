@@ -59,6 +59,9 @@ const (
 	ContainerPausedState     string = "paused"
 	ContainerExitedState     string = "exited"
 	ContainerDeadState       string = "dead"
+
+	// DockerEntityPrefix is the entity prefix for docker containers
+	DockerEntityPrefix = "docker://"
 )
 
 // NetworkStat stores network statistics about a Docker container.
@@ -110,6 +113,11 @@ func DefaultGateway() (net.IP, error) {
 		}
 	}
 	return ip, nil
+}
+
+// ContainerIDToEntityName returns a prefixed entity name from a container ID
+func ContainerIDToEntityName(cid string) string {
+	return fmt.Sprintf("%s%s", DockerEntityPrefix, cid)
 }
 
 // IsExcluded returns a bool indicating if the container should be excluded
