@@ -125,9 +125,9 @@ func TestSendHTTPTransactions(t *testing.T) {
 	payloads := Payloads{&p1}
 	headers := make(http.Header)
 	tr := forwarder.createHTTPTransactions(endpoint, payloads, false, headers)
-	err := forwarder.sendHTTPTransactions(tr)
 
 	// fw is stopped, we should get an error
+	err := forwarder.sendHTTPTransactions(tr)
 	assert.NotNil(t, err)
 
 	forwarder.Start()

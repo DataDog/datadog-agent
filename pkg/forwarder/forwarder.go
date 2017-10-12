@@ -239,8 +239,8 @@ func (f *DefaultForwarder) Stop() {
 		log.Warnf("the forwarder is already stopped")
 		return
 	}
-	// using atomic to stop createTransactions
-	atomic.StoreUint32(&f.internalState, Stopped)
+
+	f.internalState = Stopped
 
 	f.stopRetry <- true
 	for _, w := range f.workers {
