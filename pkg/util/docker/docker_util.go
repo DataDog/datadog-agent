@@ -150,14 +150,14 @@ func InitDockerUtil(cfg *Config) error {
 // otherwise it returns either a valid client or an error.
 func ConnectToDocker() (*client.Client, error) {
 	// If we don't have a docker.sock then return a known error.
-	sockPath := GetEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock")
-	if !PathExists(sockPath) {
+	sockPath := getEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock")
+	if !pathExists(sockPath) {
 		return nil, ErrDockerNotAvailable
 	}
 	// The /proc/mounts file won't be availble on non-Linux systems
 	// and we only support Linux for now.
 	mountsFile := "/proc/mounts"
-	if !PathExists(mountsFile) {
+	if !pathExists(mountsFile) {
 		return nil, ErrDockerNotAvailable
 	}
 
@@ -186,12 +186,12 @@ func ConnectToDocker() (*client.Client, error) {
 var hostNetwork = dockerNetwork{"eth0", "bridge"}
 
 func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) (*NetworkStat, error) {
-	procNetFile := HostProc(strconv.Itoa(int(pid)), "net", "dev")
-	if !PathExists(procNetFile) {
+	procNetFile := hostProc(strconv.Itoa(int(pid)), "net", "dev")
+	if !pathExists(procNetFile) {
 		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
 		return &NetworkStat{}, nil
 	}
-	lines, err := ReadLines(procNetFile)
+	lines, err := readLines(procNetFile)
 	if err != nil {
 		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
 		return &NetworkStat{}, nil
@@ -272,12 +272,12 @@ func findDockerNetworks(containerID string, pid int, netSettings *types.SummaryN
 	}
 
 	// Read contents of file. Handle missing or unreadable file in case container was stopped.
-	procNetFile := HostProc(strconv.Itoa(int(pid)), "net", "route")
-	if !PathExists(procNetFile) {
+	procNetFile := hostProc(strconv.Itoa(int(pid)), "net", "route")
+	if !pathExists(procNetFile) {
 		log.Debugf("Missing %s for container %s", procNetFile, containerID)
 		return nil
 	}
-	lines, err := ReadLines(procNetFile)
+	lines, err := readLines(procNetFile)
 	if err != nil {
 		log.Debugf("Unable to read %s for container %s", procNetFile, containerID)
 		return nil
