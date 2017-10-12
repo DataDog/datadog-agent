@@ -8,18 +8,12 @@
 package docker
 
 import (
-	"bufio"
 	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"os"
-	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -27,7 +21,6 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -64,101 +57,14 @@ const (
 	DockerEntityPrefix = "docker://"
 )
 
-// NetworkStat stores network statistics about a Docker container.
-type NetworkStat struct {
-	BytesSent   uint64
-	BytesRcvd   uint64
-	PacketsSent uint64
-	PacketsRcvd uint64
-}
-
-type containerFilter struct {
-	Enabled        bool
-	ImageWhitelist []*regexp.Regexp
-	NameWhitelist  []*regexp.Regexp
-	ImageBlacklist []*regexp.Regexp
-	NameBlacklist  []*regexp.Regexp
-}
-
 // HostnameProvider docker implementation for the hostname provider
 func HostnameProvider(hostName string) (string, error) {
 	return GetHostname()
 }
 
-// DefaultGateway returns the default Docker gateway.
-func DefaultGateway() (net.IP, error) {
-	procRoot := config.Datadog.GetString("proc_root")
-	netRouteFile := filepath.Join(procRoot, "net", "route")
-	f, err := os.Open(netRouteFile)
-	if os.IsNotExist(err) || os.IsPermission(err) {
-		log.Errorf("unable to open %s: %s", netRouteFile, err)
-		return nil, nil
-	} else if err != nil {
-		// Unknown error types will bubble up for handling.
-		return nil, err
-	}
-	defer f.Close()
-
-	ip := make(net.IP, 4)
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		fields := strings.Fields(scanner.Text())
-		if len(fields) >= 3 && fields[1] == "00000000" {
-			ipInt, err := strconv.ParseInt(fields[2], 16, 32)
-			if err != nil {
-				return nil, fmt.Errorf("unable to parse ip %s, from %s: %s", fields[2], netRouteFile, err)
-			}
-			binary.LittleEndian.PutUint32(ip, uint32(ipInt))
-			break
-		}
-	}
-	return ip, nil
-}
-
 // ContainerIDToEntityName returns a prefixed entity name from a container ID
 func ContainerIDToEntityName(cid string) string {
 	return fmt.Sprintf("%s%s", DockerEntityPrefix, cid)
-}
-
-// IsExcluded returns a bool indicating if the container should be excluded
-// based on the filters in the containerFilter instance.
-func (cf containerFilter) IsExcluded(container *Container) bool {
-	return cf.computeIsExcluded(container.Name, container.Image)
-}
-
-func (cf containerFilter) computeIsExcluded(containerName, containerImage string) bool {
-	if !cf.Enabled {
-		return false
-	}
-
-	var excluded bool
-	for _, r := range cf.ImageBlacklist {
-		if r.MatchString(containerImage) {
-			excluded = true
-			break
-		}
-	}
-	for _, r := range cf.NameBlacklist {
-		if r.MatchString(containerName) {
-			excluded = true
-			break
-		}
-	}
-
-	// Any excluded container could be whitelisted.
-	if excluded {
-		for _, r := range cf.ImageWhitelist {
-			if r.MatchString(containerImage) {
-				return false
-			}
-		}
-		for _, r := range cf.NameWhitelist {
-			if r.MatchString(containerName) {
-				return false
-			}
-		}
-	}
-	return excluded
 }
 
 // Container represents a single Docker container on a machine

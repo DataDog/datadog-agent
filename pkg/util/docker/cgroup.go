@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build docker
+
 package docker
 
 import (
@@ -288,14 +290,14 @@ func (c ContainerCgroup) CPUNrThrottled() (uint64, error) {
 func (c ContainerCgroup) CPULimit() (float64, error) {
 	periodFile := c.cgroupFilePath("cpu", "cpu.cfs_period_us")
 	quotaFile := c.cgroupFilePath("cpu", "cpu.cfs_quota_us")
-	plines, err := ReadLines(periodFile)
+	plines, err := readLines(periodFile)
 	if os.IsNotExist(err) {
 		log.Debugf("missing cgroup file: %s", periodFile)
 		return 100, nil
 	} else if err != nil {
 		return 0, err
 	}
-	qlines, err := ReadLines(quotaFile)
+	qlines, err := readLines(quotaFile)
 	if os.IsNotExist(err) {
 		log.Debugf("missing cgroup file: %s", quotaFile)
 		return 100, nil
@@ -368,7 +370,7 @@ func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
 // ParseSingleStat reads and converts a single-value cgroup stat file content to uint64.
 func (c ContainerCgroup) ParseSingleStat(target, file string) (uint64, error) {
 	statFile := c.cgroupFilePath(target, file)
-	lines, err := ReadLines(statFile)
+	lines, err := readLines(statFile)
 	if err != nil {
 		return 0, err
 	}
@@ -386,7 +388,7 @@ func (c ContainerCgroup) ParseSingleStat(target, file string) (uint64, error) {
 // this should work because the cgroup dir for the container would be created only when it's started
 func (c ContainerCgroup) ContainerStartTime() (int64, error) {
 	cgroupDir := c.cgroupFilePath("cpuacct", "")
-	if !PathExists(cgroupDir) {
+	if !pathExists(cgroupDir) {
 		return 0, fmt.Errorf("could not get cgroup dir, directory doesn't exist")
 	}
 	stat, err := os.Stat(cgroupDir)
@@ -427,7 +429,7 @@ func (c ContainerCgroup) cgroupFilePath(target, file string) string {
 // Returns a map for every target (cpuset, cpu, cpuacct) => path
 func cgroupMountPoints() (map[string]string, error) {
 	mountsFile := "/proc/mounts"
-	if !PathExists(mountsFile) {
+	if !pathExists(mountsFile) {
 		return nil, fmt.Errorf("/proc/mounts does not exist")
 	}
 	f, err := os.Open(mountsFile)
@@ -475,7 +477,7 @@ func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 	cgs := make(map[string]*ContainerCgroup)
 
 	// Opening proc dir
-	procDir, err := os.Open(HostProc())
+	procDir, err := os.Open(hostProc())
 	if err != nil {
 		return cgs, err
 	}
@@ -490,7 +492,7 @@ func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 		if err != nil {
 			continue
 		}
-		cgPath := HostProc(dirName, "cgroup")
+		cgPath := hostProc(dirName, "cgroup")
 		containerID, paths, err := readCgroupPaths(cgPath)
 		if containerID == "" {
 			continue
@@ -517,7 +519,7 @@ func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 // container ID for origin detection. Returns container id as a string, empty if
 // the PID is not in a container.
 func ContainerIDForPID(pid int) (string, error) {
-	cgPath := HostProc(strconv.Itoa(pid), "cgroup")
+	cgPath := hostProc(strconv.Itoa(pid), "cgroup")
 	containerID, _, err := readCgroupPaths(cgPath)
 
 	return containerID, err
