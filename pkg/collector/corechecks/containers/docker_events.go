@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -61,7 +62,11 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 		if exitCodeInt != 0 {
 			status = metrics.ServiceCheckCritical
 		}
-		sender.ServiceCheck(DockerExit, status, "", nil, message)
+		tags, err := tagger.Tag(ev.ContainerEntityName(), true)
+		if err != nil {
+			log.Debugf("no tags for %s: %s", ev.ContainerID, err)
+		}
+		sender.ServiceCheck(DockerExit, status, "", tags, message)
 	}
 
 	return nil

@@ -79,7 +79,7 @@ func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, erro
 	output.Text = strings.Join(textLines, "\n")
 
 	for cid, _ := range seenContainers {
-		tags, err := tagger.Tag(fmt.Sprintf("docker://%s", cid), true)
+		tags, err := tagger.Tag(docker.ContainerIDToEntityName(cid), true)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", cid, err)
 		} else {
