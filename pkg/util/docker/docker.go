@@ -228,6 +228,15 @@ func GetHostname() (string, error) {
 	return globalDockerUtil.getHostname()
 }
 
+// GetStorageStats returns the docker global storage stats if available
+// or ErrStorageStatsNotAvailable
+func GetStorageStats() ([]*StorageStats, error) {
+	if globalDockerUtil == nil {
+		return nil, ErrDockerNotAvailable
+	}
+	return globalDockerUtil.getStorageStats()
+}
+
 // IsContainerized returns True if we're running in the docker-dd-agent container.
 func IsContainerized() bool {
 	return os.Getenv("DOCKER_DD_AGENT") == "yes"

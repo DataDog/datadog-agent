@@ -325,6 +325,14 @@ func (d *dockerUtil) getHostname() (string, error) {
 	return info.Name, nil
 }
 
+func (d *dockerUtil) getStorageStats() ([]*StorageStats, error) {
+	info, err := d.cli.Info(context.Background())
+	if err != nil {
+		return []*StorageStats{}, fmt.Errorf("unable to get Docker info: %s", err)
+	}
+	return parseStorageStatsFromInfo(info)
+}
+
 // extractImageName will resolve sha image name to their user-friendly name.
 // For non-sha names we will just return the name as-is.
 func (d *dockerUtil) extractImageName(image string) string {
