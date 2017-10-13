@@ -92,3 +92,4 @@ def aggregator(ctx):
       options +=" -api-key {}".format(key)
 
     ctx.run("{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json {}".format(bin_path, options))
+    ctx.run("{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json -memory -duration 10 {}".format(bin_path, options))
