@@ -43,6 +43,13 @@ type metricStats struct {
 	Lock          sync.RWMutex
 }
 
+// RawSender interface to submit samples to aggregator directly
+type RawSender interface {
+	SendRawMetricSample(sample *metrics.MetricSample)
+	SendRawServiceCheck(sc *metrics.ServiceCheck)
+	Event(e metrics.Event)
+}
+
 // checkSender implements Sender
 type checkSender struct {
 	id               check.ID
@@ -158,6 +165,12 @@ func (s *checkSender) cyclemetricStats() {
 	s.priormetricStats.Lock.Unlock()
 }
 
+// SendRawMetricSample sends the raw sample
+// Useful for testing - submitting precomputed samples.
+func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
+	s.smsOut <- senderMetricSample{s.id, sample, false}
+}
+
 func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType metrics.MetricType) {
 	log.Debug(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
 
@@ -215,6 +228,12 @@ func (s *checkSender) Histogram(metric string, value float64, hostname string, t
 // Warning this doesn't use the harmonic mean, beware of what it means when using it.
 func (s *checkSender) Historate(metric string, value float64, hostname string, tags []string) {
 	s.sendMetricSample(metric, value, hostname, tags, metrics.HistorateType)
+}
+
+// SendRawServiceCheck sends the raw service check
+// Useful for testing - submitting precomputed service check.
+func (s *checkSender) SendRawServiceCheck(sc *metrics.ServiceCheck) {
+	s.serviceCheckOut <- *sc
 }
 
 // ServiceCheck submits a service check
