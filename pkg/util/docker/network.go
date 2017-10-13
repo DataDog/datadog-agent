@@ -70,8 +70,8 @@ func findDockerNetworks(containerID string, pid int, netSettings *types.SummaryN
 			}
 		}
 
-		// Convert IP to int64 for comparison to network routes.
-		dockerGateways[netName] = int64(binary.BigEndian.Uint32(ip.To4()))
+		// Convert IP to little endian int64 for comparison to network routes.
+		dockerGateways[netName] = int64(binary.LittleEndian.Uint32(ip.To4()))
 	}
 
 	// Read contents of file. Handle missing or unreadable file in case container was stopped.
@@ -96,7 +96,7 @@ func findDockerNetworks(containerID string, pid int, netSettings *types.SummaryN
 		if len(fields) < 8 {
 			continue
 		}
-		if fields[0] == "00000000" {
+		if fields[1] == "00000000" {
 			continue
 		}
 		dest, _ := strconv.ParseInt(fields[1], 16, 32)
