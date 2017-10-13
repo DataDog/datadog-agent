@@ -30,8 +30,7 @@ func TestLoadCheckLinux(t *testing.T) {
 	loadCheck := new(LoadCheck)
 	loadCheck.Configure(nil, nil)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, loadCheck.ID())
+	mock := aggregator.NewMockSender(loadCheck.ID())
 
 	var nbCPU float64
 	info, _ := cpuInfo()

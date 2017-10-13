@@ -232,11 +232,13 @@ else
 fi
 
 
+# Use systemd by default
 restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
 stop_instructions="$sudo_cmd systemctl stop datadog-agent"
 start_instructions="$sudo_cmd systemctl start datadog-agent"
-# Upstart
-if command -v start >/dev/null 2>&1; then
+
+# Try to detect Upstart, this works most of the times but still a best effort
+if /sbin/init --version 2>&1 | grep -q upstart; then
     restart_cmd="$sudo_cmd start datadog-agent"
     stop_instructions="$sudo_cmd stop datadog-agent"
     start_instructions="$sudo_cmd start datadog-agent"

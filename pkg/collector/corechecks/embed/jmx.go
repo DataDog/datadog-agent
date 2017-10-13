@@ -18,9 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	api "github.com/DataDog/datadog-agent/cmd/agent/api/common"
+	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/kardianos/osext"
@@ -28,12 +27,25 @@ import (
 )
 
 const (
-	jmxJarName                        = "jmxfetch-0.17.0-jar-with-dependencies.jar"
+	jmxJarName                        = "jmxfetch-0.18.0-jar-with-dependencies.jar"
 	jmxMainClass                      = "org.datadog.jmxfetch.App"
 	jmxCollectCommand                 = "collect"
 	jvmDefaultMaxMemoryAllocation     = " -Xmx200m"
 	jvmDefaultInitialMemoryAllocation = " -Xms50m"
 	linkToDoc                         = "See http://docs.datadoghq.com/integrations/java/ for more information"
+)
+
+var (
+	jmxLogLevelMap = map[string]string{
+		"trace":    "TRACE",
+		"debug":    "DEBUG",
+		"info":     "INFO",
+		"warn":     "WARN",
+		"warning":  "WARN",
+		"error":    "ERROR",
+		"err":      "ERROR",
+		"critical": "FATAL",
+	}
 )
 
 type checkInstanceCfg struct {
@@ -73,8 +85,7 @@ type JMXCheck struct {
 	running            uint32
 }
 
-// singleton for the JMXCheck
-var jmxLauncher *JMXCheck
+var jmxLauncher = JMXCheck{checks: make(map[string]struct{})}
 
 func (c *JMXCheck) String() string {
 	return "JMX Check"
@@ -124,25 +135,23 @@ func (c *JMXCheck) Run() error {
 
 	subprocessArgs = append(subprocessArgs, strings.Fields(javaOptions)...)
 
+	jmxLogLevel, ok := jmxLogLevelMap[strings.ToLower(config.Datadog.GetString("log_level"))]
+	if !ok {
+		jmxLogLevel = "INFO"
+	}
+	// checks are now enabled via IPC on JMXFetch
 	subprocessArgs = append(subprocessArgs,
 		"-classpath", classpath,
 		jmxMainClass,
+		"--ipc_host", config.Datadog.GetString("cmd_host"),
 		"--ipc_port", fmt.Sprintf("%v", config.Datadog.GetInt("cmd_port")),
 		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
 		"--conf_directory", jmxConfPath, // Path of the conf directory that will be read by jmxfetch,
-		"--log_level", "INFO", //FIXME : Use agent log level when available
+		"--log_level", jmxLogLevel,
 		"--log_location", path.Join(here, "dist", "jmx", "jmxfetch.log"), // FIXME : Path of the log file. At some point we should have a `run` folder
 		"--reporter", reporter, // Reporter to use
 		jmxCollectCommand, // Name of the command
 	)
-	if len(c.checks) > 0 {
-		subprocessArgs = append(subprocessArgs, "--check")
-		for c, _ := range c.checks {
-			subprocessArgs = append(subprocessArgs, c)
-		}
-	} else {
-		log.Errorf("No valid JMX configuration found in %s", jmxConfPath)
-	}
 
 	if jmxExitFile != "" {
 		c.ExitFilePath = path.Join(here, "dist", "jmx", jmxExitFile) // FIXME : At some point we should have a `run` folder
@@ -300,15 +309,4 @@ func (c *JMXCheck) Stop() {
 // GetWarnings does not return anything in JMX
 func (c *JMXCheck) GetWarnings() []error {
 	return []error{}
-}
-
-func init() {
-	factory := func() check.Check {
-		if jmxLauncher != nil {
-			return jmxLauncher
-		}
-		jmxLauncher = &JMXCheck{checks: make(map[string]struct{})}
-		return jmxLauncher
-	}
-	core.RegisterCheck("jmx", factory)
 }

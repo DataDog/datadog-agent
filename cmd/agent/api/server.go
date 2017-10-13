@@ -21,7 +21,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/check"
-	"github.com/DataDog/datadog-agent/cmd/agent/api/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gorilla/mux"
 )
@@ -47,11 +48,11 @@ func StartServer() error {
 		// no way we can recover from this error
 		return fmt.Errorf("Unable to create the api server: %v", err)
 	}
-	common.SetAuthToken()
+	util.SetAuthToken()
 
 	//
 	hosts := []string{"127.0.0.1", "localhost"}
-	_, rootCertPEM, rootKey, err := common.GenerateRootCert(hosts, 2048)
+	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
 	if err != nil {
 		return fmt.Errorf("unable to start TLS server")
 	}
