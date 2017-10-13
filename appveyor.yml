@@ -27,6 +27,5 @@ build: off
 
 test_script:
   - cd
-  - powershell -Command "Measure-Command { inv -e deps }"
+  - inv -e deps
   - inv -e test --coverage --race --fail-on-fmt
-#  - powershell -Command "Measure-Command { inv -e test --coverage --race --fail-on-fmt }"

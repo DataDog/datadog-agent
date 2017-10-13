@@ -3,9 +3,7 @@ High level testing tasks
 """
 from __future__ import print_function
 
-import codecs
 import os
-import sys
 import fnmatch
 
 import invoke
