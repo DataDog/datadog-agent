@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/test/util"
+
+	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 var (
@@ -63,10 +65,6 @@ var (
 		60,
 		"duration per second.")
 
-	plotFile = flag.String("plot",
-		"",
-		"if set, the file where to write results to be plot with gnuplot.")
-
 	flushIval = flag.Int64("flush_ival",
 		aggregator.DefaultFlushInterval,
 		"Flush interval for aggregator")
@@ -79,31 +77,31 @@ type forwarderBenchStub struct{}
 
 func (f *forwarderBenchStub) Start() error { return nil }
 func (f *forwarderBenchStub) Stop()        {}
-func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSeries(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitSeries(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitEvents(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitEvents(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitServiceChecks(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitServiceChecks(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitHostMetadata(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitHostMetadata(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
 
@@ -241,35 +239,37 @@ func main() {
 		nbSeries = append(nbSeries, res)
 	}
 
-	var plotRes string
-	if *memory {
-		plotRes = benchmarkMemory(agg, sender, nbPoints, nbSeries, *memips, *duration)
-	} else {
-		agg.TickerChan = flush
+	agg.TickerChan = flush
 
-		//warm up
-		generateMetrics(1, 1, sender.Gauge)
-		generateEvent(1, sender)
-		generateServiceCheck(1, sender)
-		sender.Commit()
+	//warm up
+	generateMetrics(1, 1, sender.Gauge)
+	generateEvent(1, sender)
+	generateServiceCheck(1, sender)
+	sender.Commit()
+
+	var results []datadog.Metric
+	if *memory {
+		results = benchmarkMemory(agg, sender, nbPoints, nbSeries, *memips, *duration, *branchName)
+	} else {
 		startInfo := report(nil, "")
 
 		log.Infof("Starting benchmark with %v series of %v points.\n\n", nbSeries, nbPoints)
-		results := benchmarkMetrics(nbSeries, nbPoints, sender, startInfo, *branchName)
-		if *jsonOutput {
-			data, err := json.Marshal(results)
-			if err != nil {
-				fmt.Printf("Error serializing results to JSON: %s\n", err)
-			} else {
-				fmt.Println(string(data))
-			}
-		}
+		results = benchmarkMetrics(nbSeries, nbPoints, sender, startInfo, *branchName)
+	}
 
-		if *apiKey != "" {
-			log.Infof("Pushing results to DataDog backend")
-			pushMetricsToDatadog(*apiKey, results)
+	if *jsonOutput {
+		data, err := json.Marshal(results)
+		if err != nil {
+			fmt.Printf("Error serializing results to JSON: %s\n", err)
 		} else {
-			log.Infof("No API key provided: no results was push to the DataDog backend")
+			fmt.Println(string(data))
 		}
+	}
+
+	if *apiKey != "" {
+		log.Infof("Pushing results to DataDog backend")
+		pushMetricsToDatadog(*apiKey, results)
+	} else {
+		log.Infof("No API key provided: no results was push to the DataDog backend")
 	}
 }

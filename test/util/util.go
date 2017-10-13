@@ -23,7 +23,7 @@ func TimeNowNano() float64 {
 }
 
 func InitLogging(level string) error {
-	err := config.SetupLogger(level, "")
+	err := config.SetupLogger(level, "", "", false, false, "")
 	if err != nil {
 		return fmt.Errorf("Unable to initiate logger: %s", err)
 	}

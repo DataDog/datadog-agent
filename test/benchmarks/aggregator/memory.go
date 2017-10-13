@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"expvar"
 	"fmt"
 	"math/rand"
@@ -13,29 +12,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/test/util"
 	log "github.com/cihub/seelog"
+
+	"gopkg.in/zorkian/go-datadog-api.v2"
 )
-
-var memGnuplotHeader = `
-set term x11 %d
-set title sprintf("%d points, %d series (%d pps)", rate_%d_%d)
-set xlabel "Time (s)"
-set ylabel "Bytes"
-set y2label "Objects"
-set y2tics
-set key outside box opaque
-plot %s using 1:2 w lines title "allocated" axes x1y1, %s using 1:3 w lines title "delta" axes x1y1, %s using 1:5 w lines title "live objects" axes x1y2
-`
-
-var memRateGnuplotHeader = `
-set term x11 %d
-set title "Rate vs Memory"
-set xlabel "Rate (pps)"
-set ylabel "Bytes"
-set y2label "Objects"
-set y2tics
-set key outside box opaque
-plot $data_rates using 1:2 w impulses title "allocated" axes x1y1, $data_rates using 1:3 w impulses title "objects" axes x1y2
-`
 
 func preAllocateMetrics(n int) map[string][]*metrics.MetricSample {
 
@@ -110,18 +89,19 @@ func preAllocateServiceChecks(n int) []*metrics.ServiceCheck {
 	return scs
 }
 
-func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sender, series, points []int, ips, dur int) string {
-	var dataBuf, plotBuf bytes.Buffer
+func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sender, series, points []int,
+	ips, dur int, branchName string) []datadog.Metric {
+
+	results := []datadog.Metric{}
 	var wg sync.WaitGroup
 
 	ticker := time.NewTicker(time.Second / time.Duration(ips))
 
-	rates := make(map[int]runtime.MemStats)
 	// Get raw sender
 	rawSender, ok := sender.(aggregator.RawSender)
 	if !ok {
 		log.Error("[aggregator] sender not RawSender - cannot continue with benchmark")
-		return ""
+		return results
 	}
 
 	// Get memory stats from expvar:
@@ -129,11 +109,13 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 
 	quitGenerator := make(chan bool)
 
-	iteration := 0
 	for _, s := range series {
 		for _, p := range points {
-			dataBuf.Reset()
-			dataBuf.WriteString(fmt.Sprintf("$data_%d_%d <<EOD\n", s, p))
+			tags := []string{
+				fmt.Sprintf("branch:%s", branchName),
+				fmt.Sprintf("points:%d", p),
+				fmt.Sprintf("series:%d", s),
+			}
 
 			// pre-allocate for operational memory usage benchmarking
 			metrics := make([]map[string][]*metrics.MetricSample, s)
@@ -189,19 +171,34 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 
 				secs := 0
 				for _ = range tickChan {
+					// compute metrics
 					current := memstatsFunc().(runtime.MemStats)
-					delta := int64(current.Alloc - prev.Alloc)
-					mallocDelta := int64(current.Mallocs - prev.Mallocs)
-					live := current.Mallocs - current.Frees
-					dataBuf.WriteString(fmt.Sprintf("%5d %10d %10d %10d %10d\n", secs, current.Alloc, delta, mallocDelta, live))
-					log.Infof("[aggregator] allocated: %10d\tdelta: %10d mallocs: %10d live objects:%10d", current.Alloc, delta, mallocDelta, live)
+					delta := float64(current.Alloc) - float64(prev.Alloc)
+					mallocDelta := float64(current.Mallocs) - float64(prev.Mallocs)
+					live := float64(current.Mallocs) - float64(current.Frees)
+
+					t := time.Now().Unix()
+					mAlloc := createMetric(float64(current.Alloc), tags, "benchmark.aggregator.mem.alloc", t)
+					mDelta := createMetric(delta, tags, "benchmark.aggregator.mem.delta", t)
+					mDeltaMalloc := createMetric(mallocDelta, tags, "benchmark.aggregator.mem.delta.malloc", t)
+					mLive := createMetric(live, tags, "benchmark.aggregator.mem.live", t)
+
+					// Append to result slice
+					results = append(results, mAlloc)
+					results = append(results, mDelta)
+					results = append(results, mDeltaMalloc)
+					results = append(results, mLive)
+
+					log.Infof("[aggregator] allocated: %10d\tdelta: %11.f mallocs: %11.f live objects:%11.f", current.Alloc, delta, mallocDelta, live)
 					prev = current
 					if secs == dur {
-						log.Infof("[aggregator] total memory delta %d bytes", int64(current.Alloc-initial.Alloc))
+						t := time.Now().Unix()
+						delta = float64(current.Alloc) - float64(initial.Alloc)
+						log.Infof("[aggregator] total memory delta %11.f bytes", delta)
 						log.Infof("[aggregator] benchmark concluded at a rate of %v pps (avg over %v secs)", sent/dur, dur)
-						rates[sent/dur] = current
+						results = append(results, createMetric(delta, tags, "benchmark.aggregator.mem.total_delta", t))
+						results = append(results, createMetric(float64(sent/dur), tags, "benchmark.aggregator.mem.rate", t))
 						quitGenerator <- true
-						dataBuf.WriteString("EOD\n\n")
 						return
 					} else {
 						secs += 1
@@ -210,24 +207,8 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 			}()
 
 			wg.Wait()
-			dataBuf.WriteString(fmt.Sprintf("rate_%d_%d = %v", s, p, sent/dur))
-
-			plotBuf.WriteString(dataBuf.String())
-			plotBuf.WriteString("\n")
-			dataset := fmt.Sprintf("$data_%d_%d", s, p)
-			plotBuf.WriteString(fmt.Sprintf(memGnuplotHeader, iteration, p, s, sent/dur, p, s, dataset, dataset, dataset))
-			plotBuf.WriteString("\n")
-
-			iteration += 1
 		}
 	}
 
-	plotBuf.WriteString("\n$data_rates <<EOD\n")
-	for rate, stats := range rates {
-		plotBuf.WriteString(fmt.Sprintf("%10d %10d %10d\n", rate, stats.Alloc, stats.Mallocs-stats.Frees))
-	}
-	plotBuf.WriteString("EOD\n\n")
-	plotBuf.WriteString(fmt.Sprintf(memRateGnuplotHeader, iteration))
-
-	return plotBuf.String()
+	return results
 }
