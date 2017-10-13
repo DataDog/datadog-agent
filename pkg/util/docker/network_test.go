@@ -33,7 +33,7 @@ func TestFindDockerNetworks(t *testing.T) {
 		settings    *types.SummaryNetworkSettings
 		routes, dev string
 		networks    []dockerNetwork
-		stat        *ContainerNetStats
+		stat        ContainerNetStats
 		summedStat  *InterfaceNetStats
 	}{
 		{
@@ -57,15 +57,13 @@ func TestFindDockerNetworks(t *testing.T) {
                     lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
             `),
 			networks: []dockerNetwork{dockerNetwork{iface: "eth0", dockerName: "eth0"}},
-			stat: &ContainerNetStats{
-				Stats: []*InterfaceNetStats{
-					&InterfaceNetStats{
-						NetworkName: "eth0",
-						BytesRcvd:   1296,
-						PacketsRcvd: 16,
-						BytesSent:   0,
-						PacketsSent: 0,
-					},
+			stat: ContainerNetStats{
+				&InterfaceNetStats{
+					NetworkName: "eth0",
+					BytesRcvd:   1296,
+					PacketsRcvd: 16,
+					BytesSent:   0,
+					PacketsSent: 0,
 				},
 			},
 			summedStat: &InterfaceNetStats{
@@ -104,22 +102,20 @@ func TestFindDockerNetworks(t *testing.T) {
 				dockerNetwork{iface: "eth0", dockerName: "bridge"},
 				dockerNetwork{iface: "eth1", dockerName: "test"},
 			},
-			stat: &ContainerNetStats{
-				Stats: []*InterfaceNetStats{
-					&InterfaceNetStats{
-						NetworkName: "bridge",
-						BytesRcvd:   648,
-						PacketsRcvd: 8,
-						BytesSent:   0,
-						PacketsSent: 0,
-					},
-					&InterfaceNetStats{
-						NetworkName: "test",
-						BytesRcvd:   1478,
-						PacketsRcvd: 19,
-						BytesSent:   182,
-						PacketsSent: 3,
-					},
+			stat: ContainerNetStats{
+				&InterfaceNetStats{
+					NetworkName: "bridge",
+					BytesRcvd:   648,
+					PacketsRcvd: 8,
+					BytesSent:   0,
+					PacketsSent: 0,
+				},
+				&InterfaceNetStats{
+					NetworkName: "test",
+					BytesRcvd:   1478,
+					PacketsRcvd: 19,
+					BytesSent:   182,
+					PacketsSent: 3,
 				},
 			},
 			summedStat: &InterfaceNetStats{
@@ -198,7 +194,7 @@ func TestFindDockerNetworks(t *testing.T) {
                   eth0:    1111       2    0    0    0     0          0         0     1024      80    0    0    0     0       0          0
                     lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
             `),
-			stat:       &ContainerNetStats{},
+			stat:       ContainerNetStats{},
 			summedStat: &InterfaceNetStats{},
 		},
 	} {

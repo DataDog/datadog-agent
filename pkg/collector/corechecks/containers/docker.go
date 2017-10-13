@@ -180,7 +180,7 @@ func (d *DockerCheck) Run() error {
 		sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
 
 		if c.Network != nil {
-			for _, netStat := range c.Network.Stats {
+			for _, netStat := range c.Network {
 				if netStat.NetworkName == "" {
 					log.Debugf("ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
 					continue

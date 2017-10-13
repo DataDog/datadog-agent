@@ -25,18 +25,12 @@ type InterfaceNetStats struct {
 }
 
 // ContainerNetStats stores network statistics about a Docker container per interface
-type ContainerNetStats struct {
-	Stats []*InterfaceNetStats
-}
-
-func (ns *ContainerNetStats) append(stat *InterfaceNetStats) {
-	ns.Stats = append(ns.Stats, stat)
-}
+type ContainerNetStats []*InterfaceNetStats
 
 // SumInterfaces sums stats from all interfaces into a single InterfaceNetStats
-func (ns *ContainerNetStats) SumInterfaces() *InterfaceNetStats {
+func (ns ContainerNetStats) SumInterfaces() *InterfaceNetStats {
 	sum := &InterfaceNetStats{}
-	for _, stat := range ns.Stats {
+	for _, stat := range ns {
 		sum.BytesSent += stat.BytesSent
 		sum.BytesRcvd += stat.BytesRcvd
 		sum.PacketsSent += stat.PacketsSent
@@ -45,8 +39,8 @@ func (ns *ContainerNetStats) SumInterfaces() *InterfaceNetStats {
 	return sum
 }
 
-func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) (*ContainerNetStats, error) {
-	netStats := new(ContainerNetStats)
+func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) (ContainerNetStats, error) {
+	netStats := ContainerNetStats{}
 
 	procNetFile := hostProc(strconv.Itoa(int(pid)), "net", "dev")
 	if !pathExists(procNetFile) {
@@ -92,7 +86,7 @@ func collectNetworkStats(containerID string, pid int, networks []dockerNetwork) 
 			pktSent, _ := strconv.Atoi(fields[10])
 			stat.PacketsSent = uint64(pktSent)
 
-			netStats.append(stat)
+			netStats = append(netStats, stat)
 		}
 	}
 	return netStats, nil
