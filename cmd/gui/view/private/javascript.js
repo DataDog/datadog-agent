@@ -416,7 +416,10 @@ function reloadCheck() {
   // Test it once with new configuration
   sendMessage("checks/run/" + name + "/once", "",
   function(data, status, xhr){
-    $("#manage_checks").append("<div id='popup'>" + data["html"] + "<div class='exit'>x</div></div>");
+    if (typeof(data) == "string") html = data
+    else html = data["html"]
+
+    $("#manage_checks").append("<div id='popup'>" + html + "<div class='exit'>x</div></div>");
     $(".exit").click(function() {
       $("#popup").remove();
       $(".exit").remove();
@@ -512,8 +515,10 @@ function addNewCheck(name) {
     // Run the check once (as a test) & print the result as a popup
     name = name.substr(0, name.length-5) // remove the .yaml
     sendMessage("checks/run/" + name + "/once", "",
-    function(data, status, xhr){
-      $("#manage_checks").append("<div id='popup'>" + data["html"] + "<div class='exit'>x</div></div>");
+    function(data, status, xhr) {
+      if (typeof(data) == "string") html = data
+      else html = data["html"]
+      $("#manage_checks").append("<div id='popup'>" + html + "<div class='exit'>x</div></div>");
       $(".exit").click(function() {
         $("#popup").remove();
         $(".exit").remove();

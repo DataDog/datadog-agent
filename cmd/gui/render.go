@@ -7,25 +7,23 @@ import (
 	"html/template"
 	"io"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/status"
 )
 
 var fmap = template.FuncMap{
-	"doNotEscape":        doNotEscape,
-	"lastError":          lastError,
+	"stringToHTML":       stringToHTML,
 	"lastErrorTraceback": lastErrorTraceback,
-	"lastErrorMessage":   lastErrorMessage,
+	"lastErrorMessage":   status.LastErrorMessage,
 	"pythonLoaderError":  pythonLoaderError,
-	"formatUnixTime":     formatUnixTime,
-	"humanize":           mkHuman,
-	"humanizeInt":        mkHumanInt,
+	"formatUnixTime":     status.FormatUnixTime,
+	"humanize":           status.MkHuman,
+	"humanizeInt":        mkHuman,
 	"formatTitle":        formatTitle,
 	"add":                add,
 }
@@ -108,9 +106,7 @@ func renderError(name string) (string, error) {
 
 /****** Helper functions for the template formatting ******/
 
-var timeFormat = "2006-01-02 15:04:05.000000 UTC"
-
-func doNotEscape(value string) template.HTML {
+func stringToHTML(value string) template.HTML {
 	return template.HTML(value)
 }
 
@@ -123,10 +119,6 @@ func pythonLoaderError(value string) template.HTML {
 	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1)
 	var loaderErrorArray []string
 	json.Unmarshal([]byte(value), &loaderErrorArray)
-	return template.HTML(value)
-}
-
-func lastError(value string) template.HTML {
 	return template.HTML(value)
 }
 
@@ -144,46 +136,7 @@ func lastErrorTraceback(value string) template.HTML {
 	return template.HTML(lastErrorArray[0]["traceback"])
 }
 
-func lastErrorMessage(value string) template.HTML {
-	var lastErrorArray []map[string]string
-	err := json.Unmarshal([]byte(value), &lastErrorArray)
-	if err == nil && len(lastErrorArray) > 0 {
-		if _, ok := lastErrorArray[0]["message"]; ok {
-			return template.HTML(lastErrorArray[0]["message"])
-		}
-	}
-	return template.HTML("UNKNOWN ERROR")
-}
-
-func formatUnixTime(unixTime float64) string {
-	var (
-		sec  int64
-		nsec int64
-	)
-	ts := fmt.Sprintf("%f", unixTime)
-	secs := strings.Split(ts, ".")
-	sec, _ = strconv.ParseInt(secs[0], 10, 64)
-	if len(secs) == 2 {
-		nsec, _ = strconv.ParseInt(secs[1], 10, 64)
-	}
-	t := time.Unix(sec, nsec)
-	return t.Format(timeFormat)
-}
-
-func mkHuman(f float64) string {
-	i := int64(f)
-	str := fmt.Sprintf("%d", i)
-
-	if i > 1000000 {
-		str = "over 1M"
-	} else if i > 100000 {
-		str = "over 100K"
-	}
-
-	return str
-}
-
-func mkHumanInt(i int64) string {
+func mkHuman(i int64) string {
 	str := fmt.Sprintf("%d", i)
 
 	if i > 1000000 {
