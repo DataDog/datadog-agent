@@ -7,10 +7,10 @@ package corechecks
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	log "github.com/cihub/seelog"
 )
 
 // CheckFactory factory function type to instantiate checks
@@ -56,13 +56,18 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		return checks, fmt.Errorf(msg)
 	}
 
+	errors := []string{}
 	for _, instance := range config.Instances {
 		newCheck := factory()
 		if err := newCheck.Configure(instance, config.InitConfig); err != nil {
-			log.Errorf("core.loader: could not configure check %s: %s", newCheck, err)
+			errors = append(errors, fmt.Sprintf("Could not configure check %s: %s", newCheck, err))
 			continue
 		}
 		checks = append(checks, newCheck)
+	}
+
+	if len(errors) != 0 {
+		return checks, fmt.Errorf(strings.Join(errors, "\n"))
 	}
 
 	return checks, nil

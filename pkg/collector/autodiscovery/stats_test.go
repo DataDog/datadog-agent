@@ -17,8 +17,8 @@ func TestNewAcErrorStats(t *testing.T) {
 func TestSetConfigError(t *testing.T) {
 	s := newAcErrorStats()
 	name := "foo.yaml"
-	s.setRunError(name, "anError")
-	s.setRunError(name, "anotherError")
+	s.setConfigError(name, "anError")
+	s.setConfigError(name, "anotherError")
 
 	assert.Len(t, s.config, 1)
 	assert.Equal(t, s.config[name], "anotherError")
@@ -27,16 +27,16 @@ func TestSetConfigError(t *testing.T) {
 func TestRemoveConfigError(t *testing.T) {
 	s := newAcErrorStats()
 	name := "foo.yaml"
-	s.setRunError(name, "anError")
-	s.removeRunError(name)
+	s.setConfigError(name, "anError")
+	s.removeConfigError(name)
 	assert.Len(t, s.config, 0)
 }
 
 func TestGetConfigErrors(t *testing.T) {
 	s := newAcErrorStats()
 	name := "foo.yaml"
-	s.setRunError(name, "anError")
-	err := s.getRunErrors()
+	s.setConfigError(name, "anError")
+	err := s.getConfigErrors()
 
 	assert.Len(t, err, 1)
 }

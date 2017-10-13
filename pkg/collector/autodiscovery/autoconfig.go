@@ -403,6 +403,11 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 		}
 
 		errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
+
+		// Check if some check instances were loaded correctly (can occur if there's multiple check instances)
+		if len(res) != 0 {
+			return res, nil
+		}
 		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
 	}
 

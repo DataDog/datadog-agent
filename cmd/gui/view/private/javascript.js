@@ -360,10 +360,7 @@ function showCheckConfig(fileName) {
                      '<div id="reload_check" class="inactive">Reload</div>' +
                      '<textarea id="check_input">' + data + '</textarea>');
     $('#check_input').data('file_name',  fileName);
-<<<<<<< HEAD
     $('#check_input').data('check_name',  fileName.substr(0, fileName.indexOf(".")));   // remove the ending
-=======
->>>>>>> e8517985a2bf43a0f64a4b78c7542b2dbd5fbea3
     $("#save_check").click(saveCheckSettings);
     $("#reload_check").click(reloadCheck);
   }, function() {
@@ -398,7 +395,7 @@ function saveCheckSettings() {
 
     if (resClass == "success") {
       $("#reload_check").removeClass("inactive");
-      $('#check_input').data('file_name', fileName);
+      $('#check_input').data('file_name', fileName);    // in case we removed the .default ending
 
       // Reload the list of file names, because if it was a default check it should become non-default
       loadCheckFiles();
@@ -414,7 +411,7 @@ function saveCheckSettings() {
 // a success it reloads the check (also displays the tests results as a popup)
 function reloadCheck() {
   $("#reload_check").addClass("inactive");
-  name = $('#check_input').data('file_name');
+  name = $('#check_input').data('check_name');
 
   // Test it once with new configuration
   sendMessage("checks/run/" + name + "/once", "",

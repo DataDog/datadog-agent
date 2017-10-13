@@ -53,6 +53,7 @@ func TestNewYamlConfigProvider(t *testing.T) {
 	for i, p := range provider.paths {
 		assert.Equal(t, p, paths[i])
 	}
+	assert.Zero(t, len(provider.Errors))
 }
 
 func TestCollect(t *testing.T) {
@@ -91,4 +92,7 @@ func TestCollect(t *testing.T) {
 	if assert.Equal(t, 1, len(nc)) {
 		assert.Contains(t, string(nc[0].InitConfig), "IsNotOnTheDefaultFile")
 	}
+
+	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml)
+	assert.Equal(t, 2, len(provider.Errors))
 }

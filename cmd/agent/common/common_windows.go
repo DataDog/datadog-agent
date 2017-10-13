@@ -86,6 +86,7 @@ func GetViewPath() string {
 	}
 	return viewPath
 }
+
 // import settings from Windows registry into datadog.yaml
 func ImportRegistryConfig() error {
 

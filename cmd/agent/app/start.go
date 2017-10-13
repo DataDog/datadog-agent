@@ -51,7 +51,6 @@ var (
 		Long:  `Runs the agent in the foreground`,
 		RunE:  start,
 	}
-
 )
 
 var (
@@ -73,7 +72,6 @@ func init() {
 	// local flags
 	startCmd.Flags().StringVarP(&pidfilePath, "pidfile", "p", "", "path to the pidfile")
 }
-
 
 // Start the main loop
 func start(cmd *cobra.Command, args []string) error {

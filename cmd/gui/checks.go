@@ -72,6 +72,19 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 	name := mux.Vars(r)["name"]
 	instances := common.AC.GetChecksByName(name)
 	if len(instances) == 0 {
+
+		/*
+			BUG: If the user is attempting to reload a check,
+			and the new configuration is wrong but there exists
+			another CORRECT config file for that check (ie, a default check)
+			then this just reloads that 'correct' check - it ignores their new,
+			incorrect configuration
+
+			Possible solution: get the path to the new file they're trying to test,
+			and use something like providers.GetCheckConfigFromFile() to see if the
+			new file was valid...
+		*/
+
 		html, e := renderError(name)
 		if e != nil {
 			w.Write([]byte("Error generating html: " + e.Error()))
