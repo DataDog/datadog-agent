@@ -6,6 +6,7 @@ from __future__ import print_function
 from invoke import task
 from invoke.exceptions import Exit
 
+import os
 
 @task
 def fmt(ctx, targets=None, fail_on_fmt=False):
@@ -29,7 +30,7 @@ def fmt(ctx, targets=None, fail_on_fmt=False):
             raise Exit(1)
     print("go fmt found no issues")
 
-
+lint_whitelist = ["iostats_wmi_windows.go"]
 @task
 def lint(ctx, targets=None):
     """
@@ -44,9 +45,20 @@ def lint(ctx, targets=None):
     targets_list = ["{}/...".format(t) for t in targets_list]
     result = ctx.run("golint {}".format(' '.join(targets_list)))
     if result.stdout:
-        files = {x for x in result.stdout.split('\n') if x}
-        print("Linting issues found in files: {}".format(','.join(files)))
-        raise Exit(1)
+        files = []
+        skipped_files = set()
+        for x in ( y for y in result.stdout.split('\n') if y ):
+            fname = os.path.basename(x.split(":")[0])
+            if fname in lint_whitelist:
+                skipped_files.add(fname)
+                continue
+            files.append(fname)
+        if files:
+            print("Linting issues found in {} files.".format(len(files)))
+            raise Exit(1)
+        if len(skipped_files) == 0:
+            for sf in skipped_files:
+                print("Allowed errors in whitelisted file {}".format(sf))
     print("golint found no issues")
 
 
