@@ -9,8 +9,36 @@ import (
 
 func TestNewAcErrorStats(t *testing.T) {
 	s := newAcErrorStats()
+	assert.Len(t, s.config, 0)
 	assert.Len(t, s.loader, 0)
 	assert.Len(t, s.run, 0)
+}
+
+func TestSetConfigError(t *testing.T) {
+	s := newAcErrorStats()
+	name := "foo.yaml"
+	s.setRunError(name, "anError")
+	s.setRunError(name, "anotherError")
+
+	assert.Len(t, s.config, 1)
+	assert.Equal(t, s.config[name], "anotherError")
+}
+
+func TestRemoveConfigError(t *testing.T) {
+	s := newAcErrorStats()
+	name := "foo.yaml"
+	s.setRunError(name, "anError")
+	s.removeRunError(name)
+	assert.Len(t, s.config, 0)
+}
+
+func TestGetConfigErrors(t *testing.T) {
+	s := newAcErrorStats()
+	name := "foo.yaml"
+	s.setRunError(name, "anError")
+	err := s.getRunErrors()
+
+	assert.Len(t, err, 1)
 }
 
 func TestSetLoaderError(t *testing.T) {

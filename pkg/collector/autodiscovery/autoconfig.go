@@ -28,6 +28,9 @@ var (
 
 func init() {
 	acErrors = expvar.NewMap("autoconfig")
+	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
+		return errorStats.getConfigErrors()
+	}))
 	acErrors.Set("LoaderErrors", expvar.Func(func() interface{} {
 		return errorStats.getLoaderErrors()
 	}))
@@ -174,6 +177,13 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 	configs := []check.Config{}
 	for _, pd := range ac.providers {
 		cfgs, _ := pd.provider.Collect()
+
+		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
+			for name, e := range fileConfPd.Errors {
+				errorStats.setConfigError(name, e)
+			}
+		}
+
 		configs = append(configs, cfgs...)
 	}
 
@@ -413,4 +423,9 @@ func (pd *providerDescriptor) contains(c *check.Config) bool {
 // GetLoaderErrors gets the errors from the loaderErrors struct
 func GetLoaderErrors() map[string]LoaderErrors {
 	return errorStats.getLoaderErrors()
+}
+
+// GetConfigErrors gets the config errors
+func GetConfigErrors() map[string]string {
+	return errorStats.getConfigErrors()
 }

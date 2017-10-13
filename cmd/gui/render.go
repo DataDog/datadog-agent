@@ -1,13 +1,11 @@
 package gui
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,8 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	log "github.com/cihub/seelog"
 )
 
 var fmap = template.FuncMap{
@@ -44,7 +40,7 @@ type CheckStats struct {
 type Errors struct {
 	Name       string
 	LoaderErrs map[string]autodiscovery.LoaderErrors
-	ParsingErr string
+	ConfigErrs map[string]string
 }
 
 func renderStatus(data []byte, request string) (string, error) {
@@ -100,33 +96,9 @@ func renderError(name string) (string, error) {
 	}
 
 	loaderErrs := autodiscovery.GetLoaderErrors()
+	configErrs := autodiscovery.GetConfigErrors()
 
-	// Check if there's a message in the log indicating the config file had an error
-	parserErr := ""
-	logFile, e := os.Open(config.Datadog.GetString("log_file"))
-	if e != nil {
-		log.Errorf("GUI - Error reading log file: " + e.Error())
-		return "", e
-	}
-	scanner := bufio.NewScanner(logFile)
-	for scanner.Scan() {
-		if strings.Contains(scanner.Text(), name+".yaml is not a valid config file:") {
-			parserErr = scanner.Text()
-
-			// Get the lines containing the error
-			for scanner.Scan() {
-				if !(strings.Contains(scanner.Text(), "| WARN |") ||
-					strings.Contains(scanner.Text(), "| INFO |") ||
-					strings.Contains(scanner.Text(), "| ERROR |")) {
-					parserErr += scanner.Text()
-				} else {
-					break
-				}
-			}
-		}
-	}
-
-	errs := Errors{name, loaderErrs, parserErr}
+	errs := Errors{name, loaderErrs, configErrs}
 	e = t.Execute(b, errs)
 	if e != nil {
 		return "", e
@@ -148,7 +120,7 @@ func pythonLoaderError(value string) template.HTML {
 	value = strings.Replace(value, "\\n']", "", -1)
 	value = strings.Replace(value, "']", "", -1)
 	value = strings.Replace(value, "\\n", "<br>", -1)
-	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1) // unchecked
+	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1)
 	var loaderErrorArray []string
 	json.Unmarshal([]byte(value), &loaderErrorArray)
 	return template.HTML(value)

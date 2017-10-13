@@ -17,8 +17,12 @@
       {{end -}}
     {{end -}}
   {{ end }}
-  {{ if .ParsingErr }}
-    <span class="stat_subtitle"> Parsing error </span>
-    <span class="stat_data"> {{.ParsingErr}} </span>
+  {{ if .ConfigErrs }}
+    {{- range $checkname, $error := .ConfigErrs}}
+      {{- if eq $name $checkname }}
+        <span class="stat_subtitle"> Parsing error </span>
+        <span class="stat_data"> {{$error}} </span>
+      {{end -}}
+    {{end -}}
   {{ end }}
 </div>
