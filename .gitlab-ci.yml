@@ -158,7 +158,8 @@ agent_deb-x64:
     # from the GOPATH (see above). We then call `invoke` passing --base-dir,
     # pointing to a gitlab-friendly location.
     - inv -e agent.omnibus-build --base-dir $AGENT_OMNIBUS_BASE_DIR
-    - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/*.deb
+    - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb
+    - aws s3 cp --only-show-errors --region us-east-1 --sse AES256 $AGENT_OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb s3://dd-scratch-space-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   cache:
     # cache per branch
     key: $CI_COMMIT_REF_NAME
@@ -240,6 +241,7 @@ build_agent6:
   variables:
     DD_DIND_DOCKERFILE: Dockerfiles/agent6/Dockerfile
     DD_DIND_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent:$CI_PIPELINE_ID
+    DD_DIND_ARTEFACTS: true
 
 # build the dogstatsd image
 build_dogstatsd:
@@ -251,6 +253,7 @@ build_dogstatsd:
   variables:
     DD_DIND_DOCKERFILE: Dockerfiles/dogstatsd/alpine/Dockerfile
     DD_DIND_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/alpine_dogstatsd:$CI_PIPELINE_ID
+    DD_DIND_ARTEFACTS: true
 
 # build the dogstatsd socket proxy image
 build_dogstatsd_socat:
@@ -262,6 +265,7 @@ build_dogstatsd_socat:
   variables:
     DD_DIND_DOCKERFILE: Dockerfiles/dogstatsd/socat-proxy/Dockerfile
     DD_DIND_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/alpine_dogstatsd_socat:$CI_PIPELINE_ID
+    DD_DIND_ARTEFACTS: true
 
 
 #

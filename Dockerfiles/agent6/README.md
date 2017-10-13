@@ -17,8 +17,6 @@ For a more detailed usage please refer to the official [Docker Hub](https://hub.
 
 To build the image you'll need the agent 6 debian package that can be found on this APT listing [here](https://s3.amazonaws.com/apt-agent6.datad0g.com).
 
-You'll need to download the `.deb` package in this directory and rename it to `agent6.deb`, it will then be used by the `Dockerfile` and installed within the image.
-
-Example to get and rename the debian package: `curl -o ./agent6.deb https://s3.amazonaws.com/apt-agent6.datad0g.com/pool/d/da/datadog-agent6_0.0.0-1_amd64.deb`
+You'll need to download one of the `datadog-agent*_amd64.deb` package, it will then be used by the `Dockerfile` and installed within the image.
 
 Then you can build the image using `docker build -t <name> .`
