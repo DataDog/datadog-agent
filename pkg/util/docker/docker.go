@@ -41,7 +41,7 @@ var (
 		CPU:     &CgroupTimesStat{},
 		Memory:  &CgroupMemStat{},
 		IO:      &CgroupIOStat{},
-		Network: &NetworkStat{},
+		Network: ContainerNetStats{},
 	}
 )
 
@@ -88,7 +88,7 @@ type Container struct {
 	CPU            *CgroupTimesStat
 	Memory         *CgroupMemStat
 	IO             *CgroupIOStat
-	Network        *NetworkStat
+	Network        ContainerNetStats
 	StartedAt      int64
 
 	// For internal use only
