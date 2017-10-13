@@ -63,6 +63,7 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 			status = metrics.ServiceCheckCritical
 		}
 		tags, err := tagger.Tag(ev.ContainerEntityName(), true)
+		tags = append(tags, d.instance.Tags...)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", ev.ContainerID, err)
 		}

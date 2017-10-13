@@ -19,7 +19,9 @@ import (
 )
 
 func TestReportExitCodes(t *testing.T) {
-	dockerCheck := new(DockerCheck)
+	dockerCheck := &DockerCheck{
+		instance: &DockerConfig{},
+	}
 	mockSender := aggregator.NewMockSender(dockerCheck.ID())
 
 	var events []*docker.ContainerEvent
