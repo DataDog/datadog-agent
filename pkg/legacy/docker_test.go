@@ -50,6 +50,7 @@ instances:
 collect_exit_codes: true
 collect_images_stats: false
 collect_image_size: true
+collect_disk_stats: true
 tags:
 - tag:value
 - value

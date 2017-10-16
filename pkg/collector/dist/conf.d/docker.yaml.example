@@ -42,6 +42,16 @@ instances:
     #
     # collect_image_size: true
 
+    # Collect disk metrics (total, used, free) through the docker info command for data and metadata.
+    # This is useful when these values can't be obtained by the disk check.
+    # Example: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    # Note that it only works when the storage driver is devicemapper.
+    # Explanation of these metrics can be found here:
+    # https://github.com/docker/docker/blob/v1.11.1/daemon/graphdriver/devmapper/README.md
+    # Defaults to false.
+    #
+    # collect_disk_stats: true
+
     # Monitor exiting containers and send service checks based on exit code value
     # (OK if 0, CRITICAL otherwise)
     # Defaults to false.

@@ -28,7 +28,7 @@ func TestFindDockerNetworks(t *testing.T) {
 	config.Datadog.SetDefault("container_proc_root", dummyProcDir.RootPath)
 
 	containerID := "test-find-docker-networks"
-	for _, tc := range []struct {
+	for nb, tc := range []struct {
 		pid         int
 		settings    *types.SummaryNetworkSettings
 		routes, dev string
@@ -198,6 +198,7 @@ func TestFindDockerNetworks(t *testing.T) {
 			summedStat: &InterfaceNetStats{},
 		},
 	} {
+		t.Logf("test case %d", nb)
 		// Create temporary files on disk with the routes and stats.
 		err = dummyProcDir.add(filepath.Join(strconv.Itoa(int(tc.pid)), "net", "route"), tc.routes)
 		assert.NoError(err)
