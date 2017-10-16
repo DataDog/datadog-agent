@@ -264,3 +264,12 @@ func ContainerSelfInspect() ([]byte, error) {
 
 	return byteArray, err
 }
+
+// GetStorageStats returns the docker global storage stats if available
+// or ErrStorageStatsNotAvailable
+func GetStorageStats() ([]*StorageStats, error) {
+	if globalDockerUtil == nil {
+		return nil, ErrDockerNotAvailable
+	}
+	return globalDockerUtil.getStorageStats()
+}
