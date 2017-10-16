@@ -11,9 +11,11 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+// SetupAutoConfig placeholder if docker is disabled
 func SetupAutoConfig(confdPath string) {
 	log.Debugf("AutoDiscovery is only supported with docker, disabling")
 }
 
+// StartAutoConfig placeholder if docker is disabled
 func StartAutoConfig() {
 }
