@@ -79,7 +79,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		s := &serializer.Serializer{Forwarder: common.Forwarder}
-		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 10000000000)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 1000000000)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 		cs := common.AC.GetChecksByName(checkName)
 		if len(cs) == 0 {
