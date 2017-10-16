@@ -20,8 +20,8 @@ import (
 )
 
 // DefaultFlushInterval aggregator default flush interval
-const DefaultFlushInterval = 15 // flush interval in seconds
-const bucketSize = 10           // fixed for now
+const DefaultFlushInterval = 15 * time.Second // flush interval
+const bucketSize = 10                         // fixed for now
 
 // Stats stores a statistic from several past flushes allowing computations like median or percentiles
 type Stats struct {
@@ -97,7 +97,7 @@ func InitAggregator(s *serializer.Serializer, hostname string) *BufferedAggregat
 }
 
 // InitAggregatorWithFlushInterval returns the Singleton instance with a configured flush interval
-func InitAggregatorWithFlushInterval(s *serializer.Serializer, hostname string, flushInterval int64) *BufferedAggregator {
+func InitAggregatorWithFlushInterval(s *serializer.Serializer, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	aggregatorInit.Do(func() {
 		aggregatorInstance = NewBufferedAggregator(s, hostname, flushInterval)
 		go aggregatorInstance.run()
@@ -124,7 +124,7 @@ type BufferedAggregator struct {
 	distSampler        DistSampler
 	serviceChecks      metrics.ServiceChecks
 	events             metrics.Events
-	flushInterval      int64
+	flushInterval      time.Duration
 	mu                 sync.Mutex // to protect the checkSamplers field
 	serializer         *serializer.Serializer
 	hostname           string
@@ -134,7 +134,7 @@ type BufferedAggregator struct {
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s *serializer.Serializer, hostname string, flushInterval int64) *BufferedAggregator {
+func NewBufferedAggregator(s *serializer.Serializer, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	aggregator := &BufferedAggregator{
 		dogstatsdIn:        make(chan *metrics.MetricSample, 100), // TODO make buffer size configurable
 		checkMetricIn:      make(chan senderMetricSample, 100),    // TODO make buffer size configurable
@@ -401,7 +401,7 @@ func (agg *BufferedAggregator) flush() {
 
 func (agg *BufferedAggregator) run() {
 	if agg.TickerChan == nil {
-		flushPeriod := time.Duration(agg.flushInterval) * time.Second
+		flushPeriod := agg.flushInterval
 		agg.TickerChan = time.NewTicker(flushPeriod).C
 	}
 	for {
