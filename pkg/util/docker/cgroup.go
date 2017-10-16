@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-// +build docker
+// This code is not tied to docker itself, hence no docker build flag.
+// It could be moved to its own package.
 
 package docker
 

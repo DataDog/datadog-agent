@@ -8,10 +8,11 @@
 package flare
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/jhoonb/archivex"
 	"path/filepath"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/jhoonb/archivex"
 )
 
 func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {

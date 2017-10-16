@@ -5,12 +5,9 @@
 
 // +build !docker
 
-package flare
+package docker
 
-import (
-	"github.com/jhoonb/archivex"
-)
-
-func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
-	return nil
+// GetHostname returns the Docker hostname.
+func GetHostname() (string, error) {
+	return "", ErrDockerNotCompiled
 }

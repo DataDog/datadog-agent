@@ -111,7 +111,7 @@ func locateKubelet() (string, error) {
 	if host == "" {
 		host, err = docker.GetHostname()
 		if err != nil {
-			return "", fmt.Errorf("Unable to get hostname from docker: %s", err)
+			return "", fmt.Errorf("Unable to get hostname from docker, please set the kubernetes_kubelet_host option: %s", err)
 		}
 	}
 
