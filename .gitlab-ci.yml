@@ -65,15 +65,13 @@ build_dogstatsd_static-deb_x64:
     paths:
       - dogstatsd
 
-# build dogstatsd static for rpm-x64
-build_dogstatsd_static-rpm_x64:
+# build puppy agent for deb-x64, to make sure the build is not broken because of build flags
+build_puppy_agent-deb_x64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
-    - inv -e dogstatsd.build --static
-    - cp $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
-
+    - inv -e agent.build --puppy
 
 #
 # integration_test
@@ -202,7 +200,7 @@ agent_rpm-x64:
 # package_build
 #
 
-# build windows 
+# build windows
 build_windows_msi_x64:
   before_script:
     - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
