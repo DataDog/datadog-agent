@@ -1,6 +1,6 @@
 <div id="check_run_results">
   <span class="stat_title">{{formatTitle .Name}} run result: </span>
-  {{- range $i, $e := .Stats}}
+  {{- range $i, $e := .CheckStats}}
   <span class="stat_subtitle">Instance {{add $i 1}}</span>
     <span class="stat_data">
         Total Runs: {{.TotalRuns}}<br>

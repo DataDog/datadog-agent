@@ -3,6 +3,7 @@ package gui
 import (
 	"bytes"
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"html/template"
 	"io"
@@ -26,57 +27,53 @@ var fmap = template.FuncMap{
 	"humanizeInt":        mkHuman,
 	"formatTitle":        formatTitle,
 	"add":                add,
+	"instances":          instances,
 }
 
-// CheckStats is the struct used for filling templates/singleCheck.tmpl
-type CheckStats struct {
-	Name  string
-	Stats []*check.Stats
-}
-
-// Errors is the struct used for filling templates/loaderErr.tmpl
-type Errors struct {
+// Data is a struct used for filling templates
+type Data struct {
 	Name       string
 	LoaderErrs map[string]autodiscovery.LoaderErrors
 	ConfigErrs map[string]string
+	Stats      map[string]interface{}
+	CheckStats []*check.Stats
 }
 
-func renderStatus(data []byte, request string) (string, error) {
+func renderStatus(rawData []byte, request string) (string, error) {
 	var b = new(bytes.Buffer)
 	stats := make(map[string]interface{})
-	json.Unmarshal(data, &stats)
+	json.Unmarshal(rawData, &stats)
 
-	e := fillTemplate(b, stats, request+"Status")
+	data := Data{Stats: stats}
+	e := fillTemplate(b, data, request+"Status")
 	if e != nil {
 		return "", e
 	}
 	return b.String(), nil
 }
 
-func fillTemplate(w io.Writer, stats map[string]interface{}, request string) error {
-	t := template.New(request + ".tmpl")
-	t.Funcs(fmap)
-	t, e := t.ParseFiles(filepath.Join(common.GetViewPath(), "templates/"+request+".tmpl"))
-	if e != nil {
-		return e
-	}
+func renderRunningChecks() (string, error) {
+	var b = new(bytes.Buffer)
 
-	e = t.Execute(w, stats)
-	return e
+	runnerStatsJSON := []byte(expvar.Get("runner").String())
+	runnerStats := make(map[string]interface{})
+	json.Unmarshal(runnerStatsJSON, &runnerStats)
+	loaderErrs := autodiscovery.GetLoaderErrors()
+	configErrs := autodiscovery.GetConfigErrors()
+
+	data := Data{LoaderErrs: loaderErrs, ConfigErrs: configErrs, Stats: runnerStats}
+	e := fillTemplate(b, data, "runningChecks")
+	if e != nil {
+		return "", e
+	}
+	return b.String(), nil
 }
 
 func renderCheck(name string, stats []*check.Stats) (string, error) {
 	var b = new(bytes.Buffer)
 
-	t := template.New("singleCheck.tmpl")
-	t.Funcs(fmap)
-	t, e := t.ParseFiles(filepath.Join(common.GetViewPath(), "templates/singleCheck.tmpl"))
-	if e != nil {
-		return "", e
-	}
-
-	cs := CheckStats{name, stats}
-	e = t.Execute(b, cs)
+	data := Data{Name: name, CheckStats: stats}
+	e := fillTemplate(b, data, "singleCheck")
 	if e != nil {
 		return "", e
 	}
@@ -86,22 +83,27 @@ func renderCheck(name string, stats []*check.Stats) (string, error) {
 func renderError(name string) (string, error) {
 	var b = new(bytes.Buffer)
 
-	t := template.New("loaderErr.tmpl")
-	t.Funcs(fmap)
-	t, e := t.ParseFiles(filepath.Join(common.GetViewPath(), "templates/loaderErr.tmpl"))
-	if e != nil {
-		return "", e
-	}
-
 	loaderErrs := autodiscovery.GetLoaderErrors()
 	configErrs := autodiscovery.GetConfigErrors()
 
-	errs := Errors{name, loaderErrs, configErrs}
-	e = t.Execute(b, errs)
+	data := Data{Name: name, LoaderErrs: loaderErrs, ConfigErrs: configErrs}
+	e := fillTemplate(b, data, "loaderErr")
 	if e != nil {
 		return "", e
 	}
 	return b.String(), nil
+}
+
+func fillTemplate(w io.Writer, data Data, request string) error {
+	t := template.New(request + ".tmpl")
+	t.Funcs(fmap)
+	t, e := t.ParseFiles(filepath.Join(common.GetViewPath(), "templates/"+request+".tmpl"))
+	if e != nil {
+		return e
+	}
+
+	e = t.Execute(w, data)
+	return e
 }
 
 /****** Helper functions for the template formatting ******/
@@ -171,4 +173,20 @@ func formatTitle(title string) string {
 
 func add(x, y int) int {
 	return x + y
+}
+
+func instances(checks map[string]interface{}) map[string][]interface{} {
+	instances := make(map[string][]interface{})
+	for _, ch := range checks {
+		if check, ok := ch.(map[string]interface{}); ok {
+			if name, ok := check["CheckName"].(string); ok {
+				if len(instances[name]) == 0 {
+					instances[name] = []interface{}{check}
+				} else {
+					instances[name] = append(instances[name], check)
+				}
+			}
+		}
+	}
+	return instances
 }

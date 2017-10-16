@@ -1,9 +1,8 @@
 <div id="check_run_results">
-  {{$name := .Name}}
-  <span class="stat_title">Error running {{$name}} check: </span>
+  <span class="stat_title">Error running {{.Name}} check: </span>
   {{ if .LoaderErrs }}
     {{- range $checkname, $errors := .LoaderErrs}}
-      {{- if eq $name $checkname }}
+      {{- if eq $.Name $checkname }}
         <span class="stat_subtitle"> Loader error </span>
         <span class="stat_data">
           {{- range $kind, $err := $errors -}}
@@ -19,8 +18,8 @@
   {{ end }}
   {{ if .ConfigErrs }}
     {{- range $checkname, $error := .ConfigErrs}}
-      {{- if eq $name $checkname }}
-        <span class="stat_subtitle"> Parsing error </span>
+      {{- if eq $.Name $checkname }}
+        <span class="stat_subtitle"> Configuration error </span>
         <span class="stat_data"> {{$error}} </span>
       {{end -}}
     {{end -}}

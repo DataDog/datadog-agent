@@ -671,6 +671,18 @@ a {
       .l_space {
         padding-left: 30px;
       }
+
+      .success {
+        color: green;
+      }
+
+      .error {
+        color: red;
+      }
+
+      .warning {
+        color: #FFA500;
+      }
     }
 
     #running_checks_info {

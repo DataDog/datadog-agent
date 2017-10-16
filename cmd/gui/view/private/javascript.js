@@ -565,29 +565,7 @@ function seeRunningChecks() {
 
   sendMessage("checks/running", "",
   function(data, status, xhr){
-    if (data == null) {
-      $("#running_checks").html("No checks ran yet.");
-      return
-    }
-
-    // Count the number of instances of each check
-    runningChecks = {}
-    data.sort();
-    data.forEach(function(name){
-      if (runningChecks.hasOwnProperty(name)) runningChecks[name] += 1;
-      else runningChecks[name] = 1;
-    });
-
-    $("#running_checks").html('<table id="running_checks_table">' +
-                              '<tr> <th>Check Name</th>' +
-                              '<th class="l_space">Number of Instances</th></tr> ' +
-                              '</table>' +
-                              '<div id="running_checks_info"> See Collector Status for more information.</div>');
-
-    for (check in runningChecks) {
-      $("#running_checks_table").append('<tr> <td>' + check + '</td>' +
-                                        '<td class="l_space">' + runningChecks[check] + '</td></tr> ');
-    }
+    $("#running_checks").html(data);
   }, function() {
       $("#running_checks").html("An error occurred.");
   });

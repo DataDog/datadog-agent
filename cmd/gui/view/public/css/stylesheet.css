@@ -472,6 +472,12 @@ a {
       padding: 5px; }
     #main #running_checks #running_checks_table .l_space {
       padding-left: 30px; }
+    #main #running_checks #running_checks_table .success {
+      color: green; }
+    #main #running_checks #running_checks_table .error {
+      color: red; }
+    #main #running_checks #running_checks_table .warning {
+      color: #FFA500; }
     #main #running_checks #running_checks_info {
       display: block;
       padding-top: 15px;

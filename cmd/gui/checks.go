@@ -2,7 +2,6 @@ package gui
 
 import (
 	"encoding/json"
-	"expvar"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -32,25 +31,14 @@ func checkHandler(r *mux.Router) {
 
 // Sends a list of all the current running checks
 func sendRunningChecks(w http.ResponseWriter, r *http.Request) {
-	runnerStatsJSON := []byte(expvar.Get("runner").String())
-	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats)
-
-	// Parse runnerStatsJSON to get the names of all the current running checks
-	var checksList []string
-	if checks, ok := runnerStats["Checks"].(map[string]interface{}); ok {
-		for _, ch := range checks {
-			if check, ok := ch.(map[string]interface{}); ok {
-				if name, ok := check["CheckName"].(string); ok {
-					checksList = append(checksList, name)
-				}
-			}
-		}
+	html, e := renderRunningChecks()
+	if e != nil {
+		w.Write([]byte("Error generating status html: " + e.Error()))
+		return
 	}
 
-	res, _ := json.Marshal(checksList)
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(res))
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(html))
 }
 
 // Schedules a specific check
