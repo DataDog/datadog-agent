@@ -28,7 +28,7 @@ var (
 )
 
 // Make the check cmd aggregator never flush by setting a very high interval
-const checkCmdFlushInterval = 1000000000 * time.Second
+const checkCmdFlushInterval = time.Hour
 
 func init() {
 	AgentCmd.AddCommand(checkCmd)
