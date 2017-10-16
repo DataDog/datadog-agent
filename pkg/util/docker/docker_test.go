@@ -36,6 +36,12 @@ func TestAllContainers(t *testing.T) {
 	AllContainers(&ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 }
 
+func TestContainerIDToEntityName(t *testing.T) {
+	assert.Equal(t, "", ContainerIDToEntityName(""))
+	assert.Equal(t, "docker://ada5d83e6c2d3dfaaf7dd9ff83e735915da1174dc56880c06a6c99a9a58d5c73", ContainerIDToEntityName("ada5d83e6c2d3dfaaf7dd9ff83e735915da1174dc56880c06a6c99a9a58d5c73"))
+
+}
+
 func TestParseContainerHealth(t *testing.T) {
 	assert := assert.New(t)
 	for i, tc := range []struct {
