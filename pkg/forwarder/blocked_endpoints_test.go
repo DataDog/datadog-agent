@@ -20,8 +20,10 @@ func TestBlock(t *testing.T) {
 	e.block("test")
 	after := time.Now()
 	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.True(t, before.Add(blockInterval).Before(e.errorPerEndpoint["test"].until))
-	assert.True(t, after.Add(blockInterval).After(e.errorPerEndpoint["test"].until))
+	assert.True(t, before.Add(blockInterval).Before(e.errorPerEndpoint["test"].until) ||
+		before.Add(blockInterval).Equal(e.errorPerEndpoint["test"].until))
+	assert.True(t, after.Add(blockInterval).After(e.errorPerEndpoint["test"].until) ||
+		after.Add(blockInterval).Equal(e.errorPerEndpoint["test"].until))
 }
 
 func TestMaxBlock(t *testing.T) {
@@ -33,8 +35,10 @@ func TestMaxBlock(t *testing.T) {
 	e.block("test")
 	after := time.Now()
 	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.True(t, before.Add(maxBlockInterval).Before(e.errorPerEndpoint["test"].until))
-	assert.True(t, after.Add(maxBlockInterval).After(e.errorPerEndpoint["test"].until))
+	assert.True(t, before.Add(maxBlockInterval).Before(e.errorPerEndpoint["test"].until) ||
+		before.Add(maxBlockInterval).Equal(e.errorPerEndpoint["test"].until))
+	assert.True(t, after.Add(maxBlockInterval).After(e.errorPerEndpoint["test"].until) ||
+		after.Add(maxBlockInterval).Equal(e.errorPerEndpoint["test"].until))
 }
 
 func TestUnblock(t *testing.T) {

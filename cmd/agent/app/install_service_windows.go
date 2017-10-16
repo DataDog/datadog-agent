@@ -15,7 +15,7 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 )
 
-// Default name of windows service
+// ServiceName is the name that'll be used to register the Agent
 const ServiceName = "DatadogAgent"
 
 func init() {

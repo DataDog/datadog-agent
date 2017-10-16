@@ -2,7 +2,6 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
-
 package forwarder
 
 import (
@@ -23,11 +22,11 @@ func TestNewHTTPTransaction(t *testing.T) {
 	assert.NotNil(t, transaction)
 	assert.Equal(t, transaction.ErrorCount, 0)
 
-	assert.True(t, transaction.nextFlush.After(before))
-	assert.True(t, transaction.nextFlush.Before(after))
+	assert.True(t, transaction.nextFlush.After(before) || transaction.nextFlush.Equal(before))
+	assert.True(t, transaction.nextFlush.Before(after) || transaction.nextFlush.Equal(after))
 
-	assert.True(t, transaction.createdAt.After(before))
-	assert.True(t, transaction.createdAt.Before(after))
+	assert.True(t, transaction.createdAt.After(before) || transaction.createdAt.Equal(before))
+	assert.True(t, transaction.createdAt.Before(after) || transaction.createdAt.Equal(after))
 }
 
 func TestGetNextFlush(t *testing.T) {
@@ -55,8 +54,8 @@ func TestReschedule(t *testing.T) {
 	transaction.Reschedule()
 	after := time.Now()
 
-	assert.True(t, transaction.nextFlush.After(before.Add(retryInterval)))
-	assert.True(t, transaction.nextFlush.Before(after.Add(retryInterval)))
+	assert.True(t, transaction.nextFlush.After(before.Add(retryInterval)) || transaction.nextFlush.Equal(before.Add(retryInterval)))
+	assert.True(t, transaction.nextFlush.Before(after.Add(retryInterval)) || transaction.nextFlush.Equal(after.Add(retryInterval)))
 }
 
 func TestMaxReschedule(t *testing.T) {
@@ -67,8 +66,8 @@ func TestMaxReschedule(t *testing.T) {
 	transaction.Reschedule()
 	after := time.Now()
 
-	assert.True(t, transaction.nextFlush.After(before.Add(maxRetryInterval)))
-	assert.True(t, transaction.nextFlush.Before(after.Add(maxRetryInterval)))
+	assert.True(t, transaction.nextFlush.After(before.Add(maxRetryInterval)) || transaction.nextFlush.Equal(before.Add(maxRetryInterval)))
+	assert.True(t, transaction.nextFlush.Before(after.Add(maxRetryInterval)) || transaction.nextFlush.Equal(after.Add(maxRetryInterval)))
 }
 
 func TestProcess(t *testing.T) {

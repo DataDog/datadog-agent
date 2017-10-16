@@ -23,6 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/test/util"
+
+	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 var (
@@ -50,6 +53,22 @@ var (
 		"",
 		"Add a 'branch' tag to every metrics equal to the value given.")
 
+	memory = flag.Bool("memory",
+		false,
+		"should we run the memory benchmark.")
+
+	memips = flag.Int("ips",
+		1000,
+		"number of iterations per second (best-effort).")
+
+	duration = flag.Int("duration",
+		60,
+		"duration per second.")
+
+	flushIval = flag.Int64("flush_ival",
+		int64(aggregator.DefaultFlushInterval/time.Second),
+		"Flush interval for aggregator, in seconds")
+
 	agg   *aggregator.BufferedAggregator
 	flush = make(chan time.Time)
 )
@@ -58,31 +77,31 @@ type forwarderBenchStub struct{}
 
 func (f *forwarderBenchStub) Start() error { return nil }
 func (f *forwarderBenchStub) Stop()        {}
-func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSeries(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitSeries(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitEvents(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitEvents(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitServiceChecks(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitServiceChecks(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitSketchSeries(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitHostMetadata(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitHostMetadata(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitMetadata(payload forwarder.Payloads, extraHeaders http.Header) error {
 	return nil
 }
 
@@ -180,17 +199,19 @@ func main() {
 		fmt.Printf("could not set loggger: %s", err)
 		return
 	}
+	defer log.Flush()
 
 	if *branchName == "" {
 		log.Criticalf("Error: '-branch' parameter is mandatory")
 		return
 	}
 
+	util.SetHostname("foo")
+
 	f := &forwarderBenchStub{}
 	s := &serializer.Serializer{Forwarder: f}
 
-	agg = aggregator.InitAggregator(s, "hostname")
-	agg.TickerChan = flush
+	agg = aggregator.InitAggregatorWithFlushInterval(s, "hostname", time.Duration(*flushIval)*time.Second)
 
 	aggregator.SetDefaultAggregator(agg)
 	sender, err := aggregator.GetSender(check.ID("benchmark check"))
@@ -198,13 +219,6 @@ func main() {
 		log.Criticalf("could not get sender: %s", err)
 		return
 	}
-
-	//warm up
-	generateMetrics(1, 1, sender.Gauge)
-	generateEvent(1, sender)
-	generateServiceCheck(1, sender)
-	sender.Commit()
-	startInfo := report(nil, "")
 
 	nbPoints := []int{}
 	for _, n := range strings.Split(*points, ",") {
@@ -225,8 +239,24 @@ func main() {
 		nbSeries = append(nbSeries, res)
 	}
 
-	log.Infof("Starting benchmark with %v series of %v points.\n\n", nbSeries, nbPoints)
-	results := benchmarkMetrics(nbSeries, nbPoints, sender, startInfo, *branchName)
+	agg.TickerChan = flush
+
+	//warm up
+	generateMetrics(1, 1, sender.Gauge)
+	generateEvent(1, sender)
+	generateServiceCheck(1, sender)
+	sender.Commit()
+
+	var results []datadog.Metric
+	if *memory {
+		results = benchmarkMemory(agg, sender, nbPoints, nbSeries, *memips, *duration, *branchName)
+	} else {
+		startInfo := report(nil, "")
+
+		log.Infof("Starting benchmark with %v series of %v points.\n\n", nbSeries, nbPoints)
+		results = benchmarkMetrics(nbSeries, nbPoints, sender, startInfo, *branchName)
+	}
+
 	if *jsonOutput {
 		data, err := json.Marshal(results)
 		if err != nil {

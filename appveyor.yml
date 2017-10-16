@@ -1,0 +1,32 @@
+version: '{branch}.{build}'
+shallow_clone: false
+platform: x64
+skip_branch_with_pr: true
+
+clone_folder: C:\gopath\src\github.com\DataDog\datadog-agent
+
+# environment must be set for python 64 bit
+environment:
+  GOPATH: C:\gopath
+  RUBY_PATH: C:\Ruby23-x64
+  RI_DEVKIT: C:\Ruby23-x64\DevKit\
+  PYTHONPATH: c:\python27-x64
+  PYTHONHOME: c:\python27-x64
+
+install:
+  - set PATH=%GOPATH%\bin;C:\go\bin;C:\pkg-config-lite-0.28-1\bin;%RUBY_PATH%\bin;%RI_DEVKIT%bin;%RI_DEVKIT%mingw\bin;c:\python27-x64;c:\python27-x64\scripts;%PATH%
+  - go version
+  - pip install invoke
+  - appveyor DownloadFile "https://downloads.sourceforge.net/project/pkgconfiglite/0.28-1/pkg-config-lite-0.28-1_bin-win32.zip?r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fpkgconfiglite%2Ffiles%2F0.28-1%2F&ts=1506994037&use_mirror=superb-dca2" -FileName "C:\pkg-config-lite-0.28-1_bin-win32.zip"
+  - 7z x -y "C:\pkg-config-lite-0.28-1_bin-win32.zip" -o"C:\"
+  - dir /s/b C:\pkg-config-lite-0.28-1\bin
+
+cache:
+  - '%GOPATH%/pkg/dep'
+
+build: off
+
+test_script:
+  - cd
+  - inv -e deps
+  - inv -e test --coverage --race --fail-on-fmt
