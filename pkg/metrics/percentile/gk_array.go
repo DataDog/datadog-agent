@@ -216,9 +216,9 @@ func (s GKArray) Quantiles(qValues []float64) []float64 {
 		for _, q := range qValues {
 			if q < 0 || q > 1 {
 				quantiles = append(quantiles, math.NaN())
-			} else {
-				quantiles = append(quantiles, s.interpolatedQuantile(q))
+				continue
 			}
+			quantiles = append(quantiles, s.interpolatedQuantile(q))
 		}
 		return quantiles
 	}
@@ -233,24 +233,18 @@ func (s GKArray) Quantiles(qValues []float64) []float64 {
 
 	// For sorted qValues, the quantiles can be found in one pass
 	// over the Entries
-	ranks := make([]int64, 0, len(qValues))
-	invalidQ := false
-	for _, q := range qValues {
-		if q < 0 || q > 1 {
-			invalidQ = true
-		} else {
-			ranks = append(ranks, int64(q*float64(s.Count-1)))
-		}
-	}
-
 	spread := int64(EPSILON * float64(s.Count-1))
 	gSum := int64(0)
 	i := 0
 	j := 0
-	for ; i < len(s.Entries) && j < len(ranks); i++ {
+	for ; i < len(s.Entries) && j < len(qValues); i++ {
 		gSum += int64(s.Entries[i].G)
+		// Check for invalid qValues
+		for ; j < len(qValues) && (qValues[j] < 0 || qValues[j] > 1); j++ {
+			quantiles = append(quantiles, math.NaN())
+		}
 		// Loop since adjacent ranks could be the same.
-		for ; j < len(ranks) && gSum+int64(s.Entries[i].Delta)-1 > ranks[j]+spread; j++ {
+		for ; j < len(qValues) && gSum+int64(s.Entries[i].Delta)-1 > int64(qValues[j]*float64(s.Count-1))+spread; j++ {
 			if i == 0 {
 				quantiles = append(quantiles, s.Min)
 			} else {
@@ -260,22 +254,12 @@ func (s GKArray) Quantiles(qValues []float64) []float64 {
 	}
 	// If there're any quantile values that have not been found,
 	// return the max value.
-	for ; j < len(ranks); j++ {
-		quantiles = append(quantiles, s.Max)
-	}
-	// Invalid qValues should return NaN
-	// This shouldn't happen, since dd controls the qValues, but leaving in
-	// just in case.
-	if invalidQ {
-		for _, q := range qValues {
-			if q < 0 {
-				quantiles = append(quantiles, 0)
-				copy(quantiles[1:], quantiles[:])
-				quantiles[0] = math.NaN()
-			} else if q > 1 {
-				quantiles = append(quantiles, math.NaN())
-			}
+	for ; j < len(qValues); j++ {
+		if qValues[j] < 0 || qValues[j] > 1 {
+			quantiles = append(quantiles, math.NaN())
+			continue
 		}
+		quantiles = append(quantiles, s.Max)
 	}
 	return quantiles
 }

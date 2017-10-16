@@ -384,6 +384,10 @@ func TestQuantilesInvalid(t *testing.T) {
 	assert.True(t, math.IsNaN(quantiles[0]))
 	assert.True(t, math.IsNaN(quantiles[1]))
 	assert.True(t, math.IsNaN(quantiles[5]))
+	eps := 1.0e-6
+	assert.InEpsilon(t, s.Quantile(0.5), quantiles[2], eps)
+	assert.InEpsilon(t, s.Quantile(0.75), quantiles[3], eps)
+	assert.InEpsilon(t, s.Quantile(0.95), quantiles[4], eps)
 }
 
 // Test that successive Quantile() calls do not modify the sketch
