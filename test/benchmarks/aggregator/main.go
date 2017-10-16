@@ -66,8 +66,8 @@ var (
 		"duration per second.")
 
 	flushIval = flag.Int64("flush_ival",
-		aggregator.DefaultFlushInterval,
-		"Flush interval for aggregator")
+		int64(aggregator.DefaultFlushInterval/time.Second),
+		"Flush interval for aggregator, in seconds")
 
 	agg   *aggregator.BufferedAggregator
 	flush = make(chan time.Time)
@@ -211,7 +211,7 @@ func main() {
 	f := &forwarderBenchStub{}
 	s := &serializer.Serializer{Forwarder: f}
 
-	agg = aggregator.InitAggregatorWithFlushInterval(s, "hostname", *flushIval)
+	agg = aggregator.InitAggregatorWithFlushInterval(s, "hostname", time.Duration(*flushIval)*time.Second)
 
 	aggregator.SetDefaultAggregator(agg)
 	sender, err := aggregator.GetSender(check.ID("benchmark check"))
