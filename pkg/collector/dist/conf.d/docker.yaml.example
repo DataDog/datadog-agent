@@ -42,7 +42,8 @@ instances:
     #
     # collect_image_size: true
 
-    # Monitor containers exit codes and send critical service checks when exit code is not 0
+    # Monitor exiting containers and send service checks based on exit code value
+    # (OK if 0, CRITICAL otherwise)
     # Defaults to false.
     #
     # collect_exit_codes: true
