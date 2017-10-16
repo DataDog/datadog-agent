@@ -9,9 +9,6 @@ package flare
 
 import (
 	"github.com/jhoonb/archivex"
-	"path"
-	"path/filepath"
-	"strings"
 )
 
 func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
