@@ -67,7 +67,7 @@ func StartGUIServer() error {
 	router.PathPrefix("/agent").Handler(negroni.New(negroni.HandlerFunc(authorize), negroni.Wrap(agentRouter)))
 	router.PathPrefix("/checks").Handler(negroni.New(negroni.HandlerFunc(authorize), negroni.Wrap(checkRouter)))
 
-	listener, e := net.Listen("tcp", ":"+port)
+	listener, e := net.Listen("tcp", "localhost:"+port)
 	if e != nil {
 		log.Errorf("Error: " + e.Error())
 		return e

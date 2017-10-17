@@ -168,7 +168,7 @@ func StartAgent() error {
 
 	// start the GUI server
 	if err = gui.StartGUIServer(); err != nil {
-		return log.Errorf("Error while starting gui, exiting: %v", err)
+		log.Errorf("Error while starting gui: %v", err)
 	}
 
 	// setup the forwarder
