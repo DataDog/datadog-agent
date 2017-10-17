@@ -15,9 +15,7 @@ import (
     "strings"
     "time"
 
-    payload "github.com/DataDog/agent-payload/gogen"
     "github.com/DataDog/datadog-agent/pkg/config"
-    "github.com/DataDog/datadog-agent/pkg/metadata"
     dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
     "github.com/docker/docker/client"
 )
@@ -76,17 +74,17 @@ func IsInstance() bool {
     return true
 }
 
-// IsAgentNotDetected indicates if an error from GetPayload was about no
+// IsAgentNotDetected indicates if an error from ExtractPayload was about no
 // ECS agent being detected. This is a used as a way to check if is available
 // or if the host is not in an ECS cluster.
 func IsAgentNotDetected(err error) bool {
     return strings.Contains(err.Error(), "could not detect ECS agent")
 }
 
-// GetPayload returns a payload.ECSMetadataPayload with metadata about the state
+// ExtractPayload returns a TasksV1Response containing information about the state
 // of the local ECS containers running on this node. This data is provided via
 // the local ECS agent.
-func ExtractPayload() (metadata.Payload, error) {
+func ExtractPayload() (resp TasksV1Response, error) {
     if detectedAgentURL == "" {
         url, err := detectAgentURL()
         if err != nil {
@@ -94,6 +92,7 @@ func ExtractPayload() (metadata.Payload, error) {
         }
         detectedAgentURL = url
     }
+    // TODO: Use IsAgentNotDetected ?
 
     r, err := http.Get(fmt.Sprintf("%sv1/tasks", detectedAgentURL))
     if err != nil {
@@ -105,7 +104,7 @@ func ExtractPayload() (metadata.Payload, error) {
     if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
         return nil, err
     }
-    return parseTaskResponse(resp), nil
+    return resp, nil
 }
 
 // detectAgentURL finds a hostname for the ECS-agent either via Docker, if

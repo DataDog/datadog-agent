@@ -8,18 +8,8 @@
 package ecs
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"strings"
-	"time"
-
 	payload "github.com/DataDog/agent-payload/gogen"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
-	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/docker/docker/client"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
@@ -28,7 +18,7 @@ import (
 // the local ECS agent.
 func GetPayload() (metadata.Payload, error) {
 	resp, err := ecsutil.ExtractPayload()
-	parseTaskResponse(resp)
+	return parseTaskResponse(resp), nil
 }
 
 
