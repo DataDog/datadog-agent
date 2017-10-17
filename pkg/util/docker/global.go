@@ -190,7 +190,15 @@ func AllImages(includeIntermediate bool) ([]types.ImageSummary, error) {
 	if globalDockerUtil != nil {
 		return globalDockerUtil.dockerImages(includeIntermediate)
 	}
-	return nil, nil
+	return nil, ErrDockerNotAvailable
+}
+
+// CountVolumes returns the number of attached and dangling volumes.
+func CountVolumes() (int, int, error) {
+	if globalDockerUtil != nil {
+		return globalDockerUtil.countVolumes()
+	}
+	return 0, 0, ErrDockerNotAvailable
 }
 
 // ResolveImageName resolves a docker image name, probably containing
