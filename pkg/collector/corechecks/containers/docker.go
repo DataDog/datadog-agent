@@ -33,11 +33,11 @@ type DockerConfig struct {
 	CollectImagesStats   bool     `yaml:"collect_images_stats"`
 	CollectImageSize     bool     `yaml:"collect_image_size"`
 	CollectDiskStats     bool     `yaml:"collect_disk_stats"`
+	CollectVolumeCount   bool     `yaml:"collect_volume_count"`
 	Tags                 []string `yaml:"tags"`
 	CollectEvent         bool     `yaml:"collect_events"`
 	FilteredEventType    []string `yaml:"filtered_event_types"`
 	//CustomCGroup           bool               `yaml:"custom_cgroups"`
-	//CollectVolumeCount      bool               `yaml:"collect_volume_count"`
 	//CappedMetrics          map[string]float64 `yaml:"capped_metrics"`
 }
 
@@ -254,6 +254,16 @@ func (d *DockerCheck) Run() error {
 					sender.Gauge(fmt.Sprintf("docker.%s.percent", stat.Name), percent, "", d.instance.Tags)
 				}
 			}
+		}
+	}
+
+	if d.instance.CollectVolumeCount {
+		attached, dangling, err := docker.CountVolumes()
+		if err != nil {
+			log.Errorf("failed to get volume stats: %s", err)
+		} else {
+			sender.Gauge("docker.volume.count", float64(attached), "", append(d.instance.Tags, "volume_state:attached"))
+			sender.Gauge("docker.volume.count", float64(dangling), "", append(d.instance.Tags, "volume_state:dangling"))
 		}
 	}
 
