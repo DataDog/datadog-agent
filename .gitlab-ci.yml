@@ -24,11 +24,9 @@ before_script:
   - cd $SRC_PATH
   - inv -e deps
 
-
 #
 # source_test
 #
-
 
 # run tests for deb-x64
 run_tests_deb-x64:
