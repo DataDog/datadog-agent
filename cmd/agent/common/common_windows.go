@@ -25,8 +25,8 @@ var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "agent", "checks.d")
 	distPath     string
-	// ViewPath holds the path to the folder containing the GUI support files
-	viewPath string
+	// ViewsPath holds the path to the folder containing the GUI support files
+	viewsPath string
 )
 
 // DefaultConfPath points to the folder containing datadog.yaml
@@ -74,17 +74,17 @@ func GetDistPath() string {
 	return distPath
 }
 
-// GetViewPath returns the fully qualified path to the GUI's 'view' directory
-func GetViewPath() string {
-	if len(viewPath) == 0 {
+// GetViewsPath returns the fully qualified path to the GUI's 'views' directory
+func GetViewsPaths() string {
+	if len(viewsPath) == 0 {
 		var s string
 		if s = getInstallPath(); s == "" {
 			return ""
 		}
-		viewPath = filepath.Join(s, "bin", "agent", "dist", "view")
-		log.Debug("ViewPath is now %s", viewPath)
+		viewsPath = filepath.Join(s, "bin", "agent", "dist", "views")
+		log.Debug("ViewsPath is now %s", viewsPath)
 	}
-	return viewPath
+	return viewsPath
 }
 
 // CheckAndUpgradeConfig checks to see if there's an old datadog.conf, and if

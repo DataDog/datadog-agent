@@ -97,7 +97,7 @@ func renderError(name string) (string, error) {
 func fillTemplate(w io.Writer, data Data, request string) error {
 	t := template.New(request + ".tmpl")
 	t.Funcs(fmap)
-	t, e := t.ParseFiles(filepath.Join(common.GetViewPath(), "templates/"+request+".tmpl"))
+	t, e := t.ParseFiles(filepath.Join(common.GetViewsPath(), "templates/"+request+".tmpl"))
 	if e != nil {
 		return e
 	}

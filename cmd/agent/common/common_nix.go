@@ -29,9 +29,9 @@ func GetDistPath() string {
 	return distPath
 }
 
-// GetViewPath returns the fully qualified path to the 'gui/view' directory
-func GetViewPath() string {
-	return filepath.Join(distPath, "view")
+// GetViewsPath returns the fully qualified path to the 'gui/views' directory
+func GetViewsPath() string {
+	return filepath.Join(distPath, "views")
 }
 
 // Restart is used by the GUI to restart the agent

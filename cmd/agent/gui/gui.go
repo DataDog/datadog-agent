@@ -49,13 +49,13 @@ func StartGUIServer() error {
 	router := mux.NewRouter()
 
 	// Serve the (secured) index page on the default endpoint
-	router.Handle("/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewPath(), "private")))))
+	router.Handle("/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private")))))
 
 	// Mount our public filesystem at the view/{path} route
-	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.FileServer(http.Dir(filepath.Join(common.GetViewPath(), "public")))))
+	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "public")))))
 
 	// Mount our secured filesystem at the private/{path} route
-	router.PathPrefix("/private/").Handler(http.StripPrefix("/private/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewPath(), "private"))))))
+	router.PathPrefix("/private/").Handler(http.StripPrefix("/private/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private"))))))
 
 	// Set up handlers for the API
 	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
@@ -89,7 +89,7 @@ func accessAuth(h http.Handler) http.Handler {
 
 		if cookie == nil || cookie.Value != apiKey {
 			// Serve the authentication page
-			http.ServeFile(w, r, filepath.Join(common.GetViewPath(), "public/auth.html"))
+			http.ServeFile(w, r, filepath.Join(common.GetViewsPath(), "public/auth.html"))
 		} else {
 			h.ServeHTTP(w, r)
 		}
