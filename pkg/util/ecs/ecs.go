@@ -65,7 +65,7 @@ type (
 // IsInstance returns whether this host is part of an ECS cluster
 func IsInstance() bool {
     if detectedAgentURL == "" {
-        url, err := detectAgentURL()
+        _, err := detectAgentURL()
         if err != nil {
             return false
         }
@@ -84,11 +84,13 @@ func IsAgentNotDetected(err error) bool {
 // ExtractPayload returns a TasksV1Response containing information about the state
 // of the local ECS containers running on this node. This data is provided via
 // the local ECS agent.
-func ExtractPayload() (resp TasksV1Response, error) {
+func ExtractPayload() (TasksV1Response, error) {
+
+    var resp TasksV1Response
     if detectedAgentURL == "" {
         url, err := detectAgentURL()
         if err != nil {
-            return nil, err
+            return resp, err
         }
         detectedAgentURL = url
     }
@@ -96,13 +98,12 @@ func ExtractPayload() (resp TasksV1Response, error) {
 
     r, err := http.Get(fmt.Sprintf("%sv1/tasks", detectedAgentURL))
     if err != nil {
-        return nil, err
+        return resp, err
     }
     defer r.Body.Close()
 
-    var resp TasksV1Response
     if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
-        return nil, err
+        return resp, err
     }
     return resp, nil
 }
