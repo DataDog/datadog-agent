@@ -121,6 +121,8 @@ func init() {
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
 	Datadog.SetDefault("kubernetes_pod_label_to_tag_prefix", "kube_")
+	// ECS
+	Datadog.SetDefault("ecs_agent_url", "")	// Will be autodetected
 
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)

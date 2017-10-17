@@ -220,3 +220,8 @@ metadata_collectors:
 #
 # kubernetes_pod_label_to_tag_prefix: "kube_"
 #
+
+# ECS integration
+#
+# URL where the ECS agent can be found. Standard cases will be autodetected.
+# ecs_agent_url: http://localhost:51678

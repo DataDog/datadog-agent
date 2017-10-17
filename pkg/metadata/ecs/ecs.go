@@ -17,7 +17,7 @@ import (
 // of the local ECS containers running on this node. This data is provided via
 // the local ECS agent.
 func GetPayload() (metadata.Payload, error) {
-	resp, err := ecsutil.ExtractPayload()
+	resp, err := ecsutil.GetTasks()
 	if err != nil {
 		return nil, err
 	}

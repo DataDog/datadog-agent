@@ -84,15 +84,14 @@ func IsAgentNotDetected(err error) bool {
 // ExtractPayload returns a TasksV1Response containing information about the state
 // of the local ECS containers running on this node. This data is provided via
 // the local ECS agent.
-func ExtractPayload() (TasksV1Response, error) {
+func GetTasks() (TasksV1Response, error) {
 
 	var resp TasksV1Response
 	if detectedAgentURL == "" {
-		url, err := detectAgentURL()
+		_, err := detectAgentURL()
 		if err != nil {
 			return resp, err
 		}
-		detectedAgentURL = url
 	}
 	// TODO: Use IsAgentNotDetected ?
 
@@ -112,6 +111,11 @@ func ExtractPayload() (TasksV1Response, error) {
 // running inside of a container, or just defaulting to localhost.
 func detectAgentURL() (string, error) {
 	urls := make([]string, 0, 3)
+
+	if len(config.Datadog.GetString("ecs_agent_url")) > 0 {
+		urls = append(urls, config.Datadog.GetString("ecs_agent_url"))
+	}
+
 	if config.IsContainerized() {
 		cli, err := dockerutil.ConnectToDocker()
 		if err != nil {
@@ -149,6 +153,7 @@ func detectAgentURL() (string, error) {
 	urls = append(urls, fmt.Sprintf("http://localhost:%d/", DefaultAgentPort))
 	detected := testURLs(urls, 1*time.Second)
 	if detected != "" {
+		detectedAgentURL = detected
 		return detected, nil
 	}
 	return "", fmt.Errorf("could not detect ECS agent, tried URLs: %s", urls)
