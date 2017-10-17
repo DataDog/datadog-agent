@@ -18,6 +18,9 @@ import (
 // the local ECS agent.
 func GetPayload() (metadata.Payload, error) {
 	resp, err := ecsutil.ExtractPayload()
+	if err != nil {
+		return nil, err
+	}
 	return parseTaskResponse(resp), nil
 }
 
