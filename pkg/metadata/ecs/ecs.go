@@ -21,7 +21,6 @@ func GetPayload() (metadata.Payload, error) {
 	return parseTaskResponse(resp), nil
 }
 
-
 func parseTaskResponse(resp ecsutil.TasksV1Response) *payload.ECSMetadataPayload {
 	tasks := make([]*payload.ECSMetadataPayload_Task, 0, len(resp.Tasks))
 	for _, t := range resp.Tasks {
