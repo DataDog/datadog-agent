@@ -152,11 +152,11 @@ func (d *dockerUtil) countVolumes() (int, int, error) {
 
 	attachedVolumes, err := d.cli.VolumeList(context.Background(), attachedFilter)
 	if err != nil {
-		return 0, 0, fmt.Errorf("unable to list docker volumes: %s", err)
+		return 0, 0, fmt.Errorf("unable to list attached docker volumes: %s", err)
 	}
 	danglingVolumes, err := d.cli.VolumeList(context.Background(), danglingFilter)
 	if err != nil {
-		return 0, 0, fmt.Errorf("unable to list docker volumes: %s", err)
+		return 0, 0, fmt.Errorf("unable to list dangling docker volumes: %s", err)
 	}
 
 	return len(attachedVolumes.Volumes), len(danglingVolumes.Volumes), nil

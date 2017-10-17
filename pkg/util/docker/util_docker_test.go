@@ -26,3 +26,9 @@ func TestBuildDockerFilterOK(t *testing.T) {
 	assert.Equal(t, []string{"v1"}, filter.Get("k1"))
 	assert.Equal(t, []string{"v2"}, filter.Get("k2"))
 }
+
+func TestBuildDockerFilterEmptyOK(t *testing.T) {
+	filter, err := buildDockerFilter()
+	assert.Nil(t, err)
+	assert.Equal(t, 0, filter.Len())
+}

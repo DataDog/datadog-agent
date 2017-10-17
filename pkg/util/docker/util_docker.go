@@ -15,6 +15,7 @@ import (
 
 // buildDockerFilter creates a filter.Args object from an even
 // number of strings, used as key, value pairs
+// An empty "catch-all" filter can be created by passing no argument
 func buildDockerFilter(args ...string) (filters.Args, error) {
 	filter := filters.NewArgs()
 	if len(args)%2 != 0 {
