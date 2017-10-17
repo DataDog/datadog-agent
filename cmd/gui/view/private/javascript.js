@@ -4,9 +4,9 @@
 
 // Attempts to fetch the API key from the browsers cookies
 function getAPIKey() {
-  cookies = document.cookie.split(';');
+  var cookies = document.cookie.split(';');
   for (var i = 0; i < cookies.length; i++) {
-      c = cookies[i];
+      var c = cookies[i];
       while (c.charAt(0) === ' ') c = c.substring(1, c.length);
       if (c.indexOf("token=") === 0) {
         return c.substring(6, c.length);
@@ -153,6 +153,7 @@ function loadLog(){
 
 // Handler for when the log view dropdown changes
 function changeLogView() {
+  var flip;
   if ($("#log_view_type").val() == "old_first") flip = "false";
   else flip = "true";
 
@@ -166,10 +167,10 @@ function changeLogView() {
 }
 
 // Helper function which trims the next 200 lines off extraData and returns it
-var extraData;
+var extraDataGlobal;
 function trimData(data) {
-  linesToLoad = 200;
-  i = -1;
+  var linesToLoad = 200;
+  var i = -1;
 
   // Find the index of the 200th occurrence of <br>
   while (linesToLoad > 0 && i < data.length) {
@@ -180,7 +181,7 @@ function trimData(data) {
   }
 
   if (i > 0) {    // if the 200th <br> exists
-    extraData = data.substring(i+3, data.length);
+    extraDataGlobal = data.substring(i+3, data.length);
     data = data.substring(0, i-1);
 
     // Add a way to load more
@@ -191,14 +192,14 @@ function trimData(data) {
 
 // Handler for loading more lines of the currently displayed log file
 function loadMore() {
-  data = $(".log_data").html();
+  var data = $(".log_data").html();
 
   // Remove the load more button
-  i = data.lastIndexOf("<a href=");
+  var i = data.lastIndexOf("<a href=");
   data = data.substring(0, i);
 
   // Add the next 150 lines
-  $(".log_data").html(data + trimData(extraData));
+  $(".log_data").html(data + trimData(extraDataGlobal));
 }
 
 
@@ -211,33 +212,35 @@ function loadSettings() {
   $(".page").css("display", "none");
   $("#settings").css("display", "block");
 
-  $('#settings').html('<textarea id="settings_input"></textarea>' +
-                      '<div id="submit_settings">Save</div>');
-  $("#submit_settings").click(submitSettings);
-
+  $('#settings').html('<div id="settings_input"><div id="submit_settings">Save</div></div>');
   sendMessage("agent/getConfig", "",
   function(data, status, xhr){
-    $('#settings_input').val(data);
+    var codeMirror = CodeMirror(document.getElementById("settings_input"), {
+      lineWrapping: true,
+      lineNumbers: true,
+      value: data,
+      mode:  "yaml"
+    });
+    $("#submit_settings").click(function() { submitSettings(codeMirror); });
   }, function(){
     $('#settings').html("<span class='center'>An error occurred.</span>");
   });
 }
 
 // Handler for the 'submit settings' button, sends the configuration file back to the server to save
-function submitSettings() {
-  settings = $("#settings_input").val();
+function submitSettings(codeMirror) {
+  var settings = codeMirror.getValue();
 
   sendMessage("agent/setConfig", JSON.stringify({config: settings}),
   function(data, status, xhr) {
-    resClass = "success"; symbol = "fa-check";
-    resMsg = "Restart agent <br> to see changes";
+    var resClass = "success";
+    var symbol = "fa-check";
+    var resMsg = "Restart agent <br> to see changes";
 
     if (data != "Success") {
-      console.log(data);
       resClass = "unsuccessful"; symbol = "fa-times";
-
       if (data.includes("permission denied")) resMsg = "Permission <br> denied";
-      else resMsg = "An error <br> occurred";
+      else resMsg = "An error occurred: " + data;
     }
 
     $("#submit_settings").append('<i class="fa ' + symbol + ' fa-lg ' + resClass + '"></i>' +
@@ -293,7 +296,7 @@ function loadNewChecks() {
   $(".list").html("");
 
   // Get a list of all the currently enabled checks
-  enabledChecks = [];
+  var enabledChecks = [];
   sendMessage("checks/list/yaml", "",
   function(data, status, xhr){
     if (typeof(data) == "string") return;
@@ -335,7 +338,7 @@ function loadNewChecks() {
 
 // Handler for the manage checks dropdown, changes the view according to its value
 function checkDropdown() {
-  val = $("#checks_dropdown").val();
+  var val = $("#checks_dropdown").val();
   $(".right").html("");
 
   if (val == "enabled") loadCheckFiles();
@@ -356,12 +359,20 @@ function showCheckConfig(fileName) {
 
   sendMessage("checks/getConfig/" + fileName, "",
   function(data, status, xhr) {
-    $(".right").html('<div id="save_check">Save</div>' +
-                     '<div id="reload_check" class="inactive">Reload</div>' +
-                     '<textarea id="check_input">' + data + '</textarea>');
+    $(".right").html('<div id="check_input">' +
+                       '<div id="save_check">Save</div>' +
+                       '<div id="reload_check" class="inactive">Reload</div>' +
+                     '</div>');
     $('#check_input').data('file_name',  fileName);
     $('#check_input').data('check_name',  fileName.substr(0, fileName.indexOf(".")));   // remove the ending
-    $("#save_check").click(saveCheckSettings);
+
+    var codeMirror = CodeMirror(document.getElementById("check_input"), {
+      lineWrapping: true,
+      lineNumbers: true,
+      value: data,
+      mode:  "yaml"
+    });
+    $("#save_check").click(function() { saveCheckSettings(codeMirror); });
     $("#reload_check").click(reloadCheck);
   }, function() {
     $("#checks_description").html("An error occurred.");
@@ -370,9 +381,9 @@ function showCheckConfig(fileName) {
 }
 
 // Handler for the save button, sends a check configuration file to the server to be saved
-function saveCheckSettings() {
-  settings = $("#check_input").val();
-  fileName = $('#check_input').data('file_name');
+function saveCheckSettings(codeMirror) {
+  var settings = codeMirror.getValue();
+  var fileName = $('#check_input').data('file_name');
 
   // If the check was a default check, save this config as a new, non-default config file
   if (fileName.substr(fileName.length - 8) == ".default") {
@@ -381,11 +392,12 @@ function saveCheckSettings() {
 
   sendMessage("checks/setConfig/" + fileName, JSON.stringify({config: settings}),
   function(data, status, xhr) {
-    resClass = "success"; symbol = "fa-check";
-    resMsg = "Reload check <br> to see changes";
+    var resClass = "success";
+    var symbol = "fa-check";
+    var resMsg = "Reload check to see changes";
     if (data != "Success") {
       resClass = "unsuccessful"; symbol = "fa-times";
-      if (data.includes("permission denied")) resMsg = "Permission <br> denied";
+      if (data.includes("permission denied")) resMsg = "Permission denied";
       else resMsg = "An error occurred: " + data;
     }
 
@@ -397,9 +409,8 @@ function saveCheckSettings() {
       $("#reload_check").removeClass("inactive");
       $('#check_input').data('file_name', fileName);    // in case we removed the .default ending
 
-      // Reload the list of file names, because if it was a default check it should become non-default
-      loadCheckFiles();
-      $("#checks_description").html("Edit the configuration file, then save and reload.");
+      // Remove the "default" ending on the displayed filename (noop if not applicable)
+      $(".active_check").html(fileName);
     }
   }, function() {
     $("#checks_description").html("An error occurred.");
@@ -411,7 +422,7 @@ function saveCheckSettings() {
 // a success it reloads the check (also displays the tests results as a popup)
 function reloadCheck() {
   $("#reload_check").addClass("inactive");
-  name = $('#check_input').data('check_name');
+  var name = $('#check_input').data('check_name');
 
   // Test it once with new configuration
   sendMessage("checks/run/" + name + "/once", "",
@@ -451,7 +462,7 @@ function addCheck(checkName) {
 
   sendMessage("checks/list/yaml", "",
   function(data, status, xhr){
-    exampleFile = false;
+    var exampleFile = false;
     if (typeof(data) != "string") {
       data.forEach(function(item){
         if (item == checkName + ".yaml.example") exampleFile = true;
@@ -467,16 +478,22 @@ function addCheck(checkName) {
 // example file for that check displays a button for seeing this example file
 function createNewConfigFile(checkName, exampleFile) {
   $("#checks_description").html("Please create a new configuration file for this check below.");
-  $(".right").append('<textarea id="new_config_input">Add your configuration here.</textarea>' +
-                     '<div id="add_check">Add Check</div>');
+  $(".right").append('<div id="new_config_input"><div id="add_check">Add Check</div></div>');
+
+  var codeMirror = CodeMirror(document.getElementById("new_config_input"), {
+    lineWrapping: true,
+    lineNumbers: true,
+    value: "# Add your configuration here",
+    mode:  "yaml"
+  });
 
   $("#add_check").click(function(){
     $("#add_check").css("pointer-events", "none");
-    addNewCheck(checkName + ".yaml");
+    addNewCheck(codeMirror, checkName);
   });
 
   if (!exampleFile) return;
-  $(".right").append('<div id="see_example">See Example File</div>');
+  $("#new_config_input").append('<div id="see_example">See Example File</div>');
   $("#see_example").click(function(){ displayExample(checkName); });
 }
 
@@ -489,9 +506,17 @@ function displayExample(checkName) {
   function(data, status, xhr){
     $("#manage_checks").append("<div id='popup'>" +
                                   "<div id='example_title'>" + checkName + ".yaml example: </div>" +
-                                  "<textarea readonly='readonly' id='example'>" + data + "</textarea>" +
+                                  "<div id='example'></div>" +
                                   "<div class='exit'>x</div>" +
                                 "</div>");
+    var codeMirror = CodeMirror(document.getElementById("example"), {
+        lineWrapping: true,
+        lineNumbers: true,
+        value: data,
+        readOnly: true,
+        cursorBlinkRate: -1,  // disables the cursor 
+        mode:  "yaml"
+    });
     $(".exit").click(function() {
       $("#popup").remove();
       $(".exit").remove();
@@ -505,17 +530,17 @@ function displayExample(checkName) {
 
 // Handler for the 'add check' button: saves the file, tests the check, schedules it if
 // appropriate and reloads the view
-function addNewCheck(name) {
+function addNewCheck(codeMirror, name) {
   // Save the new configuration file
-  settings = $("#new_config_input").val();
-  sendMessage("checks/setConfig/" + name, JSON.stringify({config: settings}),
-  function(data, status, xhr){
+  var settings = codeMirror.getValue();
+  sendMessage("checks/setConfig/" + name + ".yaml", JSON.stringify({config: settings}),
+  function(data, status, xhr) {
     if (data != "Success") return $("#checks_description").html("Error saving configuration: " + data);
 
     // Run the check once (as a test) & print the result as a popup
-    name = name.substr(0, name.length-5) // remove the .yaml
     sendMessage("checks/run/" + name + "/once", "",
     function(data, status, xhr) {
+      var html;
       if (typeof(data) == "string") html = data
       else html = data["html"]
       $("#manage_checks").append("<div id='popup'>" + html + "<div class='exit'>x</div></div>");
@@ -523,7 +548,7 @@ function addNewCheck(name) {
         $("#popup").remove();
         $(".exit").remove();
         $("#add_check").css("pointer-events", "auto");
-      })
+      });
 
       // Reload the display (once the config file is saved this check is now enabled,
       // so it gets moved to the 'Edit Running Checks' section)
@@ -567,7 +592,7 @@ function seeRunningChecks() {
   function(data, status, xhr){
     $("#running_checks").html(data);
   }, function() {
-      $("#running_checks").html("An error occurred.");
+    $("#running_checks").html("An error occurred.");
   });
 }
 
@@ -586,11 +611,11 @@ function loadFlare() {
 // Handler for the 'submit flare' button, validates the email address & then
 // sends the inputted data to the server for creating a flare
 function submitFlare() {
-  ticket = $("#ticket_num").val();
+  var ticket = $("#ticket_num").val();
   if (ticket == "") ticket = "0";
 
-  email = $("#email").val();
-  regex = /\S+@\S+\.\S+/;   // string - @ - string - . - string
+  var email = $("#email").val();
+  var regex = /\S+@\S+\.\S+/;   // string - @ - string - . - string
   if ( !regex.test(email) ) {
       $("#flare_description").html("Please enter a valid email address.");
       return;

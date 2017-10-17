@@ -198,7 +198,7 @@ a {
     color: $title;
   }
 
-/*
+  /*
   #hostname {
     max-width: 250px;
     overflow-x: scroll;
@@ -225,6 +225,130 @@ a {
     -moz-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
     -webkit-box-shadow:  0px 0px 15px rgba(0, 0, 0, 0.22);
     display: none;
+  }
+
+//************* Input/input buttons
+
+  #settings_input, #check_input, #new_config_input {
+    width: calc(100% - 2px);
+    height: calc(100% - 2px);
+    font-size: $font_size;
+    padding: 1px;
+
+    #submit_settings, #save_check, #add_check, #reload_check, #see_example {
+      box-shadow:inset 0px 1px 0px 0px #3dc21b;
+      background:linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
+      background-color:#44c767;
+      border-radius:3px;
+      border:1px solid #18ab29;
+      color:#ffffff;
+      text-shadow:0px 1px 0px #2f6627;
+
+      z-index: 5;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: $font_size;
+      text-decoration: none;
+    }
+
+    .unsuccessful {
+      z-index: 5;
+      cursor: default;
+      position: absolute;
+      color: red;
+      top: 50%;
+      transform: translateY(-50%);
+      left: -30px;
+    }
+
+    .success {
+      z-index: 5;
+      cursor: default;
+      position: absolute;
+      color: green;
+      top: 50%;
+      transform: translateY(-50%);
+      left: -30px;
+    }
+
+    .msg {
+      z-index: 5;
+      cursor: default;
+      position: absolute;
+      width: 240px;
+      text-align: right;
+      top: calc(100% + 10px);
+      right: 0px;
+      color: black;
+      font-size: $font_size;
+    }
+
+    #submit_settings {
+      width: 32px;
+      position: absolute;
+      right: 15px;
+      top: 15px;
+    }
+
+    #save_check  {
+      position: absolute;
+      right: 90px;
+      top: 10px;
+
+      .msg {
+        right: -80px;
+      }
+    }
+
+    #reload_check {
+      position: absolute;
+      width: 50px;
+      right: 10px;
+      top: 10px;
+    }
+
+    #see_example {
+      position: absolute;
+      width: 95px;
+      top: 10px;
+      right: 120px;
+      display: block;
+      text-align: center;
+    }
+
+    #add_check {
+      width: 80px;
+      position: absolute;
+      transform: none;
+      left: auto;
+      right: 10px;
+      top: 10px;
+      display: block;
+      text-align: center;
+    }
+
+    #add_check:active {
+      position: absolute;
+      top: 6px;
+    }
+
+    #submit_settings:hover, #save_check:hover, #reload_check:hover, #see_example:hover {
+      background:linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
+      background-color:#5cbf2a;
+    }
+
+    #submit_settings:active, #save_check:active, #reload_check:active, #see_example:active {
+      margin-top: 1px;
+    }
+
+    .inactive {
+      pointer-events: none;
+
+      box-shadow:inset 0px 1px 0px 0px white!important;
+      background:linear-gradient(to bottom, grey 5%, white 100%)!important;
+      background-color: grey!important;
+      border-color: grey!important;
+    }
   }
 
 //************* Status pages
@@ -298,151 +422,6 @@ a {
       background-color: rgba(0, 0, 0, .5);
       -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, .5);
     }
-
-    #submit_settings {
-
-      .success {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        right: -35px;
-        color: green;
-      }
-
-      .unsuccessful {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        right: -35px;
-        color: red;
-      }
-
-      .msg {
-        position: absolute;
-        width: 110px;
-        top: 50%;
-        transform: translateY(-50%);
-        left: 98px;
-        color: black;
-        font-size: 14px;
-        text-align: left;
-      }
-    }
-  }
-
-  #settings_input {
-    border: none;
-    width: calc(100% - 30px);
-    height: calc(100% - 90px);
-    font-size: $font_size;
-    padding: 15px;
-    outline: none;
-  }
-
-//************* Settings & checks buttons
-
-  #submit_settings, #save_check, #add_check, #reload_check, #see_example {
-    box-shadow:inset 0px 1px 0px 0px #3dc21b;
-    background:linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
-    background-color:#44c767;
-    border-radius:3px;
-    border:1px solid #18ab29;
-    color:#ffffff;
-    text-shadow:0px 1px 0px #2f6627;
-
-    z-index: 5;
-    margin-top: 10px;
-    padding: 6px 10px;
-    cursor: pointer;
-    font-size: $font_size;
-    text-decoration: none;
-  }
-
-  #submit_settings {
-    width: 32px;
-    position: relative;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-
-  #save_check  {
-    position: absolute;
-    right: 80px;
-    top: 0px;
-    margin: 10px;
-
-    .success {
-      cursor: default;
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      left: -37px;
-      color: green;
-    }
-
-    .unsuccessful {
-      cursor: default;
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      left: -30px;
-      color: red;
-    }
-  }
-
-  .msg {
-    z-index: 5;
-    cursor: default;
-    position: absolute;
-    width: 200px;
-    top: 50%;
-    transform: translateY(-50%);
-    text-align: right;
-    right: 105px;
-    color: black;
-    font-size: 14px;
-  }
-
-  #reload_check {
-    position: absolute;
-    width: 50px;
-    right: 0px;
-    top: 0px;
-    margin: 10px;
-
-    .msg {
-      top: 40px;
-      transform: none;
-      right: 0px;
-      width: 240px;
-    }
-  }
-
-  #see_example {
-    position: absolute;
-    width: 95px;
-    top: 0px;
-    right: 120px;
-    display: block;
-    text-align: center;
-  }
-
-  #submit_settings:hover, #save_check:hover, #reload_check:hover, #see_example:hover {
-    background:linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
-    background-color:#5cbf2a;
-  }
-
-  #submit_settings:active, #save_check:active, #reload_check:active, #see_example:active {
-    margin-top: 11px;
-  }
-
-  .inactive {
-    pointer-events: none;
-
-    box-shadow:inset 0px 1px 0px 0px white!important;
-    background:linear-gradient(to bottom, grey 5%, white 100%)!important;
-    background-color: grey!important;
-    border-color: grey!important;
   }
 
 //************* Manage checks
@@ -502,34 +481,6 @@ a {
         height: 100%;
         width: calc(100% - 215px);
         left: 215px;
-
-        #check_input, #new_config_input {
-          border: none;
-          position: absolute;
-          margin: 1px;
-          width: calc(100% - 32px);
-          height: calc(100% - 32px);
-          font-size: $font_size;
-          padding: 15px;
-          outline: none;
-          overflow-y: scroll;
-        }
-
-        #add_check {
-          z-index: 2;
-          width: 80px;
-          position: absolute;
-          transform: none;
-          left: auto;
-          right: 10px;
-          top: 5px;
-          display: block;
-          text-align: center;
-        }
-        #add_check:active {
-          position: absolute;
-          top: 6px;
-        }
       }
     }
 
@@ -635,15 +586,10 @@ a {
       #example {
         position: absolute;
         top: 45px;
-        padding: 15px;
-        padding-top: 0px;
-        height: calc(100% - 60px);
-        width: calc(100% - 30px);
-        overflow-y: scroll;
+        left: 0px;
+        height: calc(100% - 45px);
+        width: 100%;
         font-size: $font_size;
-        outline: none;
-        border: none;
-        background-color: transparent;
       }
     }
   }

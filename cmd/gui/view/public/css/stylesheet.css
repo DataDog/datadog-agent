@@ -105,12 +105,12 @@ a {
   border-bottom: 1px solid #e4e4e4;
   overflow-x: hidden;
   /*
-    #hostname {
-      max-width: 250px;
-      overflow-x: scroll;
-      white-space: nowrap;
-    }
-    */ }
+  #hostname {
+    max-width: 250px;
+    overflow-x: scroll;
+    white-space: nowrap;
+  }
+  */ }
   .top_bar #title {
     color: #a2a2a2;
     font-weight: bold;
@@ -159,6 +159,96 @@ a {
     -moz-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
     -webkit-box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.22);
     display: none; }
+  #main #settings_input, #main #check_input, #main #new_config_input {
+    width: calc(100% - 2px);
+    height: calc(100% - 2px);
+    font-size: 15px;
+    padding: 1px; }
+    #main #settings_input #submit_settings, #main #settings_input #save_check, #main #settings_input #add_check, #main #settings_input #reload_check, #main #settings_input #see_example, #main #check_input #submit_settings, #main #check_input #save_check, #main #check_input #add_check, #main #check_input #reload_check, #main #check_input #see_example, #main #new_config_input #submit_settings, #main #new_config_input #save_check, #main #new_config_input #add_check, #main #new_config_input #reload_check, #main #new_config_input #see_example {
+      box-shadow: inset 0px 1px 0px 0px #3dc21b;
+      background: linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
+      background-color: #44c767;
+      border-radius: 3px;
+      border: 1px solid #18ab29;
+      color: #ffffff;
+      text-shadow: 0px 1px 0px #2f6627;
+      z-index: 5;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 15px;
+      text-decoration: none; }
+    #main #settings_input .unsuccessful, #main #check_input .unsuccessful, #main #new_config_input .unsuccessful {
+      z-index: 5;
+      cursor: default;
+      position: absolute;
+      color: red;
+      top: 50%;
+      transform: translateY(-50%);
+      left: -30px; }
+    #main #settings_input .success, #main #check_input .success, #main #new_config_input .success {
+      z-index: 5;
+      cursor: default;
+      position: absolute;
+      color: green;
+      top: 50%;
+      transform: translateY(-50%);
+      left: -30px; }
+    #main #settings_input .msg, #main #check_input .msg, #main #new_config_input .msg {
+      z-index: 5;
+      cursor: default;
+      position: absolute;
+      width: 240px;
+      text-align: right;
+      top: calc(100% + 10px);
+      right: 0px;
+      color: black;
+      font-size: 15px; }
+    #main #settings_input #submit_settings, #main #check_input #submit_settings, #main #new_config_input #submit_settings {
+      width: 32px;
+      position: absolute;
+      right: 15px;
+      top: 15px; }
+    #main #settings_input #save_check, #main #check_input #save_check, #main #new_config_input #save_check {
+      position: absolute;
+      right: 90px;
+      top: 10px; }
+      #main #settings_input #save_check .msg, #main #check_input #save_check .msg, #main #new_config_input #save_check .msg {
+        right: -80px; }
+    #main #settings_input #reload_check, #main #check_input #reload_check, #main #new_config_input #reload_check {
+      position: absolute;
+      width: 50px;
+      right: 10px;
+      top: 10px; }
+    #main #settings_input #see_example, #main #check_input #see_example, #main #new_config_input #see_example {
+      position: absolute;
+      width: 95px;
+      top: 10px;
+      right: 120px;
+      display: block;
+      text-align: center; }
+    #main #settings_input #add_check, #main #check_input #add_check, #main #new_config_input #add_check {
+      width: 80px;
+      position: absolute;
+      transform: none;
+      left: auto;
+      right: 10px;
+      top: 10px;
+      display: block;
+      text-align: center; }
+    #main #settings_input #add_check:active, #main #check_input #add_check:active, #main #new_config_input #add_check:active {
+      position: absolute;
+      top: 6px; }
+    #main #settings_input #submit_settings:hover, #main #settings_input #save_check:hover, #main #settings_input #reload_check:hover, #main #settings_input #see_example:hover, #main #check_input #submit_settings:hover, #main #check_input #save_check:hover, #main #check_input #reload_check:hover, #main #check_input #see_example:hover, #main #new_config_input #submit_settings:hover, #main #new_config_input #save_check:hover, #main #new_config_input #reload_check:hover, #main #new_config_input #see_example:hover {
+      background: linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
+      background-color: #5cbf2a; }
+    #main #settings_input #submit_settings:active, #main #settings_input #save_check:active, #main #settings_input #reload_check:active, #main #settings_input #see_example:active, #main #check_input #submit_settings:active, #main #check_input #save_check:active, #main #check_input #reload_check:active, #main #check_input #see_example:active, #main #new_config_input #submit_settings:active, #main #new_config_input #save_check:active, #main #new_config_input #reload_check:active, #main #new_config_input #see_example:active {
+      margin-top: 1px; }
+    #main #settings_input .inactive, #main #check_input .inactive, #main #new_config_input .inactive {
+      pointer-events: none;
+      box-shadow: inset 0px 1px 0px 0px white !important;
+      background: linear-gradient(to bottom, grey 5%, white 100%) !important;
+      background-color: grey !important;
+      border-color: grey !important; }
   #main #general_status, #main #collector_status {
     width: calc(100% - 40px);
     height: calc(100% - 40px);
@@ -205,112 +295,6 @@ a {
       border-radius: 4px;
       background-color: rgba(0, 0, 0, 0.5);
       -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, 0.5); }
-    #main #settings #submit_settings .success {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      right: -35px;
-      color: green; }
-    #main #settings #submit_settings .unsuccessful {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      right: -35px;
-      color: red; }
-    #main #settings #submit_settings .msg {
-      position: absolute;
-      width: 110px;
-      top: 50%;
-      transform: translateY(-50%);
-      left: 98px;
-      color: black;
-      font-size: 14px;
-      text-align: left; }
-  #main #settings_input {
-    border: none;
-    width: calc(100% - 30px);
-    height: calc(100% - 90px);
-    font-size: 15px;
-    padding: 15px;
-    outline: none; }
-  #main #submit_settings, #main #save_check, #main #add_check, #main #reload_check, #main #see_example {
-    box-shadow: inset 0px 1px 0px 0px #3dc21b;
-    background: linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
-    background-color: #44c767;
-    border-radius: 3px;
-    border: 1px solid #18ab29;
-    color: #ffffff;
-    text-shadow: 0px 1px 0px #2f6627;
-    z-index: 5;
-    margin-top: 10px;
-    padding: 6px 10px;
-    cursor: pointer;
-    font-size: 15px;
-    text-decoration: none; }
-  #main #submit_settings {
-    width: 32px;
-    position: relative;
-    left: 50%;
-    transform: translateX(-50%); }
-  #main #save_check {
-    position: absolute;
-    right: 80px;
-    top: 0px;
-    margin: 10px; }
-    #main #save_check .success {
-      cursor: default;
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      left: -37px;
-      color: green; }
-    #main #save_check .unsuccessful {
-      cursor: default;
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      left: -30px;
-      color: red; }
-  #main .msg {
-    z-index: 5;
-    cursor: default;
-    position: absolute;
-    width: 200px;
-    top: 50%;
-    transform: translateY(-50%);
-    text-align: right;
-    right: 105px;
-    color: black;
-    font-size: 14px; }
-  #main #reload_check {
-    position: absolute;
-    width: 50px;
-    right: 0px;
-    top: 0px;
-    margin: 10px; }
-    #main #reload_check .msg {
-      top: 40px;
-      transform: none;
-      right: 0px;
-      width: 240px; }
-  #main #see_example {
-    position: absolute;
-    width: 95px;
-    top: 0px;
-    right: 120px;
-    display: block;
-    text-align: center; }
-  #main #submit_settings:hover, #main #save_check:hover, #main #reload_check:hover, #main #see_example:hover {
-    background: linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
-    background-color: #5cbf2a; }
-  #main #submit_settings:active, #main #save_check:active, #main #reload_check:active, #main #see_example:active {
-    margin-top: 11px; }
-  #main .inactive {
-    pointer-events: none;
-    box-shadow: inset 0px 1px 0px 0px white !important;
-    background: linear-gradient(to bottom, grey 5%, white 100%) !important;
-    background-color: grey !important;
-    border-color: grey !important; }
   #main #manage_checks {
     width: calc(100% - 40px);
     height: calc(100% - 40px); }
@@ -351,29 +335,6 @@ a {
         height: 100%;
         width: calc(100% - 215px);
         left: 215px; }
-        #main #manage_checks .interface .right #check_input, #main #manage_checks .interface .right #new_config_input {
-          border: none;
-          position: absolute;
-          margin: 1px;
-          width: calc(100% - 32px);
-          height: calc(100% - 32px);
-          font-size: 15px;
-          padding: 15px;
-          outline: none;
-          overflow-y: scroll; }
-        #main #manage_checks .interface .right #add_check {
-          z-index: 2;
-          width: 80px;
-          position: absolute;
-          transform: none;
-          left: auto;
-          right: 10px;
-          top: 5px;
-          display: block;
-          text-align: center; }
-        #main #manage_checks .interface .right #add_check:active {
-          position: absolute;
-          top: 6px; }
     #main #manage_checks #popup {
       position: absolute;
       top: 50%;
@@ -449,15 +410,10 @@ a {
       #main #manage_checks #popup #example {
         position: absolute;
         top: 45px;
-        padding: 15px;
-        padding-top: 0px;
-        height: calc(100% - 60px);
-        width: calc(100% - 30px);
-        overflow-y: scroll;
-        font-size: 15px;
-        outline: none;
-        border: none;
-        background-color: transparent; }
+        left: 0px;
+        height: calc(100% - 45px);
+        width: 100%;
+        font-size: 15px; }
   #main #running_checks {
     padding: 20px;
     max-height: calc(100% - 80px);
