@@ -276,6 +276,7 @@ deploy_rpm:
     - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
     - master
+    - jaime/testdeploy
     - tags
   tags: [ "runner:main", "size:large" ]
   script:
