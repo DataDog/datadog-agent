@@ -134,7 +134,7 @@ func NewStatsdGenerator(uri string) (*net.UDPConn, error) {
 }
 
 func initLogging() error {
-	err := config.SetupLogger("info", "", "", false, false, "")
+	err := config.SetupLogger("info", "", "", false, false, "", false)
 	if err != nil {
 		return fmt.Errorf("Unable to initiate logger: %s", err)
 	}
