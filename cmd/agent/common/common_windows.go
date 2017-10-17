@@ -75,7 +75,7 @@ func GetDistPath() string {
 }
 
 // GetViewsPath returns the fully qualified path to the GUI's 'views' directory
-func GetViewsPaths() string {
+func GetViewsPath() string {
 	if len(viewsPath) == 0 {
 		var s string
 		if s = getInstallPath(); s == "" {
