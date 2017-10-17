@@ -161,6 +161,9 @@ func (c *Collector) StopCheck(id check.ID) error {
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
 	}
 
+	// remove the check from the stats map
+	runner.RemoveCheckFromMap(id)
+
 	// vaporize the check
 	c.delete(id)
 

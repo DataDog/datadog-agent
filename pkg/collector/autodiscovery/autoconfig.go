@@ -182,6 +182,11 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 			for name, e := range fileConfPd.Errors {
 				errorStats.setConfigError(name, e)
 			}
+
+			// Clear any old errors if a valid config file is found
+			for _, cfg := range cfgs {
+				errorStats.removeConfigError(cfg.Name)
+			}
 		}
 
 		configs = append(configs, cfgs...)
