@@ -21,6 +21,7 @@ func Init() error {
 
 // Tag queries the defaulttagger to get entity tags from cache or sources
 func Tag(entity string, highCard bool) ([]string, error) {
+	// entity: docker://asdbc231*64
 	return defaultTagger.Tag(entity, highCard)
 }
 

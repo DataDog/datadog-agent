@@ -252,6 +252,7 @@ func getMultipleEndpoints(config *viper.Viper) (map[string][]string, error) {
 
 // IsContainerized returns whether the Agent is running on a Docker container
 func IsContainerized() bool {
+	// tristan
 	return os.Getenv("DOCKER_DD_AGENT") == "yes"
 }
 

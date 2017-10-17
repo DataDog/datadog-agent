@@ -58,9 +58,12 @@ func NewDockerListener() (*DockerListener, error) {
 
 // Listen streams container-related events from Docker and report said containers as Services.
 func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
+	// tristan
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
+
+	// we could collect docker events here
 
 	// process containers that might be already running
 	l.init()

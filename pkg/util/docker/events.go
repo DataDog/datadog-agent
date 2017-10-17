@@ -36,6 +36,9 @@ func (ev *ContainerEvent) ContainerEntityName() string {
 	return ContainerIDToEntityName(ev.ContainerID)
 }
 
+// docker check uses this code to submit events to datadog
+// How do we share code? processing, etc?
+
 // openEventChannel just wraps the client.Event call with saner argument types.
 func (d *dockerUtil) openEventChannel(since, until time.Time, filter map[string]string) (<-chan events.Message, <-chan error) {
 	// Event since/until string can be formatted or hold a timestamp,

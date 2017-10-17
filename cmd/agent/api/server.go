@@ -10,6 +10,8 @@ sending commands and receiving infos.
 */
 package api
 
+// logs-agent pulls agent api to see newly discovered logs
+
 import (
 	"crypto/tls"
 	"crypto/x509"

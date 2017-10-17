@@ -60,6 +60,7 @@ func HostnameProvider(hostName string) (string, error) {
 
 // ContainerIDToEntityName returns a prefixed entity name from a container ID
 func ContainerIDToEntityName(cid string) string {
+	// tristan
 	return fmt.Sprintf("%s%s", DockerEntityPrefix, cid)
 }
 

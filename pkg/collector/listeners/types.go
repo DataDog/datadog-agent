@@ -15,6 +15,7 @@ type DockerService struct {
 	Hosts         map[string]string // network --> IP address
 	Ports         []int
 	Pid           int // Process identifier
+	// containerid?
 }
 
 // Service represents an application we can run a check against.
