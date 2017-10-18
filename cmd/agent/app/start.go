@@ -167,8 +167,11 @@ func StartAgent() error {
 	}
 
 	// start the GUI server
-	if err = gui.StartGUIServer(); err != nil {
-		log.Errorf("Error while starting gui: %v", err)
+	guiPort := config.Datadog.GetString("GUI_port")
+	if guiPort == "-1" {
+		log.Infof("Port -1 specified: not starting the GUI server.")
+	} else if err = gui.StartGUIServer(guiPort); err != nil {
+		log.Errorf("Error while starting GUI: %v", err)
 	}
 
 	// setup the forwarder

@@ -162,7 +162,7 @@ func (c *Collector) StopCheck(id check.ID) error {
 	}
 
 	// remove the check from the stats map
-	runner.RemoveCheckFromMap(id)
+	runner.RemoveCheckStats(id)
 
 	// vaporize the check
 	c.delete(id)

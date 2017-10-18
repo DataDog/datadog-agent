@@ -23,8 +23,8 @@ var fmap = template.FuncMap{
 	"lastErrorMessage":   status.LastErrorMessage,
 	"pythonLoaderError":  pythonLoaderError,
 	"formatUnixTime":     status.FormatUnixTime,
-	"humanize":           status.MkHuman,
-	"humanizeInt":        mkHuman,
+	"humanizeF":          status.MkHuman,
+	"humanizeI":          mkHumanI,
 	"formatTitle":        formatTitle,
 	"add":                add,
 	"instances":          instances,
@@ -138,7 +138,8 @@ func lastErrorTraceback(value string) template.HTML {
 	return template.HTML(lastErrorArray[0]["traceback"])
 }
 
-func mkHuman(i int64) string {
+// same as status.mkHuman, but accepts integer input (vs float)
+func mkHumanI(i int64) string {
 	str := fmt.Sprintf("%d", i)
 
 	if i > 1000000 {

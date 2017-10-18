@@ -15,6 +15,16 @@ a {
   text-decoration: none;
   color: inherit; }
 
+.dropdown {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+  margin: 10px; }
+  .dropdown select {
+    outline: none;
+    font-size: 15px !important;
+    padding: 2px 10px !important; }
+
 .center {
   position: absolute;
   left: 50%;
@@ -488,6 +498,7 @@ a {
     padding-top: 5px;
     overflow: scroll; }
     #main #logs .log_title {
+      display: inline-block;
       font-weight: bold; }
     #main #logs .log_data {
       max-width: calc(100% - 30px);

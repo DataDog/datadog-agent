@@ -15,7 +15,7 @@ func restart() error {
 	cmd.Stderr = os.Stderr
 	err := cmd.Start()
 	if err != nil {
-		return fmt.Errorf("Failed to fork main process. Error: %v", err)
+		return fmt.Errorf("Failed to restart the agent. Error: %v", err)
 	}
 
 	return nil

@@ -36,14 +36,8 @@ func StopGUIServer() {
 }
 
 // StartGUIServer creates the router and starts the HTTP server
-func StartGUIServer() error {
+func StartGUIServer(port string) error {
 	apiKey = config.Datadog.GetString("api_key")
-	port := config.Datadog.GetString("GUI_port")
-
-	if config.Datadog.GetString("GUI_port") == "-1" {
-		log.Infof("Port -1 specified: not starting the GUI server.")
-		return nil
-	}
 
 	// Instantiate the gorilla/mux router
 	router := mux.NewRouter()
@@ -67,7 +61,7 @@ func StartGUIServer() error {
 	router.PathPrefix("/agent").Handler(negroni.New(negroni.HandlerFunc(authorize), negroni.Wrap(agentRouter)))
 	router.PathPrefix("/checks").Handler(negroni.New(negroni.HandlerFunc(authorize), negroni.Wrap(checkRouter)))
 
-	listener, e := net.Listen("tcp", "localhost:"+port)
+	listener, e := net.Listen("tcp", "127.0.0.1:"+port)
 	if e != nil {
 		log.Errorf("Error: " + e.Error())
 		return e

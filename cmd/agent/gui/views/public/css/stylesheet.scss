@@ -27,6 +27,19 @@ a {
   color: inherit;
 }
 
+.dropdown {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+  margin: 10px;
+
+  select {
+    outline: none;
+    font-size: $font_size !important;
+    padding: 2px 10px !important;
+  }
+}
+
 .center {
   position: absolute;
   left: 50%;
@@ -710,6 +723,7 @@ a {
     overflow: scroll;
 
     .log_title {
+      display: inline-block;
       font-weight: bold;
     }
 

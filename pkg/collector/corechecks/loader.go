@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	log "github.com/cihub/seelog"
 )
 
 // CheckFactory factory function type to instantiate checks
@@ -61,6 +62,7 @@ func (gl *GoCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		newCheck := factory()
 		if err := newCheck.Configure(instance, config.InitConfig); err != nil {
 			errors = append(errors, fmt.Sprintf("Could not configure check %s: %s", newCheck, err))
+			log.Errorf("core.loader: could not configure check %s: %s", newCheck, err)
 			continue
 		}
 		checks = append(checks, newCheck)

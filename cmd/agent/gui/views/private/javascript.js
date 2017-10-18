@@ -139,11 +139,11 @@ function loadLog(){
     // Initially load a maximum number of lines (but allow for loading more)
     data = trimData(data);
 
-    $("#logs").html('<div class="log_title">Agent.log' +
-                    '<span class="custom-dropdown"> <select id="log_view_type">' +
-                    '<option value="recent_first" selected>Most recent first</option>' +
-                    '<option value="old_first">Oldest first</option>' +
-                    '</select></span></div>' +
+    $("#logs").html('<div class="log_title">Agent.log</div>' +
+                    '<div class="dropdown"><select id="log_view_type">' +
+                      '<option value="recent_first" selected>Most recent first</option>' +
+                      '<option value="old_first">Oldest first</option>' +
+                    '</select></div>' +
                     '<div class="log_data">' + data + ' </div>');
     $("#log_view_type").change(changeLogView);
   }, function(){
