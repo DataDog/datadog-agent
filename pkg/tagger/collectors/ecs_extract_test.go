@@ -78,7 +78,6 @@ func TestECSMetadata(t *testing.T) {
 		for _, item := range infos {
 			t.Logf("testing entity %s", item.Entity)
 			require.True(t, requireMatchInfo(t, tc.expected, item))
-			require.Contains(t, item.LowCardTags, "task_version:8")
 		}
 		if tc.err == nil {
 			assert.Nil(err)
