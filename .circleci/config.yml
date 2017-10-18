@@ -38,7 +38,7 @@ jobs:
           paths:
             - /go/bin
 
-  unittests:
+  unit_tests:
     docker:
       - image: jfullaondo/datadog-agent-builder-deb:0.0.2
         environment:
@@ -67,11 +67,11 @@ jobs:
           name: run unit tests
           command: invoke -e test --coverage
 
-  agent_deb-x64:
+  integration_tests:
     docker:
       - image: jfullaondo/datadog-agent-builder-deb:0.0.2
         environment:
-          AGENT_OMNIBUS_BASE_DIR: $CIRCLE_WORKING_DIRECTORY/.omnibus/var/
+          USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - run:
@@ -85,23 +85,16 @@ jobs:
             - v1-govendordeps-{{ checksum "Gopkg.lock" }}
       - restore_cache:
           keys:
-            - v1-omnibus-deb-{{ checksum ".circle-sha" }}
+            - v1-gobindeps
       - run:
-          name: prepare git
-          command: git config --global user.email 'dev@datadoghq.com' && git config --global user.name 'Monsieur Croissant'
-      - run:
-          name: build the deb artifact
-          command: invoke agent.omnibus-build
-      - save_cache:
-          key: v1-omnibus-deb-{{ checksum ".circle-sha" }}
-          paths:
-            - $AGENT_OMNIBUS_BASE_DIR
+          name: run integration tests
+          command: inv integration-tests --install-deps
 
-  agent_rpm-x64:
+  build_agent:
     docker:
-      - image: jfullaondo/datadog-agent-builder-rpm:0.0.2
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.2
         environment:
-          AGENT_OMNIBUS_BASE_DIR: $CIRCLE_WORKING_DIRECTORY/.omnibus/var/
+          USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - run:
@@ -115,17 +108,41 @@ jobs:
             - v1-govendordeps-{{ checksum "Gopkg.lock" }}
       - restore_cache:
           keys:
-            - v1-omnibus-rpm-{{ checksum ".circle-sha" }}
+            - v1-gobindeps
       - run:
-          name: prepare git
-          command: git config --global user.email 'dev@datadoghq.com' && git config --global user.name 'Monsieur Croissant'
-      - run:
-          name: build the rpm artifact
-          command: invoke agent.omnibus-build
+          name: build agent
+          command: inv agent.build
       - save_cache:
-          key: v1-omnibus-rpm-{{ checksum ".circle-sha" }}
+          key: v1-build-{{ checksum ".circle-sha" }}
           paths:
-            - $AGENT_OMNIBUS_BASE_DIR
+            - /go/src/github.com/DataDog/datadog-agent/bin/agent
+
+  build_dogstatsd:
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.2
+        environment:
+          USE_SYSTEM_LIBS: "1"
+    working_directory: /go/src/github.com/DataDog/datadog-agent
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - v1-repo-{{ checksum ".circle-sha" }}
+      - restore_cache:
+          keys:
+            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+      - restore_cache:
+          keys:
+            - v1-gobindeps
+      - run:
+          name: build dogstatsd
+          command: inv -e dogstatsd.build --static
+      - save_cache:
+          key: v1-dsdbuild-{{ checksum ".circle-sha" }}
+          paths:
+            - /go/src/github.com/datadog/datadog-agent/bin/dogstatsd
 
 workflows:
   version: 2
@@ -135,12 +152,15 @@ workflows:
       - dependencies:
           requires:
             - checkout_code
-      - unittests:
+      - unit_tests:
           requires:
             - dependencies
-      - agent_deb-x64:
+      - build_agent:
           requires:
-            - unittests
-      - agent_rpm-x64:
+            - unit_tests
+      - build_dogstatsd:
           requires:
-            - unittests
+            - unit_tests
+      - integration_tests:
+          requires:
+            - build_agent
