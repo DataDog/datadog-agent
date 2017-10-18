@@ -22,15 +22,14 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// Test_wg is used for testing the number of check workers
-var Test_wg sync.WaitGroup
+// TestWg is used for testing the number of check workers
+var TestWg sync.WaitGroup
 
-const (
-	defaultNumWorkers                  = 4
-	maxNumWorkers                      = 25
-	stopCheckTimeout     time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
-	stopAllChecksTimeout time.Duration = 2 * time.Second        // Time to wait for all checks to stop
-)
+var defaultNumWorkers = 4
+var maxNumWorkers = 25
+
+const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
+const stopAllChecksTimeout time.Duration = 2 * time.Second    // Time to wait for all checks to stop
 
 // checkStats holds the stats from the running checks
 type runnerCheckStats struct {
@@ -83,7 +82,7 @@ func NewRunner() *Runner {
 
 	// start the workers
 	for i := 0; i < numWorkers; i++ {
-		Test_wg.Add(1)
+		TestWg.Add(1)
 		go r.work()
 	}
 
@@ -112,7 +111,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 	case numChecks <= 25:
 		desiredNumWorkers = 20
 	default:
-		desiredNumWorkers = maxNumWorkers // max = 25
+		desiredNumWorkers = maxNumWorkers
 	}
 
 	// Add workers if we don't have enough for this range
@@ -122,7 +121,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 			break
 		}
 		runnerStats.Add("Workers", 1)
-		Test_wg.Add(1)
+		TestWg.Add(1)
 		go r.work()
 		numWorkers++
 		added++
@@ -218,7 +217,7 @@ func (r *Runner) StopCheck(id check.ID) error {
 // work waits for checks and run them as long as they arrive on the channel
 func (r *Runner) work() {
 	log.Debug("Ready to process checks...")
-	defer Test_wg.Done()
+	defer TestWg.Done()
 
 	for check := range r.pending {
 		// see if the check is already running

@@ -35,8 +35,6 @@ type Collector struct {
 func NewCollector(paths ...string) *Collector {
 	run := runner.NewRunner()
 	sched := scheduler.NewScheduler(run.GetChan())
-
-	log.Debug("scheduler created")
 	sched.Run()
 
 	c := &Collector{

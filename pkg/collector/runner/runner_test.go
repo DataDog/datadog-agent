@@ -59,6 +59,7 @@ func TestGetChan(t *testing.T) {
 }
 
 func TestWork(t *testing.T) {
+	defaultNumWorkers = 1
 	r := NewRunner()
 	c1 := TestCheck{}
 	c2 := TestCheck{doErr: true}

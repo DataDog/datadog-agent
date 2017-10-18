@@ -2,10 +2,16 @@
 
 from checks import AgentCheck
 import time;
+from time import sleep;
 
 class TestCheck(AgentCheck):
     def check(self, instance):
-        # Busy wait for 100ms
-        current_time = time.time()
-        while (time.time() < current_time+0.1):
-            pass
+        test_inst = instance['test_instance']
+
+        if test_inst['lazy_wait']:
+            sleep(test_inst['wait_length'])
+
+        else:
+            current_time = time.time()
+            while (time.time() < current_time + test_inst['wait_length']):
+                pass
