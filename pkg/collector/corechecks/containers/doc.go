@@ -3,14 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-// +build !docker
+/*
+Package containers provides core checks for containers and orchestrators
 
-package flare
-
-import (
-	"github.com/jhoonb/archivex"
-)
-
-func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
-	return nil
-}
+*/
+package containers

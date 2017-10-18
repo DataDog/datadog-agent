@@ -156,6 +156,12 @@ in almost anyone's checks. The flare module, for example, was removed and
 reimplemented in Go, but is unlikely to have been used by anyone in a custom check.
 To learn more, you can read about the details in the [development documentation][python-dev].
 
+## JMX
+
+The Agent 6 ships JMXFetch and supports all of its features (except those that are listed in the [known_issues.md][known-issues] document).
+
+The Agent 6 does not ship the `jmxterm` JAR. If you wish to download and use `jmxterm`, please refer to the [upstream project](https://github.com/jiaqi/jmxterm).
+
 ## Dogstream
 
 Dogstream is not available at the moment. We're working to bring a [full featured logging solution][sheepdog] into Datadog soon.

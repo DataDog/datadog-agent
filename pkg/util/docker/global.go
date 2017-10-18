@@ -25,10 +25,6 @@ import (
 )
 
 var (
-	// ErrDockerNotAvailable is returned if Docker is not running on the current machine.
-	// We'll use this when configuring the DockerUtil so we don't error on non-docker machines.
-	ErrDockerNotAvailable = errors.New("docker not available")
-
 	globalDockerUtil     *dockerUtil
 	invalidationInterval = 5 * time.Minute
 	lastErr              string
@@ -194,7 +190,15 @@ func AllImages(includeIntermediate bool) ([]types.ImageSummary, error) {
 	if globalDockerUtil != nil {
 		return globalDockerUtil.dockerImages(includeIntermediate)
 	}
-	return nil, nil
+	return nil, ErrDockerNotAvailable
+}
+
+// CountVolumes returns the number of attached and dangling volumes.
+func CountVolumes() (int, int, error) {
+	if globalDockerUtil != nil {
+		return globalDockerUtil.countVolumes()
+	}
+	return 0, 0, ErrDockerNotAvailable
 }
 
 // ResolveImageName resolves a docker image name, probably containing
@@ -267,4 +271,13 @@ func ContainerSelfInspect() ([]byte, error) {
 	byteArray := out.Bytes()
 
 	return byteArray, err
+}
+
+// GetStorageStats returns the docker global storage stats if available
+// or ErrStorageStatsNotAvailable
+func GetStorageStats() ([]*StorageStats, error) {
+	if globalDockerUtil == nil {
+		return nil, ErrDockerNotAvailable
+	}
+	return globalDockerUtil.getStorageStats()
 }
