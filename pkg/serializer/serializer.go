@@ -8,6 +8,7 @@ package serializer
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -29,39 +30,39 @@ var (
 	// used to serialize to protobuf
 	AgentPayloadVersion string
 
-	jsonExtraHeaders                    map[string]string
-	protobufExtraHeaders                map[string]string
-	jsonExtraHeadersWithCompression     map[string]string
-	protobufExtraHeadersWithCompression map[string]string
+	jsonExtraHeaders                    http.Header
+	protobufExtraHeaders                http.Header
+	jsonExtraHeadersWithCompression     http.Header
+	protobufExtraHeadersWithCompression http.Header
 )
 
 func init() {
 	initExtraHeaders()
 }
 
-// initExtraHeaders initializes the global extraHeaders variables
-// extracted out of the `init` function to ease testing
+// initExtraHeaders initializes the global extraHeaders variables.
+// Not part of the `init` function body to ease testing
 func initExtraHeaders() {
-	jsonExtraHeaders = map[string]string{
-		"Content-Type": jsonContentType,
-	}
-	jsonExtraHeadersWithCompression = make(map[string]string)
-	for k, v := range jsonExtraHeaders {
-		jsonExtraHeadersWithCompression[k] = v
+	jsonExtraHeaders = make(http.Header)
+	jsonExtraHeaders.Set("Content-Type", jsonContentType)
+
+	jsonExtraHeadersWithCompression = make(http.Header)
+	for k := range jsonExtraHeaders {
+		jsonExtraHeadersWithCompression.Set(k, jsonExtraHeaders.Get(k))
 	}
 
-	protobufExtraHeaders = map[string]string{
-		"Content-Type":           protobufContentType,
-		payloadVersionHTTPHeader: AgentPayloadVersion,
-	}
-	protobufExtraHeadersWithCompression = make(map[string]string)
-	for k, v := range protobufExtraHeaders {
-		protobufExtraHeadersWithCompression[k] = v
+	protobufExtraHeaders = make(http.Header)
+	protobufExtraHeaders.Set("Content-Type", protobufContentType)
+	protobufExtraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+
+	protobufExtraHeadersWithCompression = make(http.Header)
+	for k := range protobufExtraHeaders {
+		protobufExtraHeadersWithCompression.Set(k, protobufExtraHeaders.Get(k))
 	}
 
 	if compression.ContentEncoding != "" {
-		jsonExtraHeadersWithCompression["Content-Encoding"] = compression.ContentEncoding
-		protobufExtraHeadersWithCompression["Content-Encoding"] = compression.ContentEncoding
+		jsonExtraHeadersWithCompression.Set("Content-Encoding", compression.ContentEncoding)
+		protobufExtraHeadersWithCompression.Set("Content-Encoding", compression.ContentEncoding)
 	}
 }
 
@@ -70,9 +71,9 @@ type Serializer struct {
 	Forwarder forwarder.Forwarder
 }
 
-func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, map[string]string, error) {
+func (s Serializer) serializePayload(payload marshaler.Marshaler, compress bool, useV1API bool) (forwarder.Payloads, http.Header, error) {
 	var marshalType split.MarshalType
-	var extraHeaders map[string]string
+	var extraHeaders http.Header
 
 	if useV1API {
 		marshalType = split.MarshalJSON

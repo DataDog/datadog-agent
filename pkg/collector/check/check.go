@@ -52,6 +52,9 @@ type ConfigData []byte
 // ConfigRawMap is the generic type to hold YAML configurations
 type ConfigRawMap map[interface{}]interface{}
 
+// ConfigJSONMap is the generic type to hold YAML configurations
+type ConfigJSONMap map[string]interface{}
+
 // Config is a generic container for configuration files
 type Config struct {
 	Name          string       // the name of the check

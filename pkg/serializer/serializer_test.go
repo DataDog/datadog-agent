@@ -7,6 +7,7 @@ package serializer
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,22 +32,24 @@ func TestInitExtraHeadersNoopCompression(t *testing.T) {
 
 	initExtraHeaders()
 
-	assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeaders)
-	assert.Equal(t,
-		map[string]string{
-			payloadVersionHTTPHeader: "",
-			"Content-Type":           protobufContentType,
-		},
-		protobufExtraHeaders)
+	expected := make(http.Header)
+	expected.Set("Content-Type", jsonContentType)
+	assert.Equal(t, expected, jsonExtraHeaders)
+
+	expected = make(http.Header)
+	expected.Set(payloadVersionHTTPHeader, "")
+	expected.Set("Content-Type", protobufContentType)
+	assert.Equal(t, expected, protobufExtraHeaders)
 
 	// No "Content-Encoding" header
-	assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeadersWithCompression)
-	assert.Equal(t,
-		map[string]string{
-			payloadVersionHTTPHeader: "",
-			"Content-Type":           protobufContentType,
-		},
-		protobufExtraHeadersWithCompression)
+	expected = make(http.Header)
+	expected.Set("Content-Type", jsonContentType)
+	assert.Equal(t, expected, jsonExtraHeadersWithCompression)
+
+	expected = make(http.Header)
+	expected.Set("Content-Type", protobufContentType)
+	expected.Set(payloadVersionHTTPHeader, "")
+	assert.Equal(t, expected, protobufExtraHeadersWithCompression)
 }
 
 func TestInitExtraHeadersWithCompression(t *testing.T) {
@@ -55,28 +58,26 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 
 	initExtraHeaders()
 
-	assert.Equal(t, map[string]string{"Content-Type": jsonContentType}, jsonExtraHeaders)
-	assert.Equal(t,
-		map[string]string{
-			payloadVersionHTTPHeader: "",
-			"Content-Type":           protobufContentType,
-		},
-		protobufExtraHeaders)
+	expected := make(http.Header)
+	expected.Set("Content-Type", jsonContentType)
+	assert.Equal(t, expected, jsonExtraHeaders)
+
+	expected = make(http.Header)
+	expected.Set("Content-Type", protobufContentType)
+	expected.Set(payloadVersionHTTPHeader, "")
+	assert.Equal(t, expected, protobufExtraHeaders)
 
 	// "Content-Encoding" header present with correct value
-	assert.Equal(t,
-		map[string]string{
-			"Content-Type":     jsonContentType,
-			"Content-Encoding": compression.ContentEncoding,
-		},
-		jsonExtraHeadersWithCompression)
-	assert.Equal(t,
-		map[string]string{
-			payloadVersionHTTPHeader: "",
-			"Content-Type":           protobufContentType,
-			"Content-Encoding":       compression.ContentEncoding,
-		},
-		protobufExtraHeadersWithCompression)
+	expected = make(http.Header)
+	expected.Set("Content-Type", jsonContentType)
+	expected.Set("Content-Encoding", compression.ContentEncoding)
+	assert.Equal(t, expected, jsonExtraHeadersWithCompression)
+
+	expected = make(http.Header)
+	expected.Set("Content-Type", protobufContentType)
+	expected.Set("Content-Encoding", compression.ContentEncoding)
+	expected.Set(payloadVersionHTTPHeader, "")
+	assert.Equal(t, expected, protobufExtraHeadersWithCompression)
 }
 
 var (

@@ -12,19 +12,18 @@ import (
 	"github.com/Microsoft/go-winio"
 )
 
+// WinNamedPipe holds the named pipe configuration
 type WinNamedPipe struct {
 	path string
 	pipe net.Conn
 }
 
+// GetPipe returns a named pipe to path
 func GetPipe(path string) (NamedPipe, error) {
-	return NewWinNamedPipe(path)
-}
-
-func NewWinNamedPipe(path string) (*WinNamedPipe, error) {
 	return &WinNamedPipe{path: path}, nil
 }
 
+// Open named pipe
 func (p *WinNamedPipe) Open() error {
 	if p.pipe != nil {
 		return nil
@@ -49,17 +48,20 @@ func (p *WinNamedPipe) Open() error {
 	return nil
 }
 
+// Ready returns whether the pipe is ready to read and write
 func (p *WinNamedPipe) Ready() bool {
 	return (p.pipe != nil)
 }
 
+// Read from the pipe
 func (p *WinNamedPipe) Read(b []byte) (int, error) {
 	if p.pipe == nil {
-		return 0, errors.New("No pipe to write to.")
+		return 0, errors.New("no pipe to write to")
 	}
 	return p.pipe.Read(b)
 }
 
+// Write to the pipe
 func (p *WinNamedPipe) Write(b []byte) (int, error) {
 	if p.pipe == nil {
 		return 0, nil
@@ -67,6 +69,7 @@ func (p *WinNamedPipe) Write(b []byte) (int, error) {
 	return p.pipe.Write(b)
 }
 
+// Close the underlying named pipe
 func (p *WinNamedPipe) Close() error {
 	var err error
 	if p.pipe == nil {

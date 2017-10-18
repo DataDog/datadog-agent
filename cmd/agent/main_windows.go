@@ -8,7 +8,6 @@ package main
 import (
 	_ "expvar"
 	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"strings"
@@ -74,6 +73,10 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	if err := common.ImportRegistryConfig(); err != nil {
 		elog.Warning(2, fmt.Sprintf("Failed to import config items from registry %s", err.Error()))
 		// continue running agent with existing config
+	}
+	if err := common.CheckAndUpgradeConfig(); err != nil {
+		log.Warn("failed to upgrade config %s", err.Error())
+		// continue running with what we have.
 	}
 	app.StartAgent()
 

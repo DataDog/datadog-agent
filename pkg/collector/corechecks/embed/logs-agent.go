@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -68,11 +69,12 @@ func (c *LogsCheck) Run() error {
 func (c *LogsCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	here, _ := osext.ExecutableFolder()
 	confd := config.Datadog.GetString("confd_path")
+	ddcondig := filepath.Clean(filepath.Join(confd, ".."))
 	bin := path.Join(here, "logs-agent")
 
 	c.cmd = exec.Command(
 		bin,
-		fmt.Sprintf("-ddconfig=%s", confd),
+		fmt.Sprintf("-ddconfig=%s", ddcondig),
 	)
 
 	return nil

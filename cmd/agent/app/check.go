@@ -27,7 +27,8 @@ var (
 	logLevel   string
 )
 
-const checkCmdFlushInterval = 10000000000
+// Make the check cmd aggregator never flush by setting a very high interval
+const checkCmdFlushInterval = time.Hour
 
 func init() {
 	AgentCmd.AddCommand(checkCmd)
@@ -79,7 +80,7 @@ var checkCmd = &cobra.Command{
 		}
 
 		s := &serializer.Serializer{Forwarder: common.Forwarder}
-		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 10000000000)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, checkCmdFlushInterval)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 		cs := common.AC.GetChecksByName(checkName)
 		if len(cs) == 0 {

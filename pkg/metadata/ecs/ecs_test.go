@@ -3,10 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build docker
+
 package ecs
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 
 	"testing"
@@ -17,6 +20,7 @@ import (
 
 var nextTestResponse string
 
+// TODO: ideally this test should use the httptest package
 func runServer(t *testing.T, ready chan<- bool, exit <-chan bool) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Satisfy the initial check of URLs
@@ -29,7 +33,11 @@ func runServer(t *testing.T, ready chan<- bool, exit <-chan bool) {
 	})
 
 	s := &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", DefaultAgentPort)}
-	go s.ListenAndServe()
+	ln, err := net.Listen("tcp", s.Addr)
+	if err != nil {
+		t.Fail()
+	}
+	go s.Serve(ln)
 	ready <- true
 	<-exit
 	s.Close()

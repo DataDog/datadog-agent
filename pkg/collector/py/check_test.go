@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/sbinet/go-python"
+	python "github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -120,7 +120,9 @@ func TestInitNewSignatureCheck(t *testing.T) {
 
 func TestInitException(t *testing.T) {
 	_, err := getCheckInstance("init_exception", "TestCheck")
-	assert.EqualError(t, err, "could not invoke python check constructor: ['Traceback (most recent call last):\\n', '  File \"tests/init_exception.py\", line 11, in __init__\\n    raise RuntimeError(\"unexpected error\")\\n', 'RuntimeError: unexpected error\\n']")
+
+	assert.Contains(t, err.Error(), "could not invoke python check constructor: ['Traceback (most recent call last):\\n")
+	assert.Contains(t, err.Error(), "raise RuntimeError(\"unexpected error\")\\n', 'RuntimeError: unexpected error\\n']")
 }
 
 func TestInitNoTracebackException(t *testing.T) {
@@ -132,8 +134,7 @@ func TestInitNoTracebackException(t *testing.T) {
 func TestAggregatorLink(t *testing.T) {
 	check, _ := getCheckInstance("testaggregator", "TestAggregatorCheck")
 
-	mockSender := new(MockSender)
-	aggregator.SetSender(mockSender, check.ID())
+	mockSender := aggregator.NewMockSender(check.ID())
 
 	mockSender.On("ServiceCheck",
 		"testservicecheck", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
@@ -157,8 +158,7 @@ func TestAggregatorLink(t *testing.T) {
 func TestAggregatorLinkTwoRuns(t *testing.T) {
 	check, _ := getCheckInstance("testaggregator", "TestAggregatorCheck")
 
-	mockSender := new(MockSender)
-	aggregator.SetSender(mockSender, check.ID())
+	mockSender := aggregator.NewMockSender(check.ID())
 
 	mockSender.On("ServiceCheck",
 		"testservicecheck", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
