@@ -68,17 +68,17 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		} else {
 			log.Debugf("Unable to load python check as wheel: %v", errors.New(pyErr))
 		}
-	}
 
-	// Looking for regular checks after
-	checkModule := python.PyImport_ImportModule(moduleName)
-	if checkModule == nil {
-		defer glock.unlock()
-		pyErr, err := glock.getPythonError()
-		if err != nil {
-			return nil, fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
+		// Looking for regular checks after
+		checkModule = python.PyImport_ImportModule(moduleName)
+		if checkModule == nil {
+			defer glock.unlock()
+			pyErr, err := glock.getPythonError()
+			if err != nil {
+				return nil, fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
+			}
+			return nil, errors.New(pyErr)
 		}
-		return nil, errors.New(pyErr)
 	}
 
 	// Try to find a class inheriting from AgentCheck within the module
