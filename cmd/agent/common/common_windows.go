@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
-	"os/exec"
 
 	"path/filepath"
 
@@ -200,20 +199,6 @@ func ImportRegistryConfig() error {
 		k.DeleteValue(valuename)
 	}
 	log.Debugf("Successfully wrote the config into %s\n", datadogYamlPath)
-
-	return nil
-}
-
-// Restart is used by the GUI to restart the agent
-func Restart() error {
-	cmd := exec.Command(filepath.Join(_here, "agent"), "restart-service")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Start()
-	if err != nil {
-		return fmt.Errorf("Failed to fork main process. Error: %v", err)
-	}
 
 	return nil
 }

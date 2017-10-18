@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // Adds the specific handlers for /checks/ endpoints
@@ -56,30 +57,16 @@ func runCheck(w http.ResponseWriter, r *http.Request) {
 
 // Runs a specified check once
 func runCheckOnce(w http.ResponseWriter, r *http.Request) {
+	response := make(map[string]string)
 	// Fetch the desired check
 	name := mux.Vars(r)["name"]
 	instances := common.AC.GetChecksByName(name)
 	if len(instances) == 0 {
-
-		/*
-			BUG: If the user is attempting to reload a check,
-			and the new configuration is wrong but there exists
-			another CORRECT config file for that check (ie, a default check)
-			then this just reloads that 'correct' check - it ignores their new,
-			incorrect configuration
-
-			Possible solution: get the path to the new file they're trying to test,
-			and use something like providers.GetCheckConfigFromFile() to see if the
-			new file was valid...
-		*/
-
 		html, e := renderError(name)
 		if e != nil {
-			w.Write([]byte("Error generating html: " + e.Error()))
-			return
+			html = "Error generating html: " + e.Error()
 		}
 
-		response := make(map[string]string)
 		response["success"] = "" // empty string evaluates to false in JS
 		response["html"] = html
 		res, _ := json.Marshal(response)
@@ -108,11 +95,14 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request) {
 	// Render the stats
 	html, e := renderCheck(name, stats)
 	if e != nil {
-		w.Write([]byte("Error generating html: " + e.Error()))
+		response["success"] = ""
+		response["html"] = "Error generating html: " + e.Error()
+		res, _ := json.Marshal(response)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(res)
 		return
 	}
 
-	response := make(map[string]string)
 	response["success"] = "true"
 	response["html"] = html
 	res, _ := json.Marshal(response)
@@ -166,13 +156,17 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	w.Write(file)
 }
 
+type configFormat struct {
+	ADIdentifiers []string    `yaml:"ad_identifiers"`
+	DockerImages  []string    `yaml:"docker_images"`
+	InitConfig    interface{} `yaml:"init_config"`
+	Instances     []check.ConfigRawMap
+}
+
 // Overwrites a specific check's configuration (yaml) file with new data
 // or makes a new config file for that check, if there isn't one yet
 func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	fileName := mux.Vars(r)["fileName"]
-
-	// Write new configs to custom checks directory
-	path := config.Datadog.GetString("confd_path") + "/" + fileName
 
 	payload, e := parseBody(r)
 	if e != nil {
@@ -180,6 +174,20 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	}
 	data := []byte(payload.Config)
 
+	// Check that the data is actually a valid yaml file
+	cf := configFormat{}
+	e = yaml.Unmarshal(data, &cf)
+	if e != nil {
+		w.Write([]byte("Error: " + e.Error()))
+		return
+	}
+	if len(cf.Instances) < 1 {
+		w.Write([]byte("Configuration file contains no valid instances"))
+		return
+	}
+
+	// Write new configs to custom checks directory
+	path := config.Datadog.GetString("confd_path") + "/" + fileName
 	e = ioutil.WriteFile(path, data, 0644)
 	if e != nil {
 		w.Write([]byte("Error writing to " + fileName + ": " + e.Error()))

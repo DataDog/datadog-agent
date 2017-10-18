@@ -233,19 +233,15 @@ function submitSettings(codeMirror) {
 
   sendMessage("agent/setConfig", JSON.stringify({config: settings}),
   function(data, status, xhr) {
-    var resClass = "success";
-    var symbol = "fa-check";
-    var resMsg = "Restart agent <br> to see changes";
-
-    if (data != "Success") {
-      resClass = "unsuccessful"; symbol = "fa-times";
-      if (data.includes("permission denied")) resMsg = "Permission <br> denied";
-      else resMsg = "An error occurred: " + data;
+    $(".success, .unsuccessful, .msg").remove();
+    if (data == "Success") {
+      $("#submit_settings").append('<i class="fa fa-check fa-lg success"></i>' +
+                                    '<div class="msg">Restart agent <br> to see changes</div>');
+    } else {
+      $("#submit_settings").append('<i class="fa fa-times fa-lg unsuccessful"></i>' +
+                                    '<div class="msg">' +  data + '</div>');
     }
-
-    $("#submit_settings").append('<i class="fa ' + symbol + ' fa-lg ' + resClass + '"></i>' +
-                                  '<div class="msg">' + resMsg + '</div>');
-    $("." + resClass + ", .msg").delay(3000).fadeOut("slow");
+    $(".success, .unsuccessful, .msg").delay(5000).fadeOut("slow");
   });
 }
 
@@ -392,25 +388,20 @@ function saveCheckSettings(codeMirror) {
 
   sendMessage("checks/setConfig/" + fileName, JSON.stringify({config: settings}),
   function(data, status, xhr) {
-    var resClass = "success";
-    var symbol = "fa-check";
-    var resMsg = "Reload check to see changes";
-    if (data != "Success") {
-      resClass = "unsuccessful"; symbol = "fa-times";
-      if (data.includes("permission denied")) resMsg = "Permission denied";
-      else resMsg = "An error occurred: " + data;
-    }
-
-    $("." + resClass + ", .msg").remove();
-    $("#save_check").append('<i class="fa ' + symbol + ' fa-lg ' + resClass + '"></i><div class="msg">' + resMsg + '</div>');
-    $("." + resClass + ", .msg").delay(3000).fadeOut("slow");
-
-    if (resClass == "success") {
+    $(".success, .unsuccessful").remove();
+    if (data == "Success") {
+      $("#save_check").append('<i class="fa fa-check fa-lg success"></i>');
+      $(".success").delay(3000).fadeOut("slow");
+      $("#checks_description").html("Reload check to see changes.");
       $("#reload_check").removeClass("inactive");
-      $('#check_input').data('file_name', fileName);    // in case we removed the .default ending
-
-      // Remove the "default" ending on the displayed filename (noop if not applicable)
+      // If this was a default file, we just saved it under a new (non-default) name,
+      // so we need to change the displayed name & update the associated file name
+      $('#check_input').data('file_name', fileName);
       $(".active_check").html(fileName);
+    } else {
+      $("#save_check").append('<i class="fa fa-times fa-lg unsuccessful"></i>');
+      $(".unsuccessful").delay(3000).fadeOut("slow");
+      $("#checks_description").html(data);
     }
   }, function() {
     $("#checks_description").html("An error occurred.");
@@ -427,16 +418,13 @@ function reloadCheck() {
   // Test it once with new configuration
   sendMessage("checks/run/" + name + "/once", "",
   function(data, status, xhr){
-    if (typeof(data) == "string") html = data
-    else html = data["html"]
-
-    $("#manage_checks").append("<div id='popup'>" + html + "<div class='exit'>x</div></div>");
+    $("#manage_checks").append("<div class='popup'>" + data["html"] + "<div class='exit'>x</div></div>");
     $(".exit").click(function() {
-      $("#popup").remove();
+      $(".popup").remove();
       $(".exit").remove();
     });
 
-    // If check test was successful, reload the check
+    // If check test run was successful, reload the check
     if (data["success"]) {
       $("#check_run_results").prepend('<div id="summary">Check reloaded: <i class="fa fa-check green"></div>');
       sendMessage("checks/reload/" + name, "",
@@ -458,8 +446,8 @@ function reloadCheck() {
 // Starts the process of adding a new check by seeing if that check has an example config file
 function addCheck(checkName) {
   $(".right").html("");
-  // See if theres an example file for this check
 
+  // See if theres an example file for this check
   sendMessage("checks/list/yaml", "",
   function(data, status, xhr){
     var exampleFile = false;
@@ -504,7 +492,7 @@ function displayExample(checkName) {
   $("#save_run_check").css("pointer-events", "none");
   sendMessage("checks/getConfig/" + checkName + ".yaml.example", "",
   function(data, status, xhr){
-    $("#manage_checks").append("<div id='popup'>" +
+    $("#manage_checks").append("<div class='popup'>" +
                                   "<div id='example_title'>" + checkName + ".yaml example: </div>" +
                                   "<div id='example'></div>" +
                                   "<div class='exit'>x</div>" +
@@ -514,11 +502,11 @@ function displayExample(checkName) {
         lineNumbers: true,
         value: data,
         readOnly: true,
-        cursorBlinkRate: -1,  // disables the cursor 
+        cursorBlinkRate: -1,  // disables the cursor
         mode:  "yaml"
     });
     $(".exit").click(function() {
-      $("#popup").remove();
+      $(".popup").remove();
       $(".exit").remove();
       $("#add_check").css("pointer-events", "auto");
     });
@@ -535,7 +523,13 @@ function addNewCheck(codeMirror, name) {
   var settings = codeMirror.getValue();
   sendMessage("checks/setConfig/" + name + ".yaml", JSON.stringify({config: settings}),
   function(data, status, xhr) {
-    if (data != "Success") return $("#checks_description").html("Error saving configuration: " + data);
+    if (data != "Success") {
+      $("#checks_description").html(data);
+      $("#add_check").append('<i class="fa fa-times fa-lg unsuccessful"></i>');
+      $(".unsuccessful").delay(3000).fadeOut("slow");
+      $("#add_check").css("pointer-events", "auto");
+      return
+    }
 
     // Run the check once (as a test) & print the result as a popup
     sendMessage("checks/run/" + name + "/once", "",
@@ -543,9 +537,9 @@ function addNewCheck(codeMirror, name) {
       var html;
       if (typeof(data) == "string") html = data
       else html = data["html"]
-      $("#manage_checks").append("<div id='popup'>" + html + "<div class='exit'>x</div></div>");
+      $("#manage_checks").append("<div class='popup'>" + html + "<div class='exit'>x</div></div>");
       $(".exit").click(function() {
-        $("#popup").remove();
+        $(".popup").remove();
         $(".exit").remove();
         $("#add_check").css("pointer-events", "auto");
       });

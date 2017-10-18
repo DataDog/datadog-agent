@@ -245,6 +245,7 @@ a {
       text-shadow:0px 1px 0px #2f6627;
 
       z-index: 5;
+      position: absolute;
       padding: 6px 10px;
       cursor: pointer;
       font-size: $font_size;
@@ -285,51 +286,33 @@ a {
 
     #submit_settings {
       width: 32px;
-      position: absolute;
       right: 15px;
       top: 15px;
     }
 
     #save_check  {
-      position: absolute;
       right: 90px;
       top: 10px;
-
-      .msg {
-        right: -80px;
-      }
     }
 
     #reload_check {
-      position: absolute;
       width: 50px;
       right: 10px;
       top: 10px;
     }
 
     #see_example {
-      position: absolute;
       width: 95px;
-      top: 10px;
-      right: 120px;
+      top: 52px;
+      right: 10px;
       display: block;
       text-align: center;
     }
 
     #add_check {
       width: 80px;
-      position: absolute;
-      transform: none;
-      left: auto;
       right: 10px;
       top: 10px;
-      display: block;
-      text-align: center;
-    }
-
-    #add_check:active {
-      position: absolute;
-      top: 6px;
     }
 
     #submit_settings:hover, #save_check:hover, #reload_check:hover, #see_example:hover {
@@ -337,7 +320,7 @@ a {
       background-color:#5cbf2a;
     }
 
-    #submit_settings:active, #save_check:active, #reload_check:active, #see_example:active {
+    #submit_settings:active, #save_check:active, #reload_check:active, #see_example:active, #add_check:active {
       margin-top: 1px;
     }
 
@@ -437,6 +420,8 @@ a {
       display: block;
       text-align: center;
       line-height: 50px;
+      font-size: $font_size * 1.1;
+      font-weight: bold;
     }
 
     .interface {
@@ -484,7 +469,7 @@ a {
       }
     }
 
-    #popup {
+    .popup {
       position: absolute;
       top: 50%;
       left: 50%;

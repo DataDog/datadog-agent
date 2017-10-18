@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // Adds the specific handlers for /agent/ endpoints
@@ -141,9 +142,9 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-// Tells service manager to restart the agent
+// Restarts the agent using the appropriate (platform-specific) restart function
 func restartAgent(w http.ResponseWriter, r *http.Request) {
-	e := common.Restart()
+	e := restart()
 	if e != nil {
 		w.Write([]byte(e.Error()))
 		return
@@ -169,13 +170,18 @@ func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
-	} else if payload.Config == "" {
-		w.Write([]byte("Error writing to datadog.yaml file: nothing to write"))
+	}
+	data := []byte(payload.Config)
+
+	// Check that the data is actually a valid yaml file
+	cf := make(map[string]interface{})
+	e = yaml.Unmarshal(data, &cf)
+	if e != nil {
+		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
 
 	path := config.Datadog.ConfigFileUsed()
-	data := []byte(payload.Config)
 	e = ioutil.WriteFile(path, data, 0644)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
