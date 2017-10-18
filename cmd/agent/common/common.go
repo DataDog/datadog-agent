@@ -46,6 +46,7 @@ func GetPythonPaths() []string {
 		GetDistPath(),                                  // common modules are shipped in the dist path directly or under the "checks/" sub-dir
 		filepath.Join(GetDistPath(), "checks.d"),       // custom checks in the "checks.d/" sub-dir of the dist path
 		config.Datadog.GetString("additional_checksd"), // custom checks, have precedence over integrations-core checks
+		PySitePackages,                                 // integrations-core, wheels have precedence over old-school SDK
 		PyChecksPath,                                   // integrations-core checks
 	}
 }
