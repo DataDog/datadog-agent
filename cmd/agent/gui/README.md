@@ -10,3 +10,7 @@ A cross-platform GUI served on ```localhost:8080``` (by default) for interacting
 
 #### Disabling the GUI
 The GUI can be disabled altogether by setting its port to -1 in your datadog.yaml file.
+
+#### In development
+- The 'Restart Agent' feature is not yet implemented for non-windows platforms
+- A more robust authentication system is in progress
