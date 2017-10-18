@@ -15,8 +15,16 @@ For a more detailed usage please refer to the official [Docker Hub](https://hub.
 
 ## How to build it
 
-To build the image you'll need the agent 6 debian package that can be found on this APT listing [here](https://s3.amazonaws.com/apt-agent6.datad0g.com).
+### On debian-based systems
 
-You'll need to download one of the `datadog-agent*_amd64.deb` package, it will then be used by the `Dockerfile` and installed within the image.
+You can build your own debian package using `inv agent.omnibus-build`
 
-Then you can build the image using `docker build -t <name> .`
+Then you can call `inv agent.image-build` that will take the debian package generated above and use it to build the image
+
+### On other systems
+
+To build the image you'll need the agent debian package that can be found on this APT listing [here](https://s3.amazonaws.com/apt-agent6.datad0g.com).
+
+You'll need to download one of the `datadog-agent*_amd64.deb` package in this directory, it will then be used by the `Dockerfile` and installed within the image.
+
+Then you can then build the image using `docker build -t datadog/agent:master .`

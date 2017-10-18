@@ -196,17 +196,7 @@ agent_rpm-x64:
     paths:
       - $AGENT_OMNIBUS_PACKAGE_DIR
 
-<<<<<<< HEAD
-# build the package for windows
-
-#
-# package_build
-#
-
-# build windows
-=======
 # build windows 
->>>>>>> Add image build in CI pipeline
 build_windows_msi_x64:
   before_script:
     - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
@@ -241,7 +231,7 @@ build_agent6:
   variables:
     DD_DIND_DOCKERFILE: Dockerfiles/agent6/Dockerfile
     DD_DIND_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent:$CI_PIPELINE_ID
-    DD_DIND_ARTEFACTS: true
+    DD_DIND_ARTEFACTS: "true"
 
 # build the dogstatsd image
 build_dogstatsd:
@@ -253,20 +243,7 @@ build_dogstatsd:
   variables:
     DD_DIND_DOCKERFILE: Dockerfiles/dogstatsd/alpine/Dockerfile
     DD_DIND_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/alpine_dogstatsd:$CI_PIPELINE_ID
-    DD_DIND_ARTEFACTS: true
-
-# build the dogstatsd socket proxy image
-build_dogstatsd_socat:
-  stage: image_build
-  when: manual
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/dind/build:latest
-  tags: [ "runner:dind", "size:large" ]
-  script: [ "# noop" ]
-  variables:
-    DD_DIND_DOCKERFILE: Dockerfiles/dogstatsd/socat-proxy/Dockerfile
-    DD_DIND_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/alpine_dogstatsd_socat:$CI_PIPELINE_ID
-    DD_DIND_ARTEFACTS: true
-
+    DD_DIND_ARTEFACTS: "true"
 
 #
 # deploy
