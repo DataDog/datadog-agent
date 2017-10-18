@@ -29,6 +29,36 @@ function sendMessage(endpoint, data, callback, callbackErr){
   })
 }
 
+// Generates a CodeMirror text editor object and attaches it to the specific element
+function attachEditor(addTo, data, readOnly) {
+  var codeMirror;
+  if (readOnly) {
+    codeMirror = CodeMirror(document.getElementById(addTo), {
+      lineWrapping: true,
+      lineNumbers: true,
+      value: data,
+      readOnly: true,
+      cursorBlinkRate: -1,  // disables the cursor
+      mode:  "yaml"
+    });
+  } else {
+    codeMirror = CodeMirror(document.getElementById(addTo), {
+      lineWrapping: true,
+      lineNumbers: true,
+      value: data,
+      mode:  "yaml"
+    });
+  }
+  // Map tabs to spaces (yaml doesn't allow tab characters)
+  codeMirror.setOption("extraKeys", {
+    Tab: function(cm) {
+      var spaces = Array(cm.getOption("indentUnit") + 1).join(" ");
+      cm.replaceSelection(spaces);
+    }
+  });
+
+  return codeMirror
+}
 
 /*************************************************************************
                                 Setup
@@ -215,21 +245,17 @@ function loadSettings() {
   $('#settings').html('<div id="settings_input"><div id="submit_settings">Save</div></div>');
   sendMessage("agent/getConfig", "",
   function(data, status, xhr){
-    var codeMirror = CodeMirror(document.getElementById("settings_input"), {
-      lineWrapping: true,
-      lineNumbers: true,
-      value: data,
-      mode:  "yaml"
-    });
-    $("#submit_settings").click(function() { submitSettings(codeMirror); });
+    var editor = attachEditor("settings_input", data, false);
+
+    $("#submit_settings").click(function() { submitSettings(editor); });
   }, function(){
     $('#settings').html("<span class='center'>An error occurred.</span>");
   });
 }
 
 // Handler for the 'submit settings' button, sends the configuration file back to the server to save
-function submitSettings(codeMirror) {
-  var settings = codeMirror.getValue();
+function submitSettings(editor) {
+  var settings = editor.getValue();
 
   sendMessage("agent/setConfig", JSON.stringify({config: settings}),
   function(data, status, xhr) {
@@ -362,13 +388,8 @@ function showCheckConfig(fileName) {
     $('#check_input').data('file_name',  fileName);
     $('#check_input').data('check_name',  fileName.substr(0, fileName.indexOf(".")));   // remove the ending
 
-    var codeMirror = CodeMirror(document.getElementById("check_input"), {
-      lineWrapping: true,
-      lineNumbers: true,
-      value: data,
-      mode:  "yaml"
-    });
-    $("#save_check").click(function() { saveCheckSettings(codeMirror); });
+    var editor = attachEditor("check_input", data, false);
+    $("#save_check").click(function() { saveCheckSettings(editor); });
     $("#reload_check").click(reloadCheck);
   }, function() {
     $("#checks_description").html("An error occurred.");
@@ -377,8 +398,8 @@ function showCheckConfig(fileName) {
 }
 
 // Handler for the save button, sends a check configuration file to the server to be saved
-function saveCheckSettings(codeMirror) {
-  var settings = codeMirror.getValue();
+function saveCheckSettings(editor) {
+  var settings = editor.getValue();
   var fileName = $('#check_input').data('file_name');
 
   // If the check was a default check, save this config as a new, non-default config file
@@ -467,17 +488,11 @@ function addCheck(checkName) {
 function createNewConfigFile(checkName, exampleFile) {
   $("#checks_description").html("Please create a new configuration file for this check below.");
   $(".right").append('<div id="new_config_input"><div id="add_check">Add Check</div></div>');
-
-  var codeMirror = CodeMirror(document.getElementById("new_config_input"), {
-    lineWrapping: true,
-    lineNumbers: true,
-    value: "# Add your configuration here",
-    mode:  "yaml"
-  });
+  var editor = attachEditor("new_config_input", "# Add your configuration here", false);
 
   $("#add_check").click(function(){
     $("#add_check").css("pointer-events", "none");
-    addNewCheck(codeMirror, checkName);
+    addNewCheck(editor, checkName);
   });
 
   if (!exampleFile) return;
@@ -497,14 +512,7 @@ function displayExample(checkName) {
                                   "<div id='example'></div>" +
                                   "<div class='exit'>x</div>" +
                                 "</div>");
-    var codeMirror = CodeMirror(document.getElementById("example"), {
-        lineWrapping: true,
-        lineNumbers: true,
-        value: data,
-        readOnly: true,
-        cursorBlinkRate: -1,  // disables the cursor
-        mode:  "yaml"
-    });
+    var editor = attachEditor("example", data, true);
     $(".exit").click(function() {
       $(".popup").remove();
       $(".exit").remove();
@@ -518,9 +526,9 @@ function displayExample(checkName) {
 
 // Handler for the 'add check' button: saves the file, tests the check, schedules it if
 // appropriate and reloads the view
-function addNewCheck(codeMirror, name) {
+function addNewCheck(editor, name) {
   // Save the new configuration file
-  var settings = codeMirror.getValue();
+  var settings = editor.getValue();
   sendMessage("checks/setConfig/" + name + ".yaml", JSON.stringify({config: settings}),
   function(data, status, xhr) {
     if (data != "Success") {
