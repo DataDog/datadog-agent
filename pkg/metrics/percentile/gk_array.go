@@ -194,6 +194,76 @@ func (s GKArray) interpolatedQuantile(q float64) float64 {
 	return weightBelow*s.Entries[indexBelow].V + weightAbove*s.Entries[indexAbove].V
 }
 
+// Quantiles accepts a sorted slice of quantile values and returns the epsilon estimates of
+// elements at those quantiles.
+func (s GKArray) Quantiles(qValues []float64) []float64 {
+	quantiles := make([]float64, 0, len(qValues))
+	if s.Count == 0 {
+		for _ = range qValues {
+			quantiles = append(quantiles, math.NaN())
+		}
+		return quantiles
+	}
+
+	// This shouldn't happen but checking just in case.
+	if len(s.Incoming) > 0 {
+		s = s.compressWithIncoming(nil)
+	}
+
+	// When there are only a few values just call interpolatedQuantile
+	// for each quantile.
+	if s.Count < int64(1/EPSILON) {
+		for _, q := range qValues {
+			if q < 0 || q > 1 {
+				quantiles = append(quantiles, math.NaN())
+				continue
+			}
+			quantiles = append(quantiles, s.interpolatedQuantile(q))
+		}
+		return quantiles
+	}
+
+	// If the qValues are not sorted, just call Quantile for each qValue
+	if !sort.Float64sAreSorted(qValues) {
+		for k, q := range qValues {
+			quantiles[k] = s.Quantile(q)
+		}
+		return quantiles
+	}
+
+	// For sorted qValues, the quantiles can be found in one pass
+	// over the Entries
+	spread := int64(EPSILON * float64(s.Count-1))
+	gSum := int64(0)
+	i := 0
+	j := 0
+	for ; i < len(s.Entries) && j < len(qValues); i++ {
+		gSum += int64(s.Entries[i].G)
+		// Check for invalid qValues
+		for ; j < len(qValues) && (qValues[j] < 0 || qValues[j] > 1); j++ {
+			quantiles = append(quantiles, math.NaN())
+		}
+		// Loop since adjacent ranks could be the same.
+		for ; j < len(qValues) && gSum+int64(s.Entries[i].Delta)-1 > int64(qValues[j]*float64(s.Count-1))+spread; j++ {
+			if i == 0 {
+				quantiles = append(quantiles, s.Min)
+			} else {
+				quantiles = append(quantiles, s.Entries[i-1].V)
+			}
+		}
+	}
+	// If there're any quantile values that have not been found,
+	// return the max value.
+	for ; j < len(qValues); j++ {
+		if qValues[j] < 0 || qValues[j] > 1 {
+			quantiles = append(quantiles, math.NaN())
+			continue
+		}
+		quantiles = append(quantiles, s.Max)
+	}
+	return quantiles
+}
+
 // Merge another GKArray into this in-place.
 func (s GKArray) Merge(o GKArray) GKArray {
 	if o.Count == 0 {
@@ -253,14 +323,19 @@ func (s GKArray) Merge(o GKArray) GKArray {
 func (s GKArray) compressWithIncoming(incomingEntries Entries) GKArray {
 	// TODO[Charles]: use s.Incoming and incomingEntries directly instead of merging them prior to compressing
 	if len(s.Incoming) > 0 {
-		newIncoming := make([]Entry, len(incomingEntries), len(incomingEntries)+len(s.Incoming))
-		copy(newIncoming, incomingEntries)
-		incomingEntries = newIncoming
+		incomingCopy := make([]Entry, len(incomingEntries), len(incomingEntries)+len(s.Incoming))
+		copy(incomingCopy, incomingEntries)
+		incomingEntries = incomingCopy
 		for _, v := range s.Incoming {
 			incomingEntries = append(incomingEntries, Entry{V: v, G: 1, Delta: 0})
 		}
 	}
 	sort.Sort(incomingEntries)
+
+	// Copy Entries slice so as not to change the original
+	entriesCopy := make([]Entry, len(s.Entries), len(s.Entries))
+	copy(entriesCopy, s.Entries)
+	s.Entries = entriesCopy
 
 	removalThreshold := 2 * uint32(EPSILON*float64(s.Count-1))
 	merged := make([]Entry, 0, len(s.Entries)+len(incomingEntries)/3)
