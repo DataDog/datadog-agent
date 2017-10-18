@@ -46,7 +46,7 @@ func updateDistPath() string {
 	// fetch the installation path from the registry
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
 	if err != nil {
-		log.Warn("Failed to open registry key %s", err)
+		log.Warnf("Failed to open registry key %s", err)
 		return ""
 	}
 	defer k.Close()
@@ -56,7 +56,7 @@ func updateDistPath() string {
 		return ""
 	}
 	newDistPath := filepath.Join(s, `bin/agent/dist`)
-	log.Debug("DisPath is now %s", newDistPath)
+	log.Debugf("DistPath is now %s", newDistPath)
 	return newDistPath
 }
 

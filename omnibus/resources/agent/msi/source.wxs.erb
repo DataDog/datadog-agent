@@ -170,7 +170,8 @@
                           Remove="uninstall"
                           Wait="yes" />
           <RemoveFolder Id="APPLICATIONROOTDIRECTORY" On="uninstall" />
-          <util:EventSource Log="Application" Name="Datadog Agent"
+          <!-- The "Name" field must match the argument to eventlog.Open() -->
+          <util:EventSource Log="Application" Name="DatadogAgent"
                 EventMessageFile="[DIST]agent.exe"
                 SupportsErrors="yes"
                 SupportsInformationals="yes"
