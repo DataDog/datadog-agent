@@ -74,14 +74,14 @@ func IsInstance() bool {
 	return true
 }
 
-// IsAgentNotDetected indicates if an error from ExtractPayload was about no
+// IsAgentNotDetected indicates if an error from GetTasks was about no
 // ECS agent being detected. This is a used as a way to check if is available
 // or if the host is not in an ECS cluster.
 func IsAgentNotDetected(err error) bool {
 	return strings.Contains(err.Error(), "could not detect ECS agent")
 }
 
-// ExtractPayload returns a TasksV1Response containing information about the state
+// GetTasks returns a TasksV1Response containing information about the state
 // of the local ECS containers running on this node. This data is provided via
 // the local ECS agent.
 func GetTasks() (TasksV1Response, error) {
