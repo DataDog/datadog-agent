@@ -52,11 +52,25 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 	moduleName := config.Name
+	whlModuleName := fmt.Sprintf("check.%s", config.Name)
 
 	// import python module containing the check
 	log.Debugf("Attempting to load python check %s", moduleName)
 	// Lock the GIL while working with go-python directly
 	glock := newStickyLock()
+
+	// Looking for wheels first
+	checkModule := python.PyImport_ImportModule(whlModuleName)
+	if checkModule == nil {
+		pyErr, err := glock.getPythonError()
+		if err != nil {
+			log.Debugf("Unable to load python check as wheel: %v", err)
+		} else {
+			log.Debugf("Unable to load python check as wheel: %v", errors.New(pyErr))
+		}
+	}
+
+	// Looking for regular checks after
 	checkModule := python.PyImport_ImportModule(moduleName)
 	if checkModule == nil {
 		defer glock.unlock()
