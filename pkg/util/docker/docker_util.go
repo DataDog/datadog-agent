@@ -145,6 +145,23 @@ func (d *dockerUtil) dockerImages(includeIntermediate bool) ([]types.ImageSummar
 	return images, nil
 }
 
+// countVolumes returns the number of attached and dangling volumes.
+func (d *dockerUtil) countVolumes() (int, int, error) {
+	attachedFilter, _ := buildDockerFilter("dangling", "false")
+	danglingFilter, _ := buildDockerFilter("dangling", "true")
+
+	attachedVolumes, err := d.cli.VolumeList(context.Background(), attachedFilter)
+	if err != nil {
+		return 0, 0, fmt.Errorf("unable to list attached docker volumes: %s", err)
+	}
+	danglingVolumes, err := d.cli.VolumeList(context.Background(), danglingFilter)
+	if err != nil {
+		return 0, 0, fmt.Errorf("unable to list dangling docker volumes: %s", err)
+	}
+
+	return len(attachedVolumes.Volumes), len(danglingVolumes.Volumes), nil
+}
+
 // dockerContainers returns a list of Docker info for active containers using the
 // Docker API. This requires the running user to be in the "docker" user group
 // or have access to /tmp/docker.sock.

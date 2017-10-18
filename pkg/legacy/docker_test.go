@@ -51,6 +51,7 @@ collect_exit_codes: true
 collect_images_stats: false
 collect_image_size: true
 collect_disk_stats: true
+collect_volume_count: true
 tags:
 - tag:value
 - value
