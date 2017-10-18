@@ -42,24 +42,36 @@ func StartGUIServer(port string) error {
 	// Instantiate the gorilla/mux router
 	router := mux.NewRouter()
 
-	// Serve the (secured) index page on the default endpoint
-	router.Handle("/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private")))))
+	if apiKey == "" {
+		// If the user doesn't have an API key, they don't serve the GUI
+		router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, filepath.Join(common.GetViewsPath(), "public/invalidAPI.html"))
+		})
 
-	// Mount our public filesystem at the view/{path} route
-	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "public")))))
+		// Serve the only other file needed - the background image
+		router.HandleFunc("/view/images/dd_bkgrnd.png", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, filepath.Join(common.GetViewsPath(), "public/images/dd_bkgrnd.png"))
+		})
+	} else {
+		// Serve the (secured) index page on the default endpoint
+		router.Handle("/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private")))))
 
-	// Mount our secured filesystem at the private/{path} route
-	router.PathPrefix("/private/").Handler(http.StripPrefix("/private/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private"))))))
+		// Mount our public filesystem at the view/{path} route
+		router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "public")))))
 
-	// Set up handlers for the API
-	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
-	agentHandler(agentRouter)
-	checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
-	checkHandler(checkRouter)
+		// Mount our secured filesystem at the private/{path} route
+		router.PathPrefix("/private/").Handler(http.StripPrefix("/private/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private"))))))
 
-	// Add authorization middleware to all the API endpoints
-	router.PathPrefix("/agent").Handler(negroni.New(negroni.HandlerFunc(authorize), negroni.Wrap(agentRouter)))
-	router.PathPrefix("/checks").Handler(negroni.New(negroni.HandlerFunc(authorize), negroni.Wrap(checkRouter)))
+		// Set up handlers for the API
+		agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
+		agentHandler(agentRouter)
+		checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
+		checkHandler(checkRouter)
+
+		// Add authorization middleware to all the API endpoints
+		router.PathPrefix("/agent").Handler(negroni.New(negroni.HandlerFunc(authorize), negroni.Wrap(agentRouter)))
+		router.PathPrefix("/checks").Handler(negroni.New(negroni.HandlerFunc(authorize), negroni.Wrap(checkRouter)))
+	}
 
 	listener, e := net.Listen("tcp", "127.0.0.1:"+port)
 	if e != nil {
