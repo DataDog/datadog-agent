@@ -54,12 +54,12 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	moduleName := config.Name
 	whlModuleName := fmt.Sprintf("check.%s", config.Name)
 
-	// import python module containing the check
-	log.Debugf("Attempting to load python check %s", moduleName)
 	// Lock the GIL while working with go-python directly
 	glock := newStickyLock()
 
 	// Looking for wheels first
+	// import python module containing the check
+	log.Debugf("Attempting to load python wheel %s", whlModuleName)
 	checkModule := python.PyImport_ImportModule(whlModuleName)
 	if checkModule == nil {
 		pyErr, err := glock.getPythonError()
@@ -70,6 +70,9 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		}
 
 		// Looking for regular checks after
+		// import python module containing the check
+		log.Debugf("Attempting to load python check %s", moduleName)
+
 		checkModule = python.PyImport_ImportModule(moduleName)
 		if checkModule == nil {
 			defer glock.unlock()
@@ -82,6 +85,7 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	}
 
 	// Try to find a class inheriting from AgentCheck within the module
+	log.Debugf("Finding valid agent check class for %v - %v", whlModuleName, checkModule)
 	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule, glock)
 	checkModule.DecRef()
 	glock.unlock()
