@@ -69,6 +69,19 @@ metadata_collectors:
 #  - name: k8s
 #    interval: 60
 
+# Histogram and Historate configuration
+#
+# Configure which aggregated value to compute. Possible values are: min, max,
+# median, avg, sum and count.
+#
+# histogram_aggregates: ["max", "median", "avg", "count"]
+#
+# Configure which percentiles will be computed. Must be a list of integer
+# between 1 and 100.
+# Warning: percentiles must be specified as yaml strings
+#
+# histogram_percentiles: ["95"]
+
 # DogStatsd
 #
 # If you don't want to enable the DogStatsd server, set this option to no
