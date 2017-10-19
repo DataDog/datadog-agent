@@ -61,11 +61,7 @@ build_dogstatsd_static-deb_x64:
   tags: [ "runner:main", "size:large" ]
   script:
     - inv -e dogstatsd.build --static
-    - cp $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - dogstatsd
+    - aws s3 cp --only-show-errors --region us-east-1 --sse AES256 $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd s3://dd-scratch-space-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID/dogstatsd
 
 # build puppy agent for deb-x64, to make sure the build is not broken because of build flags
 build_puppy_agent-deb_x64:
@@ -119,12 +115,10 @@ run_dogstatsd_size_test:
   stage: integration_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
-  dependencies:
-    - build_dogstatsd_static-deb_x64 # Reuse artifact from build stage
   before_script:
     # Disable global before_script
     - mkdir -p $STATIC_BINARIES_DIR
-    - ln dogstatsd $STATIC_BINARIES_DIR/dogstatsd
+    - aws s3 cp --only-show-errors --region us-east-1 --sse AES256 s3://dd-scratch-space-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
   script:
     - inv -e dogstatsd.size-test --skip-build
 
@@ -132,14 +126,12 @@ run_dogstatsd_size_test:
 run_docker_integration_tests_deb-x64:
   stage: integration_test
   allow_failure: true  # FIXME when the root-user related issues are fixed on gitlab
-  dependencies:
-    - build_dogstatsd_static-deb_x64 # Reuse artifact from build stage
   tags:
     - container-builder
   before_script:
     # Disable global before_script
     - mkdir --parent $STATIC_BINARIES_DIR
-    - ln dogstatsd $STATIC_BINARIES_DIR/dogstatsd
+    - aws s3 cp --only-show-errors --region us-east-1 --sse AES256 s3://dd-scratch-space-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
   script:
     - docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v $(pwd):$(pwd) --workdir $(pwd) -e CI_PIPELINE_ID=$CI_PIPELINE_ID -e CI_COMMIT_SHA=$CI_COMMIT_SHA 727006795293.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders:deb_x64 inv docker.integration-tests --skip-build 2>&1
 
@@ -242,14 +234,11 @@ build_dogstatsd:
     - build_dogstatsd_static-deb_x64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/dind/build:latest
   tags: [ "runner:dind", "size:large" ]
-  before_script:
-    # Disable global before_script
-    - mv dogstatsd Dockerfiles/dogstatsd/alpine/
   script: [ "# noop" ]
   variables:
     DD_DIND_BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
-    DD_DIND_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/alpine_dogstatsd:$CI_COMMIT_SHA
-
+    DD_DIND_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/dogstatsd:$CI_COMMIT_SHA
+    DD_DIND_ARTEFACTS: "true"
 
 #
 # image_deploy
@@ -288,7 +277,7 @@ dogstatsd_docker_hub:
     - master
     - tags
   variables:
-    DD_DIND_TAG_SOURCE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/alpine_dogstatsd:$CI_COMMIT_SHA
+    DD_DIND_TAG_SOURCE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/dogstatsd:$CI_COMMIT_SHA
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
     DD_DIND_TAG_DEST: datadog/dogstatsd:$CI_COMMIT_TAG
   script: [ "# noop" ]
@@ -299,7 +288,7 @@ dogstatsd_dev_docker_hub:
   stage: image_deploy
   when: manual
   variables:
-    DD_DIND_TAG_SOURCE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/alpine_dogstatsd:$CI_COMMIT_SHA
+    DD_DIND_TAG_SOURCE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/dogstatsd:$CI_COMMIT_SHA
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
     DD_DIND_TAG_DEST: datadog/dogstatsd-dev:$CI_COMMIT_REF_SLUG
   script: [ "# noop" ]
