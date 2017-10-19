@@ -160,7 +160,7 @@ agent_deb-x64:
     # pointing to a gitlab-friendly location.
     - inv -e agent.omnibus-build --base-dir $AGENT_OMNIBUS_BASE_DIR
     - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb
-    - aws s3 cp --only-show-errors --region us-east-1 --sse AES256 $AGENT_OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb s3://dd-scratch-space-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+    - aws s3 cp --only-show-errors --region us-east-1 --sse AES256 $AGENT_OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb s3://dd-scratch-space-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID/datadog-agent_amd64.deb
   cache:
     # cache per branch
     key: $CI_COMMIT_REF_NAME
@@ -230,7 +230,7 @@ build_agent6:
   tags: [ "runner:dind", "size:large" ]
   script: [ "# noop" ]
   variables:
-    DD_DIND_DOCKERFILE: Dockerfiles/agent6/Dockerfile
+    DD_DIND_BUILD_CONTEXT: Dockerfiles/agent6
     DD_DIND_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent:$CI_COMMIT_SHA
     DD_DIND_ARTEFACTS: "true"
 
@@ -238,13 +238,17 @@ build_agent6:
 build_dogstatsd:
   stage: image_build
   when: manual
+  dependencies:
+    - build_dogstatsd_static-deb_x64
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/dind/build:latest
   tags: [ "runner:dind", "size:large" ]
+  before_script:
+    # Disable global before_script
+    - mv dogstatsd Dockerfiles/dogstatsd/alpine/
   script: [ "# noop" ]
   variables:
-    DD_DIND_DOCKERFILE: Dockerfiles/dogstatsd/alpine/Dockerfile
+    DD_DIND_BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
     DD_DIND_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/alpine_dogstatsd:$CI_COMMIT_SHA
-    DD_DIND_ARTEFACTS: "true"
 
 
 #
@@ -272,7 +276,7 @@ agent6_dev_docker_hub:
   variables:
     DD_DIND_TAG_SOURCE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent:$CI_COMMIT_SHA
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/agent-dev:$CI_COMMIT_REF_NAME
+    DD_DIND_TAG_DEST: datadog/agent-dev:$CI_COMMIT_REF_SLUG
   script: [ "# noop" ]
 
 dogstatsd_docker_hub:
@@ -297,7 +301,7 @@ dogstatsd_dev_docker_hub:
   variables:
     DD_DIND_TAG_SOURCE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/alpine_dogstatsd:$CI_COMMIT_SHA
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/dogstatsd-dev:$CI_COMMIT_REF_NAME
+    DD_DIND_TAG_DEST: datadog/dogstatsd-dev:$CI_COMMIT_REF_SLUG
   script: [ "# noop" ]
 
 #
