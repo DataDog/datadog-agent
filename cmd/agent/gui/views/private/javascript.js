@@ -30,25 +30,13 @@ function sendMessage(endpoint, data, callback, callbackErr){
 }
 
 // Generates a CodeMirror text editor object and attaches it to the specific element
-function attachEditor(addTo, data, readOnly) {
-  var codeMirror;
-  if (readOnly) {
-    codeMirror = CodeMirror(document.getElementById(addTo), {
-      lineWrapping: true,
-      lineNumbers: true,
-      value: data,
-      readOnly: true,
-      cursorBlinkRate: -1,  // disables the cursor
-      mode:  "yaml"
-    });
-  } else {
-    codeMirror = CodeMirror(document.getElementById(addTo), {
-      lineWrapping: true,
-      lineNumbers: true,
-      value: data,
-      mode:  "yaml"
-    });
-  }
+function attachEditor(addTo, data) {
+  var codeMirror = CodeMirror(document.getElementById(addTo), {
+    lineWrapping: true,
+    lineNumbers: true,
+    value: data,
+    mode:  "yaml"
+  });
   // Map tabs to spaces (yaml doesn't allow tab characters)
   codeMirror.setOption("extraKeys", {
     Tab: function(cm) {
@@ -245,7 +233,7 @@ function loadSettings() {
   $('#settings').html('<div id="settings_input"><div id="submit_settings">Save</div></div>');
   sendMessage("agent/getConfig", "",
   function(data, status, xhr){
-    var editor = attachEditor("settings_input", data, false);
+    var editor = attachEditor("settings_input", data);
 
     $("#submit_settings").click(function() { submitSettings(editor); });
   }, function(){
@@ -388,7 +376,7 @@ function showCheckConfig(fileName) {
     $('#check_input').data('file_name',  fileName);
     $('#check_input').data('check_name',  fileName.substr(0, fileName.indexOf(".")));   // remove the ending
 
-    var editor = attachEditor("check_input", data, false);
+    var editor = attachEditor("check_input", data);
     $("#save_check").click(function() { saveCheckSettings(editor); });
     $("#reload_check").click(reloadCheck);
   }, function() {
@@ -464,10 +452,9 @@ function reloadCheck() {
 
 //************* Add a check
 
-// Starts the process of adding a new check by seeing if that check has an example config file
+// Handler for when a used clicks on a check to add: starts the process of adding a check
+// by checking if there's an example file for it, and loading the data from this file if so
 function addCheck(checkName) {
-  $(".right").html("");
-
   // See if theres an example file for this check
   sendMessage("checks/list/yaml", "",
   function(data, status, xhr){
@@ -477,50 +464,37 @@ function addCheck(checkName) {
         if (item == checkName + ".yaml.example") exampleFile = true;
       });
     }
-    createNewConfigFile(checkName, exampleFile);
+
+    // Display the text editor, filling it with the example file's data (if it exists)
+    if (exampleFile) {
+      sendMessage("checks/getConfig/" + checkName + ".yaml.example", "",
+      function(data, status, xhr){
+        createNewConfigFile(checkName, data);
+      }, function() {
+        $(".right").html("");
+        $("#checks_description").html("An error occurred.");
+      });
+    } else {
+      createNewConfigFile(checkName, "# Add your configuration here");
+    }
   }, function() {
+    $(".right").html("");
     $("#checks_description").html("An error occurred.");
   });
 }
 
-// Creates a text area for the user to create a new configuration file, and if there's an
-// example file for that check displays a button for seeing this example file
-function createNewConfigFile(checkName, exampleFile) {
+// Creates a text editor for the user to create a new configuration file, with the
+// data to display in the editor passed in
+function createNewConfigFile(checkName, data) {
   $("#checks_description").html("Please create a new configuration file for this check below.");
-  $(".right").append('<div id="new_config_input"><div id="add_check">Add Check</div></div>');
-  var editor = attachEditor("new_config_input", "# Add your configuration here", false);
+  $(".right").html('<div id="new_config_input"><div id="add_check">Add Check</div></div>');
+  var editor = attachEditor("new_config_input", data);
 
   $("#add_check").click(function(){
+    // Disable the button after it's been clicked because if it's successful it will load a popup,
+    // so we don't want the user to be able to click the button again until the popup is closed
     $("#add_check").css("pointer-events", "none");
     addNewCheck(editor, checkName);
-  });
-
-  if (!exampleFile) return;
-  $("#new_config_input").append('<div id="see_example">See Example File</div>');
-  $("#see_example").click(function(){ displayExample(checkName); });
-}
-
-// Handler for the 'See example file' button, displays the current check's example configuration file
-// as a popup
-function displayExample(checkName) {
-  // Fetch the example configuration file and display it as a popup
-  $("#save_run_check").css("pointer-events", "none");
-  sendMessage("checks/getConfig/" + checkName + ".yaml.example", "",
-  function(data, status, xhr){
-    $("#manage_checks").append("<div class='popup'>" +
-                                  "<div id='example_title'>" + checkName + ".yaml example: </div>" +
-                                  "<div id='example'></div>" +
-                                  "<div class='exit'>x</div>" +
-                                "</div>");
-    var editor = attachEditor("example", data, true);
-    $(".exit").click(function() {
-      $(".popup").remove();
-      $(".exit").remove();
-      $("#add_check").css("pointer-events", "auto");
-    });
-  }, function() {
-    $("#checks_description").html("An error occurred.");
-    $(".right").html("");
   });
 }
 
