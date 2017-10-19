@@ -84,6 +84,13 @@ func (t *Tagger) Init(catalog collectors.Catalog) error {
 			} else {
 				log.Errorf("error initialising collector %s: does not implement stream", name)
 			}
+		case collectors.FetchOnlyCollection:
+			fetch, ok := collector.(collectors.Fetcher)
+			if ok {
+				t.fetchers[name] = fetch
+			} else {
+				log.Errorf("error initialising collector %s: does not implement fetch", name)
+			}
 		}
 	}
 	t.Unlock()

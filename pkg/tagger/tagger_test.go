@@ -6,143 +6,124 @@
 package tagger
 
 import (
-	// stdlib
 	"sort"
-	"sync"
 	"testing"
 
-	// 3p
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
 
-/////////////////////////////// Dummy collectors for mock testing ///////////////////////////////
-
-type DummyStreamer struct {
-	sync.Mutex
-	Inited      int
-	Started     int
-	Stopped     int
-	Fetched     int
-	FetchedWith string
+type DummyCollector struct {
+	mock.Mock
 }
 
-func (c *DummyStreamer) Detect(out chan<- []*collectors.TagInfo) (collectors.CollectionMode, error) {
-	c.Inited++
-	return collectors.StreamCollection, nil
+func (c *DummyCollector) Detect(out chan<- []*collectors.TagInfo) (collectors.CollectionMode, error) {
+	args := c.Called(out)
+	return args.Get(0).(collectors.CollectionMode), args.Error(1)
 }
-func (c *DummyStreamer) Fetch(entity string) ([]string, []string, error) {
-	c.Fetched++
-	c.FetchedWith = entity
-	return []string{"low"}, []string{"high"}, nil
-}
-
-func (c *DummyStreamer) Stream() error {
-	c.Lock()
-	c.Started++
-	c.Unlock()
-	return nil
-}
-func (c *DummyStreamer) Stop() error {
-	c.Lock()
-	c.Stopped++
-	c.Unlock()
-	return nil
+func (c *DummyCollector) Fetch(entity string) ([]string, []string, error) {
+	args := c.Called(entity)
+	return args.Get(0).([]string), args.Get(1).([]string), args.Error(2)
 }
 
-type DummyPuller struct {
-	sync.Mutex
-	Inited      int
-	Pulled      int
-	Fetched     int
-	FetchedWith string
+func (c *DummyCollector) Stream() error {
+	args := c.Called()
+	return args.Error(0)
 }
 
-func (c *DummyPuller) Detect(out chan<- []*collectors.TagInfo) (collectors.CollectionMode, error) {
-	c.Inited++
-	return collectors.PullCollection, nil
-}
-func (c *DummyPuller) Fetch(entity string) ([]string, []string, error) {
-	c.Fetched++
-	c.FetchedWith = entity
-	return []string{"low2"}, []string{}, nil
+func (c *DummyCollector) Stop() error {
+	args := c.Called()
+	return args.Error(0)
 }
 
-func (c *DummyPuller) Pull() error {
-	c.Lock()
-	c.Pulled++
-	c.Unlock()
-	return nil
+func (c *DummyCollector) Pull() error {
+	args := c.Called()
+	return args.Error(0)
 }
 
-type Dummies struct {
-	Streamer *DummyStreamer
-	Puller   *DummyPuller
+func NewDummyStreamer() collectors.Collector {
+	c := new(DummyCollector)
+	c.On("Detect", mock.Anything).Return(collectors.StreamCollection, nil)
+	c.On("Stream").Return(nil)
+	return c
 }
 
-func (d *Dummies) getDummyStreamer() collectors.Collector {
-	return d.Streamer
+func NewDummyPuller() collectors.Collector {
+	c := new(DummyCollector)
+	c.On("Detect", mock.Anything).Return(collectors.PullCollection, nil)
+	c.On("Pull").Return(nil)
+	return c
 }
 
-func (d *Dummies) getDummyPuller() collectors.Collector {
-	return d.Puller
+func NewDummyFetcher() collectors.Collector {
+	c := new(DummyCollector)
+	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
+	return c
 }
-
-/////////////////////////////// Test functions ///////////////////////////////
 
 func TestInit(t *testing.T) {
-	d := &Dummies{&DummyStreamer{}, &DummyPuller{}}
-	catalog := collectors.Catalog{"stream": d.getDummyStreamer, "pull": d.getDummyPuller}
-	require.Equal(t, 2, len(catalog))
+	catalog := collectors.Catalog{
+		"stream":  NewDummyStreamer,
+		"pull":    NewDummyPuller,
+		"fetcher": NewDummyFetcher,
+	}
+	assert.Equal(t, 3, len(catalog))
 
 	tagger, err := newTagger()
-	require.Equal(t, nil, err)
+	assert.Nil(t, err)
 	err = tagger.Init(catalog)
-	require.Equal(t, nil, err)
+	assert.Nil(t, err)
 
-	require.Equal(t, 2, len(tagger.fetchers))
-	require.Equal(t, 1, len(tagger.streamers))
-	require.Equal(t, 1, len(tagger.pullers))
+	assert.Equal(t, 3, len(tagger.fetchers))
+	assert.Equal(t, 1, len(tagger.streamers))
+	assert.Equal(t, 1, len(tagger.pullers))
 
-	require.Equal(t, 1, d.Streamer.Inited)
-	require.Equal(t, 1, d.Streamer.Inited)
-	require.Equal(t, 0, d.Streamer.Stopped)
-	require.Equal(t, 0, d.Streamer.Fetched)
+	streamer := tagger.streamers["stream"].(*DummyCollector)
+	assert.NotNil(t, streamer)
+	streamer.AssertCalled(t, "Detect", mock.Anything)
 
-	require.Equal(t, 1, d.Puller.Inited)
-	require.Equal(t, 0, d.Puller.Fetched)
+	puller := tagger.pullers["pull"].(*DummyCollector)
+	assert.NotNil(t, puller)
+	puller.AssertCalled(t, "Detect", mock.Anything)
+
+	fetcher := tagger.fetchers["fetcher"].(*DummyCollector)
+	assert.NotNil(t, fetcher)
+	fetcher.AssertCalled(t, "Detect", mock.Anything)
 }
 
 func TestFetchAllMiss(t *testing.T) {
-	d := &Dummies{&DummyStreamer{}, &DummyPuller{}}
-	catalog := collectors.Catalog{"stream": d.getDummyStreamer, "pull": d.getDummyPuller}
-	require.Equal(t, 2, len(catalog))
+	catalog := collectors.Catalog{"stream": NewDummyStreamer, "pull": NewDummyPuller}
 	tagger, _ := newTagger()
 	tagger.Init(catalog)
 
-	tags, err := tagger.Tag("entity_name", false)
-	require.Equal(t, 1, d.Streamer.Fetched)
-	require.Equal(t, "entity_name", d.Streamer.FetchedWith)
-	require.Equal(t, 1, d.Puller.Fetched)
-	require.Equal(t, "entity_name", d.Puller.FetchedWith)
+	streamer := tagger.streamers["stream"].(*DummyCollector)
+	assert.NotNil(t, streamer)
+	streamer.On("Fetch", "entity_name").Return([]string{"low1"}, []string{}, nil)
 
-	require.Equal(t, nil, err)
+	puller := tagger.pullers["pull"].(*DummyCollector)
+	assert.NotNil(t, puller)
+	puller.On("Fetch", "entity_name").Return([]string{"low2"}, []string{}, nil)
+
+	tags, err := tagger.Tag("entity_name", false)
+	assert.Nil(t, err)
 	sort.Strings(tags)
-	require.Equal(t, []string{"low", "low2"}, tags)
+	assert.Equal(t, []string{"low1", "low2"}, tags)
+
+	streamer.AssertCalled(t, "Fetch", "entity_name")
+	puller.AssertCalled(t, "Fetch", "entity_name")
 }
 
 func TestFetchAllCached(t *testing.T) {
-	d := &Dummies{&DummyStreamer{}, &DummyPuller{}}
-	catalog := collectors.Catalog{"stream": d.getDummyStreamer, "pull": d.getDummyPuller}
-	require.Equal(t, 2, len(catalog))
+	catalog := collectors.Catalog{"stream": NewDummyStreamer, "pull": NewDummyPuller}
 	tagger, _ := newTagger()
 	tagger.Init(catalog)
 
 	tagger.tagStore.processTagInfo(&collectors.TagInfo{
 		Entity:       "entity_name",
 		Source:       "stream",
-		LowCardTags:  []string{"low"},
+		LowCardTags:  []string{"low1"},
 		HighCardTags: []string{"high"},
 	})
 	tagger.tagStore.processTagInfo(&collectors.TagInfo{
@@ -151,33 +132,56 @@ func TestFetchAllCached(t *testing.T) {
 		LowCardTags: []string{"low2"},
 	})
 
-	tags, err := tagger.Tag("entity_name", true)
-	require.Equal(t, 0, d.Streamer.Fetched)
-	require.Equal(t, 0, d.Puller.Fetched)
+	streamer := tagger.streamers["stream"].(*DummyCollector)
+	assert.NotNil(t, streamer)
+	streamer.On("Fetch", "entity_name").Return([]string{"low1"}, []string{}, nil)
 
-	require.Equal(t, nil, err)
+	puller := tagger.pullers["pull"].(*DummyCollector)
+	assert.NotNil(t, puller)
+	puller.On("Fetch", "entity_name").Return([]string{"low2"}, []string{}, nil)
+
+	tags, err := tagger.Tag("entity_name", true)
+	assert.Nil(t, err)
 	sort.Strings(tags)
-	require.Equal(t, []string{"high", "low", "low2"}, tags)
+	assert.Equal(t, []string{"high", "low1", "low2"}, tags)
+
+	streamer.AssertNotCalled(t, "Fetch", "entity_name")
+	puller.AssertNotCalled(t, "Fetch", "entity_name")
 }
 
 func TestFetchOneCached(t *testing.T) {
-	d := &Dummies{&DummyStreamer{}, &DummyPuller{}}
-	catalog := collectors.Catalog{"stream": d.getDummyStreamer, "pull": d.getDummyPuller}
-	require.Equal(t, 2, len(catalog))
+	catalog := collectors.Catalog{
+		"stream":  NewDummyStreamer,
+		"pull":    NewDummyPuller,
+		"fetcher": NewDummyFetcher,
+	}
 	tagger, _ := newTagger()
 	tagger.Init(catalog)
 
 	tagger.tagStore.processTagInfo(&collectors.TagInfo{
 		Entity:      "entity_name",
 		Source:      "stream",
-		LowCardTags: []string{"low"},
+		LowCardTags: []string{"low1"},
 	})
 
-	tags, err := tagger.Tag("entity_name", false)
-	require.Equal(t, 0, d.Streamer.Fetched)
-	require.Equal(t, 1, d.Puller.Fetched)
+	streamer := tagger.streamers["stream"].(*DummyCollector)
+	assert.NotNil(t, streamer)
+	streamer.On("Fetch", "entity_name").Return([]string{"low1"}, []string{}, nil)
 
-	require.Equal(t, nil, err)
+	puller := tagger.pullers["pull"].(*DummyCollector)
+	assert.NotNil(t, puller)
+	puller.On("Fetch", "entity_name").Return([]string{"low2"}, []string{}, nil)
+
+	fetcher := tagger.fetchers["fetcher"].(*DummyCollector)
+	assert.NotNil(t, fetcher)
+	fetcher.On("Fetch", "entity_name").Return([]string{"low3"}, []string{}, nil)
+
+	tags, err := tagger.Tag("entity_name", true)
+	assert.Nil(t, err)
 	sort.Strings(tags)
-	require.Equal(t, []string{"low", "low2"}, tags)
+	assert.Equal(t, []string{"low1", "low2", "low3"}, tags)
+
+	streamer.AssertNotCalled(t, "Fetch", "entity_name")
+	puller.AssertCalled(t, "Fetch", "entity_name")
+	fetcher.AssertCalled(t, "Fetch", "entity_name")
 }
