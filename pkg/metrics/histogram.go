@@ -8,7 +8,9 @@ package metrics
 import (
 	"fmt"
 	"sort"
+	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 )
 
@@ -30,7 +32,6 @@ type Histogram struct {
 	percentiles []int    // percentiles configured on this histogram, each in the 1-100 range
 	interval    int64    // interval over which the `count` value is normalized (bucket interval for Dogstatsd, 1 otherwise)
 	samples     weightSamples
-	configured  bool
 	sum         float64
 	count       int64
 }
@@ -44,15 +45,57 @@ const (
 	countAgg  = "count"
 )
 
+var (
+	defaultAggregates  = []string(nil)
+	defaultPercentiles = []int(nil)
+)
+
+type histogramPercentilesConfig struct {
+	Percentiles []string `mapstructure:"histogram_percentiles"`
+}
+
+func (h *histogramPercentilesConfig) percentiles() []int {
+	res := []int{}
+	for _, p := range h.Percentiles {
+		i, err := strconv.Atoi(p)
+		if err != nil {
+			log.Errorf("Could not parse '%s' from 'histogram_percentiles' (skipping): %s", p, err)
+			continue
+		}
+		if i < 1 || i > 100 {
+			log.Errorf("histogram_percentiles must be between 1 and 100: skipping %d", i)
+			continue
+		}
+		res = append(res, i)
+	}
+	return res
+}
+
 // NewHistogram returns a newly initialized histogram
 func NewHistogram(interval int64) *Histogram {
+	// we initialize default value on the first histogram creation
+	if defaultAggregates == nil {
+		defaultAggregates = config.Datadog.GetStringSlice("histogram_aggregates")
+	}
+	if defaultPercentiles == nil {
+		c := histogramPercentilesConfig{}
+		err := config.Datadog.Unmarshal(&c)
+		if err != nil {
+			log.Errorf("Could not Unmarshal histogram configuration: %s", err)
+		} else {
+			defaultPercentiles = c.percentiles()
+			sort.Ints(defaultPercentiles)
+		}
+	}
+
 	return &Histogram{
-		interval: interval,
+		interval:    interval,
+		aggregates:  defaultAggregates,
+		percentiles: defaultPercentiles,
 	}
 }
 
 func (h *Histogram) configure(aggregates []string, percentiles []int) {
-	h.configured = true
 	h.aggregates = aggregates
 	sort.Ints(percentiles)
 	h.percentiles = percentiles
@@ -72,11 +115,6 @@ func (h *Histogram) addSample(sample *MetricSample, timestamp float64) {
 func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 	if len(h.samples) == 0 {
 		return []*Serie{}, NoSerieError{}
-	}
-
-	if !h.configured {
-		// Set default aggregates/percentiles if configure() hasn't been called beforehand
-		h.configure([]string{maxAgg, medianAgg, avgAgg, countAgg}, []int{95})
 	}
 
 	sort.Sort(h.samples)
