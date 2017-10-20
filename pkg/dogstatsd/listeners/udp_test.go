@@ -144,7 +144,7 @@ func getAvailableUDPPort() (int, error) {
 	}
 	portInt, err := strconv.Atoi(portString)
 	if err != nil {
-		return -1, fmt.Errorf("can't find an available udp port: %s", err)
+		return -1, fmt.Errorf("can't convert udp port: %s", err)
 	}
 
 	return portInt, nil
