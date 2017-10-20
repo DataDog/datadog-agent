@@ -13,23 +13,25 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestNewUDPListener(t *testing.T) {
 	s, err := NewUDPListener(nil)
-	defer s.Stop()
-
+	require.NotNil(t, s)
 	assert.Nil(t, err)
-	assert.NotNil(t, s)
+
+	s.Stop()
 }
 
 func TestStartStopUDPListener(t *testing.T) {
 	config.Datadog.Set("dogstatsd_non_local_traffic", false)
 	s, err := NewUDPListener(nil)
+	require.NotNil(t, s)
+
 	assert.Nil(t, err)
-	assert.NotNil(t, s)
 
 	go s.Listen()
 	// Local port should be unavailable
@@ -40,6 +42,8 @@ func TestStartStopUDPListener(t *testing.T) {
 	s.Stop()
 	// Port should be available again
 	conn, err := net.ListenUDP("udp", address)
+	require.NotNil(t, conn)
+
 	assert.Nil(t, err)
 	conn.Close()
 }
@@ -47,6 +51,8 @@ func TestStartStopUDPListener(t *testing.T) {
 func TestUDPNonLocal(t *testing.T) {
 	config.Datadog.Set("dogstatsd_non_local_traffic", true)
 	s, err := NewUDPListener(nil)
+	require.NotNil(t, s)
+
 	go s.Listen()
 	defer s.Stop()
 
@@ -65,6 +71,8 @@ func TestUDPNonLocal(t *testing.T) {
 func TestUDPLocalOnly(t *testing.T) {
 	config.Datadog.Set("dogstatsd_non_local_traffic", false)
 	s, err := NewUDPListener(nil)
+	require.NotNil(t, s)
+
 	go s.Listen()
 	defer s.Stop()
 
@@ -77,6 +85,7 @@ func TestUDPLocalOnly(t *testing.T) {
 	externalPort := fmt.Sprintf("%s:8125", getLocalIP())
 	address, _ = net.ResolveUDPAddr("udp", externalPort)
 	conn, err := net.ListenUDP("udp", address)
+	require.NotNil(t, conn)
 	assert.Nil(t, err)
 	conn.Close()
 }
@@ -86,12 +95,13 @@ func TestUDPReceive(t *testing.T) {
 
 	packetChannel := make(chan *Packet)
 	s, err := NewUDPListener(packetChannel)
+	require.NotNil(t, s)
 	assert.Nil(t, err)
-	assert.NotNil(t, s)
 
 	go s.Listen()
 	defer s.Stop()
 	conn, err := net.Dial("udp", "127.0.0.1:8125")
+	require.NotNil(t, conn)
 	assert.Nil(t, err)
 	defer conn.Close()
 	conn.Write(contents)
