@@ -131,9 +131,9 @@ def image_build(ctx, base_dir="omnibus"):
         print("See agent.omnibus-build")
         raise Exit(1)
     latest_file = max(list_of_files, key=os.path.getctime)
-    shutil.copy2(latest_file, "Dockerfiles/agent6/")
-    ctx.run("docker build -t {} Dockerfiles/agent6".format(AGENT_TAG))
-    ctx.run("rm Dockerfiles/agent6/datadog-agent*_amd64.deb")
+    shutil.copy2(latest_file, "Dockerfiles/agent/")
+    ctx.run("docker build -t {} Dockerfiles/agent".format(AGENT_TAG))
+    ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
 
 
 @task

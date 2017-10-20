@@ -225,7 +225,7 @@ build_windows_msi_x64:
 build_agent6:
   <<: *dind_job_definition
   variables:
-    DD_DIND_BUILD_CONTEXT: Dockerfiles/agent6
+    DD_DIND_BUILD_CONTEXT: Dockerfiles/agent
     DD_DIND_IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent:$CI_PIPELINE_ID
     DD_DIND_ARTEFACTS: "true"
 
