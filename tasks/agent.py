@@ -2,22 +2,23 @@
 Agent namespaced tasks
 """
 from __future__ import print_function
+import glob
 import os
 import shutil
-import sys
 from distutils.dir_util import copy_tree
 
 import invoke
 from invoke import task
+from invoke.exceptions import Exit
 
-from .utils import bin_name, get_build_flags, pkg_config_path, get_version, get_version_numeric_only
+from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_puppy_build_tags
 from .go import deps
 
 #constants
 BIN_PATH = os.path.join(".", "bin", "agent")
-
+AGENT_TAG = "datadog/agent:master"
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
@@ -114,6 +115,25 @@ def system_tests(ctx):
     Run the system testsuite.
     """
     pass
+
+
+@task
+def image_build(ctx, base_dir="omnibus"):
+    """
+    Build the docker image
+    """
+    base_dir = base_dir or os.environ.get("AGENT_OMNIBUS_BASE_DIR")
+    pkg_dir = os.path.join(base_dir, 'pkg')
+    list_of_files = glob.glob(os.path.join(pkg_dir, 'datadog-agent*_amd64.deb'))
+    # get the last debian package built
+    if not list_of_files:
+        print("No debian package build found in {}".format(pkg_dir))
+        print("See agent.omnibus-build")
+        raise Exit(1)
+    latest_file = max(list_of_files, key=os.path.getctime)
+    shutil.copy2(latest_file, "Dockerfiles/agent/")
+    ctx.run("docker build -t {} Dockerfiles/agent".format(AGENT_TAG))
+    ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")
 
 
 @task

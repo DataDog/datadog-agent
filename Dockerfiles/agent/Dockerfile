@@ -1,4 +1,4 @@
-FROM debian:jessie
+FROM debian:stretch-slim
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
@@ -7,15 +7,13 @@ ENV DOCKER_DD_AGENT=yes \
     DD_AGENT_HOME=/opt/datadog-agent/
 
 # Install the Agent
+COPY datadog-agent*_amd64.deb /datadog-agent*_amd64.deb
 RUN apt-get update \
  && apt-get install --no-install-recommends -y apt-transport-https ca-certificates\
- && echo "deb https://s3.amazonaws.com/apt-agent6.datad0g.com unstable main" > /etc/apt/sources.list.d/datadog.list \
- && apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A2923DFF56EDA6E76E55E492D3A80E30382E94DE \
- && apt-get update \
- # TODO: pin the version
- && apt-get install --no-install-recommends -y datadog-agent \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+ && dpkg -i datadog-agent*_amd64.deb\
+ && apt-get clean\
+ && rm -rf agent6.deb /var/lib/apt/lists/* /tmp/* /var/tmp/*\
+ && touch /etc/datadog-agent/datadog.yaml
 
 COPY entrypoint.sh /entrypoint.sh
 COPY docker.yaml /etc/dd-agent/conf.d/
