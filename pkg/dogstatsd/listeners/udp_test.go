@@ -9,6 +9,7 @@ package listeners
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -27,7 +28,10 @@ func TestNewUDPListener(t *testing.T) {
 }
 
 func TestStartStopUDPListener(t *testing.T) {
-	config.Datadog.Set("dogstatsd_non_local_traffic", false)
+	port, err := getAvailableUDPPort()
+	require.Nil(t, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
 	s, err := NewUDPListener(nil)
 	require.NotNil(t, s)
 
@@ -35,7 +39,7 @@ func TestStartStopUDPListener(t *testing.T) {
 
 	go s.Listen()
 	// Local port should be unavailable
-	address, _ := net.ResolveUDPAddr("udp", "127.0.0.1:8125")
+	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	_, err = net.ListenUDP("udp", address)
 	assert.NotNil(t, err)
 
@@ -49,7 +53,10 @@ func TestStartStopUDPListener(t *testing.T) {
 }
 
 func TestUDPNonLocal(t *testing.T) {
-	config.Datadog.Set("dogstatsd_non_local_traffic", true)
+	port, err := getAvailableUDPPort()
+	require.Nil(t, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+	config.Datadog.SetDefault("dogstatsd_non_local_traffic", true)
 	s, err := NewUDPListener(nil)
 	require.NotNil(t, s)
 
@@ -57,19 +64,22 @@ func TestUDPNonLocal(t *testing.T) {
 	defer s.Stop()
 
 	// Local port should be unavailable
-	address, _ := net.ResolveUDPAddr("udp", "127.0.0.1:8125")
+	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	_, err = net.ListenUDP("udp", address)
 	assert.NotNil(t, err)
 
 	// External port should be unavailable
-	externalPort := fmt.Sprintf("%s:8125", getLocalIP())
+	externalPort := fmt.Sprintf("%s:%d", getLocalIP(), port)
 	address, _ = net.ResolveUDPAddr("udp", externalPort)
 	_, err = net.ListenUDP("udp", address)
 	assert.NotNil(t, err)
 }
 
 func TestUDPLocalOnly(t *testing.T) {
-	config.Datadog.Set("dogstatsd_non_local_traffic", false)
+	port, err := getAvailableUDPPort()
+	require.Nil(t, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
 	s, err := NewUDPListener(nil)
 	require.NotNil(t, s)
 
@@ -77,12 +87,12 @@ func TestUDPLocalOnly(t *testing.T) {
 	defer s.Stop()
 
 	// Local port should be unavailable
-	address, _ := net.ResolveUDPAddr("udp", "127.0.0.1:8125")
+	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	_, err = net.ListenUDP("udp", address)
 	assert.NotNil(t, err)
 
 	// External port should be available
-	externalPort := fmt.Sprintf("%s:8125", getLocalIP())
+	externalPort := fmt.Sprintf("%s:%d", getLocalIP(), port)
 	address, _ = net.ResolveUDPAddr("udp", externalPort)
 	conn, err := net.ListenUDP("udp", address)
 	require.NotNil(t, conn)
@@ -93,6 +103,10 @@ func TestUDPLocalOnly(t *testing.T) {
 func TestUDPReceive(t *testing.T) {
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 
+	port, err := getAvailableUDPPort()
+	require.Nil(t, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+
 	packetChannel := make(chan *Packet)
 	s, err := NewUDPListener(packetChannel)
 	require.NotNil(t, s)
@@ -100,7 +114,7 @@ func TestUDPReceive(t *testing.T) {
 
 	go s.Listen()
 	defer s.Stop()
-	conn, err := net.Dial("udp", "127.0.0.1:8125")
+	conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	require.NotNil(t, conn)
 	assert.Nil(t, err)
 	defer conn.Close()
@@ -114,6 +128,26 @@ func TestUDPReceive(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}
+}
+
+// getAvailableUDPPort requests a random port number and makes sure it is available
+func getAvailableUDPPort() (int, error) {
+	conn, err := net.ListenPacket("udp", ":0")
+	if err != nil {
+		return -1, fmt.Errorf("can't find an available udp port: %s", err)
+	}
+	defer conn.Close()
+
+	_, portString, err := net.SplitHostPort(conn.LocalAddr().String())
+	if err != nil {
+		return -1, fmt.Errorf("can't find an available udp port: %s", err)
+	}
+	portInt, err := strconv.Atoi(portString)
+	if err != nil {
+		return -1, fmt.Errorf("can't find an available udp port: %s", err)
+	}
+
+	return portInt, nil
 }
 
 // getLocalIP returns the first non loopback local IPv4 on that host
