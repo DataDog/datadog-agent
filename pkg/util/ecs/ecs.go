@@ -24,7 +24,7 @@ const (
 	// DefaultAgentPort is the default port used by the ECS Agent.
 	DefaultAgentPort = 51678
 	// DefaultECSContainer is the default container used by ECS.
-	DefaultECSContainer = "amazon-ecs-agent"
+	DefaultECSContainer = "ecs-agent"
 )
 
 // DetectedAgentURL stores the URL of the ECS agent. After the first call to

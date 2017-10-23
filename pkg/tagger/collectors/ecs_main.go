@@ -27,17 +27,11 @@ type ECSCollector struct {
 func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	if ecsutil.IsInstance() {
 		c.infoOut = out
-		return PullCollection, nil
+		return FetchOnlyCollection, nil
 	} else {
 		return NoCollection, fmt.Errorf("Failed to connect to ecs, ECS tagging will not work")
 	}
 
-}
-
-// No need to use the Pull for ECS, metadata collection relies on Fetch.
-// Implementing for compliance with tagger interface.
-func (c *ECSCollector) Pull() error {
-	return nil
 }
 
 // Fetch fetches ECS tags
