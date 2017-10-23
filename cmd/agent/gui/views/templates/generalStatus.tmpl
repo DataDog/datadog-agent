@@ -1,0 +1,159 @@
+{{- with .Stats -}}
+  <div class="stat">
+    <span class="stat_title">Agent Info</span>
+    <span class="stat_data">
+      Version: {{.version}}
+      <br>PID: {{.pid}}
+      {{- if .runnerStats.Workers}}
+        <br>Check Workers: {{.runnerStats.Workers}}
+      {{end}}
+      <br>Log File: {{.config.log_file}}
+      <br>Log Level: {{.config.log_level}}
+      <br>Config File: {{if .conf_file}}{{.conf_file}}
+                       {{else}}There is no config file
+                       {{end}}
+      <br>Conf.d Path: {{.config.confd_path}}
+      <br>Checks.d Path: {{.config.additional_checksd}}
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">System Info</span>
+    <span class="stat_data">
+      System UTC Time: {{.time}}
+      {{- if .ntpOffset}}
+        <br>NTP Offset: {{.ntpOffset}}s
+      {{end}}
+      <br>Go Version: {{.platform.goV}}
+      <br>Python Version: {{.platform.pythonV}}
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">Host Info</span>
+    <span class="stat_data">
+      {{- range $type, $value := .hostinfo -}}
+        {{- if ne $type "hostname" -}}
+          {{- if ne $type "hostid" -}}
+            {{if $value}}
+              {{formatTitle $type}}: {{if eq $type "bootTime" -}}{{- formatUnixTime $value -}}
+                              {{- else -}}{{- $value -}}
+                              {{- end -}}<br>
+            {{end -}}
+          {{end -}}
+        {{end -}}
+      {{- end}}
+      <span class="stat_subtitle">Hostnames</span>
+      <span class="stat_subdata">
+        {{- range $type, $value := .metadata.meta -}}
+          {{- if ne $type "timezones" -}}
+            {{- if $value}}
+              {{formatTitle $type}}: {{$value -}}<br>
+            {{end -}}
+          {{- end -}}
+        {{- end}}
+      </span>
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">JMX Status</span>
+    <span class="stat_data">
+      {{- with .JMXStatus -}}
+        {{- if and (not .timestamp) (not .checks)}}
+          No JMX status available
+        {{- else }}
+          <span class="stat_subtitle">Initialized Checks</span>
+          <span class="stat_subdata">
+            {{- if (not .checks.initialized_checks)}}
+              No initialized checks
+            {{ else }}
+              {{- range $check,$instances := .checks.initialized_checks }}
+                {{ $check -}}<br>
+                {{- range $instance := $instances }}
+                  {{- range $k,$v := $instance }}
+                      {{ $k }} : {{ $v }}<br>
+                  {{- end -}}
+                {{- end -}}
+              {{- end }}
+            {{- end -}}
+          </span>
+          <span class="stat_subtitle">Failed Checks</span>
+          <span class="stat_subdata">
+            {{- if (not .checks.failed_checks)}}
+              No failed checks
+            {{ else }}
+              {{- range $check,$instances := .checks.failed_checks }}
+                {{ $check }}<br>
+                {{- range $instance := $instances }}
+                  {{- range $k,$v := $instance }}
+                    {{ $k }} : {{ $v }}<br>
+                  {{- end -}}
+                {{- end -}}
+              {{- end -}}
+            {{- end -}}
+          </span>
+        {{- end -}}
+      {{- end -}}
+    </span>
+
+  </div>
+  <div class="stat">
+    <span class="stat_title">Forwarder</span>
+    <span class="stat_data">
+      {{- with .forwarderStats -}}
+        {{- if .TransactionsCreated -}}
+          {{- range $key, $value := .TransactionsCreated}}
+            {{formatTitle $key}}: {{$value}}<br>
+          {{- end -}}
+        {{- end}}
+        {{- if .APIKeyStatus}}
+          <span class="stat_subtitle">API Keys Status</span>
+          <span class="stat_subdata">
+            {{- range $key, $value := .APIKeyStatus}}
+              {{$key}}: {{$value}}<br>
+            {{- end -}}
+          </span>
+        {{- end}}
+      {{- end -}}
+    </span>
+  </div>
+
+  <div class="stat">
+    <span class="stat_title">DogStatsD</span>
+    <span class="stat_data">
+      {{- with .aggregatorStats -}}
+        {{- if .ChecksMetricSample}}
+          Checks Metric Sample: {{.ChecksMetricSample}}<br>
+        {{- end -}}
+        {{- if .Event}}
+          Event: {{.Event}}<br>
+        {{- end -}}
+        {{- if .EventsFlushed}}
+          Events Flushed: {{.EventsFlushed}}<br>
+        {{- end -}}
+        {{- if .NumberOfFlush}}
+          Number Of Flushes: {{.NumberOfFlush}}<br>
+        {{- end -}}
+        {{- if .SeriesFlushed}}
+          Series Flushed: {{.SeriesFlushed}}<br>
+        {{- end -}}
+        {{- if .ServiceCheck}}
+          Service Check: {{.ServiceCheck}}<br>
+        {{- end -}}
+        {{- if .ServiceCheckFlushed}}
+          Service Checks Flushed: {{.ServiceCheckFlushed}}<br>
+        {{- end -}}
+        {{- if .SketchesFlushed}}
+          Sketches Flushed: {{.SketchesFlushed}}<br>
+        {{- end -}}
+        {{- if .HostnameUpdate}}
+          Hostname Update: {{.HostnameUpdate}}<br>
+        {{- end -}}
+        {{- if .DogstatsdMetricSample}}
+          Dogstatsd Metric Sample: {{.DogstatsdMetricSample}}<br>
+        {{- end}}
+      {{- end -}}
+    <span>
+  </div>
+{{- end -}}

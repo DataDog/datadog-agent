@@ -279,6 +279,14 @@ func GetCheckStats() map[check.ID]*check.Stats {
 	return checkStats.Stats
 }
 
+// RemoveCheckStats removes a check from the check stats map
+func RemoveCheckStats(checkID check.ID) {
+	checkStats.M.RLock()
+	defer checkStats.M.RUnlock()
+
+	delete(checkStats.Stats, checkID)
+}
+
 func getHostname() string {
 	hostname, _ := util.GetHostname()
 	return hostname

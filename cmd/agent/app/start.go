@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -165,6 +166,14 @@ func StartAgent() error {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
+	// start the GUI server
+	guiPort := config.Datadog.GetString("GUI_port")
+	if guiPort == "-1" {
+		log.Infof("Port -1 specified: not starting the GUI server.")
+	} else if err = gui.StartGUIServer(guiPort); err != nil {
+		log.Errorf("Error while starting GUI: %v", err)
+	}
+
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()
 	if err != nil {
@@ -249,6 +258,7 @@ func StopAgent() {
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
 	}
+	gui.StopGUIServer()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()

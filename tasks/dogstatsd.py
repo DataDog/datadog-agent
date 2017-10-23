@@ -3,6 +3,7 @@ Dogstatsd tasks
 """
 from __future__ import print_function
 import os
+from shutil import copy2
 
 import invoke
 from invoke import task
@@ -18,6 +19,7 @@ from .go import deps
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
 MAX_BINARY_SIZE = 15 * 1024
+DOGSTATSD_TAG = "datadog/dogstatsd:master"
 
 @task
 def build(ctx, rebuild=False, race=False, static=False, build_include=None, build_exclude=None, use_embedded_libs=False):
@@ -151,6 +153,21 @@ def integration_tests(ctx, install_deps=False):
     # config_providers
     cmd = "go test -tags '{}' {}/test/integration/dogstatsd/..."
     ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+
+@task
+def image_build(ctx, skip_build=False):
+    """
+    Build the docker image
+    """
+    target = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
+    if not skip_build:
+        build(ctx, rebuild=True, static=True)
+    if not os.path.exists(target):
+        raise Exit(1)
+
+    copy2(target, "Dockerfiles/dogstatsd/alpine/dogstatsd")
+    ctx.run("docker build -t {} Dockerfiles/dogstatsd/alpine/".format(DOGSTATSD_TAG))
+    ctx.run("rm Dockerfiles/dogstatsd/alpine/dogstatsd")
 
 
 @task

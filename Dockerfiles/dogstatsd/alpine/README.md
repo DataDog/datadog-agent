@@ -2,6 +2,8 @@
 
 This docker image runs dogstatsd as a standalone container. It can be used in cases a full-fledged agent6 is not needed on the node, or as a sidecar container inside pods. It supports both the UDP protocol (default) or Unix Domain Socket (if `DD_DOGSTATSD_SOCKET` is set to a valid path). To know more about each protocol, see the [dogstatsd readme](../../../cmd/dogstatsd/README.md).
 
+## How to run it
+
 The following environment variables are supported:
 
   - `DD_API_KEY`: your API key (**required**)
@@ -85,3 +87,7 @@ spec:
               fieldRef:
                 fieldPath: spec.nodeName
 ```
+
+## How to build it
+
+You can use `inv dogstatsd.image-build` to build your own dogstatsd image

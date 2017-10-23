@@ -26,13 +26,17 @@ type configFormat struct {
 
 // FileConfigProvider collect configuration files from disk
 type FileConfigProvider struct {
-	paths []string
+	paths  []string
+	Errors map[string]string
 }
 
 // NewFileConfigProvider creates a new FileConfigProvider searching for
 // configuration files on the given paths
 func NewFileConfigProvider(paths []string) *FileConfigProvider {
-	return &FileConfigProvider{paths: paths}
+	return &FileConfigProvider{
+		paths:  paths,
+		Errors: make(map[string]string),
+	}
 }
 
 // Collect scans provided paths searching for configuration files. When found,
@@ -85,9 +89,11 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 			checkName = checkName[:len(checkName)-len(ext)]
 			conf, err := GetCheckConfigFromFile(checkName, filepath.Join(path, entry.Name()))
 			if err != nil {
+				c.Errors[checkName] = err.Error()
 				log.Warnf("%s is not a valid config file: %s", entry.Name(), err)
 				continue
 			}
+			delete(c.Errors, checkName) // noop if entry is nonexistant
 			log.Debug("Found valid configuration in file:", entry.Name())
 			// determine if a check has to be run by default by
 			// searching for check.yaml.default files
