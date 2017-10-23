@@ -1,0 +1,22 @@
+package apiserver
+
+import (
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	log "github.com/cihub/seelog"
+	"github.com/ericchiang/k8s"
+)
+
+func init() {
+	diagnosis.Register("K8s API Server availability", new(apiServerAvailabilityDiagnosis))
+}
+
+type apiServerAvailabilityDiagnosis struct{}
+
+// Diagnosee the API server availability
+func (dd *apiServerAvailabilityDiagnosis) Diagnose() error {
+	_, err := k8s.NewInClusterClient()
+	if err != nil {
+		log.Error(err)
+	}
+	return err
+}
