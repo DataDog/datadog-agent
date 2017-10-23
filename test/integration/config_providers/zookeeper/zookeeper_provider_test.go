@@ -68,11 +68,12 @@ var (
 
 type ZkTestSuite struct {
 	suite.Suite
-	templates     map[string]string
-	client        *zk.Conn
-	containerName string
-	zkVersion     string
-	zkURL         string
+	templates      map[string]string
+	client         *zk.Conn
+	containerName  string
+	zkVersion      string
+	zkURL          string
+	providerConfig config.ConfigurationProviders
 }
 
 // use a constructor to make the suite parametric
@@ -121,11 +122,10 @@ func (suite *ZkTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *ZkTestSuite) SetupTest() {
-	config.Datadog.Set("autoconf_template_url", suite.zkURL)
-	config.Datadog.Set("autoconf_template_dir", "/datadog/check_configs")
-	config.Datadog.Set("autoconf_template_username", "")
-	config.Datadog.Set("autoconf_template_password", "")
-
+	suite.providerConfig = config.ConfigurationProviders{
+		TemplateURL: suite.zkURL,
+		TemplateDir: "/datadog/check_configs",
+	}
 	suite.populate()
 }
 
@@ -143,7 +143,7 @@ func (suite *ZkTestSuite) populate() error {
 }
 
 func (suite *ZkTestSuite) TestCollect() {
-	zk, err := providers.NewZookeeperConfigProvider()
+	zk, err := providers.NewZookeeperConfigProvider(suite.providerConfig)
 	require.Nil(suite.T(), err)
 
 	templates, err := zk.Collect()
