@@ -6,18 +6,23 @@
 package flare
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"expvar"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/jhoonb/archivex"
-	yaml "gopkg.in/yaml.v2"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/util"
+
+	"github.com/jhoonb/archivex"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // SearchPaths is just an alias for a map of strings
@@ -72,6 +77,12 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths) 
 	if err != nil {
 		return "", err
 	}
+
+	err = zipDiagnose(zipFile, hostname)
+	if err != nil {
+		return "", err
+	}
+
 	if config.IsContainerized() {
 		err = zipDockerSelfInspect(zipFile, hostname)
 		if err != nil {
@@ -186,6 +197,21 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths 
 	}
 
 	return err
+}
+
+func zipDiagnose(zipFile *archivex.ZipFile, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	diagnose.Diagnose(writer)
+	writer.Flush()
+
+	err := zipFile.Add(filepath.Join(hostname, "diagnose.log"), b.Bytes())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func walkConfigFilePaths(zipFile *archivex.ZipFile, hostname string, confSearchPaths SearchPaths) error {

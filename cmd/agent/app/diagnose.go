@@ -6,18 +6,19 @@
 package app
 
 import (
-	"fmt"
-	"io"
-	"os"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	flag "github.com/spf13/pflag"
 )
+
+var verbose bool
 
 func init() {
 	AgentCmd.AddCommand(diagnoseCommand)
+	flag.BoolVarP(&verbose, "verbose", "v", false, "verbose output (with logs)")
 }
 
 var diagnoseCommand = &cobra.Command{
@@ -32,16 +33,12 @@ func doDiagnose(cmd *cobra.Command, args []string) error {
 		color.NoColor = true
 	}
 
-	// The diagnose command reports error directly to the console
-	config.SetupLogger("debug", "", "", false, false, "", true)
+	if verbose {
+		config.SetupLogger("debug", "", "", false, false, "", true)
+	} else {
+		config.SetupLogger("off", "", "", false, false, "", false)
+	}
 
-	Diagnose(os.Stdout)
+	diagnose.Diagnose(color.Output)
 	return nil
-}
-
-// Diagnose runs some connectivity checks
-func Diagnose(w io.Writer) {
-	fmt.Fprintln(w, "*** Diagnose Begin ***")
-	log.Warnf("logs enabled")
-	fmt.Fprintf(w, "Colors: %s\n", color.GreenString("enabled"))
 }
