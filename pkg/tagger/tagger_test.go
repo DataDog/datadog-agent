@@ -185,3 +185,22 @@ func TestFetchOneCached(t *testing.T) {
 	puller.AssertCalled(t, "Fetch", "entity_name")
 	fetcher.AssertCalled(t, "Fetch", "entity_name")
 }
+
+func TestEmptyEntity(t *testing.T) {
+	catalog := collectors.Catalog{
+		"fetcher": NewDummyFetcher,
+	}
+	tagger, _ := newTagger()
+	tagger.Init(catalog)
+
+	tagger.tagStore.processTagInfo(&collectors.TagInfo{
+		Entity:      "entity_name",
+		Source:      "stream",
+		LowCardTags: []string{"low1"},
+	})
+
+	tags, err := tagger.Tag("", true)
+	assert.Nil(t, tags)
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "empty entity ID")
+}
