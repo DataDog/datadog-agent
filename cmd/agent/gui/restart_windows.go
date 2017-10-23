@@ -5,11 +5,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/kardianos/osext"
 )
 
-// restarts the agent uding the windows service manager
+// restarts the agent using the windows service manager
 func restart() error {
-	cmd := exec.Command(filepath.Join(_here, "agent"), "restart-service")
+	here, _ := osext.ExecutableFolder()
+	cmd := exec.Command(filepath.Join(here, "agent"), "restart-service")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
