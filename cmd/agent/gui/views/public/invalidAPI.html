@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title> DataDog Agent 6 </title>
+</head>
+<style>
+  html {
+    margin: 0;
+    padding: 0;
+    font-family: 'OpenSans','Lucida Grande','Lucida Sans Unicode',sans-serif;
+    background-image: linear-gradient(
+       rgba(0, 0, 0, 0.2),
+       rgba(0, 0, 0, 0.6)
+     ), url(view/images/dd_bkgrnd.png);
+    background-position: center center fixed;
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
+    min-height: 100%;
+  }
+
+  .center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .main {
+    position: absolute;
+    background-color: #f5f5f5;
+    height: 200px;
+    width: 570px;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    font-size: 18px;
+  }
+
+  h3 {
+    font-size: 25px;
+  }
+</style>
+
+<body>
+  <div class="main center">
+    <h3> DataDog Agent Manager Authentication </h3>
+    The DataDog Agent requires a valid API key. <br> Please provide one and restart the agent.
+  </div>
+</body>

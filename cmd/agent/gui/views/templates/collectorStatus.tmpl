@@ -1,0 +1,53 @@
+{{- with .Stats -}}
+  <div class="stat">
+    <span class="stat_title">Running Checks</span>
+    <span class="stat_data">
+      {{- with .runnerStats -}}
+        {{- if and (not .Runs) (not .Checks)}}
+          No checks have run yet
+        {{end -}}
+
+        {{- range .Checks}}
+          <span class="stat_subtitle">{{.CheckName}}</span>
+          <span class="stat_subdata">
+              Total Runs: {{.TotalRuns}}<br>
+              Metrics: {{.Metrics}}, Total Metrics: {{humanizeF .TotalMetrics}}<br>
+              Events: {{.Events}}, Total Events: {{humanizeF .TotalEvents}}<br>
+              Service Checks: {{.ServiceChecks}}, Total Service Checks: {{humanizeF .TotalServiceChecks}}<br>
+            {{- if .LastError}}
+              <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
+                    {{lastErrorTraceback .LastError -}}
+            {{- end -}}
+            {{- if .LastWarnings}}
+              {{- range .LastWarnings }}
+                <span class="warning">Warning</span>: {{.}}<br>
+              {{- end -}}
+            {{- end -}}
+          </span>
+        {{- end -}}
+      {{- end -}}
+      <span/>
+  </div>
+
+  {{- with .autoConfigStats -}}
+    {{- if .LoaderErrors}}
+      <div class="stat">
+        <span class="stat_title">Loading Errors</span>
+        <span class="stat_data">
+          {{- range $checkname, $errors := .LoaderErrors}}
+            <span class="stat_subtitle">{{$checkname}}</span>
+            <span class="stat_subdata">
+              {{- range $kind, $err := $errors -}}
+                {{- if eq $kind "Python Check Loader"}}
+                  {{$kind}}: {{ pythonLoaderError $err -}}<br>
+                {{- else}}
+                  {{$kind}}: {{ stringToHTML $err -}}<br>
+                {{end -}}
+              {{end -}}
+            </span>
+          {{end -}}
+        </span>
+      </div>
+    {{- end}}
+  {{end -}}
+{{- end -}}
