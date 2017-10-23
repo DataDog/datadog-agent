@@ -252,7 +252,7 @@ agent6_docker_hub:
   when: manual
   only:
     - master
-    - tags
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
     DD_DIND_TAG_SOURCE: *agent_ecr
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
@@ -261,6 +261,8 @@ agent6_docker_hub:
 agent6_dev_docker_hub:
   <<: *dind_tag_job_definition
   when: manual
+  except:
+    - master
   variables:
     DD_DIND_TAG_SOURCE: *agent_ecr
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
@@ -280,7 +282,7 @@ dogstatsd_docker_hub:
   when: manual
   only:
     - master
-    - tags
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
     DD_DIND_TAG_SOURCE: *dogstatsd_ecr
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
@@ -289,6 +291,8 @@ dogstatsd_docker_hub:
 dogstatsd_dev_docker_hub:
   <<: *dind_tag_job_definition
   when: manual
+  except:
+    - master
   variables:
     DD_DIND_TAG_SOURCE: *dogstatsd_ecr
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
