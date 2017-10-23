@@ -68,6 +68,7 @@ type AutoConfig struct {
 	configsPollTicker *time.Ticker
 	config2checks     map[string][]check.ID // cache the ID of checks we load for each config
 	stop              chan bool
+	pollerActive      bool
 	m                 sync.RWMutex
 }
 
@@ -88,16 +89,26 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 
 // StartPolling starts the goroutine responsible for polling the providers
 func (ac *AutoConfig) StartPolling() {
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
 	ac.configsPollTicker = time.NewTicker(configsPollIntl)
 	ac.pollConfigs()
+	ac.pollerActive = true
 }
 
 // Stop just shuts down AutoConfig in a clean way.
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
 func (ac *AutoConfig) Stop() {
-	// stop the poller
-	ac.stop <- true
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
+	// stop the poller if running
+	if ac.pollerActive {
+		ac.stop <- true
+		ac.pollerActive = false
+	}
 
 	// stop the collector
 	if ac.collector != nil {
