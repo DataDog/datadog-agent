@@ -4,7 +4,8 @@ Dogstatsd tasks
 from __future__ import print_function, absolute_import
 
 import os
-from shutil import copy2
+import shutil
+from distutils.dir_util import copy_tree
 
 import invoke
 from invoke import task
@@ -26,6 +27,7 @@ DEFAULT_BUILD_TAGS = [
     "docker",
     "kubelet",
 ]
+
 
 
 @task
@@ -56,6 +58,22 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     }
 
     ctx.run(cmd.format(**args))
+    refresh_assets(ctx)
+
+
+@task
+def refresh_assets(ctx):
+    """
+    Clean up and refresh Collector's assets and config files
+    """
+    # ensure DOGSTATSD_BIN_PATH exists
+    if not os.path.exists(DOGSTATSD_BIN_PATH):
+        os.mkdir(DOGSTATSD_BIN_PATH)
+
+    dist_folder = os.path.join(DOGSTATSD_BIN_PATH, "dist")
+    if os.path.exists(dist_folder):
+        shutil.rmtree(dist_folder)
+    copy_tree("./cmd/dogstatsd/dist/", dist_folder)
 
     cmd = "go generate {}/cmd/dogstatsd"
     ctx.run(cmd.format(REPO_PATH))
@@ -119,34 +137,36 @@ def size_test(ctx, skip_build=False):
 
 
 @task
-def omnibus_build(ctx):
+def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
+                  skip_deps=False):
     """
     Build the Dogstatsd packages with Omnibus Installer.
     """
+    if not skip_deps:
+        deps(ctx)
+
     # omnibus config overrides
     overrides = []
 
-    # base dir (can be overridden through env vars)
-    base_dir = os.environ.get("AGENT_OMNIBUS_BASE_DIR")
+    # base dir (can be overridden through env vars, command line takes precendence)
+    base_dir = base_dir or os.environ.get("DSD_OMNIBUS_BASE_DIR")
     if base_dir:
         overrides.append("base_dir:{}".format(base_dir))
-
-    # package_dir (can be overridden through env vars)
-    package_dir = os.environ.get("AGENT_OMNIBUS_PACKAGE_DIR")
-    if package_dir:
-        overrides.append("package_dir:{}".format(package_dir))
 
     overrides_cmd = ""
     if overrides:
         overrides_cmd = "--override=" + " ".join(overrides)
 
     with ctx.cd("omnibus"):
-        ctx.run("bundle install --without development")
-        omnibus = "omnibus.bat" if invoke.platform.WINDOWS else "omnibus"
+        cmd = "bundle install"
+        if gem_path:
+            cmd += " --path {}".format(gem_path)
+        ctx.run(cmd)
+        omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
         cmd = "{omnibus} build dogstatsd --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
-            "log_level": os.environ.get("AGENT_OMNIBUS_LOG_LEVEL", "info"),
+            "log_level": log_level,
             "overrides": overrides_cmd
         }
         ctx.run(cmd.format(**args))

@@ -1,0 +1,75 @@
+# The host of the Datadog intake server to send Agent data to
+dd_url: https://app.datadoghq.com
+
+# The Datadog api key to associate your Agent's data with your organization.
+# Can be found here:
+# https://app.datadoghq.com/account/settings
+api_key:
+
+# If you need a proxy to connect to the Internet, provide it here (default:
+# disabled). You can use the 'no_proxy' list to specify hosts that should bypass the
+# proxy. These settings might impact your checks requests, please refer to the
+# specific check documentation for more details.
+#
+# proxy:
+#   http: http(s)://user:password@proxy_for_http:port
+#   https: http(s)://user:password@proxy_for_https:port
+#   no_proxy:
+#     - host1
+#     - host2
+
+# If you run the agent behind haproxy, you might want to set this to yes
+# skip_ssl_validation: no
+
+# Force the hostname to whatever you want. (default: auto-detected)
+# hostname: mymachine.mydomain
+
+# The port for the go_expvar server
+# expvar_port: 5000
+
+# Forwarder timeout in seconds
+# forwarder_timeout: 20
+
+# The forwarder retries failed requests. Use this setting to change the
+# maximum length of the forwarder's retry queue (each request in the queue
+# takes no more than 2MB in memory)
+# forwarder_retry_queue_max_size: 30
+
+# Metadata collection should always be enabled, except if you are running several
+# agents/dsd instances per host. In that case, only one agent should have it on.
+# WARNING: disabling it on every agent will lead to display and billing issues
+# enable_metadata_collection: true
+
+# DogStatsd
+#
+# If you don't want to enable the DogStatsd server, set this option to no
+# use_dogstatsd: yes
+#
+# Make sure your client is sending to the same UDP port
+# dogstatsd_port: 8125
+#
+# Whether dogstatsd should listen to a Unix Socket instead of UDP (*nix only).
+# Set to a valid filesystem path to enable
+# dogstatsd_socket:
+#
+# Whether origin detection and container tagging should be enabled for Unix
+# Socket incoming metrics. This feature is experimental for now.
+#
+# dogstatsd_origin_detection: false
+#
+# The buffer size use to receive statsd packet, in bytes
+# dogstatsd_buffer_size: 1024
+#
+# Whether dogstatsd should listen to non local UDP traffic
+# dogstatsd_non_local_traffic: no
+#
+# Publish dogstatsd's internal stats as Go epxvars
+# dogstatsd_stats_enable: no
+#
+# How many items in the dogstatsd's stats circular buffer
+# dogstatsd_stats_buffer: 10
+
+# Logging
+#
+# log_level: info
+# log_file: /var/log/datadog/agent.log

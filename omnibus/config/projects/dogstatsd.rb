@@ -1,34 +1,40 @@
-#
-# Copyright 2016 Datadog
-#
-# All Rights Reserved.
-#
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https:#www.datadoghq.com/).
+# Copyright 2017 Datadog, Inc.
+
 require "./lib/ostools.rb"
 
-# --------------------------------------------------
-# WIP / FIXME:
-# The dogstatsd package is currently not working as
-# a standalone package. Work will be put into making
-# it fully contained and stable in the future.
-# --------------------------------------------------
 name 'dogstatsd'
-maintainer 'Datadog Packages <package@datadoghq.com>'
+package_name 'datadog-dogstatsd'
 homepage 'http://www.datadoghq.com'
-install_dir '/opt/datadog-dogstatsd'
+license "Apache-2.0"
+license_file "../LICENSE"
+
+if ohai['platform'] == "windows"
+  # Note: this is the path used by Omnibus to build the agent, the final install
+  # dir will be determined by the Windows installer. This path must not contain
+  # spaces because Omnibus doesn't quote the Git commands it launches.
+  install_dir "C:/opt/datadog-dogstatsd/"
+  maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
+else
+  install_dir '/opt/datadog-dogstatsd'
+  maintainer 'Datadog Packages <package@datadoghq.com>'
+end
 
 build_version do
-  source :git, from_dependency: 'dogstatsd'
+  source :git
   output_format :dd_agent_format
 end
 
 build_iteration 1
 
 description 'Datadog dogstatsd agent
- The Datadog dogstatsd agent is a lightweight process that will receive
- dogstatsd packet, aggregate them and forward them to Datadog backend. The main
- purpose of the agent is to handle custom metrics from external processes.
+ Dogstatsd is a lightweight process that will receive dogstatsd packet, aggregate
+ them and forward them to Datadog backend. The main purpose is to handle custom
+ metrics from external processes.
  .
- This package installs and runs the dogstatsd agent.
+ This package installs and runs Dogstatsd.
  .
  See http://www.datadoghq.com/ for more information
 '
@@ -41,7 +47,7 @@ description 'Datadog dogstatsd agent
 package :deb do
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
-  license 'Simplified BSD License'
+  license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
 end
@@ -51,7 +57,7 @@ package :rpm do
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
-  license 'Simplified BSD License'
+  license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
   priority 'extra'
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
@@ -61,7 +67,7 @@ end
 
 # OSX .pkg specific flags
 package :pkg do
-  identifier 'com.datadoghq.agent'
+  identifier 'com.datadoghq.dogstatsd'
   #signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
 end
 compress :dmg do
@@ -86,13 +92,13 @@ end
 # ------------------------------------
 
 # creates required build directories
-dependency 'preparation'
+dependency 'datadog-agent-prepare'
 
 # version manifest file
 dependency 'version-manifest'
 
 # Dogstatsd
-dependency 'dogstatsd'
+dependency 'datadog-dogstatsd'
 
 exclude '\.git*'
 exclude 'bundler\/git'

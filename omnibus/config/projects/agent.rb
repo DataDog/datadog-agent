@@ -46,7 +46,7 @@ description 'Datadog Monitoring Agent
 package :deb do
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
-  license 'Simplified BSD License'
+  license 'Apache License Version 2.0'
   section 'utils'
   priority 'extra'
 end
@@ -56,7 +56,7 @@ package :rpm do
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
-  license 'Simplified BSD License'
+  license 'Apache License Version 2.0'
   category 'System Environment/Daemons'
   priority 'extra'
   if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
@@ -74,7 +74,6 @@ compress :dmg do
   pkg_position '10, 10'
 end
 
-puts "agent EPF #{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
 # Windows .msi specific flags
 package :msi do
   # previous upgrade code was used for older installs, and generated
