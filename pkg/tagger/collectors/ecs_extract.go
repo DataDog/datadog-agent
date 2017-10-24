@@ -18,7 +18,6 @@ func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response) ([]*TagInf
 	for _, task := range tasks_list.Tasks {
 		for _, container := range task.Containers {
 			tags := utils.NewTagList()
-			tags.AddHigh("ecs_arn", task.Arn)
 			tags.AddLow("task_version", task.Version)
 			tags.AddLow("task_name", task.Family)
 
