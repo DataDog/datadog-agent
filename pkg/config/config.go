@@ -121,6 +121,8 @@ func init() {
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
 	Datadog.SetDefault("kubernetes_pod_label_to_tag_prefix", "kube_")
+	// ECS
+	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
 
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)
@@ -130,7 +132,7 @@ func init() {
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
 	// Agent GUI access port
-	Datadog.SetDefault("GUI_port", "8080")
+	Datadog.SetDefault("GUI_port", "-1")
 	// Proess Agent
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
 

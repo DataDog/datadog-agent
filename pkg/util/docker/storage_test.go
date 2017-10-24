@@ -254,8 +254,9 @@ func TestParseDiskQuantity(t *testing.T) {
 		assert.Equal(tc.bytes, val)
 
 		if tc.err == nil {
-			assert.Nil(tc.err)
+			assert.Nil(err)
 		} else {
+			assert.NotNil(err)
 			assert.Equal(tc.err.Error(), err.Error())
 		}
 	}

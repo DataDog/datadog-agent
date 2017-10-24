@@ -36,6 +36,7 @@ func TestResolveTemplate(t *testing.T) {
 	assert.Len(t, res, 0)
 
 	service := listeners.DockerService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 	}
 	cr.processNewService(&service)
@@ -66,6 +67,7 @@ func TestParseTemplateVar(t *testing.T) {
 func TestResolve(t *testing.T) {
 	cr := newConfigResolver(nil, nil, NewTemplateCache())
 	service := listeners.DockerService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		Pid:           1337,
 	}
