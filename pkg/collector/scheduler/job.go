@@ -18,7 +18,8 @@ import (
 // scheduled at a certain interval.
 type jobQueue struct {
 	interval time.Duration
-	stop     chan bool
+	stop     chan bool // to stop this queue
+	stopped  chan bool // signals that this queue has stopped
 	ticker   *time.Ticker
 	jobs     []check.Check
 	running  bool
@@ -26,13 +27,12 @@ type jobQueue struct {
 }
 
 // newJobQueue creates a new jobQueue instance
-// the stop channel is buffered so the scheduler loop can send a message to stop
-// without blocking
 func newJobQueue(interval time.Duration) *jobQueue {
 	return &jobQueue{
 		interval: interval,
 		ticker:   time.NewTicker(time.Duration(interval)),
-		stop:     make(chan bool, 1),
+		stop:     make(chan bool),
+		stopped:  make(chan bool),
 	}
 }
 
@@ -60,23 +60,40 @@ func (jq *jobQueue) removeJob(id check.ID) error {
 
 // run schedules the checks in the queue by posting them to the
 // execution pipeline.
-// This doesn't block.
+// Not blocking, runs in a new goroutine.
 func (jq *jobQueue) run(out chan<- check.Check) {
 	go func() {
-		for {
+		for jq.waitForTick(out) {
+		}
+		jq.stopped <- true
+	}()
+}
+
+// waitForTicks enqueues the checks at a tick, and returns whether the queue
+// should listen to the following tick (or stop)
+func (jq *jobQueue) waitForTick(out chan<- check.Check) bool {
+	select {
+	case <-jq.stop:
+		// someone asked to stop this queue
+		jq.ticker.Stop()
+		return false
+	case <-jq.ticker.C:
+		// normal case, (re)schedule the queue
+		jq.mu.RLock()
+		for _, check := range jq.jobs {
+			// sending to `out` is blocking, we need to constantly check that someone
+			// isn't asking to stop this queue
 			select {
 			case <-jq.stop:
-				// someone asked to stop this queue
 				jq.ticker.Stop()
-			case <-jq.ticker.C:
-				// normal case, (re)schedule the queue
-				jq.mu.RLock()
-				for _, check := range jq.jobs {
-					log.Debugf("Enqueuing check %s for queue %d", check, jq.interval)
-					out <- check
-				}
 				jq.mu.RUnlock()
+				return false
+			case out <- check:
+				log.Debugf("Enqueuing check %s for queue %d", check, jq.interval)
 			}
 		}
-	}()
+		jq.mu.RUnlock()
+	}
+
+	return true
 }

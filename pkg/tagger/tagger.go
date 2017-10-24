@@ -6,6 +6,7 @@
 package tagger
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -147,6 +148,9 @@ func (t *Tagger) Stop() error {
 // Tag returns tags for a given entity. If highCard is false, high
 // cardinality tags are left out.
 func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
+	if entity == "" {
+		return nil, errors.New("empty entity ID")
+	}
 	cachedTags, sources, err := t.tagStore.lookup(entity, highCard)
 	if err != nil {
 		return nil, err
