@@ -17,14 +17,14 @@ func Diagnose(w io.Writer) {
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 0, 1, ' ', tabwriter.AlignRight|tabwriter.Debug)
-	fmt.Fprintln(tw, "Diagnosis\t")
+	fmt.Fprintln(tw, "Diagnosis \t")
 	for name, d := range diagnosis.DefaultCatalog {
 		err := d.Diagnose()
 		statusString := color.GreenString("PASS")
 		if err != nil {
 			statusString = color.RedString("FAIL")
 		}
-		fmt.Fprintln(tw, fmt.Sprintf("%s\t%s\t", name, statusString))
+		fmt.Fprintln(tw, fmt.Sprintf("%s \t%s \t", name, statusString))
 	}
 	tw.Flush()
 }

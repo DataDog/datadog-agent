@@ -30,9 +30,9 @@ func TestDiagnose(t *testing.T) {
 	w := &bytes.Buffer{}
 	Diagnose(w)
 
-	expected := `  Diagnosis|
-    failing| FAIL|
- succeeding| PASS|
+	expected := `  Diagnosis |
+    failing | FAIL |
+ succeeding | PASS |
 `
 	if result := w.String(); result != expected {
 		t.Errorf("Got: %v Expected: %v", result, expected)
