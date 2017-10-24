@@ -5,6 +5,7 @@ from __future__ import print_function, absolute_import
 import tempfile
 import shutil
 import sys
+import os
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -38,21 +39,40 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
     temp_folder = tempfile.mkdtemp(prefix="ddtest-")
 
     ctx.run("cp %s %s/test.bin" % (binary, temp_folder))
-    # TODO: handle testdata folder if present
 
     with open("%s/Dockerfile" % temp_folder, 'w') as stream:
         stream.write("""FROM debian:stretch-slim
 ENV DOCKER_DD_AGENT=yes
+WORKDIR /
+# FIXME: remove when dogstatsd test does not use the docker cli anymore
+ADD https://download.docker.com/linux/static/stable/x86_64/docker-17.09.0-ce.tgz /docker.tgz
+RUN tar -xvzf /docker.tgz &&\
+    mv docker/docker /usr/bin &&\
+    rm -rf docker*
 CMD /test.bin
 COPY test.bin /test.bin
 """)
+        # Handle optional testdata folder
+        if os.path.isdir("./testdata"):
+            ctx.run("cp -R testdata %s" % temp_folder)
+            stream.write("COPY testdata /testdata")
 
     test_image = client.images.build(path=temp_folder, rm=True)
+
+    scratch_volume = client.volumes.create()
 
     test_container = client.containers.run(
         test_image.id,
         detach=True,
-        volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'}})
+        pid_mode="host",  # For origin detection
+        environment=[
+            "SCRATCH_VOLUME_NAME=" + scratch_volume.name,
+            "SCRATCH_VOLUME_PATH=/tmp/scratch",
+        ],
+        volumes={'/var/run/docker.sock': {'bind': '/var/run/docker.sock', 'mode': 'ro'},
+                 '/proc': {'bind': '/host/proc', 'mode': 'ro'},
+                 '/sys/fs/cgroup': {'bind': '/host/sys/fs/cgroup', 'mode': 'ro'},
+                 scratch_volume.name: {'bind': '/tmp/scratch', 'mode': 'rw'}})
 
     exit_code = test_container.wait()
 
@@ -69,6 +89,7 @@ COPY test.bin /test.bin
     if not skip_cleanup:
         shutil.rmtree(temp_folder)
         test_container.remove(v=True, force=True)
+        scratch_volume.remove(force=True)
         client.images.remove(test_image.id)
 
     if exit_code != 0:

@@ -35,9 +35,17 @@ const (
 //
 // FIXME: this test should be ported to the go docker client
 func testUDSOriginDetection(t *testing.T) {
-	dir, err := ioutil.TempDir("", "dd-test-")
-	assert.Nil(t, err)
-	defer os.RemoveAll(dir) // clean up
+	var socketMountArg string
+	dir := os.ExpandEnv("$SCRATCH_VOLUME_PATH")
+	if dir == "" { // Running on the host
+		var err error
+		dir, err = ioutil.TempDir("", "dd-test-")
+		assert.Nil(t, err)
+		defer os.RemoveAll(dir) // clean up
+		socketMountArg = fmt.Sprintf("--volume=%s:/tmp/scratch", dir)
+	} else { // Running in container
+		socketMountArg = os.ExpandEnv("--mount=type=volume,source=$SCRATCH_VOLUME_NAME,destination=/tmp/scratch")
+	}
 	socketPath := filepath.Join(dir, "dsd.socket")
 	config.Datadog.Set("dogstatsd_socket", socketPath)
 	config.Datadog.Set("dogstatsd_origin_detection", true)
@@ -45,7 +53,7 @@ func testUDSOriginDetection(t *testing.T) {
 	// Build sender docker image
 	buildCmd := exec.Command("docker", "build",
 		"-t", senderImg,
-		"fixtures/origin_detection/")
+		"testdata/origin_detection/")
 	output, err := buildCmd.CombinedOutput()
 	require.Nil(t, err)
 
@@ -62,8 +70,7 @@ func testUDSOriginDetection(t *testing.T) {
 
 	// Run sender docker image
 	runCmd := exec.Command("docker", "run", "-d", "--rm",
-		"-v", fmt.Sprintf("%s:/dsd.socket", socketPath),
-		senderImg)
+		socketMountArg, senderImg)
 	output, err = runCmd.CombinedOutput()
 	require.Nil(t, err)
 
