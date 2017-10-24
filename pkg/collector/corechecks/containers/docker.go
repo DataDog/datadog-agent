@@ -125,7 +125,7 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
 
 // Run executes the check
 func (d *DockerCheck) Run() error {
-	sender, err := d.updateCappedSender()
+	sender, err := d.GetSender()
 
 	containers, err := docker.AllContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
