@@ -130,7 +130,7 @@ func init() {
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
 	// Agent GUI access port
-	Datadog.SetDefault("GUI_port", "8080")
+	Datadog.SetDefault("GUI_port", "-1")
 	// Proess Agent
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
 
