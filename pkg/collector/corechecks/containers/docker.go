@@ -28,17 +28,17 @@ import (
 const dockerCheckName = "docker"
 
 type DockerConfig struct {
-	CollectContainerSize bool     `yaml:"collect_container_size"`
-	CollectExitCodes     bool     `yaml:"collect_exit_codes"`
-	CollectImagesStats   bool     `yaml:"collect_images_stats"`
-	CollectImageSize     bool     `yaml:"collect_image_size"`
-	CollectDiskStats     bool     `yaml:"collect_disk_stats"`
-	CollectVolumeCount   bool     `yaml:"collect_volume_count"`
-	Tags                 []string `yaml:"tags"`
-	CollectEvent         bool     `yaml:"collect_events"`
-	FilteredEventType    []string `yaml:"filtered_event_types"`
+	CollectContainerSize bool               `yaml:"collect_container_size"`
+	CollectExitCodes     bool               `yaml:"collect_exit_codes"`
+	CollectImagesStats   bool               `yaml:"collect_images_stats"`
+	CollectImageSize     bool               `yaml:"collect_image_size"`
+	CollectDiskStats     bool               `yaml:"collect_disk_stats"`
+	CollectVolumeCount   bool               `yaml:"collect_volume_count"`
+	Tags                 []string           `yaml:"tags"`
+	CollectEvent         bool               `yaml:"collect_events"`
+	FilteredEventType    []string           `yaml:"filtered_event_types"`
+	CappedMetrics        map[string]float64 `yaml:"capped_metrics"`
 	//CustomCGroup           bool               `yaml:"custom_cgroups"`
-	//CappedMetrics          map[string]float64 `yaml:"capped_metrics"`
 }
 
 const (
@@ -68,6 +68,7 @@ type DockerCheck struct {
 	instance       *DockerConfig
 	lastEventTime  time.Time
 	dockerHostname string
+	cappedSender   *cappedSender
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *docker.Container) {
@@ -124,7 +125,7 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
 
 // Run executes the check
 func (d *DockerCheck) Run() error {
-	sender, err := aggregator.GetSender(d.ID())
+	sender, err := d.updateCappedSender()
 
 	containers, err := docker.AllContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {

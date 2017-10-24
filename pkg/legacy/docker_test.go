@@ -67,6 +67,9 @@ filtered_event_types:
 - top
 - exec_start
 - exec_create
+capped_metrics:
+  docker.cpu.system: 1000
+  docker.cpu.user: 1000
 `
 )
 
