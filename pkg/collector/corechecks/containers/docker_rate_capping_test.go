@@ -9,6 +9,7 @@ package containers
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 
@@ -22,31 +23,46 @@ func TestCappedSender(t *testing.T) {
 	cappedSender := &cappedSender{
 		Sender:             mockSender,
 		previousRateValues: make(map[string]float64),
+		previousTimes:      make(map[string]time.Time),
+		timestamp:          time.Now(),
 		rateCaps: map[string]float64{
-			"capped.at.100": 100,
+			"capped.at.10": 10,
 		},
 	}
 
 	// Unfiltered metric
 	cappedSender.Rate("non.capped", 200, "", nil)
+	tick(cappedSender)
 	cappedSender.Rate("non.capped", 2000, "", nil)
+	tick(cappedSender)
 	cappedSender.Rate("non.capped", 20000, "", nil)
+	tick(cappedSender)
 	mockSender.AssertNumberOfCalls(t, "Rate", 3)
 
 	// Filtered rate under the cap is transmitted
 	mockSender.ResetCalls()
-	cappedSender.Rate("capped.at.100", 200, "", nil)
-	cappedSender.Rate("capped.at.100", 250, "", nil)
+	cappedSender.Rate("capped.at.10", 200, "", nil)
+	tick(cappedSender)
+	cappedSender.Rate("capped.at.10", 250, "", nil)
+	tick(cappedSender)
 	mockSender.AssertNumberOfCalls(t, "Rate", 2)
 
 	// Updates over the rate are ignored
 	mockSender.ResetCalls()
-	cappedSender.Rate("capped.at.100", 1000, "", nil)
-	cappedSender.Rate("capped.at.100", 2000, "", nil)
+	cappedSender.Rate("capped.at.10", 2000, "", nil)
+	tick(cappedSender)
+	cappedSender.Rate("capped.at.10", 3000, "", nil)
+	tick(cappedSender)
 	mockSender.AssertNumberOfCalls(t, "Rate", 0)
 
 	// Back under the cap, should be transmitted
 	mockSender.ResetCalls()
-	cappedSender.Rate("capped.at.100", 2050, "", nil)
+	cappedSender.Rate("capped.at.10", 3050, "", nil)
+	tick(cappedSender)
 	mockSender.AssertNumberOfCalls(t, "Rate", 1)
+}
+
+// Artificially add 10 seconds to the sender timestamp
+func tick(sender *cappedSender) {
+	sender.timestamp = sender.timestamp.Add(10 * time.Second)
 }
