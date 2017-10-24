@@ -100,5 +100,20 @@ dependency 'version-manifest'
 # Dogstatsd
 dependency 'datadog-dogstatsd'
 
+# this dependency puts few files out of the omnibus install dir and move them
+# in the final destination. This way such files will be listed in the packages
+# manifest and owned by the package manager. This is the only point in the build
+# process where we operate outside the omnibus install dir, thus the need of
+# the `extra_package_file` directive.
+# This must be the last dependency in the project.
+
+dependency 'datadog-dogstatsd-finalize'
+
+if linux?
+  extra_package_file '/etc/init/datadog-dogstatsd.conf'
+  extra_package_file '/lib/systemd/system/datadog-dogstatsd.service'
+  extra_package_file '/etc/datadog-dogstatsd/'
+end
+
 exclude '\.git*'
 exclude 'bundler\/git'
