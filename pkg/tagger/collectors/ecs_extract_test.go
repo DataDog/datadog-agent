@@ -57,13 +57,13 @@ func TestECSMetadata(t *testing.T) {
 				&TagInfo{
 					Source:       "ecs",
 					Entity:       "docker://9581a69a761a557fbfce1d0f6745e4af5b9dbfb86b6b2c5c4df156f1a5932ff1",
-					HighCardTags: []string{"ecs_arn:arn:aws:ecs:us-east-1:<aws_account_id>:task/example5-58ff-46c9-ae05-543f8example"},
+					HighCardTags: []string{},
 					LowCardTags:  []string{"task_version:8", "task_name:hello_world"},
 				},
 				&TagInfo{
 					Source:       "ecs",
 					Entity:       "docker://bf25c5c5b2d4dba68846c7236e75b6915e1e778d31611e3c6a06831e39814a15",
-					HighCardTags: []string{"ecs_arn:arn:aws:ecs:us-east-1:<aws_account_id>:task/example5-58ff-46c9-ae05-543f8example"},
+					HighCardTags: []string{},
 					LowCardTags:  []string{"task_version:8", "task_name:hello_world"},
 				},
 			},
