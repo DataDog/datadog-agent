@@ -20,7 +20,7 @@ func TestProcessContainerEvent(t *testing.T) {
 	assert := assert.New(t)
 
 	// Dummy timestamp for events
-	timestamp := time.Now()
+	timestamp := time.Now().Truncate(10 * time.Millisecond)
 
 	// Container filter
 	filter, err := newContainerFilter([]string{},
