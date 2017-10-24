@@ -149,20 +149,6 @@ func TestStopCancelsProducers(t *testing.T) {
 	time.Sleep(time.Millisecond)
 }
 
-func TestStopTimeout(t *testing.T) {
-	s := getScheduler()
-	s.Enter(&TestCheck{intl: 10})
-	s.Run()
-	s.Stop()
-
-	// to trigger the timeout, fake scheduler state to `running`...
-	s.running = uint32(1)
-	// ...now, stopping should trigger the timeout, set it at 1ms
-	err := s.Stop(time.Millisecond)
-
-	assert.NotNil(t, err)
-}
-
 func TestTinyInterval(t *testing.T) {
 	s := getScheduler()
 	err := s.Enter(&TestCheck{intl: 1 * time.Millisecond})

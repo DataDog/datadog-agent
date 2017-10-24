@@ -6,7 +6,6 @@
 package scheduler
 
 import (
-	"errors"
 	"expvar"
 	"fmt"
 	"sync"
@@ -16,8 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	log "github.com/cihub/seelog"
 )
-
-const defaultTimeout time.Duration = 5 * time.Second
 
 var (
 	minAllowedInterval = 1 * time.Second
@@ -47,9 +44,9 @@ type Scheduler struct {
 func NewScheduler(checksPipe chan<- check.Check) *Scheduler {
 	return &Scheduler{
 		checksPipe:    checksPipe,
-		done:          make(chan bool, 1),
-		halted:        make(chan bool, 1),
-		started:       make(chan bool, 1),
+		done:          make(chan bool),
+		halted:        make(chan bool),
+		started:       make(chan bool),
 		jobQueues:     make(map[time.Duration]*jobQueue),
 		checkToQueue:  make(map[check.ID]*jobQueue),
 		running:       0,
@@ -129,18 +126,18 @@ func (s *Scheduler) Run() {
 		// set internal state
 		atomic.StoreUint32(&s.running, 1)
 
-		// notify queues are up, channel is buffered this doesn't block
+		// notify queues are up
 		s.started <- true
 
 		// wait here until we're done
 		<-s.done
 
 		// someone asked to stop
+		atomic.StoreUint32(&s.running, 0)
 		log.Debug("Exited Scheduler loop, shutting down queues...")
 		s.stopQueues()
-		atomic.StoreUint32(&s.running, 0)
 
-		// notify we're done, channel is buffered this doesn't block
+		// notify we're done
 		s.halted <- true
 	}()
 
@@ -148,22 +145,15 @@ func (s *Scheduler) Run() {
 	<-s.started
 }
 
-// Stop the scheduler, blocks until the scheduler is fully stopped or the timeout
-// is reached.
-func (s *Scheduler) Stop(timeout ...time.Duration) error {
+// Stop the scheduler, blocks until the scheduler is fully stopped.
+func (s *Scheduler) Stop() error {
 	// Stopping when the Scheduler is not running is a noop.
 	if atomic.LoadUint32(&s.running) == 0 {
 		log.Debug("Scheduler is already stopped")
 		return nil
 	}
 
-	to := defaultTimeout
-	if len(timeout) == 1 {
-		to = timeout[0]
-	}
-
 	// Interrupt the main loop, proceeding to shut down all the queues
-	// `done` is buffered so we can proceed and wait for shutdown (or timeout)
 	s.done <- true
 
 	// Signal an exit to any remaining goroutine still trying to enqueue one-time checks,
@@ -171,13 +161,11 @@ func (s *Scheduler) Stop(timeout ...time.Duration) error {
 	close(s.cancelOneTime)
 	s.wgOneTime.Wait()
 
-	log.Debugf("Waiting for the scheduler to shutdown, timeout after %v", to)
+	log.Debugf("Waiting for the scheduler to shutdown")
 
 	select {
 	case <-s.halted:
 		return nil
-	case <-time.After(to):
-		return errors.New("Stop operation timed out")
 	}
 }
 
