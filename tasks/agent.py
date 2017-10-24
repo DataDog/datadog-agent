@@ -32,18 +32,15 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     """
     build_include = ctx.agent.build_include if build_include is None else build_include.split(",")
     build_exclude = ctx.agent.build_exclude if build_exclude is None else build_exclude.split(",")
-
-    if puppy:
-        build_tags = get_puppy_build_tags()
-    else:
-        build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
-
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
 
     if invoke.platform.WINDOWS:
+        # Don't build Docker support
+        if "docker" not in build_exclude:
+            build_exclude.append("docker")
+
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
@@ -56,6 +53,12 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         )
         command += "-i cmd/agent/agent.rc --target=pe-x86-64 -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
+
+    if puppy:
+        build_tags = get_puppy_build_tags()
+    else:
+        build_tags = get_build_tags(build_include, build_exclude)
+    ldflags, gcflags = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
     cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"

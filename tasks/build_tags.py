@@ -20,11 +20,14 @@ ALL_TAGS = set([
 ])
 
 
-def get_build_tags(include=["all"], exclude=[]):
+def get_build_tags(include=None, exclude=None):
     """
     Build the list of tags based on inclusions and exclusions passed through
     the command line
     """
+    include = ["all"] if include is None else include
+    exclude = [] if exclude is None else exclude
+
     # special case, include == all
     if 'all' in include:
         return list(ALL_TAGS - set(exclude))
