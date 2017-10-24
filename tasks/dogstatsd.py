@@ -148,7 +148,7 @@ def omnibus_build(ctx):
 
 
 @task
-def integration_tests(ctx, install_deps=False):
+def integration_tests(ctx, install_deps=False, remote_docker=False):
     """
     Run integration tests for the Agent
     """

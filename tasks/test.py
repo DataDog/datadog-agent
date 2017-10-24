@@ -58,7 +58,6 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
 
-
     race_opt = ""
     covermode_opt = ""
     if race:
@@ -111,9 +110,9 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
 
 
 @task
-def integration_tests(ctx, install_deps=False):
+def integration_tests(ctx, install_deps=False, remote_docker=False):
     """
     Run all the available integration tests
     """
-    agent_integration_tests(ctx, install_deps)
-    dsd_integration_tests(ctx, install_deps)
+    agent_integration_tests(ctx, install_deps, remote_docker)
+    dsd_integration_tests(ctx, install_deps, remote_docker)
