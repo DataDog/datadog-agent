@@ -17,3 +17,6 @@ bin/
 *.exe
 *.syso
 *.log
+
+#file generated at build time by message compiler
+agentmsg.h

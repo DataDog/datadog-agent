@@ -25,6 +25,8 @@ func (c *TestCheck) ID() check.ID                                       { return
 func (c *TestCheck) GetWarnings() []error                               { return []error{} }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error)          { return make(map[string]int64), nil }
 
+var initialMinAllowedInterval = minAllowedInterval
+
 // wait 1s for a predicate function to return true, use polling
 // instead of a giant sleep.
 // predicate f must return true if the desired condition is met
@@ -37,6 +39,10 @@ func consistently(f func() bool) bool {
 	}
 	// condition was not met during the wait period
 	return false
+}
+
+func resetMinAllowedInterval() {
+	minAllowedInterval = initialMinAllowedInterval
 }
 
 func getScheduler() *Scheduler {
@@ -126,38 +132,45 @@ func TestStop(t *testing.T) {
 	assert.Nil(t, s.Stop())
 }
 
-func TestStopTimeout(t *testing.T) {
+func TestStopCancelsProducers(t *testing.T) {
 	s := getScheduler()
-	s.Enter(&TestCheck{intl: 10})
+	minAllowedInterval = time.Millisecond // for the purpose of this test, so that the scheduler actually schedules the checks
+	defer resetMinAllowedInterval()
+
+	s.Enter(&TestCheck{intl: time.Millisecond})
 	s.Run()
+
+	time.Sleep(2 * time.Millisecond) // wait for the scheduler to actually schedule the check
+
 	s.Stop()
-
-	// to trigger the timeout, fake scheduler state to `running`...
-	s.running = uint32(1)
-	// ...now, stopping should trigger the timeout, set it at 1ms
-	err := s.Stop(time.Millisecond)
-
-	assert.NotNil(t, err)
-}
-
-func TestReload(t *testing.T) {
-	s := getScheduler()
-	s.Enter(&TestCheck{intl: 10 * time.Second})
-	s.Run()
-
-	// add a queue to check the reload picks it up
-	s.Enter(&TestCheck{intl: 1 * time.Second})
-
-	err := s.Reload()
-	assert.Nil(t, err)
-
-	// check the scheduler is up again with the new queue running
-	assert.Equal(t, uint32(1), s.running)
-	assert.True(t, s.jobQueues[1*time.Second].running)
+	// once the scheduler is stopped, it should be safe to close this channel. Otherwise, this should panic
+	close(s.checksPipe)
+	// sleep to make the runtime schedule the hanging producer goroutines, if there are any left
+	time.Sleep(time.Millisecond)
 }
 
 func TestTinyInterval(t *testing.T) {
 	s := getScheduler()
 	err := s.Enter(&TestCheck{intl: 1 * time.Millisecond})
 	assert.NotNil(t, err)
+}
+
+// Test that stopping the scheduler while one-time checks are still being enqueued works
+func TestStopOneTimeSchedule(t *testing.T) {
+	c := &TestCheck{}
+	s := getScheduler()
+
+	// schedule a one-time check
+	c.intl = 0
+	err := s.Enter(c)
+	assert.Nil(t, err)
+	s.Enter(c)
+
+	s.Run()
+
+	s.Stop()
+	// this will panic if we didn't properly cancel all the one-time scheduling goroutines
+	close(s.checksPipe)
+	// sleep to make the runtime schedule the hanging goroutines, if there are any
+	time.Sleep(time.Millisecond)
 }
