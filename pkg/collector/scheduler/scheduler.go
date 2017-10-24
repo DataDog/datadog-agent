@@ -189,7 +189,7 @@ func (s *Scheduler) stopQueues() {
 }
 
 // startQueues loads the timer for each queue
-// Not blocking
+// Should not block, unless there's contention on the internal mutex
 func (s *Scheduler) startQueues() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -199,7 +199,7 @@ func (s *Scheduler) startQueues() {
 	}
 }
 
-// startQueue starts a queue if it's not running yet
+// startQueue starts a queue (non-blocking operation) if it's not running yet
 func (s *Scheduler) startQueue(q *jobQueue) {
 	if !q.running {
 		q.run(s.checksPipe)
