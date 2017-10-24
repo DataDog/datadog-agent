@@ -58,6 +58,12 @@ instances:
     #
     # collect_exit_codes: true
 
+    # Allows ad-hoc spike filtering if the system reports incorrect metrics.
+    # This will drop points if the computed rate is higher than the cap value
+    # capped_metrics:
+    #   docker.cpu.user: 1000
+    #   docker.cpu.system: 1000
+
     ## Tagging
     ##
 
