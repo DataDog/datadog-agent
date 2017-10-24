@@ -10,26 +10,30 @@ package collectors
 import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"time"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
 func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response) ([]*TagInfo, error) {
 	var output []*TagInfo
+	now := time.Now()
 	for _, task := range tasks_list.Tasks {
 		for _, container := range task.Containers {
-			tags := utils.NewTagList()
-			tags.AddLow("task_version", task.Version)
-			tags.AddLow("task_name", task.Family)
+            if c.expire.Update(container.DockerID, now) {
+                tags := utils.NewTagList()
+                tags.AddLow("task_version", task.Version)
+                tags.AddLow("task_name", task.Family)
 
-			low, high := tags.Compute()
+                low, high := tags.Compute()
 
-			info := &TagInfo{
-				Source:       ecsCollectorName,
-				Entity:       docker.ContainerIDToEntityName(container.DockerID),
-				HighCardTags: high,
-				LowCardTags:  low,
-			}
-			output = append(output, info)
+                info := &TagInfo{
+                    Source:       ecsCollectorName,
+                    Entity:       docker.ContainerIDToEntityName(container.DockerID),
+                    HighCardTags: high,
+                    LowCardTags:  low,
+                }
+                output = append(output, info)
+            }
 		}
 	}
 	return output, nil

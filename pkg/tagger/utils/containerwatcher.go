@@ -1,0 +1,50 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
+package utils
+
+import (
+
+    "time"
+    "sync"
+    "errors"
+)
+
+type Expire struct {
+    sync.Mutex
+    expiryDuration   time.Duration
+    lastSeen         map[string]time.Time
+}
+func NewExpire(expiryDuration time.Duration) (*Expire, error){
+    if expiryDuration <= 0 {
+        return nil, errors.New("expiryDuration must be above 0")
+    }
+    return &Expire{
+        expiryDuration: expiryDuration,
+        lastSeen: make(map[string]time.Time),
+    }, nil
+}
+
+func (e *Expire) Update(container string, ts time.Time) bool {
+
+    e.Lock()
+    _, found := e.lastSeen[container]
+    e.lastSeen[container] = ts
+    e.Unlock()
+    return !found
+}
+func (e *Expire) ExpireContainers() []string {
+    var expiredContainers []string
+    now := time.Now()
+    e.Lock()
+    for id, seen := range e.lastSeen {
+        if now.Sub(seen) > e.expiryDuration {
+            expiredContainers = append(expiredContainers, id)
+            delete(e.lastSeen, id)
+        }
+    }
+    e.Unlock()
+    return expiredContainers
+}

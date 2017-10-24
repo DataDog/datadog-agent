@@ -9,11 +9,14 @@ package collectors
 
 import (
 	"fmt"
+	"time"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 )
 
 const (
 	ecsCollectorName = "ecs"
+    ecsExpireFreq    = 5 * time.Minute
 )
 
 // ECSCollector listen to the ECS agent to get ECS metadata.
@@ -21,12 +24,18 @@ const (
 
 type ECSCollector struct {
 	infoOut chan<- []*TagInfo
+	expire 			*taggerutil.Expire
+	lastExpire		time.Time
+	expireFreq		time.Duration
 }
 
 // Detect tries to connect to the ecs agent
 func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	if ecsutil.IsInstance() {
 		c.infoOut = out
+		c.lastExpire = time.Now()
+		c.expireFreq = ecsExpireFreq
+		c.expire, _ = taggerutil.NewExpire(ecsExpireFreq)
 		return FetchOnlyCollection, nil
 	} else {
 		return NoCollection, fmt.Errorf("Failed to connect to ecs, ECS tagging will not work")
@@ -46,6 +55,11 @@ func (c *ECSCollector) Fetch(container string) ([]string, []string, error) {
 		return []string{}, []string{}, err
 	}
 	c.infoOut <- updates
+
+	if time.Now().Sub(c.lastExpire) >= c.expireFreq {
+		go c.expire.ExpireContainers()
+		c.lastExpire = time.Now()
+	}
 
 	for _, info := range updates {
 		if info.Entity == container {
