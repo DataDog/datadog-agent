@@ -124,9 +124,7 @@ func (s *Scheduler) Run() {
 	go func() {
 		log.Debug("Starting scheduler loop...")
 
-		s.mu.Lock()
 		s.startQueues()
-		s.mu.Unlock()
 
 		// set internal state
 		atomic.StoreUint32(&s.running, 1)
@@ -139,9 +137,7 @@ func (s *Scheduler) Run() {
 
 		// someone asked to stop
 		log.Debug("Exited Scheduler loop, shutting down queues...")
-		s.mu.Lock()
 		s.stopQueues()
-		s.mu.Unlock()
 		atomic.StoreUint32(&s.running, 0)
 
 		// notify we're done, channel is buffered this doesn't block
@@ -174,8 +170,6 @@ func (s *Scheduler) Stop(timeout ...time.Duration) error {
 	// and wait for them to exit
 	close(s.cancelOneTime)
 	s.wgOneTime.Wait()
-	s.cancelOneTime = make(chan bool)
-	s.wgOneTime = sync.WaitGroup{}
 
 	log.Debugf("Waiting for the scheduler to shutdown, timeout after %v", to)
 
@@ -188,7 +182,11 @@ func (s *Scheduler) Stop(timeout ...time.Duration) error {
 }
 
 // stopQueues shuts down the timers for each active queue
+// Blocks until all the queues have fully stopped
 func (s *Scheduler) stopQueues() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	log.Debugf("Stopping %v queue(s)", len(s.jobQueues))
 	for _, q := range s.jobQueues {
 		// check that the queue is actually running or this blocks
@@ -203,7 +201,11 @@ func (s *Scheduler) stopQueues() {
 }
 
 // startQueues loads the timer for each queue
+// Not blocking
 func (s *Scheduler) startQueues() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for _, q := range s.jobQueues {
 		s.startQueue(q)
 	}
@@ -228,7 +230,7 @@ func (s *Scheduler) enqueueOnce(check check.Check) {
 		defer s.wgOneTime.Done()
 		select {
 		case s.checksPipe <- check:
-		case <-s.cancelOneTime:
+		case <-cancelOneTime:
 		}
 	}(s.cancelOneTime)
 
