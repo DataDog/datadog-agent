@@ -7,6 +7,7 @@ package kubelet
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	log "github.com/cihub/seelog"
 )
 
@@ -18,6 +19,9 @@ type kubeletDiagnosis struct{}
 
 // Diagnosee the API server availability
 func (dd *kubeletDiagnosis) Diagnose() error {
+	if docker.NeedInit() {
+		docker.InitDockerUtil(&docker.Config{})
+	}
 	_, err := locateKubelet()
 	if err != nil {
 		log.Error(err)

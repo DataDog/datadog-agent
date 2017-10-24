@@ -6,6 +6,8 @@
 package app
 
 import (
+	"os"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 
@@ -14,31 +16,31 @@ import (
 	flag "github.com/spf13/pflag"
 )
 
-var verbose bool
+var quiet bool
 
 func init() {
 	AgentCmd.AddCommand(diagnoseCommand)
-	flag.BoolVarP(&verbose, "verbose", "v", false, "verbose output (with logs)")
+	flag.BoolVarP(&quiet, "quiet", "q", false, "remove logs from output")
 }
 
 var diagnoseCommand = &cobra.Command{
 	Use:   "diagnose",
 	Short: "Execute some connectivity diagnosis on your system",
 	Long:  ``,
-	RunE:  doDiagnose,
+	Run:   doDiagnose,
 }
 
-func doDiagnose(cmd *cobra.Command, args []string) error {
+func doDiagnose(cmd *cobra.Command, args []string) {
 	if flagNoColor {
 		color.NoColor = true
 	}
 
-	if verbose {
-		config.SetupLogger("debug", "", "", false, false, "", true)
-	} else {
+	if quiet {
 		config.SetupLogger("off", "", "", false, false, "", false)
+	} else {
+		config.SetupLogger("debug", "", "", false, false, "", true)
 	}
 
-	diagnose.Diagnose(color.Output)
-	return nil
+	errors := diagnose.Diagnose(color.Output)
+	os.Exit(errors)
 }
