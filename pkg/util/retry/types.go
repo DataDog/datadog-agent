@@ -7,13 +7,13 @@ package retry
 
 import "time"
 
-// Status is returned by Retryer object to inform user classes
+// Status is returned by Retrier object to inform user classes
 type Status int
 
 const (
-	// NeedSetup is the default value: SetupRetryer must be called
+	// NeedSetup is the default value: SetupRetrier must be called
 	NeedSetup Status = iota // Default zero value
-	// Idle means the Retryer is ready for Try to be called
+	// Idle means the Retrier is ready for Try to be called
 	Idle
 	// OK means the object is available
 	OK
@@ -24,19 +24,19 @@ const (
 	PermaFail
 )
 
-// Strategy sets how the Retryer should handle failure
+// Strategy sets how the Retrier should handle failure
 type Strategy int
 
 const (
 	// OneTry is the default value: only try one, then permafail
 	OneTry Strategy = iota // Default zero value
-	// RetryCount sets the Retryer to try a fixed number of times
+	// RetryCount sets the Retrier to try a fixed number of times
 	RetryCount
-	// RetryDuration sets the Retryer to try for a fixed duration
+	// RetryDuration sets the Retrier to try for a fixed duration
 	// RetryDuration // FIXME: implement
 )
 
-// Config contains all the required parameters for Retryer
+// Config contains all the required parameters for Retrier
 type Config struct {
 	Name          string
 	AttemptMethod func() error

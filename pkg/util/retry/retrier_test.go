@@ -16,7 +16,7 @@ import (
 
 type DummyLogic struct {
 	mock.Mock
-	Retryer
+	Retrier
 }
 
 func (l *DummyLogic) Attempt() error {
@@ -78,7 +78,7 @@ func TestSetup(t *testing.T) {
 		},
 	} {
 		t.Logf("test case %d", nb)
-		err := mocked.SetupRetryer(tc.config)
+		err := mocked.SetupRetrier(tc.config)
 		if tc.err == nil {
 			assert.Nil(t, err)
 		} else {
@@ -105,7 +105,7 @@ func TestOneTryOK(t *testing.T) {
 		Name:          "mocked",
 		AttemptMethod: mocked.Attempt,
 	}
-	err := mocked.SetupRetryer(config)
+	err := mocked.SetupRetrier(config)
 	assert.Nil(t, err)
 	err = mocked.TriggerRetry()
 	assert.Nil(t, err)
@@ -118,7 +118,7 @@ func TestOneTryFail(t *testing.T) {
 		Name:          "mocked",
 		AttemptMethod: mocked.Attempt,
 	}
-	err := mocked.SetupRetryer(config)
+	err := mocked.SetupRetrier(config)
 	assert.Nil(t, err)
 	err = mocked.TriggerRetry()
 	assert.NotNil(t, err)
@@ -135,7 +135,7 @@ func TestRetryCount(t *testing.T) {
 		RetryCount:    5,
 		RetryDelay:    1 * time.Nanosecond,
 	}
-	err := mocked.SetupRetryer(config)
+	err := mocked.SetupRetrier(config)
 	assert.Nil(t, err)
 
 	// Try 4 times, should return FailWillRetry
@@ -162,7 +162,7 @@ func TestRetryDelayNotElapsed(t *testing.T) {
 		RetryCount:    5,
 		RetryDelay:    retryDelay,
 	}
-	err := mocked.SetupRetryer(config)
+	err := mocked.SetupRetrier(config)
 	assert.Nil(t, err)
 
 	// First call will trigger an attempt
@@ -190,7 +190,7 @@ func TestRetryDelayRecover(t *testing.T) {
 		RetryCount:    5,
 		RetryDelay:    1 * time.Nanosecond,
 	}
-	err := mocked.SetupRetryer(config)
+	err := mocked.SetupRetrier(config)
 	assert.Nil(t, err)
 
 	// First call will trigger an attempt

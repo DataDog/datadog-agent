@@ -9,7 +9,7 @@ import "fmt"
 
 var statusFormats map[Status]string
 
-// Error is a custom error type that is returned by the Retryer
+// Error is a custom error type that is returned by the Retrier
 // you can get its Status with IsRetryError()
 type Error struct {
 	LogicError    error
@@ -35,7 +35,7 @@ func IsRetryError(e error) (bool, *Error) {
 	return false, nil
 }
 
-// IsErrPermaFail checks whether an `error` is a Retryer permanent fail
+// IsErrPermaFail checks whether an `error` is a Retrier permanent fail
 func IsErrPermaFail(err error) bool {
 	ok, e := IsRetryError(err)
 	if !ok {
@@ -44,7 +44,7 @@ func IsErrPermaFail(err error) bool {
 	return (e.RetryStatus == PermaFail)
 }
 
-// IsErrWillRetry checks whether an `error` is a Retryer temporary fail
+// IsErrWillRetry checks whether an `error` is a Retrier temporary fail
 func IsErrWillRetry(err error) bool {
 	ok, e := IsRetryError(err)
 	if !ok {
@@ -55,7 +55,7 @@ func IsErrWillRetry(err error) bool {
 
 func init() {
 	statusFormats = map[Status]string{
-		NeedSetup:     "%s needs to be setup with SetupRetryer: %s",
+		NeedSetup:     "%s needs to be setup with SetupRetrier: %s",
 		FailWillRetry: "temporary failure in %s, will retry later: %s",
 		PermaFail:     "permanent failure in %s: %s",
 	}
