@@ -9,24 +9,24 @@ package collectors
 
 import (
 	"fmt"
-	"time"
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"time"
 )
 
 const (
 	ecsCollectorName = "ecs"
-    ecsExpireFreq    = 5 * time.Minute
+	ecsExpireFreq    = 5 * time.Minute
 )
 
 // ECSCollector listen to the ECS agent to get ECS metadata.
 // And feed a stream of TagInfo.
 
 type ECSCollector struct {
-	infoOut chan<- []*TagInfo
-	expire 			*taggerutil.Expire
-	lastExpire		time.Time
-	expireFreq		time.Duration
+	infoOut    chan<- []*TagInfo
+	expire     *taggerutil.Expire
+	lastExpire time.Time
+	expireFreq time.Duration
 }
 
 // Detect tries to connect to the ecs agent

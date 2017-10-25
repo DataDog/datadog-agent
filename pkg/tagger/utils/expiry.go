@@ -6,34 +6,34 @@
 package utils
 
 import (
-
-    "time"
-    "sync"
-    "errors"
+	"errors"
+	"sync"
+	"time"
 )
 
 type Expire struct {
-    sync.Mutex
-    expiryDuration   time.Duration
-    lastSeen         map[string]time.Time
+	sync.Mutex
+	expiryDuration time.Duration
+	lastSeen       map[string]time.Time
 }
-func NewExpire(expiryDuration time.Duration) (*Expire, error){
-    if expiryDuration <= 0 {
-        return nil, errors.New("expiryDuration must be above 0")
-    }
-    return &Expire{
-        expiryDuration: expiryDuration,
-        lastSeen: make(map[string]time.Time),
-    }, nil
+
+func NewExpire(expiryDuration time.Duration) (*Expire, error) {
+	if expiryDuration <= 0 {
+		return nil, errors.New("expiryDuration must be above 0")
+	}
+	return &Expire{
+		expiryDuration: expiryDuration,
+		lastSeen:       make(map[string]time.Time),
+	}, nil
 }
 
 func (e *Expire) Update(container string, ts time.Time) bool {
 
-    e.Lock()
-    _, found := e.lastSeen[container]
-    e.lastSeen[container] = ts
-    e.Unlock()
-    return !found
+	e.Lock()
+	_, found := e.lastSeen[container]
+	e.lastSeen[container] = ts
+	e.Unlock()
+	return !found
 }
 
 // ExpireContainers returns a list of container id for containers
@@ -41,15 +41,15 @@ func (e *Expire) Update(container string, ts time.Time) bool {
 // immediately after a PullChanges or a Fetch.
 
 func (e *Expire) ExpireContainers() ([]string, error) {
-    now := time.Now()
-    var expiredContainers []string
-    e.Lock()
-    for id, seen := range e.lastSeen {
-        if now.Sub(seen) > e.expiryDuration {
-            expiredContainers = append(expiredContainers, id)
-            delete(e.lastSeen, id)
-        }
-    }
-    e.Unlock()
-    return expiredContainers, nil
+	now := time.Now()
+	var expiredContainers []string
+	e.Lock()
+	for id, seen := range e.lastSeen {
+		if now.Sub(seen) > e.expiryDuration {
+			expiredContainers = append(expiredContainers, id)
+			delete(e.lastSeen, id)
+		}
+	}
+	e.Unlock()
+	return expiredContainers, nil
 }
