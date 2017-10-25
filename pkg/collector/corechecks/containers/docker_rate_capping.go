@@ -8,21 +8,36 @@
 package containers
 
 import (
+	"sort"
 	"time"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
+
+/*
+ * Rate capping logic to work around buggy kernel versions reporting artifical
+ * spikes in the cpuacct metrics. This logic is specific to this check and not
+ * ported downstream in the aggregator as it's not meant as a "standard" feature.
+ *
+ * This is triggered by users uncommenting the `capped_metrics` section in docker.yaml
+ */
+
+const dockerRateCacheKey = "docker_rate_prev_value"
 
 // cappedSender wraps around the standard Sender and overrides
 // the Rate method to implement rate capping
 type cappedSender struct {
 	aggregator.Sender
-	previousRateValues map[string]float64
-	previousTimes      map[string]time.Time
-	rateCaps           map[string]float64
-	timestamp          time.Time // Current time at check Run()
+	rateCaps  map[string]float64
+	timestamp time.Time // Current time at check Run()
+}
+
+type ratePoint struct {
+	value float64
+	time  time.Time
 }
 
 // Rate checks the rate value against the `capped_metrics` configuration
@@ -33,33 +48,55 @@ func (s *cappedSender) Rate(metric string, value float64, hostname string, tags 
 		s.Sender.Rate(metric, value, hostname, tags)
 		return
 	}
-	previousValue, found := s.previousRateValues[metric]
+
+	// Previous value lookup
+	sort.Strings(tags)
+	cacheKeyParts := []string{dockerRateCacheKey, metric, hostname}
+	cacheKeyParts = append(cacheKeyParts, tags...)
+	cacheKey := cache.BuildAgentKey(cacheKeyParts...)
+	previous, found := s.getPoint(cacheKey)
+
 	if !found { // First submit of the rate
-		s.doRate(metric, value, hostname, tags)
+		s.storePoint(cacheKey, value, s.timestamp)
+		s.Sender.Rate(metric, value, hostname, tags)
 		return
 	}
-	timeDelta := s.timestamp.Sub(s.previousTimes[metric]).Seconds()
+
+	timeDelta := s.timestamp.Sub(previous.time).Seconds()
 	if timeDelta == 0 {
-		s.doRate(metric, value, hostname, tags)
+		s.storePoint(cacheKey, value, s.timestamp)
+		s.Sender.Rate(metric, value, hostname, tags)
 		return
 	}
-	rate := (value - previousValue) / timeDelta
+	rate := (value - previous.value) / timeDelta
 	if rate < capValue { // Under cap
-		s.doRate(metric, value, hostname, tags)
+
+		log.Debugf("Passing %.0f (raw sample: %.0f) of metric %s", rate, value, metric)
+		s.storePoint(cacheKey, value, s.timestamp)
+		s.Sender.Rate(metric, value, hostname, tags)
 		return
 	}
 	// Over cap, skipping
 	log.Debugf("Dropped latest value %.0f (raw sample: %.0f) of metric %s as it was above the cap for this metric.", rate, value, metric)
-	s.previousRateValues[metric] = value
-	s.previousTimes[metric] = s.timestamp
-
+	s.storePoint(cacheKey, value, s.timestamp)
 	return
 }
 
-func (s *cappedSender) doRate(metric string, value float64, hostname string, tags []string) {
-	s.previousRateValues[metric] = value
-	s.previousTimes[metric] = s.timestamp
-	s.Sender.Rate(metric, value, hostname, tags)
+func (s *cappedSender) getPoint(cacheKey string) (*ratePoint, bool) {
+	prev, found := cache.Cache.Get(cacheKey)
+	if !found {
+		return nil, false
+	}
+	prevPoint, ok := prev.(*ratePoint)
+	return prevPoint, ok
+}
+
+func (s *cappedSender) storePoint(cacheKey string, value float64, timestamp time.Time) {
+	point := &ratePoint{
+		value: value,
+		time:  timestamp,
+	}
+	cache.Cache.Set(cacheKey, point, 0)
 }
 
 func (d *DockerCheck) GetSender() (aggregator.Sender, error) {
@@ -74,11 +111,9 @@ func (d *DockerCheck) GetSender() (aggregator.Sender, error) {
 
 	if d.cappedSender == nil {
 		d.cappedSender = &cappedSender{
-			Sender:             sender,
-			previousRateValues: make(map[string]float64),
-			previousTimes:      make(map[string]time.Time),
-			rateCaps:           d.instance.CappedMetrics,
-			timestamp:          time.Now(),
+			Sender:    sender,
+			rateCaps:  d.instance.CappedMetrics,
+			timestamp: time.Now(),
 		}
 	} else {
 		d.cappedSender.timestamp = time.Now()

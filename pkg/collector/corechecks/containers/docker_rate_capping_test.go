@@ -12,57 +12,94 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
-func TestCappedSender(t *testing.T) {
-	mockSender := aggregator.NewMockSender("rateTest")
-	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-
-	cappedSender := &cappedSender{
-		Sender:             mockSender,
-		previousRateValues: make(map[string]float64),
-		previousTimes:      make(map[string]time.Time),
-		timestamp:          time.Now(),
-		rateCaps: map[string]float64{
-			"capped.at.10": 10,
-		},
-	}
-
-	// Unfiltered metric
-	cappedSender.Rate("non.capped", 200, "", nil)
-	tick(cappedSender)
-	cappedSender.Rate("non.capped", 2000, "", nil)
-	tick(cappedSender)
-	cappedSender.Rate("non.capped", 20000, "", nil)
-	tick(cappedSender)
-	mockSender.AssertNumberOfCalls(t, "Rate", 3)
-
-	// Filtered rate under the cap is transmitted
-	mockSender.ResetCalls()
-	cappedSender.Rate("capped.at.10", 200, "", nil)
-	tick(cappedSender)
-	cappedSender.Rate("capped.at.10", 250, "", nil)
-	tick(cappedSender)
-	mockSender.AssertNumberOfCalls(t, "Rate", 2)
-
-	// Updates over the rate are ignored
-	mockSender.ResetCalls()
-	cappedSender.Rate("capped.at.10", 2000, "", nil)
-	tick(cappedSender)
-	cappedSender.Rate("capped.at.10", 3000, "", nil)
-	tick(cappedSender)
-	mockSender.AssertNumberOfCalls(t, "Rate", 0)
-
-	// Back under the cap, should be transmitted
-	mockSender.ResetCalls()
-	cappedSender.Rate("capped.at.10", 3050, "", nil)
-	tick(cappedSender)
-	mockSender.AssertNumberOfCalls(t, "Rate", 1)
+type dockerRateCappingSuite struct {
+	suite.Suite
+	mockSender   *aggregator.MockSender
+	cappedSender *cappedSender
 }
 
 // Artificially add 10 seconds to the sender timestamp
-func tick(sender *cappedSender) {
-	sender.timestamp = sender.timestamp.Add(10 * time.Second)
+func (s *dockerRateCappingSuite) tick() {
+	s.cappedSender.timestamp = s.cappedSender.timestamp.Add(10 * time.Second)
+}
+
+// Put configuration back in a known state before each test
+func (s *dockerRateCappingSuite) SetupTest() {
+	s.mockSender = aggregator.NewMockSender("rateTest")
+	s.mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	s.cappedSender = &cappedSender{
+		Sender:    s.mockSender,
+		timestamp: time.Now(),
+		rateCaps: map[string]float64{
+			"capped.at.100": 100,
+		},
+	}
+	cache.Cache.Flush() // Remove previous values from gocache
+}
+
+func (s *dockerRateCappingSuite) TestUnfilteredMetric() {
+	// Unfiltered metric
+	s.cappedSender.Rate("non.capped", 200, "", nil)
+	s.tick()
+	s.cappedSender.Rate("non.capped", 2000, "", nil)
+	s.tick()
+	s.cappedSender.Rate("non.capped", 20000, "", nil)
+	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 3)
+}
+
+func (s *dockerRateCappingSuite) TestUnderCap() {
+	// Filtered rate under the cap is transmitted
+	s.cappedSender.Rate("capped.at.100", 2000, "", nil)
+	s.tick()
+	s.cappedSender.Rate("capped.at.100", 2900, "", nil)
+	s.tick()
+	s.cappedSender.Rate("capped.at.100", 3800, "", nil)
+	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 3)
+}
+
+func (s *dockerRateCappingSuite) TestOverCap() {
+	// Updates over the rate are ignored
+	s.cappedSender.Rate("capped.at.100", 2000, "", nil)
+	s.tick()
+	s.cappedSender.Rate("capped.at.100", 3100, "", nil)
+	s.tick()
+	s.cappedSender.Rate("capped.at.100", 4200, "", nil)
+	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 1)
+}
+
+func (s *dockerRateCappingSuite) TestCapRecover() {
+	// Transmit, cap then transmit
+	s.cappedSender.Rate("capped.at.100", 2000, "", nil)
+	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 1)
+	s.tick()
+	s.cappedSender.Rate("capped.at.100", 2500, "", nil)
+	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 2)
+	s.tick()
+	s.cappedSender.Rate("capped.at.100", 4000, "", nil)
+	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 2)
+	s.tick()
+	s.cappedSender.Rate("capped.at.100", 4500, "", nil)
+	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 3)
+}
+
+func (s *dockerRateCappingSuite) TestTagging() {
+	// Transmit both series, storing two cache entries
+	s.cappedSender.Rate("capped.at.100", 200, "", []string{"first"})
+	s.cappedSender.Rate("capped.at.100", 5000, "", []string{"two"})
+	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 2)
+	s.tick()
+	s.cappedSender.Rate("capped.at.100", 300, "", []string{"first"})
+	s.cappedSender.Rate("capped.at.100", 5500, "", []string{"two"})
+	s.mockSender.AssertNumberOfCalls(s.T(), "Rate", 4)
+}
+
+func TestDockerRateCappingSuite(t *testing.T) {
+	suite.Run(t, &dockerRateCappingSuite{})
 }
