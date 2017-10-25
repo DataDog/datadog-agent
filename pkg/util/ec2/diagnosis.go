@@ -6,13 +6,11 @@ import (
 )
 
 func init() {
-	diagnosis.Register("EC2 Metadata availability", new(ec2MetadataAvailabilityDiagnosis))
+	diagnosis.Register("EC2 Metadata availability", diagnose)
 }
 
-type ec2MetadataAvailabilityDiagnosis struct{}
-
-// Diagnose the docker availability on the system
-func (dd *ec2MetadataAvailabilityDiagnosis) Diagnose() error {
+// diagnose the docker availability on the system
+func diagnose() error {
 	_, err := GetHostname()
 	if err != nil {
 		log.Error(err)

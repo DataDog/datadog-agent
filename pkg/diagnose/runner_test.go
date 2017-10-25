@@ -13,27 +13,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
-type dummySucceedingDiagnosis struct{}
+func TestRunAll(t *testing.T) {
 
-// Diagnose the docker availability on the system
-func (dd *dummySucceedingDiagnosis) Diagnose() error {
-	return nil
-}
-
-type dummyFailingDiagnosis struct{}
-
-// Diagnose the docker availability on the system
-func (dd *dummyFailingDiagnosis) Diagnose() error {
-	return errors.New("fail")
-}
-
-func TestDiagnose(t *testing.T) {
-
-	diagnosis.Register("failing", new(dummyFailingDiagnosis))
-	diagnosis.Register("succeeding", new(dummySucceedingDiagnosis))
+	diagnosis.Register("failing", func() error { return errors.New("fail") })
+	diagnosis.Register("succeeding", func() error { return nil })
 
 	w := &bytes.Buffer{}
-	Diagnose(w)
+	RunAll(w)
 
 	expected := `=== Running failing diagnosis ===
 ===> FAIL

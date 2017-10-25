@@ -11,13 +11,11 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Azure Metadata availability", new(azureMetadataAvailabilityDiagnosis))
+	diagnosis.Register("Azure Metadata availability", diagnose)
 }
 
-type azureMetadataAvailabilityDiagnosis struct{}
-
-// Diagnose the docker availability on the system
-func (dd *azureMetadataAvailabilityDiagnosis) Diagnose() error {
+// diagnose the docker availability on the system
+func diagnose() error {
 	_, err := GetHostAlias()
 	if err != nil {
 		log.Error(err)

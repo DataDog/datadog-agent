@@ -22,6 +22,4 @@ func Register(name string, d Diagnosis) {
 }
 
 // Diagnosis should implement Diagnose to report status
-type Diagnosis interface {
-	Diagnose() (err error)
-}
+type Diagnosis func() error

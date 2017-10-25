@@ -14,9 +14,9 @@ import (
 	"github.com/fatih/color"
 )
 
-// Diagnose runs some connectivity checks, output it in writer
+// RunAll runs all registered connectivity checks, output it in writer
 // and returns the number of failed diagnosis
-func Diagnose(w io.Writer) (int, error) {
+func RunAll(w io.Writer) (int, error) {
 	errorCounter := 0
 	if w != color.Output {
 		color.NoColor = true
@@ -31,9 +31,9 @@ func Diagnose(w io.Writer) (int, error) {
 	seelog.UseLogger(customLogger)
 	defer seelog.ReplaceLogger(oldLogger)
 
-	for name, d := range diagnosis.DefaultCatalog {
+	for name, f := range diagnosis.DefaultCatalog {
 		fmt.Fprintln(w, fmt.Sprintf("=== Running %s diagnosis ===", color.BlueString(name)))
-		err := d.Diagnose()
+		err := f()
 		if err != nil {
 			errorCounter++
 		}

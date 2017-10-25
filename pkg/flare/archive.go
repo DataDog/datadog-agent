@@ -203,7 +203,7 @@ func zipDiagnose(zipFile *archivex.ZipFile, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
-	diagnose.Diagnose(writer)
+	diagnose.RunAll(writer)
 	writer.Flush()
 
 	err := zipFile.Add(filepath.Join(hostname, "diagnose.log"), b.Bytes())

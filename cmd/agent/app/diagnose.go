@@ -30,7 +30,7 @@ func doDiagnose(cmd *cobra.Command, args []string) {
 		color.NoColor = true
 	}
 
-	errors, err := diagnose.Diagnose(color.Output)
+	errors, err := diagnose.RunAll(color.Output)
 	if err != nil {
 		panic(err)
 	}

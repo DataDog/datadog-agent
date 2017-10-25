@@ -11,13 +11,11 @@ import (
 )
 
 func init() {
-	diagnosis.Register("GCE Metadata availability", new(gceMetadataAvailabilityDiagnosis))
+	diagnosis.Register("GCE Metadata availability", diagnose)
 }
 
-type gceMetadataAvailabilityDiagnosis struct{}
-
-// Diagnose the docker availability on the system
-func (dd *gceMetadataAvailabilityDiagnosis) Diagnose() error {
+// diagnose the docker availability on the system
+func diagnose() error {
 	_, err := GetHostname()
 	if err != nil {
 		log.Error(err)

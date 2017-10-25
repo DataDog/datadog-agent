@@ -12,13 +12,11 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Kubelet availability", new(kubeletDiagnosis))
+	diagnosis.Register("Kubelet availability", diagnose)
 }
 
-type kubeletDiagnosis struct{}
-
-// Diagnosee the API server availability
-func (dd *kubeletDiagnosis) Diagnose() error {
+// diagnose the API server availability
+func diagnose() error {
 	if docker.NeedInit() {
 		docker.InitDockerUtil(&docker.Config{})
 	}

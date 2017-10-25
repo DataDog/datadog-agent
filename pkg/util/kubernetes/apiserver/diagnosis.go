@@ -12,13 +12,11 @@ import (
 )
 
 func init() {
-	diagnosis.Register("K8s API Server availability", new(apiServerAvailabilityDiagnosis))
+	diagnosis.Register("K8s API Server availability", diagnose)
 }
 
-type apiServerAvailabilityDiagnosis struct{}
-
-// Diagnosee the API server availability
-func (dd *apiServerAvailabilityDiagnosis) Diagnose() error {
+// diagnosee the API server availability
+func diagnose() error {
 	_, err := k8s.NewInClusterClient()
 	if err != nil {
 		log.Error(err)

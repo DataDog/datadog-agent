@@ -14,13 +14,11 @@ import (
 )
 
 func init() {
-	diagnosis.Register("Docker availability", new(dockerAvailabilityDiagnosis))
+	diagnosis.Register("Docker availability", diagnose)
 }
 
-type dockerAvailabilityDiagnosis struct{}
-
-// Diagnose the docker availability on the system
-func (dd *dockerAvailabilityDiagnosis) Diagnose() error {
+// diagnose the docker availability on the system
+func diagnose() error {
 	_, err := ConnectToDocker()
 	if err != nil {
 		log.Error(err)
