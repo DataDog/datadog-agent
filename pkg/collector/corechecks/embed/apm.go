@@ -47,7 +47,7 @@ func (c *APMCheck) String() string {
 func (c *APMCheck) Run() error {
 	atomic.StoreUint32(&c.running, 1)
 	// TODO: retries should be configurable with meaningful default values
-	err := check.Retry(5*time.Second, 3, c.run, c.String())
+	err := check.Retry(defaultRetryDuration, defaultRetries, c.run, c.String())
 	atomic.StoreUint32(&c.running, 0)
 
 	return err
@@ -110,17 +110,16 @@ func (c *APMCheck) run() error {
 	case err = <-processDone:
 		return retryExitError(err)
 	case <-c.stop:
-		err := cmd.Process.Signal(os.Kill)
+		err = cmd.Process.Signal(os.Kill)
 		if err != nil {
 			log.Errorf("unable to stop APM check: %s", err)
 		}
-		go func() {
-			// poll the processDone channel to make sure the goroutine sending to it can exit
-			<-processDone
-		}()
-		c.stopDone <- struct{}{}
-		return err
 	}
+
+	// wait for process to exit
+	err = <-processDone
+	c.stopDone <- struct{}{}
+	return err
 }
 
 // Configure the APMCheck

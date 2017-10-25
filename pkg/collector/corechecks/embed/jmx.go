@@ -105,7 +105,7 @@ func (c *JMXCheck) Run() error {
 
 	atomic.StoreUint32(&c.running, 1)
 	// TODO: retries should be configurable with meaningful default values
-	err := check.Retry(5*time.Second, 3, c.run, c.String())
+	err := check.Retry(defaultRetryDuration, defaultRetries, c.run, c.String())
 	atomic.StoreUint32(&c.running, 0)
 
 	return err
@@ -137,22 +137,23 @@ func (c *JMXCheck) run() error {
 		return retryExitError(err)
 	case <-c.stop:
 		if jmxExitFile == "" {
-			err := c.cmd.Process.Signal(os.Kill)
+			// Unix
+			err = c.cmd.Process.Signal(os.Kill)
 			if err != nil {
 				log.Errorf("unable to stop JMX check: %s", err)
 			}
 		} else {
-			if err := ioutil.WriteFile(c.ExitFilePath, nil, 0644); err != nil {
+			// Windows
+			if err = ioutil.WriteFile(c.ExitFilePath, nil, 0644); err != nil {
 				log.Errorf("unable to stop JMX check: %s", err)
 			}
 		}
-		go func() {
-			// poll the processDone channel to make sure the goroutine sending to it can exit
-			<-processDone
-		}()
-		c.stopDone <- struct{}{}
-		return err
 	}
+
+	// wait for process to exit
+	err = <-processDone
+	c.stopDone <- struct{}{}
+	return err
 }
 
 func (c *JMXCheck) Parse(data, initConfig check.ConfigData) error {
