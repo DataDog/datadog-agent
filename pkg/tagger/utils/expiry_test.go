@@ -12,11 +12,12 @@ import (
 )
 
 func TestUpdate(t *testing.T) {
-	expire := &Expire{
-		expiryDuration: 5 * time.Minute,
-		lastSeen:       make(map[string]time.Time),
-	}
-	testContainerID := "b2beae57bb2ada35e083c78029fe6a742848ff021d839107e2ede87a9ce7bf50"
+	// Testing the creation of the Expire object.
+	expiryDuration := 5 * time.Minute
+	expire, err := NewExpire(expiryDuration)
+	require.Nil(t, err)
+
+	testContainerID := "ContainerID1"
 
 	now := time.Now()
 	twoMinutesAgo := now.Add(-2 * time.Minute)
@@ -35,10 +36,10 @@ func TestUpdate(t *testing.T) {
 
 }
 
-func TestExpireContainers(t *testing.T) {
+func TestComputeExpires(t *testing.T) {
 
-	testContainerID := "b2beae57bb2ada35e083c78029fe6a742848ff021d839107e2ede87a9ce7bf50"
-	testContainerID2 := "asf234ijrwada35e083c78029fesfs789s7w0sx99ffs107e2ede87a9ce7bf50"
+	testContainerID := "ContainerID1"
+	testContainerID2 := "ContainerID2"
 
 	now := time.Now()
 	twoMinutesAgo := now.Add(-2 * time.Minute)
@@ -54,20 +55,21 @@ func TestExpireContainers(t *testing.T) {
 
 	// First we check that given the passed timestamps (inferior to the expire threshold)
 	// the list of expired containers is empty
-	expirelist, err := expire.ExpireContainers()
+	expirelist, err := expire.ComputeExpires()
 	require.Nil(t, err)
 	require.Len(t, expirelist, 0)
 
 	// We update one container's timestamp, 4 minutes should NOT be enough to expire
 	expire.lastSeen[testContainerID] = expire.lastSeen[testContainerID].Add(-4 * time.Minute)
 
-	expirelist, err = expire.ExpireContainers()
+	expirelist, err = expire.ComputeExpires()
 	require.Nil(t, err)
 	require.Len(t, expirelist, 0)
 
 	// We update the other container's timestamp, 6 minutes should be enough to expire
+	require.Len(t, expire.lastSeen, 0)
 	expire.lastSeen[testContainerID2] = expire.lastSeen[testContainerID2].Add(-6 * time.Minute)
-	expirelist, err = expire.ExpireContainers()
+	expirelist, err = expire.ComputeExpires()
 	require.Nil(t, err)
 	require.Len(t, expirelist, 1)
 	require.Equal(t, testContainerID2, expirelist[0])

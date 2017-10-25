@@ -11,9 +11,10 @@ import (
 	"time"
 )
 
-// Expire regularly pools the source keeping the elements reporting.
-// Currently only used for ECSCollector and active containers.
-// It keeps an internal state to only send the updated elements (only used for containers to start with).
+// Expire implements a simple last-seen-time-based expiry logic for watching for disappearing entities (for triggering events or just cache housekeeping).
+// User classes define an expiry delay, then call Update every time they encounter a given entity.
+// ComputeExpires() returns the entity names that have not been seen for longer than the configured delay.
+//As Expire keeps an internal state of entity names, Update will return true if a name is new, false otherwise.
 type Expire struct {
 	sync.Mutex
 	expiryDuration time.Duration
@@ -23,7 +24,7 @@ type Expire struct {
 // NewExpire creates a new Expire object. Called when a Collector is started.
 // Only used for the ECS collector to start with.
 func NewExpire(expiryDuration time.Duration) (*Expire, error) {
-	if expiryDuration <= 0 {
+	if expiryDuration.Seconds() <= 0.0 {
 		return nil, errors.New("expiryDuration must be above 0")
 	}
 	return &Expire{
@@ -32,10 +33,8 @@ func NewExpire(expiryDuration time.Duration) (*Expire, error) {
 	}, nil
 }
 
-// Update will update the map of the Expire obect with the elements and the time they reported.
-// Will return True if the element passed (container) is not found in the current lastseen map.
+// Update the map of the Expire obect.
 func (e *Expire) Update(container string, ts time.Time) bool {
-
 	e.Lock()
 	_, found := e.lastSeen[container]
 	e.lastSeen[container] = ts
@@ -43,10 +42,10 @@ func (e *Expire) Update(container string, ts time.Time) bool {
 	return !found
 }
 
-// ExpireContainers returns a list of container id for containers
+// ComputeExpires returns a list of container id for containers
 // that are not listed in the podlist/tasklist anymore. It must be called
 // immediately after a PullChanges or a Fetch.
-func (e *Expire) ExpireContainers() ([]string, error) {
+func (e *Expire) ComputeExpires() ([]string, error) {
 	now := time.Now()
 	var expiredContainers []string
 	e.Lock()
