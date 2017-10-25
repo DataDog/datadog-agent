@@ -9,7 +9,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags
+from .build_tags import get_build_tags, get_default_build_tags
 from .utils import get_build_flags, bin_name, get_root
 from .utils import REPO_PATH
 
@@ -79,7 +79,7 @@ def system_tests(ctx, skip_build=False):
     }
     cmd = "go test -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
     args = {
-        "build_tags": " ".join(get_build_tags()),
+        "build_tags": " ".join(get_default_build_tags()),
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)
@@ -148,7 +148,7 @@ def integration_tests(ctx, install_deps=False):
     if install_deps:
         deps(ctx)
 
-    build_tags = get_build_tags()
+    build_tags = get_default_build_tags()
 
     # config_providers
     cmd = "go test -tags '{}' {}/test/integration/dogstatsd/..."
