@@ -17,6 +17,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -77,8 +78,10 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	config.Datadog.SetConfigFile(config.Datadog.GetString("conf_path"))
-	confErr := config.Datadog.ReadInConfig()
+	confErr := common.SetupConfig(config.Datadog.GetString("conf_path"))
+	if confErr != nil {
+		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
+	}
 
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
@@ -98,10 +101,6 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
-	}
-
-	if confErr != nil {
-		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
 	}
 
 	if !config.Datadog.IsSet("api_key") {

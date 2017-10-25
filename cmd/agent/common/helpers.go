@@ -7,6 +7,7 @@ package common
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -21,6 +22,10 @@ func SetupConfig(confFilePath string) error {
 	}
 	config.Datadog.AddConfigPath(DefaultConfPath)
 	config.Datadog.AddConfigPath(GetDistPath())
+	// If they set a config file directly, let's try to honor that
+	if strings.HasSuffix(confFilePath, ".yaml") {
+		config.Datadog.SetConfigFile(confFilePath)
+	}
 
 	// load the configuration
 	err := config.Datadog.ReadInConfig()
