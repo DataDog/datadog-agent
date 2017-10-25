@@ -41,7 +41,7 @@ var flareCmd = &cobra.Command{
 			return err
 		}
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
-		config.SetupLogger("off", "", "", false, false, "", false)
+		config.SetupLogger("off", "", "", false, false, "")
 		if customerEmail == "" && caseID == "" {
 			var err error
 			customerEmail, err = flare.AskForEmail()

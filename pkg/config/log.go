@@ -26,7 +26,7 @@ const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format sy
 var logCertPool *x509.CertPool
 
 // SetupLogger sets up the default logger
-func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, syncMode bool) error {
+func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string) error {
 	var syslog bool
 
 	if uri != "" { // non-blank uri enables syslog
@@ -40,12 +40,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, syncM
 		logCertPool.AppendCertsFromPEM([]byte(pem))
 	}
 
-	loggerType := "asyncloop"
-	if syncMode {
-		loggerType = "sync"
-	}
-
-	configTemplate := `<seelog type="%s" minlevel="%s">
+	configTemplate := `<seelog minlevel="%s">
     <outputs formatid="common">
         <console />`
 	if logFile != "" {
@@ -77,7 +72,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, syncM
 
 	configTemplate += `</formats>
 </seelog>`
-	config := fmt.Sprintf(configTemplate, loggerType, strings.ToLower(logLevel), logFile, logFileMaxSize, logDateFormat)
+	config := fmt.Sprintf(configTemplate, strings.ToLower(logLevel), logFile, logFileMaxSize, logDateFormat)
 
 	logger, err := log.LoggerFromConfigAsString(config)
 	if err != nil {

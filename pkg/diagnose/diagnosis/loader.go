@@ -5,6 +5,8 @@
 
 package diagnosis
 
+import log "github.com/cihub/seelog"
+
 // Catalog holds available diagnosis for detection and usage
 type Catalog map[string]Diagnosis
 
@@ -13,6 +15,9 @@ var DefaultCatalog = make(Catalog)
 
 // Register a diagnosis that will be called on diagnose
 func Register(name string, d Diagnosis) {
+	if _, ok := DefaultCatalog[name]; ok {
+		log.Warnf("Diagnosis %s already registered, overriding it", name)
+	}
 	DefaultCatalog[name] = d
 }
 
