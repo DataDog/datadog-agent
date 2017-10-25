@@ -35,9 +35,14 @@ func (e *Expire) Update(container string, ts time.Time) bool {
     e.Unlock()
     return !found
 }
-func (e *Expire) ExpireContainers() []string {
-    var expiredContainers []string
+
+// ExpireContainers returns a list of container id for containers
+// that are not listed in the podlist/tasklist anymore. It must be called
+// immediately after a PullChanges or a Fetch.
+
+func (e *Expire) ExpireContainers() ([]string, error) {
     now := time.Now()
+    var expiredContainers []string
     e.Lock()
     for id, seen := range e.lastSeen {
         if now.Sub(seen) > e.expiryDuration {
@@ -46,5 +51,5 @@ func (e *Expire) ExpireContainers() []string {
         }
     }
     e.Unlock()
-    return expiredContainers
+    return expiredContainers, nil
 }
