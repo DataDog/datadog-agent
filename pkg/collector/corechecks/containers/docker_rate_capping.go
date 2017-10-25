@@ -25,7 +25,10 @@ import (
  * This is triggered by users uncommenting the `capped_metrics` section in docker.yaml
  */
 
-const dockerRateCacheKey = "docker_rate_prev_value"
+const (
+	dockerRateCacheKey        = "docker_rate_prev_value"
+	dockerRateCachingDuration = time.Minute
+)
 
 // cappedSender wraps around the standard Sender and overrides
 // the Rate method to implement rate capping
@@ -41,7 +44,7 @@ type ratePoint struct {
 }
 
 // Rate checks the rate value against the `capped_metrics` configuration
-// to filter out buggy spikes coming for cgroup cpu accounting
+// to filter out buggy spikes comming for cgroup cpu accounting
 func (s *cappedSender) Rate(metric string, value float64, hostname string, tags []string) {
 	capValue, found := s.rateCaps[metric]
 	if !found { // Metric not capped, skip capping system
@@ -56,7 +59,8 @@ func (s *cappedSender) Rate(metric string, value float64, hostname string, tags 
 	cacheKey := cache.BuildAgentKey(cacheKeyParts...)
 	previous, found := s.getPoint(cacheKey)
 
-	if !found { // First submit of the rate
+	if !found {
+		// First submit of the rate for that context
 		s.storePoint(cacheKey, value, s.timestamp)
 		s.Sender.Rate(metric, value, hostname, tags)
 		return
@@ -64,19 +68,19 @@ func (s *cappedSender) Rate(metric string, value float64, hostname string, tags 
 
 	timeDelta := s.timestamp.Sub(previous.time).Seconds()
 	if timeDelta == 0 {
+		// Let's avoid a divide by zero and pass through, the aggregator will handle it
 		s.storePoint(cacheKey, value, s.timestamp)
 		s.Sender.Rate(metric, value, hostname, tags)
 		return
 	}
 	rate := (value - previous.value) / timeDelta
-	if rate < capValue { // Under cap
-
-		log.Debugf("Passing %.0f (raw sample: %.0f) of metric %s", rate, value, metric)
+	if rate < capValue {
+		// Under cap, transmit
 		s.storePoint(cacheKey, value, s.timestamp)
 		s.Sender.Rate(metric, value, hostname, tags)
 		return
 	}
-	// Over cap, skipping
+	// Over cap, store but don't transmit
 	log.Debugf("Dropped latest value %.0f (raw sample: %.0f) of metric %s as it was above the cap for this metric.", rate, value, metric)
 	s.storePoint(cacheKey, value, s.timestamp)
 	return
@@ -96,7 +100,7 @@ func (s *cappedSender) storePoint(cacheKey string, value float64, timestamp time
 		value: value,
 		time:  timestamp,
 	}
-	cache.Cache.Set(cacheKey, point, 0)
+	cache.Cache.Set(cacheKey, point, dockerRateCachingDuration)
 }
 
 func (d *DockerCheck) GetSender() (aggregator.Sender, error) {
