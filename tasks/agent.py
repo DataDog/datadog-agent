@@ -13,7 +13,7 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_puppy_build_tags
+from .build_tags import get_build_tags, get_default_build_tags
 from .go import deps
 
 #constants
@@ -59,7 +59,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         ctx.run(command, env=env)
 
     if puppy:
-        build_tags = get_puppy_build_tags()
+        # Puppy mode overrides whatever passed through `--build-exclude` and `--build-include`
+        build_tags = get_default_build_tags(puppy=True)
     else:
         build_tags = get_build_tags(build_include, build_exclude)
     ldflags, gcflags = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
@@ -152,7 +153,7 @@ def integration_tests(ctx, install_deps=False):
     if install_deps:
         deps(ctx)
 
-    build_tags = get_build_tags()
+    build_tags = get_default_build_tags()
 
     # config_providers
     cmd = "go test -tags '{}' {}/test/integration/config_providers/..."

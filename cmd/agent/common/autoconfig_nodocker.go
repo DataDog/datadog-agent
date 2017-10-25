@@ -20,8 +20,8 @@ import (
 // SetupAutoConfig only starts the Autoconfig subsystem if Docker is not available
 func SetupAutoConfig(confdPath string) {
 	// create the Collector instance and start all the components
-	// NOTICE: this will also setup the Python environment
-	Coll = collector.NewCollector("")
+	// NOTICE: this will also setup the Python environment, if available
+	Coll = collector.NewCollector(GetPythonPaths()...)
 
 	// create the Autoconfig instance
 	AC = autodiscovery.NewAutoConfig(Coll)
@@ -33,7 +33,16 @@ func SetupAutoConfig(confdPath string) {
 	}
 
 	// Add the configuration providers
-	// File Provider is hardocded and always enabled
+
+	// BUG(massi): configuration providers should not depend on the `docker` build tag.
+	// For the time being, providers other than `FileConfigProvider` are only used
+	// by Autodiscovery, and Autodiscovery only works with a Docker backend but
+	// this will change in the future.
+	// A legit use case would be using etcd to store configurations without
+	// polling it because you don't use Autodiscovery and you only need a place
+	// where to store configurations.
+
+	// File Provider is hardcoded and always enabled
 	confSearchPaths := []string{
 		confdPath,
 		filepath.Join(GetDistPath(), "conf.d"),

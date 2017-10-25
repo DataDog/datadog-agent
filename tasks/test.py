@@ -11,7 +11,7 @@ from invoke import task
 
 from .utils import pkg_config_path
 from .go import fmt, lint, vet
-from .build_tags import get_build_tags
+from .build_tags import get_default_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 
@@ -33,9 +33,7 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
     """
     targets_list = ctx.targets if targets is None else targets.split(',')
-    # pass all the build flags for tests, unless on Windows
-    exclude = ["docker"] if invoke.platform.WINDOWS else []
-    build_tags = get_build_tags(exclude=exclude)
+    build_tags = get_default_build_tags()
 
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
