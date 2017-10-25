@@ -42,7 +42,7 @@ func SetupAutoConfig(confdPath string) {
 	}
 
 	// create the Collector instance and start all the components
-	// NOTICE: this will also setup the Python environment
+	// NOTICE: this will also setup the Python environment, if available
 	Coll = collector.NewCollector(GetPythonPaths()...)
 
 	// create the Autoconfig instance
