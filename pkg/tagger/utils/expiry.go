@@ -31,6 +31,7 @@ func NewExpire(expiryDuration time.Duration) (*Expire, error) {
 		lastSeen:       make(map[string]time.Time),
 	}, nil
 }
+
 // Update will update the map of the Expire obect with the elements and the time they reported.
 // Will return True if the element passed (container) is not found in the current lastseen map.
 func (e *Expire) Update(container string, ts time.Time) bool {
