@@ -21,5 +21,5 @@ func Register(name string, d Diagnosis) {
 	DefaultCatalog[name] = d
 }
 
-// Diagnosis should implement Diagnose to report status
+// Diagnosis should return an error to report its health
 type Diagnosis func() error
