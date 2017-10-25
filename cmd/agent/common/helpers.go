@@ -19,13 +19,13 @@ func SetupConfig(confFilePath string) error {
 		// if the configuration file path was supplied on the command line,
 		// add that first so it's first in line
 		config.Datadog.AddConfigPath(confFilePath)
+		// If they set a config file directly, let's try to honor that
+		if strings.HasSuffix(confFilePath, ".yaml") {
+			config.Datadog.SetConfigFile(confFilePath)
+		}
 	}
 	config.Datadog.AddConfigPath(DefaultConfPath)
 	config.Datadog.AddConfigPath(GetDistPath())
-	// If they set a config file directly, let's try to honor that
-	if strings.HasSuffix(confFilePath, ".yaml") {
-		config.Datadog.SetConfigFile(confFilePath)
-	}
 
 	// load the configuration
 	err := config.Datadog.ReadInConfig()

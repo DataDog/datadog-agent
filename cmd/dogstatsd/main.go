@@ -11,13 +11,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -78,7 +78,17 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	confErr := common.SetupConfig(config.Datadog.GetString("conf_path"))
+	confFilePath := config.Datadog.GetString("conf_path")
+	if len(confFilePath) != 0 {
+		// if the configuration file path was supplied on the command line,
+		// add that first so it's first in line
+		config.Datadog.AddConfigPath(confFilePath)
+		// If they set a config file directly, let's try to honor that
+		if strings.HasSuffix(confFilePath, ".yaml") {
+			config.Datadog.SetConfigFile(confFilePath)
+		}
+	}
+	confErr := config.Datadog.ReadInConfig()
 	if confErr != nil {
 		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
 	}
