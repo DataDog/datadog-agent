@@ -21,7 +21,6 @@ const (
 
 // ECSCollector listen to the ECS agent to get ECS metadata.
 // And feed a stream of TagInfo.
-
 type ECSCollector struct {
 	infoOut    chan<- []*TagInfo
 	expire     *taggerutil.Expire
