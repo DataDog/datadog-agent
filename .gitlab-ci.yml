@@ -415,5 +415,20 @@ deploy_rpm:
     - createrepo --update -v --checksum sha ./rpmrepo/x86_64
     - aws s3 sync ./rpmrepo/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
+# deploy rpm packages to yum staging repo
+deploy_dsd_static:
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $AGENT_OMNIBUS_PACKAGE_DIR
+  only:
+    - master
+    - tags
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD $S3_SCRATCH_URI/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
+    - VERSION=$(inv version)
+    - $S3_CP_CMD $STATIC_BINARIES_DIR/dogstatsd $S3_DSD6_URI/dogstatsd-$VERSION
+
 
 # TODO: deploy and build SUSE packages
