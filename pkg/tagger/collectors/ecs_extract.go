@@ -19,7 +19,7 @@ func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response) ([]*TagInf
 	now := time.Now()
 	for _, task := range tasks_list.Tasks {
 		// We only want to collect tasks without a STOPPED status
-		if task.KnownStatus == "STOPPED"{
+		if task.KnownStatus == "STOPPED" {
 			continue
 		}
 		for _, container := range task.Containers {
