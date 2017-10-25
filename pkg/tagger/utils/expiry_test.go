@@ -49,6 +49,9 @@ func TestComputeExpires(t *testing.T) {
 		lastSeen:       make(map[string]time.Time),
 	}
 
+	// Checking we initialyze the map with nothing.
+	require.Len(t, expire.lastSeen, 0)
+
 	// We add the two containers to the lastseen list with different timestamps.
 	expire.Update(testContainerID, now)
 	expire.Update(testContainerID2, twoMinutesAgo)
@@ -67,7 +70,6 @@ func TestComputeExpires(t *testing.T) {
 	require.Len(t, expirelist, 0)
 
 	// We update the other container's timestamp, 6 minutes should be enough to expire
-	require.Len(t, expire.lastSeen, 0)
 	expire.lastSeen[testContainerID2] = expire.lastSeen[testContainerID2].Add(-6 * time.Minute)
 	expirelist, err = expire.ComputeExpires()
 	require.Nil(t, err)

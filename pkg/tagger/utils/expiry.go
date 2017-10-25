@@ -42,9 +42,7 @@ func (e *Expire) Update(container string, ts time.Time) bool {
 	return !found
 }
 
-// ComputeExpires returns a list of container id for containers
-// that are not listed in the podlist/tasklist anymore. It must be called
-// immediately after a PullChanges or a Fetch.
+// Make sure you recently called Updates before computing.
 func (e *Expire) ComputeExpires() ([]string, error) {
 	now := time.Now()
 	var expiredContainers []string
