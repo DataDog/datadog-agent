@@ -12,10 +12,10 @@ import (
 	"time"
 )
 
-// Retryer implements a configurable retry mechanism than can be embedded
+// Retrier implements a configurable retry mechanism than can be embedded
 // in any class providing attempt logic as a `func() error` method.
 // See the unit test for an example.
-type Retryer struct {
+type Retrier struct {
 	sync.RWMutex
 	cfg      Config
 	status   Status
@@ -23,8 +23,8 @@ type Retryer struct {
 	tryCount int
 }
 
-// SetupRetryer must be called before calling other methods
-func (r *Retryer) SetupRetryer(cfg *Config) error {
+// SetupRetrier must be called before calling other methods
+func (r *Retrier) SetupRetrier(cfg *Config) error {
 	if cfg == nil {
 		return errors.New("nil configuration object")
 	}
@@ -47,7 +47,7 @@ func (r *Retryer) SetupRetryer(cfg *Config) error {
 }
 
 // RetryStatus allows users to query the status
-func (r *Retryer) RetryStatus() Status {
+func (r *Retrier) RetryStatus() Status {
 	r.RLock()
 	defer r.RUnlock()
 
@@ -55,7 +55,7 @@ func (r *Retryer) RetryStatus() Status {
 }
 
 // NextRetry allows users to know when the next retry can happend
-func (r *Retryer) NextRetry() time.Time {
+func (r *Retrier) NextRetry() time.Time {
 	r.RLock()
 	defer r.RUnlock()
 
@@ -63,7 +63,7 @@ func (r *Retryer) NextRetry() time.Time {
 }
 
 // TriggerRetry triggers a new retry and returns the result
-func (r *Retryer) TriggerRetry() *Error {
+func (r *Retrier) TriggerRetry() *Error {
 	r.RLock()
 	status := r.status
 	r.RUnlock()
@@ -80,7 +80,7 @@ func (r *Retryer) TriggerRetry() *Error {
 	}
 }
 
-func (r *Retryer) doTry() *Error {
+func (r *Retrier) doTry() *Error {
 	r.RLock()
 	if !r.nextTry.IsZero() && time.Now().Before(r.nextTry) {
 		r.RUnlock()
@@ -111,11 +111,11 @@ func (r *Retryer) doTry() *Error {
 	return r.wrapError(err)
 }
 
-func (r *Retryer) errorf(format string, a ...interface{}) *Error {
+func (r *Retrier) errorf(format string, a ...interface{}) *Error {
 	return r.wrapError(fmt.Errorf(format, a...))
 }
 
-func (r *Retryer) wrapError(err error) *Error {
+func (r *Retrier) wrapError(err error) *Error {
 	if err == nil {
 		return nil
 	}
