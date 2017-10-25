@@ -13,7 +13,7 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_puppy_build_tags
+from .build_tags import get_build_tags, get_default_build_tags
 from .go import deps
 
 #constants
@@ -32,23 +32,24 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     """
     build_include = ctx.agent.build_include if build_include is None else build_include.split(",")
     build_exclude = ctx.agent.build_exclude if build_exclude is None else build_exclude.split(",")
-
-    if puppy:
-        build_tags = get_puppy_build_tags()
-    else:
-        build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
-
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
 
     if invoke.platform.WINDOWS:
+        # Don't build Docker support
+        if "docker" not in build_exclude:
+            build_exclude.append("docker")
+
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
         ver = get_version_numeric_only(ctx)
         build_maj, build_min, build_patch = ver.split(".")
+
+        command = "windmc --target pe-x86-64 -r cmd/agent cmd/agent/agentmsg.mc "
+        ctx.run(command, env=env)
+
         command = "windres --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
             build_maj=build_maj,
             build_min=build_min,
@@ -56,6 +57,13 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         )
         command += "-i cmd/agent/agent.rc --target=pe-x86-64 -O coff -o cmd/agent/rsrc.syso"
         ctx.run(command, env=env)
+
+    if puppy:
+        # Puppy mode overrides whatever passed through `--build-exclude` and `--build-include`
+        build_tags = get_default_build_tags(puppy=True)
+    else:
+        build_tags = get_build_tags(build_include, build_exclude)
+    ldflags, gcflags = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
     cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
@@ -87,6 +95,7 @@ def refresh_assets(ctx, development=True):
         shutil.rmtree(dist_folder)
     copy_tree("./pkg/collector/dist/", dist_folder)
     copy_tree("./pkg/status/dist/", dist_folder)
+    copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
     if development:
         copy_tree("./dev/dist/", dist_folder)
     # copy the dd-agent placeholder to the bin folder
@@ -144,7 +153,7 @@ def integration_tests(ctx, install_deps=False):
     if install_deps:
         deps(ctx)
 
-    build_tags = get_build_tags()
+    build_tags = get_default_build_tags()
 
     # config_providers
     cmd = "go test -tags '{}' {}/test/integration/config_providers/..."

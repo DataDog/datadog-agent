@@ -6,6 +6,7 @@
 package corechecks
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -15,14 +16,19 @@ import (
 // FIXTURE
 type TestCheck struct{}
 
-func (c *TestCheck) String() string                                     { return "TestCheck" }
-func (c *TestCheck) Configure(check.ConfigData, check.ConfigData) error { return nil }
-func (c *TestCheck) Run() error                                         { return nil }
-func (c *TestCheck) Stop()                                              {}
-func (c *TestCheck) Interval() time.Duration                            { return 1 }
-func (c *TestCheck) ID() check.ID                                       { return check.ID(c.String()) }
-func (c *TestCheck) GetWarnings() []error                               { return []error{} }
-func (c *TestCheck) GetMetricStats() (map[string]int64, error)          { return make(map[string]int64), nil }
+func (c *TestCheck) String() string                            { return "TestCheck" }
+func (c *TestCheck) Run() error                                { return nil }
+func (c *TestCheck) Stop()                                     {}
+func (c *TestCheck) Interval() time.Duration                   { return 1 }
+func (c *TestCheck) ID() check.ID                              { return check.ID(c.String()) }
+func (c *TestCheck) GetWarnings() []error                      { return []error{} }
+func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
+func (c *TestCheck) Configure(data check.ConfigData, initData check.ConfigData) error {
+	if string(data) == "err" {
+		return fmt.Errorf("testError")
+	}
+	return nil
+}
 
 func TestNewGoCheckLoader(t *testing.T) {
 	if checkLoader, _ := NewGoCheckLoader(); checkLoader == nil {
@@ -60,6 +66,22 @@ func TestLoad(t *testing.T) {
 	}
 	if len(lst) != 2 {
 		t.Fatalf("Expected 2 checks, found: %d", len(lst))
+	}
+
+	// check is in catalog, pass 1 good instance & 1 bad instance
+	i = []check.ConfigData{
+		check.ConfigData("foo: bar"),
+		check.ConfigData("err"),
+	}
+	cc = check.Config{Name: "foo", Instances: i}
+
+	lst, err = l.Load(cc)
+
+	if err == nil {
+		t.Fatalf("Expected error, found: nil")
+	}
+	if len(lst) != 1 {
+		t.Fatalf("Expected 1 checks, found: %d", len(lst))
 	}
 
 	// check is in catalog, pass no instances

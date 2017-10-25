@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title> DataDog Agent 6 </title>
+    <script src="view/js/jquery-3.2.1.min.js"> </script>
+</head>
+<style>
+  html {
+    margin: 0;
+    padding: 0;
+    font-family: 'OpenSans','Lucida Grande','Lucida Sans Unicode',sans-serif;
+    background-image: linear-gradient(
+       rgba(0, 0, 0, 0.2),
+       rgba(0, 0, 0, 0.6)
+     ), url(view/images/dd_bkgrnd.png);
+    background-position: center center fixed;
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
+    min-height: 100%;
+  }
+
+  .center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .main {
+    position: absolute;
+    background-color: #f5f5f5;
+    min-height: 250px;
+    width: 570px;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    font-size: 18px;
+  }
+
+  h3 {
+    font-size: 25px;
+  }
+
+  .form {
+    position: absolute;
+    margin-top: 40px;
+    width: 400px;
+    height: 80px;
+    color: #ffffff;
+  }
+
+  .key_input {
+    cursor: pointer;
+    width: calc(100% - 16px);
+    height: calc(100% - 20px);
+    padding: 20px 0 0 16px;
+    border: 0;
+    border-radius: 6px;
+
+    -webkit-transition: background .3s ease;
+    transition: background .3s ease;
+
+    background: #ababab;
+    font-size: 0;
+    color: #ffffff;
+  }
+
+  .key_input:focus {
+    cursor: text;
+    background: #919191;
+    outline: none;
+
+    -webkit-transition: background .3s ease;
+    transition: background .3s ease;
+
+    font-size: 20px;
+  }
+
+  label {
+    pointer-events: none;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    color: #ffffff;
+
+    -webkit-transform: translate(16px, 20px);
+    transform: translate(16px, 20px);
+
+    -webkit-transition: font-size .3s ease, color .3s .1s ease, -webkit-transform .3s ease;
+    transition: font-size .3s ease, color .3s .1s ease, -webkit-transform .3s ease;
+    transition: transform .3s ease, font-size .3s ease, color .3s .1s ease;
+    transition: transform .3s ease, font-size .3s ease, color .3s .1s ease, -webkit-transform .3s ease;
+
+    font-size: 25px;
+  }
+
+  .key_input:focus + label {
+    font-size: 18px;
+
+    -webkit-transform: translate(16px, 15px);
+    transform: translate(16px, 15px);
+
+    opacity: 0.7;
+  }
+
+  .text {
+    width: 130px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .submit {
+    position: absolute;
+    top: 0px;
+    right: 0px;
+    height: 100%;
+    width: 130px;
+    padding: none;
+    border-radius: 6px;
+
+    cursor: pointer;
+    opacity: 0;
+    font-size: 18px;
+    pointer-events: none;
+
+    -webkit-transition: width .3s ease, background .3s ease, opacity .3s ease;
+    transition: width .3s ease, background .3s ease, opacity .3s ease;
+    color: #919191;
+    background-color: #616161;
+  }
+
+  .key_input:focus ~ .submit {
+    opacity: 1;
+  }
+</style>
+
+<body>
+  <div class="main center">
+    <h3> DataDog Agent Manager Authentication </h3>
+    Input your API key to access the DataDog Agent Manager.
+    <div class="form center">
+
+        <input id="input" class="key_input" maxlength="32" type="text"/>
+        <label for="input"><span>API Key</span></label>
+
+        <div class="submit"><span class="text">Press enter<br> to submit</span></div>
+    </div>
+  </div>
+</body>
+
+<script>
+  $( document ).keypress(function() {
+    $("#input").focus();
+  });
+
+  $("#input").keyup(function(event){
+      if(event.keyCode == 13){    // enter
+          // Save the API key as a cookie
+          key = document.getElementById('input').value;
+          document.cookie = encodeURIComponent("token") + "=" + encodeURIComponent(key) + "; path=/";
+
+          // Reload this page (will be served the correct page if the API key is correct)
+          location.reload();
+      }
+  });
+</script>

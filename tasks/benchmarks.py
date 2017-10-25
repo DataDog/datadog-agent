@@ -7,7 +7,7 @@ import os
 import invoke
 from invoke import task
 
-from .build_tags import get_build_tags
+from .build_tags import get_default_build_tags
 from .utils import bin_name
 from .utils import get_git_branch_name
 from .utils import REPO_PATH
@@ -22,7 +22,7 @@ def build_aggregator(ctx, rebuild=False):
     """
     Build the Aggregator benchmarks.
     """
-    build_tags = get_build_tags()  # pass all the build flags
+    build_tags = get_default_build_tags()  # pass all the build flags
 
     ldflags = ""
     gcflags = ""
@@ -52,7 +52,7 @@ def build_dogstatsd(ctx):
     """
     Build Dogstatsd benchmarks.
     """
-    build_tags = get_build_tags()  # pass all the build flags
+    build_tags = get_default_build_tags()  # pass all the build flags
 
     cmd = "go build -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/dogstatsd"
     args = {

@@ -11,8 +11,9 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
@@ -21,8 +22,10 @@ import (
 
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	PyChecksPath = filepath.Join(_here, "..", "checks.d")
+	PyChecksPath = filepath.Join(_here, "..", "agent", "checks.d")
 	distPath     string
+	// ViewsPath holds the path to the folder containing the GUI support files
+	viewsPath string
 )
 
 // DefaultConfPath points to the folder containing datadog.yaml
@@ -41,31 +44,52 @@ func EnableLoggingToFile() {
 	log.ReplaceLogger(logger)
 }
 
-// UpdateDistPath If necessary, change the DistPath variable to the right location
-func updateDistPath() string {
+func getInstallPath() string {
 	// fetch the installation path from the registry
+	installpath := filepath.Join(_here, "..")
+	var s string
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
 	if err != nil {
 		log.Warn("Failed to open registry key %s", err)
-		return ""
+	} else {
+		defer k.Close()
+		s, _, err = k.GetStringValue("InstallPath")
+		if err != nil {
+			log.Warn("Installpath not found in registry %s", err)
+		}
 	}
-	defer k.Close()
-	s, _, err := k.GetStringValue("InstallPath")
-	if err != nil {
-		log.Warn("Installpath not found in registry %s", err)
-		return ""
+	// if unable to figure out the install path from the registry,
+	// just compute it relative to the executable.
+	if s == "" {
+		s = installpath
 	}
-	newDistPath := filepath.Join(s, `bin/agent/dist`)
-	log.Debug("DisPath is now %s", newDistPath)
-	return newDistPath
+	return s
 }
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {
 	if len(distPath) == 0 {
-		distPath = updateDistPath()
+		var s string
+		if s = getInstallPath(); s == "" {
+			return ""
+		}
+		distPath = filepath.Join(s, `bin/agent/dist`)
+		log.Debug("DistPath is now %s", distPath)
 	}
 	return distPath
+}
+
+// GetViewsPath returns the fully qualified path to the GUI's 'views' directory
+func GetViewsPath() string {
+	if len(viewsPath) == 0 {
+		var s string
+		if s = getInstallPath(); s == "" {
+			return ""
+		}
+		viewsPath = filepath.Join(s, "bin", "agent", "dist", "views")
+		log.Debug("ViewsPath is now %s", viewsPath)
+	}
+	return viewsPath
 }
 
 // CheckAndUpgradeConfig checks to see if there's an old datadog.conf, and if

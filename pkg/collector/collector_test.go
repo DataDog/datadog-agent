@@ -6,6 +6,7 @@
 package collector
 
 import (
+	"sort"
 	"testing"
 	"time"
 
@@ -16,19 +17,41 @@ import (
 
 // FIXTURE
 type TestCheck struct {
-	stop chan bool
+	uniqueID check.ID
+	name     string
+	stop     chan bool
 }
 
-func (c *TestCheck) String() string                            { return "TestCheck" }
 func (c *TestCheck) Stop()                                     { c.stop <- true }
 func (c *TestCheck) Configure(a, b check.ConfigData) error     { return nil }
 func (c *TestCheck) Interval() time.Duration                   { return 1 * time.Minute }
 func (c *TestCheck) Run() error                                { <-c.stop; return nil }
-func (c *TestCheck) ID() check.ID                              { return check.ID(c.String()) }
 func (c *TestCheck) GetWarnings() []error                      { return []error{} }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
+func (c *TestCheck) ID() check.ID {
+	if c.uniqueID != "" {
+		return c.uniqueID
+	}
+	return check.ID(c.String())
+}
+func (c *TestCheck) String() string {
+	if c.name != "" {
+		return c.name
+	}
+	return "TestCheck"
+}
 
 func NewCheck() *TestCheck { return &TestCheck{stop: make(chan bool)} }
+func NewCheckUnique(id check.ID, name string) *TestCheck {
+	return &TestCheck{uniqueID: id, name: name, stop: make(chan bool)}
+}
+
+// ChecksList is a sort.Interface so we can use the Sort function
+type ChecksList []check.ID
+
+func (p ChecksList) Len() int           { return len(p) }
+func (p ChecksList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p ChecksList) Less(i, j int) bool { return p[i] < p[j] }
 
 type CollectorTestSuite struct {
 	suite.Suite
@@ -125,6 +148,64 @@ func (suite *CollectorTestSuite) TestStarted() {
 	assert.True(suite.T(), suite.c.started())
 	suite.c.Stop()
 	assert.False(suite.T(), suite.c.started())
+}
+
+func (suite *CollectorTestSuite) TestGetAllInstanceIDs() {
+	// Schedule 2 instances of TestCheck1 and 1 instance of TestCheck2
+	ch1 := NewCheckUnique("foo", "TestCheck1")
+	ch2 := NewCheckUnique("bar", "TestCheck1")
+	ch3 := NewCheckUnique("baz", "TestCheck2")
+	id1, err := suite.c.RunCheck(ch1)
+	assert.NotNil(suite.T(), id1)
+	assert.Nil(suite.T(), err)
+	id2, err := suite.c.RunCheck(ch2)
+	assert.NotNil(suite.T(), id2)
+	assert.Nil(suite.T(), err)
+	id3, err := suite.c.RunCheck(ch3)
+	assert.NotNil(suite.T(), id3)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 3, len(suite.c.checks))
+
+	ids := suite.c.getAllInstanceIDs("TestCheck1")
+	assert.Equal(suite.T(), 2, len(ids))
+	sort.Sort(ChecksList(ids))
+	expected := []check.ID{"bar", "foo"}
+	for i := range expected {
+		assert.Equal(suite.T(), ids[i], expected[i])
+	}
+}
+
+func (suite *CollectorTestSuite) TestReloadAllCheckInstances() {
+	// Schedule 2 check instances
+	ch1 := NewCheckUnique("foo", "TestCheck")
+	ch2 := NewCheckUnique("bar", "TestCheck")
+	id1, err := suite.c.RunCheck(ch1)
+	assert.NotNil(suite.T(), id1)
+	assert.Nil(suite.T(), err)
+	id2, err := suite.c.RunCheck(ch2)
+	assert.NotNil(suite.T(), id2)
+	assert.Nil(suite.T(), err)
+
+	// Reload check: kill 2 & start 2 new instances
+	ch3 := NewCheckUnique("baz", "TestCheck")
+	ch4 := NewCheckUnique("qux", "TestCheck")
+	killed, err := suite.c.ReloadAllCheckInstances("TestCheck", []check.Check{ch3, ch4})
+	assert.Nil(suite.T(), err)
+	sort.Sort(ChecksList(killed))
+	assert.Equal(suite.T(), killed, []check.ID{"bar", "foo"})
+
+	assert.False(suite.T(), suite.c.find("foo"))
+	assert.False(suite.T(), suite.c.find("bar"))
+	assert.True(suite.T(), suite.c.find("baz"))
+	assert.True(suite.T(), suite.c.find("qux"))
+
+	// Reload check: kill 2 & start no new instances
+	killed, err = suite.c.ReloadAllCheckInstances("TestCheck", []check.Check{})
+	assert.Nil(suite.T(), err)
+	sort.Sort(ChecksList(killed))
+	assert.Equal(suite.T(), killed, []check.ID{"baz", "qux"})
+
+	assert.Zero(suite.T(), len(suite.c.checks))
 }
 
 func TestCollectorSuite(t *testing.T) {

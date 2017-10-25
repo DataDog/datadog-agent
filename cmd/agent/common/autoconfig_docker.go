@@ -42,11 +42,11 @@ func SetupAutoConfig(confdPath string) {
 	}
 
 	// create the Collector instance and start all the components
-	// NOTICE: this will also setup the Python environment
-	coll := collector.NewCollector(GetPythonPaths()...)
+	// NOTICE: this will also setup the Python environment, if available
+	Coll = collector.NewCollector(GetPythonPaths()...)
 
 	// create the Autoconfig instance
-	AC = autodiscovery.NewAutoConfig(coll)
+	AC = autodiscovery.NewAutoConfig(Coll)
 
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog() {

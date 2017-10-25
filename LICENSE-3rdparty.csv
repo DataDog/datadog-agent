@@ -1,6 +1,7 @@
 Component,Origin,License
 core,github.com/beevik/ntp,BSD-2-Clause
 core,github.com/cihub/seelog,BSD-3-Clause
+core,github.com/codemirror/CodeMirror,MIT
 core,github.com/coreos/etcd,Apache-2.0
 core,github.com/DataDog/agent-payload,BSD-3-Clause
 core,github.com/DataDog/datadog-go,MIT
@@ -12,6 +13,8 @@ core,github.com/docker/docker,Apache-2.0
 core,github.com/docker/go-connections,Apache-2.0
 core,github.com/docker/go-units,Apache-2.0
 core,github.com/ericchiang/k8s,Apache-2.0
+core,github.com/FortAwesome/Font-Awesome,MIT
+core,github.com/FortAwesome/Font-Awesome,SIL OFL 1.1
 core,github.com/fsnotify/fsnotify,BSD-3-Clause
 core,github.com/geoffgarside/ber,BSD-3-Clause
 core,github.com/go-ole/go-ole,MIT
@@ -22,6 +25,7 @@ core,github.com/gorilla/mux,BSD-3-Clause
 core,github.com/hashicorp/hcl,MPL-2.0
 core,github.com/inconshreveable/mousetrap,Apache-2.0
 core,github.com/jhoonb/archivex,BSD-3-Clause
+core,github.com/jquery/jquery,MIT
 core,github.com/k-sone/snmpgo,MIT
 core,github.com/kardianos/osext,BSD-3-Clause
 core,github.com/magiconair/properties,BSD-2-Clause
@@ -48,6 +52,7 @@ core,github.com/StackExchange/wmi,MIT
 core,github.com/stretchr/objx,MIT
 core,github.com/stretchr/testify,MIT
 core,github.com/ugorji/go,MIT
+core,github.com/urfave/negroni,MIT
 core,golang.org/x/net,BSD-3-Clause
 core,golang.org/x/sys,BSD-3-Clause
 core,golang.org/x/text,BSD-3-Clause

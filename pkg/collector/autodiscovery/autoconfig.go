@@ -28,6 +28,9 @@ var (
 
 func init() {
 	acErrors = expvar.NewMap("autoconfig")
+	acErrors.Set("ConfigErrors", expvar.Func(func() interface{} {
+		return errorStats.getConfigErrors()
+	}))
 	acErrors.Set("LoaderErrors", expvar.Func(func() interface{} {
 		return errorStats.getLoaderErrors()
 	}))
@@ -65,6 +68,7 @@ type AutoConfig struct {
 	configsPollTicker *time.Ticker
 	config2checks     map[string][]check.ID // cache the ID of checks we load for each config
 	stop              chan bool
+	pollerActive      bool
 	m                 sync.RWMutex
 }
 
@@ -85,16 +89,26 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 
 // StartPolling starts the goroutine responsible for polling the providers
 func (ac *AutoConfig) StartPolling() {
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
 	ac.configsPollTicker = time.NewTicker(configsPollIntl)
 	ac.pollConfigs()
+	ac.pollerActive = true
 }
 
 // Stop just shuts down AutoConfig in a clean way.
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
 func (ac *AutoConfig) Stop() {
-	// stop the poller
-	ac.stop <- true
+	ac.m.Lock()
+	defer ac.m.Unlock()
+
+	// stop the poller if running
+	if ac.pollerActive {
+		ac.stop <- true
+		ac.pollerActive = false
+	}
 
 	// stop the collector
 	if ac.collector != nil {
@@ -150,7 +164,6 @@ func (ac *AutoConfig) LoadAndRun() {
 			log.Errorf("Unable to run Check %s: %v", check, err)
 		}
 	}
-
 }
 
 // GetChecksByName returns any Check instance we can load for the given
@@ -174,7 +187,19 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 func (ac *AutoConfig) getAllConfigs() []check.Config {
 	configs := []check.Config{}
 	for _, pd := range ac.providers {
-		cfgs, _ := ac.collect(pd)
+		cfgs, _ := pd.provider.Collect()
+
+		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
+			for name, e := range fileConfPd.Errors {
+				errorStats.setConfigError(name, e)
+			}
+
+			// Clear any old errors if a valid config file is found
+			for _, cfg := range cfgs {
+				errorStats.removeConfigError(cfg.Name)
+			}
+		}
+
 		configs = append(configs, cfgs...)
 	}
 
@@ -394,6 +419,11 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 		}
 
 		errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
+
+		// Check if some check instances were loaded correctly (can occur if there's multiple check instances)
+		if len(res) != 0 {
+			return res, nil
+		}
 		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
 	}
 
@@ -414,4 +444,9 @@ func (pd *providerDescriptor) contains(c *check.Config) bool {
 // GetLoaderErrors gets the errors from the loaderErrors struct
 func GetLoaderErrors() map[string]LoaderErrors {
 	return errorStats.getLoaderErrors()
+}
+
+// GetConfigErrors gets the config errors
+func GetConfigErrors() map[string]string {
+	return errorStats.getConfigErrors()
 }

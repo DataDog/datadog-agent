@@ -13,10 +13,10 @@ RUN apt-get update \
  && dpkg -i datadog-agent*_amd64.deb\
  && apt-get clean\
  && rm -rf agent6.deb /var/lib/apt/lists/* /tmp/* /var/tmp/*\
- && touch /etc/datadog-agent/datadog.yaml
+ && touch /etc/datadog-agent/datadog.yaml\
+ && mv /etc/datadog-agent/conf.d/docker.yaml.example /etc/datadog-agent/conf.d/docker.yaml.default
 
 COPY entrypoint.sh /entrypoint.sh
-COPY docker.yaml /etc/dd-agent/conf.d/
 
 EXPOSE 8125/udp
 
