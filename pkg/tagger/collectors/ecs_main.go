@@ -54,7 +54,6 @@ func (c *ECSCollector) Fetch(container string) ([]string, []string, error) {
 		return []string{}, []string{}, err
 	}
 	c.infoOut <- updates
-
 	if time.Now().Sub(c.lastExpire) >= c.expireFreq {
 		go c.expire.ExpireContainers()
 		c.lastExpire = time.Now()

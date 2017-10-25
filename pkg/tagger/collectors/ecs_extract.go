@@ -18,6 +18,10 @@ func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response) ([]*TagInf
 	var output []*TagInfo
 	now := time.Now()
 	for _, task := range tasks_list.Tasks {
+		// We only want to collect tasks without a STOPPED status
+		if task.KnownStatus == "STOPPED"{
+			continue
+		}
 		for _, container := range task.Containers {
 			if c.expire.Update(container.DockerID, now) {
 				tags := utils.NewTagList()
