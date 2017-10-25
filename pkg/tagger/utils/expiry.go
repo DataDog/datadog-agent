@@ -42,7 +42,7 @@ func (e *Expire) Update(container string, ts time.Time) bool {
 	return !found
 }
 
-// Make sure you recently called Updates before computing.
+// ComputeExpires should be called right after an Update.
 func (e *Expire) ComputeExpires() ([]string, error) {
 	now := time.Now()
 	var expiredContainers []string
