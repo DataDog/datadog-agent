@@ -129,7 +129,7 @@ func (d *DockerCheck) Run() error {
 
 	containers, err := docker.AllContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
 		return err
 	}
 
@@ -206,10 +206,10 @@ func (d *DockerCheck) Run() error {
 
 	if err := d.countAndWeightImages(sender); err != nil {
 		log.Error(err.Error())
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
 		return err
 	}
-	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", d.instance.Tags, "")
 
 	if d.instance.CollectEvent || d.instance.CollectExitCodes {
 		events, err := d.retrieveEvents()
@@ -321,12 +321,13 @@ func (d *DockerCheck) GetMetricStats() (map[string]int64, error) {
 	return sender.GetMetricStats(), nil
 }
 
-func dockerFactory() check.Check {
+// DockerFactory is exported for integration testing
+func DockerFactory() check.Check {
 	return &DockerCheck{
 		instance: &DockerConfig{},
 	}
 }
 
 func init() {
-	core.RegisterCheck("docker", dockerFactory)
+	core.RegisterCheck("docker", DockerFactory)
 }
