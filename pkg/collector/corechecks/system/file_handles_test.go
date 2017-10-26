@@ -11,8 +11,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	log "github.com/cihub/seelog"
 )
 
@@ -49,7 +48,7 @@ func TestFhCheckLinux(t *testing.T) {
 	fileHandleCheck := new(fhCheck)
 	fileHandleCheck.Configure(nil, nil)
 
-	mock := aggregator.NewMockSender(fileHandleCheck.ID())
+	mock := mocksender.NewMockSender(fileHandleCheck.ID())
 
 	mock.On("Gauge", "system.fs.file_handles.in_use", 0.008829499990145647, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
