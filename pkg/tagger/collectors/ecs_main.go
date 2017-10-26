@@ -44,7 +44,7 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 		}
 		return FetchOnlyCollection, nil
 	} else {
-		return NoCollection, fmt.Errorf("Failed to connect to ecs, ECS tagging will not work")
+		return NoCollection, fmt.Errorf("Failed to connect to ECS, ECS tagging will not work")
 	}
 
 }

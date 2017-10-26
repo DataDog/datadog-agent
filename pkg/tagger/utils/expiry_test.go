@@ -22,6 +22,9 @@ func TestUpdate(t *testing.T) {
 	now := time.Now()
 	twoMinutesAgo := now.Add(-2 * time.Minute)
 
+	// Checking we initialyze the map with nothing.
+	require.Len(t, expire.lastSeen, 0)
+
 	// Inserting container, we expect True as it's not in the lastseen map.
 	found := expire.Update(testContainerID, twoMinutesAgo)
 	require.True(t, found)

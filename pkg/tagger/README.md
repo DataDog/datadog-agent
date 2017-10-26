@@ -28,7 +28,7 @@ updates to the store though, by keeping an internal state of the latest
 revision.
 
 #### FetchOnly
-The **ECSCollector** will not push the updates to the Store. It is not meant to run in standalone. DockerCollector will trigger deletions in the store.
+The **ECSCollector** does not push updates to the Store by itself, but is only triggered on cache misses. As tasks don't change after creation, there's no need for periodic pulling. It is designed to run alongside DockerCollector, that will trigger deletions in the store.
 
 ### TagStore
 The **TagStore** reads **TagInfo** structs and stores them in a in-memory
