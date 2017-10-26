@@ -1,7 +1,11 @@
 init_config:
 
 instances:
-  - ## Data collection
+  - ## The agent honors the DOCKER_HOST, DOCKER_CERT_PATH and DOCKER_TLS_VERIFY
+    ## environment variables to setup the connection to the server.
+    ## See https://docs.docker.com/engine/reference/commandline/cli/#environment-variables
+
+    ## Data collection
     ##
 
     # Create events whenever a container status change.
@@ -38,41 +42,21 @@ instances:
     #
     # collect_image_size: true
 
-    # Exclude containers based on their name or image
-    # An excluded container will not get any individual container metric reported for it.
-    # However it will still appear in the container count since ignoring it here would give
-    # a wrong impression about the docker daemon load.
+    # Collect disk metrics (total, used, free) through the docker info command for data and metadata.
+    # This is useful when these values can't be obtained by the disk check.
+    # Example: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    # Note that it only works when the storage driver is devicemapper.
+    # Explanation of these metrics can be found here:
+    # https://github.com/docker/docker/blob/v1.11.1/daemon/graphdriver/devmapper/README.md
+    # Defaults to false.
     #
-    # How it works: exclude first.
-    # If a container matches an exclude rule, it won't be included unless it also matches an include rule.
-    #
-    # Rules are regexp.
-    #
-    # Examples:
-    # exclude all, except containers based on the 'ubuntu' image or the 'debian' image.
-    # exclude: ["image:.*"]
-    # include: ["image:ubuntu", "image:debian"]
-    #
-    # include all, except containers based on the 'ubuntu' image.
-    # exclude: ["image:ubuntu"]
-    # include: []
-    #
-    # exclude all debian images except containers with a name starting with 'frontend'.
-    # exclude: ["image:debian"]
-    # include: ["name:frontend.*"]
-    #
-    # exclude: []
-    # include: []
+    # collect_disk_stats: true
 
-    # Exclude default pause containers from orchestrators.
+    # Monitor exiting containers and send service checks based on exit code value
+    # (OK if 0, CRITICAL otherwise)
+    # Defaults to false.
     #
-    # By default the agent will not monitor kubernetes/openshift pause
-    # container. They will still be counted in the container count (just like
-    # excluded containers) since ignoring them would give a wrong impression
-    # about the docker daemon load.
-    #
-    # exclude_pause_container: true
-
+    # collect_exit_codes: true
 
     ## Tagging
     ##

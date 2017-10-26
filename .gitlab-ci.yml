@@ -3,6 +3,8 @@ stages:
   - binary_build
   - integration_test
   - package_build
+  - image_build
+  - image_deploy
   - deploy
 
 variables:
@@ -15,6 +17,8 @@ variables:
   RPM_S3_BUCKET: yum.datad0g.com
   DEB_RPM_BUCKET_BRANCH: beta  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
+  S3_CP_CMD: aws s3 cp --only-show-errors --region us-east-1 --sse AES256
+  S3_SCRATCH_URI: s3://dd-scratch-space-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
 
 before_script:
   # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
@@ -59,21 +63,15 @@ build_dogstatsd_static-deb_x64:
   tags: [ "runner:main", "size:large" ]
   script:
     - inv -e dogstatsd.build --static
-    - cp $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - dogstatsd
+    - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_SCRATCH_URI/dogstatsd
 
-# build dogstatsd static for rpm-x64
-build_dogstatsd_static-rpm_x64:
+# build puppy agent for deb-x64, to make sure the build is not broken because of build flags
+build_puppy_agent-deb_x64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
-    - inv -e dogstatsd.build --static
-    - cp $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $CI_PROJECT_DIR
-
+    - inv -e agent.build --puppy
 
 #
 # integration_test
@@ -119,12 +117,10 @@ run_dogstatsd_size_test:
   stage: integration_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
-  dependencies:
-    - build_dogstatsd_static-deb_x64 # Reuse artifact from build stage
   before_script:
     # Disable global before_script
     - mkdir -p $STATIC_BINARIES_DIR
-    - ln dogstatsd $STATIC_BINARIES_DIR/dogstatsd
+    - $S3_CP_CMD $S3_SCRATCH_URI/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
   script:
     - inv -e dogstatsd.size-test --skip-build
 
@@ -132,14 +128,12 @@ run_dogstatsd_size_test:
 run_docker_integration_tests_deb-x64:
   stage: integration_test
   allow_failure: true  # FIXME when the root-user related issues are fixed on gitlab
-  dependencies:
-    - build_dogstatsd_static-deb_x64 # Reuse artifact from build stage
   tags:
     - container-builder
   before_script:
     # Disable global before_script
     - mkdir --parent $STATIC_BINARIES_DIR
-    - ln dogstatsd $STATIC_BINARIES_DIR/dogstatsd
+    - $S3_CP_CMD $S3_SCRATCH_URI/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
   script:
     - docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v $(pwd):$(pwd) --workdir $(pwd) -e CI_PIPELINE_ID=$CI_PIPELINE_ID -e CI_COMMIT_SHA=$CI_COMMIT_SHA 727006795293.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders:deb_x64 inv docker.integration-tests --skip-build 2>&1
 
@@ -159,7 +153,8 @@ agent_deb-x64:
     # from the GOPATH (see above). We then call `invoke` passing --base-dir,
     # pointing to a gitlab-friendly location.
     - inv -e agent.omnibus-build --base-dir $AGENT_OMNIBUS_BASE_DIR
-    - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/*.deb
+    - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb
+    - $S3_CP_CMD $AGENT_OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb $S3_SCRATCH_URI/datadog-agent_amd64.deb
   cache:
     # cache per branch
     key: $CI_COMMIT_REF_NAME
@@ -196,6 +191,121 @@ agent_rpm-x64:
     paths:
       - $AGENT_OMNIBUS_PACKAGE_DIR
 
+# build windows 
+build_windows_msi_x64:
+  before_script:
+    - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
+    - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
+    - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
+    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
+    - inv -e deps
+  stage: package_build
+  tags: ["runner:windows"]
+  script:
+    - cd %GOPATH%\src\github.com\DataDog\datadog-agent
+    - inv agent.omnibus-build
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+    - .omnibus/pkg
+
+
+
+#
+# image_build
+#
+
+.dind_job_template: &dind_job_definition
+  stage: image_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/dind/build:latest
+  tags: [ "runner:dind", "size:large" ]
+  script: [ "# noop" ]
+
+# build the agent6 image
+build_agent6:
+  <<: *dind_job_definition
+  variables:
+    DD_DIND_BUILD_CONTEXT: Dockerfiles/agent
+    DD_DIND_IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent:$CI_PIPELINE_ID
+    DD_DIND_ARTEFACTS: "true"
+
+# build the dogstatsd image
+build_dogstatsd:
+  <<: *dind_job_definition
+  variables:
+    DD_DIND_BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
+    DD_DIND_IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/dogstatsd:$CI_PIPELINE_ID
+    DD_DIND_ARTEFACTS: "true"
+
+#
+# image_deploy
+#
+
+.dind_tag_job_template: &dind_tag_job_definition
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/dind/tag:latest
+  tags: [ "runner:dind", "size:large" ]
+  stage: image_deploy
+  script: [ "# noop" ]
+
+agent6_docker_hub:
+  <<: *dind_tag_job_definition
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent:$CI_COMMIT_TAG
+
+agent6_dev_docker_hub:
+  <<: *dind_tag_job_definition
+  when: manual
+  except:
+    - master
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent-dev:$CI_COMMIT_REF_SLUG
+
+agent6_dev_docker_hub_master:
+  <<: *dind_tag_job_definition
+  only:
+    - master
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent-dev:$CI_COMMIT_REF_SLUG
+
+dogstatsd_docker_hub:
+  <<: *dind_tag_job_definition
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *dogstatsd_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/dogstatsd:$CI_COMMIT_TAG
+
+dogstatsd_dev_docker_hub:
+  <<: *dind_tag_job_definition
+  when: manual
+  except:
+    - master
+  variables:
+    DD_DIND_TAG_SOURCE: *dogstatsd_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/dogstatsd-dev:$CI_COMMIT_REF_SLUG
+
+dogstatsd_dev_docker_hub_master:
+  <<: *dind_tag_job_definition
+  only:
+    - master
+  variables:
+    DD_DIND_TAG_SOURCE: *dogstatsd_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/dogstatsd-dev:$CI_COMMIT_REF_SLUG
 
 #
 # deploy

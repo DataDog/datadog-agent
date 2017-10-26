@@ -196,8 +196,7 @@ func TestSubmitSNMP(t *testing.T) {
 
 	initCNetSnmpLib(nil)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, snmpCheck.ID())
+	mock := aggregator.NewMockSender(snmpCheck.ID())
 
 	if err := cfg.Parse(bytes.NewBufferString(basicCfg).Bytes(), []byte{}); err != nil {
 		t.Fatalf("Unable to parse configuration: %v", err)

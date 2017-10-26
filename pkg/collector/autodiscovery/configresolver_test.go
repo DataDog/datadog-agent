@@ -1,3 +1,10 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
+// +build docker
+
 package autodiscovery
 
 import (
@@ -35,10 +42,11 @@ func TestResolveTemplate(t *testing.T) {
 	res := cr.ResolveTemplate(tpl)
 	assert.Len(t, res, 0)
 
-	service := listeners.Service{
+	service := listeners.DockerService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 	}
-	cr.processNewService(service)
+	cr.processNewService(&service)
 
 	// there are no template vars but it's ok
 	res = cr.ResolveTemplate(tpl)
@@ -65,23 +73,30 @@ func TestParseTemplateVar(t *testing.T) {
 
 func TestResolve(t *testing.T) {
 	cr := newConfigResolver(nil, nil, NewTemplateCache())
-	service := listeners.Service{
+	service := listeners.DockerService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
+		Pid:           1337,
 	}
-	cr.processNewService(service)
+	cr.processNewService(&service)
 
 	tpl := check.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
 	}
-	tpl.Instances = []check.ConfigData{check.ConfigData("host: %%host%%")}
 
-	config, err := cr.resolve(tpl, service)
+	tpl.Instances = []check.ConfigData{check.ConfigData("host: %%host%%")}
+	config, err := cr.resolve(tpl, &service)
 	assert.Nil(t, err)
 	assert.Equal(t, "host: 127.0.0.1", string(config.Instances[0]))
 
+	tpl.Instances = []check.ConfigData{check.ConfigData("pid: %%pid%%\ntags: [\"foo\"]")}
+	config, err = cr.resolve(tpl, &service)
+	assert.Nil(t, err)
+	assert.Equal(t, "pid: 1337\ntags:\n- foo\n", string(config.Instances[0]))
+
 	// template variable doesn't exist
 	tpl.Instances = []check.ConfigData{check.ConfigData("host: %%FOO%%")}
-	config, err = cr.resolve(tpl, service)
+	config, err = cr.resolve(tpl, &service)
 	assert.NotNil(t, err)
 }

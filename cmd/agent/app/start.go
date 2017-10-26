@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
@@ -82,7 +82,6 @@ func start(cmd *cobra.Command, args []string) error {
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGINT)
 
 	// Make a channel to exit the function
 	stopCh := make(chan error)
@@ -114,6 +113,7 @@ func start(cmd *cobra.Command, args []string) error {
 
 // StartAgent Initializes the agent process
 func StartAgent() error {
+
 	// Global Agent configuration
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
@@ -122,9 +122,15 @@ func StartAgent() error {
 
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
+	logFile := config.Datadog.GetString("log_file")
+	if config.Datadog.GetBool("disable_file_logging") {
+		// this will prevent any logging on file
+		logFile = ""
+	}
+
 	err = config.SetupLogger(
 		config.Datadog.GetString("log_level"),
-		config.Datadog.GetString("log_file"),
+		logFile,
 		syslogURI,
 		config.Datadog.GetBool("syslog_rfc"),
 		config.Datadog.GetBool("syslog_tls"),
@@ -159,10 +165,12 @@ func StartAgent() error {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
-	// start tagging system for containers
-	err = tagger.Init()
-	if err != nil {
-		return log.Errorf("Unable to start tagging system: %s", err)
+	// start the GUI server
+	guiPort := config.Datadog.GetString("GUI_port")
+	if guiPort == "-1" {
+		log.Infof("Port -1 specified: not starting the GUI server.")
+	} else if err = gui.StartGUIServer(guiPort); err != nil {
+		log.Errorf("Error while starting GUI: %v", err)
 	}
 
 	// setup the forwarder
@@ -249,6 +257,7 @@ func StopAgent() {
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
 	}
+	gui.StopGUIServer()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
 	log.Flush()

@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 )
 
@@ -78,7 +79,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	req, err := http.NewRequest("POST", url, reader)
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL '%s' (dropping transaction): %s", logURL, err)
-		transactionsCreation.Add("Errors", 1)
+		transactionsExpvar.Add("Errors", 1)
 		return nil
 	}
 	req = req.WithContext(ctx)
@@ -91,7 +92,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 			return nil
 		}
 		t.ErrorCount++
-		transactionsCreation.Add("Errors", 1)
+		transactionsExpvar.Add("Errors", 1)
 		return fmt.Errorf("Error while sending transaction, rescheduling it: %s", apiKeyRegExp.ReplaceAllString(err.Error(), apiKeyReplacement))
 	}
 	defer resp.Body.Close()
@@ -99,28 +100,40 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code '%s' received while sending transaction to '%s': %s, dropping it", resp.Status, logURL, string(body))
-		transactionsCreation.Add("Dropped", 1)
+		transactionsExpvar.Add("Dropped", 1)
 		if apiKeyStatus.Get(t.apiKeyStatusKey) == nil {
 			apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyStatusUnknown)
 		}
 		return nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
-		transactionsCreation.Add("Dropped", 1)
+		transactionsExpvar.Add("Dropped", 1)
 		apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyInvalid)
 		return nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
-		transactionsCreation.Add("Errors", 1)
+		transactionsExpvar.Add("Errors", 1)
 		if apiKeyStatus.Get(t.apiKeyStatusKey) == nil {
 			apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyStatusUnknown)
 		}
 		return fmt.Errorf("Error '%s' while sending transaction to '%s', rescheduling it", resp.Status, logURL)
 	}
 
-	transactionsCreation.Add("Success", 1)
+	successfulTransactions.Add(1)
 	apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyValid)
-	log.Debugf("successfully posted payload to '%s': %s", logURL, string(body))
+
+	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
+
+	if successfulTransactions.Value() == 1 {
+		log.Infof("successfully posted payload to '%s', the agent will only log transaction success every 20 transactions", logURL, string(body))
+		log.Debugf("payload: %s", logURL, string(body))
+	} else if successfulTransactions.Value()%loggingFrequency == 0 {
+		log.Infof("successfully posted payload to '%s'", logURL, string(body))
+		log.Debugf("payload: %s", logURL, string(body))
+	} else {
+		log.Debugf("successfully posted payload to '%s': %s", logURL, string(body))
+	}
+
 	return nil
 }
 

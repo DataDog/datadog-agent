@@ -22,7 +22,7 @@ type ServiceCheckStatus int
 
 // Enumeration of the existing service check statuses, and their values
 const (
-	ServiceCheckOK       ServiceCheckStatus = 0
+	ServiceCheckOK       ServiceCheckStatus = iota
 	ServiceCheckWarning  ServiceCheckStatus = 1
 	ServiceCheckCritical ServiceCheckStatus = 2
 	ServiceCheckUnknown  ServiceCheckStatus = 3

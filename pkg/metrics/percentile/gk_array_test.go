@@ -11,6 +11,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -308,5 +309,103 @@ func TestInterpolatedQuantile(t *testing.T) {
 				assert.Equal(t, expected, s.Quantile(q))
 			}
 		}
+	}
+}
+
+// Any random GKArray will not cause panic when Add() or Merge() is called
+// as long as it passes the IsValid() method
+func TestValidDoesNotPanic(t *testing.T) {
+	var s1, s2 GKArray
+	var q float64
+	nTests := 100
+	fuzzer := fuzz.New()
+	for i := 0; i < nTests; i++ {
+		fuzzer.Fuzz(&s1)
+		fuzzer.Fuzz(&s2)
+		fuzzer.Fuzz(&q)
+		s1 = makeValid(s1)
+		s2 = makeValid(s2)
+		assert.True(t, s1.IsValid())
+		assert.True(t, s2.IsValid())
+		assert.NotPanics(t, func() { s1.Quantile(q); s1.Merge(s2) })
+	}
+}
+
+func makeValid(s GKArray) GKArray {
+	if len(s.Entries) == 0 {
+		s.Count = int64(len(s.Entries))
+	}
+
+	gSum := int64(0)
+	for _, e := range s.Entries {
+		gSum += int64(e.G)
+	}
+	s.Count = gSum + int64(len(s.Incoming))
+
+	return s
+}
+
+func TestQuantiles(t *testing.T) {
+	var qVals []float64
+	var vals []float64
+	nTests := 100
+	qFuzzer := fuzz.New().NilChance(0).NumElements(5, 10)
+	vFuzzer := fuzz.New().NilChance(0).NumElements(10, 500)
+	for i := 0; i < nTests; i++ {
+		s := NewGKArray()
+		qFuzzer.Fuzz(&qVals)
+		sort.Float64s(qVals)
+		vFuzzer.Fuzz(&vals)
+		for _, v := range vals {
+			s = s.Add(v)
+		}
+		s = s.compressWithIncoming(nil)
+		quantiles := s.Quantiles(qVals)
+		eps := 1.e-6
+		for j, q := range qVals {
+			if q < 0 || q > 1 {
+				assert.True(t, math.IsNaN(quantiles[j]))
+			} else {
+				assert.InEpsilon(t, s.Quantile(q), quantiles[j], eps)
+			}
+		}
+	}
+}
+
+func TestQuantilesInvalid(t *testing.T) {
+	s := NewGKArray()
+	gen := NewNormal(35, 1)
+	qVals := []float64{-0.2, -0.1, 0.5, 0.75, 0.95, 1.2}
+	n := 200
+	for i := 0; i < n; i++ {
+		s = s.Add(gen.Generate())
+	}
+	quantiles := s.Quantiles(qVals)
+	assert.True(t, math.IsNaN(quantiles[0]))
+	assert.True(t, math.IsNaN(quantiles[1]))
+	assert.True(t, math.IsNaN(quantiles[5]))
+	eps := 1.0e-6
+	assert.InEpsilon(t, s.Quantile(0.5), quantiles[2], eps)
+	assert.InEpsilon(t, s.Quantile(0.75), quantiles[3], eps)
+	assert.InEpsilon(t, s.Quantile(0.95), quantiles[4], eps)
+}
+
+// Test that successive Quantile() calls do not modify the sketch
+func TestConsistentQuantile(t *testing.T) {
+	var vals []float64
+	var q float64
+	nTests := 200
+	vfuzzer := fuzz.New().NilChance(0).NumElements(10, 500)
+	fuzzer := fuzz.New()
+	for i := 0; i < nTests; i++ {
+		s := NewGKArray()
+		vfuzzer.Fuzz(&vals)
+		fuzzer.Fuzz(&q)
+		for _, v := range vals {
+			s = s.Add(v)
+		}
+		q1 := s.Quantile(q)
+		q2 := s.Quantile(q)
+		assert.Equal(t, q1, q2)
 	}
 }

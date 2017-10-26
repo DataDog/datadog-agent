@@ -21,11 +21,11 @@ func init() {
 		"doNotEscape":        doNotEscape,
 		"lastError":          lastError,
 		"lastErrorTraceback": lastErrorTraceback,
-		"lastErrorMessage":   lastErrorMessage,
+		"lastErrorMessage":   LastErrorMessage,
 		"pythonLoaderError":  pythonLoaderError,
 		"printDashes":        printDashes,
-		"formatUnixTime":     formatUnixTime,
-		"humanize":           mkHuman,
+		"formatUnixTime":     FormatUnixTime,
+		"humanize":           MkHuman,
 	}
 }
 
@@ -61,7 +61,8 @@ func lastErrorTraceback(value string) template.HTML {
 	return template.HTML(lastErrorArray[0]["traceback"])
 }
 
-func lastErrorMessage(value string) template.HTML {
+// LastErrorMessage converts the last error message to html
+func LastErrorMessage(value string) template.HTML {
 	var lastErrorArray []map[string]string
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
 	if err == nil && len(lastErrorArray) > 0 {
@@ -72,7 +73,8 @@ func lastErrorMessage(value string) template.HTML {
 	return template.HTML("UNKNOWN ERROR")
 }
 
-func formatUnixTime(unixTime float64) string {
+// FormatUnixTime formats the unix time to make it more readable
+func FormatUnixTime(unixTime float64) string {
 	var (
 		sec  int64
 		nsec int64
@@ -95,7 +97,8 @@ func printDashes(s string, dash string) string {
 	return dashes
 }
 
-func mkHuman(f float64) string {
+// MkHuman makes large numbers more readable
+func MkHuman(f float64) string {
 	i := int64(f)
 	str := fmt.Sprintf("%d", i)
 

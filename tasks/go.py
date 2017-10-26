@@ -2,9 +2,16 @@
 Golang related tasks go here
 """
 from __future__ import print_function
+import os
 
 from invoke import task
 from invoke.exceptions import Exit
+
+
+# List of modules to ignore when running lint on Windows platform
+WIN_MODULE_WHITELIST = [
+    "iostats_wmi_windows.go",
+]
 
 
 @task
@@ -44,9 +51,23 @@ def lint(ctx, targets=None):
     targets_list = ["{}/...".format(t) for t in targets_list]
     result = ctx.run("golint {}".format(' '.join(targets_list)))
     if result.stdout:
-        files = {x for x in result.stdout.split('\n') if x}
-        print("Linting issues found in files: {}".format(','.join(files)))
-        raise Exit(1)
+        files = []
+        skipped_files = set()
+        for line in (out for out in result.stdout.split('\n') if out):
+            fname = os.path.basename(line.split(":")[0])
+            if fname in WIN_MODULE_WHITELIST:
+                skipped_files.add(fname)
+                continue
+            files.append(fname)
+
+        if files:
+            print("Linting issues found in {} files.".format(len(files)))
+            raise Exit(1)
+
+        if skipped_files:
+            for skipped in skipped_files:
+                print("Allowed errors in whitelisted file {}".format(skipped))
+
     print("golint found no issues")
 
 

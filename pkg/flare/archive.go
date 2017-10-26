@@ -8,17 +8,16 @@ package flare
 import (
 	"encoding/json"
 	"expvar"
-	"os"
-	"path"
-	"path/filepath"
-	"strings"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/jhoonb/archivex"
 	yaml "gopkg.in/yaml.v2"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+	"time"
 )
 
 // SearchPaths is just an alias for a map of strings
@@ -73,7 +72,12 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths) 
 	if err != nil {
 		return "", err
 	}
-
+	if config.IsContainerized() {
+		err = zipDockerSelfInspect(zipFile, hostname)
+		if err != nil {
+			return "", err
+		}
+	}
 	return zipFilePath, nil
 }
 
@@ -96,7 +100,6 @@ func zipStatusFile(zipFile *archivex.ZipFile, hostname string) error {
 func zipLogFiles(zipFile *archivex.ZipFile, hostname string) error {
 	logFile := config.Datadog.GetString("log_file")
 	logFilePath := path.Dir(logFile)
-
 	err := filepath.Walk(logFilePath, func(path string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil

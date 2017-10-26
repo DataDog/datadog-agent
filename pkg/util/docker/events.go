@@ -28,7 +28,12 @@ type ContainerEvent struct {
 	ImageName     string
 	Action        string
 	Timestamp     time.Time
-	Tags          map[string]string
+	Attributes    map[string]string
+}
+
+// ContainerEntityName returns the event's container as a tagger entity name
+func (ev *ContainerEvent) ContainerEntityName() string {
+	return ContainerIDToEntityName(ev.ContainerID)
 }
 
 // openEventChannel just wraps the client.Event call with saner argument types.
@@ -89,7 +94,7 @@ func (d *dockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 		ImageName:     imageName,
 		Action:        msg.Action,
 		Timestamp:     time.Unix(msg.Time, ns),
-		Tags:          msg.Actor.Attributes,
+		Attributes:    msg.Actor.Attributes,
 	}
 
 	return event, nil

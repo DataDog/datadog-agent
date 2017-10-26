@@ -72,7 +72,7 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 		log.Errorf("IO Factory failed to get drive strings")
 		return err
 	}
-	drivelist := convert_windows_string_list(drivebuf)
+	drivelist := convertWindowsStringList(drivebuf)
 	for _, drive := range drivelist {
 		r, _, _ = ProcGetDriveType.Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(drive + "\\"))))
 		if r != DRIVE_FIXED {
@@ -90,7 +90,7 @@ func computeValue(pvs Win32_PerfRawData_PerfDisk_LogicalDisk, cur *Win32_PerfRaw
 	ret = make(map[string]float64, 0)
 	var f uint64 = pvs.Frequency_Sys100NS
 	var dt uint64 = cur.Timestamp_Sys100NS - pvs.Timestamp_Sys100NS
-	log.Infof("DeltaT is %d (%d)", dt/10000000, dt)
+	log.Debugf("DeltaT is %d (%d)", dt/10000000, dt)
 
 	if f == 0 {
 		log.Errorf("Frequency is zero?")
@@ -168,7 +168,7 @@ func (c *IOCheck) Run() error {
 	return nil
 }
 
-func convert_windows_string_list(winput []uint16) []string {
+func convertWindowsStringList(winput []uint16) []string {
 	var retstrings []string
 	var buffer bytes.Buffer
 

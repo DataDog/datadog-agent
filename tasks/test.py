@@ -6,15 +6,21 @@ from __future__ import print_function
 import os
 import fnmatch
 
+import invoke
 from invoke import task
 
 from .utils import pkg_config_path
 from .go import fmt, lint, vet
-from .build_tags import get_build_tags
+from .build_tags import get_default_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 
 PROFILE_COV = "profile.cov"
+
+# List of packages to ignore when running tests on Windows platform
+WIN_PKG_BLACKLIST = [
+    "./pkg\\util\\xc",
+]
 
 
 @task()
@@ -27,7 +33,7 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
     """
     targets_list = ctx.targets if targets is None else targets.split(',')
-    build_tags = get_build_tags()  # pass all the build flags for tests
+    build_tags = get_default_build_tags()
 
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
@@ -66,11 +72,16 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
         matches = ["{}/...".format(t) for t in targets_list]
 
     for match in matches:
+        if invoke.platform.WINDOWS:
+            if match in WIN_PKG_BLACKLIST:
+                print("Skipping blacklisted directory {}\n".format(match))
+                continue
+
         coverprofile = ""
         if coverage:
             profile_tmp = "{}/profile.tmp".format(match)
             coverprofile = "-coverprofile={}".format(profile_tmp)
-        cmd = "go test -tags '{go_build_tags}' {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}"
+        cmd = 'go test -tags "{go_build_tags}" {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
         args = {
             "go_build_tags": " ".join(build_tags),
             "race_opt": race_opt,

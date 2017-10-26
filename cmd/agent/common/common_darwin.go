@@ -23,3 +23,8 @@ var (
 func GetDistPath() string {
 	return distPath
 }
+
+// GetViewsPath returns the fully qualified path to the 'gui/views' directory
+func GetViewsPath() string {
+	return filepath.Join(distPath, "views")
+}

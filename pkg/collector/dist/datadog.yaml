@@ -35,6 +35,10 @@ api_key:
 # The port for the go_expvar server
 # expvar_port: 5000
 
+# The port for the browser GUI to be served
+# Setting 'GUI_port: -1' turns off the GUI completely
+# GUI_port: -1
+
 # The path to the Unix Socket where the IPC api listens on *nix
 # cmd_sock: /tmp/agent.sock
 
@@ -64,6 +68,19 @@ metadata_collectors:
     interval: 60
 #  - name: k8s
 #    interval: 60
+
+# Histogram and Historate configuration
+#
+# Configure which aggregated value to compute. Possible values are: min, max,
+# median, avg, sum and count.
+#
+# histogram_aggregates: ["max", "median", "avg", "count"]
+#
+# Configure which percentiles will be computed. Must be a list of integer
+# between 1 and 100.
+# Warning: percentiles must be specified as yaml strings
+#
+# histogram_percentiles: ["95"]
 
 # DogStatsd
 #
@@ -134,15 +151,65 @@ metadata_collectors:
 #     username:
 #     password:
 
-# Autodiscovery
-#
-# listeners:
-#   - name: docker
-
 # Logging
 #
 # log_level: info
 # log_file: /var/log/datadog/agent.log
+
+# Autodiscovery
+#
+# Change the root directory to look at to get cgroup statistics. Useful when running inside a
+# container with host directories mounted on a different folder.
+# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
+# "/host/sys/fs/cgroup" and "/sys/fs/cgroup" if not.
+#
+# container_cgroup_root: /host/sys/fs/cgroup/
+#
+# Change the root directory to look at to get proc statistics. Useful when running inside a
+# container with host directories mounted on a different folder.
+# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
+# "/host/proc" and "/proc" if not.
+#
+# container_proc_root: /host/proc
+#
+# listeners:
+#   - name: docker
+#
+# Exclude containers based on their name or image
+# An excluded container will not get any individual container metric reported for it.
+# However it will still appear in the container count since ignoring it here would give
+# a wrong impression about the docker daemon load.
+#
+# How it works: exclude first.
+# If a container matches an exclude rule, it won't be included unless it also matches an include rule.
+#
+# Rules are regexp.
+#
+# Examples:
+# exclude all, except containers based on the 'ubuntu' image or the 'debian' image.
+# ac_exclude: ["image:.*"]
+# ac_include: ["image:ubuntu", "image:debian"]
+#
+# include all, except containers based on the 'ubuntu' image.
+# ac_exclude: ["image:ubuntu"]
+# ac_include: []
+#
+# exclude all debian images except containers with a name starting with 'frontend'.
+# ac_exclude: ["image:debian"]
+# ac_include: ["name:frontend.*"]
+#
+# ac_exclude: []
+# ac_include: []
+#
+#
+# Exclude default pause containers from orchestrators.
+#
+# By default the agent will not monitor kubernetes/openshift pause
+# container. They will still be counted in the container count (just like
+# excluded containers) since ignoring them would give a wrong impression
+# about the docker daemon load.
+#
+# exclude_pause_container: true
 
 # Docker tag extraction
 #
@@ -151,12 +218,23 @@ metadata_collectors:
 # will only be added to high cardinality metrics (docker check)
 #
 # docker_labels_as_tags:
-#   label_name:             tag_name
-#   high_cardinality_label: +tag_name
+#   label_name:                  tag_name
+#   high_cardinality_label_name: +tag_name
 # docker_env_as_tags:
 #   ENVVAR_NAME: tag_name
+#
+# Example:
+# docker_labels_as_tags:
+#   com.docker.compose.service: service_name
+#   com.docker.compose.project: +project_name
+#
 
 # Kubernetes tag extraction
 #
 # kubernetes_pod_label_to_tag_prefix: "kube_"
 #
+
+# ECS integration
+#
+# URL where the ECS agent can be found. Standard cases will be autodetected.
+# ecs_agent_url: http://localhost:51678

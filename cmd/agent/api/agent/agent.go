@@ -10,13 +10,14 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	log "github.com/cihub/seelog"
 
-	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -29,15 +30,15 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
-	r.HandleFunc("/jmxstatus", setJMXStatus).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/jmxconfigs", getJMXConfigs).Methods("GET")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
+	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
+	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	signals.Stopper <- true
@@ -47,7 +48,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -57,7 +58,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -71,7 +72,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 
@@ -88,47 +89,34 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(filePath))
 }
 
-func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
-		return
+func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	component := vars["component"]
+	switch component {
+	case "jmx":
+		getJMXConfigs(w, r)
+	default:
+		err := fmt.Errorf("bad url or resource does not exist")
+		log.Errorf("%s", err.Error())
+		http.Error(w, err.Error(), 404)
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	decoder := json.NewDecoder(r.Body)
-
-	var tsjson map[string]interface{}
-	err := decoder.Decode(&tsjson)
-	if err != nil {
-		log.Errorf("unable to parse jmx status: %s", err)
-		http.Error(w, err.Error(), 500)
-	}
-
-	log.Debugf("Getting latest JMX Configs as of: %v", tsjson["timestamp"])
-	// stub for now...
-	j, _ := json.Marshal(map[string]interface{}{
-		"configurations": map[string]interface{}{}})
-	w.Write(j)
 }
 
-func setJMXStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
-		return
+func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	component := vars["component"]
+	switch component {
+	case "jmx":
+		setJMXStatus(w, r)
+	default:
+		err := fmt.Errorf("bad url or resource does not exist")
+		log.Errorf("%s", err.Error())
+		http.Error(w, err.Error(), 404)
 	}
-
-	decoder := json.NewDecoder(r.Body)
-
-	var jmxStatus status.JMXStatus
-	err := decoder.Decode(&jmxStatus)
-	if err != nil {
-		log.Errorf("unable to parse jmx status: %s", err)
-		http.Error(w, err.Error(), 500)
-	}
-
-	status.SetJMXStatus(jmxStatus)
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 
@@ -154,7 +142,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apicommon.Validate(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 

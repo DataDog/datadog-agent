@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/test/util"
 	log "github.com/cihub/seelog"
 )
 
@@ -206,7 +207,7 @@ func createMetric(value float64, tags []string, name string, t int64) datadog.Me
 }
 
 func main() {
-	if err := initLogging(); err != nil {
+	if err := util.InitLogging("info"); err != nil {
 		log.Infof("Unable to replace logger, default logging will apply (highly verbose): %s", err)
 	}
 	defer log.Flush()
@@ -266,7 +267,7 @@ func main() {
 				if !(*rnd) {
 					packets = make([]string, *ser)
 					for i := range packets {
-						packets[i] = buildPayload("foo.bar", rand.Int63n(1000), []byte("|g"), []string{randomString(*pad)}, 1)
+						packets[i] = buildPayload("foo.bar", rand.Int63n(1000), []byte("|g"), []string{util.RandomString(*pad)}, 1)
 					}
 				}
 
@@ -281,9 +282,9 @@ func main() {
 						if *rnd {
 							buf.Reset()
 							buf.WriteString("foo.")
-							buf.WriteString(randomString(*ser))
+							buf.WriteString(util.RandomString(*ser))
 
-							err = submitPacket([]byte(buildPayload(buf.String(), rand.Int63n(1000), []byte("|g"), []string{randomString(*pad)}, 2)), generator)
+							err = submitPacket([]byte(buildPayload(buf.String(), rand.Int63n(1000), []byte("|g"), []string{util.RandomString(*pad)}, 2)), generator)
 						} else {
 							err = submitPacket([]byte(packets[rand.Int63n(int64(*ser))]), generator)
 						}

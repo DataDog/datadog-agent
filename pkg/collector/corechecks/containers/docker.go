@@ -27,35 +27,23 @@ import (
 
 const dockerCheckName = "docker"
 
-type dockerConfig struct {
-	//Url                    string             `yaml:"url"`
-	CollectContainerSize  bool     `yaml:"collect_container_size"`
-	CollectImagesStats    bool     `yaml:"collect_images_stats"`
-	CollectImageSize      bool     `yaml:"collect_image_size"`
-	Exclude               []string `yaml:"exclude"`
-	Include               []string `yaml:"include"`
-	ExcludePauseContainer bool     `yaml:"exclude_pause_container"`
-	Tags                  []string `yaml:"tags"`
-	CollectEvent          bool     `yaml:"collect_events"`
-	FilteredEventType     []string `yaml:"filtered_event_types"`
+type DockerConfig struct {
+	CollectContainerSize bool     `yaml:"collect_container_size"`
+	CollectExitCodes     bool     `yaml:"collect_exit_codes"`
+	CollectImagesStats   bool     `yaml:"collect_images_stats"`
+	CollectImageSize     bool     `yaml:"collect_image_size"`
+	CollectDiskStats     bool     `yaml:"collect_disk_stats"`
+	CollectVolumeCount   bool     `yaml:"collect_volume_count"`
+	Tags                 []string `yaml:"tags"`
+	CollectEvent         bool     `yaml:"collect_events"`
+	FilteredEventType    []string `yaml:"filtered_event_types"`
 	//CustomCGroup           bool               `yaml:"custom_cgroups"`
-	//HealthServiceWhitelist []string           `yaml:"health_service_check_whitelist"`
-	//CollectContainerCount  bool               `yaml:"collect_container_count"`
-	//CollectVolumCount      bool               `yaml:"collect_volume_count"`
-	//CollectDistStats       bool               `yaml:"collect_disk_stats"`
-	//CollectExitCodes       bool               `yaml:"collect_exit_codes"`
-	//ECSTags                []string           `yaml:"ecs_tags"`
-	//PerformanceTags        []string           `yaml:"performance_tags"`
-	//ContainrTags           []string           `yaml:"container_tags"`
-	//EventAttributesAsTags  []string           `yaml:"event_attributes_as_tags"`
 	//CappedMetrics          map[string]float64 `yaml:"capped_metrics"`
 }
 
 const (
 	DockerServiceUp string = "docker.service_up"
-
-	pauseContainerGCR       string = "image:gcr.io/google_containers/pause.*"
-	pauseContainerOpenshift string = "image:openshift/origin-pod"
+	DockerExit      string = "docker.exit"
 )
 
 type containerPerImage struct {
@@ -64,16 +52,12 @@ type containerPerImage struct {
 	stopped int64
 }
 
-func (c *dockerConfig) Parse(data []byte) error {
+func (c *DockerConfig) Parse(data []byte) error {
+	// default values
+	c.CollectEvent = true
+
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return err
-	}
-	if len(c.FilteredEventType) == 0 {
-		c.FilteredEventType = []string{"top", "exec_create", "exec_start"}
-	}
-
-	if c.ExcludePauseContainer {
-		c.Exclude = append(c.Exclude, pauseContainerGCR, pauseContainerOpenshift)
 	}
 	return nil
 }
@@ -81,7 +65,7 @@ func (c *dockerConfig) Parse(data []byte) error {
 // DockerCheck grabs docker metrics
 type DockerCheck struct {
 	lastWarnings   []error
-	instance       *dockerConfig
+	instance       *DockerConfig
 	lastEventTime  time.Time
 	dockerHostname string
 }
@@ -189,8 +173,17 @@ func (d *DockerCheck) Run() error {
 		sender.Rate("docker.io.read_bytes", float64(c.IO.ReadBytes), "", tags)
 		sender.Rate("docker.io.write_bytes", float64(c.IO.WriteBytes), "", tags)
 
-		sender.Rate("docker.net.bytes_sent", float64(c.Network.BytesSent), "", tags)
-		sender.Rate("docker.net.bytes_rcvd", float64(c.Network.BytesRcvd), "", tags)
+		if c.Network != nil {
+			for _, netStat := range c.Network {
+				if netStat.NetworkName == "" {
+					log.Debugf("ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
+					continue
+				}
+				ifaceTags := append(tags, fmt.Sprintf("docker_network:%s", netStat.NetworkName))
+				sender.Rate("docker.net.bytes_sent", float64(netStat.BytesSent), "", ifaceTags)
+				sender.Rate("docker.net.bytes_rcvd", float64(netStat.BytesRcvd), "", ifaceTags)
+			}
+		}
 
 		if d.instance.CollectContainerSize {
 			info, err := c.Inspect(true)
@@ -217,8 +210,61 @@ func (d *DockerCheck) Run() error {
 	}
 	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", nil, "")
 
-	if d.instance.CollectEvent {
-		d.reportEvents(sender)
+	if d.instance.CollectEvent || d.instance.CollectExitCodes {
+		events, err := d.retrieveEvents()
+		if err != nil {
+			log.Warn(err.Error())
+		} else {
+			if d.instance.CollectEvent {
+				err = d.reportEvents(events, sender)
+				if err != nil {
+					log.Warn(err.Error())
+				}
+			}
+			if d.instance.CollectExitCodes {
+				err = d.reportExitCodes(events, sender)
+				if err != nil {
+					log.Warn(err.Error())
+				}
+			}
+		}
+	}
+
+	if d.instance.CollectDiskStats {
+		stats, err := docker.GetStorageStats()
+		if err != nil {
+			log.Errorf("Failed to get disk stats: %s", err)
+		} else {
+			for _, stat := range stats {
+				if stat.Name != docker.DataStorageName && stat.Name != docker.MetadataStorageName {
+					log.Debugf("ignoring unknown disk stats: %s", stat)
+					continue
+				}
+				if stat.Free != nil {
+					sender.Gauge(fmt.Sprintf("docker.%s.free", stat.Name), float64(*stat.Free), "", d.instance.Tags)
+				}
+				if stat.Used != nil {
+					sender.Gauge(fmt.Sprintf("docker.%s.used", stat.Name), float64(*stat.Used), "", d.instance.Tags)
+				}
+				if stat.Total != nil {
+					sender.Gauge(fmt.Sprintf("docker.%s.total", stat.Name), float64(*stat.Total), "", d.instance.Tags)
+				}
+				percent := stat.GetPercentUsed()
+				if !math.IsNaN(percent) {
+					sender.Gauge(fmt.Sprintf("docker.%s.percent", stat.Name), percent, "", d.instance.Tags)
+				}
+			}
+		}
+	}
+
+	if d.instance.CollectVolumeCount {
+		attached, dangling, err := docker.CountVolumes()
+		if err != nil {
+			log.Errorf("failed to get volume stats: %s", err)
+		} else {
+			sender.Gauge("docker.volume.count", float64(attached), "", append(d.instance.Tags, "volume_state:attached"))
+			sender.Gauge("docker.volume.count", float64(dangling), "", append(d.instance.Tags, "volume_state:dangling"))
+		}
 	}
 
 	sender.Commit()
@@ -234,19 +280,11 @@ func (d *DockerCheck) String() string {
 
 // Configure parses the check configuration and init the check
 func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
-	d.instance = &dockerConfig{
-		// Default conf values
-		ExcludePauseContainer: true,
-		CollectEvent:          true,
-	}
 	d.instance.Parse(config)
 
-	docker.InitDockerUtil(&docker.Config{
-		CacheDuration:  10 * time.Second,
-		CollectNetwork: true,
-		Whitelist:      d.instance.Include,
-		Blacklist:      d.instance.Exclude,
-	})
+	if len(d.instance.FilteredEventType) == 0 {
+		d.instance.FilteredEventType = []string{"top", "exec_create", "exec_start"}
+	}
 
 	var err error
 	d.dockerHostname, err = docker.GetHostname()
@@ -283,7 +321,9 @@ func (d *DockerCheck) GetMetricStats() (map[string]int64, error) {
 }
 
 func dockerFactory() check.Check {
-	return &DockerCheck{}
+	return &DockerCheck{
+		instance: &DockerConfig{},
+	}
 }
 
 func init() {

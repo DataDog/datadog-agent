@@ -11,8 +11,8 @@ import (
 	"bytes"
 	"fmt"
 
-	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 )
@@ -37,7 +37,7 @@ func stop(*cobra.Command, []string) error {
 	c := common.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	apicommon.SetAuthToken()
+	util.SetAuthToken()
 
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/stop", config.Datadog.GetInt("cmd_port"))
 

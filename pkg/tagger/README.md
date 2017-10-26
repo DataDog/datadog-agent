@@ -2,11 +2,11 @@
 
 The **Tagger** is the central source of truth for client-side entity tagging. It
 runs **Collector**s that detect entities and collect their tags. Tags are then
-stored in memory (by the **TagStore**) and can be queried by the Tagger.Tag()
-method. Calling once Tagger.Init() after the **config** package is ready is
+stored in memory (by the **TagStore**) and can be queried by the tagger.Tag()
+method. Calling once tagger.Init() after the **config** package is ready is
 needed to enable collection.
 
-The package methods use a common **DefaultTagger** object, but we can create
+The package methods use a common **defaultTagger** object, but we can create
 a custom **Tagger** object for testing.
 
 The package will implement an IPC mechanism (a server and a client) to allow
@@ -16,17 +16,19 @@ in their process. Switch between local and client mode will be done via a build 
 ### Collector
 A **Collector** connects to a single information source and pushes **TagInfo**
 structs to a channel, towards the **Tagger**. It can either run in streaming
-mode or pull mode, depending of what's most efficient for the data source:
+mode, pull or fetchonly mode, depending of what's most efficient for the data source:
 
 #### Streamer
 The **DockerCollector** runs in stream mode as it collects events from the docker
 daemon and reacts to them, sending updates incrementally.
 
 #### Puller
-The **KubernetesCollector** and **ECSCollector** will run in pull mode as they
-need to query and filter a full entity list every time. They will only push
+The **KubernetesCollector** will run in pull mode as it needs to query and filter a full entity list every time. It will only push
 updates to the store though, by keeping an internal state of the latest
 revision.
+
+#### FetchOnly
+The **ECSCollector** does not push updates to the Store by itself, but is only triggered on cache misses. As tasks don't change after creation, there's no need for periodic pulling. It is designed to run alongside DockerCollector, that will trigger deletions in the store.
 
 ### TagStore
 The **TagStore** reads **TagInfo** structs and stores them in a in-memory
@@ -42,7 +44,7 @@ The Tagger handles the glue between **Collectors** and **TagStore** and the
 cache miss logic. If the tags from the **TagStore** are missing some sources,
 they will be manually queried in a block way, and the cache will be updated.
 
-For convenience, the package creates a **DefaultTagger** object that is used
+For convenience, the package creates a **defaultTagger** object that is used
 when calling the `tagger.Tag()` method.
 
 

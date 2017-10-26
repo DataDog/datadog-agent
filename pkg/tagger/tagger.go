@@ -6,6 +6,7 @@
 package tagger
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -29,9 +30,11 @@ type Tagger struct {
 	stop       chan bool
 }
 
-// NewTagger returns an allocated tagger. You still have to run Init()
+// newTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
-func NewTagger() (*Tagger, error) {
+// You are probably looking for tagger.Tag() using the global instance
+// instead of creating your own.
+func newTagger() (*Tagger, error) {
 	store, err := newTagStore()
 	if err != nil {
 		return nil, err
@@ -81,6 +84,13 @@ func (t *Tagger) Init(catalog collectors.Catalog) error {
 				go stream.Stream()
 			} else {
 				log.Errorf("error initialising collector %s: does not implement stream", name)
+			}
+		case collectors.FetchOnlyCollection:
+			fetch, ok := collector.(collectors.Fetcher)
+			if ok {
+				t.fetchers[name] = fetch
+			} else {
+				log.Errorf("error initialising collector %s: does not implement fetch", name)
 			}
 		}
 	}
@@ -138,6 +148,9 @@ func (t *Tagger) Stop() error {
 // Tag returns tags for a given entity. If highCard is false, high
 // cardinality tags are left out.
 func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
+	if entity == "" {
+		return nil, errors.New("empty entity ID")
+	}
 	cachedTags, sources, err := t.tagStore.lookup(entity, highCard)
 	if err != nil {
 		return nil, err

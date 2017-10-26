@@ -8,20 +8,41 @@ package main
 import (
 	_ "expvar"
 	"fmt"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
 var elog debug.Log
+
+func setupLogger(logLevel string) error {
+	configTemplate := `<seelog minlevel="%s">
+    <outputs formatid="common"><console/></outputs>
+    <formats>
+        <format id="common" format="%%LEVEL | (%%RelFile:%%Line) | %%Msg%%n"/>
+    </formats>
+</seelog>`
+	config := fmt.Sprintf(configTemplate, strings.ToLower(logLevel))
+
+	logger, err := log.LoggerFromConfigAsString(config)
+	if err != nil {
+		return err
+	}
+	err = log.ReplaceLogger(logger)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func main() {
 	isIntSess, err := svc.IsAnInteractiveSession()
@@ -33,8 +54,7 @@ func main() {
 		runService(false)
 		return
 	}
-	// go_expvar server
-	go http.ListenAndServe("127.0.0.1:5000", http.DefaultServeMux)
+	defer log.Flush()
 
 	// Invoke the Agent
 	if err := app.AgentCmd.Execute(); err != nil {
@@ -50,8 +70,16 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
+	if err := common.ImportRegistryConfig(); err != nil {
+		elog.Warning(0x80000001, err.Error())
+		// continue running agent with existing config
+	}
+	if err := common.CheckAndUpgradeConfig(); err != nil {
+		elog.Warning(0x80000002, err.Error())
+		// continue running with what we have.
+	}
 	app.StartAgent()
-
+	elog.Info(0x40000003, app.ServiceName)
 loop:
 	for {
 		select {
@@ -66,10 +94,11 @@ loop:
 				app.StopAgent()
 				break loop
 			default:
-				elog.Error(1, fmt.Sprintf("unexpected control request #%d", c))
+				log.Warnf("unexpected control request #%d", c)
+				elog.Warning(0xc0000009, string(c.Cmd))
 			}
 		case <-signals.Stopper:
-			elog.Info(1, "Received stop command, shutting down...")
+			elog.Info(0x4000000a, app.ServiceName)
 			app.StopAgent()
 			break loop
 
@@ -92,15 +121,13 @@ func runService(isDebug bool) {
 	}
 	defer elog.Close()
 
-	elog.Info(1, fmt.Sprintf("starting %s service", app.ServiceName))
+	elog.Info(0x40000007, app.ServiceName)
 	run := svc.Run
-	if isDebug {
-		run = debug.Run
-	}
+
 	err = run(app.ServiceName, &myservice{})
 	if err != nil {
-		elog.Error(1, fmt.Sprintf("%s service failed: %v", app.ServiceName, err))
+		elog.Error(0xc0000008, err.Error())
 		return
 	}
-	elog.Info(1, fmt.Sprintf("%s service stopped", app.ServiceName))
+	elog.Info(0x40000004, app.ServiceName)
 }

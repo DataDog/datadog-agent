@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 )
 
+// ServiceName is the name that'll be used to register the Agent
 const ServiceName = "DatadogAgent"
 
 func init() {
@@ -25,10 +26,10 @@ var instsvcCommand = &cobra.Command{
 	Use:   "installservice",
 	Short: "Installs the agent within the service control manager",
 	Long:  ``,
-	RunE:  install_service,
+	RunE:  installService,
 }
 
-func install_service(cmd *cobra.Command, args []string) error {
+func installService(cmd *cobra.Command, args []string) error {
 	exepath, err := exePath()
 	if err != nil {
 		return err
