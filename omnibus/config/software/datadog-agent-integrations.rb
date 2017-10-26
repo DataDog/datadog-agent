@@ -13,7 +13,7 @@ relative_path 'integrations-core'
 whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
-default_version 'master'
+default_version '5.18.1'
 
 blacklist = [
   'agent_metrics',
@@ -33,7 +33,6 @@ build do
   mkdir conf_dir
   mkdir "#{conf_dir}/auto_conf"
 
-  
 
   # Copy the checks and generate the global requirements file
   block do
