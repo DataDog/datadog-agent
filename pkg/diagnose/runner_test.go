@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRunAll(t *testing.T) {
@@ -21,14 +23,7 @@ func TestRunAll(t *testing.T) {
 	w := &bytes.Buffer{}
 	RunAll(w)
 
-	expected := `=== Running failing diagnosis ===
-===> FAIL
-
-=== Running succeeding diagnosis ===
-===> PASS
-
-`
-	if result := w.String(); result != expected {
-		t.Errorf("Got: %v Expected: %v", result, expected)
-	}
+	result := w.String()
+	assert.Contains(t, result, "=== Running failing diagnosis ===\n===> FAIL")
+	assert.Contains(t, result, "=== Running succeeding diagnosis ===\n===> PASS")
 }
