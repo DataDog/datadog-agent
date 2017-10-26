@@ -17,7 +17,7 @@ import (
 const targetDomain string = "6-0-0-app.agent"
 
 func TestDefaults(t *testing.T) {
-	assert.Equal(t, Datadog.GetString("dd_url"), "http://localhost:17123")
+	assert.Equal(t, Datadog.GetString("dd_url"), "https://app.datadoghq.com")
 }
 
 func setupViperConf(yamlConfig string) *viper.Viper {
