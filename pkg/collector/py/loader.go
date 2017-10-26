@@ -52,40 +52,40 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 	moduleName := config.Name
-	whlModuleName := fmt.Sprintf("check.%s", config.Name)
+	whlModuleName := fmt.Sprintf("datadog.%s.%s", config.Name, config.Name)
+
+	// Looking for wheels first
+	modules := []string{whlModuleName, moduleName}
 
 	// Lock the GIL while working with go-python directly
 	glock := newStickyLock()
 
-	// Looking for wheels first
-	// import python module containing the check
-	log.Debugf("Attempting to load python wheel %s", whlModuleName)
-	checkModule := python.PyImport_ImportModule(whlModuleName)
-	if checkModule == nil {
-		pyErr, err := glock.getPythonError()
-		if err != nil {
-			log.Debugf("Unable to load python check as wheel: %v", err)
-		} else {
-			log.Debugf("Unable to load python check as wheel: %v", errors.New(pyErr))
-		}
-
-		// Looking for regular checks after
+	var err error
+	var pyErr string
+	var checkModule *python.PyObject
+	for _, name := range modules {
 		// import python module containing the check
-		log.Debugf("Attempting to load python check %s", moduleName)
-
-		checkModule = python.PyImport_ImportModule(moduleName)
-		if checkModule == nil {
-			defer glock.unlock()
-			pyErr, err := glock.getPythonError()
-			if err != nil {
-				return nil, fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
-			}
-			return nil, errors.New(pyErr)
+		checkModule = python.PyImport_ImportModule(name)
+		if checkModule != nil {
+			break
 		}
+
+		pyErr, err = glock.getPythonError()
+		if err != nil {
+			err = fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
+		} else {
+			err = errors.New(pyErr)
+		}
+		log.Debugf("Unable to load python module - %s: %v", name, err)
+	}
+
+	// all failed, return error for last failure
+	if checkModule == nil {
+		defer glock.unlock()
+		return nil, err
 	}
 
 	// Try to find a class inheriting from AgentCheck within the module
-	log.Debugf("Finding valid agent check class for %v - %v", whlModuleName, checkModule)
 	checkClass, err := findSubclassOf(cl.agentCheckClass, checkModule, glock)
 	checkModule.DecRef()
 	glock.unlock()
