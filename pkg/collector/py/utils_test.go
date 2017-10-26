@@ -7,6 +7,8 @@ package py
 
 import (
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -16,7 +18,17 @@ import (
 
 // Setup the test module
 func TestMain(m *testing.M) {
-	state := Initialize(".", "tests", "../dist")
+	rootDir := "."
+	testsDir := "tests"
+	distDir := "../dist"
+
+	// best effort for abs path
+	if _, fileName, _, ok := runtime.Caller(0); ok {
+		rootDir = filepath.Dir(fileName)
+		testsDir = filepath.Join(rootDir, "tests/")
+		distDir = filepath.Join(rootDir, "../dist/")
+	}
+	state := Initialize(rootDir, testsDir, distDir)
 
 	// testing this package needs an inited aggregator
 	// to work properly
