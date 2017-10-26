@@ -8,6 +8,8 @@
 package collectors
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
@@ -15,21 +17,29 @@ import (
 
 func (c *ECSCollector) parseTasks(tasks_list ecsutil.TasksV1Response) ([]*TagInfo, error) {
 	var output []*TagInfo
+	now := time.Now()
 	for _, task := range tasks_list.Tasks {
+		// We only want to collect tasks without a STOPPED status.
+		if task.KnownStatus == "STOPPED" {
+			continue
+		}
 		for _, container := range task.Containers {
-			tags := utils.NewTagList()
-			tags.AddLow("task_version", task.Version)
-			tags.AddLow("task_name", task.Family)
+			// We only want to collect the tags from new containers.
+			if c.expire.Update(container.DockerID, now) {
+				tags := utils.NewTagList()
+				tags.AddLow("task_version", task.Version)
+				tags.AddLow("task_name", task.Family)
 
-			low, high := tags.Compute()
+				low, high := tags.Compute()
 
-			info := &TagInfo{
-				Source:       ecsCollectorName,
-				Entity:       docker.ContainerIDToEntityName(container.DockerID),
-				HighCardTags: high,
-				LowCardTags:  low,
+				info := &TagInfo{
+					Source:       ecsCollectorName,
+					Entity:       docker.ContainerIDToEntityName(container.DockerID),
+					HighCardTags: high,
+					LowCardTags:  low,
+				}
+				output = append(output, info)
 			}
-			output = append(output, info)
 		}
 	}
 	return output, nil
