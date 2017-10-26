@@ -1,3 +1,10 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2017 Datadog, Inc.
+
+// +build docker
+
 package autodiscovery
 
 import (
@@ -36,6 +43,7 @@ func TestResolveTemplate(t *testing.T) {
 	assert.Len(t, res, 0)
 
 	service := listeners.DockerService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 	}
 	cr.processNewService(&service)
@@ -66,6 +74,7 @@ func TestParseTemplateVar(t *testing.T) {
 func TestResolve(t *testing.T) {
 	cr := newConfigResolver(nil, nil, NewTemplateCache())
 	service := listeners.DockerService{
+		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 		Pid:           1337,
 	}

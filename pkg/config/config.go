@@ -59,6 +59,7 @@ func init() {
 	// config identifiers
 	Datadog.SetConfigName("datadog")
 	Datadog.SetEnvPrefix("DD")
+	Datadog.SetTypeByDefaultValue(true)
 
 	// Configuration defaults
 	// Agent
@@ -93,6 +94,8 @@ func init() {
 		Datadog.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 	}
 	Datadog.SetDefault("proc_root", "/proc")
+	Datadog.SetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
+	Datadog.SetDefault("histogram_percentiles", []string{"95"})
 	// Serializer
 	Datadog.SetDefault("use_v2_api.series", false)
 	Datadog.SetDefault("use_v2_api.events", false)
@@ -121,6 +124,8 @@ func init() {
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
 	Datadog.SetDefault("kubernetes_pod_label_to_tag_prefix", "kube_")
+	// ECS
+	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
 
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)
@@ -130,7 +135,7 @@ func init() {
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
 	// Agent GUI access port
-	Datadog.SetDefault("GUI_port", "8080")
+	Datadog.SetDefault("GUI_port", "-1")
 	// Proess Agent
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
 
@@ -161,6 +166,8 @@ func init() {
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
 	Datadog.BindEnv("cloud_foundry")
 	Datadog.BindEnv("bosh_id")
+	Datadog.BindEnv("histogram_aggregates")
+	Datadog.BindEnv("histogram_percentiles")
 }
 
 var (

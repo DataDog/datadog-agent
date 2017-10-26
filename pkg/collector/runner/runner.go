@@ -71,6 +71,7 @@ func NewRunner(numWorkers int) *Runner {
 }
 
 // Stop closes the pending channel so all workers will exit their loop and terminate
+// All publishers to the pending channel need to have stopped before Stop is called
 func (r *Runner) Stop() {
 	if atomic.LoadUint32(&r.running) == 0 {
 		log.Debug("Runner already stopped, nothing to do here...")

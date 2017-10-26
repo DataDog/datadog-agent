@@ -36,8 +36,8 @@ api_key:
 # expvar_port: 5000
 
 # The port for the browser GUI to be served
-# Setting 'GUI_port: -1' turns off the GUI completely 
-# GUI_port: 8080
+# Setting 'GUI_port: -1' turns off the GUI completely
+# GUI_port: -1
 
 # The path to the Unix Socket where the IPC api listens on *nix
 # cmd_sock: /tmp/agent.sock
@@ -68,6 +68,19 @@ metadata_collectors:
     interval: 60
 #  - name: k8s
 #    interval: 60
+
+# Histogram and Historate configuration
+#
+# Configure which aggregated value to compute. Possible values are: min, max,
+# median, avg, sum and count.
+#
+# histogram_aggregates: ["max", "median", "avg", "count"]
+#
+# Configure which percentiles will be computed. Must be a list of integer
+# between 1 and 100.
+# Warning: percentiles must be specified as yaml strings
+#
+# histogram_percentiles: ["95"]
 
 # DogStatsd
 #
@@ -220,3 +233,8 @@ metadata_collectors:
 #
 # kubernetes_pod_label_to_tag_prefix: "kube_"
 #
+
+# ECS integration
+#
+# URL where the ECS agent can be found. Standard cases will be autodetected.
+# ecs_agent_url: http://localhost:51678

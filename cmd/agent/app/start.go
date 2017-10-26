@@ -82,7 +82,6 @@ func start(cmd *cobra.Command, args []string) error {
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGINT)
 
 	// Make a channel to exit the function
 	stopCh := make(chan error)
