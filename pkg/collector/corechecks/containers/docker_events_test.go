@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
@@ -22,7 +22,7 @@ func TestReportExitCodes(t *testing.T) {
 	dockerCheck := &DockerCheck{
 		instance: &DockerConfig{},
 	}
-	mockSender := aggregator.NewMockSender(dockerCheck.ID())
+	mockSender := mocksender.NewMockSender(dockerCheck.ID())
 
 	var events []*docker.ContainerEvent
 

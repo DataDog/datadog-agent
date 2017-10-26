@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/shirou/gopsutil/disk"
 )
 
@@ -68,7 +68,7 @@ func TestIOCheck(t *testing.T) {
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(nil, nil)
 
-	mock := aggregator.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	expectedRates := 2
 	expectedGauges := 0
@@ -131,7 +131,7 @@ func TestIOCheckBlacklist(t *testing.T) {
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(nil, nil)
 
-	mock := aggregator.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	//set blacklist
 	bl, err := regexp.Compile("sd.*")
