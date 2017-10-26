@@ -67,6 +67,7 @@ jobs:
           name: run unit tests
           command: invoke -e test --coverage
 
+  # TODO: enable integration_tests
   integration_tests:
     docker:
       - image: jfullaondo/datadog-agent-builder-deb:0.0.2
@@ -157,10 +158,7 @@ workflows:
             - dependencies
       - build_agent:
           requires:
-            - unit_tests
+            - dependencies
       - build_dogstatsd:
           requires:
-            - unit_tests
-      - integration_tests:
-          requires:
-            - build_agent
+            - dependencies
