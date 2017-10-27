@@ -52,7 +52,7 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 	moduleName := config.Name
-	whlModuleName := fmt.Sprintf("datadog.%s.%s", config.Name, config.Name)
+	whlModuleName := fmt.Sprintf("datadog.%s", config.Name)
 
 	// Looking for wheels first
 	modules := []string{whlModuleName, moduleName}
