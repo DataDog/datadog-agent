@@ -3,7 +3,7 @@ version: 2
 jobs:
   checkout_code:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.2
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
@@ -17,7 +17,7 @@ jobs:
 
   dependencies:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.2
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - run:
@@ -26,6 +26,7 @@ jobs:
       - restore_cache:
           keys:
             - v1-repo-{{ checksum ".circle-sha" }}
+            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
       - run:
           name: grab go deps
           command: invoke deps
@@ -40,7 +41,7 @@ jobs:
 
   unit_tests:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.2
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -58,19 +59,13 @@ jobs:
           keys:
             - v1-gobindeps
       - run:
-          name: set non-free sources
-          command: sed -i 's/main/main contrib non-free/' /etc/apt/sources.list
-      - run:
-          name: install mibs for tests
-          command: apt-get update && apt-get install -q -y snmp-mibs-downloader
-      - run:
           name: run unit tests
           command: invoke -e test --coverage
 
   # TODO: enable integration_tests
   integration_tests:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.2
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -93,7 +88,7 @@ jobs:
 
   build_agent:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.2
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -120,7 +115,7 @@ jobs:
 
   build_dogstatsd:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.2
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent

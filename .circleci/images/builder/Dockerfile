@@ -1,9 +1,11 @@
 FROM golang:1.8.3
 
-RUN sed -i 's/^#\s*\(deb.*universe\)$/\1/g' /etc/apt/sources.list && sed -i 's/^#\s*\(deb.*multiverse\)$/\1/g' /etc/apt/sources.list
+RUN sed -i 's/^#\s*\(deb.*universe\)$/\1/g' /etc/apt/sources.list \
+    && sed -i 's/^#\s*\(deb.*multiverse\)$/\1/g' /etc/apt/sources.list \
+    && sed -i 's/main/main contrib non-free/' /etc/apt/sources.list
 
 RUN apt-get update && apt-get install -y python2.7-dev autoconf autogen intltool
-RUN apt-get install -y libsnmp-base libsnmp-dev libpq-dev
+RUN apt-get install -y libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader
 
 # Ruby,,,
 RUN mkdir -p /usr/local/etc \
