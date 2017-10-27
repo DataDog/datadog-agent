@@ -95,7 +95,7 @@ func init() {
 	}
 	Datadog.SetDefault("proc_root", "/proc")
 	Datadog.SetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
-	Datadog.SetDefault("histogram_percentiles", []string{"95"})
+	Datadog.SetDefault("histogram_percentiles", []string{"0.95"})
 	// Serializer
 	Datadog.SetDefault("use_v2_api.series", false)
 	Datadog.SetDefault("use_v2_api.events", false)
