@@ -9,7 +9,6 @@ import os
 
 from invoke import task
 from invoke.exceptions import Exit
-import docker
 
 from .dogstatsd import DOGSTATSD_TAG
 
@@ -35,6 +34,8 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
     """
     Run a go test in a remote docker environment and pipe its output to stdout
     """
+    import docker
+
     client = docker.from_env()
     temp_folder = tempfile.mkdtemp(prefix="ddtest-")
 
