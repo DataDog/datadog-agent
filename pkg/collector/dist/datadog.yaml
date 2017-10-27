@@ -76,11 +76,11 @@ metadata_collectors:
 #
 # histogram_aggregates: ["max", "median", "avg", "count"]
 #
-# Configure which percentiles will be computed. Must be a list of integer
-# between 1 and 100.
+# Configure which percentiles will be computed. Must be a list of float
+# between 0 and 1.
 # Warning: percentiles must be specified as yaml strings
 #
-# histogram_percentiles: ["95"]
+# histogram_percentiles: ["0.95"]
 
 # DogStatsd
 #

@@ -57,16 +57,19 @@ type histogramPercentilesConfig struct {
 func (h *histogramPercentilesConfig) percentiles() []int {
 	res := []int{}
 	for _, p := range h.Percentiles {
-		i, err := strconv.Atoi(p)
+		i, err := strconv.ParseFloat(p, 64)
 		if err != nil {
 			log.Errorf("Could not parse '%s' from 'histogram_percentiles' (skipping): %s", p, err)
 			continue
 		}
-		if i < 1 || i > 100 {
-			log.Errorf("histogram_percentiles must be between 1 and 100: skipping %d", i)
+		if i < 0 || i > 1 {
+			log.Errorf("histogram_percentiles must be between 0 and 1: skipping %f", i)
 			continue
 		}
-		res = append(res, i)
+		// in some cases the '*100' will lower the number resulting in
+		// an int lower by 1 from what is expected (ex: 0.29 would
+		// become 28). As a workaround we add 0.5 before casting.
+		res = append(res, int(i*100+0.5))
 	}
 	return res
 }
