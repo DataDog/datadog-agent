@@ -20,14 +20,20 @@ DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
 MAX_BINARY_SIZE = 15 * 1024
 DOGSTATSD_TAG = "datadog/dogstatsd:master"
+DEFAULT_BUILD_TAGS = [
+    "zlib",
+    "docker",
+]
+
 
 @task
-def build(ctx, rebuild=False, race=False, static=False, build_include=None, build_exclude=None, use_embedded_libs=False):
+def build(ctx, rebuild=False, race=False, static=False, build_include=None,
+          build_exclude=None, use_embedded_libs=False):
     """
     Build Dogstatsd
     """
-    build_include = ctx.dogstatsd.build_include if build_include is None else build_include.split(",")
-    build_exclude = ctx.dogstatsd.build_exclude if build_exclude is None else build_exclude.split(",")
+    build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
+    build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
     ldflags, gcflags = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
     bin_path = DOGSTATSD_BIN_PATH
@@ -59,7 +65,8 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
     """
     if not skip_build:
         print("Building dogstatsd...")
-        build(ctx, rebuild=rebuild, race=race, build_include=build_include, build_exclude=build_exclude)
+        build(ctx, rebuild=rebuild, race=race, build_include=build_include,
+              build_exclude=build_exclude)
 
     target = os.path.join(DOGSTATSD_BIN_PATH, bin_name("dogstatsd"))
     ctx.run("{} start".format(target))
@@ -153,6 +160,7 @@ def integration_tests(ctx, install_deps=False):
     # config_providers
     cmd = "go test -tags '{}' {}/test/integration/dogstatsd/..."
     ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+
 
 @task
 def image_build(ctx, skip_build=False):

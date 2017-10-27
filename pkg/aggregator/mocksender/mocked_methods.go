@@ -3,30 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package aggregator
+package mocksender
 
 import (
-	"github.com/stretchr/testify/mock"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
-
-// NewMockSender initiates the aggregator and returns a
-// functionnal mocked Sender for testing
-func NewMockSender(id check.ID) *MockSender {
-	mockSender := new(MockSender)
-	// The MockSender requires an aggregator
-	InitAggregator(nil, "")
-	SetSender(mockSender, id)
-
-	return mockSender
-}
-
-//MockSender allows mocking of the checks sender for unit testing
-type MockSender struct {
-	mock.Mock
-}
 
 //Rate adds a rate type to the mock calls.
 func (m *MockSender) Rate(metric string, value float64, hostname string, tags []string) {
