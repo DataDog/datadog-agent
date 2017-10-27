@@ -44,11 +44,10 @@ def dockerize_test(ctx, binary, skip_cleanup=False):
         stream.write("""FROM debian:stretch-slim
 ENV DOCKER_DD_AGENT=yes
 WORKDIR /
-# FIXME: remove when dogstatsd test does not use the docker cli anymore
-ADD https://download.docker.com/linux/static/stable/x86_64/docker-17.09.0-ce.tgz /docker.tgz
-RUN tar -xvzf /docker.tgz &&\
-    mv docker/docker /usr/bin &&\
-    rm -rf docker*
+ADD https://github.com/docker/compose/releases/download/1.16.1/docker-compose-Linux-x86_64 /bin/docker-compose
+RUN echo "1804b0ce6596efe707b9cab05d74b161833ed503f0535a937dd5d17bea8fc50a  /bin/docker-compose" > sum && \
+    sha256sum -c sum && \
+    chmod +x /bin/docker-compose
 CMD /test.bin
 COPY test.bin /test.bin
 """)

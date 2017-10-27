@@ -1,0 +1,12 @@
+version: '2'
+services:
+  dsd-sender:
+    extends:
+      file: mount_path.compose
+      service: dsd-sender
+    volumes:
+      - socket:/tmp/scratch:ro
+volumes:
+  socket:
+    external:
+      name: ${socket_dir_path}
