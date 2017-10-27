@@ -13,7 +13,7 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags
+from .build_tags import get_build_tags, get_default_build_tags, ALL_TAGS
 from .go import deps
 
 #constants
@@ -30,8 +30,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     Example invokation:
         inv agent.build --build-exclude=snmp
     """
-    build_include = ctx.agent.build_include if build_include is None else build_include.split(",")
-    build_exclude = ctx.agent.build_exclude if build_exclude is None else build_exclude.split(",")
+    build_include = ALL_TAGS if build_include is None else build_include.split(",")
+    build_exclude = [] if build_exclude is None else build_exclude.split(",")
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }

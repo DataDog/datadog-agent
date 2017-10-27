@@ -22,6 +22,10 @@ WIN_PKG_BLACKLIST = [
     "./pkg\\util\\xc",
 ]
 
+DEFAULT_TARGETS = [
+    "./pkg",
+]
+
 
 @task()
 def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False, fail_on_fmt=False):
@@ -32,7 +36,13 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
     """
-    targets_list = ctx.targets if targets is None else targets.split(',')
+    if isinstance(targets, basestring):
+        # when this function is called from the command line, targets are passed
+        # as comma separated tokens in a string
+        targets = targets.split(',')
+    elif targets is None:
+        targets = DEFAULT_TARGETS
+
     build_tags = get_default_build_tags()
 
     # explicitly run these tasks instead of using pre-tasks so we can
@@ -64,12 +74,12 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
 
     if race or coverage:
         matches = []
-        for target in targets_list:
+        for target in targets:
             for root, _, filenames in os.walk(target):
                 if fnmatch.filter(filenames, "*.go"):
                     matches.append(root)
     else:
-        matches = ["{}/...".format(t) for t in targets_list]
+        matches = ["{}/...".format(t) for t in targets]
 
     for match in matches:
         if invoke.platform.WINDOWS:
