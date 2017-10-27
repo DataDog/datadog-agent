@@ -47,7 +47,7 @@ func (c *LogsCheck) Run() error {
 // run executes the check
 func (c *LogsCheck) run() error {
 	select {
-	// poll the stop channel once to make sure no stop was requested since the last call to `Run`
+	// poll the stop channel once to make sure no stop was requested since the last call to `run`
 	case <-c.stop:
 		log.Info("Not starting Logs check: stop requested")
 		c.stopDone <- struct{}{}
