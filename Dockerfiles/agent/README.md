@@ -28,3 +28,5 @@ To build the image you'll need the agent debian package that can be found on thi
 You'll need to download one of the `datadog-agent*_amd64.deb` package in this directory, it will then be used by the `Dockerfile` and installed within the image.
 
 You can then build the image using `docker build -t datadog/agent:master .`
+
+To build the jmx variant, add `--build-arg WITH_JMX=true` to the build command
