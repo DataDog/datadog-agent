@@ -191,7 +191,7 @@ agent_rpm-x64:
     paths:
       - $AGENT_OMNIBUS_PACKAGE_DIR
 
-# build windows 
+# build windows
 build_windows_msi_x64:
   before_script:
     - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
@@ -229,6 +229,15 @@ build_agent6:
     DD_DIND_IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent:$CI_PIPELINE_ID
     DD_DIND_ARTEFACTS: "true"
 
+# build the agent6 jmx image
+build_agent6_jmx:
+  <<: *dind_job_definition
+  variables:
+    DD_DIND_BUILD_CONTEXT: Dockerfiles/agent
+    DD_DIND_IMAGE: &agent_jmx_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent:${CI_PIPELINE_ID}-jmx
+    DD_DIND_BUILD_ARG: "WITH_JMX=true"
+    DD_DIND_ARTEFACTS: "true"
+
 # build the dogstatsd image
 build_dogstatsd:
   <<: *dind_job_definition
@@ -258,6 +267,17 @@ agent6_docker_hub:
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
     DD_DIND_TAG_DEST: datadog/agent:$CI_COMMIT_TAG
 
+agent6_jmx_docker_hub:
+  <<: *dind_tag_job_definition
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_jmx_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent:${CI_COMMIT_TAG}-jmx
+
 agent6_dev_docker_hub:
   <<: *dind_tag_job_definition
   when: manual
@@ -268,6 +288,16 @@ agent6_dev_docker_hub:
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
     DD_DIND_TAG_DEST: datadog/agent-dev:$CI_COMMIT_REF_SLUG
 
+agent6_jmx_dev_docker_hub:
+  <<: *dind_tag_job_definition
+  when: manual
+  except:
+    - master
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_jmx_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
+
 agent6_dev_docker_hub_master:
   <<: *dind_tag_job_definition
   only:
@@ -276,6 +306,15 @@ agent6_dev_docker_hub_master:
     DD_DIND_TAG_SOURCE: *agent_ecr
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
     DD_DIND_TAG_DEST: datadog/agent-dev:$CI_COMMIT_REF_SLUG
+
+agent6_jmx_dev_docker_hub_master:
+  <<: *dind_tag_job_definition
+  only:
+    - master
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_jmx_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
 
 dogstatsd_docker_hub:
   <<: *dind_tag_job_definition

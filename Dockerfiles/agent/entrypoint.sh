@@ -8,7 +8,7 @@
 
 ##### Core config #####
 
-if [[ -z $DD_API_KEY ]]; then
+if [ -z $DD_API_KEY ]; then
     echo "You must set an DD_API_KEY environment variable to run the Datadog Agent container"
     exit 1
 fi
@@ -33,7 +33,5 @@ fi
 
 
 ##### Starting up #####
-
-export PATH="/opt/datadog-agent/bin/agent/:/opt/datadog-agent/bin/:$PATH"
 
 exec "$@"
