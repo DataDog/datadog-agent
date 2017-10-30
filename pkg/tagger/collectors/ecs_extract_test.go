@@ -9,7 +9,9 @@ package collectors
 
 import (
 	"testing"
+	"time"
 
+	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +19,11 @@ import (
 
 func TestECSMetadata(t *testing.T) {
 	assert := assert.New(t)
-	ecsCollector := &ECSCollector{}
+	ecsExpireFreq := 5 * time.Minute
+	expiretest, _ := taggerutil.NewExpire(ecsExpireFreq)
+	ecsCollector := &ECSCollector{
+		expire: expiretest,
+	}
 
 	for nb, tc := range []struct {
 		input    ecsutil.TasksV1Response

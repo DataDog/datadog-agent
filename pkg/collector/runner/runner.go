@@ -21,6 +21,7 @@ import (
 )
 
 const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
+const stopAllChecksTimeout time.Duration = 2 * time.Second    // Time to wait for all checks to stop
 
 // checkStats holds the stats from the running checks
 type runnerCheckStats struct {
@@ -84,23 +85,41 @@ func (r *Runner) Stop() {
 
 	// stop checks that are still running
 	r.m.Lock()
-	for _, check := range r.runningChecks {
-		log.Infof("Stopping Check %v that is still running...", check)
-		done := make(chan struct{})
-		go func() {
-			check.Stop()
-			close(done)
-		}()
+	globalDone := make(chan struct{})
+	wg := sync.WaitGroup{}
+	for _, c := range r.runningChecks {
+		wg.Add(1)
+		go func(c check.Check) {
+			log.Infof("Stopping Check %v that is still running...", c)
+			done := make(chan struct{})
+			go func() {
+				c.Stop()
+				close(done)
+				wg.Done()
+			}()
 
-		select {
-		case <-done:
-			// all good
-		case <-time.After(stopCheckTimeout):
-			// check is not responding
-			log.Errorf("Check %v not responding, timing out...", check)
-		}
+			select {
+			case <-done:
+				// all good
+			case <-time.After(stopCheckTimeout):
+				// check is not responding
+				log.Warnf("Check %v not responding after %v", c, stopCheckTimeout)
+			}
+		}(c)
 	}
 	r.m.Unlock()
+
+	go func() {
+		wg.Wait()
+		close(globalDone)
+	}()
+	select {
+	case <-globalDone:
+		// all good
+	case <-time.After(stopAllChecksTimeout):
+		// some checks are not responding
+		log.Errorf("Some checks not responding after %v, timing out...", stopAllChecksTimeout)
+	}
 }
 
 // GetChan returns a write-only version of the pending channel
@@ -163,15 +182,7 @@ func (r *Runner) work() {
 		var err error
 		t0 := time.Now()
 
-		if check.Interval() == 0 {
-			// retry long running checks, bail out if they return an error 3 times
-			// in a row without running for at least 5 seconds
-			// TODO: this should be check-configurable, with meaningful default values
-			err = retry(5*time.Second, 3, check.Run)
-		} else {
-			// normal check run
-			err = check.Run()
-		}
+		err = check.Run()
 
 		warnings := check.GetWarnings()
 
@@ -291,33 +302,4 @@ func RemoveCheckStats(checkID check.ID) {
 func getHostname() string {
 	hostname, _ := util.GetHostname()
 	return hostname
-}
-
-func retry(retryDuration time.Duration, retries int, callback func() error) (err error) {
-	attempts := 0
-
-	for {
-		t0 := time.Now()
-		err = callback()
-		if err == nil {
-			return nil
-		}
-
-		// how much did the callback run?
-		execDuration := time.Now().Sub(t0)
-		if execDuration < retryDuration {
-			// the callback failed too soon, retry but increment the counter
-			attempts++
-		} else {
-			// the callback failed after the retryDuration, reset the counter
-			attempts = 0
-		}
-
-		if attempts == retries {
-			// give up
-			return fmt.Errorf("bail out, last error: %v", err)
-		}
-
-		log.Warnf("Retrying, got an error executing the callback: %v", err)
-	}
 }

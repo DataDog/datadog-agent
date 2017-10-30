@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -77,8 +78,20 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	config.Datadog.SetConfigFile(config.Datadog.GetString("conf_path"))
+	confFilePath := config.Datadog.GetString("conf_path")
+	if len(confFilePath) != 0 {
+		// if the configuration file path was supplied on the command line,
+		// add that first so it's first in line
+		config.Datadog.AddConfigPath(confFilePath)
+		// If they set a config file directly, let's try to honor that
+		if strings.HasSuffix(confFilePath, ".yaml") {
+			config.Datadog.SetConfigFile(confFilePath)
+		}
+	}
 	confErr := config.Datadog.ReadInConfig()
+	if confErr != nil {
+		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
+	}
 
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
@@ -98,10 +111,6 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
-	}
-
-	if confErr != nil {
-		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
 	}
 
 	if !config.Datadog.IsSet("api_key") {

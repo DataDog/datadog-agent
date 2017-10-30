@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/shirou/gopsutil/mem"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,7 +53,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := aggregator.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(memCheck.ID())
 
 	runtimeOS = "linux"
 
@@ -85,7 +85,7 @@ func TestMemoryCheckFreebsd(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := aggregator.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(memCheck.ID())
 
 	runtimeOS = "freebsd"
 
@@ -113,7 +113,7 @@ func TestMemoryCheckDarwin(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := aggregator.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(memCheck.ID())
 
 	runtimeOS = "darwin"
 
@@ -140,7 +140,7 @@ func TestMemoryError(t *testing.T) {
 	swapMemory = func() (*mem.SwapMemoryStat, error) { return nil, fmt.Errorf("some error") }
 	memCheck := new(MemoryCheck)
 
-	mock := aggregator.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(memCheck.ID())
 
 	runtimeOS = "linux"
 
@@ -157,7 +157,7 @@ func TestSwapMemoryError(t *testing.T) {
 	swapMemory = func() (*mem.SwapMemoryStat, error) { return nil, fmt.Errorf("some error") }
 	memCheck := new(MemoryCheck)
 
-	mock := aggregator.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(memCheck.ID())
 
 	runtimeOS = "linux"
 
@@ -185,7 +185,7 @@ func TestVirtualMemoryError(t *testing.T) {
 	swapMemory = SwapMemory
 	memCheck := new(MemoryCheck)
 
-	mock := aggregator.NewMockSender(memCheck.ID())
+	mock := mocksender.NewMockSender(memCheck.ID())
 
 	runtimeOS = "linux"
 

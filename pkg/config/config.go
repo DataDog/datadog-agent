@@ -59,10 +59,11 @@ func init() {
 	// config identifiers
 	Datadog.SetConfigName("datadog")
 	Datadog.SetEnvPrefix("DD")
+	Datadog.SetTypeByDefaultValue(true)
 
 	// Configuration defaults
 	// Agent
-	Datadog.SetDefault("dd_url", "http://localhost:17123")
+	Datadog.SetDefault("dd_url", "https://app.datadoghq.com")
 	Datadog.SetDefault("proxy", nil)
 	Datadog.SetDefault("skip_ssl_validation", false)
 	Datadog.SetDefault("hostname", "")
@@ -93,6 +94,8 @@ func init() {
 		Datadog.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 	}
 	Datadog.SetDefault("proc_root", "/proc")
+	Datadog.SetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
+	Datadog.SetDefault("histogram_percentiles", []string{"95"})
 	// Serializer
 	Datadog.SetDefault("use_v2_api.series", false)
 	Datadog.SetDefault("use_v2_api.events", false)
@@ -163,6 +166,8 @@ func init() {
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
 	Datadog.BindEnv("cloud_foundry")
 	Datadog.BindEnv("bosh_id")
+	Datadog.BindEnv("histogram_aggregates")
+	Datadog.BindEnv("histogram_percentiles")
 }
 
 var (

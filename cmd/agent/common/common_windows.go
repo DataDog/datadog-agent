@@ -46,16 +46,22 @@ func EnableLoggingToFile() {
 
 func getInstallPath() string {
 	// fetch the installation path from the registry
+	installpath := filepath.Join(_here, "..")
+	var s string
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\DataDog\Datadog Agent`, registry.QUERY_VALUE)
 	if err != nil {
 		log.Warn("Failed to open registry key %s", err)
-		return filepath.Join(_here, "..")
+	} else {
+		defer k.Close()
+		s, _, err = k.GetStringValue("InstallPath")
+		if err != nil {
+			log.Warn("Installpath not found in registry %s", err)
+		}
 	}
-	defer k.Close()
-	s, _, err := k.GetStringValue("InstallPath")
-	if err != nil {
-		log.Warn("Installpath not found in registry %s", err)
-		return filepath.Join(_here, "..")
+	// if unable to figure out the install path from the registry,
+	// just compute it relative to the executable.
+	if s == "" {
+		s = installpath
 	}
 	return s
 }
