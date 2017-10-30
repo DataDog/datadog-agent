@@ -111,10 +111,6 @@ jobs:
       - run:
           name: build agent
           command: inv agent.build
-      - save_cache:
-          key: v1-dsdbuild-{{ checksum ".circle-sha" }}
-          paths:
-            - /go/src/github.com/datadog/datadog-agent/bin/dogstatsd
 
   build_puppy:
     docker:
@@ -138,10 +134,6 @@ jobs:
       - run:
           name: build puppy
           command: inv agent.build --puppy
-      - save_cache:
-          key: v1-dsdbuild-{{ checksum ".circle-sha" }}
-          paths:
-            - /go/src/github.com/datadog/datadog-agent/bin/dogstatsd
 
 workflows:
   version: 2
