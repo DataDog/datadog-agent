@@ -3,7 +3,7 @@ version: 2
 jobs:
   checkout_code:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
+      - image: &builder_image jfullaondo/datadog-agent-builder-deb:0.0.4
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
@@ -17,7 +17,7 @@ jobs:
 
   dependencies:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
+      - image: *builder_image
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - run:
@@ -41,7 +41,7 @@ jobs:
 
   unit_tests:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
+      - image: *builder_image
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -62,10 +62,9 @@ jobs:
           name: run unit tests
           command: invoke -e test --coverage --race
 
-  # TODO: enable integration_tests
   integration_tests:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
+      - image: *builder_image
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -82,13 +81,14 @@ jobs:
       - restore_cache:
           keys:
             - v1-gobindeps
+      - setup_remote_docker
       - run:
           name: run integration tests
-          command: inv integration-tests --install-deps
+          command: inv integration-tests --install-deps --remote-docker
 
   build_binaries:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
+      - image: *builder_image
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -114,7 +114,7 @@ jobs:
 
   build_puppy:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
+      - image: *builder_image
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -146,9 +146,14 @@ workflows:
       - unit_tests:
           requires:
             - dependencies
+      - integration_tests:
+          requires:
+            - dependencies
       - build_binaries:
           requires:
             - unit_tests
+            - integration_tests
       - build_puppy:
           requires:
             - unit_tests
+            - integration_tests
