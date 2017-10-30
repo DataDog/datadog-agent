@@ -9,6 +9,7 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -63,12 +64,14 @@ func (d *dockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 	containerName, found := msg.Actor.Attributes["name"]
 	if found == false {
 		// TODO: inspect?
-		return nil, fmt.Errorf("missing container name in event %s", msg)
+		m, _ := json.Marshal(msg)
+		return nil, fmt.Errorf("missing container name in event %s", string(m))
 	}
 	imageName, found := msg.Actor.Attributes["image"]
 	if found == false {
 		// TODO: inspect?
-		return nil, fmt.Errorf("missing image name in event %s", msg)
+		m, _ := json.Marshal(msg)
+		return nil, fmt.Errorf("missing image name in event %s", string(m))
 	}
 	if strings.HasPrefix(imageName, "sha256") {
 		imageName = d.extractImageName(imageName)
@@ -135,7 +138,6 @@ func (d *dockerUtil) LatestContainerEvents(since time.Time) ([]*ContainerEvent, 
 			return events, maxTimestamp, errors.New("timeout on event receive channel")
 		}
 	}
-	return events, maxTimestamp, nil
 }
 
 // LatestContainerEvents returns events matching the filter that occured after the time passed.
