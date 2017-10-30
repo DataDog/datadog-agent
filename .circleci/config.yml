@@ -3,7 +3,7 @@ version: 2
 jobs:
   checkout_code:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - checkout
@@ -17,7 +17,7 @@ jobs:
 
   dependencies:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
     working_directory: /go/src/github.com/DataDog/datadog-agent
     steps:
       - run:
@@ -26,12 +26,12 @@ jobs:
       - restore_cache:
           keys:
             - v1-repo-{{ checksum ".circle-sha" }}
-            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+            - v1-govendordeps-{{ checksum "Gopkg.toml" }}
       - run:
           name: grab go deps
           command: invoke deps
       - save_cache:
-          key: v1-govendordeps-{{ checksum "Gopkg.lock" }}
+          key: v1-govendordeps-{{ checksum "Gopkg.toml" }}
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
       - save_cache:
@@ -41,7 +41,7 @@ jobs:
 
   unit_tests:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -54,7 +54,7 @@ jobs:
             - v1-repo-{{ checksum ".circle-sha" }}
       - restore_cache:
           keys:
-            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+            - v1-govendordeps-{{ checksum "Gopkg.toml" }}
       - restore_cache:
           keys:
             - v1-gobindeps
@@ -65,7 +65,7 @@ jobs:
   # TODO: enable integration_tests
   integration_tests:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -78,7 +78,7 @@ jobs:
             - v1-repo-{{ checksum ".circle-sha" }}
       - restore_cache:
           keys:
-            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+            - v1-govendordeps-{{ checksum "Gopkg.toml" }}
       - restore_cache:
           keys:
             - v1-gobindeps
@@ -88,7 +88,7 @@ jobs:
 
   build_binaries:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -101,7 +101,7 @@ jobs:
             - v1-repo-{{ checksum ".circle-sha" }}
       - restore_cache:
           keys:
-            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+            - v1-govendordeps-{{ checksum "Gopkg.toml" }}
       - restore_cache:
           keys:
             - v1-gobindeps
@@ -111,14 +111,10 @@ jobs:
       - run:
           name: build agent
           command: inv agent.build
-      - save_cache:
-          key: v1-dsdbuild-{{ checksum ".circle-sha" }}
-          paths:
-            - /go/src/github.com/datadog/datadog-agent/bin/dogstatsd
 
   build_puppy:
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -131,17 +127,13 @@ jobs:
             - v1-repo-{{ checksum ".circle-sha" }}
       - restore_cache:
           keys:
-            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+            - v1-govendordeps-{{ checksum "Gopkg.toml" }}
       - restore_cache:
           keys:
             - v1-gobindeps
       - run:
           name: build puppy
           command: inv agent.build --puppy
-      - save_cache:
-          key: v1-dsdbuild-{{ checksum ".circle-sha" }}
-          paths:
-            - /go/src/github.com/datadog/datadog-agent/bin/dogstatsd
 
 workflows:
   version: 2
