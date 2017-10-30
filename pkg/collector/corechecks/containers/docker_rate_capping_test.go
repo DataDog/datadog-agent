@@ -14,13 +14,13 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 type dockerRateCappingSuite struct {
 	suite.Suite
-	mockSender   *aggregator.MockSender
+	mockSender   *mocksender.MockSender
 	cappedSender *cappedSender
 }
 
@@ -31,7 +31,7 @@ func (s *dockerRateCappingSuite) tick() {
 
 // Put configuration back in a known state before each test
 func (s *dockerRateCappingSuite) SetupTest() {
-	s.mockSender = aggregator.NewMockSender("rateTest")
+	s.mockSender = mocksender.NewMockSender("rateTest")
 	s.mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	s.cappedSender = &cappedSender{
