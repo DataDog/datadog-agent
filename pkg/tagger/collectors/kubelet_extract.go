@@ -3,16 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build kubelet
+
 package collectors
 
 import (
 	"fmt"
-	log "github.com/cihub/seelog"
 	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	log "github.com/cihub/seelog"
 )
 
 /* Deltas from agent5:

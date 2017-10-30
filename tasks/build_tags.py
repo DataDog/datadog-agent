@@ -6,19 +6,20 @@ import invoke
 
 # ALL_TAGS lists any available build tag
 ALL_TAGS = set([
-    "zlib",
-    "snmp",
-    "etcd",
-    "zk",
-    "cpython",
-    "jmx",
     "apm",
+    "consul",
+    "cpython",
     "docker",
     "ec2",
+    "etcd",
     "gce",
+    "jmx",
+    "kubelet",
+    "log",
     "process",
+    "snmp",
     "zk",
-    "consul",
+    "zlib",
 ])
 
 # PUPPY_TAGS lists the tags needed when building the Puppy Agent
