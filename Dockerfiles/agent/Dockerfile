@@ -28,24 +28,20 @@ COPY entrypoint.sh .
 
 
 FROM debian:stretch-slim
-
 LABEL maintainer "Datadog <package@datadoghq.com>"
-
 ARG WITH_JMX
 ENV DOCKER_DD_AGENT=yes \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
     SSL_CERT_DIR=/opt/datadog-agent/embedded/ssl
 
-# Install dependencies:
-#   - busybox (top+wget) for support - FIXME: remove once our support tooling has improved
-#   - openjdk-8-jre-headless for jmx flavor
-RUN apt-get update \
- && apt-get install --no-install-recommends -y busybox \
- && if [ -n "$WITH_JMX" ]; then mkdir /usr/share/man/man1 && apt-get install --no-install-recommends -y openjdk-8-jre-headless; fi \
+# Install openjdk-8-jre-headless on jmx flavor
+RUN if [ -n "$WITH_JMX" ]; then apt-get update \
+ && mkdir /usr/share/man/man1 \
+ && apt-get install --no-install-recommends -y openjdk-8-jre-headless \
  && apt-get clean \
- && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
- && busybox --install
+ && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; fi
 
+# Copy agent from extract stage
 COPY --from=extract /output/ /
 
 # Expose DogStatsD and trace-agent ports
