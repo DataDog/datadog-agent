@@ -44,7 +44,7 @@ func GetTags() ([]string, error) {
 
 	connection := ec2.New(awsSess)
 	grabbedTags, err := connection.DescribeTags(&ec2.DescribeTagsInput{
-		Filters: []*ec2.Filter{&ec2.Filter{
+		Filters: []*ec2.Filter{{
 			Name: aws.String("resource-id"),
 			Values: []*string{
 				aws.String(instanceIdentity["instanceId"]),

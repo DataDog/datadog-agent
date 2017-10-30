@@ -29,7 +29,7 @@ func preAllocateMetrics(n int) map[string][]*metrics.MetricSample {
 		metricName := metricTemplate + "_" + metrics.MetricType(mType).String()
 		samples := make([]*metrics.MetricSample, n)
 
-		for i, _ := range samples {
+		for i := range samples {
 			value := float64(rand.Intn(1024))
 			s := &metrics.MetricSample{
 				Name:       metricName,
@@ -52,7 +52,7 @@ func preAllocateMetrics(n int) map[string][]*metrics.MetricSample {
 func preAllocateEvents(n int) []*metrics.Event {
 	events := make([]*metrics.Event, n)
 
-	for i, _ := range events {
+	for i := range events {
 		event := &metrics.Event{
 			Title:          "Event title",
 			Text:           "some text",
@@ -74,7 +74,7 @@ func preAllocateEvents(n int) []*metrics.Event {
 func preAllocateServiceChecks(n int) []*metrics.ServiceCheck {
 	scs := make([]*metrics.ServiceCheck, n)
 
-	for i, _ := range scs {
+	for i := range scs {
 		sc := &metrics.ServiceCheck{
 			CheckName: "benchmark.sc." + util.RandomString(4),
 			Status:    metrics.ServiceCheckOK,
@@ -134,7 +134,7 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 				defer wg.Done()
 
 				i := 0
-				for _ = range ticker.C {
+				for range ticker.C {
 					i += 1
 					i = i % p
 					select {
@@ -170,7 +170,7 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 				prev := initial
 
 				secs := 0
-				for _ = range tickChan {
+				for range tickChan {
 					// compute metrics
 					current := memstatsFunc().(runtime.MemStats)
 					delta := float64(current.Alloc) - float64(prev.Alloc)

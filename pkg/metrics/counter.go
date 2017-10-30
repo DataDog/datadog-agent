@@ -36,7 +36,7 @@ func (c *Counter) flush(timestamp float64) ([]*Serie, error) {
 	}
 
 	return []*Serie{
-		&Serie{
+		{
 			// we use the timestamp passed to the flush
 			Points: []Point{{Ts: timestamp, Value: value / float64(c.interval)}},
 			MType:  APIRateType,

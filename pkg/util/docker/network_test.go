@@ -40,7 +40,7 @@ func TestFindDockerNetworks(t *testing.T) {
 			pid: 1245,
 			settings: &types.SummaryNetworkSettings{
 				Networks: map[string]*dockernetwork.EndpointSettings{
-					"eth0": &dockernetwork.EndpointSettings{
+					"eth0": {
 						Gateway: "172.17.0.1/24",
 					},
 				},
@@ -56,7 +56,7 @@ func TestFindDockerNetworks(t *testing.T) {
                   eth0:    1296      16    0    0    0     0          0         0        0       0    0    0    0     0       0          0
                     lo:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0
             `),
-			networks: []dockerNetwork{dockerNetwork{iface: "eth0", dockerName: "eth0"}},
+			networks: []dockerNetwork{{iface: "eth0", dockerName: "eth0"}},
 			stat: ContainerNetStats{
 				&InterfaceNetStats{
 					NetworkName: "eth0",
@@ -78,10 +78,10 @@ func TestFindDockerNetworks(t *testing.T) {
 			pid: 5153,
 			settings: &types.SummaryNetworkSettings{
 				Networks: map[string]*dockernetwork.EndpointSettings{
-					"bridge": &dockernetwork.EndpointSettings{
+					"bridge": {
 						Gateway: "172.17.0.1",
 					},
-					"test": &dockernetwork.EndpointSettings{
+					"test": {
 						Gateway: "172.18.0.1",
 					},
 				},
@@ -99,8 +99,8 @@ func TestFindDockerNetworks(t *testing.T) {
 				  eth0:     648       8    0    0    0     0          0         0        0       0    0    0    0     0       0          0
 				  eth1:    1478      19    0    0    0     0          0         0      182       3    0    0    0     0       0          0`),
 			networks: []dockerNetwork{
-				dockerNetwork{iface: "eth0", dockerName: "bridge"},
-				dockerNetwork{iface: "eth1", dockerName: "test"},
+				{iface: "eth0", dockerName: "bridge"},
+				{iface: "eth1", dockerName: "test"},
 			},
 			stat: ContainerNetStats{
 				&InterfaceNetStats{
@@ -178,10 +178,10 @@ func TestFindDockerNetworks(t *testing.T) {
 			pid: 5157,
 			settings: &types.SummaryNetworkSettings{
 				Networks: map[string]*dockernetwork.EndpointSettings{
-					"isolated_nw": &dockernetwork.EndpointSettings{
+					"isolated_nw": {
 						Gateway: "172.18.0.1",
 					},
-					"eth0": &dockernetwork.EndpointSettings{
+					"eth0": {
 						Gateway: "172.0.0.4/24",
 					},
 				},

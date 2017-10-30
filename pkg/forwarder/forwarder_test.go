@@ -18,7 +18,7 @@ import (
 
 var (
 	keysPerDomains = map[string][]string{
-		"datadog.foo": []string{"api-key-1", "api-key-2"},
+		"datadog.foo": {"api-key-1", "api-key-2"},
 		"datadog.bar": nil,
 	}
 )

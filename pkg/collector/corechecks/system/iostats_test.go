@@ -18,8 +18,8 @@ import (
 
 var (
 	ioSamples = []map[string]disk.IOCountersStat{
-		map[string]disk.IOCountersStat{
-			"sda": disk.IOCountersStat{
+		{
+			"sda": {
 				ReadCount:        443071,
 				MergedReadCount:  104744,
 				WriteCount:       10412454,
@@ -34,8 +34,8 @@ var (
 				Name:             "sda",
 				SerialNumber:     "123456789WD",
 			},
-		}, map[string]disk.IOCountersStat{
-			"sda": disk.IOCountersStat{
+		}, {
+			"sda": {
 				ReadCount:        443071,
 				MergedReadCount:  104744,
 				WriteCount:       10412454,

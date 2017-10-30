@@ -154,31 +154,31 @@ func TestContextMetricsHistogramSampling(t *testing.T) {
 	series := metrics.Flush(12351)
 
 	expectedSeries := []*Serie{
-		&Serie{
+		{
 			ContextKey: contextKey,
 			Points:     []Point{{12351.0, 6.}},
 			MType:      APIGaugeType,
 			NameSuffix: ".max",
 		},
-		&Serie{
+		{
 			ContextKey: contextKey,
 			Points:     []Point{{12351.0, 1.}},
 			MType:      APIGaugeType,
 			NameSuffix: ".median",
 		},
-		&Serie{
+		{
 			ContextKey: contextKey,
 			Points:     []Point{{12351.0, 2.5}},
 			MType:      APIGaugeType,
 			NameSuffix: ".avg",
 		},
-		&Serie{
+		{
 			ContextKey: contextKey,
 			Points:     []Point{{12351.0, 0.4}},
 			MType:      APIRateType,
 			NameSuffix: ".count",
 		},
-		&Serie{
+		{
 			ContextKey: contextKey,
 			Points:     []Point{{12351.0, 6.}},
 			MType:      APIGaugeType,

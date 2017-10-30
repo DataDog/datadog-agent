@@ -62,7 +62,7 @@ func TestGetHostsFromPs(t *testing.T) {
 		ID:              "deadbeef",
 		Image:           "test",
 		NetworkSettings: &networkSettings,
-		Ports:           []types.Port{types.Port{PrivatePort: 1337}, types.Port{PrivatePort: 42}},
+		Ports:           []types.Port{{PrivatePort: 1337}, {PrivatePort: 42}},
 	}
 	hosts := dl.getHostsFromPs(co)
 

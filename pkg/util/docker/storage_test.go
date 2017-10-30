@@ -46,13 +46,13 @@ func TestParseStorageStats(t *testing.T) {
 				{"Metadata Space Total", "10 MB"},
 			},
 			values: []*StorageStats{
-				&StorageStats{
+				{
 					Name:  DataStorageName,
 					Free:  createIntPointer(9e9),
 					Used:  createIntPointer(1e9),
 					Total: createIntPointer(10e9),
 				},
-				&StorageStats{
+				{
 					Name:  MetadataStorageName,
 					Free:  createIntPointer(9e6),
 					Used:  createIntPointer(1e6),
@@ -73,7 +73,7 @@ func TestParseStorageStats(t *testing.T) {
 				{"Metadata Space Total", "10 kB"},
 			},
 			values: []*StorageStats{
-				&StorageStats{
+				{
 					Name:  MetadataStorageName,
 					Free:  createIntPointer(9e3),
 					Used:  createIntPointer(1e3),
@@ -93,7 +93,7 @@ func TestParseStorageStats(t *testing.T) {
 				{"Metadata Space Total", "1 MB"},
 			},
 			values: []*StorageStats{
-				&StorageStats{
+				{
 					Name:  MetadataStorageName,
 					Free:  createIntPointer(9e5),
 					Used:  createIntPointer(1e5),
@@ -116,19 +116,19 @@ func TestParseStorageStats(t *testing.T) {
 				{"NoTotal Space Used", "8 MB"},
 			},
 			values: []*StorageStats{
-				&StorageStats{
+				{
 					Name:  "noused",
 					Free:  createIntPointer(9e9),
 					Used:  nil,
 					Total: createIntPointer(10e9),
 				},
-				&StorageStats{
+				{
 					Name:  "nofree",
 					Free:  nil,
 					Used:  createIntPointer(9e6),
 					Total: createIntPointer(10e6),
 				},
-				&StorageStats{
+				{
 					Name:  "nototal",
 					Free:  createIntPointer(2e6),
 					Used:  createIntPointer(8e6),
@@ -150,7 +150,7 @@ func TestParseStorageStats(t *testing.T) {
 				{"Data Space Used", "0 GB"},
 			},
 			values: []*StorageStats{
-				&StorageStats{
+				{
 					Name:  DataStorageName,
 					Free:  createIntPointer(0.0),
 					Used:  createIntPointer(0.0),
@@ -170,7 +170,7 @@ func TestParseStorageStats(t *testing.T) {
 				{"Data Space Used", "11 GB"},
 			},
 			values: []*StorageStats{
-				&StorageStats{
+				{
 					Name:  DataStorageName,
 					Free:  createIntPointer(9e9),
 					Used:  createIntPointer(11e9),
@@ -190,7 +190,7 @@ func TestParseStorageStats(t *testing.T) {
 				{"Metadata Space Total", "20kB"},
 			},
 			values: []*StorageStats{
-				&StorageStats{
+				{
 					Name:  MetadataStorageName,
 					Free:  createIntPointer(19e3),
 					Used:  createIntPointer(1e3),

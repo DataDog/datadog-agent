@@ -12,8 +12,8 @@ import (
 var (
 	// whitelist the sections we want to import
 	processAgentSections = map[string]struct{}{
-		"DEFAULT":        struct{}{}, // removing this section would mess up the ini file
-		"process.config": struct{}{},
+		"DEFAULT":        {}, // removing this section would mess up the ini file
+		"process.config": {},
 	}
 )
 

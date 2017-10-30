@@ -199,7 +199,7 @@ func (s GKArray) interpolatedQuantile(q float64) float64 {
 func (s GKArray) Quantiles(qValues []float64) []float64 {
 	quantiles := make([]float64, 0, len(qValues))
 	if s.Count == 0 {
-		for _ = range qValues {
+		for range qValues {
 			quantiles = append(quantiles, math.NaN())
 		}
 		return quantiles
