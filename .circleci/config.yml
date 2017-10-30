@@ -62,6 +62,29 @@ jobs:
           name: run unit tests
           command: invoke -e test --coverage
 
+  unit_tests_race:
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+        environment:
+          USE_SYSTEM_LIBS: "1"
+    working_directory: /go/src/github.com/DataDog/datadog-agent
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - v1-repo-{{ checksum ".circle-sha" }}
+      - restore_cache:
+          keys:
+            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+      - restore_cache:
+          keys:
+            - v1-gobindeps
+      - run:
+          name: run unit tests w/race
+          command: invoke -e test --race
+
   # TODO: enable integration_tests
   integration_tests:
     docker:
@@ -86,34 +109,7 @@ jobs:
           name: run integration tests
           command: inv integration-tests --install-deps
 
-  build_agent:
-    docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
-        environment:
-          USE_SYSTEM_LIBS: "1"
-    working_directory: /go/src/github.com/DataDog/datadog-agent
-    steps:
-      - run:
-          name: save SHA to a file
-          command: echo $CIRCLE_SHA1 > .circle-sha
-      - restore_cache:
-          keys:
-            - v1-repo-{{ checksum ".circle-sha" }}
-      - restore_cache:
-          keys:
-            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
-      - restore_cache:
-          keys:
-            - v1-gobindeps
-      - run:
-          name: build agent
-          command: inv agent.build
-      - save_cache:
-          key: v1-build-{{ checksum ".circle-sha" }}
-          paths:
-            - /go/src/github.com/DataDog/datadog-agent/bin/agent
-
-  build_dogstatsd:
+  build_binaries:
     docker:
       - image: jfullaondo/datadog-agent-builder-deb:0.0.3
         environment:
@@ -135,6 +131,12 @@ jobs:
       - run:
           name: build dogstatsd
           command: inv -e dogstatsd.build --static
+      - run:
+          name: build agent
+          command: inv agent.build
+      - run:
+          name: build puppy
+          command: inv agent.build --puppy
       - save_cache:
           key: v1-dsdbuild-{{ checksum ".circle-sha" }}
           paths:
@@ -151,9 +153,9 @@ workflows:
       - unit_tests:
           requires:
             - dependencies
-      - build_agent:
+      - build_binaries:
           requires:
-            - dependencies
-      - build_dogstatsd:
+            - unit_tests
+      - unit_tests_race:
           requires:
-            - dependencies
+            - unit_tests
