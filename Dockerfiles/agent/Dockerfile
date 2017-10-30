@@ -5,9 +5,9 @@ WORKDIR /output
 
 # Extract and cleanup:
 #   - unused systemd unit
-#   - GPL sources for embedded software
-#   - docs and manpages
-#   - static libraries
+#   - GPL sources for embedded software  # FIXME: move upstream
+#   - docs and manpages                  # FIXME: move upstream
+#   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
 RUN dpkg -x /datadog-agent*_amd64.deb . \
  && rm -rf usr etc/init lib \
@@ -48,6 +48,8 @@ RUN apt-get update \
 
 COPY --from=extract /output/ /
 
-EXPOSE 8125/udp
+# Expose DogStatsD and trace-agent ports
+EXPOSE 8125/udp 8126/tcp
+
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/opt/datadog-agent/bin/agent/agent", "start"]
