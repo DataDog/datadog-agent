@@ -173,9 +173,9 @@ func buildSyslogURI(agentConfig Config) string {
 func buildConfigProviders(agentConfig Config) ([]config.ConfigurationProviders, error) {
 	// the list of SD_CONFIG_BACKENDS supported in v5
 	SdConfigBackends := map[string]struct{}{
-		"etcd":   struct{}{},
-		"consul": struct{}{},
-		"zk":     struct{}{},
+		"etcd":   {},
+		"consul": {},
+		"zk":     {},
 	}
 
 	if _, found := SdConfigBackends[agentConfig["sd_config_backend"]]; !found {

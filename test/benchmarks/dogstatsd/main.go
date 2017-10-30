@@ -271,7 +271,7 @@ func main() {
 					}
 				}
 
-				for _ = range ticker.C {
+				for range ticker.C {
 					select {
 					case <-quitGenerator:
 						quitStatter <- true
@@ -307,7 +307,7 @@ func main() {
 				tickChan := time.NewTicker(time.Second).C
 				defer wg.Done()
 
-				for _ = range tickChan {
+				for range tickChan {
 					select {
 					case <-quitStatter:
 						quit = true

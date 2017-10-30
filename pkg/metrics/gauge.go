@@ -25,7 +25,7 @@ func (g *Gauge) flush(timestamp float64) ([]*Serie, error) {
 	}
 
 	return []*Serie{
-		&Serie{
+		{
 			// we use the timestamp passed to the flush
 			Points: []Point{{Ts: timestamp, Value: value}},
 			MType:  APIGaugeType,

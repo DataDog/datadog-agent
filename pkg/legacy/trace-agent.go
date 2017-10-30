@@ -12,10 +12,10 @@ import (
 var (
 	// whitelist the sections we want to import
 	traceAgentSections = map[string]struct{}{
-		"DEFAULT":        struct{}{}, // removing this section would mess up the ini file
-		"trace.sampler":  struct{}{},
-		"trace.receiver": struct{}{},
-		"trace.ignore":   struct{}{},
+		"DEFAULT":        {}, // removing this section would mess up the ini file
+		"trace.sampler":  {},
+		"trace.receiver": {},
+		"trace.ignore":   {},
 	}
 )
 

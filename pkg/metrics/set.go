@@ -26,7 +26,7 @@ func (s *Set) flush(timestamp float64) ([]*Serie, error) {
 	}
 
 	res := []*Serie{
-		&Serie{
+		{
 			// we use the timestamp passed to the flush
 			Points: []Point{{Ts: timestamp, Value: float64(len(s.values))}},
 			MType:  APIGaugeType,

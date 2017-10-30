@@ -47,7 +47,7 @@ func (mc *MonotonicCount) flush(timestamp float64) ([]*Serie, error) {
 	mc.sampledSinceLastFlush = false
 
 	return []*Serie{
-		&Serie{
+		{
 			// we use the timestamp passed to the flush
 			Points: []Point{{Ts: timestamp, Value: value}},
 			MType:  APICountType,

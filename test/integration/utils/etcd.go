@@ -29,7 +29,7 @@ func StartEtcdContainer(imageName string, containerName string) (string, error) 
 
 	hostConfig := &container.HostConfig{
 		PortBindings: nat.PortMap{
-			"2379/tcp": []nat.PortBinding{nat.PortBinding{HostPort: "2379"}},
+			"2379/tcp": []nat.PortBinding{{HostPort: "2379"}},
 		},
 	}
 

@@ -27,16 +27,14 @@ def fmt(ctx, targets, fail_on_fmt=False):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    # add the /... suffix to the targets
-    args = ["{}/...".format(t) for t in targets]
-    result = ctx.run("go fmt " + " ".join(args))
+    result = ctx.run("gofmt -l -w -s " + " ".join(targets))
     if result.stdout:
         files = {x for x in result.stdout.split("\n") if x}
         print("Reformatted the following files: {}".format(','.join(files)))
         if fail_on_fmt:
             print("Code was not properly formatted, exiting...")
             raise Exit(1)
-    print("go fmt found no issues")
+    print("gofmt found no issues")
 
 
 @task
