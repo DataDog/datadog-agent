@@ -12,7 +12,7 @@ variables:
   AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/
   AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   STATIC_BINARIES_DIR: bin/static
-  DOGSTATSD_BINARIES_DIR: bin/static
+  DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   DEB_S3_BUCKET_DEPRECATED: apt-agent6.datad0g.com
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
@@ -20,6 +20,7 @@ variables:
   DD_REPO_BRANCH_NAME: $CI_COMMIT_REF_NAME
   S3_CP_CMD: aws s3 cp --only-show-errors --region us-east-1 --sse AES256
   S3_SCRATCH_URI: s3://dd-scratch-space-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
+  S3_DSD6_URI: s3://dsd6-staging/linux
 
 before_script:
   # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
@@ -424,7 +425,7 @@ deploy_rpm:
     - createrepo --update -v --checksum sha ./rpmrepo/x86_64
     - aws s3 sync ./rpmrepo/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# deploy rpm packages to yum staging repo
+# deploy dsd binary to staging bucket
 deploy_dsd:
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
@@ -437,7 +438,7 @@ deploy_dsd:
   script:
     - $S3_CP_CMD $S3_SCRATCH_URI/dogstatsd/dogstatsd ./dogstatsd
     - VERSION=$(inv version)
-    - $S3_CP_CMD ./dogstatsd $S3_DSD6_URI/dogstatsd-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/dogstatsd-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 
 # TODO: deploy and build SUSE packages
