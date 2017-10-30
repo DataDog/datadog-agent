@@ -1,0 +1,162 @@
+version: 2
+
+jobs:
+  checkout_code:
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+    working_directory: /go/src/github.com/DataDog/datadog-agent
+    steps:
+      - checkout
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - save_cache:
+          key: v1-repo-{{ checksum ".circle-sha" }}
+          paths:
+            - /go/src/github.com/DataDog/datadog-agent
+
+  dependencies:
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+    working_directory: /go/src/github.com/DataDog/datadog-agent
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - v1-repo-{{ checksum ".circle-sha" }}
+            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+      - run:
+          name: grab go deps
+          command: invoke deps
+      - save_cache:
+          key: v1-govendordeps-{{ checksum "Gopkg.lock" }}
+          paths:
+            - /go/src/github.com/DataDog/datadog-agent/vendor
+      - save_cache:
+          key: v1-gobindeps
+          paths:
+            - /go/bin
+
+  unit_tests:
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+        environment:
+          USE_SYSTEM_LIBS: "1"
+    working_directory: /go/src/github.com/DataDog/datadog-agent
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - v1-repo-{{ checksum ".circle-sha" }}
+      - restore_cache:
+          keys:
+            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+      - restore_cache:
+          keys:
+            - v1-gobindeps
+      - run:
+          name: run unit tests
+          command: invoke -e test --coverage --race
+
+  # TODO: enable integration_tests
+  integration_tests:
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+        environment:
+          USE_SYSTEM_LIBS: "1"
+    working_directory: /go/src/github.com/DataDog/datadog-agent
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - v1-repo-{{ checksum ".circle-sha" }}
+      - restore_cache:
+          keys:
+            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+      - restore_cache:
+          keys:
+            - v1-gobindeps
+      - run:
+          name: run integration tests
+          command: inv integration-tests --install-deps
+
+  build_binaries:
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+        environment:
+          USE_SYSTEM_LIBS: "1"
+    working_directory: /go/src/github.com/DataDog/datadog-agent
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - v1-repo-{{ checksum ".circle-sha" }}
+      - restore_cache:
+          keys:
+            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+      - restore_cache:
+          keys:
+            - v1-gobindeps
+      - run:
+          name: build dogstatsd
+          command: inv -e dogstatsd.build --static
+      - run:
+          name: build agent
+          command: inv agent.build
+      - save_cache:
+          key: v1-dsdbuild-{{ checksum ".circle-sha" }}
+          paths:
+            - /go/src/github.com/datadog/datadog-agent/bin/dogstatsd
+
+  build_puppy:
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.3
+        environment:
+          USE_SYSTEM_LIBS: "1"
+    working_directory: /go/src/github.com/DataDog/datadog-agent
+    steps:
+      - run:
+          name: save SHA to a file
+          command: echo $CIRCLE_SHA1 > .circle-sha
+      - restore_cache:
+          keys:
+            - v1-repo-{{ checksum ".circle-sha" }}
+      - restore_cache:
+          keys:
+            - v1-govendordeps-{{ checksum "Gopkg.lock" }}
+      - restore_cache:
+          keys:
+            - v1-gobindeps
+      - run:
+          name: build puppy
+          command: inv agent.build --puppy
+      - save_cache:
+          key: v1-dsdbuild-{{ checksum ".circle-sha" }}
+          paths:
+            - /go/src/github.com/datadog/datadog-agent/bin/dogstatsd
+
+workflows:
+  version: 2
+  build_test_deploy:
+    jobs:
+      - checkout_code
+      - dependencies:
+          requires:
+            - checkout_code
+      - unit_tests:
+          requires:
+            - dependencies
+      - build_binaries:
+          requires:
+            - unit_tests
+      - build_puppy:
+          requires:
+            - unit_tests
