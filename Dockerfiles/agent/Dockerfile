@@ -33,14 +33,14 @@ LABEL maintainer "Datadog <package@datadoghq.com>"
 
 ARG WITH_JMX
 ENV DOCKER_DD_AGENT=yes \
-    PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH
+    PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
+    SSL_CERT_DIR=/opt/datadog-agent/embedded/ssl
 
 # Install dependencies:
-#   - ca-certificates for ssl connections
 #   - busybox (top+wget) for support - FIXME: remove once our support tooling has improved
 #   - openjdk-8-jre-headless for jmx flavor
 RUN apt-get update \
- && apt-get install --no-install-recommends -y ca-certificates busybox \
+ && apt-get install --no-install-recommends -y busybox \
  && if [ -n "$WITH_JMX" ]; then mkdir /usr/share/man/man1 && apt-get install --no-install-recommends -y openjdk-8-jre-headless; fi \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
