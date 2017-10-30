@@ -28,7 +28,7 @@ const (
 )
 
 // KubeUtil is a struct to hold the kubelet api url
-// Instanciate with NewKubeUtil
+// Instantiate with NewKubeUtil
 type KubeUtil struct {
 	kubeletAPIURL string
 }

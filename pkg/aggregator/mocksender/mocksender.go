@@ -13,7 +13,7 @@ import (
 )
 
 // NewMockSender initiates the aggregator and returns a
-// functionnal mocked Sender for testing
+// functional mocked Sender for testing
 func NewMockSender(id check.ID) *MockSender {
 	mockSender := new(MockSender)
 	// The MockSender requires an aggregator

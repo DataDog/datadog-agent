@@ -94,7 +94,7 @@ func ConnectToDocker() (*client.Client, error) {
 	if !pathExists(sockPath) {
 		return nil, ErrDockerNotAvailable
 	}
-	// The /proc/mounts file won't be availble on non-Linux systems
+	// The /proc/mounts file won't be available on non-Linux systems
 	// and we only support Linux for now.
 	mountsFile := "/proc/mounts"
 	if !pathExists(mountsFile) {

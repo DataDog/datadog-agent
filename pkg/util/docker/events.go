@@ -82,7 +82,7 @@ func (d *dockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 
 	// msg.TimeNano does not hold the nanosecond portion of the timestamp
 	// like it's usual to do in Go, but the whole timestamp value as ns value
-	// We need to substract the second value to get only the nanoseconds.
+	// We need to subtract the second value to get only the nanoseconds.
 	// Keeping that behind a value test in case docker developers fix that
 	// inconsistency in the future.
 	ns := msg.TimeNano
@@ -103,7 +103,7 @@ func (d *dockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 	return event, nil
 }
 
-// LatestContainerEvents returns events matching the filter that occured after the time passed.
+// LatestContainerEvents returns events matching the filter that occurred after the time passed.
 // It returns the latest event timestamp in the slice for the user to store and pass again in the next call.
 func (d *dockerUtil) LatestContainerEvents(since time.Time) ([]*ContainerEvent, time.Time, error) {
 	var events []*ContainerEvent
@@ -140,7 +140,7 @@ func (d *dockerUtil) LatestContainerEvents(since time.Time) ([]*ContainerEvent, 
 	}
 }
 
-// LatestContainerEvents returns events matching the filter that occured after the time passed.
+// LatestContainerEvents returns events matching the filter that occurred after the time passed.
 // It returns the latest event timestamp in the slice for the user to store and pass again in the next call.
 func LatestContainerEvents(since time.Time) ([]*ContainerEvent, time.Time, error) {
 	if globalDockerUtil != nil {

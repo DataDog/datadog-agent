@@ -107,7 +107,7 @@ func InitAggregatorWithFlushInterval(s *serializer.Serializer, hostname string, 
 }
 
 // SetDefaultAggregator allows to force a custom Aggregator as the default one and run it.
-// This is usefull for testing or benchmarking.
+// This is useful for testing or benchmarking.
 func SetDefaultAggregator(agg *BufferedAggregator) {
 	aggregatorInstance = agg
 	go aggregatorInstance.run()
@@ -168,7 +168,7 @@ func deduplicateTags(tags []string) []string {
 }
 
 // IsInputQueueEmpty returns true if every input channel for the aggregator are
-// empty. This is mainly usefull for tests and benchmark
+// empty. This is mainly useful for tests and benchmark
 func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
 	if len(agg.checkMetricIn)+len(agg.serviceCheckIn)+len(agg.eventIn) == 0 {
 		return true

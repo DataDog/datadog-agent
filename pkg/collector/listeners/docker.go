@@ -41,7 +41,7 @@ type DockerListener struct {
 	m          sync.RWMutex
 }
 
-// NewDockerListener creates a client connection to Docker and instanciate a DockerListener with it
+// NewDockerListener creates a client connection to Docker and instantiate a DockerListener with it
 // TODO: TLS support
 func NewDockerListener() (*DockerListener, error) {
 	c, err := docker.ConnectToDocker()

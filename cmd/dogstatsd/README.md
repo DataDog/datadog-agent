@@ -41,6 +41,6 @@ Datagram sockets have the same semantics as UDP and can usually be used instead 
 code change. Beside setting the socket as non-blocking, there's not much more to do on the client
 side to talk with DogStatsD but there are many advantages when using this connection strategy:
 
- * bypass networking configuration in containerized enviroments, specially useful with orchestrators
+ * bypass networking configuration in containerized environments, specially useful with orchestrators
  * if the server is overloaded, while keeping a non blocking approach the client can actually know whether
    packets are being dropped.
