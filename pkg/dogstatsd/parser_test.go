@@ -215,7 +215,7 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 }
 
 func TestParseMetricError(t *testing.T) {
-	// not enough infomation
+	// not enough information
 	_, err := parseMetricPacket([]byte("daemon:666"))
 	assert.Error(t, err)
 
@@ -284,7 +284,7 @@ func TestServiceCheckMinimal(t *testing.T) {
 }
 
 func TestServiceCheckError(t *testing.T) {
-	// not enough infomation
+	// not enough information
 	_, err := parseServiceCheckPacket([]byte("_sc|agent.up"))
 	assert.Error(t, err)
 
@@ -463,7 +463,7 @@ func TestEventError(t *testing.T) {
 	_, err = parseEventPacket([]byte("_e{,}:title|text"))
 	assert.Error(t, err)
 
-	// not enough infomation
+	// not enough information
 	_, err = parseEventPacket([]byte("_e|text"))
 	assert.Error(t, err)
 

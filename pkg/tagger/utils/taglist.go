@@ -9,7 +9,7 @@ import (
 	"fmt"
 )
 
-// TagList allows collector to incremently build a tag list
+// TagList allows collector to incremental build a tag list
 // then export it easily to []string format
 type TagList struct {
 	lowCardTags  map[string]string

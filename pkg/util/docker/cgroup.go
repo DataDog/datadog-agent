@@ -101,7 +101,7 @@ type ContainerCgroup struct {
 }
 
 // Mem returns the memory statistics for a Cgroup. If the cgroup file is not
-// availble then we return an empty stats file.
+// available then we return an empty stats file.
 func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
 	ret := &CgroupMemStat{ContainerID: c.ContainerID}
 	statfile := c.cgroupFilePath("memory", "memory.stat")
@@ -399,7 +399,7 @@ func (c ContainerCgroup) ContainerStartTime() (int64, error) {
 	return stat.ModTime().Unix(), nil
 }
 
-// cgroupFilePath constructs file path to get targetted stats file.
+// cgroupFilePath constructs file path to get targeted stats file.
 func (c ContainerCgroup) cgroupFilePath(target, file string) string {
 	mount, ok := c.Mounts[target]
 	if !ok {

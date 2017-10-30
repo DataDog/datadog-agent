@@ -40,7 +40,7 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 		c.expire, err = taggerutil.NewExpire(ecsExpireFreq)
 
 		if err != nil {
-			return FetchOnlyCollection, fmt.Errorf("Failed to instanciate the container expiring process")
+			return FetchOnlyCollection, fmt.Errorf("Failed to instantiate the container expiring process")
 		}
 		return FetchOnlyCollection, nil
 	} else {

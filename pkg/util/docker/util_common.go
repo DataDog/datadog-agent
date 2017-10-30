@@ -61,7 +61,7 @@ func getEnv(key string, dfault string, combineWith ...string) string {
 }
 
 // hostProc returns the location of a host's procfs. This can and will be
-// overriden when running inside a container.
+// overridden when running inside a container.
 func hostProc(combineWith ...string) string {
 	parts := append([]string{config.Datadog.GetString("container_proc_root")}, combineWith...)
 	return path.Join(parts...)

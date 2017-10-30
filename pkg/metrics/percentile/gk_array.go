@@ -128,7 +128,7 @@ func (s GKArray) Add(v float64) GKArray {
 }
 
 // compressAndAllocateBuf compresses Incoming into Entries, then allocates
-// an empty Incoming for futher addition of values.
+// an empty Incoming for further addition of values.
 func (s GKArray) compressAndAllocateBuf() GKArray {
 	s = s.compressWithIncoming(nil)
 	// allocate Incoming

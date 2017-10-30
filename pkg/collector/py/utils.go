@@ -22,7 +22,7 @@ import "C"
 // from go code when using `go-python`.
 //
 // We are going to call the Python C API from different goroutines that
-// in turn will be executed on mulitple, different threads, making the
+// in turn will be executed on multiple, different threads, making the
 // Agent incur in this [0] sort of problems.
 //
 // In addition, the Go runtime might decide to pause a goroutine in a

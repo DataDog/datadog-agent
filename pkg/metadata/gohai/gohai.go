@@ -15,7 +15,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// GetPayload builds a payload of every metadata collected with gohai exept processes metadata.
+// GetPayload builds a payload of every metadata collected with gohai except processes metadata.
 func GetPayload() *Payload {
 	return &Payload{
 		Gohai: getGohaiInfo(),
