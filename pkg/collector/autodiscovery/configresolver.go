@@ -18,7 +18,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-type variableGetter func(key []byte, svc listeners.Service) []byte
+type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
 
 var (
 	templateVariables = map[string]variableGetter{
@@ -142,15 +142,14 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 		vars := tpl.GetTemplateVariablesForInstance(i)
 		for _, v := range vars {
 			name, key := parseTemplateVar(v)
-			if f, ok := templateVariables[string(name)]; ok {
-				resolvedVar := f(key, svc)
-				if resolvedVar != nil {
-					// init config vars are replaced by the first found
-					tpl.InitConfig = bytes.Replace(tpl.InitConfig, v, resolvedVar, -1)
-					tpl.Instances[i] = bytes.Replace(tpl.Instances[i], v, resolvedVar, -1)
+			if f, found := templateVariables[string(name)]; found {
+				resolvedVar, err := f(key, svc)
+				if err != nil {
+					return check.Config{}, err
 				}
-			} else {
-				return check.Config{}, fmt.Errorf("template variable %s does not exist", name)
+				// init config vars are replaced by the first found
+				tpl.InitConfig = bytes.Replace(tpl.InitConfig, v, resolvedVar, -1)
+				tpl.Instances[i] = bytes.Replace(tpl.Instances[i], v, resolvedVar, -1)
 			}
 		}
 		err = tpl.Instances[i].MergeAdditionalTags(tags)
@@ -266,10 +265,11 @@ func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		}
 		log.Warnf("network %s not found, trying bridge IP instead", string(network))
 	}
-	if ip, ok = svc.Hosts["bridge"]; ok {
+	// otherwise use the bridge interface
+	if ip, found := hosts["bridge"]; found {
 		return []byte(ip), nil
 	}
-	return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it", svc.GetID())
+	return nil, fmt.Errorf("failed to resolve IP address for container %s, ignoring it", svc.GetID())
 }
 
 // TODO support orchestrators
@@ -277,34 +277,37 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	ports, err := svc.GetPorts()
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract port list for container %s, ignoring it", svc.GetID())
+	} else if len(ports) == 0 {
+		return nil, fmt.Errorf("no port found for container %s - ignoring it", svc.GetID())
 	}
 
 	if bytes.Contains(tplVar, []byte("_")) {
-		idxStr := bytes.SplitN(tplVar, []byte("_"), 2)[1]
-		idx, err := strconv.Atoi(idxStr)
+		idxStr := string(bytes.SplitN(tplVar, []byte("_"), 2)[1])
+		idx, err := strconv.Atoi((string(idxStr)))
 		if err != nil {
 			return nil, fmt.Errorf("index given for the port template var is not an int, skipping container %s", svc.GetID())
 		}
 		if len(ports) <= idx {
 			return nil, fmt.Errorf("idenx given for the port template var is too big, skipping container %s", svc.GetID())
 		}
-		return ports[idx], nil
+		return []byte(strconv.Itoa(ports[idx])), nil
 	}
+
+	return []byte(strconv.Itoa(ports[len(ports)-1])), nil
 }
 
 // getPid returns the process identifier of the service
-func getPid(tplVar []byte, svc listeners.Service) []byte {
+func getPid(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	pid, err := svc.GetPid()
 	if err != nil {
-		log.Errorf("Failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
-		return nil
+		return nil, fmt.Errorf("Failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
 	}
-	return []byte(strconv.Itoa(pid))
+	return []byte(strconv.Itoa(pid)), nil
 }
 
 // TODO
-func getContainerName(tplVar []byte, svc listeners.Service) []byte {
-	return []byte("test-container-name")
+func getContainerName(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	return []byte("test-container-name"), nil
 }
 
 // parseTemplateVar extracts the name of the var

@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -353,6 +354,7 @@ func (s *DockerService) GetPorts() ([]int, error) {
 		}
 		ports = append(ports, port)
 	}
+	sort.Ints(ports)
 	s.Ports = ports
 	return ports, nil
 }
