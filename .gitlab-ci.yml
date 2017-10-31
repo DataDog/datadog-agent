@@ -430,7 +430,7 @@ deploy_dsd:
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
   before_script:
-    - apt-get install git
+    - apt-get install -y git
     - pip install invoke
     # - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
