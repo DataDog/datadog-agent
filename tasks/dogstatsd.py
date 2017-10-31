@@ -148,18 +148,29 @@ def omnibus_build(ctx):
 
 
 @task
-def integration_tests(ctx, install_deps=False):
+def integration_tests(ctx, install_deps=False, remote_docker=False):
     """
-    Run integration tests for the Agent
+    Run integration tests for Dogstatsd
     """
     if install_deps:
         deps(ctx)
 
-    build_tags = get_default_build_tags()
+    test_args = {
+        "go_build_tags": " ".join(get_default_build_tags()),
+        "exec_opts": "",
+    }
 
-    # config_providers
-    cmd = "go test -tags '{}' {}/test/integration/dogstatsd/..."
-    ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+    if remote_docker:
+        test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
+
+    go_cmd = 'go test -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+
+    prefixes = [
+        "./test/integration/dogstatsd/...",
+    ]
+
+    for prefix in prefixes:
+        ctx.run("{} {}".format(go_cmd, prefix))
 
 
 @task

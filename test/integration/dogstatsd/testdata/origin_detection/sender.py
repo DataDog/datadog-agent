@@ -1,7 +1,7 @@
 import datadog
 import time
 
-client = datadog.dogstatsd.base.DogStatsd(socket_path="/dsd.socket")
+client = datadog.dogstatsd.base.DogStatsd(socket_path="/tmp/scratch/dsd.socket")
 
 # Send 4 packets/s until killed
 while True:

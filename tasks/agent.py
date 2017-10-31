@@ -146,28 +146,30 @@ def image_build(ctx, base_dir="omnibus"):
 
 
 @task
-def integration_tests(ctx, install_deps=False):
+def integration_tests(ctx, install_deps=False, remote_docker=False):
     """
     Run integration tests for the Agent
     """
     if install_deps:
         deps(ctx)
 
-    build_tags = get_default_build_tags()
+    test_args = {
+        "go_build_tags": " ".join(get_default_build_tags()),
+        "exec_opts": "",
+    }
 
-    # config_providers
-    cmd = "go test -tags '{}' {}/test/integration/config_providers/..."
-    ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+    if remote_docker:
+        test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
 
-    # listeners
-    cmd = "go test -tags '{}' {}/test/integration/listeners/..."
-    ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+    go_cmd = 'go test -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
 
-    # autodiscovery
-    # TODO
+    prefixes = [
+        "./test/integration/config_providers/...",
+        # "./test/integration/listeners/...", ## Hangups
+    ]
 
-    # metadata_providers
-    # TODO
+    for prefix in prefixes:
+        ctx.run("{} {}".format(go_cmd, prefix))
 
 
 @task
