@@ -1,0 +1,3 @@
+# Autodiscovery
+listeners:
+  - name: docker
