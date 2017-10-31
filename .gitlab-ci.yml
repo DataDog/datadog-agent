@@ -37,7 +37,7 @@ before_script:
 
 
 # run tests for deb-x64
-run_tests_deb-x64:
+.run_tests_deb-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -45,7 +45,7 @@ run_tests_deb-x64:
     - inv -e test --coverage
 
 # run tests for rpm-x64
-run_test_rpm-x64:
+.run_test_rpm-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -155,7 +155,7 @@ run_docker_integration_tests_deb-x64:
 
 
 # build the package for deb-x64
-agent_deb-x64:
+.agent_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -177,7 +177,7 @@ agent_deb-x64:
       - $AGENT_OMNIBUS_PACKAGE_DIR
 
 # build the package for rpm-x64
-agent_rpm-x64:
+.agent_rpm-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -203,7 +203,7 @@ agent_rpm-x64:
       - $AGENT_OMNIBUS_PACKAGE_DIR
 
 # build windows
-build_windows_msi_x64:
+.build_windows_msi_x64:
   before_script:
     - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
     - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
@@ -438,6 +438,7 @@ deploy_dsd:
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD $S3_SCRATCH_URI/dogstatsd/dogstatsd ./dogstatsd
+    - pip install invoke
     - VERSION=$(inv version)
     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/dogstatsd-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
