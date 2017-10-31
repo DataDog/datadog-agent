@@ -430,10 +430,8 @@ deploy_dsd:
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
   before_script:
-    - rsync -azr --delete ./ $SRC_PATH
     - cd $SRC_PATH
     - pip install invoke
-    - inv -e deps
     # - ls $AGENT_OMNIBUS_PACKAGE_DIR
   only:
     - master
@@ -443,7 +441,7 @@ deploy_dsd:
   script:
     - $S3_CP_CMD $S3_SCRATCH_URI/dogstatsd/dogstatsd ./dogstatsd
     - pip install invoke
-    - VERSION=$(inv version)
+    - export VERSION=$(inv version)
     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/dogstatsd-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 
