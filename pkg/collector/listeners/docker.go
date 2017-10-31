@@ -11,6 +11,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -190,7 +192,6 @@ func (l *DockerListener) createService(cID ID) {
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
-
 	l.m.Lock()
 	l.services[ID(cID)] = &svc
 	l.m.Unlock()
@@ -214,29 +215,6 @@ func (l *DockerListener) removeService(cID ID) {
 	} else {
 		log.Debugf("Container %s not found, not removing", cID[:12])
 	}
-}
-
-// getHostsFromInspect gets the addresss (for now IP address only) of a container on all its networks.
-// TODO: deprectated should be implemented in GetHosts
-func (l *DockerListener) getHostsFromInspect(co types.ContainerJSON) map[string]string {
-	ips := make(map[string]string)
-	if co.NetworkSettings != nil {
-		for net, settings := range co.NetworkSettings.Networks {
-			ips[net] = settings.IPAddress
-		}
-	}
-	return ips
-}
-
-// getPortsFromInspect gets the service ports of a container.
-// TODO: use the k8s API, deprectated should be implemented in GetPorts
-func (l *DockerListener) getPortsFromInspect(co types.ContainerJSON) []int {
-	ports := make([]int, 0)
-
-	for p := range co.NetworkSettings.Ports {
-		ports = append(ports, p.Int())
-	}
-	return ports
 }
 
 // getConfigIDFromPs returns a set of AD identifiers for a container.
@@ -332,15 +310,51 @@ func (s *DockerService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns the container's hosts
-// TODO
 func (s *DockerService) GetHosts() (map[string]string, error) {
-	return s.Hosts, nil
+	if s.Hosts != nil {
+		return s.Hosts, nil
+	}
+
+	ips := make(map[string]string)
+
+	cInspect, err := docker.Inspect(string(s.ID), false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
+	}
+	for net, settings := range cInspect.NetworkSettings.Networks {
+		ips[net] = settings.IPAddress
+	}
+
+	s.Hosts = ips
+	return ips, nil
 }
 
 // GetPorts returns the container's ports
-// TODO
 func (s *DockerService) GetPorts() ([]int, error) {
-	return s.Ports, nil
+	if s.Ports != nil {
+		return s.Ports, nil
+	}
+
+	ports := make([]int, 0)
+
+	cInspect, err := docker.Inspect(string(s.ID), false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
+	}
+
+	for p := range cInspect.NetworkSettings.Ports {
+		portStr := string(p)
+		if strings.Contains(portStr, "/") {
+			portStr = strings.Split(portStr, "/")[0]
+		}
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			log.Warnf("failed to extract port %s", string(p))
+		}
+		ports = append(ports, port)
+	}
+	s.Ports = ports
+	return ports, nil
 }
 
 // GetTags retrieves tags using the Tagger
