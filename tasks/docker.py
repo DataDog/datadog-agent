@@ -32,7 +32,8 @@ def integration_tests(ctx, skip_image_build=False, skip_build=False):
 @task
 def dockerize_test(ctx, binary, skip_cleanup=False):
     """
-    Run a go test in a remote docker environment and pipe its output to stdout
+    Run a go test in a remote docker environment and pipe its output to stdout.
+    Host and target systems must be identical (test is built on the host).
     """
     import docker
 
