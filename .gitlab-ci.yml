@@ -434,6 +434,7 @@ deploy_dsd:
   only:
     - master
     - tags
+    - greg/dsd6-build
   tags: [ "runner:main", "size:large" ]
   script:
     - $S3_CP_CMD $S3_SCRATCH_URI/dogstatsd/dogstatsd ./dogstatsd
