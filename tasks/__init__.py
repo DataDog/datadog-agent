@@ -6,7 +6,7 @@ from invoke import Collection
 
 from . import agent, benchmarks, docker, dogstatsd, pylauncher
 
-from .go import fmt, lint, vet, deps, reset
+from .go import fmt, lint, vet, cyclo, deps, reset
 from .test import test, integration_tests
 
 
@@ -17,6 +17,7 @@ ns = Collection()
 ns.add_task(fmt)
 ns.add_task(lint)
 ns.add_task(vet)
+ns.add_task(cyclo)
 ns.add_task(test)
 ns.add_task(integration_tests)
 ns.add_task(deps)
