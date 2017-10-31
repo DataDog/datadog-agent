@@ -22,7 +22,7 @@ build do
     else
         # Move checks and configuration files
         mkdir "/etc/datadog-dogstatsd"
-        move "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example", "/etc/datadog-dogstatsd"
+        move "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example", "/etc/datadog-dogstatsd/dogstatsd.conf"
 
         # Move system service files
         mkdir "/etc/init"

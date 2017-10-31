@@ -76,18 +76,6 @@ compress :dmg do
 end
 
 # ------------------------------------
-# OS specific DSLs and dependencies
-# ------------------------------------
-
-# Linux
-if linux?
-  if debian?
-    extra_package_file '/etc/init/dogstatsd.conf'
-    extra_package_file '/lib/systemd/system/dogstatsd.service'
-  end
-end
-
-# ------------------------------------
 # Dependencies
 # ------------------------------------
 
