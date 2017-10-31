@@ -138,12 +138,34 @@ def ineffassign(ctx, targets):
 
 
 @task
+def misspell(ctx, targets):
+    """
+    Run misspell on targets.
+
+    Example invokation:
+        inv misspell --targets=./pkg/collector/check,./pkg/aggregator
+    """
+    if isinstance(targets, basestring):
+        # when this function is called from the command line, targets are passed
+        # as comma separated tokens in a string
+        targets = targets.split(',')
+
+    ctx.run("misspell --error " + " ".join(targets))
+    # misspell exits with status 2 when it finds an issue, if we're here
+    # everything went smooth
+    print("misspell found no issues")
+
+
+@task
 def deps(ctx):
     """
     Setup Go dependencies
     """
     ctx.run("go get -u github.com/golang/dep/cmd/dep")
     ctx.run("go get -u github.com/golang/lint/golint")
+    ctx.run("go get -u github.com/fzipp/gocyclo")
+    ctx.run("go get -u github.com/gordonklaus/ineffassign")
+    ctx.run("go get -u github.com/client9/misspell/cmd/misspell")
     ctx.run("dep ensure")
     # prune packages from /vendor, remove this hack
     # as soon as `dep prune` is merged within `dep ensure`,
