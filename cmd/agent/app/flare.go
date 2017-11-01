@@ -18,7 +18,6 @@ import (
 
 var (
 	customerEmail string
-	caseID        string
 	autoconfirm   bool
 )
 
@@ -26,7 +25,6 @@ func init() {
 	AgentCmd.AddCommand(flareCmd)
 
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
-	flareCmd.Flags().StringVarP(&caseID, "case-id", "i", "", "Your case ID")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.SetArgs([]string{"caseID"})
 }
@@ -40,9 +38,15 @@ var flareCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		caseID := ""
+		if len(args) > 0 {
+			caseID = args[0]
+		}
+
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
 		config.SetupLogger("off", "", "", false, false, "")
-		if customerEmail == "" && caseID == "" {
+		if customerEmail == "" {
 			var err error
 			customerEmail, err = flare.AskForEmail()
 			if err != nil {
@@ -50,11 +54,12 @@ var flareCmd = &cobra.Command{
 				return err
 			}
 		}
-		return requestFlare()
+
+		return requestFlare(caseID)
 	},
 }
 
-func requestFlare() error {
+func requestFlare(caseID string) error {
 	fmt.Println("Asking the agent to build the flare archive.")
 	var e error
 	c := common.GetClient(false) // FIX: get certificates right then make this true
