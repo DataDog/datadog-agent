@@ -28,9 +28,12 @@ var (
 	viewsPath string
 )
 
-// DefaultConfPath points to the folder containing datadog.yaml
-const DefaultConfPath = "c:\\programdata\\datadog"
-const defaultLogPath = "c:\\programdata\\datadog\\logs\\agent.log"
+const (
+	// DefaultConfPath points to the folder containing datadog.yaml
+	DefaultConfPath = "c:\\programdata\\datadog"
+	// DefaultLogFile points to the log file that will be used if not configured
+	DefaultLogFile = "c:\\programdata\\datadog\\logs\\agent.log"
+)
 
 // EnableLoggingToFile -- set up logging to file
 func EnableLoggingToFile() {
