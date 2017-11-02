@@ -208,18 +208,42 @@ func TestGetPorts(t *testing.T) {
 	cacheKey := docker.GetInspectCacheKey(id)
 	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
-	co := docker.Container{ID: id}
 	svc := DockerService{
 		ID: ID(id),
 	}
 	svcPorts, _ := svc.GetPorts()
 	assert.Empty(t, svcPorts)
 
+	id = "test"
+	cBase = types.ContainerJSONBase{
+		ID:    id,
+		Image: "test",
+	}
+
 	ports = make(nat.PortMap, 2)
 	p, _ := nat.NewPort("tcp", "1234")
 	ports[p] = nil
 	p, _ = nat.NewPort("tcp", "4321")
 	ports[p] = nil
+
+	networkSettings = types.NetworkSettings{
+		NetworkSettingsBase: types.NetworkSettingsBase{Ports: ports},
+		Networks:            make(map[string]*network.EndpointSettings),
+	}
+
+	cj = types.ContainerJSON{
+		ContainerJSONBase: &cBase,
+		Mounts:            make([]types.MountPoint, 0),
+		Config:            &container.Config{},
+		NetworkSettings:   &networkSettings,
+	}
+	// add cj to the cache so svc.GetPorts finds it
+	cacheKey = docker.GetInspectCacheKey(id)
+	cache.Cache.Set(cacheKey, cj, 10*time.Second)
+
+	svc = DockerService{
+		ID: ID(id),
+	}
 
 	pts, _ := svc.GetPorts()
 	assert.Equal(t, 2, len(pts))
