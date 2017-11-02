@@ -22,6 +22,9 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+// Test_wg is used for testing the number of check workers
+var Test_wg sync.WaitGroup
+
 const (
 	defaultNumWorkers                  = 4
 	maxNumWorkers                      = 25
@@ -80,6 +83,7 @@ func NewRunner() *Runner {
 
 	// start the workers
 	for i := 0; i < numWorkers; i++ {
+		Test_wg.Add(1)
 		go r.work()
 	}
 
@@ -118,6 +122,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 			break
 		}
 		runnerStats.Add("Workers", 1)
+		Test_wg.Add(1)
 		go r.work()
 		numWorkers++
 		added++
@@ -213,6 +218,8 @@ func (r *Runner) StopCheck(id check.ID) error {
 // work waits for checks and run them as long as they arrive on the channel
 func (r *Runner) work() {
 	log.Debug("Ready to process checks...")
+	defer Test_wg.Done()
+
 	for check := range r.pending {
 		// see if the check is already running
 		r.m.Lock()
