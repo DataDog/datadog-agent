@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -19,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
 var retryDelay = flag.Int("retry-delay", 1, "time to wait between retries (default 1 second)")
@@ -114,11 +113,11 @@ func setup(m *testing.M) error {
 
 	// Start compose recipes
 	for _, file := range defaultCatalog.composeFiles {
-		buildCmd := exec.Command("docker-compose",
-			"--project-name", "dockerchecktest",
-			"--file", fmt.Sprintf("testdata/%s", file),
-			"up", "-d")
-		output, err := buildCmd.CombinedOutput()
+		compose := &utils.ComposeConf{
+			ProjectName: "dockerchecktest",
+			FilePath:    fmt.Sprintf("testdata/%s", file),
+		}
+		output, err := compose.Start()
 		if err != nil {
 			fmt.Println(string(output))
 			return err
@@ -142,11 +141,11 @@ func tearOffAndExit(exitcode int) {
 
 	// Stop compose recipes, ignore errors
 	for _, file := range defaultCatalog.composeFiles {
-		stopCmd := exec.Command("docker-compose",
-			"--project-name", "dockerchecktest",
-			"--file", fmt.Sprintf("testdata/%s", file),
-			"stop")
-		output, err := stopCmd.CombinedOutput()
+		compose := &utils.ComposeConf{
+			ProjectName: "dockerchecktest",
+			FilePath:    fmt.Sprintf("testdata/%s", file),
+		}
+		output, err := compose.Stop()
 		if err != nil {
 			fmt.Println(string(output))
 		}
