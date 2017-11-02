@@ -8,5 +8,5 @@ respawn
 console log  # redirect daemon's outputs to `/var/log/upstart/dogstatsd.log`
 
 script
-  exec <%= install_dir %>/bin/dogstatsd/dogstatsd
+  exec <%= install_dir %>/bin/dogstatsd start -c /etc/datadog-dogstatsd
 end script

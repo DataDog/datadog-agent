@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=root
 Restart=on-failure
-ExecStart=<%= install_dir %>/bin/dogstatsd/dogstatsd start -c /etd/datadog-dogstatsd
+ExecStart=<%= install_dir %>/bin/dogstatsd/dogstatsd start -c /etc/datadog-dogstatsd
 
 [Install]
 WantedBy=multi-user.target
