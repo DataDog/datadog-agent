@@ -90,17 +90,22 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 func getLog(w http.ResponseWriter, r *http.Request) {
 	flip, _ := strconv.ParseBool(mux.Vars(r)["flip"])
 
-	logFile, e := ioutil.ReadFile(config.Datadog.GetString("log_file"))
+	logFile := config.Datadog.GetString("log_file")
+	if logFile == "" {
+		logFile = common.DefaultLogFile
+	}
+
+	logFileContents, e := ioutil.ReadFile(logFile)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
 
-	html := strings.Replace(string(logFile), "\n", "<br>", -1)
+	html := strings.Replace(string(logFileContents), "\n", "<br>", -1)
 
 	if flip {
 		// Reverse the order so that the bottom of the file is read first
-		arr := strings.Split(string(logFile), "\n")
+		arr := strings.Split(string(logFileContents), "\n")
 		for i, j := 0, len(arr)-1; i < j; i, j = i+1, j-1 {
 			arr[i], arr[j] = arr[j], arr[i]
 		}
@@ -121,8 +126,13 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logFile := config.Datadog.GetString("log_file")
+	if logFile == "" {
+		logFile = common.DefaultLogFile
+	}
+
 	// Initiate the flare locally
-	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath)
+	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
 	if e != nil {
 		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
 		log.Errorf("Error creating flare zipfile: " + e.Error())

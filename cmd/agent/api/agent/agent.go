@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -76,8 +77,13 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logFile := config.Datadog.GetString("log_file")
+	if logFile == "" {
+		logFile = common.DefaultLogFile
+	}
+
 	log.Infof("Making a flare")
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath)
+	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

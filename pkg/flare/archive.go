@@ -29,17 +29,17 @@ import (
 type SearchPaths map[string]string
 
 // CreateArchive packages up the files
-func CreateArchive(local bool, distPath, pyChecksPath string) (string, error) {
+func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (string, error) {
 	zipFilePath := mkFilePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
 		"checksd": pyChecksPath,
 	}
-	return createArchive(zipFilePath, local, confSearchPaths)
+	return createArchive(zipFilePath, local, confSearchPaths, logFilePath)
 }
 
-func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths) (string, error) {
+func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
 	zipFile := new(archivex.ZipFile)
 	zipFile.Create(zipFilePath)
 
@@ -63,7 +63,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths) 
 		}
 	}
 
-	err = zipLogFiles(zipFile, hostname)
+	err = zipLogFiles(zipFile, hostname, logFilePath)
 	if err != nil {
 		return "", err
 	}
@@ -108,10 +108,9 @@ func zipStatusFile(zipFile *archivex.ZipFile, hostname string) error {
 	return err
 }
 
-func zipLogFiles(zipFile *archivex.ZipFile, hostname string) error {
-	logFile := config.Datadog.GetString("log_file")
-	logFilePath := path.Dir(logFile)
-	err := filepath.Walk(logFilePath, func(path string, f os.FileInfo, err error) error {
+func zipLogFiles(zipFile *archivex.ZipFile, hostname, logFilePath string) error {
+	logFileDir := path.Dir(logFilePath)
+	err := filepath.Walk(logFileDir, func(path string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil
 		}
