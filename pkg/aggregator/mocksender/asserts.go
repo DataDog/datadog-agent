@@ -73,9 +73,6 @@ func AssertTagsNotContains(t *testing.T, expected []string) interface{} {
 // It allows to check if a metric value is in a given range instead of matching exactly.
 func AssertFloatInRange(t *testing.T, min float64, max float64) interface{} {
 	return mock.MatchedBy(func(actual float64) bool {
-		if actual > max || actual < min {
-			return false
-		}
-		return true
+		return actual >= min && actual <= max
 	})
 }
