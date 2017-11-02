@@ -7,4 +7,4 @@
 
 package main
 
-const defaultLogPath = "/var/log/datadog/dogstatsd.log"
+const defaultLogFile = "/var/log/datadog/dogstatsd.log"

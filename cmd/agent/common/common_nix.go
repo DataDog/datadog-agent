@@ -11,8 +11,12 @@ import (
 	"path/filepath"
 )
 
-// DefaultConfPath points to the folder containing datadog.yaml
-const DefaultConfPath = "/etc/datadog-agent"
+const (
+	// DefaultConfPath points to the folder containing datadog.yaml
+	DefaultConfPath = "/etc/datadog-agent"
+	// DefaultLogFile points to the log file that will be used if not configured
+	DefaultLogFile = "/var/log/datadog/agent.log"
+)
 
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
