@@ -3,7 +3,7 @@
 *************************************************************************/
 
 // Attempts to fetch the API key from the browsers cookies
-function getAPIKey() {
+function getAuthToken() {
   var cookies = document.cookie.split(';');
   for (var i = 0; i < cookies.length; i++) {
       var c = cookies[i];
@@ -18,11 +18,11 @@ function getAPIKey() {
 // Sends a message to the GUI server with the correct authorization/format
 function sendMessage(endpoint, data, callback, callbackErr){
   $.ajax({
-    url: 'http://localhost:8080/' + endpoint,
+    url: window.location.href + endpoint,
     type: 'post',
     data: data,
     headers: {
-        Authorization: 'Bearer ' + getAPIKey()
+        Authorization: 'Bearer ' + getAuthToken()
     },
     success: callback,
     error: callbackErr

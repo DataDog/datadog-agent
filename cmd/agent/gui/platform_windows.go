@@ -9,6 +9,11 @@ import (
 	"github.com/kardianos/osext"
 )
 
+// opens a browser window at the specified URL
+func open(url string) error {
+	return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+}
+
 // restarts the agent using the windows service manager
 func restart() error {
 	here, _ := osext.ExecutableFolder()
