@@ -319,6 +319,6 @@ func TestSliceElem(t *testing.T) {
 	w.SliceElem(0, reflect.ValueOf(v))
 	l := python.PyList_Size(w.currentContainer)
 	if l != 1 {
-		t.Fatalf("Expected list lenght 1, found %d", l)
+		t.Fatalf("Expected list length 1, found %d", l)
 	}
 }

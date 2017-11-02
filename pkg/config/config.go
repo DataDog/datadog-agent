@@ -59,10 +59,11 @@ func init() {
 	// config identifiers
 	Datadog.SetConfigName("datadog")
 	Datadog.SetEnvPrefix("DD")
+	Datadog.SetTypeByDefaultValue(true)
 
 	// Configuration defaults
 	// Agent
-	Datadog.SetDefault("dd_url", "http://localhost:17123")
+	Datadog.SetDefault("dd_url", "https://app.datadoghq.com")
 	Datadog.SetDefault("proxy", nil)
 	Datadog.SetDefault("skip_ssl_validation", false)
 	Datadog.SetDefault("hostname", "")
@@ -70,17 +71,18 @@ func init() {
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
-	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("log_to_syslog", false)
+	Datadog.SetDefault("disable_file_logging", false)
 	Datadog.SetDefault("syslog_uri", "")
 	Datadog.SetDefault("syslog_rfc", false)
 	Datadog.SetDefault("syslog_tls", false)
 	Datadog.SetDefault("syslog_pem", "")
+	Datadog.SetDefault("cmd_host", "localhost")
 	Datadog.SetDefault("cmd_port", 5001)
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
-	Datadog.SetDefault("check_runners", int64(4))
+	Datadog.SetDefault("check_runners", int64(20))
 	Datadog.SetDefault("expvar_port", "5000")
 	if IsContainerized() {
 		Datadog.SetDefault("container_proc_root", "/host/proc")
@@ -91,6 +93,8 @@ func init() {
 		Datadog.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
 	}
 	Datadog.SetDefault("proc_root", "/proc")
+	Datadog.SetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
+	Datadog.SetDefault("histogram_percentiles", []string{"0.95"})
 	// Serializer
 	Datadog.SetDefault("use_v2_api.series", false)
 	Datadog.SetDefault("use_v2_api.events", false)
@@ -109,11 +113,9 @@ func init() {
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
 	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
-	// JMX
-	Datadog.SetDefault("jmx_pipe_path", defaultJMXPipePath)
-	Datadog.SetDefault("jmx_pipe_name", "dd-auto_discovery")
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
+	Datadog.SetDefault("exclude_pause_container", true)
 	// Docker
 	Datadog.SetDefault("docker_labels_as_tags", map[string]string{})
 	Datadog.SetDefault("docker_env_as_tags", map[string]string{})
@@ -121,14 +123,22 @@ func init() {
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
 	Datadog.SetDefault("kubernetes_pod_label_to_tag_prefix", "kube_")
+	// ECS
+	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
 
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)
 	Datadog.SetDefault("bosh_id", "")
 	// APM
 	Datadog.SetDefault("apm_enabled", true) // this is to support the transition to the new config file
+	// Go_expvar server port
+	Datadog.SetDefault("expvar_port", "5000")
+	// Agent GUI access port
+	Datadog.SetDefault("GUI_port", "-1")
 	// Proess Agent
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
+
+	Datadog.SetDefault("logging_frequency", int64(20))
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
@@ -155,6 +165,8 @@ func init() {
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
 	Datadog.BindEnv("cloud_foundry")
 	Datadog.BindEnv("bosh_id")
+	Datadog.BindEnv("histogram_aggregates")
+	Datadog.BindEnv("histogram_percentiles")
 }
 
 var (

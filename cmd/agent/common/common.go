@@ -10,6 +10,7 @@ package common
 import (
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
@@ -21,6 +22,9 @@ import (
 var (
 	// AC is the global object orchestrating checks' loading and running
 	AC *autodiscovery.AutoConfig
+
+	// Coll is the global collector instance
+	Coll *collector.Collector
 
 	// DSD is the global dogstastd instance
 	DSD *dogstatsd.Server
@@ -42,6 +46,7 @@ func GetPythonPaths() []string {
 		GetDistPath(),                                  // common modules are shipped in the dist path directly or under the "checks/" sub-dir
 		filepath.Join(GetDistPath(), "checks.d"),       // custom checks in the "checks.d/" sub-dir of the dist path
 		config.Datadog.GetString("additional_checksd"), // custom checks, have precedence over integrations-core checks
+		PySitePackages,                                 // integrations-core, wheels have precedence over old-school SDK
 		PyChecksPath,                                   // integrations-core checks
 	}
 }

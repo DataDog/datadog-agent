@@ -5,8 +5,7 @@
 
 /*
 Package app implements the Agent main loop, orchestrating
-all the components and providing the command line interface.
-*/
+all the components and providing the command line interface. */
 package app
 
 import (
@@ -26,8 +25,10 @@ monitoring and performance data.`,
 	// confFilePath holds the path to the folder containing the configuration
 	// file, to allow overrides from the command line
 	confFilePath string
+	flagNoColor  bool
 )
 
 func init() {
 	AgentCmd.PersistentFlags().StringVarP(&confFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	AgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "Disable color output")
 }

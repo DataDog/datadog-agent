@@ -8,8 +8,8 @@
 package containers
 
 import (
-	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,95 +21,64 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
-// dockerEventBundle holds a list of ContainerEvent
-// identified as coming from the same image. It holds
-// the conversion logic to Datadog events for submission
-type dockerEventBundle struct {
-	imageName     string
-	events        []*docker.ContainerEvent
-	maxTimestamp  time.Time
-	countByAction map[string]int
-}
-
-//
-func newDockerEventBundler(imageName string) *dockerEventBundle {
-	return &dockerEventBundle{
-		imageName:     imageName,
-		events:        []*docker.ContainerEvent{},
-		countByAction: make(map[string]int),
-	}
-}
-
-func (b *dockerEventBundle) addEvent(event *docker.ContainerEvent) error {
-	if event.ImageName != b.imageName {
-		return fmt.Errorf("mismatching image name: %s != %s", event.ImageName, b.imageName)
-	}
-	b.events = append(b.events, event)
-	if event.Timestamp.After(b.maxTimestamp) {
-		b.maxTimestamp = event.Timestamp
-	}
-	b.countByAction[event.Action] = b.countByAction[event.Action] + 1
-
-	return nil
-}
-
-func (b *dockerEventBundle) toDatadogEvent(hostname string) (metrics.Event, error) {
-	output := metrics.Event{
-		Priority:       metrics.EventPriorityNormal,
-		Host:           hostname,
-		SourceTypeName: dockerCheckName,
-		EventType:      dockerCheckName,
-		Ts:             b.maxTimestamp.Unix(),
-		AggregationKey: fmt.Sprintf("docker:%s", b.imageName),
-	}
-	if len(b.events) == 0 {
-		return output, errors.New("no event to export")
-	}
-	output.Title = fmt.Sprintf("%s %s on %s",
-		b.imageName,
-		formatStringIntMap(b.countByAction),
-		hostname)
-
-	seenContainers := make(map[string]bool)
-	textLines := []string{"%%% ", output.Title, "```"}
-
-	for _, ev := range b.events {
-		textLines = append(textLines, fmt.Sprintf("%s\t%s", strings.ToUpper(ev.Action), ev.ContainerName))
-		seenContainers[ev.ContainerID] = true // Emulating a set with a map
-	}
-	textLines = append(textLines, "```", " %%%")
-	output.Text = strings.Join(textLines, "\n")
-
-	for cid, _ := range seenContainers {
-		tags, err := tagger.Tag(fmt.Sprintf("docker://%s", cid), true)
-		if err != nil {
-			log.Debugf("no tags for %s: %s", cid, err)
-		} else {
-			output.Tags = append(output.Tags, tags...)
-		}
-	}
-
-	if b.countByAction["oom"]+b.countByAction["kill"] > 0 {
-		output.AlertType = "error"
-	}
-
-	return output, nil
-}
-
-// reportEvents is the check's entrypoint to retrieve, aggregate and send events
-func (d *DockerCheck) reportEvents(sender aggregator.Sender) error {
+// reportEvents handles the event retrieval logic
+func (d *DockerCheck) retrieveEvents() ([]*docker.ContainerEvent, error) {
 	if d.lastEventTime.IsZero() {
 		d.lastEventTime = time.Now().Add(-60 * time.Second)
 	}
 	events, latest, err := docker.LatestContainerEvents(d.lastEventTime)
 	if err != nil {
-		return err
+		return events, err
 	}
 
 	if latest.IsZero() == false {
 		d.lastEventTime = latest.Add(1 * time.Nanosecond)
 	}
+
+	return events, nil
+}
+
+// reportExitCodes monitors events for non zero exit codes and sends service checks
+func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender aggregator.Sender) error {
+	for _, ev := range events {
+		// Filtering
+		if ev.Action != "die" {
+			continue
+		}
+		exitCodeString, codeFound := ev.Attributes["exitCode"]
+		if !codeFound {
+			log.Warnf("skipping event with no exit code: %s", ev)
+			continue
+		}
+		exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 32)
+		if err != nil {
+			log.Warnf("skipping event with invalid exit code: %s", err.Error())
+			continue
+		}
+
+		// Building and sending message
+		message := fmt.Sprintf("Container %s exited with %d", ev.ContainerName, exitCodeInt)
+		status := metrics.ServiceCheckOK
+		if exitCodeInt != 0 {
+			status = metrics.ServiceCheckCritical
+		}
+		tags, err := tagger.Tag(ev.ContainerEntityName(), true)
+		tags = append(tags, d.instance.Tags...)
+		if err != nil {
+			log.Debugf("no tags for %s: %s", ev.ContainerID, err)
+		}
+		sender.ServiceCheck(DockerExit, status, "", tags, message)
+	}
+
+	return nil
+}
+
+// reportEvents aggregates and sends events to the Datadog event feed
+func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggregator.Sender) error {
 	bundles, err := d.aggregateEvents(events)
+	if err != nil {
+		return err
+	}
 
 	for _, bundle := range bundles {
 		ev, err := bundle.toDatadogEvent(d.dockerHostname)

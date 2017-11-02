@@ -9,8 +9,8 @@ import (
 	"bytes"
 	"fmt"
 
-	apicommon "github.com/DataDog/datadog-agent/cmd/agent/api/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/spf13/cobra"
@@ -18,7 +18,6 @@ import (
 
 var (
 	customerEmail string
-	caseID        string
 	autoconfirm   bool
 )
 
@@ -26,7 +25,6 @@ func init() {
 	AgentCmd.AddCommand(flareCmd)
 
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
-	flareCmd.Flags().StringVarP(&caseID, "case-id", "i", "", "Your case ID")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.SetArgs([]string{"caseID"})
 }
@@ -40,9 +38,15 @@ var flareCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		caseID := ""
+		if len(args) > 0 {
+			caseID = args[0]
+		}
+
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
 		config.SetupLogger("off", "", "", false, false, "")
-		if customerEmail == "" && caseID == "" {
+		if customerEmail == "" {
 			var err error
 			customerEmail, err = flare.AskForEmail()
 			if err != nil {
@@ -50,18 +54,24 @@ var flareCmd = &cobra.Command{
 				return err
 			}
 		}
-		return requestFlare()
+
+		return requestFlare(caseID)
 	},
 }
 
-func requestFlare() error {
+func requestFlare(caseID string) error {
 	fmt.Println("Asking the agent to build the flare archive.")
 	var e error
 	c := common.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("cmd_port"))
 
+	logFile := config.Datadog.GetString("log_file")
+	if logFile == "" {
+		logFile = common.DefaultLogFile
+	}
+
 	// Set session token
-	apicommon.SetAuthToken()
+	util.SetAuthToken()
 
 	r, e := common.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string
@@ -73,7 +83,7 @@ func requestFlare() error {
 		}
 		fmt.Println("Initiating flare locally.")
 
-		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath)
+		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

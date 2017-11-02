@@ -94,10 +94,7 @@ func (suite *EtcdTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *EtcdTestSuite) SetupTest() {
-	config.Datadog.Set("autoconf_template_url", suite.etcdURL)
 	config.Datadog.Set("autoconf_template_dir", "/foo/")
-	config.Datadog.Set("autoconf_template_username", "")
-	config.Datadog.Set("autoconf_template_password", "")
 
 	suite.populateEtcd()
 	suite.toggleEtcdAuth(false)
@@ -155,7 +152,11 @@ func (suite *EtcdTestSuite) toggleEtcdAuth(enable bool) {
 }
 
 func (suite *EtcdTestSuite) TestWorkingConnectionAnon() {
-	p, err := providers.NewEtcdConfigProvider()
+	config := config.ConfigurationProviders{
+		TemplateURL: suite.etcdURL,
+		TemplateDir: "/foo",
+	}
+	p, err := providers.NewEtcdConfigProvider(config)
 	if err != nil {
 		panic(err)
 	}
@@ -171,9 +172,11 @@ func (suite *EtcdTestSuite) TestWorkingConnectionAnon() {
 }
 
 func (suite *EtcdTestSuite) TestBadConnection() {
-	config.Datadog.Set("autoconf_template_url", "http://127.0.0.1:1337")
-
-	p, err := providers.NewEtcdConfigProvider()
+	config := config.ConfigurationProviders{
+		TemplateURL: "http://127.0.0.1:1337",
+		TemplateDir: "/foo",
+	}
+	p, err := providers.NewEtcdConfigProvider(config)
 	assert.Nil(suite.T(), err)
 
 	checks, err := p.Collect()
@@ -183,10 +186,13 @@ func (suite *EtcdTestSuite) TestBadConnection() {
 
 func (suite *EtcdTestSuite) TestWorkingAuth() {
 	suite.toggleEtcdAuth(true)
-	config.Datadog.Set("autoconf_template_username", etcdUser)
-	config.Datadog.Set("autoconf_template_password", etcdPass)
-
-	p, err := providers.NewEtcdConfigProvider()
+	config := config.ConfigurationProviders{
+		TemplateURL: suite.etcdURL,
+		TemplateDir: "/foo",
+		Username:    etcdUser,
+		Password:    etcdPass,
+	}
+	p, err := providers.NewEtcdConfigProvider(config)
 	assert.Nil(suite.T(), err)
 
 	checks, err := p.Collect()
@@ -196,10 +202,13 @@ func (suite *EtcdTestSuite) TestWorkingAuth() {
 
 func (suite *EtcdTestSuite) TestBadAuth() {
 	suite.toggleEtcdAuth(true)
-	config.Datadog.Set("autoconf_template_username", etcdUser)
-	config.Datadog.Set("autoconf_template_password", "invalid")
-
-	p, err := providers.NewEtcdConfigProvider()
+	config := config.ConfigurationProviders{
+		TemplateURL: suite.etcdURL,
+		TemplateDir: "/foo",
+		Username:    etcdUser,
+		Password:    "invalid",
+	}
+	p, err := providers.NewEtcdConfigProvider(config)
 	assert.Nil(suite.T(), err)
 
 	checks, err := p.Collect()

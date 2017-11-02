@@ -26,13 +26,17 @@ type configFormat struct {
 
 // FileConfigProvider collect configuration files from disk
 type FileConfigProvider struct {
-	paths []string
+	paths  []string
+	Errors map[string]string
 }
 
 // NewFileConfigProvider creates a new FileConfigProvider searching for
 // configuration files on the given paths
 func NewFileConfigProvider(paths []string) *FileConfigProvider {
-	return &FileConfigProvider{paths: paths}
+	return &FileConfigProvider{
+		paths:  paths,
+		Errors: make(map[string]string),
+	}
 }
 
 // Collect scans provided paths searching for configuration files. When found,
@@ -83,11 +87,13 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 			}
 
 			checkName = checkName[:len(checkName)-len(ext)]
-			conf, err := getCheckConfig(checkName, filepath.Join(path, entry.Name()))
+			conf, err := GetCheckConfigFromFile(checkName, filepath.Join(path, entry.Name()))
 			if err != nil {
+				c.Errors[checkName] = err.Error()
 				log.Warnf("%s is not a valid config file: %s", entry.Name(), err)
 				continue
 			}
+			delete(c.Errors, checkName) // noop if entry is nonexistant
 			log.Debug("Found valid configuration in file:", entry.Name())
 			// determine if a check has to be run by default by
 			// searching for check.yaml.default files
@@ -142,7 +148,7 @@ func collectDir(parentPath string, folder os.FileInfo) []check.Config {
 	for _, sEntry := range subEntries {
 		if !sEntry.IsDir() {
 			filePath := filepath.Join(dirPath, sEntry.Name())
-			conf, err := getCheckConfig(checkName, filePath)
+			conf, err := GetCheckConfigFromFile(checkName, filePath)
 			if err != nil {
 				log.Warnf("%s is not a valid config file: %s", sEntry.Name(), err)
 				continue
@@ -155,8 +161,8 @@ func collectDir(parentPath string, folder os.FileInfo) []check.Config {
 	return configs
 }
 
-// getCheckConfig returns an instance of check.Config if `fpath` points to a valid config file
-func getCheckConfig(name, fpath string) (check.Config, error) {
+// GetCheckConfigFromFile returns an instance of check.Config if `fpath` points to a valid config file
+func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 	cf := configFormat{}
 	config := check.Config{Name: name}
 

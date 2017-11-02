@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/spf13/cobra"
 )
@@ -28,7 +27,8 @@ var (
 	logLevel   string
 )
 
-const checkCmdFlushInterval = 10000000000
+// Make the check cmd aggregator never flush by setting a very high interval
+const checkCmdFlushInterval = time.Hour
 
 func init() {
 	AgentCmd.AddCommand(checkCmd)
@@ -79,15 +79,8 @@ var checkCmd = &cobra.Command{
 			return err
 		}
 
-		// start tagging system for containers
-		err = tagger.Init()
-		if err != nil {
-			fmt.Printf("Unable to start tagging system: %s", err)
-			return err
-		}
-
 		s := &serializer.Serializer{Forwarder: common.Forwarder}
-		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, 10000000000)
+		agg := aggregator.InitAggregatorWithFlushInterval(s, hostname, checkCmdFlushInterval)
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 		cs := common.AC.GetChecksByName(checkName)
 		if len(cs) == 0 {

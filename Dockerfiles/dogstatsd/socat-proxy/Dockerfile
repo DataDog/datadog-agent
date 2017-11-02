@@ -1,6 +1,6 @@
-FROM alpine:3.5
+FROM alpine:3.6
 
-MAINTAINER Datadog <package@datadoghq.com>
+LABEL maintainer "Datadog <package@datadoghq.com>"
 
 RUN apk add --no-cache socat
 

@@ -6,8 +6,8 @@ from invoke import Collection
 
 from . import agent, benchmarks, docker, dogstatsd, pylauncher
 
-from .go import fmt, lint, vet, deps, reset
-from .test import test, integration_tests
+from .go import fmt, lint, vet, cyclo, ineffassign, misspell, deps, reset
+from .test import test, integration_tests, version
 
 
 # the root namespace
@@ -17,10 +17,14 @@ ns = Collection()
 ns.add_task(fmt)
 ns.add_task(lint)
 ns.add_task(vet)
+ns.add_task(cyclo)
+ns.add_task(ineffassign)
+ns.add_task(misspell)
 ns.add_task(test)
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(reset)
+ns.add_task(version)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)

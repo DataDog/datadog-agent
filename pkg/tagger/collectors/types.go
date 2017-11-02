@@ -5,9 +5,6 @@
 
 package collectors
 
-// DockerEntityPrefix is the entity prefix for docker containers
-const DockerEntityPrefix = "docker://"
-
 // TagInfo holds the tag information for a given entity and source. It's meant
 // to be created from collectors and read by the store.
 type TagInfo struct {
@@ -23,9 +20,11 @@ type CollectionMode int
 
 // Return values for Collector.Init to inform the Tagger of the scheduling needed
 const (
-	NoCollection     CollectionMode = iota // Not available
-	PullCollection                         // Call regularly via the Pull methof
-	StreamCollection                       // Will continuously feed updates on the channel from Steam() to Stop()
+	NoCollection        CollectionMode = iota // Not available
+	PullCollection                            // Call regularly via the Pull method
+	StreamCollection                          // Will continuously feed updates on the channel from Steam() to Stop()
+	FetchOnlyCollection                       // Only call Fetch() on cache misses
+
 )
 
 // Collector retrieve entity tags from a given source and feeds

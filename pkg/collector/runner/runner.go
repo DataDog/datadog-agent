@@ -14,12 +14,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
 )
 
 const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
+const stopAllChecksTimeout time.Duration = 2 * time.Second    // Time to wait for all checks to stop
 
 // checkStats holds the stats from the running checks
 type runnerCheckStats struct {
@@ -69,6 +71,7 @@ func NewRunner(numWorkers int) *Runner {
 }
 
 // Stop closes the pending channel so all workers will exit their loop and terminate
+// All publishers to the pending channel need to have stopped before Stop is called
 func (r *Runner) Stop() {
 	if atomic.LoadUint32(&r.running) == 0 {
 		log.Debug("Runner already stopped, nothing to do here...")
@@ -82,23 +85,41 @@ func (r *Runner) Stop() {
 
 	// stop checks that are still running
 	r.m.Lock()
-	for _, check := range r.runningChecks {
-		log.Infof("Stopping Check %v that is still running...", check)
-		done := make(chan struct{})
-		go func() {
-			check.Stop()
-			close(done)
-		}()
+	globalDone := make(chan struct{})
+	wg := sync.WaitGroup{}
+	for _, c := range r.runningChecks {
+		wg.Add(1)
+		go func(c check.Check) {
+			log.Infof("Stopping Check %v that is still running...", c)
+			done := make(chan struct{})
+			go func() {
+				c.Stop()
+				close(done)
+				wg.Done()
+			}()
 
-		select {
-		case <-done:
-			// all good
-		case <-time.After(stopCheckTimeout):
-			// check is not responding
-			log.Errorf("Check %v not responding, timing out...", check)
-		}
+			select {
+			case <-done:
+				// all good
+			case <-time.After(stopCheckTimeout):
+				// check is not responding
+				log.Warnf("Check %v not responding after %v", c, stopCheckTimeout)
+			}
+		}(c)
 	}
 	r.m.Unlock()
+
+	go func() {
+		wg.Wait()
+		close(globalDone)
+	}()
+	select {
+	case <-globalDone:
+		// all good
+	case <-time.After(stopAllChecksTimeout):
+		// some checks are not responding
+		log.Errorf("Some checks not responding after %v, timing out...", stopAllChecksTimeout)
+	}
 }
 
 // GetChan returns a write-only version of the pending channel
@@ -149,21 +170,19 @@ func (r *Runner) work() {
 		}
 		r.m.Unlock()
 
-		log.Infof("Running check %s", check)
+		doLog, lastLog := shouldLog(check.ID())
+
+		if doLog {
+			log.Infof("Running check %s", check)
+		} else {
+			log.Debugf("Running check %s", check)
+		}
 
 		// run the check
 		var err error
 		t0 := time.Now()
 
-		if check.Interval() == 0 {
-			// retry long running checks, bail out if they return an error 3 times
-			// in a row without running for at least 5 seconds
-			// TODO: this should be check-configurable, with meaningful default values
-			err = retry(5*time.Second, 3, check.Run)
-		} else {
-			// normal check run
-			err = check.Run()
-		}
+		err = check.Run()
 
 		warnings := check.GetWarnings()
 
@@ -205,10 +224,41 @@ func (r *Runner) work() {
 		mStats, _ := check.GetMetricStats()
 		addWorkStats(check, time.Since(t0), err, warnings, mStats)
 
-		log.Infof("Done running check %s", check)
+		l := "Done running check %s"
+		if doLog {
+			if lastLog {
+				l = l + fmt.Sprintf(" first runs done, next runs will be logged every %v runs", config.Datadog.GetInt64("logging_frequency"))
+			}
+			log.Infof(l, check)
+		} else {
+			log.Debugf(l, check)
+		}
 	}
 
 	log.Debug("Finished processing checks.")
+}
+
+func shouldLog(id check.ID) (doLog bool, lastLog bool) {
+	checkStats.M.RLock()
+	defer checkStats.M.RUnlock()
+
+	loggingFrequency := uint64(config.Datadog.GetInt64("logging_frequency"))
+
+	s, found := checkStats.Stats[id]
+	if found {
+		if s.TotalRuns <= 5 {
+			doLog = true
+			if s.TotalRuns == 5 {
+				lastLog = true
+			}
+		} else if s.TotalRuns%loggingFrequency == 0 {
+			doLog = true
+		}
+	} else {
+		doLog = true
+	}
+
+	return
 }
 
 func addWorkStats(c check.Check, execTime time.Duration, err error, warnings []error, mStats map[string]int64) {
@@ -241,36 +291,15 @@ func GetCheckStats() map[check.ID]*check.Stats {
 	return checkStats.Stats
 }
 
+// RemoveCheckStats removes a check from the check stats map
+func RemoveCheckStats(checkID check.ID) {
+	checkStats.M.RLock()
+	defer checkStats.M.RUnlock()
+
+	delete(checkStats.Stats, checkID)
+}
+
 func getHostname() string {
 	hostname, _ := util.GetHostname()
 	return hostname
-}
-
-func retry(retryDuration time.Duration, retries int, callback func() error) (err error) {
-	attempts := 0
-
-	for {
-		t0 := time.Now()
-		err = callback()
-		if err == nil {
-			return nil
-		}
-
-		// how much did the callback run?
-		execDuration := time.Now().Sub(t0)
-		if execDuration < retryDuration {
-			// the callback failed too soon, retry but increment the counter
-			attempts++
-		} else {
-			// the callback failed after the retryDuration, reset the counter
-			attempts = 0
-		}
-
-		if attempts == retries {
-			// give up
-			return fmt.Errorf("bail out, last error: %v", err)
-		}
-
-		log.Warnf("Retrying, got an error executing the callback: %v", err)
-	}
 }

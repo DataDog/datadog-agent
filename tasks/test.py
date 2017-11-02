@@ -6,15 +6,25 @@ from __future__ import print_function
 import os
 import fnmatch
 
+import invoke
 from invoke import task
 
-from .utils import pkg_config_path
+from .utils import pkg_config_path, get_version
 from .go import fmt, lint, vet
-from .build_tags import get_build_tags
+from .build_tags import get_default_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 
 PROFILE_COV = "profile.cov"
+
+# List of packages to ignore when running tests on Windows platform
+WIN_PKG_BLACKLIST = [
+    "./pkg\\util\\xc",
+]
+
+DEFAULT_TARGETS = [
+    "./pkg",
+]
 
 
 @task()
@@ -26,8 +36,14 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
     """
-    targets_list = ctx.targets if targets is None else targets.split(',')
-    build_tags = get_build_tags()  # pass all the build flags for tests
+    if isinstance(targets, basestring):
+        # when this function is called from the command line, targets are passed
+        # as comma separated tokens in a string
+        targets = targets.split(',')
+    elif targets is None:
+        targets = DEFAULT_TARGETS
+
+    build_tags = get_default_build_tags()
 
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
@@ -41,7 +57,6 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
-
 
     race_opt = ""
     covermode_opt = ""
@@ -58,19 +73,24 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
 
     if race or coverage:
         matches = []
-        for target in targets_list:
+        for target in targets:
             for root, _, filenames in os.walk(target):
                 if fnmatch.filter(filenames, "*.go"):
                     matches.append(root)
     else:
-        matches = ["{}/...".format(t) for t in targets_list]
+        matches = ["{}/...".format(t) for t in targets]
 
     for match in matches:
+        if invoke.platform.WINDOWS:
+            if match in WIN_PKG_BLACKLIST:
+                print("Skipping blacklisted directory {}\n".format(match))
+                continue
+
         coverprofile = ""
         if coverage:
             profile_tmp = "{}/profile.tmp".format(match)
             coverprofile = "-coverprofile={}".format(profile_tmp)
-        cmd = "go test -tags '{go_build_tags}' {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}"
+        cmd = 'go test -tags "{go_build_tags}" {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
         args = {
             "go_build_tags": " ".join(build_tags),
             "race_opt": race_opt,
@@ -90,9 +110,13 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
 
 
 @task
-def integration_tests(ctx, install_deps=False):
+def integration_tests(ctx, install_deps=False, remote_docker=False):
     """
     Run all the available integration tests
     """
-    agent_integration_tests(ctx, install_deps)
-    dsd_integration_tests(ctx, install_deps)
+    agent_integration_tests(ctx, install_deps, remote_docker)
+    dsd_integration_tests(ctx, install_deps, remote_docker)
+
+@task
+def version(ctx):
+    print(get_version(ctx, include_git=True))

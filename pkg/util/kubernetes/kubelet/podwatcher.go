@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build kubelet
+
 package kubelet
 
 import (
@@ -40,7 +42,7 @@ func NewPodWatcher() (*PodWatcher, error) {
 }
 
 // PullChanges pulls a new podlist from the kubelet and returns Pod objects for
-// new / updated pods. Updated pods will be sent entierly, user must replace
+// new / updated pods. Updated pods will be sent entirely, user must replace
 // previous info for these pods.
 func (w *PodWatcher) PullChanges() ([]*Pod, error) {
 	podlist, err := w.kubeUtil.GetLocalPodList()

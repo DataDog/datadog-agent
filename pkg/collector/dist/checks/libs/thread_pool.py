@@ -394,7 +394,7 @@ class ApplyResult(object):
                 traceback.print_exc()
 
     def _set_exception(self):
-        """Called by a Job object to tell that an exception occured
+        """Called by a Job object to tell that an exception occurred
         during the processing of the function. The object will become
         ready but not successful. The collector's notify_ready()
         method will be called, but NOT the callback method"""

@@ -3,12 +3,13 @@ Dogstatsd tasks
 """
 from __future__ import print_function
 import os
+from shutil import copy2
 
 import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_build_tags
+from .build_tags import get_build_tags, get_default_build_tags
 from .utils import get_build_flags, bin_name, get_root
 from .utils import REPO_PATH
 
@@ -18,14 +19,21 @@ from .go import deps
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
 STATIC_BIN_PATH = os.path.join(".", "bin", "static")
 MAX_BINARY_SIZE = 15 * 1024
+DOGSTATSD_TAG = "datadog/dogstatsd:master"
+DEFAULT_BUILD_TAGS = [
+    "zlib",
+    "docker",
+]
+
 
 @task
-def build(ctx, rebuild=False, race=False, static=False, build_include=None, build_exclude=None, use_embedded_libs=False):
+def build(ctx, rebuild=False, race=False, static=False, build_include=None,
+          build_exclude=None, use_embedded_libs=False):
     """
     Build Dogstatsd
     """
-    build_include = ctx.dogstatsd.build_include if build_include is None else build_include.split(",")
-    build_exclude = ctx.dogstatsd.build_exclude if build_exclude is None else build_exclude.split(",")
+    build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
+    build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
     ldflags, gcflags = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
     bin_path = DOGSTATSD_BIN_PATH
@@ -57,7 +65,8 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
     """
     if not skip_build:
         print("Building dogstatsd...")
-        build(ctx, rebuild=rebuild, race=race, build_include=build_include, build_exclude=build_exclude)
+        build(ctx, rebuild=rebuild, race=race, build_include=build_include,
+              build_exclude=build_exclude)
 
     target = os.path.join(DOGSTATSD_BIN_PATH, bin_name("dogstatsd"))
     ctx.run("{} start".format(target))
@@ -77,7 +86,7 @@ def system_tests(ctx, skip_build=False):
     }
     cmd = "go test -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
     args = {
-        "build_tags": " ".join(get_build_tags()),
+        "build_tags": " ".join(get_default_build_tags()),
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)
@@ -139,18 +148,45 @@ def omnibus_build(ctx):
 
 
 @task
-def integration_tests(ctx, install_deps=False):
+def integration_tests(ctx, install_deps=False, remote_docker=False):
     """
-    Run integration tests for the Agent
+    Run integration tests for Dogstatsd
     """
     if install_deps:
         deps(ctx)
 
-    build_tags = get_build_tags()
+    test_args = {
+        "go_build_tags": " ".join(get_default_build_tags()),
+        "exec_opts": "",
+    }
 
-    # config_providers
-    cmd = "go test -tags '{}' {}/test/integration/dogstatsd/..."
-    ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+    if remote_docker:
+        test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
+
+    go_cmd = 'go test -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+
+    prefixes = [
+        "./test/integration/dogstatsd/...",
+    ]
+
+    for prefix in prefixes:
+        ctx.run("{} {}".format(go_cmd, prefix))
+
+
+@task
+def image_build(ctx, skip_build=False):
+    """
+    Build the docker image
+    """
+    target = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
+    if not skip_build:
+        build(ctx, rebuild=True, static=True)
+    if not os.path.exists(target):
+        raise Exit(1)
+
+    copy2(target, "Dockerfiles/dogstatsd/alpine/dogstatsd")
+    ctx.run("docker build -t {} Dockerfiles/dogstatsd/alpine/".format(DOGSTATSD_TAG))
+    ctx.run("rm Dockerfiles/dogstatsd/alpine/dogstatsd")
 
 
 @task

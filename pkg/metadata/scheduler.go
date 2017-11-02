@@ -56,7 +56,7 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 
 	ticker := time.NewTicker(interval)
 	go func() {
-		for _ = range ticker.C {
+		for range ticker.C {
 			p.Send(c.srl)
 		}
 	}()

@@ -96,7 +96,13 @@
 [[projects]]
   name = "github.com/ericchiang/k8s"
   packages = [".","api/resource","api/unversioned","api/v1","apis/apps/v1alpha1","apis/apps/v1beta1","apis/authentication/v1","apis/authentication/v1beta1","apis/authorization/v1","apis/authorization/v1beta1","apis/autoscaling/v1","apis/autoscaling/v2alpha1","apis/batch/v1","apis/batch/v2alpha1","apis/certificates/v1alpha1","apis/certificates/v1beta1","apis/extensions/v1beta1","apis/imagepolicy/v1alpha1","apis/meta/v1","apis/policy/v1alpha1","apis/policy/v1beta1","apis/rbac/v1alpha1","apis/rbac/v1beta1","apis/settings/v1alpha1","apis/storage/v1","apis/storage/v1beta1","runtime","runtime/schema","util/intstr","watch/versioned"]
-  revision = "860d64039a0d98e149452f9687f26eb3636d5038"
+  revision = "fa30591be9ccaacee478995fbba53c648e901483"
+
+[[projects]]
+  name = "github.com/fatih/color"
+  packages = ["."]
+  revision = "570b54cabe6b8eb0bc2dfce68d964677d63b5260"
+  version = "v1.5.0"
 
 [[projects]]
   name = "github.com/fsnotify/fsnotify"
@@ -131,6 +137,12 @@
   name = "github.com/golang/protobuf"
   packages = ["proto"]
   revision = "4bd1920723d7b7c925de087aa32e2187708897f7"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/google/gofuzz"
+  packages = ["."]
+  revision = "24818f796faf91cd76ec7bddd72458fbced7a6c1"
 
 [[projects]]
   name = "github.com/gorilla/context"
@@ -203,6 +215,18 @@
   name = "github.com/magiconair/properties"
   packages = ["."]
   revision = "51463bfca2576e06c62a8504b5c0f06d61312647"
+
+[[projects]]
+  name = "github.com/mattn/go-colorable"
+  packages = ["."]
+  revision = "167de6bfdfba052fa6b2d3664c8f5272e23c9072"
+  version = "v0.0.9"
+
+[[projects]]
+  name = "github.com/mattn/go-isatty"
+  packages = ["."]
+  revision = "0360b2af4f38e8d38c7fce2a9f4e702702d73a39"
+  version = "v0.0.3"
 
 [[projects]]
   branch = "master"
@@ -325,6 +349,12 @@
   revision = "ded73eae5db7e7a0ef6f55aace87a2873c5d2b74"
 
 [[projects]]
+  name = "github.com/urfave/negroni"
+  packages = ["."]
+  revision = "fde5e16d32adc7ad637e9cd9ad21d4ebc6192535"
+  version = "v0.2.0"
+
+[[projects]]
   name = "golang.org/x/net"
   packages = ["context","context/ctxhttp","http2","http2/hpack","idna","lex/httplex","proxy"]
   revision = "f2499483f923065a842d38eb4c7f1927e6fc6e6d"
@@ -359,6 +389,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ec3c7b9114a404fc7fa0f195d621d827bc86d1bf3c386161f11e432a5d68ae70"
+  inputs-digest = "4cef3042b5c8332db9f5aed456dba11604340758f2fdb62347254b0084c3b088"
   solver-name = "gps-cdcl"
   solver-version = 1

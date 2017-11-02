@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
+// +build !windows
 
 package system
 
@@ -11,14 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/shirou/gopsutil/disk"
 )
 
 var (
 	ioSamples = []map[string]disk.IOCountersStat{
-		map[string]disk.IOCountersStat{
-			"sda": disk.IOCountersStat{
+		{
+			"sda": {
 				ReadCount:        443071,
 				MergedReadCount:  104744,
 				WriteCount:       10412454,
@@ -33,8 +34,8 @@ var (
 				Name:             "sda",
 				SerialNumber:     "123456789WD",
 			},
-		}, map[string]disk.IOCountersStat{
-			"sda": disk.IOCountersStat{
+		}, {
+			"sda": {
 				ReadCount:        443071,
 				MergedReadCount:  104744,
 				WriteCount:       10412454,
@@ -67,16 +68,15 @@ func TestIOCheck(t *testing.T) {
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(nil, nil)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, ioCheck.ID())
+	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	expectedRates := 2
 	expectedGauges := 0
 
 	switch os := runtime.GOOS; os {
 	case "windows":
-		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
-		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
+		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:C:"}).Return().Times(1)
+		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:C:"}).Return().Times(1)
 	default: // Should cover Unices (Linux, OSX, FreeBSD,...)
 		mock.On("Rate", "system.io.r_s", 443071.0, "", []string{"device:sda"}).Return().Times(1)
 		mock.On("Rate", "system.io.w_s", 10412454.0, "", []string{"device:sda"}).Return().Times(1)
@@ -131,8 +131,7 @@ func TestIOCheckBlacklist(t *testing.T) {
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(nil, nil)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, ioCheck.ID())
+	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	//set blacklist
 	bl, err := regexp.Compile("sd.*")

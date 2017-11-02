@@ -24,7 +24,7 @@ func StartZkContainer(imageName string, containerName string) (string, error) {
 
 	hostConfig := &container.HostConfig{
 		PortBindings: nat.PortMap{
-			"2181/tcp": []nat.PortBinding{nat.PortBinding{HostPort: "2181"}},
+			"2181/tcp": []nat.PortBinding{{HostPort: "2181"}},
 		},
 	}
 

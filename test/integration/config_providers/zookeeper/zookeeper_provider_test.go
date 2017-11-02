@@ -25,54 +25,55 @@ import (
 var (
 	zkDataTree = [][]string{
 		// create required path (we need to create every node one by one)
-		[]string{"/datadog", ""},
-		[]string{"/datadog/check_configs", ""},
+		{"/datadog", ""},
+		{"/datadog/check_configs", ""},
 
 		//// create 3 valid configuration
-		[]string{"/datadog/check_configs/nginx", ""},
-		[]string{"/datadog/check_configs/nginx/check_names", "[\"nginx_a\", \"nginx_b\"]"},
-		[]string{"/datadog/check_configs/nginx/instances", "[{\"key\":2}, {}]"},
-		[]string{"/datadog/check_configs/nginx/init_configs", "[{}, {\"key\":3}]"},
+		{"/datadog/check_configs/nginx", ""},
+		{"/datadog/check_configs/nginx/check_names", "[\"nginx_a\", \"nginx_b\"]"},
+		{"/datadog/check_configs/nginx/instances", "[{\"key\":2}, {}]"},
+		{"/datadog/check_configs/nginx/init_configs", "[{}, {\"key\":3}]"},
 
-		[]string{"/datadog/check_configs/redis", ""},
-		[]string{"/datadog/check_configs/redis/check_names", "[\"redis_a\"]"},
-		[]string{"/datadog/check_configs/redis/instances", "[{}]"},
-		[]string{"/datadog/check_configs/redis/init_configs", "[{}]"},
+		{"/datadog/check_configs/redis", ""},
+		{"/datadog/check_configs/redis/check_names", "[\"redis_a\"]"},
+		{"/datadog/check_configs/redis/instances", "[{}]"},
+		{"/datadog/check_configs/redis/init_configs", "[{}]"},
 
 		//// create non config folder folder
-		[]string{"/datadog/check_configs/other", ""},
-		[]string{"/datadog/check_configs/other/data", "some data"},
+		{"/datadog/check_configs/other", ""},
+		{"/datadog/check_configs/other/data", "some data"},
 
 		//// create config with missing parameter
-		[]string{"/datadog/check_configs/incomplete", ""},
-		[]string{"/datadog/check_configs/incomplete/instances", "[{\"key\":2}, {}]"},
-		[]string{"/datadog/check_configs/incomplete/init_configs", "[{}, {\"key\":3}]"},
+		{"/datadog/check_configs/incomplete", ""},
+		{"/datadog/check_configs/incomplete/instances", "[{\"key\":2}, {}]"},
+		{"/datadog/check_configs/incomplete/init_configs", "[{}, {\"key\":3}]"},
 
 		//// create config with json error
-		[]string{"/datadog/check_configs/json_error1", ""},
-		[]string{"/datadog/check_configs/json_error1/check_names", "[\"nginx_a\", \"nginx_b\"]"},
-		[]string{"/datadog/check_configs/json_error1/instances", "[{\"key\":2}]"},
-		[]string{"/datadog/check_configs/json_error1/init_configs", "[{}, {\"key\":3}]"},
+		{"/datadog/check_configs/json_error1", ""},
+		{"/datadog/check_configs/json_error1/check_names", "[\"nginx_a\", \"nginx_b\"]"},
+		{"/datadog/check_configs/json_error1/instances", "[{\"key\":2}]"},
+		{"/datadog/check_configs/json_error1/init_configs", "[{}, {\"key\":3}]"},
 
-		[]string{"/datadog/check_configs/json_error2", ""},
-		[]string{"/datadog/check_configs/json_error2/check_names", "[\"nginx_a\"]"},
-		[]string{"/datadog/check_configs/json_error2/instances", "[{]"},
-		[]string{"/datadog/check_configs/json_error2/init_configs", "[{}]"},
+		{"/datadog/check_configs/json_error2", ""},
+		{"/datadog/check_configs/json_error2/check_names", "[\"nginx_a\"]"},
+		{"/datadog/check_configs/json_error2/instances", "[{]"},
+		{"/datadog/check_configs/json_error2/init_configs", "[{}]"},
 
-		[]string{"/datadog/check_configs/json_error3", ""},
-		[]string{"/datadog/check_configs/json_error3/check_names", "\"nginx_a\""},
-		[]string{"/datadog/check_configs/json_error3/instances", "[{}]"},
-		[]string{"/datadog/check_configs/json_error3/init_configs", "[{}]"},
+		{"/datadog/check_configs/json_error3", ""},
+		{"/datadog/check_configs/json_error3/check_names", "\"nginx_a\""},
+		{"/datadog/check_configs/json_error3/instances", "[{}]"},
+		{"/datadog/check_configs/json_error3/init_configs", "[{}]"},
 	}
 )
 
 type ZkTestSuite struct {
 	suite.Suite
-	templates     map[string]string
-	client        *zk.Conn
-	containerName string
-	zkVersion     string
-	zkURL         string
+	templates      map[string]string
+	client         *zk.Conn
+	containerName  string
+	zkVersion      string
+	zkURL          string
+	providerConfig config.ConfigurationProviders
 }
 
 // use a constructor to make the suite parametric
@@ -121,11 +122,10 @@ func (suite *ZkTestSuite) TearDownSuite() {
 
 // put configuration back in a known state before each test
 func (suite *ZkTestSuite) SetupTest() {
-	config.Datadog.Set("autoconf_template_url", suite.zkURL)
-	config.Datadog.Set("autoconf_template_dir", "/datadog/check_configs")
-	config.Datadog.Set("autoconf_template_username", "")
-	config.Datadog.Set("autoconf_template_password", "")
-
+	suite.providerConfig = config.ConfigurationProviders{
+		TemplateURL: suite.zkURL,
+		TemplateDir: "/datadog/check_configs",
+	}
 	suite.populate()
 }
 
@@ -143,7 +143,7 @@ func (suite *ZkTestSuite) populate() error {
 }
 
 func (suite *ZkTestSuite) TestCollect() {
-	zk, err := providers.NewZookeeperConfigProvider()
+	zk, err := providers.NewZookeeperConfigProvider(suite.providerConfig)
 	require.Nil(suite.T(), err)
 
 	templates, err := zk.Collect()

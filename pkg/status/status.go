@@ -35,9 +35,9 @@ func GetStatus() (map[string]interface{}, error) {
 	hostname, err := util.GetHostname()
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayload("unknown")
+		stats["metadata"] = host.GetPayloadFromCache("unknown")
 	} else {
-		stats["metadata"] = host.GetPayload(hostname)
+		stats["metadata"] = host.GetPayloadFromCache(hostname)
 	}
 
 	stats["config"] = getPartialConfig()

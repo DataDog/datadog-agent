@@ -10,6 +10,11 @@ logfile="ddagent-install.log"
 gist_request=/tmp/agent-gist-request.tmp
 gist_response=/tmp/agent-gist-response.tmp
 
+LEGACY_ETCDIR="/etc/dd-agent"
+LEGACY_CONF="$LEGACY_ETCDIR/datadog.conf"
+ETCDIR="/etc/datadog-agent"
+CONF="$ETCDIR/datadog.yaml"
+
 if [ $(command -v curl) ]; then
     dl_cmd="curl -f"
 else
@@ -187,49 +192,53 @@ printf "\033[31mRefreshing symlink...\n\033[0m\n"
 $sudo_cmd ln -sf /opt/datadog-agent/bin/agent/agent /usr/bin/datadog-agent
 
 if [ $dd_upgrade ]; then
-  if [ -e /etc/dd-agent/datadog.conf ]; then
+  if [ -e $LEGACY_CONF ]; then
     # try to import the config file from the previous version
-    icmd="datadog-agent import /etc/dd-agent /etc/datadog-agent"
+    icmd="datadog-agent import $LEGACY_ETCDIR $ETCDIR"
     $sudo_cmd $icmd || printf "\033[31mAutomatic import failed, you can still try to manually run: $icmd\n\033[0m\n"
     # fix file owner and permissions since the script moves around some files
-    $sudo_cmd chown -R dd-agent:dd-agent /etc/datadog-agent
-    $sudo_cmd find /etc/datadog-agent/ -type f -exec chmod 640 {} \;
+    $sudo_cmd chown -R dd-agent:dd-agent $ETCDIR
+    $sudo_cmd find $ETCDIR/ -type f -exec chmod 640 {} \;
   else
     printf "\033[31mYou don't have a datadog.conf file to convert.\n\033[0m\n"
   fi
 fi
 
 # Set the configuration
-if [ -e /etc/datadog-agent/datadog.yaml -a -z "$dd_upgrade" ]; then
+if [ -e $CONF -a -z "$dd_upgrade" ]; then
   printf "\033[34m\n* Keeping old datadog.yaml configuration file\n\033[0m\n"
 else
-  if [ ! -e /etc/datadog-agent/datadog.yaml ]; then
-    $sudo_cmd cp /etc/datadog-agent/datadog.yaml.example /etc/datadog-agent/datadog.yaml
+  if [ ! -e $CONF ]; then
+    $sudo_cmd cp $CONF.example $CONF
   fi
   if [ $apikey ]; then
-    printf "\033[34m\n* Adding your API key to the Agent configuration: /etc/datadog-agent/datadog.yaml\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' /etc/datadog-agent/datadog.yaml"
+    printf "\033[34m\n* Adding your API key to the Agent configuration: $CONF\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/api_key:.*/api_key: $apikey/' $CONF"
   else
     # If the import script failed for any reason, we might end here also in case
     # of upgrade, let's not start the agent or it would fail because the api key
     # is missing
-    printf "\033[31mThe Agent won't start automatically at the end of the script because the Api key is missing, please add one in datadog.yaml and start the agent manually.\n\033[0m\n"
-    no_start=true
+    if ! $sudo_cmd -u dd-agent -- grep -q -E '^api_key: .+' $CONF; then
+      printf "\033[31mThe Agent won't start automatically at the end of the script because the Api key is missing, please add one in datadog.yaml and start the agent manually.\n\033[0m\n"
+      no_start=true
+    fi
   fi
   if [ $dd_hostname ]; then
-    printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: /etc/datadog-agent/datadog.yaml\n\033[0m\n"
-    $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $dd_hostname/' /etc/datadog-agent/datadog.yaml"
+    printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: $CONF\n\033[0m\n"
+    $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $dd_hostname/' $CONF"
   fi
-  $sudo_cmd chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml
-  $sudo_cmd chmod 640 /etc/datadog-agent/datadog.yaml
+  $sudo_cmd chown dd-agent:dd-agent $CONF
+  $sudo_cmd chmod 640 $CONF
 fi
 
 
+# Use systemd by default
 restart_cmd="$sudo_cmd systemctl restart datadog-agent.service"
 stop_instructions="$sudo_cmd systemctl stop datadog-agent"
 start_instructions="$sudo_cmd systemctl start datadog-agent"
-# Upstart
-if command -v start >/dev/null 2>&1; then
+
+# Try to detect Upstart, this works most of the times but still a best effort
+if /sbin/init --version 2>&1 | grep -q upstart; then
     restart_cmd="$sudo_cmd start datadog-agent"
     stop_instructions="$sudo_cmd stop datadog-agent"
     start_instructions="$sudo_cmd start datadog-agent"

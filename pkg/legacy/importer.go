@@ -67,6 +67,7 @@ var (
 		"receiver_port",
 		"connection_limit",
 		"resource",
+		"disable_file_logging",
 	}
 )
 
@@ -107,7 +108,7 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 
 	// these values are postprocessed in config.py, manually overwrite them
 	config["histogram_aggregates"] = "['max', 'median', 'avg', 'count']"
-	config["histogram_percentiles"] = "[0.95]"
+	config["histogram_percentiles"] = "['0.95']"
 	config["endpoints"] = "{}"
 	config["version"] = "5.18.0"
 	config["proxy_settings"] = "{'host': 'my-proxy.com', 'password': 'password', 'port': 3128, 'user': 'user'}"

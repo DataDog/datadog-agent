@@ -19,17 +19,8 @@ import (
 	"github.com/shirou/gopsutil/disk"
 )
 
-// For testing purpose
-var ioCounters = disk.IOCounters
-
 // kernel ticks / sec
 var hz int64
-
-const (
-	// SectorSize is exported in github.com/shirou/gopsutil/disk (but not working!)
-	SectorSize = 512
-	kB         = (1 << 10)
-)
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
@@ -81,12 +72,12 @@ func (c *IOCheck) nixIO() error {
 		}
 		lastIOStats, ok := c.stats[device]
 		if !ok {
-			log.Infof("New device stats (possible hotplug) - full stats unavailable this iteration.")
+			log.Debug("New device stats (possible hotplug) - full stats unavailable this iteration.")
 			continue
 		}
 
 		if delta == 0 {
-			log.Infof("No delta to compute - skipping.")
+			log.Debug("No delta to compute - skipping.")
 			continue
 		}
 

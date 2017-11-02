@@ -6,11 +6,17 @@ vendor/
 bin/
 /dev/
 
+**/*.tmp
+**/debug.test
 # files
 .DS_Store
+.vscode
 *.cov
 *.pyc
 *.swp
 *.exe
 *.syso
 *.log
+
+#file generated at build time by message compiler
+agentmsg.h

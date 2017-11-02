@@ -6,7 +6,7 @@ import os
 
 from invoke import task
 
-from .build_tags import get_build_tags
+from .build_tags import get_default_build_tags
 from .utils import REPO_PATH, bin_name, get_root
 
 
@@ -18,7 +18,7 @@ def build(ctx, rebuild=False):
     """
     Build the pylauncher executable
     """
-    build_tags = get_build_tags()  # pass all the build flags
+    build_tags = get_default_build_tags()  # pass all the build flags
 
     cmd = "go build {build_type} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/cmd/py-launcher/"
     args = {

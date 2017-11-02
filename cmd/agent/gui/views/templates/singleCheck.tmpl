@@ -1,0 +1,21 @@
+<div id="check_run_results">
+  <span class="stat_title">{{formatTitle .Name}} run result: </span>
+  {{- range $i, $e := .CheckStats}}
+  <span class="stat_subtitle">Instance {{add $i 1}}</span>
+    <span class="stat_data">
+        Total Runs: {{.TotalRuns}}<br>
+        Metrics: {{.Metrics}}, Total Metrics: {{humanizeI .TotalMetrics}}<br>
+        Events: {{.Events}}, Total Events: {{humanizeI .TotalEvents}}<br>
+        Service Checks: {{.ServiceChecks}}, Total Service Checks: {{humanizeI .TotalServiceChecks}}<br>
+      {{- if .LastError}}
+        <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
+              {{lastErrorTraceback .LastError -}}
+      {{- end -}}
+      {{- if .LastWarnings}}
+        {{- range .LastWarnings }}
+          <span class="warning">Warning</span>: {{.}}<br>
+        {{- end -}}
+      {{- end -}}
+    </span>
+  {{- end -}}
+</div>

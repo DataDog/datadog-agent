@@ -1,0 +1,126 @@
+version: 2
+
+# This file uses YAML anchors to deduplicate steps
+# see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
+# and https://learnxinyminutes.com/docs/yaml/
+
+templates:
+  job_template: &job_template
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
+        environment:
+          USE_SYSTEM_LIBS: "1"
+    working_directory: /go/src/github.com/DataDog/datadog-agent
+  step_templates:
+    - run: &save_sha
+        name: save SHA to a file
+        command: echo $CIRCLE_SHA1 > .circle-sha
+    - restore_cache: &restore_source
+        keys:
+          - v1-repo-{{ checksum ".circle-sha" }}
+    - restore_cache: &restore_vendor
+        keys:
+          - v1-govendordeps-{{ checksum "Gopkg.toml" }}
+    - restore_cache: &restore_gobindeps
+        keys:
+          - v1-gobindeps
+
+jobs:
+  checkout_code:
+    <<: *job_template
+    steps:
+      - checkout
+      - run: *save_sha
+      - save_cache:
+          key: v1-repo-{{ checksum ".circle-sha" }}
+          paths:
+            - /go/src/github.com/DataDog/datadog-agent
+
+  dependencies:
+    <<: *job_template
+    steps:
+      - run: *save_sha
+      - restore_cache: *restore_source
+      - restore_cache: *restore_vendor
+      - run:
+          name: grab go deps
+          command: invoke deps
+      - save_cache:
+          key: v1-govendordeps-{{ checksum "Gopkg.toml" }}
+          paths:
+            - /go/src/github.com/DataDog/datadog-agent/vendor
+      - save_cache:
+          key: v1-gobindeps
+          paths:
+            - /go/bin
+
+  unit_tests:
+    <<: *job_template
+    steps:
+      - run: *save_sha
+      - restore_cache: *restore_source
+      - restore_cache: *restore_vendor
+      - restore_cache: *restore_gobindeps
+      - run:
+          name: run unit tests
+          command: invoke -e test --coverage --race
+
+  integration_tests:
+    <<: *job_template
+    steps:
+      - run: *save_sha
+      - restore_cache: *restore_source
+      - restore_cache: *restore_vendor
+      - restore_cache: *restore_gobindeps
+      - setup_remote_docker
+      - run:
+          name: run integration tests
+          command: inv integration-tests --install-deps --remote-docker
+
+  build_binaries:
+    <<: *job_template
+    steps:
+      - run: *save_sha
+      - restore_cache: *restore_source
+      - restore_cache: *restore_vendor
+      - restore_cache: *restore_gobindeps
+      - run:
+          name: build dogstatsd
+          command: inv -e dogstatsd.build --static
+      - run:
+          name: build agent
+          command: inv agent.build
+
+  build_puppy:
+    <<: *job_template
+    steps:
+      - run: *save_sha
+      - restore_cache: *restore_source
+      - restore_cache: *restore_vendor
+      - restore_cache: *restore_gobindeps
+      - run:
+          name: build puppy
+          command: inv agent.build --puppy
+
+workflows:
+  version: 2
+  build_test_deploy:
+    jobs:
+      - checkout_code
+      - dependencies:
+          requires:
+            - checkout_code
+      - unit_tests:
+          requires:
+            - dependencies
+      - integration_tests:
+          requires:
+            - dependencies
+      - build_binaries:
+          requires:
+            - unit_tests
+            - integration_tests
+      - build_puppy:
+          requires:
+            - unit_tests
+            - integration_tests

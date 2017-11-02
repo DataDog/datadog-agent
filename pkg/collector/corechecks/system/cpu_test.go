@@ -8,7 +8,7 @@ package system
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/shirou/gopsutil/cpu"
 )
 
@@ -78,8 +78,8 @@ func TestCPUCheckLinux(t *testing.T) {
 	cpuCheck := new(CPUCheck)
 	cpuCheck.Configure(nil, nil)
 
-	mock := new(MockSender)
-	aggregator.SetSender(mock, cpuCheck.ID())
+	mock := mocksender.NewMockSender(cpuCheck.ID())
+
 	sample = firstSample
 	cpuCheck.Run()
 

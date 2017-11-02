@@ -8,6 +8,7 @@ package autodiscovery
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"sync"
 	"unicode"
 
@@ -17,7 +18,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-type variableGetter func(key []byte, tpl check.Config, svc listeners.Service) []byte
+type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
 
 var (
 	templateVariables = map[string]variableGetter{
@@ -25,7 +26,6 @@ var (
 		"pid":            getPid,
 		"port":           getPort,
 		"container-name": getContainerName,
-		"tags":           getOptTags,
 	}
 )
 
@@ -134,20 +134,30 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 // resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
 func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (check.Config, error) {
-	vars := tpl.GetTemplateVariables()
-	for _, v := range vars {
-		name, key := parseTemplateVar(v)
-		if f, ok := templateVariables[string(name)]; ok {
-			resolvedVar := f(key, tpl, svc)
-			if resolvedVar != nil {
+	tags, err := svc.GetTags()
+	if err != nil {
+		return tpl, err
+	}
+	for i := 0; i < len(tpl.Instances); i++ {
+		vars := tpl.GetTemplateVariablesForInstance(i)
+		for _, v := range vars {
+			name, key := parseTemplateVar(v)
+			if f, found := templateVariables[string(name)]; found {
+				resolvedVar, err := f(key, svc)
+				if err != nil {
+					return check.Config{}, err
+				}
+				// init config vars are replaced by the first found
 				tpl.InitConfig = bytes.Replace(tpl.InitConfig, v, resolvedVar, -1)
-				tpl.Instances[0] = bytes.Replace(tpl.Instances[0], v, resolvedVar, -1)
+				tpl.Instances[i] = bytes.Replace(tpl.Instances[i], v, resolvedVar, -1)
 			}
-		} else {
-			return check.Config{}, fmt.Errorf("template variable %s does not exist", name)
+		}
+		err = tpl.Instances[i].MergeAdditionalTags(tags)
+		if err != nil {
+			return tpl, err
 		}
 	}
-	// TODO: call and add cr.getTags
+
 	return tpl, nil
 }
 
@@ -158,14 +168,19 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 	defer cr.m.Unlock()
 
 	// in any case, register the service
-	cr.services[svc.ID] = svc
-	cr.serviceToChecks[svc.ID] = make([]check.ID, 0)
+	cr.services[svc.GetID()] = svc
+	cr.serviceToChecks[svc.GetID()] = make([]check.ID, 0)
 
 	// get all the templates matching service identifiers
 	templates := []check.Config{}
-	for _, adID := range svc.ADIdentifiers {
+	ADIdentifiers, err := svc.GetADIdentifiers()
+	if err != nil {
+		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetID(), err)
+		return
+	}
+	for _, adID := range ADIdentifiers {
 		// map the AD identifier to this service for reverse lookup
-		cr.adIDToServices[adID] = append(cr.adIDToServices[adID], svc.ID)
+		cr.adIDToServices[adID] = append(cr.adIDToServices[adID], svc.GetID())
 		tpls, err := cr.templates.Get(adID)
 		if err != nil {
 			log.Errorf("Unable to fetch templates from the cache: %v", err)
@@ -198,7 +213,7 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 			// add the check to the list of checks running against the service
 			// this is used when a template or a service is removed
 			// and we want to stop their related checks
-			cr.serviceToChecks[svc.ID] = append(cr.serviceToChecks[svc.ID], id)
+			cr.serviceToChecks[svc.GetID()] = append(cr.serviceToChecks[svc.GetID()], id)
 		}
 	}
 }
@@ -208,7 +223,7 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 	cr.m.Lock()
 	defer cr.m.Unlock()
 
-	if checks, ok := cr.serviceToChecks[svc.ID]; ok {
+	if checks, ok := cr.serviceToChecks[svc.GetID()]; ok {
 		stopped := map[check.ID]struct{}{}
 		for _, id := range checks {
 			err := cr.collector.StopCheck(id)
@@ -219,54 +234,80 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 		}
 
 		// remove the entry from `serviceToChecks`
-		if len(stopped) == len(cr.serviceToChecks[svc.ID]) {
+		if len(stopped) == len(cr.serviceToChecks[svc.GetID()]) {
 			// we managed to stop all the checks for this config
-			delete(cr.serviceToChecks, svc.ID)
+			delete(cr.serviceToChecks, svc.GetID())
 		} else {
 			// keep the checks we failed to stop in `serviceToChecks[svc.ID]`
 			dangling := []check.ID{}
-			for _, id := range cr.serviceToChecks[svc.ID] {
+			for _, id := range cr.serviceToChecks[svc.GetID()] {
 				if _, found := stopped[id]; !found {
 					dangling = append(dangling, id)
 				}
 			}
-			cr.serviceToChecks[svc.ID] = dangling
+			cr.serviceToChecks[svc.GetID()] = dangling
 		}
 	}
 }
 
-// TODO (use svc.Hosts)
-func getHost(tplVar []byte, tpl check.Config, svc listeners.Service) []byte {
-	return []byte("127.0.0.1")
+// TODO support orchestrators
+func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	hosts, err := svc.GetHosts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it", svc.GetID())
+	}
+
+	// a network was specified
+	if bytes.Contains(tplVar, []byte("_")) {
+		network := bytes.SplitN(tplVar, []byte("_"), 2)[1]
+		if ip, ok := hosts[string(network)]; ok {
+			return []byte(ip), nil
+		}
+		log.Warnf("network %s not found, trying bridge IP instead", string(network))
+	}
+	// otherwise use the bridge interface
+	if ip, found := hosts["bridge"]; found {
+		return []byte(ip), nil
+	}
+	return nil, fmt.Errorf("failed to resolve IP address for container %s, ignoring it", svc.GetID())
 }
 
-// TODO (use svc.Ports)
-func getPort(tplVar []byte, tpl check.Config, svc listeners.Service) []byte {
-	return []byte("80")
+// TODO support orchestrators
+func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	ports, err := svc.GetPorts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract port list for container %s, ignoring it", svc.GetID())
+	} else if len(ports) == 0 {
+		return nil, fmt.Errorf("no port found for container %s - ignoring it", svc.GetID())
+	}
+
+	if bytes.Contains(tplVar, []byte("_")) {
+		idxStr := string(bytes.SplitN(tplVar, []byte("_"), 2)[1])
+		idx, err := strconv.Atoi((string(idxStr)))
+		if err != nil {
+			return nil, fmt.Errorf("index given for the port template var is not an int, skipping container %s", svc.GetID())
+		}
+		if len(ports) <= idx {
+			return nil, fmt.Errorf("idenx given for the port template var is too big, skipping container %s", svc.GetID())
+		}
+		return []byte(strconv.Itoa(ports[idx])), nil
+	}
+
+	return []byte(strconv.Itoa(ports[len(ports)-1])), nil
+}
+
+// getPid returns the process identifier of the service
+func getPid(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	pid, err := svc.GetPid()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
+	}
+	return []byte(strconv.Itoa(pid)), nil
 }
 
 // TODO
-func getPid(tplVar []byte, tpl check.Config, svc listeners.Service) []byte {
-	return []byte("1")
-}
-
-// TODO
-func getContainerName(tplVar []byte, tpl check.Config, svc listeners.Service) []byte {
-	return []byte("test-container-name")
-}
-
-// getTags returns tags that are appended by default to all metrics.
-// TODO (use svc.Tags)
-func getTags(tplVar []byte, tpl check.Config, svc listeners.Service) []byte {
-	return []byte("[\"tag:foo\", \"tag:bar\"]")
-}
-
-// getOptTags returns tags that are to be applied to templates with %%tags%%.
-// This is generally reserved to high-cardinality tags that we want to provide,
-// but not by default.
-// TODO
-func getOptTags(tplVar []byte, tpl check.Config, svc listeners.Service) []byte {
-	return []byte("[\"opt:tag1\", \"opt:tag2\"]")
+func getContainerName(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	return []byte("test-container-name"), nil
 }
 
 // parseTemplateVar extracts the name of the var

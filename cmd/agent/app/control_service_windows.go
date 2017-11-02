@@ -17,6 +17,7 @@ import (
 func init() {
 	AgentCmd.AddCommand(startsvcCommand)
 	AgentCmd.AddCommand(stopsvcCommand)
+	AgentCmd.AddCommand(restartsvcCommand)
 }
 
 var startsvcCommand = &cobra.Command{
@@ -31,6 +32,13 @@ var stopsvcCommand = &cobra.Command{
 	Short: "stops the agent within the service control manager",
 	Long:  ``,
 	RunE:  stopService,
+}
+
+var restartsvcCommand = &cobra.Command{
+	Use:   "restart-service",
+	Short: "restarts the agent within the service control manager",
+	Long:  ``,
+	RunE:  restartService,
 }
 
 func startService(cmd *cobra.Command, args []string) error {
@@ -53,6 +61,14 @@ func startService(cmd *cobra.Command, args []string) error {
 
 func stopService(cmd *cobra.Command, args []string) error {
 	return controlService(svc.Stop, svc.Stopped)
+}
+
+func restartService(cmd *cobra.Command, args []string) error {
+	var err error
+	if err = stopService(cmd, args); err == nil {
+		err = startService(cmd, args)
+	}
+	return err
 }
 
 func controlService(c svc.Cmd, to svc.State) error {

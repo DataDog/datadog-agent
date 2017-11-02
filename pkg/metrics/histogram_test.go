@@ -14,7 +14,51 @@ import (
 	// 3p
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
+
+func TestHistogramConf(t *testing.T) {
+	h := histogramPercentilesConfig{Percentiles: []string{"0.95", "0.96", "0.28", "0.57", "0.58"}}
+	assert.Equal(t, []int{95, 96, 28, 57, 58}, h.percentiles())
+}
+
+func TestHistogramConfError(t *testing.T) {
+	h := histogramPercentilesConfig{Percentiles: []string{"0.95", "test", "0.12test", "0.22", "200", "-50"}}
+	assert.Equal(t, []int{95, 22}, h.percentiles())
+}
+
+func TestConfigureDefault(t *testing.T) {
+	hist := NewHistogram(10)
+	hist.addSample(&MetricSample{Value: 1}, 50)
+	hist.addSample(&MetricSample{Value: 2}, 55)
+
+	_, err := hist.flush(60)
+	require.Nil(t, err)
+	assert.Equal(t, []string{"max", "median", "avg", "count"}, hist.aggregates)
+	assert.Equal(t, []int{95}, hist.percentiles)
+}
+
+func TestConfigure(t *testing.T) {
+	aggregatesBk := config.Datadog.Get("histogram_aggregates")
+	percentilesBk := config.Datadog.Get("histogram_percentiles")
+	defer func() {
+		config.Datadog.Set("histogram_aggregates", aggregatesBk)
+		config.Datadog.Set("histogram_percentiles", percentilesBk)
+		defaultAggregates = nil
+		defaultPercentiles = nil
+	}()
+
+	defaultAggregates = nil
+	defaultPercentiles = nil
+	aggregates := []string{"max", "min", "test"}
+	config.Datadog.Set("histogram_aggregates", aggregates)
+	config.Datadog.Set("histogram_percentiles", []string{"0.50", "0.30", "0.98"})
+
+	hist := NewHistogram(10)
+	assert.Equal(t, aggregates, hist.aggregates)
+	assert.Equal(t, []int{30, 50, 98}, hist.percentiles)
+}
 
 func TestDefaultHistogramSampling(t *testing.T) {
 	// Initialize default histogram

@@ -94,6 +94,11 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("log_file", agentConfig["collector_log_file"])
 	}
 
+	// config.Datadog has a default value for this, do nothing if the value is empty
+	if agentConfig["disable_file_logging"] != "" {
+		config.Datadog.Set("disable_file_logging", agentConfig["disable_file_logging"])
+	}
+
 	if enabled, err := isAffirmative(agentConfig["log_to_syslog"]); err == nil {
 		config.Datadog.Set("log_to_syslog", enabled)
 	}
@@ -168,9 +173,9 @@ func buildSyslogURI(agentConfig Config) string {
 func buildConfigProviders(agentConfig Config) ([]config.ConfigurationProviders, error) {
 	// the list of SD_CONFIG_BACKENDS supported in v5
 	SdConfigBackends := map[string]struct{}{
-		"etcd":   struct{}{},
-		"consul": struct{}{},
-		"zk":     struct{}{},
+		"etcd":   {},
+		"consul": {},
+		"zk":     {},
 	}
 
 	if _, found := SdConfigBackends[agentConfig["sd_config_backend"]]; !found {

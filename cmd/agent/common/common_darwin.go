@@ -9,12 +9,18 @@ import (
 	"path/filepath"
 )
 
-// DefaultConfPath points to the folder containing datadog.yaml
-const DefaultConfPath = "/opt/datadog-agent/etc/datadog-agent"
+const (
+	// DefaultConfPath points to the folder containing datadog.yaml
+	DefaultConfPath = "/opt/datadog-agent/etc/datadog-agent"
+	// DefaultLogFile points to the log file that will be used if not configured
+	DefaultLogFile = "/var/log/datadog/agent.log"
+)
 
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "..", "checks.d")
+	// PySitePackages holds the path to the python checks from integrations-core installed via wheels
+	PySitePackages = filepath.Join(_here, "..", "..", "embedded", "lib", "python2.7", "site-packages")
 	// DistPath holds the path to the folder containing distribution files
 	distPath = filepath.Join(_here, "dist")
 )
@@ -22,4 +28,9 @@ var (
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {
 	return distPath
+}
+
+// GetViewsPath returns the fully qualified path to the 'gui/views' directory
+func GetViewsPath() string {
+	return filepath.Join(distPath, "views")
 }

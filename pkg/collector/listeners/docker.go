@@ -3,16 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build docker
+
 package listeners
 
 import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
@@ -38,7 +44,7 @@ type DockerListener struct {
 	m          sync.RWMutex
 }
 
-// NewDockerListener creates a client connection to Docker and instanciate a DockerListener with it
+// NewDockerListener creates a client connection to Docker and instantiate a DockerListener with it
 // TODO: TLS support
 func NewDockerListener() (*DockerListener, error) {
 	c, err := docker.ConnectToDocker()
@@ -54,13 +60,13 @@ func NewDockerListener() (*DockerListener, error) {
 }
 
 // Listen streams container-related events from Docker and report said containers as Services.
-func (l *DockerListener) Listen(newSvc, delSvc chan<- Service) {
+func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
 
 	// process containers that might be already running
-	l.Init()
+	l.init()
 
 	// filters only match start/stop container events
 	filters := filters.NewArgs()
@@ -97,10 +103,10 @@ func (l *DockerListener) Stop() {
 	l.stop <- true
 }
 
-// Init looks at currently running Docker containers,
+// init looks at currently running Docker containers,
 // creates services for them, and pass them to the ConfigResolver.
 // It is typically called at start up.
-func (l *DockerListener) Init() {
+func (l *DockerListener) init() {
 	l.m.Lock()
 	defer l.m.Unlock()
 
@@ -111,13 +117,14 @@ func (l *DockerListener) Init() {
 
 	for _, co := range containers {
 		id := ID(co.ID)
-		ADidentifiers := l.getConfigIDFromPs(co)
-		hosts := l.getHostsFromPs(co)
-		ports := l.getPortsFromPs(co)
-		tags := l.getTagsFromPs(co)
-		svc := Service{id, ADidentifiers, hosts, ports, tags}
-		l.newService <- svc
-		l.services[id] = svc
+		svc := DockerService{
+			ID:            id,
+			ADIdentifiers: l.getConfigIDFromPs(co),
+			Hosts:         l.getHostsFromPs(co),
+			Ports:         l.getPortsFromPs(co),
+		}
+		l.newService <- &svc
+		l.services[id] = &svc
 	}
 }
 
@@ -147,8 +154,8 @@ func (l *DockerListener) processEvent(e events.Message) {
 		if e.Action == "die" {
 			l.removeService(cID)
 		} else {
-			log.Error("TODO - this shouldn't happen, expected die")
-			signals.ErrorStopper <- true
+			// FIXME sometimes the agent's container's events are picked up twice at startup
+			log.Debugf("Expected die for container %s got %s: skipping event", cID[:12], e.Action)
 			return
 		}
 	} else {
@@ -163,24 +170,34 @@ func (l *DockerListener) processEvent(e events.Message) {
 // createService takes a container ID, create a service for it in its cache
 // and tells the ConfigResolver that this service started.
 func (l *DockerListener) createService(cID ID) {
-	co, err := l.Client.ContainerInspect(context.Background(), string(cID))
+	svc := DockerService{
+		ID: cID,
+	}
+	_, err := svc.GetADIdentifiers()
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
-
 	}
-	svc := Service{
-		cID,
-		l.getConfigIDFromInspect(co),
-		l.getHostsFromInspect(co),
-		l.getPortsFromInspect(co),
-		l.getTagsFromInspect(co),
+	_, err = svc.GetHosts()
+	if err != nil {
+		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
-
+	_, err = svc.GetPorts()
+	if err != nil {
+		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
+	}
+	_, err = svc.GetPid()
+	if err != nil {
+		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
+	}
+	_, err = svc.GetTags()
+	if err != nil {
+		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
+	}
 	l.m.Lock()
-	l.services[ID(cID)] = svc
+	l.services[ID(cID)] = &svc
 	l.m.Unlock()
 
-	l.newService <- svc
+	l.newService <- &svc
 }
 
 // removeService takes a container ID, removes the related service from its cache
@@ -199,63 +216,6 @@ func (l *DockerListener) removeService(cID ID) {
 	} else {
 		log.Debugf("Container %s not found, not removing", cID[:12])
 	}
-}
-
-// getConfigIDFromInspect returns a set of AD identifiers for a container.
-// These id are sorted to reflect the priority we want the ConfigResolver to
-// use when matching a template.
-//
-// When the special identifier label in `identifierLabel` is set by the user,
-// it overrides any other meaning of template identification for the service
-// and the return value will contain only the label value.
-//
-// If the special label was not set, the priority order is the following:
-//   1. Long image name
-//   2. Short image name
-func (l *DockerListener) getConfigIDFromInspect(co types.ContainerJSON) []string {
-	// check for an identifier label
-	for l, v := range co.Config.Labels {
-		if l == identifierLabel {
-			return []string{v}
-		}
-	}
-
-	ids := []string{}
-
-	// use the image name
-	ids = append(ids, co.Image) // TODO: check if it's the sha256
-	// TODO: add the short name with lower priority
-
-	return ids
-}
-
-// getHostsFromInspect gets the addresss (for now IP address only) of a container on all its networks.
-// TODO: use the k8s API when no network config is found
-func (l *DockerListener) getHostsFromInspect(co types.ContainerJSON) map[string]string {
-	ips := make(map[string]string)
-	if co.NetworkSettings != nil {
-		for net, settings := range co.NetworkSettings.Networks {
-			ips[net] = settings.IPAddress
-		}
-	}
-	return ips
-}
-
-// getPortsFromInspect gets the service ports of a container.
-// TODO: use the k8s API
-func (l *DockerListener) getPortsFromInspect(co types.ContainerJSON) []int {
-	ports := make([]int, 0)
-
-	for p := range co.NetworkSettings.Ports {
-		ports = append(ports, p.Int())
-	}
-	return ports
-}
-
-// getTagsFromInspect gets tags for a container.
-// TODO: use the container ID only and rely on container metadata providers?
-func (l *DockerListener) getTagsFromInspect(co types.ContainerJSON) []string {
-	return []string{}
 }
 
 // getConfigIDFromPs returns a set of AD identifiers for a container.
@@ -309,8 +269,117 @@ func (l *DockerListener) getPortsFromPs(co types.Container) []int {
 	return ports
 }
 
-// getTagsFromPs gets tags for a container.
-// TODO: use the container ID only and rely on container metadata providers?
-func (l *DockerListener) getTagsFromPs(co types.Container) []string {
-	return []string{}
+// GetID returns the service ID
+func (s *DockerService) GetID() ID {
+	return s.ID
+}
+
+// GetADIdentifiers returns a set of AD identifiers for a container.
+// These id are sorted to reflect the priority we want the ConfigResolver to
+// use when matching a template.
+//
+// When the special identifier label in `identifierLabel` is set by the user,
+// it overrides any other meaning of template identification for the service
+// and the return value will contain only the label value.
+//
+// If the special label was not set, the priority order is the following:
+//   1. Long image name
+//   2. Short image name
+func (s *DockerService) GetADIdentifiers() ([]string, error) {
+	if len(s.ADIdentifiers) == 0 {
+		cj, err := docker.Inspect(string(s.ID), false)
+		if err != nil {
+			return []string{}, err
+		}
+
+		// check for an identifier label
+		for l, v := range cj.Config.Labels {
+			if l == identifierLabel {
+				return []string{v}, nil
+			}
+		}
+
+		ids := []string{}
+
+		// use the image name
+		ids = append(ids, cj.Image) // TODO: check if it's the sha256
+		// TODO: add the short name with lower priority
+		s.ADIdentifiers = ids
+	}
+
+	return s.ADIdentifiers, nil
+}
+
+// GetHosts returns the container's hosts
+func (s *DockerService) GetHosts() (map[string]string, error) {
+	if s.Hosts != nil {
+		return s.Hosts, nil
+	}
+
+	ips := make(map[string]string)
+
+	cInspect, err := docker.Inspect(string(s.ID), false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
+	}
+	for net, settings := range cInspect.NetworkSettings.Networks {
+		ips[net] = settings.IPAddress
+	}
+
+	s.Hosts = ips
+	return ips, nil
+}
+
+// GetPorts returns the container's ports
+func (s *DockerService) GetPorts() ([]int, error) {
+	if s.Ports != nil {
+		return s.Ports, nil
+	}
+
+	ports := make([]int, 0)
+
+	cInspect, err := docker.Inspect(string(s.ID), false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
+	}
+
+	for p := range cInspect.NetworkSettings.Ports {
+		portStr := string(p)
+		if strings.Contains(portStr, "/") {
+			portStr = strings.Split(portStr, "/")[0]
+		}
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			log.Warnf("failed to extract port %s", string(p))
+		}
+		ports = append(ports, port)
+	}
+	sort.Ints(ports)
+	s.Ports = ports
+	return ports, nil
+}
+
+// GetTags retrieves tags using the Tagger
+func (s *DockerService) GetTags() ([]string, error) {
+	entity := docker.ContainerIDToEntityName(string(s.ID))
+	tags, err := tagger.Tag(entity, true)
+	if err != nil {
+		return []string{}, err
+	}
+
+	return tags, nil
+}
+
+// GetPid inspect the container an return its pid
+func (s *DockerService) GetPid() (int, error) {
+	// Try to inspect container to get the pid if not defined
+	if s.Pid <= 0 {
+		cj, err := docker.Inspect(string(s.ID), false)
+		if err != nil {
+			return -1, err
+		}
+		s.Pid = cj.State.Pid
+	}
+
+	return s.Pid, nil
 }

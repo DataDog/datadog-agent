@@ -161,6 +161,9 @@ func (c *Collector) StopCheck(id check.ID) error {
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
 	}
 
+	// remove the check from the stats map
+	runner.RemoveCheckStats(id)
+
 	// vaporize the check
 	c.delete(id)
 
@@ -187,4 +190,44 @@ func (c *Collector) delete(id check.ID) {
 // lightweight shortcut to see if the collector has started
 func (c *Collector) started() bool {
 	return atomic.LoadUint32(&(c.state)) == started
+}
+
+// returns the ID's of all instances of a check
+func (c *Collector) getAllInstanceIDs(checkName string) []check.ID {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	instances := []check.ID{}
+	for id, check := range c.checks {
+		if check.String() == checkName {
+			instances = append(instances, id)
+		}
+	}
+
+	return instances
+}
+
+// ReloadAllCheckInstances completely restarts a check with a new configuration
+func (c *Collector) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]check.ID, error) {
+	if !c.started() {
+		return nil, fmt.Errorf("The collector is not running")
+	}
+
+	// Stop all the old instances
+	killed := c.getAllInstanceIDs(name)
+	for _, id := range killed {
+		e := c.StopCheck(id)
+		if e != nil {
+			return nil, fmt.Errorf("Error stopping check %s: %s", id, e)
+		}
+	}
+
+	// Start the new instances
+	for _, check := range newInstances {
+		id, e := c.RunCheck(check)
+		if e != nil {
+			return nil, fmt.Errorf("Error adding check %s: %s", id, e)
+		}
+	}
+	return killed, nil
 }
