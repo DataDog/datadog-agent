@@ -23,7 +23,9 @@ import (
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "agent", "checks.d")
-	distPath     string
+	// PySitePackages holds the path to the python checks from integrations-core installed via wheels
+	PySitePackages = filepath.Join(_here, "lib", "python2.7", "site-packages")
+	distPath       string
 	// ViewsPath holds the path to the folder containing the GUI support files
 	viewsPath string
 )
