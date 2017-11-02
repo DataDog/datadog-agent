@@ -155,7 +155,7 @@ func (l *DockerListener) processEvent(e events.Message) {
 			l.removeService(cID)
 		} else {
 			// FIXME sometimes the agent's container's events are picked up twice at startup
-			log.Debugf("Expected die for container %s got %s **skipping event**", cID[:12], e.Action)
+			log.Debugf("Expected die for container %s got %s: skipping event", cID[:12], e.Action)
 			return
 		}
 	} else {
