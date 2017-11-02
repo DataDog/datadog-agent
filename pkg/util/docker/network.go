@@ -146,7 +146,7 @@ func resolveDockerNetworks(containerNetworks map[string][]dockerNetwork) {
 			if cnw, ok := containerNetworks[nw.routingContainerID]; ok {
 				containerNetworks[cid] = cnw
 			} else {
-				log.Debugf("unable resolve network for c:%s that uses namespace of c:%s", cid, nw.routingContainerID)
+				log.Debugf("unable to resolve network for c:%s that uses namespace of c:%s", cid, nw.routingContainerID)
 				containerNetworks[cid] = nil
 			}
 		}
