@@ -45,7 +45,8 @@ api_key:
 # The path of the Named Pipe the IPC api uses on Windows
 # cmd_pipe_name: \\.\pipe\ddagent
 
-# How many workers will be used to run the checks
+# How many workers will be used to run the check (if not specified, is automatically
+# determined based on number of checks running)
 # check_runners: 4
 
 # Forwarder timeout in seconds

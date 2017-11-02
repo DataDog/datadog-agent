@@ -6,10 +6,8 @@
 package runner
 
 import (
-	"encoding/json"
 	"expvar"
 	"fmt"
-	"io/ioutil"
 
 	"strconv"
 	"sync"
@@ -25,7 +23,8 @@ import (
 )
 
 const (
-	defaultNumWorkers                  = 6
+	defaultNumWorkers                  = 4
+	maxNumWorkers                      = 25
 	stopCheckTimeout     time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
 	stopAllChecksTimeout time.Duration = 2 * time.Second        // Time to wait for all checks to stop
 )
@@ -60,13 +59,19 @@ type Runner struct {
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner(numWorkers int) *Runner {
+func NewRunner() *Runner {
+	numWorkers := config.Datadog.GetInt("check_runners") // = 0 if no value is specified by the user
+	if numWorkers > maxNumWorkers {
+		numWorkers = maxNumWorkers
+		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, maxNumWorkers)
+	}
+
 	r := &Runner{
 		// initialize the channel
 		pending:          make(chan check.Check),
 		runningChecks:    make(map[check.ID]check.Check),
 		running:          1,
-		staticNumWorkers: numWorkers != 0, // numWorkers == 0 is the default value in the config file
+		staticNumWorkers: numWorkers != 0,
 	}
 
 	if !r.staticNumWorkers {
@@ -91,35 +96,34 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 		return
 	}
 
-	d, e := ioutil.ReadFile("pkg/collector/runner/check_workers.json")
-	if e != nil {
-		log.Infof("Can't open check_workers.json: " + e.Error())
-		return
+	// Find which range the number of checks we're running falls in
+	var desiredNumWorkers int
+	switch {
+	case numChecks <= 10:
+		desiredNumWorkers = 4
+	case numChecks <= 15:
+		desiredNumWorkers = 10
+	case numChecks <= 20:
+		desiredNumWorkers = 15
+	case numChecks <= 25:
+		desiredNumWorkers = 20
+	default:
+		desiredNumWorkers = maxNumWorkers // max = 25
 	}
 
-	var ranges []interface{}
-	json.Unmarshal(d, &ranges)
-	for _, v := range ranges {
-		ran, _ := v.(map[string]interface{})
-		// Find which range the number of checks we're running falls in
-		if float64(numChecks) >= ran["min"].(float64) && float64(numChecks) <= ran["max"].(float64) {
-			added := 0
-			for {
-				if float64(numWorkers) >= ran["n"].(float64) {
-					break
-				}
-				// Add workers if we don't have enough for this range
-				runnerStats.Add("Workers", 1)
-				go r.work()
-				numWorkers++
-				added++
-			}
-			if added > 0 {
-				log.Infof("Currently running between "+strconv.FormatFloat(ran["min"].(float64), 'f', 0, 64)+
-					"-"+strconv.FormatFloat(ran["max"].(float64), 'f', 0, 64)+" checks. "+
-					"Added %d workers to runner: now at "+runnerStats.Get("Workers").String()+" workers.", added)
-			}
+	// Add workers if we don't have enough for this range
+	added := 0
+	for {
+		if numWorkers >= desiredNumWorkers {
+			break
 		}
+		runnerStats.Add("Workers", 1)
+		go r.work()
+		numWorkers++
+		added++
+	}
+	if added > 0 {
+		log.Infof("Added %d workers to runner: now at "+runnerStats.Get("Workers").String()+" workers.", added)
 	}
 }
 
@@ -209,7 +213,6 @@ func (r *Runner) StopCheck(id check.ID) error {
 // work waits for checks and run them as long as they arrive on the channel
 func (r *Runner) work() {
 	log.Debug("Ready to process checks...")
-
 	for check := range r.pending {
 		// see if the check is already running
 		r.m.Lock()
