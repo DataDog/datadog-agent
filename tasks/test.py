@@ -10,7 +10,7 @@ import invoke
 from invoke import task
 
 from .utils import pkg_config_path
-from .go import fmt, lint, vet
+from .go import fmt, ineffassign, lint, misspell, vet
 from .build_tags import get_default_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
@@ -48,7 +48,9 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
     fmt(ctx, targets=targets, fail_on_fmt=fail_on_fmt)
+    ineffassign(ctx, targets=targets)
     lint(ctx, targets=targets)
+    misspell(ctx, targets=targets)
     vet(ctx, targets=targets)
 
     with open(PROFILE_COV, "w") as f_cov:
