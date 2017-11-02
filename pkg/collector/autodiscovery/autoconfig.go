@@ -158,10 +158,11 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 // Check instances. Should always be run once so providers that don't need
 // polling will be queried at least once
 func (ac *AutoConfig) LoadAndRun() {
-	for _, check := range ac.getAllChecks() {
-		_, err := ac.collector.RunCheck(check)
+	configs := ac.getAllConfigs()
+	for _, config := range configs {
+		err := ac.resolveAndRun(config)
 		if err != nil {
-			log.Errorf("Unable to run Check %s: %v", check, err)
+			log.Error(err)
 		}
 	}
 }
@@ -222,6 +223,64 @@ func (ac *AutoConfig) getAllChecks() []check.Check {
 	return all
 }
 
+// resolveAndRun loads and resolves a given config and schedules the
+// corresponding Check instances.
+func (ac *AutoConfig) resolveAndRun(config check.Config) error {
+	if config.IsTemplate() {
+		// store the template in the cache in any case
+		if err := ac.templateCache.Set(config); err != nil {
+			log.Errorf("Unable to store Check configuration in the cache: %s", err)
+		}
+
+		// try to resolve the template
+		resolvedConfigs := ac.configResolver.ResolveTemplate(config)
+		if len(resolvedConfigs) == 0 {
+			log.Infof("Can't resolve the template for %s at this moment.", config.Name)
+			return nil
+		}
+
+		// If success, get the checks for each config resolved
+		// and schedule for running, each template can resolve
+		// to multiple configs
+		for _, config := range resolvedConfigs {
+			// each config could resolve to multiple checks
+			checks, err := ac.GetChecks(config)
+			if err != nil {
+				log.Errorf("Unable to load check from template: %s", err)
+				continue
+			}
+			// ask the Collector to schedule the checks
+			ac.scheduleChecksFromConfig(checks, config)
+		}
+	} else {
+		// the config is not a template, just schedule the checks for running
+		checks, err := ac.GetChecks(config)
+		if err != nil {
+			return log.Errorf("Unable to load check from template: %s", err)
+		}
+		// ask the Collector to schedule the checks
+		ac.scheduleChecksFromConfig(checks, config)
+	}
+
+	return nil
+}
+
+func (ac *AutoConfig) scheduleChecksFromConfig(checks []check.Check, config check.Config) {
+	// store the checks we schedule for this config locally
+	configDigest := config.Digest()
+	ac.config2checks[configDigest] = []check.ID{}
+
+	for _, check := range checks {
+		_, err := ac.collector.RunCheck(check)
+		if err != nil {
+			log.Errorf("Unable to run Check %s: %v", check, err)
+			errorStats.setRunError(check.ID(), err.Error())
+			continue
+		}
+		ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
+	}
+}
+
 // AddListener adds a service listener to AutoConfig.
 func (ac *AutoConfig) AddListener(listener listeners.ServiceListener) {
 	ac.m.Lock()
@@ -275,59 +334,9 @@ func (ac *AutoConfig) pollConfigs() {
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
 						// store the checks we schedule for this config locally
-						configDigest := config.Digest()
-						ac.config2checks[configDigest] = []check.ID{}
-
-						if config.IsTemplate() {
-							// store the template in the cache in any case
-							if err := ac.templateCache.Set(config); err != nil {
-								log.Errorf("Unable to store Check configuration in the cache: %s", err)
-							}
-
-							// try to resolve the template
-							resolvedConfigs := ac.configResolver.ResolveTemplate(config)
-							if len(resolvedConfigs) == 0 {
-								log.Infof("Can't resolve the template for %s at this moment.", config.Name)
-								continue
-							}
-
-							// If success, get the checks for each config resolved
-							// and schedule for running, each template can resolve
-							// to multiple configs
-							for _, config := range resolvedConfigs {
-								// each config could resolve to multiple checks
-								checks, err := ac.GetChecks(config)
-								if err != nil {
-									log.Errorf("Unable to load check from template: %s", err)
-									continue
-								}
-								// ask the Collector to schedule the checks
-								for _, check := range checks {
-									_, err := ac.collector.RunCheck(check)
-									if err != nil {
-										log.Errorf("Unable to schedule check for running: %s", err)
-										errorStats.setRunError(check.ID(), err.Error())
-										continue
-									}
-									ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
-								}
-							}
-						} else {
-							// the config is not a template, just schedule the checks for running
-							checks, err := ac.GetChecks(config)
-							if err != nil {
-								log.Errorf("Unable to load check from template: %s", err)
-							}
-							// ask the Collector to schedule the checks
-							for _, check := range checks {
-								_, err := ac.collector.RunCheck(check)
-								if err != nil {
-									log.Errorf("Unable to schedule check for running: %s", err)
-									errorStats.setRunError(check.ID(), err.Error())
-									continue
-								}
-								ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
-							}
+						err := ac.resolveAndRun(config)
+						if err != nil {
+							log.Error(err)
 						}
 					}
 
