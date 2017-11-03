@@ -404,7 +404,7 @@ func TestQuantiles(t *testing.T) {
 		sort.Float64s(qVals)
 		vFuzzer.Fuzz(&vals)
 		for _, v := range vals {
-			s = s.Add(v)
+			s = s.Add(v).(GKArray)
 		}
 		s = s.compressWithIncoming(nil)
 		quantiles := s.Quantiles(qVals)
@@ -425,7 +425,7 @@ func TestQuantilesInvalid(t *testing.T) {
 	qVals := []float64{-0.2, -0.1, 0.5, 0.75, 0.95, 1.2}
 	n := 200
 	for i := 0; i < n; i++ {
-		s = s.Add(gen.Generate())
+		s = s.Add(gen.Generate()).(GKArray)
 	}
 	quantiles := s.Quantiles(qVals)
 	assert.True(t, math.IsNaN(quantiles[0]))
@@ -449,7 +449,7 @@ func TestConsistentQuantile(t *testing.T) {
 		vfuzzer.Fuzz(&vals)
 		fuzzer.Fuzz(&q)
 		for _, v := range vals {
-			s = s.Add(v)
+			s = s.Add(v).(GKArray)
 		}
 		q1 := s.Quantile(q)
 		q2 := s.Quantile(q)
