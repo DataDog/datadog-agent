@@ -26,9 +26,9 @@ const (
 
 // DistributionMetricTypes contains the MetricTypes that are used for percentiles
 var DistributionMetricTypes = map[MetricType]struct{}{
-	DistributionType:  struct{}{},
-	DistributionKType: struct{}{},
-	DistributionCType: struct{}{},
+	DistributionType:  {},
+	DistributionKType: {},
+	DistributionCType: {},
 }
 
 // String returns a string representation of MetricType

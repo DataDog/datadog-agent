@@ -158,7 +158,7 @@ func TestDistSamplerMultiSketchContextSampling(t *testing.T) {
 		Tags:     []string{"a", "b"},
 		Interval: 10,
 		Sketches: []percentile.Sketch{
-			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch1},
+			{Timestamp: int64(10010), Sketch: expectedSketch1},
 		},
 		ContextKey: "test.metric.name1,a,b,",
 		SketchType: percentile.SketchGK,
@@ -170,7 +170,7 @@ func TestDistSamplerMultiSketchContextSampling(t *testing.T) {
 		Tags:     []string{"a", "c"},
 		Interval: 10,
 		Sketches: []percentile.Sketch{
-			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch2},
+			{Timestamp: int64(10010), Sketch: expectedSketch2},
 		},
 		ContextKey: "test.metric.name2,a,c,",
 		SketchType: percentile.SketchKLL,
@@ -210,7 +210,7 @@ func TestDistSamplerWrongSketchType(t *testing.T) {
 		Tags:     []string{"a", "b"},
 		Interval: 10,
 		Sketches: []percentile.Sketch{
-			percentile.Sketch{Timestamp: int64(10010), Sketch: expectedSketch},
+			{Timestamp: int64(10010), Sketch: expectedSketch},
 		},
 		ContextKey: "test.metric.name1,a,b,",
 		SketchType: percentile.SketchGK,
