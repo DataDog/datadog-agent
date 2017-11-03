@@ -26,7 +26,7 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 		log.Debugf("error resolving image %s: %s", co.Image, err)
 
 	} else {
-		image_name, image_tag, err := docker.SplitImageName(docker_image)
+		image_name, _, image_tag, err := docker.SplitImageName(docker_image)
 
 		low = append(low, fmt.Sprintf("docker_image:%s", docker_image))
 

@@ -211,20 +211,41 @@ func ResolveImageName(image string) (string, error) {
 	if globalDockerUtil != nil {
 		return globalDockerUtil.extractImageName(image), nil
 	}
-	return "", errors.New("dockerutil not initialised")
+	return image, errors.New("dockerutil not initialised")
 }
 
-// SplitImageName splits a valid image name (from ResolveImageName)
-// into the name and tag parts.
-func SplitImageName(image string) (string, string, error) {
+// SplitImageName splits a valid image name (from ResolveImageName) and returns:
+//    - the "long image name" with registry and prefix, without tag
+//    - the "short image name", without registry, prefix nor tag
+//    - the image tag if present
+//    - an error if parsing failed
+func SplitImageName(image string) (string, string, string, error) {
+	// See TestSplitImageName for supported formats (number 6 will surprise you!)
 	if image == "" {
-		return "", "", errors.New("empty image name")
+		return "", "", "", errors.New("empty image name")
 	}
-	parts := strings.SplitN(image, ":", 2)
-	if len(parts) < 2 {
-		return image, "", errors.New("could not find tag")
+	long := image
+	if pos := strings.LastIndex(long, "@sha"); pos > 0 {
+		// Remove @sha suffix when orchestrator is sha-pinning
+		long = long[0:pos]
 	}
-	return parts[0], parts[1], nil
+
+	var short, tag string
+	last_colon := strings.LastIndex(long, ":")
+	last_slash := strings.LastIndex(long, "/")
+
+	if last_colon > -1 && last_colon > last_slash {
+		// We have a tag
+		tag = long[last_colon+1:]
+		long = long[:last_colon]
+	}
+	if last_slash > -1 {
+		// we have a prefix / registry
+		short = long[last_slash+1:]
+	} else {
+		short = long
+	}
+	return long, short, tag, nil
 }
 
 // GetHostname returns the Docker hostname.

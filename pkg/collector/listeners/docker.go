@@ -230,20 +230,11 @@ func (l *DockerListener) removeService(cID ID) {
 //   1. Long image name
 //   2. Short image name
 func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
-	// check for an identifier label
-	for l, v := range co.Labels {
-		if l == identifierLabel {
-			return []string{v}
-		}
+	image, err := docker.ResolveImageName(co.Image)
+	if err != nil {
+		log.Warnf("error while resolving image name: %s", err)
 	}
-
-	ids := []string{}
-
-	// use the image name
-	ids = append(ids, co.Image) // TODO: check if it's the sha256
-	// TODO: add the short name with lower priority
-
-	return ids
+	return computeDockerIDs(image, co.Labels)
 }
 
 // getHostsFromPs gets the addresss (for now IP address only) of a container on all its networks.
@@ -291,20 +282,11 @@ func (s *DockerService) GetADIdentifiers() ([]string, error) {
 		if err != nil {
 			return []string{}, err
 		}
-
-		// check for an identifier label
-		for l, v := range cj.Config.Labels {
-			if l == identifierLabel {
-				return []string{v}, nil
-			}
+		image, err := docker.ResolveImageName(cj.Image)
+		if err != nil {
+			log.Warnf("error while resolving image name: %s", err)
 		}
-
-		ids := []string{}
-
-		// use the image name
-		ids = append(ids, cj.Image) // TODO: check if it's the sha256
-		// TODO: add the short name with lower priority
-		s.ADIdentifiers = ids
+		s.ADIdentifiers = computeDockerIDs(image, cj.Config.Labels)
 	}
 
 	return s.ADIdentifiers, nil
@@ -382,4 +364,33 @@ func (s *DockerService) GetPid() (int, error) {
 	}
 
 	return s.Pid, nil
+}
+
+// computeDockerIDs factors in code for getConfigIDFromPs and GetADIdentifiers
+// it assumes the image name's sha is already resolved via docker.ResolveImageName
+func computeDockerIDs(image string, labels map[string]string) []string {
+	var ids []string
+
+	// check for an identifier label
+	for l, v := range labels {
+		if l == identifierLabel {
+			ids = append(ids, v)
+			// Let's not return the image name if we find the label
+			return ids
+		}
+	}
+
+	// add the image names (long then short if different)
+	long, short, _, err := docker.SplitImageName(image)
+	if err != nil {
+		log.Warnf("error while spliting image name: %s", err)
+	}
+	if len(long) > 0 {
+		ids = append(ids, long)
+	}
+	if len(short) > 0 && short != long {
+		ids = append(ids, short)
+	}
+
+	return ids
 }

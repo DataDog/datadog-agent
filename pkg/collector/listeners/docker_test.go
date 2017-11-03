@@ -28,8 +28,14 @@ func TestGetConfigIDFromPs(t *testing.T) {
 	dl := DockerListener{}
 
 	ids := dl.getConfigIDFromPs(co)
-	assert.Len(t, ids, 1)
-	assert.Equal(t, "test", ids[0])
+	assert.Equal(t, []string{"test"}, ids)
+
+	prefixCo := types.Container{
+		ID:    "deadbeef",
+		Image: "org/test",
+	}
+	ids = dl.getConfigIDFromPs(prefixCo)
+	assert.Equal(t, []string{"org/test", "test"}, ids)
 
 	labeledCo := types.Container{
 		ID:     "deadbeef",
@@ -37,8 +43,7 @@ func TestGetConfigIDFromPs(t *testing.T) {
 		Labels: map[string]string{"io.datadog.check.id": "w00tw00t"},
 	}
 	ids = dl.getConfigIDFromPs(labeledCo)
-	assert.Len(t, ids, 1)
-	assert.Equal(t, "w00tw00t", ids[0])
+	assert.Equal(t, []string{"w00tw00t"}, ids)
 }
 
 func TestGetHostsFromPs(t *testing.T) {
@@ -95,7 +100,7 @@ func TestGetADIdentifiers(t *testing.T) {
 
 	// Setting mocked data in cache
 	co := types.ContainerJSON{
-		ContainerJSONBase: &types.ContainerJSONBase{ID: "deadbeef", Image: "test"},
+		ContainerJSONBase: &types.ContainerJSONBase{ID: "deadbeef", Image: "org/test"},
 		Mounts:            make([]types.MountPoint, 0),
 		Config:            &container.Config{},
 		NetworkSettings:   &types.NetworkSettings{},
@@ -105,8 +110,7 @@ func TestGetADIdentifiers(t *testing.T) {
 
 	ids, err := s.GetADIdentifiers()
 	assert.Nil(t, err)
-	assert.Len(t, ids, 1)
-	assert.Equal(t, "test", ids[0])
+	assert.Equal(t, []string{"org/test", "test"}, ids)
 
 	s = DockerService{ID: ID("deadbeef")}
 	labeledCo := types.ContainerJSON{
@@ -119,8 +123,7 @@ func TestGetADIdentifiers(t *testing.T) {
 
 	ids, err = s.GetADIdentifiers()
 	assert.Nil(t, err)
-	assert.Len(t, ids, 1)
-	assert.Equal(t, "w00tw00t", ids[0])
+	assert.Equal(t, []string{"w00tw00t"}, ids)
 }
 
 func TestGetHosts(t *testing.T) {
