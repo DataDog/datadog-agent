@@ -1,5 +1,4 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
+// Unless explicitly stated otherwise all files in this repository are licensed // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
@@ -14,10 +13,11 @@ import (
 	"encoding/json"
 	"expvar"
 
-	"github.com/gogo/protobuf/proto"
-
 	agentpayload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+	"github.com/gogo/protobuf/proto"
+
+	log "github.com/cihub/seelog"
 )
 
 var sketchSeriesExpvar = expvar.NewMap("SketchSeries")
@@ -28,33 +28,48 @@ type Sketch struct {
 	Sketch    QSketch `json:"qsketch"`
 }
 
+// SketchType represents a sketch type
+type SketchType int
+
+// sketch types
+const (
+	SketchGK SketchType = iota
+	SketchKLL
+	SketchComplete
+)
+
+// String returns a string representation of  SketchType
+func (s SketchType) String() string {
+	switch s {
+	case SketchGK:
+		return "GKArray"
+	case SketchKLL:
+		return "KLL"
+	case SketchComplete:
+		return "CompleteDataset"
+	default:
+		return ""
+	}
+}
+
 // SketchSeries holds an array of sketches.
 type SketchSeries struct {
-	Name       string   `json:"metric"`
-	Tags       []string `json:"tags"`
-	Host       string   `json:"host"`
-	Interval   int64    `json:"interval"`
-	Sketches   []Sketch `json:"sketches"`
-	ContextKey string   `json:"-"`
+	Name       string     `json:"metric"`
+	Tags       []string   `json:"tags"`
+	Host       string     `json:"host"`
+	Interval   int64      `json:"interval"`
+	Sketches   []Sketch   `json:"sketches"`
+	SketchType SketchType `json:"sketch_type"`
+	ContextKey string     `json:"-"`
 }
 
-// SketchSeriesList represents a list of SketchSeries ready to be serialize
+// SketchSeriesList represents a list of SketchSeries ready to be serialized
 type SketchSeriesList []*SketchSeries
 
-// QSketch is a wrapper around GKArray to make it easier if we want to try a
-// different sketch algorithm
-type QSketch struct {
-	GKArray
-}
-
-// NewQSketch creates a new QSketch
-func NewQSketch() QSketch {
-	return QSketch{NewGKArray()}
-}
-
-// Add a value to the qsketch
-func (q QSketch) Add(v float64) QSketch {
-	return QSketch{GKArray: q.GKArray.Add(v)}
+// QSketch is an interface for sketches
+type QSketch interface {
+	Add(float64) QSketch
+	Quantile(float64) float64
 }
 
 // NoSketchError is the error returned when not enough samples have been
@@ -65,73 +80,66 @@ func (e NoSketchError) Error() string {
 	return "Not enough samples to generate sketches"
 }
 
-// UnmarshalSketchSeries deserializes a protobuf byte array into sketch series
-func UnmarshalSketchSeries(payload []byte) ([]*SketchSeries, agentpayload.CommonMetadata, error) {
-	sketches := []*SketchSeries{}
-	decodedPayload := &agentpayload.SketchPayload{}
-	err := proto.Unmarshal(payload, decodedPayload)
-	if err != nil {
-		return sketches, agentpayload.CommonMetadata{}, err
-	}
-	for _, s := range decodedPayload.Sketches {
-		sketches = append(sketches,
-			&SketchSeries{
-				Name:     s.Metric,
-				Tags:     s.Tags,
-				Host:     s.Host,
-				Sketches: unmarshalSketches(s.Distributions),
-			})
-	}
-	return sketches, decodedPayload.Metadata, err
-}
-
-func unmarshalSketches(payloadSketches []agentpayload.SketchPayload_Sketch_Distribution) []Sketch {
-	sketches := []Sketch{}
-	for _, s := range payloadSketches {
-		sketches = append(sketches,
-			Sketch{
-				Timestamp: s.Ts,
-				Sketch: QSketch{
-					GKArray{Min: s.Min,
-						Count:    int64(s.Cnt),
-						Max:      s.Max,
-						Avg:      s.Avg,
-						Sum:      s.Sum,
-						Entries:  unmarshalEntries(s.V, s.G, s.Delta),
-						Incoming: s.Buf}},
-			})
-	}
-	return sketches
-}
-
-// UnmarshalJSONSketchSeries deserializes sketch series from JSON
-func UnmarshalJSONSketchSeries(b []byte) ([]*SketchSeries, error) {
-	data := make(map[string][]*SketchSeries, 0)
-	r := bytes.NewReader(b)
-	err := json.NewDecoder(r).Decode(&data)
-	if err != nil {
-		return []*SketchSeries{}, err
-	}
-	return data["sketch_series"], nil
-}
-
-func marshalSketches(sketches []Sketch) []agentpayload.SketchPayload_Sketch_Distribution {
+func marshalSketchGK(sketches []Sketch) []agentpayload.SketchPayload_Sketch_Distribution {
 	sketchesPayload := []agentpayload.SketchPayload_Sketch_Distribution{}
 
 	for _, s := range sketches {
-		v, g, delta := marshalEntries(s.Sketch.Entries)
+		gk := s.Sketch.(GKArray)
+		v, g, delta := marshalEntries(gk.Entries)
 		sketchesPayload = append(sketchesPayload,
 			agentpayload.SketchPayload_Sketch_Distribution{
 				Ts:    s.Timestamp,
-				Cnt:   int64(s.Sketch.Count),
-				Min:   s.Sketch.Min,
-				Max:   s.Sketch.Max,
-				Avg:   s.Sketch.Avg,
-				Sum:   s.Sketch.Sum,
+				Cnt:   int64(gk.Count),
+				Min:   gk.Min,
+				Max:   gk.Max,
+				Avg:   gk.Avg,
+				Sum:   gk.Sum,
 				V:     v,
 				G:     g,
 				Delta: delta,
-				Buf:   s.Sketch.Incoming,
+				Buf:   gk.Incoming,
+			})
+	}
+	return sketchesPayload
+}
+
+func marshalSketchKLL(sketches []Sketch) []agentpayload.SketchPayload_Sketch_DistributionK {
+	sketchesPayload := []agentpayload.SketchPayload_Sketch_DistributionK{}
+
+	for _, s := range sketches {
+		kll := s.Sketch.(KLL)
+		compactors := marshalCompactors(kll.Compactors)
+		sketchesPayload = append(sketchesPayload,
+			agentpayload.SketchPayload_Sketch_DistributionK{
+				Ts:         s.Timestamp,
+				Cnt:        int64(kll.Count),
+				Min:        kll.Min,
+				Max:        kll.Max,
+				Avg:        kll.Avg,
+				Sum:        kll.Sum,
+				Compactors: compactors,
+				Length:     kll.Length,
+				Capacity:   kll.Capacity,
+				H:          kll.H,
+			})
+	}
+	return sketchesPayload
+}
+
+func marshalSketchComplete(sketches []Sketch) []agentpayload.SketchPayload_Sketch_DistributionC {
+	sketchesPayload := []agentpayload.SketchPayload_Sketch_DistributionC{}
+
+	for _, s := range sketches {
+		c := s.Sketch.(CompleteDS)
+		sketchesPayload = append(sketchesPayload,
+			agentpayload.SketchPayload_Sketch_DistributionC{
+				Ts:   s.Timestamp,
+				Cnt:  int64(c.Count),
+				Min:  c.Min,
+				Max:  c.Max,
+				Avg:  c.Avg,
+				Sum:  c.Sum,
+				Vals: c.Values,
 			})
 	}
 	return sketchesPayload
@@ -144,13 +152,36 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 		Metadata: agentpayload.CommonMetadata{},
 	}
 	for _, s := range sl {
-		payload.Sketches = append(payload.Sketches,
-			agentpayload.SketchPayload_Sketch{
-				Metric:        s.Name,
-				Host:          s.Host,
-				Distributions: marshalSketches(s.Sketches),
-				Tags:          s.Tags,
-			})
+		switch s.SketchType {
+		case SketchGK:
+			payload.Sketches = append(payload.Sketches,
+				agentpayload.SketchPayload_Sketch{
+					Metric:        s.Name,
+					Host:          s.Host,
+					Distributions: marshalSketchGK(s.Sketches),
+					Tags:          s.Tags,
+				})
+		case SketchKLL:
+			payload.Sketches = append(payload.Sketches,
+				agentpayload.SketchPayload_Sketch{
+					Metric:         s.Name,
+					Host:           s.Host,
+					DistributionsK: marshalSketchKLL(s.Sketches),
+					Tags:           s.Tags,
+				})
+		case SketchComplete:
+			payload.Sketches = append(payload.Sketches,
+				agentpayload.SketchPayload_Sketch{
+					Metric:         s.Name,
+					Host:           s.Host,
+					DistributionsC: marshalSketchComplete(s.Sketches),
+					Tags:           s.Tags,
+				})
+
+		default:
+			log.Error("Unknown sketch type:", s.SketchType)
+		}
+
 	}
 	return proto.Marshal(payload)
 }
