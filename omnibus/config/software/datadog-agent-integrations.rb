@@ -20,6 +20,7 @@ blacklist = [
   'docker_daemon',
   'kubernetes',
   'kubernetes_state',
+  'ntp',  # provided as a go check by the core agent
   'vsphere',
 ]
 
