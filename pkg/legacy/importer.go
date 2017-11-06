@@ -68,6 +68,7 @@ var (
 		"connection_limit",
 		"resource",
 		"disable_file_logging",
+		"enable_gohai",
 	}
 )
 

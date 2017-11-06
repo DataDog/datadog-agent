@@ -61,6 +61,9 @@ api_key:
 # WARNING: disabling it on every agent will lead to display and billing issues
 # enable_metadata_collection: true
 
+# Enable the gohai collection of systems data
+# enable_gohai: true
+
 # Metadata collectors, add or remove from the list to enable or disable collection.
 # Intervals are expressed in seconds.
 metadata_collectors:
