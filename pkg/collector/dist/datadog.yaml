@@ -62,7 +62,7 @@ api_key:
 # enable_metadata_collection: true
 
 # Enable the gohai collection of systems data
-# enable_gohai: false
+# enable_gohai: true
 
 # Metadata collectors, add or remove from the list to enable or disable collection.
 # Intervals are expressed in seconds.
