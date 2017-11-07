@@ -15,7 +15,6 @@ import (
 )
 
 func TestSplitImageName(t *testing.T) {
-	assert := assert.New(t)
 	for nb, tc := range []struct {
 		source     string
 		long_name  string
@@ -47,17 +46,19 @@ func TestSplitImageName(t *testing.T) {
 		{"myregistry.local:5000/testing/test-image:version@sha256:5bef08742407efd622d243692b79ba0055383bbce12900324f75e56f589aedb0",
 			"myregistry.local:5000/testing/test-image", "test-image", "version", nil},
 	} {
-		t.Logf("test case %d", nb)
-		long, short, tag, err := SplitImageName(tc.source)
-		assert.Equal(tc.long_name, long)
-		assert.Equal(tc.short_name, short)
-		assert.Equal(tc.tag, tag)
+		t.Run(fmt.Sprintf("case %d: %s", nb, tc.source), func(t *testing.T) {
+			assert := assert.New(t)
+			long, short, tag, err := SplitImageName(tc.source)
+			assert.Equal(tc.long_name, long)
+			assert.Equal(tc.short_name, short)
+			assert.Equal(tc.tag, tag)
 
-		if tc.err == nil {
-			assert.Nil(err)
-		} else {
-			assert.NotNil(err)
-			assert.Equal(tc.err.Error(), err.Error())
-		}
+			if tc.err == nil {
+				assert.Nil(err)
+			} else {
+				assert.NotNil(err)
+				assert.Equal(tc.err.Error(), err.Error())
+			}
+		})
 	}
 }
