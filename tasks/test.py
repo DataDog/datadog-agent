@@ -110,12 +110,13 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
 
 
 @task
-def integration_tests(ctx, install_deps=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     """
     Run all the available integration tests
     """
-    agent_integration_tests(ctx, install_deps, remote_docker)
-    dsd_integration_tests(ctx, install_deps, remote_docker)
+    agent_integration_tests(ctx, install_deps, race, remote_docker)
+    dsd_integration_tests(ctx, install_deps, race, remote_docker)
+
 
 @task
 def version(ctx):

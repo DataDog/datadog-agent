@@ -146,7 +146,7 @@ def image_build(ctx, base_dir="omnibus"):
 
 
 @task
-def integration_tests(ctx, install_deps=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     """
     Run integration tests for the Agent
     """
@@ -155,13 +155,14 @@ def integration_tests(ctx, install_deps=False, remote_docker=False):
 
     test_args = {
         "go_build_tags": " ".join(get_default_build_tags()),
+        "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
 
     if remote_docker:
         test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
 
-    go_cmd = 'go test -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+    go_cmd = 'go test {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
 
     prefixes = [
         "./test/integration/config_providers/...",

@@ -20,7 +20,8 @@ templates:
           - v1-repo-{{ checksum ".circle-sha" }}
     - restore_cache: &restore_vendor
         keys:
-          - v1-govendordeps-{{ checksum "Gopkg.toml" }}
+          - v1-govendordeps-{{ .Branch }}-{{ checksum "Gopkg.toml" }}
+          - v1-govendordeps-master-{{ checksum "Gopkg.toml" }}
     - restore_cache: &restore_gobindeps
         keys:
           - v1-gobindeps
@@ -41,7 +42,7 @@ jobs:
     steps:
       - run: *save_sha
       - restore_cache: *restore_source
-      #- restore_cache: *restore_vendor
+      - restore_cache: *restore_vendor
       - run:
           name: grab go deps
           command: invoke deps
@@ -49,7 +50,7 @@ jobs:
           name: pre-compile go deps
           command: inv agent.build --race --precompile-only
       - save_cache:
-          key: v1-govendordeps-{{ checksum "Gopkg.toml" }}
+          key: v1-govendordeps-{{ .Branch }}-{{ checksum "Gopkg.toml" }}
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
             - /go/pkg
@@ -79,7 +80,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: run integration tests
-          command: inv integration-tests --install-deps --remote-docker
+          command: inv integration-tests --race --install-deps --remote-docker
 
   build_binaries:
     <<: *job_template
