@@ -6,10 +6,17 @@
 
 <script>
   // Read from ? to the end of the URL
-  var urlParam = location.search;
+  var urlParam = location.search.substring(1);
+  urlParam = urlParam.split(";");
 
-  // Save as a cookie
-  document.cookie = encodeURIComponent("token") + "=" + urlParam.substr(1) + "; path=/";
+  // Decode the url parameters
+  var jwt = urlParam[0].substring(4);
+  var CSRFtoken = urlParam[1].substring(10);
+
+  if (CSRFtoken == "duFr7QagUswEspEwufafrAnabr5CRemE") {
+    // Save JWT as a cookie
+    document.cookie = "jwt=" + jwt + "; path=/";
+  }
 
   // Redirect to the GUI
   window.location.href = '/';

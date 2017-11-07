@@ -7,9 +7,9 @@ function getAuthToken() {
   var cookies = document.cookie.split(';');
   for (var i = 0; i < cookies.length; i++) {
       var c = cookies[i];
-      while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-      if (c.indexOf("token=") === 0) {
-        return c.substring(6, c.length);
+      while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+      if (c.indexOf("jwt=") == 0) {
+        return c.substring(4, c.length);
       }
   }
   return null;

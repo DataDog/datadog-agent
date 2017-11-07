@@ -89,7 +89,7 @@ func StartGUI(port string) error {
 	}
 
 	// Open the GUI in a browser, passing the authorization token as a parameter
-	e = open("http://127.0.0.1:" + port + "/authenticate?" + tokenString)
+	e = open("http://127.0.0.1:" + port + "/authenticate?jwt=" + tokenString + ";CSRFtoken=duFr7QagUswEspEwufafrAnabr5CRemE")
 	if e != nil {
 		return fmt.Errorf("error opening GUI: " + e.Error())
 	}
@@ -104,7 +104,7 @@ func authorizeAccess(h http.Handler) http.Handler {
 		// Disable caching
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 
-		cookie, _ := r.Cookie("token")
+		cookie, _ := r.Cookie("jwt")
 		if cookie == nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			http.Error(w, "no authorization token", 401)
