@@ -4,8 +4,8 @@
 [[projects]]
   name = "github.com/DataDog/agent-payload"
   packages = ["gogen"]
-  revision = "d6a2f74c00f08246bc0ca160ffa9d28756968065"
-  version = "4.5"
+  revision = "b0b883b8c68f11698e1eee462d1efa83e76bf14a"
+  version = "4.6"
 
 [[projects]]
   branch = "master"

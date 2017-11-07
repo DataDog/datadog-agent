@@ -71,7 +71,6 @@ func init() {
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
-	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("log_to_syslog", false)
 	Datadog.SetDefault("disable_file_logging", false)
@@ -83,6 +82,7 @@ func init() {
 	Datadog.SetDefault("cmd_port", 5001)
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
+  Datadog.SetDefault("enable_gohai", true)
 	Datadog.SetDefault("check_runners", int64(0))
 	Datadog.SetDefault("expvar_port", "5000")
 	if IsContainerized() {

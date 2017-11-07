@@ -31,6 +31,11 @@ else
     fi
 fi
 
+# Copy custom confs
+
+find /conf.d -name '*.yaml' -exec cp --parents {} /etc/datadog-agent/ \;
+
+find /checks.d -name '*.py' -exec cp --parents {} /etc/datadog-agent/ \;
 
 ##### Starting up #####
 

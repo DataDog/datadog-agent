@@ -108,6 +108,10 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("enable_metadata_collection", enabled)
 	}
 
+	if enabled, err := isAffirmative(agentConfig["enable_gohai"]); err == nil {
+		config.Datadog.Set("enable_gohai", enabled)
+	}
+
 	return nil
 }
 

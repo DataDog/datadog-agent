@@ -47,5 +47,9 @@ COPY --from=extract /output/ /
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp
 
+# Placeholder healthcheck, to be improved
+HEALTHCHECK --interval=5m --timeout=20s --retries=1 \
+  CMD ["/opt/datadog-agent/bin/agent/agent", "status"]
+
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/opt/datadog-agent/bin/agent/agent", "start"]

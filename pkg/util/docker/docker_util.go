@@ -184,7 +184,6 @@ func (d *dockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 				}
 				d.networkMappings[c.ID] = findDockerNetworks(c.ID, i.State.Pid, c)
 			}
-			resolveDockerNetworks(d.networkMappings)
 			d.Unlock()
 		}
 
@@ -206,6 +205,14 @@ func (d *dockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 			continue
 		}
 		ret = append(ret, container)
+	}
+
+	// Resolve docker networks after we've processed all containers so all
+	// routing maps are available.
+	if d.cfg.CollectNetwork {
+		d.Lock()
+		resolveDockerNetworks(d.networkMappings)
+		d.Unlock()
 	}
 
 	if d.lastInvalidate.Add(invalidationInterval).After(time.Now()) {

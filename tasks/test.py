@@ -9,7 +9,7 @@ import fnmatch
 import invoke
 from invoke import task
 
-from .utils import pkg_config_path
+from .utils import pkg_config_path, get_version
 from .go import fmt, lint, vet
 from .build_tags import get_default_build_tags
 from .agent import integration_tests as agent_integration_tests
@@ -116,3 +116,7 @@ def integration_tests(ctx, install_deps=False, remote_docker=False):
     """
     agent_integration_tests(ctx, install_deps, remote_docker)
     dsd_integration_tests(ctx, install_deps, remote_docker)
+
+@task
+def version(ctx):
+    print(get_version(ctx, include_git=True))

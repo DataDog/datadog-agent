@@ -65,6 +65,11 @@ func requestFlare(caseID string) error {
 	c := common.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("cmd_port"))
 
+	logFile := config.Datadog.GetString("log_file")
+	if logFile == "" {
+		logFile = common.DefaultLogFile
+	}
+
 	// Set session token
 	util.SetAuthToken()
 
@@ -78,7 +83,7 @@ func requestFlare(caseID string) error {
 		}
 		fmt.Println("Initiating flare locally.")
 
-		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath)
+		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

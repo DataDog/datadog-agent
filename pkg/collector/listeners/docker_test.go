@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
@@ -124,21 +123,28 @@ func TestGetADIdentifiers(t *testing.T) {
 	assert.Equal(t, "w00tw00t", ids[0])
 }
 
-func TestGetHostsFromInspect(t *testing.T) {
-	dl := DockerListener{}
-
+func TestGetHosts(t *testing.T) {
+	id := "fooooooooooo"
 	cBase := types.ContainerJSONBase{
-		ID:    "foo",
+		ID:    id,
 		Image: "test",
 	}
-	co := types.ContainerJSON{
+	cj := types.ContainerJSON{
 		ContainerJSONBase: &cBase,
 		Mounts:            make([]types.MountPoint, 0),
 		Config:            &container.Config{Labels: map[string]string{"io.datadog.check.id": "w00tw00t"}},
 		NetworkSettings:   &types.NetworkSettings{},
 	}
+	// add cj to the cache to avoir having to query docker in the test
+	cacheKey := docker.GetInspectCacheKey(id)
+	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
-	assert.Empty(t, dl.getHostsFromInspect(co))
+	svc := DockerService{
+		ID: ID(id),
+	}
+
+	res, _ := svc.GetHosts()
+	assert.Empty(t, res)
 
 	nets := make(map[string]*network.EndpointSettings)
 	nets["bridge"] = &network.EndpointSettings{IPAddress: "172.17.0.2"}
@@ -149,8 +155,9 @@ func TestGetHostsFromInspect(t *testing.T) {
 	p, _ = nat.NewPort("tcp", "42")
 	ports[p] = make([]nat.PortBinding, 0)
 
+	id = "deadbeefffff"
 	cBase = types.ContainerJSONBase{
-		ID:    "deadbeef",
+		ID:    id,
 		Image: "test",
 	}
 	networkSettings := types.NetworkSettings{
@@ -158,24 +165,30 @@ func TestGetHostsFromInspect(t *testing.T) {
 		Networks:            nets,
 	}
 
-	co = types.ContainerJSON{
+	cj = types.ContainerJSON{
 		ContainerJSONBase: &cBase,
 		Mounts:            make([]types.MountPoint, 0),
 		Config:            &container.Config{},
 		NetworkSettings:   &networkSettings,
 	}
-	hosts := dl.getHostsFromInspect(co)
+	// update cj in the cache
+	cacheKey = docker.GetInspectCacheKey(id)
+	cache.Cache.Set(cacheKey, cj, 10*time.Second)
+
+	svc = DockerService{
+		ID: ID(id),
+	}
+	hosts, _ := svc.GetHosts()
 
 	assert.Equal(t, "172.17.0.2", hosts["bridge"])
 	assert.Equal(t, "172.17.0.3", hosts["foo"])
 	assert.Equal(t, 2, len(hosts))
 }
 
-func TestGetPortsFromInspect(t *testing.T) {
-	dl := DockerListener{}
-
+func TestGetPorts(t *testing.T) {
+	id := "deadbeefffff"
 	cBase := types.ContainerJSONBase{
-		ID:    "deadbeef",
+		ID:    id,
 		Image: "test",
 	}
 
@@ -185,22 +198,54 @@ func TestGetPortsFromInspect(t *testing.T) {
 		Networks:            make(map[string]*network.EndpointSettings),
 	}
 
-	co := types.ContainerJSON{
+	cj := types.ContainerJSON{
 		ContainerJSONBase: &cBase,
 		Mounts:            make([]types.MountPoint, 0),
 		Config:            &container.Config{},
 		NetworkSettings:   &networkSettings,
 	}
-	assert.Empty(t, dl.getPortsFromInspect(co))
+	// add cj to the cache so svc.GetPorts finds it
+	cacheKey := docker.GetInspectCacheKey(id)
+	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
-	ports = make(nat.PortMap)
+	svc := DockerService{
+		ID: ID(id),
+	}
+	svcPorts, _ := svc.GetPorts()
+	assert.Empty(t, svcPorts)
+
+	id = "test"
+	cBase = types.ContainerJSONBase{
+		ID:    id,
+		Image: "test",
+	}
+
+	ports = make(nat.PortMap, 2)
 	p, _ := nat.NewPort("tcp", "1234")
-	ports[p] = make([]nat.PortBinding, 0)
+	ports[p] = nil
 	p, _ = nat.NewPort("tcp", "4321")
-	ports[p] = make([]nat.PortBinding, 0)
+	ports[p] = nil
 
-	co.NetworkSettings.Ports = ports
-	pts := dl.getPortsFromInspect(co)
+	networkSettings = types.NetworkSettings{
+		NetworkSettingsBase: types.NetworkSettingsBase{Ports: ports},
+		Networks:            make(map[string]*network.EndpointSettings),
+	}
+
+	cj = types.ContainerJSON{
+		ContainerJSONBase: &cBase,
+		Mounts:            make([]types.MountPoint, 0),
+		Config:            &container.Config{},
+		NetworkSettings:   &networkSettings,
+	}
+	// add cj to the cache so svc.GetPorts finds it
+	cacheKey = docker.GetInspectCacheKey(id)
+	cache.Cache.Set(cacheKey, cj, 10*time.Second)
+
+	svc = DockerService{
+		ID: ID(id),
+	}
+
+	pts, _ := svc.GetPorts()
 	assert.Equal(t, 2, len(pts))
 	assert.Contains(t, pts, 1234)
 	assert.Contains(t, pts, 4321)

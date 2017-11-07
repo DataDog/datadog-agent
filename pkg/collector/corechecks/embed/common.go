@@ -16,7 +16,7 @@ const defaultRetries = 3
 func retryExitError(err error) error {
 	switch err.(type) {
 	case *exec.ExitError: // error type returned when the process exits with non-zero status
-		return check.RetryableError{err}
+		return check.RetryableError{Err: err}
 	default:
 		return err
 	}

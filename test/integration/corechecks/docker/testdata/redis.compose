@@ -1,0 +1,10 @@
+version: '2'
+services:
+  redis:
+    image: "redis:latest"
+    labels:
+        low.card.label: "redislow"
+        high.card.label: "redishigh"
+    environment:
+        LOW_CARD_ENV: "redislowenv"
+        HIGH_CARD_ENV: "redishighenv"

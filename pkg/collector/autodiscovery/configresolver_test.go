@@ -76,6 +76,7 @@ func TestResolve(t *testing.T) {
 	service := listeners.DockerService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
+		Hosts:         map[string]string{"bridge": "127.0.0.1"},
 		Pid:           1337,
 	}
 	cr.processNewService(&service)
