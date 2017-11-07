@@ -58,7 +58,10 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 
 		for _, entry := range entries {
 			if entry.IsDir() {
-				dirConfigs := collectDir(path, entry)
+				dirConfigs, dirDefaultConfigs := c.collectDir(path, entry)
+				if len(dirDefaultConfigs) > 0 {
+					defaultConfigs = append(defaultConfigs, dirDefaultConfigs...)
+				}
 				if len(dirConfigs) > 0 {
 					configs = append(configs, dirConfigs...)
 					configNames[dirConfigs[0].Name] = struct{}{}
@@ -66,7 +69,7 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 				continue
 			}
 
-			conf, isDefault, err := c.processEntry(entry, path)
+			conf, isDefault, err := c.collectEntry(entry, path, "")
 			if err != nil {
 				continue
 			}
@@ -99,30 +102,26 @@ func (c *FileConfigProvider) String() string {
 	return "File Configuration Provider"
 }
 
-func (c *FileConfigProvider) processEntry(entry os.FileInfo, path string) (check.Config, bool, error) {
+func (c *FileConfigProvider) collectEntry(entry os.FileInfo, path string, checkName string) (check.Config, bool, error) {
 	conf := check.Config{}
 	entryName := entry.Name()
-	checkName := entryName
-	isDefault := false
-	if entry.IsDir() {
-		if filepath.Ext(entry.Name()) != ".d" {
-			// the name of this directory isn't in the form `checkname.d`, skip it
-			log.Debugf("Not a config folder, skipping directory: %s", entry.Name())
-			return conf, isDefault, errors.New("Invalid config file")
-		}
-
-		checkName = entry.Name()[:len(entry.Name())-len(".d")]
-	}
 	ext := filepath.Ext(entryName)
+	isDefault := false
 
 	// skip config files that are not of type:
 	//  * check.yaml, check.yml
 	//  * check.yaml.default, check.yml.default
 	if ext == ".default" {
-		// trim the .default suffix but preserve the real filename
-		checkName = entryName[:len(entryName)-len(".default")]
-		ext = filepath.Ext(checkName)
 		isDefault = true
+		ext = filepath.Ext(entryName[:len(entryName)-len(".default")])
+	}
+
+	if checkName == "" {
+		checkName = entryName
+		if isDefault {
+			checkName = checkName[:len(checkName)-len(".default")]
+		}
+		checkName = checkName[:len(checkName)-len(ext)]
 	}
 
 	if ext != ".yaml" && ext != ".yml" {
@@ -130,7 +129,6 @@ func (c *FileConfigProvider) processEntry(entry os.FileInfo, path string) (check
 		return conf, isDefault, errors.New("Invalid config file")
 	}
 
-	checkName = checkName[:len(checkName)-len(ext)]
 	conf, err := GetCheckConfigFromFile(checkName, filepath.Join(path, entry.Name()))
 	if err != nil {
 		c.Errors[checkName] = err.Error()
@@ -143,13 +141,15 @@ func (c *FileConfigProvider) processEntry(entry os.FileInfo, path string) (check
 	return conf, isDefault, nil
 }
 
-func collectDir(parentPath string, folder os.FileInfo) []check.Config {
+func (c *FileConfigProvider) collectDir(parentPath string, folder os.FileInfo) ([]check.Config, []check.Config) {
 	configs := []check.Config{}
+	defaultConfigs := []check.Config{}
+	const dirExt string = ".d"
 
-	if filepath.Ext(folder.Name()) != ".d" {
+	if filepath.Ext(folder.Name()) != dirExt {
 		// the name of this directory isn't in the form `checkname.d`, skip it
 		log.Debugf("Not a config folder, skipping directory: %s", folder.Name())
-		return configs
+		return nil, configs
 	}
 
 	dirPath := filepath.Join(parentPath, folder.Name())
@@ -158,27 +158,30 @@ func collectDir(parentPath string, folder os.FileInfo) []check.Config {
 	subEntries, err := ioutil.ReadDir(dirPath)
 	if err != nil {
 		log.Warnf("Skipping config directory: %s", err)
-		return configs
+		return nil, configs
 	}
 
 	// strip the trailing `.d`
-	checkName := folder.Name()[:len(folder.Name())-2]
+	checkName := folder.Name()[:len(folder.Name())-len(dirExt)]
 
 	// try to load any config file in it
 	for _, sEntry := range subEntries {
 		if !sEntry.IsDir() {
-			filePath := filepath.Join(dirPath, sEntry.Name())
-			conf, err := GetCheckConfigFromFile(checkName, filePath)
+			conf, isDefault, err := c.collectEntry(sEntry, dirPath, checkName)
 			if err != nil {
-				log.Warnf("%s is not a valid config file: %s", sEntry.Name(), err)
 				continue
 			}
-			log.Debug("Found valid configuration in file:", filePath)
-			configs = append(configs, conf)
+			// determine if a check has to be run by default by
+			// searching for check.yaml.default files
+			if isDefault {
+				defaultConfigs = append(defaultConfigs, conf)
+			} else {
+				configs = append(configs, conf)
+			}
 		}
 	}
 
-	return configs
+	return configs, defaultConfigs
 }
 
 // GetCheckConfigFromFile returns an instance of check.Config if `fpath` points to a valid config file

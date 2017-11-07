@@ -63,7 +63,7 @@ func TestCollect(t *testing.T) {
 
 	assert.Nil(t, err)
 	// total number of configurations found
-	assert.Equal(t, 8, len(configs))
+	assert.Equal(t, 9, len(configs))
 
 	// count how many configs were found for a given check
 	get := func(name string) []check.Config {
@@ -95,4 +95,7 @@ func TestCollect(t *testing.T) {
 
 	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml)
 	assert.Equal(t, 2, len(provider.Errors))
+
+	// default config in subdir
+	assert.Equal(t, 1, len(get("nested_default")))
 }
