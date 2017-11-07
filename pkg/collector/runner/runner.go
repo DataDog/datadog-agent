@@ -8,6 +8,8 @@ package runner
 import (
 	"expvar"
 	"fmt"
+
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,6 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	log "github.com/cihub/seelog"
 )
+
+// TestWg is used for testing the number of check workers
+var TestWg sync.WaitGroup
+
+var defaultNumWorkers = 4
+var maxNumWorkers = 25
 
 const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
 const stopAllChecksTimeout time.Duration = 2 * time.Second    // Time to wait for all checks to stop
@@ -44,30 +52,83 @@ func init() {
 
 // Runner ...
 type Runner struct {
-	pending       chan check.Check         // The channel where checks come from
-	done          chan bool                // Guard for the main loop
-	runningChecks map[check.ID]check.Check // the list of checks running
-	m             sync.Mutex               // to control races on runningChecks
-	running       uint32                   // Flag to see if the Runner is, well, running
+	pending          chan check.Check         // The channel where checks come from
+	done             chan bool                // Guard for the main loop
+	runningChecks    map[check.ID]check.Check // The list of checks running
+	m                sync.Mutex               // To control races on runningChecks
+	running          uint32                   // Flag to see if the Runner is, well, running
+	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner(numWorkers int) *Runner {
+func NewRunner() *Runner {
+	numWorkers := config.Datadog.GetInt("check_runners") // = 0 if no value is specified by the user
+	if numWorkers > maxNumWorkers {
+		numWorkers = maxNumWorkers
+		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, maxNumWorkers)
+	}
+
 	r := &Runner{
 		// initialize the channel
-		pending:       make(chan check.Check),
-		runningChecks: make(map[check.ID]check.Check),
-		running:       1,
+		pending:          make(chan check.Check),
+		runningChecks:    make(map[check.ID]check.Check),
+		running:          1,
+		staticNumWorkers: numWorkers != 0,
+	}
+
+	if !r.staticNumWorkers {
+		numWorkers = defaultNumWorkers
 	}
 
 	// start the workers
 	for i := 0; i < numWorkers; i++ {
+		TestWg.Add(1)
 		go r.work()
 	}
 
 	log.Infof("Runner started with %d workers.", numWorkers)
 	runnerStats.Add("Workers", int64(numWorkers))
 	return r
+}
+
+// UpdateNumWorkers checks if the current number of workers is reasonable, and adds more if needed
+func (r *Runner) UpdateNumWorkers(numChecks int64) {
+	numWorkers, _ := strconv.Atoi(runnerStats.Get("Workers").String())
+
+	if r.staticNumWorkers {
+		return
+	}
+
+	// Find which range the number of checks we're running falls in
+	var desiredNumWorkers int
+	switch {
+	case numChecks <= 10:
+		desiredNumWorkers = 4
+	case numChecks <= 15:
+		desiredNumWorkers = 10
+	case numChecks <= 20:
+		desiredNumWorkers = 15
+	case numChecks <= 25:
+		desiredNumWorkers = 20
+	default:
+		desiredNumWorkers = maxNumWorkers
+	}
+
+	// Add workers if we don't have enough for this range
+	added := 0
+	for {
+		if numWorkers >= desiredNumWorkers {
+			break
+		}
+		runnerStats.Add("Workers", 1)
+		TestWg.Add(1)
+		go r.work()
+		numWorkers++
+		added++
+	}
+	if added > 0 {
+		log.Infof("Added %d workers to runner: now at "+runnerStats.Get("Workers").String()+" workers.", added)
+	}
 }
 
 // Stop closes the pending channel so all workers will exit their loop and terminate
@@ -156,6 +217,7 @@ func (r *Runner) StopCheck(id check.ID) error {
 // work waits for checks and run them as long as they arrive on the channel
 func (r *Runner) work() {
 	log.Debug("Ready to process checks...")
+	defer TestWg.Done()
 
 	for check := range r.pending {
 		// see if the check is already running

@@ -89,6 +89,34 @@ func (c *PythonCheck) Run() error {
 	return errors.New(resultStr)
 }
 
+// RunSimple runs a Python check without sending data to the aggregator
+func (c *PythonCheck) RunSimple() error {
+	gstate := newStickyLock()
+	defer gstate.unlock()
+
+	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
+	emptyTuple := python.PyTuple_New(0)
+	defer emptyTuple.DecRef()
+
+	result := c.instance.CallMethod("run", emptyTuple)
+	log.Debugf("Run returned for %s %s", c.ModuleName, c.id)
+	if result == nil {
+		pyErr, err := gstate.getPythonError()
+		if err != nil {
+			return fmt.Errorf("An error occurred while running python check and couldn't be formatted: %v", err)
+		}
+		return errors.New(pyErr)
+	}
+	defer result.DecRef()
+
+	c.lastWarnings = c.getPythonWarnings(gstate)
+	var resultStr = python.PyString_AsString(result)
+	if resultStr == "" {
+		return nil
+	}
+	return errors.New(resultStr)
+}
+
 // Stop does nothing
 func (c *PythonCheck) Stop() {}
 
