@@ -107,7 +107,7 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
 
 	if d.instance.CollectImageSize {
 		for _, i := range availableImages {
-			name, tag, err := docker.SplitImageName(i.RepoTags[0])
+			name, _, tag, err := docker.SplitImageName(i.RepoTags[0])
 			if err != nil {
 				log.Errorf("could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
 				continue
