@@ -7,6 +7,7 @@ package tagger
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -175,7 +176,15 @@ ITER_COLLECTORS:
 		low, high, err := collector.Fetch(entity)
 		if err != nil {
 			log.Warnf("error collecting from %s: %s", name, err)
-			continue
+			// FIXME: introduce a custom error type
+			if !strings.Contains(err.Error(), "not found in") {
+				// We want to store the empty tag response if the error
+				// comes from successfully parsing the source but not
+				// finding the entity (can happen in k8s/ECS in pure
+				// docker containers).
+				// On other cases, don't store that to retry on next query.
+				continue
+			}
 		}
 		tagArrays = append(tagArrays, low)
 		if highCard {
