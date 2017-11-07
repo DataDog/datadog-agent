@@ -83,7 +83,6 @@
 [[constraint]]
   name = "gopkg.in/yaml.v2"
 
-
 [[constraint]]
   name = "gopkg.in/zorkian/go-datadog-api.v2"
 
