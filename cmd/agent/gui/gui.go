@@ -3,8 +3,10 @@ package gui
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -22,6 +24,7 @@ var (
 	listener   net.Listener
 	privateKey *rsa.PrivateKey
 	publicKey  *rsa.PublicKey
+	csrfToken  string
 )
 
 // Payload struct is for the JSON messages received from a client POST request
@@ -44,9 +47,7 @@ func StartGUI(port string) error {
 	router := mux.NewRouter()
 
 	// Serve the only public file at the authentication endpoint
-	router.HandleFunc("/authenticate", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, filepath.Join(common.GetViewsPath(), "public/auth.html"))
-	})
+	router.HandleFunc("/authenticate", generateAuthEndpoint)
 
 	// Serve the (secured) index page on the default endpoint
 	router.Handle("/", authorizeAccess(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private")))))
@@ -79,23 +80,45 @@ func StartGUI(port string) error {
 	publicKey = &privateKey.PublicKey
 
 	// Create a JWT signed with the private key
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+	JWT := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"admin": true,
 		"name":  "Datadog Agent Manager",
 	})
-	tokenString, e := token.SignedString(privateKey)
+	jwtString, e := JWT.SignedString(privateKey)
 	if e != nil {
-		return fmt.Errorf("error creating jwt: " + e.Error())
+		return fmt.Errorf("error creating JWT: " + e.Error())
 	}
 
-	// Open the GUI in a browser, passing the authorization token as a parameter
-	e = open("http://127.0.0.1:" + port + "/authenticate?jwt=" + tokenString + ";CSRFtoken=duFr7QagUswEspEwufafrAnabr5CRemE")
+	// Create a CSRF token
+	key := make([]byte, 32)
+	_, e = rand.Read(key)
+	if e != nil {
+		return fmt.Errorf("error creating CSRF token: " + e.Error())
+	}
+	csrfToken = hex.EncodeToString(key)
+
+	// Open the GUI in a browser, passing the authorization tokens as parameters
+	e = open("http://127.0.0.1:" + port + "/authenticate?jwt=" + jwtString + ";csrf=" + csrfToken)
 	if e != nil {
 		return fmt.Errorf("error opening GUI: " + e.Error())
 	}
 
 	log.Infof("GUI opened at 127.0.0.1:" + port)
 	return nil
+}
+
+func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {
+	t, e := template.New("auth.tmpl").ParseFiles(filepath.Join(common.GetViewsPath(), "templates/auth.tmpl"))
+	if e != nil {
+		http.Error(w, e.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	e = t.Execute(w, map[string]interface{}{"csrf": csrfToken})
+	if e != nil {
+		http.Error(w, e.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // Middleware which blocks access to secured files from unauthorized clients

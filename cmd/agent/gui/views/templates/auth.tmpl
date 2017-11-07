@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
 </head>
-
 <script>
   // Read from ? to the end of the URL
   var urlParam = location.search.substring(1);
@@ -11,9 +10,9 @@
 
   // Decode the url parameters
   var jwt = urlParam[0].substring(4);
-  var CSRFtoken = urlParam[1].substring(10);
+  var csrf = urlParam[1].substring(5);
 
-  if (CSRFtoken == "duFr7QagUswEspEwufafrAnabr5CRemE") {
+  if (csrf == "{{ .csrf }}") {
     // Save JWT as a cookie
     document.cookie = "jwt=" + jwt + "; path=/";
   }
