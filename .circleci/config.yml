@@ -45,10 +45,14 @@ jobs:
       - run:
           name: grab go deps
           command: invoke deps
+      - run:
+          name: pre-compile go deps
+          command: inv agent.build -e
       - save_cache:
           key: v1-govendordeps-{{ checksum "Gopkg.toml" }}
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
+            - /go/pkg
       - save_cache:
           key: v1-gobindeps
           paths:
