@@ -12,39 +12,33 @@ templates:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
   step_templates:
-    - run: &save_sha
-        name: save SHA to a file
-        command: echo $CIRCLE_SHA1 > .circle-sha
     - restore_cache: &restore_source
         keys:
-          - v1-repo-{{ checksum ".circle-sha" }}
-    - restore_cache: &restore_vendor
+          # Cache retrieval is faster than full git checkout
+          - v2-repo-{{ .Revision }}
+    - restore_cache: &restore_deps
         keys:
           # The first match will be used. Doing that so new branches
           # use master's cache but don't pollute it back.
-          - v1-govendordeps-{{ .Branch }}-{{ checksum "Gopkg.toml" }}
-          - v1-govendordeps-master-{{ checksum "Gopkg.toml" }}
-    - restore_cache: &restore_gobindeps
-        keys:
-          - v1-gobindeps
+          - v2-godeps-{{ .Branch }}-{{ .Revision }}
+          - v2-godeps-{{ .Branch }}-
+          - v2-godeps-master-
 
 jobs:
   checkout_code:
     <<: *job_template
     steps:
       - checkout
-      - run: *save_sha
       - save_cache:
-          key: v1-repo-{{ checksum ".circle-sha" }}
+          key: v2-repo-{{ .Revision }}
           paths:
             - /go/src/github.com/DataDog/datadog-agent
 
   dependencies:
     <<: *job_template
     steps:
-      - run: *save_sha
       - restore_cache: *restore_source
-      - restore_cache: *restore_vendor
+      - restore_cache: *restore_deps
       - run:
           name: grab go deps
           command: invoke deps
@@ -52,59 +46,48 @@ jobs:
           name: pre-compile go deps
           command: inv agent.build --race --precompile-only
       - save_cache:
-          key: v1-govendordeps-{{ .Branch }}-{{ checksum "Gopkg.toml" }}
+          key: v2-godeps-{{ .Branch }}-{{ .Revision }}
           paths:
             - /go/src/github.com/DataDog/datadog-agent/vendor
             - /go/pkg
-      - save_cache:
-          key: v1-gobindeps
-          paths:
             - /go/bin
 
   unit_tests:
     <<: *job_template
     steps:
-      - run: *save_sha
       - restore_cache: *restore_source
-      - restore_cache: *restore_vendor
-      - restore_cache: *restore_gobindeps
+      - restore_cache: *restore_deps
       - run:
           name: run unit tests
-          command: invoke -e test --coverage --race
+          command: inv -e test --coverage --race
 
   integration_tests:
     <<: *job_template
     steps:
-      - run: *save_sha
       - restore_cache: *restore_source
-      - restore_cache: *restore_vendor
-      - restore_cache: *restore_gobindeps
+      - restore_cache: *restore_deps
       - setup_remote_docker
       - run:
           name: run integration tests
-          command: inv integration-tests --race --install-deps --remote-docker
+          command: inv  -e integration-tests --race --remote-docker
 
   build_binaries:
     <<: *job_template
     steps:
-      - run: *save_sha
       - restore_cache: *restore_source
-      - restore_cache: *restore_vendor
-      - restore_cache: *restore_gobindeps
+      - restore_cache: *restore_deps
       - run:
           name: build dogstatsd
           command: inv -e dogstatsd.build --static
       - run:
           name: build agent
-          command: inv agent.build
+          command: inv -e agent.build
 
   build_puppy:
     <<: *job_template
     steps:
-      - run: *save_sha
       - restore_cache: *restore_source
-      - restore_cache: *restore_vendor
-      - restore_cache: *restore_gobindeps
+      - restore_cache: *restore_deps
       - run:
           name: build puppy
           command: inv agent.build --puppy
