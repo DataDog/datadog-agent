@@ -41,13 +41,13 @@ jobs:
     steps:
       - run: *save_sha
       - restore_cache: *restore_source
-      - restore_cache: *restore_vendor
+      #- restore_cache: *restore_vendor
       - run:
           name: grab go deps
           command: invoke deps
       - run:
           name: pre-compile go deps
-          command: inv agent.build -e
+          command: inv agent.build --race --precompile-only
       - save_cache:
           key: v1-govendordeps-{{ checksum "Gopkg.toml" }}
           paths:
