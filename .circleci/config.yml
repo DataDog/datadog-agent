@@ -20,6 +20,8 @@ templates:
           - v1-repo-{{ checksum ".circle-sha" }}
     - restore_cache: &restore_vendor
         keys:
+          # The first match will be used. Doing that so new branches
+          # use master's cache but don't pollute it back.
           - v1-govendordeps-{{ .Branch }}-{{ checksum "Gopkg.toml" }}
           - v1-govendordeps-master-{{ checksum "Gopkg.toml" }}
     - restore_cache: &restore_gobindeps
