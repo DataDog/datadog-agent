@@ -10,12 +10,16 @@ WORKDIR /output
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
 RUN dpkg -x /datadog-agent*_amd64.deb . \
+ && echo "Cleanup and trimming" \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
     opt/datadog-agent/embedded/share/man \
  && find opt/datadog-agent/ -iname "*.a" -delete \
- && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi
+ && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
+ && echo "Linking embedded ssl certificates" \
+ && mkdir -p etc \
+ && ln -s /opt/datadog-agent/embedded/ssl etc/ssl
 
 # Configuration:
 #   - empty config file to remove logline
@@ -32,7 +36,7 @@ LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ENV DOCKER_DD_AGENT=yes \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
-    SSL_CERT_DIR=/opt/datadog-agent/embedded/ssl
+    CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem
 
 # Install openjdk-8-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then apt-get update \
