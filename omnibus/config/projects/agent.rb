@@ -110,6 +110,7 @@ end
 if linux?
   dependency 'procps-ng'
   dependency 'sysstat'
+  dependency 'curl'
 end
 
 # creates required build directories
