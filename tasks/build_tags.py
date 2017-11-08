@@ -56,7 +56,7 @@ def get_build_tags(include, exclude):
 
 
 @task
-def audit_tag_impact(ctx, build_exclude=None, use_embedded_libs=False):
+def audit_tag_impact(ctx, build_exclude=None, use_embedded_libs=False, csv=False):
     """
     Measure each tag's contribution to the binary size
     """
@@ -80,9 +80,10 @@ def audit_tag_impact(ctx, build_exclude=None, use_embedded_libs=False):
         report[tag] = delta
         report["unaccounted"] -= delta
 
-    print("\nCSV output in bytes:")
-    for k, v in report.iteritems():
-        print("{};{}".format(k, v))
+    if csv:
+        print("\nCSV output in bytes:")
+        for k, v in report.iteritems():
+            print("{};{}".format(k, v))
 
 
 def _compute_build_size(ctx, build_exclude=None, use_embedded_libs=False, puppy=False):
