@@ -19,10 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
 
 	log "github.com/cihub/seelog"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 type apmCheckConf struct {
@@ -209,9 +208,4 @@ func init() {
 		}
 	}
 	core.RegisterCheck("apm", factory)
-}
-
-func getHostname() string {
-	hostname, _ := util.GetHostname()
-	return hostname
 }

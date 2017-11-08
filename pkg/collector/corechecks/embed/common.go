@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 const defaultRetryDuration = 5 * time.Second
@@ -20,4 +21,9 @@ func retryExitError(err error) error {
 	default:
 		return err
 	}
+}
+
+func getHostname() string {
+	hostname, _ := util.GetHostname()
+	return hostname
 }
