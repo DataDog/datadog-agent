@@ -149,7 +149,7 @@ func (c *FileConfigProvider) collectDir(parentPath string, folder os.FileInfo) (
 	if filepath.Ext(folder.Name()) != dirExt {
 		// the name of this directory isn't in the form `checkname.d`, skip it
 		log.Debugf("Not a config folder, skipping directory: %s", folder.Name())
-		return nil, configs
+		return configs, defaultConfigs
 	}
 
 	dirPath := filepath.Join(parentPath, folder.Name())
@@ -158,7 +158,7 @@ func (c *FileConfigProvider) collectDir(parentPath string, folder os.FileInfo) (
 	subEntries, err := ioutil.ReadDir(dirPath)
 	if err != nil {
 		log.Warnf("Skipping config directory: %s", err)
-		return nil, configs
+		return configs, defaultConfigs
 	}
 
 	// strip the trailing `.d`

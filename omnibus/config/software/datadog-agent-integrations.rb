@@ -62,20 +62,20 @@ build do
       # Copy the check config to the conf directories
       if File.exist? "#{check_dir}/conf.yaml.example"
         mkdir check_conf_dir unless File.exists? (check_conf_dir)
-        copy "#{check_dir}/conf.yaml.example", "#{check_conf_dir}/conf.yaml.example"
+        copy "#{check_dir}/conf.yaml.example", "#{check_conf_dir}/"
       end
 
       # Copy the default config, if it exists
       if File.exist? "#{check_dir}/conf.yaml.default"
         mkdir check_conf_dir unless File.exists? (check_conf_dir)
-        copy "#{check_dir}/conf.yaml.default", "#{check_conf_dir}/conf.yaml.default"
+        copy "#{check_dir}/conf.yaml.default", "#{check_conf_dir}/"
       end
 
       # We don't have auto_conf on windows yet
       if os != 'windows'
         if File.exist? "#{check_dir}/auto_conf.yaml"
           mkdir check_conf_dir unless File.exists? (check_conf_dir)
-          copy "#{check_dir}/auto_conf.yaml", "#{check_conf_dir}/auto_conf.yaml"
+          copy "#{check_dir}/auto_conf.yaml", "#{check_conf_dir}/"
         end
       end
 

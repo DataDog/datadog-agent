@@ -33,7 +33,7 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
 #   - enable docker check by default
 #   - enable process agent
 COPY datadog.yaml etc/datadog-agent/datadog.yaml
-RUN mv etc/datadog-agent/conf.d/docker.yaml.example etc/datadog-agent/conf.d/docker.yaml.default \
+RUN mv etc/datadog-agent/conf.d/docker.d/conf.yaml.example etc/datadog-agent/conf.d/docker.d/conf.yaml.default \
  && sed -i "s/enabled: false/enabled: true/" etc/datadog-agent/conf.d/process_agent.yaml.default
 COPY entrypoint.sh .
 

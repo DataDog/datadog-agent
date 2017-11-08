@@ -34,7 +34,12 @@ build do
         move "#{install_dir}/etc/datadog-agent/trace-agent.conf", "/etc/datadog-agent/trace-agent.conf.example"
         move "#{install_dir}/etc/datadog-agent/process-agent.conf", "/etc/datadog-agent/process-agent.conf.example"
         move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
-        move "#{install_dir}/bin/agent/dist/conf.d/*", "/etc/datadog-agent/conf.d"
+        move "#{install_dir}/bin/agent/dist/conf.d/*.yaml*", "/etc/datadog-agent/conf.d/"
+        Dir.glob("#{install_dir}/bin/agent/dist/conf.d/**/*.d").each do |check_dir|
+            dir_name = File.basename check_dir
+            mkdir "/etc/datadog-agent/conf.d/#{dir_name}" unless File.exists? "/etc/datadog-agent/conf.d/#{dir_name}"
+            move "#{install_dir}/bin/agent/dist/conf.d/#{dir_name}/*.yaml*", "/etc/datadog-agent/conf.d/#{dir_name}/", :force=>true
+        end
         move "#{install_dir}/agent/checks.d", "#{install_dir}/checks.d"
 
         # Move system service files
@@ -50,5 +55,3 @@ build do
         delete "#{install_dir}/bin/agent/dist/*.yaml"
     end
 end
-
-        
