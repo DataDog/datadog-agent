@@ -89,39 +89,27 @@ build_dogstatsd-deb_x64:
 #
 
 # run benchmarks on deb
-run_benchmarks-deb_x64:
-  stage: integration_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
-  allow_failure: true  # FIXME: this was set to true to temporarily unblock the pipeline
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - inv -e bench.aggregator
-    # FIXME: in our docker image, non ascii characters printed by the benchmark
-    # make invoke traceback. For now, the workaround is to call the benchmarks
-    # manually
-    - inv -e bench.build-dogstatsd
+# run_benchmarks-deb_x64:
+#   stage: integration_test
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+#   allow_failure: true  # FIXME: this was set to true to temporarily unblock the pipeline
+#   tags: [ "runner:main", "size:large" ]
+#   script:
+#     - inv -e bench.aggregator
+#     # FIXME: in our docker image, non ascii characters printed by the benchmark
+#     # make invoke traceback. For now, the workaround is to call the benchmarks
+#     # manually
+#     - inv -e bench.build-dogstatsd
 
-    - set +x # make sure we don't output the creds to the build log
-    - DD_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.dd_agent_api_key --with-decryption --query "Parameter.Value" --out text)
+#     - set +x # make sure we don't output the creds to the build log
+#     - DD_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.dd_agent_api_key --with-decryption --query "Parameter.Value" --out text)
 
-    # dogstatsd validation - not really benchmarking: gitlab isn't the right place to do this.
-    - ./bin/benchmarks/dogstatsd -pps=20000 -dur 30 -ser 5 -branch $DD_REPO_BRANCH_NAME -api-key $DD_AGENT_API_KEY
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - benchmarks
-
-# run integration tests on the test image for deb-x64
-run_integration_tests_deb-x64:
-  stage: integration_test
-  allow_failure: true  # FIXME when the root-user related issues are fixed on gitlab
-  tags:
-    - container-builder
-  before_script:
-    # disable global before_script
-    - pwd
-  script:
-    - docker run --rm --user root --pid=host -v /var/run/docker.sock:/var/run/docker.sock -v /tmp:/tmp -v $(pwd):$SRC_PATH --workdir $SRC_PATH -e CI_PIPELINE_ID=$CI_PIPELINE_ID -e CI_COMMIT_SHA=$CI_COMMIT_SHA 727006795293.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders:deb_test_x64 inv integration-tests --install-deps
+#     # dogstatsd validation - not really benchmarking: gitlab isn't the right place to do this.
+#     - ./bin/benchmarks/dogstatsd -pps=20000 -dur 30 -ser 5 -branch $DD_REPO_BRANCH_NAME -api-key $DD_AGENT_API_KEY
+#   artifacts:
+#     expire_in: 2 weeks
+#     paths:
+#       - benchmarks
 
 # check the size of the static dogstatsd binary
 run_dogstatsd_size_test:
@@ -134,20 +122,6 @@ run_dogstatsd_size_test:
     - $S3_CP_CMD $S3_SCRATCH_URI/static/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
   script:
     - inv -e dogstatsd.size-test --skip-build
-
-# run integration tests for deb-x64
-run_docker_integration_tests_deb-x64:
-  stage: integration_test
-  allow_failure: true  # FIXME when the root-user related issues are fixed on gitlab
-  tags:
-    - container-builder
-  before_script:
-    # Disable global before_script
-    - mkdir --parent $STATIC_BINARIES_DIR
-    - $S3_CP_CMD $S3_SCRATCH_URI/static/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
-  script:
-    - docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v $(pwd):$(pwd) --workdir $(pwd) -e CI_PIPELINE_ID=$CI_PIPELINE_ID -e CI_COMMIT_SHA=$CI_COMMIT_SHA 727006795293.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders:deb_x64 inv docker.integration-tests --skip-build 2>&1
-
 
 #
 # package_build
