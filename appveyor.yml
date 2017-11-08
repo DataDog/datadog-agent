@@ -20,11 +20,14 @@ install:
   - choco install pkgconfiglite
 
 cache:
-  - '%GOPATH%/pkg/dep'
+  - '%GOPATH%\bin'
+  - '%GOPATH%\pkg'
+  - '%GOPATH%\src\github.com\DataDog\datadog-agent\vendor'
 
 build: off
 
 test_script:
   - cd
   - inv -e deps
-  - inv -e test --coverage --race --fail-on-fmt
+  - inv -e agent.build --race --precompile-only
+  - inv -e test --race --fail-on-fmt

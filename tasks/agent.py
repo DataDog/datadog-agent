@@ -22,7 +22,7 @@ AGENT_TAG = "datadog/agent:master"
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-          puppy=False, use_embedded_libs=False, development=True):
+          puppy=False, use_embedded_libs=False, development=True, precompile_only=False):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -69,7 +69,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
     args = {
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
+        "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
         "go_build_tags": " ".join(build_tags),
         "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
         "gcflags": gcflags,
@@ -146,7 +146,7 @@ def image_build(ctx, base_dir="omnibus"):
 
 
 @task
-def integration_tests(ctx, install_deps=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     """
     Run integration tests for the Agent
     """
@@ -155,13 +155,14 @@ def integration_tests(ctx, install_deps=False, remote_docker=False):
 
     test_args = {
         "go_build_tags": " ".join(get_default_build_tags()),
+        "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
 
     if remote_docker:
         test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
 
-    go_cmd = 'go test -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+    go_cmd = 'go test {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
 
     prefixes = [
         "./test/integration/config_providers/...",
