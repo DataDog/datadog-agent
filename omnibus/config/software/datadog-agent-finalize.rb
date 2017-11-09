@@ -14,6 +14,7 @@ default_version "1.0.0"
 skip_transitive_dependency_licensing true
 
 build do
+    # TODO too many things done here, should be split
     block do
         if windows?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
