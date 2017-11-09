@@ -256,7 +256,8 @@ func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	hosts, err := svc.GetHosts()
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it", svc.GetID())
-	} else if len(hosts) == 0 {
+	}
+	if len(hosts) == 0 {
 		return nil, fmt.Errorf("no network found for container %s, ignoring it", svc.GetID())
 	}
 
