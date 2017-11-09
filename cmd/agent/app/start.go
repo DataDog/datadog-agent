@@ -172,8 +172,8 @@ func StartAgent() error {
 	// start the GUI server
 	guiPort := config.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
-		log.Infof("Port -1 specified: not starting the GUI server.")
-	} else if err = gui.StartGUIServer(guiPort); err != nil {
+		log.Infof("GUI server port -1 specified: not starting the GUI.")
+	} else if err = gui.StartGUI(guiPort); err != nil {
 		log.Errorf("Error while starting GUI: %v", err)
 	}
 
