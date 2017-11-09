@@ -7,6 +7,7 @@ package autodiscovery
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -255,6 +256,8 @@ func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	hosts, err := svc.GetHosts()
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it", svc.GetID())
+	} else if len(hosts) == 0 {
+		return nil, fmt.Errorf("no network found for container %s, ignoring it", svc.GetID())
 	}
 
 	// a network was specified
@@ -265,11 +268,32 @@ func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		}
 		log.Warnf("network %s not found, trying bridge IP instead", string(network))
 	}
-	// otherwise use the bridge interface
-	if ip, found := hosts["bridge"]; found {
-		return []byte(ip), nil
+	// otherwise use fallback policy
+	ip, err := getFallbackHost(hosts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Err: %s", svc.GetID(), err)
 	}
-	return nil, fmt.Errorf("failed to resolve IP address for container %s, ignoring it", svc.GetID())
+
+	return []byte(ip), nil
+}
+
+// getFallbackHost implements the fallback strategy to get a service's IP address
+// the current strategy is:
+// 		- if there's only one network we use its IP
+// 		- otherwise we look for the bridge net and return its IP address
+// 		- if we can't find it we fail because we shouldn't try and guess the IP address
+func getFallbackHost(hosts map[string]string) (string, error) {
+	if len(hosts) == 1 {
+		for k := range hosts {
+			return hosts[k], nil
+		}
+	}
+	for k, v := range hosts {
+		if k == "bridge" {
+			return v, nil
+		}
+	}
+	return "", errors.New("not able to determine which network is reachable")
 }
 
 // TODO support orchestrators
