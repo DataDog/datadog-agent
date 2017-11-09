@@ -101,3 +101,21 @@ func TestResolve(t *testing.T) {
 	config, err = cr.resolve(tpl, &service)
 	assert.NotNil(t, err)
 }
+
+func TestGetFallbackHost(t *testing.T) {
+	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
+	assert.Equal(t, "172.17.0.1", ip)
+	assert.Equal(t, nil, err)
+
+	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1"})
+	assert.Equal(t, "172.17.0.1", ip)
+	assert.Equal(t, nil, err)
+
+	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1", "bridge": "172.17.0.2"})
+	assert.Equal(t, "172.17.0.2", ip)
+	assert.Equal(t, nil, err)
+
+	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1", "bar": "172.17.0.2"})
+	assert.Equal(t, "", ip)
+	assert.NotNil(t, err)
+}
