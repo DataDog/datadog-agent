@@ -26,7 +26,7 @@ const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format sy
 var logCertPool *x509.CertPool
 
 // SetupLogger sets up the default logger
-func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string) error {
+func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logToConsole bool) error {
 	var syslog bool
 
 	if uri != "" { // non-blank uri enables syslog
@@ -41,8 +41,10 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string) error
 	}
 
 	configTemplate := `<seelog minlevel="%s">
-    <outputs formatid="common">
-        <console />`
+    <outputs formatid="common">`
+	if logToConsole {
+		configTemplate += `<console />`
+	}
 	if logFile != "" {
 		configTemplate += `<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="1" />`
 	}
