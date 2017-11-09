@@ -10,6 +10,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -22,11 +24,22 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version info",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
+		if flagNoColor {
+			color.NoColor = true
+		}
 		av, _ := version.New(version.AgentVersion)
 		meta := ""
 		if av.Meta != "" {
-			meta = fmt.Sprintf("- Meta: %s ", av.Meta)
+			meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
 		}
-		fmt.Println(fmt.Sprintf("Agent %s %s- Commit: %s - Serialization version: %s", av.GetNumberAndPre(), meta, av.Commit, serializer.AgentPayloadVersion))
+		fmt.Fprintln(
+			color.Output,
+			fmt.Sprintf("Agent %s %s- Commit: %s - Serialization version: %s",
+				color.BlueString(av.GetNumberAndPre()),
+				meta,
+				color.GreenString(av.Commit),
+				color.MagentaString(serializer.AgentPayloadVersion),
+			),
+		)
 	},
 }
