@@ -66,7 +66,8 @@ type AutoConfig struct {
 	listeners         []listeners.ServiceListener
 	configResolver    *ConfigResolver
 	configsPollTicker *time.Ticker
-	config2checks     map[string][]check.ID // cache the ID of checks we load for each config
+	config2checks     map[string][]check.ID       // cache the ID of checks we load for each config
+	name2jmxmetrics   map[string]check.ConfigData // holds the metrics to collect for JMX checks
 	stop              chan bool
 	pollerActive      bool
 	m                 sync.RWMutex
@@ -191,12 +192,20 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 		cfgs, _ := pd.provider.Collect()
 
 		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
+			// Grab any errors that occured when reading the YAML file
 			for name, e := range fileConfPd.Errors {
 				errorStats.setConfigError(name, e)
 			}
 
-			// Clear any old errors if a valid config file is found
 			for _, cfg := range cfgs {
+				// JMX checks can have 2 YAML files: one containing the metrics to collect, one containing the
+				// instance configuration
+				// If the file provider finds any of these metric YAMLs, we store them in a map for future access
+				if cfg.MetricConfig != nil {
+					ac.name2jmxmetrics[cfg.Name] = cfg.MetricConfig
+				}
+
+				// Clear any old errors if a valid config file is found
 				errorStats.removeConfigError(cfg.Name)
 			}
 		}
@@ -226,6 +235,16 @@ func (ac *AutoConfig) getAllChecks() []check.Check {
 // resolveAndRun loads and resolves a given config and schedules the
 // corresponding Check instances.
 func (ac *AutoConfig) resolveAndRun(config check.Config) error {
+	// add default metrics to collect to JMX checks
+	if config.CollectDefaultMetrics() {
+		metrics, ok := ac.name2jmxmetrics[config.Name]
+		if !ok {
+			log.Infof("%s doesn't have an additional metric configuration file: not collecting default metrics", config.Name)
+		} else if err := config.AddMetrics(metrics); err != nil {
+			log.Infof("Unable to add default metrics to collect to %s check: %s", config.Name, err)
+		}
+	}
+
 	if config.IsTemplate() {
 		// store the template in the cache in any case
 		if err := ac.templateCache.Set(config); err != nil {

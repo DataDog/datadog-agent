@@ -21,6 +21,7 @@ type configFormat struct {
 	ADIdentifiers []string    `yaml:"ad_identifiers"`
 	DockerImages  []string    `yaml:"docker_images"`
 	InitConfig    interface{} `yaml:"init_config"`
+	JMXMetrics    interface{} `yaml:"jmx_metrics"`
 	Instances     []check.ConfigRawMap
 }
 
@@ -74,6 +75,18 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 			// skip config files that are not of type:
 			//  * check.yaml, check.yml
 			//  * check.yaml.default, check.yml.default
+			//  * check.yaml.metrics, check.yml.metrics
+
+			if ext == ".metrics" {
+				conf, err := GetCheckConfigFromFile(checkName, filepath.Join(path, entry.Name()))
+				if err != nil {
+					log.Warnf("%s is not a valid metric file: %s", entry.Name(), err)
+					continue
+				}
+				configs = append(configs, conf)
+				continue
+			}
+
 			if ext == ".default" {
 				// trim the .default suffix but preserve the real filename
 				checkName = entryName[:len(entryName)-8]
@@ -179,8 +192,8 @@ func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 		return config, err
 	}
 
-	// If no valid instances were found, this is not a valid configuration file
-	if len(cf.Instances) < 1 {
+	// If no valid instances were found & this is not a metrics file, this is not a valid configuration file
+	if cf.JMXMetrics == nil && len(cf.Instances) < 1 {
 		return config, errors.New("Configuration file contains no valid instances")
 	}
 
@@ -193,6 +206,11 @@ func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 		// at this point the Yaml was already parsed, no need to check the error
 		rawConf, _ := yaml.Marshal(instance)
 		config.Instances = append(config.Instances, rawConf)
+	}
+
+	if cf.JMXMetrics != nil {
+		rawMetricConfig, _ := yaml.Marshal(cf.JMXMetrics)
+		config.MetricConfig = rawMetricConfig
 	}
 
 	// Read AutoDiscovery data, try to use the old `docker_image` settings

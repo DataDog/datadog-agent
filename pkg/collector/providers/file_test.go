@@ -27,6 +27,11 @@ func TestGetCheckConfig(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Equal(t, len(config.Instances), 0)
 
+	// valid metric file
+	config, err = GetCheckConfigFromFile("foo", "tests/foo.yaml.metrics")
+	assert.Nil(t, err)
+	assert.NotNil(t, config.MetricConfig)
+
 	// valid configuration file
 	config, err = GetCheckConfigFromFile("foo", "tests/testcheck.yaml")
 	require.Nil(t, err)
@@ -35,6 +40,7 @@ func TestGetCheckConfig(t *testing.T) {
 	assert.Equal(t, len(config.Instances), 1)
 	assert.Equal(t, []byte(config.Instances[0]), []byte("foo: bar\n"))
 	assert.Len(t, config.ADIdentifiers, 0)
+	assert.Nil(t, config.MetricConfig)
 
 	// autodiscovery
 	config, err = GetCheckConfigFromFile("foo", "tests/ad_legacy.yaml")
@@ -63,7 +69,7 @@ func TestCollect(t *testing.T) {
 
 	assert.Nil(t, err)
 	// total number of configurations found
-	assert.Equal(t, 8, len(configs))
+	assert.Equal(t, 9, len(configs))
 
 	// count how many configs were found for a given check
 	get := func(name string) []check.Config {
