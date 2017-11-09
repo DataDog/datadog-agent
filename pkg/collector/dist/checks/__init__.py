@@ -157,10 +157,12 @@ class AgentCheck(object):
             self.log.warning(self._deprecations[deprecation_key][1])
             self._deprecations[deprecation_key][0] = True
 
-    def service_check(self, name, status, tags=None, hostname=None, message=""):
+    def service_check(self, name, status, tags=None, hostname=None, message=None):
         tags = self._normalize_tags_type(tags)
         if hostname is None:
             hostname = ""
+        if message is None:
+            message = ""
 
         aggregator.submit_service_check(self, self.check_id, name, status, tags, hostname, message)
 
