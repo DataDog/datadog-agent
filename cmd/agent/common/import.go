@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/legacy"
+	"github.com/fatih/color"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -25,6 +26,8 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	datadogYamlPath := filepath.Join(newConfigDir, "datadog.yaml")
 	traceAgentConfPath := filepath.Join(newConfigDir, "trace-agent.conf")
 	processAgentConfPath := filepath.Join(newConfigDir, "process-agent.conf")
+	const cfgExt = ".yaml"
+	const dirExt = ".d"
 
 	// read the old configuration in memory
 	agentConfig, err := legacy.GetAgentConfig(datadogConfPath)
@@ -83,7 +86,14 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		return fmt.Errorf("unable to unmarshal config to %s: %v", datadogYamlPath, err)
 	}
 
-	fmt.Printf("Successfully imported the contents of %s into %s\n", datadogConfPath, datadogYamlPath)
+	fmt.Fprintln(
+		color.Output,
+		fmt.Sprintf("%s imported the contents of %s into %s",
+			color.GreenString("Success:"),
+			datadogConfPath,
+			datadogYamlPath,
+		),
+	)
 
 	// move existing config files to the new configuration directory
 	files, err := ioutil.ReadDir(filepath.Join(oldConfigDir, "conf.d"))
@@ -92,18 +102,25 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	for _, f := range files {
-		if f.IsDir() || filepath.Ext(f.Name()) != ".yaml" {
+		if f.IsDir() || filepath.Ext(f.Name()) != cfgExt {
 			continue
 		}
+		checkName := f.Name()[:len(f.Name())-len(cfgExt)]
 
 		src := filepath.Join(oldConfigDir, "conf.d", f.Name())
-		dst := filepath.Join(newConfigDir, "conf.d", f.Name())
+		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "conf"+cfgExt)
 
 		if err := copyFile(src, dst, force); err != nil {
 			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
 		}
 
-		fmt.Printf("Copied %s over the new conf.d directory\n", f.Name())
+		fmt.Fprintln(
+			color.Output,
+			fmt.Sprintf("Copied %s over the new %s directory",
+				color.BlueString("conf.d/"+f.Name()),
+				color.BlueString(checkName+dirExt),
+			),
+		)
 	}
 
 	// move existing config templates to the new auto_conf directory
@@ -113,19 +130,26 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	}
 
 	for _, f := range autoConfFiles {
-		if f.IsDir() || filepath.Ext(f.Name()) != ".yaml" {
+		if f.IsDir() || filepath.Ext(f.Name()) != cfgExt {
 			continue
 		}
+		checkName := f.Name()[:len(f.Name())-len(cfgExt)]
 
 		src := filepath.Join(oldConfigDir, "conf.d", "auto_conf", f.Name())
-		dst := filepath.Join(newConfigDir, "conf.d", "auto_conf", f.Name())
+		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "auto_conf"+cfgExt)
 
 		if err := copyFile(src, dst, force); err != nil {
 			fmt.Fprintf(os.Stderr, "unable to copy %s to %s: %v\n", src, dst, err)
 			continue
 		}
 
-		fmt.Printf("Copied %s over the new auto_conf directory\n", f.Name())
+		fmt.Fprintln(
+			color.Output,
+			fmt.Sprintf("Copied %s over the new %s directory",
+				color.BlueString("auto_conf/"+f.Name()),
+				color.BlueString(checkName+dirExt),
+			),
+		)
 	}
 
 	// Extract trace-agent specific info and dump it to its own config file.
@@ -169,6 +193,12 @@ func copyFile(src, dst string, overwrite bool) error {
 		return err
 	}
 	defer in.Close()
+
+	// Create necessary destination directories
+	err = os.MkdirAll(filepath.Dir(dst), 0755)
+	if err != nil {
+		return err
+	}
 
 	out, err := os.Create(dst)
 	if err != nil {
