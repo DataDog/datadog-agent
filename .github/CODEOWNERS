@@ -6,6 +6,8 @@
 # PRs should still be peer-reviewed by the team opening the PR
 
 # See https://help.github.com/articles/about-codeowners/ for syntax
+# Rules are matched top-to-bottom, so one team can own subdirectories
+# and another the rest of the directory.
 
 /pkg/metadata/kubernetes/               @DataDog/burrito
 /pkg/metadata/ecs/                      @DataDog/burrito
@@ -13,12 +15,13 @@
 /pkg/metrics/percentile/                @DataDog/sandwich
 
 /Dockerfiles/                           @DataDog/kenafeh
+/pkg/collector/autodiscovery/           @DataDog/kenafeh @DataDog/croissant
+/pkg/collector/corechecks/containers/   @DataDog/kenafeh
+/pkg/collector/listeners/docker*        @DataDog/kenafeh
 /pkg/tagger/                            @DataDog/kenafeh
 /pkg/util/docker/                       @DataDog/kenafeh @DataDog/burrito
 /pkg/util/ecs/                          @DataDog/kenafeh @DataDog/burrito
 /pkg/util/kubernetes/                   @DataDog/kenafeh @DataDog/burrito
-/pkg/collector/listeners/docker*        @DataDog/kenafeh
-/pkg/collector/corechecks/containers/   @DataDog/kenafeh
 
 /cmd/                                   @DataDog/croissant
 /pkg/aggregator/                        @DataDog/croissant
