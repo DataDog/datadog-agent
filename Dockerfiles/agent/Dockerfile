@@ -3,6 +3,17 @@ ARG WITH_JMX
 COPY datadog-agent*_amd64.deb /
 WORKDIR /output
 
+# Get tini and check gpg signature
+ENV TINI_VERSION v0.16.1
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-amd64 tini
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-amd64.asc tini.asc
+RUN apt-get update \
+ && apt-get install --no-install-recommends -y dirmngr gpg \
+ && gpg --keyserver ipv4.pool.sks-keyservers.net --recv-keys 595E85A6B1B4779EA4DAAEC70B588DFF0527A9B7 \
+ && gpg --verify tini.asc \
+ && rm tini.asc \
+ && chmod +x tini
+
 # Extract and cleanup:
 #   - unused systemd unit
 #   - GPL sources for embedded software  # FIXME: move upstream
@@ -51,5 +62,5 @@ EXPOSE 8125/udp 8126/tcp
 HEALTHCHECK --interval=5m --timeout=20s --retries=1 \
   CMD ["/opt/datadog-agent/bin/agent/agent", "status"]
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/tini", "--", "/entrypoint.sh"]
 CMD ["/opt/datadog-agent/bin/agent/agent", "start"]
