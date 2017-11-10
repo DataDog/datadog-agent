@@ -137,6 +137,7 @@ func init() {
 	Datadog.SetDefault("expvar_port", "5000")
 	// Agent GUI access port
 	Datadog.SetDefault("GUI_port", "-1")
+	Datadog.SetDefault("GUI_localhost_only", true)
 	// Proess Agent
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
 
@@ -170,6 +171,8 @@ func init() {
 	Datadog.BindEnv("bosh_id")
 	Datadog.BindEnv("histogram_aggregates")
 	Datadog.BindEnv("histogram_percentiles")
+	Datadog.BindEnv("GUI_port")
+	Datadog.BindEnv("GUI_localhost_only")
 }
 
 var (

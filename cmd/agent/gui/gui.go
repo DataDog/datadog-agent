@@ -42,7 +42,7 @@ func StopGUIServer() {
 }
 
 // StartGUI creates the router, starts the HTTP server and opens the GUI in a browser
-func StartGUI(port string) error {
+func StartGUI(port string, isLocalOnly bool) error {
 	// Instantiate the gorilla/mux router
 	router := mux.NewRouter()
 
@@ -66,7 +66,11 @@ func StartGUI(port string) error {
 	router.PathPrefix("/checks").Handler(negroni.New(negroni.HandlerFunc(authorizePOST), negroni.Wrap(checkRouter)))
 
 	// Listen & serve
-	listener, e := net.Listen("tcp", "127.0.0.1:"+port)
+	bindAddress := "127.0.0.1:" + port
+	if !isLocalOnly {
+		bindAddress = "0.0.0.0:" + port
+	}
+	listener, e := net.Listen("tcp", bindAddress)
 	if e != nil {
 		return e
 	}
@@ -98,12 +102,13 @@ func StartGUI(port string) error {
 	csrfToken = hex.EncodeToString(key)
 
 	// Open the GUI in a browser, passing the authorization tokens as parameters
-	e = open("http://127.0.0.1:" + port + "/authenticate?jwt=" + jwtString + ";csrf=" + csrfToken)
+	authURL := fmt.Sprintf("http://127.0.0.1:%s/authenticate?jwt=%s;csrf=%s", port, jwtString, csrfToken)
+	e = open(authURL)
 	if e != nil {
-		return fmt.Errorf("error opening GUI: " + e.Error())
+		log.Debugf("Unable to open GUI in browser: " + e.Error())
 	}
 
-	log.Infof("GUI opened at 127.0.0.1:" + port)
+	log.Infof("GUI is running you can access it via %s", authURL)
 	return nil
 }
 
