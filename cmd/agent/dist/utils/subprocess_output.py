@@ -31,7 +31,7 @@ def get_subprocess_output(command, log, raise_on_empty_output=True):
     with tempfile.TemporaryFile() as stdout_f, tempfile.TemporaryFile() as stderr_f:
         proc = subprocess.Popen(command, stdout=stdout_f, stderr=stderr_f)
         pid = proc.pid
-        log.debug("running process: {0} with pid: {1}".format(" ".join(command), ppid))
+        log.debug("running process: {0} with pid: {1}".format(" ".join(command), pid))
 
         retcode = proc.wait()
         if retcode != 0:
