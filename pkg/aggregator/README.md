@@ -9,6 +9,15 @@ For now sources of metrics are DogStatsD and Python/Go checks. DogStatsD
 directly send **MetricSample** to the Aggregator while checks use the sender to
 do so.
 
+
+
+
+
+
+
+
+
+
 **MetricSample** are the raw metric value that flow from our 2 sources to the
 different metric types (Gauge, Count, ...).
 
