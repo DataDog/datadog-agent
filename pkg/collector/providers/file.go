@@ -20,7 +20,6 @@ import (
 
 type configFormat struct {
 	ADIdentifiers []string    `yaml:"ad_identifiers"`
-	DockerImages  []string    `yaml:"docker_images"`
 	InitConfig    interface{} `yaml:"init_config"`
 	MetricConfig  interface{} `yaml:"jmx_metrics"`
 	Instances     []check.ConfigRawMap
@@ -262,23 +261,6 @@ func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 	if cf.MetricConfig != nil {
 		rawMetricConfig, _ := yaml.Marshal(cf.MetricConfig)
 		config.MetricConfig = rawMetricConfig
-	}
-
-	// Read AutoDiscovery data, try to use the old `docker_image` settings
-	// param first
-	if len(cf.DockerImages) > 0 {
-		log.Warnf("'docker_image' section in %s is deprecated and will be eventually removed, use 'ad_identifiers' instead",
-			fpath)
-		config.ADIdentifiers = cf.DockerImages
-	}
-
-	// Override the legacy param with the new one, `ad_identifiers`
-	if len(cf.ADIdentifiers) > 0 {
-		if len(config.ADIdentifiers) > 0 {
-			log.Warnf("Overwriting the deprecated 'docker_image' section from %s in favor of the new 'ad_identifiers' one",
-				fpath)
-		}
-		config.ADIdentifiers = cf.ADIdentifiers
 	}
 
 	return config, err
