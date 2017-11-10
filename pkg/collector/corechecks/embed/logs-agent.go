@@ -84,9 +84,7 @@ func (c *LogsCheck) run() error {
 	go func() {
 		in := bufio.NewScanner(stderr)
 		for in.Scan() {
-			// using Info severity because all logs-agent logs are forwarded to stderr
-			// FIXME: fix the severity issue when we merge the repositories
-			log.Info(in.Text())
+			log.Error(in.Text())
 		}
 	}()
 
