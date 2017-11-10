@@ -10,6 +10,7 @@
 # and another the rest of the directory.
 
 /cmd/                                   @DataDog/croissant
+/omnibus/                               @DataDog/croissant
 /pkg/aggregator/                        @DataDog/croissant
 /pkg/collector/                         @DataDog/croissant
 /pkg/forwarder/                         @DataDog/croissant
