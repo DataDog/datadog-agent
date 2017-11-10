@@ -18,7 +18,6 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && echo "Linking embedded ssl certificates" \
- && mkdir -p etc \
  && ln -s /opt/datadog-agent/embedded/ssl etc/ssl
 
 # Configuration:
