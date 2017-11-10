@@ -34,6 +34,7 @@ new Agent.
 ### Linux
 
 There are a few major changes:
+
 * only the _lifecycle commands_ (i.e. `start`/`stop`/`restart`/`status` on the Agent service) should be run with `sudo service`/`sudo initctl`/`sudo systemctl`
 * all the other commands need to be run with the `datadog-agent` command, located in the `PATH` (`/usr/bin`) by default
 * the `info` command has been renamed `status`
@@ -53,6 +54,7 @@ For example, for an Agent installed on Ubuntu, the differences are as follows:
 | `sudo -u dd-agent -- dd-agent check <check_name>` | `sudo -u dd-agent -- datadog-agent check <check_name>` | Run a check |
 
 **NB**: If `service` is not available on your system, use:
+
 * on `upstart`-based systems: `sudo start/stop/restart datadog-agent`
 * on `systemd`-based systems: `sudo systemctl start/stop/restart datadog-agent`
 
@@ -97,11 +99,13 @@ The following methods have been removed from `AgentCheck`:
 The following things have been changed:
 
 The function signature of the metric senders changed from:
+
 ```python
 gauge(self, metric, value, tags=None, hostname=None, device_name=None, timestamp=None)
 ```
 
 to:
+
 ```python
 gauge(self, name, value, tags=None, hostname=None, device_name=None)
 ```
@@ -123,7 +127,7 @@ more information.
 
 Main changes:
 
-- Some options have moved from `docker_daemon.yaml` to the main `datadog.yaml`:
+* Some options have moved from `docker_daemon.yaml` to the main `datadog.yaml`:
   * `docker_root` option has been split in two options `container_cgroup_root`
     and `container_proc_root`.
   * `exclude` and `include` list have been renamed `ac_include` and
@@ -169,7 +173,6 @@ Dogstream is not available at the moment. We're working to bring a [full feature
 ## Custom Emitters
 
 Custom Emitters are not available anymore.
-
 
 [known-issues]: known_issues.md
 [sheepdog]: https://www.datadoghq.com/blog/datadog-acquires-logmatic-io/
