@@ -5,6 +5,8 @@
 
 // +build !windows
 
+//go:generate go run ../../pkg/config/render_config.go agent ../../pkg/config/config_template.yaml ./dist/datadog.yaml
+
 package main
 
 import (
