@@ -80,13 +80,13 @@ func getHostTags() *tags {
 
 	ec2Tags, err := ec2.GetTags()
 	if err != nil {
-		log.Warnf("No EC2 host tags %v", err)
+		log.Debugf("No EC2 host tags %v", err)
 	}
 	hostTags = append(hostTags, ec2Tags...)
 
 	gceTags, err = gce.GetTags()
 	if err != nil {
-		log.Warnf("No GCE host tags %v", err)
+		log.Debugf("No GCE host tags %v", err)
 	}
 
 	return &tags{
@@ -174,21 +174,21 @@ func getHostAliases() []string {
 
 	azureAlias, err := azure.GetHostAlias()
 	if err != nil {
-		log.Errorf("no Azure Host Alias: %s", err)
+		log.Debugf("no Azure Host Alias: %s", err)
 	} else if azureAlias != "" {
 		aliases = append(aliases, azureAlias)
 	}
 
 	gceAlias, err := gce.GetHostAlias()
 	if err != nil {
-		log.Errorf("no GCE Host Alias: %s", err)
+		log.Debugf("no GCE Host Alias: %s", err)
 	} else {
 		aliases = append(aliases, gceAlias)
 	}
 
 	cfAlias, err := cloudfoudry.GetHostAlias()
 	if err != nil {
-		log.Errorf("no Cloud Foundry Host Alias: %s", err)
+		log.Debugf("no Cloud Foundry Host Alias: %s", err)
 	} else if cfAlias != "" {
 		aliases = append(aliases, cfAlias)
 	}
