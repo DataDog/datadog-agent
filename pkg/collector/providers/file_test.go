@@ -28,7 +28,7 @@ func TestGetCheckConfig(t *testing.T) {
 	assert.Equal(t, len(config.Instances), 0)
 
 	// valid metric file
-	config, err = GetCheckConfigFromFile("foo", "tests/foo.yaml.metrics")
+	config, err = GetCheckConfigFromFile("foo", "tests/metrics.yaml")
 	assert.Nil(t, err)
 	assert.NotNil(t, config.MetricConfig)
 
@@ -68,8 +68,6 @@ func TestCollect(t *testing.T) {
 	configs, err := provider.Collect()
 
 	assert.Nil(t, err)
-	// total number of configurations found
-	assert.Equal(t, 9, len(configs))
 
 	// count how many configs were found for a given check
 	get := func(name string) []check.Config {
@@ -82,8 +80,10 @@ func TestCollect(t *testing.T) {
 		return out
 	}
 
-	// the regular config
+	// the regular configs
 	assert.Equal(t, 3, len(get("testcheck")))
+	assert.Equal(t, 1, len(get("ad_legacy")))
+	assert.Equal(t, 1, len(get("ad")))
 
 	// default configs must be picked up
 	assert.Equal(t, 1, len(get("bar")))
@@ -95,9 +95,20 @@ func TestCollect(t *testing.T) {
 
 	// nested configs override default ones
 	nc := get("baz")
-	if assert.Equal(t, 1, len(nc)) {
-		assert.Contains(t, string(nc[0].InitConfig), "IsNotOnTheDefaultFile")
-	}
+	assert.Equal(t, 1, len(nc))
+	assert.Contains(t, string(nc[0].InitConfig), "IsNotOnTheDefaultFile")
+
+	// default config in subdir
+	assert.Equal(t, 1, len(get("nested_default")))
+
+	// metric files don't override default files
+	assert.Equal(t, 2, len(get("qux")))
+
+	// metric files not collected in root directory
+	assert.Equal(t, 0, len(get("metrics")))
+
+	// total number of configurations found
+	assert.Equal(t, 11, len(configs))
 
 	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml)
 	assert.Equal(t, 2, len(provider.Errors))

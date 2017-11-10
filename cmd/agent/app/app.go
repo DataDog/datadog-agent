@@ -30,5 +30,5 @@ monitoring and performance data.`,
 
 func init() {
 	AgentCmd.PersistentFlags().StringVarP(&confFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-	AgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "Disable color output")
+	AgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 }
