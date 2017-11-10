@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/legacy"
@@ -105,7 +106,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		if f.IsDir() || filepath.Ext(f.Name()) != cfgExt {
 			continue
 		}
-		checkName := f.Name()[:len(f.Name())-len(cfgExt)]
+		checkName := strings.TrimSuffix(f.Name(), cfgExt)
 
 		src := filepath.Join(oldConfigDir, "conf.d", f.Name())
 		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "conf"+cfgExt)
@@ -133,7 +134,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		if f.IsDir() || filepath.Ext(f.Name()) != cfgExt {
 			continue
 		}
-		checkName := f.Name()[:len(f.Name())-len(cfgExt)]
+		checkName := strings.TrimSuffix(f.Name(), cfgExt)
 
 		src := filepath.Join(oldConfigDir, "conf.d", "auto_conf", f.Name())
 		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "auto_conf"+cfgExt)
@@ -195,7 +196,7 @@ func copyFile(src, dst string, overwrite bool) error {
 	defer in.Close()
 
 	// Create necessary destination directories
-	err = os.MkdirAll(filepath.Dir(dst), 0755)
+	err = os.MkdirAll(filepath.Dir(dst), 0750)
 	if err != nil {
 		return err
 	}
@@ -210,6 +211,12 @@ func copyFile(src, dst string, overwrite bool) error {
 	if err != nil {
 		return err
 	}
+
+	err = out.Chmod(0640)
+	if err != nil {
+		return err
+	}
+
 	return out.Close()
 }
 

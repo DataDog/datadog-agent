@@ -37,6 +37,7 @@ build do
             move "#{install_dir}/etc/datadog-agent/process-agent.conf", "/etc/datadog-agent/process-agent.conf.example"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
             move "#{install_dir}/bin/agent/dist/conf.d/*.yaml*", "/etc/datadog-agent/conf.d/"
+            # The conf.d is already containing integration configs at this point so we have to add directories/files for core checks
             Dir.glob("#{install_dir}/bin/agent/dist/conf.d/**/*.d").each do |check_dir|
                 dir_name = File.basename check_dir
                 mkdir "/etc/datadog-agent/conf.d/#{dir_name}" unless File.exists? "/etc/datadog-agent/conf.d/#{dir_name}"
