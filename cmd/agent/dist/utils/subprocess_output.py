@@ -30,7 +30,13 @@ def get_subprocess_output(command, log, raise_on_empty_output=True):
     # use subprocess.PIPE if the data size is large or unlimited.
     with tempfile.TemporaryFile() as stdout_f, tempfile.TemporaryFile() as stderr_f:
         proc = subprocess.Popen(command, stdout=stdout_f, stderr=stderr_f)
-        proc.wait()
+        pid = proc.pid
+        log.debug("running process: {0} with pid: {1}".format(" ".join(command), ppid))
+
+        retcode = proc.wait()
+        if retcode != 0:
+            log.debug("Error while running {0} with pid: {1}. It returned with code {2}".format(" ".join(command), pid, retcode))
+
         stderr_f.seek(0)
         err = stderr_f.read()
         if err:
