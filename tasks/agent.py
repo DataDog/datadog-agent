@@ -226,7 +226,3 @@ def clean(ctx):
     # remove the bin/agent folder
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/agent")
-
-@task
-def foo(ctx):
-    ctx.run("./foo.sh")
