@@ -22,6 +22,11 @@ mode, pull or fetchonly mode, depending of what's most efficient for the data so
 The **DockerCollector** runs in stream mode as it collects events from the docker
 daemon and reacts to them, sending updates incrementally.
 
+
+
+
+
+
 #### Puller
 The **KubernetesCollector** will run in pull mode as it needs to query and filter a full entity list every time. It will only push
 updates to the store though, by keeping an internal state of the latest
