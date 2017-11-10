@@ -8,7 +8,7 @@ require 'pathname'
 
 name "datadog-trace-agent"
 
-default_version "5.18.1"
+default_version "5.19.0"
 
 source git: 'https://github.com/DataDog/datadog-trace-agent.git'
 relative_path 'src/github.com/DataDog/datadog-trace-agent'
