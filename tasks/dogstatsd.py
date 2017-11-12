@@ -1,7 +1,8 @@
 """
 Dogstatsd tasks
 """
-from __future__ import print_function
+from __future__ import print_function, absolute_import
+
 import os
 from shutil import copy2
 
@@ -179,6 +180,9 @@ def image_build(ctx, skip_build=False):
     """
     Build the docker image
     """
+    import docker
+    client = docker.from_env()
+
     target = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
     if not skip_build:
         build(ctx, rebuild=True, static=True)
@@ -186,7 +190,7 @@ def image_build(ctx, skip_build=False):
         raise Exit(1)
 
     copy2(target, "Dockerfiles/dogstatsd/alpine/dogstatsd")
-    ctx.run("docker build -t {} Dockerfiles/dogstatsd/alpine/".format(DOGSTATSD_TAG))
+    client.images.build(path="Dockerfiles/dogstatsd/alpine/", rm=True, tag=DOGSTATSD_TAG)
     ctx.run("rm Dockerfiles/dogstatsd/alpine/dogstatsd")
 
 
