@@ -72,6 +72,12 @@
   revision = "6d212800a42e8ab5c146b8ace3490ee17e5225f9"
 
 [[projects]]
+  name = "github.com/dgrijalva/jwt-go"
+  packages = ["."]
+  revision = "dbeaa9332f19a944acb5736b4456cfcc02140e29"
+  version = "v3.1.0"
+
+[[projects]]
   name = "github.com/docker/distribution"
   packages = ["digestset","reference"]
   revision = "5cfdfbdce59c0b1854b9d82189e9c6164d54456a"
@@ -389,6 +395,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "620090c6d1189e1943e87f4b9058a8f1694a830fe181ef42c5568aeae9aa3d6f"
+  inputs-digest = "fd679af3f6762946b9e7588cfc03f0003f223523e97751a17fc211beb6db8c6a"
   solver-name = "gps-cdcl"
   solver-version = 1
