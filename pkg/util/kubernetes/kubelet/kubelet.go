@@ -14,10 +14,12 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
 	log "github.com/cihub/seelog"
 )
@@ -27,23 +29,40 @@ const (
 	KubeletHealthPath = "/healthz"
 )
 
+var globalKubeUtil *KubeUtil
+
 // KubeUtil is a struct to hold the kubelet api url
-// Instantiate with NewKubeUtil
+// Instantiate with GetKubeUtil
 type KubeUtil struct {
+	retry.Retrier
 	kubeletAPIURL string
 }
 
-// NewKubeUtil returns a new instance of KubeUtil.
-func NewKubeUtil() (*KubeUtil, error) {
-	kubeletURL, err := locateKubelet()
+// GetKubeUtil returns an instance of KubeUtil.
+func GetKubeUtil() (*KubeUtil, error) {
+	if globalKubeUtil == nil {
+		globalKubeUtil = &KubeUtil{}
+		globalKubeUtil.SetupRetrier(&retry.Config{
+			Name:          "kubeutil",
+			AttemptMethod: globalKubeUtil.locateKubelet,
+			Strategy:      retry.RetryCount,
+			RetryCount:    10,
+			RetryDelay:    30 * time.Second,
+		})
+	}
+	err := globalKubeUtil.TriggerRetry()
 	if err != nil {
-		return nil, fmt.Errorf("Could not find a way to connect to kubelet: %s", err)
+		return nil, err
 	}
+	return globalKubeUtil, nil
+}
 
-	kubeUtil := KubeUtil{
-		kubeletAPIURL: kubeletURL,
+func (ku *KubeUtil) locateKubelet() error {
+	url, err := locateKubelet()
+	if err == nil {
+		ku.kubeletAPIURL = url
 	}
-	return &kubeUtil, nil
+	return err
 }
 
 // GetNodeInfo returns the IP address and the hostname of the node where
