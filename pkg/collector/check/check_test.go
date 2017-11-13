@@ -7,6 +7,7 @@ package check
 
 import (
 	"crypto/rand"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -94,6 +95,52 @@ func TestDigest(t *testing.T) {
 	assert.Equal(t, 16, len(config.Digest()))
 }
 
+func TestCollectDefaultMetrics(t *testing.T) {
+	cfg, err := LoadCheck("foo", "testdata/collect_default_false.yaml")
+	assert.Nil(t, err)
+	assert.False(t, cfg.CollectDefaultMetrics())
+
+	cfg, err = LoadCheck("foo", "testdata/no_metrics/conf.yaml")
+	assert.Nil(t, err)
+	assert.True(t, cfg.CollectDefaultMetrics())
+}
+
+func TestAddMetrics(t *testing.T) {
+	metricsCfg, err := LoadCheck("foo", "testdata/metrics.yaml")
+	assert.Nil(t, err)
+	assert.NotNil(t, metricsCfg.MetricConfig)
+
+	// Add metrics to a file which doesn't have any
+	config, err := LoadCheck("foo", "testdata/no_metrics/conf.yaml")
+	assert.Nil(t, err)
+	assert.NotNil(t, config.InitConfig)
+	expected, err := LoadCheck("foo", "testdata/no_metrics/expected.yaml")
+	assert.Nil(t, err)
+	err = config.AddMetrics(metricsCfg.MetricConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, expected.String(), config.String())
+
+	// Add metrics to a file which already has some
+	config, err = LoadCheck("foo", "testdata/has_metrics/conf.yaml")
+	assert.Nil(t, err)
+	assert.NotNil(t, config.InitConfig)
+	err = config.AddMetrics(metricsCfg.MetricConfig)
+	assert.Nil(t, err)
+	expected, err = LoadCheck("foo", "testdata/has_metrics/expected.yaml")
+	assert.Nil(t, err)
+	assert.Equal(t, expected.String(), config.String())
+
+	// Add metrics to a file which has some duplicates
+	config, err = LoadCheck("foo", "testdata/has_duplicates/conf.yaml")
+	assert.Nil(t, err)
+	assert.NotNil(t, config.InitConfig)
+	err = config.AddMetrics(metricsCfg.MetricConfig)
+	assert.Nil(t, err)
+	expected, err = LoadCheck("foo", "testdata/has_duplicates/expected.yaml")
+	assert.Nil(t, err)
+	assert.Equal(t, expected.String(), config.String())
+}
+
 // this is here to prevent compiler optimization on the benchmarking code
 var result string
 
@@ -106,4 +153,41 @@ func BenchmarkID(b *testing.B) {
 		id = config.Digest()
 	}
 	result = id
+}
+
+type config struct {
+	InitConfig interface{} `yaml:"init_config"`
+	JMXMetrics interface{} `yaml:"jmx_metrics"`
+	Instances  []ConfigRawMap
+}
+
+func LoadCheck(name, path string) (Config, error) {
+	cf := config{}
+	config := Config{Name: name}
+
+	yamlFile, err := ioutil.ReadFile(path)
+	if err != nil {
+		return config, err
+	}
+
+	err = yaml.Unmarshal(yamlFile, &cf)
+	if err != nil {
+		return config, err
+	}
+
+	rawInitConfig, _ := yaml.Marshal(cf.InitConfig)
+	config.InitConfig = rawInitConfig
+
+	for _, instance := range cf.Instances {
+		// at this point the Yaml was already parsed, no need to check the error
+		rawConf, _ := yaml.Marshal(instance)
+		config.Instances = append(config.Instances, rawConf)
+	}
+
+	if cf.JMXMetrics != nil {
+		rawMetricConfig, _ := yaml.Marshal(cf.JMXMetrics)
+		config.MetricConfig = rawMetricConfig
+	}
+
+	return config, err
 }

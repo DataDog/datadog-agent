@@ -60,6 +60,7 @@ type Config struct {
 	Name          string       // the name of the check
 	Instances     []ConfigData // array of Yaml configurations
 	InitConfig    ConfigData   // the init_config in Yaml (python check only)
+	MetricConfig  ConfigData   // the metric config in Yaml (jmx check only)
 	ADIdentifiers []string     // the list of AutoDiscovery identifiers (optional)
 }
 
@@ -211,6 +212,80 @@ func (c *Config) IsTemplate() bool {
 	}
 
 	return false
+}
+
+// CollectDefaultMetrics returns if the config is for a JMX check which has collect_default_metrics: true
+func (c *Config) CollectDefaultMetrics() bool {
+	if !IsConfigJMX(c.String(), c.InitConfig) {
+		return false
+	}
+
+	rawInitConfig := ConfigRawMap{}
+	err := yaml.Unmarshal(c.InitConfig, &rawInitConfig)
+	if err != nil {
+		return false
+	}
+
+	x, ok := rawInitConfig["collect_default_metrics"]
+	if !ok {
+		return false
+	}
+
+	collect, ok := x.(bool)
+	if !collect || !ok {
+		return false
+	}
+
+	return true
+}
+
+// AddMetrics adds metrics to a check configuration
+func (c *Config) AddMetrics(metrics ConfigData) error {
+	var rawInitConfig ConfigRawMap
+	err := yaml.Unmarshal(c.InitConfig, &rawInitConfig)
+	if err != nil {
+		return err
+	}
+
+	var rawMetricsConfig []interface{}
+	err = yaml.Unmarshal(metrics, &rawMetricsConfig)
+	if err != nil {
+		return err
+	}
+
+	// Grab any metrics currently in init_config
+	var conf []interface{}
+	currMetrics := make(map[string]bool)
+	if _, ok := rawInitConfig["conf"]; ok {
+		if currentMetrics, ok := rawInitConfig["conf"].([]interface{}); ok {
+			for _, metric := range currentMetrics {
+				conf = append(conf, metric)
+
+				if metricS, e := yaml.Marshal(metric); e == nil {
+					currMetrics[string(metricS)] = true
+				}
+			}
+		}
+	}
+
+	// Add new metrics, skip duplicates
+	for _, metric := range rawMetricsConfig {
+		if metricS, e := yaml.Marshal(metric); e == nil {
+			if !currMetrics[string(metricS)] {
+				conf = append(conf, metric)
+			}
+		}
+	}
+
+	// JMX fetch expects the metrics to be a part of init_config, under "conf"
+	rawInitConfig["conf"] = conf
+	initConfig, err := yaml.Marshal(rawInitConfig)
+	if err != nil {
+		return err
+	}
+
+	c.InitConfig = initConfig
+	return nil
 }
 
 // GetTemplateVariablesForInstance returns a slice of raw template variables
