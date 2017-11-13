@@ -1,0 +1,57 @@
+init_config:
+  # # Optional, allows specifying custom jars that will be added to the classpath of the agent's JVM,
+  # # BREAKING CHANGE NOTICE : Agent 5.x supported a string if there was only one custom JAR. Since Agent 6, this MUST be a list in all cases
+  # custom_jar_paths:
+  #   - /path/to/custom/jarfile.jar
+  #   - /path/to/another/custom/jarfile2.jar
+
+instances:
+  # - host: localhost
+  #   port: 7199
+  #   user: username
+  #   password: password
+
+  #   # If the agent needs to connect to a non-default JMX URL, specify it here instead of a host and a port
+  #   # If you use this you need to specify a 'name' for the instance, below
+  #   jmx_url: "service:jmx:rmi:///jndi/rmi://myhost.host:9999/custompath"
+
+  #   process_name_regex: .*process_name.* # Instead of specifying a host and port or jmx_url, the agent can connect using the attach api.
+  #                                        # This requires the JDK to be installed and the path to tools.jar to be set below.
+  #   tools_jar_path: /usr/lib/jvm/java-7-openjdk-amd64/lib/tools.jar # To be set when process_name_regex is set
+
+  #   name: jmx_instance
+  #   # java_bin_path: /path/to/java # Optional, should be set if the agent cannot find your java executable
+  #   # java_options: "-Xmx200m -Xms50m" # Optional, Java JVM options
+  #   # trust_store_path: /path/to/trustStore.jks # Optional, should be set if ssl is enabled
+  #   # trust_store_password: password
+  #   # refresh_beans: 600 # Optional (in seconds), default is 600 seconds. Sets refresh period for refreshing matching MBeans list.
+  #                        # Decreasing this value may result in increased CPU usage.
+  #   tags:
+  #     env: stage
+  #     newTag: test
+
+  #   # List of metrics to be collected by the integration
+  #   # Read http://docs.datadoghq.com/integrations/java/ to learn how to customize it
+  #   conf:
+  #     - include:
+  #         domain: my_domain
+  #         bean:
+  #           - my_bean
+  #           - my_second_bean
+  #         attribute:
+  #           attribute1:
+  #             metric_type: counter
+  #             alias: jmx.my_metric_name
+  #           attribute2:
+  #             metric_type: gauge
+  #             alias: jmx.my2ndattribute
+  #     - include:
+  #         domain: 2nd_domain
+  #       exclude:
+  #         bean:
+  #           - excluded_bean
+  #     - include:
+  #         domain_regex: regex_on_domain
+  #       exclude:
+  #         bean_regex:
+  #           - regex_on_excluded_bean
