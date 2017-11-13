@@ -1,7 +1,3 @@
-docker_images:
-  - foo
-  - bar
-
 ad_identifiers:
   - foo_id
   - bar_id

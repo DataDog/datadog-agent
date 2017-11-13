@@ -158,7 +158,6 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 
 type configFormat struct {
 	ADIdentifiers []string    `yaml:"ad_identifiers"`
-	DockerImages  []string    `yaml:"docker_images"`
 	InitConfig    interface{} `yaml:"init_config"`
 	Instances     []check.ConfigRawMap
 }
