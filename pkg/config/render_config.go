@@ -50,10 +50,12 @@ func mkContext(buildType string) context {
 		}
 	case "dogstatsd":
 		return context{
-			Common:        true,
-			Dogstatsd:     true,
-			DockerTagging: true,
-			Logging:       true,
+			Common:            true,
+			Dogstatsd:         true,
+			DockerTagging:     true,
+			Logging:           true,
+			KubernetesTagging: true,
+			ECS:               true,
 		}
 	}
 
