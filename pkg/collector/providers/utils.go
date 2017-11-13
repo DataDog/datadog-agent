@@ -7,6 +7,7 @@ package providers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path"
 
@@ -101,4 +102,38 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []ch
 		})
 	}
 	return templates
+}
+
+// extractTemplatesFromMap looks for autodiscovery configurations in a given map
+// (either docker labels or kubernetes annotations) and returns them if found.
+func extractTemplatesFromMap(key string, input map[string]string, prefix string) ([]check.Config, error) {
+	log.Warn(prefix + checkNamePath)
+	value, found := input[prefix+checkNamePath]
+	if !found {
+		return []check.Config{}, nil
+	}
+	checkNames, err := parseCheckNames(value)
+	if err != nil {
+		return []check.Config{}, fmt.Errorf("in %s: %s", checkNamePath, err)
+	}
+
+	value, found = input[prefix+initConfigPath]
+	if !found {
+		return []check.Config{}, errors.New("missing init_configs key")
+	}
+	initConfigs, err := parseJSONValue(value)
+	if err != nil {
+		return []check.Config{}, fmt.Errorf("in %s: %s", initConfigPath, err)
+	}
+
+	value, found = input[prefix+instancePath]
+	if !found {
+		return []check.Config{}, errors.New("missing instances key")
+	}
+	instances, err := parseJSONValue(value)
+	if err != nil {
+		return []check.Config{}, fmt.Errorf("in %s: %s", instancePath, err)
+	}
+
+	return buildTemplates(key, checkNames, initConfigs, instances), nil
 }
