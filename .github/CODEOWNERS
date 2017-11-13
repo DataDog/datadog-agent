@@ -1,0 +1,35 @@
+# Package code owners
+
+# The listed owners will be automatically added as reviewers for PRs,
+# to ensure code quality and consistency of the package, and identify
+# possible side effects.
+# PRs should still be peer-reviewed by the team opening the PR
+
+# See https://help.github.com/articles/about-codeowners/ for syntax
+# Rules are matched bottom-to-top, so one team can own subdirectories
+# and another the rest of the directory.
+
+/cmd/                                   @DataDog/croissant
+/omnibus/                               @DataDog/croissant
+/pkg/aggregator/                        @DataDog/croissant
+/pkg/collector/                         @DataDog/croissant
+/pkg/forwarder/                         @DataDog/croissant
+/pkg/metadata/                          @DataDog/croissant
+/pkg/metrics/                           @DataDog/croissant
+/pkg/serializer/                        @DataDog/croissant
+/pkg/status/                            @DataDog/croissant
+/pkg/version/                           @DataDog/croissant
+
+/Dockerfiles/                           @DataDog/kenafeh
+/pkg/collector/autodiscovery/           @DataDog/kenafeh @DataDog/croissant
+/pkg/collector/corechecks/containers/   @DataDog/kenafeh
+/pkg/collector/listeners/docker*        @DataDog/kenafeh
+/pkg/tagger/                            @DataDog/kenafeh
+/pkg/util/docker/                       @DataDog/kenafeh @DataDog/burrito
+/pkg/util/ecs/                          @DataDog/kenafeh @DataDog/burrito
+/pkg/util/kubernetes/                   @DataDog/kenafeh @DataDog/burrito
+
+/pkg/metrics/percentile/                @DataDog/sandwich
+
+/pkg/metadata/ecs/                      @DataDog/burrito
+/pkg/metadata/kubernetes/               @DataDog/burrito
