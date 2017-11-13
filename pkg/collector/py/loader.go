@@ -52,19 +52,37 @@ func NewPythonCheckLoader() (*PythonCheckLoader, error) {
 func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	checks := []check.Check{}
 	moduleName := config.Name
+	whlModuleName := fmt.Sprintf("datadog.%s", config.Name)
 
-	// import python module containing the check
-	log.Debugf("Attempting to load python check %s", moduleName)
+	// Looking for wheels first
+	modules := []string{whlModuleName, moduleName}
+
 	// Lock the GIL while working with go-python directly
 	glock := newStickyLock()
-	checkModule := python.PyImport_ImportModule(moduleName)
+
+	var err error
+	var pyErr string
+	var checkModule *python.PyObject
+	for _, name := range modules {
+		// import python module containing the check
+		checkModule = python.PyImport_ImportModule(name)
+		if checkModule != nil {
+			break
+		}
+
+		pyErr, err = glock.getPythonError()
+		if err != nil {
+			err = fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
+		} else {
+			err = errors.New(pyErr)
+		}
+		log.Debugf("Unable to load python module - %s: %v", name, err)
+	}
+
+	// all failed, return error for last failure
 	if checkModule == nil {
 		defer glock.unlock()
-		pyErr, err := glock.getPythonError()
-		if err != nil {
-			return nil, fmt.Errorf("An error occurred while loading the python module and couldn't be formatted: %v", err)
-		}
-		return nil, errors.New(pyErr)
+		return nil, err
 	}
 
 	// Try to find a class inheriting from AgentCheck within the module

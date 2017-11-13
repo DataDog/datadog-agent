@@ -6,35 +6,40 @@
 package flare
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"expvar"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/jhoonb/archivex"
-	yaml "gopkg.in/yaml.v2"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/diagnose"
+	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/util"
+
+	"github.com/jhoonb/archivex"
+	yaml "gopkg.in/yaml.v2"
 )
 
 // SearchPaths is just an alias for a map of strings
 type SearchPaths map[string]string
 
 // CreateArchive packages up the files
-func CreateArchive(local bool, distPath, pyChecksPath string) (string, error) {
+func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (string, error) {
 	zipFilePath := mkFilePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
 		"checksd": pyChecksPath,
 	}
-	return createArchive(zipFilePath, local, confSearchPaths)
+	return createArchive(zipFilePath, local, confSearchPaths, logFilePath)
 }
 
-func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths) (string, error) {
+func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
 	zipFile := new(archivex.ZipFile)
 	zipFile.Create(zipFilePath)
 
@@ -58,7 +63,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths) 
 		}
 	}
 
-	err = zipLogFiles(zipFile, hostname)
+	err = zipLogFiles(zipFile, hostname, logFilePath)
 	if err != nil {
 		return "", err
 	}
@@ -72,6 +77,12 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths) 
 	if err != nil {
 		return "", err
 	}
+
+	err = zipDiagnose(zipFile, hostname)
+	if err != nil {
+		return "", err
+	}
+
 	if config.IsContainerized() {
 		err = zipDockerSelfInspect(zipFile, hostname)
 		if err != nil {
@@ -97,10 +108,9 @@ func zipStatusFile(zipFile *archivex.ZipFile, hostname string) error {
 	return err
 }
 
-func zipLogFiles(zipFile *archivex.ZipFile, hostname string) error {
-	logFile := config.Datadog.GetString("log_file")
-	logFilePath := path.Dir(logFile)
-	err := filepath.Walk(logFilePath, func(path string, f os.FileInfo, err error) error {
+func zipLogFiles(zipFile *archivex.ZipFile, hostname, logFilePath string) error {
+	logFileDir := path.Dir(logFilePath)
+	err := filepath.Walk(logFileDir, func(path string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil
 		}
@@ -186,6 +196,21 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths 
 	}
 
 	return err
+}
+
+func zipDiagnose(zipFile *archivex.ZipFile, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	diagnose.RunAll(writer)
+	writer.Flush()
+
+	err := zipFile.Add(filepath.Join(hostname, "diagnose.log"), b.Bytes())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func walkConfigFilePaths(zipFile *archivex.ZipFile, hostname string, confSearchPaths SearchPaths) error {

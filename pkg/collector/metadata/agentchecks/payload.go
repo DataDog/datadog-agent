@@ -38,7 +38,7 @@ type ACPayload struct {
 
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
-	// use an alias to avoid infinit recursion while serializing
+	// use an alias to avoid infinite recursion while serializing
 	type PayloadAlias Payload
 
 	return json.Marshal((*PayloadAlias)(p))

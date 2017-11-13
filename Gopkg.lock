@@ -4,8 +4,8 @@
 [[projects]]
   name = "github.com/DataDog/agent-payload"
   packages = ["gogen"]
-  revision = "d6a2f74c00f08246bc0ca160ffa9d28756968065"
-  version = "4.5"
+  revision = "b0b883b8c68f11698e1eee462d1efa83e76bf14a"
+  version = "4.6"
 
 [[projects]]
   branch = "master"
@@ -97,6 +97,12 @@
   name = "github.com/ericchiang/k8s"
   packages = [".","api/resource","api/unversioned","api/v1","apis/apps/v1alpha1","apis/apps/v1beta1","apis/authentication/v1","apis/authentication/v1beta1","apis/authorization/v1","apis/authorization/v1beta1","apis/autoscaling/v1","apis/autoscaling/v2alpha1","apis/batch/v1","apis/batch/v2alpha1","apis/certificates/v1alpha1","apis/certificates/v1beta1","apis/extensions/v1beta1","apis/imagepolicy/v1alpha1","apis/meta/v1","apis/policy/v1alpha1","apis/policy/v1beta1","apis/rbac/v1alpha1","apis/rbac/v1beta1","apis/settings/v1alpha1","apis/storage/v1","apis/storage/v1beta1","runtime","runtime/schema","util/intstr","watch/versioned"]
   revision = "fa30591be9ccaacee478995fbba53c648e901483"
+
+[[projects]]
+  name = "github.com/fatih/color"
+  packages = ["."]
+  revision = "570b54cabe6b8eb0bc2dfce68d964677d63b5260"
+  version = "v1.5.0"
 
 [[projects]]
   name = "github.com/fsnotify/fsnotify"
@@ -209,6 +215,18 @@
   name = "github.com/magiconair/properties"
   packages = ["."]
   revision = "51463bfca2576e06c62a8504b5c0f06d61312647"
+
+[[projects]]
+  name = "github.com/mattn/go-colorable"
+  packages = ["."]
+  revision = "167de6bfdfba052fa6b2d3664c8f5272e23c9072"
+  version = "v0.0.9"
+
+[[projects]]
+  name = "github.com/mattn/go-isatty"
+  packages = ["."]
+  revision = "0360b2af4f38e8d38c7fce2a9f4e702702d73a39"
+  version = "v0.0.3"
 
 [[projects]]
   branch = "master"
@@ -371,6 +389,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9190d3ef893267b22070182c970797c4c9cf014fc53312ed7d2defffaad4f8f5"
+  inputs-digest = "620090c6d1189e1943e87f4b9058a8f1694a830fe181ef42c5568aeae9aa3d6f"
   solver-name = "gps-cdcl"
   solver-version = 1

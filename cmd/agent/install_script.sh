@@ -188,9 +188,6 @@ Please follow the instructions on the Agent setup page:
     exit;
 fi
 
-printf "\033[31mRefreshing symlink...\n\033[0m\n"
-$sudo_cmd ln -sf /opt/datadog-agent/bin/agent/agent /usr/bin/datadog-agent
-
 if [ $dd_upgrade ]; then
   if [ -e $LEGACY_CONF ]; then
     # try to import the config file from the previous version

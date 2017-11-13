@@ -94,7 +94,7 @@ func ConnectToDocker() (*client.Client, error) {
 	if !pathExists(sockPath) {
 		return nil, ErrDockerNotAvailable
 	}
-	// The /proc/mounts file won't be availble on non-Linux systems
+	// The /proc/mounts file won't be available on non-Linux systems
 	// and we only support Linux for now.
 	mountsFile := "/proc/mounts"
 	if !pathExists(mountsFile) {
@@ -182,7 +182,7 @@ func (d *dockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 					log.Debugf("error inspecting container %s: %s", c.ID, err)
 					continue
 				}
-				d.networkMappings[c.ID] = findDockerNetworks(c.ID, i.State.Pid, c.NetworkSettings)
+				d.networkMappings[c.ID] = findDockerNetworks(c.ID, i.State.Pid, c)
 			}
 			d.Unlock()
 		}
@@ -205,6 +205,14 @@ func (d *dockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 			continue
 		}
 		ret = append(ret, container)
+	}
+
+	// Resolve docker networks after we've processed all containers so all
+	// routing maps are available.
+	if d.cfg.CollectNetwork {
+		d.Lock()
+		resolveDockerNetworks(d.networkMappings)
+		d.Unlock()
 	}
 
 	if d.lastInvalidate.Add(invalidationInterval).After(time.Now()) {
@@ -280,7 +288,7 @@ func (d *dockerUtil) containers(cfg *ContainerListConfig) ([]*Container, error) 
 
 		cgroup := container.cgroup
 		if cgroup == nil {
-			log.Errorf("container id %s has an empty cgroup, skipping", container.ID[:12])
+			log.Debugf("container id %s has an empty cgroup, skipping", container.ID[:12])
 			continue
 		}
 

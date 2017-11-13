@@ -19,12 +19,12 @@ import (
 )
 
 func TestHistogramConf(t *testing.T) {
-	h := histogramPercentilesConfig{Percentiles: []string{"95", "96"}}
-	assert.Equal(t, []int{95, 96}, h.percentiles())
+	h := histogramPercentilesConfig{Percentiles: []string{"0.95", "0.96", "0.28", "0.57", "0.58"}}
+	assert.Equal(t, []int{95, 96, 28, 57, 58}, h.percentiles())
 }
 
 func TestHistogramConfError(t *testing.T) {
-	h := histogramPercentilesConfig{Percentiles: []string{"95", "12test", "22", "200", "-50"}}
+	h := histogramPercentilesConfig{Percentiles: []string{"0.95", "test", "0.12test", "0.22", "200", "-50"}}
 	assert.Equal(t, []int{95, 22}, h.percentiles())
 }
 
@@ -53,7 +53,7 @@ func TestConfigure(t *testing.T) {
 	defaultPercentiles = nil
 	aggregates := []string{"max", "min", "test"}
 	config.Datadog.Set("histogram_aggregates", aggregates)
-	config.Datadog.Set("histogram_percentiles", []string{"50", "30", "98"})
+	config.Datadog.Set("histogram_percentiles", []string{"0.50", "0.30", "0.98"})
 
 	hist := NewHistogram(10)
 	assert.Equal(t, aggregates, hist.aggregates)

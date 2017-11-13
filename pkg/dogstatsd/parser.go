@@ -26,6 +26,8 @@ var metricTypes = map[string]metrics.MetricType{
 	"h":  metrics.HistogramType,
 	"ms": metrics.HistogramType,
 	"d":  metrics.DistributionType,
+	"dk": metrics.DistributionKType,
+	"dc": metrics.DistributionCType,
 }
 
 func nextPacket(datagram *[]byte) (packet []byte) {

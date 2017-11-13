@@ -76,6 +76,7 @@ func TestResolve(t *testing.T) {
 	service := listeners.DockerService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
+		Hosts:         map[string]string{"bridge": "127.0.0.1"},
 		Pid:           1337,
 	}
 	cr.processNewService(&service)
@@ -98,5 +99,23 @@ func TestResolve(t *testing.T) {
 	// template variable doesn't exist
 	tpl.Instances = []check.ConfigData{check.ConfigData("host: %%FOO%%")}
 	config, err = cr.resolve(tpl, &service)
+	assert.NotNil(t, err)
+}
+
+func TestGetFallbackHost(t *testing.T) {
+	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
+	assert.Equal(t, "172.17.0.1", ip)
+	assert.Equal(t, nil, err)
+
+	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1"})
+	assert.Equal(t, "172.17.0.1", ip)
+	assert.Equal(t, nil, err)
+
+	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1", "bridge": "172.17.0.2"})
+	assert.Equal(t, "172.17.0.2", ip)
+	assert.Equal(t, nil, err)
+
+	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1", "bar": "172.17.0.2"})
+	assert.Equal(t, "", ip)
 	assert.NotNil(t, err)
 }

@@ -10,8 +10,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
-
-	log "github.com/cihub/seelog"
 )
 
 // declare these as vars not const to ease testing
@@ -24,8 +22,7 @@ var (
 func GetHostAlias() (string, error) {
 	res, err := getResponse(metadataURL + "/metadata/instance/compute/vmId?api-version=2017-04-02&format=text")
 	if err != nil {
-		log.Debugf("Azure HostAliases: unable to query metadata endpoint: %s", err)
-		return "", nil
+		return "", fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
 	}
 
 	defer res.Body.Close()

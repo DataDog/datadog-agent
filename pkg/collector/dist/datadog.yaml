@@ -45,7 +45,8 @@ api_key:
 # The path of the Named Pipe the IPC api uses on Windows
 # cmd_pipe_name: \\.\pipe\ddagent
 
-# How many workers will be used to run the checks
+# How many workers will be used to run the check (if not specified, is automatically
+# determined based on number of checks running)
 # check_runners: 4
 
 # Forwarder timeout in seconds
@@ -60,6 +61,9 @@ api_key:
 # agents/dsd instances per host. In that case, only one agent should have it on.
 # WARNING: disabling it on every agent will lead to display and billing issues
 # enable_metadata_collection: true
+
+# Enable the gohai collection of systems data
+# enable_gohai: true
 
 # Metadata collectors, add or remove from the list to enable or disable collection.
 # Intervals are expressed in seconds.
@@ -76,11 +80,11 @@ metadata_collectors:
 #
 # histogram_aggregates: ["max", "median", "avg", "count"]
 #
-# Configure which percentiles will be computed. Must be a list of integer
-# between 1 and 100.
+# Configure which percentiles will be computed. Must be a list of float
+# between 0 and 1.
 # Warning: percentiles must be specified as yaml strings
 #
-# histogram_percentiles: ["95"]
+# histogram_percentiles: ["0.95"]
 
 # DogStatsd
 #

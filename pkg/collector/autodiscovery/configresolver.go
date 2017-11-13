@@ -7,6 +7,7 @@ package autodiscovery
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -18,7 +19,7 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-type variableGetter func(key []byte, svc listeners.Service) []byte
+type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
 
 var (
 	templateVariables = map[string]variableGetter{
@@ -142,15 +143,14 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 		vars := tpl.GetTemplateVariablesForInstance(i)
 		for _, v := range vars {
 			name, key := parseTemplateVar(v)
-			if f, ok := templateVariables[string(name)]; ok {
-				resolvedVar := f(key, svc)
-				if resolvedVar != nil {
-					// init config vars are replaced by the first found
-					tpl.InitConfig = bytes.Replace(tpl.InitConfig, v, resolvedVar, -1)
-					tpl.Instances[i] = bytes.Replace(tpl.Instances[i], v, resolvedVar, -1)
+			if f, found := templateVariables[string(name)]; found {
+				resolvedVar, err := f(key, svc)
+				if err != nil {
+					return check.Config{}, err
 				}
-			} else {
-				return check.Config{}, fmt.Errorf("template variable %s does not exist", name)
+				// init config vars are replaced by the first found
+				tpl.InitConfig = bytes.Replace(tpl.InitConfig, v, resolvedVar, -1)
+				tpl.Instances[i] = bytes.Replace(tpl.Instances[i], v, resolvedVar, -1)
 			}
 		}
 		err = tpl.Instances[i].MergeAdditionalTags(tags)
@@ -251,29 +251,88 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 	}
 }
 
-// TODO (use svc.Hosts)
-func getHost(tplVar []byte, svc listeners.Service) []byte {
-	return []byte("127.0.0.1")
+// TODO support orchestrators
+func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	hosts, err := svc.GetHosts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it", svc.GetID())
+	}
+	if len(hosts) == 0 {
+		return nil, fmt.Errorf("no network found for container %s, ignoring it", svc.GetID())
+	}
+
+	// a network was specified
+	if bytes.Contains(tplVar, []byte("_")) {
+		network := bytes.SplitN(tplVar, []byte("_"), 2)[1]
+		if ip, ok := hosts[string(network)]; ok {
+			return []byte(ip), nil
+		}
+		log.Warnf("network %s not found, trying bridge IP instead", string(network))
+	}
+	// otherwise use fallback policy
+	ip, err := getFallbackHost(hosts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Err: %s", svc.GetID(), err)
+	}
+
+	return []byte(ip), nil
 }
 
-// TODO (use svc.Ports)
-func getPort(tplVar []byte, svc listeners.Service) []byte {
-	return []byte("80")
+// getFallbackHost implements the fallback strategy to get a service's IP address
+// the current strategy is:
+// 		- if there's only one network we use its IP
+// 		- otherwise we look for the bridge net and return its IP address
+// 		- if we can't find it we fail because we shouldn't try and guess the IP address
+func getFallbackHost(hosts map[string]string) (string, error) {
+	if len(hosts) == 1 {
+		for k := range hosts {
+			return hosts[k], nil
+		}
+	}
+	for k, v := range hosts {
+		if k == "bridge" {
+			return v, nil
+		}
+	}
+	return "", errors.New("not able to determine which network is reachable")
+}
+
+// TODO support orchestrators
+func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	ports, err := svc.GetPorts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract port list for container %s, ignoring it", svc.GetID())
+	} else if len(ports) == 0 {
+		return nil, fmt.Errorf("no port found for container %s - ignoring it", svc.GetID())
+	}
+
+	if bytes.Contains(tplVar, []byte("_")) {
+		idxStr := string(bytes.SplitN(tplVar, []byte("_"), 2)[1])
+		idx, err := strconv.Atoi((string(idxStr)))
+		if err != nil {
+			return nil, fmt.Errorf("index given for the port template var is not an int, skipping container %s", svc.GetID())
+		}
+		if len(ports) <= idx {
+			return nil, fmt.Errorf("idenx given for the port template var is too big, skipping container %s", svc.GetID())
+		}
+		return []byte(strconv.Itoa(ports[idx])), nil
+	}
+
+	return []byte(strconv.Itoa(ports[len(ports)-1])), nil
 }
 
 // getPid returns the process identifier of the service
-func getPid(tplVar []byte, svc listeners.Service) []byte {
+func getPid(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	pid, err := svc.GetPid()
 	if err != nil {
-		log.Errorf("Failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
-		return nil
+		return nil, fmt.Errorf("Failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
 	}
-	return []byte(strconv.Itoa(pid))
+	return []byte(strconv.Itoa(pid)), nil
 }
 
 // TODO
-func getContainerName(tplVar []byte, svc listeners.Service) []byte {
-	return []byte("test-container-name")
+func getContainerName(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	return []byte("test-container-name"), nil
 }
 
 // parseTemplateVar extracts the name of the var

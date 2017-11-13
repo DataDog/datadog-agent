@@ -20,7 +20,7 @@ func ps(s string) *string {
 
 func TestParsePods(t *testing.T) {
 	inPods := []*v1.Pod{
-		&v1.Pod{
+		{
 			Metadata: &metav1.ObjectMeta{
 				Name:      ps("test-pod-1"),
 				Namespace: ps("default"),
@@ -28,19 +28,19 @@ func TestParsePods(t *testing.T) {
 					"test": "abcd",
 					"role": "intake",
 				},
-				OwnerReferences: []*metav1.OwnerReference{&metav1.OwnerReference{
+				OwnerReferences: []*metav1.OwnerReference{{
 					Kind: ps("ReplicationController"),
 					Name: ps("kubernetes-dashboard"),
 				}},
 			},
 			Status: &v1.PodStatus{
 				ContainerStatuses: []*v1.ContainerStatus{
-					&v1.ContainerStatus{
+					{
 						ContainerID: ps("e468b96ca4fcc9687cc3"),
 						Image:       ps("datadog/docker-dd-agent"),
 						ImageID:     ps("docker://sha256:7c4034e4"),
 					},
-					&v1.ContainerStatus{
+					{
 						ContainerID: ps("3dbeb56a5545f17c1af2"),
 						Image:       ps("redis"),
 						ImageID:     ps("docker://sha256:7c4034e4"),
@@ -48,7 +48,7 @@ func TestParsePods(t *testing.T) {
 				},
 			},
 		},
-		&v1.Pod{
+		{
 			Metadata: &metav1.ObjectMeta{
 				Name:      ps("test-pod-2"),
 				Namespace: ps("default"),
@@ -57,19 +57,19 @@ func TestParsePods(t *testing.T) {
 					"another": "label",
 					"bim":     "bop",
 				},
-				OwnerReferences: []*metav1.OwnerReference{&metav1.OwnerReference{
+				OwnerReferences: []*metav1.OwnerReference{{
 					Kind: ps("ReplicaSet"),
 					Name: ps("kube-dns-196007617"),
 				}},
 			},
 			Status: &v1.PodStatus{
 				ContainerStatuses: []*v1.ContainerStatus{
-					&v1.ContainerStatus{
+					{
 						ContainerID: ps("ce749d07a5645291f2f"),
 						Image:       ps("dd/web-app"),
 						ImageID:     ps("docker://sha256:7c4034e4"),
 					},
-					&v1.ContainerStatus{
+					{
 						ContainerID: ps("57bb7bcd0c5b1e58daa0"),
 						Image:       ps("dd/redis-cache"),
 						ImageID:     ps("docker://sha256:7c4034e4"),
@@ -106,7 +106,7 @@ func TestSetPodCreator(t *testing.T) {
 			expected:  &payload.KubeMetadataPayload_Pod{},
 		},
 		{
-			ownerRefs: []*metav1.OwnerReference{&metav1.OwnerReference{
+			ownerRefs: []*metav1.OwnerReference{{
 				Kind: ps("ReplicationController"),
 				Name: ps("kubernetes-dashboard"),
 			}},
@@ -115,7 +115,7 @@ func TestSetPodCreator(t *testing.T) {
 			},
 		},
 		{
-			ownerRefs: []*metav1.OwnerReference{&metav1.OwnerReference{
+			ownerRefs: []*metav1.OwnerReference{{
 				Kind: ps("ReplicaSet"),
 				Name: ps("apptastic-app"),
 			}},
@@ -124,7 +124,7 @@ func TestSetPodCreator(t *testing.T) {
 			},
 		},
 		{
-			ownerRefs: []*metav1.OwnerReference{&metav1.OwnerReference{
+			ownerRefs: []*metav1.OwnerReference{{
 				Kind: ps("Job"),
 				Name: ps("hello"),
 			}},
@@ -141,7 +141,7 @@ func TestSetPodCreator(t *testing.T) {
 
 func TestFindPodServices(t *testing.T) {
 	services := []*payload.KubeMetadataPayload_Service{
-		&payload.KubeMetadataPayload_Service{
+		{
 			Namespace: "dd",
 			Name:      "intake",
 			Uid:       "intake",
@@ -149,7 +149,7 @@ func TestFindPodServices(t *testing.T) {
 				"role": "intake",
 			},
 		},
-		&payload.KubeMetadataPayload_Service{
+		{
 			Namespace: "default",
 			Name:      "gce-web",
 			Uid:       "gce-web",
@@ -158,7 +158,7 @@ func TestFindPodServices(t *testing.T) {
 				"provider": "gce",
 			},
 		},
-		&payload.KubeMetadataPayload_Service{
+		{
 			Namespace: "default",
 			Name:      "aws-web",
 			Uid:       "aws-web",

@@ -13,13 +13,14 @@ relative_path 'integrations-core'
 whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
-default_version '5.18.1'
+default_version '5.19.0'
 
 blacklist = [
   'agent_metrics',
   'docker_daemon',
   'kubernetes',
   'kubernetes_state',
+  'ntp',  # provided as a go check by the core agent
   'vsphere',
 ]
 
@@ -31,8 +32,6 @@ build do
   # The confs
   conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
   mkdir conf_dir
-  mkdir "#{conf_dir}/auto_conf"
-
 
   # Copy the checks and generate the global requirements file
   block do
@@ -58,20 +57,25 @@ build do
         copy "#{check_dir}/check.py", "#{checks_dir}/#{check}.py"
       end
 
+      check_conf_dir = "#{conf_dir}/#{check}.d"
+
       # Copy the check config to the conf directories
       if File.exist? "#{check_dir}/conf.yaml.example"
-        copy "#{check_dir}/conf.yaml.example", "#{conf_dir}/#{check}.yaml.example"
+        mkdir check_conf_dir unless File.exists? (check_conf_dir)
+        copy "#{check_dir}/conf.yaml.example", "#{check_conf_dir}/"
       end
 
       # Copy the default config, if it exists
       if File.exist? "#{check_dir}/conf.yaml.default"
-        copy "#{check_dir}/conf.yaml.default", "#{conf_dir}/#{check}.yaml.default"
+        mkdir check_conf_dir unless File.exists? (check_conf_dir)
+        copy "#{check_dir}/conf.yaml.default", "#{check_conf_dir}/"
       end
 
       # We don't have auto_conf on windows yet
       if os != 'windows'
         if File.exist? "#{check_dir}/auto_conf.yaml"
-          copy "#{check_dir}/auto_conf.yaml", "#{conf_dir}/auto_conf/#{check}.yaml"
+          mkdir check_conf_dir unless File.exists? (check_conf_dir)
+          copy "#{check_dir}/auto_conf.yaml", "#{check_conf_dir}/"
         end
       end
 

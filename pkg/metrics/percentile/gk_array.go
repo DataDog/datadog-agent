@@ -109,7 +109,7 @@ func NewGKArray() GKArray {
 }
 
 // Add a new value to the summary.
-func (s GKArray) Add(v float64) GKArray {
+func (s GKArray) Add(v float64) QSketch {
 	s.Count++
 	s.Sum += v
 	s.Avg += (v - s.Avg) / float64(s.Count)
@@ -124,11 +124,11 @@ func (s GKArray) Add(v float64) GKArray {
 		return s.compressAndAllocateBuf()
 	}
 
-	return s
+	return QSketch(s)
 }
 
 // compressAndAllocateBuf compresses Incoming into Entries, then allocates
-// an empty Incoming for futher addition of values.
+// an empty Incoming for further addition of values.
 func (s GKArray) compressAndAllocateBuf() GKArray {
 	s = s.compressWithIncoming(nil)
 	// allocate Incoming
@@ -199,7 +199,7 @@ func (s GKArray) interpolatedQuantile(q float64) float64 {
 func (s GKArray) Quantiles(qValues []float64) []float64 {
 	quantiles := make([]float64, 0, len(qValues))
 	if s.Count == 0 {
-		for _ = range qValues {
+		for range qValues {
 			quantiles = append(quantiles, math.NaN())
 		}
 		return quantiles

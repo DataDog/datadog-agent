@@ -27,6 +27,11 @@ import (
 type dockerNetwork struct {
 	iface      string
 	dockerName string
+	// Temporary store of id for containers that route through another container
+	// such as in the "pod container" case used by Kubernetes. The network
+	// resolution should resolve this network to the correct interface from the
+	// referenced container.
+	routingContainerID string
 }
 
 type dockerNetworks []dockerNetwork
@@ -35,12 +40,28 @@ func (a dockerNetworks) Len() int           { return len(a) }
 func (a dockerNetworks) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a dockerNetworks) Less(i, j int) bool { return a[i].dockerName < a[j].dockerName }
 
-var hostNetwork = dockerNetwork{"eth0", "bridge"}
+var hostNetwork = dockerNetwork{iface: "eth0", dockerName: "bridge"}
 
-func findDockerNetworks(containerID string, pid int, netSettings *types.SummaryNetworkSettings) []dockerNetwork {
+func findDockerNetworks(containerID string, pid int, container types.Container) []dockerNetwork {
+	netMode := container.HostConfig.NetworkMode
+	// Check the known network modes that require specific handling.
+	// Other network modes will look at the docker NetworkSettings.
+	if netMode == "host" {
+		log.Debugf("Container %s is in network host mode, its network metrics are for the whole host", containerID)
+		return []dockerNetwork{hostNetwork}
+	} else if netMode == "none" {
+		log.Debugf("Container %s is in network mode 'none', we will collect metrics for the whole host", containerID)
+		return []dockerNetwork{hostNetwork}
+	} else if strings.HasPrefix(netMode, "container:") {
+		netContainerID := strings.TrimPrefix(netMode, "container:")
+		log.Debugf("Container %s uses the network namespace of container:%s", containerID, netContainerID)
+		return []dockerNetwork{{routingContainerID: netContainerID}}
+	}
+
 	// Verify that we aren't using an older version of Docker that does
-	// not provider the network settings in container inspect.
-	if netSettings == nil || netSettings.Networks == nil {
+	// not provide the network settings in container inspect.
+	netSettings := container.NetworkSettings
+	if netSettings == nil || netSettings.Networks == nil || len(netSettings.Networks) == 0 {
 		log.Debugf("No network settings available from docker, defaulting to host network")
 		return []dockerNetwork{hostNetwork}
 	}
@@ -103,12 +124,33 @@ func findDockerNetworks(containerID string, pid int, netSettings *types.SummaryN
 		mask, _ := strconv.ParseInt(fields[7], 16, 32)
 		for net, gw := range dockerGateways {
 			if gw&mask == dest {
-				networks = append(networks, dockerNetwork{fields[0], net})
+				networks = append(networks, dockerNetwork{iface: fields[0], dockerName: net})
 			}
 		}
 	}
 	sort.Sort(dockerNetworks(networks))
 	return networks
+}
+
+// resolveDockerNetworks will resolve any network mappings in-place for any
+// networks that are pointing to a containerID and rely on another containers
+// network namespace. All other networks are left as-is.
+// This should be called after findDockerNetworks is called for all running
+// containers.
+func resolveDockerNetworks(containerNetworks map[string][]dockerNetwork) {
+	for cid, networks := range containerNetworks {
+		for _, nw := range networks {
+			if nw.routingContainerID == "" {
+				continue
+			}
+			if cnw, ok := containerNetworks[nw.routingContainerID]; ok {
+				containerNetworks[cid] = cnw
+			} else {
+				log.Debugf("unable to resolve network for c:%s that uses namespace of c:%s", cid, nw.routingContainerID)
+				containerNetworks[cid] = nil
+			}
+		}
+	}
 }
 
 // DefaultGateway returns the default Docker gateway.

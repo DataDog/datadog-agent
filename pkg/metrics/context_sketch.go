@@ -10,20 +10,20 @@ package metrics
 import (
 	"math"
 
-	log "github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
+
+	log "github.com/cihub/seelog"
 )
 
 // FIXME(Jee): This should be integrated into context_metrics.go as it duplicates
 // the logic.
 
 // ContextSketch stores the distributions by context key
-type ContextSketch map[string]*Distribution
+type ContextSketch map[string]DistributionMetric
 
 // MakeContextSketch returns a new ContextSketch
 func MakeContextSketch() ContextSketch {
-	return ContextSketch(make(map[string]*Distribution))
+	return ContextSketch(make(map[string]DistributionMetric))
 }
 
 // AddSample adds a sample to the ContextSketch
@@ -33,7 +33,16 @@ func (c ContextSketch) AddSample(contextKey string, sample *MetricSample, timest
 		return
 	}
 	if _, ok := c[contextKey]; !ok {
-		c[contextKey] = NewDistribution()
+		switch sample.Mtype {
+		case DistributionType:
+			c[contextKey] = NewDistributionGK()
+		case DistributionKType:
+			c[contextKey] = NewDistributionKLL()
+		case DistributionCType:
+			c[contextKey] = NewDistributionComplete()
+		default:
+			log.Error("Unknown distribution metric type:", sample.Mtype)
+		}
 	}
 	c[contextKey].addSample(sample, timestamp)
 }

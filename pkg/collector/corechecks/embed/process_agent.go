@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -35,23 +36,55 @@ type processAgentCheckConf struct {
 
 // ProcessAgentCheck keeps track of the running command
 type ProcessAgentCheck struct {
-	enabled bool
-	cmd     *exec.Cmd
+	enabled     bool
+	binPath     string
+	commandOpts []string
+	running     uint32
+	stop        chan struct{}
+	stopDone    chan struct{}
 }
 
 func (c *ProcessAgentCheck) String() string {
 	return "Process Agent"
 }
 
-// Run executes the check
+// Run executes the check with retries
 func (c *ProcessAgentCheck) Run() error {
+	atomic.StoreUint32(&c.running, 1)
+	// TODO: retries should be configurable with meaningful default values
+	err := check.Retry(defaultRetryDuration, defaultRetries, c.run, c.String())
+	atomic.StoreUint32(&c.running, 0)
+
+	return err
+}
+
+// run executes the check
+func (c *ProcessAgentCheck) run() error {
 	if !c.enabled {
 		log.Info("Not running process_agent because 'enabled' is false in init_config")
 		return nil
 	}
 
+	select {
+	// poll the stop channel once to make sure no stop was requested since the last call to `run`
+	case <-c.stop:
+		log.Info("Not starting Logs check: stop requested")
+		c.stopDone <- struct{}{}
+		return nil
+	default:
+	}
+
+	cmd := exec.Command(c.binPath, c.commandOpts...)
+
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.Datadog.GetString("api_key")))
+	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", getHostname()))
+	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
+	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
+	cmd.Env = env
+
 	// forward the standard output to the Agent logger
-	stdout, err := c.cmd.StdoutPipe()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
@@ -63,7 +96,7 @@ func (c *ProcessAgentCheck) Run() error {
 	}()
 
 	// forward the standard error to the Agent logger
-	stderr, err := c.cmd.StderrPipe()
+	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return err
 	}
@@ -74,11 +107,29 @@ func (c *ProcessAgentCheck) Run() error {
 		}
 	}()
 
-	if err = c.cmd.Start(); err != nil {
-		return err
+	if err = cmd.Start(); err != nil {
+		return retryExitError(err)
 	}
 
-	return c.cmd.Wait()
+	processDone := make(chan error)
+	go func() {
+		processDone <- cmd.Wait()
+	}()
+
+	select {
+	case err = <-processDone:
+		return retryExitError(err)
+	case <-c.stop:
+		err = cmd.Process.Signal(os.Kill)
+		if err != nil {
+			log.Errorf("unable to stop process-agent check: %s", err)
+		}
+	}
+
+	// wait for process to exit
+	err = <-processDone
+	c.stopDone <- struct{}{}
+	return err
 }
 
 // Configure the ProcessAgentCheck
@@ -99,21 +150,21 @@ func (c *ProcessAgentCheck) Configure(data check.ConfigData, initConfig check.Co
 		return err
 	}
 
-	binPath := ""
+	c.binPath = ""
 	defaultBinPath, defaultBinPathErr := getProcessAgentDefaultBinPath()
 	if checkConf.BinPath != "" {
 		if _, err := os.Stat(checkConf.BinPath); err == nil {
-			binPath = checkConf.BinPath
+			c.binPath = checkConf.BinPath
 		} else {
 			log.Warnf("Can't access process-agent binary at %s, falling back to default path at %s", checkConf.BinPath, defaultBinPath)
 		}
 	}
 
-	if binPath == "" {
+	if c.binPath == "" {
 		if defaultBinPathErr != nil {
 			return defaultBinPathErr
 		}
-		binPath = defaultBinPath
+		c.binPath = defaultBinPath
 	}
 
 	// let the process agent use its own config file provided by the Agent package
@@ -123,21 +174,12 @@ func (c *ProcessAgentCheck) Configure(data check.ConfigData, initConfig check.Co
 		configFile = path.Join(config.FileUsedDir(), "process-agent.conf")
 	}
 
-	commandOpts := []string{}
+	c.commandOpts = []string{}
 
 	// if the process-agent.conf file is available, use it
 	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
-		commandOpts = append(commandOpts, fmt.Sprintf("-ddconfig=%s", configFile))
+		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-ddconfig=%s", configFile))
 	}
-
-	c.cmd = exec.Command(binPath, commandOpts...)
-
-	env := os.Environ()
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.Datadog.GetString("api_key")))
-	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", getHostname()))
-	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
-	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
-	c.cmd.Env = env
 
 	return nil
 }
@@ -158,14 +200,13 @@ func (c *ProcessAgentCheck) ID() check.ID {
 
 // Stop sends a termination signal to the process-agent process
 func (c *ProcessAgentCheck) Stop() {
-	if !c.enabled {
+	if atomic.LoadUint32(&c.running) == 0 {
+		log.Info("Process Agent not running.")
 		return
 	}
 
-	err := c.cmd.Process.Signal(os.Kill)
-	if err != nil {
-		log.Errorf("unable to stop process-agent check: %s", err)
-	}
+	c.stop <- struct{}{}
+	<-c.stopDone
 }
 
 // GetMetricStats returns the stats from the last run of the check, but there aren't any yet
@@ -175,7 +216,10 @@ func (c *ProcessAgentCheck) GetMetricStats() (map[string]int64, error) {
 
 func init() {
 	factory := func() check.Check {
-		return &ProcessAgentCheck{}
+		return &ProcessAgentCheck{
+			stop:     make(chan struct{}),
+			stopDone: make(chan struct{}),
+		}
 	}
 	core.RegisterCheck("process_agent", factory)
 }

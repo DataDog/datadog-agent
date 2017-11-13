@@ -39,7 +39,7 @@ func (r *Rate) flush(timestamp float64) ([]*Serie, error) {
 	r.sample, r.timestamp = 0., 0.
 
 	return []*Serie{
-		&Serie{
+		{
 			Points: []Point{{Ts: ts, Value: value}},
 			MType:  APIGaugeType,
 		},

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+</head>
+<script>
+  // Read from ? to the end of the URL
+  var urlParam = location.search.substring(1);
+  urlParam = urlParam.split(";");
+
+  // Decode the url parameters
+  var jwt = urlParam[0].substring(4);
+  var csrf = urlParam[1].substring(5);
+
+  if (csrf == "{{ .csrf }}") {
+    // Save JWT as a cookie
+    document.cookie = "jwt=" + jwt + "; path=/";
+  }
+
+  // Redirect to the GUI
+  window.location.href = '/';
+</script>

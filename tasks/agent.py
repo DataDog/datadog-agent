@@ -13,16 +13,18 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags
+from .build_tags import get_build_tags, get_default_build_tags, ALL_TAGS
 from .go import deps
 
 #constants
 BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 
+
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
-          puppy=False, use_embedded_libs=False, development=True):
+          puppy=False, use_embedded_libs=False, development=True, precompile_only=False,
+          skip_assets=False):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -30,8 +32,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     Example invokation:
         inv agent.build --build-exclude=snmp
     """
-    build_include = ctx.agent.build_include if build_include is None else build_include.split(",")
-    build_exclude = ctx.agent.build_exclude if build_exclude is None else build_exclude.split(",")
+    build_include = ALL_TAGS if build_include is None else build_include.split(",")
+    build_exclude = [] if build_exclude is None else build_exclude.split(",")
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
@@ -69,7 +71,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
     args = {
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
+        "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
         "go_build_tags": " ".join(build_tags),
         "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
         "gcflags": gcflags,
@@ -78,7 +80,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     }
 
     ctx.run(cmd.format(**args), env=env)
-    refresh_assets(ctx, development=development)
+    if not skip_assets:
+        refresh_assets(ctx, development=development)
 
 
 @task
@@ -146,28 +149,32 @@ def image_build(ctx, base_dir="omnibus"):
 
 
 @task
-def integration_tests(ctx, install_deps=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     """
     Run integration tests for the Agent
     """
     if install_deps:
         deps(ctx)
 
-    build_tags = get_default_build_tags()
+    test_args = {
+        "go_build_tags": " ".join(get_default_build_tags()),
+        "race_opt": "-race" if race else "",
+        "exec_opts": "",
+    }
 
-    # config_providers
-    cmd = "go test -tags '{}' {}/test/integration/config_providers/..."
-    ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+    if remote_docker:
+        test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
 
-    # listeners
-    cmd = "go test -tags '{}' {}/test/integration/listeners/..."
-    ctx.run(cmd.format(" ".join(build_tags), REPO_PATH))
+    go_cmd = 'go test {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
 
-    # autodiscovery
-    # TODO
+    prefixes = [
+        "./test/integration/config_providers/...",
+        "./test/integration/corechecks/...",
+        # "./test/integration/listeners/...", ## Hangups
+    ]
 
-    # metadata_providers
-    # TODO
+    for prefix in prefixes:
+        ctx.run("{} {}".format(go_cmd, prefix))
 
 
 @task

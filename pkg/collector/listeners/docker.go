@@ -11,6 +11,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,7 +44,7 @@ type DockerListener struct {
 	m          sync.RWMutex
 }
 
-// NewDockerListener creates a client connection to Docker and instanciate a DockerListener with it
+// NewDockerListener creates a client connection to Docker and instantiate a DockerListener with it
 // TODO: TLS support
 func NewDockerListener() (*DockerListener, error) {
 	c, err := docker.ConnectToDocker()
@@ -151,8 +154,8 @@ func (l *DockerListener) processEvent(e events.Message) {
 		if e.Action == "die" {
 			l.removeService(cID)
 		} else {
-			log.Error("TODO - this shouldn't happen, expected die")
-			signals.ErrorStopper <- true
+			// FIXME sometimes the agent's container's events are picked up twice at startup
+			log.Debugf("Expected die for container %s got %s: skipping event", cID[:12], e.Action)
 			return
 		}
 	} else {
@@ -190,7 +193,6 @@ func (l *DockerListener) createService(cID ID) {
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
-
 	l.m.Lock()
 	l.services[ID(cID)] = &svc
 	l.m.Unlock()
@@ -216,29 +218,6 @@ func (l *DockerListener) removeService(cID ID) {
 	}
 }
 
-// getHostsFromInspect gets the addresss (for now IP address only) of a container on all its networks.
-// TODO: deprectated should be implemented in GetHosts
-func (l *DockerListener) getHostsFromInspect(co types.ContainerJSON) map[string]string {
-	ips := make(map[string]string)
-	if co.NetworkSettings != nil {
-		for net, settings := range co.NetworkSettings.Networks {
-			ips[net] = settings.IPAddress
-		}
-	}
-	return ips
-}
-
-// getPortsFromInspect gets the service ports of a container.
-// TODO: use the k8s API, deprectated should be implemented in GetPorts
-func (l *DockerListener) getPortsFromInspect(co types.ContainerJSON) []int {
-	ports := make([]int, 0)
-
-	for p := range co.NetworkSettings.Ports {
-		ports = append(ports, p.Int())
-	}
-	return ports
-}
-
 // getConfigIDFromPs returns a set of AD identifiers for a container.
 // These id are sorted to reflect the priority we want the ConfigResolver to
 // use when matching a template.
@@ -251,20 +230,11 @@ func (l *DockerListener) getPortsFromInspect(co types.ContainerJSON) []int {
 //   1. Long image name
 //   2. Short image name
 func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
-	// check for an identifier label
-	for l, v := range co.Labels {
-		if l == identifierLabel {
-			return []string{v}
-		}
+	image, err := docker.ResolveImageName(co.Image)
+	if err != nil {
+		log.Warnf("error while resolving image name: %s", err)
 	}
-
-	ids := []string{}
-
-	// use the image name
-	ids = append(ids, co.Image) // TODO: check if it's the sha256
-	// TODO: add the short name with lower priority
-
-	return ids
+	return computeDockerIDs(image, co.Labels)
 }
 
 // getHostsFromPs gets the addresss (for now IP address only) of a container on all its networks.
@@ -312,35 +282,63 @@ func (s *DockerService) GetADIdentifiers() ([]string, error) {
 		if err != nil {
 			return []string{}, err
 		}
-
-		// check for an identifier label
-		for l, v := range cj.Config.Labels {
-			if l == identifierLabel {
-				return []string{v}, nil
-			}
+		image, err := docker.ResolveImageName(cj.Image)
+		if err != nil {
+			log.Warnf("error while resolving image name: %s", err)
 		}
-
-		ids := []string{}
-
-		// use the image name
-		ids = append(ids, cj.Image) // TODO: check if it's the sha256
-		// TODO: add the short name with lower priority
-		s.ADIdentifiers = ids
+		s.ADIdentifiers = computeDockerIDs(image, cj.Config.Labels)
 	}
 
 	return s.ADIdentifiers, nil
 }
 
 // GetHosts returns the container's hosts
-// TODO
 func (s *DockerService) GetHosts() (map[string]string, error) {
-	return s.Hosts, nil
+	if s.Hosts != nil {
+		return s.Hosts, nil
+	}
+
+	ips := make(map[string]string)
+
+	cInspect, err := docker.Inspect(string(s.ID), false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
+	}
+	for net, settings := range cInspect.NetworkSettings.Networks {
+		ips[net] = settings.IPAddress
+	}
+
+	s.Hosts = ips
+	return ips, nil
 }
 
 // GetPorts returns the container's ports
-// TODO
 func (s *DockerService) GetPorts() ([]int, error) {
-	return s.Ports, nil
+	if s.Ports != nil {
+		return s.Ports, nil
+	}
+
+	ports := make([]int, 0)
+
+	cInspect, err := docker.Inspect(string(s.ID), false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
+	}
+
+	for p := range cInspect.NetworkSettings.Ports {
+		portStr := string(p)
+		if strings.Contains(portStr, "/") {
+			portStr = strings.Split(portStr, "/")[0]
+		}
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			log.Warnf("failed to extract port %s", string(p))
+		}
+		ports = append(ports, port)
+	}
+	sort.Ints(ports)
+	s.Ports = ports
+	return ports, nil
 }
 
 // GetTags retrieves tags using the Tagger
@@ -366,4 +364,33 @@ func (s *DockerService) GetPid() (int, error) {
 	}
 
 	return s.Pid, nil
+}
+
+// computeDockerIDs factors in code for getConfigIDFromPs and GetADIdentifiers
+// it assumes the image name's sha is already resolved via docker.ResolveImageName
+func computeDockerIDs(image string, labels map[string]string) []string {
+	var ids []string
+
+	// check for an identifier label
+	for l, v := range labels {
+		if l == identifierLabel {
+			ids = append(ids, v)
+			// Let's not return the image name if we find the label
+			return ids
+		}
+	}
+
+	// add the image names (long then short if different)
+	long, short, _, err := docker.SplitImageName(image)
+	if err != nil {
+		log.Warnf("error while spliting image name: %s", err)
+	}
+	if len(long) > 0 {
+		ids = append(ids, long)
+	}
+	if len(short) > 0 && short != long {
+		ids = append(ids, short)
+	}
+
+	return ids
 }

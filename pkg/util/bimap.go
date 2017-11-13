@@ -62,7 +62,7 @@ func (b *BiMap) GetKVReverse(key interface{}) (interface{}, error) {
 }
 
 /*GetKVBimap looks for the provided key both for keys and values in the map.
-  The first occurrance will be returned.*/
+  The first occurrence will be returned.*/
 func (b *BiMap) GetKVBimap(key interface{}) (interface{}, error) {
 	keyType := reflect.TypeOf(key)
 	if b.keyType != keyType && b.valType != keyType {

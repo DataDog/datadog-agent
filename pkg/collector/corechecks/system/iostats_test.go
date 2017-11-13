@@ -12,14 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/shirou/gopsutil/disk"
 )
 
 var (
 	ioSamples = []map[string]disk.IOCountersStat{
-		map[string]disk.IOCountersStat{
-			"sda": disk.IOCountersStat{
+		{
+			"sda": {
 				ReadCount:        443071,
 				MergedReadCount:  104744,
 				WriteCount:       10412454,
@@ -34,8 +34,8 @@ var (
 				Name:             "sda",
 				SerialNumber:     "123456789WD",
 			},
-		}, map[string]disk.IOCountersStat{
-			"sda": disk.IOCountersStat{
+		}, {
+			"sda": {
 				ReadCount:        443071,
 				MergedReadCount:  104744,
 				WriteCount:       10412454,
@@ -68,7 +68,7 @@ func TestIOCheck(t *testing.T) {
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(nil, nil)
 
-	mock := aggregator.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	expectedRates := 2
 	expectedGauges := 0
@@ -131,7 +131,7 @@ func TestIOCheckBlacklist(t *testing.T) {
 	ioCheck := new(IOCheck)
 	ioCheck.Configure(nil, nil)
 
-	mock := aggregator.NewMockSender(ioCheck.ID())
+	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	//set blacklist
 	bl, err := regexp.Compile("sd.*")

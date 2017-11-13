@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	python "github.com/sbinet/go-python"
@@ -134,7 +134,7 @@ func TestInitNoTracebackException(t *testing.T) {
 func TestAggregatorLink(t *testing.T) {
 	check, _ := getCheckInstance("testaggregator", "TestAggregatorCheck")
 
-	mockSender := aggregator.NewMockSender(check.ID())
+	mockSender := mocksender.NewMockSender(check.ID())
 
 	mockSender.On("ServiceCheck",
 		"testservicecheck", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
@@ -142,6 +142,9 @@ func TestAggregatorLink(t *testing.T) {
 	mockSender.On("ServiceCheck",
 		"testservicecheckwithhostname", mock.AnythingOfType("metrics.ServiceCheckStatus"), "testhostname",
 		[]string{"foo", "bar"}, "a message").Return().Times(1)
+	mockSender.On("ServiceCheck",
+		"testservicecheckwithnonemessage", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
+		[]string(nil), "").Return().Times(1)
 	mockSender.On("Gauge", "testmetric", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
 	mockSender.On("Gauge", "testmetricstringvalue", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(1)
 	mockSender.On("Counter", "test.increment", 1., "", []string{"foo", "bar"}).Return().Times(1)
@@ -158,7 +161,7 @@ func TestAggregatorLink(t *testing.T) {
 func TestAggregatorLinkTwoRuns(t *testing.T) {
 	check, _ := getCheckInstance("testaggregator", "TestAggregatorCheck")
 
-	mockSender := aggregator.NewMockSender(check.ID())
+	mockSender := mocksender.NewMockSender(check.ID())
 
 	mockSender.On("ServiceCheck",
 		"testservicecheck", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
@@ -166,6 +169,9 @@ func TestAggregatorLinkTwoRuns(t *testing.T) {
 	mockSender.On("ServiceCheck",
 		"testservicecheckwithhostname", mock.AnythingOfType("metrics.ServiceCheckStatus"), "testhostname",
 		[]string{"foo", "bar"}, "a message").Return().Times(2)
+	mockSender.On("ServiceCheck",
+		"testservicecheckwithnonemessage", mock.AnythingOfType("metrics.ServiceCheckStatus"), "",
+		[]string(nil), "").Return().Times(2)
 	mockSender.On("Gauge", "testmetric", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(2)
 	mockSender.On("Gauge", "testmetricstringvalue", mock.AnythingOfType("float64"), "", []string(nil)).Return().Times(2)
 	mockSender.On("Counter", "test.increment", 1., "", []string{"foo", "bar"}).Return().Times(2)

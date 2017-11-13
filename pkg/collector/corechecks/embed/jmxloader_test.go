@@ -68,7 +68,7 @@ func TestLoadCheckConfig(t *testing.T) {
 
 	for _, cfg := range cfgs {
 		found := false
-		for k, _ := range jmxLauncher.checks {
+		for k := range jmxLauncher.checks {
 			if k == fmt.Sprintf("%s.yaml", cfg.Name) {
 				found = true
 				break

@@ -1,0 +1,73 @@
+init_config:
+
+instances:
+  - ## The agent honors the DOCKER_HOST, DOCKER_CERT_PATH and DOCKER_TLS_VERIFY
+    ## environment variables to setup the connection to the server.
+    ## See https://docs.docker.com/engine/reference/commandline/cli/#environment-variables
+
+    ## Data collection
+    ##
+
+    # Create events whenever a container status change.
+    # Defaults to true.
+    #
+    # collect_events: false
+
+    # By default we do not collect events with a status ['top', 'exec_start', 'exec_create'].
+    # Here can be added additional statuses to be filtered.
+    # List of available statuses can be found here https://docs.docker.com/engine/reference/commandline/events/#object-types
+    # filtered_event_types:
+    #    - 'top'
+    #    - 'exec_start'
+    #    - 'exec_create'
+
+    # Collect disk usage per container with docker.container.size_rw and
+    # docker.container.size_rootfs metrics.
+    # Warning: This might take time for Docker daemon to generate,
+    # ensure that `docker ps -a -q` run fast before enabling it.
+    # Defaults to false.
+    #
+    # collect_container_size: true
+
+    # Collect images stats
+    # Number of available active images and intermediate images as gauges.
+    # Defaults to false.
+    #
+    # collect_images_stats: true
+
+    # Collect disk usage per image with docker.image.size and docker.image.virtual_size metrics.
+    # The check gets this size with the `docker images` command.
+    # Requires collect_images_stats to be enabled.
+    # Defaults to false.
+    #
+    # collect_image_size: true
+
+    # Collect disk metrics (total, used, free) through the docker info command for data and metadata.
+    # This is useful when these values can't be obtained by the disk check.
+    # Example: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html
+    # Note that it only works when the storage driver is devicemapper.
+    # Explanation of these metrics can be found here:
+    # https://github.com/docker/docker/blob/v1.11.1/daemon/graphdriver/devmapper/README.md
+    # Defaults to false.
+    #
+    # collect_disk_stats: true
+
+    # Monitor exiting containers and send service checks based on exit code value
+    # (OK if 0, CRITICAL otherwise)
+    # Defaults to false.
+    #
+    # collect_exit_codes: true
+
+    # Allows ad-hoc spike filtering if the system reports incorrect metrics.
+    # This will drop points if the computed rate is higher than the cap value
+    # capped_metrics:
+    #   docker.cpu.user: 1000
+    #   docker.cpu.system: 1000
+
+    ## Tagging
+    ##
+
+    # You can add extra tags to your Docker metrics with the tags list option.
+    # Example: ["extra_tag", "env:testing"]
+    #
+    # tags: []

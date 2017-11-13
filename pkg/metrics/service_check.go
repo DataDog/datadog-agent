@@ -100,7 +100,7 @@ func (sc ServiceChecks) Marshal() ([]byte, error) {
 // MarshalJSON serializes service checks to JSON so it can be sent to V1 endpoints
 //FIXME(olivier): to be removed when v2 endpoints are available
 func (sc ServiceChecks) MarshalJSON() ([]byte, error) {
-	// use an alias to avoid infinit recursion while serializing
+	// use an alias to avoid infinite recursion while serializing
 	type ServiceChecksAlias ServiceChecks
 
 	reqBody := &bytes.Buffer{}

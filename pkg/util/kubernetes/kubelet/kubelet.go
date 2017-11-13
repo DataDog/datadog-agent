@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build kubelet
+
 package kubelet
 
 import (
@@ -26,7 +28,7 @@ const (
 )
 
 // KubeUtil is a struct to hold the kubelet api url
-// Instanciate with NewKubeUtil
+// Instantiate with NewKubeUtil
 type KubeUtil struct {
 	kubeletAPIURL string
 }

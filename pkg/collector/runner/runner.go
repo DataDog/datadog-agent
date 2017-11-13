@@ -8,6 +8,8 @@ package runner
 import (
 	"expvar"
 	"fmt"
+
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,7 +22,14 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+// TestWg is used for testing the number of check workers
+var TestWg sync.WaitGroup
+
+var defaultNumWorkers = 4
+var maxNumWorkers = 25
+
 const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
+const stopAllChecksTimeout time.Duration = 2 * time.Second    // Time to wait for all checks to stop
 
 // checkStats holds the stats from the running checks
 type runnerCheckStats struct {
@@ -43,30 +52,83 @@ func init() {
 
 // Runner ...
 type Runner struct {
-	pending       chan check.Check         // The channel where checks come from
-	done          chan bool                // Guard for the main loop
-	runningChecks map[check.ID]check.Check // the list of checks running
-	m             sync.Mutex               // to control races on runningChecks
-	running       uint32                   // Flag to see if the Runner is, well, running
+	pending          chan check.Check         // The channel where checks come from
+	done             chan bool                // Guard for the main loop
+	runningChecks    map[check.ID]check.Check // The list of checks running
+	m                sync.Mutex               // To control races on runningChecks
+	running          uint32                   // Flag to see if the Runner is, well, running
+	staticNumWorkers bool                     // Flag indicating if numWorkers is dynamically updated
 }
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
-func NewRunner(numWorkers int) *Runner {
+func NewRunner() *Runner {
+	numWorkers := config.Datadog.GetInt("check_runners") // = 0 if no value is specified by the user
+	if numWorkers > maxNumWorkers {
+		numWorkers = maxNumWorkers
+		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, maxNumWorkers)
+	}
+
 	r := &Runner{
 		// initialize the channel
-		pending:       make(chan check.Check),
-		runningChecks: make(map[check.ID]check.Check),
-		running:       1,
+		pending:          make(chan check.Check),
+		runningChecks:    make(map[check.ID]check.Check),
+		running:          1,
+		staticNumWorkers: numWorkers != 0,
+	}
+
+	if !r.staticNumWorkers {
+		numWorkers = defaultNumWorkers
 	}
 
 	// start the workers
 	for i := 0; i < numWorkers; i++ {
+		TestWg.Add(1)
 		go r.work()
 	}
 
 	log.Infof("Runner started with %d workers.", numWorkers)
 	runnerStats.Add("Workers", int64(numWorkers))
 	return r
+}
+
+// UpdateNumWorkers checks if the current number of workers is reasonable, and adds more if needed
+func (r *Runner) UpdateNumWorkers(numChecks int64) {
+	numWorkers, _ := strconv.Atoi(runnerStats.Get("Workers").String())
+
+	if r.staticNumWorkers {
+		return
+	}
+
+	// Find which range the number of checks we're running falls in
+	var desiredNumWorkers int
+	switch {
+	case numChecks <= 10:
+		desiredNumWorkers = 4
+	case numChecks <= 15:
+		desiredNumWorkers = 10
+	case numChecks <= 20:
+		desiredNumWorkers = 15
+	case numChecks <= 25:
+		desiredNumWorkers = 20
+	default:
+		desiredNumWorkers = maxNumWorkers
+	}
+
+	// Add workers if we don't have enough for this range
+	added := 0
+	for {
+		if numWorkers >= desiredNumWorkers {
+			break
+		}
+		runnerStats.Add("Workers", 1)
+		TestWg.Add(1)
+		go r.work()
+		numWorkers++
+		added++
+	}
+	if added > 0 {
+		log.Infof("Added %d workers to runner: now at "+runnerStats.Get("Workers").String()+" workers.", added)
+	}
 }
 
 // Stop closes the pending channel so all workers will exit their loop and terminate
@@ -84,23 +146,41 @@ func (r *Runner) Stop() {
 
 	// stop checks that are still running
 	r.m.Lock()
-	for _, check := range r.runningChecks {
-		log.Infof("Stopping Check %v that is still running...", check)
-		done := make(chan struct{})
-		go func() {
-			check.Stop()
-			close(done)
-		}()
+	globalDone := make(chan struct{})
+	wg := sync.WaitGroup{}
+	for _, c := range r.runningChecks {
+		wg.Add(1)
+		go func(c check.Check) {
+			log.Infof("Stopping Check %v that is still running...", c)
+			done := make(chan struct{})
+			go func() {
+				c.Stop()
+				close(done)
+				wg.Done()
+			}()
 
-		select {
-		case <-done:
-			// all good
-		case <-time.After(stopCheckTimeout):
-			// check is not responding
-			log.Errorf("Check %v not responding, timing out...", check)
-		}
+			select {
+			case <-done:
+				// all good
+			case <-time.After(stopCheckTimeout):
+				// check is not responding
+				log.Warnf("Check %v not responding after %v", c, stopCheckTimeout)
+			}
+		}(c)
 	}
 	r.m.Unlock()
+
+	go func() {
+		wg.Wait()
+		close(globalDone)
+	}()
+	select {
+	case <-globalDone:
+		// all good
+	case <-time.After(stopAllChecksTimeout):
+		// some checks are not responding
+		log.Errorf("Some checks not responding after %v, timing out...", stopAllChecksTimeout)
+	}
 }
 
 // GetChan returns a write-only version of the pending channel
@@ -137,6 +217,7 @@ func (r *Runner) StopCheck(id check.ID) error {
 // work waits for checks and run them as long as they arrive on the channel
 func (r *Runner) work() {
 	log.Debug("Ready to process checks...")
+	defer TestWg.Done()
 
 	for check := range r.pending {
 		// see if the check is already running
@@ -163,15 +244,7 @@ func (r *Runner) work() {
 		var err error
 		t0 := time.Now()
 
-		if check.Interval() == 0 {
-			// retry long running checks, bail out if they return an error 3 times
-			// in a row without running for at least 5 seconds
-			// TODO: this should be check-configurable, with meaningful default values
-			err = retry(5*time.Second, 3, check.Run)
-		} else {
-			// normal check run
-			err = check.Run()
-		}
+		err = check.Run()
 
 		warnings := check.GetWarnings()
 
@@ -291,33 +364,4 @@ func RemoveCheckStats(checkID check.ID) {
 func getHostname() string {
 	hostname, _ := util.GetHostname()
 	return hostname
-}
-
-func retry(retryDuration time.Duration, retries int, callback func() error) (err error) {
-	attempts := 0
-
-	for {
-		t0 := time.Now()
-		err = callback()
-		if err == nil {
-			return nil
-		}
-
-		// how much did the callback run?
-		execDuration := time.Now().Sub(t0)
-		if execDuration < retryDuration {
-			// the callback failed too soon, retry but increment the counter
-			attempts++
-		} else {
-			// the callback failed after the retryDuration, reset the counter
-			attempts = 0
-		}
-
-		if attempts == retries {
-			// give up
-			return fmt.Errorf("bail out, last error: %v", err)
-		}
-
-		log.Warnf("Retrying, got an error executing the callback: %v", err)
-	}
 }

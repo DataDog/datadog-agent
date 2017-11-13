@@ -28,17 +28,17 @@ import (
 const dockerCheckName = "docker"
 
 type DockerConfig struct {
-	CollectContainerSize bool     `yaml:"collect_container_size"`
-	CollectExitCodes     bool     `yaml:"collect_exit_codes"`
-	CollectImagesStats   bool     `yaml:"collect_images_stats"`
-	CollectImageSize     bool     `yaml:"collect_image_size"`
-	CollectDiskStats     bool     `yaml:"collect_disk_stats"`
-	CollectVolumeCount   bool     `yaml:"collect_volume_count"`
-	Tags                 []string `yaml:"tags"`
-	CollectEvent         bool     `yaml:"collect_events"`
-	FilteredEventType    []string `yaml:"filtered_event_types"`
+	CollectContainerSize bool               `yaml:"collect_container_size"`
+	CollectExitCodes     bool               `yaml:"collect_exit_codes"`
+	CollectImagesStats   bool               `yaml:"collect_images_stats"`
+	CollectImageSize     bool               `yaml:"collect_image_size"`
+	CollectDiskStats     bool               `yaml:"collect_disk_stats"`
+	CollectVolumeCount   bool               `yaml:"collect_volume_count"`
+	Tags                 []string           `yaml:"tags"`
+	CollectEvent         bool               `yaml:"collect_events"`
+	FilteredEventType    []string           `yaml:"filtered_event_types"`
+	CappedMetrics        map[string]float64 `yaml:"capped_metrics"`
 	//CustomCGroup           bool               `yaml:"custom_cgroups"`
-	//CappedMetrics          map[string]float64 `yaml:"capped_metrics"`
 }
 
 const (
@@ -68,6 +68,7 @@ type DockerCheck struct {
 	instance       *DockerConfig
 	lastEventTime  time.Time
 	dockerHostname string
+	cappedSender   *cappedSender
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *docker.Container) {
@@ -106,7 +107,7 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
 
 	if d.instance.CollectImageSize {
 		for _, i := range availableImages {
-			name, tag, err := docker.SplitImageName(i.RepoTags[0])
+			name, _, tag, err := docker.SplitImageName(i.RepoTags[0])
 			if err != nil {
 				log.Errorf("could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
 				continue
@@ -124,11 +125,11 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender) error {
 
 // Run executes the check
 func (d *DockerCheck) Run() error {
-	sender, err := aggregator.GetSender(d.ID())
+	sender, err := d.GetSender()
 
 	containers, err := docker.AllContainers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
 		return err
 	}
 
@@ -205,10 +206,10 @@ func (d *DockerCheck) Run() error {
 
 	if err := d.countAndWeightImages(sender); err != nil {
 		log.Error(err.Error())
-		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", nil, err.Error())
+		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
 		return err
 	}
-	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", nil, "")
+	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", d.instance.Tags, "")
 
 	if d.instance.CollectEvent || d.instance.CollectExitCodes {
 		events, err := d.retrieveEvents()
@@ -320,12 +321,13 @@ func (d *DockerCheck) GetMetricStats() (map[string]int64, error) {
 	return sender.GetMetricStats(), nil
 }
 
-func dockerFactory() check.Check {
+// DockerFactory is exported for integration testing
+func DockerFactory() check.Check {
 	return &DockerCheck{
 		instance: &DockerConfig{},
 	}
 }
 
 func init() {
-	core.RegisterCheck("docker", dockerFactory)
+	core.RegisterCheck("docker", DockerFactory)
 }

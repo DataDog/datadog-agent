@@ -108,6 +108,10 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("enable_metadata_collection", enabled)
 	}
 
+	if enabled, err := isAffirmative(agentConfig["enable_gohai"]); err == nil {
+		config.Datadog.Set("enable_gohai", enabled)
+	}
+
 	return nil
 }
 
@@ -173,9 +177,9 @@ func buildSyslogURI(agentConfig Config) string {
 func buildConfigProviders(agentConfig Config) ([]config.ConfigurationProviders, error) {
 	// the list of SD_CONFIG_BACKENDS supported in v5
 	SdConfigBackends := map[string]struct{}{
-		"etcd":   struct{}{},
-		"consul": struct{}{},
-		"zk":     struct{}{},
+		"etcd":   {},
+		"consul": {},
+		"zk":     {},
 	}
 
 	if _, found := SdConfigBackends[agentConfig["sd_config_backend"]]; !found {

@@ -134,7 +134,7 @@ func NewStatsdGenerator(uri string) (*net.UDPConn, error) {
 }
 
 func initLogging() error {
-	err := config.SetupLogger("info", "", "", false, false, "")
+	err := config.SetupLogger("info", "", "", false, false, "", true)
 	if err != nil {
 		return fmt.Errorf("Unable to initiate logger: %s", err)
 	}
@@ -271,7 +271,7 @@ func main() {
 					}
 				}
 
-				for _ = range ticker.C {
+				for range ticker.C {
 					select {
 					case <-quitGenerator:
 						quitStatter <- true
@@ -307,7 +307,7 @@ func main() {
 				tickChan := time.NewTicker(time.Second).C
 				defer wg.Done()
 
-				for _ = range tickChan {
+				for range tickChan {
 					select {
 					case <-quitStatter:
 						quit = true

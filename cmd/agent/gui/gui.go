@@ -1,8 +1,12 @@
 package gui
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -10,15 +14,17 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
 )
 
 var (
-	apiKey   string
-	listener net.Listener
+	listener   net.Listener
+	privateKey *rsa.PrivateKey
+	publicKey  *rsa.PublicKey
+	csrfToken  string
 )
 
 // Payload struct is for the JSON messages received from a client POST request
@@ -35,95 +41,142 @@ func StopGUIServer() {
 	}
 }
 
-// StartGUIServer creates the router and starts the HTTP server
-func StartGUIServer(port string) error {
-	apiKey = config.Datadog.GetString("api_key")
-
+// StartGUI creates the router, starts the HTTP server and opens the GUI in a browser
+func StartGUI(port string) error {
 	// Instantiate the gorilla/mux router
 	router := mux.NewRouter()
 
-	if apiKey == "" {
-		// If the user doesn't have an API key, they don't serve the GUI
-		router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, filepath.Join(common.GetViewsPath(), "public/invalidAPI.html"))
-		})
+	// Serve the only public file at the authentication endpoint
+	router.HandleFunc("/authenticate", generateAuthEndpoint)
 
-		// Serve the only other file needed - the background image
-		router.HandleFunc("/view/images/dd_bkgrnd.png", func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, filepath.Join(common.GetViewsPath(), "public/images/dd_bkgrnd.png"))
-		})
-	} else {
-		// Serve the (secured) index page on the default endpoint
-		router.Handle("/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private")))))
+	// Serve the (secured) index page on the default endpoint
+	router.Handle("/", authorizeAccess(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private")))))
 
-		// Mount our public filesystem at the view/{path} route
-		router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "public")))))
+	// Mount our (secured) filesystem at the view/{path} route
+	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", authorizeAccess(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private"))))))
 
-		// Mount our secured filesystem at the private/{path} route
-		router.PathPrefix("/private/").Handler(http.StripPrefix("/private/", accessAuth(http.FileServer(http.Dir(filepath.Join(common.GetViewsPath(), "private"))))))
+	// Set up handlers for the API
+	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
+	agentHandler(agentRouter)
+	checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
+	checkHandler(checkRouter)
 
-		// Set up handlers for the API
-		agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
-		agentHandler(agentRouter)
-		checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
-		checkHandler(checkRouter)
+	// Add authorization middleware to all the API endpoints
+	router.PathPrefix("/agent").Handler(negroni.New(negroni.HandlerFunc(authorizePOST), negroni.Wrap(agentRouter)))
+	router.PathPrefix("/checks").Handler(negroni.New(negroni.HandlerFunc(authorizePOST), negroni.Wrap(checkRouter)))
 
-		// Add authorization middleware to all the API endpoints
-		router.PathPrefix("/agent").Handler(negroni.New(negroni.HandlerFunc(authorize), negroni.Wrap(agentRouter)))
-		router.PathPrefix("/checks").Handler(negroni.New(negroni.HandlerFunc(authorize), negroni.Wrap(checkRouter)))
-	}
-
+	// Listen & serve
 	listener, e := net.Listen("tcp", "127.0.0.1:"+port)
 	if e != nil {
-		log.Errorf("Error: " + e.Error())
 		return e
 	}
-
 	go http.Serve(listener, router)
-	log.Infof("GUI Server started at %s", listener.Addr())
 
+	// Generate a pair of RSA keys
+	privateKey, e := rsa.GenerateKey(rand.Reader, 2048)
+	if e != nil {
+		return fmt.Errorf("error generating RSA key: " + e.Error())
+	}
+	publicKey = &privateKey.PublicKey
+
+	// Create a JWT signed with the private key
+	JWT := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"admin": true,
+		"name":  "Datadog Agent Manager",
+	})
+	jwtString, e := JWT.SignedString(privateKey)
+	if e != nil {
+		return fmt.Errorf("error creating JWT: " + e.Error())
+	}
+
+	// Create a CSRF token
+	key := make([]byte, 32)
+	_, e = rand.Read(key)
+	if e != nil {
+		return fmt.Errorf("error creating CSRF token: " + e.Error())
+	}
+	csrfToken = hex.EncodeToString(key)
+
+	// Open the GUI in a browser, passing the authorization tokens as parameters
+	e = open("http://127.0.0.1:" + port + "/authenticate?jwt=" + jwtString + ";csrf=" + csrfToken)
+	if e != nil {
+		return fmt.Errorf("error opening GUI: " + e.Error())
+	}
+
+	log.Infof("GUI opened at 127.0.0.1:" + port)
 	return nil
 }
 
-// Middleware which blocks access to secured files by serving the auth page if the client is not authenticated
-func accessAuth(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, _ := r.Cookie("token")
-
-		// Disable caching to ensure client loads the correct file
-		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-
-		if cookie == nil || cookie.Value != apiKey {
-			// Serve the authentication page
-			http.ServeFile(w, r, filepath.Join(common.GetViewsPath(), "public/auth.html"))
-		} else {
-			h.ServeHTTP(w, r)
-		}
-	})
-}
-
-// Middleware which prevents POST requests from unauthorized clients
-func authorize(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	clientToken := r.Header["Authorization"]
-
-	// If the client has an incorrect authorization scheme, reply with a 401 (Unauthorized) response
-	if len(clientToken) == 0 || clientToken[0] == "" || strings.Split(clientToken[0], " ")[0] != "Bearer" {
-		w.Header().Set("WWW-Authenticate", "Bearer realm=\"Access to Datadog Agent Manager\"")
-		e := fmt.Errorf("invalid authorization scheme")
-		http.Error(w, e.Error(), 401)
-		log.Infof("GUI - Received unauthorized request (invalid scheme).")
+func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {
+	t, e := template.New("auth.tmpl").ParseFiles(filepath.Join(common.GetViewsPath(), "templates/auth.tmpl"))
+	if e != nil {
+		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// If they don't have the correct apiKey, send a 403 (Forbidden) response
-	if clientToken = strings.Split(clientToken[0], " "); apiKey != "" && clientToken[1] != apiKey {
-		e := fmt.Errorf("invalid authorization token")
-		http.Error(w, e.Error(), 403)
-		log.Infof("GUI - Received unauthorized request (bad token).")
+	e = t.Execute(w, map[string]interface{}{"csrf": csrfToken})
+	if e != nil {
+		http.Error(w, e.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// Middleware which blocks access to secured files from unauthorized clients
+func authorizeAccess(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Disable caching
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+
+		cookie, _ := r.Cookie("jwt")
+		if cookie == nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			http.Error(w, "no authorization token", 401)
+			return
+		}
+
+		e := verifyJWT(w, cookie.Value)
+		if e != nil {
+			return
+		}
+
+		// Token was valid: serve the requested resource
+		h.ServeHTTP(w, r)
+	})
+}
+
+// Middleware which blocks POST requests from unauthorized clients
+func authorizePOST(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	authHeader := r.Header["Authorization"]
+	if len(authHeader) == 0 || authHeader[0] == "" || strings.Split(authHeader[0], " ")[0] != "Bearer" {
+		w.WriteHeader(http.StatusUnauthorized)
+		http.Error(w, "invalid authorization scheme", 401)
+		return
+	}
+
+	e := verifyJWT(w, strings.Split(authHeader[0], " ")[1])
+	if e != nil {
 		return
 	}
 
 	next(w, r)
+}
+
+func verifyJWT(w http.ResponseWriter, tokenString string) error {
+	// Use public key to verify the token
+	token, e := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return publicKey, nil
+	})
+
+	if e != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		http.Error(w, "token validation error: "+e.Error(), 500)
+	} else if !token.Valid {
+		w.WriteHeader(http.StatusUnauthorized)
+		http.Error(w, "invalid authorization token", 401)
+		e = fmt.Errorf("invalid authorization token")
+	}
+
+	return e
 }
 
 // Helper function which unmarshals a POST requests data into a Payload object

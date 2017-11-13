@@ -8,11 +8,13 @@ core,github.com/DataDog/datadog-go,MIT
 core,github.com/DataDog/gohai,MIT
 core,github.com/DataDog/zstd,BSD-3-Clause
 core,github.com/davecgh/go-spew,ISC
+core,github.com/dgrijalva/jwt-go,MIT
 core,github.com/docker/distribution,Apache-2.0
 core,github.com/docker/docker,Apache-2.0
 core,github.com/docker/go-connections,Apache-2.0
 core,github.com/docker/go-units,Apache-2.0
 core,github.com/ericchiang/k8s,Apache-2.0
+core,github.com/fatih/color,MIT
 core,github.com/FortAwesome/Font-Awesome,MIT
 core,github.com/FortAwesome/Font-Awesome,SIL OFL 1.1
 core,github.com/fsnotify/fsnotify,BSD-3-Clause

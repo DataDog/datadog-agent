@@ -1,0 +1,116 @@
+version: 2
+
+# This file uses YAML anchors to deduplicate steps
+# see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
+# and https://learnxinyminutes.com/docs/yaml/
+
+templates:
+  job_template: &job_template
+    docker:
+      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
+        environment:
+          USE_SYSTEM_LIBS: "1"
+    working_directory: /go/src/github.com/DataDog/datadog-agent
+  step_templates:
+    - restore_cache: &restore_source
+        keys:
+          # Cache retrieval is faster than full git checkout
+          - v2-repo-{{ .Revision }}
+    - restore_cache: &restore_deps
+        keys:
+          # The first match will be used. Doing that so new branches
+          # use master's cache but don't pollute it back.
+          - v2-godeps-{{ .Branch }}-{{ .Revision }}
+          - v2-godeps-{{ .Branch }}-
+          - v2-godeps-master-
+
+jobs:
+  checkout_code:
+    <<: *job_template
+    steps:
+      - checkout
+      - save_cache:
+          key: v2-repo-{{ .Revision }}
+          paths:
+            - /go/src/github.com/DataDog/datadog-agent
+
+  dependencies:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: grab go deps
+          command: invoke deps
+      - run:
+          name: pre-compile go deps
+          command: inv agent.build --race --precompile-only
+      - save_cache:
+          key: v2-godeps-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - /go/src/github.com/DataDog/datadog-agent/vendor
+            - /go/pkg
+            - /go/bin
+
+  unit_tests:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run unit tests
+          command: inv -e test --coverage --race --fail-on-fmt
+
+  integration_tests:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - setup_remote_docker
+      - run:
+          name: run integration tests
+          command: inv  -e integration-tests --race --remote-docker
+
+  build_binaries:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: build dogstatsd
+          command: inv -e dogstatsd.build --static
+      - run:
+          name: build agent
+          command: inv -e agent.build
+
+  build_puppy:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: build puppy
+          command: inv agent.build --puppy
+
+workflows:
+  version: 2
+  build_test_deploy:
+    jobs:
+      - checkout_code
+      - dependencies:
+          requires:
+            - checkout_code
+      - unit_tests:
+          requires:
+            - dependencies
+      - integration_tests:
+          requires:
+            - dependencies
+      - build_binaries:
+          requires:
+            - unit_tests
+            - integration_tests
+      - build_puppy:
+          requires:
+            - unit_tests
+            - integration_tests

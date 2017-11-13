@@ -90,8 +90,8 @@ type Stats struct {
 	TotalServiceChecks int64
 	ExecutionTimes     [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
 	LastExecutionTime  int64     // most recent run duration, provided for convenience
-	LastError          string    // error that occured in the last run, if any
-	LastWarnings       []string  // warnings that occured in the last run, if any
+	LastError          string    // error that occurred in the last run, if any
+	LastWarnings       []string  // warnings that occurred in the last run, if any
 	UpdateTimestamp    int64     // latest update to this instance, unix timestamp in seconds
 	m                  sync.Mutex
 }

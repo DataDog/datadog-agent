@@ -29,6 +29,7 @@ func (c *TestCheck) Run() error {
 		msg := "A tremendous error occurred."
 		return errors.New(msg)
 	}
+
 	c.hasRun = true
 	return nil
 }
@@ -37,13 +38,13 @@ func (c *TestCheck) GetWarnings() []error                      { return nil }
 func (c *TestCheck) GetMetricStats() (map[string]int64, error) { return make(map[string]int64), nil }
 
 func TestNewRunner(t *testing.T) {
-	r := NewRunner(1)
+	r := NewRunner()
 	assert.NotNil(t, r.pending)
 	assert.NotNil(t, r.runningChecks)
 }
 
 func TestStop(t *testing.T) {
-	r := NewRunner(1)
+	r := NewRunner()
 	r.Stop()
 	_, ok := <-r.pending
 	assert.False(t, ok)
@@ -53,12 +54,13 @@ func TestStop(t *testing.T) {
 }
 
 func TestGetChan(t *testing.T) {
-	r := NewRunner(1)
+	r := NewRunner()
 	assert.NotNil(t, r.GetChan())
 }
 
 func TestWork(t *testing.T) {
-	r := NewRunner(1)
+	defaultNumWorkers = 1
+	r := NewRunner()
 	c1 := TestCheck{}
 	c2 := TestCheck{doErr: true}
 
@@ -68,7 +70,7 @@ func TestWork(t *testing.T) {
 	r.Stop()
 
 	// fake a check is already running
-	r = NewRunner(1)
+	r = NewRunner()
 	c3 := new(TestCheck)
 	r.runningChecks[c3.ID()] = c3
 	r.pending <- c3
@@ -78,7 +80,7 @@ func TestWork(t *testing.T) {
 }
 
 func TestLogging(t *testing.T) {
-	r := NewRunner(1)
+	r := NewRunner()
 	c := TestCheck{}
 	s := &check.Stats{
 		CheckID:   c.ID(),
@@ -119,7 +121,7 @@ func (tc *TimingoutCheck) Stop() {
 }
 
 func TestStopCheck(t *testing.T) {
-	r := NewRunner(1)
+	r := NewRunner()
 	err := r.StopCheck("foo")
 	assert.Nil(t, err)
 

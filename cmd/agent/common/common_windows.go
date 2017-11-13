@@ -23,14 +23,19 @@ import (
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "agent", "checks.d")
-	distPath     string
+	// PySitePackages holds the path to the python checks from integrations-core installed via wheels
+	PySitePackages = filepath.Join(_here, "lib", "python2.7", "site-packages")
+	distPath       string
 	// ViewsPath holds the path to the folder containing the GUI support files
 	viewsPath string
 )
 
-// DefaultConfPath points to the folder containing datadog.yaml
-const DefaultConfPath = "c:\\programdata\\datadog"
-const defaultLogPath = "c:\\programdata\\datadog\\logs\\agent.log"
+const (
+	// DefaultConfPath points to the folder containing datadog.yaml
+	DefaultConfPath = "c:\\programdata\\datadog"
+	// DefaultLogFile points to the log file that will be used if not configured
+	DefaultLogFile = "c:\\programdata\\datadog\\logs\\agent.log"
+)
 
 // EnableLoggingToFile -- set up logging to file
 func EnableLoggingToFile() {

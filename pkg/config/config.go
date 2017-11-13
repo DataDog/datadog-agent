@@ -63,7 +63,7 @@ func init() {
 
 	// Configuration defaults
 	// Agent
-	Datadog.SetDefault("dd_url", "http://localhost:17123")
+	Datadog.SetDefault("dd_url", "https://app.datadoghq.com")
 	Datadog.SetDefault("proxy", nil)
 	Datadog.SetDefault("skip_ssl_validation", false)
 	Datadog.SetDefault("hostname", "")
@@ -71,9 +71,9 @@ func init() {
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
-	Datadog.SetDefault("log_file", defaultLogPath)
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("log_to_syslog", false)
+	Datadog.SetDefault("log_to_console", true)
 	Datadog.SetDefault("disable_file_logging", false)
 	Datadog.SetDefault("syslog_uri", "")
 	Datadog.SetDefault("syslog_rfc", false)
@@ -83,7 +83,8 @@ func init() {
 	Datadog.SetDefault("cmd_port", 5001)
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
-	Datadog.SetDefault("check_runners", int64(20))
+	Datadog.SetDefault("enable_gohai", true)
+	Datadog.SetDefault("check_runners", int64(0))
 	Datadog.SetDefault("expvar_port", "5000")
 	if IsContainerized() {
 		Datadog.SetDefault("container_proc_root", "/host/proc")
@@ -95,7 +96,7 @@ func init() {
 	}
 	Datadog.SetDefault("proc_root", "/proc")
 	Datadog.SetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
-	Datadog.SetDefault("histogram_percentiles", []string{"95"})
+	Datadog.SetDefault("histogram_percentiles", []string{"0.95"})
 	// Serializer
 	Datadog.SetDefault("use_v2_api.series", false)
 	Datadog.SetDefault("use_v2_api.events", false)
@@ -158,6 +159,7 @@ func init() {
 	Datadog.BindEnv("dogstatsd_origin_detection")
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
+	Datadog.BindEnv("log_to_console")
 	Datadog.BindEnv("kubernetes_kubelet_host")
 	Datadog.BindEnv("kubernetes_http_kubelet_port")
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
