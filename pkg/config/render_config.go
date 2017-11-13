@@ -53,6 +53,7 @@ func mkContext(buildType string) context {
 			Common:        true,
 			Dogstatsd:     true,
 			DockerTagging: true,
+			Logging:       true,
 		}
 	}
 

@@ -24,6 +24,27 @@ api_key:
 
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
+
+# Histogram and Historate configuration
+#
+# Configure which aggregated value to compute. Possible values are: min, max,
+# median, avg, sum and count.
+#
+# histogram_aggregates: ["max", "median", "avg", "count"]
+#
+# Configure which percentiles will be computed. Must be a list of float
+# between 0 and 1.
+# Warning: percentiles must be specified as yaml strings
+#
+# histogram_percentiles: ["0.95"]
+
+# Forwarder timeout in seconds
+# forwarder_timeout: 20
+
+# The forwarder retries failed requests. Use this setting to change the
+# maximum length of the forwarder's retry queue (each request in the queue
+# takes no more than 2MB in memory)
+# forwarder_retry_queue_max_size: 30
 {{ end }}
 {{- if .Agent }}
 # The path containing check configuration files
@@ -51,14 +72,6 @@ api_key:
 # determined based on number of checks running)
 # check_runners: 4
 
-# Forwarder timeout in seconds
-# forwarder_timeout: 20
-
-# The forwarder retries failed requests. Use this setting to change the
-# maximum length of the forwarder's retry queue (each request in the queue
-# takes no more than 2MB in memory)
-# forwarder_retry_queue_max_size: 30
-
 # Metadata collection should always be enabled, except if you are running several
 # agents/dsd instances per host. In that case, only one agent should have it on.
 # WARNING: disabling it on every agent will lead to display and billing issues
@@ -66,19 +79,6 @@ api_key:
 
 # Enable the gohai collection of systems data
 # enable_gohai: true
-
-# Histogram and Historate configuration
-#
-# Configure which aggregated value to compute. Possible values are: min, max,
-# median, avg, sum and count.
-#
-# histogram_aggregates: ["max", "median", "avg", "count"]
-#
-# Configure which percentiles will be computed. Must be a list of float
-# between 0 and 1.
-# Warning: percentiles must be specified as yaml strings
-#
-# histogram_percentiles: ["0.95"]
 {{ end -}}
 {{- if .Metadata }}
 # Metadata collectors, add or remove from the list to enable or disable collection.
@@ -118,6 +118,9 @@ metadata_collectors:
 #
 # How many items in the dogstatsd's stats circular buffer
 # dogstatsd_stats_buffer: 10
+#
+# The port for the go_expvar server
+# dogstatsd_stats_port: 5000
 {{ end -}}
 {{- if .JMX }}
 # JMX
