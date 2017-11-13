@@ -247,7 +247,7 @@ func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
 	if err != nil {
 		log.Warnf("error while resolving image name: %s", err)
 	}
-	return computeDockerIDs(image, co.Labels)
+	return computeDockerIDs(co.ID, image, co.Labels)
 }
 
 // getHostsFromPs gets the addresss (for now IP address only) of a container on all its networks.
@@ -299,7 +299,7 @@ func (s *DockerService) GetADIdentifiers() ([]string, error) {
 		if err != nil {
 			log.Warnf("error while resolving image name: %s", err)
 		}
-		s.ADIdentifiers = computeDockerIDs(image, cj.Config.Labels)
+		s.ADIdentifiers = computeDockerIDs(string(s.ID), image, cj.Config.Labels)
 	}
 
 	return s.ADIdentifiers, nil
@@ -381,8 +381,8 @@ func (s *DockerService) GetPid() (int, error) {
 
 // computeDockerIDs factors in code for getConfigIDFromPs and GetADIdentifiers
 // it assumes the image name's sha is already resolved via docker.ResolveImageName
-func computeDockerIDs(image string, labels map[string]string) []string {
-	var ids []string
+func computeDockerIDs(cid string, image string, labels map[string]string) []string {
+	ids := []string{}
 
 	// check for an identifier label
 	for l, v := range labels {
@@ -392,6 +392,9 @@ func computeDockerIDs(image string, labels map[string]string) []string {
 			return ids
 		}
 	}
+
+	// add the container ID for templates in labels/annotations
+	ids = append(ids, docker.ContainerIDToEntityName(cid))
 
 	// add the image names (long then short if different)
 	long, short, _, err := docker.SplitImageName(image)
