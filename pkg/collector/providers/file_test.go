@@ -43,9 +43,6 @@ func TestGetCheckConfig(t *testing.T) {
 	assert.Nil(t, config.MetricConfig)
 
 	// autodiscovery
-	config, err = GetCheckConfigFromFile("foo", "tests/ad_legacy.yaml")
-	require.Nil(t, err)
-	assert.Equal(t, config.ADIdentifiers, []string{"foo", "bar"})
 	config, err = GetCheckConfigFromFile("foo", "tests/ad.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.ADIdentifiers, []string{"foo_id", "bar_id"})
@@ -82,7 +79,6 @@ func TestCollect(t *testing.T) {
 
 	// the regular configs
 	assert.Equal(t, 3, len(get("testcheck")))
-	assert.Equal(t, 1, len(get("ad_legacy")))
 	assert.Equal(t, 1, len(get("ad")))
 
 	// default configs must be picked up
@@ -108,7 +104,7 @@ func TestCollect(t *testing.T) {
 	assert.Equal(t, 0, len(get("metrics")))
 
 	// total number of configurations found
-	assert.Equal(t, 11, len(configs))
+	assert.Equal(t, 10, len(configs))
 
 	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml)
 	assert.Equal(t, 2, len(provider.Errors))

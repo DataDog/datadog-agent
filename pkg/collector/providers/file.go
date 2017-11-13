@@ -263,5 +263,8 @@ func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 		config.MetricConfig = rawMetricConfig
 	}
 
+	// Copy auto discovery identifiers
+	config.ADIdentifiers = cf.ADIdentifiers
+
 	return config, err
 }
