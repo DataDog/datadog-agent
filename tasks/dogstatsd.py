@@ -23,6 +23,7 @@ DOGSTATSD_TAG = "datadog/dogstatsd:master"
 DEFAULT_BUILD_TAGS = [
     "zlib",
     "docker",
+    "kubelet",
 ]
 
 
