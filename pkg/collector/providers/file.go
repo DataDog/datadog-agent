@@ -131,6 +131,7 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkNa
 	fileName := file.Name()
 	ext := filepath.Ext(fileName)
 	entry := configEntry{}
+	absPath := filepath.Join(path, fileName)
 
 	// skip config files that are not of type:
 	//  * check.yaml, check.yml
@@ -155,22 +156,22 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkNa
 	entry.name = checkName
 
 	if ext != ".yaml" && ext != ".yml" {
-		log.Debugf("Skipping file: %s", fileName)
+		log.Debugf("Skipping file: %s", absPath)
 		entry.err = errors.New("Invalid config file extension")
 		return entry
 	}
 
 	var err error
-	entry.conf, err = GetCheckConfigFromFile(checkName, filepath.Join(path, fileName))
+	entry.conf, err = GetCheckConfigFromFile(checkName, absPath)
 	if err != nil {
-		log.Warnf("%s is not a valid config file: %s", fileName, err)
+		log.Warnf("%s is not a valid config file: %s", absPath, err)
 		c.Errors[checkName] = err.Error()
 		entry.err = errors.New("Invalid config file format")
 		return entry
 	}
 
 	delete(c.Errors, checkName) // noop if entry is nonexistant
-	log.Debug("Found valid configuration in file:", fileName)
+	log.Debug("Found valid configuration in file:", absPath)
 	return entry
 }
 
@@ -180,19 +181,18 @@ func (c *FileConfigProvider) collectDir(parentPath string, folder os.FileInfo) c
 	defaultConfigs := []check.Config{}
 	metricConfigs := []check.Config{}
 	const dirExt string = ".d"
+	dirPath := filepath.Join(parentPath, folder.Name())
 
 	if filepath.Ext(folder.Name()) != dirExt {
 		// the name of this directory isn't in the form `checkname.d`, skip it
-		log.Debugf("Not a config folder, skipping directory: %s", folder.Name())
+		log.Debugf("Not a config folder, skipping directory: %s", dirPath)
 		return configPkg{configs, defaultConfigs, metricConfigs}
 	}
-
-	dirPath := filepath.Join(parentPath, folder.Name())
 
 	// search for yaml files within this directory
 	subEntries, err := ioutil.ReadDir(dirPath)
 	if err != nil {
-		log.Warnf("Skipping config directory: %s", err)
+		log.Warnf("Skipping config directory %s: %s", dirPath, err)
 		return configPkg{configs, defaultConfigs, metricConfigs}
 	}
 
