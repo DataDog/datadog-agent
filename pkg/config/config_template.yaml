@@ -254,3 +254,33 @@ metadata_collectors:
 # URL where the ECS agent can be found. Standard cases will be autodetected.
 # ecs_agent_url: http://localhost:51678
 {{ end -}}
+{{- if .ProcessAgent }}
+# Process agent specific settings
+#
+# process_config:
+#   enabled: true
+#   The full path to the file where process-agent logs will be written.
+#   log_file:
+#   The interval, in seconds, at which we will run each check. If you want consistent
+#   behavior between real-time you may set the Container/ProcessRT intervals to 10.
+#   Defaults to 10s for normal checks and 2s for others.
+#   intervals:
+#     container:
+#     container_realtime:
+#     process:
+#     process_realtime:
+#   A list of regex patterns that will exclude a process if matched.
+#   blacklist_patterns:
+#   How many check results to buffer in memory when POST fails. The default is usually fine.
+#   queue_size:
+#   The maximum number of file descriptors to open when collecting net connections.
+#   Only change if you are running out of file descriptors from the Agent.
+#   max_proc_fds:
+#   The maximum number of processes or containers per message.
+#   Only change if the defaults are causing issues.
+#   max_per_message:
+#   Overrides the path to the Agent bin used for getting the hostname. The default is usually fine.
+#   dd_agent_bin:
+#   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
+#   dd_agent_env:
+{{ end -}}

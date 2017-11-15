@@ -28,6 +28,7 @@ type context struct {
 	DockerTagging     bool
 	KubernetesTagging bool
 	ECS               bool
+	ProcessAgent      bool
 }
 
 func mkContext(buildType string) context {
@@ -47,6 +48,7 @@ func mkContext(buildType string) context {
 			DockerTagging:     true,
 			KubernetesTagging: true,
 			ECS:               true,
+			ProcessAgent:      true,
 		}
 	case "dogstatsd":
 		return context{
