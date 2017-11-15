@@ -64,7 +64,10 @@
     <MajorUpgrade
       AllowDowngrades="yes"
      />
-
+     <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
+     <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
+     <PropertyRef Id="WIX_ACCOUNT_USERS" />
+ 
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
@@ -74,7 +77,15 @@
         </Directory>
       </Directory>
       <Directory Id="CommonAppDataFolder" SourceName="CommonAppData">
-        <Directory Id="APPLICATIONDATADIRECTORY" Name="Datadog"/>
+        <Directory Id="APPLICATIONDATADIRECTORY" Name="Datadog">
+          <Component Id="conffolder" Guid="e540d2db-f443-4a98-bd72-7ab2654f4ffb">
+            <CreateFolder>
+              <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
+              <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
+              <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
+            </CreateFolder>
+          </Component>
+        </Directory>
       </Directory>
       <Directory Id="ProgramMenuFolder">
         <Directory Id="ApplicationProgramsFolder" Name="Datadog"/>
@@ -205,7 +216,7 @@
                  NeverOverwrite="yes"
                  Permanent="yes">
         <File Id="datadog.yaml.example"
-              Name="datadog.yaml.example"
+              Name="datadog.yaml"
               Source="$(var.EtcFiles)\datadog.yaml.example"/>
       </Component>
       <Component Id="trace_agent.conf"
@@ -231,7 +242,11 @@
                    Permanent="yes"
                    Location="either"
                    NeverOverwrite="yes">
-          <CreateFolder/>
+          <CreateFolder>
+              <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
+              <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
+              <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
+          </CreateFolder>
         </Component>
       </Directory>
 
@@ -248,6 +263,7 @@
 
     <!-- Set the components defined in our fragment files that will be used for our feature  -->
     <Feature Id="MainApplication" Title="Datadog Agent" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
+      <ComponentRef Id="conffolder" />
       <ComponentGroupRef Id="ProjectDir" />
       <ComponentRef Id="datadog.yaml.example" />
       <ComponentRef Id="trace_agent.conf" />
