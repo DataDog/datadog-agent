@@ -62,11 +62,8 @@ api_key:
 # Setting 'GUI_port: -1' turns off the GUI completely
 # GUI_port: -1
 
-# The path to the Unix Socket where the IPC api listens on *nix
-# cmd_sock: /tmp/agent.sock
-
-# The path of the Named Pipe the IPC api uses on Windows
-# cmd_pipe_name: \\.\pipe\ddagent
+# The port on which the IPC api listens
+# cmd_port: 5001
 
 # How many workers will be used to run the check (if not specified, is automatically
 # determined based on number of checks running)
