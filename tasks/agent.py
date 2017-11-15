@@ -78,8 +78,11 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
-
     ctx.run(cmd.format(**args), env=env)
+
+    cmd = "go generate {}/cmd/agent"
+    ctx.run(cmd.format(REPO_PATH), env=env)
+
     if not skip_assets:
         refresh_assets(ctx, development=development)
 
@@ -96,7 +99,7 @@ def refresh_assets(ctx, development=True):
     dist_folder = os.path.join(BIN_PATH, "dist")
     if os.path.exists(dist_folder):
         shutil.rmtree(dist_folder)
-    copy_tree("./pkg/collector/dist/", dist_folder)
+    copy_tree("./cmd/agent/dist/", dist_folder)
     copy_tree("./pkg/status/dist/", dist_folder)
     copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
     if development:

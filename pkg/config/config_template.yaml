@@ -1,3 +1,4 @@
+{{ if .Common }}
 # The host of the Datadog intake server to send Agent data to
 dd_url: https://app.datadoghq.com
 
@@ -24,6 +25,28 @@ api_key:
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 
+# Histogram and Historate configuration
+#
+# Configure which aggregated value to compute. Possible values are: min, max,
+# median, avg, sum and count.
+#
+# histogram_aggregates: ["max", "median", "avg", "count"]
+#
+# Configure which percentiles will be computed. Must be a list of float
+# between 0 and 1.
+# Warning: percentiles must be specified as yaml strings
+#
+# histogram_percentiles: ["0.95"]
+
+# Forwarder timeout in seconds
+# forwarder_timeout: 20
+
+# The forwarder retries failed requests. Use this setting to change the
+# maximum length of the forwarder's retry queue (each request in the queue
+# takes no more than 2MB in memory)
+# forwarder_retry_queue_max_size: 30
+{{ end }}
+{{- if .Agent }}
 # The path containing check configuration files
 # By default, uses the conf.d folder located in the agent configuration folder.
 # confd_path:
@@ -49,14 +72,6 @@ api_key:
 # determined based on number of checks running)
 # check_runners: 4
 
-# Forwarder timeout in seconds
-# forwarder_timeout: 20
-
-# The forwarder retries failed requests. Use this setting to change the
-# maximum length of the forwarder's retry queue (each request in the queue
-# takes no more than 2MB in memory)
-# forwarder_retry_queue_max_size: 30
-
 # Metadata collection should always be enabled, except if you are running several
 # agents/dsd instances per host. In that case, only one agent should have it on.
 # WARNING: disabling it on every agent will lead to display and billing issues
@@ -64,7 +79,8 @@ api_key:
 
 # Enable the gohai collection of systems data
 # enable_gohai: true
-
+{{ end -}}
+{{- if .Metadata }}
 # Metadata collectors, add or remove from the list to enable or disable collection.
 # Intervals are expressed in seconds.
 metadata_collectors:
@@ -72,20 +88,8 @@ metadata_collectors:
     interval: 60
 #  - name: k8s
 #    interval: 60
-
-# Histogram and Historate configuration
-#
-# Configure which aggregated value to compute. Possible values are: min, max,
-# median, avg, sum and count.
-#
-# histogram_aggregates: ["max", "median", "avg", "count"]
-#
-# Configure which percentiles will be computed. Must be a list of float
-# between 0 and 1.
-# Warning: percentiles must be specified as yaml strings
-#
-# histogram_percentiles: ["0.95"]
-
+{{ end -}}
+{{- if .Dogstatsd }}
 # DogStatsd
 #
 # If you don't want to enable the DogStatsd server, set this option to no
@@ -114,12 +118,17 @@ metadata_collectors:
 #
 # How many items in the dogstatsd's stats circular buffer
 # dogstatsd_stats_buffer: 10
-
+#
+# The port for the go_expvar server
+# dogstatsd_stats_port: 5000
+{{ end -}}
+{{- if .JMX }}
 # JMX
 #
 # jmx_pipe_path:
 # jmx_pipe_name: dd-auto_discovery
-
+{{ end -}}
+{{- if .Autoconfig }}
 # Autoconfig
 #
 # Directory containing configuration templates
@@ -154,12 +163,14 @@ metadata_collectors:
 #     template_url: 127.0.0.1
 #     username:
 #     password:
-
+{{ end -}}
+{{- if .Logging }}
 # Logging
 #
 # log_level: info
 # log_file: /var/log/datadog/agent.log
-
+{{ end -}}
+{{- if .Autodiscovery }}
 # Autodiscovery
 #
 # Change the root directory to look at to get cgroup statistics. Useful when running inside a
@@ -214,7 +225,8 @@ metadata_collectors:
 # about the docker daemon load.
 #
 # exclude_pause_container: true
-
+{{ end -}}
+{{- if .DockerTagging }}
 # Docker tag extraction
 #
 # We can extract container label or environment variables
@@ -232,13 +244,16 @@ metadata_collectors:
 #   com.docker.compose.service: service_name
 #   com.docker.compose.project: +project_name
 #
-
+{{ end -}}
+{{- if .KubernetesTagging }}
 # Kubernetes tag extraction
 #
 # kubernetes_pod_label_to_tag_prefix: "kube_"
 #
-
+{{ end -}}
+{{- if .ECS }}
 # ECS integration
 #
 # URL where the ECS agent can be found. Standard cases will be autodetected.
 # ecs_agent_url: http://localhost:51678
+{{ end -}}

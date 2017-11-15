@@ -20,13 +20,13 @@ import (
 func TestMain(m *testing.M) {
 	rootDir := "."
 	testsDir := "tests"
-	distDir := "../dist"
+	distDir := "../../../cmd/agent/dist"
 
 	// best effort for abs path
 	if _, fileName, _, ok := runtime.Caller(0); ok {
 		rootDir = filepath.Dir(fileName)
-		testsDir = filepath.Join(rootDir, "tests/")
-		distDir = filepath.Join(rootDir, "../dist/")
+		testsDir = filepath.Join(rootDir, testsDir)
+		distDir = filepath.Join(rootDir, distDir)
 	}
 	state := Initialize(rootDir, testsDir, distDir)
 

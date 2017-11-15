@@ -57,6 +57,9 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
 
     ctx.run(cmd.format(**args))
 
+    cmd = "go generate {}/cmd/dogstatsd"
+    ctx.run(cmd.format(REPO_PATH))
+
 
 @task
 def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
