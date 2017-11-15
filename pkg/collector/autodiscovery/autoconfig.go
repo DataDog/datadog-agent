@@ -159,7 +159,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 // Check instances. Should always be run once so providers that don't need
 // polling will be queried at least once
 func (ac *AutoConfig) LoadAndRun() {
-	resolvedConfigs := ac.getAllConfigs(true)
+	resolvedConfigs := ac.getAllConfigs()
 	checks := ac.getChecksFromConfigs(resolvedConfigs, true)
 	ac.schedule(checks)
 }
@@ -171,7 +171,7 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
 	checks := []check.Check{}
 
-	for _, check := range ac.getChecksFromConfigs(ac.getAllConfigs(true), false) {
+	for _, check := range ac.getChecksFromConfigs(ac.getAllConfigs(), false) {
 		if checkName == check.String() || titleCheck == check.String() {
 			checks = append(checks, check)
 		}
@@ -181,9 +181,9 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 }
 
 // getAllConfigs queries all the providers and returns all the check
-// configurations found, it can also return resolved AD configs.
-func (ac *AutoConfig) getAllConfigs(withResolve bool) []check.Config {
-	configs := []check.Config{}
+// configurations found, resolving the ones it can
+func (ac *AutoConfig) getAllConfigs() []check.Config {
+	rawConfigs := []check.Config{}
 	for _, pd := range ac.providers {
 		cfgs, _ := pd.provider.Collect()
 
@@ -205,20 +205,18 @@ func (ac *AutoConfig) getAllConfigs(withResolve bool) []check.Config {
 				errorStats.removeConfigError(cfg.Name)
 			}
 		}
-		if withResolve {
-			for _, config := range cfgs {
-				rc, err := ac.resolve(config)
-				if err != nil {
-					log.Error(err)
-				}
-				configs = append(configs, rc...)
-			}
-		} else {
-			configs = append(configs, cfgs...)
+		rawConfigs = append(rawConfigs, cfgs...)
+	}
+	resolvedConfigs := []check.Config{}
+	for _, config := range rawConfigs {
+		rc, err := ac.resolve(config)
+		if err != nil {
+			log.Error(err)
 		}
+		resolvedConfigs = append(resolvedConfigs, rc...)
 	}
 
-	return configs
+	return resolvedConfigs
 }
 
 // getChecksFromConfigs gets all the check instances for given configurations
