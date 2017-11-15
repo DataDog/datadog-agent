@@ -77,7 +77,7 @@ func (s KLL) Quantile(q float64) float64 {
 		return s.Min
 	} else if q == 1 {
 		return s.Max
-	} else if s.Count <= int64(1/EPSILON)+1 {
+	} else if s.Count < int64(1/EPSILON) {
 		return s.interpolatedQuantile(q)
 	}
 	rank := int(q * float64(s.Count-1))
@@ -177,10 +177,6 @@ func (s KLL) compress() KLL {
 			}
 			compacted := s.compact(h)
 
-			// compute the new size
-			//			s.Size -= len(s.Compactors[h])
-			//			s.Size += len(compacted)
-
 			s.Compactors[h+1] = append(s.Compactors[h+1], compacted...)
 			s.Compactors[h] = []float64{}
 
@@ -189,12 +185,8 @@ func (s KLL) compress() KLL {
 			for _, c := range s.Compactors {
 				s.Length += uint32(len(c))
 			}
-			// Here we break because we reduced the ksize by at least 1
+			// Here we return because we reduced the ksize by at least 1
 			return s
-			//break
-			// Removing this "break" will result in more eager
-			// compression which has the same theoretical guarantees
-			// but performs worse in practice
 		}
 	}
 	return s
