@@ -53,10 +53,19 @@ build do
   end
 
   if linux?
-    erb source: "upstart.conf.erb",
-        dest: "#{install_dir}/scripts/datadog-agent.conf",
-        mode: 0755,
-        vars: { install_dir: install_dir }
+    if debian?
+      erb source: "upstart_debian.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-agent.conf",
+          mode: 0755,
+          vars: { install_dir: install_dir }
+    elsif redhat?
+      # Ship a different upstart job definition on RHEL to accommodate the old
+      # version of upstart (0.6.5) that RHEL 6 provides.
+      erb source: "upstart_redhat.conf.erb",
+          dest: "#{install_dir}/scripts/datadog-agent.conf",
+          mode: 0755,
+          vars: { install_dir: install_dir }
+    end
 
     erb source: "systemd.service.erb",
         dest: "#{install_dir}/scripts/datadog-agent.service",
