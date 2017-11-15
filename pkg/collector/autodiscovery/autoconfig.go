@@ -206,16 +206,13 @@ func (ac *AutoConfig) getAllConfigs(withResolve bool) []check.Config {
 			}
 		}
 		if withResolve {
-			resolvedConfigs := []check.Config{}
 			for _, config := range cfgs {
 				rc, err := ac.resolve(config)
 				if err != nil {
 					log.Error(err)
 				}
-				resolvedConfigs = append(resolvedConfigs, rc...)
+				configs = append(configs, rc...)
 			}
-
-			configs = append(configs, resolvedConfigs...)
 		} else {
 			configs = append(configs, cfgs...)
 		}
