@@ -25,7 +25,6 @@ func SetupConfig(confFilePath string) error {
 		}
 	}
 	config.Datadog.AddConfigPath(DefaultConfPath)
-	config.Datadog.AddConfigPath(GetDistPath())
 
 	// load the configuration
 	err := config.Datadog.ReadInConfig()
