@@ -54,7 +54,7 @@ func (r *Retrier) RetryStatus() Status {
 	return r.status
 }
 
-// NextRetry allows users to know when the next retry can happend
+// NextRetry allows users to know when the next retry can happened
 func (r *Retrier) NextRetry() time.Time {
 	r.RLock()
 	defer r.RUnlock()
