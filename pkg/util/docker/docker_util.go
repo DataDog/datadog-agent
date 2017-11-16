@@ -235,8 +235,10 @@ func (d *dockerUtil) containers(cfg *ContainerListConfig) ([]*Container, error) 
 		containers, ok = cached.([]*Container)
 		if !ok {
 			log.Errorf("invalid cache format, forcing a cache miss")
+			hit = false
 		}
-	} else {
+	}
+	if !hit {
 		var cgByContainer map[string]*ContainerCgroup
 		var err error
 
