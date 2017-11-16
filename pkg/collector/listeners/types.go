@@ -31,7 +31,7 @@ type ServiceListener interface {
 	Stop()
 }
 
-// ServiceListenerFactory takes a configuration & builds a service listener
+// ServiceListenerFactory builds a service listener
 type ServiceListenerFactory func() (ServiceListener, error)
 
 // ServiceListenerFactories holds the registered factories
@@ -47,13 +47,4 @@ func Register(name string, factory ServiceListenerFactory) {
 		log.Errorf("Service listener factory %s already registered. Ignoring.", name)
 	}
 	ServiceListenerFactories[name] = factory
-}
-
-// DockerService implements and store results from the Service interface for the Docker listener
-type DockerService struct {
-	ID            ID
-	ADIdentifiers []string
-	Hosts         map[string]string
-	Ports         []int
-	Pid           int
 }

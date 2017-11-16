@@ -44,6 +44,15 @@ type DockerListener struct {
 	m          sync.RWMutex
 }
 
+// DockerService implements and store results from the Service interface for the Docker listener
+type DockerService struct {
+	ID            ID
+	ADIdentifiers []string
+	Hosts         map[string]string
+	Ports         []int
+	Pid           int
+}
+
 func init() {
 	Register("docker", NewDockerListener)
 }
