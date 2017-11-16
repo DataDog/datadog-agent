@@ -129,7 +129,9 @@ dependency 'datadog-agent'
 dependency 'datadog-agent-integrations'
 dependency 'jmxfetch'
 dependency 'datadog-trace-agent'
-unless windows?
+if windows?
+  dependency 'datadog-logs-agent-win'
+else
   dependency 'datadog-process-agent'
   dependency 'datadog-logs-agent'
 end
