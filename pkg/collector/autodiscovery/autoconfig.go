@@ -159,13 +159,9 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 // Check instances. Should always be run once so providers that don't need
 // polling will be queried at least once
 func (ac *AutoConfig) LoadAndRun() {
-	configs := ac.getAllConfigs()
-	for _, config := range configs {
-		err := ac.resolveAndRun(config)
-		if err != nil {
-			log.Error(err)
-		}
-	}
+	resolvedConfigs := ac.getAllConfigs()
+	checks := ac.getChecksFromConfigs(resolvedConfigs, true)
+	ac.schedule(checks)
 }
 
 // GetChecksByName returns any Check instance we can load for the given
@@ -175,7 +171,7 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
 	checks := []check.Check{}
 
-	for _, check := range ac.getAllChecks() {
+	for _, check := range ac.getChecksFromConfigs(ac.getAllConfigs(), false) {
 		if checkName == check.String() || titleCheck == check.String() {
 			checks = append(checks, check)
 		}
@@ -185,9 +181,9 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 }
 
 // getAllConfigs queries all the providers and returns all the check
-// configurations found.
+// configurations found, resolving the ones it can
 func (ac *AutoConfig) getAllConfigs() []check.Config {
-	configs := []check.Config{}
+	rawConfigs := []check.Config{}
 	for _, pd := range ac.providers {
 		cfgs, _ := pd.provider.Collect()
 
@@ -209,32 +205,60 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 				errorStats.removeConfigError(cfg.Name)
 			}
 		}
-
-		configs = append(configs, cfgs...)
+		rawConfigs = append(rawConfigs, cfgs...)
+	}
+	resolvedConfigs := []check.Config{}
+	for _, config := range rawConfigs {
+		rc, err := ac.resolve(config)
+		if err != nil {
+			log.Error(err)
+		}
+		resolvedConfigs = append(resolvedConfigs, rc...)
 	}
 
-	return configs
+	return resolvedConfigs
 }
 
-// getAllChecks gets all the check instances for any configurations found.
-func (ac *AutoConfig) getAllChecks() []check.Check {
-	all := []check.Check{}
-	configs := ac.getAllConfigs()
+// getChecksFromConfigs gets all the check instances for given configurations
+// optionally can populate ac cache config2checks
+func (ac *AutoConfig) getChecksFromConfigs(configs []check.Config, populateCache bool) []check.Check {
+	allChecks := []check.Check{}
 	for _, config := range configs {
+		configDigest := config.Digest()
 		checks, err := ac.GetChecks(config)
 		if err != nil {
 			continue
 		}
-
-		all = append(all, checks...)
+		for _, check := range checks {
+			allChecks = append(allChecks, check)
+			if populateCache {
+				// store the checks we schedule for this config locally
+				ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
+			}
+		}
 	}
 
-	return all
+	return allChecks
 }
 
-// resolveAndRun loads and resolves a given config and schedules the
-// corresponding Check instances.
-func (ac *AutoConfig) resolveAndRun(config check.Config) error {
+// schedule takes a slice of checks and schedule them
+func (ac *AutoConfig) schedule(checks []check.Check) {
+	for _, check := range checks {
+		log.Infof("Scheduling check %s", check)
+		_, err := ac.collector.RunCheck(check)
+		if err != nil {
+			log.Errorf("Unable to run Check %s: %v", check, err)
+			errorStats.setRunError(check.ID(), err.Error())
+			continue
+		}
+	}
+}
+
+// resolve loads and resolves a given config and can optionnaly schedules the
+// corresponding Check instances. Returns a slice of resolved configs
+func (ac *AutoConfig) resolve(config check.Config) ([]check.Config, error) {
+	configs := []check.Config{}
+
 	// add default metrics to collect to JMX checks
 	if config.CollectDefaultMetrics() {
 		metrics, ok := ac.name2jmxmetrics[config.Name]
@@ -255,49 +279,20 @@ func (ac *AutoConfig) resolveAndRun(config check.Config) error {
 		resolvedConfigs := ac.configResolver.ResolveTemplate(config)
 		if len(resolvedConfigs) == 0 {
 			log.Infof("Can't resolve the template for %s at this moment.", config.Name)
-			return nil
+			return configs, nil
 		}
 
 		// If success, get the checks for each config resolved
 		// and schedule for running, each template can resolve
 		// to multiple configs
 		for _, config := range resolvedConfigs {
-			// each config could resolve to multiple checks
-			checks, err := ac.GetChecks(config)
-			if err != nil {
-				log.Errorf("Unable to load check from template: %s", err)
-				continue
-			}
-			// ask the Collector to schedule the checks
-			ac.scheduleChecksFromConfig(checks, config)
+			configs = append(configs, config)
 		}
 	} else {
-		// the config is not a template, just schedule the checks for running
-		checks, err := ac.GetChecks(config)
-		if err != nil {
-			return log.Errorf("Unable to load check from template: %s", err)
-		}
-		// ask the Collector to schedule the checks
-		ac.scheduleChecksFromConfig(checks, config)
+		configs = append(configs, config)
 	}
 
-	return nil
-}
-
-func (ac *AutoConfig) scheduleChecksFromConfig(checks []check.Check, config check.Config) {
-	// store the checks we schedule for this config locally
-	configDigest := config.Digest()
-	ac.config2checks[configDigest] = []check.ID{}
-
-	for _, check := range checks {
-		_, err := ac.collector.RunCheck(check)
-		if err != nil {
-			log.Errorf("Unable to run Check %s: %v", check, err)
-			errorStats.setRunError(check.ID(), err.Error())
-			continue
-		}
-		ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
-	}
+	return configs, nil
 }
 
 // AddListener adds a service listener to AutoConfig.
@@ -353,10 +348,12 @@ func (ac *AutoConfig) pollConfigs() {
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
 						// store the checks we schedule for this config locally
-						err := ac.resolveAndRun(config)
+						resolvedConfigs, err := ac.resolve(config)
 						if err != nil {
 							log.Error(err)
 						}
+						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
+						ac.schedule(checks)
 					}
 
 					for _, config := range removedConfigs {
