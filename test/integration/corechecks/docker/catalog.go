@@ -6,13 +6,15 @@
 package docker
 
 type catalog struct {
-	composeFiles map[string]string
+	composeFiles []string
 }
 
-var defaultCatalog = catalog{
-	composeFiles: make(map[string]string),
+var defaultCatalog catalog
+
+func (c *catalog) append(filename string) {
+	c.composeFiles = append(c.composeFiles, filename)
 }
 
-func registerComposeFile(name string, filename string) {
-	defaultCatalog.composeFiles[name] = filename
+func registerComposeFile(filename string) {
+	defaultCatalog.append(filename)
 }

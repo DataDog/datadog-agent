@@ -26,10 +26,14 @@ var retryDelay = flag.Int("retry-delay", 1, "time to wait between retries (defau
 var retryTimeout = flag.Int("retry-timeout", 10, "maximum time before failure (default 10 seconds)")
 var skipCleanup = flag.Bool("skip-cleanup", false, "skip cleanup of the docker containers (for debugging)")
 
+// Must be repeated in the following dockerCfgString
+const instanceTag = "instanceTag:MustBeHere"
+
 var dockerCfgString = `
 collect_container_size: true
 tags:
-  - integration:test
+  - instanceTag:MustBeHere
+collect_exit_codes: true
 `
 
 var datadogCfgString = `
@@ -52,9 +56,7 @@ func TestMain(m *testing.M) {
 	var lastRunResult int
 	var retryCount int
 
-	registerComposeFile("redis container", "redis.compose")
-
-	err := setup(m)
+	err := setup()
 	if err != nil {
 		fmt.Printf("Test setup failed:\n%s\n", err.Error())
 		tearOffAndExit(1)
@@ -81,7 +83,7 @@ func TestMain(m *testing.M) {
 }
 
 // Called before for first test run: compose up
-func setup(m *testing.M) error {
+func setup() error {
 	if docker.NeedInit() {
 		docker.InitDockerUtil(&docker.Config{
 			CollectNetwork: true,
@@ -114,7 +116,7 @@ func setup(m *testing.M) error {
 	// Start compose recipes
 	for _, file := range defaultCatalog.composeFiles {
 		compose := &utils.ComposeConf{
-			ProjectName: "dockerchecktest",
+			ProjectName: strings.TrimSuffix(file, ".compose"),
 			FilePath:    fmt.Sprintf("testdata/%s", file),
 		}
 		output, err := compose.Start()

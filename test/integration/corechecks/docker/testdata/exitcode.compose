@@ -1,0 +1,14 @@
+version: '2'
+services:
+  exit0:
+    image: "redis:latest"
+    entrypoint: /bin/sh
+    command: "-c 'exit 0'"
+  exit1:
+    image: "redis:latest"
+    entrypoint: /bin/sh
+    command: "-c 'exit 1'"
+  exit54:
+    image: "redis:latest"
+    entrypoint: /bin/sh
+    command: "-c 'exit 54'"
