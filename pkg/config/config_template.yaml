@@ -258,7 +258,8 @@ metadata_collectors:
 # Process agent specific settings
 #
 # process_config:
-#   enabled: true
+#   Note: the Process Agent expects this to be a string
+#   enabled: "true"
 #   The full path to the file where process-agent logs will be written.
 #   log_file:
 #   The interval, in seconds, at which we will run each check. If you want consistent
