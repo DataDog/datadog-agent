@@ -72,11 +72,23 @@
       <Directory Id="CommonAppDataFolder" SourceName="CommonAppData">
         <Directory Id="APPLICATIONDATADIRECTORY" Name="Datadog">
           <Component Id="conffolder" Guid="e540d2db-f443-4a98-bd72-7ab2654f4ffb">
+            <util:User
+                CreateUser="yes"
+                FailIfExists="no"
+                LogonAsService="yes"
+                Id="ServiceInstaller"
+                Name="ddagentuser"
+                Password="r3@llyGoodW0rd"
+                RemoveOnUninstall="yes"
+                UpdateIfExists="yes"
+                />
             <CreateFolder>
-              <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
-              <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
-              <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
+                <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                <util:PermissionEx User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
+                <util:PermissionEx User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
+                <util:PermissionEx User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
             </CreateFolder>
+          
           </Component>
         </Directory>
       </Directory>
@@ -120,40 +132,64 @@
       <!-- Register variables that will be used by the agent at startup -->
       <Component Id="RegisterConfVariables" Guid="e2423815-704d-4f29-af3b-9baf23ef03d6">
         <RegistryKey Root="HKLM"
-                     Key="SOFTWARE\Datadog\Datadog Agent">
+                     Key="SOFTWARE\Datadog\Datadog Agent"
+                     ForceCreateOnInstall="yes"
+                     >
+          <util:PermissionEx User="ddagentuser"  GenericAll="yes"  ChangePermission="yes"/>
           <RegistryValue Name="api_key"
                          Type="string"
-                         Value="[APIKEY]"/>
+                         Value="[APIKEY]">
+            <util:PermissionEx User="ddagentuser"  GenericAll="yes"  ChangePermission="yes"/>
+          </RegistryValue>
           <RegistryValue Name="tags"
                          Type="string"
-                         Value="[TAGS]" />
+                         Value="[TAGS]" >
+            <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+          </RegistryValue>
           <RegistryValue Name="hostname"
                          Type="string"
-                         Value="[HOSTNAME]" />
+                         Value="[HOSTNAME]" >
+                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                       </RegistryValue>
            <RegistryValue Name="proxy_host"
                          Type="string"
-                         Value="[PROXY_HOST]" />
+                         Value="[PROXY_HOST]">
+                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                       </RegistryValue>
           <RegistryValue Name="proxy_port"
                          Type="string"
-                         Value="[PROXY_PORT]" />
+                         Value="[PROXY_PORT]" >
+                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                       </RegistryValue>
           <RegistryValue Name="proxy_user"
                          Type="string"
-                         Value="[PROXY_USER]" />
+                         Value="[PROXY_USER]">
+                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                       </RegistryValue>
           <RegistryValue Name="proxy_password"
                          Type="string"
-                         Value="[PROXY_PASSWORD]" />
+                         Value="[PROXY_PASSWORD]" >
+                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                       </RegistryValue>
           <RegistryValue Name="logs_enabled"
                          Type="string"
-                         Value="[LOGS_ENABLED]" />
+                         Value="[LOGS_ENABLED]">
+                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                       </RegistryValue>
           <RegistryValue Name="apm_enabled"
                          Type="string"
-                         Value="[APM_ENABLED]" />
+                         Value="[APM_ENABLED]" >
+                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                       </RegistryValue>
           <RegistryValue Name="process_enabled"
                          Type="string"
-                         Value="[PROCESS_ENABLED]" />
+                         Value="[PROCESS_ENABLED]">
+                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
           <RegistryValue Name="cmd_port"
                          Type="string"
-                         Value="[CMD_PORT]" />
+                         Value="[CMD_PORT]" >
+                         <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+                       </RegistryValue>
         </RegistryKey>
 
       </Component>
@@ -171,6 +207,7 @@
                 KeyPath="yes"
                 DiskId="1"
                 Source="$(var.BinFiles)/agent.exe"/>
+          
           <ServiceInstall Id="DatadogServiceInstaller"
                           DisplayName="!(loc.ServiceDisplayName)"
                           Description="!(loc.ServiceDescription)"
@@ -180,7 +217,8 @@
                           Type="ownProcess"
                           Vital="yes"
                           Interactive="no"
-                          Account="LocalSystem">
+                          Account=".\ddagentuser"
+                          Password="r3@llyGoodW0rd">
             <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
             <util:ServiceConfig
               FirstFailureActionType='restart'
@@ -203,6 +241,9 @@
                 SupportsErrors="yes"
                 SupportsInformationals="yes"
                 SupportsWarnings="yes"/>
+
+
+
         </Component>
       </Directory>
       <Directory Id="BIN" Name="bin">
@@ -347,9 +388,10 @@
                    Location="either"
                    NeverOverwrite="yes">
           <CreateFolder>
-              <Permission User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
-              <Permission User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
-              <Permission User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
+              <util:PermissionEx User="ddagentuser" GenericAll="yes"  ChangePermission="yes"/>
+              <util:PermissionEx User="[WIX_ACCOUNT_ADMINISTRATORS]" GenericAll="yes" ChangePermission="yes"/>
+              <util:PermissionEx User="[WIX_ACCOUNT_LOCALSYSTEM]" GenericAll="yes" ChangePermission="yes"/>
+              <util:PermissionEx User="[WIX_ACCOUNT_USERS]" GenericAll="no" ChangePermission="yes"/>
           </CreateFolder>
         </Component>
       </Directory>
