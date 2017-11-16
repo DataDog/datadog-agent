@@ -22,24 +22,22 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// TestWg is used for testing the number of check workers
-var TestWg sync.WaitGroup
-
-var defaultNumWorkers = 4
-var maxNumWorkers = 25
-
-const stopCheckTimeout time.Duration = 500 * time.Millisecond // Time to wait for a check to stop
-const stopAllChecksTimeout time.Duration = 2 * time.Second    // Time to wait for all checks to stop
-
-// checkStats holds the stats from the running checks
-type runnerCheckStats struct {
-	Stats map[check.ID]*check.Stats
-	M     sync.RWMutex
-}
+const (
+	// Time to wait for a check to stop
+	stopCheckTimeout time.Duration = 500 * time.Millisecond
+	// Time to wait for all checks to stop
+	stopAllChecksTimeout time.Duration = 2 * time.Second
+	// How long is the first series of check runs we want to log
+	firstRunSeries uint64 = 5
+)
 
 var (
-	runnerStats *expvar.Map
-	checkStats  *runnerCheckStats
+	// TestWg is used for testing the number of check workers
+	TestWg            sync.WaitGroup
+	defaultNumWorkers = 4
+	maxNumWorkers     = 25
+	runnerStats       *expvar.Map
+	checkStats        *runnerCheckStats
 )
 
 func init() {
@@ -48,6 +46,12 @@ func init() {
 	checkStats = &runnerCheckStats{
 		Stats: make(map[check.ID]*check.Stats),
 	}
+}
+
+// checkStats holds the stats from the running checks
+type runnerCheckStats struct {
+	Stats map[check.ID]*check.Stats
+	M     sync.RWMutex
 }
 
 // Runner ...
@@ -289,7 +293,7 @@ func (r *Runner) work() {
 		l := "Done running check %s"
 		if doLog {
 			if lastLog {
-				l = l + fmt.Sprintf(" first runs done, next runs will be logged every %v runs", config.Datadog.GetInt64("logging_frequency"))
+				l = l + fmt.Sprintf(", next runs will be logged every %v runs", config.Datadog.GetInt64("logging_frequency"))
 			}
 			log.Infof(l, check)
 		} else {
@@ -307,19 +311,17 @@ func shouldLog(id check.ID) (doLog bool, lastLog bool) {
 	loggingFrequency := uint64(config.Datadog.GetInt64("logging_frequency"))
 
 	s, found := checkStats.Stats[id]
-	if found {
-		if s.TotalRuns <= 5 {
-			doLog = true
-			if s.TotalRuns == 5 {
-				lastLog = true
-			}
-		} else if s.TotalRuns%loggingFrequency == 0 {
-			doLog = true
-		}
-	} else {
+	// this is the first time we see the check, log it
+	if !found {
 		doLog = true
+		lastLog = false
+		return
 	}
 
+	// we log the first firstRunSeries times, then every loggingFrequency times
+	doLog = s.TotalRuns <= firstRunSeries || s.TotalRuns%loggingFrequency == 0
+	// we print a special message when we change logging frequency
+	lastLog = s.TotalRuns == firstRunSeries
 	return
 }
 

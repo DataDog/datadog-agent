@@ -113,8 +113,8 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats m
 	// store execution times in Milliseconds
 	tms := t.Nanoseconds() / 1e6
 	cs.LastExecutionTime = tms
-	cs.ExecutionTimes[cs.TotalRuns] = tms
-	cs.TotalRuns = (cs.TotalRuns + 1) % 32
+	cs.ExecutionTimes[cs.TotalRuns%uint64(len(cs.ExecutionTimes))] = tms
+	cs.TotalRuns++
 	if err != nil {
 		cs.TotalErrors++
 		cs.LastError = err.Error()
