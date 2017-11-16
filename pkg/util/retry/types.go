@@ -17,7 +17,7 @@ const (
 	Idle
 	// OK means the object is available
 	OK
-	// FailWillRetry informs users the object is not avalable yet,
+	// FailWillRetry informs users the object is not available yet,
 	// but they should retry later
 	FailWillRetry
 	// PermaFail informs the user the object will not be available.

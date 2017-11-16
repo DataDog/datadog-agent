@@ -188,7 +188,7 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 		cfgs, _ := pd.provider.Collect()
 
 		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
-			// Grab any errors that occured when reading the YAML file
+			// Grab any errors that occurred when reading the YAML file
 			for name, e := range fileConfPd.Errors {
 				errorStats.setConfigError(name, e)
 			}
