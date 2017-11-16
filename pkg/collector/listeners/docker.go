@@ -44,9 +44,13 @@ type DockerListener struct {
 	m          sync.RWMutex
 }
 
+func init() {
+	Register("docker", NewDockerListener)
+}
+
 // NewDockerListener creates a client connection to Docker and instantiate a DockerListener with it
 // TODO: TLS support
-func NewDockerListener() (*DockerListener, error) {
+func NewDockerListener() (ServiceListener, error) {
 	c, err := docker.ConnectToDocker()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to connect to Docker, auto discovery will not work: %s", err)
