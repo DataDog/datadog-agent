@@ -24,7 +24,7 @@ func TestIsAffirmative(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, value)
 
-	value, err = isAffirmative("")
+	_, err = isAffirmative("")
 	assert.NotNil(t, err)
 
 	value, err = isAffirmative("ok")
