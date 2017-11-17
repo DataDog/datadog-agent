@@ -597,9 +597,9 @@ func containerIDFromCgroup(cgroup string) (string, bool) {
 	if len(sp) < 3 {
 		return "", false
 	}
-	match := containerRe.Find([]byte(sp[2]))
-	if match == nil {
+	matches := containerRe.FindAllString(sp[2], -1)
+	if matches == nil {
 		return "", false
 	}
-	return string(match), true
+	return matches[len(matches)-1], true
 }
