@@ -31,9 +31,9 @@ const instanceTag = "instanceTag:MustBeHere"
 
 var dockerCfgString = `
 collect_container_size: true
+collect_exit_codes: true
 tags:
   - instanceTag:MustBeHere
-collect_exit_codes: true
 `
 
 var datadogCfgString = `
@@ -103,16 +103,6 @@ func setup() error {
 		return err
 	}
 
-	// Setup docker check
-	var dockerCfg = []byte(dockerCfgString)
-	var dockerInitCfg = []byte("")
-	dockerCheck = containers.DockerFactory()
-	dockerCheck.Configure(dockerCfg, dockerInitCfg)
-
-	// Setup mock sender
-	sender = mocksender.NewMockSender(dockerCheck.ID())
-	sender.SetupAcceptAll()
-
 	// Start compose recipes
 	for _, file := range defaultCatalog.composeFiles {
 		compose := &utils.ComposeConf{
@@ -130,7 +120,16 @@ func setup() error {
 
 // Reset the state and trigger a new run
 func doRun(m *testing.M) int {
-	sender.ResetCalls()
+	// Setup docker check
+	var dockerCfg = []byte(dockerCfgString)
+	var dockerInitCfg = []byte("")
+	dockerCheck = containers.DockerFactory()
+	dockerCheck.Configure(dockerCfg, dockerInitCfg)
+
+	// Setup mock sender
+	sender = mocksender.NewMockSender(dockerCheck.ID())
+	sender.SetupAcceptAll()
+
 	dockerCheck.Run()
 	return m.Run()
 }

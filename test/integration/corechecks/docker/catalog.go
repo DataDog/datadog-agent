@@ -11,10 +11,10 @@ type catalog struct {
 
 var defaultCatalog catalog
 
-func (c *catalog) append(filename string) {
+func (c *catalog) addCompose(filename string) {
 	c.composeFiles = append(c.composeFiles, filename)
 }
 
 func registerComposeFile(filename string) {
-	defaultCatalog.append(filename)
+	defaultCatalog.addCompose(filename)
 }

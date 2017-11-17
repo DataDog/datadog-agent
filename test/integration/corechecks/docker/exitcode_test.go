@@ -15,22 +15,19 @@ func init() {
 	registerComposeFile("exitcode.compose")
 }
 
-type exitCodeAssertSucceed struct {
-	exit0  bool
-	exit1  bool
-	exit54 bool
-}
-
-var exitCodeAssertsState exitCodeAssertSucceed
-
 func TestContainerExit(t *testing.T) {
-	if exitCodeAssertsState.exit0 == false {
-		exitCodeAssertsState.exit0 = sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckOK, "", []string{instanceTag}, "Container exitcode_exit0_1 exited with 0")
+	expectedTags := []string{
+		instanceTag,
+		// TODO make it works with the following:
+		//"docker_image:busybox:latest",
+		//"image_name:busybox",
+		//"image_tag:latest",
+		//"highcardlabeltag:exithigh",
+		//"lowcardlabeltag:exitlow",
+		//"highcardenvtag:exithighenv",
+		//"lowcardenvtag:exitlowenv",
 	}
-	if !exitCodeAssertsState.exit1 == false {
-		exitCodeAssertsState.exit1 = sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckOK, "", []string{instanceTag}, "Container exitcode_exit1_1 exited with 1")
-	}
-	if !exitCodeAssertsState.exit54 == false {
-		exitCodeAssertsState.exit54 = sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckOK, "", []string{instanceTag}, "Container exitcode_exit54_1 exited with 54")
-	}
+	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckOK, "", expectedTags, "Container exitcode_exit0_1 exited with 0")
+	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckCritical, "", expectedTags, "Container exitcode_exit1_1 exited with 1")
+	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckCritical, "", expectedTags, "Container exitcode_exit54_1 exited with 54")
 }
