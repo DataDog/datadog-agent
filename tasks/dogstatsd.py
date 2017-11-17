@@ -213,7 +213,7 @@ def image_build(ctx, skip_build=False):
     if not os.path.exists(target):
         raise Exit(1)
 
-    copy2(target, "Dockerfiles/dogstatsd/alpine/dogstatsd")
+    shutil.copy2(target, "Dockerfiles/dogstatsd/alpine/dogstatsd")
     client.images.build(path="Dockerfiles/dogstatsd/alpine/", rm=True, tag=DOGSTATSD_TAG)
     ctx.run("rm Dockerfiles/dogstatsd/alpine/dogstatsd")
 
