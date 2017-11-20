@@ -56,8 +56,11 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
-
     ctx.run(cmd.format(**args))
+
+    cmd = "go generate {}/cmd/dogstatsd"
+    ctx.run(cmd.format(REPO_PATH))
+
     refresh_assets(ctx)
 
 
@@ -74,9 +77,6 @@ def refresh_assets(ctx):
     if os.path.exists(dist_folder):
         shutil.rmtree(dist_folder)
     copy_tree("./cmd/dogstatsd/dist/", dist_folder)
-
-    cmd = "go generate {}/cmd/dogstatsd"
-    ctx.run(cmd.format(REPO_PATH))
 
 
 @task

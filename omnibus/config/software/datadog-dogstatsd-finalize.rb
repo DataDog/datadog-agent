@@ -20,9 +20,9 @@ build do
         mkdir conf_dir
         move "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example", conf_dir_root, :force=>true
     else
-        # Move checks and configuration files
+        # Move configuration files
         mkdir "/etc/datadog-dogstatsd"
-        move "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example", "/etc/datadog-dogstatsd/dogstatsd.conf"
+        move "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example", "/etc/datadog-dogstatsd"
 
         # Move system service files
         mkdir "/etc/init"
@@ -32,7 +32,6 @@ build do
 
         # cleanup clutter
         delete "#{install_dir}/etc" if !osx?
-        delete "#{install_dir}/bin/dogstatsd/dist/*.conf"
-        delete "#{install_dir}/bin/dogstatsd/dist/*.yaml"
+        delete "#{install_dir}/bin/dogstatsd/dist"
     end
 end
