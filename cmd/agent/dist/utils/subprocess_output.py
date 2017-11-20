@@ -10,6 +10,8 @@
 from functools import wraps
 import logging
 import tempfile
+import os
+import sys
 
 if os.name == 'posix' and sys.version_info[0] < 3:
     try:

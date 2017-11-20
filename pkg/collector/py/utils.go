@@ -39,6 +39,26 @@ type stickyLock struct {
 	locked uint32 // Flag set to 1 if the lock is locked, 0 otherwise
 }
 
+//PythonStatsEntry are entries for specific object type memory usage
+type PythonStatsEntry struct {
+	Reference string
+	NObjects  int
+	Size      int
+}
+
+//PythonStats contains python memory statistics
+type PythonStats struct {
+	Type     string
+	NObjects int
+	Size     int
+	Entries  []*PythonStatsEntry
+}
+
+const (
+	pyMemModule      = "utils.py_mem"
+	pyMemSummaryFunc = "get_mem_stats"
+)
+
 // newStickyLock register the current thread with the interpreter and locks
 // the GIL. It also sticks the goroutine to the current thread so that a
 // subsequent call to `Unlock` will unregister the very same thread.
@@ -180,4 +200,142 @@ func getModuleName(modulePath string) string {
 	toks := strings.Split(modulePath, ".")
 	// no need to check toks length, worst case it contains only an empty string
 	return toks[len(toks)-1]
+}
+
+func decAllRefs(refs []*python.PyObject) {
+	for _, ref := range refs {
+		ref.DecRef()
+	}
+}
+
+// GetPythonInterpreterMemoryUsage collects python interpreter memory usage
+func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
+	glock := newStickyLock()
+	defer glock.unlock()
+
+	activeRefs := []*python.PyObject{}
+	defer decAllRefs(activeRefs)
+
+	memStatModule := python.PyImport_ImportModule(pyMemModule)
+	if memStatModule == nil {
+		return nil, fmt.Errorf("Unable to import Python module: %s", pyMemModule)
+	}
+	activeRefs = append(activeRefs, memStatModule)
+
+	statter := memStatModule.GetAttrString(pyMemSummaryFunc)
+	if statter == nil {
+		pyErr, err := glock.getPythonError()
+
+		if err != nil {
+			return nil, fmt.Errorf("An error occurred while grabbing the python memory statter: %v", err)
+		}
+		return nil, errors.New(pyErr)
+	}
+	activeRefs = append(activeRefs, statter)
+
+	args := python.PyTuple_New(0)
+	kwargs := python.PyDict_New()
+	activeRefs = append(activeRefs, args)
+	activeRefs = append(activeRefs, kwargs)
+
+	stats := statter.Call(args, kwargs)
+	if stats == nil {
+		pyErr, err := glock.getPythonError()
+
+		if err != nil {
+			return nil, fmt.Errorf("An error occurred collecting python memory stats: %v", err)
+		}
+		return nil, errors.New(pyErr)
+	}
+	activeRefs = append(activeRefs, stats)
+
+	keys := python.PyDict_Keys(stats)
+	if keys == nil {
+		pyErr, err := glock.getPythonError()
+
+		if err != nil {
+			return nil, fmt.Errorf("An error occurred collecting python memory stats: %v", err)
+		}
+		return nil, errors.New(pyErr)
+	}
+	activeRefs = append(activeRefs, keys)
+
+	myPythonStats := []*PythonStats{}
+	var entry *python.PyObject
+	for i := 0; i < python.PyList_GET_SIZE(keys); i++ {
+		entryName := python.PyString_AsString(python.PyList_GET_ITEM(keys, i))
+		entry = python.PyDict_GetItemString(stats, entryName)
+		if entry == nil {
+			// key surprisingly unavailable...
+			continue
+		}
+		activeRefs = append(activeRefs, entry)
+
+		n := python.PyDict_GetItemString(entry, "n")
+		if n == nil {
+			// key surprisingly unavailable...
+			continue
+		}
+		activeRefs = append(activeRefs, n)
+
+		sz := python.PyDict_GetItemString(entry, "sz")
+		if sz == nil {
+			// key surprisingly unavailable...
+			continue
+		}
+		activeRefs = append(activeRefs, sz)
+
+		pyStat := &PythonStats{
+			Type:     entryName,
+			NObjects: python.PyInt_AsLong(n),
+			Size:     python.PyInt_AsLong(sz),
+			Entries:  []*PythonStatsEntry{},
+		}
+
+		entries := python.PyDict_GetItemString(entry, "entries")
+		if entries == nil {
+			continue
+		}
+		activeRefs = append(activeRefs, entries)
+
+		for i := 0; i < python.PyList_GET_SIZE(entries); i++ {
+			ref := python.PyList_GetItem(entries, i)
+			if ref == nil {
+				// key surprisingly unavailable...
+				continue
+			}
+
+			obj := python.PyList_GetItem(ref, 0)
+			if obj == nil {
+				// key surprisingly unavailable...
+				continue
+			}
+			activeRefs = append(activeRefs, obj)
+
+			nEntry := python.PyList_GetItem(ref, 1)
+			if nEntry == nil {
+				// key surprisingly unavailable...
+				continue
+			}
+			activeRefs = append(activeRefs, nEntry)
+
+			szEntry := python.PyList_GetItem(ref, 2)
+			if szEntry == nil {
+				// key surprisingly unavailable...
+				continue
+			}
+			activeRefs = append(activeRefs, szEntry)
+
+			pyEntry := &PythonStatsEntry{
+				Reference: python.PyString_AsString(obj),
+				NObjects:  python.PyInt_AsLong(nEntry),
+				Size:      python.PyInt_AsLong(szEntry),
+			}
+			pyStat.Entries = append(pyStat.Entries, pyEntry)
+		}
+
+		myPythonStats = append(myPythonStats, pyStat)
+	}
+
+	return myPythonStats, nil
 }
