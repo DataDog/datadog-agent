@@ -39,9 +39,25 @@ type PodOwner struct {
 
 // Spec contains fields for unmarshalling a Pod.Spec
 type Spec struct {
-	HostNetwork bool   `json:"hostNetwork,omitempty"`
-	Hostname    string `json:"hostname,omitempty"` // TODO: does it exist?
-	NodeName    string `json:"nodeName,omitempty"`
+	HostNetwork bool            `json:"hostNetwork,omitempty"`
+	Hostname    string          `json:"hostname,omitempty"` // TODO: does it exist?
+	NodeName    string          `json:"nodeName,omitempty"`
+	Containers  []ContainerSpec `json:"containers,omitempty"`
+}
+
+// ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers
+type ContainerSpec struct {
+	Name  string              `json:"name"`
+	Image string              `json:"image,omitempty"`
+	Ports []ContainerPortSpec `json:"ports,omitempty"`
+}
+
+// ContainerSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports
+type ContainerPortSpec struct {
+	ContainerPort int    `json:"containerPort"`
+	HostPort      int    `json:"hostPort"`
+	Name          string `json:"name"`
+	Protocol      string `json:"protocol"`
 }
 
 // Status contains fields for unmarshalling a Pod.Status

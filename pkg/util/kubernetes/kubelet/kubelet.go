@@ -52,6 +52,7 @@ func GetKubeUtil() (*KubeUtil, error) {
 	}
 	err := globalKubeUtil.TriggerRetry()
 	if err != nil {
+		log.Debugf("init error: %s", err)
 		return nil, err
 	}
 	return globalKubeUtil, nil
@@ -61,6 +62,7 @@ func (ku *KubeUtil) locateKubelet() error {
 	url, err := locateKubelet()
 	if err == nil {
 		ku.kubeletAPIURL = url
+		return nil
 	}
 	return err
 }
