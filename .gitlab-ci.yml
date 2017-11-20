@@ -179,6 +179,7 @@ agent_rpm-x64:
 # build windows
 build_windows_msi_x64:
   before_script:
+    - if exist .omnibus rd /s/q .omnibus
     - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
     - mkdir %GOPATH%\src\github.com\DataDog\datadog-agent
     - xcopy /q/h/e/s * %GOPATH%\src\github.com\DataDog\datadog-agent
