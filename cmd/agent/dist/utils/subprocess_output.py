@@ -22,15 +22,6 @@ else:
     import subprocess
 
 
-if os.name == 'posix' and sys.version_info[0] < 3:
-    try:
-        import subprocess32 as subprocess
-    except ImportError:
-        import subprocess
-else:
-    import subprocess
-
-
 log = logging.getLogger(__name__)
 
 

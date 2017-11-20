@@ -141,6 +141,8 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	switch component {
 	case "jmx":
 		setJMXStatus(w, r)
+	case "py":
+		setPythonStatus(w, r)
 	default:
 		err := fmt.Errorf("bad url or resource does not exist")
 		log.Errorf("%s", err.Error())
