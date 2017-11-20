@@ -4,6 +4,12 @@ version: 2
 # see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
 # and https://learnxinyminutes.com/docs/yaml/
 
+experimental:
+  notify:
+    branches:
+      only:
+        - master
+
 templates:
   job_template: &job_template
     docker:
