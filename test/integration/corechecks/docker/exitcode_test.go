@@ -40,5 +40,4 @@ func TestContainerExit(t *testing.T) {
 	for _, check := range []metrics.ServiceCheckStatus{metrics.ServiceCheckOK, metrics.ServiceCheckWarning, metrics.ServiceCheckUnknown} {
 		sender.AssertServiceCheckNotCalled(t, "docker.exit", check, "", expectedTags, "Container exitcode_exit1_1 exited with 1")
 	}
-
 }

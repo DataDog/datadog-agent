@@ -8,16 +8,10 @@ package docker
 import (
 	"fmt"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func init() {
 	registerComposeFile("basemetrics.compose")
-}
-
-func TestServiceCheckOK(t *testing.T) {
-	sender.AssertServiceCheck(t, "docker.service_up", metrics.ServiceCheckOK, "", []string{instanceTag}, "")
 }
 
 func TestContainerMetricsTagging(t *testing.T) {
