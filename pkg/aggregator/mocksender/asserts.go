@@ -6,6 +6,7 @@
 package mocksender
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -13,10 +14,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+var allServiceCheckStatus = []metrics.ServiceCheckStatus{metrics.ServiceCheckOK, metrics.ServiceCheckWarning, metrics.ServiceCheckCritical, metrics.ServiceCheckUnknown}
+
 // AssertServiceCheck allows to assert a ServiceCheck was emitted with given parameters.
 // Additional tags over the ones specified don't make it fail
 func (m *MockSender) AssertServiceCheck(t *testing.T, checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) bool {
 	return m.Mock.AssertCalled(t, "ServiceCheck", checkName, status, hostname, AssertTagsContains(t, tags), message)
+}
+
+// From the tags array, create a new array containing only the container name
+// Return an empty array if the container name wasn't in the tags array
+func createArrayWithContainerNameOnly(tags []string) []string {
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, "container_name:") {
+			return []string{tag}
+		}
+	}
+	return []string{}
+}
+
+// AssertServiceCheckExclusive allows to assert a SINGLE ServiceCheck was emitted with given parameters.
+// Additional tags over the ones specified don't make it fail
+func (m *MockSender) AssertServiceCheckExclusive(t *testing.T, checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) bool {
+	containerNameInArray := createArrayWithContainerNameOnly(tags)
+	okCall := m.Mock.AssertCalled(t, "ServiceCheck", checkName, status, hostname, AssertTagsContains(t, tags), message)
+	for _, availableStatus := range allServiceCheckStatus {
+		if status != availableStatus && !m.Mock.AssertNotCalled(t, "ServiceCheck", checkName, availableStatus, mock.AnythingOfType("string"), containerNameInArray, mock.AnythingOfType("string")) {
+			return false
+		}
+	}
+	return okCall
 }
 
 // AssertServiceCheckNotCalled allows to assert a ServiceCheck was NOT emitted with given parameters.
@@ -49,7 +76,7 @@ func (m *MockSender) AssertMetricNotTaggedWith(t *testing.T, method string, metr
 }
 
 // Return a bool value if all the elt of expected are inside the actual array
-func expectedInActual(actual, expected []string) bool {
+func expectedInActual(expected, actual []string) bool {
 	expectedCount := 0
 	for _, e := range expected {
 		for _, a := range actual {
@@ -66,7 +93,7 @@ func expectedInActual(actual, expected []string) bool {
 // It allows to check if tags are emitted, ignoring unexpected ones and order.
 func AssertTagsContains(t *testing.T, expected []string) interface{} {
 	return mock.MatchedBy(func(actual []string) bool {
-		return expectedInActual(actual, expected)
+		return expectedInActual(expected, actual)
 	})
 }
 
@@ -74,7 +101,7 @@ func AssertTagsContains(t *testing.T, expected []string) interface{} {
 // It allows to check if tags are NOT emitted.
 func AssertTagsNotContains(t *testing.T, expected []string) interface{} {
 	return mock.MatchedBy(func(actual []string) bool {
-		return !expectedInActual(actual, expected)
+		return !expectedInActual(expected, actual)
 	})
 }
 

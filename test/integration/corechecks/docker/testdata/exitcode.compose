@@ -4,7 +4,7 @@
 
 version: '2'
 services:
-  exit0:
+  exit0: &exit_base
     image: "busybox:latest"
     entrypoint: /bin/sh
     command: "-c 'exit 0'"
@@ -15,22 +15,8 @@ services:
         LOW_CARD_ENV: &lowcardenv "exitlowenv"
         HIGH_CARD_ENV: &highcardenv "exithighenv"
   exit1:
-    image: "busybox:latest"
-    entrypoint: /bin/sh
+    <<: *exit_base
     command: "-c 'exit 1'"
-    labels:
-        low.card.label: *lowcardlabel
-        high.card.label: *highcardlabel
-    environment:
-        LOW_CARD_ENV: *lowcardenv
-        HIGH_CARD_ENV: *highcardenv
   exit54:
-    image: "busybox:latest"
-    entrypoint: /bin/sh
+    <<: *exit_base
     command: "-c 'exit 54'"
-    labels:
-        low.card.label: *lowcardlabel
-        high.card.label: *highcardlabel
-    environment:
-        LOW_CARD_ENV: *lowcardenv
-        HIGH_CARD_ENV: *highcardenv

@@ -143,7 +143,7 @@ func tearOffAndExit(exitcode int) {
 	// Stop compose recipes, ignore errors
 	for _, file := range defaultCatalog.composeFiles {
 		compose := &utils.ComposeConf{
-			ProjectName: "dockerchecktest",
+			ProjectName: strings.TrimSuffix(file, ".compose"),
 			FilePath:    fmt.Sprintf("testdata/%s", file),
 		}
 		output, err := compose.Stop()

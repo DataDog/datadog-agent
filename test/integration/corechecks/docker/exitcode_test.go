@@ -26,18 +26,7 @@ func TestContainerExit(t *testing.T) {
 		"highcardenvtag:exithighenv",
 		"lowcardenvtag:exitlowenv",
 	}
-	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckOK, "", expectedTags, "Container exitcode_exit0_1 exited with 0")
-	for _, check := range []metrics.ServiceCheckStatus{metrics.ServiceCheckWarning, metrics.ServiceCheckCritical, metrics.ServiceCheckUnknown} {
-		sender.AssertServiceCheckNotCalled(t, "docker.exit", check, "", expectedTags, "Container exitcode_exit0_1 exited with 0")
-	}
-
-	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckCritical, "", expectedTags, "Container exitcode_exit1_1 exited with 1")
-	for _, check := range []metrics.ServiceCheckStatus{metrics.ServiceCheckOK, metrics.ServiceCheckWarning, metrics.ServiceCheckUnknown} {
-		sender.AssertServiceCheckNotCalled(t, "docker.exit", check, "", expectedTags, "Container exitcode_exit1_1 exited with 1")
-	}
-
-	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckCritical, "", expectedTags, "Container exitcode_exit54_1 exited with 54")
-	for _, check := range []metrics.ServiceCheckStatus{metrics.ServiceCheckOK, metrics.ServiceCheckWarning, metrics.ServiceCheckUnknown} {
-		sender.AssertServiceCheckNotCalled(t, "docker.exit", check, "", expectedTags, "Container exitcode_exit1_1 exited with 1")
-	}
+	sender.AssertServiceCheckExclusive(t, "docker.exit", metrics.ServiceCheckOK, "", append(expectedTags, "container_name:exitcode_exit0_1"), "Container exitcode_exit0_1 exited with 0")
+	sender.AssertServiceCheckExclusive(t, "docker.exit", metrics.ServiceCheckCritical, "", append(expectedTags, "container_name:exitcode_exit1_1"), "Container exitcode_exit1_1 exited with 1")
+	sender.AssertServiceCheckExclusive(t, "docker.exit", metrics.ServiceCheckCritical, "", append(expectedTags, "container_name:exitcode_exit54_1"), "Container exitcode_exit54_1 exited with 54")
 }
