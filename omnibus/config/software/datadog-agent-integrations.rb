@@ -89,6 +89,7 @@ build do
 
     # Manually add "core" dependencies that are not listed in the checks requirements
     all_reqs_file.puts "requests==2.11.1"
+    all_reqs_file.puts "subprocess32==3.2.7" if os != 'windows'
 
     all_reqs_file.close
   end
