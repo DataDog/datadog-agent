@@ -25,6 +25,7 @@ type Meta struct {
 	EC2Hostname    string   `json:"ec2-hostname"`
 	Hostname       string   `json:"hostname"`
 	HostAliases    []string `json:"host_aliases"`
+	InstanceId     string   `json:"instance-id"`
 }
 
 type tags struct {

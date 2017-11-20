@@ -200,6 +200,7 @@ func getMeta() *Meta {
 	hostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname()
+	instanceId, _ := ec2.GetInstanceID()
 
 	m := &Meta{
 		SocketHostname: hostname,
@@ -207,6 +208,7 @@ func getMeta() *Meta {
 		SocketFqdn:     util.Fqdn(hostname),
 		EC2Hostname:    ec2Hostname,
 		HostAliases:    getHostAliases(),
+		InstanceId:     instanceId,
 	}
 
 	// Cache the metadata for use in other payload
