@@ -18,16 +18,27 @@ func init() {
 func TestContainerExit(t *testing.T) {
 	expectedTags := []string{
 		instanceTag,
-		// TODO make it works with the following:
-		//"docker_image:busybox:latest",
-		//"image_name:busybox",
-		//"image_tag:latest",
-		//"highcardlabeltag:exithigh",
-		//"lowcardlabeltag:exitlow",
-		//"highcardenvtag:exithighenv",
-		//"lowcardenvtag:exitlowenv",
+		"docker_image:busybox:latest",
+		"image_name:busybox",
+		"image_tag:latest",
+		"highcardlabeltag:exithigh",
+		"lowcardlabeltag:exitlow",
+		"highcardenvtag:exithighenv",
+		"lowcardenvtag:exitlowenv",
 	}
 	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckOK, "", expectedTags, "Container exitcode_exit0_1 exited with 0")
+	for _, check := range []metrics.ServiceCheckStatus{metrics.ServiceCheckWarning, metrics.ServiceCheckCritical, metrics.ServiceCheckUnknown} {
+		sender.AssertServiceCheckNotCalled(t, "docker.exit", check, "", expectedTags, "Container exitcode_exit0_1 exited with 0")
+	}
+
 	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckCritical, "", expectedTags, "Container exitcode_exit1_1 exited with 1")
+	for _, check := range []metrics.ServiceCheckStatus{metrics.ServiceCheckOK, metrics.ServiceCheckWarning, metrics.ServiceCheckUnknown} {
+		sender.AssertServiceCheckNotCalled(t, "docker.exit", check, "", expectedTags, "Container exitcode_exit1_1 exited with 1")
+	}
+
 	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckCritical, "", expectedTags, "Container exitcode_exit54_1 exited with 54")
+	for _, check := range []metrics.ServiceCheckStatus{metrics.ServiceCheckOK, metrics.ServiceCheckWarning, metrics.ServiceCheckUnknown} {
+		sender.AssertServiceCheckNotCalled(t, "docker.exit", check, "", expectedTags, "Container exitcode_exit1_1 exited with 1")
+	}
+
 }
