@@ -14,6 +14,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
+
 	log "github.com/cihub/seelog"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
@@ -41,6 +43,17 @@ func StopGUIServer() {
 	}
 }
 
+// LaunchGui authenticates that the user can read from datadog.yaml, creates the
+// authentication token, and then starts the gui
+func LaunchGui() error {
+
+	guiPort := config.Datadog.GetString("GUI_port")
+	if guiPort == "-1" {
+		log.Warnf("GUI not enabled")
+		return fmt.Errorf("GUI not enabled")
+	}
+	return open("http://127.0.0.1:" + guiPort)
+}
 // StartGUI creates the router, starts the HTTP server and opens the GUI in a browser
 func StartGUI(port string) error {
 	// Instantiate the gorilla/mux router
