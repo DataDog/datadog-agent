@@ -27,8 +27,8 @@ type KubeletConfigProvider struct {
 }
 
 // NewKubeletConfigProvider returns a new ConfigProvider connected to kubelet.
-func NewKubeletConfigProvider() (ConfigProvider, error) {
-	return &KubeletConfigProvider{}, nil
+func NewKubeletConfigProvider() ConfigProvider {
+	return &KubeletConfigProvider{}
 }
 
 func (k *KubeletConfigProvider) String() string {
@@ -84,5 +84,6 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]check.Config, error) {
 			}
 		}
 	}
+	log.Warnf("Collected templates: %s", configs)
 	return configs, nil
 }
