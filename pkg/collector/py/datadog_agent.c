@@ -3,6 +3,7 @@
 PyObject* GetVersion(PyObject *self, PyObject *args);
 PyObject* Headers(PyObject *self, PyObject *args);
 PyObject* GetHostname(PyObject *self, PyObject *args);
+PyObject* GetSubprocessOutput(PyObject *self, PyObject *args);
 PyObject* LogMessage(char *message, int logLevel);
 PyObject* GetConfig(char *key);
 
@@ -53,6 +54,7 @@ static PyMethodDef datadogAgentMethods[] = {
  */
 static PyMethodDef utilMethods[] = {
   {"headers", (PyCFunction)Headers, METH_VARARGS, "Get basic HTTP headers with the right UserAgent."},
+  {"get_subprocess_output", (PyCFunction)GetSubprocessOutput, METH_VARARGS, "Run subprocess and return its output."},
   {NULL, NULL}
 };
 

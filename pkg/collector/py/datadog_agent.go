@@ -6,6 +6,7 @@
 package py
 
 import (
+	"os/exec"
 	"unsafe"
 
 	log "github.com/cihub/seelog"
@@ -109,6 +110,47 @@ func LogMessage(message *C.char, logLevel C.int) *C.PyObject {
 	}
 
 	return C._none()
+}
+
+// GetSubprocessOutput runs the subprocess and returns the output
+func GetSubprocessOutput(self *C.PyObject, args *C.PyObject) *C.PyObject {
+	// args is a borrowed ref (right?)
+	subprocessArgs := []string{}
+	if !PyList_Check(args) {
+		log.Warnf("provided args are not a list")
+		return nil
+	}
+
+	subprocessCommand = C.PyString_AsString(C.PyList_GET_ITEM(args, 0))
+	for i := 0; i < C.PyList_GET_SIZE(args); i++ {
+		arg := C.PyString_AsString(C.PyList_GET_ITEM(args, i))
+		if arg == nil {
+			log.Errorf("error retrieving argument")
+			return nil
+		}
+		defer C.Py_DecRef(arg)
+		subprocessArgs = append(subprocessArgs, arg)
+	}
+
+	cmd := exec.Command(subprocessCommand, subprocessArgs...)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	cmd.Start()
+
+	hostname, err := util.GetHostname()
+	if err != nil {
+		log.Warnf("Error getting hostname: %s\n", err)
+		hostname = ""
+	}
+
+	cStr := C.CString(hostname)
+	pyStr := C.PyString_FromString(cStr)
+	C.free(unsafe.Pointer(cStr))
+	return pyStr
 }
 
 func initDatadogAgent() {
