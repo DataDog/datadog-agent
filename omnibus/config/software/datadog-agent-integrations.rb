@@ -13,7 +13,7 @@ relative_path 'integrations-core'
 whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
-default_version '5.19.0'
+default_version 'master'
 
 blacklist = [
   'agent_metrics',
