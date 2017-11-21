@@ -104,10 +104,10 @@ func setup() error {
 	}
 
 	// Start compose recipes
-	for _, file := range defaultCatalog.composeFiles {
+	for projectName, file := range defaultCatalog.composeFilesByProjects {
 		compose := &utils.ComposeConf{
-			ProjectName: strings.TrimSuffix(file, ".compose"),
-			FilePath:    fmt.Sprintf("testdata/%s", file),
+			ProjectName: projectName,
+			FilePath:    file,
 		}
 		output, err := compose.Start()
 		if err != nil {
@@ -141,10 +141,10 @@ func tearOffAndExit(exitcode int) {
 	}
 
 	// Stop compose recipes, ignore errors
-	for _, file := range defaultCatalog.composeFiles {
+	for projectName, file := range defaultCatalog.composeFilesByProjects {
 		compose := &utils.ComposeConf{
-			ProjectName: strings.TrimSuffix(file, ".compose"),
-			FilePath:    fmt.Sprintf("testdata/%s", file),
+			ProjectName: projectName,
+			FilePath:    file,
 		}
 		output, err := compose.Stop()
 		if err != nil {

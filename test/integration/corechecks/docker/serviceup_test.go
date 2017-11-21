@@ -17,7 +17,4 @@ func TestServiceUp(t *testing.T) {
 	}
 
 	sender.AssertServiceCheck(t, "docker.service_up", metrics.ServiceCheckOK, "", expectedTags, "")
-	for _, check := range []metrics.ServiceCheckStatus{metrics.ServiceCheckWarning, metrics.ServiceCheckCritical, metrics.ServiceCheckUnknown} {
-		sender.AssertServiceCheckNotCalled(t, "docker.service_up", check, "", expectedTags, "")
-	}
 }
