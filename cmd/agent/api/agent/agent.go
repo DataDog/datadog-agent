@@ -35,6 +35,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
+	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 }
@@ -73,7 +74,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func setPythonStatus(w http.ResponseWriter, r *http.Request) {
+func getPythonStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	pyStats, err := py.GetPythonInterpreterMemoryUsage()
 	if err != nil {
@@ -121,14 +122,25 @@ func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func componentStatusGetterHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	component := vars["component"]
+	switch component {
+	case "py":
+		getPythonStatus(w, r)
+	default:
+		err := fmt.Errorf("bad url or resource does not exist")
+		log.Errorf("%s", err.Error())
+		http.Error(w, err.Error(), 404)
+	}
+}
+
 func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	component := vars["component"]
 	switch component {
 	case "jmx":
 		setJMXStatus(w, r)
-	case "py":
-		setPythonStatus(w, r)
 	default:
 		err := fmt.Errorf("bad url or resource does not exist")
 		log.Errorf("%s", err.Error())
