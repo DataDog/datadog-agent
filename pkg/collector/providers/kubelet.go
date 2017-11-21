@@ -67,7 +67,7 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]check.Config, error) {
 				break
 			}
 		}
-		if hasAD == false {
+		if !hasAD {
 			continue
 		}
 
