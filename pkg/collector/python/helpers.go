@@ -45,6 +45,21 @@ type stickyLock struct {
 	locked uint32 // Flag set to 1 if the lock is locked, 0 otherwise
 }
 
+//PythonStatsEntry are entries for specific object type memory usage
+type PythonStatsEntry struct {
+	Reference string
+	NObjects  int
+	Size      int
+}
+
+//PythonStats contains python memory statistics
+type PythonStats struct {
+	Type     string
+	NObjects int
+	Size     int
+	Entries  []*PythonStatsEntry
+}
+
 const (
 	//pyMemModule           = "utils.py_mem"
 	//pyMemSummaryFunc      = "get_mem_stats"
@@ -157,6 +172,30 @@ func GetPythonIntegrationList() ([]string, error) {
 		ddPythonPackages = append(ddPythonPackages, pkgName)
 	}
 	return ddPythonPackages, nil
+}
+
+// GetIntepreterMemoryUsage collects a python interpreter memory usage snapshot
+func GetPythonInterpreterMemoryUsage() ([]PythonStats, error) {
+	if six == nil {
+		return nil, fmt.Errorf("six is not initialized")
+	}
+
+	glock := newStickyLock()
+	defer glock.unlock()
+
+	usage := C.get_interpreter_memory_usage(six)
+	if usage == nil {
+		return nil, fmt.Errorf("Could not collect interpreter memory snapshot: %s", getSixError())
+	}
+	defer C.six_free(six, unsafe.Pointer(usage))
+	payload := C.GoString(usage)
+
+	stats := []PythonStats{}
+	if err := yaml.Unmarshal([]byte(payload), &stats); err != nil {
+		return nil, fmt.Errorf("Could not Unmarshal python interpreter memory usage payload: %s", err)
+	}
+
+	return stats, nil
 }
 
 // SetPythonPsutilProcPath sets python psutil.PROCFS_PATH
