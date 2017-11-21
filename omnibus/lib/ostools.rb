@@ -10,7 +10,7 @@ def redhat?()
 end
 
 def suse?()
-  %w(fedora suse).include? ohai['platform_family']
+  %w(suse).include? ohai['platform_family']
 end
 
 def debian?()
