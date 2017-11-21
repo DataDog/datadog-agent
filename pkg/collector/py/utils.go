@@ -215,14 +215,11 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 	glock := newStickyLock()
 	defer glock.unlock()
 
-	activeRefs := []*python.PyObject{}
-	defer decAllRefs(activeRefs)
-
 	memStatModule := python.PyImport_ImportModule(pyMemModule)
 	if memStatModule == nil {
 		return nil, fmt.Errorf("Unable to import Python module: %s", pyMemModule)
 	}
-	activeRefs = append(activeRefs, memStatModule)
+	defer memStatModule.DecRef()
 
 	statter := memStatModule.GetAttrString(pyMemSummaryFunc)
 	if statter == nil {
@@ -233,12 +230,12 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 		}
 		return nil, errors.New(pyErr)
 	}
-	activeRefs = append(activeRefs, statter)
+	defer statter.DecRef()
 
 	args := python.PyTuple_New(0)
 	kwargs := python.PyDict_New()
-	activeRefs = append(activeRefs, args)
-	activeRefs = append(activeRefs, kwargs)
+	defer args.DecRef()
+	defer kwargs.DecRef()
 
 	stats := statter.Call(args, kwargs)
 	if stats == nil {
@@ -249,7 +246,7 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 		}
 		return nil, errors.New(pyErr)
 	}
-	activeRefs = append(activeRefs, stats)
+	defer stats.DecRef()
 
 	keys := python.PyDict_Keys(stats)
 	if keys == nil {
@@ -260,7 +257,7 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 		}
 		return nil, errors.New(pyErr)
 	}
-	activeRefs = append(activeRefs, keys)
+	defer keys.DecRef()
 
 	myPythonStats := []*PythonStats{}
 	var entry *python.PyObject
