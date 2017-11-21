@@ -6,6 +6,7 @@
 package py
 
 import (
+	"io/ioutil"
 	"os/exec"
 	"unsafe"
 
@@ -113,43 +114,89 @@ func LogMessage(message *C.char, logLevel C.int) *C.PyObject {
 }
 
 // GetSubprocessOutput runs the subprocess and returns the output
-func GetSubprocessOutput(self *C.PyObject, args *C.PyObject) *C.PyObject {
-	// args is a borrowed ref (right?)
-	subprocessArgs := []string{}
-	if !PyList_Check(args) {
-		log.Warnf("provided args are not a list")
-		return nil
-	}
+//export GetSubprocessOutput
+func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
+	var subprocessCommand string
 
-	subprocessCommand = C.PyString_AsString(C.PyList_GET_ITEM(args, 0))
-	for i := 0; i < C.PyList_GET_SIZE(args); i++ {
-		arg := C.PyString_AsString(C.PyList_GET_ITEM(args, i))
-		if arg == nil {
-			log.Errorf("error retrieving argument")
-			return nil
-		}
-		defer C.Py_DecRef(arg)
-		subprocessArgs = append(subprocessArgs, arg)
+	// https://github.com/golang/go/wiki/cgo#turning-c-arrays-into-go-slices
+	length := int(argc)
+	cmdSlice := (*[1 << 30]*C.char)(unsafe.Pointer(argv))[:length:length]
+	subprocessArgs := make([]string, length)
+	subprocessCmd = cmdSlice[0]
+	for i := 0; i < length; i++ {
+		subprocessArgs[i] = C.GoString(cmdSlice[i])
 	}
-
 	cmd := exec.Command(subprocessCommand, subprocessArgs...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return err
+		cErr := C.CString(fmt.Printf("internal error creating stdout pipe: %v", err))
+		C.PyErr_SetString(C.PyExc_Exception, cErr)
+		C.free(unsafe.Pointer(cErr))
+		return nil
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		cErr := C.CString(fmt.Printf("internal error creating stderr pipe: %v", err))
+		C.PyErr_SetString(C.PyExc_Exception, cErr)
+		C.free(unsafe.Pointer(cErr))
+		return nil
 	}
 
 	cmd.Start()
 
-	hostname, err := util.GetHostname()
-	if err != nil {
-		log.Warnf("Error getting hostname: %s\n", err)
-		hostname = ""
+	retCode := 0
+	err := cmd.Wait()
+	if exiterr, ok := err.(*exec.ExitError); ok {
+		if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+			retCode = status.ExitStatus()
+		}
 	}
 
-	cStr := C.CString(hostname)
-	pyStr := C.PyString_FromString(cStr)
-	C.free(unsafe.Pointer(cStr))
+	output, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		cErr := C.CString(fmt.Printf("unable to read command stdout: %v", err))
+		C.PyErr_SetString(C.PyExc_Exception)
+		C.free(unsafe.Pointer(cErr))
+		return nil
+	}
+
+	outputErr, err := ioutil.ReadAll(stderr)
+	if err != nil {
+		cErr := C.CString(fmt.Printf("unable to read command stderr: %v", err))
+		C.PyErr_SetString(C.PyExc_Exception, cErr)
+		C.free(unsafe.Pointer(cErr))
+		return nil
+	}
+
+	if raise {
+		if len(output) == 0 {
+			// raise on error
+			cErr := C.CString("get_subprocess_output expected output but had none.")
+			C.PyErr_SetString(C.SubprocessOutputEmptyError, cErr)
+			C.free(unsafe.Pointer(cErr))
+			return nil
+		}
+	}
+
+	cOutput := C.CString(output.String())
+	pyOutput := C.PyString_FromString(cOutput)
+	defer C.Py_DecRef(pyOutput)
+	C.free(unsafe.Pointer(cOutput))
+	cOutputErr := C.CString(outputErr.String())
+	pyOutputErr := C.PyString_FromString(cOutputErr)
+	defer C.Py_DecRef(pyOutputErr)
+	C.free(unsafe.Pointer(cOutputErr))
+	pyRetCode := C.PyInt_FromLong(retCode)
+	defer C.Py_DecRef(pyRetCode)
+
+	pyResult = C.PyTuple_New(3)
+	defer C.Py_DecRef(pyResult)
+	C.PyTuple_SetItem(pyResult, 0, pyOutput)
+	C.PyTuple_SetItem(pyResult, 1, pyOutputErr)
+	C.PyTuple_SetItem(pyResult, 2, pyRetCode)
+
 	return pyStr
 }
 
