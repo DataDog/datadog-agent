@@ -10,7 +10,7 @@ import invoke
 from invoke import task
 
 from .utils import pkg_config_path, get_version
-from .go import fmt, lint, vet, misspell
+from .go import fmt, lint, vet, misspell, ineffassign
 from .build_tags import get_default_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
@@ -51,6 +51,7 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
     lint(ctx, targets=targets)
     vet(ctx, targets=targets)
     misspell(ctx, targets=targets)
+    ineffassign(ctx, targets=targets)
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")

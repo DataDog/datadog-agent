@@ -259,6 +259,7 @@ func TestGetPid(t *testing.T) {
 
 	// Should fail because no docker util is init
 	pid, err := s.GetPid()
+	assert.NotNil(t, err)
 	assert.Equal(t, -1, pid)
 
 	// Setting mocked data in cache
