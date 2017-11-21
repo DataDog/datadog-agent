@@ -3,14 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-// +build docker
-// +build !kubelet
+// +build docker,!kubelet
 
 package listeners
 
-// DockerKubeletService overrides some methods when a container is
-// running in kubernetes. The overrides are defined in docker_kubelet.go
-// when the kubelet build tag is provided.
+// DockerKubeletService is not compiled if the kubelet tag is not here.
+// Revert to all DockerService methods, that might probably fail though.
 type DockerKubeletService struct {
 	DockerService
 }

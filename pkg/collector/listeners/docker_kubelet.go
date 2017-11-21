@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-// +build docker
-// +build kubelet
+// +build docker,kubelet
 
 package listeners
 
@@ -24,32 +23,45 @@ import (
 // running in kubernetes
 type DockerKubeletService struct {
 	DockerService
+	kubeUtil *kubelet.KubeUtil
+	Hosts    map[string]string
+	Ports    []int
 }
 
-var dockerListenerKubeUtil *kubelet.KubeUtil
-
+// getPod wraps KubeUtil init and pod lookup for both public methods.
 func (s *DockerKubeletService) getPod() (*kubelet.Pod, error) {
-	if dockerListenerKubeUtil == nil {
+	if s.kubeUtil == nil {
 		var err error
-		dockerListenerKubeUtil, err = kubelet.GetKubeUtil()
+		s.kubeUtil, err = kubelet.GetKubeUtil()
 		if err != nil {
 			return nil, err
 		}
 	}
 	searchedId := docker.ContainerIDToEntityName(string(s.GetID()))
-	return dockerListenerKubeUtil.GetPodForContainerID(searchedId)
+	return s.kubeUtil.GetPodForContainerID(searchedId)
 }
 
+// GetHosts returns the container's hosts
 func (s *DockerKubeletService) GetHosts() (map[string]string, error) {
+	if s.Hosts != nil {
+		return s.Hosts, nil
+	}
+
 	pod, err := s.getPod()
 	if err != nil {
 		return nil, err
 	}
-	return map[string]string{"pod": pod.Status.PodIP}, nil
 
+	s.Hosts = map[string]string{"pod": pod.Status.PodIP}
+	return s.Hosts, nil
 }
 
+// GetPorts returns the container's ports
 func (s *DockerKubeletService) GetPorts() ([]int, error) {
+	if s.Ports != nil {
+		return s.Ports, nil
+	}
+
 	pod, err := s.getPod()
 	if err != nil {
 		return nil, err
@@ -73,5 +85,6 @@ func (s *DockerKubeletService) GetPorts() ([]int, error) {
 		}
 	}
 
+	s.Ports = ports
 	return ports, nil
 }

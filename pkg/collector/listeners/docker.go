@@ -137,6 +137,7 @@ func (l *DockerListener) init() {
 				DockerService: DockerService{
 					ID:            id,
 					ADIdentifiers: l.getConfigIDFromPs(co),
+					// Host and Ports will be looked up when needed
 				},
 			}
 		} else {

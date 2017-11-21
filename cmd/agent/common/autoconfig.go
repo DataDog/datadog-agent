@@ -49,7 +49,6 @@ func SetupAutoConfig(confdPath string) {
 		filepath.Join(GetDistPath(), "conf.d"),
 	}
 	AC.AddProvider(providers.NewFileConfigProvider(confSearchPaths), false)
-	AC.AddProvider(providers.NewKubeletConfigProvider(), true)
 
 	// Register additional configuration providers
 	var CP []config.ConfigurationProviders

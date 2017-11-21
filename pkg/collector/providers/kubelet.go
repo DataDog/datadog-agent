@@ -14,6 +14,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -27,8 +28,9 @@ type KubeletConfigProvider struct {
 }
 
 // NewKubeletConfigProvider returns a new ConfigProvider connected to kubelet.
-func NewKubeletConfigProvider() ConfigProvider {
-	return &KubeletConfigProvider{}
+// Connectivity is not checked at this stage to allow for retries, Collect will do it.
+func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
+	return &KubeletConfigProvider{}, nil
 }
 
 func (k *KubeletConfigProvider) String() string {
@@ -86,4 +88,8 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]check.Config, error) {
 	}
 	log.Warnf("Collected templates: %s", configs)
 	return configs, nil
+}
+
+func init() {
+	RegisterProvider("kubelet", NewKubeletConfigProvider)
 }
