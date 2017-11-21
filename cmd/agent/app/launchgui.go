@@ -7,20 +7,23 @@ package app
 
 import (
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 )
 
 var (
 	launchCmd = &cobra.Command{
-		Use:          "launchgui",
+		Use:          "launch-gui",
 		Short:        "starts the Datadog Agent GUI",
 		Long:         ``,
 		RunE:         launchGui,
 		SilenceUsage: true,
 	}
-
 )
 
 func init() {
@@ -35,5 +38,25 @@ func launchGui(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
-	return gui.LaunchGui()
+	guiPort := config.Datadog.GetString("GUI_port")
+	if guiPort == "-1" {
+		log.Warnf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
+		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
+	}
+
+	// Read the authentication token: can only be done if user can read from datadog.yaml
+	authToken, err := ioutil.ReadFile(filepath.Join(common.GetDistPath(), "gui_auth_token"))
+	if err != nil {
+		return fmt.Errorf("unable to access GUI authentication token: " + err.Error())
+	}
+
+	// Open the GUI in a browser, passing the authorization tokens as parameters
+	err = open("http://127.0.0.1:" + guiPort + string(authToken))
+	if err != nil {
+		log.Warnf("error opening GUI: " + err.Error())
+		return fmt.Errorf("error opening GUI: " + err.Error())
+	}
+
+	log.Infof("GUI opened at 127.0.0.1:" + guiPort)
+	return nil
 }
