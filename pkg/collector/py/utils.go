@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 
 	"github.com/sbinet/go-python"
+
+	log "github.com/cihub/seelog"
 )
 
 // #include <Python.h>
@@ -168,7 +170,7 @@ func findSubclassOf(base, module *python.PyObject, gstate *stickyLock) (*python.
 	defer dir.DecRef()
 	var class *python.PyObject
 	for i := 0; i < python.PyList_GET_SIZE(dir); i++ {
-		symbolName := python.PyString_AsString(python.PyList_GET_ITEM(dir, i))
+		symbolName := python.PyString_AsString(python.PyList_GetItem(dir, i))
 		class = module.GetAttrString(symbolName) // new ref, don't DecRef because we return it (caller is owner)
 
 		if class == nil {
@@ -263,27 +265,45 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 	myPythonStats := []*PythonStats{}
 	var entry *python.PyObject
 	for i := 0; i < python.PyList_GET_SIZE(keys); i++ {
-		entryName := python.PyString_AsString(python.PyList_GET_ITEM(keys, i))
+		entryName := python.PyString_AsString(python.PyList_GetItem(keys, i))
 		entry = python.PyDict_GetItemString(stats, entryName)
 		if entry == nil {
-			// key surprisingly unavailable...
+			pyErr, err := glock.getPythonError()
+
+			if err != nil {
+				log.Warnf("An error occurred while iterating the memory entry : %v", err)
+			} else {
+				log.Warnf("%v", pyErr)
+			}
+
 			continue
 		}
-		activeRefs = append(activeRefs, entry)
 
 		n := python.PyDict_GetItemString(entry, "n")
 		if n == nil {
-			// key surprisingly unavailable...
+			pyErr, err := glock.getPythonError()
+
+			if err != nil {
+				log.Warnf("An error occurred while iterating the memory entry : %v", err)
+			} else {
+				log.Warnf("%v", pyErr)
+			}
+
 			continue
 		}
-		activeRefs = append(activeRefs, n)
 
 		sz := python.PyDict_GetItemString(entry, "sz")
 		if sz == nil {
-			// key surprisingly unavailable...
+			pyErr, err := glock.getPythonError()
+
+			if err != nil {
+				log.Warnf("An error occurred while iterating the memory entry : %v", err)
+			} else {
+				log.Warnf("%v", pyErr)
+			}
+
 			continue
 		}
-		activeRefs = append(activeRefs, sz)
 
 		pyStat := &PythonStats{
 			Type:     entryName,
@@ -296,35 +316,59 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 		if entries == nil {
 			continue
 		}
-		activeRefs = append(activeRefs, entries)
 
 		for i := 0; i < python.PyList_GET_SIZE(entries); i++ {
 			ref := python.PyList_GetItem(entries, i)
 			if ref == nil {
-				// key surprisingly unavailable...
+				pyErr, err := glock.getPythonError()
+
+				if err != nil {
+					log.Warnf("An error occurred while iterating the entry details: %v", err)
+				} else {
+					log.Warnf("%v", pyErr)
+				}
+
 				continue
 			}
 
 			obj := python.PyList_GetItem(ref, 0)
 			if obj == nil {
-				// key surprisingly unavailable...
+				pyErr, err := glock.getPythonError()
+
+				if err != nil {
+					log.Warnf("An error occurred while iterating the entry details : %v", err)
+				} else {
+					log.Warnf("%v", pyErr)
+				}
+
 				continue
 			}
-			activeRefs = append(activeRefs, obj)
 
 			nEntry := python.PyList_GetItem(ref, 1)
 			if nEntry == nil {
-				// key surprisingly unavailable...
+				pyErr, err := glock.getPythonError()
+
+				if err != nil {
+					log.Warnf("An error occurred while iterating the entry details : %v", err)
+				} else {
+					log.Warnf("%v", pyErr)
+				}
+
 				continue
 			}
-			activeRefs = append(activeRefs, nEntry)
 
 			szEntry := python.PyList_GetItem(ref, 2)
 			if szEntry == nil {
-				// key surprisingly unavailable...
+				pyErr, err := glock.getPythonError()
+
+				if err != nil {
+					log.Warnf("An error occurred while iterating the entry details : %v", err)
+				} else {
+					log.Warnf("%v", pyErr)
+				}
+
 				continue
 			}
-			activeRefs = append(activeRefs, szEntry)
 
 			pyEntry := &PythonStatsEntry{
 				Reference: python.PyString_AsString(obj),
