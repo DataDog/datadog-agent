@@ -8,9 +8,6 @@ PyObject* LogMessage(char *message, int logLevel);
 PyObject* GetConfig(char *key);
 PyObject* GetSubprocessOutput(char **args, int argc, int raise);
 
-// Exceptions
-PyObject* SubprocessOutputEmptyError;
-
 static PyObject *get_config(PyObject *self, PyObject *args) {
     char *key;
 
@@ -44,7 +41,7 @@ static PyObject *log_message(PyObject *self, PyObject *args) {
 }
 
 static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
-	PyObject *cmd_args, *cmd_log, *cmd_raise_on_empty; //cmd_log is BC
+	PyObject *cmd_args, *cmd_raise_on_empty; 
     int raise = 1;
     int subprocess_args_sz;
     char ** subprocess_args, * subprocess_arg;
@@ -54,7 +51,7 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
     gstate = PyGILState_Ensure();
 
 	cmd_raise_on_empty = NULL;
-    if (!PyArg_ParseTuple(args, "OO|O:get_subprocess_output", &cmd_args, &cmd_log, &cmd_raise_on_empty)) {
+    if (!PyArg_ParseTuple(args, "O|O:get_subprocess_output", &cmd_args, &cmd_raise_on_empty)) {
         PyGILState_Release(gstate);
         PyErr_SetString(PyExc_TypeError, "unable to parse arguments");
         Py_RETURN_NONE;

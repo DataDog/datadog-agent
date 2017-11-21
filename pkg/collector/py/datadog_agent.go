@@ -120,9 +120,9 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
 	// https://github.com/golang/go/wiki/cgo#turning-c-arrays-into-go-slices
 	length := int(argc)
-	cmdSlice := (*[1 << 30]*C.char)(unsafe.Pointer(argv))[:length:length]
 	subprocessArgs := make([]string, length)
-	subprocessCmd = cmdSlice[0]
+	cmdSlice := (*[1 << 30]*C.char)(unsafe.Pointer(argv))[:length:length]
+	subprocessCmd = C.GoString(cmdSlice[0])
 	for i := 0; i < length; i++ {
 		subprocessArgs[i] = C.GoString(cmdSlice[i])
 	}
@@ -157,7 +157,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	output, err := ioutil.ReadAll(stdout)
 	if err != nil {
 		cErr := C.CString(fmt.Printf("unable to read command stdout: %v", err))
-		C.PyErr_SetString(C.PyExc_Exception)
+		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
 		return nil
 	}
