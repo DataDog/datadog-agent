@@ -45,7 +45,7 @@ func launchGui(cmd *cobra.Command, args []string) error {
 	}
 
 	// Read the authentication token: can only be done if user can read from datadog.yaml
-	authToken, err := ioutil.ReadFile(filepath.Join(common.GetDistPath(), "gui_auth_token"))
+	authToken, err := ioutil.ReadFile(filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), "gui_auth_token"))
 	if err != nil {
 		return fmt.Errorf("unable to access GUI authentication token: " + err.Error())
 	}

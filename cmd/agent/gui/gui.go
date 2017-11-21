@@ -10,21 +10,25 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
 
+	log "github.com/cihub/seelog"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
 )
 
 var (
-	listener   net.Listener
-	privateKey *rsa.PrivateKey
-	publicKey  *rsa.PublicKey
-	csrfToken  string
+	listener      net.Listener
+	privateKey    *rsa.PrivateKey
+	publicKey     *rsa.PublicKey
+	csrfToken     string
+	authTokenPath string
 )
 
 // Payload struct is for the JSON messages received from a client POST request
@@ -34,10 +38,15 @@ type Payload struct {
 	CaseID string `json:"caseID"`
 }
 
-// StopGUIServer closes the connection to the HTTP server
+// StopGUIServer closes the connection to the HTTP server & removes the authentication token file we created
 func StopGUIServer() {
 	if listener != nil {
 		listener.Close()
+	}
+
+	err := os.Remove(authTokenPath)
+	if err != nil {
+		log.Infof("error deleting gui_auth_token file: " + err.Error())
 	}
 }
 
@@ -102,7 +111,8 @@ func createAuthToken() error {
 	}
 	csrfToken = hex.EncodeToString(key)
 
-	return saveAuthToken(jwtString, csrfToken)
+	authTokenPath = filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), "gui_auth_token")
+	return saveAuthToken("/authenticate?jwt=" + jwtString + ";csrf=" + csrfToken)
 }
 
 func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {

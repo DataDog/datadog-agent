@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -15,10 +13,9 @@ func restart() error {
 }
 
 // writes auth token(s) to a file with the same permissions as datadog.yaml
-func saveAuthToken(jwt, csrf string) error {
+func saveAuthToken(token string) error {
 	confFile, _ := os.Stat(config.Datadog.GetString("conf_path"))
 	permissions := confFile.Mode()
-	path := filepath.Join(common.GetDistPath(), "gui_auth_token")
 
-	return ioutil.WriteFile(path, []byte("/authenticate?jwt="+jwt+";csrf="+csrf), permissions)
+	return ioutil.WriteFile(authTokenPath, []byte(token), permissions)
 }
