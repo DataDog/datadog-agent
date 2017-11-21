@@ -9,8 +9,18 @@
 # stdlib
 from functools import wraps
 import logging
-import subprocess
 import tempfile
+import os
+import sys
+
+if os.name == 'posix' and sys.version_info[0] < 3:
+    try:
+        import subprocess32 as subprocess
+    except ImportError:
+        import subprocess
+else:
+    import subprocess
+
 
 log = logging.getLogger(__name__)
 
