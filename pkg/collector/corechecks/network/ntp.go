@@ -21,7 +21,11 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-var ntpExpVar = expvar.NewFloat("ntpOffset")
+var (
+	ntpExpVar = expvar.NewFloat("ntpOffset")
+	// for testing purpose
+	ntpQuery = ntp.Query
+)
 
 // NTPCheck only has sender and config
 type NTPCheck struct {
@@ -126,7 +130,7 @@ func (c *NTPCheck) Run() error {
 	serviceCheckMessage := ""
 	offsetThreshold := c.cfg.instance.OffsetThreshold
 
-	response, err := ntp.Query(c.cfg.instance.Host, c.cfg.instance.Version)
+	response, err := ntpQuery(c.cfg.instance.Host, c.cfg.instance.Version)
 	if err != nil {
 		log.Infof("There was an error querying the ntp host: %s", err)
 		serviceCheckStatus = metrics.ServiceCheckUnknown
