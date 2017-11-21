@@ -93,17 +93,18 @@ func (r *Retrier) doTry() *Error {
 	r.Lock()
 	if err == nil {
 		r.status = OK
-	}
-	switch r.cfg.Strategy {
-	case OneTry:
-		r.status = PermaFail
-	case RetryCount:
-		r.tryCount++
-		if r.tryCount >= r.cfg.RetryCount {
+	} else {
+		switch r.cfg.Strategy {
+		case OneTry:
 			r.status = PermaFail
-		} else {
-			r.status = FailWillRetry
-			r.nextTry = time.Now().Add(r.cfg.RetryDelay)
+		case RetryCount:
+			r.tryCount++
+			if r.tryCount >= r.cfg.RetryCount {
+				r.status = PermaFail
+			} else {
+				r.status = FailWillRetry
+				r.nextTry = time.Now().Add(r.cfg.RetryDelay)
+			}
 		}
 	}
 	r.Unlock()

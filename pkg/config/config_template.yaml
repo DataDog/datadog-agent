@@ -141,6 +141,12 @@ metadata_collectors:
 # Please note the File Configuration Provider is enabled by default and cannot
 # be configured.
 # config_providers:
+
+## The kubelet provider handles templates embedded in pod annotations, see
+## https://docs.datadoghq.com/guides/autodiscovery/#template-source-kubernetes-pod-annotations
+#   - name: kubelet
+#     polling: true
+
 #   - name: etcd
 #     polling: true
 #     template_dir: /datadog/check_configs

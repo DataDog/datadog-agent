@@ -23,6 +23,10 @@ func (p *MockProvider) Collect() ([]check.Config, error) {
 	return []check.Config{}, nil
 }
 
+func (p *MockProvider) String() string {
+	return "mocked"
+}
+
 type MockProvider2 struct {
 	MockProvider
 }

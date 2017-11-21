@@ -31,4 +31,5 @@ type ConfigProviderFactory func(cfg config.ConfigurationProviders) (ConfigProvid
 // or data needed to access the resource providing the configuration.
 type ConfigProvider interface {
 	Collect() ([]check.Config, error)
+	String() string
 }

@@ -99,6 +99,10 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 }
 
+func (p *ConsulConfigProvider) String() string {
+	return "consul Configuration Provider"
+}
+
 // Collect retrieves templates from consul, builds Config objects and returns them
 func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
 	var templates []check.Config
