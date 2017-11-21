@@ -1,0 +1,6 @@
+## Provides autodetected defaults, for non-kubernetes environments,
+## please see datadog.yaml.example for all supported options
+
+# Autodiscovery
+listeners:
+  - name: docker

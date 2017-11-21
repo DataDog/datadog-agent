@@ -1,0 +1,9 @@
+# Autodiscovery
+listeners:
+  - name: docker
+
+config_providers:
+# The kubelet provider handles templates embedded in pod annotations, see
+# https://docs.datadoghq.com/guides/autodiscovery/#template-source-kubernetes-pod-annotations
+  - name: kubelet
+    polling: true
