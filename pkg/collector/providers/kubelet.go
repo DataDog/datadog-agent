@@ -86,7 +86,6 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]check.Config, error) {
 			}
 		}
 	}
-	log.Warnf("Collected templates: %s", configs)
 	return configs, nil
 }
 

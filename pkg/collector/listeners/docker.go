@@ -435,7 +435,6 @@ func computeDockerIDs(cid string, image string, labels map[string]string) []stri
 		ids = append(ids, short)
 	}
 
-	log.Warnf("IDS %s", ids)
 	return ids
 }
 
