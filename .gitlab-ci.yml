@@ -9,8 +9,8 @@ stages:
 
 variables:
   SRC_PATH: /src/github.com/DataDog/datadog-agent
-  AGENT_OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/
-  AGENT_OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
+  OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/
+  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   DEB_S3_BUCKET_DEPRECATED: apt-agent6.datad0g.com
@@ -128,7 +128,7 @@ run_dogstatsd_size_test:
 #
 
 
-# build the package for deb-x64
+# build Agent package for deb-x64
 agent_deb-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
@@ -137,20 +137,20 @@ agent_deb-x64:
     # Artifacts and cache must live within project directory but we run omnibus
     # from the GOPATH (see above). We then call `invoke` passing --base-dir,
     # pointing to a gitlab-friendly location.
-    - inv -e agent.omnibus-build --base-dir $AGENT_OMNIBUS_BASE_DIR
-    - dpkg -c $AGENT_OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb
-    - $S3_CP_CMD $AGENT_OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb $S3_SCRATCH_URI/datadog-agent_amd64.deb
+    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR
+    - dpkg -c $OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-agent*_amd64.deb $S3_SCRATCH_URI/datadog-agent_amd64.deb
   cache:
     # cache per branch
     key: $CI_COMMIT_REF_NAME
     paths:
-      - $AGENT_OMNIBUS_BASE_DIR
+      - $OMNIBUS_BASE_DIR
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $AGENT_OMNIBUS_PACKAGE_DIR
+      - $OMNIBUS_PACKAGE_DIR
 
-# build the package for rpm-x64
+# build Agent package for rpm-x64
 agent_rpm-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
@@ -164,19 +164,19 @@ agent_rpm-x64:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
-    - inv -e agent.omnibus-build --base-dir $AGENT_OMNIBUS_BASE_DIR
-    - rpm -i $AGENT_OMNIBUS_PACKAGE_DIR/*.rpm
+    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR
+    - rpm -i $OMNIBUS_PACKAGE_DIR/*.rpm
   cache:
     # cache per branch
     key: $CI_COMMIT_REF_NAME
     paths:
-      - $AGENT_OMNIBUS_BASE_DIR
+      - $OMNIBUS_BASE_DIR
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $AGENT_OMNIBUS_PACKAGE_DIR
+      - $OMNIBUS_PACKAGE_DIR
 
-# build windows
+# build Agent package for Windows
 build_windows_msi_x64:
   before_script:
     - if exist .omnibus rd /s/q .omnibus
@@ -194,6 +194,54 @@ build_windows_msi_x64:
     expire_in: 2 weeks
     paths:
     - .omnibus/pkg
+
+# build Dogstastd package for deb-x64
+dogstatsd_deb-x64:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    # Artifacts and cache must live within project directory but we run omnibus
+    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
+    # pointing to a gitlab-friendly location.
+    - inv -e dogstatsd.omnibus-build --base-dir $OMNIBUS_BASE_DIR
+    - dpkg -c $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd*_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-dogstatsd*_amd64.deb $S3_SCRATCH_URI/datadog-dogstatsd_amd64.deb
+  cache:
+    # cache per branch
+    key: $CI_COMMIT_REF_NAME
+    paths:
+      - $OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
+# build Dogstastd package for rpm-x64
+dogstatsd_rpm-x64:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    # Artifacts and cache must live within project directory but we run omnibus
+    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
+    # pointing to a gitlab-friendly location.
+    - set +x
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key --with-decryption --query "Parameter.Value" --out text)
+    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+    - set -x
+    - inv -e dogstatsd.omnibus-build --base-dir $OMNIBUS_BASE_DIR
+    - rpm -i $OMNIBUS_PACKAGE_DIR/*.rpm
+  cache:
+    # cache per branch
+    key: $CI_COMMIT_REF_NAME
+    paths:
+      - $OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
 
 
 #
@@ -341,7 +389,7 @@ deploy_deb:
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
   before_script:
-    - ls $AGENT_OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR
   only:
     - master
     - tags
@@ -369,24 +417,24 @@ deploy_deb:
     - printf -- "$APT_SIGNING_PRIVATE_KEY_DEPRECATED" | gpg --import --batch
 
     # FIXME: remove this once we move to the new apt repo on our staging and production environments
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET_DEPRECATED -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
-    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET_DEPRECATED -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET_DEPRECATED -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET_DEPRECATED -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
 
 
     # Check if it is in the pool, if it is, do not release the new one
     # FIXME: move this to a script in the build image
-    - PACKAGE_VERSION=`ls $AGENT_OMNIBUS_PACKAGE_DIR/ | grep _amd64.deb | sed s/datadog-agent_// | sed s/_amd64.deb//`
-    - if curl --output /dev/null --silent --head --fail -v "https://s3.amazonaws.com/apt.datad0g.com/pool/d/da/datadog-agent_${PACKAGE_VERSION}_amd64.deb"; then echo "datadog-agent_${PACKAGE_VERSION}_amd64.deb already exists in the APT pool, releasing this one instead of the latest build."; rm -f $AGENT_OMNIBUS_PACKAGE_DIR/datadog-agent_${PACKAGE_VERSION}_amd64.deb; curl -v -o $AGENT_OMNIBUS_PACKAGE_DIR "https://s3.amazonaws.com/apt.datad0g.com/pool/d/da/datadog-agent_${PACKAGE_VERSION}_${1}.deb"; fi;
+    - PACKAGE_VERSION=`ls $OMNIBUS_PACKAGE_DIR/ | grep _amd64.deb | sed s/datadog-agent_// | sed s/_amd64.deb//`
+    - if curl --output /dev/null --silent --head --fail -v "https://s3.amazonaws.com/apt.datad0g.com/pool/d/da/datadog-agent_${PACKAGE_VERSION}_amd64.deb"; then echo "datadog-agent_${PACKAGE_VERSION}_amd64.deb already exists in the APT pool, releasing this one instead of the latest build."; rm -f $OMNIBUS_PACKAGE_DIR/datadog-agent_${PACKAGE_VERSION}_amd64.deb; curl -v -o $OMNIBUS_PACKAGE_DIR "https://s3.amazonaws.com/apt.datad0g.com/pool/d/da/datadog-agent_${PACKAGE_VERSION}_${1}.deb"; fi;
 
-    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
-    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $AGENT_OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
 
 # deploy rpm packages to yum staging repo
 deploy_rpm:
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
   before_script:
-    - ls $AGENT_OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR
   only:
     - master
     - tags
@@ -396,7 +444,7 @@ deploy_rpm:
     - rvm use 2.4
     - mkdir -p ./rpmrepo/x86_64/
     - aws s3 sync s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ ./rpmrepo/
-    - cp $AGENT_OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/x86_64/
+    - cp $OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/x86_64
     - aws s3 sync ./rpmrepo/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
@@ -405,7 +453,7 @@ deploy_dsd:
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
   before_script:
-    - ls $AGENT_OMNIBUS_PACKAGE_DIR
+    - ls $OMNIBUS_PACKAGE_DIR
   only:
     - master
     - tags

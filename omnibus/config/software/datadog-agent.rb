@@ -13,7 +13,7 @@ unless windows?
   dependency 'net-snmp-lib'
 end
 
-license "Apache License Version 2.0"
+license "Apache-2.0"
 license_file "../LICENSE"
 
 source path: '..'

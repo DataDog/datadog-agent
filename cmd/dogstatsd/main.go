@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -73,26 +72,30 @@ func init() {
 	dogstatsdCmd.AddCommand(versionCmd)
 
 	// local flags
-	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to datadog.yaml")
+	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath"))
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 	config.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket"))
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	confFilePath := config.Datadog.GetString("conf_path")
-	if len(confFilePath) != 0 {
-		// if the configuration file path was supplied on the command line,
-		// add that first so it's first in line
-		config.Datadog.AddConfigPath(confFilePath)
-		// If they set a config file directly, let's try to honor that
-		if strings.HasSuffix(confFilePath, ".yaml") {
-			config.Datadog.SetConfigFile(confFilePath)
+	configFound := false
+
+	// a path to the folder containing the config file was passed
+	if len(confPath) != 0 {
+		// we'll search for a config file named `dogstastd.yaml`
+		config.Datadog.SetConfigName("dogstatsd")
+		config.Datadog.AddConfigPath(confPath)
+		confErr := config.Datadog.ReadInConfig()
+		if confErr != nil {
+			log.Error(confErr)
+		} else {
+			configFound = true
 		}
 	}
-	confErr := config.Datadog.ReadInConfig()
-	if confErr != nil {
-		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
+
+	if !configFound {
+		log.Infof("Config will be read from env variables")
 	}
 
 	// Setup logger
@@ -142,6 +145,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	log.Debugf("Using hostname: %s", hname)
 
+	// setup the metadata collector
 	var metaScheduler *metadata.Scheduler
 	if config.Datadog.GetBool("enable_metadata_collection") {
 		// start metadata collection
