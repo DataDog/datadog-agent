@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -19,6 +18,19 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+var (
+	configPaths = []string{
+		config.Datadog.GetString("confd_path"),        // Custom checks
+		filepath.Join(common.GetDistPath(), "conf.d"), // Default check configs
+	}
+
+	checkPaths = []string{
+		filepath.Join(common.GetDistPath(), "checks.d"), // Custom checks
+		config.Datadog.GetString("additional_checksd"),  // Custom checks
+		common.PyChecksPath,                             // Integrations-core checks
+	}
+)
+
 // Adds the specific handlers for /checks/ endpoints
 func checkHandler(r *mux.Router) {
 	r.HandleFunc("/running", http.HandlerFunc(sendRunningChecks)).Methods("POST")
@@ -27,7 +39,8 @@ func checkHandler(r *mux.Router) {
 	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheck)).Methods("POST")
 	r.HandleFunc("/getConfig/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/setConfig/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")
-	r.HandleFunc("/list/{fileType}", http.HandlerFunc(listFiles)).Methods("POST")
+	r.HandleFunc("/listChecks", http.HandlerFunc(listChecks)).Methods("POST")
+	r.HandleFunc("/listConfigs", http.HandlerFunc(listConfigs)).Methods("POST")
 }
 
 // Sends a list of all the current running checks
@@ -134,17 +147,19 @@ func reloadCheck(w http.ResponseWriter, r *http.Request) {
 // Sends the specified config (.yaml) file
 func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	fileName := mux.Vars(r)["fileName"]
-	paths := getAllPaths("yaml")
+
+	// Check if this file is in a subdir (file name is of the form `{check name}: {file name}`)
+	if i := strings.Index(fileName, ":"); i != -1 {
+		checkName := fileName[:i]
+		fileName = checkName + ".d/" + strings.TrimPrefix(fileName, checkName+": ")
+	}
 
 	var file []byte
 	var e error
-	for _, path := range paths {
+	for _, path := range configPaths {
 		file, e = ioutil.ReadFile(path + "/" + fileName)
 		if e == nil {
 			break
-		} else if e != nil && !strings.Contains(e.Error(), "no such file") {
-			w.Write([]byte("Error reading check file: " + e.Error()))
-			return
 		}
 	}
 	if file == nil {
@@ -166,7 +181,6 @@ type configFormat struct {
 // or makes a new config file for that check, if there isn't one yet
 func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	fileName := mux.Vars(r)["fileName"]
-
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
@@ -185,11 +199,24 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Write new configs to custom checks directory
+	// Check if this file is in a subdir (file name is of the form `{check name}: {file name}`)
+	if i := strings.Index(fileName, ":"); i != -1 {
+		checkName := fileName[:i]
+		fileName = checkName + ".d/" + strings.TrimPrefix(fileName, checkName+": ")
+	}
+
+	// Attempt to write new configs to custom checks directory
 	path := config.Datadog.GetString("confd_path") + "/" + fileName
 	e = ioutil.WriteFile(path, data, 0644)
+
+	// If the write didn't work, try writing to the default checks directory
+	if e != nil && strings.Contains(e.Error(), "no such file or directory") {
+		path = filepath.Join(common.GetDistPath(), "conf.d") + "/" + fileName
+		e = ioutil.WriteFile(path, data, 0644)
+	}
+
 	if e != nil {
-		w.Write([]byte("Error writing to " + fileName + ": " + e.Error()))
+		w.Write([]byte("Error saving config file: " + e.Error()))
 		return
 	}
 
@@ -197,44 +224,24 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Success"))
 }
 
-// Sends a list containing the names of all the specified type of files
-func listFiles(w http.ResponseWriter, r *http.Request) {
-	// Get the directories where these files might reside
-	fileType := mux.Vars(r)["fileType"]
-	paths := getAllPaths(fileType)
-
-	// Read all the directories
+// Sends a list containing the names of all the checks
+func listChecks(w http.ResponseWriter, r *http.Request) {
 	filenames := []string{}
-	lookup := make(map[string]bool)
-	for _, path := range paths {
-		fs, e := readDirectory(path)
-		if e == nil {
-			sort.Strings(fs)
-			for _, name := range fs {
-				// Only include each file name once (could be in multiple locations),
-				// & if a default config is found but a non-default version exists, don't include
-				// the default one (Note that the non-default directory is read first)
-				trimmed := name
-				if i := strings.Index(name, ".default"); i != -1 {
-					trimmed = name[:i]
-				}
-				if _, exists := lookup[trimmed]; !exists {
-					filenames = append(filenames, name)
-					lookup[trimmed] = true
-				}
+	for _, path := range checkPaths {
+		files, err := ioutil.ReadDir(path)
+		if err != nil {
+			continue
+		}
+
+		for _, file := range files {
+			if ext := filepath.Ext(file.Name()); ext == ".py" && file.Mode().IsRegular() {
+				filenames = append(filenames, file.Name())
 			}
 		}
 	}
 
 	if len(filenames) == 0 {
-		switch fileType {
-		case "py":
-			w.Write([]byte("No check (.py) files found."))
-		case "yaml":
-			w.Write([]byte("No configuration (.yaml) files found."))
-		default:
-			w.Write([]byte("No " + fileType + " files found."))
-		}
+		w.Write([]byte("No check (.py) files found."))
 		return
 	}
 
@@ -243,42 +250,98 @@ func listFiles(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(res))
 }
 
-// Helper function which returns the appropriate paths for finding checks/check configs
-func getAllPaths(fileType string) []string {
-	if fileType == "py" {
-		return []string{
-			filepath.Join(common.GetDistPath(), "checks.d"), // Custom checks
-			config.Datadog.GetString("additional_checksd"),  // Custom checks
-			common.PyChecksPath,                             // Integrations-core checks
-		}
-	} else if fileType == "yaml" {
-		return []string{
-			config.Datadog.GetString("confd_path"),        // Custom checks
-			filepath.Join(common.GetDistPath(), "conf.d"), // Default check configs
+// Sends a list containing the names of all the config files
+func listConfigs(w http.ResponseWriter, r *http.Request) {
+	filenames := []string{}
+	for _, path := range configPaths {
+		files, e := readConfDir(path)
+
+		if e == nil {
+			// If a default config is found but a non-default version exists, ignore default
+			sort.Strings(files)
+			lookup := make(map[string]bool)
+			for _, name := range files {
+
+				var checkName string
+				if i := strings.Index(name, ":"); i != -1 {
+					// If the check was in a subdir, '{checkname}: ' prepends the filename
+					checkName = name[:i]
+				} else {
+					checkName = name[:strings.Index(name, ".")]
+				}
+
+				if ext := filepath.Ext(name); ext == ".default" {
+					if _, exists := lookup[checkName]; !exists {
+						filenames = append(filenames, name)
+						lookup[checkName] = true
+					}
+					continue
+				}
+
+				filenames = append(filenames, name)
+				lookup[checkName] = true
+			}
 		}
 	}
-	return []string{}
+
+	if len(filenames) == 0 {
+		w.Write([]byte("No configuration (.yaml) files found."))
+		return
+	}
+
+	res, _ := json.Marshal(filenames)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(res))
 }
 
-// Helper function which returns all the filenames in a directory
-func readDirectory(path string) ([]string, error) {
+// Helper function which returns all the filenames in a check config directory
+func readConfDir(path string) ([]string, error) {
 	var filenames []string
-	dir, e := os.Open(path)
-	if e != nil {
-		return filenames, e
-	}
-	defer dir.Close()
-
-	files, e := dir.Readdir(-1)
-	if e != nil {
-		return filenames, e
+	entries, err := ioutil.ReadDir(path)
+	if err != nil {
+		return filenames, err
 	}
 
-	for _, file := range files {
-		if file.Mode().IsRegular() {
-			filenames = append(filenames, file.Name())
+	for _, entry := range entries {
+		// Some check configs are in nested subdirectories
+		if entry.IsDir() {
+			if filepath.Ext(entry.Name()) != ".d" {
+				continue
+			}
+
+			subEntries, err := ioutil.ReadDir(path + "/" + entry.Name())
+			if err == nil {
+				checkName := strings.TrimSuffix(entry.Name(), ".d")
+
+				for _, subEntry := range subEntries {
+					if hasRightEnding(subEntry.Name()) && subEntry.Mode().IsRegular() {
+						filenames = append(filenames, checkName+": "+subEntry.Name())
+					}
+				}
+			}
+			continue
+		}
+
+		if hasRightEnding(entry.Name()) && entry.Mode().IsRegular() {
+			filenames = append(filenames, entry.Name())
 		}
 	}
 
 	return filenames, nil
+}
+
+func hasRightEnding(filename string) bool {
+	// Only accept files of the format
+	//	{name}.yaml, {name}.yml
+	//	{name}.yaml.default, {name}.yml.default
+	//	{name}.yaml.example, {name}.yml.example
+
+	ext := filepath.Ext(filename)
+	if ext == ".default" {
+		ext = filepath.Ext(strings.TrimSuffix(filename, ".default"))
+	} else if ext == ".example" {
+		ext = filepath.Ext(strings.TrimSuffix(filename, ".example"))
+	}
+
+	return ext == ".yaml" || ext == ".yml"
 }
