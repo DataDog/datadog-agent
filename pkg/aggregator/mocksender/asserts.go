@@ -7,6 +7,7 @@ package mocksender
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -44,6 +45,54 @@ func (m *MockSender) AssertMetricTaggedWith(t *testing.T, method string, metric 
 // AssertMetricNotTaggedWith allows to assert tags were never emitted for a metric.
 func (m *MockSender) AssertMetricNotTaggedWith(t *testing.T, method string, metric string, tags []string) bool {
 	return m.Mock.AssertCalled(t, method, metric, mock.AnythingOfType("float64"), mock.AnythingOfType("string"), AssertTagsNotContains(tags))
+}
+
+// Compare an Event on specifics values
+func eventHaveEqualValues(expectedEvent, actualEvent metrics.Event) bool {
+	if assert.ObjectsAreEqualValues(expectedEvent.AggregationKey, actualEvent.AggregationKey) &&
+		assert.ObjectsAreEqualValues(expectedEvent.Priority, actualEvent.Priority) &&
+		assert.ObjectsAreEqualValues(expectedEvent.SourceTypeName, actualEvent.SourceTypeName) &&
+		assert.ObjectsAreEqualValues(expectedEvent.EventType, actualEvent.EventType) &&
+		expectedInActual(expectedEvent.Tags, actualEvent.Tags) {
+		return true
+	}
+	return false
+}
+
+// Iter on all mock.Calls to find any events who's matching the expectedEvent
+// The check on the Event.Ts is weighted with the parameter allowedDelta
+func (m *MockSender) matchEvent(expectedEvent metrics.Event, allowedDelta time.Duration) bool {
+	var actualEvent metrics.Event
+	var expectedTime, actualTime time.Time
+	var dt time.Duration
+	for _, call := range m.Calls {
+		if call.Method == "Event" {
+			actualEvent = call.Arguments[0].(metrics.Event)
+
+			expectedTime = time.Unix(expectedEvent.Ts, 0)
+			actualTime = time.Unix(actualEvent.Ts, 0)
+			dt = expectedTime.Sub(actualTime)
+			if dt < -allowedDelta || dt > allowedDelta {
+				continue
+			} else if eventHaveEqualValues(expectedEvent, actualEvent) == true {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// AssertEvent assert the expectedEvent was emitted with the following values:
+// AggregationKey, Priority, SourceTypeName, EventType and a Ts range weighted with the parameter allowedDelta
+func (m *MockSender) AssertEvent(t *testing.T, expectedEvent metrics.Event, allowedDelta time.Duration) bool {
+	m.Mock.AssertCalled(t, "Event", mock.AnythingOfType("metrics.Event"))
+	return assert.True(t, m.matchEvent(expectedEvent, allowedDelta))
+}
+
+// AssertEventMissing assert the expectedEvent was never emitted with the following values:
+// AggregationKey, Priority, SourceTypeName, EventType and a Ts range weighted with the parameter allowedDelta
+func (m *MockSender) AssertEventMissing(t *testing.T, expectedEvent metrics.Event, allowedDelta time.Duration) bool {
+	return assert.False(t, m.matchEvent(expectedEvent, allowedDelta))
 }
 
 // AnythingBut match everything except the argument

@@ -7,6 +7,7 @@ package mocksender
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/assert"
@@ -94,4 +95,42 @@ func TestMockedServiceCheck(t *testing.T) {
 	tags = append(tags, "container_name:redis")
 	sender.ServiceCheck("docker.exit", metrics.ServiceCheckWarning, "", tags, message)
 	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckWarning, "", tags, message)
+}
+
+func TestMockedEvent(t *testing.T) {
+	sender := NewMockSender("2")
+	sender.SetupAcceptAll()
+
+	tags := []string{"one", "two"}
+
+	eventTimestamp := time.Date(2010, 01, 01, 01, 01, 01, 00, time.UTC).Unix()
+	eventOne := metrics.Event{
+		Ts:             eventTimestamp,
+		EventType:      "docker",
+		Tags:           tags,
+		AggregationKey: "docker:busybox",
+		SourceTypeName: "docker",
+		Priority:       metrics.EventPriorityNormal,
+	}
+	sender.Event(eventOne)
+	sender.AssertEvent(t, eventOne, time.Second)
+
+	eventTwo := metrics.Event{
+		Ts:             eventTimestamp,
+		EventType:      "docker",
+		Tags:           tags,
+		AggregationKey: "docker:redis",
+		SourceTypeName: "docker",
+		Priority:       metrics.EventPriorityNormal,
+	}
+	sender.AssertEventMissing(t, eventTwo, 0)
+
+	sender.Event(eventTwo)
+	sender.AssertEvent(t, eventTwo, 0)
+
+	eventTwo.Ts = eventTwo.Ts + 10
+	sender.AssertEventMissing(t, eventTwo, 0)
+
+	allowedDelta := time.Since(time.Unix(eventTimestamp, 0))
+	sender.AssertEvent(t, eventTwo, allowedDelta)
 }
