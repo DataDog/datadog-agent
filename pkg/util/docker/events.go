@@ -74,7 +74,11 @@ func (d *DockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 		return nil, fmt.Errorf("missing image name in event %s", string(m))
 	}
 	if strings.HasPrefix(imageName, "sha256") {
-		imageName = d.extractImageName(imageName)
+		var err error
+		imageName, err = d.ResolveImageName(imageName)
+		if err != nil {
+			log.Warnf("can't resolve image name %s: %s", imageName, err)
+		}
 	}
 	if d.cfg.filter.computeIsExcluded(containerName, imageName) {
 		return nil, nil

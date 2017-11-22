@@ -8,6 +8,8 @@
 package flare
 
 import (
+	"bytes"
+	"encoding/json"
 	"path/filepath"
 	"regexp"
 
@@ -16,13 +18,27 @@ import (
 )
 
 func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
-
-	co, err := docker.ContainerSelfInspect()
+	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return err
 	}
+
+	co, err := du.InspectSelf()
+	if err != nil {
+		return err
+	}
+
+	// Serialise as JSON
+	jsonStats, err := json.Marshal(co)
+	if err != nil {
+		return err
+	}
+	var out bytes.Buffer
+	json.Indent(&out, jsonStats, "", "\t")
+	serialized := out.Bytes()
+
 	// Clean it up
-	cleaned, err := credentialsCleanerBytes(co)
+	cleaned, err := credentialsCleanerBytes(serialized)
 	if err != nil {
 		return err
 	}
@@ -30,7 +46,7 @@ func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
 	imageSha := regexp.MustCompile(`\"Image\": \"sha256:\w+"`)
 	cleaned = imageSha.ReplaceAllFunc(cleaned, func(s []byte) []byte {
 		m := string(s[10 : len(s)-1])
-		shaResolvedInspect, _ := docker.ResolveImageName(m)
+		shaResolvedInspect, _ := du.ResolveImageName(m)
 		return []byte(shaResolvedInspect)
 	})
 

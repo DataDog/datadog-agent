@@ -23,21 +23,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
 	pauseContainerGCR       string = "image:gcr.io/google_containers/pause.*"
 	pauseContainerOpenshift string = "image:openshift/origin-pod"
 )
-
-// NeedInit returns true if InitDockerUtil has to be called
-// before using the package
-func NeedInit() bool {
-	if globalDockerUtil == nil {
-		return true
-	}
-	return false
-}
 
 func detectServerAPIVersion() (string, error) {
 	host := os.Getenv("DOCKER_HOST")
@@ -57,37 +49,49 @@ func detectServerAPIVersion() (string, error) {
 	return v.APIVersion, nil
 }
 
-// InitDockerUtil initializes the globalDockerUtil singleton. This _must_ be
-// called before accessing any of the top-level docker calls.
-func InitDockerUtil(cfg *Config) error {
-	if config.Datadog.GetBool("exclude_pause_container") {
-		cfg.Blacklist = append(cfg.Blacklist, pauseContainerGCR, pauseContainerOpenshift)
-	}
-
+// init makes an empty DockerUtil bootstrap itself.
+// This is not exposed as public API but is called by the retrier embed.
+func (d *DockerUtil) init() error {
+	// Major failure risk is here, do that first
 	cli, err := ConnectToDocker()
 	if err != nil {
 		return err
 	}
 
+	cfg := &Config{
+		// TODO: bind them to config entries if relevant
+		CollectNetwork: true,
+		CacheDuration:  10 * time.Second,
+	}
+
+	whitelist := config.Datadog.GetStringSlice("ac_include")
+	blacklist := config.Datadog.GetStringSlice("ac_exclude")
+
+	if config.Datadog.GetBool("exclude_pause_container") {
+		blacklist = append(blacklist, pauseContainerGCR, pauseContainerOpenshift)
+	}
+
 	// Pre-parse the filter and use that internally.
-	cfg.filter, err = newContainerFilter(cfg.Whitelist, cfg.Blacklist)
+	cfg.filter, err = newContainerFilter(whitelist, blacklist)
 	if err != nil {
 		return err
 	}
 
-	globalDockerUtil = &DockerUtil{
-		cfg:             cfg,
-		cli:             cli,
-		networkMappings: make(map[string][]dockerNetwork),
-		imageNameBySha:  make(map[string]string),
-		lastInvalidate:  time.Now(),
-	}
+	d.cfg = cfg
+	d.cli = cli
+	d.networkMappings = make(map[string][]dockerNetwork)
+	d.imageNameBySha = make(map[string]string)
+	d.lastInvalidate = time.Now()
+
 	return nil
 }
 
 // ConnectToDocker connects to a local docker socket.
 // Returns ErrDockerNotAvailable if the socket or mounts file is missing
 // otherwise it returns either a valid client or an error.
+//
+// TODO: REMOVE USES AND MOVE TO PRIVATE
+//
 func ConnectToDocker() (*client.Client, error) {
 	// If we don't have a docker.sock then return a known error.
 	sockPath := getEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock")
@@ -125,6 +129,7 @@ func ConnectToDocker() (*client.Client, error) {
 
 // DockerUtil wraps interactions with a local docker API.
 type DockerUtil struct {
+	retry.Retrier
 	sync.Mutex
 	cfg *Config
 	cli *client.Client
@@ -136,8 +141,8 @@ type DockerUtil struct {
 	imageNameBySha map[string]string
 }
 
-// dockerImages returns a list of Docker info for images.
-func (d *DockerUtil) dockerImages(includeIntermediate bool) ([]types.ImageSummary, error) {
+// Images returns a slice of all images.
+func (d *DockerUtil) Images(includeIntermediate bool) ([]types.ImageSummary, error) {
 	images, err := d.cli.ImageList(context.Background(), types.ImageListOptions{All: includeIntermediate})
 	if err != nil {
 		return nil, fmt.Errorf("unable to list docker images: %s", err)
@@ -145,8 +150,8 @@ func (d *DockerUtil) dockerImages(includeIntermediate bool) ([]types.ImageSummar
 	return images, nil
 }
 
-// countVolumes returns the number of attached and dangling volumes.
-func (d *DockerUtil) countVolumes() (int, int, error) {
+// CountVolumes returns the number of attached and dangling volumes.
+func (d *DockerUtil) CountVolumes() (int, int, error) {
 	attachedFilter, _ := buildDockerFilter("dangling", "false")
 	danglingFilter, _ := buildDockerFilter("dangling", "true")
 
@@ -187,13 +192,18 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 			d.Unlock()
 		}
 
+		image, err := d.ResolveImageName(c.Image)
+		if err != nil {
+			log.Warnf("can't resolve image name %s: %s", c.Image, err)
+		}
+
 		entityID := fmt.Sprintf("docker://%s", c.ID)
 		container := &Container{
 			Type:     "Docker",
 			ID:       entityID[9:],
 			EntityID: entityID,
 			Name:     c.Names[0],
-			Image:    d.extractImageName(c.Image),
+			Image:    image,
 			ImageID:  c.ImageID,
 			Created:  c.Created,
 			State:    c.State,
@@ -222,9 +232,9 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 	return ret, nil
 }
 
-// containers gets a list of all containers on the current node using a mix of
+// Containers gets a list of all containers on the current node using a mix of
 // the Docker APIs and cgroups stats. We attempt to limit syscalls where possible.
-func (d *DockerUtil) containers(cfg *ContainerListConfig) ([]*Container, error) {
+func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) {
 	cacheKey := cfg.GetCacheKey()
 
 	// Get the containers either from our cache or with API queries.
@@ -343,7 +353,7 @@ func (d *DockerUtil) containers(cfg *ContainerListConfig) ([]*Container, error) 
 	return newContainers, nil
 }
 
-func (d *DockerUtil) getHostname() (string, error) {
+func (d *DockerUtil) GetHostname() (string, error) {
 	info, err := d.cli.Info(context.Background())
 	if err != nil {
 		return "", fmt.Errorf("unable to get Docker info: %s", err)
@@ -351,7 +361,9 @@ func (d *DockerUtil) getHostname() (string, error) {
 	return info.Name, nil
 }
 
-func (d *DockerUtil) getStorageStats() ([]*StorageStats, error) {
+// GetStorageStats returns the docker global storage stats if available
+// or ErrStorageStatsNotAvailable
+func (d *DockerUtil) GetStorageStats() ([]*StorageStats, error) {
 	info, err := d.cli.Info(context.Background())
 	if err != nil {
 		return []*StorageStats{}, fmt.Errorf("unable to get Docker info: %s", err)
@@ -359,11 +371,11 @@ func (d *DockerUtil) getStorageStats() ([]*StorageStats, error) {
 	return parseStorageStatsFromInfo(info)
 }
 
-// extractImageName will resolve sha image name to their user-friendly name.
+// ResolveImageName will resolve sha image name to their user-friendly name.
 // For non-sha names we will just return the name as-is.
-func (d *DockerUtil) extractImageName(image string) string {
+func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 	if !strings.Contains(image, "sha256:") {
-		return image
+		return image, nil
 	}
 
 	d.Lock()
@@ -374,7 +386,7 @@ func (d *DockerUtil) extractImageName(image string) string {
 			// Only log errors that aren't "not found" because some images may
 			// just not be available in docker inspect.
 			if !client.IsErrNotFound(err) {
-				log.Errorf("could not extract image %s name: %s", image, err)
+				return image, err
 			}
 			d.imageNameBySha[image] = image
 		}
@@ -390,7 +402,42 @@ func (d *DockerUtil) extractImageName(image string) string {
 			d.imageNameBySha[image] = image
 		}
 	}
-	return d.imageNameBySha[image]
+	return d.imageNameBySha[image], nil
+}
+
+// Inspect returns a docker inspect object for a given container ID.
+// It tries to locate the container in the inspect cache before making the docker inspect call
+func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, error) {
+	cacheKey := GetInspectCacheKey(id)
+	var container types.ContainerJSON
+	var err error
+	var ok bool
+
+	if cached, hit := cache.Cache.Get(cacheKey); hit {
+		container, ok = cached.(types.ContainerJSON)
+		if !ok {
+			log.Errorf("invalid cache format, forcing a cache miss")
+		}
+	} else {
+		if globalDockerUtil == nil {
+			return types.ContainerJSON{}, fmt.Errorf("DockerUtil not initialized")
+		}
+		container, _, err = globalDockerUtil.cli.ContainerInspectWithRaw(context.Background(), id, withSize)
+		// cache the inspect for 10 seconds to reduce pressure on the daemon
+		cache.Cache.Set(cacheKey, container, 10*time.Second)
+	}
+
+	return container, err
+}
+
+// Inspect detect the container ID we are running in and returns the inspect contents.
+func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
+	cID, _, err := readCgroupPaths("/proc/self/cgroup")
+	if err != nil {
+		return types.ContainerJSON{}, err
+	}
+
+	return d.Inspect(cID, false)
 }
 
 func (d *DockerUtil) invalidateCaches(containers []types.Container) {

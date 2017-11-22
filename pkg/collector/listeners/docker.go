@@ -37,6 +37,7 @@ const (
 // match templates against.
 type DockerListener struct {
 	Client     *client.Client
+	docker     *docker.DockerUtil
 	services   map[ID]Service
 	newService chan<- Service
 	delService chan<- Service
@@ -64,9 +65,13 @@ func NewDockerListener() (ServiceListener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to connect to Docker, auto discovery will not work: %s", err)
 	}
-
+	d, err := docker.GetDockerUtil()
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Docker, auto discovery will not work: %s", err)
+	}
 	return &DockerListener{
 		Client:   c,
+		docker:   d,
 		services: make(map[ID]Service),
 		stop:     make(chan bool),
 	}, nil
@@ -198,7 +203,7 @@ func (l *DockerListener) createService(cID ID) {
 	var svc Service
 
 	// Detect whether that container is managed by Kubernetes
-	cInspect, err := docker.Inspect(string(cID), false)
+	cInspect, err := l.docker.Inspect(string(cID), false)
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
@@ -272,7 +277,7 @@ func (l *DockerListener) removeService(cID ID) {
 //   1. Long image name
 //   2. Short image name
 func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
-	image, err := docker.ResolveImageName(co.Image)
+	image, err := l.docker.ResolveImageName(co.Image)
 	if err != nil {
 		log.Warnf("error while resolving image name: %s", err)
 	}
@@ -318,11 +323,15 @@ func (s *DockerService) GetID() ID {
 //   2. Short image name
 func (s *DockerService) GetADIdentifiers() ([]string, error) {
 	if len(s.ADIdentifiers) == 0 {
-		cj, err := docker.Inspect(string(s.ID), false)
+		du, err := docker.GetDockerUtil()
 		if err != nil {
 			return []string{}, err
 		}
-		image, err := docker.ResolveImageName(cj.Image)
+		cj, err := du.Inspect(string(s.ID), false)
+		if err != nil {
+			return []string{}, err
+		}
+		image, err := du.ResolveImageName(cj.Image)
 		if err != nil {
 			log.Warnf("error while resolving image name: %s", err)
 		}
@@ -339,8 +348,11 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	}
 
 	ips := make(map[string]string)
-
-	cInspect, err := docker.Inspect(string(s.ID), false)
+	du, err := docker.GetDockerUtil()
+	if err != nil {
+		return ips, err
+	}
+	cInspect, err := du.Inspect(string(s.ID), false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
 	}
@@ -359,8 +371,11 @@ func (s *DockerService) GetPorts() ([]int, error) {
 	}
 
 	ports := make([]int, 0)
-
-	cInspect, err := docker.Inspect(string(s.ID), false)
+	du, err := docker.GetDockerUtil()
+	if err != nil {
+		return ports, err
+	}
+	cInspect, err := du.Inspect(string(s.ID), false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
 	}
@@ -396,7 +411,11 @@ func (s *DockerService) GetTags() ([]string, error) {
 func (s *DockerService) GetPid() (int, error) {
 	// Try to inspect container to get the pid if not defined
 	if s.Pid <= 0 {
-		cj, err := docker.Inspect(string(s.ID), false)
+		du, err := docker.GetDockerUtil()
+		if err != nil {
+			return -1, err
+		}
+		cj, err := du.Inspect(string(s.ID), false)
 		if err != nil {
 			return -1, err
 		}
