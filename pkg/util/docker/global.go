@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	globalDockerUtil     *dockerUtil
+	globalDockerUtil     *DockerUtil
 	invalidationInterval = 5 * time.Minute
 	lastErr              string
 
@@ -147,7 +147,9 @@ type Config struct {
 }
 
 //
-// Expose module-level functions that will interact with a Singleton dockerUtil.
+// Expose module-level functions that will interact with a the globalDockerUtil singleton.
+// These are to be deprecated in favor or directly calling the DockerUtil methods.
+//
 
 type ContainerListConfig struct {
 	IncludeExited bool

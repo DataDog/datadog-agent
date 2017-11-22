@@ -75,7 +75,7 @@ func TestExtractImageName(t *testing.T) {
 	imageWithShaTag := "datadog/docker-dd-agent@sha256:9aab42bf6a2a068b797fe7d91a5d8d915b10dbbc3d6f2b10492848debfba6044"
 
 	assert := assert.New(t)
-	globalDockerUtil = &dockerUtil{
+	globalDockerUtil = &DockerUtil{
 		cfg:            &Config{CollectNetwork: false},
 		cli:            nil,
 		imageNameBySha: make(map[string]string),

@@ -57,7 +57,7 @@ func detectServerAPIVersion() (string, error) {
 	return v.APIVersion, nil
 }
 
-// InitDockerUtil initializes the global dockerUtil singleton. This _must_ be
+// InitDockerUtil initializes the globalDockerUtil singleton. This _must_ be
 // called before accessing any of the top-level docker calls.
 func InitDockerUtil(cfg *Config) error {
 	if config.Datadog.GetBool("exclude_pause_container") {
@@ -75,7 +75,7 @@ func InitDockerUtil(cfg *Config) error {
 		return err
 	}
 
-	globalDockerUtil = &dockerUtil{
+	globalDockerUtil = &DockerUtil{
 		cfg:             cfg,
 		cli:             cli,
 		networkMappings: make(map[string][]dockerNetwork),
@@ -123,8 +123,9 @@ func ConnectToDocker() (*client.Client, error) {
 	return cli, nil
 }
 
-// dockerUtil wraps interactions with a local docker API.
-type dockerUtil struct {
+// DockerUtil wraps interactions with a local docker API.
+type DockerUtil struct {
+	sync.Mutex
 	cfg *Config
 	cli *client.Client
 	// tracks the last time we invalidate our internal caches
@@ -133,11 +134,10 @@ type dockerUtil struct {
 	networkMappings map[string][]dockerNetwork
 	// image sha mapping cache
 	imageNameBySha map[string]string
-	sync.Mutex
 }
 
 // dockerImages returns a list of Docker info for images.
-func (d *dockerUtil) dockerImages(includeIntermediate bool) ([]types.ImageSummary, error) {
+func (d *DockerUtil) dockerImages(includeIntermediate bool) ([]types.ImageSummary, error) {
 	images, err := d.cli.ImageList(context.Background(), types.ImageListOptions{All: includeIntermediate})
 	if err != nil {
 		return nil, fmt.Errorf("unable to list docker images: %s", err)
@@ -146,7 +146,7 @@ func (d *dockerUtil) dockerImages(includeIntermediate bool) ([]types.ImageSummar
 }
 
 // countVolumes returns the number of attached and dangling volumes.
-func (d *dockerUtil) countVolumes() (int, int, error) {
+func (d *DockerUtil) countVolumes() (int, int, error) {
 	attachedFilter, _ := buildDockerFilter("dangling", "false")
 	danglingFilter, _ := buildDockerFilter("dangling", "true")
 
@@ -165,7 +165,7 @@ func (d *dockerUtil) countVolumes() (int, int, error) {
 // dockerContainers returns a list of Docker info for active containers using the
 // Docker API. This requires the running user to be in the "docker" user group
 // or have access to /tmp/docker.sock.
-func (d *dockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, error) {
+func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, error) {
 	containers, err := d.cli.ContainerList(context.Background(), types.ContainerListOptions{All: cfg.IncludeExited})
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)
@@ -224,7 +224,7 @@ func (d *dockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 
 // containers gets a list of all containers on the current node using a mix of
 // the Docker APIs and cgroups stats. We attempt to limit syscalls where possible.
-func (d *dockerUtil) containers(cfg *ContainerListConfig) ([]*Container, error) {
+func (d *DockerUtil) containers(cfg *ContainerListConfig) ([]*Container, error) {
 	cacheKey := cfg.GetCacheKey()
 
 	// Get the containers either from our cache or with API queries.
@@ -343,7 +343,7 @@ func (d *dockerUtil) containers(cfg *ContainerListConfig) ([]*Container, error) 
 	return newContainers, nil
 }
 
-func (d *dockerUtil) getHostname() (string, error) {
+func (d *DockerUtil) getHostname() (string, error) {
 	info, err := d.cli.Info(context.Background())
 	if err != nil {
 		return "", fmt.Errorf("unable to get Docker info: %s", err)
@@ -351,7 +351,7 @@ func (d *dockerUtil) getHostname() (string, error) {
 	return info.Name, nil
 }
 
-func (d *dockerUtil) getStorageStats() ([]*StorageStats, error) {
+func (d *DockerUtil) getStorageStats() ([]*StorageStats, error) {
 	info, err := d.cli.Info(context.Background())
 	if err != nil {
 		return []*StorageStats{}, fmt.Errorf("unable to get Docker info: %s", err)
@@ -361,7 +361,7 @@ func (d *dockerUtil) getStorageStats() ([]*StorageStats, error) {
 
 // extractImageName will resolve sha image name to their user-friendly name.
 // For non-sha names we will just return the name as-is.
-func (d *dockerUtil) extractImageName(image string) string {
+func (d *DockerUtil) extractImageName(image string) string {
 	if !strings.Contains(image, "sha256:") {
 		return image
 	}
@@ -393,7 +393,7 @@ func (d *dockerUtil) extractImageName(image string) string {
 	return d.imageNameBySha[image]
 }
 
-func (d *dockerUtil) invalidateCaches(containers []types.Container) {
+func (d *DockerUtil) invalidateCaches(containers []types.Container) {
 	liveContainers := make(map[string]struct{})
 	liveImages := make(map[string]struct{})
 	for _, c := range containers {
