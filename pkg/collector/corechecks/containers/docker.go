@@ -220,7 +220,7 @@ func (d *DockerCheck) Run() error {
 	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", d.instance.Tags, "")
 
 	if d.instance.CollectEvent || d.instance.CollectExitCodes {
-		events, err := d.retrieveEvents()
+		events, err := d.retrieveEvents(du)
 		if err != nil {
 			log.Warn(err.Error())
 		} else {

@@ -143,12 +143,3 @@ func (d *DockerUtil) LatestContainerEvents(since time.Time) ([]*ContainerEvent, 
 		}
 	}
 }
-
-// LatestContainerEvents returns events matching the filter that occurred after the time passed.
-// It returns the latest event timestamp in the slice for the user to store and pass again in the next call.
-func LatestContainerEvents(since time.Time) ([]*ContainerEvent, time.Time, error) {
-	if globalDockerUtil != nil {
-		return globalDockerUtil.LatestContainerEvents(since)
-	}
-	return nil, time.Now(), errors.New("dockerutil not initialised")
-}
