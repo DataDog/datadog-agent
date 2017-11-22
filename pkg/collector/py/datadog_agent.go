@@ -139,6 +139,10 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 		C.free(unsafe.Pointer(cErr))
 		return C._none()
 	}
+	var output []byte
+	go func() {
+		output, _ = ioutil.ReadAll(stdout)
+	}()
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
@@ -147,6 +151,10 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 		C.free(unsafe.Pointer(cErr))
 		return C._none()
 	}
+	var outputErr []byte
+	go func() {
+		outputErr, _ = ioutil.ReadAll(stderr)
+	}()
 
 	cmd.Start()
 
@@ -158,21 +166,21 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 		}
 	}
 
-	output, err := ioutil.ReadAll(stdout)
-	if err != nil {
-		cErr := C.CString(fmt.Sprintf("unable to read command stdout: %v", err))
-		C.PyErr_SetString(C.PyExc_Exception, cErr)
-		C.free(unsafe.Pointer(cErr))
-		return C._none()
-	}
+	// output, err := ioutil.ReadAll(stdout)
+	// if err != nil {
+	// 	cErr := C.CString(fmt.Sprintf("unable to read command stdout: %v", err))
+	// 	C.PyErr_SetString(C.PyExc_Exception, cErr)
+	// 	C.free(unsafe.Pointer(cErr))
+	// 	return C._none()
+	// }
 
-	outputErr, err := ioutil.ReadAll(stderr)
-	if err != nil {
-		cErr := C.CString(fmt.Sprintf("unable to read command stderr: %v", err))
-		C.PyErr_SetString(C.PyExc_Exception, cErr)
-		C.free(unsafe.Pointer(cErr))
-		return C._none()
-	}
+	// outputErr, err := ioutil.ReadAll(stderr)
+	// if err != nil {
+	// 	cErr := C.CString(fmt.Sprintf("unable to read command stderr: %v", err))
+	// 	C.PyErr_SetString(C.PyExc_Exception, cErr)
+	// 	C.free(unsafe.Pointer(cErr))
+	// 	return C._none()
+	// }
 
 	if raise > 0 {
 		// raise on error

@@ -50,8 +50,7 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
     char ** subprocess_args, * subprocess_arg;
     PyObject * py_result = Py_None;
 
-    PyGILState_STATE gstate;
-    gstate = PyGILState_Ensure();
+    PyGILState_STATE gstate = PyGILState_Ensure();
 
 	cmd_raise_on_empty = NULL;
     if (!PyArg_ParseTuple(args, "O|O:get_subprocess_output", &cmd_args, &cmd_raise_on_empty)) {
