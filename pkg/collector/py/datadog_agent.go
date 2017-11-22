@@ -183,6 +183,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 				C.free(unsafe.Pointer(cErr))
 				return nil
 			}
+			defer C.Py_DecRef(utilModule)
 
 			cExcName := C.CString("SubprocessOutputEmptyError")
 			excClass := C.PyObject_GetAttrString(utilModule, cExcName)
@@ -193,6 +194,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 				C.free(unsafe.Pointer(cErr))
 				return nil
 			}
+			defer C.Py_DecRef(excClass)
 
 			cErr := C.CString("get_subprocess_output expected output but had none.")
 			C.PyErr_SetString((*C.PyObject)(unsafe.Pointer(excClass)), cErr)
@@ -212,8 +214,8 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	pyRetCode := C.PyInt_FromLong(C.long(retCode))
 	defer C.Py_DecRef(pyRetCode)
 
+	// Don't decref as we're returning this
 	pyResult := C.PyTuple_New(3)
-	defer C.Py_DecRef(pyResult) // I'm returning this so probably shouldn't do this
 	C.PyTuple_SetItem(pyResult, 0, pyOutput)
 	C.PyTuple_SetItem(pyResult, 1, pyOutputErr)
 	C.PyTuple_SetItem(pyResult, 2, pyRetCode)

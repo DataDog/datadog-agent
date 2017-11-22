@@ -97,6 +97,9 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
     py_result = GetSubprocessOutput(subprocess_args, subprocess_args_sz, raise);
     free(subprocess_args);
 
+    if (py_result == NULL) {
+        Py_RETURN_NONE;
+	}
     return py_result;
 }
 
