@@ -22,13 +22,14 @@ import (
 // tagger instead of instanciating one.
 type Tagger struct {
 	sync.RWMutex
-	tagStore   *tagStore
-	pullers    map[string]collectors.Puller
-	streamers  map[string]collectors.Streamer
-	fetchers   map[string]collectors.Fetcher
-	infoIn     chan []*collectors.TagInfo
-	pullTicker *time.Ticker
-	stop       chan bool
+	tagStore    *tagStore
+	pullers     map[string]collectors.Puller
+	streamers   map[string]collectors.Streamer
+	fetchers    map[string]collectors.Fetcher
+	infoIn      chan []*collectors.TagInfo
+	pullTicker  *time.Ticker
+	pruneTicker *time.Ticker
+	stop        chan bool
 }
 
 // newTagger returns an allocated tagger. You still have to run Init()
@@ -41,13 +42,14 @@ func newTagger() (*Tagger, error) {
 		return nil, err
 	}
 	t := &Tagger{
-		tagStore:   store,
-		pullers:    make(map[string]collectors.Puller),
-		streamers:  make(map[string]collectors.Streamer),
-		fetchers:   make(map[string]collectors.Fetcher),
-		infoIn:     make(chan []*collectors.TagInfo, 5),
-		pullTicker: time.NewTicker(5 * time.Second),
-		stop:       make(chan bool),
+		tagStore:    store,
+		pullers:     make(map[string]collectors.Puller),
+		streamers:   make(map[string]collectors.Streamer),
+		fetchers:    make(map[string]collectors.Fetcher),
+		infoIn:      make(chan []*collectors.TagInfo, 5),
+		pullTicker:  time.NewTicker(5 * time.Second),
+		pruneTicker: time.NewTicker(5 * time.Minute),
+		stop:        make(chan bool),
 	}
 
 	return t, nil
@@ -104,7 +106,6 @@ func (t *Tagger) Init(catalog collectors.Catalog) error {
 }
 
 func (t *Tagger) run() error {
-	// TODO: handle pulling and stopping
 	for {
 		select {
 		case <-t.stop:
@@ -125,6 +126,8 @@ func (t *Tagger) run() error {
 			}
 		case <-t.pullTicker.C:
 			go t.pull()
+		case <-t.pruneTicker.C:
+			t.tagStore.prune()
 		}
 	}
 }

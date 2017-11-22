@@ -20,18 +20,20 @@ type entityTags struct {
 // tagStore stores entity tags in memory and handles search and collation.
 // Queries should go through the Tagger for cache-miss handling
 type tagStore struct {
-	sync.RWMutex
-	store map[string]*entityTags
+	storeMutex    sync.RWMutex
+	store         map[string]*entityTags
+	toDeleteMutex sync.RWMutex
+	toDelete      map[string]struct{} // set emulation
 }
 
 func newTagStore() (*tagStore, error) {
 	t := &tagStore{
-		store: make(map[string]*entityTags),
+		store:    make(map[string]*entityTags),
+		toDelete: make(map[string]struct{}),
 	}
 	return t, nil
 }
 
-// TODO: allow batch writes
 func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	if info.Entity == "" {
 		return fmt.Errorf("empty entity name, skipping message")
@@ -40,17 +42,16 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 		return fmt.Errorf("empty source name, skipping message")
 	}
 	if info.DeleteEntity {
-		// FIXME batch requests
-		s.Lock()
-		delete(s.store, info.Entity)
-		s.Unlock()
+		s.toDeleteMutex.Lock()
+		s.toDelete[info.Entity] = struct{}{}
+		s.toDeleteMutex.Unlock()
 		return nil
 	}
 
 	// TODO: check if real change
-	s.RLock()
+	s.storeMutex.RLock()
 	storedTags, exist := s.store[info.Entity]
-	s.RUnlock()
+	s.storeMutex.RUnlock()
 	if exist == false {
 		storedTags = &entityTags{
 			lowCardTags:  make(map[string][]string),
@@ -64,10 +65,32 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	storedTags.Unlock()
 
 	if exist == false {
-		s.Lock()
+		s.storeMutex.Lock()
 		s.store[info.Entity] = storedTags
-		s.Unlock()
+		s.storeMutex.Unlock()
 	}
+
+	return nil
+}
+
+// prune will lock the store and delete tags for the entity previously
+// passed as delete. This is to be called regularly from the user class.
+func (s *tagStore) prune() error {
+	s.toDeleteMutex.Lock()
+	defer s.toDeleteMutex.Unlock()
+
+	if len(s.toDelete) == 0 {
+		return nil
+	}
+
+	s.storeMutex.Lock()
+	for entity := range s.toDelete {
+		delete(s.store, entity)
+	}
+	s.storeMutex.Unlock()
+
+	// Start fresh
+	s.toDelete = make(map[string]struct{})
 
 	return nil
 }
@@ -76,9 +99,9 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 // array. It returns the source names in the second []string to allow the
 // client to trigger manual lookups on missing sources.
 func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string, error) {
-	s.RLock()
+	s.storeMutex.RLock()
 	storedTags, present := s.store[entity]
-	s.RUnlock()
+	s.storeMutex.RUnlock()
 
 	if present == false {
 		//return nil, nil, fmt.Errorf("entity not in memory store")
