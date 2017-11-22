@@ -277,6 +277,9 @@ func ContainerSelfInspect() ([]byte, error) {
 	var out bytes.Buffer
 
 	cID, _, err := readCgroupPaths("/proc/self/cgroup")
+	if err != nil {
+		return nil, err
+	}
 
 	client, err := client.NewEnvClient()
 	defer client.Close()

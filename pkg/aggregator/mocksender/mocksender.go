@@ -32,12 +32,20 @@ type MockSender struct {
 func (m *MockSender) SetupAcceptAll() {
 	metricCalls := []string{"Rate", "Count", "MonotonicCount", "Counter", "Histogram", "Historate", "Gauge"}
 	for _, call := range metricCalls {
-		m.On(call, mock.AnythingOfType("string"), mock.AnythingOfType("float64"),
-			mock.AnythingOfType("string"), mock.AnythingOfType("[]string")).Return()
+		m.On(call,
+			mock.AnythingOfType("string"),   // Metric
+			mock.AnythingOfType("float64"),  // Value
+			mock.AnythingOfType("string"),   // Hostname
+			mock.AnythingOfType("[]string"), // Tags
+		).Return()
 	}
-	m.On("ServiceCheck", mock.AnythingOfType("string"), mock.AnythingOfType("metrics.ServiceCheckStatus"),
-		mock.AnythingOfType("string"), mock.AnythingOfType("[]string"),
-		mock.AnythingOfType("string")).Return()
+	m.On("ServiceCheck",
+		mock.AnythingOfType("string"),                     // checkName (e.g: docker.exit)
+		mock.AnythingOfType("metrics.ServiceCheckStatus"), // (e.g: metrics.ServiceCheckOK)
+		mock.AnythingOfType("string"),                     // Hostname
+		mock.AnythingOfType("[]string"),                   // Tags
+		mock.AnythingOfType("string"),                     // message
+	).Return()
 	m.On("Event", mock.AnythingOfType("metrics.Event")).Return()
 	m.On("GetMetricStats", mock.AnythingOfType("map[string]int64")).Return()
 

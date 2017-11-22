@@ -20,3 +20,7 @@ bin/
 
 #file generated at build time by message compiler
 agentmsg.h
+
+# go-generated files
+datadog.yaml
+dogstatsd.yaml

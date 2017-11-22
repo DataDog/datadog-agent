@@ -44,9 +44,22 @@ type DockerListener struct {
 	m          sync.RWMutex
 }
 
+// DockerService implements and store results from the Service interface for the Docker listener
+type DockerService struct {
+	ID            ID
+	ADIdentifiers []string
+	Hosts         map[string]string
+	Ports         []int
+	Pid           int
+}
+
+func init() {
+	Register("docker", NewDockerListener)
+}
+
 // NewDockerListener creates a client connection to Docker and instantiate a DockerListener with it
 // TODO: TLS support
-func NewDockerListener() (*DockerListener, error) {
+func NewDockerListener() (ServiceListener, error) {
 	c, err := docker.ConnectToDocker()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to connect to Docker, auto discovery will not work: %s", err)
@@ -117,14 +130,26 @@ func (l *DockerListener) init() {
 
 	for _, co := range containers {
 		id := ID(co.ID)
-		svc := DockerService{
-			ID:            id,
-			ADIdentifiers: l.getConfigIDFromPs(co),
-			Hosts:         l.getHostsFromPs(co),
-			Ports:         l.getPortsFromPs(co),
+		var svc Service
+
+		if findKubernetesInLabels(co.Labels) {
+			svc = &DockerKubeletService{
+				DockerService: DockerService{
+					ID:            id,
+					ADIdentifiers: l.getConfigIDFromPs(co),
+					// Host and Ports will be looked up when needed
+				},
+			}
+		} else {
+			svc = &DockerService{
+				ID:            id,
+				ADIdentifiers: l.getConfigIDFromPs(co),
+				Hosts:         l.getHostsFromPs(co),
+				Ports:         l.getPortsFromPs(co),
+			}
 		}
-		l.newService <- &svc
-		l.services[id] = &svc
+		l.newService <- svc
+		l.services[id] = svc
 	}
 }
 
@@ -170,10 +195,26 @@ func (l *DockerListener) processEvent(e events.Message) {
 // createService takes a container ID, create a service for it in its cache
 // and tells the ConfigResolver that this service started.
 func (l *DockerListener) createService(cID ID) {
-	svc := DockerService{
-		ID: cID,
+	var svc Service
+
+	// Detect whether that container is managed by Kubernetes
+	cInspect, err := docker.Inspect(string(cID), false)
+	if err != nil {
+		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
-	_, err := svc.GetADIdentifiers()
+	if findKubernetesInLabels(cInspect.Config.Labels) {
+		svc = &DockerKubeletService{
+			DockerService: DockerService{
+				ID: cID,
+			},
+		}
+	} else {
+		svc = &DockerService{
+			ID: cID,
+		}
+	}
+
+	_, err = svc.GetADIdentifiers()
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
@@ -193,11 +234,12 @@ func (l *DockerListener) createService(cID ID) {
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
+
 	l.m.Lock()
-	l.services[ID(cID)] = &svc
+	l.services[ID(cID)] = svc
 	l.m.Unlock()
 
-	l.newService <- &svc
+	l.newService <- svc
 }
 
 // removeService takes a container ID, removes the related service from its cache
@@ -234,11 +276,10 @@ func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
 	if err != nil {
 		log.Warnf("error while resolving image name: %s", err)
 	}
-	return computeDockerIDs(image, co.Labels)
+	return computeDockerIDs(co.ID, image, co.Labels)
 }
 
 // getHostsFromPs gets the addresss (for now IP address only) of a container on all its networks.
-// TODO: use the k8s API when no network config is found
 func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 	ips := make(map[string]string)
 	if co.NetworkSettings != nil {
@@ -250,7 +291,6 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 }
 
 // getPortsFromPs gets the service ports of a container.
-// TODO: use the k8s API
 func (l *DockerListener) getPortsFromPs(co types.Container) []int {
 	ports := make([]int, 0)
 
@@ -286,7 +326,7 @@ func (s *DockerService) GetADIdentifiers() ([]string, error) {
 		if err != nil {
 			log.Warnf("error while resolving image name: %s", err)
 		}
-		s.ADIdentifiers = computeDockerIDs(image, cj.Config.Labels)
+		s.ADIdentifiers = computeDockerIDs(string(s.ID), image, cj.Config.Labels)
 	}
 
 	return s.ADIdentifiers, nil
@@ -368,8 +408,8 @@ func (s *DockerService) GetPid() (int, error) {
 
 // computeDockerIDs factors in code for getConfigIDFromPs and GetADIdentifiers
 // it assumes the image name's sha is already resolved via docker.ResolveImageName
-func computeDockerIDs(image string, labels map[string]string) []string {
-	var ids []string
+func computeDockerIDs(cid string, image string, labels map[string]string) []string {
+	ids := []string{}
 
 	// check for an identifier label
 	for l, v := range labels {
@@ -379,6 +419,9 @@ func computeDockerIDs(image string, labels map[string]string) []string {
 			return ids
 		}
 	}
+
+	// add the container ID for templates in labels/annotations
+	ids = append(ids, docker.ContainerIDToEntityName(cid))
 
 	// add the image names (long then short if different)
 	long, short, _, err := docker.SplitImageName(image)
@@ -393,4 +436,15 @@ func computeDockerIDs(image string, labels map[string]string) []string {
 	}
 
 	return ids
+}
+
+// findKubernetesInLabels traverses a map of container labels and
+// returns true if a kubernetes label is detected
+func findKubernetesInLabels(labels map[string]string) bool {
+	for name := range labels {
+		if strings.HasPrefix(name, "io.kubernetes.") {
+			return true
+		}
+	}
+	return false
 }

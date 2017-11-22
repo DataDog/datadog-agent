@@ -26,10 +26,14 @@ var retryDelay = flag.Int("retry-delay", 1, "time to wait between retries (defau
 var retryTimeout = flag.Int("retry-timeout", 10, "maximum time before failure (default 10 seconds)")
 var skipCleanup = flag.Bool("skip-cleanup", false, "skip cleanup of the docker containers (for debugging)")
 
+// Must be repeated in the following dockerCfgString
+const instanceTag = "instanceTag:MustBeHere"
+
 var dockerCfgString = `
 collect_container_size: true
+collect_exit_codes: true
 tags:
-  - integration:test
+  - instanceTag:MustBeHere
 `
 
 var datadogCfgString = `
@@ -52,9 +56,7 @@ func TestMain(m *testing.M) {
 	var lastRunResult int
 	var retryCount int
 
-	registerComposeFile("redis container", "redis.compose")
-
-	err := setup(m)
+	err := setup()
 	if err != nil {
 		fmt.Printf("Test setup failed:\n%s\n", err.Error())
 		tearOffAndExit(1)
@@ -81,7 +83,7 @@ func TestMain(m *testing.M) {
 }
 
 // Called before for first test run: compose up
-func setup(m *testing.M) error {
+func setup() error {
 	if docker.NeedInit() {
 		docker.InitDockerUtil(&docker.Config{
 			CollectNetwork: true,
@@ -101,21 +103,11 @@ func setup(m *testing.M) error {
 		return err
 	}
 
-	// Setup docker check
-	var dockerCfg = []byte(dockerCfgString)
-	var dockerInitCfg = []byte("")
-	dockerCheck = containers.DockerFactory()
-	dockerCheck.Configure(dockerCfg, dockerInitCfg)
-
-	// Setup mock sender
-	sender = mocksender.NewMockSender(dockerCheck.ID())
-	sender.SetupAcceptAll()
-
 	// Start compose recipes
-	for _, file := range defaultCatalog.composeFiles {
+	for projectName, file := range defaultCatalog.composeFilesByProjects {
 		compose := &utils.ComposeConf{
-			ProjectName: "dockerchecktest",
-			FilePath:    fmt.Sprintf("testdata/%s", file),
+			ProjectName: projectName,
+			FilePath:    file,
 		}
 		output, err := compose.Start()
 		if err != nil {
@@ -128,7 +120,16 @@ func setup(m *testing.M) error {
 
 // Reset the state and trigger a new run
 func doRun(m *testing.M) int {
-	sender.ResetCalls()
+	// Setup docker check
+	var dockerCfg = []byte(dockerCfgString)
+	var dockerInitCfg = []byte("")
+	dockerCheck = containers.DockerFactory()
+	dockerCheck.Configure(dockerCfg, dockerInitCfg)
+
+	// Setup mock sender
+	sender = mocksender.NewMockSender(dockerCheck.ID())
+	sender.SetupAcceptAll()
+
 	dockerCheck.Run()
 	return m.Run()
 }
@@ -140,10 +141,10 @@ func tearOffAndExit(exitcode int) {
 	}
 
 	// Stop compose recipes, ignore errors
-	for _, file := range defaultCatalog.composeFiles {
+	for projectName, file := range defaultCatalog.composeFilesByProjects {
 		compose := &utils.ComposeConf{
-			ProjectName: "dockerchecktest",
-			FilePath:    fmt.Sprintf("testdata/%s", file),
+			ProjectName: projectName,
+			FilePath:    file,
 		}
 		output, err := compose.Stop()
 		if err != nil {

@@ -29,7 +29,9 @@ func TestNewDefaultForwarder(t *testing.T) {
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, forwarder.NumberOfWorkers, 4)
 	assert.Equal(t, forwarder.KeysPerDomains, keysPerDomains)
-	assert.Nil(t, forwarder.waitingPipe)
+
+	assert.Nil(t, forwarder.highPrio)
+	assert.Nil(t, forwarder.lowPrio)
 	assert.Nil(t, forwarder.requeuedTransaction)
 	assert.Nil(t, forwarder.stopRetry)
 	assert.Len(t, forwarder.workers, 0)
@@ -45,7 +47,8 @@ func TestStart(t *testing.T) {
 	assert.Nil(t, err)
 	require.Len(t, forwarder.retryQueue, 0)
 	assert.Equal(t, Started, forwarder.State())
-	assert.NotNil(t, forwarder.waitingPipe)
+	assert.NotNil(t, forwarder.highPrio)
+	assert.NotNil(t, forwarder.lowPrio)
 	assert.NotNil(t, forwarder.requeuedTransaction)
 	assert.NotNil(t, forwarder.stopRetry)
 	assert.NotNil(t, forwarder.Start())
@@ -158,7 +161,7 @@ func TestRetryTransactions(t *testing.T) {
 	forwarder.requeueTransaction(t1) // the queue should be sorted
 	forwarder.retryTransactions(time.Now())
 	assert.Len(t, forwarder.retryQueue, 1)
-	assert.Len(t, forwarder.waitingPipe, 1)
+	assert.Len(t, forwarder.lowPrio, 1)
 	dropped, _ := strconv.ParseInt(transactionsExpvar.Get("Dropped").String(), 10, 64)
 	assert.Equal(t, int64(1), dropped)
 }
@@ -211,13 +214,42 @@ func TestForwarderRetryLifo(t *testing.T) {
 
 	forwarder.retryTransactions(time.Now())
 
-	firstOut := <-forwarder.waitingPipe
+	firstOut := <-forwarder.lowPrio
 	assert.Equal(t, firstOut, transaction2)
 
-	secondOut := <-forwarder.waitingPipe
+	secondOut := <-forwarder.lowPrio
 	assert.Equal(t, secondOut, transaction1)
 
 	transaction1.AssertExpectations(t)
 	transaction2.AssertExpectations(t)
 	assert.Len(t, forwarder.retryQueue, 0)
+}
+
+func TestForwarderRetryLimitQueue(t *testing.T) {
+	forwarder := NewDefaultForwarder(nil)
+	forwarder.init()
+
+	forwarder.retryQueueLimit = 1
+
+	transaction1 := newTestTransaction()
+	transaction2 := newTestTransaction()
+
+	forwarder.requeueTransaction(transaction1)
+	forwarder.requeueTransaction(transaction2)
+
+	transaction1.On("GetNextFlush").Return(time.Now().Add(1 * time.Minute)).Times(1)
+	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
+
+	transaction2.On("GetNextFlush").Return(time.Now().Add(1 * time.Minute)).Times(1)
+	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
+
+	forwarder.retryTransactions(time.Now())
+
+	transaction1.AssertExpectations(t)
+	transaction2.AssertExpectations(t)
+	require.Len(t, forwarder.retryQueue, 1)
+	require.Len(t, forwarder.highPrio, 0)
+	require.Len(t, forwarder.lowPrio, 0)
+	// assert that the oldest transaction was dropped
+	assert.Equal(t, transaction2, forwarder.retryQueue[0])
 }

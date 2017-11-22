@@ -144,6 +144,19 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			continue
 		}
 
+		// Transform if needed AD configuration
+		input, err := ioutil.ReadFile(dst)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "unable to open %s", dst)
+			continue
+		}
+		output := strings.Replace(string(input), "docker_images:", "ad_identifiers:", 1)
+		err = ioutil.WriteFile(dst, []byte(output), 0640)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "unable to write %s", dst)
+			continue
+		}
+
 		fmt.Fprintln(
 			color.Output,
 			fmt.Sprintf("Copied %s over the new %s directory",

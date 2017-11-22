@@ -102,7 +102,8 @@ type Forwarder interface {
 
 // DefaultForwarder is in charge of receiving transaction payloads and sending them to Datadog backend over HTTP.
 type DefaultForwarder struct {
-	waitingPipe         chan Transaction
+	highPrio            chan Transaction // use to receive new transactions
+	lowPrio             chan Transaction // use to retry transactions
 	requeuedTransaction chan Transaction
 	stopRetry           chan bool
 	workers             []*Worker
@@ -135,19 +136,25 @@ func (v byCreatedTime) Less(i, j int) bool { return v[i].GetCreatedAt().After(v[
 
 func (f *DefaultForwarder) retryTransactions(retryBefore time.Time) {
 	newQueue := []Transaction{}
-	dropped := 0
+	droppedRetryQueueFull := 0
+	droppedWorkerBusy := 0
 
 	sort.Sort(byCreatedTime(f.retryQueue))
 
 	for _, t := range f.retryQueue {
 		if t.GetNextFlush().Before(retryBefore) {
-			f.waitingPipe <- t
-			transactionsExpvar.Add("Retried", 1)
+			select {
+			case f.lowPrio <- t:
+				transactionsExpvar.Add("Retried", 1)
+			default:
+				droppedWorkerBusy++
+				transactionsExpvar.Add("Dropped", 1)
+			}
 		} else if len(newQueue) < f.retryQueueLimit {
 			newQueue = append(newQueue, t)
 			transactionsExpvar.Add("Requeued", 1)
 		} else {
-			dropped++
+			droppedRetryQueueFull++
 			transactionsExpvar.Add("Dropped", 1)
 		}
 	}
@@ -155,8 +162,9 @@ func (f *DefaultForwarder) retryTransactions(retryBefore time.Time) {
 	f.retryQueue = newQueue
 	retryQueueSize.Set(int64(len(f.retryQueue)))
 
-	if dropped > 0 {
-		log.Warnf("Retry queue size limit of %d exceeded, dropped %d transactions in this run", f.retryQueueLimit, dropped)
+	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
+		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding the retry queue size limit of %d, %d because the workers are too busy",
+			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, f.retryQueueLimit, droppedWorkerBusy)
 	}
 }
 
@@ -182,7 +190,8 @@ func (f *DefaultForwarder) handleFailedTransactions() {
 }
 
 func (f *DefaultForwarder) init() {
-	f.waitingPipe = make(chan Transaction, chanBufferSize)
+	f.highPrio = make(chan Transaction, chanBufferSize)
+	f.lowPrio = make(chan Transaction, chanBufferSize)
 	f.requeuedTransaction = make(chan Transaction, chanBufferSize)
 	f.stopRetry = make(chan bool)
 	f.workers = []*Worker{}
@@ -204,7 +213,7 @@ func (f *DefaultForwarder) Start() error {
 
 	blockedList := newBlockedEndpoints()
 	for i := 0; i < f.NumberOfWorkers; i++ {
-		w := NewWorker(f.waitingPipe, f.requeuedTransaction, blockedList)
+		w := NewWorker(f.highPrio, f.lowPrio, f.requeuedTransaction, blockedList)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
@@ -248,7 +257,8 @@ func (f *DefaultForwarder) Stop() {
 	}
 	f.workers = []*Worker{}
 	f.retryQueue = []Transaction{}
-	close(f.waitingPipe)
+	close(f.highPrio)
+	close(f.lowPrio)
 	close(f.requeuedTransaction)
 	log.Info("DefaultForwarder stopped")
 }
@@ -289,7 +299,7 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 	}
 
 	for _, t := range transactions {
-		f.waitingPipe <- t
+		f.highPrio <- t
 	}
 
 	return nil

@@ -31,6 +31,17 @@ else
     fi
 fi
 
+if [ $KUBERNETES_SERVICE_PORT ]; then
+    export KUBERNETES="yes"
+fi
+
+# Install default datadog.yaml
+if [ $KUBERNETES ]; then
+    ln -s /etc/datadog-agent/datadog-kubernetes.yaml /etc/datadog-agent/datadog.yaml
+else
+    ln -s /etc/datadog-agent/datadog-docker.yaml /etc/datadog-agent/datadog.yaml
+fi
+
 # Copy custom confs
 
 find /conf.d -name '*.yaml' -exec cp --parents {} /etc/datadog-agent/ \;

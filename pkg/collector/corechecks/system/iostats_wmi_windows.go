@@ -53,8 +53,7 @@ type IOCheck struct {
 
 // Configure the IOstats check
 func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
-	err := error(nil)
-	err = c.commonConfigure(data, initConfig)
+	err := c.commonConfigure(data, initConfig)
 	if err != nil {
 		return err
 	}

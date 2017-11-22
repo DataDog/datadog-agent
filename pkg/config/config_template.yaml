@@ -1,3 +1,4 @@
+{{ if .Common }}
 # The host of the Datadog intake server to send Agent data to
 dd_url: https://app.datadoghq.com
 
@@ -24,6 +25,34 @@ api_key:
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 
+# Set the host's tags (optional)
+# tags: 
+#   - mytag
+#   - env:prod
+#   - role:database
+
+# Histogram and Historate configuration
+#
+# Configure which aggregated value to compute. Possible values are: min, max,
+# median, avg, sum and count.
+#
+# histogram_aggregates: ["max", "median", "avg", "count"]
+#
+# Configure which percentiles will be computed. Must be a list of float
+# between 0 and 1.
+# Warning: percentiles must be specified as yaml strings
+#
+# histogram_percentiles: ["0.95"]
+
+# Forwarder timeout in seconds
+# forwarder_timeout: 20
+
+# The forwarder retries failed requests. Use this setting to change the
+# maximum length of the forwarder's retry queue (each request in the queue
+# takes no more than 2MB in memory)
+# forwarder_retry_queue_max_size: 30
+{{ end }}
+{{- if .Agent }}
 # The path containing check configuration files
 # By default, uses the conf.d folder located in the agent configuration folder.
 # confd_path:
@@ -39,23 +68,12 @@ api_key:
 # Setting 'GUI_port: -1' turns off the GUI completely
 # GUI_port: -1
 
-# The path to the Unix Socket where the IPC api listens on *nix
-# cmd_sock: /tmp/agent.sock
-
-# The path of the Named Pipe the IPC api uses on Windows
-# cmd_pipe_name: \\.\pipe\ddagent
+# The port on which the IPC api listens
+# cmd_port: 5001
 
 # How many workers will be used to run the check (if not specified, is automatically
 # determined based on number of checks running)
 # check_runners: 4
-
-# Forwarder timeout in seconds
-# forwarder_timeout: 20
-
-# The forwarder retries failed requests. Use this setting to change the
-# maximum length of the forwarder's retry queue (each request in the queue
-# takes no more than 2MB in memory)
-# forwarder_retry_queue_max_size: 30
 
 # Metadata collection should always be enabled, except if you are running several
 # agents/dsd instances per host. In that case, only one agent should have it on.
@@ -64,7 +82,8 @@ api_key:
 
 # Enable the gohai collection of systems data
 # enable_gohai: true
-
+{{ end -}}
+{{- if .Metadata }}
 # Metadata collectors, add or remove from the list to enable or disable collection.
 # Intervals are expressed in seconds.
 metadata_collectors:
@@ -72,20 +91,8 @@ metadata_collectors:
     interval: 60
 #  - name: k8s
 #    interval: 60
-
-# Histogram and Historate configuration
-#
-# Configure which aggregated value to compute. Possible values are: min, max,
-# median, avg, sum and count.
-#
-# histogram_aggregates: ["max", "median", "avg", "count"]
-#
-# Configure which percentiles will be computed. Must be a list of float
-# between 0 and 1.
-# Warning: percentiles must be specified as yaml strings
-#
-# histogram_percentiles: ["0.95"]
-
+{{ end -}}
+{{- if .Dogstatsd }}
 # DogStatsd
 #
 # If you don't want to enable the DogStatsd server, set this option to no
@@ -114,12 +121,17 @@ metadata_collectors:
 #
 # How many items in the dogstatsd's stats circular buffer
 # dogstatsd_stats_buffer: 10
-
+#
+# The port for the go_expvar server
+# dogstatsd_stats_port: 5000
+{{ end -}}
+{{- if .JMX }}
 # JMX
 #
 # jmx_pipe_path:
 # jmx_pipe_name: dd-auto_discovery
-
+{{ end -}}
+{{- if .Autoconfig }}
 # Autoconfig
 #
 # Directory containing configuration templates
@@ -129,6 +141,12 @@ metadata_collectors:
 # Please note the File Configuration Provider is enabled by default and cannot
 # be configured.
 # config_providers:
+
+## The kubelet provider handles templates embedded in pod annotations, see
+## https://docs.datadoghq.com/guides/autodiscovery/#template-source-kubernetes-pod-annotations
+#   - name: kubelet
+#     polling: true
+
 #   - name: etcd
 #     polling: true
 #     template_dir: /datadog/check_configs
@@ -154,12 +172,14 @@ metadata_collectors:
 #     template_url: 127.0.0.1
 #     username:
 #     password:
-
+{{ end -}}
+{{- if .Logging }}
 # Logging
 #
 # log_level: info
 # log_file: /var/log/datadog/agent.log
-
+{{ end -}}
+{{- if .Autodiscovery }}
 # Autodiscovery
 #
 # Change the root directory to look at to get cgroup statistics. Useful when running inside a
@@ -214,7 +234,8 @@ metadata_collectors:
 # about the docker daemon load.
 #
 # exclude_pause_container: true
-
+{{ end -}}
+{{- if .DockerTagging }}
 # Docker tag extraction
 #
 # We can extract container label or environment variables
@@ -232,13 +253,47 @@ metadata_collectors:
 #   com.docker.compose.service: service_name
 #   com.docker.compose.project: +project_name
 #
-
+{{ end -}}
+{{- if .KubernetesTagging }}
 # Kubernetes tag extraction
 #
 # kubernetes_pod_label_to_tag_prefix: "kube_"
 #
-
+{{ end -}}
+{{- if .ECS }}
 # ECS integration
 #
 # URL where the ECS agent can be found. Standard cases will be autodetected.
 # ecs_agent_url: http://localhost:51678
+{{ end -}}
+{{- if .ProcessAgent }}
+# Process agent specific settings
+#
+# process_config:
+#   Note: the Process Agent expects this to be a string
+#   enabled: "true"
+#   The full path to the file where process-agent logs will be written.
+#   log_file:
+#   The interval, in seconds, at which we will run each check. If you want consistent
+#   behavior between real-time you may set the Container/ProcessRT intervals to 10.
+#   Defaults to 10s for normal checks and 2s for others.
+#   intervals:
+#     container:
+#     container_realtime:
+#     process:
+#     process_realtime:
+#   A list of regex patterns that will exclude a process if matched.
+#   blacklist_patterns:
+#   How many check results to buffer in memory when POST fails. The default is usually fine.
+#   queue_size:
+#   The maximum number of file descriptors to open when collecting net connections.
+#   Only change if you are running out of file descriptors from the Agent.
+#   max_proc_fds:
+#   The maximum number of processes or containers per message.
+#   Only change if the defaults are causing issues.
+#   max_per_message:
+#   Overrides the path to the Agent bin used for getting the hostname. The default is usually fine.
+#   dd_agent_bin:
+#   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
+#   dd_agent_env:
+{{ end -}}

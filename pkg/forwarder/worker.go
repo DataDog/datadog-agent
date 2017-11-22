@@ -7,6 +7,7 @@ package forwarder
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -22,8 +23,10 @@ import (
 type Worker struct {
 	// Client the http client used to processed transactions.
 	Client *http.Client
-	// InputChan is the channel used to receive transaction from the Forwarder.
-	InputChan <-chan Transaction
+	// HighPrio is the channel used to receive high priority transaction from the Forwarder.
+	HighPrio <-chan Transaction
+	// LowPrio is the channel used to receive low priority transaction from the Forwarder.
+	LowPrio <-chan Transaction
 	// RequeueChan is the channel used to send failed transaction back to the Forwarder.
 	RequeueChan chan<- Transaction
 
@@ -33,8 +36,7 @@ type Worker struct {
 
 // NewWorker returns a new worker to consume Transaction from inputChan
 // and push back erroneous ones into requeueChan.
-func NewWorker(inputChan chan Transaction, requeueChan chan Transaction, blocked *blockedEndpoints) *Worker {
-
+func NewWorker(highPrioChan <-chan Transaction, lowPrioChan <-chan Transaction, requeueChan chan<- Transaction, blocked *blockedEndpoints) *Worker {
 	transport := util.CreateHTTPTransport()
 
 	httpClient := &http.Client{
@@ -43,7 +45,8 @@ func NewWorker(inputChan chan Transaction, requeueChan chan Transaction, blocked
 	}
 
 	return &Worker{
-		InputChan:   inputChan,
+		HighPrio:    highPrioChan,
+		LowPrio:     lowPrioChan,
 		RequeueChan: requeueChan,
 		stopChan:    make(chan bool),
 		Client:      httpClient,
@@ -60,25 +63,27 @@ func (w *Worker) Stop() {
 func (w *Worker) Start() {
 	go func() {
 		for {
+			// handling high priority transactions first
 			select {
-			case t := <-w.InputChan:
-				ctx, cancel := context.WithCancel(context.Background())
+			case t := <-w.HighPrio:
+				if w.callProcess(t) == nil {
+					continue
+				}
+				return
+			case <-w.stopChan:
+				return
+			default:
+			}
 
-				done := make(chan interface{})
-				go func() {
-					w.process(ctx, t)
-					done <- nil
-				}()
-
-				select {
-				case <-done:
-					// wait for the Transaction process to be over
-				case <-w.stopChan:
-					// cancel current Transaction if we need to stop the worker
-					cancel()
+			select {
+			case t := <-w.HighPrio:
+				if w.callProcess(t) != nil {
 					return
 				}
-				cancel()
+			case t := <-w.LowPrio:
+				if w.callProcess(t) != nil {
+					return
+				}
 			case <-w.stopChan:
 				return
 			}
@@ -86,17 +91,47 @@ func (w *Worker) Start() {
 	}()
 }
 
+// callProcess will process a transaction and cancel it if we need to stop the
+// worker.
+func (w *Worker) callProcess(t Transaction) error {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan interface{})
+	go func() {
+		w.process(ctx, t)
+		done <- nil
+	}()
+
+	select {
+	case <-done:
+		// wait for the Transaction process to be over
+	case <-w.stopChan:
+		// cancel current Transaction if we need to stop the worker
+		cancel()
+		return fmt.Errorf("Worker was requested to stop")
+	}
+	cancel()
+	return nil
+}
+
 func (w *Worker) process(ctx context.Context, t Transaction) {
+	requeue := func() {
+		t.Reschedule()
+		select {
+		case w.RequeueChan <- t:
+		default:
+			log.Errorf("dropping transaction because the retry goroutine is too busy to handle another one")
+		}
+	}
+
 	// First we check if we don't have recently received an error for that endpoint
 	target := t.GetTarget()
 	if w.blockedList.isBlock(target) {
-		t.Reschedule()
-		w.RequeueChan <- t
+		requeue()
 		log.Errorf("Too many errors for endpoint '%s': retrying later", target)
 	} else if err := t.Process(ctx, w.Client); err != nil {
 		w.blockedList.block(target)
-		t.Reschedule()
-		w.RequeueChan <- t
+		requeue()
 		log.Errorf("Error while processing transaction: %v", err)
 	} else {
 		w.blockedList.unblock(target)

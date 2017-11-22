@@ -18,6 +18,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -76,120 +77,133 @@ func (d *dummyKubelet) Start() (*httptest.Server, int, error) {
 	return ts, kubeletPort, nil
 }
 
-func TestLocateKubeletHTTP(t *testing.T) {
+type KubeletTestSuite struct {
+	suite.Suite
+}
+
+// Make sure globalKubeUtil is deleted before each test
+func (suite *KubeletTestSuite) SetupTest() {
+	globalKubeUtil = nil
+}
+
+func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 	kubelet, err := newDummyKubelet("")
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 
 	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
 	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
 
-	kubeutil, err := NewKubeUtil()
-	require.Nil(t, err)
-	require.NotNil(t, kubeutil)
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
 
 	select {
 	case r := <-kubelet.Requests:
-		require.Equal(t, r.Method, "GET")
-		require.Equal(t, r.URL.Path, "/healthz")
+		require.Equal(suite.T(), r.Method, "GET")
+		require.Equal(suite.T(), r.URL.Path, "/healthz")
 	case <-time.After(2 * time.Second):
-		require.FailNow(t, "Timeout on receive channel")
+		require.FailNow(suite.T(), "Timeout on receive channel")
 	}
 }
 
-func TestGetLocalPodList(t *testing.T) {
+func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	kubelet, err := newDummyKubelet("./test/podlist_1.6.json")
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 
 	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
 	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
 
-	kubeutil, err := NewKubeUtil()
-	require.Nil(t, err)
-	require.NotNil(t, kubeutil)
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
 	<-kubelet.Requests // Throwing away /healthz GET
 
 	pods, err := kubeutil.GetLocalPodList()
-	require.Nil(t, err)
-	require.NotNil(t, pods)
-	require.Len(t, pods, 4)
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), pods)
+	require.Len(suite.T(), pods, 4)
 
 	select {
 	case r := <-kubelet.Requests:
-		require.Equal(t, r.Method, "GET")
-		require.Equal(t, r.URL.Path, "/pods")
+		require.Equal(suite.T(), r.Method, "GET")
+		require.Equal(suite.T(), r.URL.Path, "/pods")
 	case <-time.After(2 * time.Second):
-		require.FailNow(t, "Timeout on receive channel")
+		require.FailNow(suite.T(), "Timeout on receive channel")
 	}
 }
 
-func TestGetNodeInfo(t *testing.T) {
+func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	kubelet, err := newDummyKubelet("./test/podlist_1.6.json")
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 
 	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
 	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
 
-	kubeutil, err := NewKubeUtil()
-	require.Nil(t, err)
-	require.NotNil(t, kubeutil)
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
 	<-kubelet.Requests // Throwing away /healthz GET
 
 	ip, name, err := kubeutil.GetNodeInfo()
-	require.Nil(t, err)
-	require.Equal(t, ip, "10.132.0.9")
-	require.Equal(t, name, "hostname")
+	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), ip, "10.132.0.9")
+	require.Equal(suite.T(), name, "hostname")
 
 	select {
 	case r := <-kubelet.Requests:
-		require.Equal(t, r.Method, "GET")
-		require.Equal(t, r.URL.Path, "/pods")
+		require.Equal(suite.T(), r.Method, "GET")
+		require.Equal(suite.T(), r.URL.Path, "/pods")
 	case <-time.After(2 * time.Second):
-		require.FailNow(t, "Timeout on receive channel")
+		require.FailNow(suite.T(), "Timeout on receive channel")
 	}
 }
 
-func TestGetPodForContainerID(t *testing.T) {
+func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	kubelet, err := newDummyKubelet("./test/podlist_1.6.json")
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 
 	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
 	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
 
-	kubeutil, err := NewKubeUtil()
-	require.Nil(t, err)
-	require.NotNil(t, kubeutil)
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
 	<-kubelet.Requests // Throwing away /healthz GET
 
 	// Empty container ID
 	pod, err := kubeutil.GetPodForContainerID("")
 	<-kubelet.Requests // Throwing away /pods GET
-	require.Nil(t, pod)
-	require.NotNil(t, err)
-	require.Contains(t, err.Error(), "containerID is empty")
+	require.Nil(suite.T(), pod)
+	require.NotNil(suite.T(), err)
+	require.Contains(suite.T(), err.Error(), "containerID is empty")
 
 	// Invalid container ID
 	pod, err = kubeutil.GetPodForContainerID("invalid")
 	<-kubelet.Requests // Throwing away /pods GET
-	require.Nil(t, pod)
-	require.NotNil(t, err)
-	require.Contains(t, err.Error(), "container invalid not found in podlist")
+	require.Nil(suite.T(), pod)
+	require.NotNil(suite.T(), err)
+	require.Contains(suite.T(), err.Error(), "container invalid not found in podlist")
 
 	// Valid container ID
 	pod, err = kubeutil.GetPodForContainerID("docker://1ce04128b3cccd7de0ae383516c28e0fe35cbb093195a72661723bdc06934840")
 	<-kubelet.Requests // Throwing away /pods GET
-	require.Nil(t, err)
-	require.NotNil(t, pod)
-	require.Equal(t, pod.Metadata.Name, "kube-dns-1829567597-2xtct")
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), pod)
+	require.Equal(suite.T(), pod.Metadata.Name, "kube-dns-1829567597-2xtct")
+}
+
+func TestKubeletTestSuite(t *testing.T) {
+	suite.Run(t, new(KubeletTestSuite))
 }

@@ -1,8 +1,8 @@
 =========
 Forwarder
 =========
-{{- if .TransactionsCreated -}}
-{{- range $key, $value := .TransactionsCreated}}
+{{- if .Transactions -}}
+{{- range $key, $value := .Transactions}}
   {{$key}}: {{$value}}
 {{- end -}}
 

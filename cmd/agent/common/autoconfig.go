@@ -3,14 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-// +build docker
-
 package common
 
 import (
 	"fmt"
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
@@ -19,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	log "github.com/cihub/seelog"
 )
 
@@ -27,15 +23,7 @@ import (
 //   1. add the configuration providers
 //   2. add the check loaders
 func SetupAutoConfig(confdPath string) {
-	// setup docker (for now we enable everything, we might add more option if needed)
-	docker.InitDockerUtil(&docker.Config{
-		CacheDuration:  10 * time.Second,
-		CollectNetwork: true,
-		Whitelist:      config.Datadog.GetStringSlice("ac_include"),
-		Blacklist:      config.Datadog.GetStringSlice("ac_exclude"),
-	})
-
-	// start tagging system for containers
+	// start tagging system
 	err := tagger.Init()
 	if err != nil {
 		fmt.Printf("Unable to start tagging system: %s", err)
@@ -90,14 +78,17 @@ func SetupAutoConfig(confdPath string) {
 	var Listeners []config.Listeners
 	if err = config.Datadog.UnmarshalKey("listeners", &Listeners); err == nil {
 		for _, l := range Listeners {
-			if l.Name == "docker" {
-				docker, err := listeners.NewDockerListener()
-				if err != nil {
-					log.Errorf("Failed to create a Docker listener. Is Docker accessible by the agent? %s", err)
-				} else {
-					AC.AddListener(docker)
-				}
-				break
+			serviceListenerFactory, ok := listeners.ServiceListenerFactories[l.Name]
+			if !ok {
+				// Factory has not been registered.
+				log.Warnf("Listener %s was not registered", l)
+				continue
+			}
+			serviceListener, err := serviceListenerFactory()
+			if err != nil {
+				log.Errorf("Failed to create a %s listener: %s", l.Name, err)
+			} else {
+				AC.AddListener(serviceListener)
 			}
 		}
 	}

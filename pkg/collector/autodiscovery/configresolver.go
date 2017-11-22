@@ -117,7 +117,7 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 			if err == nil {
 				resolvedSet[config.Digest()] = config
 			} else {
-				log.Debugf("Error resolving template %s for service %s: %v",
+				log.Warnf("Error resolving template %s for service %s: %v",
 					config.Name, serviceID, err)
 			}
 		}
@@ -255,7 +255,7 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	hosts, err := svc.GetHosts()
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it", svc.GetID())
+		return nil, fmt.Errorf("failed to extract IP address for container %s, ignoring it. Source error: %s", svc.GetID(), err)
 	}
 	if len(hosts) == 0 {
 		return nil, fmt.Errorf("no network found for container %s, ignoring it", svc.GetID())
@@ -272,7 +272,7 @@ func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	// otherwise use fallback policy
 	ip, err := getFallbackHost(hosts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Err: %s", svc.GetID(), err)
+		return nil, fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Source error: %s", svc.GetID(), err)
 	}
 
 	return []byte(ip), nil
@@ -301,7 +301,7 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	ports, err := svc.GetPorts()
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract port list for container %s, ignoring it", svc.GetID())
+		return nil, fmt.Errorf("failed to extract port list for container %s, ignoring it. Source error: %s", svc.GetID(), err)
 	} else if len(ports) == 0 {
 		return nil, fmt.Errorf("no port found for container %s - ignoring it", svc.GetID())
 	}

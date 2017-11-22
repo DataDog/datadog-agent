@@ -39,7 +39,7 @@ func TestMonotonicCountSampling(t *testing.T) {
 	}
 
 	// Flush w/o samples: error
-	series, err = monotonicCount.flush(70)
+	_, err = monotonicCount.flush(70)
 	assert.NotNil(t, err)
 
 	// Add a single sample

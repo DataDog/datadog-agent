@@ -456,3 +456,15 @@ func TestConsistentQuantile(t *testing.T) {
 		assert.Equal(t, q1, q2)
 	}
 }
+
+// Test that Quantile() calls do not panic for number of values up to 1/epsilon
+func TestNoPanic(t *testing.T) {
+	s := NewGKArray()
+	k := NewKLL()
+	for i := 0; i < 2*int(1/EPSILON); i++ {
+		s = s.Add(float64(i)).(GKArray)
+		k = k.Add(float64(i)).(KLL)
+		assert.NotPanics(t, func() { s.Quantile(0.9) })
+		assert.NotPanics(t, func() { k.Quantile(0.9) })
+	}
+}

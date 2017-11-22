@@ -28,14 +28,14 @@ func TestGetConfigIDFromPs(t *testing.T) {
 	dl := DockerListener{}
 
 	ids := dl.getConfigIDFromPs(co)
-	assert.Equal(t, []string{"test"}, ids)
+	assert.Equal(t, []string{"docker://deadbeef", "test"}, ids)
 
 	prefixCo := types.Container{
 		ID:    "deadbeef",
 		Image: "org/test",
 	}
 	ids = dl.getConfigIDFromPs(prefixCo)
-	assert.Equal(t, []string{"org/test", "test"}, ids)
+	assert.Equal(t, []string{"docker://deadbeef", "org/test", "test"}, ids)
 
 	labeledCo := types.Container{
 		ID:     "deadbeef",
@@ -110,7 +110,7 @@ func TestGetADIdentifiers(t *testing.T) {
 
 	ids, err := s.GetADIdentifiers()
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"org/test", "test"}, ids)
+	assert.Equal(t, []string{"docker://deadbeef", "org/test", "test"}, ids)
 
 	s = DockerService{ID: ID("deadbeef")}
 	labeledCo := types.ContainerJSON{
@@ -259,6 +259,7 @@ func TestGetPid(t *testing.T) {
 
 	// Should fail because no docker util is init
 	pid, err := s.GetPid()
+	assert.NotNil(t, err)
 	assert.Equal(t, -1, pid)
 
 	// Setting mocked data in cache

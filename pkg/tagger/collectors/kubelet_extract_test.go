@@ -56,6 +56,7 @@ func TestKubeletPodLabelPrefix(t *testing.T) {
 	}
 
 	infos, err := kubeCollector.parsePods(podlist.Items[0:1])
+	require.Nil(t, err)
 	result := infos[0]
 
 	require.Contains(t, result.LowCardTags, "kube_app:dd-agent")

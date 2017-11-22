@@ -18,7 +18,7 @@ import (
 )
 
 /*
- * Rate capping logic to work around buggy kernel versions reporting artifical
+ * Rate capping logic to work around buggy kernel versions reporting artificial
  * spikes in the cpuacct metrics. This logic is specific to this check and not
  * ported downstream in the aggregator as it's not meant as a "standard" feature.
  *
@@ -44,7 +44,7 @@ type ratePoint struct {
 }
 
 // Rate checks the rate value against the `capped_metrics` configuration
-// to filter out buggy spikes comming for cgroup cpu accounting
+// to filter out buggy spikes coming for cgroup cpu accounting
 func (s *cappedSender) Rate(metric string, value float64, hostname string, tags []string) {
 	capValue, found := s.rateCaps[metric]
 	if !found { // Metric not capped, skip capping system

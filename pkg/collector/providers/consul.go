@@ -99,6 +99,10 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 }
 
+func (p *ConsulConfigProvider) String() string {
+	return "consul Configuration Provider"
+}
+
 // Collect retrieves templates from consul, builds Config objects and returns them
 func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
 	var templates []check.Config
@@ -243,7 +247,7 @@ func (p *ConsulConfigProvider) isIndexCurrent(key string) (bool, error) {
 	initKey := path.Join(p.TemplateDir, key, initConfigPath)
 	instanceKey := path.Join(p.TemplateDir, key, instancePath)
 
-	idx, ok := p.cacheIdx[key]
+	idx, _ := p.cacheIdx[key]
 
 	// I think these actually pull the the KV pairs :(
 	ops := consul.KVTxnOps{

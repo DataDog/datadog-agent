@@ -29,7 +29,7 @@ func (p *WinNamedPipe) Open() error {
 		return nil
 	}
 
-	c, err := winio.DialPipe(p.path, nil)
+	_, err := winio.DialPipe(p.path, nil)
 	if err != nil {
 		//Create the pipe
 		cfg := &winio.PipeConfig{MessageMode: true}
@@ -40,7 +40,8 @@ func (p *WinNamedPipe) Open() error {
 		defer l.Close()
 	}
 
-	if c, err = winio.DialPipe(p.path, nil); err != nil {
+	c, err := winio.DialPipe(p.path, nil)
+	if err != nil {
 		return err
 	}
 	p.pipe = c

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
@@ -34,6 +35,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
+	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 }
@@ -72,6 +74,18 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
+func getPythonStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	pyStats, err := py.GetPythonInterpreterMemoryUsage()
+	if err != nil {
+		log.Warnf("Error getting python stats: %s\n", err) // or something like this
+		http.Error(w, err.Error(), 500)
+	}
+
+	j, _ := json.Marshal(pyStats)
+	w.Write(j)
+}
+
 func makeFlare(w http.ResponseWriter, r *http.Request) {
 	if err := apiutil.Validate(w, r); err != nil {
 		return
@@ -101,6 +115,19 @@ func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
 	switch component {
 	case "jmx":
 		getJMXConfigs(w, r)
+	default:
+		err := fmt.Errorf("bad url or resource does not exist")
+		log.Errorf("%s", err.Error())
+		http.Error(w, err.Error(), 404)
+	}
+}
+
+func componentStatusGetterHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	component := vars["component"]
+	switch component {
+	case "py":
+		getPythonStatus(w, r)
 	default:
 		err := fmt.Errorf("bad url or resource does not exist")
 		log.Errorf("%s", err.Error())

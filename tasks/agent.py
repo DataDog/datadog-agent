@@ -78,8 +78,11 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
-
     ctx.run(cmd.format(**args), env=env)
+
+    cmd = "go generate {}/cmd/agent"
+    ctx.run(cmd.format(REPO_PATH), env=env)
+
     if not skip_assets:
         refresh_assets(ctx, development=development)
 
@@ -96,7 +99,7 @@ def refresh_assets(ctx, development=True):
     dist_folder = os.path.join(BIN_PATH, "dist")
     if os.path.exists(dist_folder):
         shutil.rmtree(dist_folder)
-    copy_tree("./pkg/collector/dist/", dist_folder)
+    copy_tree("./cmd/agent/dist/", dist_folder)
     copy_tree("./pkg/status/dist/", dist_folder)
     copy_tree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"))
     if development:
@@ -134,7 +137,7 @@ def image_build(ctx, base_dir="omnibus"):
     """
     Build the docker image
     """
-    base_dir = base_dir or os.environ.get("AGENT_OMNIBUS_BASE_DIR")
+    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     pkg_dir = os.path.join(base_dir, 'pkg')
     list_of_files = glob.glob(os.path.join(pkg_dir, 'datadog-agent*_amd64.deb'))
     # get the last debian package built
@@ -190,7 +193,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
     overrides = []
 
     # base dir (can be overridden through env vars, command line takes precendence)
-    base_dir = base_dir or os.environ.get("AGENT_OMNIBUS_BASE_DIR")
+    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     if base_dir:
         overrides.append("base_dir:{}".format(base_dir))
 

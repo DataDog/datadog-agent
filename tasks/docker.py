@@ -26,7 +26,7 @@ def integration_tests(ctx, skip_image_build=False, skip_build=False):
 
     print("Starting docker integration tests")
     env = {"DOCKER_IMAGE": DOGSTATSD_TAG}
-    ctx.run("./test/integration/docker/dsd_alpine_listening.sh", env=env)
+    ctx.run("python ./test/integration/docker/dsd_listening.py", env=env)
 
 
 @task
