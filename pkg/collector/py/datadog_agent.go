@@ -6,8 +6,10 @@
 package py
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"syscall"
 	"unsafe"
 
 	log "github.com/cihub/seelog"
@@ -116,21 +118,20 @@ func LogMessage(message *C.char, logLevel C.int) *C.PyObject {
 // GetSubprocessOutput runs the subprocess and returns the output
 //export GetSubprocessOutput
 func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
-	var subprocessCommand string
 
 	// https://github.com/golang/go/wiki/cgo#turning-c-arrays-into-go-slices
 	length := int(argc)
-	subprocessArgs := make([]string, length)
+	subprocessArgs := make([]string, length-1)
 	cmdSlice := (*[1 << 30]*C.char)(unsafe.Pointer(argv))[:length:length]
-	subprocessCmd = C.GoString(cmdSlice[0])
-	for i := 0; i < length; i++ {
-		subprocessArgs[i] = C.GoString(cmdSlice[i])
+	subprocessCmd := C.GoString(cmdSlice[0])
+	for i := 1; i < length; i++ {
+		subprocessArgs[i-1] = C.GoString(cmdSlice[i])
 	}
-	cmd := exec.Command(subprocessCommand, subprocessArgs...)
+	cmd := exec.Command(subprocessCmd, subprocessArgs...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		cErr := C.CString(fmt.Printf("internal error creating stdout pipe: %v", err))
+		cErr := C.CString(fmt.Sprintf("internal error creating stdout pipe: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
 		return nil
@@ -138,7 +139,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		cErr := C.CString(fmt.Printf("internal error creating stderr pipe: %v", err))
+		cErr := C.CString(fmt.Sprintf("internal error creating stderr pipe: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
 		return nil
@@ -147,7 +148,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	cmd.Start()
 
 	retCode := 0
-	err := cmd.Wait()
+	err = cmd.Wait()
 	if exiterr, ok := err.(*exec.ExitError); ok {
 		if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 			retCode = status.ExitStatus()
@@ -156,7 +157,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
 	output, err := ioutil.ReadAll(stdout)
 	if err != nil {
-		cErr := C.CString(fmt.Printf("unable to read command stdout: %v", err))
+		cErr := C.CString(fmt.Sprintf("unable to read command stdout: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
 		return nil
@@ -164,40 +165,60 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
 	outputErr, err := ioutil.ReadAll(stderr)
 	if err != nil {
-		cErr := C.CString(fmt.Printf("unable to read command stderr: %v", err))
+		cErr := C.CString(fmt.Sprintf("unable to read command stderr: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
 		return nil
 	}
 
-	if raise {
+	if raise > 0 {
+		// raise on error
 		if len(output) == 0 {
-			// raise on error
+			cModuleName := C.CString("util")
+			utilModule := C.PyImport_ImportModule(cModuleName)
+			C.free(unsafe.Pointer(cModuleName))
+			if utilModule == nil {
+				cErr := C.CString("unable to import subprocess empty output exception")
+				C.PyErr_SetString(C.PyExc_Exception, cErr)
+				C.free(unsafe.Pointer(cErr))
+				return nil
+			}
+
+			cExcName := C.CString("SubprocessOutputEmptyError")
+			excClass := C.PyObject_GetAttrString(utilModule, cExcName)
+			C.free(unsafe.Pointer(cExcName))
+			if excClass == nil {
+				cErr := C.CString("unable to import subprocess empty output exception")
+				C.PyErr_SetString(C.PyExc_Exception, cErr)
+				C.free(unsafe.Pointer(cErr))
+				return nil
+			}
+
 			cErr := C.CString("get_subprocess_output expected output but had none.")
-			C.PyErr_SetString(C.SubprocessOutputEmptyError, cErr)
+			C.PyErr_SetString((*C.PyObject)(unsafe.Pointer(excClass)), cErr)
 			C.free(unsafe.Pointer(cErr))
 			return nil
 		}
 	}
 
-	cOutput := C.CString(output.String())
+	cOutput := C.CString(string(output[:]))
 	pyOutput := C.PyString_FromString(cOutput)
 	defer C.Py_DecRef(pyOutput)
 	C.free(unsafe.Pointer(cOutput))
-	cOutputErr := C.CString(outputErr.String())
+	cOutputErr := C.CString(string(outputErr[:]))
 	pyOutputErr := C.PyString_FromString(cOutputErr)
 	defer C.Py_DecRef(pyOutputErr)
 	C.free(unsafe.Pointer(cOutputErr))
-	pyRetCode := C.PyInt_FromLong(retCode)
+	pyRetCode := C.PyInt_FromLong(C.long(retCode))
 	defer C.Py_DecRef(pyRetCode)
 
-	pyResult = C.PyTuple_New(3)
-	defer C.Py_DecRef(pyResult)
+	pyResult := C.PyTuple_New(3)
+	defer C.Py_DecRef(pyResult) // I'm returning this so probably shouldn't do this
 	C.PyTuple_SetItem(pyResult, 0, pyOutput)
 	C.PyTuple_SetItem(pyResult, 1, pyOutputErr)
 	C.PyTuple_SetItem(pyResult, 2, pyRetCode)
 
-	return pyStr
+	return pyResult
 }
 
 func initDatadogAgent() {

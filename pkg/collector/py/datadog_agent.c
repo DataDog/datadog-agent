@@ -8,6 +8,9 @@ PyObject* LogMessage(char *message, int logLevel);
 PyObject* GetConfig(char *key);
 PyObject* GetSubprocessOutput(char **args, int argc, int raise);
 
+// Exceptions
+PyObject* SubprocessOutputEmptyError;
+
 static PyObject *get_config(PyObject *self, PyObject *args) {
     char *key;
 
