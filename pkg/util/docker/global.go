@@ -68,6 +68,17 @@ func GetDockerUtil() (*DockerUtil, error) {
 	return globalDockerUtil, nil
 }
 
+// EnableTestingMode creates a "mocked" DockerUtil you can use for unit
+// tests that will hit on the docker inspect cache. Please note that all
+// calls to the docker server will result in nil pointer exceptions.
+func EnableTestingMode() {
+	globalDockerUtil = &DockerUtil{}
+	globalDockerUtil.SetupRetrier(&retry.Config{
+		Name:     "dockerutil",
+		Strategy: retry.JustTesting,
+	})
+}
+
 // HostnameProvider docker implementation for the hostname provider
 func HostnameProvider(hostName string) (string, error) {
 	du, err := GetDockerUtil()

@@ -419,10 +419,7 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 			log.Errorf("invalid cache format, forcing a cache miss")
 		}
 	} else {
-		if globalDockerUtil == nil {
-			return types.ContainerJSON{}, fmt.Errorf("DockerUtil not initialized")
-		}
-		container, _, err = globalDockerUtil.cli.ContainerInspectWithRaw(context.Background(), id, withSize)
+		container, _, err = d.cli.ContainerInspectWithRaw(context.Background(), id, withSize)
 		// cache the inspect for 10 seconds to reduce pressure on the daemon
 		cache.Cache.Set(cacheKey, container, 10*time.Second)
 	}
