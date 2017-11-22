@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	//log "github.com/cihub/seelog"
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -88,6 +88,8 @@ func (s *tagStore) prune() error {
 		delete(s.store, entity)
 	}
 	s.storeMutex.Unlock()
+
+	log.Debugf("pruned %d removed entites, %d remaining", len(s.toDelete), len(s.store))
 
 	// Start fresh
 	s.toDelete = make(map[string]struct{})
