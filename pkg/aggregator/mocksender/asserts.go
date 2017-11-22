@@ -47,52 +47,16 @@ func (m *MockSender) AssertMetricNotTaggedWith(t *testing.T, method string, metr
 	return m.Mock.AssertCalled(t, method, metric, mock.AnythingOfType("float64"), mock.AnythingOfType("string"), AssertTagsNotContains(tags))
 }
 
-// Compare an Event on specifics values
-func eventHaveEqualValues(expectedEvent, actualEvent metrics.Event) bool {
-	if assert.ObjectsAreEqualValues(expectedEvent.AggregationKey, actualEvent.AggregationKey) &&
-		assert.ObjectsAreEqualValues(expectedEvent.Priority, actualEvent.Priority) &&
-		assert.ObjectsAreEqualValues(expectedEvent.SourceTypeName, actualEvent.SourceTypeName) &&
-		assert.ObjectsAreEqualValues(expectedEvent.EventType, actualEvent.EventType) &&
-		expectedInActual(expectedEvent.Tags, actualEvent.Tags) {
-		return true
-	}
-	return false
-}
-
-// Iter on all mock.Calls to find any events who's matching the expectedEvent
-// The check on the Event.Ts is weighted with the parameter allowedDelta
-func (m *MockSender) matchEvent(expectedEvent metrics.Event, allowedDelta time.Duration) bool {
-	var actualEvent metrics.Event
-	var expectedTime, actualTime time.Time
-	var dt time.Duration
-	for _, call := range m.Calls {
-		if call.Method == "Event" {
-			actualEvent = call.Arguments[0].(metrics.Event)
-
-			expectedTime = time.Unix(expectedEvent.Ts, 0)
-			actualTime = time.Unix(actualEvent.Ts, 0)
-			dt = expectedTime.Sub(actualTime)
-			if dt < -allowedDelta || dt > allowedDelta {
-				continue
-			} else if eventHaveEqualValues(expectedEvent, actualEvent) == true {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // AssertEvent assert the expectedEvent was emitted with the following values:
 // AggregationKey, Priority, SourceTypeName, EventType and a Ts range weighted with the parameter allowedDelta
 func (m *MockSender) AssertEvent(t *testing.T, expectedEvent metrics.Event, allowedDelta time.Duration) bool {
-	m.Mock.AssertCalled(t, "Event", mock.AnythingOfType("metrics.Event"))
-	return assert.True(t, m.matchEvent(expectedEvent, allowedDelta))
+	return m.Mock.AssertCalled(t, "Event", MatchEventLike(expectedEvent, allowedDelta))
 }
 
 // AssertEventMissing assert the expectedEvent was never emitted with the following values:
 // AggregationKey, Priority, SourceTypeName, EventType and a Ts range weighted with the parameter allowedDelta
 func (m *MockSender) AssertEventMissing(t *testing.T, expectedEvent metrics.Event, allowedDelta time.Duration) bool {
-	return assert.False(t, m.matchEvent(expectedEvent, allowedDelta))
+	return m.Mock.AssertNotCalled(t, "Event", MatchEventLike(expectedEvent, allowedDelta))
 }
 
 // AnythingBut match everything except the argument
@@ -125,6 +89,35 @@ func AssertFloatInRange(min float64, max float64) interface{} {
 	return mock.MatchedBy(func(actual float64) bool {
 		return actual >= min && actual <= max
 	})
+}
+
+// MatchEventLike is a mock.argumentMatcher builder to be used in asserts.
+// It allows to check if an event is Equal on the following Event elements:
+// AggregationKey, Priority, SourceTypeName, EventType and Tag list
+// Also do a timestamp comparison with a tolerance defined by allowedDelta
+func MatchEventLike(expected metrics.Event, allowedDelta time.Duration) interface{} {
+	return mock.MatchedBy(func(actual metrics.Event) bool {
+		expectedTime := time.Unix(expected.Ts, 0)
+		actualTime := time.Unix(actual.Ts, 0)
+		dt := expectedTime.Sub(actualTime)
+		if dt < -allowedDelta || dt > allowedDelta {
+			return false
+		}
+		return eventLike(expected, actual)
+	})
+}
+
+// Compare an Event on specifics values:
+// AggregationKey, Priority, SourceTypeName, EventType and tag list
+func eventLike(expectedEvent, actualEvent metrics.Event) bool {
+	if assert.ObjectsAreEqualValues(expectedEvent.AggregationKey, actualEvent.AggregationKey) &&
+		assert.ObjectsAreEqualValues(expectedEvent.Priority, actualEvent.Priority) &&
+		assert.ObjectsAreEqualValues(expectedEvent.SourceTypeName, actualEvent.SourceTypeName) &&
+		assert.ObjectsAreEqualValues(expectedEvent.EventType, actualEvent.EventType) &&
+		expectedInActual(expectedEvent.Tags, actualEvent.Tags) {
+		return true
+	}
+	return false
 }
 
 // Return a bool value if all the elements of expected are inside the actual array

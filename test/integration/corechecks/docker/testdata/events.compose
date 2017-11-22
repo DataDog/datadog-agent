@@ -8,11 +8,11 @@ services:
     image: "busybox:latest"
     entrypoint: /bin/true
     labels:
-        low.card.label: &lowcardlabel "eventlow"
-        high.card.label: &highcardlabel "eventhigh"
+        low.card.label: "eventlow"
+        high.card.label: "eventhigh"
     environment:
-        LOW_CARD_ENV: &lowcardenv "eventlowenv"
-        HIGH_CARD_ENV: &highcardenv "eventhighenv"
+        LOW_CARD_ENV: "eventlowenv"
+        HIGH_CARD_ENV: "eventhighenv"
   recordingevent1:
     <<: *event_base
   recordingevent2:

@@ -26,15 +26,7 @@ func TestEvents(t *testing.T) {
 		"lowcardenvtag:eventlowenv",
 	}
 
-	sender.AssertEvent(t, metrics.Event{
-		Ts:             nowTimestamp,
-		EventType:      "docker",
-		Tags:           expectedTags,
-		AggregationKey: "docker:busybox:latest",
-		SourceTypeName: "docker",
-		Priority:       metrics.EventPriorityNormal,
-	}, time.Minute)
-	sender.AssertEvent(t, metrics.Event{
+	expectedBusyboxEvent := metrics.Event{
 		Ts:        nowTimestamp,
 		EventType: "docker",
 		Tags: append(expectedTags, []string{
@@ -47,7 +39,8 @@ func TestEvents(t *testing.T) {
 		AggregationKey: "docker:busybox:latest",
 		SourceTypeName: "docker",
 		Priority:       metrics.EventPriorityNormal,
-	}, time.Minute)
+	}
+	sender.AssertEvent(t, expectedBusyboxEvent, time.Minute)
 
 	expectedRedisEvent := metrics.Event{
 		Ts:        nowTimestamp,
