@@ -129,12 +129,15 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	}
 	cmd := exec.Command(subprocessCmd, subprocessArgs...)
 
+	glock := C.PyGILState_Ensure()
+	defer C.PyGILState_Release(glock)
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		cErr := C.CString(fmt.Sprintf("internal error creating stdout pipe: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
-		return nil
+		return C._none()
 	}
 
 	stderr, err := cmd.StderrPipe()
@@ -142,7 +145,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 		cErr := C.CString(fmt.Sprintf("internal error creating stderr pipe: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
-		return nil
+		return C._none()
 	}
 
 	cmd.Start()
@@ -160,7 +163,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 		cErr := C.CString(fmt.Sprintf("unable to read command stdout: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
-		return nil
+		return C._none()
 	}
 
 	outputErr, err := ioutil.ReadAll(stderr)
@@ -168,7 +171,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 		cErr := C.CString(fmt.Sprintf("unable to read command stderr: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
-		return nil
+		return C._none()
 	}
 
 	if raise > 0 {
@@ -181,7 +184,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 				cErr := C.CString("unable to import subprocess empty output exception")
 				C.PyErr_SetString(C.PyExc_Exception, cErr)
 				C.free(unsafe.Pointer(cErr))
-				return nil
+				return C._none()
 			}
 			defer C.Py_DecRef(utilModule)
 
@@ -192,14 +195,14 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 				cErr := C.CString("unable to import subprocess empty output exception")
 				C.PyErr_SetString(C.PyExc_Exception, cErr)
 				C.free(unsafe.Pointer(cErr))
-				return nil
+				return C._none()
 			}
 			defer C.Py_DecRef(excClass)
 
 			cErr := C.CString("get_subprocess_output expected output but had none.")
 			C.PyErr_SetString((*C.PyObject)(unsafe.Pointer(excClass)), cErr)
 			C.free(unsafe.Pointer(cErr))
-			return nil
+			return C._none()
 		}
 	}
 
