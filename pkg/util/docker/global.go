@@ -15,7 +15,6 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -112,15 +111,6 @@ type Container struct {
 
 	// For internal use only
 	cgroup *ContainerCgroup
-}
-
-// Inspect allows getting the full docker inspect of a Container
-func (c *Container) Inspect(withSize bool) (types.ContainerJSON, error) {
-	du, err := GetDockerUtil()
-	if err != nil {
-		return types.ContainerJSON{}, err
-	}
-	return du.Inspect(c.ID, withSize)
 }
 
 // Config is an exported configuration object that is used when

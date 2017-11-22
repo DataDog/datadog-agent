@@ -195,7 +195,7 @@ func (d *DockerCheck) Run() error {
 		}
 
 		if d.instance.CollectContainerSize {
-			info, err := c.Inspect(true)
+			info, err := du.Inspect(c.ID, true)
 			if err != nil {
 				log.Errorf("Failed to inspect container %s - %s", c.ID[:12], err)
 			} else if info.SizeRw == nil || info.SizeRootFs == nil {
