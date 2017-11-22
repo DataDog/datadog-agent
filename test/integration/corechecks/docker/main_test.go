@@ -30,6 +30,7 @@ var skipCleanup = flag.Bool("skip-cleanup", false, "skip cleanup of the docker c
 const instanceTag = "instanceTag:MustBeHere"
 
 var dockerCfgString = `
+collect_events: true
 collect_container_size: true
 collect_exit_codes: true
 tags:
