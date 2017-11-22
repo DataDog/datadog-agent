@@ -57,7 +57,7 @@ func TestWorkerStart(t *testing.T) {
 	w.Start()
 
 	highPrio <- mock
-	// since highPrio orlowPrio have no buffering the worker won't take another Transaction until it has processed the first one
+	// since highPrio and lowPrio have no buffering the worker won't take another Transaction until it has processed the first one
 	highPrio <- dummy
 
 	mock.AssertExpectations(t)

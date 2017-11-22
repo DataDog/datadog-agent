@@ -137,7 +137,7 @@ func (v byCreatedTime) Less(i, j int) bool { return v[i].GetCreatedAt().After(v[
 func (f *DefaultForwarder) retryTransactions(retryBefore time.Time) {
 	newQueue := []Transaction{}
 	droppedRetryQueueFull := 0
-	droppedWorkerBussy := 0
+	droppedWorkerBusy := 0
 
 	sort.Sort(byCreatedTime(f.retryQueue))
 
@@ -147,7 +147,7 @@ func (f *DefaultForwarder) retryTransactions(retryBefore time.Time) {
 			case f.lowPrio <- t:
 				transactionsExpvar.Add("Retried", 1)
 			default:
-				droppedWorkerBussy++
+				droppedWorkerBusy++
 				transactionsExpvar.Add("Dropped", 1)
 			}
 		} else if len(newQueue) < f.retryQueueLimit {
@@ -162,9 +162,9 @@ func (f *DefaultForwarder) retryTransactions(retryBefore time.Time) {
 	f.retryQueue = newQueue
 	retryQueueSize.Set(int64(len(f.retryQueue)))
 
-	if droppedRetryQueueFull+droppedWorkerBussy > 0 {
+	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
 		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding the retry queue size limit of %d, %d because the workers are too busy",
-			droppedRetryQueueFull+droppedWorkerBussy, droppedRetryQueueFull, f.retryQueueLimit, droppedWorkerBussy)
+			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, f.retryQueueLimit, droppedWorkerBusy)
 	}
 }
 
