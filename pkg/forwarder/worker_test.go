@@ -16,53 +16,69 @@ import (
 )
 
 func TestNewWorker(t *testing.T) {
-	input := make(chan Transaction)
+	highPrio := make(chan Transaction)
+	lowPrio := make(chan Transaction)
 	requeue := make(chan Transaction)
 
-	w := NewWorker(input, requeue, newBlockedEndpoints())
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 	assert.NotNil(t, w)
 	assert.Equal(t, w.Client.Timeout, config.Datadog.GetDuration("forwarder_timeout")*time.Second)
 }
 
 func TestNewNoSSLWorker(t *testing.T) {
-	input := make(chan Transaction)
+	highPrio := make(chan Transaction)
+	lowPrio := make(chan Transaction)
 	requeue := make(chan Transaction)
 
 	config.Datadog.Set("skip_ssl_validation", true)
 	defer config.Datadog.Set("skip_ssl_validation", false)
 
-	w := NewWorker(input, requeue, newBlockedEndpoints())
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 	assert.True(t, w.Client.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 }
 
 func TestWorkerStart(t *testing.T) {
-	input := make(chan Transaction)
+	highPrio := make(chan Transaction)
+	lowPrio := make(chan Transaction)
 	requeue := make(chan Transaction, 1)
-	w := NewWorker(input, requeue, newBlockedEndpoints())
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client).Return(nil).Times(1)
 	mock.On("GetTarget").Return("").Times(1)
+	mock2 := newTestTransaction()
+	mock2.On("Process", w.Client).Return(nil).Times(1)
+	mock2.On("GetTarget").Return("").Times(1)
 
 	dummy := newTestTransaction()
-	dummy.On("Process", w.Client).Return(nil).Times(1)
-	dummy.On("GetTarget").Return("").Times(1)
+	dummy.On("Process", w.Client).Return(nil).Times(2)
+	dummy.On("GetTarget").Return("").Times(2)
 
 	w.Start()
-	input <- mock
-	// since input has no buffering the worker won't take another Transaction until it has processed the first one
-	input <- dummy
-	w.Stop()
+
+	highPrio <- mock
+	// since highPrio and lowPrio have no buffering the worker won't take another Transaction until it has processed the first one
+	highPrio <- dummy
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Process", 1)
 	mock.AssertNumberOfCalls(t, "Reschedule", 0)
+
+	lowPrio <- mock2
+	lowPrio <- dummy
+
+	mock2.AssertExpectations(t)
+	mock2.AssertNumberOfCalls(t, "Process", 1)
+	mock2.AssertNumberOfCalls(t, "Reschedule", 0)
+
+	w.Stop()
 }
 
 func TestWorkerRetry(t *testing.T) {
-	input := make(chan Transaction)
+	highPrio := make(chan Transaction)
+	lowPrio := make(chan Transaction)
 	requeue := make(chan Transaction, 1)
-	w := NewWorker(input, requeue, newBlockedEndpoints())
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client).Return(fmt.Errorf("some kind of error")).Times(1)
@@ -70,7 +86,7 @@ func TestWorkerRetry(t *testing.T) {
 	mock.On("GetTarget").Return("error_url").Times(1)
 
 	w.Start()
-	input <- mock
+	highPrio <- mock
 	retryTransaction := <-requeue
 	w.Stop()
 	mock.AssertExpectations(t)
@@ -82,9 +98,10 @@ func TestWorkerRetry(t *testing.T) {
 }
 
 func TestWorkerRetryBlockedTransaction(t *testing.T) {
-	input := make(chan Transaction)
+	highPrio := make(chan Transaction)
+	lowPrio := make(chan Transaction)
 	requeue := make(chan Transaction, 1)
-	w := NewWorker(input, requeue, newBlockedEndpoints())
+	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 
 	mock := newTestTransaction()
 	mock.On("Reschedule").Return(nil).Times(1)
@@ -92,7 +109,7 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 
 	w.blockedList.block("error_url")
 	w.Start()
-	input <- mock
+	highPrio <- mock
 	retryTransaction := <-requeue
 	w.Stop()
 	mock.AssertExpectations(t)
@@ -100,4 +117,5 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "GetTarget", 1)
 	mock.AssertNumberOfCalls(t, "Reschedule", 1)
 	assert.Equal(t, mock, retryTransaction)
+	assert.True(t, w.blockedList.isBlock("error_url"))
 }
