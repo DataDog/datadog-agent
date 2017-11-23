@@ -17,6 +17,10 @@ build do
       dir_fullpath = File.expand_path(File.join(install_dir, dir))
       FileUtils.mkdir_p(dir_fullpath)
       FileUtils.touch(File.join(dir_fullpath, ".gitkeep"))
+      if suse?
+        # This directory does not exist on suse, put it there in case a customer is using upstart
+        FileUtils.mkdir_p('/etc/init/')
+      end
     end
   end
 end
