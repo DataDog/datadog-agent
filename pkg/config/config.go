@@ -170,6 +170,19 @@ func init() {
 	Datadog.BindEnv("bosh_id")
 	Datadog.BindEnv("histogram_aggregates")
 	Datadog.BindEnv("histogram_percentiles")
+
+	// Logs
+	BindEnvAndSetDefault("log_enabled", false)
+	BindEnvAndSetDefault("logset", "")
+	BindEnvAndSetDefault("log_dd_url", "intake.logs.datadoghq.com")
+	BindEnvAndSetDefault("log_dd_port", 10516)
+	BindEnvAndSetDefault("run_path", defaultRunPath)
+}
+
+// BindEnvAndSetDefault sets the default value for a config parameter, and adds an env binding
+func BindEnvAndSetDefault(key string, val interface{}) {
+	Datadog.SetDefault(key, val)
+	Datadog.BindEnv(key)
 }
 
 var (
