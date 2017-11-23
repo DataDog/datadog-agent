@@ -20,6 +20,19 @@ var (
 	ErrDockerNotCompiled = errors.New("docker support not compiled in")
 )
 
+// Container states
+const (
+	ContainerCreatedState    string = "created"
+	ContainerRunningState    string = "running"
+	ContainerRestartingState string = "restarting"
+	ContainerPausedState     string = "paused"
+	ContainerExitedState     string = "exited"
+	ContainerDeadState       string = "dead"
+)
+
+// DockerEntityPrefix is the entity prefix for docker containers
+const DockerEntityPrefix = "docker://"
+
 // ContainerIDToEntityName returns a prefixed entity name from a container ID
 func ContainerIDToEntityName(cid string) string {
 	if cid == "" {

@@ -35,18 +35,6 @@ var (
 	}
 )
 
-const (
-	ContainerCreatedState    string = "created"
-	ContainerRunningState    string = "running"
-	ContainerRestartingState string = "restarting"
-	ContainerPausedState     string = "paused"
-	ContainerExitedState     string = "exited"
-	ContainerDeadState       string = "dead"
-
-	// DockerEntityPrefix is the entity prefix for docker containers
-	DockerEntityPrefix = "docker://"
-)
-
 // GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
 func GetDockerUtil() (*DockerUtil, error) {
 	if globalDockerUtil == nil {
