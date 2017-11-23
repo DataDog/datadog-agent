@@ -148,16 +148,10 @@ func reloadCheck(w http.ResponseWriter, r *http.Request) {
 func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	fileName := mux.Vars(r)["fileName"]
 
-	// Check if this file is in a subdir (file name is of the form `{check name}: {file name}`)
-	if i := strings.Index(fileName, ":"); i != -1 {
-		checkName := fileName[:i]
-		fileName = checkName + ".d/" + strings.TrimPrefix(fileName, checkName+": ")
-	}
-
 	var file []byte
 	var e error
 	for _, path := range configPaths {
-		file, e = ioutil.ReadFile(path + "/" + fileName)
+		file, e = ioutil.ReadFile(filepath.Join(path, getPathToFile(fileName)))
 		if e == nil {
 			break
 		}
@@ -199,24 +193,19 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if this file is in a subdir (file name is of the form `{check name}: {file name}`)
-	if i := strings.Index(fileName, ":"); i != -1 {
-		checkName := fileName[:i]
-		fileName = checkName + ".d/" + strings.TrimPrefix(fileName, checkName+": ")
-	}
-
 	// Attempt to write new configs to custom checks directory
-	path := config.Datadog.GetString("confd_path") + "/" + fileName
-	e = ioutil.WriteFile(path, data, 0644)
+	path := filepath.Join(config.Datadog.GetString("confd_path"), getPathToFile(fileName))
+	e = ioutil.WriteFile(path, data, 0600)
 
 	// If the write didn't work, try writing to the default checks directory
 	if e != nil && strings.Contains(e.Error(), "no such file or directory") {
-		path = filepath.Join(common.GetDistPath(), "conf.d") + "/" + fileName
-		e = ioutil.WriteFile(path, data, 0644)
+		path = filepath.Join(common.GetDistPath(), "conf.d", getPathToFile(fileName))
+		e = ioutil.WriteFile(path, data, 0600)
 	}
 
 	if e != nil {
 		w.Write([]byte("Error saving config file: " + e.Error()))
+		log.Debug("Error saving config file: " + e.Error())
 		return
 	}
 
@@ -260,25 +249,18 @@ func listConfigs(w http.ResponseWriter, r *http.Request) {
 			// If a default config is found but a non-default version exists, ignore default
 			sort.Strings(files)
 			lookup := make(map[string]bool)
-			for _, name := range files {
+			for _, file := range files {
+				checkName := getCheckName(file)
 
-				var checkName string
-				if i := strings.Index(name, ":"); i != -1 {
-					// If the check was in a subdir, '{checkname}: ' prepends the filename
-					checkName = name[:i]
-				} else {
-					checkName = name[:strings.Index(name, ".")]
-				}
-
-				if ext := filepath.Ext(name); ext == ".default" {
+				if ext := filepath.Ext(file); ext == ".default" {
 					if _, exists := lookup[checkName]; !exists {
-						filenames = append(filenames, name)
+						filenames = append(filenames, file)
 						lookup[checkName] = true
 					}
 					continue
 				}
 
-				filenames = append(filenames, name)
+				filenames = append(filenames, file)
 				lookup[checkName] = true
 			}
 		}
@@ -309,12 +291,13 @@ func readConfDir(path string) ([]string, error) {
 				continue
 			}
 
-			subEntries, err := ioutil.ReadDir(path + "/" + entry.Name())
+			subEntries, err := ioutil.ReadDir(filepath.Join(path, entry.Name()))
 			if err == nil {
 				checkName := strings.TrimSuffix(entry.Name(), ".d")
 
 				for _, subEntry := range subEntries {
 					if hasRightEnding(subEntry.Name()) && subEntry.Mode().IsRegular() {
+						// Add the check name to the filename so that it's in a format the GUI can easily display
 						filenames = append(filenames, checkName+": "+subEntry.Name())
 					}
 				}
@@ -330,6 +313,7 @@ func readConfDir(path string) ([]string, error) {
 	return filenames, nil
 }
 
+// Helper function which checks if a file has a valid extension
 func hasRightEnding(filename string) bool {
 	// Only accept files of the format
 	//	{name}.yaml, {name}.yml
@@ -344,4 +328,29 @@ func hasRightEnding(filename string) bool {
 	}
 
 	return ext == ".yaml" || ext == ".yml"
+}
+
+// Helper function which returns the path where a file should be stored
+func getPathToFile(fileName string) string {
+	// If a file is in a subdir, it's name will be of the form `{check name}: {file name}`
+	// We want to change this to '{check name}.d/{file name}'
+	// If the file name doesn't have this format: do nothing, it's already valid
+	if i := strings.Index(fileName, ":"); i != -1 {
+		checkName := fileName[:i]
+		fileName = filepath.Join(checkName+".d", strings.TrimPrefix(fileName, checkName+": "))
+	}
+	return fileName
+}
+
+// Helper function which extracts the check name from a file name
+func getCheckName(fileName string) string {
+	var checkName string
+	if i := strings.Index(fileName, ":"); i != -1 {
+		// If the check was in a subdir, '{checkname}: ' prepends the filename
+		checkName = fileName[:i]
+	} else {
+		// If it isn't in a subdir, the check name is the part before the first '.'
+		checkName = fileName[:strings.Index(fileName, ".")]
+	}
+	return checkName
 }
