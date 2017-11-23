@@ -32,6 +32,7 @@ const instanceTag = "instanceTag:MustBeHere"
 var dockerCfgString = `
 collect_events: true
 collect_container_size: true
+collect_images_stats: true
 collect_exit_codes: true
 tags:
   - instanceTag:MustBeHere
