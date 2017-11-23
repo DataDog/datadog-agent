@@ -71,6 +71,12 @@ build do
         copy "#{check_dir}/conf.yaml.default", "#{check_conf_dir}/"
       end
 
+      # Copy the metric file, if it exists
+      if File.exist? "#{check_dir}/metrics.yaml"
+        mkdir check_conf_dir unless File.exists? (check_conf_dir)
+        copy "#{check_dir}/metrics.yaml", "#{check_conf_dir}/"
+      end
+
       # We don't have auto_conf on windows yet
       if os != 'windows'
         if File.exist? "#{check_dir}/auto_conf.yaml"
