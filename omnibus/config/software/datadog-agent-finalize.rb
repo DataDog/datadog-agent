@@ -46,9 +46,9 @@ build do
             move "#{install_dir}/agent/checks.d", "#{install_dir}/checks.d"
 
             # Move system service files
-            mkdir_p "/etc/init"
+            FileUtils.mkdir_p "/etc/init"
             move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
-            mkdir_p "/lib/systemd/system"
+            FileUtils.mkdir_p "/lib/systemd/system"
             move "#{install_dir}/scripts/datadog-agent.service", "/lib/systemd/system"
 
             # cleanup clutter

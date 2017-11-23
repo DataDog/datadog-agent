@@ -25,9 +25,9 @@ build do
         move "#{install_dir}/etc/datadog-dogstatsd/dogstatsd.yaml.example", "/etc/datadog-dogstatsd"
 
         # Move system service files
-        mkdir_p "/etc/init"
+        FileUtils.mkdir_p "/etc/init"
         move "#{install_dir}/scripts/datadog-dogstatsd.conf", "/etc/init"
-        mkdir_p "/lib/systemd/system"
+        FileUtils.mkdir_p "/lib/systemd/system"
         move "#{install_dir}/scripts/datadog-dogstatsd.service", "/lib/systemd/system"
 
         # cleanup clutter
