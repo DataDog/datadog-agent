@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"sync"
 	"syscall"
 	"unsafe"
 
@@ -139,8 +140,12 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 		C.free(unsafe.Pointer(cErr))
 		return C._none()
 	}
+
+	var wg sync.WaitGroup
 	var output []byte
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		output, _ = ioutil.ReadAll(stdout)
 	}()
 
@@ -151,8 +156,11 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 		C.free(unsafe.Pointer(cErr))
 		return C._none()
 	}
+
 	var outputErr []byte
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		outputErr, _ = ioutil.ReadAll(stderr)
 	}()
 
@@ -165,22 +173,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 			retCode = status.ExitStatus()
 		}
 	}
-
-	// output, err := ioutil.ReadAll(stdout)
-	// if err != nil {
-	// 	cErr := C.CString(fmt.Sprintf("unable to read command stdout: %v", err))
-	// 	C.PyErr_SetString(C.PyExc_Exception, cErr)
-	// 	C.free(unsafe.Pointer(cErr))
-	// 	return C._none()
-	// }
-
-	// outputErr, err := ioutil.ReadAll(stderr)
-	// if err != nil {
-	// 	cErr := C.CString(fmt.Sprintf("unable to read command stderr: %v", err))
-	// 	C.PyErr_SetString(C.PyExc_Exception, cErr)
-	// 	C.free(unsafe.Pointer(cErr))
-	// 	return C._none()
-	// }
+	wg.Wait()
 
 	if raise > 0 {
 		// raise on error
