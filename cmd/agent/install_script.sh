@@ -161,9 +161,6 @@ If the cause is unclear, please contact Datadog support.
     $sudo_cmd apt-get install -y --force-yes datadog-agent
     ERROR_MESSAGE=""
 elif [ $OS = "SUSE" ]; then
-  #TODO: remove this once we have support
-  printf "\033[31mThe Datadog Agent 6 beta is not yet available for SUSE Enterprise machines.\033[0m\n"
-  exit 1;
 
   UNAME_M=$(uname -m)
   if [ "$UNAME_M"  == "i686" -o "$UNAME_M"  == "i386" -o "$UNAME_M"  == "x86" ]; then
