@@ -11,6 +11,10 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+const (
+	identifierLabel string = "io.datadog.check.id"
+)
+
 // ID is the representation of the unique ID of a Service
 type ID string
 

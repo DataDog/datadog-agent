@@ -9,12 +9,18 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+)
+
+const (
+	// DockerEntityPrefix is the entity prefix for docker containers
+	DockerEntityPrefix = "docker://"
 )
 
 // ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
@@ -108,4 +114,12 @@ func SplitImageName(image string) (string, string, string, error) {
 		short = long
 	}
 	return long, short, tag, nil
+}
+
+// ContainerIDToEntityName returns a prefixed entity name from a container ID
+func ContainerIDToEntityName(cid string) string {
+	if cid == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s%s", DockerEntityPrefix, cid)
 }

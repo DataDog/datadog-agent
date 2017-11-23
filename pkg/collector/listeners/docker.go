@@ -24,10 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
-const (
-	identifierLabel string = "io.datadog.check.id"
-)
-
 // DockerListener implements the ServiceListener interface.
 // It listens for Docker events and reports container updates to Auto Discovery
 // It also holds a cache of services that the ConfigResolver can query to
@@ -268,7 +264,7 @@ func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
 	if err != nil {
 		log.Warnf("error while resolving image name: %s", err)
 	}
-	return computeDockerIDs(co.ID, image, co.Labels)
+	return ComputeContainerServiceIDs(co.ID, image, co.Labels)
 }
 
 // getHostsFromPs gets the addresss (for now IP address only) of a container on all its networks.
@@ -331,7 +327,7 @@ func (s *DockerService) GetADIdentifiers() ([]string, error) {
 		if err != nil {
 			log.Warnf("error while resolving image name: %s", err)
 		}
-		s.ADIdentifiers = computeDockerIDs(string(s.ID), image, cj.Config.Labels)
+		s.ADIdentifiers = ComputeContainerServiceIDs(string(s.ID), image, cj.Config.Labels)
 	}
 
 	return s.ADIdentifiers, nil
@@ -461,38 +457,6 @@ func (s *DockerService) GetPid() (int, error) {
 	}
 
 	return s.Pid, nil
-}
-
-// computeDockerIDs factors in code for getConfigIDFromPs and GetADIdentifiers
-// it assumes the image name's sha is already resolved via docker.ResolveImageName
-func computeDockerIDs(cid string, image string, labels map[string]string) []string {
-	ids := []string{}
-
-	// check for an identifier label
-	for l, v := range labels {
-		if l == identifierLabel {
-			ids = append(ids, v)
-			// Let's not return the image name if we find the label
-			return ids
-		}
-	}
-
-	// add the container ID for templates in labels/annotations
-	ids = append(ids, docker.ContainerIDToEntityName(cid))
-
-	// add the image names (long then short if different)
-	long, short, _, err := docker.SplitImageName(image)
-	if err != nil {
-		log.Warnf("error while spliting image name: %s", err)
-	}
-	if len(long) > 0 {
-		ids = append(ids, long)
-	}
-	if len(short) > 0 && short != long {
-		ids = append(ids, short)
-	}
-
-	return ids
 }
 
 // findKubernetesInLabels traverses a map of container labels and
