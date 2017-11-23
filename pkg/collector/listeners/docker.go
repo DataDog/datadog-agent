@@ -37,7 +37,7 @@ const (
 // match templates against.
 type DockerListener struct {
 	Client     *client.Client
-	docker     *docker.DockerUtil
+	dockerUtil *docker.DockerUtil
 	services   map[ID]Service
 	newService chan<- Service
 	delService chan<- Service
@@ -70,10 +70,10 @@ func NewDockerListener() (ServiceListener, error) {
 		return nil, fmt.Errorf("failed to connect to Docker, auto discovery will not work: %s", err)
 	}
 	return &DockerListener{
-		Client:   c,
-		docker:   d,
-		services: make(map[ID]Service),
-		stop:     make(chan bool),
+		Client:     c,
+		dockerUtil: d,
+		services:   make(map[ID]Service),
+		stop:       make(chan bool),
 	}, nil
 }
 
@@ -203,7 +203,7 @@ func (l *DockerListener) createService(cID ID) {
 	var svc Service
 
 	// Detect whether that container is managed by Kubernetes
-	cInspect, err := l.docker.Inspect(string(cID), false)
+	cInspect, err := l.dockerUtil.Inspect(string(cID), false)
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 	}
@@ -277,7 +277,7 @@ func (l *DockerListener) removeService(cID ID) {
 //   1. Long image name
 //   2. Short image name
 func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
-	image, err := l.docker.ResolveImageName(co.Image)
+	image, err := l.dockerUtil.ResolveImageName(co.Image)
 	if err != nil {
 		log.Warnf("error while resolving image name: %s", err)
 	}
