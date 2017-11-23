@@ -51,7 +51,7 @@ type TaskMetadata struct {
 	TaskARN       string         `json:"TaskARN"`
 	Family        string         `json:"Family"`
 	Version       string         `json:"Version"`
-	Limits        string         `json:"Limits"`
+	Limits        map[string]int `json:"Limits"`
 	DesiredStatus string         `json:"DesiredStatus"`
 }
 
