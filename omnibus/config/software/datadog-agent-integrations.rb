@@ -29,7 +29,11 @@ build do
   mkdir checks_dir
 
   # The confs
-  conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
+  if osx?
+    conf_dir = "#{install_dir}/etc/conf.d"
+  else
+    conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
+  end
   mkdir conf_dir
 
   # Copy the checks and generate the global requirements file
@@ -110,6 +114,4 @@ build do
     }
     pip "install -r #{project_dir}/check_requirements.txt", :env => build_env
   end
-
-  move "#{project_dir}/check_requirements.txt", "#{install_dir}/agent/"
 end

@@ -67,7 +67,7 @@ end
 # OSX .pkg specific flags
 package :pkg do
   identifier 'com.datadoghq.agent'
-  #signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
+  signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
 end
 compress :dmg do
   window_bounds '200, 200, 750, 600'
@@ -127,7 +127,10 @@ dependency 'datadog-agent'
 # Additional software
 dependency 'datadog-agent-integrations'
 dependency 'jmxfetch'
-dependency 'datadog-trace-agent'
+# FIXME: no trace-agent on macOS for now
+unless osx?
+  dependency 'datadog-trace-agent'
+end
 unless windows?
   dependency 'datadog-process-agent'
   dependency 'datadog-logs-agent'
@@ -135,7 +138,9 @@ end
 
 # Remove pyc/pyo files from package
 # should be built after all the other python-related software defs
-dependency 'py-compiled-cleanup'
+if linux?
+  dependency 'py-compiled-cleanup'
+end
 
 # version manifest file
 dependency 'version-manifest'

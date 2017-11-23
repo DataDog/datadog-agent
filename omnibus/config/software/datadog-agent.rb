@@ -26,11 +26,18 @@ build do
     'GOPATH' => gopath.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
+  # include embedded path (mostly for `pkg-config` binary)
+  env = with_embedded_path(env)
 
   # we assume the go deps are already installed before running omnibus
   command "invoke agent.build --rebuild --use-embedded-libs --no-development", env: env
 
-  mkdir "#{install_dir}/etc/datadog-agent"
+  if osx?
+    conf_dir = "#{install_dir}/etc"
+  else
+    conf_dir = "#{install_dir}/etc/datadog-agent"
+  end
+  mkdir conf_dir
   unless windows?
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/scripts/"
@@ -43,13 +50,13 @@ build do
 
   # move around bin and config files
   copy 'bin', install_dir
-  move 'bin/agent/dist/datadog.yaml', "#{install_dir}/etc/datadog-agent/datadog.yaml.example"
+  move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
 
-  move 'bin/agent/dist/trace-agent.conf', "#{install_dir}/etc/datadog-agent/"
-  move 'bin/agent/dist/process-agent.conf', "#{install_dir}/etc/datadog-agent/"
+  move 'bin/agent/dist/trace-agent.conf', "#{conf_dir}/"
+  move 'bin/agent/dist/process-agent.conf', "#{conf_dir}/"
 
   if windows?
-    move 'bin/agent/dist/conf.d', "#{install_dir}/etc/datadog-agent/"
+    move 'bin/agent/dist/conf.d', "#{conf_dir}/"
   end
 
   if linux?
@@ -73,6 +80,25 @@ build do
         vars: { install_dir: install_dir }
   end
 
+  if osx?
+    # conf
+    copy 'cmd/agent/com.datadoghq.agent.plist.example', "#{install_dir}/etc/"
 
-  delete "#{install_dir}/uselessfile"
+    # Systray GUI
+    # app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
+    # mkdir "#{app_temp_dir}/Resources"
+    # copy 'packaging/osx/app/Agent.icns', "#{app_temp_dir}/Resources/"
+
+    # mkdir "#{app_temp_dir}/MacOS"
+    # command 'cd packaging/osx/gui && swiftc -O -target "x86_64-apple-macosx10.10" -static-stdlib Sources/*.swift -o gui && cd ../../..'
+    # copy "packaging/osx/gui/gui", "#{app_temp_dir}/MacOS/"
+    # copy "packaging/osx/gui/Sources/agent.png", "#{app_temp_dir}/MacOS/"
+  end
+
+  # The file below is touched by software builds that don't put anything in the installation
+  # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
+  # final package
+  unless windows?
+    delete "#{install_dir}/uselessfile"
+  end
 end
