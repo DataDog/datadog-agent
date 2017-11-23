@@ -179,7 +179,7 @@ agent_rpm-x64:
 # build Agent package for rpm-x64
 agent_suse-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/suse_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     # Artifacts and cache must live within project directory but we run omnibus
