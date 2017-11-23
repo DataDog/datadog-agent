@@ -10,6 +10,10 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+const (
+	identifierLabel string = "io.datadog.check.id"
+)
+
 // ComputeContainerServiceIDs takes a container ID, an image (resolved to an actual name) and labels
 // and computes the service IDs for this container service.
 func ComputeContainerServiceIDs(cid string, image string, labels map[string]string) []string {
