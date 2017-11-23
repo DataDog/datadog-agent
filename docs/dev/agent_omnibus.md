@@ -56,18 +56,18 @@ Docker on your local machine before moving on.
 Clone the repo containing the Dockerfiles Datadog uses to build the official
 packages:
 ```
-git clone https://github.com/DataDog/datadog-agent-builders && cd datadog-agent-builders
+git clone https://github.com/DataDog/datadog-agent-buildimages && cd datadog-agent-buildimages
 ```
 
 Depending on which kind of package you want, you should build the relevant image,
 in this case, since we want a Deb package, we'll build `deb-x64`:
 ```
-docker build -t datadog-agent-builders:deb_x64 -f deb-x64/Dockerfile .
+docker build -t datadog-agent-buildimages:deb_x64 -f deb-x64/Dockerfile .
 ```
 
 From the Agent source folder, start a Docker container like this:
 ```
-docker run -v "$PWD:/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent:/opt/datadog-agent" -v"/tmp/gems:/gems" --workdir=/datadog-agent datadog-agent-builders:deb_x64 inv -e agent.omnibus-build --base-dir=/omnibus --gem-path=/gems
+docker run -v "$PWD:/datadog-agent" -v "/tmp/omnibus:/omnibus" -v "/tmp/opt/datadog-agent:/opt/datadog-agent" -v"/tmp/gems:/gems" --workdir=/datadog-agent datadog-agent-buildimages:deb_x64 inv -e agent.omnibus-build --base-dir=/omnibus --gem-path=/gems
 ```
 
 The container will share 3 volumes with the host to avoid starting from scratch
