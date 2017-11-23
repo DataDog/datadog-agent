@@ -176,6 +176,32 @@ agent_rpm-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
+# build Agent package for rpm-x64
+agent_suse-x64:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    # Artifacts and cache must live within project directory but we run omnibus
+    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
+    # pointing to a gitlab-friendly location.
+    - set +x
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key --with-decryption --query "Parameter.Value" --out text)
+    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+    - set -x
+    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR/suse
+    - rpm -i $OMNIBUS_PACKAGE_DIR/suse/*.rpm
+  cache:
+    # cache per branch
+    key: $CI_COMMIT_REF_NAME
+    paths:
+      - $OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
 # build Agent package for Windows
 build_windows_msi_x64:
   before_script:
@@ -243,6 +269,32 @@ dogstatsd_rpm-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR
 
+
+# build Dogstastd package for rpm-x64
+dogstatsd_suse-x64:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/suse_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    # Artifacts and cache must live within project directory but we run omnibus
+    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
+    # pointing to a gitlab-friendly location.
+    - set +x
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key --with-decryption --query "Parameter.Value" --out text)
+    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+    - set -x
+    - inv -e dogstatsd.omnibus-build --base-dir $OMNIBUS_BASE_DIR/suse
+    - rpm -i $OMNIBUS_PACKAGE_DIR/suse/*.rpm
+  cache:
+    # cache per branch
+    key: $CI_COMMIT_REF_NAME
+    paths:
+      - $OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
 
 #
 # image_build
@@ -447,6 +499,25 @@ deploy_rpm:
     - cp $OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/x86_64/
     - createrepo --update -v --checksum sha ./rpmrepo/x86_64
     - aws s3 sync ./rpmrepo/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# deploy rpm packages to yum staging repo
+deploy_suse_rpm:
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR/suse
+  only:
+    - master
+    - tags
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - source /usr/local/rvm/scripts/rvm
+    - rvm use 2.4
+    - mkdir -p ./rpmrepo/suse/x86_64/
+    - aws s3 sync s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/ ./rpmrepo/
+    - cp $OMNIBUS_PACKAGE_DIR/suse/*x86_64.rpm ./rpmrepo/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/x86_64
+    - aws s3 sync ./rpmrepo/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy dsd binary to staging bucket
 deploy_dsd:
