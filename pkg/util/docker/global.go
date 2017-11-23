@@ -8,10 +8,7 @@
 package docker
 
 import (
-	"errors"
-	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -43,9 +40,6 @@ const (
 	ContainerPausedState     string = "paused"
 	ContainerExitedState     string = "exited"
 	ContainerDeadState       string = "dead"
-
-	// DockerEntityPrefix is the entity prefix for docker containers
-	DockerEntityPrefix = "docker://"
 )
 
 // GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
@@ -86,14 +80,6 @@ func HostnameProvider(hostName string) (string, error) {
 		return "", err
 	}
 	return du.GetHostname()
-}
-
-// ContainerIDToEntityName returns a prefixed entity name from a container ID
-func ContainerIDToEntityName(cid string) string {
-	if cid == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s%s", DockerEntityPrefix, cid)
 }
 
 // Container represents a single Docker container on a machine
@@ -175,40 +161,6 @@ func (cfg *ContainerListConfig) GetCacheKey() string {
 // GetInspectCacheKey returns the key to a given container ID inspect in the agent cache
 func GetInspectCacheKey(ID string) string {
 	return "dockerutil.containers." + ID
-}
-
-// SplitImageName splits a valid image name (from ResolveImageName) and returns:
-//    - the "long image name" with registry and prefix, without tag
-//    - the "short image name", without registry, prefix nor tag
-//    - the image tag if present
-//    - an error if parsing failed
-func SplitImageName(image string) (string, string, string, error) {
-	// See TestSplitImageName for supported formats (number 6 will surprise you!)
-	if image == "" {
-		return "", "", "", errors.New("empty image name")
-	}
-	long := image
-	if pos := strings.LastIndex(long, "@sha"); pos > 0 {
-		// Remove @sha suffix when orchestrator is sha-pinning
-		long = long[0:pos]
-	}
-
-	var short, tag string
-	last_colon := strings.LastIndex(long, ":")
-	last_slash := strings.LastIndex(long, "/")
-
-	if last_colon > -1 && last_colon > last_slash {
-		// We have a tag
-		tag = long[last_colon+1:]
-		long = long[:last_colon]
-	}
-	if last_slash > -1 {
-		// we have a prefix / registry
-		short = long[last_slash+1:]
-	} else {
-		short = long
-	}
-	return long, short, tag, nil
 }
 
 // IsContainerized returns True if we're running in the docker-dd-agent container.
