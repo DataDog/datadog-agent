@@ -76,12 +76,13 @@ type AutoConfig struct {
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 	ac := &AutoConfig{
-		collector:     collector,
-		providers:     make([]*providerDescriptor, 0, 5),
-		loaders:       make([]check.Loader, 0, 5),
-		templateCache: NewTemplateCache(),
-		config2checks: make(map[string][]check.ID),
-		stop:          make(chan bool),
+		collector:       collector,
+		providers:       make([]*providerDescriptor, 0, 5),
+		loaders:         make([]check.Loader, 0, 5),
+		templateCache:   NewTemplateCache(),
+		config2checks:   make(map[string][]check.ID),
+		name2jmxmetrics: make(map[string]check.ConfigData),
+		stop:            make(chan bool),
 	}
 	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
 
