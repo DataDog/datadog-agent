@@ -199,11 +199,11 @@ agent_suse-x64:
     # cache per branch
     key: $CI_COMMIT_REF_NAME
     paths:
-      - $OMNIBUS_BASE_DIR
+      - $OMNIBUS_BASE_DIR_SUSE
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - $OMNIBUS_PACKAGE_DIR_SUSE
 
 # build Agent package for Windows
 build_windows_msi_x64:
@@ -293,11 +293,11 @@ dogstatsd_suse-x64:
     # cache per branch
     key: $CI_COMMIT_REF_NAME
     paths:
-      - $OMNIBUS_BASE_DIR
+      - $OMNIBUS_BASE_DIR_SUSE
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $OMNIBUS_PACKAGE_DIR
+      - $OMNIBUS_PACKAGE_DIR_SUSE
 
 #
 # image_build
@@ -536,6 +536,3 @@ deploy_dsd:
     - $S3_CP_CMD $S3_SCRATCH_URI/dogstatsd/dogstatsd ./dogstatsd
     - export VERSION=$(inv version)
     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/dogstatsd-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
-
-
-# TODO: deploy and build SUSE packages
