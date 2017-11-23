@@ -175,7 +175,7 @@ ITER_COLLECTORS:
 				continue ITER_COLLECTORS // source was in cache, don't lookup again
 			}
 		}
-		log.Debugf("cache miss for %s, collecting", name)
+		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
 		low, high, err := collector.Fetch(entity)
 		if err != nil {
 			log.Warnf("error collecting from %s: %s", name, err)

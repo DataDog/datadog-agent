@@ -1,0 +1,11 @@
+spec:
+  - name: autogen
+    local: true
+    import: github.com/DataDog/datadog-agent/pkg/util/fanout/template
+    typeMap:
+      Message:
+        expr: "*ContainerEvent"
+      MessageOutput:
+        expr: "eventOutput"
+      MessageFanout:
+        expr: "eventFanout"

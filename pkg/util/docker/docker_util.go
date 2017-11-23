@@ -31,6 +31,11 @@ const (
 	pauseContainerOpenshift string = "image:openshift/origin-pod"
 )
 
+// FIXME: remove once DockerListener is moved to .Containers
+func (d *DockerUtil) ContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
+	return d.cli.ContainerList(ctx, options)
+}
+
 func detectServerAPIVersion() (string, error) {
 	host := os.Getenv("DOCKER_HOST")
 	if host == "" {
@@ -133,6 +138,9 @@ type DockerUtil struct {
 	sync.Mutex
 	cfg *Config
 	cli *client.Client
+	// event streaming
+	fanner          *eventFanout
+	stopEventStream chan struct{}
 	// tracks the last time we invalidate our internal caches
 	lastInvalidate time.Time
 	// networkMappings by container id
@@ -407,8 +415,9 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 
 // Inspect returns a docker inspect object for a given container ID.
 // It tries to locate the container in the inspect cache before making the docker inspect call
+// TODO: try sized inspect if withSize=false and unsized key cache misses
 func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, error) {
-	cacheKey := GetInspectCacheKey(id)
+	cacheKey := GetInspectCacheKey(id, withSize)
 	var container types.ContainerJSON
 	var err error
 	var ok bool

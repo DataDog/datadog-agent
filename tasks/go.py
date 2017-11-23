@@ -176,6 +176,15 @@ def deps(ctx):
 
 
 @task
+def gorewrite(ctx):
+    """
+    Regenerate files from gorewrite templates
+    """
+    ctx.run("go get -u github.com/taylorchu/generic/cmd/gorewrite")
+    ctx.run("go generate -tags gorewrite ./pkg/...")
+
+
+@task
 def reset(ctx):
     """
     Clean everything and remove vendoring

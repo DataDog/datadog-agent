@@ -172,11 +172,6 @@ func (cfg *ContainerListConfig) GetCacheKey() string {
 	return cacheKey
 }
 
-// GetInspectCacheKey returns the key to a given container ID inspect in the agent cache
-func GetInspectCacheKey(ID string) string {
-	return "dockerutil.containers." + ID
-}
-
 // SplitImageName splits a valid image name (from ResolveImageName) and returns:
 //    - the "long image name" with registry and prefix, without tag
 //    - the "short image name", without registry, prefix nor tag

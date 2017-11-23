@@ -23,20 +23,6 @@ import (
 	"github.com/docker/docker/api/types/filters"
 )
 
-type ContainerEvent struct {
-	ContainerID   string
-	ContainerName string
-	ImageName     string
-	Action        string
-	Timestamp     time.Time
-	Attributes    map[string]string
-}
-
-// ContainerEntityName returns the event's container as a tagger entity name
-func (ev *ContainerEvent) ContainerEntityName() string {
-	return ContainerIDToEntityName(ev.ContainerID)
-}
-
 // openEventChannel just wraps the client.Event call with saner argument types.
 func (d *DockerUtil) openEventChannel(since, until time.Time, filter map[string]string) (<-chan events.Message, <-chan error) {
 	// Event since/until string can be formatted or hold a timestamp,
