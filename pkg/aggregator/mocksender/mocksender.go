@@ -6,6 +6,8 @@
 package mocksender
 
 import (
+	"time"
+
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -16,8 +18,8 @@ import (
 // functional mocked Sender for testing
 func NewMockSender(id check.ID) *MockSender {
 	mockSender := new(MockSender)
-	// The MockSender requires an aggregator
-	aggregator.InitAggregator(nil, "")
+	// The MockSender will be injected in the corecheck via the aggregator
+	aggregator.InitAggregatorWithFlushInterval(nil, "", 1*time.Hour)
 	aggregator.SetSender(mockSender, id)
 
 	return mockSender
