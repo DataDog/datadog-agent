@@ -21,10 +21,6 @@ import (
 func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, error) {
 	var low, high []string
 
-	if c.dockerUtil == nil {
-		log.Error("nil dockerutil")
-	}
-
 	docker_image, err := c.dockerUtil.ResolveImageName(co.Image)
 	if err != nil {
 		log.Debugf("error resolving image %s: %s", co.Image, err)

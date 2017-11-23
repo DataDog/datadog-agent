@@ -9,6 +9,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -429,6 +430,13 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 		}
 	} else {
 		container, _, err = d.cli.ContainerInspectWithRaw(context.Background(), id, withSize)
+		if err != nil {
+			return container, err
+		}
+		// ContainerJSONBase is a pointer embed, so it might be nil and cause segfaults
+		if container.ContainerJSONBase == nil {
+			return container, errors.New("invalid inspect data")
+		}
 		// cache the inspect for 10 seconds to reduce pressure on the daemon
 		cache.Cache.Set(cacheKey, container, 10*time.Second)
 	}
