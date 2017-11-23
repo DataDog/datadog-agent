@@ -32,13 +32,6 @@ var subservices = []Servicedef{
 		serviceName:	"datadog-trace-agent",
 		serviceInit:	apmInit,
 		
-	},
-	Servicedef{
-		name:			"logs",
-		configKey:		"log_agent_enabled",
-		serviceName:	"datadog-log-agent",
-		serviceInit:	nil,
-		
 	}}
 
 func apmInit() error {
