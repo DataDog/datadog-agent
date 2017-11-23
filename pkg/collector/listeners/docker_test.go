@@ -8,17 +8,27 @@
 package listeners
 
 import (
+	"os"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
+
+func TestMain(m *testing.M) {
+	// Temporary measure until we rework the listener
+	// to use common docker methods and move that testing
+	// to integration tests
+	docker.EnableTestingMode()
+	os.Exit(m.Run())
+}
 
 func TestGetConfigIDFromPs(t *testing.T) {
 	co := types.Container{
@@ -257,11 +267,6 @@ func TestGetPorts(t *testing.T) {
 func TestGetPid(t *testing.T) {
 	s := DockerService{ID: ID("foo")}
 
-	// Should fail because no docker util is init
-	pid, err := s.GetPid()
-	assert.NotNil(t, err)
-	assert.Equal(t, -1, pid)
-
 	// Setting mocked data in cache
 	state := types.ContainerState{Pid: 1337}
 	cBase := types.ContainerJSONBase{
@@ -273,7 +278,7 @@ func TestGetPid(t *testing.T) {
 	cacheKey := docker.GetInspectCacheKey("foo")
 	cache.Cache.Set(cacheKey, co, 10*time.Second)
 
-	pid, err = s.GetPid()
+	pid, err := s.GetPid()
 	assert.Equal(t, 1337, pid)
 	assert.Nil(t, err)
 }

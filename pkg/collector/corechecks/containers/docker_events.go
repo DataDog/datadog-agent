@@ -22,11 +22,11 @@ import (
 )
 
 // reportEvents handles the event retrieval logic
-func (d *DockerCheck) retrieveEvents() ([]*docker.ContainerEvent, error) {
+func (d *DockerCheck) retrieveEvents(du *docker.DockerUtil) ([]*docker.ContainerEvent, error) {
 	if d.lastEventTime.IsZero() {
 		d.lastEventTime = time.Now().Add(-60 * time.Second)
 	}
-	events, latest, err := docker.LatestContainerEvents(d.lastEventTime)
+	events, latest, err := du.LatestContainerEvents(d.lastEventTime)
 	if err != nil {
 		return events, err
 	}

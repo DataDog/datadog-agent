@@ -7,7 +7,7 @@
 
 package docker
 
-// GetHostname returns the Docker hostname.
-func GetHostname() (string, error) {
+// HostnameProvider docker implementation for the hostname provider
+func HostnameProvider(hostName string) (string, error) {
 	return "", ErrDockerNotCompiled
 }

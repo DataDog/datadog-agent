@@ -129,12 +129,11 @@ func (ku *KubeUtil) searchPodForContainerID(podlist []*Pod, containerID string) 
 // TODO: Add TLS verification
 func locateKubelet() (string, error) {
 	host := config.Datadog.GetString("kubernetes_kubelet_host")
-	var err error
-
 	if host == "" {
-		host, err = docker.GetHostname()
+		var err error
+		host, err = docker.HostnameProvider("")
 		if err != nil {
-			return "", fmt.Errorf("Unable to get hostname from docker, please set the kubernetes_kubelet_host option: %s", err)
+			return "", fmt.Errorf("unable to get hostname from docker, please set the kubernetes_kubelet_host option: %s", err)
 		}
 	}
 
