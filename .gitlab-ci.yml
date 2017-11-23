@@ -11,7 +11,9 @@ variables:
   SRC_PATH: /src/github.com/DataDog/datadog-agent
   OMNIBUS_BASE_DIR: $CI_PROJECT_DIR/.omnibus/
   OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/.omnibus/pkg/
-  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/pkg/ # make sure the types of RPM packages are kept separate
+  # make sure the types of RPM packages are kept separate
+  OMNIBUS_BASE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/
+  OMNIBUS_PACKAGE_DIR_SUSE: $CI_PROJECT_DIR/.omnibus/suse/pkg/
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   DEB_S3_BUCKET_DEPRECATED: apt-agent6.datad0g.com
@@ -191,7 +193,7 @@ agent_suse-x64:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
-    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR/suse
+    - inv -e agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR_SUSE
     - rpm -i $OMNIBUS_PACKAGE_DIR_SUSE/*.rpm
   cache:
     # cache per branch
@@ -285,7 +287,7 @@ dogstatsd_suse-x64:
     - printf -- "$RPM_GPG_KEY" | gpg --import --batch
     - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
     - set -x
-    - inv -e dogstatsd.omnibus-build --base-dir $OMNIBUS_BASE_DIR/suse
+    - inv -e dogstatsd.omnibus-build --base-dir $OMNIBUS_BASE_DIR_SUSE
     - rpm -i $OMNIBUS_PACKAGE_DIR_SUSE/*.rpm
   cache:
     # cache per branch
@@ -506,7 +508,7 @@ deploy_suse_rpm:
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
   before_script:
-    - ls $OMNIBUS_PACKAGE_DIR/suse
+    - ls $OMNIBUS_PACKAGE_DIR_SUSE
   only:
     - master
     - tags
