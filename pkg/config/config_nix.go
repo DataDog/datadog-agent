@@ -10,6 +10,6 @@ package config
 const (
 	defaultConfdPath            = "/etc/datadog-agent/conf.d"
 	defaultAdditionalChecksPath = "/etc/datadog-agent/checks.d"
-	defaultJMXPipePath          = "/opt/datadog-agent/run"
+	defaultRunPath              = "/opt/datadog-agent/run"
 	defaultSyslogURI            = "unixgram:///dev/log"
 )
