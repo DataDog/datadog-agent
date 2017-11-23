@@ -45,7 +45,7 @@ static PyObject *log_message(PyObject *self, PyObject *args) {
 
 static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
 	PyObject *cmd_args, *cmd_raise_on_empty; 
-    int raise = 1;
+    int raise = 1, i=0;
     int subprocess_args_sz;
     char ** subprocess_args, * subprocess_arg;
     PyObject * py_result = Py_None;
@@ -82,7 +82,7 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-	for (int i = 0; i < subprocess_args_sz; i++) {
+	for (i = 0; i < subprocess_args_sz; i++) {
 		subprocess_arg = PyString_AsString(PyList_GetItem(cmd_args, i));
 		if (subprocess_arg == NULL) {
 			PyErr_SetString(PyExc_Exception, "unable to parse arguments to cgo/go-land");
