@@ -8,35 +8,34 @@
 
 ##### Core config #####
 
-if [[ -z $DD_API_KEY ]]; then
-    echo "You must set an DD_API_KEY environment variable to run the Datadog Agent container"
+if [[ -z "${DD_API_KEY}" ]]; then
+    echo "You must set an DD_API_KEY environment variable to run the Datadog Agent container" >&2
     exit 1
 fi
 
-if [[ -z $DD_DD_URL ]]; then
+if [[ -z "${DD_DD_URL}" ]]; then
     export DD_DD_URL="https://app.datadoghq.com"
 fi
 
-if [[ -z $DD_DOGSTATSD_SOCKET ]]; then
+if [[ -z "${DD_DOGSTATSD_SOCKET}" ]]; then
     export DD_DOGSTATSD_NON_LOCAL_TRAFFIC=1
-else
-    if [[ -e $DD_DOGSTATSD_SOCKET ]]; then
-        if [[ -S $DD_DOGSTATSD_SOCKET ]]; then
-            echo "Deleting existing socket at ${DD_DOGSTATSD_SOCKET}"
-            rm $DD_DOGSTATSD_SOCKET
-        else
-            echo "${DD_DOGSTATSD_SOCKET} exists and is not a socket, please check your volume options"
-            exit 1
-        fi
+elif [[ -e "${DD_DOGSTATSD_SOCKET}" ]]; then
+    if [[ -S "${DD_DOGSTATSD_SOCKET}" ]]; then
+        echo "Deleting existing socket at ${DD_DOGSTATSD_SOCKET}"
+        rm -v "${DD_DOGSTATSD_SOCKET}" || exit $?
+    else
+        echo "${DD_DOGSTATSD_SOCKET} exists and is not a socket, please check your volume options" >&2
+        ls -l "${DD_DOGSTATSD_SOCKET}" >&2
+        exit 1
     fi
 fi
 
-if [[ $KUBERNETES_SERVICE_PORT ]]; then
+if [[ "${KUBERNETES_SERVICE_PORT}" ]]; then
     export KUBERNETES="yes"
 fi
 
 # Install default datadog.yaml
-if [[ $KUBERNETES ]]; then
+if [[ "${KUBERNETES}" ]]; then
     ln -s /etc/datadog-agent/datadog-kubernetes.yaml /etc/datadog-agent/datadog.yaml
 else
     ln -s /etc/datadog-agent/datadog-docker.yaml /etc/datadog-agent/datadog.yaml
