@@ -75,6 +75,14 @@ func MatchTagsContains(expected []string) interface{} {
 	})
 }
 
+// IsGreaterOrEqual is a mock.argumentMatcher builder to be used in asserts.
+// actual have to be greater or equal expectedMin
+func IsGreaterOrEqual(expectedMin float64) interface{} {
+	return mock.MatchedBy(func(actual float64) bool {
+		return expectedMin <= actual
+	})
+}
+
 // AssertTagsNotContains is a mock.argumentMatcher builder to be used in asserts.
 // It allows to check if tags are NOT emitted.
 func AssertTagsNotContains(expected []string) interface{} {
