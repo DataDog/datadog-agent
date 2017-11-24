@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// Please see the README.md for information on the package, and
+// call `inv gorewrite` to rewrite derived classes on change.
+
 package fanout
 
 import (
