@@ -94,6 +94,7 @@ type ECSNetwork struct {
 }
 
 func init() {
+	log.Infof("registering ecs listener")
 	Register("ecs", NewECSListener)
 }
 
@@ -151,11 +152,10 @@ func (l *ECSListener) refreshServices() {
 	// if not found and running, add it. Else no-op
 	// at the end, compare what we saw and what is cached and kill what's not there anymore
 	notSeen := make(map[string]interface{})
+	for i := range l.services {
+		notSeen[i] = nil
+	}
 	for _, c := range meta.Containers {
-		for i := range l.services {
-			notSeen[i] = nil
-		}
-
 		if _, found := l.services[c.DockerID]; !found {
 			if c.KnownStatus == "RUNNING" {
 				s, err := l.createService(c)
