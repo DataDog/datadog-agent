@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	dockerLabelFormat = "com.datadoghq.ad."
+	dockerADLabelPrefix = "com.datadoghq.ad."
 )
 
 // DockerConfigProvider implements the ConfigProvider interface for the docker labels.
@@ -34,8 +34,8 @@ func (d *DockerConfigProvider) String() string {
 	return "Docker container labels"
 }
 
-// Collect retrieves templates from the kubelet's pdolist, builds Config objects and returns them
-// TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
+// Collect retrieves all running containers and extract AD templates from their labels.
+// TODO: suscribe to docker events and only invalidate cache if we get a `start` event since last Collect.
 func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
 	var err error
 	if d.dockerUtil == nil {
@@ -56,7 +56,7 @@ func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
 func parseDockerLabels(containers map[string]map[string]string) ([]check.Config, error) {
 	var configs []check.Config
 	for cID, labels := range containers {
-		c, err := extractTemplatesFromMap(docker.ContainerIDToEntityName(cID), labels, dockerLabelFormat)
+		c, err := extractTemplatesFromMap(docker.ContainerIDToEntityName(cID), labels, dockerADLabelPrefix)
 		switch {
 		case err != nil:
 			log.Errorf("Can't parse template for container %s: %s", cID, err)
