@@ -108,8 +108,8 @@ func lookupHostname() (string, error) {
 		return name, err
 	}
 
-	log.Warnf("unable to get the hostname from the config file: %s", err)
-	log.Warn("trying to determine a reliable host name automatically...")
+	log.Infof("unable to get the hostname from the config file: %s", err)
+	log.Info("trying to determine a reliable host name automatically...")
 
 	for _, providers := range hostname.ProviderCatalog {
 		for _, provider := range providers {
@@ -124,7 +124,7 @@ func lookupHostname() (string, error) {
 				log.Debugf("invalid hostname from %s: %s", provider.Name, err)
 				continue
 			}
-			log.Debugf("got hostname \"%s\" from %s", name, provider.Name)
+			log.Infof("got hostname \"%s\" from %s", name, provider.Name)
 			return name, nil
 		}
 	}
