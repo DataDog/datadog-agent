@@ -77,6 +77,18 @@ jobs:
           name: run integration tests
           command: inv  -e integration-tests --race --remote-docker
 
+  benchmark_builds:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: build aggregator benchmarks
+          command: inv -race bench.build-aggregator
+      - run:
+          name: build dogstatsd benchmarks
+          command: inv --race bench.build-dogstatsd
+
   docker_integration_tests:
     <<: *job_template
     steps:
@@ -119,6 +131,9 @@ workflows:
       - unit_tests:
           requires:
             - dependencies
+      - benchmark_builds:
+          requires:
+            - dependencies
       - integration_tests:
           requires:
             - dependencies
@@ -128,10 +143,12 @@ workflows:
       - build_binaries:
           requires:
             - unit_tests
+            - benchmark_builds
             - integration_tests
             - docker_integration_tests
       - build_puppy:
           requires:
             - unit_tests
+            - benchmark_builds
             - integration_tests
             - docker_integration_tests
