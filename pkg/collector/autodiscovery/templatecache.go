@@ -71,7 +71,7 @@ func (cache *TemplateCache) Get(adID string) ([]check.Config, error) {
 		return templates, nil
 	}
 
-	return nil, fmt.Errorf("Autodiscovery id not found in cache")
+	return nil, fmt.Errorf("AD id %s not found in cache", adID)
 }
 
 // Del removes a template from the cache
