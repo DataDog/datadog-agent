@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fanout"
 )
@@ -91,6 +92,7 @@ func TestDataWriteTimeout(t *testing.T) {
 
 	select {
 	case err := <-outErr:
+		require.NotNil(t, err)
 		assert.Equal(t, err, fanout.ErrTimeout)
 	case <-time.After(time.Second):
 		assert.FailNow(t, "should have received a timeout error")

@@ -19,6 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fanout"
 )
 
+// Testing provided by the test/integration/corecheck/docker
+// as the event stream is used by the tagger DockerCollector
+
 func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerEvent, <-chan error, error) {
 	if d.fanner == nil {
 		d.stopEventStream = make(chan struct{})
