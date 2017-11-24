@@ -80,12 +80,8 @@ func Fqdn(hostname string) string {
 	return hostname
 }
 
-// GetHostname retrieve the host name for the Agent, trying to query these
-// environments/api, in order:
-// * GCE / EC2
-// * Docker
-// * os
-// Result is cached
+// GetHostname retrieve the host name for the Agent, trying to query
+// compiled-in providers. Result is cached
 func GetHostname() (string, error) {
 	cacheHostnameKey := cache.BuildAgentKey("hostname")
 	if cacheHostname, found := cache.Cache.Get(cacheHostnameKey); found {

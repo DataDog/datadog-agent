@@ -5,12 +5,20 @@
 
 package hostname
 
-import "os"
+import (
+	"errors"
+	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+)
 
 func init() {
 	RegisterHostnameProvider(Lowest, "OS", osHostname)
 }
 
 func osHostname(name string) (string, error) {
+	if config.IsContainerized() {
+		return "", errors.New("can't use OS hostname in a container")
+	}
 	return os.Hostname()
 }
