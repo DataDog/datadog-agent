@@ -8,7 +8,6 @@ package util
 import (
 	"fmt"
 	"net"
-	"os"
 	"regexp"
 	"strings"
 
@@ -34,6 +33,7 @@ var (
 // ValidHostname determines whether the passed string is a valid hostname.
 // In case it's not, the returned error contains the details of the failure.
 func ValidHostname(hostname string) error {
+	hostname = strings.TrimSpace(hostname)
 	if hostname == "" {
 		return fmt.Errorf("host name is empty")
 	} else if isLocal(hostname) {
@@ -82,23 +82,28 @@ func Fqdn(hostname string) string {
 
 // GetHostname retrieve the host name for the Agent, trying to query these
 // environments/api, in order:
-// * GCE
+// * GCE / EC2
 // * Docker
-// * kubernetes
 // * os
-// * EC2
+// Result is cached
 func GetHostname() (string, error) {
 	cacheHostnameKey := cache.BuildAgentKey("hostname")
 	if cacheHostname, found := cache.Cache.Get(cacheHostnameKey); found {
 		return cacheHostname.(string), nil
 	}
 
-	var hostName string
-	var err error
+	name, err := lookupHostname()
+	if err != nil {
+		return "", err
+	}
+	cache.Cache.Set(cacheHostnameKey, name, cache.NoExpiration)
+	return name, nil
+}
 
+func lookupHostname() (string, error) {
 	// try the name provided in the configuration file
 	name := config.Datadog.GetString("hostname")
-	err = ValidHostname(name)
+	err := ValidHostname(name)
 	if err == nil {
 		return name, err
 	}
@@ -106,50 +111,24 @@ func GetHostname() (string, error) {
 	log.Warnf("unable to get the hostname from the config file: %s", err)
 	log.Warn("trying to determine a reliable host name automatically...")
 
-	// GCE metadata
-	log.Debug("GetHostname trying GCE metadata...")
-	if getGCEHostname, found := hostname.ProviderCatalog["gce"]; found {
-		name, err = getGCEHostname(name)
-		if err == nil {
-			return name, err
+	for _, providers := range hostname.ProviderCatalog {
+		for _, provider := range providers {
+			log.Debugf("trying to get hostname from %s...", provider.Name)
+			name, err := provider.Method("")
+			if err != nil {
+				log.Debugf("cannot get hostname from %s: %s", provider.Name, err)
+				continue
+			}
+			err = ValidHostname(name)
+			if err != nil {
+				log.Debugf("invalid hostname from %s: %s", provider.Name, err)
+				continue
+			}
+			log.Debugf("got hostname \"%s\" from %s", name, provider.Name)
+			return name, nil
 		}
 	}
 
-	isContainerized, name := getContainerHostname()
-	if isContainerized && name != "" {
-		hostName = name
-	}
-
-	if hostName == "" {
-		// os
-		log.Debug("GetHostname trying os...")
-		name, err = os.Hostname()
-		if err == nil {
-			hostName = name
-		}
-	}
-
-	/* at this point we've either the hostname from the os or an empty string */
-
-	// We use the instance id if we're on an ECS cluster or we're on EC2
-	// and the hostname is one of the default ones
-	if getEC2Hostname, found := hostname.ProviderCatalog["ec2"]; found {
-		log.Debug("GetHostname trying EC2 metadata...")
-		instanceID, err := getEC2Hostname(name)
-		if err == nil && ValidHostname(instanceID) == nil {
-			hostName = name
-		}
-	}
 	// If at this point we don't have a name, bail out
-	if hostName == "" {
-		err = fmt.Errorf("Unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
-	}
-
-	cache.Cache.Set(cacheHostnameKey, hostName, cache.NoExpiration)
-	return hostName, err
-}
-
-// IsKubernetes returns whether the Agent is running on a kubernetes cluster
-func isKubernetes() bool {
-	return os.Getenv("KUBERNETES_PORT") != ""
+	return "", fmt.Errorf("Unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
 }

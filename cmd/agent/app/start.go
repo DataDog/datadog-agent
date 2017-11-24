@@ -163,7 +163,7 @@ func StartAgent() error {
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
-	log.Infof("Hostname is: %s", hostname)
+	log.Infof("Hostname is: \"%s\"", hostname)
 
 	// start the cmd HTTP server
 	if err = api.StartServer(); err != nil {

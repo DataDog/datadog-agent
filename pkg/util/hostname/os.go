@@ -3,10 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-// +build freebsd netbsd openbsd solaris dragonfly
+package hostname
 
-package util
+import "os"
 
-func getContainerHostname() (bool, string) {
-	return false, ""
+func init() {
+	RegisterHostnameProvider(Lowest, "OS", osHostname)
+}
+
+func osHostname(name string) (string, error) {
+	return os.Hostname()
 }
