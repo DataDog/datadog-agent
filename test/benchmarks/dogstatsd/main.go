@@ -225,16 +225,20 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	config.Datadog.Set("dogstatsd_stats_enable", true)
-	config.Datadog.Set("dogstatsd_stats_buffer", 100)
-	s := &serializer.Serializer{Forwarder: f}
-	aggr := aggregator.InitAggregator(s, "localhost")
-	statsd, err := dogstatsd.NewServer(aggr.GetChannels())
-	if err != nil {
-		log.Errorf("Problem allocating dogstatsd server: %s", err)
-		return
+	var statsd *dogstatsd.Server
+	var err error
+	if !*snd {
+		config.Datadog.Set("dogstatsd_stats_enable", true)
+		config.Datadog.Set("dogstatsd_stats_buffer", 100)
+		s := &serializer.Serializer{Forwarder: f}
+		aggr := aggregator.InitAggregator(s, "localhost")
+		statsd, err = dogstatsd.NewServer(aggr.GetChannels())
+		if err != nil {
+			log.Errorf("Problem allocating dogstatsd server: %s", err)
+			return
+		}
+		defer statsd.Stop()
 	}
-	defer statsd.Stop()
 
 	uri := fmt.Sprintf("localhost:%d", config.Datadog.GetInt("dogstatsd_port"))
 	generator, err := NewStatsdGenerator(uri)
@@ -248,13 +252,21 @@ func main() {
 	memstatsFunc := expvar.Get("memstats").(expvar.Func)
 	memstats := memstatsFunc().(runtime.MemStats)
 
-	if statsd.Statistics != nil {
+	if *snd || statsd.Statistics != nil {
 
 		iteration := 0
 		sent := uint64(0)
 		processed := uint64(0)
 		quitGenerator := make(chan bool)
 		quitStatter := make(chan bool)
+
+		// signal handler in case we want to cancel
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+		go func() {
+			_ = <-sigs
+			quitGenerator <- true
+		}()
 
 		for ok := true; ok; ok = (*brk && processed == sent) {
 			rate := (*pps) + iteration*(*inc)
@@ -266,6 +278,7 @@ func main() {
 				target := uint64(*num)
 				var buf bytes.Buffer
 				var packets []string
+				log.Warnf("Sending routine has started,,,")
 
 				defer wg.Done()
 				if !(*rnd) {
@@ -328,14 +341,6 @@ func main() {
 					}
 				}()
 			}
-
-			// signal handler in case we want to cancel
-			sigs := make(chan os.Signal, 1)
-			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-			go func() {
-				_ = <-sigs
-				quitGenerator <- true
-			}()
 
 			// if in timed mode: sleep to quit.
 			if *mode == tMode {
