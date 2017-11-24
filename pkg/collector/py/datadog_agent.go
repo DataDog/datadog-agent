@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"runtime"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -130,6 +131,8 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	}
 	cmd := exec.Command(subprocessCmd, subprocessArgs...)
 
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	glock := C.PyGILState_Ensure()
 	defer C.PyGILState_Release(glock)
 

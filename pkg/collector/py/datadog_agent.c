@@ -44,7 +44,7 @@ static PyObject *log_message(PyObject *self, PyObject *args) {
 }
 
 static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
-	PyObject *cmd_args, *cmd_raise_on_empty; 
+    PyObject *cmd_args, *cmd_raise_on_empty; 
     int raise = 1, i=0;
     int subprocess_args_sz;
     char ** subprocess_args, * subprocess_arg;
@@ -52,7 +52,7 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
-	cmd_raise_on_empty = NULL;
+    cmd_raise_on_empty = NULL;
     if (!PyArg_ParseTuple(args, "O|O:get_subprocess_output", &cmd_args, &cmd_raise_on_empty)) {
         PyGILState_Release(gstate);
         PyErr_SetString(PyExc_TypeError, "unable to parse arguments");
@@ -71,9 +71,9 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-	if (cmd_raise_on_empty != NULL) {
-		raise = (int)(cmd_raise_on_empty == Py_True);
-	}
+    if (cmd_raise_on_empty != NULL) {
+        raise = (int)(cmd_raise_on_empty == Py_True);
+    }
 
     subprocess_args_sz = PyList_Size(cmd_args);
     if(!(subprocess_args = (char **)malloc(sizeof(char *)*subprocess_args_sz))) {
@@ -82,15 +82,15 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-	for (i = 0; i < subprocess_args_sz; i++) {
-		subprocess_arg = PyString_AsString(PyList_GetItem(cmd_args, i));
-		if (subprocess_arg == NULL) {
-			PyErr_SetString(PyExc_Exception, "unable to parse arguments to cgo/go-land");
+    for (i = 0; i < subprocess_args_sz; i++) {
+        subprocess_arg = PyString_AsString(PyList_GetItem(cmd_args, i));
+        if (subprocess_arg == NULL) {
+            PyErr_SetString(PyExc_Exception, "unable to parse arguments to cgo/go-land");
             free(subprocess_args);
             Py_RETURN_NONE;
-		}
+        }
         subprocess_args[i] = subprocess_arg;
-	}
+    }
 
     PyGILState_Release(gstate);
     py_result = GetSubprocessOutput(subprocess_args, subprocess_args_sz, raise);
@@ -98,7 +98,7 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
 
     if (py_result == NULL) {
         Py_RETURN_NONE;
-	}
+    }
     return py_result;
 }
 
