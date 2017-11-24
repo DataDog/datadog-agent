@@ -6,73 +6,12 @@
 # (C) Datadog, Inc. 2010-2017
 # All rights reserved
 
-# stdlib
-from functools import wraps
-import logging
-import tempfile
-import os
-import sys
-
-if os.name == 'posix' and sys.version_info[0] < 3:
-    try:
-        import subprocess32 as subprocess
-    except ImportError:
-        import subprocess
-else:
-    import subprocess
-
-
-log = logging.getLogger(__name__)
-
-
-class SubprocessOutputEmptyError(Exception):
-    pass
-
+from util import get_subprocess_output as subprocess_output
+from util import SubprocessOutputEmptyError  # noqa
 
 def get_subprocess_output(command, log, raise_on_empty_output=True):
     """
     Run the given subprocess command and return its output. Raise an Exception
     if an error occurs.
     """
-
-    # Use tempfile, allowing a larger amount of memory. The subprocess.Popen
-    # docs warn that the data read is buffered in memory. They suggest not to
-    # use subprocess.PIPE if the data size is large or unlimited.
-    with tempfile.TemporaryFile() as stdout_f, tempfile.TemporaryFile() as stderr_f:
-        proc = subprocess.Popen(command, stdout=stdout_f, stderr=stderr_f)
-        pid = proc.pid
-        log.debug("running process: {0} with pid: {1}".format(" ".join(command), pid))
-
-        retcode = proc.wait()
-        if retcode != 0:
-            log.debug("Error while running {0} with pid: {1}. It returned with code {2}".format(" ".join(command), pid, retcode))
-
-        stderr_f.seek(0)
-        err = stderr_f.read()
-        if err:
-            log.debug("Error while running {0} : {1}".format(" ".join(command), err))
-
-        stdout_f.seek(0)
-        output = stdout_f.read()
-
-    if not output and raise_on_empty_output:
-        raise SubprocessOutputEmptyError("get_subprocess_output expected output but had none.")
-
-    return (output, err, proc.returncode)
-
-
-def log_subprocess(func):
-    """
-    Wrapper around subprocess to log.debug commands.
-    """
-    @wraps(func)
-    def wrapper(*params, **kwargs):
-        fc = "%s(%s)" % (func.__name__, ', '.join(
-            [a.__repr__() for a in params] +
-            ["%s = %s" % (a, b) for a, b in kwargs.items()]
-        ))
-        log.debug("%s called" % fc)
-        return func(*params, **kwargs)
-    return wrapper
-
-subprocess.Popen = log_subprocess(subprocess.Popen)
+    return subprocess_output(command, raise_on_empty_output)

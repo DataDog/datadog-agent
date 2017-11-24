@@ -75,6 +75,67 @@ func TestFindSubclassOf(t *testing.T) {
 	assert.Equal(t, 1, sclass.RichCompareBool(barClass, python.Py_EQ))
 }
 
+func TestSubprocessBindings(t *testing.T) {
+	gstate := newStickyLock()
+	defer gstate.unlock()
+
+	utilModule := python.PyImport_ImportModuleNoBlock("util")
+	assert.NotNil(t, utilModule)
+	defer utilModule.DecRef()
+
+	getSubprocessOutput := utilModule.GetAttrString("get_subprocess_output")
+	assert.NotNil(t, getSubprocessOutput)
+	defer getSubprocessOutput.DecRef()
+
+	// This call will go: python interpreter -> C-binding -> go-lang and back
+	args := python.PyTuple_New(2)
+	kwargs := python.PyDict_New()
+	defer args.DecRef()
+	defer kwargs.DecRef()
+
+	cmdList := python.PyList_New(0)
+	defer cmdList.DecRef()
+	cmd := python.PyString_FromString("ls")
+	defer cmd.DecRef()
+	arg := python.PyString_FromString("-l")
+	defer arg.DecRef()
+
+	err := python.PyList_Insert(cmdList, 0, cmd)
+	assert.Nil(t, err)
+	err = python.PyList_Insert(cmdList, 1, arg)
+	assert.Nil(t, err)
+
+	raise := python.PyBool_FromLong(1)
+	assert.NotNil(t, raise)
+
+	python.PyTuple_SetItem(args, 0, cmdList)
+	python.PyTuple_SetItem(args, 1, raise)
+
+	res := getSubprocessOutput.Call(args, kwargs)
+	assert.NotNil(t, res)
+	assert.True(t, python.PyTuple_Check(res))
+
+	if runtime.GOOS != "windows" {
+		exc := python.PyErr_Occurred()
+		assert.Nil(t, exc)
+
+		assert.NotEqual(t, res, python.Py_None)
+
+		// stdout
+		assert.True(t, python.PyTuple_Check(res))
+		pyOutput := python.PyTuple_GetItem(res, 0)
+		assert.NotNil(t, pyOutput)
+		output := python.PyString_AsString(pyOutput)
+		assert.NotZero(t, len(output))
+		t.Logf("command output was: %v", output)
+
+		// Return Code
+		retcode := python.PyTuple_GetItem(res, 2)
+		assert.NotNil(t, retcode)
+		assert.Zero(t, python.PyInt_AsLong(retcode))
+	}
+}
+
 func TestGetModuleName(t *testing.T) {
 	name := getModuleName("foo.bar.baz")
 	if name != "baz" {
