@@ -102,6 +102,7 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
 
+	log.Infof("starting listening to ECS services")
 	go func() {
 		for {
 			select {
