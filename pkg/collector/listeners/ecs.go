@@ -138,12 +138,13 @@ func (l *ECSListener) Stop() {
 // compares the container list to the local cache and sends new/dead services
 // over newService and delService accordingly
 func (l *ECSListener) refreshServices() {
+	log.Infof("refreshing services...")
 	meta, err := l.getTaskMetadata()
 	if err != nil {
 		log.Errorf("failed to get task metadata, not refreshing services - %s", err)
 		return
 	} else if meta.KnownStatus != "RUNNING" {
-		log.Debugf("task %s is not in RUNNING state yet, not refreshing services - %s", meta.Family)
+		log.Errorf("task %s is not in RUNNING state yet, not refreshing services", meta.Family)
 	}
 	l.task = meta
 
@@ -162,38 +163,45 @@ func (l *ECSListener) refreshServices() {
 					log.Errorf("couldn't create a service out of container %s - Auto Discovery will ignore it", c.DockerID)
 				} else {
 					l.services[c.DockerID] = &s
+					log.Infof("Submitting new service: %s", s.ADIdentifiers)
 					l.newService <- &s
 					delete(notSeen, c.DockerID)
 				}
+			} else {
+				log.Errorf("container %s is in status %s - skipping", c.DockerID, c.KnownStatus) // TODO: remove or move to debug
 			}
 		} else {
+			log.Errorf("already know container %s, skipping", c.DockerID) // TODO: delete me
 			delete(notSeen, c.DockerID)
 		}
 	}
 	for cID := range notSeen {
 		l.delService <- l.services[cID]
+		delete(l.services, cID)
 	}
 }
 
 func (l *ECSListener) getTaskMetadata() (TaskMetadata, error) {
 	var meta TaskMetadata
-
+	log.Infof("Getting task metadata...") // TODO: delete me
 	resp, err := http.Get(metadataURL)
 	if err != nil {
 		return meta, err
 	}
 	defer resp.Body.Close()
 
-	// TODO: this likely fails
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&meta)
 	if err != nil {
+		log.Errorf("decoding failed!")
 		return meta, err
 	}
+	log.Infof("decoding worked!")
 	return meta, err
 }
 
 func (l *ECSListener) createService(c ECSContainer) (ECSService, error) {
+	log.Infof("creating service...")
 	cID := ID(c.DockerID)
 	svc := ECSService{
 		ID:           cID,
@@ -222,6 +230,12 @@ func (l *ECSListener) createService(c ECSContainer) (ECSService, error) {
 	if err != nil {
 		log.Errorf("Failed to extract info for container %s - %s", cID[:12], err)
 	}
+	log.Infof("SERVICE:")
+	log.Infof("cluster: %s", svc.clusterName)
+	log.Infof("identifiers: %s", svc.ADIdentifiers)
+	log.Infof("family: %s", svc.taskFamily)
+	log.Infof("version: %s", svc.taskVersion)
+	log.Infof("container: %s", svc.ecsContainer.DockerName)
 	return svc, err
 }
 
@@ -274,8 +288,6 @@ func (s *ECSService) GetHosts() (map[string]string, error) {
 // GetPorts returns the container's ports
 // TODO: not supported yet, this is a place holder
 func (s *ECSService) GetPorts() ([]int, error) {
-	log.Warnf("ECS auto discovery doesn't support %%%%port%%%% - service %s won't be configured", string(s.taskFamily))
-
 	if s.Ports == nil {
 		ports := make([]int, 0)
 		s.Ports = ports
@@ -328,5 +340,6 @@ func (s *ECSService) GetTags() ([]string, error) {
 // GetPid inspect the container an return its pid
 func (s *ECSService) GetPid() (int, error) {
 	// TODO: not available in the metadata api yet
-	return -1, nil
+	s.Pid = 2
+	return 2, nil
 }
