@@ -19,7 +19,7 @@ type eventFanout struct {
 	running   bool
 }
 
-func (f *eventFanout) Setup(cfg fanout.Config) (chan<- *ContainerEvent, error) {
+func (f *eventFanout) setup(cfg fanout.Config) (chan<- *ContainerEvent, error) {
 	if cfg.WriteTimeout.Nanoseconds() == 0 {
 		return nil, errors.New("WriteTimeout must be higher than 0")
 	}
@@ -43,7 +43,7 @@ func (f *eventFanout) StopOnEOF() {
 func (f *eventFanout) StopOnError(err error) {
 	f.stopChan <- err
 }
-func (f *eventFanout) Suscribe(name string) (<-chan *ContainerEvent, <-chan error, error) {
+func (f *eventFanout) SuscribeChannel(name string) (<-chan *ContainerEvent, <-chan error, error) {
 	f.Lock()
 	defer f.Unlock()
 	if _, found := f.listeners[name]; found {

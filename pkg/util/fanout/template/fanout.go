@@ -20,18 +20,18 @@ import (
 // Message is the placeholder type for your data
 type Message string
 
-// MessageFanout holds the fan-out logic. It can either be embedded or used by itself
-type MessageFanout struct {
+// messageFanout holds the fan-out logic. It can either be embedded or used by itself
+type messageFanout struct {
 	sync.RWMutex
 	config    fanout.Config
 	dataInput chan Message
 	stopChan  chan error
-	listeners map[string]*MessageOutput
+	listeners map[string]*messageOutput
 	running   bool
 }
 
-// Setup has to be called once and returns the input channels
-func (f *MessageFanout) Setup(cfg fanout.Config) (chan<- Message, error) {
+// setup has to be called once and returns the input channels
+func (f *messageFanout) setup(cfg fanout.Config) (chan<- Message, error) {
 	if cfg.WriteTimeout.Nanoseconds() == 0 {
 		return nil, errors.New("WriteTimeout must be higher than 0")
 	}
@@ -48,23 +48,23 @@ func (f *MessageFanout) Setup(cfg fanout.Config) (chan<- Message, error) {
 	f.config = cfg
 	f.dataInput = make(chan Message)
 	f.stopChan = make(chan error, 1)
-	f.listeners = make(map[string]*MessageOutput)
+	f.listeners = make(map[string]*messageOutput)
 
 	return f.dataInput, nil
 }
 
 // StopOnEOF will trigger the Stop logic, unsuscribing all listeners in the process
-func (f *MessageFanout) StopOnEOF() {
+func (f *messageFanout) StopOnEOF() {
 	f.StopOnError(io.EOF)
 }
 
 // StopOnError will trigger the Stop logic, unsuscribing all listeners in the process
-func (f *MessageFanout) StopOnError(err error) {
+func (f *messageFanout) StopOnError(err error) {
 	f.stopChan <- err
 }
 
-// Suscribe adds a new suscriber to the fanout. If it's the first, the dispatching goroutine starts
-func (f *MessageFanout) Suscribe(name string) (<-chan Message, <-chan error, error) {
+// SuscribeChannel adds a new suscriber to the fanout. If it's the first, the dispatching goroutine starts
+func (f *messageFanout) SuscribeChannel(name string) (<-chan Message, <-chan error, error) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -72,7 +72,7 @@ func (f *MessageFanout) Suscribe(name string) (<-chan Message, <-chan error, err
 		return nil, nil, fmt.Errorf("listener %s is already suscribed to %s", name, f.config.Name)
 	}
 
-	out := &MessageOutput{
+	out := &messageOutput{
 		dataOutput:   make(chan Message, f.config.OutputBufferSize),
 		errorOutput:  make(chan error, 1),
 		writeTimeout: f.config.WriteTimeout,
@@ -87,13 +87,15 @@ func (f *MessageFanout) Suscribe(name string) (<-chan Message, <-chan error, err
 	return out.dataOutput, out.errorOutput, nil
 }
 
+// TODO: add SubscribeCallback when needed
+
 // Unsuscribe removes a suscriber from the fanout with the EOF error. If it's the last, the dispatching goroutine stops and we return true
-func (f *MessageFanout) Unsuscribe(name string) (bool, error) {
+func (f *messageFanout) Unsuscribe(name string) (bool, error) {
 	return f.UnsuscribeWithError(name, io.EOF)
 }
 
 // UnsuscribeWithError removes a suscriber from the fanout with a custom error. If it's the last, the dispatching goroutine stops and we return true
-func (f *MessageFanout) UnsuscribeWithError(name string, err error) (bool, error) {
+func (f *messageFanout) UnsuscribeWithError(name string, err error) (bool, error) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -112,12 +114,12 @@ func (f *MessageFanout) UnsuscribeWithError(name string, err error) (bool, error
 }
 
 // dispatch is the business logic goroutine
-func (f *MessageFanout) dispatch() {
+func (f *messageFanout) dispatch() {
 	badListeners := make(map[string]error)
 
-	// First loop handles unsuscribing unresponsive listeners
+	// Outer loop handles unsuscribing unresponsive listeners
 	for {
-	TRANSMIT: // Second loop handles communication, breaks on write timeouts
+	TRANSMIT: // Inner loop handles communication, breaks on write timeouts
 		for {
 			select {
 			case err := <-f.stopChan:
@@ -152,14 +154,14 @@ func (f *MessageFanout) dispatch() {
 	}
 }
 
-// MessageOutput holds the output channels for suscriber
-type MessageOutput struct {
+// messageOutput holds the output channels for suscriber
+type messageOutput struct {
 	dataOutput   chan Message
 	errorOutput  chan error
 	writeTimeout time.Duration
 }
 
-func (o *MessageOutput) sendData(data Message) error {
+func (o *messageOutput) sendData(data Message) error {
 	select {
 	case o.dataOutput <- data:
 		return nil
@@ -168,7 +170,7 @@ func (o *MessageOutput) sendData(data Message) error {
 	}
 }
 
-func (o *MessageOutput) sendError(err error) error {
+func (o *messageOutput) sendError(err error) error {
 	select {
 	case o.errorOutput <- err:
 		return nil
@@ -177,7 +179,7 @@ func (o *MessageOutput) sendError(err error) error {
 	}
 }
 
-func (o *MessageOutput) close(err error) {
+func (o *messageOutput) close(err error) {
 	o.sendError(err)
 	close(o.dataOutput)
 	close(o.errorOutput)

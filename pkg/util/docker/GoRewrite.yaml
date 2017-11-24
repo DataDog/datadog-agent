@@ -5,7 +5,7 @@ spec:
     typeMap:
       Message:
         expr: "*ContainerEvent"
-      MessageOutput:
+      messageOutput:
         expr: "eventOutput"
-      MessageFanout:
+      messageFanout:
         expr: "eventFanout"

@@ -23,7 +23,7 @@ func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerE
 	if d.fanner == nil {
 		d.stopEventStream = make(chan struct{})
 		d.fanner = &eventFanout{}
-		dataChan, err := d.fanner.Setup(fanout.Config{
+		dataChan, err := d.fanner.setup(fanout.Config{
 			Name:             "docker_events",
 			WriteTimeout:     time.Second,
 			OutputBufferSize: 50,
@@ -35,7 +35,7 @@ func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerE
 		go d.streamEvents(dataChan)
 	}
 
-	return d.fanner.Suscribe(name)
+	return d.fanner.SuscribeChannel(name)
 }
 
 func (d *DockerUtil) UnsuscribeFromContainerEvents(name string) error {
@@ -56,7 +56,7 @@ func (d *DockerUtil) streamEvents(dataChan chan<- *ContainerEvent) {
 	filters.Add("event", "start")
 	filters.Add("event", "die")
 
-	// First loop handles re-connecting in case the docker daemon closes the connection
+	// Outer loop handles re-connecting in case the docker daemon closes the connection
 	for {
 		eventOptions := types.EventsOptions{
 			Since:   fmt.Sprintf("%d", time.Now().Unix()),
@@ -66,7 +66,7 @@ func (d *DockerUtil) streamEvents(dataChan chan<- *ContainerEvent) {
 		ctx, cancel := context.WithCancel(context.Background())
 		messages, errs := d.cli.Events(ctx, eventOptions)
 
-	TRANSMIT: // Second loop iterates over elements in the channel
+	TRANSMIT: // Inner loop iterates over elements in the channel
 		for {
 
 			select {

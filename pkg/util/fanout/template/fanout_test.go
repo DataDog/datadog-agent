@@ -16,8 +16,8 @@ import (
 )
 
 func TestSetupAndStop(t *testing.T) {
-	fanner := MessageFanout{}
-	fanner.Setup(fanout.Config{
+	fanner := messageFanout{}
+	fanner.setup(fanout.Config{
 		OutputBufferSize: 4,
 		WriteTimeout:     time.Second,
 		Name:             "test",
@@ -26,17 +26,17 @@ func TestSetupAndStop(t *testing.T) {
 }
 
 func TestTwoListeners(t *testing.T) {
-	fanner := MessageFanout{}
-	inData, err := fanner.Setup(fanout.Config{
+	fanner := messageFanout{}
+	inData, err := fanner.setup(fanout.Config{
 		OutputBufferSize: 4,
 		WriteTimeout:     time.Second,
 		Name:             "test",
 	})
 	assert.Nil(t, err)
 
-	outData1, outErr1, err := fanner.Suscribe("listener1")
+	outData1, outErr1, err := fanner.SuscribeChannel("listener1")
 	assert.Nil(t, err)
-	outData2, outErr2, err := fanner.Suscribe("listener2")
+	outData2, outErr2, err := fanner.SuscribeChannel("listener2")
 	assert.Nil(t, err)
 
 	sentMessage := Message("testmessage")
@@ -59,15 +59,15 @@ func TestTwoListeners(t *testing.T) {
 }
 
 func TestDataWriteTimeout(t *testing.T) {
-	fanner := MessageFanout{}
-	inData, err := fanner.Setup(fanout.Config{
+	fanner := messageFanout{}
+	inData, err := fanner.setup(fanout.Config{
 		OutputBufferSize: 1,
 		WriteTimeout:     time.Nanosecond,
 		Name:             "test timeout",
 	})
 	assert.Nil(t, err)
 
-	_, outErr, err := fanner.Suscribe("listener")
+	_, outErr, err := fanner.SuscribeChannel("listener")
 	assert.Nil(t, err)
 
 	sentMessage := Message("testmessage")
@@ -100,17 +100,17 @@ func TestDataWriteTimeout(t *testing.T) {
 }
 
 func TestUnsuscribe(t *testing.T) {
-	fanner := MessageFanout{}
-	_, err := fanner.Setup(fanout.Config{
+	fanner := messageFanout{}
+	_, err := fanner.setup(fanout.Config{
 		OutputBufferSize: 1,
 		WriteTimeout:     time.Nanosecond,
 		Name:             "test timeout",
 	})
 	assert.Nil(t, err)
 
-	_, outErr1, err := fanner.Suscribe("listener1")
+	_, outErr1, err := fanner.SuscribeChannel("listener1")
 	assert.Nil(t, err)
-	_, outErr2, err := fanner.Suscribe("listener2")
+	_, outErr2, err := fanner.SuscribeChannel("listener2")
 	assert.Nil(t, err)
 
 	last, err := fanner.Unsuscribe("listener1")
