@@ -5,7 +5,10 @@
 
 package fanout
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 // Config holds the arguments for Setup
 type Config struct {
@@ -13,3 +16,8 @@ type Config struct {
 	WriteTimeout     time.Duration
 	OutputBufferSize int
 }
+
+// ErrTimeout is sent when a listener is forcefully unsuscribed
+// because if a write timeout. It is the responsibility of the
+// listener to recover from that.
+var ErrTimeout = errors.New("timeout while writing to channel")

@@ -23,24 +23,23 @@ type Message string
 // MessageFanout holds the fan-out logic. It can either be embedded or used by itself
 type MessageFanout struct {
 	sync.RWMutex
-	config     fanout.Config
-	dataInput  chan Message
-	errorInput chan error
-	stopChan   chan struct{}
-	listeners  map[string]*MessageOutput
-	running    bool
+	config    fanout.Config
+	dataInput chan Message
+	stopChan  chan error
+	listeners map[string]*MessageOutput
+	running   bool
 }
 
 // Setup has to be called once and returns the input channels
-func (f *MessageFanout) Setup(cfg fanout.Config) (chan<- Message, chan<- error, error) {
+func (f *MessageFanout) Setup(cfg fanout.Config) (chan<- Message, error) {
 	if cfg.WriteTimeout.Nanoseconds() == 0 {
-		return nil, nil, errors.New("WriteTimeout must be higher than 0")
+		return nil, errors.New("WriteTimeout must be higher than 0")
 	}
 	if cfg.OutputBufferSize == 0 {
-		return nil, nil, errors.New("OutputBufferSize must be higher than 0")
+		return nil, errors.New("OutputBufferSize must be higher than 0")
 	}
 	if cfg.Name == "" {
-		return nil, nil, errors.New("Name can't be empty")
+		return nil, errors.New("Name can't be empty")
 	}
 
 	f.Lock()
@@ -48,16 +47,20 @@ func (f *MessageFanout) Setup(cfg fanout.Config) (chan<- Message, chan<- error, 
 
 	f.config = cfg
 	f.dataInput = make(chan Message)
-	f.errorInput = make(chan error)
-	f.stopChan = make(chan struct{}, 1)
+	f.stopChan = make(chan error, 1)
 	f.listeners = make(map[string]*MessageOutput)
 
-	return f.dataInput, f.errorInput, nil
+	return f.dataInput, nil
 }
 
-// Stop will trigger the Stop logic, unsuscribing all listeners in the process
-func (f *MessageFanout) Stop() {
-	f.stopChan <- struct{}{}
+// StopOnEOF will trigger the Stop logic, unsuscribing all listeners in the process
+func (f *MessageFanout) StopOnEOF() {
+	f.StopOnError(io.EOF)
+}
+
+// StopOnError will trigger the Stop logic, unsuscribing all listeners in the process
+func (f *MessageFanout) StopOnError(err error) {
+	f.stopChan <- err
 }
 
 // Suscribe adds a new suscriber to the fanout. If it's the first, the dispatching goroutine starts
@@ -71,12 +74,13 @@ func (f *MessageFanout) Suscribe(name string) (<-chan Message, <-chan error, err
 
 	out := &MessageOutput{
 		dataOutput:   make(chan Message, f.config.OutputBufferSize),
-		errorOutput:  make(chan error, 2),
+		errorOutput:  make(chan error, 1),
 		writeTimeout: f.config.WriteTimeout,
 	}
 	f.listeners[name] = out
 
 	if !f.running {
+		f.running = true
 		go f.dispatch()
 	}
 
@@ -100,7 +104,7 @@ func (f *MessageFanout) UnsuscribeWithError(name string, err error) (bool, error
 	delete(f.listeners, name)
 
 	if f.running && len(f.listeners) == 0 {
-		f.stopChan <- struct{}{}
+		f.StopOnEOF()
 		return true, nil
 	}
 
@@ -109,20 +113,17 @@ func (f *MessageFanout) UnsuscribeWithError(name string, err error) (bool, error
 
 // dispatch is the business logic goroutine
 func (f *MessageFanout) dispatch() {
-	f.Lock()
-	f.running = true
-	f.Unlock()
-
 	badListeners := make(map[string]error)
-	// First loop handles listener unsuscribing
+
+	// First loop handles unsuscribing unresponsive listeners
 	for {
 	TRANSMIT: // Second loop handles communication, breaks on write timeouts
 		for {
 			select {
-			case <-f.stopChan:
+			case err := <-f.stopChan:
 				f.Lock()
 				for name, output := range f.listeners {
-					output.close(io.EOF)
+					output.close(err)
 					delete(f.listeners, name)
 				}
 				f.running = false
@@ -132,16 +133,6 @@ func (f *MessageFanout) dispatch() {
 				f.RLock()
 				for name, output := range f.listeners {
 					err := output.sendData(data)
-					if err != nil {
-						badListeners[name] = err
-					}
-				}
-				f.RUnlock()
-				break TRANSMIT
-			case data := <-f.errorInput:
-				f.RLock()
-				for name, output := range f.listeners {
-					err := output.sendError(data)
 					if err != nil {
 						badListeners[name] = err
 					}
@@ -173,7 +164,7 @@ func (o *MessageOutput) sendData(data Message) error {
 	case o.dataOutput <- data:
 		return nil
 	case <-time.After(o.writeTimeout):
-		return fanout.ErrWriteTimeout
+		return fanout.ErrTimeout
 	}
 }
 
@@ -182,7 +173,7 @@ func (o *MessageOutput) sendError(err error) error {
 	case o.errorOutput <- err:
 		return nil
 	case <-time.After(o.writeTimeout):
-		return fanout.ErrWriteTimeout
+		return fanout.ErrTimeout
 	}
 }
 

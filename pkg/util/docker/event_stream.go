@@ -23,7 +23,7 @@ func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerE
 	if d.fanner == nil {
 		d.stopEventStream = make(chan struct{})
 		d.fanner = &eventFanout{}
-		dataChan, errChan, err := d.fanner.Setup(fanout.Config{
+		dataChan, err := d.fanner.Setup(fanout.Config{
 			Name:             "docker_events",
 			WriteTimeout:     time.Second,
 			OutputBufferSize: 50,
@@ -32,7 +32,7 @@ func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerE
 		if err != nil {
 			return nil, nil, err
 		}
-		go d.streamEvents(dataChan, errChan)
+		go d.streamEvents(dataChan)
 	}
 
 	return d.fanner.Suscribe(name)
@@ -50,7 +50,7 @@ func (d *DockerUtil) UnsuscribeFromContainerEvents(name string) error {
 	return nil
 }
 
-func (d *DockerUtil) streamEvents(dataChan chan<- *ContainerEvent, errChan chan<- error) {
+func (d *DockerUtil) streamEvents(dataChan chan<- *ContainerEvent) {
 	filters := filters.NewArgs()
 	filters.Add("type", "container")
 	filters.Add("event", "start")

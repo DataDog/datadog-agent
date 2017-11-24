@@ -9,7 +9,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -17,9 +16,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -44,12 +41,6 @@ func NewDockerListenerTestSuite(redisVersion, containerName string) *DockerListe
 }
 
 func (suite *DockerListenerTestSuite) SetupSuite() {
-	docker.InitDockerUtil(&docker.Config{
-		CacheDuration:  10 * time.Second,
-		CollectNetwork: true,
-		Whitelist:      config.Datadog.GetStringSlice("ac_include"),
-		Blacklist:      config.Datadog.GetStringSlice("ac_exclude"),
-	})
 	tagger.Init()
 	utils.PullImage(suite.redisImage)
 }
@@ -60,7 +51,7 @@ func (suite *DockerListenerTestSuite) SetupTest() {
 		panic(err)
 	}
 
-	suite.listener = dl
+	suite.listener = dl.(*listeners.DockerListener)
 }
 
 func (suite *DockerListenerTestSuite) TearDownTest() {
