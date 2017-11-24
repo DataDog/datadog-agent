@@ -52,6 +52,7 @@ var (
 	snd        = flag.Bool("snd", false, "just send - don't start receiver (useful for out-of-band testing).")
 	apiKey     = flag.String("api-key", "", "if set, results will be push to datadog.")
 	branchName = flag.String("branch", "", "Add a 'branch' tag to every metrics equal to the value given.")
+	dst        = flag.String("dst", "localhost:8125", "destination address")
 )
 
 type forwarderBenchStub struct {
@@ -240,8 +241,7 @@ func main() {
 		defer statsd.Stop()
 	}
 
-	uri := fmt.Sprintf("localhost:%d", config.Datadog.GetInt("dogstatsd_port"))
-	generator, err := NewStatsdGenerator(uri)
+	generator, err := NewStatsdGenerator(*dst)
 	if err != nil {
 		log.Errorf("Problem allocating statistics generator: %s", err)
 		return
