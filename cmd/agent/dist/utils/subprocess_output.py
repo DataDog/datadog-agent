@@ -7,6 +7,7 @@
 # All rights reserved
 
 from util import get_subprocess_output as subprocess_output
+from util import SubprocessOutputEmptyError  # noqa
 
 def get_subprocess_output(command, log, raise_on_empty_output=True):
     """
