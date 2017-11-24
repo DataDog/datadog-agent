@@ -39,6 +39,9 @@ if [[ "${KUBERNETES}" ]]; then
     ln -s /etc/datadog-agent/datadog-kubernetes.yaml /etc/datadog-agent/datadog.yaml
 elif [ $ECS ]; then
     ln -s /etc/datadog-agent/datadog-ecs.yaml /etc/datadog-agent/datadog.yaml
+    # FIXME: please kill me
+    sed -i -e 's/%%port%%/6379/' /etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml
+
 else
     ln -s /etc/datadog-agent/datadog-docker.yaml /etc/datadog-agent/datadog.yaml
 fi
