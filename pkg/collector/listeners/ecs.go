@@ -253,7 +253,7 @@ func (s *ECSService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns the container's hosts
-// TOOD: using localhost should be enough in most cases
+// TODO: using localhost should be enough in most cases
 func (s *ECSService) GetHosts() (map[string]string, error) {
 	if s.Hosts != nil {
 		return s.Hosts, nil
@@ -306,12 +306,12 @@ func (s *ECSService) GetTags() ([]string, error) {
 	// container image
 	image := s.ecsContainer.Image
 	tags = append(tags, fmt.Sprintf("docker_image:%s", image))
-	image_split := strings.Split(image, ":")
-	image_name := strings.Join(image_split[:len(image_split)-1], ":")
-	tags = append(tags, fmt.Sprintf("image_name:%s", image_name))
-	if len(image_split) > 1 {
-		image_tag := image_split[len(image_split)-1]
-		tags = append(tags, fmt.Sprintf("image_tag:%s", image_tag))
+	imageSplit := strings.Split(image, ":")
+	imageName := strings.Join(imageSplit[:len(imageSplit)-1], ":")
+	tags = append(tags, fmt.Sprintf("imageName:%s", imageName))
+	if len(imageSplit) > 1 {
+		imageTag := imageSplit[len(imageSplit)-1]
+		tags = append(tags, fmt.Sprintf("image_tag:%s", imageTag))
 	}
 
 	// container labels
