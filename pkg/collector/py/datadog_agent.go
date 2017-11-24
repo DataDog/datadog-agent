@@ -212,16 +212,12 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
 	cOutput := C.CString(string(output[:]))
 	pyOutput := C.PyString_FromString(cOutput)
-	defer C.Py_DecRef(pyOutput)
 	C.free(unsafe.Pointer(cOutput))
 	cOutputErr := C.CString(string(outputErr[:]))
 	pyOutputErr := C.PyString_FromString(cOutputErr)
-	defer C.Py_DecRef(pyOutputErr)
 	C.free(unsafe.Pointer(cOutputErr))
 	pyRetCode := C.PyInt_FromLong(C.long(retCode))
-	defer C.Py_DecRef(pyRetCode)
 
-	// Don't decref as we're returning this
 	pyResult := C.PyTuple_New(3)
 	C.PyTuple_SetItem(pyResult, 0, pyOutput)
 	C.PyTuple_SetItem(pyResult, 1, pyOutputErr)
