@@ -475,3 +475,23 @@ func parseContainerHealth(status string) string {
 	}
 	return all[0][1]
 }
+
+// AllContainerLabels retrieves all running containers (`docker ps`) and returns
+// a map mapping containerID to container labels as a map[string]string
+func (d *DockerUtil) AllContainerLabels() (map[string]map[string]string, error) {
+	containers, err := d.cli.ContainerList(context.Background(), types.ContainerListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error listing containers: %s", err)
+	}
+
+	labelMap := make(map[string]map[string]string)
+
+	for _, container := range containers {
+		if len(container.ID) == 0 {
+			continue
+		}
+		labelMap[container.ID] = container.Labels
+	}
+
+	return labelMap, nil
+}

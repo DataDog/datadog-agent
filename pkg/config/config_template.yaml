@@ -26,7 +26,7 @@ api_key:
 # hostname: mymachine.mydomain
 
 # Set the host's tags (optional)
-# tags: 
+# tags:
 #   - mytag
 #   - env:prod
 #   - role:database
@@ -145,6 +145,11 @@ metadata_collectors:
 ## The kubelet provider handles templates embedded in pod annotations, see
 ## https://docs.datadoghq.com/guides/autodiscovery/#template-source-kubernetes-pod-annotations
 #   - name: kubelet
+#     polling: true
+
+## The docker provider handles templates embedded in container labels, see
+## https://docs.datadoghq.com/guides/autodiscovery/#template-source-docker-label-annotations
+#   - name: docker
 #     polling: true
 
 #   - name: etcd
