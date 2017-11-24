@@ -12,10 +12,13 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -46,6 +49,7 @@ var (
 	inc        = flag.Int("inc", 1000, "pps increments per iteration.")
 	rnd        = flag.Bool("rnd", false, "random series.")
 	brk        = flag.Bool("brk", false, "find breaking point.")
+	snd        = flag.Bool("snd", false, "just send - don't start receiver (useful for out-of-band testing).")
 	apiKey     = flag.String("api-key", "", "if set, results will be push to datadog.")
 	branchName = flag.String("branch", "", "Add a 'branch' tag to every metrics equal to the value given.")
 )
@@ -75,39 +79,39 @@ func (f *forwarderBenchStub) Stop() {
 	return
 }
 
-func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSeries(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitSeries(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitEvents(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitEvents(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitServiceChecks(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitServiceChecks(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSketchSeries(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitSketchSeries(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitHostMetadata(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitHostMetadata(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitMetadata(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
@@ -299,28 +303,38 @@ func main() {
 				}
 			}()
 
-			wg.Add(1)
-			go func() {
-				log.Infof("[stats] starting stats reader")
-				processed = 0
-				quit := false
-				tickChan := time.NewTicker(time.Second).C
-				defer wg.Done()
+			if !*snd {
+				wg.Add(1)
+				go func() {
+					log.Infof("[stats] starting stats reader")
+					processed = 0
+					quit := false
+					tickChan := time.NewTicker(time.Second).C
+					defer wg.Done()
 
-				for range tickChan {
-					select {
-					case <-quitStatter:
-						quit = true
-					case v := <-statsd.Statistics.Aggregated:
-						log.Infof("[stats] [mem: %v] processed %v packets @%v ", memstats.Alloc, v.Val, v.Ts)
-						if quit && v.Val == 0 {
-							return
+					for range tickChan {
+						select {
+						case <-quitStatter:
+							quit = true
+						case v := <-statsd.Statistics.Aggregated:
+							log.Infof("[stats] [mem: %v] processed %v packets @%v ", memstats.Alloc, v.Val, v.Ts)
+							if quit && v.Val == 0 {
+								return
+							}
+							processed += uint64(v.Val)
+						default:
+							log.Infof("[stats] no statistics were available.")
 						}
-						processed += uint64(v.Val)
-					default:
-						log.Infof("[stats] no statistics were available.")
 					}
-				}
+				}()
+			}
+
+			// signal handler in case we want to cancel
+			sigs := make(chan os.Signal, 1)
+			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+			go func() {
+				_ = <-sigs
+				quitGenerator <- true
 			}()
 
 			// if in timed mode: sleep to quit.
@@ -335,11 +349,13 @@ func main() {
 			log.Infof("[generator] rate for iteration: %v", rate)
 			log.Infof("[generator] pps for iteration: %v", float64(processed)/float64(*dur))
 			log.Infof("[generator] packets submitted: %v", sent)
-			log.Infof("[dogstatsd] packets processed: %v", processed)
-			log.Infof("[forwarder stats] packets received: %v", f.received)
-			log.Infof("[forwarder stats] bytes received: %v", f.receivedBytes)
+			if !*snd {
+				log.Infof("[dogstatsd] packets processed: %v", processed)
+				log.Infof("[forwarder stats] packets received: %v", f.received)
+				log.Infof("[forwarder stats] bytes received: %v", f.receivedBytes)
+			}
 
-			if *apiKey != "" && *brk && processed != sent {
+			if *apiKey != "" && !*snd && *brk && processed != sent {
 				log.Infof("Pushing results to DataDog backend")
 
 				t := time.Now().Unix()
