@@ -7,12 +7,12 @@ package listeners
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	log "github.com/cihub/seelog"
 )
 
@@ -20,12 +20,22 @@ const (
 	metadataURL string = "http://169.254.170.2/v2/metadata"
 )
 
+// ignore these container labels as we already have them in task metadata
+var labelBlackList = map[string]interface{}{
+	"com.amazonaws.ecs.cluster":                 nil,
+	"com.amazonaws.ecs.container-name":          nil,
+	"com.amazonaws.ecs.task-arn":                nil,
+	"com.amazonaws.ecs.task-definition-family":  nil,
+	"com.amazonaws.ecs.task-definition-version": nil,
+}
+
 // ECSListener implements the ServiceListener interface.
 // It pulls its tasks container list periodically and checks for
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
 	client     http.Client
-	services   map[string]Service // maps container IDs ton services
+	task       TaskMetadata
+	services   map[string]Service // maps container IDs to services
 	newService chan<- Service
 	delService chan<- Service
 	stop       chan bool
@@ -40,7 +50,11 @@ type ECSService struct {
 	Hosts         map[string]string
 	Ports         []int
 	Pid           int
+	Tags          []string
 	ecsContainer  ECSContainer
+	clusterName   string
+	taskFamily    string
+	taskVersion   string
 }
 
 // TaskMetadata is the info returned by the ECS task metadata API
@@ -131,6 +145,7 @@ func (l *ECSListener) refreshServices() {
 	} else if meta.KnownStatus != "RUNNING" {
 		log.Debugf("task %s is not in RUNNING state yet, not refreshing services - %s", meta.Family)
 	}
+	l.task = meta
 
 	// if not found and running, add it. Else no-op
 	// at the end, compare what we saw and what is cached and kill what's not there anymore
@@ -183,6 +198,9 @@ func (l *ECSListener) createService(c ECSContainer) (ECSService, error) {
 	svc := ECSService{
 		ID:           cID,
 		ecsContainer: c,
+		clusterName:  l.task.ClusterName,
+		taskFamily:   l.task.Family,
+		taskVersion:  l.task.Version,
 	}
 	_, err := svc.GetADIdentifiers()
 	if err != nil {
@@ -235,6 +253,7 @@ func (s *ECSService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns the container's hosts
+// TOOD: using localhost should be enough in most cases
 func (s *ECSService) GetHosts() (map[string]string, error) {
 	if s.Hosts != nil {
 		return s.Hosts, nil
@@ -264,14 +283,44 @@ func (s *ECSService) GetPorts() ([]int, error) {
 	return ports, nil
 }
 
-// GetTags retrieves tags using the Tagger
+// GetTags retrieves a container's tags
+// TODO: move it to tagger
 func (s *ECSService) GetTags() ([]string, error) {
-	entity := docker.ContainerIDToEntityName(string(s.ID))
-	tags, err := tagger.Tag(entity, true)
-	if err != nil {
-		return []string{}, err
+	if len(s.Tags) > 0 {
+		return s.Tags, nil
+	}
+	var tags []string
+
+	// cluster
+	tags = append(tags, fmt.Sprintf("ecs_cluster_name:%s", s.clusterName))
+
+	// task
+	tags = append(tags, fmt.Sprintf("ecs_task_family:%s", s.taskFamily))
+	tags = append(tags, fmt.Sprintf("ecs_task_version:%s", s.taskVersion))
+
+	// container
+	tags = append(tags, fmt.Sprintf("ecs_container_name:%s", s.ecsContainer.Name))
+	tags = append(tags, fmt.Sprintf("docker_container_name::%s", s.ecsContainer.DockerName))
+
+	// container image
+	image := s.ecsContainer.Image
+	tags = append(tags, fmt.Sprintf("docker_image:%s", image))
+	image_split := strings.Split(image, ":")
+	image_name := strings.Join(image_split[:len(image_split)-1], ":")
+	tags = append(tags, fmt.Sprintf("image_name:%s", image_name))
+	if len(image_split) > 1 {
+		image_tag := image_split[len(image_split)-1]
+		tags = append(tags, fmt.Sprintf("image_tag:%s", image_tag))
 	}
 
+	// container labels
+	for k, v := range s.ecsContainer.Labels {
+		if _, found := labelBlackList[k]; !found {
+			tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+		}
+	}
+
+	s.Tags = tags
 	return tags, nil
 }
 
