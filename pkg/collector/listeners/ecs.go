@@ -274,13 +274,14 @@ func (s *ECSService) GetHosts() (map[string]string, error) {
 // GetPorts returns the container's ports
 // TODO: not supported yet, this is a place holder
 func (s *ECSService) GetPorts() ([]int, error) {
-	if s.Ports != nil {
-		return s.Ports, nil
+	log.Warnf("ECS auto discovery doesn't support %%%%port%%%% - service %s won't be configured", string(s.taskFamily))
+
+	if s.Ports == nil {
+		ports := make([]int, 0)
+		s.Ports = ports
 	}
 
-	ports := make([]int, 0)
-
-	return ports, nil
+	return s.Ports, nil
 }
 
 // GetTags retrieves a container's tags
