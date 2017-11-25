@@ -184,7 +184,7 @@ func (l *ECSListener) refreshServices() {
 func (l *ECSListener) getTaskMetadata() (TaskMetadata, error) {
 	var meta TaskMetadata
 	log.Infof("Getting task metadata...") // TODO: delete me
-	resp, err := http.Get(metadataURL)
+	resp, err := l.client.Get(metadataURL)
 	if err != nil {
 		return meta, err
 	}
