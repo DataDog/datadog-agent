@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/lifecycle"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
@@ -193,6 +194,7 @@ func start(cmd *cobra.Command, args []string) error {
 }
 
 func main() {
+	lifecycle.RecordHealthPath()
 	// go_expvar server
 	go http.ListenAndServe(
 		fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_stats_port")),
