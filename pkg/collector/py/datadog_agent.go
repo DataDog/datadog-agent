@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
-	"runtime"
 	"sync"
 	"syscall"
 	"unsafe"
