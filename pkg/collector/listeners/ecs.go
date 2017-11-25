@@ -193,10 +193,9 @@ func (l *ECSListener) getTaskMetadata() (TaskMetadata, error) {
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&meta)
 	if err != nil {
-		log.Errorf("decoding failed!")
+		log.Errorf("decoding failed!") // TODO: delete me
 		return meta, err
 	}
-	log.Infof("decoding worked!")
 	return meta, err
 }
 
