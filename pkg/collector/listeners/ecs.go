@@ -6,18 +6,13 @@
 package listeners
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	log "github.com/cihub/seelog"
-)
-
-const (
-	metadataURL string = "http://169.254.170.2/v2/metadata"
 )
 
 // ignore these container labels as we already have them in task metadata
@@ -33,8 +28,7 @@ var labelBlackList = map[string]interface{}{
 // It pulls its tasks container list periodically and checks for
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
-	client     http.Client
-	task       TaskMetadata
+	task       ecs.TaskMetadata
 	services   map[string]Service // maps container IDs to services
 	newService chan<- Service
 	delService chan<- Service
@@ -51,46 +45,10 @@ type ECSService struct {
 	Ports         []int
 	Pid           int
 	Tags          []string
-	ecsContainer  ECSContainer
+	ecsContainer  ecs.ECSContainer
 	clusterName   string
 	taskFamily    string
 	taskVersion   string
-}
-
-// TaskMetadata is the info returned by the ECS task metadata API
-type TaskMetadata struct {
-	ClusterName   string         `json:"Cluster"`
-	Containers    []ECSContainer `json:"Containers"`
-	KnownStatus   string         `json:"KnownStatus"`
-	TaskARN       string         `json:"TaskARN"`
-	Family        string         `json:"Family"`
-	Version       string         `json:"Version"`
-	Limits        map[string]int `json:"Limits"`
-	DesiredStatus string         `json:"DesiredStatus"`
-}
-
-// ECSContainer is the representation of a container as exposed by the ECS metadata API
-type ECSContainer struct {
-	Name          string            `json:"Name"`
-	Limits        map[string]int    `json:"Limits"`
-	ImageID       string            `json:"ImageID,omitempty"`
-	StartedAt     string            `json:"StartedAt"` // 2017-11-17T17:14:07.781711848Z
-	DockerName    string            `json:"DockerName"`
-	Type          string            `json:"Type"`
-	Image         string            `json:"Image"`
-	Labels        map[string]string `json:"Labels"`
-	KnownStatus   string            `json:"KnownStatus"`
-	DesiredStatus string            `json:"DesiredStatus"`
-	DockerID      string            `json:"DockerID"`
-	CreatedAt     string            `json:"CreatedAt"`
-	Networks      []ECSNetwork      `json:"Networks"`
-	Ports         string            `json:"Ports"` // TODO: support it. It's not strictly needed for now
-}
-
-// ECSNetwork represents the network of a container
-type ECSNetwork struct {
-	NetworkMode   string   `json:"NetworkMode"`   // as of today the only supported mode is awsvpc
-	IPv4Addresses []string `json:"IPv4Addresses"` // one-element list
 }
 
 func init() {
@@ -100,11 +58,7 @@ func init() {
 
 // NewECSListener creates an ECSListener
 func NewECSListener() (ServiceListener, error) {
-	c := http.Client{
-		Timeout: 500 * time.Millisecond,
-	}
 	return &ECSListener{
-		client:   c,
 		services: make(map[string]Service),
 		stop:     make(chan bool),
 		t:        time.NewTicker(2 * time.Second),
@@ -140,7 +94,7 @@ func (l *ECSListener) Stop() {
 // over newService and delService accordingly
 func (l *ECSListener) refreshServices() {
 	log.Infof("refreshing services...")
-	meta, err := l.getTaskMetadata()
+	meta, err := ecs.GetTaskMetadata()
 	if err != nil {
 		log.Errorf("failed to get task metadata, not refreshing services - %s", err)
 		return
@@ -181,25 +135,7 @@ func (l *ECSListener) refreshServices() {
 	}
 }
 
-func (l *ECSListener) getTaskMetadata() (TaskMetadata, error) {
-	var meta TaskMetadata
-	log.Infof("Getting task metadata...") // TODO: delete me
-	resp, err := l.client.Get(metadataURL)
-	if err != nil {
-		return meta, err
-	}
-	defer resp.Body.Close()
-
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&meta)
-	if err != nil {
-		log.Errorf("decoding failed!") // TODO: delete me
-		return meta, err
-	}
-	return meta, err
-}
-
-func (l *ECSListener) createService(c ECSContainer) (ECSService, error) {
+func (l *ECSListener) createService(c ecs.ECSContainer) (ECSService, error) {
 	log.Infof("creating service...")
 	cID := ID(c.DockerID)
 	svc := ECSService{
@@ -266,7 +202,7 @@ func (s *ECSService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns the container's hosts
-// TODO: using localhost should be enough in most cases
+// TODO: using localhost should usually be enough
 func (s *ECSService) GetHosts() (map[string]string, error) {
 	if s.Hosts != nil {
 		return s.Hosts, nil
