@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
-	"runtime"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -121,6 +120,10 @@ func LogMessage(message *C.char, logLevel C.int) *C.PyObject {
 //export GetSubprocessOutput
 func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
+	// IMPORTANT: this is (probably) running in a go routine already locked to
+	//            a thread. No need to do it again, and definitely no need to
+	//            to release it - we can let the caller do that.
+
 	// https://github.com/golang/go/wiki/cgo#turning-c-arrays-into-go-slices
 	length := int(argc)
 	subprocessArgs := make([]string, length-1)
@@ -131,8 +134,6 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	}
 	cmd := exec.Command(subprocessCmd, subprocessArgs...)
 
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 	glock := C.PyGILState_Ensure()
 	defer C.PyGILState_Release(glock)
 
