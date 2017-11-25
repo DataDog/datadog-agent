@@ -14,11 +14,9 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"runtime"
 	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -117,9 +115,8 @@ func (f *forwarderBenchStub) SubmitMetadata(payloads forwarder.Payloads, extraHe
 	return nil
 }
 
-// NewStatsdGenerator returns a generator server
 // We could use datadog-go, but I want as little overhead as possible.
-func NewStatsdGenerator(uri string) (*net.UDPConn, error) {
+func newStatsdGeneratorSocket(uri string) (*net.UDPConn, error) {
 	serverAddr, addrErr := net.ResolveUDPAddr("udp", uri)
 	if addrErr != nil {
 		return nil, fmt.Errorf("dogstatsd: can't ResolveUDPAddr %s: %v", uri, addrErr)
@@ -211,6 +208,56 @@ func createMetric(value float64, tags []string, name string, t int64) datadog.Me
 	}
 }
 
+func generate(num, ser, pad int, rate int64, rnd, snd bool, sock *net.UDPConn,
+	wg *sync.WaitGroup, quitStat, quitGen chan bool, sentC chan uint64) {
+	sent := uint64(0)
+	var buf bytes.Buffer
+	var packets []string
+
+	defer wg.Done()
+	ticker := time.NewTicker(time.Second / time.Duration(rate))
+	if !rnd {
+		packets = make([]string, ser)
+		for i := range packets {
+			packets[i] = buildPayload("foo.bar", rand.Int63n(1000), []byte("|g"), []string{util.RandomString(pad)}, 1)
+		}
+	}
+
+	for {
+		select {
+		case <-quitGen:
+			ticker.Stop()
+			if !snd {
+				quitStat <- true
+			}
+		case <-ticker.C:
+			// Do other stuff
+			var err error
+			if rnd {
+				buf.Reset()
+				buf.WriteString("foo.")
+				buf.WriteString(util.RandomString(ser))
+
+				err = submitPacket([]byte(buildPayload(buf.String(), rand.Int63n(1000), []byte("|g"), []string{util.RandomString(pad)}, 2)), sock)
+			} else {
+				err = submitPacket([]byte(packets[rand.Int63n(int64(ser))]), sock)
+			}
+			if err != nil {
+				log.Warnf("Problem sending packet: %v", err)
+			}
+			if sent++; (*mode == pMode) && (sent == uint64(num)) {
+				ticker.Stop()
+				if !snd {
+					quitStat <- true
+				}
+			}
+			continue
+		}
+		break
+	}
+	sentC <- sent
+}
+
 func main() {
 	if err := util.InitLogging("info"); err != nil {
 		log.Infof("Unable to replace logger, default logging will apply (highly verbose): %s", err)
@@ -241,7 +288,7 @@ func main() {
 		defer statsd.Stop()
 	}
 
-	generator, err := NewStatsdGenerator(*dst)
+	generator, err := newStatsdGeneratorSocket(*dst)
 	if err != nil {
 		log.Errorf("Problem allocating statistics generator: %s", err)
 		return
@@ -259,62 +306,13 @@ func main() {
 		processed := uint64(0)
 		quitGenerator := make(chan bool)
 		quitStatter := make(chan bool)
-
-		// signal handler in case we want to cancel
-		sigs := make(chan os.Signal, 1)
-		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-		go func() {
-			_ = <-sigs
-			quitGenerator <- true
-		}()
+		sentC := make(chan uint64)
 
 		for ok := true; ok; ok = (*brk && processed == sent) {
 			rate := (*pps) + iteration*(*inc)
-			ticker := time.NewTicker(time.Second / time.Duration(rate))
 
 			wg.Add(1)
-			go func() {
-				sent = 0
-				target := uint64(*num)
-				var buf bytes.Buffer
-				var packets []string
-				log.Warnf("Sending routine has started,,,")
-
-				defer wg.Done()
-				if !(*rnd) {
-					packets = make([]string, *ser)
-					for i := range packets {
-						packets[i] = buildPayload("foo.bar", rand.Int63n(1000), []byte("|g"), []string{util.RandomString(*pad)}, 1)
-					}
-				}
-
-				for range ticker.C {
-					select {
-					case <-quitGenerator:
-						quitStatter <- true
-						return
-					default:
-						// Do other stuff
-						var err error
-						if *rnd {
-							buf.Reset()
-							buf.WriteString("foo.")
-							buf.WriteString(util.RandomString(*ser))
-
-							err = submitPacket([]byte(buildPayload(buf.String(), rand.Int63n(1000), []byte("|g"), []string{util.RandomString(*pad)}, 2)), generator)
-						} else {
-							err = submitPacket([]byte(packets[rand.Int63n(int64(*ser))]), generator)
-						}
-						if err != nil {
-							log.Warnf("Problem sending packet: %v", err)
-						}
-						if sent++; (*mode == pMode) && (sent == target) {
-							quitStatter <- true
-							return
-						}
-					}
-				}
-			}()
+			go generate(*num, *ser, *pad, int64(rate), *rnd, *snd, generator, &wg, quitStatter, quitGenerator, sentC)
 
 			if !*snd {
 				wg.Add(1)
@@ -348,8 +346,9 @@ func main() {
 				quitGenerator <- true
 			}
 
+			sent := <-sentC
 			wg.Wait()
-			ticker.Stop()
+
 			log.Infof("[generator] submit on packet every: %v", time.Second/time.Duration(rate))
 			log.Infof("[generator] rate for iteration: %v", rate)
 			log.Infof("[generator] pps for iteration: %v", float64(processed)/float64(*dur))
