@@ -143,6 +143,9 @@ func GetHostname() (string, error) {
 	// If at this point we don't have a name, bail out
 	if hostName == "" {
 		err = fmt.Errorf("Unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
+	} else {
+		// we got a hostname, residual errors are irrelevant now
+		err = nil
 	}
 
 	cache.Cache.Set(cacheHostnameKey, hostName, cache.NoExpiration)
