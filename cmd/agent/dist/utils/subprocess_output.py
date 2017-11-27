@@ -19,10 +19,10 @@ def get_subprocess_output(command, log, raise_on_empty_output=True):
     if isinstance(command, basestring):
         for arg in command.split():
             _args.append(arg)
-    elif hastattr(type(command), '__iter__'):
+    elif hasattr(type(command), '__iter__'):
         for arg in command:
             cmd_args.append(arg)
     else:
-        raise Exception("command must be a sequence or string")
+        raise TypeError("command must be a sequence or string")
 
     return subprocess_output(cmd_args, raise_on_empty_output)
