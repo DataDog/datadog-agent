@@ -6,7 +6,7 @@ import re
 import requests
 from google.protobuf.internal.decoder import _DecodeVarint32  # pylint: disable=E0611,E0401
 from checks import AgentCheck
-from utils.prometheus import metrics_pb2
+from . import metrics_pb2
 
 # Prometheus check is a mother class providing a structure and some helpers
 # to collect metrics, events and service checks exposed via Prometheus.
