@@ -1,0 +1,18 @@
+# This file uses YAML anchors to deduplicate steps
+# see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
+# and https://learnxinyminutes.com/docs/yaml/
+
+version: '2'
+services:
+  globalmetrics0: &globalmetrics_base
+    image: "redis:latest"
+    labels:
+        low.card.label: "globalmetricslow"
+        high.card.label: "globalmetricshigh"
+    environment:
+        LOW_CARD_ENV: "globalmetricslowenv"
+        HIGH_CARD_ENV: "globalmetricshighenv"
+  globalmetrics1:
+    <<: *globalmetrics_base
+    image: "busybox:latest"
+    command: /bin/echo
