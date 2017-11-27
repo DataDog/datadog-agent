@@ -79,7 +79,7 @@ func TestSubprocessBindings(t *testing.T) {
 	gstate := newStickyLock()
 	defer gstate.unlock()
 
-	utilModule := python.PyImport_ImportModuleNoBlock("util")
+	utilModule := python.PyImport_ImportModuleNoBlock("_util")
 	assert.NotNil(t, utilModule)
 	defer utilModule.DecRef()
 
