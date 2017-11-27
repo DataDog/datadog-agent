@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-// +build ecs
-
 package providers
 
 import (
@@ -32,13 +30,13 @@ type ECSConfigProvider struct {
 
 // NewECSConfigProvider returns a new ECSConfigProvider.
 // It configures an http Client with a 500 ms timeout.
-func NewECSConfigProvider(config config.ConfigurationProviders) (ECSConfigProvider, error) {
+func NewECSConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
 	c := http.Client{
 		Timeout: 500 * time.Millisecond,
 	}
 	return &ECSConfigProvider{
 		client: c,
-	}
+	}, nil
 }
 
 // String returns a string representation of the ECSConfigProvider
@@ -53,7 +51,7 @@ func (p *ECSConfigProvider) Collect() ([]check.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return p.parseECSContainers(meta.Containers)
+	return parseECSContainers(meta.Containers)
 }
 
 // getTaskMetadata queries the ECS metadata API and unmarshals the resulting json
@@ -77,7 +75,7 @@ func (p *ECSConfigProvider) getTaskMetadata() (listeners.TaskMetadata, error) {
 
 // parseECSContainers loops through ecs containers found in the ecs metadata response
 // and extracts configuration templates out of their labels.
-func (p *ECSConfigProvider) parseECSContainers(containers []listeners.ECSContainer) ([]check.Config, error) {
+func parseECSContainers(containers []listeners.ECSContainer) ([]check.Config, error) {
 	var templates []check.Config
 	for _, c := range containers {
 		configs, err := extractTemplatesFromMap(docker.ContainerIDToEntityName(c.DockerID), c.Labels, ecsADLabelPrefix)
@@ -92,4 +90,8 @@ func (p *ECSConfigProvider) parseECSContainers(containers []listeners.ECSContain
 		}
 	}
 	return templates, nil
+}
+
+func init() {
+	RegisterProvider("ecs", NewECSConfigProvider)
 }
