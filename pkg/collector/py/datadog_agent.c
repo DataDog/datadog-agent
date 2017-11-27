@@ -55,20 +55,19 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
     cmd_raise_on_empty = NULL;
     if (!PyArg_ParseTuple(args, "O|O:get_subprocess_output", &cmd_args, &cmd_raise_on_empty)) {
         PyGILState_Release(gstate);
-        PyErr_SetString(PyExc_TypeError, "unable to parse arguments");
-        Py_RETURN_NONE;
+        return NULL;
     }
 
     if (!PyList_Check(cmd_args)) {
-        PyGILState_Release(gstate);
         PyErr_SetString(PyExc_TypeError, "command args not a list");
-        Py_RETURN_NONE;
+        PyGILState_Release(gstate);
+        return NULL;
     }
 
     if (cmd_raise_on_empty != NULL && !PyBool_Check(cmd_raise_on_empty)) {
+        PyErr_SetString(PyExc_TypeError, "bad raise_on_empty_argument - should be bool");
         PyGILState_Release(gstate);
-        PyErr_SetString(PyExc_TypeError, "bad raise on empty argument - should be bool");
-        Py_RETURN_NONE;
+        return NULL;
     }
 
     if (cmd_raise_on_empty != NULL) {
@@ -77,9 +76,9 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
 
     subprocess_args_sz = PyList_Size(cmd_args);
     if(!(subprocess_args = (char **)malloc(sizeof(char *)*subprocess_args_sz))) {
-        PyGILState_Release(gstate);
         PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
-        Py_RETURN_NONE;
+        PyGILState_Release(gstate);
+        return NULL;
     }
 
     for (i = 0; i < subprocess_args_sz; i++) {
@@ -117,7 +116,17 @@ static PyMethodDef datadogAgentMethods[] = {
  */
 static PyMethodDef utilMethods[] = {
   {"headers", (PyCFunction)Headers, METH_VARARGS, "Get basic HTTP headers with the right UserAgent."},
-  {"get_subprocess_output", (PyCFunction)get_subprocess_output, METH_VARARGS, "Run subprocess and return its output."},
+  {NULL, NULL}
+};
+
+/*
+ * _Util package is a private module for utility bindings
+ */
+static PyMethodDef _utilMethods[] = {
+  {"get_subprocess_output", (PyCFunction)get_subprocess_output, 
+      METH_VARARGS, "Run subprocess and return its output. "
+                    "This is a private method and should not be called directly. " 
+                    "Please use the utils.subprocess_output.get_subprocess_output wrapper."},
   {NULL, NULL}
 };
 
@@ -128,10 +137,11 @@ void initdatadogagent()
 
   PyObject *da = Py_InitModule("datadog_agent", datadogAgentMethods);
   PyObject *util = Py_InitModule("util", utilMethods);
+  PyObject *_util = Py_InitModule("_util", _utilMethods);
 
-  SubprocessOutputEmptyError = PyErr_NewException("util.SubprocessOutputEmptyError", NULL, NULL);
+  SubprocessOutputEmptyError = PyErr_NewException("_util.SubprocessOutputEmptyError", NULL, NULL);
   Py_INCREF(SubprocessOutputEmptyError);
-  PyModule_AddObject(util, "SubprocessOutputEmptyError", SubprocessOutputEmptyError);
+  PyModule_AddObject(_util, "SubprocessOutputEmptyError", SubprocessOutputEmptyError);
 
   PyGILState_Release(gstate);
 }
