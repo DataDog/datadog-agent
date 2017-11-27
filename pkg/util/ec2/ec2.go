@@ -11,9 +11,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
-	log "github.com/cihub/seelog"
 )
 
 // declare these as vars not const to ease testing
@@ -83,9 +80,5 @@ func IsDefaultHostname(hostname string) bool {
 
 // HostnameProvider gets the hostname
 func HostnameProvider(hostName string) (string, error) {
-	if ecs.IsInstance() || IsDefaultHostname(hostName) {
-		log.Debug("GetHostname trying EC2 metadata...")
-		return GetInstanceID()
-	}
-	return "", nil
+	return GetInstanceID()
 }

@@ -5,13 +5,33 @@
 
 package hostname
 
-// Provider is a generic function to grab the hostname and return it
-type Provider func(string) (string, error)
+// ProviderMethod is a generic function to grab the hostname and return it
+type ProviderMethod func(string) (string, error)
 
-// ProviderCatalog holds all the various kinds of hostname providers
-var ProviderCatalog = make(map[string]Provider)
+// ProviderPriority allows to specify a lookup priority for a provider
+type ProviderPriority uint
+
+// ProviderPriority values, in order of preference
+const (
+	Hosting ProviderPriority = iota
+	Docker
+	Lowest // Must stay last of the list, of course
+)
+
+// Provider holds a provider's name and method
+type Provider struct {
+	Name   string
+	Method ProviderMethod
+}
+
+// ProviderCatalog holds all the various hostname providers compiled in
+var ProviderCatalog = make([][]Provider, int(Lowest)+1)
 
 // RegisterHostnameProvider registers a hostname provider as part of the catalog
-func RegisterHostnameProvider(name string, p Provider) {
-	ProviderCatalog[name] = p
+func RegisterHostnameProvider(priority ProviderPriority, name string, p ProviderMethod) {
+	prov := Provider{
+		Name:   name,
+		Method: p,
+	}
+	ProviderCatalog[priority] = append(ProviderCatalog[priority], prov)
 }
