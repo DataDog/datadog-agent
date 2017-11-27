@@ -141,7 +141,7 @@ func init() {
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
 
 	// Log Agent
-	Datadog.SetDefault("log_agent_enabled", true)
+	Datadog.SetDefault("log_enabled", true)
 
 	Datadog.SetDefault("logging_frequency", int64(20))
 

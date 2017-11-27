@@ -12,19 +12,7 @@ type Servicedef struct {
 
 }
 
-var subservices = []Servicedef{
-	Servicedef{
-		name:		"apm",
-		configKey:	"apm_enabled",
-	},
-	Servicedef{
-		name:		"logs",
-		configKey:	"log_agent_enabled",
-	},
-	Servicedef{
-		name:		"process",
-		configKey:	"process_agent_enabled",
-	}}
+var subservices = []Servicedef{}
 
 
 func (s *Servicedef) Start() error {
