@@ -75,7 +75,7 @@ func (suite *DockerListenerTestSuite) startContainers() ([]string, error) {
 func (suite *DockerListenerTestSuite) stopContainers() error {
 	output, err := suite.compose.Stop()
 	if err != nil {
-		log.Errorf("error starting containers:\n%s", string(output))
+		log.Errorf("error stopping containers:\n%s", string(output))
 	}
 	return err
 }
@@ -94,9 +94,6 @@ func (suite *DockerListenerTestSuite) getServices(containerIDs []string, channel
 					if len(services) == len(containerIDs) {
 						return services, nil
 					}
-				} else {
-					log.Infof("%q != %q", svc.GetID(), id)
-
 				}
 			}
 			log.Infof("ignoring service from container ID %s", svc.GetID())
@@ -169,7 +166,9 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		tags, err := service.GetTags()
 		assert.Nil(suite.T(), err)
 
-		assert.Contains(suite.T(), tags, "docker_image:redis:latest", "image_name:redis", "image_tag:latest")
+		assert.Contains(suite.T(), tags, "docker_image:redis:latest")
+		assert.Contains(suite.T(), tags, "image_name:redis")
+		assert.Contains(suite.T(), tags, "image_tag:latest")
 
 		adIDs, err := service.GetADIdentifiers()
 		assert.Nil(suite.T(), err)
@@ -178,7 +177,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 
 	suite.stopContainers()
 
-	// We should get 2 stoped services
+	// We should get 2 stopped services
 	services, err = suite.getServices(containerIDs, suite.delSvc, 5*time.Second)
 	assert.Nil(suite.T(), err)
 	assert.Len(suite.T(), services, 2)
