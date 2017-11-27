@@ -173,7 +173,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     prefixes = [
         "./test/integration/config_providers/...",
         "./test/integration/corechecks/...",
-        # "./test/integration/listeners/...", ## Hangups
+        "./test/integration/listeners/...",
     ]
 
     for prefix in prefixes:
