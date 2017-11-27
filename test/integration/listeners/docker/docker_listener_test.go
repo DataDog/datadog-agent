@@ -80,7 +80,7 @@ func (suite *DockerListenerTestSuite) stopContainers() error {
 	return err
 }
 
-// Listens in a channel until it. If several events are recieved for the same containerIDs, the last one is returned
+// Listens in a channel until it. If several events are received for the same containerIDs, the last one is returned
 func (suite *DockerListenerTestSuite) getServices(containerIDs []string, channel chan listeners.Service, timeout time.Duration) (map[string]listeners.Service, error) {
 	services := make(map[string]listeners.Service)
 	timeoutTicker := time.NewTicker(timeout)
