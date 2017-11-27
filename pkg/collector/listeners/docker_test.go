@@ -115,7 +115,7 @@ func TestGetADIdentifiers(t *testing.T) {
 		Config:            &container.Config{},
 		NetworkSettings:   &types.NetworkSettings{},
 	}
-	cacheKey := docker.GetInspectCacheKey("deadbeef")
+	cacheKey := docker.GetInspectCacheKey("deadbeef", false)
 	cache.Cache.Set(cacheKey, co, 10*time.Second)
 
 	ids, err := s.GetADIdentifiers()
@@ -149,7 +149,7 @@ func TestGetHosts(t *testing.T) {
 		NetworkSettings:   &types.NetworkSettings{},
 	}
 	// add cj to the cache to avoir having to query docker in the test
-	cacheKey := docker.GetInspectCacheKey(id)
+	cacheKey := docker.GetInspectCacheKey(id, false)
 	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
 	svc := DockerService{
@@ -185,7 +185,7 @@ func TestGetHosts(t *testing.T) {
 		NetworkSettings:   &networkSettings,
 	}
 	// update cj in the cache
-	cacheKey = docker.GetInspectCacheKey(id)
+	cacheKey = docker.GetInspectCacheKey(id, false)
 	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
 	svc = DockerService{
@@ -218,7 +218,7 @@ func TestGetPorts(t *testing.T) {
 		NetworkSettings:   &networkSettings,
 	}
 	// add cj to the cache so svc.GetPorts finds it
-	cacheKey := docker.GetInspectCacheKey(id)
+	cacheKey := docker.GetInspectCacheKey(id, false)
 	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
 	svc := DockerService{
@@ -251,7 +251,7 @@ func TestGetPorts(t *testing.T) {
 		NetworkSettings:   &networkSettings,
 	}
 	// add cj to the cache so svc.GetPorts finds it
-	cacheKey = docker.GetInspectCacheKey(id)
+	cacheKey = docker.GetInspectCacheKey(id, false)
 	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
 	svc = DockerService{
@@ -275,7 +275,7 @@ func TestGetPid(t *testing.T) {
 		State: &state,
 	}
 	co := types.ContainerJSON{ContainerJSONBase: &cBase}
-	cacheKey := docker.GetInspectCacheKey("foo")
+	cacheKey := docker.GetInspectCacheKey("foo", false)
 	cache.Cache.Set(cacheKey, co, 10*time.Second)
 
 	pid, err := s.GetPid()

@@ -8,17 +8,11 @@
 package collectors
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
 	log "github.com/cihub/seelog"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -32,7 +26,6 @@ const (
 // and feed a stram of TagInfo. It requires access to the docker socket.
 // It will also embed DockerExtractor collectors for container tagging.
 type DockerCollector struct {
-	client       *client.Client
 	dockerUtil   *docker.DockerUtil
 	stop         chan bool
 	infoOut      chan<- []*TagInfo
@@ -42,18 +35,11 @@ type DockerCollector struct {
 
 // Detect tries to connect to the docker socket and returns success
 func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	// TODO: refactor with collector.listeners.DockerListener
-	client, err := docker.ConnectToDocker()
-	if err != nil {
-		return NoCollection, fmt.Errorf("Failed to connect to Docker, docker tagging will not work: %s", err)
-	}
-
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return NoCollection, fmt.Errorf("failed to connect to Docker, docker tagging will not work: %s", err)
 	}
 	c.dockerUtil = du
-	c.client = client
 	c.stop = make(chan bool)
 	c.infoOut = out
 
@@ -69,27 +55,21 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 // Stream runs the continuous event watching loop and sends new info
 // to the channel. But be called in a goroutine.
 func (c *DockerCollector) Stream() error {
-	// TODO: refactor with collector.listeners.DockerListener
-	// filters only match start/stop container events
-	filters := filters.NewArgs()
-	filters.Add("type", "container")
-	filters.Add("event", "start")
-	filters.Add("event", "die")
-	eventOptions := types.EventsOptions{
-		Since:   fmt.Sprintf("%d", time.Now().Unix()),
-		Filters: filters,
+	messages, errs, err := c.dockerUtil.SubscribeToContainerEvents("DockerCollector")
+	if err != nil {
+		return err
 	}
-
-	messages, errs := c.client.Events(context.Background(), eventOptions)
 
 	for {
 		select {
 		case <-c.stop:
+			c.dockerUtil.UnsuscribeFromContainerEvents("DockerCollector")
 			return nil
 		case msg := <-messages:
 			c.processEvent(msg)
-		case err := <-errs:
+		case <-errs:
 			if err != nil && err != io.EOF {
+				log.Errorf(": %v", err)
 				return err
 			}
 			return nil
@@ -112,22 +92,21 @@ func (c *DockerCollector) Fetch(container string) ([]string, []string, error) {
 	return c.fetchForDockerID(cid)
 }
 
-func (c *DockerCollector) processEvent(e events.Message) {
-	cID := e.Actor.ID
+func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
 	out := make([]*TagInfo, 1)
 
 	switch e.Action {
 	case "die":
-		out[0] = &TagInfo{Entity: docker.ContainerIDToEntityName(cID), Source: dockerCollectorName, DeleteEntity: true}
+		out[0] = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, DeleteEntity: true}
 	case "start":
-		low, high, _ := c.fetchForDockerID(cID)
-		out[0] = &TagInfo{Entity: docker.ContainerIDToEntityName(cID), Source: dockerCollectorName, LowCardTags: low, HighCardTags: high}
+		low, high, _ := c.fetchForDockerID(e.ContainerID)
+		out[0] = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, LowCardTags: low, HighCardTags: high}
 	}
 	c.infoOut <- out
 }
 
 func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, error) {
-	co, err := c.client.ContainerInspect(context.Background(), string(cID))
+	co, err := c.dockerUtil.Inspect(cID, false)
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 		return nil, nil, err

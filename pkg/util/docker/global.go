@@ -9,7 +9,6 @@ package docker
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -34,18 +33,6 @@ var (
 		IO:      &CgroupIOStat{},
 		Network: ContainerNetStats{},
 	}
-)
-
-const (
-	ContainerCreatedState    string = "created"
-	ContainerRunningState    string = "running"
-	ContainerRestartingState string = "restarting"
-	ContainerPausedState     string = "paused"
-	ContainerExitedState     string = "exited"
-	ContainerDeadState       string = "dead"
-
-	// DockerEntityPrefix is the entity prefix for docker containers
-	DockerEntityPrefix = "docker://"
 )
 
 // GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
@@ -86,14 +73,6 @@ func HostnameProvider(hostName string) (string, error) {
 		return "", err
 	}
 	return du.GetHostname()
-}
-
-// ContainerIDToEntityName returns a prefixed entity name from a container ID
-func ContainerIDToEntityName(cid string) string {
-	if cid == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s%s", DockerEntityPrefix, cid)
 }
 
 // Container represents a single Docker container on a machine
@@ -170,11 +149,6 @@ func (cfg *ContainerListConfig) GetCacheKey() string {
 	}
 
 	return cacheKey
-}
-
-// GetInspectCacheKey returns the key to a given container ID inspect in the agent cache
-func GetInspectCacheKey(ID string) string {
-	return "dockerutil.containers." + ID
 }
 
 // SplitImageName splits a valid image name (from ResolveImageName) and returns:
