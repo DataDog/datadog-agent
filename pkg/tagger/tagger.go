@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 // Tagger is the entry class for entity tagging. It holds collectors, memory store
@@ -23,12 +24,14 @@ import (
 type Tagger struct {
 	sync.RWMutex
 	tagStore    *tagStore
+	candidates  map[string]collectors.CollectorFactory
 	pullers     map[string]collectors.Puller
 	streamers   map[string]collectors.Streamer
 	fetchers    map[string]collectors.Fetcher
 	infoIn      chan []*collectors.TagInfo
 	pullTicker  *time.Ticker
 	pruneTicker *time.Ticker
+	retryTicker *time.Ticker
 	stop        chan bool
 }
 
@@ -43,12 +46,14 @@ func newTagger() (*Tagger, error) {
 	}
 	t := &Tagger{
 		tagStore:    store,
+		candidates:  make(map[string]collectors.CollectorFactory),
 		pullers:     make(map[string]collectors.Puller),
 		streamers:   make(map[string]collectors.Streamer),
 		fetchers:    make(map[string]collectors.Fetcher),
 		infoIn:      make(chan []*collectors.TagInfo, 5),
 		pullTicker:  time.NewTicker(5 * time.Second),
 		pruneTicker: time.NewTicker(5 * time.Minute),
+		retryTicker: time.NewTicker(30 * time.Second),
 		stop:        make(chan bool),
 	}
 
@@ -60,45 +65,16 @@ func newTagger() (*Tagger, error) {
 // requests.
 func (t *Tagger) Init(catalog collectors.Catalog) error {
 	t.Lock()
+	// Populate collector candidate list from catalog
+	// as we'll remove entries we need to copy the map
 	for name, factory := range catalog {
-		log.Debugf("initialising tag collector %s", name)
-
-		collector := factory()
-		mode, err := collector.Detect(t.infoIn)
-		if err != nil {
-			log.Errorf("error initialising collector %s: %s", name, err)
-			continue
-		}
-		switch mode {
-		case collectors.PullCollection:
-			pull, ok := collector.(collectors.Puller)
-			if ok {
-				t.pullers[name] = pull
-				// TODO: schedule pulling
-				t.fetchers[name] = pull
-			} else {
-				log.Errorf("error initialising collector %s: does not implement pull", name)
-			}
-		case collectors.StreamCollection:
-			stream, ok := collector.(collectors.Streamer)
-			if ok {
-				t.streamers[name] = stream
-				t.fetchers[name] = stream
-				go stream.Stream()
-			} else {
-				log.Errorf("error initialising collector %s: does not implement stream", name)
-			}
-		case collectors.FetchOnlyCollection:
-			fetch, ok := collector.(collectors.Fetcher)
-			if ok {
-				t.fetchers[name] = fetch
-			} else {
-				log.Errorf("error initialising collector %s: does not implement fetch", name)
-			}
-		}
+		t.candidates[name] = factory
 	}
 	t.Unlock()
 
+	log.Info("starting the tagging system")
+
+	t.startCollectors()
 	go t.run()
 	go t.pull()
 
@@ -118,18 +94,97 @@ func (t *Tagger) run() error {
 			}
 			t.RUnlock()
 			t.pullTicker.Stop()
+			t.pruneTicker.Stop()
+			t.retryTicker.Stop()
 			return nil
 		case msg := <-t.infoIn:
 			log.Debugf("listener message: %s", msg)
 			for _, info := range msg {
 				t.tagStore.processTagInfo(info)
 			}
+		case <-t.retryTicker.C:
+			go t.startCollectors()
 		case <-t.pullTicker.C:
 			go t.pull()
 		case <-t.pruneTicker.C:
 			t.tagStore.prune()
 		}
 	}
+}
+
+// startCollectors iterates over the listener candidates and tries initializing them.
+// If the collector implements Retryer and return a FailWillRetry, we keep them in
+// the map and will retry at the next tick.
+func (t *Tagger) startCollectors() {
+	t.RLock()
+	if t.candidates == nil {
+		log.Warnf("called with empty candidate map, skipping")
+		t.RUnlock()
+		return
+	}
+	replied := make(map[string]collectors.Collector)
+	modes := make(map[string]collectors.CollectionMode)
+
+	for name, factory := range t.candidates {
+		collector := factory()
+		mode, err := collector.Detect(t.infoIn)
+		if retry.IsErrWillRetry(err) {
+			log.Debugf("will retry %s later: %s", name, err)
+			continue // don't add it to the modes map as we want to retry later
+		}
+		if err != nil {
+			log.Debugf("%s tag collector cannot start: %s", name, err)
+		} else {
+			log.Infof("%s tag collector successfully started", name)
+		}
+		replied[name] = collector
+		modes[name] = mode
+	}
+	t.RUnlock()
+
+	t.Lock()
+	for name, mode := range modes {
+		// Whatever the outcome, don't try this collector again
+		delete(t.candidates, name)
+
+		collector, found := replied[name]
+		if !found {
+			log.Errorf("collector %s not found in replies, deleting it", name)
+		}
+		switch mode {
+		case collectors.PullCollection:
+			pull, ok := collector.(collectors.Puller)
+			if ok {
+				t.pullers[name] = pull
+				t.fetchers[name] = pull
+			} else {
+				log.Errorf("error initializing collector %s: does not implement pull", name)
+			}
+		case collectors.StreamCollection:
+			stream, ok := collector.(collectors.Streamer)
+			if ok {
+				t.streamers[name] = stream
+				t.fetchers[name] = stream
+				go stream.Stream()
+			} else {
+				log.Errorf("error initializing collector %s: does not implement stream", name)
+			}
+		case collectors.FetchOnlyCollection:
+			fetch, ok := collector.(collectors.Fetcher)
+			if ok {
+				t.fetchers[name] = fetch
+			} else {
+				log.Errorf("error initializing collector %s: does not implement fetch", name)
+			}
+		}
+	}
+
+	if len(t.candidates) == 0 {
+		log.Debugf("candidate list empty, stopping detection")
+		t.retryTicker.Stop()
+		t.candidates = nil
+	}
+	t.Unlock()
 }
 
 func (t *Tagger) pull() {
