@@ -8,7 +8,7 @@ package ecs
 // TaskMetadata is the info returned by the ECS task metadata API
 type TaskMetadata struct {
 	ClusterName   string         `json:"Cluster"`
-	Containers    []ECSContainer `json:"Containers"`
+	Containers    []Container    `json:"Containers"`
 	KnownStatus   string         `json:"KnownStatus"`
 	TaskARN       string         `json:"TaskARN"`
 	Family        string         `json:"Family"`
@@ -17,8 +17,8 @@ type TaskMetadata struct {
 	DesiredStatus string         `json:"DesiredStatus"`
 }
 
-// ECSContainer is the representation of a container as exposed by the ECS metadata API
-type ECSContainer struct {
+// Container is the representation of a container as exposed by the ECS metadata API
+type Container struct {
 	Name          string            `json:"Name"`
 	Limits        map[string]uint64 `json:"Limits"`
 	ImageID       string            `json:"ImageID,omitempty"`
@@ -31,19 +31,19 @@ type ECSContainer struct {
 	DesiredStatus string            `json:"DesiredStatus"`
 	DockerID      string            `json:"DockerID"`
 	CreatedAt     string            `json:"CreatedAt"`
-	Networks      []ECSNetwork      `json:"Networks"`
+	Networks      []Network         `json:"Networks"`
 	Ports         string            `json:"Ports"`
 }
 
-// ECSNetwork represents the network of a container
-type ECSNetwork struct {
+// Network represents the network of a container
+type Network struct {
 	NetworkMode   string   `json:"NetworkMode"`   // as of today the only supported mode is awsvpc
 	IPv4Addresses []string `json:"IPv4Addresses"` // one-element list
 }
 
-// ECSContainerStats represents the stats payload for a container
+// ContainerStats represents the stats payload for a container
 // reported by the ecs stats api.
-type ECSContainerStats struct {
+type ContainerStats struct {
 	CPU     CPUStats `json:"cpu_stats"`
 	Memory  MemStats `json:"memory_stats"`
 	IO      IOStats  `json:"blkio_stats"`

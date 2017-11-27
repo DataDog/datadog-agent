@@ -45,7 +45,7 @@ type ECSService struct {
 	Ports         []int
 	Pid           int
 	Tags          []string
-	ecsContainer  ecs.ECSContainer
+	ecsContainer  ecs.Container
 	clusterName   string
 	taskFamily    string
 	taskVersion   string
@@ -135,7 +135,7 @@ func (l *ECSListener) refreshServices() {
 	}
 }
 
-func (l *ECSListener) createService(c ecs.ECSContainer) (ECSService, error) {
+func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
 	log.Infof("creating service...")
 	cID := ID(c.DockerID)
 	svc := ECSService{

@@ -17,8 +17,9 @@ import (
 
 const (
 	metadataURL string = "http://169.254.170.2/v2/metadata"
-	StatsURL    string = "http://169.254.170.2/v2/stats"
-	timeout            = 500 * time.Millisecond
+	// StatsURL is the endpoint where task stats are exposed
+	StatsURL string = "http://169.254.170.2/v2/stats"
+	timeout         = 500 * time.Millisecond
 )
 
 // GetTaskMetadata extracts the metadata payload for the task the agent is in.
@@ -42,8 +43,8 @@ func GetTaskMetadata() (TaskMetadata, error) {
 	return meta, err
 }
 
-// GetContainers returns all containers exposed by the ECS API as plain ECSContainers
-func GetECSContainers() ([]ECSContainer, error) {
+// GetECSContainers returns all containers exposed by the ECS API as plain ECSContainers
+func GetECSContainers() ([]Container, error) {
 	meta, err := GetTaskMetadata()
 	if err != nil || len(meta.Containers) == 0 {
 		log.Errorf("unable to retrieve task metadata")
@@ -57,7 +58,7 @@ func GetECSContainers() ([]ECSContainer, error) {
 // TODO: add a cache
 func GetContainers() ([]docker.Container, error) {
 	var containers []docker.Container
-	var stats ECSContainerStats
+	var stats ContainerStats
 
 	ecsContainers, err := GetECSContainers()
 	if err != nil {
@@ -112,8 +113,8 @@ func GetContainers() ([]docker.Container, error) {
 }
 
 // GetContainerStats retrives stats about a container from the ECS stats endpoint
-func GetContainerStats(c ECSContainer) (ECSContainerStats, error) {
-	var stats ECSContainerStats
+func GetContainerStats(c Container) (ContainerStats, error) {
+	var stats ContainerStats
 	log.Infof("Getting container stats...") // TODO: delete me
 	client := http.Client{
 		Timeout: timeout,
@@ -149,7 +150,7 @@ func computeIOStats(ops []OPStat, kind string) uint64 {
 
 // convertECSStats is responsible for converting ecs stats structs to docker style stats
 // TODO: get rid of this by supporting ECS stats everywhere we use docker stats only.
-func convertECSStats(stats ECSContainerStats) (docker.CgroupTimesStat, docker.CgroupMemStat, docker.CgroupIOStat) {
+func convertECSStats(stats ContainerStats) (docker.CgroupTimesStat, docker.CgroupMemStat, docker.CgroupIOStat) {
 	cpu := docker.CgroupTimesStat{
 		System: stats.CPU.System,
 		User:   stats.CPU.User,

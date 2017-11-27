@@ -5,6 +5,7 @@
 
 package docker
 
+// Expose container states
 const (
 	ContainerCreatedState    string = "created"
 	ContainerRunningState    string = "running"
