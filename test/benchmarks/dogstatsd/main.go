@@ -6,10 +6,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"expvar"
 	"flag"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"net/http"
@@ -45,6 +47,7 @@ var (
 	pad        = flag.Int("pad", 2, "tag padding - determines packet size.")
 	ser        = flag.Int("ser", 10, "number of distinct series.")
 	inc        = flag.Int("inc", 1000, "pps increments per iteration.")
+	buf        = flag.Bool("buf", false, "buffered socket writes")
 	rnd        = flag.Bool("rnd", false, "random series.")
 	brk        = flag.Bool("brk", false, "find breaking point.")
 	snd        = flag.Bool("snd", false, "just send - don't start receiver (useful for out-of-band testing).")
@@ -180,8 +183,8 @@ func buildPayload(name string, value interface{}, suffix []byte, tags []string, 
 	return buf.String()
 }
 
-func submitPacket(buf []byte, conn *net.UDPConn) error {
-	_, err := conn.Write(buf)
+func submitPacket(buf []byte, w io.Writer) error {
+	_, err := w.Write(buf)
 	return err
 }
 
@@ -208,7 +211,7 @@ func createMetric(value float64, tags []string, name string, t int64) datadog.Me
 	}
 }
 
-func generate(num, ser, pad int, rate int64, rnd, snd bool, sock *net.UDPConn,
+func generate(num, ser, pad int, rate int64, rnd, snd bool, w io.Writer,
 	wg *sync.WaitGroup, quitStat, quitGen chan bool, sentC chan uint64) {
 	sent := uint64(0)
 	var buf bytes.Buffer
@@ -238,9 +241,9 @@ func generate(num, ser, pad int, rate int64, rnd, snd bool, sock *net.UDPConn,
 				buf.WriteString("foo.")
 				buf.WriteString(util.RandomString(ser))
 
-				err = submitPacket([]byte(buildPayload(buf.String(), rand.Int63n(1000), []byte("|g"), []string{util.RandomString(pad)}, 2)), sock)
+				err = submitPacket([]byte(buildPayload(buf.String(), rand.Int63n(1000), []byte("|g"), []string{util.RandomString(pad)}, 2)), w)
 			} else {
-				err = submitPacket([]byte(packets[rand.Int63n(int64(ser))]), sock)
+				err = submitPacket([]byte(packets[rand.Int63n(int64(ser))]), w)
 			}
 			if err != nil {
 				log.Warnf("Problem sending packet: %v", err)
@@ -295,6 +298,13 @@ func main() {
 	}
 	defer generator.Close()
 
+	var pktWriter io.Writer
+	if *buf {
+		pktWriter = bufio.NewWriter(generator)
+	} else {
+		pktWriter = generator
+	}
+
 	// Get memory stats from expvar:
 	memstatsFunc := expvar.Get("memstats").(expvar.Func)
 	memstats := memstatsFunc().(runtime.MemStats)
@@ -312,7 +322,7 @@ func main() {
 			rate := (*pps) + iteration*(*inc)
 
 			wg.Add(1)
-			go generate(*num, *ser, *pad, int64(rate), *rnd, *snd, generator, &wg, quitStatter, quitGenerator, sentC)
+			go generate(*num, *ser, *pad, int64(rate), *rnd, *snd, pktWriter, &wg, quitStatter, quitGenerator, sentC)
 
 			if !*snd {
 				wg.Add(1)
