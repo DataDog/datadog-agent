@@ -5,8 +5,8 @@ JMXFetch
   {{- if and (not .timestamp) (not .checks) }}
   no JMX status available
   {{- else }}
-  Initialized checks:
-  ===================
+  Initialized checks
+  ==================
     {{- if (not .checks.initialized_checks)}}
     no checks
     {{ else }}
@@ -19,8 +19,8 @@ JMXFetch
         {{- end -}}
       {{- end }}
     {{- end }}
-  Failed checks:
-  ==============
+  Failed checks
+  =============
     {{- if (not .checks.failed_checks)}}
     no checks
     {{ else }}
