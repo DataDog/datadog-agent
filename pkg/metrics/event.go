@@ -82,6 +82,15 @@ type Event struct {
 	EventType      string         `json:"event_type,omitempty"`
 }
 
+// Return a JSON string or "" in case of error during the Marshaling
+func (e *Event) String() string {
+	s, err := json.Marshal(e)
+	if err != nil {
+		return ""
+	}
+	return string(s)
+}
+
 // Events represents a list of events ready to be serialize
 type Events []*Event
 

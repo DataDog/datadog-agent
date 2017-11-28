@@ -57,5 +57,13 @@ func (c *ComposeConf) ListContainers() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return strings.Split(string(out), "\n"), nil
+	lines := strings.Split(string(out), "\n")
+	var containerIDs []string
+
+	for _, line := range lines {
+		if len(strings.TrimSpace(line)) > 0 {
+			containerIDs = append(containerIDs, strings.TrimSpace(line))
+		}
+	}
+	return containerIDs, nil
 }

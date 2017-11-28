@@ -190,6 +190,12 @@
   revision = "91fd53b1d3e624389ed9a295a3fa380e5c7b9dfc"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/hectane/go-acl"
+  packages = [".","api"]
+  revision = "7f56832555fc229dad908c67d65ed3ce6156b70c"
+
+[[projects]]
   name = "github.com/inconshreveable/mousetrap"
   packages = ["."]
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
@@ -395,6 +401,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "fd679af3f6762946b9e7588cfc03f0003f223523e97751a17fc211beb6db8c6a"
+  inputs-digest = "d4f29aad1567ef7834793cec163267bd4d9a5a7009784ff2c5844cec8171b16c"
   solver-name = "gps-cdcl"
   solver-version = 1

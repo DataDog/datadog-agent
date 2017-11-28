@@ -74,12 +74,14 @@ func exePath() (string, error) {
 	}
 	if filepath.Ext(p) == "" {
 		p += ".exe"
-		fi, err := os.Stat(p)
-		if err == nil {
+		fi, statErr := os.Stat(p)
+		if statErr == nil {
 			if !fi.Mode().IsDir() {
 				return p, nil
 			}
 			err = fmt.Errorf("%s is directory", p)
+		} else {
+			err = statErr
 		}
 	}
 	return "", err

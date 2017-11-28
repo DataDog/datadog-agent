@@ -58,6 +58,7 @@ func TestUDPNonLocal(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_non_local_traffic", true)
 	s, err := NewUDPListener(nil)
+	assert.Nil(t, err)
 	require.NotNil(t, s)
 
 	go s.Listen()
@@ -81,6 +82,7 @@ func TestUDPLocalOnly(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_non_local_traffic", false)
 	s, err := NewUDPListener(nil)
+	assert.Nil(t, err)
 	require.NotNil(t, s)
 
 	go s.Listen()

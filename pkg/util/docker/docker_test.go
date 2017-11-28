@@ -26,16 +26,6 @@ func detab(str string) string {
 	return strings.Join(detabbed, "\n")
 }
 
-// Sanity-check that all containers works with different settings.
-func TestAllContainers(t *testing.T) {
-	InitDockerUtil(&Config{CollectNetwork: true})
-	AllContainers(&ContainerListConfig{IncludeExited: false, FlagExcluded: true})
-	AllContainers(&ContainerListConfig{IncludeExited: true, FlagExcluded: true})
-	InitDockerUtil(&Config{CollectNetwork: false})
-	AllContainers(&ContainerListConfig{IncludeExited: false, FlagExcluded: true})
-	AllContainers(&ContainerListConfig{IncludeExited: true, FlagExcluded: true})
-}
-
 func TestContainerIDToEntityName(t *testing.T) {
 	assert.Equal(t, "", ContainerIDToEntityName(""))
 	assert.Equal(t, "docker://ada5d83e6c2d3dfaaf7dd9ff83e735915da1174dc56880c06a6c99a9a58d5c73", ContainerIDToEntityName("ada5d83e6c2d3dfaaf7dd9ff83e735915da1174dc56880c06a6c99a9a58d5c73"))
@@ -75,7 +65,7 @@ func TestExtractImageName(t *testing.T) {
 	imageWithShaTag := "datadog/docker-dd-agent@sha256:9aab42bf6a2a068b797fe7d91a5d8d915b10dbbc3d6f2b10492848debfba6044"
 
 	assert := assert.New(t)
-	globalDockerUtil = &dockerUtil{
+	globalDockerUtil = &DockerUtil{
 		cfg:            &Config{CollectNetwork: false},
 		cli:            nil,
 		imageNameBySha: make(map[string]string),
@@ -100,6 +90,9 @@ func TestExtractImageName(t *testing.T) {
 			expected: imageName,
 		},
 	} {
-		assert.Equal(tc.expected, globalDockerUtil.extractImageName(tc.input), "test %s failed", i)
+		name, err := globalDockerUtil.ResolveImageName(tc.input)
+		assert.Equal(tc.expected, name, "test %s failed", i)
+		assert.Nil(err, "test %s failed", i)
+
 	}
 }

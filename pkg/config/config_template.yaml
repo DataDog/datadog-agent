@@ -25,6 +25,12 @@ api_key:
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 
+# Set the host's tags (optional)
+# tags:
+#   - mytag
+#   - env:prod
+#   - role:database
+
 # Histogram and Historate configuration
 #
 # Configure which aggregated value to compute. Possible values are: min, max,
@@ -135,6 +141,17 @@ metadata_collectors:
 # Please note the File Configuration Provider is enabled by default and cannot
 # be configured.
 # config_providers:
+
+## The kubelet provider handles templates embedded in pod annotations, see
+## https://docs.datadoghq.com/guides/autodiscovery/#template-source-kubernetes-pod-annotations
+#   - name: kubelet
+#     polling: true
+
+## The docker provider handles templates embedded in container labels, see
+## https://docs.datadoghq.com/guides/autodiscovery/#template-source-docker-label-annotations
+#   - name: docker
+#     polling: true
+
 #   - name: etcd
 #     polling: true
 #     template_dir: /datadog/check_configs

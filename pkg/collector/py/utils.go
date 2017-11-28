@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 
 	"github.com/sbinet/go-python"
+
+	log "github.com/cihub/seelog"
 )
 
 // #include <Python.h>
@@ -38,6 +40,26 @@ type stickyLock struct {
 	gstate python.PyGILState
 	locked uint32 // Flag set to 1 if the lock is locked, 0 otherwise
 }
+
+//PythonStatsEntry are entries for specific object type memory usage
+type PythonStatsEntry struct {
+	Reference string
+	NObjects  int
+	Size      int
+}
+
+//PythonStats contains python memory statistics
+type PythonStats struct {
+	Type     string
+	NObjects int
+	Size     int
+	Entries  []*PythonStatsEntry
+}
+
+const (
+	pyMemModule      = "utils.py_mem"
+	pyMemSummaryFunc = "get_mem_stats"
+)
 
 // newStickyLock register the current thread with the interpreter and locks
 // the GIL. It also sticks the goroutine to the current thread so that a
@@ -148,7 +170,7 @@ func findSubclassOf(base, module *python.PyObject, gstate *stickyLock) (*python.
 	defer dir.DecRef()
 	var class *python.PyObject
 	for i := 0; i < python.PyList_GET_SIZE(dir); i++ {
-		symbolName := python.PyString_AsString(python.PyList_GET_ITEM(dir, i))
+		symbolName := python.PyString_AsString(python.PyList_GetItem(dir, i))
 		class = module.GetAttrString(symbolName) // new ref, don't DecRef because we return it (caller is owner)
 
 		if class == nil {
@@ -180,4 +202,181 @@ func getModuleName(modulePath string) string {
 	toks := strings.Split(modulePath, ".")
 	// no need to check toks length, worst case it contains only an empty string
 	return toks[len(toks)-1]
+}
+
+func decAllRefs(refs []*python.PyObject) {
+	for _, ref := range refs {
+		ref.DecRef()
+	}
+}
+
+// GetPythonInterpreterMemoryUsage collects python interpreter memory usage
+func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
+	glock := newStickyLock()
+	defer glock.unlock()
+
+	memStatModule := python.PyImport_ImportModule(pyMemModule)
+	if memStatModule == nil {
+		return nil, fmt.Errorf("Unable to import Python module: %s", pyMemModule)
+	}
+	defer memStatModule.DecRef()
+
+	statter := memStatModule.GetAttrString(pyMemSummaryFunc)
+	if statter == nil {
+		pyErr, err := glock.getPythonError()
+
+		if err != nil {
+			return nil, fmt.Errorf("An error occurred while grabbing the python memory statter: %v", err)
+		}
+		return nil, errors.New(pyErr)
+	}
+	defer statter.DecRef()
+
+	args := python.PyTuple_New(0)
+	kwargs := python.PyDict_New()
+	defer args.DecRef()
+	defer kwargs.DecRef()
+
+	stats := statter.Call(args, kwargs)
+	if stats == nil {
+		pyErr, err := glock.getPythonError()
+
+		if err != nil {
+			return nil, fmt.Errorf("An error occurred collecting python memory stats: %v", err)
+		}
+		return nil, errors.New(pyErr)
+	}
+	defer stats.DecRef()
+
+	keys := python.PyDict_Keys(stats)
+	if keys == nil {
+		pyErr, err := glock.getPythonError()
+
+		if err != nil {
+			return nil, fmt.Errorf("An error occurred collecting python memory stats: %v", err)
+		}
+		return nil, errors.New(pyErr)
+	}
+	defer keys.DecRef()
+
+	myPythonStats := []*PythonStats{}
+	var entry *python.PyObject
+	for i := 0; i < python.PyList_GET_SIZE(keys); i++ {
+		entryName := python.PyString_AsString(python.PyList_GetItem(keys, i))
+		entry = python.PyDict_GetItemString(stats, entryName)
+		if entry == nil {
+			pyErr, err := glock.getPythonError()
+
+			if err != nil {
+				log.Warnf("An error occurred while iterating the memory entry : %v", err)
+			} else {
+				log.Warnf("%v", pyErr)
+			}
+
+			continue
+		}
+
+		n := python.PyDict_GetItemString(entry, "n")
+		if n == nil {
+			pyErr, err := glock.getPythonError()
+
+			if err != nil {
+				log.Warnf("An error occurred while iterating the memory entry : %v", err)
+			} else {
+				log.Warnf("%v", pyErr)
+			}
+
+			continue
+		}
+
+		sz := python.PyDict_GetItemString(entry, "sz")
+		if sz == nil {
+			pyErr, err := glock.getPythonError()
+
+			if err != nil {
+				log.Warnf("An error occurred while iterating the memory entry : %v", err)
+			} else {
+				log.Warnf("%v", pyErr)
+			}
+
+			continue
+		}
+
+		pyStat := &PythonStats{
+			Type:     entryName,
+			NObjects: python.PyInt_AsLong(n),
+			Size:     python.PyInt_AsLong(sz),
+			Entries:  []*PythonStatsEntry{},
+		}
+
+		entries := python.PyDict_GetItemString(entry, "entries")
+		if entries == nil {
+			continue
+		}
+
+		for i := 0; i < python.PyList_GET_SIZE(entries); i++ {
+			ref := python.PyList_GetItem(entries, i)
+			if ref == nil {
+				pyErr, err := glock.getPythonError()
+
+				if err != nil {
+					log.Warnf("An error occurred while iterating the entry details: %v", err)
+				} else {
+					log.Warnf("%v", pyErr)
+				}
+
+				continue
+			}
+
+			obj := python.PyList_GetItem(ref, 0)
+			if obj == nil {
+				pyErr, err := glock.getPythonError()
+
+				if err != nil {
+					log.Warnf("An error occurred while iterating the entry details : %v", err)
+				} else {
+					log.Warnf("%v", pyErr)
+				}
+
+				continue
+			}
+
+			nEntry := python.PyList_GetItem(ref, 1)
+			if nEntry == nil {
+				pyErr, err := glock.getPythonError()
+
+				if err != nil {
+					log.Warnf("An error occurred while iterating the entry details : %v", err)
+				} else {
+					log.Warnf("%v", pyErr)
+				}
+
+				continue
+			}
+
+			szEntry := python.PyList_GetItem(ref, 2)
+			if szEntry == nil {
+				pyErr, err := glock.getPythonError()
+
+				if err != nil {
+					log.Warnf("An error occurred while iterating the entry details : %v", err)
+				} else {
+					log.Warnf("%v", pyErr)
+				}
+
+				continue
+			}
+
+			pyEntry := &PythonStatsEntry{
+				Reference: python.PyString_AsString(obj),
+				NObjects:  python.PyInt_AsLong(nEntry),
+				Size:      python.PyInt_AsLong(szEntry),
+			}
+			pyStat.Entries = append(pyStat.Entries, pyEntry)
+		}
+
+		myPythonStats = append(myPythonStats, pyStat)
+	}
+
+	return myPythonStats, nil
 }

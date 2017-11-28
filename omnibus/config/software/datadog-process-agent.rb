@@ -6,7 +6,7 @@
 name "datadog-process-agent"
 always_build true
 
-default_version '5.19.0'
+default_version 'master'
 
 
 build do
@@ -16,7 +16,7 @@ build do
   binary_url = "https://s3.amazonaws.com/datad0g-process-agent/#{binary}"
 
   # fetch the binary and move to install_dir
-  command "curl #{binary_url} -o #{binary}"
+  command "curl -f #{binary_url} -o #{binary}"
   command "chmod +x #{binary}"
   move binary, "#{install_dir}/embedded/bin/process-agent"
 end

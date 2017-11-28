@@ -118,6 +118,7 @@ func (suite *CollectorTestSuite) TestStopCheck() {
 
 	// schedule a check
 	_, err := suite.c.RunCheck(ch)
+	assert.Nil(suite.T(), err)
 
 	// all good
 	err = suite.c.StopCheck("TestCheck")

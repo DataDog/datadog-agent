@@ -28,7 +28,7 @@ func TestProcessContainerEvent(t *testing.T) {
 
 	assert.Nil(err)
 
-	dockerUtil := &dockerUtil{
+	dockerUtil := &DockerUtil{
 		cfg: &Config{
 			filter: filter,
 		},

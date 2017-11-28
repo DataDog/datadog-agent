@@ -239,11 +239,11 @@ func TestHistogramReset(t *testing.T) {
 
 	mHistogram.addSample(&MetricSample{Value: 1}, 50)
 	mHistogram.addSample(&MetricSample{Value: 2, SampleRate: 0.5}, 50)
-	series, err := mHistogram.flush(60)
+	_, err := mHistogram.flush(60)
 	assert.Nil(t, err)
 
 	mHistogram.addSample(&MetricSample{Value: 10}, 50)
-	series, err = mHistogram.flush(70)
+	series, err := mHistogram.flush(70)
 	assert.Nil(t, err)
 	require.Len(t, series, 9)
 

@@ -36,7 +36,7 @@ def get_default_build_tags(puppy=False):
         return PUPPY_TAGS
 
     include = ["all"]
-    exclude = ["docker"] if invoke.platform.WINDOWS else []
+    exclude = ["docker", "kubelet"] if invoke.platform.WINDOWS else []
     return get_build_tags(include, exclude)
 
 

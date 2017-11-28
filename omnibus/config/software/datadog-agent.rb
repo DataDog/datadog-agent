@@ -13,7 +13,7 @@ unless windows?
   dependency 'net-snmp-lib'
 end
 
-license "Apache License Version 2.0"
+license "Apache-2.0"
 license_file "../LICENSE"
 
 source path: '..'
@@ -58,7 +58,7 @@ build do
           dest: "#{install_dir}/scripts/datadog-agent.conf",
           mode: 0755,
           vars: { install_dir: install_dir }
-    elsif redhat?
+    elsif redhat? || suse?
       # Ship a different upstart job definition on RHEL to accommodate the old
       # version of upstart (0.6.5) that RHEL 6 provides.
       erb source: "upstart_redhat.conf.erb",

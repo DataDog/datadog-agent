@@ -1,0 +1,12 @@
+## Provides autodetected defaults, for non-kubernetes environments,
+## please see datadog.yaml.example for all supported options
+
+# Autodiscovery
+listeners:
+  - name: docker
+
+config_providers:
+## The docker provider handles templates embedded in container labels, see
+## https://docs.datadoghq.com/guides/autodiscovery/#template-source-docker-label-annotations
+  - name: docker
+    polling: true

@@ -324,3 +324,24 @@ func TestParseCgroupPaths(t *testing.T) {
 		assert.Equal(t, p, tc.expectedPaths)
 	}
 }
+
+func TestContainerIDFromCgroup(t *testing.T) {
+	for _, tc := range []string{
+		// Kubernetes < 1.6
+		"1:kube1.6:/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		// New CoreOS / most systems
+		"2:classic:/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		// Rancher
+		"3:rancher:/docker/864daa0a0b19aa4703231b6c76f85c6f369b2452a5a7f777f0c9101c0fd5772a/docker/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		// Kubernetes 1.7+
+		"4:kube1.7:/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
+		// Legacy CoreOS 7xx
+		"5:coreos_7xx:/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+		// Legacy systems
+		"6:legacy:a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+	} {
+		c, err := containerIDFromCgroup(tc)
+		assert.True(t, err)
+		assert.Equal(t, c, "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419")
+	}
+}

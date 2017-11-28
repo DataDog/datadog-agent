@@ -5,14 +5,23 @@
 
 package docker
 
+import (
+	"fmt"
+	"strings"
+)
+
 type catalog struct {
-	composeFiles map[string]string
+	composeFilesByProjects map[string]string
 }
 
 var defaultCatalog = catalog{
-	composeFiles: make(map[string]string),
+	composeFilesByProjects: make(map[string]string),
 }
 
-func registerComposeFile(name string, filename string) {
-	defaultCatalog.composeFiles[name] = filename
+func (c *catalog) addCompose(projectName, filename string) {
+	c.composeFilesByProjects[projectName] = filename
+}
+
+func registerComposeFile(filename string) {
+	defaultCatalog.addCompose(strings.TrimSuffix(filename, ".compose"), fmt.Sprintf("testdata/%s", filename))
 }

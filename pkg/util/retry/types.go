@@ -34,6 +34,10 @@ const (
 	RetryCount
 	// RetryDuration sets the Retrier to try for a fixed duration
 	// RetryDuration // FIXME: implement
+
+	// JustTesting forces an OK status for unit tests that require a
+	// non-functional object but no failure on init (eg. docker)
+	JustTesting
 )
 
 // Config contains all the required parameters for Retrier

@@ -35,11 +35,9 @@ func (c *IOCheck) String() string {
 
 // Configure the IOstats check
 func (c *IOCheck) commonConfigure(data check.ConfigData, initConfig check.ConfigData) error {
-	err := error(nil)
-
 	conf := make(map[interface{}]interface{})
 
-	err = yaml.Unmarshal([]byte(initConfig), &conf)
+	err := yaml.Unmarshal([]byte(initConfig), &conf)
 	if err != nil {
 		return err
 	}

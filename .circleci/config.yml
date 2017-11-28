@@ -4,10 +4,16 @@ version: 2
 # see https://circleci.com/blog/circleci-hacks-reuse-yaml-in-your-circleci-config-with-yaml/
 # and https://learnxinyminutes.com/docs/yaml/
 
+experimental:
+  notify:
+    branches:
+      only:
+        - master
+
 templates:
   job_template: &job_template
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.0.4
+      - image: jfullaondo/datadog-agent-builder-deb:0.1.1
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
