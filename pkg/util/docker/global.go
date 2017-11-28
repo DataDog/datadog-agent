@@ -73,34 +73,6 @@ func HostnameProvider(hostName string) (string, error) {
 	return du.GetHostname()
 }
 
-// Container represents a single Docker container on a machine
-// and includes Cgroup-level statistics about the container.
-type Container struct {
-	Type     string
-	ID       string
-	EntityID string
-	Name     string
-	Image    string
-	ImageID  string
-	Created  int64
-	State    string
-	Health   string
-	Pids     []int32
-	Excluded bool
-
-	CPULimit       float64
-	MemLimit       uint64
-	CPUNrThrottled uint64
-	CPU            *CgroupTimesStat
-	Memory         *CgroupMemStat
-	IO             *CgroupIOStat
-	Network        ContainerNetStats
-	StartedAt      int64
-
-	// For internal use only
-	cgroup *ContainerCgroup
-}
-
 // Config is an exported configuration object that is used when
 // initializing the DockerUtil.
 type Config struct {
@@ -122,10 +94,8 @@ type Config struct {
 	filter *containerFilter
 }
 
-//
 // Expose module-level functions that will interact with a the globalDockerUtil singleton.
 // These are to be deprecated in favor or directly calling the DockerUtil methods.
-//
 
 type ContainerListConfig struct {
 	IncludeExited bool
