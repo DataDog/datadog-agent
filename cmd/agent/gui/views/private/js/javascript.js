@@ -264,17 +264,6 @@ function submitSettings(editor) {
                             Manage Checks
 *************************************************************************/
 
-// Helper function which gets the check name from a file name
-function getCheckName(fileName) {
-  if (fileName.indexOf(":") != -1) {
-    // the check name is what comes before the ':' (for checks in subdirs)
-    return fileName.substr(0, fileName.indexOf(":"))
-  } else {
-    // the check name is what comes before the first '.'
-    return fileName.substr(0, fileName.indexOf("."))
-  }
-}
-
 // Displays the 'manage checks' page and loads whatever view the dropdown currently has selected
 function loadManageChecks() {
   $(".page").css("display", "none");
@@ -323,9 +312,10 @@ function loadNewChecks() {
   function(data, status, xhr){
     if (typeof(data) == "string") return;
     data.sort();
-    data.forEach(function(filename){
-      if (filename.substr(filename.length - 8) == ".example") return;
-      enabledChecks.push(getCheckName(filename));
+    data.forEach(function(fileName){
+      if (fileName.substr(fileName.length - 8) == ".example") return;
+      var checkName = fileName.substr(0, fileName.indexOf("."));
+      enabledChecks.push(checkName);
     });
 
     // Get a list of all the check (.py) files
@@ -436,7 +426,7 @@ function saveCheckSettings(editor) {
 function reloadCheck() {
   $("#reload_check").addClass("inactive");
   var fileName = $('#check_input').data('file_name');
-  var checkName = getCheckName(fileName)
+  var checkName = fileName.substr(0, fileName.indexOf("."))
 
   // Test it once with new configuration
   sendMessage("checks/run/" + checkName + "/once", "",
@@ -468,14 +458,15 @@ function reloadCheck() {
 
 // Handler for when a used clicks on a check to add: starts the process of adding a check
 // by checking if there's an example file for it, and loading the data from this file if so
-function addCheck(checkName) {
+function addCheck(checkToAdd) {
   // See if theres an example file for this check
   sendMessage("checks/listConfigs", "",
   function(data, status, xhr){
     var exampleFile = "";
     if (typeof(data) != "string") {
       data.forEach(function(fileName) {
-        if (fileName.substr(fileName.length - 8) == ".example" && checkName == getCheckName(fileName)) exampleFile = fileName;
+        var checkName = fileName.substr(0, fileName.indexOf("."))
+        if (fileName.substr(fileName.length - 8) == ".example" && checkToAdd == checkName) exampleFile = fileName;
       });
     }
 
@@ -483,13 +474,13 @@ function addCheck(checkName) {
     if (exampleFile != "") {
       sendMessage("checks/getConfig/" + exampleFile, "",
       function(data, status, xhr){
-        createNewConfigFile(checkName, data);
+        createNewConfigFile(checkToAdd, data);
       }, function() {
         $(".right").html("");
         $("#checks_description").html("An error occurred.");
       });
     } else {
-      createNewConfigFile(checkName, "# Add your configuration here");
+      createNewConfigFile(checkToAdd, "# Add your configuration here");
     }
   }, function() {
     $(".right").html("");

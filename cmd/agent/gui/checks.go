@@ -38,7 +38,9 @@ func checkHandler(r *mux.Router) {
 	r.HandleFunc("/run/{name}/once", http.HandlerFunc(runCheckOnce)).Methods("POST")
 	r.HandleFunc("/reload/{name}", http.HandlerFunc(reloadCheck)).Methods("POST")
 	r.HandleFunc("/getConfig/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
+	r.HandleFunc("/getConfig/{checkFolder}/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/setConfig/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")
+	r.HandleFunc("/setConfig/{checkFolder}/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/listChecks", http.HandlerFunc(listChecks)).Methods("POST")
 	r.HandleFunc("/listConfigs", http.HandlerFunc(listConfigs)).Methods("POST")
 }
@@ -147,11 +149,15 @@ func reloadCheck(w http.ResponseWriter, r *http.Request) {
 // Sends the specified config (.yaml) file
 func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	fileName := mux.Vars(r)["fileName"]
+	checkFolder := mux.Vars(r)["checkFolder"]
+	if checkFolder != "" {
+		fileName = filepath.Join(checkFolder, fileName)
+	}
 
 	var file []byte
 	var e error
 	for _, path := range configPaths {
-		file, e = ioutil.ReadFile(filepath.Join(path, getPathToFile(fileName)))
+		file, e = ioutil.ReadFile(filepath.Join(path, fileName))
 		if e == nil {
 			break
 		}
@@ -168,6 +174,7 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 type configFormat struct {
 	ADIdentifiers []string    `yaml:"ad_identifiers"`
 	InitConfig    interface{} `yaml:"init_config"`
+	MetricConfig  interface{} `yaml:"jmx_metrics"`
 	Instances     []check.ConfigRawMap
 }
 
@@ -175,6 +182,11 @@ type configFormat struct {
 // or makes a new config file for that check, if there isn't one yet
 func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	fileName := mux.Vars(r)["fileName"]
+	checkFolder := mux.Vars(r)["checkFolder"]
+	if checkFolder != "" {
+		fileName = filepath.Join(checkFolder, fileName)
+	}
+
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
@@ -188,18 +200,18 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
-	if len(cf.Instances) < 1 {
+	if len(cf.Instances) < 1 && cf.MetricConfig == nil {
 		w.Write([]byte("Configuration file contains no valid instances"))
 		return
 	}
 
 	// Attempt to write new configs to custom checks directory
-	path := filepath.Join(config.Datadog.GetString("confd_path"), getPathToFile(fileName))
+	path := filepath.Join(config.Datadog.GetString("confd_path"), fileName)
 	e = ioutil.WriteFile(path, data, 0600)
 
 	// If the write didn't work, try writing to the default checks directory
 	if e != nil && strings.Contains(e.Error(), "no such file or directory") {
-		path = filepath.Join(common.GetDistPath(), "conf.d", getPathToFile(fileName))
+		path = filepath.Join(common.GetDistPath(), "conf.d", fileName)
 		e = ioutil.WriteFile(path, data, 0600)
 	}
 
@@ -250,14 +262,12 @@ func listConfigs(w http.ResponseWriter, r *http.Request) {
 			sort.Strings(files)
 			lookup := make(map[string]bool)
 			for _, file := range files {
-				checkName := getCheckName(file)
+				checkName := file[:strings.Index(file, ".")]
 
 				if ext := filepath.Ext(file); ext == ".default" {
-					if _, exists := lookup[checkName]; !exists {
-						filenames = append(filenames, file)
-						lookup[checkName] = true
+					if _, exists := lookup[checkName]; exists {
+						continue
 					}
-					continue
 				}
 
 				filenames = append(filenames, file)
@@ -293,12 +303,10 @@ func readConfDir(path string) ([]string, error) {
 
 			subEntries, err := ioutil.ReadDir(filepath.Join(path, entry.Name()))
 			if err == nil {
-				checkName := strings.TrimSuffix(entry.Name(), ".d")
-
 				for _, subEntry := range subEntries {
 					if hasRightEnding(subEntry.Name()) && subEntry.Mode().IsRegular() {
-						// Add the check name to the filename so that it's in a format the GUI can easily display
-						filenames = append(filenames, checkName+": "+subEntry.Name())
+						// Save the full path of the config file {check_name.d}/{filename}
+						filenames = append(filenames, entry.Name()+"/"+subEntry.Name())
 					}
 				}
 			}
@@ -328,29 +336,4 @@ func hasRightEnding(filename string) bool {
 	}
 
 	return ext == ".yaml" || ext == ".yml"
-}
-
-// Helper function which returns the path where a file should be stored
-func getPathToFile(fileName string) string {
-	// If a file is in a subdir, it's name will be of the form `{check name}: {file name}`
-	// We want to change this to '{check name}.d/{file name}'
-	// If the file name doesn't have this format: do nothing, it's already valid
-	if i := strings.Index(fileName, ":"); i != -1 {
-		checkName := fileName[:i]
-		fileName = filepath.Join(checkName+".d", strings.TrimPrefix(fileName, checkName+": "))
-	}
-	return fileName
-}
-
-// Helper function which extracts the check name from a file name
-func getCheckName(fileName string) string {
-	var checkName string
-	if i := strings.Index(fileName, ":"); i != -1 {
-		// If the check was in a subdir, '{checkname}: ' prepends the filename
-		checkName = fileName[:i]
-	} else {
-		// If it isn't in a subdir, the check name is the part before the first '.'
-		checkName = fileName[:strings.Index(fileName, ".")]
-	}
-	return checkName
 }

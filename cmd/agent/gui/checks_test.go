@@ -16,10 +16,10 @@ func TestReadConfDir(t *testing.T) {
 		"check.yaml",
 		"check.yaml.default",
 		"check.yaml.example",
-		"foo: conf.yaml",
-		"foo: conf.yaml.default",
-		"foo: conf.yaml.example",
-		"foo: metrics.yaml",
+		"foo.d/conf.yaml",
+		"foo.d/conf.yaml.default",
+		"foo.d/conf.yaml.example",
+		"foo.d/metrics.yaml",
 	}
 
 	assert.Equal(t, expected, files)
