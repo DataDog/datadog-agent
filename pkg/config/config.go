@@ -137,8 +137,11 @@ func init() {
 	Datadog.SetDefault("expvar_port", "5000")
 	// Agent GUI access port
 	Datadog.SetDefault("GUI_port", "-1")
-	// Proess Agent
+	// Process Agent
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
+
+	// Log Agent
+	Datadog.SetDefault("log_enabled", true)
 
 	Datadog.SetDefault("logging_frequency", int64(20))
 
