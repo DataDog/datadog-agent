@@ -1,6 +1,6 @@
 #include "datadog_agent.h"
 
-// Functions 
+// Functions
 PyObject* GetVersion(PyObject *self, PyObject *args);
 PyObject* Headers(PyObject *self, PyObject *args);
 PyObject* GetHostname(PyObject *self, PyObject *args);
@@ -19,7 +19,7 @@ static PyObject *get_config(PyObject *self, PyObject *args) {
 
     if (!PyArg_ParseTuple(args, "s", &key)) {
       PyGILState_Release(gstate);
-      Py_RETURN_NONE;
+      return NULL;
     }
 
     PyGILState_Release(gstate);
@@ -36,7 +36,7 @@ static PyObject *log_message(PyObject *self, PyObject *args) {
     // datadog_agent.log(message, log_level)
     if (!PyArg_ParseTuple(args, "si", &message, &log_level)) {
       PyGILState_Release(gstate);
-      Py_RETURN_NONE;
+      return NULL;
     }
 
     PyGILState_Release(gstate);
@@ -44,11 +44,11 @@ static PyObject *log_message(PyObject *self, PyObject *args) {
 }
 
 static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
-    PyObject *cmd_args, *cmd_raise_on_empty; 
+    PyObject *cmd_args, *cmd_raise_on_empty;
     int raise = 1, i=0;
     int subprocess_args_sz;
     char ** subprocess_args, * subprocess_arg;
-    PyObject * py_result = Py_None;
+    PyObject *py_result;
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
@@ -86,7 +86,8 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
         if (subprocess_arg == NULL) {
             PyErr_SetString(PyExc_Exception, "unable to parse arguments to cgo/go-land");
             free(subprocess_args);
-            Py_RETURN_NONE;
+            PyGILState_Release(gstate);
+            return NULL;
         }
         subprocess_args[i] = subprocess_arg;
     }
@@ -95,9 +96,6 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
     py_result = GetSubprocessOutput(subprocess_args, subprocess_args_sz, raise);
     free(subprocess_args);
 
-    if (py_result == NULL) {
-        Py_RETURN_NONE;
-    }
     return py_result;
 }
 
@@ -123,9 +121,9 @@ static PyMethodDef utilMethods[] = {
  * _Util package is a private module for utility bindings
  */
 static PyMethodDef _utilMethods[] = {
-  {"get_subprocess_output", (PyCFunction)get_subprocess_output, 
+  {"get_subprocess_output", (PyCFunction)get_subprocess_output,
       METH_VARARGS, "Run subprocess and return its output. "
-                    "This is a private method and should not be called directly. " 
+                    "This is a private method and should not be called directly. "
                     "Please use the utils.subprocess_output.get_subprocess_output wrapper."},
   {NULL, NULL}
 };
