@@ -16,8 +16,8 @@ WIN_MODULE_WHITELIST = [
 
 # List of paths to ignore in misspell's output
 MISSPELL_IGNORED_TARGETS = [
-    "cmd/agent/dist/checks/prometheus_check",
-    "cmd/agent/gui/views/private",
+    os.path.join("cmd", "agent", "dist", "checks", "prometheus_check"),
+    os.path.join("cmd", "agent", "gui", "views", "private"),
 ]
 
 
