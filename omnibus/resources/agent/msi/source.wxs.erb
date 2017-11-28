@@ -171,7 +171,7 @@
                           Start="install"
                           Stop="both"
                           Remove="uninstall"
-                          Wait="yes" />
+                          Wait="no" />
           <RemoveFolder Id="APPLICATIONROOTDIRECTORY" On="uninstall" />
           <!-- The "Name" field must match the argument to eventlog.Open() -->
           <util:EventSource Log="Application" Name="DatadogAgent"
@@ -190,7 +190,8 @@
         <Shortcut Id="ApplicationStartMenuShortcut"
                   Name="Datadog Agent Manager"
                   Description="Manage your Datadog Agent"
-                  Target="[SystemFolder]cmd.exe /C start &quot;&quot; &quot;[DIST]agent.exe&quot; &quot;launch-gui&quot;"
+                  Target="[SystemFolder]cmd.exe"
+                  Arguments= "/C start &quot;&quot; &quot;[DIST]agent.exe&quot; &quot;launch-gui&quot;"
                   WorkingDirectory="DIST"/>
                   
         <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
