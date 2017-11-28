@@ -19,7 +19,7 @@ static PyObject *get_config(PyObject *self, PyObject *args) {
 
     if (!PyArg_ParseTuple(args, "s", &key)) {
       PyGILState_Release(gstate);
-      Py_RETURN_NONE;
+      return NULL;
     }
 
     PyGILState_Release(gstate);
@@ -36,7 +36,7 @@ static PyObject *log_message(PyObject *self, PyObject *args) {
     // datadog_agent.log(message, log_level)
     if (!PyArg_ParseTuple(args, "si", &message, &log_level)) {
       PyGILState_Release(gstate);
-      Py_RETURN_NONE;
+      return NULL;
     }
 
     PyGILState_Release(gstate);
@@ -48,7 +48,7 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
     int raise = 1, i=0;
     int subprocess_args_sz;
     char ** subprocess_args, * subprocess_arg;
-    PyObject * py_result = Py_None;
+    PyObject *py_result;
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
@@ -86,6 +86,7 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
         if (subprocess_arg == NULL) {
             PyErr_SetString(PyExc_Exception, "unable to parse arguments to cgo/go-land");
             free(subprocess_args);
+            PyGILState_Release(gstate);
             return NULL;
         }
         subprocess_args[i] = subprocess_arg;
