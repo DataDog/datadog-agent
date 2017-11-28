@@ -108,7 +108,7 @@ func (r *Retrier) doTry() *Error {
 				r.status = PermaFail
 			} else {
 				r.status = FailWillRetry
-				r.nextTry = time.Now().Add(r.cfg.RetryDelay)
+				r.nextTry = time.Now().Add(r.cfg.RetryDelay - 100*time.Millisecond)
 			}
 		}
 	}

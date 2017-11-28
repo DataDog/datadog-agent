@@ -50,7 +50,7 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		return NoCollection, fmt.Errorf("failed to connect to Docker, docker tagging will not work: %s", err)
+		return NoCollection, err
 	}
 	c.dockerUtil = du
 	c.client = client
