@@ -36,7 +36,7 @@ import (
 // and that other agents can consume so that we don't have to
 // convert all containers to the format.
 // TODO: move to a catalog and registration pattern
-func GetContainers() {
+func GetContainers() []*docker.Container {
 	var listeners []config.Listeners
 	if err := config.Datadog.UnmarshalKey("listeners", &listeners); err != nil {
 		log.Errorf("unable to parse get listeners from the datadog config - %s", err)
@@ -71,4 +71,5 @@ func GetContainers() {
 			log.Warnf("listener %s is not a known container provider, skipping it", l.Name)
 		}
 	}
+	return containers
 }
