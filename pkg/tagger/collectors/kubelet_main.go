@@ -8,7 +8,6 @@
 package collectors
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -98,7 +97,7 @@ func (c *KubeletCollector) Fetch(container string) ([]string, []string, error) {
 		}
 	}
 	// container not found in updates
-	return []string{}, []string{}, fmt.Errorf("entity %s not found in podlist", container)
+	return []string{}, []string{}, ErrNotFound
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects

@@ -107,7 +107,7 @@ func (c *DockerCollector) Stop() error {
 func (c *DockerCollector) Fetch(container string) ([]string, []string, error) {
 	cid := strings.TrimPrefix(container, docker.DockerEntityPrefix)
 	if cid == container {
-		return nil, nil, fmt.Errorf("name is not a docker container: %s", container)
+		return nil, nil, ErrNotFound
 	}
 	return c.fetchForDockerID(cid)
 }
@@ -129,6 +129,7 @@ func (c *DockerCollector) processEvent(e events.Message) {
 func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, error) {
 	co, err := c.client.ContainerInspect(context.Background(), string(cID))
 	if err != nil {
+		// TODO separate "not found" and inspect error
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
 		return nil, nil, err
 	}

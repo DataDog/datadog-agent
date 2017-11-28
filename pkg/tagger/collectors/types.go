@@ -5,6 +5,8 @@
 
 package collectors
 
+import "errors"
+
 // TagInfo holds the tag information for a given entity and source. It's meant
 // to be created from collectors and read by the store.
 type TagInfo struct {
@@ -17,6 +19,10 @@ type TagInfo struct {
 
 // CollectionMode informs the Tagger of how to schedule a Collector
 type CollectionMode int
+
+// ErrNotFound is returned by Fetch not collection error occurred but
+// the entity is not found in the source
+var ErrNotFound = errors.New("entity not found")
 
 // Return values for Collector.Init to inform the Tagger of the scheduling needed
 const (

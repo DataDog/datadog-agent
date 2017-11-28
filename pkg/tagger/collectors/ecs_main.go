@@ -74,7 +74,7 @@ func (c *ECSCollector) Fetch(container string) ([]string, []string, error) {
 		}
 	}
 	// container not found in updates
-	return []string{}, []string{}, fmt.Errorf("entity %s not found in tasklist", container)
+	return []string{}, []string{}, ErrNotFound
 }
 
 func ecsFactory() Collector {
