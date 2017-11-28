@@ -18,7 +18,7 @@ def get_subprocess_output(command, log, raise_on_empty_output=True):
     cmd_args = []
     if isinstance(command, basestring):
         for arg in command.split():
-            _args.append(arg)
+            cmd_args.append(arg)
     elif hasattr(type(command), '__iter__'):
         for arg in command:
             cmd_args.append(arg)
