@@ -6,8 +6,12 @@
 # (C) Datadog, Inc. 2010-2017
 # All rights reserved
 
+import logging
+
 from _util import get_subprocess_output as subprocess_output
 from _util import SubprocessOutputEmptyError  # noqa
+
+log = logging.getLogger(__name__)
 
 def get_subprocess_output(command, log, raise_on_empty_output=True):
     """
@@ -25,4 +29,8 @@ def get_subprocess_output(command, log, raise_on_empty_output=True):
     else:
         raise TypeError("command must be a sequence or string")
 
-    return subprocess_output(cmd_args, raise_on_empty_output)
+    log.debug("Running get_subprocess_output with cmd: '%s'", cmd_args)
+    out, err, returncode = subprocess_output(cmd_args, raise_on_empty_output)
+    log.debug("get_subprocess_output returned with len(out) '%d' ; len(err) '%d' ; returncode '%d'", len(out), len(err), returncode)
+
+    return (out, err, returncode)
