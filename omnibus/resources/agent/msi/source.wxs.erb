@@ -192,6 +192,7 @@
                   Description="Manage your Datadog Agent"
                   Target="[SystemFolder]cmd.exe /C start &quot;&quot; &quot;[DIST]agent.exe&quot; &quot;launch-gui&quot;"
                   WorkingDirectory="DIST"/>
+                  
         <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
         <RegistryValue Root="HKCU"
                        Key="Software\Microsoft\Datadog"
