@@ -4,7 +4,10 @@
 // Copyright 2018 Datadog, Inc.
 
 // +build !windows
+// +build !linux
 // +build apm
+
+// linux handled by systemd/upstart
 
 package embed
 
