@@ -107,7 +107,7 @@ func NewECSListener() (ServiceListener, error) {
 		client:   c,
 		services: make(map[string]Service),
 		stop:     make(chan bool),
-		t:        time.NewTicker(5 * time.Second),
+		t:        time.NewTicker(2 * time.Second),
 	}, nil
 }
 
