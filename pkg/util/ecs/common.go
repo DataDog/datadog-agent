@@ -56,8 +56,8 @@ func GetECSContainers() ([]Container, error) {
 // GetContainers returns all containers exposed by the ECS API
 // after transforming them into "generic" Docker containers.
 // TODO: add a cache
-func GetContainers() ([]docker.Container, error) {
-	var containers []docker.Container
+func GetContainers() ([]*docker.Container, error) {
+	var containers []*docker.Container
 	var stats ContainerStats
 
 	ecsContainers, err := GetECSContainers()
@@ -67,7 +67,7 @@ func GetContainers() ([]docker.Container, error) {
 	}
 	for _, c := range ecsContainers {
 		entityID := fmt.Sprintf("docker://%s", c.DockerID)
-		ctr := docker.Container{
+		ctr := &docker.Container{
 			Type:     "ECS",
 			ID:       c.DockerID,
 			EntityID: entityID,
