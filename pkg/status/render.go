@@ -9,11 +9,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/kardianos/osext"
 	"html/template"
 	"io"
 	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/kardianos/osext"
 )
 
 var (
@@ -43,7 +44,7 @@ func FormatStatus(data []byte) (string, error) {
 	renderChecksStats(b, runnerStats, autoConfigStats, "")
 	renderJMXFetchStatus(b, jmxStats)
 	renderForwarderStatus(b, forwarderStats)
-	renderAggregatorStatus(b, aggregatorStats)
+	renderDogstatsdStatus(b, aggregatorStats)
 
 	return b.String(), nil
 }
@@ -56,8 +57,8 @@ func renderHeader(w io.Writer, stats map[string]interface{}) {
 	}
 }
 
-func renderAggregatorStatus(w io.Writer, aggregatorStats interface{}) {
-	t := template.Must(template.New("aggregator.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "aggregator.tmpl")))
+func renderDogstatsdStatus(w io.Writer, aggregatorStats interface{}) {
+	t := template.Must(template.New("dogstatsd.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "dogstatsd.tmpl")))
 	err := t.Execute(w, aggregatorStats)
 	if err != nil {
 		fmt.Println(err)
