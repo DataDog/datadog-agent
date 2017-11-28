@@ -6,19 +6,20 @@
 
 package app
 
+// Servicedef defines a service
 type Servicedef struct {
-	name			string
-	configKey		string
-
+	name      string
+	configKey string
 }
 
 var subservices = []Servicedef{}
 
-
+// Start starts the service
 func (s *Servicedef) Start() error {
 	return nil
 }
 
+// Stop stops the service
 func (s *Servicedef) Stop() error {
 	return nil
 }

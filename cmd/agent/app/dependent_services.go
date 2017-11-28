@@ -8,17 +8,16 @@ package app
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
-	
 )
 
 // start various subservices (apm, logs, process) based on the config file settings
 
-// checks to see if a given service should be started
-func (s* Servicedef) IsEnabled() bool {
+// IsEnabled checks to see if a given service should be started
+func (s *Servicedef) IsEnabled() bool {
 	return config.Datadog.GetBool(s.configKey)
 }
 
-func startDependentServices()  {
+func startDependentServices() {
 	for _, svc := range subservices {
 		if svc.IsEnabled() {
 			log.Debugf("Attempting to start service: %s", svc.name)
