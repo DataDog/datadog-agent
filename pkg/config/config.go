@@ -86,6 +86,7 @@ func init() {
 	Datadog.SetDefault("enable_gohai", true)
 	Datadog.SetDefault("check_runners", int64(0))
 	Datadog.SetDefault("expvar_port", "5000")
+	Datadog.SetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
 		Datadog.SetDefault("container_proc_root", "/host/proc")
 		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")

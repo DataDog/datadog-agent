@@ -46,14 +46,6 @@
                         Maximum="99.99.99.99" IncludeMaximum='no'/>
     </Upgrade>
 
-    <!-- Close application when uninstalling -->
-    <util:CloseApplication Id="CloseTrayApp" 
-                          CloseMessage="yes" 
-                          Target="agent-manager.exe" 
-                          ElevatedCloseMessage="yes"
-                          TerminateProcess="1"
-                          Timeout="1"
-                          RebootPrompt="no"/>
 
     <!-- No need to restart Windows after the installation -->
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
@@ -97,7 +89,7 @@
         Directory="DIST"
         Execute="immediate"
         Return="check"
-        ExeCommand="[SystemFolder]cmd.exe /C start agent-manager.exe" />
+        ExeCommand="[SystemFolder]cmd.exe /C start &quot;&quot; &quot;[DIST]agent.exe&quot; &quot;launch-gui&quot;" />
 
     <Binary Id="UpgradeHelper" SourceFile="$(var.HelperDir)\upgrade-helper.exe" />
     <CustomAction
@@ -198,7 +190,7 @@
         <Shortcut Id="ApplicationStartMenuShortcut"
                   Name="Datadog Agent Manager"
                   Description="Manage your Datadog Agent"
-                  Target="[DIST]agent-manager.exe"
+                  Target="[SystemFolder]cmd.exe /C start &quot;&quot; &quot;[DIST]agent.exe&quot; &quot;launch-gui&quot;"
                   WorkingDirectory="DIST"/>
         <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
         <RegistryValue Root="HKCU"
@@ -278,8 +270,6 @@
     </Feature>
 
     <InstallExecuteSequence>
-      <Custom Action="WixCloseApplications"
-          After="InstallInitialize"><![CDATA[REMOVE="ALL" OR REINSTALL]]></Custom>
       <Custom Action="CheckForOldVersion"
           After="InstallInitialize"><![CDATA[NOT Installed AND NOT REMOVE]]></Custom>
     </InstallExecuteSequence>

@@ -69,7 +69,7 @@ api_key:
 
 # The port for the browser GUI to be served
 # Setting 'GUI_port: -1' turns off the GUI completely
-GUI_port: 5002
+# GUI_port: -1
 
 # How many workers will be used to run the check (if not specified, is automatically
 # determined based on number of checks running)
