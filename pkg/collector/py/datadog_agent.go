@@ -170,6 +170,9 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
 	cmd.Start()
 
+	// Wait for the pipes to be closed *before* waiting for the cmd to exit, as per os.exec docs
+	wg.Wait()
+
 	retCode := 0
 	err = cmd.Wait()
 	if exiterr, ok := err.(*exec.ExitError); ok {
@@ -177,7 +180,6 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 			retCode = status.ExitStatus()
 		}
 	}
-	wg.Wait()
 
 	if raise > 0 {
 		// raise on error
