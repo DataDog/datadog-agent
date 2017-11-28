@@ -31,6 +31,19 @@ import (
 // 	String() string
 // }
 
+// IsAvailable returns true if there's at least one container provider, false otherwise
+func IsAvailable() bool {
+	var listeners []config.Listeners
+	if err := config.Datadog.UnmarshalKey("listeners", &listeners); err != nil {
+		log.Errorf("unable to parse get listeners from the datadog config - %s", err)
+	}
+
+	if len(listeners) > 0 {
+		return true
+	}
+	return false
+}
+
 // GetContainers it the unique method that returns all containers on the host (or in the task)
 // TODO: create a container interface that docker and ecs can implement
 // and that other agents can consume so that we don't have to
