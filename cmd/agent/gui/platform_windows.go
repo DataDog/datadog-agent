@@ -6,28 +6,28 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	
+
 	"github.com/hectane/go-acl"
 	"github.com/kardianos/osext"
 	"golang.org/x/sys/windows"
-
 )
+
 var (
-	wellKnownSidStrings = map[string]string {
+	wellKnownSidStrings = map[string]string{
 		"Administrators": "S-1-5-32-544",
-		"System": "S-1-5-18",
-		"Users": "S-1-5-32-545",
+		"System":         "S-1-5-18",
+		"Users":          "S-1-5-32-545",
 	}
 	wellKnownSids = make(map[string]*windows.SID)
 )
 
 func init() {
-	
+
 	for key, val := range wellKnownSidStrings {
 		sid, err := windows.StringToSid(val)
 		if err == nil {
 			wellKnownSids[key] = sid
-		} 
+		}
 	}
 }
 
@@ -53,11 +53,11 @@ func saveAuthToken(token string) error {
 	if err == nil {
 		err = acl.Apply(
 			authTokenPath,
-			true, // replace the file permissions
+			true,  // replace the file permissions
 			false, // don't inherit
 			acl.GrantSid(windows.GENERIC_ALL, wellKnownSids["Administrators"]),
 			acl.GrantSid(windows.GENERIC_ALL, wellKnownSids["System"]))
-		
+
 	}
 	return err
 }
