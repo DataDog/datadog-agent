@@ -243,6 +243,8 @@ func StartAgent() error {
 		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
 	}
 
+	// start dependent services
+	startDependentServices()
 	return nil
 }
 

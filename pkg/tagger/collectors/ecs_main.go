@@ -40,13 +40,11 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 		c.expire, err = taggerutil.NewExpire(ecsExpireFreq)
 
 		if err != nil {
-			return FetchOnlyCollection, fmt.Errorf("Failed to instantiate the container expiring process")
+			return NoCollection, err
 		}
 		return FetchOnlyCollection, nil
-	} else {
-		return NoCollection, fmt.Errorf("Failed to connect to ECS, ECS tagging will not work")
 	}
-
+	return NoCollection, fmt.Errorf("cannot find ECS agent")
 }
 
 // Fetch fetches ECS tags

@@ -28,6 +28,11 @@ build do
             delete "#{install_dir}/bin/agent/agent.exe"
             # TODO why does this get generated at all
             delete "#{install_dir}/bin/agent/agent.exe~"
+            # remove the config files for the subservices; they'll be started
+            # based on the config file
+            delete "#{conf_dir}/apm.yaml.default"
+            delete "#{conf_dir}/logs-agent.yaml.default"
+            delete "#{conf_dir}/process_agent.yaml.default"
         else
             # Move checks and configuration files
             mkdir "/etc/datadog-agent"
@@ -59,3 +64,4 @@ build do
         end
     end
 end
+

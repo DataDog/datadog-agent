@@ -6,21 +6,21 @@
 require "./lib/ostools.rb"
 require 'pathname'
 
-name "datadog-trace-agent"
+name "datadog-logs-agent-win"
 
-default_version "master"
+default_version "db/windows_svc"
 
-source git: 'https://github.com/DataDog/datadog-trace-agent.git'
-relative_path 'src/github.com/DataDog/datadog-trace-agent'
+source git: 'https://github.com/DataDog/datadog-log-agent.git'
+relative_path 'src/github.com/DataDog/datadog-log-agent'
 
 if windows?
-  trace_agent_binary = "trace-agent.exe"
+  log_agent_binary = "logagent.exe"
 else
-  trace_agent_binary = "trace-agent"
+  log_agent_binary = "logagent"
 end
 
 build do
-  ship_license "https://raw.githubusercontent.com/DataDog/datadog-trace-agent/#{version}/LICENSE"
+  ship_license "https://raw.githubusercontent.com/DataDog/datadog-log-agent/#{version}/LICENSE"
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
@@ -39,12 +39,12 @@ build do
     }
   end
 
-  command "go get github.com/Masterminds/glide", :env => env
+  #command "go get github.com/Masterminds/glide", :env => env
   command "glide install", :env => env
   command "rake build", :env => env
   if windows?
-    copy trace_agent_binary, "#{install_dir}/bin/agent"
+    copy "build/#{log_agent_binary}", "#{install_dir}/bin/agent"
   else
-    copy trace_agent_binary, "#{install_dir}/embedded/bin"
+    copy log_agent_binary, "#{install_dir}/embedded/bin"
   end
 end

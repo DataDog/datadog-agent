@@ -1,0 +1,8 @@
+version: '2'
+services:
+  redis-no-id:
+    image: "redis:latest"
+  redis-with-id:
+    image: "redis:latest"
+    labels:
+      io.datadog.check.id: "custom-id"

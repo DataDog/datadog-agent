@@ -22,6 +22,15 @@ func diagnose() error {
 	_, err := ConnectToDocker()
 	if err != nil {
 		log.Error(err)
+	} else {
+		log.Info("successfully connected to docker")
+	}
+
+	hostname, err := HostnameProvider("")
+	if err != nil {
+		log.Errorf("returned hostname %q with error: %s", hostname, err)
+	} else {
+		log.Infof("successfully got hostname %q from docker", hostname)
 	}
 	return err
 }

@@ -4,39 +4,46 @@ Collector
 
   Running Checks
   ==============
-{{- with .RunnerStats -}}
-{{- if and (not .Runs) (not .Checks)}}
+{{- with .RunnerStats }}
+  {{- if and (not .Runs) (not .Checks)}}
     No checks have run yet
-{{end -}}
-{{- range .Checks}}
+  {{end -}}
 
+  {{- range .Checks}}
     {{.CheckName}}
     {{printDashes .CheckName "-"}}
       Total Runs: {{.TotalRuns}}
       Metrics: {{.Metrics}}, Total Metrics: {{humanize .TotalMetrics}}
       Events: {{.Events}}, Total Events: {{humanize .TotalEvents}}
       Service Checks: {{.ServiceChecks}}, Total Service Checks: {{humanize .TotalServiceChecks}}
-{{- if .LastError}}
+      {{- if .LastError -}}
       Error: {{lastErrorMessage .LastError}}
       {{lastErrorTraceback .LastError -}}
-{{- end -}}
-{{- if .LastWarnings}} {{- range .LastWarnings }}
+      {{- end }}
+      {{- if .LastWarnings -}}
+        {{- range .LastWarnings }}
       Warning: {{.}}
-{{- end -}} {{- end -}} {{- end -}} {{- end -}}
-{{- with .AutoConfigStats -}} {{- if .LoaderErrors}}
+        {{ end -}}
+      {{- end }}
+  {{ end }}
+{{- end }}
 
+{{- with .AutoConfigStats }}
+  {{- if .LoaderErrors}}
   Loading Errors
   ==============
-{{- range $checkname, $errors := .LoaderErrors}}
+    {{- range $checkname, $errors := .LoaderErrors }}
     {{$checkname}}
     {{printDashes $checkname "-"}}
-{{- range $kind, $err := $errors -}}
-{{- if eq $kind "Python Check Loader"}}
-      {{$kind}}: {{ pythonLoaderError $err -}}
-{{- else}}
-      {{$kind}}: {{ doNotEscape $err -}}
-{{end -}}
-{{end -}}
-{{end -}}
-{{- end}}
-{{end -}}
+      {{- range $kind, $err := $errors -}}
+        {{- if eq $kind "Python Check Loader" }}
+      {{$kind}}:
+        {{ pythonLoaderError $err }}
+        {{ else }}
+      {{$kind}}:
+        {{ doNotEscape $err }}
+        {{ end }}
+      {{- end }}
+    {{- end }}
+  {{- end}}
+{{- end }}

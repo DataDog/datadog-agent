@@ -180,7 +180,44 @@
                 SupportsInformationals="yes"
                 SupportsWarnings="yes"/>
         </Component>
+      </Directory>
+      <Directory Id="BIN" Name="bin">
+        <Directory Id="AGENT" Name="agent">
+          <!-- Windows service declaration for APM agent -->
+          <Component Id="DATADOGAPMSERVICE" Guid="a8e611fa-aedb-4c16-969c-bb827af0bd53">
+            <File Id="trace_agent.exe"
+                Name="trace-agent.exe"
+                Vital="yes"
+                KeyPath="yes"
+                DiskId="1"
+                Source="$(var.InstallDir)/bin/agent/trace-agent.exe"/>
+            <ServiceInstall Id="DatadogAPMServiceInstaller"
+                            DisplayName="Datadog Trace Agent"
+                            Description="Send tracing metrics to Datadog"
+                            Name="datadog-trace-agent"
+                            ErrorControl="ignore"
+                            Start="demand"
+                            Type="ownProcess"
+                            Vital="yes"
+                            Interactive="no"
+                            Account="LocalSystem"
+                            Arguments="-ddconfig=c:\programdata\datadog\trace-agent.conf" >
+                <ServiceDependency Id="datadogagent" />
+            </ServiceInstall>
+            <ServiceControl Id="DatadogAPMStartService"
+                            Name="datadog-trace-agent"
+                            Stop="both"
+                            Remove="uninstall"
+                            Wait="no" />
+            <!-- The "Name" field must match the argument to eventlog.Open() -->
+            <util:EventSource Log="Application" Name="datadog-trace-agent"
+                    EventMessageFile="[AGENT]trace-agent.exe"
+                    SupportsErrors="yes"
+                    SupportsInformationals="yes"
+                    SupportsWarnings="yes"/>
+          </Component>
 
+        </Directory>
       </Directory>
     </DirectoryRef>
 
@@ -266,6 +303,7 @@
       <ComponentRef Id="checks.d" />
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="DATADOGAGENTSERVICE" />
+      <ComponentRef Id="DATADOGAPMSERVICE" />
       <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
       <ComponentRef Id="CleanupMainApplicationFolder" />
       <ComponentRef Id="RegisterConfVariables" />

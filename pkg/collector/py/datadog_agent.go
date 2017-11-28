@@ -142,7 +142,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 		cErr := C.CString(fmt.Sprintf("internal error creating stdout pipe: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
-		return C._none()
+		return nil
 	}
 
 	var wg sync.WaitGroup
@@ -158,7 +158,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 		cErr := C.CString(fmt.Sprintf("internal error creating stderr pipe: %v", err))
 		C.PyErr_SetString(C.PyExc_Exception, cErr)
 		C.free(unsafe.Pointer(cErr))
-		return C._none()
+		return nil
 	}
 
 	var outputErr []byte
@@ -182,14 +182,11 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	if raise > 0 {
 		// raise on error
 		if len(output) == 0 {
-			cModuleName := C.CString("util")
+			cModuleName := C.CString("_util")
 			utilModule := C.PyImport_ImportModule(cModuleName)
 			C.free(unsafe.Pointer(cModuleName))
 			if utilModule == nil {
-				cErr := C.CString("unable to import subprocess empty output exception")
-				C.PyErr_SetString(C.PyExc_Exception, cErr)
-				C.free(unsafe.Pointer(cErr))
-				return C._none()
+				return nil
 			}
 			defer C.Py_DecRef(utilModule)
 
@@ -197,17 +194,14 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 			excClass := C.PyObject_GetAttrString(utilModule, cExcName)
 			C.free(unsafe.Pointer(cExcName))
 			if excClass == nil {
-				cErr := C.CString("unable to import subprocess empty output exception")
-				C.PyErr_SetString(C.PyExc_Exception, cErr)
-				C.free(unsafe.Pointer(cErr))
-				return C._none()
+				return nil
 			}
 			defer C.Py_DecRef(excClass)
 
 			cErr := C.CString("get_subprocess_output expected output but had none.")
 			C.PyErr_SetString((*C.PyObject)(unsafe.Pointer(excClass)), cErr)
 			C.free(unsafe.Pointer(cErr))
-			return C._none()
+			return nil
 		}
 	}
 
