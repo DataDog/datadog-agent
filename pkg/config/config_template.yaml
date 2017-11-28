@@ -64,12 +64,12 @@ api_key:
 # The port for the go_expvar server
 # expvar_port: 5000
 
-# The port for the browser GUI to be served
-# Setting 'GUI_port: -1' turns off the GUI completely
-# GUI_port: -1
-
 # The port on which the IPC api listens
 # cmd_port: 5001
+
+# The port for the browser GUI to be served
+# Setting 'GUI_port: -1' turns off the GUI completely
+GUI_port: 5002
 
 # How many workers will be used to run the check (if not specified, is automatically
 # determined based on number of checks running)
