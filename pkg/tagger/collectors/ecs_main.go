@@ -43,10 +43,8 @@ func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 			return NoCollection, err
 		}
 		return FetchOnlyCollection, nil
-	} else {
-		return NoCollection, fmt.Errorf("can't find ECS agent")
 	}
-
+	return NoCollection, fmt.Errorf("cannot find ECS agent")
 }
 
 // Fetch fetches ECS tags

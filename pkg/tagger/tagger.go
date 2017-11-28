@@ -35,6 +35,12 @@ type Tagger struct {
 	stop        chan bool
 }
 
+type collectorReply struct {
+	name     string
+	mode     collectors.CollectionMode
+	instance collectors.Collector
+}
+
 // newTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
 // You are probably looking for tagger.Tag() using the global instance
@@ -116,14 +122,24 @@ func (t *Tagger) run() error {
 // If the collector implements Retryer and return a FailWillRetry, we keep them in
 // the map and will retry at the next tick.
 func (t *Tagger) startCollectors() {
+	replies := t.tryCollectors()
+	if len(replies) > 0 {
+		t.registerCollectors(replies)
+	}
+	if len(t.candidates) == 0 {
+		log.Debugf("candidate list empty, stopping detection")
+		t.retryTicker.Stop()
+	}
+}
+
+func (t *Tagger) tryCollectors() []collectorReply {
 	t.RLock()
 	if t.candidates == nil {
 		log.Warnf("called with empty candidate map, skipping")
 		t.RUnlock()
-		return
+		return nil
 	}
-	replied := make(map[string]collectors.Collector)
-	modes := make(map[string]collectors.CollectionMode)
+	var replies []collectorReply
 
 	for name, factory := range t.candidates {
 		collector := factory()
@@ -137,52 +153,48 @@ func (t *Tagger) startCollectors() {
 		} else {
 			log.Infof("%s tag collector successfully started", name)
 		}
-		replied[name] = collector
-		modes[name] = mode
+		replies = append(replies, collectorReply{
+			name:     name,
+			mode:     mode,
+			instance: collector,
+		})
 	}
 	t.RUnlock()
+	return replies
+}
 
+func (t *Tagger) registerCollectors(replies []collectorReply) {
 	t.Lock()
-	for name, mode := range modes {
+	for _, c := range replies {
 		// Whatever the outcome, don't try this collector again
-		delete(t.candidates, name)
+		delete(t.candidates, c.name)
 
-		collector, found := replied[name]
-		if !found {
-			log.Errorf("collector %s not found in replies, deleting it", name)
-		}
-		switch mode {
+		switch c.mode {
 		case collectors.PullCollection:
-			pull, ok := collector.(collectors.Puller)
+			pull, ok := c.instance.(collectors.Puller)
 			if ok {
-				t.pullers[name] = pull
-				t.fetchers[name] = pull
+				t.pullers[c.name] = pull
+				t.fetchers[c.name] = pull
 			} else {
-				log.Errorf("error initializing collector %s: does not implement pull", name)
+				log.Errorf("error initializing collector %s: does not implement pull", c.name)
 			}
 		case collectors.StreamCollection:
-			stream, ok := collector.(collectors.Streamer)
+			stream, ok := c.instance.(collectors.Streamer)
 			if ok {
-				t.streamers[name] = stream
-				t.fetchers[name] = stream
+				t.streamers[c.name] = stream
+				t.fetchers[c.name] = stream
 				go stream.Stream()
 			} else {
-				log.Errorf("error initializing collector %s: does not implement stream", name)
+				log.Errorf("error initializing collector %s: does not implement stream", c.name)
 			}
 		case collectors.FetchOnlyCollection:
-			fetch, ok := collector.(collectors.Fetcher)
+			fetch, ok := c.instance.(collectors.Fetcher)
 			if ok {
-				t.fetchers[name] = fetch
+				t.fetchers[c.name] = fetch
 			} else {
-				log.Errorf("error initializing collector %s: does not implement fetch", name)
+				log.Errorf("error initializing collector %s: does not implement fetch", c.name)
 			}
 		}
-	}
-
-	if len(t.candidates) == 0 {
-		log.Debugf("candidate list empty, stopping detection")
-		t.retryTicker.Stop()
-		t.candidates = nil
 	}
 	t.Unlock()
 }
