@@ -274,20 +274,21 @@ function loadManageChecks() {
 
 // Fetches the names of all the configuration (.yaml) files and fills the list of
 // checks to configure with the configurations for all currently enabled checks
-function loadCheckFiles() {
+function loadCheckConfigFiles() {
   $(".list").html("");
 
-  sendMessage("checks/list/yaml", "",
+  sendMessage("checks/listConfigs", "",
   function(data, status, xhr){
     if (typeof(data) == "string") return $("#checks_description").html(data);
     $("#checks_description").html("Select a check to configure.");
 
     data.sort();
     data.forEach(function(item){
-      if (item.substr(item.length - 5) == ".yaml" || item.substr(item.length - 13) == ".yaml.default") {
-        $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
-                          + item  + '\')" class="check">' +  item + '</a>');
-      }
+      // filter out the example files
+      if (item.substr(item.length - 8) == ".example") return;
+
+      $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
+                        + item  + '\')" class="check">' +  item + '</a>');
     });
 
     // Add highlighting current check functionality
@@ -305,32 +306,34 @@ function loadCheckFiles() {
 function loadNewChecks() {
   $(".list").html("");
 
-  // Get a list of all the currently enabled checks
+  // Get a list of all the currently enabled checks (aka checks with a valid config file)
   var enabledChecks = [];
-  sendMessage("checks/list/yaml", "",
+  sendMessage("checks/listConfigs", "",
   function(data, status, xhr){
     if (typeof(data) == "string") return;
     data.sort();
-    data.forEach(function(item){
-      if (item.substr(item.length - 5) == ".yaml") {
-        enabledChecks.push(item.substr(0, item.length - 5));
-      }
+    data.forEach(function(fileName){
+      if (fileName.substr(fileName.length - 8) == ".example") return;
+      var checkName = fileName.substr(0, fileName.indexOf("."));
+      enabledChecks.push(checkName);
     });
 
     // Get a list of all the check (.py) files
-    sendMessage("checks/list/py", "",
+    sendMessage("checks/listChecks", "",
     function(data, status, xhr){
       if (typeof(data) == "string") return $("#checks_description").html(data);
 
       $("#checks_description").html("Select a check to add.");
       data.sort();
       data.forEach(function(item){
+        // Remove the '.py' ending
+        var checkName = item.substr(0, item.length - 3)
+
         // Only display checks that aren't already enabled
-        if (item.substr(item.length - 3) != ".py" ||
-            enabledChecks.indexOf(item.substr(0, item.length - 3)) != -1) return;
+        if (enabledChecks.indexOf(checkName) != -1) return;
 
         $(".list").append('<a href="javascript:void(0)" onclick="addCheck(\'' +
-                          item.substr(0, item.length - 3) + '\')" class="check">' +  item + '</a>');
+                          checkName + '\')" class="check">' +  item + '</a>');
       });
       // Add current item highlighting
       $(".check").click(function(){
@@ -351,7 +354,7 @@ function checkDropdown() {
   var val = $("#checks_dropdown").val();
   $(".right").html("");
 
-  if (val == "enabled") loadCheckFiles();
+  if (val == "enabled") loadCheckConfigFiles();
   else if (val == "add") loadNewChecks();
 }
 
@@ -373,8 +376,7 @@ function showCheckConfig(fileName) {
                        '<div id="save_check">Save</div>' +
                        '<div id="reload_check" class="inactive">Reload</div>' +
                      '</div>');
-    $('#check_input').data('file_name',  fileName);
-    $('#check_input').data('check_name',  fileName.substr(0, fileName.indexOf(".")));   // remove the ending
+    $('#check_input').data('file_name', fileName);
 
     var editor = attachEditor("check_input", data);
     $("#save_check").click(function() { saveCheckSettings(editor); });
@@ -403,6 +405,7 @@ function saveCheckSettings(editor) {
       $(".success").delay(3000).fadeOut("slow");
       $("#checks_description").html("Reload check to see changes.");
       $("#reload_check").removeClass("inactive");
+
       // If this was a default file, we just saved it under a new (non-default) name,
       // so we need to change the displayed name & update the associated file name
       $('#check_input').data('file_name', fileName);
@@ -422,10 +425,11 @@ function saveCheckSettings(editor) {
 // a success it reloads the check (also displays the tests results as a popup)
 function reloadCheck() {
   $("#reload_check").addClass("inactive");
-  var name = $('#check_input').data('check_name');
+  var fileName = $('#check_input').data('file_name');
+  var checkName = fileName.substr(0, fileName.indexOf("."))
 
   // Test it once with new configuration
-  sendMessage("checks/run/" + name + "/once", "",
+  sendMessage("checks/run/" + checkName + "/once", "",
   function(data, status, xhr){
     $("#manage_checks").append("<div class='popup'>" + data["html"] + "<div class='exit'>x</div></div>");
     $(".exit").click(function() {
@@ -436,7 +440,7 @@ function reloadCheck() {
     // If check test run was successful, reload the check
     if (data["success"]) {
       $("#check_run_results").prepend('<div id="summary">Check reloaded: <i class="fa fa-check green"></div>');
-      sendMessage("checks/reload/" + name, "",
+      sendMessage("checks/reload/" + checkName, "",
       function(data, status, xhr)  {
         $("#summary").append('<br>Reload results: ' + data);
       });
@@ -454,28 +458,29 @@ function reloadCheck() {
 
 // Handler for when a used clicks on a check to add: starts the process of adding a check
 // by checking if there's an example file for it, and loading the data from this file if so
-function addCheck(checkName) {
+function addCheck(checkToAdd) {
   // See if theres an example file for this check
-  sendMessage("checks/list/yaml", "",
+  sendMessage("checks/listConfigs", "",
   function(data, status, xhr){
-    var exampleFile = false;
+    var exampleFile = "";
     if (typeof(data) != "string") {
-      data.forEach(function(item){
-        if (item == checkName + ".yaml.example") exampleFile = true;
+      data.forEach(function(fileName) {
+        var checkName = fileName.substr(0, fileName.indexOf("."))
+        if (fileName.substr(fileName.length - 8) == ".example" && checkToAdd == checkName) exampleFile = fileName;
       });
     }
 
     // Display the text editor, filling it with the example file's data (if it exists)
-    if (exampleFile) {
-      sendMessage("checks/getConfig/" + checkName + ".yaml.example", "",
+    if (exampleFile != "") {
+      sendMessage("checks/getConfig/" + exampleFile, "",
       function(data, status, xhr){
-        createNewConfigFile(checkName, data);
+        createNewConfigFile(checkToAdd, data);
       }, function() {
         $(".right").html("");
         $("#checks_description").html("An error occurred.");
       });
     } else {
-      createNewConfigFile(checkName, "# Add your configuration here");
+      createNewConfigFile(checkToAdd, "# Add your configuration here");
     }
   }, function() {
     $(".right").html("");
@@ -503,7 +508,7 @@ function createNewConfigFile(checkName, data) {
 function addNewCheck(editor, name) {
   // Save the new configuration file
   var settings = editor.getValue();
-  sendMessage("checks/setConfig/" + name + ".yaml", JSON.stringify({config: settings}),
+  sendMessage("checks/setConfig/" + name + ": conf.yaml", JSON.stringify({config: settings}),
   function(data, status, xhr) {
     if (data != "Success") {
       $("#checks_description").html(data);
