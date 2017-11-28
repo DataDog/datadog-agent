@@ -14,6 +14,12 @@ WIN_MODULE_WHITELIST = [
     "iostats_wmi_windows.go",
 ]
 
+# List of paths to ignore in misspell's output
+MISSPELL_IGNORED_TARGETS = [
+    "cmd/agent/dist/checks/prometheus_check",
+    "cmd/agent/gui/views/private",
+]
+
 
 @task
 def fmt(ctx, targets, fail_on_fmt=False):
@@ -150,11 +156,18 @@ def misspell(ctx, targets):
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    ctx.run("misspell --error " + " ".join(targets))
-    # misspell exits with status 2 when it finds an issue, if we're here
-    # everything went smooth
-    print("misspell found no issues")
+    result = ctx.run("misspell " + " ".join(targets), hide=True)
+    legit_misspells = []
+    for found_misspell in result.stdout.split("\n"):
+        if len(found_misspell.strip()) > 0:
+            if not any([ignored_target in found_misspell for ignored_target in MISSPELL_IGNORED_TARGETS]):
+                legit_misspells.append(found_misspell)
 
+    if len(legit_misspells) > 0:
+        print("Misspell issues found:\n" + "\n".join(legit_misspells))
+        raise Exit(code=2)
+    else:
+        print("misspell found no issues")
 
 @task
 def deps(ctx):

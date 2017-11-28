@@ -22,7 +22,12 @@ WIN_PKG_BLACKLIST = [
     "./pkg\\util\\xc",
 ]
 
-DEFAULT_TARGETS = [
+DEFAULT_TOOL_TARGETS = [
+    "./pkg",
+    "./cmd",
+]
+
+DEFAULT_TEST_TARGETS = [
     "./pkg",
 ]
 
@@ -30,7 +35,7 @@ DEFAULT_TARGETS = [
 @task()
 def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False, fail_on_fmt=False):
     """
-    Run all the tests on the given targets. If targets are not specified,
+    Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
 
     Example invokation:
@@ -39,19 +44,22 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
     if isinstance(targets, basestring):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string
-        targets = targets.split(',')
+        tool_targets = test_targets = targets.split(',')
     elif targets is None:
-        targets = DEFAULT_TARGETS
+        tool_targets = DEFAULT_TOOL_TARGETS
+        test_targets = DEFAULT_TEST_TARGETS
+    else:
+        tool_targets = test_targets = targets
 
     build_tags = get_default_build_tags()
 
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
-    fmt(ctx, targets=targets, fail_on_fmt=fail_on_fmt)
-    lint(ctx, targets=targets)
-    vet(ctx, targets=targets)
-    misspell(ctx, targets=targets)
-    ineffassign(ctx, targets=targets)
+    fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
+    lint(ctx, targets=tool_targets)
+    vet(ctx, targets=tool_targets)
+    misspell(ctx, targets=tool_targets)
+    ineffassign(ctx, targets=tool_targets)
 
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
@@ -75,12 +83,12 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
 
     if race or coverage:
         matches = []
-        for target in targets:
+        for target in test_targets:
             for root, _, filenames in os.walk(target):
                 if fnmatch.filter(filenames, "*.go"):
                     matches.append(root)
     else:
-        matches = ["{}/...".format(t) for t in targets]
+        matches = ["{}/...".format(t) for t in test_targets]
 
     for match in matches:
         if invoke.platform.WINDOWS:
