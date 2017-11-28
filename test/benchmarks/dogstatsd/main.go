@@ -18,6 +18,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -120,12 +121,18 @@ func (f *forwarderBenchStub) SubmitMetadata(payloads forwarder.Payloads, extraHe
 
 // We could use datadog-go, but I want as little overhead as possible.
 func newStatsdGeneratorSocket(uri string) (*net.UDPConn, error) {
+
 	serverAddr, addrErr := net.ResolveUDPAddr("udp", uri)
 	if addrErr != nil {
 		return nil, fmt.Errorf("dogstatsd: can't ResolveUDPAddr %s: %v", uri, addrErr)
 	}
 
-	cliAddr, addrErr := net.ResolveUDPAddr("udp", "localhost:0")
+	localhost := "localhost:0"
+	if strings.Contains(uri, ":") { //IPv6
+		localhost = "[::1]:0"
+	}
+
+	cliAddr, addrErr := net.ResolveUDPAddr("udp", localhost)
 	if addrErr != nil {
 		return nil, fmt.Errorf("dogstatsd: can't ResolveUDPAddr %s: %v", uri, addrErr)
 	}
