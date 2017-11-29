@@ -69,6 +69,7 @@ api_key:
 
 # The port for the browser GUI to be served
 # Setting 'GUI_port: -1' turns off the GUI completely
+# Default is '5002' on Windows and macOS ; turned off on Linux
 # GUI_port: -1
 
 # How many workers will be used to run the check (if not specified, is automatically
