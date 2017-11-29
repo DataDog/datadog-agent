@@ -71,11 +71,12 @@ type MemStats struct {
 
 // DetailedMem stores detailed stats about memory usage
 type DetailedMem struct {
-	RSS     uint64 `json:"rss"`
-	Cache   uint64 `json:"cache"`
-	Usage   uint64 `json:"usage"`
-	Limit   uint64 `json:"max_usage"`
-	PgFault uint64 `json:"pgfault"`
+	RSS      uint64 `json:"rss"`
+	Cache    uint64 `json:"cache"`
+	Usage    uint64 `json:"usage"`
+	MaxUsage uint64 `json:"max_usage"`
+	Limit    uint64 `json:"hierarchical_memory_limit"`
+	PgFault  uint64 `json:"pgfault"`
 }
 
 // IOStats represents an ECS container IO throughput

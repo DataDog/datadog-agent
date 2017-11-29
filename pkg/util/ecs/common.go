@@ -93,6 +93,8 @@ func GetContainers() ([]*docker.Container, error) {
 
 		if l, found := c.Limits["cpu"]; found && l > 0 {
 			ctr.CPULimit = float64(l)
+		} else {
+			ctr.CPULimit = 100
 		}
 		if l, found := c.Limits["memory"]; found && l > 0 {
 			ctr.MemLimit = l
@@ -104,10 +106,13 @@ func GetContainers() ([]*docker.Container, error) {
 			// TODO: add metrics - complete for https://github.com/DataDog/datadog-process-agent/blob/970729924e6b2b6fe3a912b62657c297621723cc/checks/container_rt.go#L110-L128
 			// start with a hack (translate ecs stats to docker cgroup stuff)
 			// then support ecs stats natively
-			cpu, mem, io := convertECSStats(stats)
+			cpu, mem, io, memLimit := convertECSStats(stats)
 			ctr.CPU = &cpu
 			ctr.Memory = &mem
 			ctr.IO = &io
+			if ctr.MemLimit == 0 {
+				ctr.MemLimit = memLimit
+			}
 		}
 		containers = append(containers, ctr)
 	}
@@ -150,7 +155,7 @@ func computeIOStats(ops []OPStat, kind string) uint64 {
 
 // convertECSStats is responsible for converting ecs stats structs to docker style stats
 // TODO: get rid of this by supporting ECS stats everywhere we use docker stats only.
-func convertECSStats(stats ContainerStats) (docker.CgroupTimesStat, docker.CgroupMemStat, docker.CgroupIOStat) {
+func convertECSStats(stats ContainerStats) (docker.CgroupTimesStat, docker.CgroupMemStat, docker.CgroupIOStat, uint64) {
 	cpu := docker.CgroupTimesStat{
 		System:      stats.CPU.Usage.Kernelmode,
 		User:        stats.CPU.Usage.Usermode,
@@ -166,5 +171,5 @@ func convertECSStats(stats ContainerStats) (docker.CgroupTimesStat, docker.Cgrou
 		ReadBytes:  stats.IO.ReadBytes,
 		WriteBytes: stats.IO.WriteBytes,
 	}
-	return cpu, mem, io
+	return cpu, mem, io, stats.Memory.Details.Limit
 }
