@@ -54,7 +54,6 @@ type ECSService struct {
 }
 
 func init() {
-	log.Infof("registering ecs listener")
 	Register("ecs", NewECSListener)
 }
 
