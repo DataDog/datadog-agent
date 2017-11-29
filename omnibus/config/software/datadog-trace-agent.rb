@@ -8,6 +8,8 @@ require 'pathname'
 
 name "datadog-trace-agent"
 
+dependency "datadog-agent"
+
 default_version "master"
 
 source git: 'https://github.com/DataDog/datadog-trace-agent.git'
@@ -28,23 +30,27 @@ build do
     env = {
         'GOPATH' => gopath.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-        'TRACE_AGENT_VERSION' => default_version, # used by gorake.rb in the trace-agent
         'WINDRES' => 'true',
     }
   else
     env = {
         'GOPATH' => gopath.to_path,
         'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-        'TRACE_AGENT_VERSION' => default_version, # used by gorake.rb in the trace-agent
     }
   end
 
   command "go get github.com/Masterminds/glide", :env => env
   command "glide install", :env => env
-  command "rake build", :env => env
-  if windows?
-    copy trace_agent_binary, "#{install_dir}/bin/agent"
-  else
-    copy trace_agent_binary, "#{install_dir}/embedded/bin"
+
+  block do
+    # defer compilation step in a block to allow getting the project's build version, which is populated
+    # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
+    env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
+    command "rake build", :env => env
+    if windows?
+      copy trace_agent_binary, "#{install_dir}/bin/agent"
+    else
+      copy trace_agent_binary, "#{install_dir}/embedded/bin"
+    end
   end
 end
