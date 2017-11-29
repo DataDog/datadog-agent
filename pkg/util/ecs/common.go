@@ -139,7 +139,7 @@ func GetContainerStats(c Container) (ContainerStats, error) {
 	stats.IO.ReadBytes = computeIOStats(stats.IO.BytesPerDeviceAndKind, "Read")
 	stats.IO.WriteBytes = computeIOStats(stats.IO.BytesPerDeviceAndKind, "Write")
 	log.Errorf("cpu user found: %d", stats.CPU.User)
-	log.Errorf("memory rss found: %d", stats.Memory.RSS)
+	log.Errorf("memory rss found: %d", stats.Memory.Details.RSS)
 	log.Errorf("io read bytes found: %d", stats.IO.ReadBytes)
 	return stats, nil
 }
@@ -163,10 +163,10 @@ func convertECSStats(stats ContainerStats) (docker.CgroupTimesStat, docker.Cgrou
 		User:   stats.CPU.User,
 	}
 	mem := docker.CgroupMemStat{
-		RSS:             stats.Memory.RSS,
-		Cache:           stats.Memory.RSS,
-		Pgfault:         stats.Memory.RSS,
-		MemUsageInBytes: stats.Memory.Usage,
+		RSS:             stats.Memory.Details.RSS,
+		Cache:           stats.Memory.Details.Cache,
+		Pgfault:         stats.Memory.Details.PgFault,
+		MemUsageInBytes: stats.Memory.Details.Usage,
 	}
 	io := docker.CgroupIOStat{
 		ReadBytes:  stats.IO.ReadBytes,
