@@ -92,7 +92,7 @@ func init() {
 
 	} else {
 		Datadog.SetDefault("container_proc_root", "/proc")
-		// for amazon linux the cgroup directory on host is /cgroup
+		// for amazon linux the cgroup directory on host is /cgroup/
 		if _, err := os.Stat("/cgroup/"); err == nil {
 			Datadog.SetDefault("container_cgroup_root", "/cgroup/")
 		} else {
