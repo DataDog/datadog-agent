@@ -53,7 +53,7 @@ func GetContainers() ([]*docker.Container, error) {
 	var listeners []config.Listeners
 	var err error
 	if err = config.Datadog.UnmarshalKey("listeners", &listeners); err != nil {
-		log.Errorf("unable to parse get listeners from the datadog config - %s", err)
+		log.Errorf("unable to parse listeners from the datadog config - %s", err)
 		return nil, err
 	}
 
