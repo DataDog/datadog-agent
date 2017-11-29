@@ -187,7 +187,6 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 	// get all the templates matching service identifiers
 	templates := []check.Config{}
 	ADIdentifiers, err := svc.GetADIdentifiers()
-	log.Infof("processing new service with IDs: %s", ADIdentifiers) // TODO: delete me
 	if err != nil {
 		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetID(), err)
 		return
@@ -198,8 +197,6 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 		tpls, err := cr.templates.Get(adID)
 		if err != nil {
 			log.Errorf("Unable to fetch templates from the cache: %v", err)
-		} else {
-			log.Infof("found templates %s for AD ID %s", tpls, adID)
 		}
 		templates = append(templates, tpls...)
 	}
