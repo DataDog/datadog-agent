@@ -105,10 +105,6 @@ func GetContainers() ([]*docker.Container, error) {
 			// start with a hack (translate ecs stats to docker cgroup stuff)
 			// then support ecs stats natively
 			cpu, mem, io := convertECSStats(stats)
-			log.Errorf("converted stats:")
-			log.Errorf("CPU: %s", cpu.User)
-			log.Errorf("MEM: %s", mem.RSS)
-			log.Errorf("IO: %s", io.ReadBytes)
 			ctr.CPU = &cpu
 			ctr.Memory = &mem
 			ctr.IO = &io
@@ -138,9 +134,6 @@ func GetContainerStats(c Container) (ContainerStats, error) {
 	}
 	stats.IO.ReadBytes = computeIOStats(stats.IO.BytesPerDeviceAndKind, "Read")
 	stats.IO.WriteBytes = computeIOStats(stats.IO.BytesPerDeviceAndKind, "Write")
-	log.Errorf("cpu user found: %d", stats.CPU.User)
-	log.Errorf("memory rss found: %d", stats.Memory.Details.RSS)
-	log.Errorf("io read bytes found: %d", stats.IO.ReadBytes)
 	return stats, nil
 }
 
@@ -159,8 +152,9 @@ func computeIOStats(ops []OPStat, kind string) uint64 {
 // TODO: get rid of this by supporting ECS stats everywhere we use docker stats only.
 func convertECSStats(stats ContainerStats) (docker.CgroupTimesStat, docker.CgroupMemStat, docker.CgroupIOStat) {
 	cpu := docker.CgroupTimesStat{
-		System: stats.CPU.System,
-		User:   stats.CPU.User,
+		System:      stats.CPU.Usage.Kernelmode,
+		User:        stats.CPU.Usage.Usermode,
+		SystemUsage: stats.CPU.System,
 	}
 	mem := docker.CgroupMemStat{
 		RSS:             stats.Memory.Details.RSS,

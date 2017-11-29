@@ -53,8 +53,15 @@ type ContainerStats struct {
 
 // CPUStats represents an ECS container CPU usage
 type CPUStats struct {
-	System uint64 `json:"system_cpu_usage"`
-	User   uint64 `json:"cpu_usage.total_usage"` // TODO: does that work?
+	Usage  CPUUsage `json:"cpu_usage"`
+	System uint64   `json:"system_cpu_usage"`
+}
+
+// CPUUsage represents the details of ECS container CPU usage
+type CPUUsage struct {
+	Total      uint64 `json:"total_usage"`
+	Usermode   uint64 `json:"usage_in_usermode"`
+	Kernelmode uint64 `json:"usage_in_kernelmode"`
 }
 
 // MemStats represents an ECS container memory usage

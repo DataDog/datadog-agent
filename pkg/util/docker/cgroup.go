@@ -81,6 +81,7 @@ type CgroupTimesStat struct {
 	System      uint64
 	User        uint64
 	UsageTotal  float64
+	SystemUsage uint64
 }
 
 // CgroupIOStat store I/O statistics about a cgroup.
