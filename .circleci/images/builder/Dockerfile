@@ -1,10 +1,10 @@
-FROM golang:1.8.3
+FROM golang:1.9.1
 
 RUN sed -i 's/^#\s*\(deb.*universe\)$/\1/g' /etc/apt/sources.list \
     && sed -i 's/^#\s*\(deb.*multiverse\)$/\1/g' /etc/apt/sources.list \
     && sed -i 's/main/main contrib non-free/' /etc/apt/sources.list
 
-RUN apt-get update && apt-get install -y python2.7-dev autoconf autogen intltool
+RUN apt-get update && apt-get install -y python2.7-dev autoconf autogen intltool libssl1.0-dev
 RUN apt-get install -y libsnmp-base libsnmp-dev libpq-dev snmp-mibs-downloader
 
 # Ruby,,,
@@ -14,9 +14,9 @@ RUN mkdir -p /usr/local/etc \
 		echo 'update: --no-document'; \
 	} >> /usr/local/etc/gemrc
 
-ENV RUBY_MAJOR 2.3
-ENV RUBY_VERSION 2.3.4
-ENV RUBY_DOWNLOAD_SHA256 341cd9032e9fd17c452ed8562a8d43f7e45bfe05e411d0d7d627751dd82c578c
+ENV RUBY_MAJOR 2.4
+ENV RUBY_VERSION 2.4.2
+ENV RUBY_DOWNLOAD_SHA256 748a8980d30141bd1a4124e11745bb105b436fb1890826e0d2b9ea31af27f735
 ENV RUBYGEMS_VERSION 2.6.12
 
 # some of ruby's build scripts are written in ruby
@@ -57,14 +57,14 @@ RUN set -ex \
 		--build="$gnuArch" \
 		--disable-install-doc \
 		--enable-shared \
+        --with-openssl=/usr/lib/ssl \
 	&& make -j "$(nproc)" \
 	&& make install \
 	\
 	&& apt-get purge -y --auto-remove $buildDeps \
 	&& cd / \
-	&& rm -r /usr/src/ruby \
-	\
-	&& gem update --system "$RUBYGEMS_VERSION"
+	&& gem update --system "$RUBYGEMS_VERSION" \
+	&& rm -r /usr/src/ruby
 
 ENV BUNDLER_VERSION 1.15.3
 

@@ -8,9 +8,6 @@
 package docker
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -18,14 +15,12 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 var (
-	globalDockerUtil     *dockerUtil
+	globalDockerUtil     *DockerUtil
 	invalidationInterval = 5 * time.Minute
 	lastErr              string
 
@@ -53,9 +48,44 @@ const (
 	DockerEntityPrefix = "docker://"
 )
 
+// GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
+func GetDockerUtil() (*DockerUtil, error) {
+	if globalDockerUtil == nil {
+		globalDockerUtil = &DockerUtil{}
+		globalDockerUtil.SetupRetrier(&retry.Config{
+			Name:          "dockerutil",
+			AttemptMethod: globalDockerUtil.init,
+			Strategy:      retry.RetryCount,
+			RetryCount:    10,
+			RetryDelay:    30 * time.Second,
+		})
+	}
+	err := globalDockerUtil.TriggerRetry()
+	if err != nil {
+		log.Debugf("init error: %s", err)
+		return nil, err
+	}
+	return globalDockerUtil, nil
+}
+
+// EnableTestingMode creates a "mocked" DockerUtil you can use for unit
+// tests that will hit on the docker inspect cache. Please note that all
+// calls to the docker server will result in nil pointer exceptions.
+func EnableTestingMode() {
+	globalDockerUtil = &DockerUtil{}
+	globalDockerUtil.SetupRetrier(&retry.Config{
+		Name:     "dockerutil",
+		Strategy: retry.JustTesting,
+	})
+}
+
 // HostnameProvider docker implementation for the hostname provider
 func HostnameProvider(hostName string) (string, error) {
-	return GetHostname()
+	du, err := GetDockerUtil()
+	if err != nil {
+		return "", err
+	}
+	return du.GetHostname()
 }
 
 // ContainerIDToEntityName returns a prefixed entity name from a container ID
@@ -94,37 +124,6 @@ type Container struct {
 	cgroup *ContainerCgroup
 }
 
-// Inspect allows getting the full docker inspect of a Container
-func (c *Container) Inspect(withSize bool) (types.ContainerJSON, error) {
-	cj, err := Inspect(c.ID, withSize)
-	return cj, err
-}
-
-// Inspect returns a docker inspect object for a given container ID.
-// It tries to locate the container in the inspect cache before making the docker inspect call
-func Inspect(id string, withSize bool) (types.ContainerJSON, error) {
-	cacheKey := GetInspectCacheKey(id)
-	var container types.ContainerJSON
-	var err error
-	var ok bool
-
-	if cached, hit := cache.Cache.Get(cacheKey); hit {
-		container, ok = cached.(types.ContainerJSON)
-		if !ok {
-			log.Errorf("invalid cache format, forcing a cache miss")
-		}
-	} else {
-		if globalDockerUtil == nil {
-			return types.ContainerJSON{}, fmt.Errorf("DockerUtil not initialized")
-		}
-		container, _, err = globalDockerUtil.cli.ContainerInspectWithRaw(context.Background(), id, withSize)
-		// cache the inspect for 10 seconds to reduce pressure on the daemon
-		cache.Cache.Set(cacheKey, container, 10*time.Second)
-	}
-
-	return container, err
-}
-
 // Config is an exported configuration object that is used when
 // initializing the DockerUtil.
 type Config struct {
@@ -147,7 +146,9 @@ type Config struct {
 }
 
 //
-// Expose module-level functions that will interact with a Singleton dockerUtil.
+// Expose module-level functions that will interact with a the globalDockerUtil singleton.
+// These are to be deprecated in favor or directly calling the DockerUtil methods.
+//
 
 type ContainerListConfig struct {
 	IncludeExited bool
@@ -174,44 +175,6 @@ func (cfg *ContainerListConfig) GetCacheKey() string {
 // GetInspectCacheKey returns the key to a given container ID inspect in the agent cache
 func GetInspectCacheKey(ID string) string {
 	return "dockerutil.containers." + ID
-}
-
-// AllContainers returns a slice of all containers.
-func AllContainers(cfg *ContainerListConfig) ([]*Container, error) {
-	if globalDockerUtil != nil {
-		r, err := globalDockerUtil.containers(cfg)
-		if err != nil {
-			return nil, log.Errorf("unable to list Docker containers: %s", err)
-		}
-		return r, nil
-	}
-	return nil, ErrDockerNotAvailable
-}
-
-// AllImages returns a slice of all images.
-func AllImages(includeIntermediate bool) ([]types.ImageSummary, error) {
-	if globalDockerUtil != nil {
-		return globalDockerUtil.dockerImages(includeIntermediate)
-	}
-	return nil, ErrDockerNotAvailable
-}
-
-// CountVolumes returns the number of attached and dangling volumes.
-func CountVolumes() (int, int, error) {
-	if globalDockerUtil != nil {
-		return globalDockerUtil.countVolumes()
-	}
-	return 0, 0, ErrDockerNotAvailable
-}
-
-// ResolveImageName resolves a docker image name, probably containing
-// sha256 checksum as tag in a name:tag format string.
-// This requires InitDockerUtil to be called before.
-func ResolveImageName(image string) (string, error) {
-	if globalDockerUtil != nil {
-		return globalDockerUtil.extractImageName(image), nil
-	}
-	return image, errors.New("dockerutil not initialised")
 }
 
 // SplitImageName splits a valid image name (from ResolveImageName) and returns:
@@ -248,63 +211,7 @@ func SplitImageName(image string) (string, string, string, error) {
 	return long, short, tag, nil
 }
 
-// GetHostname returns the Docker hostname.
-func GetHostname() (string, error) {
-	if globalDockerUtil == nil {
-		return "", ErrDockerNotAvailable
-	}
-	return globalDockerUtil.getHostname()
-}
-
 // IsContainerized returns True if we're running in the docker-dd-agent container.
 func IsContainerized() bool {
 	return os.Getenv("DOCKER_DD_AGENT") == "yes"
-}
-
-// IsAvailable returns true if Docker is available on this machine via a socket.
-func IsAvailable() bool {
-	if _, err := ConnectToDocker(); err != nil {
-		if err != ErrDockerNotAvailable {
-			log.Warnf("unable to connect to docker: %s", err)
-		}
-		return false
-	}
-	return true
-}
-
-func ContainerSelfInspect() ([]byte, error) {
-
-	var out bytes.Buffer
-
-	cID, _, err := readCgroupPaths("/proc/self/cgroup")
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := client.NewEnvClient()
-	defer client.Close()
-
-	if err != nil {
-		return nil, err
-	}
-	co, err := client.ContainerInspect(context.Background(), string(cID))
-	if err != nil {
-		return nil, fmt.Errorf("unable to get Docker inspect: %s", err)
-	}
-
-	jsonStats, err := json.Marshal(co)
-
-	json.Indent(&out, jsonStats, "", "\t")
-	byteArray := out.Bytes()
-
-	return byteArray, err
-}
-
-// GetStorageStats returns the docker global storage stats if available
-// or ErrStorageStatsNotAvailable
-func GetStorageStats() ([]*StorageStats, error) {
-	if globalDockerUtil == nil {
-		return nil, ErrDockerNotAvailable
-	}
-	return globalDockerUtil.getStorageStats()
 }

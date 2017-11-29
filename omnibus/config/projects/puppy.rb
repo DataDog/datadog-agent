@@ -112,7 +112,7 @@ if linux?
     extra_package_file '/lib/systemd/system/datadog-agent6.service'
   end
 
-  if redhat?
+  if redhat? || suse?
     extra_package_file '/lib/systemd/system/datadog-agent6.service'
   end
 

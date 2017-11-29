@@ -35,7 +35,7 @@ type KubeletCollector struct {
 func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	watcher, err := kubelet.NewPodWatcher()
 	if err != nil {
-		return NoCollection, fmt.Errorf("Failed to connect to kubelet, Kubernetes tagging will not work: %s", err)
+		return NoCollection, err
 	}
 	c.watcher = watcher
 	c.infoOut = out

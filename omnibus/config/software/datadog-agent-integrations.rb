@@ -19,7 +19,6 @@ blacklist = [
   'agent_metrics',
   'docker_daemon',
   'kubernetes',
-  'kubernetes_state',
   'ntp',  # provided as a go check by the core agent
   'vsphere',
 ]
@@ -71,6 +70,12 @@ build do
         copy "#{check_dir}/conf.yaml.default", "#{check_conf_dir}/"
       end
 
+      # Copy the metric file, if it exists
+      if File.exist? "#{check_dir}/metrics.yaml"
+        mkdir check_conf_dir unless File.exists? (check_conf_dir)
+        copy "#{check_dir}/metrics.yaml", "#{check_conf_dir}/"
+      end
+
       # We don't have auto_conf on windows yet
       if os != 'windows'
         if File.exist? "#{check_dir}/auto_conf.yaml"
@@ -90,7 +95,6 @@ build do
     # Manually add "core" dependencies that are not listed in the checks requirements
     all_reqs_file.puts "requests==2.11.1"
     all_reqs_file.puts "pympler==0.5"
-    all_reqs_file.puts "subprocess32==3.2.7" if os != 'windows'
 
     all_reqs_file.close
   end

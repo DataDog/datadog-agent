@@ -6,6 +6,7 @@
 package tagger
 
 import (
+	"errors"
 	"sort"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 type DummyCollector struct {
@@ -60,6 +62,11 @@ func NewDummyPuller() collectors.Collector {
 func NewDummyFetcher() collectors.Collector {
 	c := new(DummyCollector)
 	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
+	return c
+}
+
+func NewDummyCollector() collectors.Collector {
+	c := new(DummyCollector)
 	return c
 }
 
@@ -203,4 +210,44 @@ func TestEmptyEntity(t *testing.T) {
 	assert.Nil(t, tags)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "empty entity ID")
+}
+
+func TestRetryCollector(t *testing.T) {
+	c := &DummyCollector{}
+	retryError := &retry.Error{
+		LogicError:    errors.New("testing"),
+		RessourceName: "testing",
+		RetryStatus:   retry.FailWillRetry,
+	}
+	c.On("Detect", mock.Anything).Return(collectors.NoCollection, retryError).Once()
+
+	catalog := collectors.Catalog{
+		"fetcher": func() collectors.Collector { return c },
+	}
+	tagger, _ := newTagger()
+	tagger.Init(catalog)
+
+	assert.Len(t, tagger.candidates, 1)
+	assert.Len(t, tagger.fetchers, 0)
+	c.AssertNumberOfCalls(t, "Detect", 1)
+
+	// Keep trying
+	for i := 0; i < 10; i++ {
+		c.On("Detect", mock.Anything).Return(collectors.NoCollection, retryError).Once()
+		tagger.startCollectors()
+		assert.Len(t, tagger.candidates, 1)
+		assert.Len(t, tagger.fetchers, 0)
+	}
+	c.AssertNumberOfCalls(t, "Detect", 11)
+
+	// Okay, you win
+	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
+	tagger.startCollectors()
+	assert.Len(t, tagger.candidates, 0)
+	assert.Len(t, tagger.fetchers, 1)
+	c.AssertNumberOfCalls(t, "Detect", 12)
+
+	// Don't try again
+	tagger.startCollectors()
+	c.AssertNumberOfCalls(t, "Detect", 12)
 }

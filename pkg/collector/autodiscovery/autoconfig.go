@@ -76,12 +76,13 @@ type AutoConfig struct {
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 	ac := &AutoConfig{
-		collector:     collector,
-		providers:     make([]*providerDescriptor, 0, 5),
-		loaders:       make([]check.Loader, 0, 5),
-		templateCache: NewTemplateCache(),
-		config2checks: make(map[string][]check.ID),
-		stop:          make(chan bool),
+		collector:       collector,
+		providers:       make([]*providerDescriptor, 0, 5),
+		loaders:         make([]check.Loader, 0, 5),
+		templateCache:   NewTemplateCache(),
+		config2checks:   make(map[string][]check.ID),
+		name2jmxmetrics: make(map[string]check.ConfigData),
+		stop:            make(chan bool),
 	}
 	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
 
@@ -193,17 +194,24 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 				errorStats.setConfigError(name, e)
 			}
 
+			var goodConfs []check.Config
 			for _, cfg := range cfgs {
 				// JMX checks can have 2 YAML files: one containing the metrics to collect, one containing the
 				// instance configuration
 				// If the file provider finds any of these metric YAMLs, we store them in a map for future access
 				if cfg.MetricConfig != nil {
 					ac.name2jmxmetrics[cfg.Name] = cfg.MetricConfig
+					// We don't want to save metric files, it's enough to store them in the map
+					continue
 				}
+
+				goodConfs = append(goodConfs, cfg)
 
 				// Clear any old errors if a valid config file is found
 				errorStats.removeConfigError(cfg.Name)
 			}
+
+			cfgs = goodConfs
 		}
 		rawConfigs = append(rawConfigs, cfgs...)
 	}

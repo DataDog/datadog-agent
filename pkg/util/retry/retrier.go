@@ -28,6 +28,7 @@ func (r *Retrier) SetupRetrier(cfg *Config) error {
 	if cfg == nil {
 		return errors.New("nil configuration object")
 	}
+
 	switch cfg.Strategy {
 	case RetryCount:
 		if cfg.RetryCount == 0 {
@@ -40,7 +41,11 @@ func (r *Retrier) SetupRetrier(cfg *Config) error {
 
 	r.Lock()
 	r.cfg = *cfg
-	r.status = Idle
+	if cfg.Strategy == JustTesting {
+		r.status = OK
+	} else {
+		r.status = Idle
+	}
 	r.Unlock()
 
 	return nil
@@ -103,7 +108,7 @@ func (r *Retrier) doTry() *Error {
 				r.status = PermaFail
 			} else {
 				r.status = FailWillRetry
-				r.nextTry = time.Now().Add(r.cfg.RetryDelay)
+				r.nextTry = time.Now().Add(r.cfg.RetryDelay - 100*time.Millisecond)
 			}
 		}
 	}

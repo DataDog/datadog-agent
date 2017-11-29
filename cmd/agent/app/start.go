@@ -174,7 +174,7 @@ func StartAgent() error {
 	guiPort := config.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
 		log.Infof("GUI server port -1 specified: not starting the GUI.")
-	} else if err = gui.StartGUI(guiPort); err != nil {
+	} else if err = gui.StartGUIServer(guiPort); err != nil {
 		log.Errorf("Error while starting GUI: %v", err)
 	}
 
@@ -243,6 +243,8 @@ func StartAgent() error {
 		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
 	}
 
+	// start dependent services
+	startDependentServices()
 	return nil
 }
 

@@ -7,6 +7,7 @@ package mocksender
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/assert"
@@ -17,35 +18,49 @@ type unittestMock struct {
 	mock.Mock
 }
 
-// Test the behavior of AnythingBut
+// A dummy Method to be called
+func (u *unittestMock) dummyMethod(s interface{}) {
+	u.Called(s)
+}
+
 // In this method we could observe an intend failure of "AssertNotCalled" tied to the localTester
-// Method returns the failure state of the localTester
-func (u *unittestMock) assertAnythingBut(t *testing.T, s string) bool {
-	u.Mock.AssertCalled(t, "dummyMethod", mock.AnythingOfType("string"))
+func TestAnythingBut(t *testing.T) {
+	m := &unittestMock{}
+	m.On("dummyMethod", mock.AnythingOfType("string")).Return()
+
+	m.dummyMethod("ok")
+	m.AssertCalled(t, "dummyMethod", mock.AnythingOfType("string"))
+
+	m.dummyMethod("ko")
+	m.AssertCalled(t, "dummyMethod", mock.AnythingOfType("string"))
 
 	// Create a local testing.T just for the following AssertNotCalled
 	localTester := &testing.T{}
 	// Pass the [localTester *testing.T] instead of [t *testing.T]
-	u.Mock.AssertNotCalled(localTester, "dummyMethod", AnythingBut(s))
-	return localTester.Failed()
+	m.AssertNotCalled(localTester, "dummyMethod", AnythingBut("ok"))
+	// Expected a failure on localTester
+	assert.True(t, localTester.Failed())
 }
 
-// A dummy Method to be called
-func (u *unittestMock) dummyMethod(s string) {
-	u.Called(s)
-}
-
-func TestAnythingBut(t *testing.T) {
+// In this method we could observe an intend failure of "AssertNotCalled" tied to the localTester
+func TestIsGreaterOrEqual(t *testing.T) {
 	m := &unittestMock{}
-	m.On("dummyMethod", mock.AnythingOfType("string")).Return()
-	m.dummyMethod("ok")
+	m.On("dummyMethod", mock.AnythingOfType("float64")).Return()
 
-	result := m.assertAnythingBut(t, "ok")
-	assert.False(t, result)
+	const dummyValue = 3.0
+	m.dummyMethod(dummyValue)
 
-	m.dummyMethod("ko")
-	result = m.assertAnythingBut(t, "ok")
-	assert.True(t, result)
+	for i := 0.0; i < dummyValue+1; i++ {
+		m.AssertCalled(t, "dummyMethod", IsGreaterOrEqual(i))
+	}
+	m.AssertNotCalled(t, "dummyMethod", IsGreaterOrEqual(dummyValue+1))
+
+	// Create a local testing.T just for the following AssertCalled
+	localTester := &testing.T{}
+	// Pass the [localTester *testing.T] instead of [t *testing.T]
+	m.AssertCalled(localTester, "dummyMethod", IsGreaterOrEqual(dummyValue+1))
+	// Expected a failure on localTester
+	assert.True(t, localTester.Failed())
 }
 
 func TestExpectedInActual(t *testing.T) {
@@ -94,4 +109,42 @@ func TestMockedServiceCheck(t *testing.T) {
 	tags = append(tags, "container_name:redis")
 	sender.ServiceCheck("docker.exit", metrics.ServiceCheckWarning, "", tags, message)
 	sender.AssertServiceCheck(t, "docker.exit", metrics.ServiceCheckWarning, "", tags, message)
+}
+
+func TestMockedEvent(t *testing.T) {
+	sender := NewMockSender("2")
+	sender.SetupAcceptAll()
+
+	tags := []string{"one", "two"}
+
+	eventTimestamp := time.Date(2010, 01, 01, 01, 01, 01, 00, time.UTC).Unix()
+	eventOne := metrics.Event{
+		Ts:             eventTimestamp,
+		EventType:      "docker",
+		Tags:           tags,
+		AggregationKey: "docker:busybox",
+		SourceTypeName: "docker",
+		Priority:       metrics.EventPriorityNormal,
+	}
+	sender.Event(eventOne)
+	sender.AssertEvent(t, eventOne, time.Second)
+
+	eventTwo := metrics.Event{
+		Ts:             eventTimestamp,
+		EventType:      "docker",
+		Tags:           tags,
+		AggregationKey: "docker:redis",
+		SourceTypeName: "docker",
+		Priority:       metrics.EventPriorityNormal,
+	}
+	sender.AssertEventMissing(t, eventTwo, 0)
+
+	sender.Event(eventTwo)
+	sender.AssertEvent(t, eventTwo, 0)
+
+	eventTwo.Ts = eventTwo.Ts + 10
+	sender.AssertEventMissing(t, eventTwo, 0)
+
+	allowedDelta := time.Since(time.Unix(eventTimestamp, 0))
+	sender.AssertEvent(t, eventTwo, allowedDelta)
 }

@@ -29,7 +29,7 @@ build do
           vars: { install_dir: install_dir }
     end
 
-    if redhat? || debian?
+    if redhat? || debian? || suse?
       erb source: "systemd.service.erb",
           dest: "/lib/systemd/system/datadog-agent6.service",
           mode: 0755,

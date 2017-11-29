@@ -37,7 +37,11 @@ cache. Cache invalidation is triggered by the collectors (or source) by either:
   - sending new tags for the same `Entity`, all the tags from this `Source`
   will be removed and replaced by the new tags
   - sending a **TagInfo** with **DeleteEntity** set, all the entries for this
-  entity (including from other sources) will be deleted
+  entity (including from other sources) will be deleted when **prune()** is
+  called.
+
+The deletions are batched so that if two sources send coliding add and delete
+messages, the delete eventually wins.
 
 ### Tagger
 The Tagger handles the glue between **Collectors** and **TagStore** and the

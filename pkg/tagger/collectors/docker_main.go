@@ -33,6 +33,7 @@ const (
 // It will also embed DockerExtractor collectors for container tagging.
 type DockerCollector struct {
 	client       *client.Client
+	dockerUtil   *docker.DockerUtil
 	stop         chan bool
 	infoOut      chan<- []*TagInfo
 	labelsAsTags map[string]string
@@ -41,11 +42,18 @@ type DockerCollector struct {
 
 // Detect tries to connect to the docker socket and returns success
 func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+	du, err := docker.GetDockerUtil()
+	if err != nil {
+		return NoCollection, err
+	}
+
 	// TODO: refactor with collector.listeners.DockerListener
 	client, err := docker.ConnectToDocker()
 	if err != nil {
 		return NoCollection, fmt.Errorf("Failed to connect to Docker, docker tagging will not work: %s", err)
 	}
+
+	c.dockerUtil = du
 	c.client = client
 	c.stop = make(chan bool)
 	c.infoOut = out

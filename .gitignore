@@ -24,3 +24,6 @@ agentmsg.h
 # go-generated files
 datadog.yaml
 dogstatsd.yaml
+
+# jetbrains IDE directory
+/.idea/

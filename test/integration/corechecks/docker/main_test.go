@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -30,7 +29,9 @@ var skipCleanup = flag.Bool("skip-cleanup", false, "skip cleanup of the docker c
 const instanceTag = "instanceTag:MustBeHere"
 
 var dockerCfgString = `
+collect_events: true
 collect_container_size: true
+collect_images_stats: true
 collect_exit_codes: true
 tags:
   - instanceTag:MustBeHere
@@ -84,12 +85,6 @@ func TestMain(m *testing.M) {
 
 // Called before for first test run: compose up
 func setup() error {
-	if docker.NeedInit() {
-		docker.InitDockerUtil(&docker.Config{
-			CollectNetwork: true,
-		})
-	}
-
 	// Setup global conf
 	config.Datadog.SetConfigType("yaml")
 	err := config.Datadog.ReadConfig(strings.NewReader(datadogCfgString))

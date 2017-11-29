@@ -86,6 +86,8 @@ func init() {
 	Datadog.SetDefault("enable_gohai", true)
 	Datadog.SetDefault("check_runners", int64(0))
 	Datadog.SetDefault("expvar_port", "5000")
+	// Agent GUI access port
+	Datadog.SetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
 		Datadog.SetDefault("container_proc_root", "/host/proc")
 		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
@@ -135,10 +137,11 @@ func init() {
 	Datadog.SetDefault("apm_enabled", true) // this is to support the transition to the new config file
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
-	// Agent GUI access port
-	Datadog.SetDefault("GUI_port", "-1")
-	// Proess Agent
+	// Process Agent
 	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
+
+	// Log Agent
+	Datadog.SetDefault("log_enabled", true)
 
 	Datadog.SetDefault("logging_frequency", int64(20))
 
@@ -170,6 +173,19 @@ func init() {
 	Datadog.BindEnv("bosh_id")
 	Datadog.BindEnv("histogram_aggregates")
 	Datadog.BindEnv("histogram_percentiles")
+
+	// Logs
+	BindEnvAndSetDefault("log_enabled", false)
+	BindEnvAndSetDefault("logset", "")
+	BindEnvAndSetDefault("log_dd_url", "intake.logs.datadoghq.com")
+	BindEnvAndSetDefault("log_dd_port", 10516)
+	BindEnvAndSetDefault("run_path", defaultRunPath)
+}
+
+// BindEnvAndSetDefault sets the default value for a config parameter, and adds an env binding
+func BindEnvAndSetDefault(key string, val interface{}) {
+	Datadog.SetDefault(key, val)
+	Datadog.BindEnv(key)
 }
 
 var (

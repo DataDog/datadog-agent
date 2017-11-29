@@ -10,10 +10,13 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/config"
+
 	log "github.com/cihub/seelog"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/mux"
@@ -21,10 +24,11 @@ import (
 )
 
 var (
-	listener   net.Listener
-	privateKey *rsa.PrivateKey
-	publicKey  *rsa.PublicKey
-	csrfToken  string
+	listener      net.Listener
+	privateKey    *rsa.PrivateKey
+	publicKey     *rsa.PublicKey
+	csrfToken     string
+	authTokenPath string
 )
 
 // Payload struct is for the JSON messages received from a client POST request
@@ -34,15 +38,20 @@ type Payload struct {
 	CaseID string `json:"caseID"`
 }
 
-// StopGUIServer closes the connection to the HTTP server
+// StopGUIServer closes the connection to the HTTP server & removes the authentication token file we created
 func StopGUIServer() {
 	if listener != nil {
 		listener.Close()
 	}
+
+	err := os.Remove(authTokenPath)
+	if err != nil {
+		log.Infof("error deleting gui_auth_token file: " + err.Error())
+	}
 }
 
-// StartGUI creates the router, starts the HTTP server and opens the GUI in a browser
-func StartGUI(port string) error {
+// StartGUIServer creates the router, starts the HTTP server & generates the authentication token for access
+func StartGUIServer(port string) error {
 	// Instantiate the gorilla/mux router
 	router := mux.NewRouter()
 
@@ -72,6 +81,11 @@ func StartGUI(port string) error {
 	}
 	go http.Serve(listener, router)
 
+	return createAuthToken()
+}
+
+// Generates a JWT & CSRF token, then saves them both to a file with the same permissions as datadog.yaml
+func createAuthToken() error {
 	// Generate a pair of RSA keys
 	privateKey, e := rsa.GenerateKey(rand.Reader, 2048)
 	if e != nil {
@@ -97,14 +111,8 @@ func StartGUI(port string) error {
 	}
 	csrfToken = hex.EncodeToString(key)
 
-	// Open the GUI in a browser, passing the authorization tokens as parameters
-	e = open("http://127.0.0.1:" + port + "/authenticate?jwt=" + jwtString + ";csrf=" + csrfToken)
-	if e != nil {
-		return fmt.Errorf("error opening GUI: " + e.Error())
-	}
-
-	log.Infof("GUI opened at 127.0.0.1:" + port)
-	return nil
+	authTokenPath = filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), "gui_auth_token")
+	return saveAuthToken("/authenticate?jwt=" + jwtString + ";csrf=" + csrfToken)
 }
 
 func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {
