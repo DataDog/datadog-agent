@@ -57,6 +57,8 @@ func GetContainers() ([]*docker.Container, error) {
 		return nil, err
 	}
 
+	log.Errorf("listeners: %s", listeners)
+
 	containers := make([]*docker.Container, 0)
 	ctrListConfig := docker.ContainerListConfig{
 		IncludeExited: false,
@@ -66,6 +68,7 @@ func GetContainers() ([]*docker.Container, error) {
 	for _, l := range listeners {
 		switch l.Name {
 		case "docker":
+			log.Errorf("looking for docker containers...")
 			du, err := docker.GetDockerUtil()
 			if err != nil {
 				log.Errorf("unable to connect to docker, passing this provider - %s", err)
@@ -77,6 +80,7 @@ func GetContainers() ([]*docker.Container, error) {
 			}
 			containers = append(containers, ctrs...)
 		case "ecs":
+			log.Errorf("looking for ecs containers...")
 			ctrs, err := ecs.GetContainers()
 			if err != nil {
 				log.Errorf("failed to get container list from ecs - %s", err)
@@ -86,5 +90,6 @@ func GetContainers() ([]*docker.Container, error) {
 			log.Warnf("listener %s is not a known container provider, skipping it", l.Name)
 		}
 	}
+	log.Errorf("found %d containers", len(containers))
 	return containers, err
 }
