@@ -124,7 +124,7 @@ func GetContainerStats(c Container) (ContainerStats, error) {
 	client := http.Client{
 		Timeout: timeout,
 	}
-	resp, err := client.Get(StatsURL)
+	resp, err := client.Get(StatsURL + "/" + c.DockerID)
 	if err != nil {
 		return stats, err
 	}
