@@ -62,6 +62,7 @@ type MemStats struct {
 	Details DetailedMem `json:"stats"`
 }
 
+// DetailedMem stores detailed stats about memory usage
 type DetailedMem struct {
 	RSS     uint64 `json:"rss"`
 	Cache   uint64 `json:"cache"`
