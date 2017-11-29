@@ -59,11 +59,15 @@ type CPUStats struct {
 
 // MemStats represents an ECS container memory usage
 type MemStats struct {
-	RSS     uint64 `json:"stats.rss"`       // TODO: does that work?
-	Cache   uint64 `json:"stats.cache"`     // TODO: does that work?
-	Usage   uint64 `json:"stats.usage"`     // TODO: does that work?
-	Limit   uint64 `json:"stats.max_usage"` // TODO: does that work?
-	PgFault uint64 `json:"stats.pgfault"`   // TODO: does that work?
+	Details DetailedMem `json:"stats"`
+}
+
+type DetailedMem struct {
+	RSS     uint64 `json:"rss"`
+	Cache   uint64 `json:"cache"`
+	Usage   uint64 `json:"usage"`
+	Limit   uint64 `json:"max_usage"`
+	PgFault uint64 `json:"pgfault"`
 }
 
 // IOStats represents an ECS container IO throughput
