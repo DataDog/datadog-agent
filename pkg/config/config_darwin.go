@@ -10,5 +10,5 @@ const (
 	defaultAdditionalChecksPath = "/opt/datadog-agent/etc/checks.d"
 	defaultRunPath              = "/opt/datadog-agent/run"
 	defaultSyslogURI            = "unixgram:///var/run/syslog"
-	defaultGuiPort				= "5002"
+	defaultGuiPort              = "5002"
 )

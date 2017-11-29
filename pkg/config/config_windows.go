@@ -10,5 +10,5 @@ const (
 	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
 	defaultRunPath              = ""
 	defaultSyslogURI            = ""
-	defaultGuiPort				= "5002"
+	defaultGuiPort              = "5002"
 )
