@@ -72,7 +72,6 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
 
-	log.Infof("starting listening to ECS services")
 	go func() {
 		for {
 			select {
@@ -94,7 +93,6 @@ func (l *ECSListener) Stop() {
 // compares the container list to the local cache and sends new/dead services
 // over newService and delService accordingly
 func (l *ECSListener) refreshServices() {
-	log.Infof("refreshing services...")
 	meta, err := ecs.GetTaskMetadata()
 	if err != nil {
 		log.Errorf("failed to get task metadata, not refreshing services - %s", err)
@@ -118,7 +116,6 @@ func (l *ECSListener) refreshServices() {
 					log.Errorf("couldn't create a service out of container %s - Auto Discovery will ignore it", c.DockerID)
 				} else {
 					l.services[c.DockerID] = &s
-					log.Infof("Submitting new service: %s", s.ADIdentifiers)
 					l.newService <- &s
 					delete(notSeen, c.DockerID)
 				}
@@ -137,7 +134,6 @@ func (l *ECSListener) refreshServices() {
 }
 
 func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
-	log.Infof("creating service...")
 	cID := ID(c.DockerID)
 	svc := ECSService{
 		ID:           cID,
@@ -166,12 +162,6 @@ func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
 	if err != nil {
 		log.Errorf("Failed to extract info for container %s - %s", cID[:12], err)
 	}
-	log.Infof("SERVICE:")
-	log.Infof("cluster: %s", svc.clusterName)
-	log.Infof("identifiers: %s", svc.ADIdentifiers)
-	log.Infof("family: %s", svc.taskFamily)
-	log.Infof("version: %s", svc.taskVersion)
-	log.Infof("container: %s", svc.ecsContainer.DockerName)
 	return svc, err
 }
 
