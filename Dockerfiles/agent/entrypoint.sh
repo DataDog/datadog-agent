@@ -40,7 +40,7 @@ if [ $KUBERNETES ]; then
     ln -s /etc/datadog-agent/datadog-kubernetes.yaml /etc/datadog-agent/datadog.yaml
 elif [ $ECS ]; then
     ln -s /etc/datadog-agent/datadog-ecs.yaml /etc/datadog-agent/datadog.yaml
-    # FIXME: please kill me
+    # FIXME: delete this line
     sed -i -e 's/%%port%%/6379/' /etc/datadog-agent/conf.d/redisdb.d/auto_conf.yaml
 
 else
