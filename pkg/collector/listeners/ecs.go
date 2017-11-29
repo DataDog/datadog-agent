@@ -26,7 +26,7 @@ var labelBlackList = map[string]interface{}{
 	"com.amazonaws.ecs.task-definition-version": nil,
 }
 
-// ECSListener implements the ServiceListener interface.
+// ECSListener implements the ServiceListener interface for fargate-backed ECS cluster.
 // It pulls its tasks container list periodically and checks for
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
