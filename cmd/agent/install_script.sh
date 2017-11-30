@@ -171,6 +171,9 @@ elif [ $OS = "SUSE" ]; then
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
   $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://yum.${dd_url}/suse/beta/x86_64\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=https://yum.${dd_url}/DATADOG_RPM_KEY.public' > /etc/zypp/repos.d/datadog.repo"
 
+  echo -e "\033[34m\n* Importing the Datadog GPG Key\n\033[0m"
+  $sudo_cmd rpm --import https://yum.${dd_url}.com/DATADOG_RPM_KEY.public
+
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
   $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog
 
