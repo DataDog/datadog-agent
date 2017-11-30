@@ -508,7 +508,7 @@ function createNewConfigFile(checkName, data) {
 function addNewCheck(editor, name) {
   // Save the new configuration file
   var settings = editor.getValue();
-  sendMessage("checks/setConfig/" + name + ": conf.yaml", JSON.stringify({config: settings}),
+  sendMessage("checks/setConfig/" + name + ".d/conf.yaml", JSON.stringify({config: settings}),
   function(data, status, xhr) {
     if (data != "Success") {
       $("#checks_description").html(data);
