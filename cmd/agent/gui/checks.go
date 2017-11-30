@@ -19,10 +19,7 @@ import (
 )
 
 var (
-	configPaths = []string{
-		config.Datadog.GetString("confd_path"),        // Custom checks
-		filepath.Join(common.GetDistPath(), "conf.d"), // Default check configs
-	}
+	configPath = config.Datadog.GetString("confd_path")
 
 	checkPaths = []string{
 		filepath.Join(common.GetDistPath(), "checks.d"), // Custom checks
@@ -156,14 +153,9 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 
 	var file []byte
 	var e error
-	for _, path := range configPaths {
-		file, e = ioutil.ReadFile(filepath.Join(path, fileName))
-		if e == nil {
-			break
-		}
-	}
-	if file == nil {
-		w.Write([]byte("Error: Couldn't find " + fileName))
+	file, e = ioutil.ReadFile(filepath.Join(configPath, fileName))
+	if e != nil {
+		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
 
@@ -205,16 +197,8 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Attempt to write new configs to custom checks directory
-	path := filepath.Join(config.Datadog.GetString("confd_path"), fileName)
+	path := filepath.Join(configPath, fileName)
 	e = ioutil.WriteFile(path, data, 0600)
-
-	// If the write didn't work, try writing to the default checks directory
-	if e != nil && strings.Contains(e.Error(), "no such file or directory") {
-		path = filepath.Join(common.GetDistPath(), "conf.d", fileName)
-		e = ioutil.WriteFile(path, data, 0600)
-	}
-
 	if e != nil {
 		w.Write([]byte("Error saving config file: " + e.Error()))
 		log.Debug("Error saving config file: " + e.Error())
@@ -254,30 +238,27 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 // Sends a list containing the names of all the config files
 func listConfigs(w http.ResponseWriter, r *http.Request) {
 	filenames := []string{}
-	for _, path := range configPaths {
-		files, e := readConfDir(path)
+	files, e := readConfDir(configPath)
+	if e == nil {
+		// If a default config is found but a non-default version exists, ignore default
+		sort.Strings(files)
+		lookup := make(map[string]bool)
+		for _, file := range files {
+			checkName := file[:strings.Index(file, ".")]
 
-		if e == nil {
-			// If a default config is found but a non-default version exists, ignore default
-			sort.Strings(files)
-			lookup := make(map[string]bool)
-			for _, file := range files {
-				checkName := file[:strings.Index(file, ".")]
-
-				if ext := filepath.Ext(file); ext == ".default" {
-					if _, exists := lookup[checkName]; exists {
-						continue
-					}
+			if ext := filepath.Ext(file); ext == ".default" {
+				if _, exists := lookup[checkName]; exists {
+					continue
 				}
-
-				filenames = append(filenames, file)
-				lookup[checkName] = true
 			}
+
+			filenames = append(filenames, file)
+			lookup[checkName] = true
 		}
 	}
 
 	if len(filenames) == 0 {
-		w.Write([]byte("No configuration (.yaml) files found."))
+		w.Write([]byte("No configuration files found at " + configPath))
 		return
 	}
 
