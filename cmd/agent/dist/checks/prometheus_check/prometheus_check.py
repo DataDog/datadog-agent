@@ -278,7 +278,7 @@ class PrometheusCheck(AgentCheck):
             if message.name in self.ignore_metrics:
                 return  # Ignore the metric
             if message.name in self.metrics_mapper:
-                self._submit_metric(self.metrics_mapper[message.name], message, send_histograms_buckets, custom_tags)
+                self._submit(self.metrics_mapper[message.name], message, send_histograms_buckets, custom_tags)
             else:
                 getattr(self, message.name)(message, **kwargs)
         except AttributeError as err:
@@ -302,7 +302,7 @@ class PrometheusCheck(AgentCheck):
         req.raise_for_status()
         return req.headers['Content-Type'], req.content
 
-    def _submit_metric(self, metric_name, message, send_histograms_buckets=True, custom_tags=None):
+    def _submit(self, metric_name, message, send_histograms_buckets=True, custom_tags=None):
         """
         For each metric in the message, report it as a gauge with all labels as tags
         except if a labels dict is passed, in which case keys are label names we'll extract
