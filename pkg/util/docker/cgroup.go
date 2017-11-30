@@ -464,7 +464,9 @@ func parseCgroupMountPoints(r io.Reader) map[string]string {
 			}
 		}
 	}
-	log.Warnf("current cgroup root is: %s", cgroupRoot)
+	if len(mountPoints) == 0 {
+		log.Warnf("No mountPoints were detected, current cgroup root is: %s", cgroupRoot)
+	}
 	return mountPoints
 }
 
