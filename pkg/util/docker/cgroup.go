@@ -464,6 +464,7 @@ func parseCgroupMountPoints(r io.Reader) map[string]string {
 			}
 		}
 	}
+	log.Warnf("current cgroup root is: %s", cgroupRoot)
 	return mountPoints
 }
 
