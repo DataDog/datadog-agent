@@ -88,6 +88,7 @@ package :msi do
   wix_candle_extension 'WixUtilExtension'
   wix_light_extension 'WixUtilExtension'
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
+  additional_sign_files ["#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/agent.exe"]
 #  extra_package_files File.absolute_path("..\\..\\etc\\datadog-agent\\extra_package_files")
   if ENV['SIGN_WINDOWS']
     signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
