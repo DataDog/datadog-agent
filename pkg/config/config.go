@@ -94,7 +94,13 @@ func init() {
 
 	} else {
 		Datadog.SetDefault("container_proc_root", "/proc")
-		Datadog.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+		// for amazon linux the cgroup directory on host is /cgroup/
+		// we pick memory.stat to make sure it exists and not empty
+		if _, err := os.Stat("/cgroup/memory/memory.stat"); !os.IsNotExist(err) {
+			Datadog.SetDefault("container_cgroup_root", "/cgroup/")
+		} else {
+			Datadog.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+		}
 	}
 	Datadog.SetDefault("proc_root", "/proc")
 	Datadog.SetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
