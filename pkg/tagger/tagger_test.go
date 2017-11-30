@@ -251,3 +251,33 @@ func TestRetryCollector(t *testing.T) {
 	tagger.startCollectors()
 	c.AssertNumberOfCalls(t, "Detect", 12)
 }
+
+func TestErrNotFound(t *testing.T) {
+	c := &DummyCollector{}
+	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
+
+	badErr := errors.New("test failure")
+	catalog := collectors.Catalog{
+		"fetcher": func() collectors.Collector { return c },
+	}
+	tagger, _ := newTagger()
+	tagger.Init(catalog)
+
+	// Result should not be cached
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, badErr).Once()
+	_, err := tagger.Tag("invalid", true)
+	assert.Nil(t, err)
+	c.AssertNumberOfCalls(t, "Fetch", 1)
+
+	// Nil result should be cached now
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, collectors.ErrNotFound).Once()
+	_, err = tagger.Tag("invalid", true)
+	assert.Nil(t, err)
+	c.AssertNumberOfCalls(t, "Fetch", 2)
+
+	// Fetch will not be called again
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, collectors.ErrNotFound).Once()
+	_, err = tagger.Tag("invalid", true)
+	assert.Nil(t, err)
+	c.AssertNumberOfCalls(t, "Fetch", 2)
+}
