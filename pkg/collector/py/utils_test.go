@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Setup the test module
@@ -71,8 +72,17 @@ func TestFindSubclassOf(t *testing.T) {
 
 	// Foo in bar module, get Bar
 	sclass, err = findSubclassOf(fooClass, barModule, gstate)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, 1, sclass.RichCompareBool(barClass, python.Py_EQ))
+
+	// Multiple inheritance test
+	multiBaseModule := python.PyImport_ImportModuleNoBlock("testcheck_multi_base")
+	baseCheckClass := multiBaseModule.GetAttrString("BaseClass")
+	multiModule := python.PyImport_ImportModuleNoBlock("testcheck_multi")
+	derivedCheckClass := multiModule.GetAttrString("DerivedCheck")
+	sclass, err = findSubclassOf(baseCheckClass, multiModule, gstate)
+	require.Nil(t, err)
+	assert.Equal(t, 1, sclass.RichCompareBool(derivedCheckClass, python.Py_EQ))
 }
 
 func TestSubprocessBindings(t *testing.T) {
