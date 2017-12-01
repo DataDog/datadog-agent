@@ -19,6 +19,8 @@ log_level_map = {
 
 
 def _is_affirmative(s):
+    if s is None:
+        return False
     # int or real bool
     if isinstance(s, int):
         return bool(s)
