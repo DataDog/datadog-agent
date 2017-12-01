@@ -248,7 +248,6 @@ func (c *JMXCheck) Stop() {
 
 func (c *JMXCheck) start() error {
 	here, _ := osext.ExecutableFolder()
-	jmxConfPath := config.Datadog.GetString("confd_path")
 	classpath := path.Join(here, "dist", "jmx", jmxJarName)
 	if c.javaToolsJarPath != "" {
 		classpath = fmt.Sprintf("%s:%s", c.javaToolsJarPath, classpath)
@@ -289,7 +288,6 @@ func (c *JMXCheck) start() error {
 		"--ipc_host", config.Datadog.GetString("cmd_host"),
 		"--ipc_port", fmt.Sprintf("%v", config.Datadog.GetInt("cmd_port")),
 		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
-		"--conf_directory", jmxConfPath, // Path of the conf directory that will be read by jmxfetch,
 		"--log_level", jmxLogLevel,
 		"--log_location", path.Join(here, "dist", "jmx", "jmxfetch.log"), // FIXME : Path of the log file. At some point we should have a `run` folder
 		"--reporter", reporter, // Reporter to use
