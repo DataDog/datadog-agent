@@ -213,8 +213,11 @@ func findSubclassOf(base, module *python.PyObject, gstate *stickyLock) (*python.
 			return nil, errors.New(pyErr)
 		}
 
+		subclassesCount := python.PyList_GET_SIZE(subclasses)
+		subclasses.DecRef()
+
 		// `class` has subclasses but checks are supposed to have none, ignore
-		if python.PyList_GET_SIZE(subclasses) > 0 {
+		if subclassesCount > 0 {
 			class.DecRef()
 			continue
 		}
