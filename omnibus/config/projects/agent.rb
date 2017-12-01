@@ -127,11 +127,10 @@ dependency 'datadog-agent'
 # Additional software
 dependency 'datadog-agent-integrations'
 dependency 'jmxfetch'
-# FIXME: no trace-agent on macOS for now
-unless osx?
-  dependency 'datadog-trace-agent'
-end
-unless windows?
+
+# External agents
+dependency 'datadog-trace-agent'
+if linux?
   dependency 'datadog-process-agent'
   dependency 'datadog-logs-agent'
 end
