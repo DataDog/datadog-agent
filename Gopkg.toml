@@ -92,3 +92,7 @@
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
   version = "v1.10.33"
+
+[[constraint]]
+  name = "github.com/moby/moby"
+  version = "1.13.1"

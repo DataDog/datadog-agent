@@ -257,6 +257,12 @@
   revision = "417edcfd99a4d472c262e58f22b4bfe97580f03e"
 
 [[projects]]
+  name = "github.com/moby/moby"
+  packages = ["client"]
+  revision = "092cba3727bb9b4a2f0e922cd6c0f93ea270e363"
+  version = "v1.13.1"
+
+[[projects]]
   name = "github.com/opencontainers/go-digest"
   packages = ["."]
   revision = "aa2ec055abd10d26d539eb630a92241b781ce4bc"
@@ -401,6 +407,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d4f29aad1567ef7834793cec163267bd4d9a5a7009784ff2c5844cec8171b16c"
+  inputs-digest = "480daf6debcfaf8aead406091e2ab8ab1ad608858beb0fa38b6f9bcbc57d3ef5"
   solver-name = "gps-cdcl"
   solver-version = 1
