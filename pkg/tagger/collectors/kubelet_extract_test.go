@@ -17,12 +17,12 @@ import (
 )
 
 func TestKubeletPodTags(t *testing.T) {
-	raw, err := ioutil.ReadFile("./test/kubelet/podlist_1.6.json")
+	raw, err := ioutil.ReadFile("./testdata/kubelet/podlist_1.6.json")
 	require.Nil(t, err)
 	var podlist kubelet.PodList
 	json.Unmarshal(raw, &podlist)
 
-	raw, err = ioutil.ReadFile("./test/kubelet/podlist_1.6_result.json")
+	raw, err = ioutil.ReadFile("./testdata/kubelet/podlist_1.6_result.json")
 	require.Nil(t, err)
 	var expected []*TagInfo
 	json.Unmarshal(raw, &expected)
@@ -46,7 +46,7 @@ func TestKubeletPodTags(t *testing.T) {
 }
 
 func TestKubeletPodLabelPrefix(t *testing.T) {
-	raw, err := ioutil.ReadFile("./test/kubelet/podlist_1.6.json")
+	raw, err := ioutil.ReadFile("./testdata/kubelet/podlist_1.6.json")
 	require.Nil(t, err)
 	var podlist kubelet.PodList
 	json.Unmarshal(raw, &podlist)
