@@ -60,6 +60,7 @@ func (suite *TailerTestSuite) TestTailerTails() {
 	var msg message.Message
 	var err error
 	_, err = suite.testFile.WriteString("hello world\n")
+	suite.Nil(err)
 	_, err = suite.testFile.WriteString("hello again\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
@@ -87,7 +88,7 @@ func writeMessage(file *os.File) {
 }
 
 func listenToChan(inputChan chan *decoder.Input, messagesReceived *uint64) {
-	for _ = range inputChan {
+	for range inputChan {
 		atomic.AddUint64(messagesReceived, 1)
 		tick()
 	}

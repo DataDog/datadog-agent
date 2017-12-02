@@ -76,9 +76,9 @@ func (dt *DockerTailer) Stop() {
 	dt.d.Stop()
 }
 
-// tailFromBegining starts the tailing from the beginning
+// tailFromBeginning starts the tailing from the beginning
 // of the container logs
-func (dt *DockerTailer) tailFromBegining() error {
+func (dt *DockerTailer) tailFromBeginning() error {
 	return dt.tailFrom(time.Time{}.Format(config.DateFormat))
 }
 
@@ -91,7 +91,7 @@ func (dt *DockerTailer) tailFromEnd() error {
 // recoverTailing starts the tailing from the last log line processed, or now
 // if we see this container for the first time
 func (dt *DockerTailer) recoverTailing(a *auditor.Auditor) error {
-	return dt.tailFrom(dt.nextLogSinceDate(a.GetLastCommitedTimestamp(dt.Identifier())))
+	return dt.tailFrom(dt.nextLogSinceDate(a.GetLastCommittedTimestamp(dt.Identifier())))
 }
 
 // nextLogSinceDate returns the `from` value of the next log line
@@ -202,7 +202,7 @@ func (dt *DockerTailer) forwardMessages() {
 func (dt *DockerTailer) keepDockerTagsUpdated() {
 	dt.checkForNewDockerTags()
 	ticker := time.NewTicker(tagsUpdatePeriod)
-	for _ = range ticker.C {
+	for range ticker.C {
 		if dt.shouldStop {
 			return
 		}

@@ -124,7 +124,7 @@ func TestDecodeIncomingDataForMultiLineLogs(t *testing.T) {
 	assert.Equal(t, "1. Hello\\nworld!", string(out.Content))
 	assert.Equal(t, "", d.lineBuffer.String())
 
-	// multiple messages accross two raw data
+	// multiple messages over two raw data
 	inChan <- NewInput([]byte("1. Hello\n"))
 	inChan <- NewInput([]byte("world!\n2. How are you\n"))
 	out = <-outChan

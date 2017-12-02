@@ -50,7 +50,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.Nil(err)
 	suite.testRotatedFile = f
 
-	suite.sources = []*config.IntegrationConfigLogSource{&config.IntegrationConfigLogSource{Type: config.FileType, Path: suite.testPath}}
+	suite.sources = []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: suite.testPath}}
 	suite.s = New(suite.sources, suite.pp, auditor.New(nil))
 	suite.s.setup()
 	for _, tl := range suite.s.tailers {

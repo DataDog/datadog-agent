@@ -62,7 +62,7 @@ func (suite *DockerTailerTestSuite) TestDockerTailerNextLogSinceDate() {
 }
 
 func (suite *DockerTailerTestSuite) TestDockerTailerIdentifier() {
-	suite.tailer.containerId = "test"
+	suite.tailer.ContainerID = "test"
 	suite.Equal("docker:test", suite.tailer.Identifier())
 }
 

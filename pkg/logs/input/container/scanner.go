@@ -55,62 +55,62 @@ func New(sources []*config.IntegrationConfigLogSource, pp *pipeline.Provider, a 
 
 // Start starts the Scanner
 func (s *Scanner) Start() {
-	err := c.setup()
+	err := s.setup()
 	if err == nil {
-		go c.run()
+		go s.run()
 	}
 }
 
 // run lets the Scanner tail docker stdouts
 func (s *Scanner) run() {
 	ticker := time.NewTicker(scanPeriod)
-	for _ = range ticker.C {
-		c.scan(true)
+	for range ticker.C {
+		s.scan(true)
 	}
 }
 
 // scan checks for new containers we're expected to
 // tail, as well as stopped containers or containers that
 // restarted
-func (s *Scanner) scan(tailFromBegining bool) {
-	runningContainers := c.listContainers()
+func (s *Scanner) scan(tailFromBeginning bool) {
+	runningContainers := s.listContainers()
 	containersToMonitor := make(map[string]bool)
 
 	// monitor new containers, and restart tailers if needed
 	for _, container := range runningContainers {
-		for _, source := range c.sources {
-			if c.sourceShouldMonitorContainer(source, container) {
+		for _, source := range s.sources {
+			if s.sourceShouldMonitorContainer(source, container) {
 				containersToMonitor[container.ID] = true
 
-				tailer, isTailed := c.tailers[container.ID]
+				tailer, isTailed := s.tailers[container.ID]
 				if isTailed && tailer.shouldStop {
-					c.stopTailer(tailer)
+					s.stopTailer(tailer)
 					isTailed = false
 				}
 				if !isTailed {
-					c.setupTailer(c.cli, container, source, tailFromBegining, c.pp.NextPipelineChan())
+					s.setupTailer(s.cli, container, source, tailFromBeginning, s.pp.NextPipelineChan())
 				}
 			}
 		}
 	}
 
 	// stop old containers
-	for containerID, tailer := range c.tailers {
+	for containerID, tailer := range s.tailers {
 		_, shouldMonitor := containersToMonitor[containerID]
 		if !shouldMonitor {
-			c.stopTailer(tailer)
+			s.stopTailer(tailer)
 		}
 	}
 }
 
 func (s *Scanner) stopTailer(tailer *DockerTailer) {
-	log.Println("Stop tailing container", c.humanReadableContainerID(tailer.ContainerID))
+	log.Println("Stop tailing container", s.humanReadableContainerID(tailer.ContainerID))
 	tailer.Stop()
-	delete(c.tailers, tailer.ContainerID)
+	delete(s.tailers, tailer.ContainerID)
 }
 
 func (s *Scanner) listContainers() []types.Container {
-	containers, err := c.cli.ContainerList(context.Background(), types.ContainerListOptions{})
+	containers, err := s.cli.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
 		log.Println("Can't tail containers,", err)
 		log.Println("Is datadog-agent part of docker user group?")
@@ -132,7 +132,7 @@ func (s *Scanner) sourceShouldMonitorContainer(source *config.IntegrationConfigL
 
 // Start starts the Scanner
 func (s *Scanner) setup() error {
-	if len(c.sources) == 0 {
+	if len(s.sources) == 0 {
 		return fmt.Errorf("No container source defined")
 	}
 
@@ -141,7 +141,7 @@ func (s *Scanner) setup() error {
 	cli, err := client.NewEnvClient()
 	// Docker's api updates quickly and is pretty unstable, best pinpoint it
 	cli.UpdateClientVersion(dockerAPIVersion)
-	c.cli = cli
+	s.cli = cli
 	if err != nil {
 		log.Println("Can't tail containers,", err)
 		return fmt.Errorf("Can't initialize client")
@@ -154,29 +154,29 @@ func (s *Scanner) setup() error {
 	}
 
 	// Start tailing monitored containers
-	c.scan(false)
+	s.scan(false)
 	return nil
 }
 
-// setupTailer sets one tailer, making it tail from the begining or the end
-func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.IntegrationConfigLogSource, tailFromBegining bool, outputChan chan message.Message) {
-	log.Println("Detected container", container.Image, "-", c.humanReadableContainerID(container.ID))
+// setupTailer sets one tailer, making it tail from the beginning or the end
+func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.IntegrationConfigLogSource, tailFromBeginning bool, outputChan chan message.Message) {
+	log.Println("Detected container", container.Image, "-", s.humanReadableContainerID(container.ID))
 	t := NewDockerTailer(cli, container, source, outputChan)
 	var err error
-	if tailFromBegining {
-		err = t.tailFromBegining()
+	if tailFromBeginning {
+		err = t.tailFromBeginning()
 	} else {
-		err = t.recoverTailing(c.auditor)
+		err = t.recoverTailing(s.auditor)
 	}
 	if err != nil {
 		log.Println(err)
 	}
-	c.tailers[container.ID] = t
+	s.tailers[container.ID] = t
 }
 
 // Stop stops the Scanner and its tailers
 func (s *Scanner) Stop() {
-	for _, t := range c.tailers {
+	for _, t := range s.tailers {
 		t.Stop()
 	}
 }

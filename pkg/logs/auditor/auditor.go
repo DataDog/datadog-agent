@@ -151,8 +151,8 @@ func (a *Auditor) flushRegistry(registry map[string]*RegistryEntry, path string)
 	return ioutil.WriteFile(path, mr, 0644)
 }
 
-// GetLastCommitedOffset returns the last commited offset for a given identifier
-func (a *Auditor) GetLastCommitedOffset(identifier string) (int64, int) {
+// GetLastCommittedOffset returns the last committed offset for a given identifier
+func (a *Auditor) GetLastCommittedOffset(identifier string) (int64, int) {
 	r := a.readOnlyRegistryCopy(a.registry)
 	entry, ok := r[identifier]
 	if !ok {
@@ -161,8 +161,8 @@ func (a *Auditor) GetLastCommitedOffset(identifier string) (int64, int) {
 	return entry.Offset, os.SEEK_CUR
 }
 
-// GetLastCommitedTimestamp returns the last commited offset for a given identifier
-func (a *Auditor) GetLastCommitedTimestamp(identifier string) string {
+// GetLastCommittedTimestamp returns the last committed offset for a given identifier
+func (a *Auditor) GetLastCommittedTimestamp(identifier string) string {
 	r := a.readOnlyRegistryCopy(a.registry)
 	entry, ok := r[identifier]
 	if !ok {

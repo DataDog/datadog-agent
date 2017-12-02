@@ -43,7 +43,7 @@ func main() {
 	}
 
 	done := make(chan bool)
-	for _ = range done {
+	for range done {
 
 	}
 }

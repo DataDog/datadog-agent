@@ -56,14 +56,14 @@ func (s *Scanner) setup() {
 	}
 }
 
-// setupTailer sets one tailer, making it tail from the begining or the end
-func (s *Scanner) setupTailer(source *config.IntegrationConfigLogSource, tailFromBegining bool, outputChan chan message.Message) {
+// setupTailer sets one tailer, making it tail from the beginning or the end
+func (s *Scanner) setupTailer(source *config.IntegrationConfigLogSource, tailFromBeginning bool, outputChan chan message.Message) {
 	t := NewTailer(outputChan, source)
 	var err error
-	if tailFromBegining {
-		err = t.tailFromBegining()
+	if tailFromBeginning {
+		err = t.tailFromBeginning()
 	} else {
-		// resume tailing from last commited offset
+		// resume tailing from last committed offset
 		err = t.recoverTailing(s.auditor)
 	}
 	if err != nil {
@@ -81,7 +81,7 @@ func (s *Scanner) Start() {
 // run lets the Scanner tail its file
 func (s *Scanner) run() {
 	ticker := time.NewTicker(scanPeriod)
-	for _ = range ticker.C {
+	for range ticker.C {
 		s.scan()
 	}
 }

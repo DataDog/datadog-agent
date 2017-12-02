@@ -73,7 +73,7 @@ func (t *Tailer) Identifier() string {
 // recoverTailing starts the tailing from the last log line processed, or now
 // if we tail this file for the first time
 func (t *Tailer) recoverTailing(a *auditor.Auditor) error {
-	return t.tailFrom(a.GetLastCommitedOffset(t.Identifier()))
+	return t.tailFrom(a.GetLastCommittedOffset(t.Identifier()))
 }
 
 // Stop lets  the tailer stop
@@ -124,9 +124,9 @@ func (t *Tailer) startReading(offset int64, whence int) error {
 	return nil
 }
 
-// tailFromBegining lets the tailer start tailing its file
-// from the begining
-func (t *Tailer) tailFromBegining() error {
+// tailFromBeginning lets the tailer start tailing its file
+// from the beginning
+func (t *Tailer) tailFromBeginning() error {
 	return t.tailFrom(0, os.SEEK_SET)
 }
 

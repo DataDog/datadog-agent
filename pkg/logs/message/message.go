@@ -83,7 +83,7 @@ func (m *message) SetSeverity(severity []byte) {
 
 // GetSeverity returns the tags and sources of the message
 // It will default on the LogSource tags payload, but can
-// be overriden in the message itself with tagsPayload
+// be overridden in the message itself with tagsPayload
 func (m *message) GetTagsPayload() []byte {
 	if m.tagsPayload != nil {
 		return m.tagsPayload
