@@ -16,30 +16,30 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-const TCP_TEST_PORT = 10512
+const tcpTestPort = 10512
 
 type TCPTestSuite struct {
 	suite.Suite
 
 	outputChan chan message.Message
-	pp         *pipeline.PipelineProvider
+	pp         *pipeline.Provider
 	source     *config.IntegrationConfigLogSource
 	tcpl       *AbstractNetworkListener
 }
 
 func (suite *TCPTestSuite) SetupTest() {
-	suite.pp = pipeline.NewPipelineProvider()
+	suite.pp = pipeline.NewProvider()
 	suite.pp.MockPipelineChans()
 	suite.outputChan = suite.pp.NextPipelineChan()
-	suite.source = &config.IntegrationConfigLogSource{Type: config.TCP_TYPE, Port: TCP_TEST_PORT}
-	tcpl, err := NewTcpListener(suite.pp, suite.source)
+	suite.source = &config.IntegrationConfigLogSource{Type: config.TCPType, Port: tcpTestPort}
+	tcpl, err := NewTCPListener(suite.pp, suite.source)
 	suite.Nil(err)
 	suite.tcpl = tcpl
 	suite.tcpl.Start()
 }
 
 func (suite *TCPTestSuite) TestTCPReceivesMessages() {
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", TCP_TEST_PORT))
+	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
 	suite.Nil(err)
 	fmt.Fprintf(conn, "hello world\n")
 	msg := <-suite.outputChan

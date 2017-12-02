@@ -14,18 +14,23 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Logs source types
 const (
-	LOGS_RULES       = "LogsRules"
-	TCP_TYPE         = "tcp"
-	UDP_TYPE         = "udp"
-	FILE_TYPE        = "file"
-	DOCKER_TYPE      = "docker"
-	EXCLUDE_AT_MATCH = "exclude_at_match"
-	MASK_SEQUENCES   = "mask_sequences"
-	MULTILINE        = "multi_line"
+	TCPType    = "tcp"
+	UDPType    = "udp"
+	FileType   = "file"
+	DockerType = "docker"
 )
 
-const INTEGRATION_CONFIG_EXTENTION = ".yaml"
+// Logs rule types
+const (
+	ExcludeAtMatch = "exclude_at_match"
+	MaskSequences  = "mask_sequences"
+	MultiLine      = "multi_line"
+)
+
+const logsRules = "LogsRules"
+const integrationConfigExtention = ".yaml"
 
 // LogsProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
@@ -69,7 +74,7 @@ func GetLogsSources() []*IntegrationConfigLogSource {
 }
 
 func getLogsSources(config *viper.Viper) []*IntegrationConfigLogSource {
-	return config.Get(LOGS_RULES).([]*IntegrationConfigLogSource)
+	return config.Get(logsRules).([]*IntegrationConfigLogSource)
 }
 
 // BuildLogsAgentIntegrationsConfigs looks for all yml configs in the ddconfdPath directory,
@@ -114,7 +119,7 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 			logsSourceConfigs = append(logsSourceConfigs, &logSourceConfig)
 		}
 	}
-	config.Set(LOGS_RULES, logsSourceConfigs)
+	config.Set(logsRules, logsSourceConfigs)
 	return nil
 }
 
@@ -139,7 +144,7 @@ func integrationConfigsFromDirectory(dir string, prefix string) []string {
 	files, _ := ioutil.ReadDir(dir)
 	for _, f := range files {
 		if !f.IsDir() {
-			if filepath.Ext(f.Name()) == INTEGRATION_CONFIG_EXTENTION {
+			if filepath.Ext(f.Name()) == integrationConfigExtention {
 				integrationConfigFiles = append(integrationConfigFiles, filepath.Join(prefix, f.Name()))
 			}
 		}
@@ -150,23 +155,23 @@ func integrationConfigsFromDirectory(dir string, prefix string) []string {
 func validateSource(config IntegrationConfigLogSource) error {
 
 	switch config.Type {
-	case FILE_TYPE,
-		DOCKER_TYPE,
-		TCP_TYPE,
-		UDP_TYPE:
+	case FileType,
+		DockerType,
+		TCPType,
+		UDPType:
 	default:
 		return fmt.Errorf("A source must have a valid type (got %s)", config.Type)
 	}
 
-	if config.Type == FILE_TYPE && config.Path == "" {
+	if config.Type == FileType && config.Path == "" {
 		return fmt.Errorf("A file source must have a path")
 	}
 
-	if config.Type == TCP_TYPE && config.Port == 0 {
+	if config.Type == TCPType && config.Port == 0 {
 		return fmt.Errorf("A tcp source must have a port")
 	}
 
-	if config.Type == UDP_TYPE && config.Port == 0 {
+	if config.Type == UDPType && config.Port == 0 {
 		return fmt.Errorf("A udp source must have a port")
 	}
 
@@ -180,26 +185,25 @@ func validateProcessingRules(rules []LogsProcessingRule) ([]LogsProcessingRule, 
 			return nil, fmt.Errorf("LogsAgent misconfigured: all log processing rules need a name")
 		}
 		switch rule.Type {
-		case EXCLUDE_AT_MATCH:
+		case ExcludeAtMatch:
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)
-		case MASK_SEQUENCES:
+		case MaskSequences:
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)
 			rules[i].ReplacePlaceholderBytes = []byte(rule.ReplacePlaceholder)
-		case MULTILINE:
+		case MultiLine:
 			rules[i].Reg = regexp.MustCompile("^" + rule.Pattern)
 		default:
 			if rule.Type == "" {
 				return nil, fmt.Errorf("LogsAgent misconfigured: type must be set for log processing rule `%s`", rule.Name)
-			} else {
-				return nil, fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
 			}
+			return nil, fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
 		}
 	}
 	return rules, nil
 }
 
-// Given a list of tags, BuildTagsPayload generates the bytes array that will be inserted
-// into messages
+// BuildTagsPayload generates the bytes array that will be inserted
+// into messages given a list of tags
 func BuildTagsPayload(configTags, source, sourceCategory string) []byte {
 
 	tagsPayload := []byte{}

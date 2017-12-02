@@ -215,6 +215,7 @@ func (t *Tailer) incrementReadOffset(n int) {
 	atomic.AddInt64(&t.readOffset, int64(n))
 }
 
+// GetReadOffset returns the position of the last byte read in file
 func (t *Tailer) GetReadOffset() int64 {
 	return atomic.LoadInt64(&t.readOffset)
 }

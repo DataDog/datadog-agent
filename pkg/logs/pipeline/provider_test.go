@@ -11,16 +11,16 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type PipelineProviderTestSuite struct {
+type ProviderTestSuite struct {
 	suite.Suite
-	pp *PipelineProvider
+	pp *Provider
 }
 
-func (suite *PipelineProviderTestSuite) SetupTest() {
-	suite.pp = NewPipelineProvider()
+func (suite *ProviderTestSuite) SetupTest() {
+	suite.pp = NewProvider()
 }
 
-func (suite *PipelineProviderTestSuite) TestPipelineProvider() {
+func (suite *ProviderTestSuite) TestProvider() {
 	suite.pp.numberOfPipelines = 3
 	suite.pp.Start(nil, nil)
 	suite.Equal(3, len(suite.pp.pipelinesChans))
@@ -33,13 +33,13 @@ func (suite *PipelineProviderTestSuite) TestPipelineProvider() {
 	suite.Equal(c, suite.pp.NextPipelineChan())
 }
 
-func (suite *PipelineProviderTestSuite) TestPipelineProviderMock() {
+func (suite *ProviderTestSuite) TestProviderMock() {
 	suite.pp.MockPipelineChans()
 	suite.Equal(1, len(suite.pp.pipelinesChans))
 	suite.Equal(int32(1), suite.pp.numberOfPipelines)
 	suite.Equal(suite.pp.NextPipelineChan(), suite.pp.NextPipelineChan())
 }
 
-func TestPipelineProviderTestSuite(t *testing.T) {
-	suite.Run(t, new(PipelineProviderTestSuite))
+func TestProviderTestSuite(t *testing.T) {
+	suite.Run(t, new(ProviderTestSuite))
 }

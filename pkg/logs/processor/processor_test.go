@@ -142,10 +142,10 @@ func TestComputeApiKeyString(t *testing.T) {
 	p := New(nil, nil, "hello", "world")
 
 	source := &config.IntegrationConfigLogSource{}
-	extraContent := p.computeApiKeyString(newNetworkMessage(nil, source))
+	extraContent := p.computeAPIKeyString(newNetworkMessage(nil, source))
 	assert.Equal(t, "hello/world", string(extraContent))
 
 	source = &config.IntegrationConfigLogSource{Logset: "hi"}
-	extraContent = p.computeApiKeyString(newNetworkMessage(nil, source))
+	extraContent = p.computeAPIKeyString(newNetworkMessage(nil, source))
 	assert.Equal(t, "hello/hi", string(extraContent))
 }

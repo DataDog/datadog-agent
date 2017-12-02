@@ -14,7 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 )
 
-type PipelineProvider struct {
+// Provider provides message channels
+type Provider struct {
 	numberOfPipelines int32
 	chanSizes         int
 	pipelinesChans    [](chan message.Message)
@@ -22,9 +23,9 @@ type PipelineProvider struct {
 	currentChanIdx int32
 }
 
-// NewPipelineProvider returns a new PipelineProvider
-func NewPipelineProvider() *PipelineProvider {
-	return &PipelineProvider{
+// NewProvider returns a new Provider
+func NewProvider() *Provider {
+	return &Provider{
 		numberOfPipelines: config.NumberOfPipelines,
 		chanSizes:         config.ChanSizes,
 		pipelinesChans:    [](chan message.Message){},
@@ -33,7 +34,7 @@ func NewPipelineProvider() *PipelineProvider {
 }
 
 // Start initializes the pipelines
-func (pp *PipelineProvider) Start(cm *sender.ConnectionManager, auditorChan chan message.Message) {
+func (pp *Provider) Start(cm *sender.ConnectionManager, auditorChan chan message.Message) {
 
 	for i := int32(0); i < pp.numberOfPipelines; i++ {
 
@@ -54,14 +55,16 @@ func (pp *PipelineProvider) Start(cm *sender.ConnectionManager, auditorChan chan
 	}
 }
 
-func (pp *PipelineProvider) MockPipelineChans() {
+// MockPipelineChans initializes pipelinesChans for testing purpose
+// TODO: move this somewhere else
+func (pp *Provider) MockPipelineChans() {
 	pp.pipelinesChans = [](chan message.Message){}
 	pp.pipelinesChans = append(pp.pipelinesChans, make(chan message.Message))
 	pp.numberOfPipelines = 1
 }
 
-// Start initializes the pipelines
-func (pp *PipelineProvider) NextPipelineChan() chan message.Message {
+// NextPipelineChan returns the next pipeline
+func (pp *Provider) NextPipelineChan() chan message.Message {
 	idx := atomic.AddInt32(&pp.currentChanIdx, 1)
 	return pp.pipelinesChans[idx%pp.numberOfPipelines]
 }

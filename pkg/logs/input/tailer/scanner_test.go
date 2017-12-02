@@ -27,13 +27,13 @@ type ScannerTestSuite struct {
 	testRotatedFile *os.File
 
 	outputChan chan message.Message
-	pp         *pipeline.PipelineProvider
+	pp         *pipeline.Provider
 	sources    []*config.IntegrationConfigLogSource
 	s          *Scanner
 }
 
 func (suite *ScannerTestSuite) SetupTest() {
-	suite.pp = pipeline.NewPipelineProvider()
+	suite.pp = pipeline.NewProvider()
 	suite.pp.MockPipelineChans()
 	suite.outputChan = suite.pp.NextPipelineChan()
 
@@ -50,7 +50,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.Nil(err)
 	suite.testRotatedFile = f
 
-	suite.sources = []*config.IntegrationConfigLogSource{&config.IntegrationConfigLogSource{Type: config.FILE_TYPE, Path: suite.testPath}}
+	suite.sources = []*config.IntegrationConfigLogSource{&config.IntegrationConfigLogSource{Type: config.FileType, Path: suite.testPath}}
 	suite.s = New(suite.sources, suite.pp, auditor.New(nil))
 	suite.s.setup()
 	for _, tl := range suite.s.tailers {

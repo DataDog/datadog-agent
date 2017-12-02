@@ -41,7 +41,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	suite.testFile = f
 	suite.outputChan = make(chan message.Message, chanSize)
 	suite.source = &config.IntegrationConfigLogSource{
-		Type: config.FILE_TYPE,
+		Type: config.FileType,
 		Path: suite.testPath,
 	}
 	suite.tl = NewTailer(suite.outputChan, suite.source)
@@ -148,7 +148,7 @@ func (suite *TailerTestSuite) TestTailerIsTooSlowAndClosed() {
 	testPath := fmt.Sprintf("%s/tailer2.log", suite.testDir)
 	testFile, _ := os.Create(testPath)
 	defer testFile.Close()
-	tl := NewTailer(nil, &config.IntegrationConfigLogSource{Type: config.FILE_TYPE, Path: testPath})
+	tl := NewTailer(nil, &config.IntegrationConfigLogSource{Type: config.FileType, Path: testPath})
 	tl.sleepDuration = 50 * time.Millisecond
 	tl.closeTimeout = 2 * time.Millisecond
 

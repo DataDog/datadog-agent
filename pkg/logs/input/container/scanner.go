@@ -22,30 +22,30 @@ import (
 )
 
 const scanPeriod = 10 * time.Second
-const DOCKER_API_VERSION = "1.25"
+const dockerAPIVersion = "1.25"
 
-// A ContainerInput listens for stdout and stderr of containers
-type ContainerInput struct {
-	pp      *pipeline.PipelineProvider
+// A Scanner listens for stdout and stderr of containers
+type Scanner struct {
+	pp      *pipeline.Provider
 	sources []*config.IntegrationConfigLogSource
 	tailers map[string]*DockerTailer
 	cli     *client.Client
 	auditor *auditor.Auditor
 }
 
-// New returns an initialized ContainerInput
-func New(sources []*config.IntegrationConfigLogSource, pp *pipeline.PipelineProvider, a *auditor.Auditor) *ContainerInput {
+// New returns an initialized Scanner
+func New(sources []*config.IntegrationConfigLogSource, pp *pipeline.Provider, a *auditor.Auditor) *Scanner {
 
 	containerSources := []*config.IntegrationConfigLogSource{}
 	for _, source := range sources {
 		switch source.Type {
-		case config.DOCKER_TYPE:
+		case config.DockerType:
 			containerSources = append(containerSources, source)
 		default:
 		}
 	}
 
-	return &ContainerInput{
+	return &Scanner{
 		pp:      pp,
 		sources: containerSources,
 		tailers: make(map[string]*DockerTailer),
@@ -53,16 +53,16 @@ func New(sources []*config.IntegrationConfigLogSource, pp *pipeline.PipelineProv
 	}
 }
 
-// Start starts the ContainerInput
-func (c *ContainerInput) Start() {
+// Start starts the Scanner
+func (s *Scanner) Start() {
 	err := c.setup()
 	if err == nil {
 		go c.run()
 	}
 }
 
-// run lets the ContainerInput tail docker stdouts
-func (c *ContainerInput) run() {
+// run lets the Scanner tail docker stdouts
+func (s *Scanner) run() {
 	ticker := time.NewTicker(scanPeriod)
 	for _ = range ticker.C {
 		c.scan(true)
@@ -72,7 +72,7 @@ func (c *ContainerInput) run() {
 // scan checks for new containers we're expected to
 // tail, as well as stopped containers or containers that
 // restarted
-func (c *ContainerInput) scan(tailFromBegining bool) {
+func (s *Scanner) scan(tailFromBegining bool) {
 	runningContainers := c.listContainers()
 	containersToMonitor := make(map[string]bool)
 
@@ -95,21 +95,21 @@ func (c *ContainerInput) scan(tailFromBegining bool) {
 	}
 
 	// stop old containers
-	for containerId, tailer := range c.tailers {
-		_, shouldMonitor := containersToMonitor[containerId]
+	for containerID, tailer := range c.tailers {
+		_, shouldMonitor := containersToMonitor[containerID]
 		if !shouldMonitor {
 			c.stopTailer(tailer)
 		}
 	}
 }
 
-func (c *ContainerInput) stopTailer(tailer *DockerTailer) {
-	log.Println("Stop tailing container", c.HumanReadableContainerId(tailer.containerId))
+func (s *Scanner) stopTailer(tailer *DockerTailer) {
+	log.Println("Stop tailing container", c.humanReadableContainerID(tailer.ContainerID))
 	tailer.Stop()
-	delete(c.tailers, tailer.containerId)
+	delete(c.tailers, tailer.ContainerID)
 }
 
-func (c *ContainerInput) listContainers() []types.Container {
+func (s *Scanner) listContainers() []types.Container {
 	containers, err := c.cli.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
 		log.Println("Can't tail containers,", err)
@@ -119,7 +119,7 @@ func (c *ContainerInput) listContainers() []types.Container {
 	return containers
 }
 
-func (c *ContainerInput) sourceShouldMonitorContainer(source *config.IntegrationConfigLogSource, container types.Container) bool {
+func (s *Scanner) sourceShouldMonitorContainer(source *config.IntegrationConfigLogSource, container types.Container) bool {
 	if source.Image != "" && container.Image != source.Image {
 		return false
 	}
@@ -130,8 +130,8 @@ func (c *ContainerInput) sourceShouldMonitorContainer(source *config.Integration
 	return true
 }
 
-// Start starts the ContainerInput
-func (c *ContainerInput) setup() error {
+// Start starts the Scanner
+func (s *Scanner) setup() error {
 	if len(c.sources) == 0 {
 		return fmt.Errorf("No container source defined")
 	}
@@ -140,7 +140,7 @@ func (c *ContainerInput) setup() error {
 
 	cli, err := client.NewEnvClient()
 	// Docker's api updates quickly and is pretty unstable, best pinpoint it
-	cli.UpdateClientVersion(DOCKER_API_VERSION)
+	cli.UpdateClientVersion(dockerAPIVersion)
 	c.cli = cli
 	if err != nil {
 		log.Println("Can't tail containers,", err)
@@ -159,8 +159,8 @@ func (c *ContainerInput) setup() error {
 }
 
 // setupTailer sets one tailer, making it tail from the begining or the end
-func (c *ContainerInput) setupTailer(cli *client.Client, container types.Container, source *config.IntegrationConfigLogSource, tailFromBegining bool, outputChan chan message.Message) {
-	log.Println("Detected container", container.Image, "-", c.HumanReadableContainerId(container.ID))
+func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.IntegrationConfigLogSource, tailFromBegining bool, outputChan chan message.Message) {
+	log.Println("Detected container", container.Image, "-", c.humanReadableContainerID(container.ID))
 	t := NewDockerTailer(cli, container, source, outputChan)
 	var err error
 	if tailFromBegining {
@@ -174,13 +174,13 @@ func (c *ContainerInput) setupTailer(cli *client.Client, container types.Contain
 	c.tailers[container.ID] = t
 }
 
-// Stop stops the ContainerInput and its tailers
-func (c *ContainerInput) Stop() {
+// Stop stops the Scanner and its tailers
+func (s *Scanner) Stop() {
 	for _, t := range c.tailers {
 		t.Stop()
 	}
 }
 
-func (c *ContainerInput) HumanReadableContainerId(containerId string) string {
-	return containerId[:12]
+func (s *Scanner) humanReadableContainerID(containerID string) string {
+	return containerID[:12]
 }

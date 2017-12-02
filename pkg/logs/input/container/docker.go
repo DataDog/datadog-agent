@@ -39,7 +39,7 @@ const messageHeaderLength = 8
 // With docker api, there is no way to know if a log comes from strout or stderr
 // so if we want to capture the severity, we need to tail both in two goroutines
 type DockerTailer struct {
-	containerId   string
+	ContainerID   string
 	outputChan    chan message.Message
 	d             *decoder.Decoder
 	reader        io.ReadCloser
@@ -55,7 +55,7 @@ type DockerTailer struct {
 // NewDockerTailer returns a new DockerTailer
 func NewDockerTailer(cli *client.Client, container types.Container, source *config.IntegrationConfigLogSource, outputChan chan message.Message) *DockerTailer {
 	return &DockerTailer{
-		containerId: container.ID,
+		ContainerID: container.ID,
 		outputChan:  outputChan,
 		d:           decoder.InitializeDecoder(source),
 		source:      source,
@@ -67,7 +67,7 @@ func NewDockerTailer(cli *client.Client, container types.Container, source *conf
 
 // Identifier returns a string that uniquely identifies a source
 func (dt *DockerTailer) Identifier() string {
-	return fmt.Sprintf("docker:%s", dt.containerId)
+	return fmt.Sprintf("docker:%s", dt.ContainerID)
 }
 
 // Stop stops the DockerTailer
@@ -129,7 +129,7 @@ func (dt *DockerTailer) startReading(from string) error {
 		Details:    false,
 		Since:      from,
 	}
-	reader, err := dt.cli.ContainerLogs(context.Background(), dt.containerId, options)
+	reader, err := dt.cli.ContainerLogs(context.Background(), dt.ContainerID, options)
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ func (dt *DockerTailer) keepDockerTagsUpdated() {
 }
 
 func (dt *DockerTailer) checkForNewDockerTags() {
-	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(dt.containerId), true)
+	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(dt.ContainerID), true)
 	if err != nil {
 		log.Println(err)
 	} else {
@@ -239,9 +239,9 @@ func (dt *DockerTailer) parseMessage(msg []byte) (string, []byte, []byte, error)
 	}
 
 	// First byte is 1 for stdout and 2 for stderr
-	sev := config.SEV_INFO
+	sev := config.SevInfo
 	if msg[0] == 2 {
-		sev = config.SEV_ERROR
+		sev = config.SevError
 	}
 
 	// timestamp goes from byte 8 till first space

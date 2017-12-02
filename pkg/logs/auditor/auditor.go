@@ -183,15 +183,15 @@ func (a *Auditor) cleanupRegistry(registry map[string]*RegistryEntry) {
 	}
 }
 
-// JsonRegistry represents the registry that will be written on disk
-type JsonRegistry struct {
+// JSONRegistry represents the registry that will be written on disk
+type JSONRegistry struct {
 	Version  int
 	Registry map[string]RegistryEntry
 }
 
 // marshalRegistry marshals a registry
 func (a *Auditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, error) {
-	r := JsonRegistry{
+	r := JSONRegistry{
 		Version:  1,
 		Registry: registry,
 	}
@@ -200,7 +200,7 @@ func (a *Auditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, er
 
 // unmarshalRegistry unmarshals a registry
 func (a *Auditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry, error) {
-	var r JsonRegistry
+	var r JSONRegistry
 	err := json.Unmarshal(b, &r)
 	if err != nil {
 		return nil, err
@@ -219,19 +219,19 @@ func (a *Auditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry, error)
 
 // Legacy Registry logic
 
-type RegistryEntryV0 struct {
+type registryEntryV0 struct {
 	Path      string
 	Timestamp time.Time
 	Offset    int64
 }
 
-type JsonRegistryV0 struct {
+type jsonRegistryV0 struct {
 	Version  int
-	Registry map[string]RegistryEntryV0
+	Registry map[string]registryEntryV0
 }
 
 func (a *Auditor) unmarshalRegistryV0(b []byte) (map[string]*RegistryEntry, error) {
-	var r JsonRegistryV0
+	var r jsonRegistryV0
 	err := json.Unmarshal(b, &r)
 	if err != nil {
 		return nil, err
