@@ -19,7 +19,7 @@ To build the Agent you need:
  * Python 2.7 along with development libraries.
  * [Invoke](http://www.pyinvoke.org/installing.html), you can install it via
    `pip install invoke` or via [Homebrew](https://brew.sh) on OSX/macOS with
-   `brew install invoke`.
+   `brew install pyinvoke`.
 
 Builds and tests are orchestrated with `invoke`, type `invoke --list` on a shell
 to see the available tasks.
