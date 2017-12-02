@@ -1,0 +1,3 @@
+logs:
+  - type: tcp
+    logset: hasnoport
