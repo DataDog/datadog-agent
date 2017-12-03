@@ -10,7 +10,6 @@ package collectors
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
@@ -111,10 +110,10 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 	for i, test := range testCases {
 		dc.envAsTags = test.toRecordEnvAsTags
 		dc.labelsAsTags = test.toRecordLabelsAsTags
-		tags := utils.NewTagList()
-		dc.recordEnvVariableFromInspect(tags, test.co.Config.Env)
-		dc.recordLabelsFromInspect(tags, test.co.Config.Labels)
-		low, high := tags.Compute()
+		ex := newExtractor(dc)
+		ex.extractEnvironmentVariables(test.co.Config.Env)
+		ex.extractLabels(test.co.Config.Labels)
+		low, high := ex.tags.Compute()
 
 		// Low card tags
 		assert.Equal(t, len(test.expectedLow), len(low), "test case %d", i)
