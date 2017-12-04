@@ -37,9 +37,19 @@ func TestAddHigh(t *testing.T) {
 	list := NewTagList()
 	list.AddHigh("foo", "bar")
 	list.AddHigh("faa", "baz")
-	require.Empty(t, 0, list.lowCardTags)
+	require.Empty(t, list.lowCardTags)
 	require.Len(t, list.highCardTags, 2)
 	require.Equal(t, "bar", list.highCardTags["foo"])
+	require.Equal(t, "baz", list.highCardTags["faa"])
+}
+
+func TestAddHighOrLow(t *testing.T) {
+	list := NewTagList()
+	list.AddAuto("foo", "bar")
+	list.AddAuto("+faa", "baz")
+	require.Len(t, list.lowCardTags, 1)
+	require.Len(t, list.highCardTags, 1)
+	require.Equal(t, "bar", list.lowCardTags["foo"])
 	require.Equal(t, "baz", list.highCardTags["faa"])
 }
 
@@ -48,11 +58,15 @@ func TestCompute(t *testing.T) {
 	list.AddHigh("foo", "bar")
 	list.AddLow("faa", "baz")
 	list.AddLow("low", "yes")
+	list.AddAuto("+high", "yes-high")
+	list.AddAuto("lowlow", "yes-low")
 
 	low, high := list.Compute()
-	require.Len(t, low, 2)
+	require.Len(t, low, 3)
 	require.Contains(t, low, "faa:baz")
 	require.Contains(t, low, "low:yes")
-	require.Len(t, high, 1)
+	require.Contains(t, low, "lowlow:yes-low")
+	require.Len(t, high, 2)
 	require.Contains(t, high, "foo:bar")
+	require.Contains(t, high, "high:yes-high")
 }
