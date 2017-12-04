@@ -35,8 +35,9 @@ The `AgentCheck` base class provides some useful attributes and methods:
 - `self.log`: a [logger](https://docs.python.org/2/library/logging.html).
 - `get_instance_proxy()`: a function returning a dictionary containing informations on the Proxy being used
 
-**Warning**: when loading a Python check, the Agent will ignore any class that
-has been derived - **you should never derive from an existing Check**.
+**Warning**: when loading a Python check, the Agent will inspect the available
+modules and packages searching for a subclass of `AgentCheck`. If such a class
+exists but has been derived in turn, it'll be ignored - **you should never derive from an existing Check**.
 
 ## Error handling
 
