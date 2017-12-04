@@ -12,6 +12,8 @@ filesystem layout.
 
 #### To Upgrade
 
+**Note**: To use the new log collection feature, do a `Fresh install` instead of the upgrade.
+
 In case you have an Agent version 5.17 or later and you want to import the
 existing configuration:
 
