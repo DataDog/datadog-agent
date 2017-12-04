@@ -52,11 +52,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			// Pod labels
 			for labelName, labelValue := range pod.Metadata.Labels {
 				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
-					if tagName[0] == '+' {
-						tags.AddHigh(tagName[1:], labelValue)
-					} else {
-						tags.AddLow(tagName, labelValue)
-					}
+					tags.AddAuto(tagName, labelValue)
 				}
 			}
 
