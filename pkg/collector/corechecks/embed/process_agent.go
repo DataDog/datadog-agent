@@ -19,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 
 	log "github.com/cihub/seelog"
-	"github.com/kardianos/osext"
 	"gopkg.in/yaml.v2"
 )
 
@@ -225,7 +225,7 @@ func init() {
 }
 
 func getProcessAgentDefaultBinPath() (string, error) {
-	here, _ := osext.ExecutableFolder()
+	here, _ := executable.Folder()
 	binPath := path.Join(here, "..", "..", "embedded", "bin", "process-agent")
 	if _, err := os.Stat(binPath); err == nil {
 		return binPath, nil

@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	log "github.com/cihub/seelog"
-	"github.com/kardianos/osext"
 )
 
 // LogsCheck keeps track of the running command
@@ -55,7 +55,7 @@ func (c *LogsCheck) run() error {
 	default:
 	}
 
-	here, _ := osext.ExecutableFolder()
+	here, _ := executable.Folder()
 	bin := path.Join(here, "logs-agent")
 
 	cmd := exec.Command(

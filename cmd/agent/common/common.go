@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/kardianos/osext"
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 var (
@@ -36,7 +36,7 @@ var (
 	Forwarder forwarder.Forwarder
 
 	// utility variables
-	_here, _ = osext.ExecutableFolder()
+	_here, _ = executable.Folder()
 )
 
 // GetPythonPaths returns the paths (in order of precedence) from where the agent

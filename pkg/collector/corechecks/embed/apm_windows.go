@@ -14,13 +14,14 @@ import (
 	"path/filepath"
 
 	log "github.com/cihub/seelog"
-	"github.com/kardianos/osext"
+
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 const apm_binary_name = "trace-agent.exe"
 
 func getAPMAgentDefaultBinPath() (string, error) {
-	here, _ := osext.ExecutableFolder()
+	here, _ := executable.Folder()
 	binPath := filepath.Join(here, "bin", apm_binary_name)
 	if _, err := os.Stat(binPath); err == nil {
 		log.Debug("Found APM binary path at %s", binPath)
