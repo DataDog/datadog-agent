@@ -195,13 +195,13 @@ else
     if [ -z "$SCRIPT_INSTALL" ]; then
         echo "# Starting the app"
         # -a for application, -F for fresh, do not restore old app
-        # export TMPDIR=`sudo -u $INSTALL_USER getconf DARWIN_USER_TEMP_DIR`
-        # sudo -u $INSTALL_USER open -Fa 'Datadog Agent'
+        export TMPDIR=`sudo -u $INSTALL_USER getconf DARWIN_USER_TEMP_DIR`
+        sudo -u $INSTALL_USER open -Fa 'Datadog Agent'
     fi
 
-    # echo "# Configuring the login launch of the app"
-    # sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to delete every login item whose name is "Datadog Agent"'
-    # sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Datadog Agent", hidden:false}'
+    echo "# Configuring the login launch of the app"
+    sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to delete every login item whose name is "Datadog Agent"'
+    sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Datadog Agent", hidden:false}'
 
     # A little debriefing won't hurt
     echo "# State at the end"

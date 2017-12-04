@@ -81,18 +81,19 @@ build do
   end
 
   if osx?
-    # conf
-    copy 'cmd/agent/com.datadoghq.agent.plist.example', "#{install_dir}/etc/"
+    # Launchd service definition
+    erb source: "launchd.plist.example.erb",
+        dest: "#{conf_dir}/com.datadoghq.agent.plist.example",
+        mode: 0755,
+        vars: { install_dir: install_dir }
 
     # Systray GUI
-    # app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
-    # mkdir "#{app_temp_dir}/Resources"
-    # copy 'packaging/osx/app/Agent.icns', "#{app_temp_dir}/Resources/"
-
-    # mkdir "#{app_temp_dir}/MacOS"
-    # command 'cd packaging/osx/gui && swiftc -O -target "x86_64-apple-macosx10.10" -static-stdlib Sources/*.swift -o gui && cd ../../..'
-    # copy "packaging/osx/gui/gui", "#{app_temp_dir}/MacOS/"
-    # copy "packaging/osx/gui/Sources/agent.png", "#{app_temp_dir}/MacOS/"
+    app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
+    mkdir "#{app_temp_dir}/MacOS"
+    systray_build_dir = "#{project_dir}/cmd/agent/gui/systray"
+    command 'swiftc -O -swift-version "3" -target "x86_64-apple-macosx10.10" -static-stdlib Sources/*.swift -o gui', cwd: systray_build_dir
+    copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
+    copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"
   end
 
   # The file below is touched by software builds that don't put anything in the installation
