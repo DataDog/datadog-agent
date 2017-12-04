@@ -1,9 +1,7 @@
-# API
+# Anatomy of a Check
 
-
-## AgentCheck parent class
-
-Every check is a subclass of `AgentCheck` and must implement the `check` function:
+An Agent Check is a Python class that inherits from `AgentCheck` and implements
+the `check` method:
 
 ```python
 from checks import AgentCheck
@@ -11,63 +9,53 @@ from checks import AgentCheck
 class MyCheck(AgentCheck):
     def check(self, instance):
         # Do the check. Collect metrics, emit events, submit service checks,
-        [..]
+        # ...
 ```
 
-The Agent instantiates a new `MyCheck` for each instance it finds in
-`mycheck.yaml`, passing that instance's configuration options to the `check`
-function via the `instance` parameter. The `check` method will be called on each
-[collector][collector] run to collect metrics.
+The Agent creates an object of type `MyCheck` for each element contained in the
+`instances` sequence within the corresponding config file:
 
-The check inherits some useful attributes from the `AgentCheck` parent class:
+```
+instances:
+  - host: localhost
+    port: 6379
+
+  - host: example.com
+    port: 6379
+```
+
+Any mapping contained in `instances` is passed to the `check` method through the
+named parameter `instance`. The `check` method will be invoked at every run of the
+[collector][collector].
+
+The `AgentCheck` base class provides some useful attributes and methods:
 
 - `self.name`: the name of the check
 - `self.init_config`: the `init_config` section from the check configuration.
 - `self.log`: a [logger](https://docs.python.org/2/library/logging.html).
+- `get_instance_proxy()`: a function returning a dictionary containing informations on the Proxy being used
 
-You can use these anywhere in the check function.
+**Warning**: when loading a Python check, the Agent will ignore any class that
+has been derived - **you should never derive from an existing Check**.
 
-If a check cannot run because of improper configuration, programming error or
-because it could not collect any metrics, it should raise a meaningful
-exception. This exception will be logged, as well as being shown in the Agent info
-command for easy debugging.
+## Error handling
 
-Do not override the `run` and `get_warnings` methods from `AgentCheck` unless you
-know exactly what you're doing.
+In the event of a wrong configuration, a runtime error or in any case when it
+can't work properly, a Check should raise a meaningful exception.
+Exceptions are logged and being shown in the Agent status page to help diagnose
+problems.
 
-## Overriding the \_\_init\_\_ method
-
-If you need to overwrite the `__init__` method please remember that your check
-will be instantiated once per entry in the `instances` list in the check
-YAML configuration.
-
-You must respect the following signature and call the `AgentCheck.__init__` method:
-
+The `warning` method will log a warning message and display it in the Agent's
+status page.
 ```python
-from checks import AgentCheck
-
-class MyCheck(AgentCheck):
-    def __init__(self, name, init_config, instances)
-        super(MyCheck, self).__init__(name, init_config, instances)
+self.warning("This will be visible in the status page")
 ```
-
-The parameters are:
-- `name`: the name of the check.
-- `_init_config`: the init_config section of the configuration.
-- `instances`: a one-element list containing the instance options from the
-  configuration file (to be backwards compatible we agent5 checks we have to
-  pass a list here).
-
-# AgentCheck API
-
-The `AgentCheck` offers a number of built-in methods to log messages, send
-Metrics, Events, ServiceChecks and more.
 
 ## Logging
 
-The `self.log` function is a
-[Logger](https://docs.python.org/2/library/logging.html) that prints to the
-Agent's main log file. You can set the log level in datadog.yaml.
+The `self.log` field is a [Logger](https://docs.python.org/2/library/logging.html)
+instance that prints to the Agent's main log file. You can set the log level in
+the Agent config file `datadog.yaml`.
 
 ## Sending Metrics
 
@@ -85,10 +73,10 @@ self.monotonic_count(name, value, tags, hostname): # Sample an increasing counte
 
 Each method takes the following arguments:
 
-- metric: The name of the metric
-- value: The value for the metric (defaults to 1 on increment, -1 on decrement)
-- tags: (optional) A list of tags to associate with this metric.
-- hostname: (optional) A hostname to associate with this metric. Defaults to the current host.
+- `metric`: The name of the metric
+- `value`: The value for the metric (defaults to 1 on increment, -1 on decrement)
+- `tags`: (optional) A list of tags to associate with this metric.
+- `hostname`: (optional) A hostname to associate with this metric. Defaults to the current host.
 
 The `device_name` argument has been deprecated from Agent 5; you may add a
 `device:<device_id>` tag in the `tags` list.
@@ -121,7 +109,6 @@ You can call `self.event(event_dict)` from anywhere in your check. The
 At the end of your `check` function, all events will be collected and flushed with the
 rest of the Agent payload.
 
-
 ## Sending service checks
 
 Your check can also report the status of a service by calling the `service_check` method:
@@ -140,16 +127,42 @@ The method will accept the following arguments:
 - `tags`: (optional) A list of tags to associate with this check.
 - `message`: (optional) Additional information or a description of why this status occurred.
 
-## Raising warnings
+## Base class methods overriding
 
-The `warning` method will log a warning message and display it in the Agent's `info` subcommand output.
+In general, you don't need and you should not override anything from the base
+class except the `check` method but sometimes it might be useful for a Check to
+have its own constructor.
+
+When overriding `__init__` you have to remember that depending on the configuration,
+the Agent might create several different Check instances and the method would be
+called as many times.
+
+To ease the porting of existing Check to the new Agent, the `__init__` method in
+`AgentCheck` was implemented with the following signature:
+
 ```python
-self.warning(warning_message)
+def __init__(self, *args, **kwargs):
 ```
 
-## get_instance_proxy(self, instance, uri)
+When overriding, the following convention must be followed:
 
-To be implemented.
+```python
+from checks import AgentCheck
+
+class MyCheck(AgentCheck):
+    def __init__(self, name, init_config, instances):
+        super(MyCheck, self).__init__(name, init_config, instances)
+```
+
+The arguments that needs to be received and then passed to `super` are the
+following:
+
+- `name`: the name of the check.
+- `_init_config`: the init_config section of the configuration.
+- `instances`: a one-element list containing the instance options from the
+  configuration file (to be backwards compatible we agent5 checks we have to
+  pass a list here).
+
 
 
 [collector]: /pkg/collector
