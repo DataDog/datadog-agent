@@ -143,9 +143,6 @@ else
     chown -vR $INSTALL_USER:admin "$RUN_DIR"
     chmod -v 755 "$RUN_DIR"
 
-    echo "# Creating default plist"
-    sed "s|USER_NAME|$INSTALL_USER|" "$CONF_DIR/com.datadoghq.agent.plist.example" > "$CONF_DIR/com.datadoghq.agent.plist"
-
     echo "# Copying conf"
     mkdir -vp $CONF_DIR/checks.d
 
@@ -184,7 +181,7 @@ else
 
     echo "# Configuring the agent as a launchd service for the current user (LaunchAgent)"
     sudo -Hu $INSTALL_USER mkdir "$USER_HOME/Library/LaunchAgents"
-    sudo -Hu $INSTALL_USER cp "$CONF_DIR/com.datadoghq.agent.plist" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+    sudo -Hu $INSTALL_USER cp "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
     sudo -Hu $INSTALL_USER launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
 
     if [ ! -e "$CONF_DIR/datadog.yaml" ]; then

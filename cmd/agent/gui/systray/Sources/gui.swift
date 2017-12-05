@@ -177,7 +177,7 @@ class AgentGUI: NSObject {
 class AgentManager {
     static let agentServiceName = "com.datadoghq.agent"
     static let systemEventsCommandFormat = "tell application \"System Events\" to %@"
-    static let serviceTimeout = 5000  // time to wait for service to start/stop, in milliseconds
+    static let serviceTimeout = 10000  // time to wait for service to start/stop, in milliseconds
     static let statusCheckFrequency = 500  // time to wait between checks on the service status, in milliseconds
 
     static func status() -> Bool {
