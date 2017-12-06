@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"sync"
 )
 
 // Abstractions for testing
@@ -47,6 +48,8 @@ type ConsulConfigProvider struct {
 	Cache       map[string][]check.Config
 	cacheIdx    map[string]ADEntryIndex
 	TemplateDir string
+	m      sync.RWMutex
+	expired		bool
 }
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
@@ -95,6 +98,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 		TemplateDir: config.TemplateDir,
 		Cache:       make(map[string][]check.Config),
 		cacheIdx:    make(map[string]ADEntryIndex),
+		expired:     true,
 	}, nil
 
 }
@@ -128,6 +132,17 @@ func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
 		configs = append(configs, templates...)
 	}
 	return configs, nil
+}
+
+func (p *ConsulConfigProvider) Watcher(){
+	// TODO
+}
+
+func (p *ConsulConfigProvider) IsExpired() bool{
+	p.m.RLock()
+	e := p.expired
+	p.m.RUnlock()
+	return e
 }
 
 // getIdentifiers gets folders at the root of the TemplateDir

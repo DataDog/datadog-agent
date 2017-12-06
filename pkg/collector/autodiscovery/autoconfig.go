@@ -331,9 +331,15 @@ func (ac *AutoConfig) AddLoader(loader check.Loader) {
 	ac.loaders = append(ac.loaders, loader)
 }
 
+func (ac *AutoConfig) startWatchers(){
+	for _, pd := range ac.providers{
+		go pd.provider.Watcher()
+	}
+}
 // pollConfigs periodically calls Collect() on all the configuration
 // providers that have been requested to be polled
 func (ac *AutoConfig) pollConfigs() {
+	ac.startWatchers()
 	go func() {
 		for {
 			select {
@@ -348,6 +354,10 @@ func (ac *AutoConfig) pollConfigs() {
 				for _, pd := range ac.providers {
 					// skip providers that don't want to be polled
 					if !pd.poll {
+						continue
+					}
+					if pd.provider.IsExpired() == false {
+						log.Debugf("No modifications in the templates stored in %q ", pd.provider.String())
 						continue
 					}
 
