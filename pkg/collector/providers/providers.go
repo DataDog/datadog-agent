@@ -32,4 +32,6 @@ type ConfigProviderFactory func(cfg config.ConfigurationProviders) (ConfigProvid
 type ConfigProvider interface {
 	Collect() ([]check.Config, error)
 	String() string
+	Watcher()
+	IsExpired() bool
 }

@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"sync"
 )
 
 const sessionTimeout = 1 * time.Second
@@ -32,19 +33,23 @@ type zkBackend interface {
 type ZookeeperConfigProvider struct {
 	client      zkBackend
 	templateDir string
+	m      sync.RWMutex
+	expired		bool
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
 func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
 	urls := strings.Split(cfg.TemplateURL, ",")
+
 	c, _, err := zk.Connect(urls, sessionTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to '%s': %s", cfg.TemplateURL, err)
+		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", cfg.TemplateURL, strings.Join(urls, ", " ), err)
 	}
 
 	return &ZookeeperConfigProvider{
 		client:      c,
 		templateDir: cfg.TemplateDir,
+		expired:     true,
 	}, nil
 }
 
@@ -60,12 +65,25 @@ func (z *ZookeeperConfigProvider) Collect() ([]check.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	log.Debug("the identifiers are", identifiers)
 	for _, id := range identifiers {
 		c := z.getTemplates(id)
 		configs = append(configs, c...)
 	}
+	z.m.Lock()
+	z.expired = false
+	z.m.Unlock()
 	return configs, nil
+}
+
+func (z *ZookeeperConfigProvider) Watcher(){
+	// TODO
+}
+func (z *ZookeeperConfigProvider) IsExpired() bool{
+	z.m.RLock()
+	e := z.expired
+	z.m.RUnlock()
+	return e
 }
 
 // getIdentifiers gets folders at the root of the template dir

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"sync"
 )
 
 const (
@@ -25,12 +26,14 @@ const (
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
 type KubeletConfigProvider struct {
 	kubelet *kubelet.KubeUtil
+	expired bool
+	m sync.RWMutex
 }
 
 // NewKubeletConfigProvider returns a new ConfigProvider connected to kubelet.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
 func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvider, error) {
-	return &KubeletConfigProvider{}, nil
+	return &KubeletConfigProvider{expired: true}, nil
 }
 
 func (k *KubeletConfigProvider) String() string {
@@ -54,6 +57,16 @@ func (k *KubeletConfigProvider) Collect() ([]check.Config, error) {
 	}
 
 	return parseKubeletPodlist(pods)
+}
+func (k *KubeletConfigProvider) Watcher(){
+	// TODO
+}
+
+func (k *KubeletConfigProvider) IsExpired() bool{
+	k.m.RLock()
+	e := k.expired
+	k.m.RUnlock()
+	return e
 }
 
 func parseKubeletPodlist(podlist []*kubelet.Pod) ([]check.Config, error) {
