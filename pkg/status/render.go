@@ -14,11 +14,11 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/kardianos/osext"
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 var (
-	here, _        = osext.ExecutableFolder()
+	here, _        = executable.Folder()
 	fmap           template.FuncMap
 	templateFolder string
 )

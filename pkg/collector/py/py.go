@@ -12,8 +12,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
+
 	log "github.com/cihub/seelog"
-	"github.com/kardianos/osext"
 	python "github.com/sbinet/go-python"
 )
 
@@ -113,7 +114,7 @@ func Initialize(paths ...string) *python.PyThreadState {
 }
 
 func setPythonHome() {
-	_here, _ := osext.ExecutableFolder()
+	_here, _ := executable.Folder()
 
 	if pythonHome == "" {
 		// don't do anything if not set, to support system python builds
