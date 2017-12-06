@@ -55,6 +55,9 @@ build do
             move "#{install_dir}/etc/datadog-agent/trace-agent.conf.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/process-agent.conf.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
+
+            # cleanup clutter
+            delete "#{install_dir}/etc"
         elsif osx?
             # Nothing to move on osx, the confs already live in /opt/datadog-agent/etc/
         end
