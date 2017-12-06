@@ -63,34 +63,33 @@ build do
 
       check_conf_dir = "#{conf_dir}/#{check}.d"
 
-      unless File.exist? check_conf_dir
-        # If the check conf dir already exists, that means the `datadog-agent` software def
-        # wrote confs for this check first. Since the agent's confs take precedence, skip our confs
+      mkdir check_conf_dir unless File.exist? check_conf_dir
 
-        # Copy the check config to the conf directories
-        if File.exist? "#{check_dir}/conf.yaml.example"
+      # For each conf file, if it already exists, that means the `datadog-agent` software def
+      # wrote it first. In that case, since the agent's confs take precedence, skip the conf
+
+      # Copy the check config to the conf directories
+      if File.exist? "#{check_dir}/conf.yaml.example"
+        copy "#{check_dir}/conf.yaml.example", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.example"
+      end
+
+      # Copy the default config, if it exists
+      if File.exist? "#{check_dir}/conf.yaml.default"
+        mkdir check_conf_dir
+        copy "#{check_dir}/conf.yaml.default", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/conf.yaml.default"
+      end
+
+      # Copy the metric file, if it exists
+      if File.exist? "#{check_dir}/metrics.yaml"
+        mkdir check_conf_dir
+        copy "#{check_dir}/metrics.yaml", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/metrics.yaml"
+      end
+
+      # We don't have auto_conf on windows yet
+      if os != 'windows'
+        if File.exist? "#{check_dir}/auto_conf.yaml"
           mkdir check_conf_dir
-          copy "#{check_dir}/conf.yaml.example", "#{check_conf_dir}/"
-        end
-
-        # Copy the default config, if it exists
-        if File.exist? "#{check_dir}/conf.yaml.default"
-          mkdir check_conf_dir
-          copy "#{check_dir}/conf.yaml.default", "#{check_conf_dir}/"
-        end
-
-        # Copy the metric file, if it exists
-        if File.exist? "#{check_dir}/metrics.yaml"
-          mkdir check_conf_dir
-          copy "#{check_dir}/metrics.yaml", "#{check_conf_dir}/"
-        end
-
-        # We don't have auto_conf on windows yet
-        if os != 'windows'
-          if File.exist? "#{check_dir}/auto_conf.yaml"
-            mkdir check_conf_dir
-            copy "#{check_dir}/auto_conf.yaml", "#{check_conf_dir}/"
-          end
+          copy "#{check_dir}/auto_conf.yaml", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
         end
       end
 

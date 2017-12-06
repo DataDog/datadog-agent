@@ -49,13 +49,13 @@ build do
   # end
 
   # move around bin and config files
-  copy 'bin', install_dir
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-
   move 'bin/agent/dist/trace-agent.conf', "#{conf_dir}/trace-agent.conf.example"
   move 'bin/agent/dist/process-agent.conf', "#{conf_dir}/process-agent.conf.example"
 
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
+
+  copy 'bin', install_dir
 
   if linux?
     if debian?
