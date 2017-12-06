@@ -31,22 +31,6 @@ def build(ctx):
     cmd = "go generate {}/cmd/logs"
     ctx.run(cmd.format(REPO_PATH))
 
-    refresh_assets(ctx)
-
-@task
-def refresh_assets(ctx):
-    """
-    Clean up and refresh Logs' assets and config files
-    """
-    # ensure LOGS_BIN_PATH exists
-    if not os.path.exists(LOGS_BIN_PATH):
-        os.mkdir(LOGS_BIN_PATH)
-
-    dist_folder = os.path.join(LOGS_BIN_PATH, "dist")
-    if os.path.exists(dist_folder):
-        shutil.rmtree(dist_folder)
-    copy_tree("./cmd/logs/dist/", dist_folder)
-
 @task
 def run(ctx, skip_build=False, ddconfig=None, ddconfd=None):
     """
@@ -56,12 +40,6 @@ def run(ctx, skip_build=False, ddconfig=None, ddconfd=None):
     """
     if not skip_build:
         build(ctx)
-
-    if ddconfig is None:
-        ddconfig = os.path.join(LOGS_DIST_PATH, "datadog.yaml")
-
-    if ddconfd is None:
-        ddconfd = os.path.join(LOGS_DIST_PATH, "conf.d")
 
     cmd = "{bin_name} --ddconfig {config_name} --ddconfd {confd_path}"
     args = {
