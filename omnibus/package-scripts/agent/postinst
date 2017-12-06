@@ -112,7 +112,6 @@ else
     # Let's talk to our user installing the Agent a bit
     echo "# State at the beginning"
     echo "## Agent version"
-    grep AGENT_VERSION $INSTALL_DIR/agent/config.py || echo "No config.py file (agent 5)"
     datadog-agent version || echo "No datadog-agent binary version (agent 6)"
     echo "## $INSTALL_DIR"
     ls -al $INSTALL_DIR || "No agent installed"
@@ -197,7 +196,6 @@ else
     fi
 
     echo "# Configuring the login launch of the app"
-    sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to delete every login item whose name is "Datadog Agent"'
     sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Datadog Agent.app", name:"Datadog Agent", hidden:false}'
 
     # A little debriefing won't hurt

@@ -91,6 +91,7 @@ build do
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
     mkdir "#{app_temp_dir}/MacOS"
     systray_build_dir = "#{project_dir}/cmd/agent/gui/systray"
+    # Target OSX 10.10 (it brings significant changes to Cocoa and Foundation APIs, and older versions of OSX are EOL'ed)
     command 'swiftc -O -swift-version "3" -target "x86_64-apple-macosx10.10" -static-stdlib Sources/*.swift -o gui', cwd: systray_build_dir
     copy "#{systray_build_dir}/gui", "#{app_temp_dir}/MacOS/"
     copy "#{systray_build_dir}/agent.png", "#{app_temp_dir}/MacOS/"

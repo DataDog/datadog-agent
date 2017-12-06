@@ -123,6 +123,9 @@ else
     rm -rf $INSTALL_DIR/agent || true
     rm -rf $INSTALL_DIR/checks.d || true
 
+    echo "# Disabling the login launch of the app"
+    sudo -u $INSTALL_USER osascript -e 'tell application "System Events" to delete every login item whose name is "Datadog Agent"'
+
     # Debriefing time
     echo "# State at the end"
     echo "## Agent version"
