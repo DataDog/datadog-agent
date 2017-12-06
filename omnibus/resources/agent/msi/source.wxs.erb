@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" 
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
      xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
   <!-- This is how we include wxi files -->
   <?include "parameters.wxi" ?>
@@ -59,7 +59,7 @@
      <PropertyRef Id="WIX_ACCOUNT_ADMINISTRATORS" />
      <PropertyRef Id="WIX_ACCOUNT_LOCALSYSTEM" />
      <PropertyRef Id="WIX_ACCOUNT_USERS" />
- 
+
     <Media Id="1" Cabinet="agent.cab" EmbedCab="yes" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
@@ -138,7 +138,7 @@
                          Type="string"
                          Value="[HOSTNAME]" />
         </RegistryKey>
-        
+
       </Component>
     </DirectoryRef>
 
@@ -230,7 +230,7 @@
                   Target="[SystemFolder]cmd.exe"
                   Arguments= "/C start &quot;&quot; &quot;[DIST]agent.exe&quot; &quot;launch-gui&quot;"
                   WorkingDirectory="DIST"/>
-                  
+
         <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
         <RegistryValue Root="HKCU"
                        Key="Software\Microsoft\Datadog"
@@ -240,7 +240,7 @@
                        KeyPath="yes"/>
       </Component>
     </DirectoryRef>
-    
+
     <DirectoryRef Id="APPLICATIONDATADIRECTORY">
       <Component Id="datadog.yaml.example"
                  Guid="83461594-01AC-11E2-BE35-37EC6088709B"
@@ -250,13 +250,13 @@
               Name="datadog.yaml"
               Source="$(var.EtcFiles)\datadog.yaml.example"/>
       </Component>
-      <Component Id="trace_agent.conf"
+      <Component Id="trace_agent.conf.example"
         Guid="CE6515EE-3103-417E-8810-0B465545EB0B"
         NeverOverwrite="yes"
         Permanent="yes">
-        <File Id="trace_agent.conf"
+        <File Id="trace_agent.conf.example"
           Name="trace-agent.conf"
-          Source="$(var.EtcFiles)\trace-agent.conf"/>
+          Source="$(var.EtcFiles)\trace-agent.conf.example"/>
       </Component>
 
       <Directory Id="checks.d" Name="checks.d">
@@ -297,7 +297,7 @@
       <ComponentRef Id="conffolder" />
       <ComponentGroupRef Id="ProjectDir" />
       <ComponentRef Id="datadog.yaml.example" />
-      <ComponentRef Id="trace_agent.conf" />
+      <ComponentRef Id="trace_agent.conf.example" />
       <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="checks.d" />
@@ -334,7 +334,7 @@
     </UI>
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT"
                   Value="!(loc.LaunchAgentManager)" />
-    
+
 
     <WixVariable Id="WixUILicenseRtf" Value="Resources\assets\LICENSE.rtf" />
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
