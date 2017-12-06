@@ -135,11 +135,23 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 // resolve takes a template and a service and generates a config with
 // valid connection info and relevant tags.
 func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (check.Config, error) {
+	// Copy original template
+	resolvedConfig := check.Config{
+		Name:          tpl.Name,
+		Instances:     make([]check.ConfigData, len(tpl.Instances)),
+		InitConfig:    make(check.ConfigData, len(tpl.InitConfig)),
+		MetricConfig:  tpl.MetricConfig,
+		ADIdentifiers: tpl.ADIdentifiers,
+	}
+	copy(resolvedConfig.InitConfig, tpl.InitConfig)
+	copy(resolvedConfig.Instances, tpl.Instances)
+
 	tags, err := svc.GetTags()
 	if err != nil {
-		return tpl, err
+		return resolvedConfig, err
 	}
 	for i := 0; i < len(tpl.Instances); i++ {
+		// Copy original content from template
 		vars := tpl.GetTemplateVariablesForInstance(i)
 		for _, v := range vars {
 			name, key := parseTemplateVar(v)
@@ -149,17 +161,17 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 					return check.Config{}, err
 				}
 				// init config vars are replaced by the first found
-				tpl.InitConfig = bytes.Replace(tpl.InitConfig, v, resolvedVar, -1)
-				tpl.Instances[i] = bytes.Replace(tpl.Instances[i], v, resolvedVar, -1)
+				resolvedConfig.InitConfig = bytes.Replace(resolvedConfig.InitConfig, v, resolvedVar, -1)
+				resolvedConfig.Instances[i] = bytes.Replace(resolvedConfig.Instances[i], v, resolvedVar, -1)
 			}
 		}
-		err = tpl.Instances[i].MergeAdditionalTags(tags)
+		err = resolvedConfig.Instances[i].MergeAdditionalTags(tags)
 		if err != nil {
-			return tpl, err
+			return resolvedConfig, err
 		}
 	}
 
-	return tpl, nil
+	return resolvedConfig, nil
 }
 
 // processNewService takes a service, tries to match it against templates and

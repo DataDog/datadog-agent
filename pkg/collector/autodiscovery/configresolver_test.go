@@ -89,6 +89,8 @@ func TestResolve(t *testing.T) {
 	tpl.Instances = []check.ConfigData{check.ConfigData("host: %%host%%")}
 	config, err := cr.resolve(tpl, &service)
 	assert.Nil(t, err)
+	// we must not modify original template
+	assert.Equal(t, "host: %%host%%", string(tpl.Instances[0]))
 	assert.Equal(t, "host: 127.0.0.1", string(config.Instances[0]))
 
 	tpl.Instances = []check.ConfigData{check.ConfigData("pid: %%pid%%\ntags: [\"foo\"]")}
