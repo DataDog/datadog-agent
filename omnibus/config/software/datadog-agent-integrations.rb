@@ -8,6 +8,7 @@ require './lib/ostools.rb'
 name 'datadog-agent-integrations'
 
 dependency 'pip'
+dependency 'datadog-agent'
 
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python2.7"
@@ -25,7 +26,7 @@ blacklist = [
 
 build do
   # The checks
-  checks_dir = "#{install_dir}/agent/checks.d"
+  checks_dir = "#{install_dir}/checks.d"
   mkdir checks_dir
 
   # The confs
@@ -62,29 +63,34 @@ build do
 
       check_conf_dir = "#{conf_dir}/#{check}.d"
 
-      # Copy the check config to the conf directories
-      if File.exist? "#{check_dir}/conf.yaml.example"
-        mkdir check_conf_dir unless File.exists? (check_conf_dir)
-        copy "#{check_dir}/conf.yaml.example", "#{check_conf_dir}/"
-      end
+      unless File.exist? check_conf_dir
+        # If the check conf dir already exists, that means the `datadog-agent` software def
+        # wrote confs for this check first. Since the agent's confs take precedence, skip our confs
 
-      # Copy the default config, if it exists
-      if File.exist? "#{check_dir}/conf.yaml.default"
-        mkdir check_conf_dir unless File.exists? (check_conf_dir)
-        copy "#{check_dir}/conf.yaml.default", "#{check_conf_dir}/"
-      end
+        # Copy the check config to the conf directories
+        if File.exist? "#{check_dir}/conf.yaml.example"
+          mkdir check_conf_dir
+          copy "#{check_dir}/conf.yaml.example", "#{check_conf_dir}/"
+        end
 
-      # Copy the metric file, if it exists
-      if File.exist? "#{check_dir}/metrics.yaml"
-        mkdir check_conf_dir unless File.exists? (check_conf_dir)
-        copy "#{check_dir}/metrics.yaml", "#{check_conf_dir}/"
-      end
+        # Copy the default config, if it exists
+        if File.exist? "#{check_dir}/conf.yaml.default"
+          mkdir check_conf_dir
+          copy "#{check_dir}/conf.yaml.default", "#{check_conf_dir}/"
+        end
 
-      # We don't have auto_conf on windows yet
-      if os != 'windows'
-        if File.exist? "#{check_dir}/auto_conf.yaml"
-          mkdir check_conf_dir unless File.exists? (check_conf_dir)
-          copy "#{check_dir}/auto_conf.yaml", "#{check_conf_dir}/"
+        # Copy the metric file, if it exists
+        if File.exist? "#{check_dir}/metrics.yaml"
+          mkdir check_conf_dir
+          copy "#{check_dir}/metrics.yaml", "#{check_conf_dir}/"
+        end
+
+        # We don't have auto_conf on windows yet
+        if os != 'windows'
+          if File.exist? "#{check_dir}/auto_conf.yaml"
+            mkdir check_conf_dir
+            copy "#{check_dir}/auto_conf.yaml", "#{check_conf_dir}/"
+          end
         end
       end
 
