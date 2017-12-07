@@ -24,6 +24,7 @@ type Container struct {
 	ID       string
 	EntityID string
 	Name     string
+	Labels   map[string]string
 	Image    string
 	ImageID  string
 	Created  int64

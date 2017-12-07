@@ -26,6 +26,7 @@ var (
 	// If new sub-structs are added to Container this must
 	// be updated.
 	NullContainer = &Container{
+		Labels:  make(map[string]string),
 		CPU:     &CgroupTimesStat{},
 		Memory:  &CgroupMemStat{},
 		IO:      &CgroupIOStat{},
