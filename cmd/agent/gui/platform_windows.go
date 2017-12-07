@@ -32,6 +32,10 @@ func init() {
 	}
 }
 
+func restartEnabled() bool {
+	return true
+}
+
 // restarts the agent using the windows service manager
 func restart() error {
 	here, _ := executable.Folder()
@@ -48,9 +52,9 @@ func restart() error {
 }
 
 // writes auth token(s) to a file with the same permissions as datadog.yaml
-func saveAuthToken(token string) error {
+func saveAuthToken() error {
 
-	err := ioutil.WriteFile(authTokenPath, []byte(token), 0755)
+	err := ioutil.WriteFile(authTokenPath, []byte(authToken), 0755)
 	if err == nil {
 		err = acl.Apply(
 			authTokenPath,

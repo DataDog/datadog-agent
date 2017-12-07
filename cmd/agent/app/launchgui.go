@@ -6,11 +6,13 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
@@ -50,8 +52,23 @@ func launchGui(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unable to access GUI authentication token: " + err.Error())
 	}
 
+	// Get the CSRF token
+	c := common.GetClient(false) // FIX: get certificates right then make this true
+	urlstr := fmt.Sprintf("https://localhost:%v/agent/gui_csrf_token", config.Datadog.GetInt("cmd_port"))
+	util.SetAuthToken()
+	csrfToken, e := common.DoGet(c, urlstr)
+	if e != nil {
+		var errMap = make(map[string]string)
+		json.Unmarshal(csrfToken, errMap)
+		if err, found := errMap["error"]; found {
+			e = fmt.Errorf(err)
+		}
+		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before attempting to open the GUI.\n", e)
+		return e
+	}
+
 	// Open the GUI in a browser, passing the authorization tokens as parameters
-	err = open("http://127.0.0.1:" + guiPort + string(authToken))
+	err = open("http://127.0.0.1:" + guiPort + "/authenticate?authToken=" + string(authToken) + ";csrf=" + string(csrfToken))
 	if err != nil {
 		log.Warnf("error opening GUI: " + err.Error())
 		return fmt.Errorf("error opening GUI: " + err.Error())

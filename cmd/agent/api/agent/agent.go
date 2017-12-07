@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -38,6 +39,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
+	r.HandleFunc("/gui_csrf_token", getCSRFToken).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -190,4 +192,11 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(s)
+}
+
+func getCSRFToken(w http.ResponseWriter, r *http.Request) {
+	if err := apiutil.Validate(w, r); err != nil {
+		return
+	}
+	w.Write([]byte(gui.CsrfToken))
 }
