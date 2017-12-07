@@ -34,7 +34,7 @@ def build(ctx):
 @task
 def run(ctx, skip_build=False, ddconfig=None, ddconfd=None):
     """
-    Execute logs-agent binary using default ddconfig and ddconfd if not set.
+    Execute logs-agent binary using ddconfig and ddconfd passed in parameter.
     By default it builds the agent before executing it, unless --skip-build was
     passed.
     """
