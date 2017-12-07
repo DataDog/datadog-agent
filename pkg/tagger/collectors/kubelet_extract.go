@@ -10,9 +10,10 @@ package collectors
 import (
 	"strings"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	log "github.com/cihub/seelog"
 )
 
 /* Deltas from agent5:
@@ -111,22 +112,10 @@ func (c *KubeletCollector) parseDeploymentForReplicaset(name string) string {
 		return ""
 	}
 
-	if !stringinRuneset(suffix, Digits) && !stringinRuneset(suffix, KubeAllowedEncodeStringAlphaNums) {
+	if !utils.StringInRuneset(suffix, Digits) && !utils.StringInRuneset(suffix, KubeAllowedEncodeStringAlphaNums) {
 		// Invalid suffix
 		return ""
 	}
 
 	return name[:lastDash]
-}
-
-// isStringinRuneset tests whether all runes of a string are in a given subset
-// returns false if any rune in the string is not found in the subset
-func stringinRuneset(name, subset string) bool {
-	for _, r := range name {
-		if !strings.ContainsRune(subset, r) {
-			// Found an unexpected rune in suffix
-			return false
-		}
-	}
-	return true
 }
