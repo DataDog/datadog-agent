@@ -12,6 +12,7 @@ try:
 except ImportError:
     def WinPDHCounter(*args, **kwargs):
         return
+import win32wnet
 
 class PDHBaseCheck(AgentCheck):
     """
@@ -25,7 +26,7 @@ class PDHBaseCheck(AgentCheck):
         self._counters = {}
         self._metrics = {}
         self._tags = {}
-
+        self.log.debug("PDHBaseCheck init")
         try:
             for instance in instances:
                 key = hash_mutable(instance)
@@ -37,7 +38,19 @@ class PDHBaseCheck(AgentCheck):
                 remote_machine = None
                 host = instance.get('host')
                 if host is not None and host != ".":
-                    remote_machine = host
+                    try:
+                        remote_machine = host
+                        
+                        username = instance.get('username')
+                        password = instance.get('password')
+                        nr = win32wnet.NETRESOURCE()
+                        nr.lpRemoteName = r"\\%s\c$" % remote_machine
+                        nr.dwType = 0
+                        nr.lpLocalName = None
+                        win32wnet.WNetAddConnection2(nr, password, username, 0)
+                        
+                    except Exception as e:
+                        self.log.error("Failed to make remote connection %s" % str(e))
                 # list of the metrics.  Each entry is itself an entry,
                 # which is the pdh name, datadog metric name, type, and the
                 # pdh counter object
