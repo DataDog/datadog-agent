@@ -27,13 +27,14 @@ type KubeletListener struct {
 	m          sync.RWMutex
 }
 
-// PodService implements and store results from the Service interface for the Kubelet listener
-type PodService struct {
+// PodContainerService implements and store results from the Service interface for the Kubelet listener
+type PodContainerService struct {
 	ID            ID
 	ADIdentifiers []string
 	Hosts         map[string]string
 	Ports         []int
 	Pid           int
+	PodName       string
 }
 
 func init() {
@@ -64,13 +65,20 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 			case <-l.stop:
 				return
 			case <-l.ticker.C:
-				log.Error("yolo")
 				// Compute new/updated pods
 				updatedPods, err := l.watcher.PullChanges()
 				if err != nil {
 					log.Error(err)
 				}
 				log.Debug(updatedPods)
+				// Compute deleted pods
+				expiredContainerList, err := l.watcher.ExpireContainers()
+				if err != nil {
+					log.Error(err)
+				}
+				for _, containerID := range expiredContainerList {
+					l.removeService(ID(containerID))
+				}
 			}
 		}
 	}()
@@ -81,19 +89,45 @@ func (l *KubeletListener) Stop() {
 	l.stop <- true
 }
 
-func (l *KubeletListener) createService() {
-	svc := PodService{}
+func (l *KubeletListener) processNewPod(pod *kubelet.Pod) {
+	for _, container := range pod.Status.Containers {
+		l.createService(ID(container.ID))
+	}
+}
+
+func (l *KubeletListener) createService(cID ID) {
+	svc := PodContainerService{}
+
+	l.m.Lock()
+	l.services[ID(cID)] = &svc
+	l.m.Unlock()
 
 	l.newService <- &svc
 }
 
+func (l *KubeletListener) removeService(cID ID) {
+	l.m.RLock()
+	svc, ok := l.services[cID]
+	l.m.RUnlock()
+
+	if ok {
+		l.m.Lock()
+		delete(l.services, cID)
+		l.m.Unlock()
+
+		l.delService <- svc
+	} else {
+		log.Debugf("Container %s not found, not removing", cID[:12])
+	}
+}
+
 // GetID returns the service ID
-func (s *PodService) GetID() ID {
+func (s *PodContainerService) GetID() ID {
 	return s.ID
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *PodService) GetADIdentifiers() ([]string, error) {
+func (s *PodContainerService) GetADIdentifiers() ([]string, error) {
 	if len(s.ADIdentifiers) == 0 {
 		// get image names from pod
 	}
@@ -102,21 +136,21 @@ func (s *PodService) GetADIdentifiers() ([]string, error) {
 }
 
 // GetHosts returns the pod hosts
-func (s *PodService) GetHosts() (map[string]string, error) {
+func (s *PodContainerService) GetHosts() (map[string]string, error) {
 	return s.Hosts, nil
 }
 
 // GetPid inspect the container an return its pid
-func (s *PodService) GetPid() (int, error) {
+func (s *PodContainerService) GetPid() (int, error) {
 	return s.Pid, nil
 }
 
 // GetPorts returns the container's ports
-func (s *PodService) GetPorts() ([]int, error) {
+func (s *PodContainerService) GetPorts() ([]int, error) {
 	return s.Ports, nil
 }
 
 // GetTags retrieves tags using the Tagger
-func (s *PodService) GetTags() ([]string, error) {
+func (s *PodContainerService) GetTags() ([]string, error) {
 	return []string{}, nil
 }
