@@ -5,4 +5,4 @@ gem 'omnibus', git: 'https://github.com/DataDog/omnibus-ruby.git', branch: 'data
 
 # Use Chef's software definitions. It is recommended that you write your own
 # software definitions, but you can clone/fork Chef's to get you started.
-gem 'omnibus-software', git: 'https://github.com/DataDog/omnibus-software.git', branch: 'master'
+gem 'omnibus-software', git: 'https://github.com/DataDog/omnibus-software.git', branch: 'jaime/ncursesgccfix'

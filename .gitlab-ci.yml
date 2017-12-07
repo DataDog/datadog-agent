@@ -25,6 +25,7 @@ variables:
   S3_CP_CMD: aws s3 cp $S3_CP_OPTIONS
   S3_ARTEFACTS_URI: s3://dd-ci-artefacts-build-stable/$CI_PROJECT_NAME/$CI_PIPELINE_ID
   S3_DSD6_URI: s3://dsd6-staging/linux
+  INTEGRATIONS_CORE_BRANCH: master
 
 before_script:
   # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
