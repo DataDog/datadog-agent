@@ -11,6 +11,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
+	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/utils"
 )
@@ -30,7 +31,7 @@ func main() {
 		log.Println("Not starting logs-agent")
 	} else if config.LogsAgent.GetBool("log_enabled") {
 		log.Println("Starting logs-agent")
-		Start()
+		logs.Start()
 
 		if config.LogsAgent.GetBool("log_profiling_enabled") {
 			log.Println("starting logs-agent profiling")

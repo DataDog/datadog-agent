@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build !windows
+
 package container
 
 import (
@@ -17,7 +19,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -211,7 +212,7 @@ func (dt *DockerTailer) keepDockerTagsUpdated() {
 }
 
 func (dt *DockerTailer) checkForNewDockerTags() {
-	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(dt.ContainerID), true)
+	tags, err := tagger.Tag(containerIDToEntityName(dt.ContainerID), true)
 	if err != nil {
 		log.Println(err)
 	} else {
@@ -225,6 +226,13 @@ func (dt *DockerTailer) checkForNewDockerTags() {
 func (dt *DockerTailer) buildTagsPayload() []byte {
 	tagsString := fmt.Sprintf("%s,%s", strings.Join(dt.containerTags, ","), dt.source.Tags)
 	return config.BuildTagsPayload(tagsString, dt.source.Source, dt.source.SourceCategory)
+}
+
+func containerIDToEntityName(cid string) string {
+	if cid == "" {
+		return ""
+	}
+	return fmt.Sprintf("docker://%s", cid)
 }
 
 // parseMessage extracts the date and the severity from the raw docker message

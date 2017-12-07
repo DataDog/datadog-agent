@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build !windows
+
 package config
 
 import (
@@ -19,7 +21,7 @@ const testsPath = "tests"
 
 func TestBuildConfigWithCompleteFile(t *testing.T) {
 	var testConfig = viper.New()
-	ddconfigPath := filepath.Join(testsPath, "complete", "datadog.yaml")
+	ddconfigPath := filepath.Join(testsPath, "complete", "datadog_test.yaml")
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
 	buildMainConfig(testConfig, ddconfigPath, ddconfdPath)
 	assert.Equal(t, "helloworld", testConfig.GetString("api_key"))
@@ -38,7 +40,7 @@ func TestDDConfigDefaultValues(t *testing.T) {
 	assert.Equal(t, false, ddconfig.Datadog.GetBool("skip_ssl_validation"))
 	assert.Equal(t, false, ddconfig.Datadog.GetBool("log_enabled"))
 	hostname, _ := util.GetHostname()
-	ddconfigPath := filepath.Join(testsPath, "incomplete", "datadog.yaml")
+	ddconfigPath := filepath.Join(testsPath, "incomplete", "datadog_test.yaml")
 	ddconfdPath := filepath.Join(testsPath, "incomplete", "conf.d")
 	buildMainConfig(ddconfig.Datadog, ddconfigPath, ddconfdPath)
 	assert.Equal(t, hostname, ddconfig.Datadog.GetString("hostname"))
@@ -48,27 +50,27 @@ func TestComputeConfigWithMisconfiguredFile(t *testing.T) {
 	var testConfig = viper.New()
 	var ddconfigPath, ddconfdPath string
 	var err error
-	ddconfigPath = filepath.Join(testsPath, "misconfigured_1", "datadog.yaml")
+	ddconfigPath = filepath.Join(testsPath, "misconfigured_1", "datadog_test.yaml")
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_1")
 	err = buildMainConfig(testConfig, ddconfigPath, ddconfdPath)
 	assert.NotNil(t, err)
 
-	ddconfigPath = filepath.Join(testsPath, "misconfigured_2", "datadog.yaml")
+	ddconfigPath = filepath.Join(testsPath, "misconfigured_2", "datadog_test.yaml")
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_2", "conf.d")
 	err = buildMainConfig(testConfig, ddconfigPath, ddconfdPath)
 	assert.NotNil(t, err)
 
-	ddconfigPath = filepath.Join(testsPath, "misconfigured_3", "datadog.yaml")
+	ddconfigPath = filepath.Join(testsPath, "misconfigured_3", "datadog_test.yaml")
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_3", "conf.d")
 	err = buildMainConfig(testConfig, ddconfigPath, ddconfdPath)
 	assert.NotNil(t, err)
 
-	ddconfigPath = filepath.Join(testsPath, "misconfigured_4", "datadog.yaml")
+	ddconfigPath = filepath.Join(testsPath, "misconfigured_4", "datadog_test.yaml")
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_4", "conf.d")
 	err = buildMainConfig(testConfig, ddconfigPath, ddconfdPath)
 	assert.NotNil(t, err)
 
-	ddconfigPath = filepath.Join(testsPath, "misconfigured_5", "datadog.yaml")
+	ddconfigPath = filepath.Join(testsPath, "misconfigured_5", "datadog_test.yaml")
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_5", "conf.d")
 	err = buildMainConfig(testConfig, ddconfigPath, ddconfdPath)
 	assert.NotNil(t, err)

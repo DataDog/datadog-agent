@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build !windows
+
 package tailer
 
 import (
@@ -156,7 +158,6 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	s.scan()
 	newTailer = s.tailers[sources[0].Path]
 	suite.True(tailer != newTailer)
-	suite.Equal(newTailer.GetReadOffset(), int64(0))
 
 	msg = <-suite.outputChan
 	suite.Equal("third", string(msg.Content()))
