@@ -62,6 +62,19 @@ class PDHBaseCheck(AgentCheck):
                     self.log.debug("entry: %s" % str(entry))
                     self._metrics[key].append(entry)
 
+                # get any additional metrics in the instance
+                addl_metrics = instance.get('additional_metrics')
+                if addl_metrics is not None:
+                    for counterset, inst_name, counter_name, dd_name, mtype in addl_metrics:
+                        if inst_name.lower() == "none" or len(inst_name) == 0 or inst_name == "*" or inst_name.lower() == "all":
+                            inst_name = None
+                        m = getattr(self, mtype.lower())
+                        obj = WinPDHCounter(counterset, counter_name, self.log, inst_name, machine_name = remote_machine)
+                        entry = [inst_name, dd_name, m, obj]
+                        self.log.debug("additional metric entry: %s" % str(entry))
+                        self._metrics[key].append(entry)
+
+
         except Exception as e:
             self.log.debug("Exception in PDH init: %s", str(e))
             raise
@@ -72,13 +85,13 @@ class PDHBaseCheck(AgentCheck):
         for inst_name, dd_name, metric_func, counter in self._metrics[key]:
             try:
                 vals = counter.get_all_values()
-                for key, val in vals.iteritems():
+                for instance_name, val in vals.iteritems():
                     tags = []
                     if key in self._tags:
                         tags = self._tags[key]
 
                     if not counter.is_single_instance():
-                        tag = "instance=%s" % key
+                        tag = "instance:%s" % instance_name
                         tags.append(tag)
                     metric_func(dd_name, val, tags)
             except Exception as e:
