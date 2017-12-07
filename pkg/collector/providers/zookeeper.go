@@ -70,17 +70,12 @@ func (z *ZookeeperConfigProvider) Collect() ([]check.Config, error) {
 }
 
 func (z *ZookeeperConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
-	// NodesToCheck = [["httpd": [1,0,0]],["zk": [0,0,0]]]
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
 		return false, nil, err
 	}
 	var newStats []int32
-	// Get cVersion of each identifier -> will indicate if children were created (i.e. images added)
-	// Get Version of each children -> will indicate if the data of the evaluated child was modified (via set).
 	for _, identifier := range identifiers {
-		// "httpd"
-		//_, stat, err := z.client.Get(identifier)
 
 		// This supposes that we keep the /datadog/check_config/template_id/{check_name|init_config|instances} format.
 		gChildren, _, err := z.client.Children(identifier)
@@ -92,9 +87,6 @@ func (z *ZookeeperConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (b
 				"current list is: %v ", gChildren)
 			continue
 		}
-		// ["init_config", "instances", "checkname"]
-		// 		V
-		//     [1,0,0]
 		newStats = []int32{}
 		for _, gcn := range gChildren {
 			_, stat, err := z.client.Get(gcn)
@@ -104,17 +96,17 @@ func (z *ZookeeperConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (b
 			// Here we get the Version as opposed to the cVersion as we process the last child
 			newStats = append(newStats, stat.Version)
 		}
-		// Init
 		if len(NodesToCheck) == 0 {
 			log.Info("initialization, populating cache for %v.", z.String())
 			NodesToCheck[identifier] = newStats
-			return true, NodesToCheck, nil
+			continue
 		}
 
 		value, ok := NodesToCheck[identifier]
 
 		if !ok {
 			NodesToCheck[identifier] = newStats
+			continue
 		}
 		equal, err := sameSlice(newStats, value)
 
@@ -124,11 +116,9 @@ func (z *ZookeeperConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (b
 		if !equal {
 			NodesToCheck[identifier] = newStats
 		}
-
-		log.Debugf("Not able to process the cache for %v, flushing.", identifier)
-		return true, NodesToCheck, nil
+		log.Debugf("cache up to date for %v", identifier)
 	}
-	return false, NodesToCheck, nil
+	return true, NodesToCheck, nil
 }
 
 // getIdentifiers gets folders at the root of the template dir

@@ -368,6 +368,8 @@ func (ac *AutoConfig) pollConfigs() {
 					UpdatedCP := CPversion{adids2nodeversion: UpdatedNodes}
 					ac.templateCache.CPupdate[pd.provider.String()] = UpdatedCP
 
+					// retrieve the list of newly added configurations as well
+					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
 						// store the checks we schedule for this config locally
