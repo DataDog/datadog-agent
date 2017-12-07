@@ -152,7 +152,12 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 						sample.Tags = append(sample.Tags, originTags...)
 					}
 					dogstatsdExpvar.Add("MetricPackets", 1)
-					metricOut <- sample
+					select {
+					case metricOut <- sample:
+					default:
+						// Aggregator is too busy, drop packet
+						dogstatsdExpvar.Add("MetricPacketDropped", 1)
+					}
 				}
 			}
 		}()
