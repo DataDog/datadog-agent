@@ -34,14 +34,17 @@ class PDHBaseCheck(AgentCheck):
                 if cfg_tags is not None:
                     tags = cfg_tags.join(",")
                     self._tags[key] = list(tags) if tags else []
-
+                remote_machine = None
+                host = instance.get('host')
+                if host is not None and host != ".":
+                    remote_machine = host
                 # list of the metrics.  Each entry is itself an entry,
                 # which is the pdh name, datadog metric name, type, and the
                 # pdh counter object
                 self._metrics[key] = []
                 for counterset, inst_name, counter_name, dd_name, mtype in counter_list:
                     m = getattr(self, mtype.lower())
-                    obj = WinPDHCounter(counterset, counter_name, self.log, inst_name)
+                    obj = WinPDHCounter(counterset, counter_name, self.log, inst_name, machine_name = remote_machine)
                     entry = [inst_name, dd_name, m, obj]
                     self.log.debug("entry: %s" % str(entry))
                     self._metrics[key].append(entry)
@@ -51,6 +54,7 @@ class PDHBaseCheck(AgentCheck):
             raise
 
     def check(self, instance):
+        self.log.debug("PDHBaseCheck: check()")
         key = hash_mutable(instance)
         for inst_name, dd_name, metric_func, counter in self._metrics[key]:
             try:
