@@ -18,16 +18,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"sync"
 )
 
 // EtcdConfigProvider implements the Config Provider interface
 // It should be called periodically and returns templates from etcd for AutoConf.
 type EtcdConfigProvider struct {
 	Client client.KeysAPI
-	m      sync.RWMutex
-	expired		bool
-
 }
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
@@ -49,7 +45,7 @@ func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider
 	}
 
 	c := client.NewKeysAPI(cl)
-	return &EtcdConfigProvider{Client: c, expired: true}, nil
+	return &EtcdConfigProvider{Client: c}, nil
 }
 
 // Collect retrieves templates from etcd, builds Config objects and returns them
@@ -61,9 +57,6 @@ func (p *EtcdConfigProvider) Collect() ([]check.Config, error) {
 		templates := p.getTemplates(id)
 		configs = append(configs, templates...)
 	}
-	p.m.Lock()
-	p.expired = false
-	p.m.Unlock()
 	return configs, nil
 }
 
@@ -152,34 +145,8 @@ func (p *EtcdConfigProvider) getIdx(key string) int {
 	return 0
 }
 
-// Watcher
-func (p *EtcdConfigProvider) Watcher() {
-	pathToWatch := config.Datadog.GetString("autoconf_template_dir")
-	log.Debug("Starting Watcher for %q in %q", p.String(), pathToWatch)
-	watcherOption := client.WatcherOptions{AfterIndex: 0, Recursive: true}
-
-	watcher := p.Client.Watcher(pathToWatch, &watcherOption)
-	go func() {
-		for {
-			r, err := watcher.Next(context.Background())
-			if err == nil && r == nil {
-				continue
-			}
-			if err != nil {
-				log.Error("Error occurred during Watch : ", err)
-			}
-			p.m.Lock()
-			p.expired = true
-			p.m.Unlock()
-		}
-	}()
-}
-
-func (p *EtcdConfigProvider) IsExpired() bool{
-	p.m.RLock()
-	e := p.expired
-	p.m.RUnlock()
-	return e
+func (p *EtcdConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
+	return false, nil, nil
 }
 
 func (p *EtcdConfigProvider) String() string {
