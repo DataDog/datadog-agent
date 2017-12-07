@@ -101,6 +101,50 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			},
 			expectedHigh: []string{"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001"},
 		},
+		{
+			testName: "extractSwarmLabels",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{"PATH=/bin"},
+					Labels: map[string]string{
+						"com.docker.swarm.node.id":      "zdtab51ei97djzrpa1y2tz8li",
+						"com.docker.swarm.service.id":   "tef96xrdmlj82c7nt57jdntl8",
+						"com.docker.swarm.service.name": "helloworld",
+						"com.docker.swarm.task":         "",
+						"com.docker.swarm.task.id":      "knk1rz1szius7pvyznn9zolld",
+						"com.docker.swarm.task.name":    "helloworld.1.knk1rz1szius7pvyznn9zolld",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow:          []string{"swarm_service:helloworld"},
+			expectedHigh:         []string{},
+		},
+		{
+			testName: "extractSwarmLabelsWithCustomLabelsAdds",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{"PATH=/bin"},
+					Labels: map[string]string{
+						"com.docker.swarm.node.id":      "zdtab51ei97djzrpa1y2tz8li",
+						"com.docker.swarm.service.id":   "tef96xrdmlj82c7nt57jdntl8",
+						"com.docker.swarm.service.name": "helloworld",
+						"com.docker.swarm.task":         "",
+						"com.docker.swarm.task.id":      "knk1rz1szius7pvyznn9zolld",
+						"com.docker.swarm.task.name":    "helloworld.1.knk1rz1szius7pvyznn9zolld",
+					},
+				},
+			},
+			toRecordEnvAsTags: map[string]string{},
+			toRecordLabelsAsTags: map[string]string{
+				// Add some uncovered swarm labels to be extracted
+				"com.docker.swarm.node.id":   "custom_add_swarm_node",
+				"com.docker.swarm.task.name": "+custom_add_task_name",
+			},
+			expectedLow:  []string{"swarm_service:helloworld", "custom_add_swarm_node:zdtab51ei97djzrpa1y2tz8li"},
+			expectedHigh: []string{"custom_add_task_name:helloworld.1.knk1rz1szius7pvyznn9zolld"},
+		},
 	}
 
 	dc := &DockerCollector{}
