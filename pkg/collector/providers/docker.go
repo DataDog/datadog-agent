@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"sync"
 )
 
 const (
@@ -23,9 +22,6 @@ const (
 // DockerConfigProvider implements the ConfigProvider interface for the docker labels.
 type DockerConfigProvider struct {
 	dockerUtil *docker.DockerUtil
-	expired bool
-	m sync.RWMutex
-
 }
 
 // NewDockerConfigProvider returns a new ConfigProvider connected to docker.
@@ -56,14 +52,9 @@ func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
 
 	return parseDockerLabels(containers)
 }
-func (d *DockerConfigProvider) Watcher(){
-	//TODO
-}
-func (d *DockerConfigProvider) IsExpired() bool{
-	d.m.RLock()
-	e := d.expired
-	d.m.RUnlock()
-	return e
+
+func (d *DockerConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
+	return false, nil, nil
 }
 
 func parseDockerLabels(containers map[string]map[string]string) ([]check.Config, error) {

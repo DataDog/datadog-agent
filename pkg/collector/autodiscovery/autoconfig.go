@@ -331,15 +331,9 @@ func (ac *AutoConfig) AddLoader(loader check.Loader) {
 	ac.loaders = append(ac.loaders, loader)
 }
 
-func (ac *AutoConfig) startWatchers(){
-	for _, pd := range ac.providers{
-		go pd.provider.Watcher()
-	}
-}
 // pollConfigs periodically calls Collect() on all the configuration
 // providers that have been requested to be polled
 func (ac *AutoConfig) pollConfigs() {
-	ac.startWatchers()
 	go func() {
 		for {
 			select {
@@ -356,13 +350,24 @@ func (ac *AutoConfig) pollConfigs() {
 					if !pd.poll {
 						continue
 					}
-					if pd.provider.IsExpired() == false {
+
+					value, ok := ac.templateCache.CPupdate[pd.provider.String()]
+					if !ok {
+						ac.templateCache.CPupdate[pd.provider.String()] = CPversion{
+							adids2nodeversion: nil,
+						}
+						value.adids2nodeversion = map[string][]int32{}
+					}
+
+					upToDate, UpdatedNodes, _ := pd.provider.IsUpToDate(value.adids2nodeversion)
+					if upToDate == true {
 						log.Debugf("No modifications in the templates stored in %q ", pd.provider.String())
 						continue
 					}
 
-					// retrieve the list of newly added configurations as well
-					// as removed configurations
+					UpdatedCP := CPversion{adids2nodeversion: UpdatedNodes}
+					ac.templateCache.CPupdate[pd.provider.String()] = UpdatedCP
+
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
 						// store the checks we schedule for this config locally

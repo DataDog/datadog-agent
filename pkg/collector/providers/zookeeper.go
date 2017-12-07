@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"sync"
 )
 
 const sessionTimeout = 1 * time.Second
@@ -33,8 +32,6 @@ type zkBackend interface {
 type ZookeeperConfigProvider struct {
 	client      zkBackend
 	templateDir string
-	m      sync.RWMutex
-	expired		bool
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
@@ -43,13 +40,12 @@ func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvid
 
 	c, _, err := zk.Connect(urls, sessionTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", cfg.TemplateURL, strings.Join(urls, ", " ), err)
+		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", cfg.TemplateURL, strings.Join(urls, ", "), err)
 	}
 
 	return &ZookeeperConfigProvider{
 		client:      c,
 		templateDir: cfg.TemplateDir,
-		expired:     true,
 	}, nil
 }
 
@@ -70,20 +66,69 @@ func (z *ZookeeperConfigProvider) Collect() ([]check.Config, error) {
 		c := z.getTemplates(id)
 		configs = append(configs, c...)
 	}
-	z.m.Lock()
-	z.expired = false
-	z.m.Unlock()
 	return configs, nil
 }
 
-func (z *ZookeeperConfigProvider) Watcher(){
-	// TODO
-}
-func (z *ZookeeperConfigProvider) IsExpired() bool{
-	z.m.RLock()
-	e := z.expired
-	z.m.RUnlock()
-	return e
+func (z *ZookeeperConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
+	// NodesToCheck = [["httpd": [1,0,0]],["zk": [0,0,0]]]
+	identifiers, err := z.getIdentifiers(z.templateDir)
+	if err != nil {
+		return false, nil, err
+	}
+	var newStats []int32
+	// Get cVersion of each identifier -> will indicate if children were created (i.e. images added)
+	// Get Version of each children -> will indicate if the data of the evaluated child was modified (via set).
+	for _, identifier := range identifiers {
+		// "httpd"
+		//_, stat, err := z.client.Get(identifier)
+
+		// This supposes that we keep the /datadog/check_config/template_id/{check_name|init_config|instances} format.
+		gChildren, _, err := z.client.Children(identifier)
+		if err != nil {
+			return false, nil, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
+		}
+		if len(gChildren) != 3 {
+			log.Info("there should only be check_name, init_config and instances as children of the AD identifier \n"+
+				"current list is: %v ", gChildren)
+			continue
+		}
+		// ["init_config", "instances", "checkname"]
+		// 		V
+		//     [1,0,0]
+		newStats = []int32{}
+		for _, gcn := range gChildren {
+			_, stat, err := z.client.Get(gcn)
+			if err != nil {
+				return false, nil, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
+			}
+			// Here we get the Version as opposed to the cVersion as we process the last child
+			newStats = append(newStats, stat.Version)
+		}
+		// Init
+		if len(NodesToCheck) == 0 {
+			log.Info("initialization, populating cache for %v.", z.String())
+			NodesToCheck[identifier] = newStats
+			return true, NodesToCheck, nil
+		}
+
+		value, ok := NodesToCheck[identifier]
+
+		if !ok {
+			NodesToCheck[identifier] = newStats
+		}
+		equal, err := sameSlice(newStats, value)
+
+		if err != nil {
+			return false, nil, err
+		}
+		if !equal {
+			NodesToCheck[identifier] = newStats
+		}
+
+		log.Debugf("Not able to process the cache for %v, flushing.", identifier)
+		return true, NodesToCheck, nil
+	}
+	return false, NodesToCheck, nil
 }
 
 // getIdentifiers gets folders at the root of the template dir

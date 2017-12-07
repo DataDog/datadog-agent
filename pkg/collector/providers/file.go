@@ -16,7 +16,6 @@ import (
 	log "github.com/cihub/seelog"
 
 	"gopkg.in/yaml.v2"
-	"sync"
 )
 
 type configFormat struct {
@@ -44,8 +43,6 @@ type configEntry struct {
 type FileConfigProvider struct {
 	paths  []string
 	Errors map[string]string
-	expired bool
-	m sync.RWMutex
 }
 
 // NewFileConfigProvider creates a new FileConfigProvider searching for
@@ -54,7 +51,6 @@ func NewFileConfigProvider(paths []string) *FileConfigProvider {
 	return &FileConfigProvider{
 		paths:  paths,
 		Errors: make(map[string]string),
-		expired: true,
 	}
 }
 
@@ -123,14 +119,9 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 
 	return configs, nil
 }
-func (c *FileConfigProvider) Watcher(){
-	// TODO
-}
-func (c *FileConfigProvider) IsExpired() bool{
-	c.m.RLock()
-	e := c.expired
-	c.m.RUnlock()
-	return e
+
+func (c *FileConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
+	return false, nil, nil
 }
 
 func (c *FileConfigProvider) String() string {
