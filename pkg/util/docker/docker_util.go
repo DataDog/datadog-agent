@@ -203,6 +203,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 			ID:       entityID[9:],
 			EntityID: entityID,
 			Name:     c.Names[0],
+			Labels:   c.Labels,
 			Image:    image,
 			ImageID:  c.ImageID,
 			Created:  c.Created,

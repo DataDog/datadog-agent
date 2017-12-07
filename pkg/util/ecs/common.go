@@ -74,6 +74,7 @@ func GetContainers() ([]*docker.Container, error) {
 			ID:       c.DockerID,
 			EntityID: entityID,
 			Name:     c.DockerName,
+			Labels:   c.Labels,
 			Image:    c.Image,
 			ImageID:  c.ImageID,
 		}
