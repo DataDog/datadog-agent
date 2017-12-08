@@ -351,17 +351,23 @@ func (ac *AutoConfig) pollConfigs() {
 						continue
 					}
 
+					// handle the initialization of the CPupdate cache. Fill it and trigger a Collect().
+					initCP := false
 					value, ok := ac.templateCache.CPupdate[pd.provider.String()]
 					if !ok {
+						initCP = true
 						ac.templateCache.CPupdate[pd.provider.String()] = CPversion{
-							adids2nodeversion: nil,
+							adids2nodeversion: make(map[string][]int32),
 						}
 						value.adids2nodeversion = map[string][]int32{}
 					}
 
-					upToDate, UpdatedNodes, _ := pd.provider.IsUpToDate(value.adids2nodeversion)
-					if upToDate == true {
-						log.Debugf("No modifications in the templates stored in %q ", pd.provider.String())
+					upToDate, UpdatedNodes, err := pd.provider.IsUpToDate(value.adids2nodeversion)
+					if err != nil {
+						log.Errorf("cache processing of %v failed: %v", pd.provider.String(), err)
+					}
+					if upToDate == true && initCP == false{
+						log.Infof("No modifications in the templates stored in %q ", pd.provider.String())
 						continue
 					}
 
