@@ -55,14 +55,6 @@ func (pp *Provider) Start(cm *sender.ConnectionManager, auditorChan chan message
 	}
 }
 
-// MockPipelineChans initializes pipelinesChans for testing purpose
-// TODO: move this somewhere else
-func (pp *Provider) MockPipelineChans() {
-	pp.pipelinesChans = [](chan message.Message){}
-	pp.pipelinesChans = append(pp.pipelinesChans, make(chan message.Message))
-	pp.numberOfPipelines = 1
-}
-
 // NextPipelineChan returns the next pipeline
 func (pp *Provider) NextPipelineChan() chan message.Message {
 	idx := atomic.AddInt32(&pp.currentChanIdx, 1)

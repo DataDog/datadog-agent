@@ -97,6 +97,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 
 	s.scan()
 	newTailer = s.tailers[sources[0].Path]
+	// testing that scanner did not have to create a new tailer
 	suite.True(tailer == newTailer)
 
 	_, err = suite.testFile.WriteString("hello again\n")

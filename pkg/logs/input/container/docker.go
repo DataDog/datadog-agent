@@ -228,6 +228,7 @@ func (dt *DockerTailer) buildTagsPayload() []byte {
 	return config.BuildTagsPayload(tagsString, dt.source.Source, dt.source.SourceCategory)
 }
 
+// containerIDToEntityName returns a prefixed entity name from a container ID
 func containerIDToEntityName(cid string) string {
 	if cid == "" {
 		return ""

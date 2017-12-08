@@ -14,9 +14,11 @@ source git: 'https://github.com/DataDog/datadog-agent.git'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 if windows?
-  log_agent_binary = "logs.exe"
+  binary = "logs.exe"
+  log_agent_binary = "logs-agent.exe"
 else
-  log_agent_binary = "logs"
+  binary = "logs"
+  log_agent_binary = "logs-agent"
 end
 
 build do
@@ -43,8 +45,8 @@ build do
   command "inv deps", :env => env
   command "inv logs.build", :env => env
   if windows?
-    copy "bin/logs/#{log_agent_binary}", "#{install_dir}/bin/agent/logs-agent"
+    copy "bin/logs/#{binary}", "#{install_dir}/bin/agent/#{log_agent_binary}"
   else
-    copy log_agent_binary, "#{install_dir}/embedded/bin/logs-agent"
+    copy binary, "#{install_dir}/embedded/bin/#{log_agent_binary}"
   end
 end
