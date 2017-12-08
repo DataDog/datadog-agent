@@ -8,7 +8,7 @@ always_build true
 
 build do
   command "invoke logs.build"
-  binary = "#{install_dir}/bin/logs/logs"
+  binary = "bin/logs/logs"
   command "chmod +x #{binary}"
-  command "mv #{binary} #{install_dir}/bin/agent/logs-agent"
+  move "#{binary}", "#{install_dir}/bin/agent/logs-agent"
 end

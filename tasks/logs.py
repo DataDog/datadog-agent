@@ -21,7 +21,7 @@ def build(ctx):
     """
     Build Logs Agent
     """    
-    cmd = "go build -tags=docker -o {bin_name} {REPO_PATH}/cmd/logs/"
+    cmd = "go build -o {bin_name} {REPO_PATH}/cmd/logs/"
     args = {
         "bin_name": LOGS_BIN_NAME,
         "REPO_PATH": REPO_PATH,
