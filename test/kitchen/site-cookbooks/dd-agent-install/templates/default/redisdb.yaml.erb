@@ -1,0 +1,38 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+<% @instances.each do |i| -%>
+  <% if i.key?("unix_socket_path") -%>
+  - unix_socket_path: <%= i["unix_socket_path"] %>
+  <% else -%>
+  - host: <%= i["server"] %>
+    port: <%= i["port"] || 6379 %>
+  <% end -%>
+    <% if i.key?("password") -%>
+    password: <%= i["password"] %>
+    <% end -%>
+    <% if i.key?("db") -%>
+    db: <%= i["db"] %>
+    <% end -%>
+    <% if i.key?("tags") -%>
+    tags:
+      <% i["tags"].each do |t| -%>
+      - <%= t %>
+      <% end -%>
+    <% end -%>
+    <% if i.key?("keys") -%>
+        <% if i.key?("warn_on_missing_keys") -%>
+    warn_on_missing_keys: <%= i['warn_on_missing_keys'] %>
+        <% end -%>
+    keys:
+      <% i["keys"].each do |k| -%>
+      - <%= k %>
+      <% end -%>
+    <% end -%>
+    <% if i.key?('slowlog-max-len') -%>slowlog-max-len: <%= i['slowlog-max-len'] %><% end -%>
+    <% if i.key?('socket_timeout') -%>socket_timeout: <%= i['socket_timeout'] %><% end -%>
+    <% if i.key?('command_stats') -%>command_stats: <%= i['command_stats'] %><% end -%>
+<% end -%>
+
+init_config:
+# nothing to add here

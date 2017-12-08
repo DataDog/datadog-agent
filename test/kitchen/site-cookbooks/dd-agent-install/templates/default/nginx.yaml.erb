@@ -1,0 +1,23 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+<% @instances.each do |i| -%>
+  - nginx_status_url: <%= i['nginx_status_url'] %>
+  <% unless i['ssl_validation'].nil? -%>
+    ssl_validation:  <%= i['ssl_validation'] %>
+  <% end -%>
+  <%# don't print user/password if either is nil -%>
+  <% unless i['user'].nil? || i['password'].nil? -%>
+    user: <%= i['user'] %>
+    password: <%= i['password'] %>
+  <% end -%>
+  <% if i.key?('tags') -%>
+    tags:
+    <% i['tags'].each do |t| -%>
+    - <%= t %>
+    <% end -%>
+  <% end -%>
+<% end -%>
+
+# Nothing to configure here
+init_config:

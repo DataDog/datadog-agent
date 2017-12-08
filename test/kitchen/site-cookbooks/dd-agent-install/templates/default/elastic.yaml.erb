@@ -1,0 +1,48 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+  <% @instances.each do |i| -%>
+  - url: <%= i["url"] %>
+    <% unless i["shard_level_metrics"].nil? %>
+    shard_level_metrics: <%= i["shard_level_metrics"] %>
+    <% end %>
+    <% unless i["pshard_stats"].nil? %>
+    pshard_stats: <%= i["pshard_stats"] %>
+    <% end %>
+    <% unless i["cluster_stats"].nil? %>
+    cluster_stats: <%= i["cluster_stats"] %>
+    <% end %>
+    <% unless i["is_external"].nil? %>
+    is_external: <%= i["is_external"] %>
+    <% end %>
+    <% unless i["username"].nil? %>
+    username: <%= i["username"] %>
+    <% end %>
+    <% unless i["password"].nil? %>
+    password: <%= i["password"] %>
+    <% end %>
+    <% unless i["timeout"].nil? %>
+    timeout: <%= i["timeout"] %>
+    <% end %>
+    <% unless i["pending_task_stats"].nil? %>
+    pending_task_stats: <%= i["pending_task_stats"] %>
+    <% end %>
+    <% unless i["ssl_verify"].nil? %>
+    ssl_verify: <%= i["ssl_verify"] %>
+    <% end %>
+    <% unless i["ssl_cert"].nil? %>
+    ssl_cert: <%= i["ssl_cert"] %>
+    <% end %>
+    <% unless i["ssl_key"].nil? %>
+    ssl_key: <%= i["ssl_key"] %>
+    <% end %>
+    <% if i.key?('tags') -%>
+    tags:
+      <% i['tags'].each do |t| -%>
+      - <%= t %>
+      <% end -%>
+    <% end -%>
+  <% end %>
+
+# Nothing to configure below
+init_config:

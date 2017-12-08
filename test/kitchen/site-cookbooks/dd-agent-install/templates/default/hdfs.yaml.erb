@@ -1,0 +1,18 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+# Each instance requires a namenode hostname.
+# Port defaults to 8020.
+instances:
+  <% @instances.each do |instance| -%>
+  - namenode: <%= instance.fetch("fqdn"){ node["fqdn"] } %>
+    port: <%= instance.fetch("port", 8020) %>
+    <% if instance.key?("tags") -%>
+    tags:
+      <% instance["tags"].each do |tag| -%>
+      - <%= tag %>
+      <% end -%>
+    <% end -%>
+  <% end -%>
+
+# HDFS check does not require any init_config
+init_config:
