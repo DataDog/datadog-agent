@@ -43,8 +43,8 @@ build do
   command "inv deps", :env => env
   command "inv logs.build", :env => env
   if windows?
-    copy "#{install_dir}/bin/logs/#{log_agent_binary}", "#{install_dir}/bin/agent"
+    copy "bin/logs/#{log_agent_binary}", "#{install_dir}/bin/agent/logs-agent"
   else
-    copy log_agent_binary, "#{install_dir}/embedded/bin"
+    copy log_agent_binary, "#{install_dir}/embedded/bin/logs-agent"
   end
 end
