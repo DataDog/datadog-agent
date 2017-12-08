@@ -1,0 +1,7 @@
+log_dd_url: "my.url"
+log_dd_port: 10516
+skip_ssl_validation: true
+logset: playground
+api_key: "helloworld"
+hostname: "my.host"
+log_enabled: true

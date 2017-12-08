@@ -1,0 +1,8 @@
+init_config:
+
+instances:
+  - whatever: anything
+
+logs:
+  - type: docker
+    image: test
