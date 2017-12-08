@@ -80,11 +80,12 @@ func sameSlice(a []int32, b []int32) (bool, error) {
 		return false, fmt.Errorf("arrays have different sizes")
 	}
 	for i := range a {
-		if a[i] == b[i] {
-			return true, nil
+		if a[i] != b[i] {
+			log.Debugf("arrays %v and %v are not the same", a, b)
+			return false, nil
 		}
 	}
-	return false, fmt.Errorf("arrays %v and %v are not the same", a, b)
+	return true, nil
 }
 func buildStoreKey(key ...string) string {
 	parts := []string{config.Datadog.GetString("autoconf_template_dir")}

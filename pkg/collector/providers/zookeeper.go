@@ -69,54 +69,73 @@ func (z *ZookeeperConfigProvider) Collect() ([]check.Config, error) {
 	return configs, nil
 }
 
+// Updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Zookeeper's data.
 func (z *ZookeeperConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
+
+	upToDate := false
+	var adTempAdded bool
+
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
-		return false, nil, err
+		return upToDate, NodesToCheck, err
 	}
+
+	_, dirStat, err := z.client.Get(z.templateDir)
+	if err != nil {
+		return upToDate, NodesToCheck, err
+	}
+	// We want to be specifically notified if a template was added or removed. The we flush the cache.
+	if int(dirStat.NumChildren) != len(NodesToCheck){
+		log.Infof("list of ADTemplates was modified. Cache is being updated...")
+		NodesToCheck = map[string][]int32{}
+		adTempAdded = true
+	}
+
 	var newStats []int32
 	for _, identifier := range identifiers {
-
-		// This supposes that we keep the /datadog/check_config/template_id/{check_name|init_config|instances} format.
+		// This supposes that we keep the /datadog/check_config/template_id/{check_names|init_configs|instances} format.
 		gChildren, _, err := z.client.Children(identifier)
 		if err != nil {
-			return false, nil, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
+			return upToDate, nil, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
 		}
-		if len(gChildren) != 3 {
-			log.Info("there should only be check_name, init_config and instances as children of the AD identifier \n"+
-				"current list is: %v ", gChildren)
-			continue
-		}
+
 		newStats = []int32{}
 		for _, gcn := range gChildren {
-			_, stat, err := z.client.Get(gcn)
+			gcnPath := path.Join(identifier, gcn)
+			_, stat, err := z.client.Get(gcnPath)
 			if err != nil {
-				return false, nil, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
+				return upToDate, nil, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
 			}
 			// Here we get the Version as opposed to the cVersion as we process the last child
 			newStats = append(newStats, stat.Version)
 		}
 		if len(NodesToCheck) == 0 {
-			log.Info("initialization, populating cache for %v.", z.String())
+			log.Infof("Populating cache for %v.", z.String())
 			NodesToCheck[identifier] = newStats
 			continue
 		}
 
 		value, ok := NodesToCheck[identifier]
 
+		// if the template is not in the cache, add its up to date version.
 		if !ok {
 			NodesToCheck[identifier] = newStats
 			continue
 		}
+
+		// check if the version of the template in the cache is outdated.
 		equal, err := sameSlice(newStats, value)
 
 		if err != nil {
-			return false, nil, err
+			return upToDate, nil, err
 		}
 		if !equal {
 			NodesToCheck[identifier] = newStats
 		}
-		log.Debugf("cache up to date for %v", identifier)
+		log.Infof("cache up to date for %v", identifier)
+	}
+	if adTempAdded {
+		return false, NodesToCheck, nil
 	}
 	return true, NodesToCheck, nil
 }
