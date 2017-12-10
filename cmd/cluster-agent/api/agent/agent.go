@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/dd-go/log"
+	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 )
 
