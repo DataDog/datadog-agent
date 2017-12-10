@@ -24,6 +24,7 @@ import (
 // It should be called periodically and returns templates from etcd for AutoConf.
 type EtcdConfigProvider struct {
 	Client client.KeysAPI
+	templateDir string
 }
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
@@ -45,14 +46,14 @@ func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider
 	}
 
 	c := client.NewKeysAPI(cl)
-	return &EtcdConfigProvider{Client: c}, nil
+	return &EtcdConfigProvider{Client: c, templateDir: cfg.TemplateDir}, nil
 }
 
 // Collect retrieves templates from etcd, builds Config objects and returns them
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
 func (p *EtcdConfigProvider) Collect() ([]check.Config, error) {
 	configs := make([]check.Config, 0)
-	identifiers := p.getIdentifiers(config.Datadog.GetString("autoconf_template_dir"))
+	identifiers := p.getIdentifiers(p.templateDir)
 	for _, id := range identifiers {
 		templates := p.getTemplates(id)
 		configs = append(configs, templates...)
@@ -146,6 +147,16 @@ func (p *EtcdConfigProvider) getIdx(key string) int {
 }
 
 func (p *EtcdConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
+	upTodDate := false
+	var adTempAdded bool
+	identifiers := p.getIdentifiers(p.templateDir)
+	if len(identifiers) != len(NodesToCheck) {
+		return
+
+	}
+	resp, err := kapi.Get(context.Background(), key, &client.GetOptions{Recursive: true})
+	children := resp.Node.Nodes
+	//for _, c :=
 	return false, nil, nil
 }
 
