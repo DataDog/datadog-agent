@@ -17,35 +17,35 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-const tcpTestPort = 10512
+const udpTestPort = 10513
 
-type TCPTestSuite struct {
+type UDPTestSuite struct {
 	suite.Suite
 
 	outputChan chan message.Message
 	pp         pipeline.Provider
 	source     *config.IntegrationConfigLogSource
-	tcpl       *TCPListener
+	udpl       *UDPListener
 }
 
-func (suite *TCPTestSuite) SetupTest() {
+func (suite *UDPTestSuite) SetupTest() {
 	suite.pp = mock.NewMockProvider()
 	suite.outputChan = suite.pp.NextPipelineChan()
-	suite.source = &config.IntegrationConfigLogSource{Type: config.TCPType, Port: tcpTestPort}
-	tcpl, err := NewTCPListener(suite.pp, suite.source)
+	suite.source = &config.IntegrationConfigLogSource{Type: config.UDPType, Port: udpTestPort}
+	udpl, err := NewUDPListener(suite.pp, suite.source)
 	suite.Nil(err)
-	suite.tcpl = tcpl
-	suite.tcpl.Start()
+	suite.udpl = udpl
+	suite.udpl.Start()
 }
 
-func (suite *TCPTestSuite) TestTCPReceivesMessages() {
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
+func (suite *UDPTestSuite) TestUDPReceivesMessages() {
+	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
 	suite.Nil(err)
 	fmt.Fprintf(conn, "hello world\n")
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
 }
 
-func TestTCPTestSuite(t *testing.T) {
-	suite.Run(t, new(TCPTestSuite))
+func TestUDPTestSuite(t *testing.T) {
+	suite.Run(t, new(UDPTestSuite))
 }
