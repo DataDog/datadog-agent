@@ -28,9 +28,6 @@ def build(ctx):
     }
     ctx.run(cmd.format(**args))
 
-    cmd = "go generate {}/cmd/logs"
-    ctx.run(cmd.format(REPO_PATH))
-
 @task
 def run(ctx, skip_build=False, ddconfig=None, ddconfd=None):
     """

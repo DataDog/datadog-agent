@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 
-	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/utils"
 )
@@ -48,7 +47,7 @@ func main() {
 				os.Remove(*pidfilePath)
 			}()
 		}
-		logs.Start()
+		Start()
 
 		if config.LogsAgent.GetBool("log_profiling_enabled") {
 			log.Println("starting logs-agent profiling")
