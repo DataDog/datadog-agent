@@ -12,7 +12,7 @@ log_agent_binary_name = "logs-agent"
 log_agent_binary = "#{install_dir}/bin/agent/#{log_agent_binary_name}"
 
 build do
-  command "invoke logs.build"  
+  command "invoke logs.build"
   command "chmod +x #{binary}"
   move binary, log_agent_binary
 end

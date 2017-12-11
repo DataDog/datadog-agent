@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -29,7 +29,7 @@ type TCPTestSuite struct {
 }
 
 func (suite *TCPTestSuite) SetupTest() {
-	suite.pp = newMockPipelineProvider()
+	suite.pp = mock.NewMockProvider()
 	suite.outputChan = suite.pp.NextPipelineChan()
 	suite.source = &config.IntegrationConfigLogSource{Type: config.TCPType, Port: tcpTestPort}
 	tcpl, err := NewTCPListener(suite.pp, suite.source)
@@ -48,24 +48,4 @@ func (suite *TCPTestSuite) TestTCPReceivesMessages() {
 
 func TestTCPTestSuite(t *testing.T) {
 	suite.Run(t, new(TCPTestSuite))
-}
-
-// mockPipelineProvider mocks pipeline providing logic
-type mockPipelineProvider struct {
-	msgChan chan message.Message
-}
-
-// newMockPipelineProvider returns a new mockPipelineProvider
-func newMockPipelineProvider() pipeline.Provider {
-	return &mockPipelineProvider{
-		msgChan: make(chan message.Message),
-	}
-}
-
-// Start does nothing
-func (p *mockPipelineProvider) Start(cm *sender.ConnectionManager, auditorChan chan message.Message) {}
-
-// NextPipelineChan returns the next pipeline
-func (p *mockPipelineProvider) NextPipelineChan() chan message.Message {
-	return p.msgChan
 }
