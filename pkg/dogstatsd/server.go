@@ -128,7 +128,12 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 						serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
 					}
 					dogstatsdExpvar.Add("ServiceCheckPackets", 1)
-					serviceCheckOut <- *serviceCheck
+					select {
+					case serviceCheckOut <- *serviceCheck:
+					default:
+						// Aggregator is too busy, drop packet
+						dogstatsdExpvar.Add("ServiceCheckPacketDropped", 1)
+					}
 				} else if bytes.HasPrefix(packet, []byte("_e")) {
 					event, err := parseEventPacket(packet)
 					if err != nil {
@@ -140,7 +145,12 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 						event.Tags = append(event.Tags, originTags...)
 					}
 					dogstatsdExpvar.Add("EventPackets", 1)
-					eventOut <- *event
+					select {
+					case eventOut <- *event:
+					default:
+						// Aggregator is too busy, drop packet
+						dogstatsdExpvar.Add("EventPacketDropped", 1)
+					}
 				} else {
 					sample, err := parseMetricPacket(packet)
 					if err != nil {

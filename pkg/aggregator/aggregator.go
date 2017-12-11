@@ -138,8 +138,8 @@ func NewBufferedAggregator(s *serializer.Serializer, hostname string, flushInter
 	aggregator := &BufferedAggregator{
 		dogstatsdIn:        make(chan *metrics.MetricSample, 10000), // TODO make buffer size configurable
 		checkMetricIn:      make(chan senderMetricSample, 100),      // TODO make buffer size configurable
-		serviceCheckIn:     make(chan metrics.ServiceCheck, 100),    // TODO make buffer size configurable
-		eventIn:            make(chan metrics.Event, 100),           // TODO make buffer size configurable
+		serviceCheckIn:     make(chan metrics.ServiceCheck, 1000),   // TODO make buffer size configurable
+		eventIn:            make(chan metrics.Event, 1000),          // TODO make buffer size configurable
 		sampler:            *NewTimeSampler(bucketSize, hostname),
 		checkSamplers:      make(map[check.ID]*CheckSampler),
 		distSampler:        *NewDistSampler(bucketSize, hostname),
