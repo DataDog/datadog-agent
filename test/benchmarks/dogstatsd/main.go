@@ -12,13 +12,15 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/http"
 	"os"
 	"runtime"
 	"strconv"
 	"sync"
 	"time"
 
-	"gopkg.in/zorkian/go-datadog-api.v2"
+	log "github.com/cihub/seelog"
+	datadog "gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -26,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/test/util"
-	log "github.com/cihub/seelog"
 )
 
 const (
@@ -75,39 +76,39 @@ func (f *forwarderBenchStub) Stop() {
 	return
 }
 
-func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1Series(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1Intake(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitV1CheckRuns(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSeries(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitSeries(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitEvents(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitEvents(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitServiceChecks(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitServiceChecks(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitSketchSeries(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitSketchSeries(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitHostMetadata(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitHostMetadata(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }
-func (f *forwarderBenchStub) SubmitMetadata(payloads forwarder.Payloads, extraHeaders map[string]string) error {
+func (f *forwarderBenchStub) SubmitMetadata(payloads forwarder.Payloads, extraHeaders http.Header) error {
 	f.computeStats(payloads)
 	return nil
 }

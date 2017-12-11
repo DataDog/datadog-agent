@@ -49,10 +49,20 @@ func dockerExtractImage(tags *utils.TagList, dockerImage string) {
 	tags.AddLow("image_tag", imageTag)
 }
 
+// dockerExtractLabels contain hard-coded labels from:
+// - Docker swarm
 func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string, labelsAsTags map[string]string) {
+
 	for labelName, labelValue := range containerLabels {
-		if tagName, found := labelsAsTags[strings.ToLower(labelName)]; found {
-			tags.AddAuto(tagName, labelValue)
+		switch labelName {
+		// Docker swarm
+		case "com.docker.swarm.service.name":
+			tags.AddLow("swarm_service", labelValue)
+
+		default:
+			if tagName, found := labelsAsTags[strings.ToLower(labelName)]; found {
+				tags.AddAuto(tagName, labelValue)
+			}
 		}
 	}
 }

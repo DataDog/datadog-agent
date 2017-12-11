@@ -102,7 +102,7 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
 static PyMethodDef datadogAgentMethods[] = {
   {"get_version", GetVersion, METH_VARARGS, "Get the Agent version."},
   {"get_config", get_config, METH_VARARGS, "Get value from the agent configuration."},
-  {"headers", Headers, METH_VARARGS, "Get basic HTTP headers with the right UserAgent."},
+  {"headers", Headers, METH_VARARGS | METH_KEYWORDS, "Get basic HTTP headers with the right UserAgent."},
   {"get_hostname", GetHostname, METH_VARARGS, "Get the agent hostname."},
   {"log", log_message, METH_VARARGS, "Log a message through the agent logger."},
   {NULL, NULL}
@@ -113,7 +113,7 @@ static PyMethodDef datadogAgentMethods[] = {
  * deprecated in favor of 'datadog_agent' package.
  */
 static PyMethodDef utilMethods[] = {
-  {"headers", (PyCFunction)Headers, METH_VARARGS, "Get basic HTTP headers with the right UserAgent."},
+  {"headers", (PyCFunction)Headers, METH_VARARGS | METH_KEYWORDS, "Get basic HTTP headers with the right UserAgent."},
   {NULL, NULL}
 };
 

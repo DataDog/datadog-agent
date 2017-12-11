@@ -12,6 +12,7 @@ try:
 except ImportError:
     def WinPDHCounter(*args, **kwargs):
         return
+import win32wnet
 
 import win32wnet
 
@@ -27,7 +28,7 @@ class PDHBaseCheck(AgentCheck):
         self._counters = {}
         self._metrics = {}
         self._tags = {}
-
+        self.log.debug("PDHBaseCheck init")
         try:
             for instance in instances:
                 key = hash_mutable(instance)
