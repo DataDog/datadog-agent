@@ -7,7 +7,7 @@ package utils
 
 import "strings"
 
-// StringinRuneset tests whether all runes of a string are in a given subset
+// StringInRuneset tests whether all runes of a string are in a given subset
 // returns false if any rune in the string is not found in the subset
 func StringInRuneset(name, subset string) bool {
 	for _, r := range name {
