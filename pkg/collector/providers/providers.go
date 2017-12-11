@@ -8,7 +8,6 @@ package providers
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 )
 
 // ProviderCatalog keeps track of config providers by name
@@ -22,6 +21,18 @@ func RegisterProvider(name string, factory ConfigProviderFactory) {
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance
 type ConfigProviderFactory func(cfg config.ConfigurationProviders) (ConfigProvider, error)
 
+// Cache Provider.
+type CacheProvider struct {
+	Adids2Node map[string]AdIdentfier2stats // ["foo": Stat] Only 1 ad_identifier per tuple Stat
+}
+type AdIdentfier2stats struct {
+	Stats map[string]int32	// Stat = ["check_names":1,"init_configs":0,"instances":0]
+}
+func NewCPCache() *CacheProvider {
+	return &CacheProvider{
+		Adids2Node:        make(map[string]AdIdentfier2stats),
+	}
+}
 // ConfigProvider is the interface that wraps the Collect method
 //
 // Collect is responsible of populating a list of CheckConfig instances
@@ -33,5 +44,5 @@ type ConfigProviderFactory func(cfg config.ConfigurationProviders) (ConfigProvid
 type ConfigProvider interface {
 	Collect() ([]check.Config, error)
 	String() string
-	IsUpToDate(autodiscovery.CPAdIds) (bool, autodiscovery.CPAdIds, error)
+	IsUpToDate() (bool, error)
 }

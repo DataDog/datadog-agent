@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 )
 
 const sessionTimeout = 1 * time.Second
@@ -33,6 +32,7 @@ type zkBackend interface {
 type ZookeeperConfigProvider struct {
 	client      zkBackend
 	templateDir string
+	cache       *CacheProvider
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
@@ -43,10 +43,11 @@ func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvid
 	if err != nil {
 		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", cfg.TemplateURL, strings.Join(urls, ", "), err)
 	}
-
+	cacheProvider := NewCPCache()
 	return &ZookeeperConfigProvider{
 		client:      c,
 		templateDir: cfg.TemplateDir,
+		cache:       cacheProvider,
 	}, nil
 }
 
@@ -71,24 +72,23 @@ func (z *ZookeeperConfigProvider) Collect() ([]check.Config, error) {
 }
 
 // Updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Zookeeper's data.
-func (z *ZookeeperConfigProvider) IsUpToDate(NodesToCheck autodiscovery.CPAdIds) (bool, autodiscovery.CPAdIds, error) {
+func (z *ZookeeperConfigProvider) IsUpToDate() (bool, error) {
 
 	updates := 0
 	var adTempAdded bool
 
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
-		return false, autodiscovery.CPAdIds{}, err
+		return false, nil
 	}
-
 	_, dirStat, err := z.client.Get(z.templateDir)
 	if err != nil {
-		return false, NodesToCheck, err
+		return false, nil
 	}
 	// We want to be specifically notified if a template was added or removed. Then we flush the cache.
-	if int(dirStat.NumChildren) != len(NodesToCheck.Adids2Node){
+	if int(dirStat.NumChildren) != len(z.cache.Adids2Node){
 		log.Infof("list of ADTemplates was modified. Cache is being updated...")
-		NodesToCheck = autodiscovery.CPAdIds{}
+		z.cache.Adids2Node = make(map[string]AdIdentfier2stats)
 		adTempAdded = true
 	}
 
@@ -96,30 +96,30 @@ func (z *ZookeeperConfigProvider) IsUpToDate(NodesToCheck autodiscovery.CPAdIds)
 		// This supposes that we keep the /datadog/check_config/ad_identifiers_id/{check_names|init_configs|instances} format.
 		gChildren, _, err := z.client.Children(identifier)
 		if err != nil {
-			return false, autodiscovery.CPAdIds{}, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
+			return false, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
 		}
-		newStats := autodiscovery.AdIdentfier2stats{Stats: make(map[string]int32)}
+		newStats :=  AdIdentfier2stats{Stats: make(map[string]int32)}
 		for _, gcn := range gChildren {
 			gcnPath := path.Join(identifier, gcn)
 			_, stat, err := z.client.Get(gcnPath)
 			if err != nil {
-				return false, autodiscovery.CPAdIds{}, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
+				return false, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
 			}
 			// Here we get the Version as opposed to the cVersion as we process the last child
 			newStats.Stats[gcn] = stat.Version //["check_config":1]
 		}
-		if len(NodesToCheck.Adids2Node) == 0 {
+		if len(z.cache.Adids2Node) == 0 {
 			log.Infof("Populating cache for %v.", z.String())
-			NodesToCheck.Adids2Node[identifier] = newStats
+			z.cache.Adids2Node[identifier] = newStats
 			continue
 		}
 
-		value, ok := NodesToCheck.Adids2Node[identifier]
+		value, ok := z.cache.Adids2Node[identifier]
 
 		// if the template is not in the cache, add its up to date version.
 		if !ok {
 			updates++
-			NodesToCheck.Adids2Node[identifier] = newStats
+			z.cache.Adids2Node[identifier] = newStats
 			continue
 		}
 
@@ -127,18 +127,20 @@ func (z *ZookeeperConfigProvider) IsUpToDate(NodesToCheck autodiscovery.CPAdIds)
 		equal, err := sameSlice(newStats.Stats, value.Stats)
 
 		if err != nil {
-			return false, autodiscovery.CPAdIds{}, err
+			updates++
+			log.Infof("cache update failed for %v because: ", identifier, err)
+			continue
 		}
 		if !equal {
 			updates++
-			NodesToCheck.Adids2Node[identifier] = newStats
+			z.cache.Adids2Node[identifier] = newStats
 		}
 		log.Infof("cache up to date for %v", identifier)
 	}
 	if adTempAdded || updates > 0{
-		return false, NodesToCheck, nil
+		return false, nil
 	}
-	return true, NodesToCheck, nil
+	return true, nil
 }
 
 // getIdentifiers gets folders at the root of the template dir

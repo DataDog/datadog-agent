@@ -120,8 +120,8 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 	return configs, nil
 }
 
-func (c *FileConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
-	return false, nil, nil
+func (c *FileConfigProvider) IsUpToDate() (bool, error) {
+	return false, nil
 }
 
 func (c *FileConfigProvider) String() string {

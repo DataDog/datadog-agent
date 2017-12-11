@@ -130,8 +130,8 @@ func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
 	return configs, nil
 }
 
-func (p *ConsulConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
-	return false, nil, nil
+func (p *ConsulConfigProvider) IsUpToDate() (bool, error) {
+	return false, nil
 }
 
 // getIdentifiers gets folders at the root of the TemplateDir

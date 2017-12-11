@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 )
 
 // EtcdConfigProvider implements the Config Provider interface
@@ -26,6 +25,7 @@ import (
 type EtcdConfigProvider struct {
 	Client client.KeysAPI
 	templateDir string
+	cache       *CacheProvider
 }
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
@@ -45,9 +45,9 @@ func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider
 	if err != nil {
 		return nil, fmt.Errorf("Unable to instantiate the etcd client: %s", err)
 	}
-
+	cacheProvider := NewCPCache()
 	c := client.NewKeysAPI(cl)
-	return &EtcdConfigProvider{Client: c, templateDir: config.TemplateDir}, nil
+	return &EtcdConfigProvider{Client: c, templateDir: config.TemplateDir, cache: cacheProvider}, nil
 }
 
 // Collect retrieves templates from etcd, builds Config objects and returns them
@@ -147,58 +147,64 @@ func (p *EtcdConfigProvider) getIdx(key string) int {
 	return 0
 }
 
-func (p *EtcdConfigProvider) IsUpToDate(NodesToCheck autodiscovery.CPAdIds) (bool, autodiscovery.CPAdIds, error) {
+func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
 	updates := 0
 	var adTempAdded bool
 
 	resp, err := p.Client.Get(context.Background(), p.templateDir, &client.GetOptions{Recursive: true})
 	if err != nil {
-		return false, autodiscovery.CPAdIds{}, err
+		return false, err
 	}
-	children := resp.Node.Nodes
-	if len(NodesToCheck.Adids2Node) != len(children){
+	identifiers := resp.Node.Nodes
+	log.Infof("internal cache is %v and ETCD is %v", p.cache.Adids2Node, identifiers)
+	if len(p.cache.Adids2Node) != len(identifiers){
 		log.Infof("list of ADTemplates was modified. Cache is being updated...")
-		NodesToCheck = autodiscovery.CPAdIds{}
+		p.cache.Adids2Node = make(map[string]AdIdentfier2stats)
 		adTempAdded = true
 	}
 
-	for _, identifier := range children {
+	for _, identifier := range identifiers {
 		adId := strings.TrimPrefix(identifier.Key, p.templateDir + "/") // Extract AD identifier (e.g. redis)
-		newStats := autodiscovery.AdIdentfier2stats{Stats: make(map[string]int32)}
+		if len(identifier.Nodes) != 3 {
+			log.Infof("%v does not have the correct format to be considered an Autodiscovery template", adId)
+		}
+		newStats :=  AdIdentfier2stats{Stats: make(map[string]int32)}
 
 		for _, tplKeys := range identifier.Nodes {
 			key := strings.TrimPrefix(tplKeys.Key,identifier.Key + "/") // Extract {check_names|init_configs|instances}
 			newStats.Stats[key] = int32(tplKeys.ModifiedIndex)
 		}
 
-		if len(NodesToCheck.Adids2Node) == 0 {
+		if len(p.cache.Adids2Node) == 0 {
 			log.Infof("Populating cache for %v.", p.String())
-			NodesToCheck.Adids2Node[adId] = newStats
+			p.cache.Adids2Node[adId] = newStats
 			continue
 		}
 
-		value, ok := NodesToCheck.Adids2Node[adId]
+		value, ok := p.cache.Adids2Node[adId]
 		if !ok {
-			NodesToCheck.Adids2Node[adId] = newStats
+			p.cache.Adids2Node[adId] = newStats
 			continue
 		}
 		// check if the version of the template in the cache is outdated.
 		equal, err := sameSlice(newStats.Stats, value.Stats)
 
 		if err != nil {
-			return false, autodiscovery.CPAdIds{}, err
+			updates++
+			log.Infof("cache update failed for %v because: ", adId, err)
+			continue
 		}
 		if !equal {
 			updates++
-			NodesToCheck.Adids2Node[identifier.Value] = newStats
+			p.cache.Adids2Node[identifier.Value] = newStats
 		}
 		log.Infof("cache up to date for %v", identifier)
 
 	}
 	if adTempAdded || updates > 0 {
-		return false, NodesToCheck, nil
+		return false, nil
 	}
-	return true, NodesToCheck, nil
+	return true, nil
 }
 
 func (p *EtcdConfigProvider) String() string {

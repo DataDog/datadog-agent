@@ -18,14 +18,6 @@ type TemplateCache struct {
 	digest2ids      map[string][]string     // map a config digest to the list of AD identifiers it has
 	digest2template map[string]check.Config // map a digest to the corresponding config object
 	m               sync.RWMutex
-	CPupdate        map[string]CPAdIds
-}
-type CPAdIds struct {
-	Adids2Node map[string]AdIdentfier2stats // ["foo": Stat] Only 1 ad_identifier per tuple Stat
-}
-
-type AdIdentfier2stats struct {
-	Stats map[string]int32	// Stat = ["check_names":1,"init_configs":0,"instances":0]
 }
 
 // NewTemplateCache creates a new cache
@@ -34,7 +26,6 @@ func NewTemplateCache() *TemplateCache {
 		id2digests:      make(map[string][]string, 0),
 		digest2ids:      make(map[string][]string, 0),
 		digest2template: make(map[string]check.Config, 0),
-		CPupdate:        make(map[string]CPAdIds),
 	}
 }
 

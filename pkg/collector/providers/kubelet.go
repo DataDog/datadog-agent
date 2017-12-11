@@ -56,8 +56,8 @@ func (k *KubeletConfigProvider) Collect() ([]check.Config, error) {
 	return parseKubeletPodlist(pods)
 }
 
-func (k *KubeletConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
-	return false, nil, nil
+func (k *KubeletConfigProvider) IsUpToDate() (bool, error) {
+	return false, nil
 }
 
 func parseKubeletPodlist(podlist []*kubelet.Pod) ([]check.Config, error) {

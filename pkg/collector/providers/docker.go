@@ -53,8 +53,8 @@ func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
 	return parseDockerLabels(containers)
 }
 
-func (d *DockerConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
-	return false, nil, nil
+func (d *DockerConfigProvider) IsUpToDate() (bool, error) {
+	return false, nil
 }
 
 func parseDockerLabels(containers map[string]map[string]string) ([]check.Config, error) {

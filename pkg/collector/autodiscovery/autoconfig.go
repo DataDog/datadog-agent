@@ -85,7 +85,6 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		stop:            make(chan bool),
 	}
 	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
-
 	return ac
 }
 
@@ -352,25 +351,16 @@ func (ac *AutoConfig) pollConfigs() {
 					}
 
 					// handle the initialization of the CPupdate cache. Fill it and trigger a Collect().
-					initCP := false
-					value, ok := ac.templateCache.CPupdate[pd.provider.String()]
-					if !ok {
-						initCP = true
-						ac.templateCache.CPupdate[pd.provider.String()] = CPAdIds{
-							Adids2Node: make(map[string]AdIdentfier2stats),
-						}
-						value = ac.templateCache.CPupdate[pd.provider.String()]
-					}
 
-					upToDate, UpdatedNodes, err := pd.provider.IsUpToDate(value)
+
+					upToDate, err := pd.provider.IsUpToDate()
 					if err != nil {
 						log.Errorf("cache processing of %v failed: %v", pd.provider.String(), err)
 					}
-					if upToDate == true && initCP == false{
+					if upToDate == true{
 						log.Infof("No modifications in the templates stored in %q ", pd.provider.String())
 						continue
 					}
-					ac.templateCache.CPupdate[pd.provider.String()] = UpdatedNodes
 
 					// retrieve the list of newly added configurations as well
 					// as removed configurations
