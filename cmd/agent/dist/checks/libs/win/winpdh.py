@@ -13,7 +13,7 @@ class WinPDHCounter(object):
     # store the dictionary of pdh counter names
     pdh_counter_dict = {}
 
-    def __init__(self, class_name, counter_name, log, instance_name = None, machine_name = None):
+    def __init__(self, class_name, counter_name, log, instance_name=None, machine_name=None):
         self._get_counter_dictionary()
         self._class_name = win32pdh.LookupPerfNameByIndex(None, int(WinPDHCounter.pdh_counter_dict[class_name]))
         self._counter_name = win32pdh.LookupPerfNameByIndex(None, int(WinPDHCounter.pdh_counter_dict[counter_name]))
@@ -46,7 +46,7 @@ class WinPDHCounter(object):
                         class_name, instance_name
                     ))
                     return
-                if not instance_name in instances:
+                if instance_name not in instances:
                     self.logger.error("%s is not a counter instance in %s" % (
                         instance_name, class_name
                     ))
@@ -88,6 +88,7 @@ class WinPDHCounter(object):
         # self will retrieve the list of all object names in the class (i.e. all the network interface
         # names in the class "network interface"
         win32pdh.CollectQueryData(self.hq)
+
         for inst, counter_handle in self.counterdict.iteritems():
             try:
                 t, val = win32pdh.GetFormattedCounterValue(counter_handle, win32pdh.PDH_FMT_LONG)
