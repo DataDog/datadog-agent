@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/docker/docker/api/types"
-	"github.com/moby/moby/client"
+	"github.com/docker/docker/client"
 )
 
 const defaultSleepDuration = 1 * time.Second
