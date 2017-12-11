@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -212,7 +213,7 @@ func (dt *DockerTailer) keepDockerTagsUpdated() {
 }
 
 func (dt *DockerTailer) checkForNewDockerTags() {
-	tags, err := tagger.Tag(containerIDToEntityName(dt.ContainerID), true)
+	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(dt.ContainerID), true)
 	if err != nil {
 		log.Println(err)
 	} else {
@@ -226,14 +227,6 @@ func (dt *DockerTailer) checkForNewDockerTags() {
 func (dt *DockerTailer) buildTagsPayload() []byte {
 	tagsString := fmt.Sprintf("%s,%s", strings.Join(dt.containerTags, ","), dt.source.Tags)
 	return config.BuildTagsPayload(tagsString, dt.source.Source, dt.source.SourceCategory)
-}
-
-// containerIDToEntityName returns a prefixed entity name from a container ID
-func containerIDToEntityName(cid string) string {
-	if cid == "" {
-		return ""
-	}
-	return fmt.Sprintf("docker://%s", cid)
 }
 
 // parseMessage extracts the date and the severity from the raw docker message
