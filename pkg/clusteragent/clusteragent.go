@@ -8,7 +8,7 @@ package clusteragent
 import (
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/cmd/clusteragent/api"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
