@@ -75,7 +75,7 @@ func parseCheckNames(names string) (res []string, err error) {
 
 	return res, nil
 }
-func sameSlice(a []int32, b []int32) (bool, error) {
+func sameSlice(a map[string]int32, b map[string]int32) (bool, error) {
 	if len(a) != len(b) {
 		return false, fmt.Errorf("arrays have different sizes")
 	}

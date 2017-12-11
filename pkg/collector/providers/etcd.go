@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 )
 
 // EtcdConfigProvider implements the Config Provider interface
@@ -46,7 +47,7 @@ func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider
 	}
 
 	c := client.NewKeysAPI(cl)
-	return &EtcdConfigProvider{Client: c, templateDir: cfg.TemplateDir}, nil
+	return &EtcdConfigProvider{Client: c, templateDir: config.TemplateDir}, nil
 }
 
 // Collect retrieves templates from etcd, builds Config objects and returns them
@@ -146,18 +147,58 @@ func (p *EtcdConfigProvider) getIdx(key string) int {
 	return 0
 }
 
-func (p *EtcdConfigProvider) IsUpToDate(NodesToCheck map[string][]int32) (bool, map[string][]int32, error) {
-	upTodDate := false
+func (p *EtcdConfigProvider) IsUpToDate(NodesToCheck autodiscovery.CPAdIds) (bool, autodiscovery.CPAdIds, error) {
+	updates := 0
 	var adTempAdded bool
-	identifiers := p.getIdentifiers(p.templateDir)
-	if len(identifiers) != len(NodesToCheck) {
-		return
+
+	resp, err := p.Client.Get(context.Background(), p.templateDir, &client.GetOptions{Recursive: true})
+	if err != nil {
+		return false, autodiscovery.CPAdIds{}, err
+	}
+	children := resp.Node.Nodes
+	if len(NodesToCheck.Adids2Node) != len(children){
+		log.Infof("list of ADTemplates was modified. Cache is being updated...")
+		NodesToCheck = autodiscovery.CPAdIds{}
+		adTempAdded = true
+	}
+
+	for _, identifier := range children {
+		adId := strings.TrimPrefix(identifier.Key, p.templateDir + "/") // Extract AD identifier (e.g. redis)
+		newStats := autodiscovery.AdIdentfier2stats{Stats: make(map[string]int32)}
+
+		for _, tplKeys := range identifier.Nodes {
+			key := strings.TrimPrefix(tplKeys.Key,identifier.Key + "/") // Extract {check_names|init_configs|instances}
+			newStats.Stats[key] = int32(tplKeys.ModifiedIndex)
+		}
+
+		if len(NodesToCheck.Adids2Node) == 0 {
+			log.Infof("Populating cache for %v.", p.String())
+			NodesToCheck.Adids2Node[adId] = newStats
+			continue
+		}
+
+		value, ok := NodesToCheck.Adids2Node[adId]
+		if !ok {
+			NodesToCheck.Adids2Node[adId] = newStats
+			continue
+		}
+		// check if the version of the template in the cache is outdated.
+		equal, err := sameSlice(newStats.Stats, value.Stats)
+
+		if err != nil {
+			return false, autodiscovery.CPAdIds{}, err
+		}
+		if !equal {
+			updates++
+			NodesToCheck.Adids2Node[identifier.Value] = newStats
+		}
+		log.Infof("cache up to date for %v", identifier)
 
 	}
-	resp, err := kapi.Get(context.Background(), key, &client.GetOptions{Recursive: true})
-	children := resp.Node.Nodes
-	//for _, c :=
-	return false, nil, nil
+	if adTempAdded || updates > 0 {
+		return false, NodesToCheck, nil
+	}
+	return true, NodesToCheck, nil
 }
 
 func (p *EtcdConfigProvider) String() string {

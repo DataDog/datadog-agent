@@ -8,6 +8,7 @@ package providers
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 )
 
 // ProviderCatalog keeps track of config providers by name
@@ -32,5 +33,5 @@ type ConfigProviderFactory func(cfg config.ConfigurationProviders) (ConfigProvid
 type ConfigProvider interface {
 	Collect() ([]check.Config, error)
 	String() string
-	IsUpToDate(map[string][]int32) (bool, map[string][]int32, error)
+	IsUpToDate(autodiscovery.CPAdIds) (bool, autodiscovery.CPAdIds, error)
 }

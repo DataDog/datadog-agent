@@ -356,13 +356,13 @@ func (ac *AutoConfig) pollConfigs() {
 					value, ok := ac.templateCache.CPupdate[pd.provider.String()]
 					if !ok {
 						initCP = true
-						ac.templateCache.CPupdate[pd.provider.String()] = CPversion{
-							adids2nodeversion: make(map[string][]int32),
+						ac.templateCache.CPupdate[pd.provider.String()] = CPAdIds{
+							Adids2Node: make(map[string]AdIdentfier2stats),
 						}
-						value.adids2nodeversion = map[string][]int32{}
+						value = ac.templateCache.CPupdate[pd.provider.String()]
 					}
 
-					upToDate, UpdatedNodes, err := pd.provider.IsUpToDate(value.adids2nodeversion)
+					upToDate, UpdatedNodes, err := pd.provider.IsUpToDate(value)
 					if err != nil {
 						log.Errorf("cache processing of %v failed: %v", pd.provider.String(), err)
 					}
@@ -371,8 +371,7 @@ func (ac *AutoConfig) pollConfigs() {
 						continue
 					}
 
-					UpdatedCP := CPversion{adids2nodeversion: UpdatedNodes}
-					ac.templateCache.CPupdate[pd.provider.String()] = UpdatedCP
+					ac.templateCache.CPupdate[pd.provider.String()] = UpdatedNodes
 
 					// retrieve the list of newly added configurations as well
 					// as removed configurations
