@@ -263,7 +263,12 @@ metadata_collectors:
 {{- if .KubernetesTagging }}
 # Kubernetes tag extraction
 #
-# kubernetes_pod_label_to_tag_prefix: "kube_"
+# We can extract pod labels as metric tags. If you prefix your
+# tag name with +, it will only be added to high cardinality metrics
+#
+# kubernetes_pod_labels_as_tags:
+#   app:               kube_app
+#   pod-template-hash: +kube_pod-template-hash
 #
 {{ end -}}
 {{- if .ECS }}
