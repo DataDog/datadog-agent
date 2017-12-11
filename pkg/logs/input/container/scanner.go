@@ -28,7 +28,7 @@ const dockerAPIVersion = "1.25"
 
 // A Scanner listens for stdout and stderr of containers
 type Scanner struct {
-	pp      *pipeline.Provider
+	pp      pipeline.Provider
 	sources []*config.IntegrationConfigLogSource
 	tailers map[string]*DockerTailer
 	cli     *client.Client
@@ -36,7 +36,7 @@ type Scanner struct {
 }
 
 // New returns an initialized Scanner
-func New(sources []*config.IntegrationConfigLogSource, pp *pipeline.Provider, a *auditor.Auditor) *Scanner {
+func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider, a *auditor.Auditor) *Scanner {
 
 	containerSources := []*config.IntegrationConfigLogSource{}
 	for _, source := range sources {

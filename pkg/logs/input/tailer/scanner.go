@@ -24,13 +24,13 @@ const scanPeriod = 10 * time.Second
 // Scanner checks all files metadata and updates its tailers if needed
 type Scanner struct {
 	sources []*config.IntegrationConfigLogSource
-	pp      *pipeline.Provider
+	pp      pipeline.Provider
 	tailers map[string]*Tailer
 	auditor *auditor.Auditor
 }
 
 // New returns an initialized Scanner
-func New(sources []*config.IntegrationConfigLogSource, pp *pipeline.Provider, auditor *auditor.Auditor) *Scanner {
+func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
 	tailSources := []*config.IntegrationConfigLogSource{}
 	for _, source := range sources {
 		switch source.Type {

@@ -22,7 +22,7 @@ type UDPListener struct {
 }
 
 // NewUDPListener returns an initialized NewUDPListener
-func NewUDPListener(pp *pipeline.Provider, source *config.IntegrationConfigLogSource) (*AbstractNetworkListener, error) {
+func NewUDPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*AbstractNetworkListener, error) {
 	log.Println("Starting UDP forwarder on port", source.Port)
 
 	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", source.Port))

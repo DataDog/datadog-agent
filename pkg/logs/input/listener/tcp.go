@@ -22,7 +22,7 @@ type TCPListener struct {
 }
 
 // NewTCPListener returns an initialized NewTCPListener
-func NewTCPListener(pp *pipeline.Provider, source *config.IntegrationConfigLogSource) (*AbstractNetworkListener, error) {
+func NewTCPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*AbstractNetworkListener, error) {
 	log.Println("Starting TCP forwarder on port", source.Port)
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", source.Port))

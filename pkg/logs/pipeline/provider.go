@@ -15,7 +15,13 @@ import (
 )
 
 // Provider provides message channels
-type Provider struct {
+type Provider interface {
+	Start(cm *sender.ConnectionManager, auditorChan chan message.Message)
+	NextPipelineChan() chan message.Message
+}
+
+// provider implements providing logic
+type provider struct {
 	numberOfPipelines int32
 	chanSizes         int
 	pipelinesChans    [](chan message.Message)
@@ -24,8 +30,8 @@ type Provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider() *Provider {
-	return &Provider{
+func NewProvider() Provider {
+	return &provider{
 		numberOfPipelines: config.NumberOfPipelines,
 		chanSizes:         config.ChanSizes,
 		pipelinesChans:    [](chan message.Message){},
@@ -34,29 +40,29 @@ func NewProvider() *Provider {
 }
 
 // Start initializes the pipelines
-func (pp *Provider) Start(cm *sender.ConnectionManager, auditorChan chan message.Message) {
+func (p *provider) Start(cm *sender.ConnectionManager, auditorChan chan message.Message) {
 
-	for i := int32(0); i < pp.numberOfPipelines; i++ {
+	for i := int32(0); i < p.numberOfPipelines; i++ {
 
-		senderChan := make(chan message.Message, pp.chanSizes)
+		senderChan := make(chan message.Message, p.chanSizes)
 		f := sender.New(senderChan, auditorChan, cm)
 		f.Start()
 
-		processorChan := make(chan message.Message, pp.chanSizes)
-		p := processor.New(
+		processorChan := make(chan message.Message, p.chanSizes)
+		pr := processor.New(
 			processorChan,
 			senderChan,
 			config.LogsAgent.GetString("api_key"),
 			config.LogsAgent.GetString("logset"),
 		)
-		p.Start()
+		pr.Start()
 
-		pp.pipelinesChans = append(pp.pipelinesChans, processorChan)
+		p.pipelinesChans = append(p.pipelinesChans, processorChan)
 	}
 }
 
 // NextPipelineChan returns the next pipeline
-func (pp *Provider) NextPipelineChan() chan message.Message {
-	idx := atomic.AddInt32(&pp.currentChanIdx, 1)
-	return pp.pipelinesChans[idx%pp.numberOfPipelines]
+func (p *provider) NextPipelineChan() chan message.Message {
+	idx := atomic.AddInt32(&p.currentChanIdx, 1)
+	return p.pipelinesChans[idx%p.numberOfPipelines]
 }

@@ -14,12 +14,12 @@ import (
 
 // A Listener summons different protocol specific listeners based on configuration
 type Listener struct {
-	pp      *pipeline.Provider
+	pp      pipeline.Provider
 	sources []*config.IntegrationConfigLogSource
 }
 
 // New returns an initialized Listener
-func New(sources []*config.IntegrationConfigLogSource, pp *pipeline.Provider) *Listener {
+func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider) *Listener {
 	return &Listener{
 		pp:      pp,
 		sources: sources,
