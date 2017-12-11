@@ -13,14 +13,6 @@ default_version "db/windows_svc"
 source git: 'https://github.com/DataDog/datadog-agent.git'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
-if windows?
-  binary = "logs.exe"
-  log_agent_binary = "logs-agent.exe"
-else
-  binary = "logs"
-  log_agent_binary = "logs-agent"
-end
-
 build do
   ship_license "https://raw.githubusercontent.com/DataDog/datadog-agent/#{version}/LICENSE"
 
@@ -45,8 +37,8 @@ build do
   command "inv deps", :env => env
   command "inv logs.build", :env => env
   if windows?
-    copy "bin/logs/#{binary}", "#{install_dir}/bin/agent/#{log_agent_binary}"
+    copy "#{install_dir}.exe", "#{log_agent_binary}.exe"
   else
-    copy binary, "#{install_dir}/embedded/bin/#{log_agent_binary}"
+    copy binary_name, "#{install_dir}/embedded/bin/#{log_agent_binary_name}"
   end
 end

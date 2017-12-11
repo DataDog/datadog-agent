@@ -11,6 +11,8 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name
 from .utils import REPO_PATH
+from .build_tags import get_default_build_tags
+from .go import deps
 
 LOGS_BIN_PATH = os.path.join(".", "bin", "logs")
 LOGS_BIN_NAME = os.path.join(LOGS_BIN_PATH, bin_name("logs"))
@@ -21,8 +23,10 @@ def build(ctx):
     """
     Build Logs Agent
     """    
-    cmd = "go build -o {bin_name} {REPO_PATH}/cmd/logs/"
+    build_tags = get_default_build_tags()
+    cmd = "go build -tags {build_tags} -o {bin_name} {REPO_PATH}/cmd/logs/"
     args = {
+        "build_tags": " ".join(build_tags),
         "bin_name": LOGS_BIN_NAME,
         "REPO_PATH": REPO_PATH,
     }
