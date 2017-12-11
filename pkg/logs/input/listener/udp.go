@@ -14,45 +14,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// A UDPListener listens to bytes on a udp port and sends log lines to
-// an output channel
+// A UDPListener listens for UDP connections and delegates the work to connHandler
 type UDPListener struct {
-	conn *net.UDPConn
-	anl  *AbstractNetworkListener
+	conn        *net.UDPConn
+	connHandler *ConnectionHandler
 }
 
-// NewUDPListener returns an initialized NewUDPListener
-func NewUDPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*AbstractNetworkListener, error) {
+// NewUDPListener returns an initialized UDPListener
+func NewUDPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*UDPListener, error) {
 	log.Println("Starting UDP forwarder on port", source.Port)
-
 	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", source.Port))
 	if err != nil {
 		return nil, err
 	}
-
 	conn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
 		return nil, err
 	}
-
-	udpListener := &UDPListener{
-		conn: conn,
+	connHandler := &ConnectionHandler{
+		pp:     pp,
+		source: source,
 	}
-	anl := &AbstractNetworkListener{
-		listener: udpListener,
-		pp:       pp,
-		source:   source,
-	}
-	udpListener.anl = anl
-	return anl, nil
+	return &UDPListener{
+		conn:        conn,
+		connHandler: connHandler,
+	}, nil
 }
 
-// run lets the listener handle incoming udp messages
+// Start listens to UDP connections on another routine
+func (udpListener *UDPListener) Start() {
+	go udpListener.run()
+}
+
+// run lets connHandler handle new UDP connections
 func (udpListener *UDPListener) run() {
-	go udpListener.anl.handleConnection(udpListener.conn)
-}
-
-func (udpListener *UDPListener) readMessage(conn net.Conn, inBuf []byte) (int, error) {
-	n, _, err := udpListener.conn.ReadFromUDP(inBuf)
-	return n, err
+	go udpListener.connHandler.handleConnection(udpListener.conn)
 }

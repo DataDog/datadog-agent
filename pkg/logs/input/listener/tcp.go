@@ -14,34 +14,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
-// A TCPListener listens to bytes on a tcp connection and sends log lines to
-// an output channel
+// A TCPListener listens and accepts TCP connections and delegates the work to connHandler
 type TCPListener struct {
-	listener net.Listener
-	anl      *AbstractNetworkListener
+	listener    net.Listener
+	connHandler *ConnectionHandler
 }
 
-// NewTCPListener returns an initialized NewTCPListener
-func NewTCPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*AbstractNetworkListener, error) {
+// NewTCPListener returns an initialized TCPListener
+func NewTCPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*TCPListener, error) {
 	log.Println("Starting TCP forwarder on port", source.Port)
-
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", source.Port))
 	if err != nil {
 		return nil, err
 	}
-	tcpListener := &TCPListener{
-		listener: listener,
+	connHandler := &ConnectionHandler{
+		pp:     pp,
+		source: source,
 	}
-	anl := &AbstractNetworkListener{
-		listener: tcpListener,
-		pp:       pp,
-		source:   source,
-	}
-	tcpListener.anl = anl
-	return anl, nil
+	return &TCPListener{
+		listener:    listener,
+		connHandler: connHandler,
+	}, nil
 }
 
-// run lets the listener handle incoming tcp connections
+// Start listens to TCP connections on another routine
+func (tcpListener *TCPListener) Start() {
+	go tcpListener.run()
+}
+
+// run accepts new TCP connections and lets connHandler handle them
 func (tcpListener *TCPListener) run() {
 	for {
 		conn, err := tcpListener.listener.Accept()
@@ -49,10 +50,6 @@ func (tcpListener *TCPListener) run() {
 			log.Println("Can't listen:", err)
 			return
 		}
-		go tcpListener.anl.handleConnection(conn)
+		go tcpListener.connHandler.handleConnection(conn)
 	}
-}
-
-func (tcpListener *TCPListener) readMessage(conn net.Conn, inBuf []byte) (int, error) {
-	return conn.Read(inBuf)
 }
