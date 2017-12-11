@@ -13,7 +13,7 @@ class WinPDHCounter(object):
     # store the dictionary of pdh counter names
     pdh_counter_dict = {}
 
-    def __init__(self, class_name, counter_name, log, instance_name = None):
+    def __init__(self, class_name, counter_name, log, instance_name = None, machine_name = None):
         self._get_counter_dictionary()
         self._class_name = win32pdh.LookupPerfNameByIndex(None, int(WinPDHCounter.pdh_counter_dict[class_name]))
         self._counter_name = win32pdh.LookupPerfNameByIndex(None, int(WinPDHCounter.pdh_counter_dict[counter_name]))
@@ -22,10 +22,10 @@ class WinPDHCounter(object):
         self.hq = win32pdh.OpenQuery()
         self.logger = log
         self.counterdict = {}
-        counters, instances = win32pdh.EnumObjectItems(None, None, self._class_name, win32pdh.PERF_DETAIL_WIZARD)
+        counters, instances = win32pdh.EnumObjectItems(None, machine_name, self._class_name, win32pdh.PERF_DETAIL_WIZARD)
         if instance_name is None and len(instances) > 0:
             for inst in instances:
-                path = win32pdh.MakeCounterPath((None, self._class_name, inst, None, 0, self._counter_name))
+                path = win32pdh.MakeCounterPath((machine_name, self._class_name, inst, None, 0, self._counter_name))
                 try:
                     self.counterdict[inst] = win32pdh.AddCounter(self.hq, path)
                 except:
@@ -51,7 +51,7 @@ class WinPDHCounter(object):
                         instance_name, class_name
                     ))
                     return
-            path = win32pdh.MakeCounterPath((None, self._class_name, instance_name, None, 0, self._counter_name))
+            path = win32pdh.MakeCounterPath((machine_name, self._class_name, instance_name, None, 0, self._counter_name))
             try:
                 self.logger.debug("Path: %s\n" % unicode(path))
             except:
