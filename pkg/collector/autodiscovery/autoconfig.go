@@ -370,7 +370,6 @@ func (ac *AutoConfig) pollConfigs() {
 						log.Infof("No modifications in the templates stored in %q ", pd.provider.String())
 						continue
 					}
-
 					ac.templateCache.CPupdate[pd.provider.String()] = UpdatedNodes
 
 					// retrieve the list of newly added configurations as well

@@ -99,7 +99,6 @@ func (z *ZookeeperConfigProvider) IsUpToDate(NodesToCheck autodiscovery.CPAdIds)
 			return false, autodiscovery.CPAdIds{}, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
 		}
 		newStats := autodiscovery.AdIdentfier2stats{Stats: make(map[string]int32)}
-
 		for _, gcn := range gChildren {
 			gcnPath := path.Join(identifier, gcn)
 			_, stat, err := z.client.Get(gcnPath)
@@ -139,7 +138,6 @@ func (z *ZookeeperConfigProvider) IsUpToDate(NodesToCheck autodiscovery.CPAdIds)
 	if adTempAdded || updates > 0{
 		return false, NodesToCheck, nil
 	}
-
 	return true, NodesToCheck, nil
 }
 
