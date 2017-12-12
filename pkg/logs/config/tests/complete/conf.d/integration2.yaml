@@ -15,3 +15,9 @@ logs:
       - type: multi_line
         name: numbers
         pattern: "^[0-9]"
+      - type: exclude_at_match
+        name: exclude_bob
+        pattern: "^bob"
+      - type: include_at_match
+        name: include_datadoghq
+        pattern: ".*@datadoghq.com$"
