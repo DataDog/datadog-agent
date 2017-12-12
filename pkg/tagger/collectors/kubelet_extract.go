@@ -8,17 +8,18 @@
 package collectors
 
 import (
-	"fmt"
-	"regexp"
 	"strings"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	log "github.com/cihub/seelog"
 )
 
 /* Deltas from agent5:
-
+   Changes:
+     - labels are collected when whitelisted, like docker ones, see
+     kubernetes_pod_labels_as_tags option
    Moved to cluster agent:
      - kube_service
 	 - node tags
@@ -27,10 +28,15 @@ import (
      - pod_name does not include the namespace anymore, redundant with kube_namespace
      - removing the no_pod tags
      - container_alias tags
+     - label_to_tag_prefix (superseeded by kubernetes_pod_labels_as_tags)
 */
 
-// KubeReplicaSetRegexp allows to extract parent deployment name from replicaset
-var KubeReplicaSetRegexp = regexp.MustCompile("^(\\S+)-[0-9]+$")
+// KubeAllowedEncodeStringAlphaNums holds the charactes allowed in replicaset names from as parent deployment
+// Taken from https://github.com/kow3ns/kubernetes/blob/96067e6d7b24a05a6a68a0d94db622957448b5ab/staging/src/k8s.io/apimachinery/pkg/util/rand/rand.go#L76
+const KubeAllowedEncodeStringAlphaNums = "bcdfghjklmnpqrstvwxz2456789"
+
+// Digits holds the digits used for naming replicasets in kubenetes < 1.8
+const Digits = "1234567890"
 
 // parsePods convert Pods from the PodWatcher to TagInfo objects
 func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
@@ -45,20 +51,9 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			tags.AddLow("kube_container_name", container.Name)
 
 			// Pod labels
-			for key, value := range pod.Metadata.Labels {
-				var tagName string
-				if c.labelTagPrefix == "" {
-					tagName = key
-				} else {
-					tagName = fmt.Sprintf("%s%s", c.labelTagPrefix, key)
-				}
-				switch {
-				case strings.HasSuffix(key, "-template-generation"):
-					tags.AddHigh(tagName, value)
-				case strings.HasSuffix(key, "-template-hash"):
-					tags.AddHigh(tagName, value)
-				default:
-					tags.AddLow(tagName, value)
+			for labelName, labelValue := range pod.Metadata.Labels {
+				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
+					tags.AddAuto(tagName, labelValue)
 				}
 			}
 
@@ -106,10 +101,21 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 // parseDeploymentForReplicaset gets the deployment name from a replicaset,
 // or returns an empty string if no parent deployment is found.
 func (c *KubeletCollector) parseDeploymentForReplicaset(name string) string {
-	// TODO optionaly query the cluster agent instead of assuming?
-	match := KubeReplicaSetRegexp.FindStringSubmatch(name)
-	if len(match) < 2 {
+	lastDash := strings.LastIndexAny(name, "-")
+	if lastDash == -1 {
+		// No dash
 		return ""
 	}
-	return match[1]
+	suffix := name[lastDash+1:]
+	if len(suffix) < 3 {
+		// Suffix is variable length but we cutoff at 3+ characters
+		return ""
+	}
+
+	if !utils.StringInRuneset(suffix, Digits) && !utils.StringInRuneset(suffix, KubeAllowedEncodeStringAlphaNums) {
+		// Invalid suffix
+		return ""
+	}
+
+	return name[:lastDash]
 }

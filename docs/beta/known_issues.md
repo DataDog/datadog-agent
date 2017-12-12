@@ -98,9 +98,9 @@ where `<command>` can be any of:
 
 and `<check list>` corresponds to a list of valid `yaml` configurations in
 `/etc/datadog-agent/conf.d/`. For instance:
-- `cassandra.yaml`
-- `kafka.yaml`
-- `jmx.yaml`
+- `cassandra.d/conf.yaml`
+- `kafka.d/conf.yaml`
+- `jmx.d/conf.yaml`
 - ...
 
 Example:

@@ -7,6 +7,7 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 )
 
 // TagList allows collector to incremental build a tag list
@@ -38,6 +39,16 @@ func (l *TagList) AddLow(name string, value string) {
 	if len(name) > 0 && len(value) > 0 {
 		l.lowCardTags[name] = value
 	}
+}
+
+// AddAuto determine the tag cardinality and will call the proper method AddLow or AddHigh
+// if the name value starts with '+' character
+func (l *TagList) AddAuto(name, value string) {
+	if strings.HasPrefix(name, "+") {
+		l.AddHigh(name[1:], value)
+		return
+	}
+	l.AddLow(name, value)
 }
 
 // Compute returns two string arrays in the format "tag:value"

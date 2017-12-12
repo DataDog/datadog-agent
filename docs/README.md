@@ -10,15 +10,10 @@ reflect the current state of the Beta.
 ## Developer Guide
 
 New users and contributors are encouraged to build the Datadog Agent themselves
-and should start reading the [Developer Guide][developer-guide]
-
-
-## Check Guide
-
-To learn how to write new checks for the Agent please read the [Check Guide][checks-api].
-
+and should start reading the [Developer Guide][developer-guide]. The guide also
+contains a detailed explanation of how [Checks work][checks].
 
 
 [developer-guide]: dev/README.md
-[checks-api]: dev/checks/README.md
+[checks]: dev/checks/README.md
 [beta]: beta/README.md

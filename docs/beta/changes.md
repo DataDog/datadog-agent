@@ -160,6 +160,23 @@ in almost anyone's checks. The flare module, for example, was removed and
 reimplemented in Go, but is unlikely to have been used by anyone in a custom check.
 To learn more, you can read about the details in the [development documentation][python-dev].
 
+## Kubernetes support
+
+### Tagging
+
+While Agent5 automatically collected every pod label as tags, Agent6 needs you to whilelist
+labels that are relevant to you. This is done with the `kubernetes_pod_labels_as_tags` option
+in `datadog.yaml`.
+
+The following options and tags are deprecated:
+
+     - `label_to_tag_prefix` option is superseeded by kubernetes_pod_labels_as_tags
+     - `container_alias` tags are not collected anymore
+     - `kube_replicate_controller` is only added if the pod is created by a replication controller,
+     not systematically. Use the relevant creator tag (`kube_deployment` / `kube_daemon_set`...)
+
+The `kube_service` tagging depends on the `Datadog Cluster Agent`, which is not released yet.
+
 ## JMX
 
 The Agent 6 ships JMXFetch and supports all of its features (except those that are listed in the [known_issues.md][known-issues] document).

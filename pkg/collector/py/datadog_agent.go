@@ -54,7 +54,7 @@ func GetHostname(self *C.PyObject, args *C.PyObject) *C.PyObject {
 
 // Headers return HTTP headers with basic information like UserAgent already set (used as a PyCFunction in the datadog_agent python module)
 //export Headers
-func Headers(self *C.PyObject, args *C.PyObject) *C.PyObject {
+func Headers(self *C.PyObject, args, kwargs *C.PyObject) *C.PyObject {
 	h := util.HTTPHeaders()
 
 	dict := C.PyDict_New()
@@ -71,6 +71,22 @@ func Headers(self *C.PyObject, args *C.PyObject) *C.PyObject {
 
 		C.PyDict_SetItem(dict, pyKey, pyVal)
 	}
+
+	// some checks need to add an extra header when they pass `http_host`
+	if kwargs != nil {
+		cKey := C.CString("http_host")
+		// in case of failure, the following doesn't set an exception
+		// pyHttpHost is borrowed
+		pyHTTPHost := C.PyDict_GetItemString(kwargs, cKey)
+		C.free(unsafe.Pointer(cKey))
+		if pyHTTPHost != nil {
+			// set the Host header
+			cKey = C.CString("Host")
+			C.PyDict_SetItemString(dict, cKey, pyHTTPHost)
+			C.free(unsafe.Pointer(cKey))
+		}
+	}
+
 	return dict
 }
 

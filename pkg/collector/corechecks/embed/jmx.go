@@ -21,8 +21,8 @@ import (
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	log "github.com/cihub/seelog"
-	"github.com/kardianos/osext"
 	"gopkg.in/yaml.v2"
 )
 
@@ -247,7 +247,7 @@ func (c *JMXCheck) Stop() {
 }
 
 func (c *JMXCheck) start() error {
-	here, _ := osext.ExecutableFolder()
+	here, _ := executable.Folder()
 	classpath := path.Join(here, "dist", "jmx", jmxJarName)
 	if c.javaToolsJarPath != "" {
 		classpath = fmt.Sprintf("%s:%s", c.javaToolsJarPath, classpath)

@@ -1,13 +1,14 @@
 # Developer Guide for Checks
 
-This guide will help you to develop new checks (also known as integrations) in Python or Go.
+This section of the docs will help you understanding how checks work and how to
+provide custom or new ones.
 
-For existing integrations go to [integrations-core](https://github.com/DataDog/integrations-core) and [integrations-extras](https://github.com/DataDog/integrations-extras).
+Existing checks live in the [integrations-core](https://github.com/DataDog/integrations-core) and [integrations-extras](https://github.com/DataDog/integrations-extras) repositories.
 
 ## Configuration
 
-Every check has its own YAML configuration file. The file has one mandatory key
-`instances` and one optional `init_config`.
+Every check has its own YAML configuration file. The file has one mandatory key,
+`instances` and one optional, `init_config`.
 
 ### init_config
 
@@ -52,11 +53,17 @@ run at different intervals.
 
 ### API
 
-Read more about the [API](python/check_api.md) to write Python checks.
+Read more about the [Python Checks API](python/check_api.md).
 
-### Agent's Python packages
+### Built-in packages
 
-The Agent offers a list of python packages that bind features from the Go world to Python checks.
+The Agent provides a set of python packages that are built-in and only available
+within the embedded CPython interpreter:
 
 - [aggregator](python/aggregator.md)
 - [datadog-agent](python/datadog_agent.md)
+
+
+## Core Checks (or Go Checks)
+
+TODO

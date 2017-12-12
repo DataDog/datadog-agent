@@ -28,11 +28,27 @@ build do
             delete "#{install_dir}/bin/agent/agent.exe"
             # TODO why does this get generated at all
             delete "#{install_dir}/bin/agent/agent.exe~"
+            move "#{install_dir}/bin/agent/dist/conf.d/*.yaml*", "#{conf_dir}/conf.d/"
+            # The conf.d is already containing integration configs at this point so we have to add directories/files for core checks
+            Dir.glob("#{install_dir}/bin/agent/dist/conf.d/**/*.d").each do |check_dir|
+                dir_name = File.basename check_dir
+                mkdir "#{conf_dir_root}/conf.d/#{dir_name}" unless File.exists? "#{conf_dir}/conf.d/#{dir_name}"
+                move "#{install_dir}/bin/agent/dist/conf.d/#{dir_name}/*.yaml*", "#{conf_dir}/conf.d/#{dir_name}/", :force=>true
+            end
+            move "#{install_dir}/agent/checks.d", "#{install_dir}/checks.d"
+            
             # remove the config files for the subservices; they'll be started
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
             delete "#{conf_dir}/logs-agent.yaml.default"
             delete "#{conf_dir}/process_agent.yaml.default"
+
+            # cleanup clutter
+            delete "#{install_dir}/etc"
+            delete "#{install_dir}/bin/agent/dist/conf.d"
+            delete "#{install_dir}/bin/agent/dist/*.conf"
+            delete "#{install_dir}/bin/agent/dist/*.yaml"
+            
         else
             # Move checks and configuration files
             mkdir "/etc/datadog-agent"

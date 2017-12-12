@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 
 	"github.com/hectane/go-acl"
-	"github.com/kardianos/osext"
 	"golang.org/x/sys/windows"
+
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 
 var (
@@ -33,7 +34,7 @@ func init() {
 
 // restarts the agent using the windows service manager
 func restart() error {
-	here, _ := osext.ExecutableFolder()
+	here, _ := executable.Folder()
 	cmd := exec.Command(filepath.Join(here, "agent"), "restart-service")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
