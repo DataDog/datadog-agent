@@ -5,7 +5,7 @@
 
 package listeners
 
-// Packet reprensents a statsd packet ready to process,
+// Packet represents a statsd packet ready to process,
 // with its origin metadata if applicable.
 //
 // As the Packet object is reused in a sync.Pool, we keep the

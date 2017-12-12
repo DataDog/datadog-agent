@@ -37,12 +37,12 @@ func NewPacketPool(bufferSize int) *PacketPool {
 	}
 }
 
-// Get gets a packet object read for use.
+// Get gets a Packet object read for use.
 func (p *PacketPool) Get() *Packet {
 	return p.pool.Get().(*Packet)
 }
 
-// Put resets the packet origin and puts it back in the pool.
+// Put resets the Packet origin and puts it back in the pool.
 func (p *PacketPool) Put(packet *Packet) {
 	if packet.Origin != NoOrigin {
 		packet.Origin = NoOrigin
