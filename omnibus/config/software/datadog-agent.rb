@@ -53,6 +53,11 @@ build do
   end
 
   if linux?
+    # Build logs-agent
+    command "invoke logs.build", env: env
+    command "chmod +x bin/logs/logs"
+    move "bin/logs/logs", "#{install_dir}/bin/agent/logs-agent"
+
     if debian?
       erb source: "upstart_debian.conf.erb",
           dest: "#{install_dir}/scripts/datadog-agent.conf",
