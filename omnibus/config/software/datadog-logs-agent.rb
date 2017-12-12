@@ -6,11 +6,13 @@
 name "datadog-logs-agent"
 always_build true
 
+binary_name = "logs"
+binary = "bin/logs/#{binary_name}"
+log_agent_binary_name = "logs-agent"
+log_agent_binary = "#{install_dir}/bin/agent/#{log_agent_binary_name}"
+
 build do
-  logs_agent_version = "alpha"
-  binary = "logagent"
-  url = "https://s3.amazonaws.com/public.binaries.sheepdog.datad0g.com/agent/#{logs_agent_version}/linux-amd64/#{binary}"
-  command "curl -f #{url} -o #{binary}"
+  command "invoke logs.build"
   command "chmod +x #{binary}"
-  command "mv #{binary} #{install_dir}/bin/agent/logs-agent"
+  move binary, log_agent_binary
 end
