@@ -9,6 +9,14 @@ import "sync"
 
 // PacketPool wraps the sync.Pool class for *Packet type.
 // It allows to avoid allocating one object per packet.
+//
+// Caution: as objects get reused, byte slices extracted from
+// packet.Contents will change when the object is reused. You
+// need to hold on to the object until you extracted all the
+// information and parsed it into strings/float/int.
+//
+// Strings extracted with `string(Contents[n:m]) don't share the
+// origin []byte storage, so they will be unaffected.
 type PacketPool struct {
 	pool sync.Pool
 }

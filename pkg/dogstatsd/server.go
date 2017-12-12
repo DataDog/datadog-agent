@@ -111,8 +111,8 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 
 		go func() {
 			for {
-				packet := nextPacket(&packet.Contents)
-				if packet == nil {
+				message := nextMessage(&packet.Contents)
+				if message == nil {
 					break
 				}
 
@@ -120,8 +120,8 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 					s.Statistics.StatEvent(1)
 				}
 
-				if bytes.HasPrefix(packet, []byte("_sc")) {
-					serviceCheck, err := parseServiceCheckPacket(packet)
+				if bytes.HasPrefix(message, []byte("_sc")) {
+					serviceCheck, err := parseServiceCheckMessage(message)
 					if err != nil {
 						log.Errorf("dogstatsd: error parsing service check: %s", err)
 						dogstatsdExpvar.Add("ServiceCheckParseErrors", 1)
@@ -132,8 +132,8 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 					}
 					dogstatsdExpvar.Add("ServiceCheckPackets", 1)
 					serviceCheckOut <- *serviceCheck
-				} else if bytes.HasPrefix(packet, []byte("_e")) {
-					event, err := parseEventPacket(packet)
+				} else if bytes.HasPrefix(message, []byte("_e")) {
+					event, err := parseEventMessage(message)
 					if err != nil {
 						log.Errorf("dogstatsd: error parsing event: %s", err)
 						dogstatsdExpvar.Add("EventParseErrors", 1)
@@ -145,7 +145,7 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 					dogstatsdExpvar.Add("EventPackets", 1)
 					eventOut <- *event
 				} else {
-					sample, err := parseMetricPacket(packet)
+					sample, err := parseMetricMessage(message)
 					if err != nil {
 						log.Errorf("dogstatsd: error parsing metrics: %s", err)
 						dogstatsdExpvar.Add("MetricParseErrors", 1)
