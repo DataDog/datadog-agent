@@ -39,7 +39,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-	r.HandleFunc("/gui_csrf_token", getCSRFToken).Methods("GET")
+	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {

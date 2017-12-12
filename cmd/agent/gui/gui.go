@@ -21,13 +21,15 @@ import (
 )
 
 var (
-	listener      net.Listener
-	authToken     string
-	authTokenPath string
+	listener  net.Listener
+	authToken string
 
 	// CsrfToken is a session-specific token passed to the GUI's authentication endpoint by app.launchGui
 	CsrfToken string
 )
+
+// AuthTokenName is the name of the file storing the GUI authentication token
+const AuthTokenName = "gui_auth_token"
 
 // Payload struct is for the JSON messages received from a client POST request
 type Payload struct {
@@ -76,20 +78,28 @@ func StartGUIServer(port string) error {
 	log.Infof("GUI server is listening at 127.0.0.1:" + port)
 
 	// Create a CSRF token (unique to each session)
+	e = createCSRFToken()
+	if e != nil {
+		return e
+	}
+
+	return fetchAuthToken()
+}
+
+func createCSRFToken() error {
 	key := make([]byte, 32)
-	_, e = rand.Read(key)
+	_, e := rand.Read(key)
 	if e != nil {
 		return fmt.Errorf("error creating CSRF token: " + e.Error())
 	}
 	CsrfToken = hex.EncodeToString(key)
-
-	return fetchAuthToken()
+	return nil
 }
 
 // Fetches the authentication token from the auth token file, creates one if it doesn't exist
 func fetchAuthToken() error {
 	// Check if the auth token file already exists
-	authTokenPath = filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), "gui_auth_token")
+	authTokenPath := filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), AuthTokenName)
 
 	// Create a new token if there's an error with the current file/if it doesn't exist
 	if _, e := os.Stat(authTokenPath); e != nil {
@@ -101,7 +111,7 @@ func fetchAuthToken() error {
 		authToken = hex.EncodeToString(key)
 
 		// Write the auth token to the auth token file (platform-specific)
-		e := saveAuthToken()
+		e := saveAuthToken(authToken, authTokenPath)
 		if e == nil {
 			log.Infof("Saved a new GUI authentication token to " + authTokenPath)
 		}

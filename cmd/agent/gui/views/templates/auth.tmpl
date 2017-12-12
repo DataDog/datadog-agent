@@ -12,7 +12,7 @@
   // Decode the url parameters
   var token = urlParam[0].substring(10);   // trim "authToken="
   var csrf = urlParam[1].substring(5);     // trim "csrf="
-
+  
   if (csrf == "{{ .csrf }}") {
     // Save auth token as a cookie
     document.cookie = "authToken=" + token + "; path=/";

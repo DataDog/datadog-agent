@@ -19,9 +19,9 @@ func restart() error {
 }
 
 // writes auth token(s) to a file with the same permissions as datadog.yaml
-func saveAuthToken() error {
+func saveAuthToken(token, tokenPath string) error {
 	confFile, _ := os.Stat(config.Datadog.GetString("conf_path"))
 	permissions := confFile.Mode()
 
-	return ioutil.WriteFile(authTokenPath, []byte(authToken), permissions)
+	return ioutil.WriteFile(tokenPath, []byte(token), permissions)
 }
