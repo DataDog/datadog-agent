@@ -143,6 +143,10 @@ func (p *Processor) applyRedactingRules(msg message.Message) (bool, []byte) {
 			if rule.Reg.Match(content) {
 				return false, nil
 			}
+		case config.IncludeAtMatch:
+			if !rule.Reg.Match(content) {
+				return false, nil
+			}
 		case config.MaskSequences:
 			content = rule.Reg.ReplaceAllLiteral(content, rule.ReplacePlaceholderBytes)
 		}
