@@ -9,7 +9,7 @@
     Name is made of localized product name and version number.
   -->
   <Product Id="*"
-           Name="Datadog Agent"
+           Name="!(loc.ProductName)"
            Language="1033"
            Version="$(var.VersionNumber)"
            Manufacturer="!(loc.ManufacturerName)"
@@ -22,8 +22,8 @@
     -->
     <Package Id="*"
              Keywords="Installer"
-             Comments="Copyright 2015 Datadog, Inc."
-             Description="Datadog Agent v$(var.DisplayVersionNumber)"
+             Comments="!(loc.InstallerComment)"
+             Description="!(loc.ProductName) $(var.DisplayVersionNumber)"
              Manufacturer="!(loc.ManufacturerName)"
              InstallScope="perMachine"
              InstallerVersion="400"
@@ -38,14 +38,6 @@
                         Minimum='1.0.0' IncludeMinimum='yes'
                         Maximum="99.99.99.99" IncludeMaximum='no'/>
     </Upgrade>
-    <!-- This removes entirely the previous version -->
-    <Upgrade Id="$(var.PerUserUpgradeCode)">
-        <UpgradeVersion OnlyDetect='no'
-                        Property='PREVIOUSFOUND'
-                        Minimum='1.0.0' IncludeMinimum='yes'
-                        Maximum="99.99.99.99" IncludeMaximum='no'/>
-    </Upgrade>
-
 
     <!-- No need to restart Windows after the installation -->
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
@@ -91,14 +83,6 @@
         Return="check"
         ExeCommand="[SystemFolder]cmd.exe /C start &quot;&quot; &quot;[DIST]agent.exe&quot; &quot;launch-gui&quot;" />
 
-    <Binary Id="UpgradeHelper" SourceFile="$(var.HelperDir)\upgrade-helper.exe" />
-    <CustomAction
-        Id="CheckForOldVersion"
-        BinaryKey="UpgradeHelper"
-        ExeCommand="-oldcode={$(var.PerUserUpgradeCode)} -newcode={$(var.UpgradeCode)} -checkonly=true"
-        Execute="deferred"
-        Return="check"
-        Impersonate="no" />
 
     <!-- Delete application when uninstalling -->
     <!--
@@ -155,8 +139,8 @@
                 DiskId="1"
                 Source="$(var.BinFiles)/agent.exe"/>
           <ServiceInstall Id="DatadogServiceInstaller"
-                          DisplayName="Datadog Agent"
-                          Description="Send metrics to Datadog"
+                          DisplayName="!(loc.ServiceDisplayName)"
+                          Description="!(loc.ServiceDescription)"
                           Name="DatadogAgent"
                           ErrorControl="ignore"
                           Start="auto"
@@ -192,9 +176,9 @@
                 DiskId="1"
                 Source="$(var.InstallDir)/bin/agent/trace-agent.exe"/>
             <ServiceInstall Id="DatadogAPMServiceInstaller"
-                            DisplayName="Datadog Trace Agent"
-                            Description="Send tracing metrics to Datadog"
-                            Name="datadog-trace-agent"
+                            DisplayName="!(loc.ServiceApmDisplayName)"
+                            Description="!(loc.ServiceApmDescription)"
+              Name="datadog-trace-agent"
                             ErrorControl="ignore"
                             Start="demand"
                             Type="ownProcess"
@@ -309,10 +293,6 @@
       <ComponentRef Id="RegisterConfVariables" />
     </Feature>
 
-    <InstallExecuteSequence>
-      <Custom Action="CheckForOldVersion"
-          After="InstallInitialize"><![CDATA[NOT Installed AND NOT REMOVE]]></Custom>
-    </InstallExecuteSequence>
     <!-- UI Stuff: 100% Omnibus Generated -->
     <Icon Id="project.ico" SourceFile="Resources\assets\project_16x16.ico"/>
     <Property Id="ARPPRODUCTICON" Value="project.ico" />
@@ -321,16 +301,93 @@
 
     <UIRef Id="ProjectUI_InstallDir"/>
     <UI Id="ProjectUI_InstallDir">
-      <UIRef Id="WixUI_Minimal"/>
+      <UIRef Id="WixUI_Common"/>
+      <UIRef Id="WixUI_ErrorProgressText" />
+      <Property Id="DefaultUIFont">DlgFont8</Property>
       <TextStyle Id="WixUI_Font_Normal_White" FaceName="Tahoma" Size="8" Red="255" Green="255" Blue="255" />
       <TextStyle Id="WixUI_Font_Bigger_White" FaceName="Tahoma" Size="12" Red="255" Green="255" Blue="255" />
       <TextStyle Id="WixUI_Font_Title_White" FaceName="Tahoma" Size="9" Bold="yes" Red="255" Green="255" Blue="255" />
+
+      <TextStyle Id="TahomaHeader" FaceName="Tahoma" Size="18" Bold="yes" />
+      <TextStyle Id="TahomaNormal" FaceName="Tahoma" Size="8" />
+      
+      <TextStyle Id="DlgFont8" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="DlgFontBold8" FaceName="Tahoma" Size="8" Bold="yes" />
+      <TextStyle Id="Verdana13Bold" FaceName="Verdana" Size="13" Bold="yes" />
+
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+
+
       <Publish Dialog="ExitDialog"
           Control="Finish"
           Event="DoAction"
           Value="LaunchApp">
           WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed
       </Publish>
+      <?include Resources\assets\apikeydlg.wxi ?>
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+      <DialogRef Id="WelcomeDlg" />
+      <DialogRef Id="ApiKeyDlg"/>
+      <DialogRef Id="LicenseAgreementDlg"/>
+
+      <DialogRef Id="MaintenanceWelcomeDlg"/>
+      <DialogRef Id="MaintenanceTypeDlg"/>
+      <DialogRef Id="ResumeDlg"/>
+
+
+     
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT Installed</Publish>
+      
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">PREVIOUSFOUND</Publish>
+
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">NOT Installed</Publish>
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="3">1</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">PREVIOUSFOUND</Publish>
+
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="ApiKeyDlg">NOT APIKEY</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">APIKEY</Publish>
+
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+
+      <AdminUISequence>
+        <Show Dialog="FatalError" OnExit="error" />
+        <Show Dialog="UserExit" OnExit="cancel" />
+        <Show Dialog="ExitDialog" OnExit="success" />
+        <Show Dialog="MaintenanceWelcomeDlg" After="CostFinalize" />
+        <Show Dialog ="ProgressDlg" After="MaintenanceWelcomeDlg" />
+      </AdminUISequence>
+      <InstallUISequence>
+        <Show Dialog="FatalError" OnExit="error" />
+        <Show Dialog="UserExit" OnExit="cancel" />
+        <Show Dialog="ExitDialog" OnExit="success" />
+        
+        <Show Dialog="WelcomeDlg" After="MigrateFeatureStates"><![CDATA[NOT Installed]]></Show>
+        <Show Dialog="MaintenanceWelcomeDlg" Before="ProgressDlg" >Installed AND NOT RESUME AND NOT Preselected AND NOT PATCH</Show>
+
+        <!-- 
+        <Show Dialog="ResumeDlg" After="WelcomeDlg"><![CDATA[Installed AND (RESUME OR Preselected)]]></Show>
+        -->
+        <!--
+        <Show Dialog="MaintenanceWelcomeDlg" After="ResumeDlg"><![CDATA[Installed AND NOT RESUME AND NOT Preselected]]></Show>
+        <Show Dialog="ProgressDlg" After="MaintenanceWelcomeDlg" />
+        -->
+      </InstallUISequence>
     </UI>
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT"
                   Value="!(loc.LaunchAgentManager)" />
@@ -339,5 +396,10 @@
     <WixVariable Id="WixUILicenseRtf" Value="Resources\assets\LICENSE.rtf" />
     <WixVariable Id="WixUIDialogBmp" Value="Resources\assets\dialog_background.bmp" />
     <WixVariable Id="WixUIBannerBmp" Value="Resources\assets\banner_background.bmp" />
+
+    <Binary Id="BannerBmp" SourceFile="Resources\assets\banner_background.bmp" />
+    <Binary Id="BackgroundBmp" SourceFile="Resources\assets\dialog_background.bmp" />
+    <Property Id="ShortCompanyName" Value="!(loc.CompanyNameShort)" />
+
   </Product>
 </Wix>
