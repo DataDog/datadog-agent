@@ -10,6 +10,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -23,9 +24,9 @@ import (
 // EtcdConfigProvider implements the Config Provider interface
 // It should be called periodically and returns templates from etcd for AutoConf.
 type EtcdConfigProvider struct {
-	Client client.KeysAPI
+	Client      client.KeysAPI
 	templateDir string
-	cache       *CacheProvider
+	cache       *CacheProviderIndx
 }
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
@@ -148,62 +149,42 @@ func (p *EtcdConfigProvider) getIdx(key string) int {
 }
 
 func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
-	updates := 0
-	var adTempAdded bool
+
+	adListUpdated := false
+	dateIdx := p.cache.AdTemplate2Idx
 
 	resp, err := p.Client.Get(context.Background(), p.templateDir, &client.GetOptions{Recursive: true})
 	if err != nil {
 		return false, err
 	}
 	identifiers := resp.Node.Nodes
-	log.Infof("internal cache is %v and ETCD is %v", p.cache.Adids2Node, identifiers)
-	if len(p.cache.Adids2Node) != len(identifiers){
-		log.Infof("list of ADTemplates was modified. Cache is being updated...")
-		p.cache.Adids2Node = make(map[string]AdIdentfier2stats)
-		adTempAdded = true
+
+	// When a node is deleted the Modified time of the children processed isn't changed.
+	if p.cache.NumAdTemplates != len(identifiers) {
+		if p.cache.NumAdTemplates != 0 {
+			log.Debugf("List of AD Template was modified, updating cache.")
+			adListUpdated = true
+		}
+		log.Debugf("Initializing cache for %v", p.String())
+		p.cache.NumAdTemplates = len(identifiers)
 	}
 
 	for _, identifier := range identifiers {
-		adId := strings.TrimPrefix(identifier.Key, p.templateDir + "/") // Extract AD identifier (e.g. redis)
 		if len(identifier.Nodes) != 3 {
-			log.Infof("%v does not have the correct format to be considered an Autodiscovery template", adId)
-		}
-		newStats :=  AdIdentfier2stats{Stats: make(map[string]int32)}
-
-		for _, tplKeys := range identifier.Nodes {
-			key := strings.TrimPrefix(tplKeys.Key,identifier.Key + "/") // Extract {check_names|init_configs|instances}
-			newStats.Stats[key] = int32(tplKeys.ModifiedIndex)
-		}
-
-		if len(p.cache.Adids2Node) == 0 {
-			log.Infof("Populating cache for %v.", p.String())
-			p.cache.Adids2Node[adId] = newStats
+			log.Infof("%v does not have a correct format to be considered in the cache", identifier.Key)
 			continue
 		}
-
-		value, ok := p.cache.Adids2Node[adId]
-		if !ok {
-			p.cache.Adids2Node[adId] = newStats
-			continue
+		for _, tplkey := range identifier.Nodes {
+			dateIdx = math.Max(float64(tplkey.ModifiedIndex), dateIdx)
 		}
-		// check if the version of the template in the cache is outdated.
-		equal, err := sameSlice(newStats.Stats, value.Stats)
-
-		if err != nil {
-			updates++
-			log.Infof("cache update failed for %v because: ", adId, err)
-			continue
-		}
-		if !equal {
-			updates++
-			p.cache.Adids2Node[identifier.Value] = newStats
-		}
-		log.Infof("cache up to date for %v", identifier)
-
 	}
-	if adTempAdded || updates > 0 {
+	if dateIdx > p.cache.AdTemplate2Idx || adListUpdated {
+		log.Infof("Idx was %v and is now %v", p.cache.AdTemplate2Idx, dateIdx)
+		p.cache.AdTemplate2Idx = dateIdx
+		log.Infof("cache updated for %v", p.String())
 		return false, nil
 	}
+	log.Infof("cache up to date for %v", p.String())
 	return true, nil
 }
 

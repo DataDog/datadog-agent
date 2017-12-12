@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"math"
 )
 
 const sessionTimeout = 1 * time.Second
@@ -32,7 +33,7 @@ type zkBackend interface {
 type ZookeeperConfigProvider struct {
 	client      zkBackend
 	templateDir string
-	cache       *CacheProvider
+	cache       *CacheProviderIndx
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
@@ -74,69 +75,44 @@ func (z *ZookeeperConfigProvider) Collect() ([]check.Config, error) {
 // Updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Zookeeper's data.
 func (z *ZookeeperConfigProvider) IsUpToDate() (bool, error) {
 
-	updates := 0
-	var adTempAdded bool
-
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
-		return false, nil
+		return false, err
 	}
+	outdated := z.cache.AdTemplate2Idx
+	adListUpdated := false
 
-	// We want to be specifically notified if a template was added or removed. Then we flush the cache.
-	if len(identifiers) != len(z.cache.Adids2Node){
-		log.Infof("list of ADTemplates was modified. Cache is being updated...")
-		z.cache.Adids2Node = make(map[string]AdIdentfier2stats)
-		adTempAdded = true
+	if z.cache.NumAdTemplates != len(identifiers) {
+		if z.cache.NumAdTemplates != 0 {
+			log.Infof("List of AD Template was modified, updating cache.")
+			adListUpdated = true
+		}
+		log.Infof("Initializing cache for %v", z.String())
+		z.cache.NumAdTemplates = len(identifiers)
 	}
 
 	for _, identifier := range identifiers {
-		// This supposes that we keep the /datadog/check_config/ad_identifiers_id/{check_names|init_configs|instances} format.
 		gChildren, _, err := z.client.Children(identifier)
+
 		if err != nil {
-			return false, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
+			return false, err
 		}
-		newStats := AdIdentfier2stats{Stats: make(map[string]int32)}
 		for _, gcn := range gChildren {
 			gcnPath := path.Join(identifier, gcn)
 			_, stat, err := z.client.Get(gcnPath)
 			if err != nil {
 				return false, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
 			}
-			// Here we get the Version as opposed to the cVersion as we process the last child
-			newStats.Stats[gcn] = stat.Version //["check_config":1]
+			outdated = math.Max(float64(stat.Mtime), outdated)
 		}
-		if len(z.cache.Adids2Node) == 0 {
-			log.Infof("Populating cache for %v.", z.String())
-			z.cache.Adids2Node[identifier] = newStats
-			continue
-		}
-
-		value, ok := z.cache.Adids2Node[identifier]
-
-		// if the template is not in the cache, add its up to date version.
-		if !ok {
-			updates++
-			z.cache.Adids2Node[identifier] = newStats
-			continue
-		}
-
-		// check if the version of the template in the cache is outdated.
-		equal, err := sameSlice(newStats.Stats, value.Stats)
-
-		if err != nil {
-			updates++
-			log.Infof("cache update failed for %v because: ", identifier, err)
-			continue
-		}
-		if !equal {
-			updates++
-			z.cache.Adids2Node[identifier] = newStats
-		}
-		log.Infof("cache up to date for %v", identifier)
 	}
-	if adTempAdded || updates > 0{
+	if outdated > z.cache.AdTemplate2Idx || adListUpdated {
+		log.Infof("Idx was %v and is now %v", z.cache.AdTemplate2Idx, outdated)
+		z.cache.AdTemplate2Idx = outdated
+		log.Infof("cache updated for %v", z.String())
 		return false, nil
 	}
+	log.Infof("cache up to date for %v", z.String())
 	return true, nil
 }
 

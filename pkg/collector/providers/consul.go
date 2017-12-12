@@ -131,6 +131,7 @@ func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
 }
 
 func (p *ConsulConfigProvider) IsUpToDate() (bool, error) {
+	// TODO
 	return false, nil
 }
 

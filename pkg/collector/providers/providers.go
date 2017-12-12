@@ -22,17 +22,18 @@ func RegisterProvider(name string, factory ConfigProviderFactory) {
 type ConfigProviderFactory func(cfg config.ConfigurationProviders) (ConfigProvider, error)
 
 // Cache Provider.
-type CacheProvider struct {
-	Adids2Node map[string]AdIdentfier2stats // ["foo": Stat] Only 1 ad_identifier per tuple Stat
+type CacheProviderIndx struct {
+	AdTemplate2Idx float64
+	NumAdTemplates int
 }
-type AdIdentfier2stats struct {
-	Stats map[string]int32	// Stat = ["check_names":1,"init_configs":0,"instances":0]
-}
-func NewCPCache() *CacheProvider {
-	return &CacheProvider{
-		Adids2Node:        make(map[string]AdIdentfier2stats),
+
+func NewCPCache() *CacheProviderIndx {
+	return &CacheProviderIndx{
+		AdTemplate2Idx: 0,
+		NumAdTemplates: 0,
 	}
 }
+
 // ConfigProvider is the interface that wraps the Collect method
 //
 // Collect is responsible of populating a list of CheckConfig instances
