@@ -7,6 +7,7 @@ package docker
 
 import (
 	"errors"
+	"fmt"
 )
 
 var (
@@ -18,3 +19,14 @@ var (
 	// User classes should handle that case as gracefully as possible.
 	ErrDockerNotCompiled = errors.New("docker support not compiled in")
 )
+
+// DockerEntityPrefix is the entity prefix for docker containers
+const DockerEntityPrefix = "docker://"
+
+// ContainerIDToEntityName returns a prefixed entity name from a container ID
+func ContainerIDToEntityName(cid string) string {
+	if cid == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s%s", DockerEntityPrefix, cid)
+}

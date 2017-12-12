@@ -31,7 +31,7 @@ type Output struct {
 	ShouldStop bool
 }
 
-// newOutput returns a new decoder output
+// NewOutput returns a new decoder output
 func NewOutput(content []byte, rawDataLen int) *Output {
 	return &Output{
 		Content:    content,
@@ -61,7 +61,7 @@ func InitializeDecoder(source *config.IntegrationConfigLogSource) *Decoder {
 	var lineHandler LineHandler
 	for _, rule := range source.ProcessingRules {
 		switch rule.Type {
-		case config.MULTILINE:
+		case config.MultiLine:
 			lineHandler = NewMultiLineLineHandler(outputChan, rule.Reg)
 		}
 	}

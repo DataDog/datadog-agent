@@ -5,20 +5,19 @@
 
 package config
 
-// Technical constants
-
+// Pipeline constraints
 const (
 	ChanSizes         = 100
 	NumberOfPipelines = int32(4)
 )
 
-// Business constants
-
+// Date and time format
 const (
 	DateFormat = "2006-01-02T15:04:05.000000000Z"
 )
 
+// Severities
 var (
-	SEV_INFO  = []byte("<46>")
-	SEV_ERROR = []byte("<43>")
+	SevInfo  = []byte("<46>")
+	SevError = []byte("<43>")
 )

@@ -13,17 +13,17 @@ import (
 type Message interface {
 	Content() []byte
 	SetContent([]byte)
-	GetOrigin() *MessageOrigin
-	SetOrigin(*MessageOrigin)
-	GetTimestamp() string // No need for SetTimestamp as we use MessageOrigin under the hood
+	GetOrigin() *Origin
+	SetOrigin(*Origin)
+	GetTimestamp() string // No need for SetTimestamp as we use Origin under the hood
 	GetSeverity() []byte
 	SetSeverity([]byte)
 	GetTagsPayload() []byte
 	SetTagsPayload([]byte)
 }
 
-// MessageOrigin represents the Origin of a message
-type MessageOrigin struct {
+// Origin represents the Origin of a message
+type Origin struct {
 	Identifier string
 	LogSource  *config.IntegrationConfigLogSource
 	Offset     int64
@@ -32,9 +32,15 @@ type MessageOrigin struct {
 
 type message struct {
 	content     []byte
-	Origin      *MessageOrigin
+	Origin      *Origin
 	severity    []byte
 	tagsPayload []byte
+}
+
+func newMessage(content []byte) *message {
+	return &message{
+		content: content,
+	}
 }
 
 // Content returns the content the message, the actual log line
@@ -48,12 +54,12 @@ func (m *message) SetContent(content []byte) {
 }
 
 // GetOrigin returns the Origin from which the message comes
-func (m *message) GetOrigin() *MessageOrigin {
+func (m *message) GetOrigin() *Origin {
 	return m.Origin
 }
 
 // SetOrigin sets the integration from which the message comes
-func (m *message) SetOrigin(Origin *MessageOrigin) {
+func (m *message) SetOrigin(Origin *Origin) {
 	m.Origin = Origin
 }
 
@@ -77,7 +83,7 @@ func (m *message) SetSeverity(severity []byte) {
 
 // GetSeverity returns the tags and sources of the message
 // It will default on the LogSource tags payload, but can
-// be overriden in the message itself with tagsPayload
+// be overridden in the message itself with tagsPayload
 func (m *message) GetTagsPayload() []byte {
 	if m.tagsPayload != nil {
 		return m.tagsPayload
@@ -93,16 +99,9 @@ func (m *message) SetTagsPayload(tagsPayload []byte) {
 	m.tagsPayload = tagsPayload
 }
 
-// NewMessage returns a new message
-func NewMessage(content []byte) *message {
-	return &message{
-		content: content,
-	}
-}
-
-// NewFileOrigin returns a new MessageOrigin
-func NewOrigin() *MessageOrigin {
-	return &MessageOrigin{}
+// NewOrigin returns a new Origin
+func NewOrigin() *Origin {
+	return &Origin{}
 }
 
 // StopMessage is used to let a component stop gracefully
@@ -110,9 +109,10 @@ type StopMessage struct {
 	*message
 }
 
+// NewStopMessage returns a new StopMessage
 func NewStopMessage() *StopMessage {
 	return &StopMessage{
-		message: NewMessage(nil),
+		message: newMessage(nil),
 	}
 }
 
@@ -121,20 +121,22 @@ type FileMessage struct {
 	*message
 }
 
+// NewFileMessage returns a new FileMessage
 func NewFileMessage(content []byte) *FileMessage {
 	return &FileMessage{
-		message: NewMessage(content),
+		message: newMessage(content),
 	}
 }
 
-// FileMessage is a message coming from a network Source
+// NetworkMessage is a message coming from a network Source
 type NetworkMessage struct {
 	*message
 }
 
+// NewNetworkMessage returns a new NetworkMessage
 func NewNetworkMessage(content []byte) *NetworkMessage {
 	return &NetworkMessage{
-		message: NewMessage(content),
+		message: newMessage(content),
 	}
 }
 
@@ -143,8 +145,9 @@ type ContainerMessage struct {
 	*message
 }
 
+// NewContainerMessage returns a new ContainerMessage
 func NewContainerMessage(content []byte) *ContainerMessage {
 	return &ContainerMessage{
-		message: NewMessage(content),
+		message: newMessage(content),
 	}
 }

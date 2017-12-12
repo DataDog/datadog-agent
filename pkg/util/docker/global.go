@@ -9,7 +9,6 @@ package docker
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -43,9 +42,6 @@ const (
 	ContainerPausedState     string = "paused"
 	ContainerExitedState     string = "exited"
 	ContainerDeadState       string = "dead"
-
-	// DockerEntityPrefix is the entity prefix for docker containers
-	DockerEntityPrefix = "docker://"
 )
 
 // GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
@@ -86,14 +82,6 @@ func HostnameProvider(hostName string) (string, error) {
 		return "", err
 	}
 	return du.GetHostname()
-}
-
-// ContainerIDToEntityName returns a prefixed entity name from a container ID
-func ContainerIDToEntityName(cid string) string {
-	if cid == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s%s", DockerEntityPrefix, cid)
 }
 
 // Container represents a single Docker container on a machine

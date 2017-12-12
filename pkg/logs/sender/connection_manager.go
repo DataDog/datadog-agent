@@ -23,9 +23,9 @@ const (
 
 // A ConnectionManager manages connections
 type ConnectionManager struct {
-	connectionString    string
-	serverName          string
-	skip_ssl_validation bool
+	connectionString  string
+	serverName        string
+	skipSSLValidation bool
 
 	mutex   sync.Mutex
 	retries int
@@ -34,11 +34,11 @@ type ConnectionManager struct {
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(ddUrl string, ddPort int, skip_ssl_validation bool) *ConnectionManager {
+func NewConnectionManager(ddURL string, ddPort int, skipSSLValidation bool) *ConnectionManager {
 	return &ConnectionManager{
-		connectionString:    fmt.Sprintf("%s:%d", ddUrl, ddPort),
-		serverName:          ddUrl,
-		skip_ssl_validation: skip_ssl_validation,
+		connectionString:  fmt.Sprintf("%s:%d", ddURL, ddPort),
+		serverName:        ddURL,
+		skipSSLValidation: skipSSLValidation,
 
 		mutex: sync.Mutex{},
 
@@ -54,11 +54,11 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 
 	for {
 		if cm.firstConn {
-			log.Println("Connecting to the backend:", cm.connectionString, "- skip_ssl_validation:", cm.skip_ssl_validation)
+			log.Println("Connecting to the backend:", cm.connectionString, "- skip_ssl_validation:", cm.skipSSLValidation)
 			cm.firstConn = false
 		}
 
-		cm.retries += 1
+		cm.retries++
 		outConn, err := net.DialTimeout("tcp", cm.connectionString, timeout)
 		if err != nil {
 			log.Println(err)
@@ -66,7 +66,7 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 			continue
 		}
 
-		if !cm.skip_ssl_validation {
+		if !cm.skipSSLValidation {
 			config := &tls.Config{
 				ServerName: cm.serverName,
 			}

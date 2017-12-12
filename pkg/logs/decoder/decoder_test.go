@@ -101,13 +101,20 @@ func TestDecodeIncomingDataForMultiLineLogs(t *testing.T) {
 	d := New(inChan, outChan, NewMultiLineLineHandler(outChan, re))
 
 	var out *Output
+
+	// pending message in one raw data
+	d.decodeIncomingData([]byte("1. Hello world!"))
+	assert.Equal(t, "1. Hello world!", string(d.lineBuffer.Bytes()))
+	d.decodeIncomingData([]byte("\n"))
+	out = <-outChan
+	assert.Equal(t, "1. Hello world!", string(out.Content))
+
 	go d.Start()
 
 	// two lines message in one raw data
 	inChan <- NewInput([]byte("1. Hello\nworld!\n"))
 	out = <-outChan
 	assert.Equal(t, "1. Hello\\nworld!", string(out.Content))
-	assert.Equal(t, "", d.lineBuffer.String())
 
 	// multiple messages in one raw data
 	inChan <- NewInput([]byte("1. Hello\nworld!\n2. How are you\n"))
@@ -115,29 +122,25 @@ func TestDecodeIncomingDataForMultiLineLogs(t *testing.T) {
 	assert.Equal(t, "1. Hello\\nworld!", string(out.Content))
 	out = <-outChan
 	assert.Equal(t, "2. How are you", string(out.Content))
-	assert.Equal(t, "", d.lineBuffer.String())
 
 	// two lines message over two raw data
 	inChan <- NewInput([]byte("1. Hello\n"))
 	inChan <- NewInput([]byte("world!\n"))
 	out = <-outChan
 	assert.Equal(t, "1. Hello\\nworld!", string(out.Content))
-	assert.Equal(t, "", d.lineBuffer.String())
 
-	// multiple messages accross two raw data
+	// multiple messages over two raw data
 	inChan <- NewInput([]byte("1. Hello\n"))
 	inChan <- NewInput([]byte("world!\n2. How are you\n"))
 	out = <-outChan
 	assert.Equal(t, "1. Hello\\nworld!", string(out.Content))
 	out = <-outChan
 	assert.Equal(t, "2. How are you", string(out.Content))
-	assert.Equal(t, "", d.lineBuffer.String())
 
 	// single-line message in one raw data
 	inChan <- NewInput([]byte("1. Hello world!\n"))
 	out = <-outChan
 	assert.Equal(t, "1. Hello world!", string(out.Content))
-	assert.Equal(t, "", d.lineBuffer.String())
 
 	// multiple single-line messages in one raw data
 	inChan <- NewInput([]byte("1. Hello world!\n2. How are you\n"))
@@ -145,7 +148,6 @@ func TestDecodeIncomingDataForMultiLineLogs(t *testing.T) {
 	assert.Equal(t, "1. Hello world!", string(out.Content))
 	out = <-outChan
 	assert.Equal(t, "2. How are you", string(out.Content))
-	assert.Equal(t, "", d.lineBuffer.String())
 
 	// two lines too big message in one raw data
 	inChan <- NewInput([]byte("12345678.\n" + strings.Repeat("a", contentLenLimit+10) + "\n"))
@@ -195,13 +197,6 @@ func TestDecodeIncomingDataForMultiLineLogs(t *testing.T) {
 	assert.Equal(t, len(TRUNCATED)+contentLenLimit+len(TRUNCATED), len(out.Content))
 	out = <-outChan
 	assert.Equal(t, string(TRUNCATED)+strings.Repeat("a", 10), string(out.Content))
-
-	// pending message in one raw data
-	d.decodeIncomingData([]byte("1. Hello world!"))
-	assert.Equal(t, "1. Hello world!", string(d.lineBuffer.Bytes()))
-	d.decodeIncomingData([]byte("\n"))
-	out = <-outChan
-	assert.Equal(t, "1. Hello world!", string(out.Content))
 }
 
 func TestSingleLineDecoderLifecycle(t *testing.T) {

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build !windows
+
 package container
 
 import (
@@ -62,7 +64,7 @@ func (suite *DockerTailerTestSuite) TestDockerTailerNextLogSinceDate() {
 }
 
 func (suite *DockerTailerTestSuite) TestDockerTailerIdentifier() {
-	suite.tailer.containerId = "test"
+	suite.tailer.ContainerID = "test"
 	suite.Equal("docker:test", suite.tailer.Identifier())
 }
 

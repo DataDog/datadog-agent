@@ -59,14 +59,14 @@ func TestExclusion(t *testing.T) {
 	assert.Equal(t, true, shouldProcess)
 	assert.Equal(t, []byte("hello"), redactedMessage)
 
-	shouldProcess, redactedMessage = p.applyRedactingRules(newNetworkMessage([]byte("world"), &source))
+	shouldProcess, _ = p.applyRedactingRules(newNetworkMessage([]byte("world"), &source))
 	assert.Equal(t, false, shouldProcess)
 
-	shouldProcess, redactedMessage = p.applyRedactingRules(newNetworkMessage([]byte("a brand new world"), &source))
+	shouldProcess, _ = p.applyRedactingRules(newNetworkMessage([]byte("a brand new world"), &source))
 	assert.Equal(t, false, shouldProcess)
 
 	source = buildTestProcessingRule("exclude_at_match", "", "$world", &p)
-	shouldProcess, redactedMessage = p.applyRedactingRules(newNetworkMessage([]byte("a brand new world"), &source))
+	shouldProcess, _ = p.applyRedactingRules(newNetworkMessage([]byte("a brand new world"), &source))
 	assert.Equal(t, true, shouldProcess)
 }
 
@@ -142,10 +142,10 @@ func TestComputeApiKeyString(t *testing.T) {
 	p := New(nil, nil, "hello", "world")
 
 	source := &config.IntegrationConfigLogSource{}
-	extraContent := p.computeApiKeyString(newNetworkMessage(nil, source))
+	extraContent := p.computeAPIKeyString(newNetworkMessage(nil, source))
 	assert.Equal(t, "hello/world", string(extraContent))
 
 	source = &config.IntegrationConfigLogSource{Logset: "hi"}
-	extraContent = p.computeApiKeyString(newNetworkMessage(nil, source))
+	extraContent = p.computeAPIKeyString(newNetworkMessage(nil, source))
 	assert.Equal(t, "hello/hi", string(extraContent))
 }

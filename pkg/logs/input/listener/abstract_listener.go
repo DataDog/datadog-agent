@@ -27,7 +27,7 @@ type NetworkListener interface {
 // It listens for bytes on a connection and forwards them to an output chan
 type AbstractNetworkListener struct {
 	listener NetworkListener
-	pp       *pipeline.PipelineProvider
+	pp       pipeline.Provider
 	source   *config.IntegrationConfigLogSource
 }
 

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build !windows
+
 package tailer
 
 import (
@@ -19,19 +21,20 @@ import (
 
 const scanPeriod = 10 * time.Second
 
+// Scanner checks all files metadata and updates its tailers if needed
 type Scanner struct {
 	sources []*config.IntegrationConfigLogSource
-	pp      *pipeline.PipelineProvider
+	pp      pipeline.Provider
 	tailers map[string]*Tailer
 	auditor *auditor.Auditor
 }
 
 // New returns an initialized Scanner
-func New(sources []*config.IntegrationConfigLogSource, pp *pipeline.PipelineProvider, auditor *auditor.Auditor) *Scanner {
+func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
 	tailSources := []*config.IntegrationConfigLogSource{}
 	for _, source := range sources {
 		switch source.Type {
-		case config.FILE_TYPE:
+		case config.FileType:
 			tailSources = append(tailSources, source)
 		default:
 		}
@@ -55,14 +58,14 @@ func (s *Scanner) setup() {
 	}
 }
 
-// setupTailer sets one tailer, making it tail from the begining or the end
-func (s *Scanner) setupTailer(source *config.IntegrationConfigLogSource, tailFromBegining bool, outputChan chan message.Message) {
+// setupTailer sets one tailer, making it tail from the beginning or the end
+func (s *Scanner) setupTailer(source *config.IntegrationConfigLogSource, tailFromBeginning bool, outputChan chan message.Message) {
 	t := NewTailer(outputChan, source)
 	var err error
-	if tailFromBegining {
-		err = t.tailFromBegining()
+	if tailFromBeginning {
+		err = t.tailFromBeginning()
 	} else {
-		// resume tailing from last commited offset
+		// resume tailing from last committed offset
 		err = t.recoverTailing(s.auditor)
 	}
 	if err != nil {
@@ -80,7 +83,7 @@ func (s *Scanner) Start() {
 // run lets the Scanner tail its file
 func (s *Scanner) run() {
 	ticker := time.NewTicker(scanPeriod)
-	for _ = range ticker.C {
+	for range ticker.C {
 		s.scan()
 	}
 }

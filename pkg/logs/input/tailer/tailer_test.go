@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build !windows
+
 package tailer
 
 import (
@@ -41,7 +43,7 @@ func (suite *TailerTestSuite) SetupTest() {
 	suite.testFile = f
 	suite.outputChan = make(chan message.Message, chanSize)
 	suite.source = &config.IntegrationConfigLogSource{
-		Type: config.FILE_TYPE,
+		Type: config.FileType,
 		Path: suite.testPath,
 	}
 	suite.tl = NewTailer(suite.outputChan, suite.source)
@@ -60,6 +62,7 @@ func (suite *TailerTestSuite) TestTailerTails() {
 	var msg message.Message
 	var err error
 	_, err = suite.testFile.WriteString("hello world\n")
+	suite.Nil(err)
 	_, err = suite.testFile.WriteString("hello again\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
@@ -87,7 +90,7 @@ func writeMessage(file *os.File) {
 }
 
 func listenToChan(inputChan chan *decoder.Input, messagesReceived *uint64) {
-	for _ = range inputChan {
+	for range inputChan {
 		atomic.AddUint64(messagesReceived, 1)
 		tick()
 	}
@@ -148,7 +151,7 @@ func (suite *TailerTestSuite) TestTailerIsTooSlowAndClosed() {
 	testPath := fmt.Sprintf("%s/tailer2.log", suite.testDir)
 	testFile, _ := os.Create(testPath)
 	defer testFile.Close()
-	tl := NewTailer(nil, &config.IntegrationConfigLogSource{Type: config.FILE_TYPE, Path: testPath})
+	tl := NewTailer(nil, &config.IntegrationConfigLogSource{Type: config.FileType, Path: testPath})
 	tl.sleepDuration = 50 * time.Millisecond
 	tl.closeTimeout = 2 * time.Millisecond
 

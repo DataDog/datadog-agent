@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build !windows
+
 package container
 
 import (
@@ -24,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/docker/docker/api/types"
-	"github.com/moby/moby/client"
+	"github.com/docker/docker/client"
 )
 
 const defaultSleepDuration = 1 * time.Second
@@ -39,7 +41,7 @@ const messageHeaderLength = 8
 // With docker api, there is no way to know if a log comes from strout or stderr
 // so if we want to capture the severity, we need to tail both in two goroutines
 type DockerTailer struct {
-	containerId   string
+	ContainerID   string
 	outputChan    chan message.Message
 	d             *decoder.Decoder
 	reader        io.ReadCloser
@@ -55,7 +57,7 @@ type DockerTailer struct {
 // NewDockerTailer returns a new DockerTailer
 func NewDockerTailer(cli *client.Client, container types.Container, source *config.IntegrationConfigLogSource, outputChan chan message.Message) *DockerTailer {
 	return &DockerTailer{
-		containerId: container.ID,
+		ContainerID: container.ID,
 		outputChan:  outputChan,
 		d:           decoder.InitializeDecoder(source),
 		source:      source,
@@ -67,7 +69,7 @@ func NewDockerTailer(cli *client.Client, container types.Container, source *conf
 
 // Identifier returns a string that uniquely identifies a source
 func (dt *DockerTailer) Identifier() string {
-	return fmt.Sprintf("docker:%s", dt.containerId)
+	return fmt.Sprintf("docker:%s", dt.ContainerID)
 }
 
 // Stop stops the DockerTailer
@@ -76,9 +78,9 @@ func (dt *DockerTailer) Stop() {
 	dt.d.Stop()
 }
 
-// tailFromBegining starts the tailing from the beginning
+// tailFromBeginning starts the tailing from the beginning
 // of the container logs
-func (dt *DockerTailer) tailFromBegining() error {
+func (dt *DockerTailer) tailFromBeginning() error {
 	return dt.tailFrom(time.Time{}.Format(config.DateFormat))
 }
 
@@ -91,7 +93,7 @@ func (dt *DockerTailer) tailFromEnd() error {
 // recoverTailing starts the tailing from the last log line processed, or now
 // if we see this container for the first time
 func (dt *DockerTailer) recoverTailing(a *auditor.Auditor) error {
-	return dt.tailFrom(dt.nextLogSinceDate(a.GetLastCommitedTimestamp(dt.Identifier())))
+	return dt.tailFrom(dt.nextLogSinceDate(a.GetLastCommittedTimestamp(dt.Identifier())))
 }
 
 // nextLogSinceDate returns the `from` value of the next log line
@@ -129,7 +131,7 @@ func (dt *DockerTailer) startReading(from string) error {
 		Details:    false,
 		Since:      from,
 	}
-	reader, err := dt.cli.ContainerLogs(context.Background(), dt.containerId, options)
+	reader, err := dt.cli.ContainerLogs(context.Background(), dt.ContainerID, options)
 	if err != nil {
 		return err
 	}
@@ -202,7 +204,7 @@ func (dt *DockerTailer) forwardMessages() {
 func (dt *DockerTailer) keepDockerTagsUpdated() {
 	dt.checkForNewDockerTags()
 	ticker := time.NewTicker(tagsUpdatePeriod)
-	for _ = range ticker.C {
+	for range ticker.C {
 		if dt.shouldStop {
 			return
 		}
@@ -211,7 +213,7 @@ func (dt *DockerTailer) keepDockerTagsUpdated() {
 }
 
 func (dt *DockerTailer) checkForNewDockerTags() {
-	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(dt.containerId), true)
+	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(dt.ContainerID), true)
 	if err != nil {
 		log.Println(err)
 	} else {
@@ -239,9 +241,9 @@ func (dt *DockerTailer) parseMessage(msg []byte) (string, []byte, []byte, error)
 	}
 
 	// First byte is 1 for stdout and 2 for stderr
-	sev := config.SEV_INFO
+	sev := config.SevInfo
 	if msg[0] == 2 {
-		sev = config.SEV_ERROR
+		sev = config.SevError
 	}
 
 	// timestamp goes from byte 8 till first space

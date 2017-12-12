@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build !windows
+
 package container
 
 import (
@@ -16,21 +18,21 @@ import (
 
 type ContainerScannerTestSuite struct {
 	suite.Suite
-	c *ContainerInput
+	c *Scanner
 }
 
 func (suite *ContainerScannerTestSuite) SetupTest() {
-	suite.c = &ContainerInput{}
+	suite.c = &Scanner{}
 }
 
 func (suite *ContainerScannerTestSuite) TestContainerScannerFilter() {
-	cfg := &config.IntegrationConfigLogSource{Type: config.DOCKER_TYPE, Image: "myapp"}
+	cfg := &config.IntegrationConfigLogSource{Type: config.DockerType, Image: "myapp"}
 	container := types.Container{Image: "myapp"}
 	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
 	container = types.Container{Image: "myapp2"}
 	suite.False(suite.c.sourceShouldMonitorContainer(cfg, container))
 
-	cfg = &config.IntegrationConfigLogSource{Type: config.DOCKER_TYPE, Label: "mylabel"}
+	cfg = &config.IntegrationConfigLogSource{Type: config.DockerType, Label: "mylabel"}
 	l1 := make(map[string]string)
 	l2 := make(map[string]string)
 	l2["mylabel"] = "anything"
@@ -39,7 +41,7 @@ func (suite *ContainerScannerTestSuite) TestContainerScannerFilter() {
 	container = types.Container{Image: "myapp", Labels: l2}
 	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
 
-	cfg = &config.IntegrationConfigLogSource{Type: config.DOCKER_TYPE}
+	cfg = &config.IntegrationConfigLogSource{Type: config.DockerType}
 	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
 }
 

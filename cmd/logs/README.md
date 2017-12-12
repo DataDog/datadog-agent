@@ -1,18 +1,17 @@
-# datadog-log-agent
+# logs-agent
 
-datadog-log-agent collects logs and submits them into datadog's infrastructure.
-This repository is temporary, mid term plan is to merge the code with [datadog-agent](https://github.com/DataDog/datadog-agent)
-
-Contributions today may not be accepted, as plan is to have this code merged into datadog-agent repository
+logs-agent collects logs and submits them to datadog's infrastructure.
 
 ## Structure
 
-`logagent` reads the config files, and instanciates what's needed.
-Each log line comes from a source (e.g. file, network), and then enters one of the available pipeline - _decoder -> processor -> sender -> auditor_
+`logs` reads the config files, and instanciates what's needed.
+Each log line comes from a source (e.g. file, network, docker), and then enters one of the available _pipeline - decoder -> processor -> sender -> auditor_
 
 `Tailer` tails a file and submits data to the processors
 
 `Listener` listens on local network and submits data to the processors
+
+`Container` scans docker logs from stdout/stderr and submits data to the processors
 
 `Decoder` converts bytes arrays into messages
 
@@ -24,7 +23,12 @@ Each log line comes from a source (e.g. file, network), and then enters one of t
 
 ## How to run
 
-- `rake deps`
-- `rake build`
+From root:
+- `inv deps`
+- `inv logs.build`
 - setup config files
-- `./build/logagent --ddconfig pkg/logagent/etc/datadog.yaml --ddconfd pkg/logagent/etc/conf.d/`
+- `./bin/logs/logs --ddconfig /etc/datadog/datadog.yaml --ddconfd /etc/datadog/conf.d/`
+
+or:
+- `inv deps`
+- `inv logs.run --ddconfig=datadog.yaml --ddconfd=conf.d`

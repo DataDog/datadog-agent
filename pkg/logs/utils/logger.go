@@ -10,13 +10,16 @@ import (
 	"log"
 )
 
+// logWriter conforms to Writer to change logs format
 type logWriter struct {
 }
 
+// Write only returns the input with no additional information
 func (w logWriter) Write(bytes []byte) (int, error) {
 	return fmt.Print(string(bytes))
 }
 
+// SetupLogger overrides go built-in logger to change logs format
 func SetupLogger() {
 	log.SetFlags(0)
 	log.SetOutput(new(logWriter))

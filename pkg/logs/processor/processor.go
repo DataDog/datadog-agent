@@ -51,7 +51,7 @@ func (p *Processor) run() {
 		shouldProcess, redactedMessage := p.applyRedactingRules(msg)
 		if shouldProcess {
 			extraContent := p.computeExtraContent(msg)
-			apikeyString := p.computeApiKeyString(msg)
+			apikeyString := p.computeAPIKeyString(msg)
 			payload := p.buildPayload(apikeyString, redactedMessage, extraContent)
 			msg.SetContent(payload)
 			p.outputChan <- msg
@@ -74,7 +74,7 @@ func (p *Processor) computeExtraContent(msg message.Message) []byte {
 		if msg.GetSeverity() != nil {
 			extraContent = append(extraContent, msg.GetSeverity()...)
 		} else {
-			extraContent = append(extraContent, config.SEV_INFO...)
+			extraContent = append(extraContent, config.SevInfo...)
 		}
 
 		// Protocol version
@@ -114,7 +114,7 @@ func (p *Processor) computeExtraContent(msg message.Message) []byte {
 	return nil
 }
 
-func (p *Processor) computeApiKeyString(msg message.Message) []byte {
+func (p *Processor) computeAPIKeyString(msg message.Message) []byte {
 	sourceLogset := msg.GetOrigin().LogSource.Logset
 	if sourceLogset != "" {
 		return []byte(fmt.Sprintf("%s/%s", p.apikey, sourceLogset))
@@ -139,11 +139,11 @@ func (p *Processor) applyRedactingRules(msg message.Message) (bool, []byte) {
 	content := msg.Content()
 	for _, rule := range msg.GetOrigin().LogSource.ProcessingRules {
 		switch rule.Type {
-		case config.EXCLUDE_AT_MATCH:
+		case config.ExcludeAtMatch:
 			if rule.Reg.Match(content) {
 				return false, nil
 			}
-		case config.MASK_SEQUENCES:
+		case config.MaskSequences:
 			content = rule.Reg.ReplaceAllLiteral(content, rule.ReplacePlaceholderBytes)
 		}
 	}

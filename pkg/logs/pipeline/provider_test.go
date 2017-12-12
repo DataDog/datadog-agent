@@ -8,38 +8,36 @@ package pipeline
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/suite"
 )
 
-type PipelineProviderTestSuite struct {
+type ProviderTestSuite struct {
 	suite.Suite
-	pp *PipelineProvider
+	p *provider
 }
 
-func (suite *PipelineProviderTestSuite) SetupTest() {
-	suite.pp = NewPipelineProvider()
+func (suite *ProviderTestSuite) SetupTest() {
+	suite.p = &provider{
+		numberOfPipelines: 3,
+		chanSizes:         10,
+		pipelinesChans:    [](chan message.Message){},
+		currentChanIdx:    0,
+	}
 }
 
-func (suite *PipelineProviderTestSuite) TestPipelineProvider() {
-	suite.pp.numberOfPipelines = 3
-	suite.pp.Start(nil, nil)
-	suite.Equal(3, len(suite.pp.pipelinesChans))
+func (suite *ProviderTestSuite) TestProvider() {
+	suite.p.Start(nil, nil)
+	suite.Equal(3, len(suite.p.pipelinesChans))
 
-	c := suite.pp.NextPipelineChan()
-	suite.Equal(int32(1), suite.pp.currentChanIdx)
-	suite.pp.NextPipelineChan()
-	suite.Equal(int32(2), suite.pp.currentChanIdx)
-	suite.pp.NextPipelineChan()
-	suite.Equal(c, suite.pp.NextPipelineChan())
+	c := suite.p.NextPipelineChan()
+	suite.Equal(int32(1), suite.p.currentChanIdx)
+	suite.p.NextPipelineChan()
+	suite.Equal(int32(2), suite.p.currentChanIdx)
+	suite.p.NextPipelineChan()
+	suite.Equal(c, suite.p.NextPipelineChan())
 }
 
-func (suite *PipelineProviderTestSuite) TestPipelineProviderMock() {
-	suite.pp.MockPipelineChans()
-	suite.Equal(1, len(suite.pp.pipelinesChans))
-	suite.Equal(int32(1), suite.pp.numberOfPipelines)
-	suite.Equal(suite.pp.NextPipelineChan(), suite.pp.NextPipelineChan())
-}
-
-func TestPipelineProviderTestSuite(t *testing.T) {
-	suite.Run(t, new(PipelineProviderTestSuite))
+func TestProviderTestSuite(t *testing.T) {
+	suite.Run(t, new(ProviderTestSuite))
 }

@@ -59,7 +59,7 @@ func (l *LineBuffer) AddTruncate(line *Line) {
 	l.buffer.Write(TRUNCATED)
 }
 
-// send creates a new ouput from content in buffer and sends it to outputChan
+// Flush creates a new output from content in buffer and sends it to outputChan
 func (l *LineBuffer) Flush() {
 	defer l.reset()
 	content := make([]byte, l.buffer.Len())

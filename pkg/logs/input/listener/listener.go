@@ -14,12 +14,12 @@ import (
 
 // A Listener summons different protocol specific listeners based on configuration
 type Listener struct {
-	pp      *pipeline.PipelineProvider
+	pp      pipeline.Provider
 	sources []*config.IntegrationConfigLogSource
 }
 
 // New returns an initialized Listener
-func New(sources []*config.IntegrationConfigLogSource, pp *pipeline.PipelineProvider) *Listener {
+func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider) *Listener {
 	return &Listener{
 		pp:      pp,
 		sources: sources,
@@ -30,15 +30,15 @@ func New(sources []*config.IntegrationConfigLogSource, pp *pipeline.PipelineProv
 func (l *Listener) Start() {
 	for _, source := range l.sources {
 		switch source.Type {
-		case config.TCP_TYPE:
-			tcpl, err := NewTcpListener(l.pp, source)
+		case config.TCPType:
+			tcpl, err := NewTCPListener(l.pp, source)
 			if err != nil {
 				log.Println("Can't start tcp source:", err)
 			} else {
 				tcpl.Start()
 			}
-		case config.UDP_TYPE:
-			udpl, err := NewUdpListener(l.pp, source)
+		case config.UDPType:
+			udpl, err := NewUDPListener(l.pp, source)
 			if err != nil {
 				log.Println("Can't start udp source:", err)
 			} else {

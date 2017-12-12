@@ -29,7 +29,7 @@ func Start() {
 	a := auditor.New(auditorChan)
 	a.Start()
 
-	pp := pipeline.NewPipelineProvider()
+	pp := pipeline.NewProvider()
 	pp.Start(cm, auditorChan)
 
 	l := listener.New(config.GetLogsSources(), pp)

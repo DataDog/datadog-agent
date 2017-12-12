@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build !windows
+
 package tailer
 
 import (
@@ -15,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -27,14 +30,13 @@ type ScannerTestSuite struct {
 	testRotatedFile *os.File
 
 	outputChan chan message.Message
-	pp         *pipeline.PipelineProvider
+	pp         pipeline.Provider
 	sources    []*config.IntegrationConfigLogSource
 	s          *Scanner
 }
 
 func (suite *ScannerTestSuite) SetupTest() {
-	suite.pp = pipeline.NewPipelineProvider()
-	suite.pp.MockPipelineChans()
+	suite.pp = mock.NewMockProvider()
 	suite.outputChan = suite.pp.NextPipelineChan()
 
 	suite.testDir = "tests/scanner"
@@ -50,7 +52,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.Nil(err)
 	suite.testRotatedFile = f
 
-	suite.sources = []*config.IntegrationConfigLogSource{&config.IntegrationConfigLogSource{Type: config.FILE_TYPE, Path: suite.testPath}}
+	suite.sources = []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: suite.testPath}}
 	suite.s = New(suite.sources, suite.pp, auditor.New(nil))
 	suite.s.setup()
 	for _, tl := range suite.s.tailers {
@@ -95,7 +97,8 @@ func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 
 	s.scan()
 	newTailer = s.tailers[sources[0].Path]
-	suite.Equal(tailer, newTailer)
+	// testing that scanner did not have to create a new tailer
+	suite.True(tailer == newTailer)
 
 	_, err = suite.testFile.WriteString("hello again\n")
 	suite.Nil(err)
@@ -124,7 +127,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 	suite.Nil(err)
 	s.scan()
 	newTailer = s.tailers[sources[0].Path]
-	suite.NotEqual(tailer, newTailer)
+	suite.True(tailer != newTailer)
 
 	_, err = f.WriteString("hello again\n")
 	suite.Nil(err)
@@ -155,8 +158,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	suite.Nil(err)
 	s.scan()
 	newTailer = s.tailers[sources[0].Path]
-	suite.NotEqual(tailer, newTailer)
-	suite.Equal(newTailer.GetReadOffset(), int64(0))
+	suite.True(tailer != newTailer)
 
 	msg = <-suite.outputChan
 	suite.Equal("third", string(msg.Content()))
