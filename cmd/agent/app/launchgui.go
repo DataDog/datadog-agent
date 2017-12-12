@@ -45,8 +45,8 @@ func launchGui(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
 
-	// Read the authentication token: can only be done if user can read from datadog.yaml
-	authToken, err := ioutil.ReadFile(filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), gui.AuthTokenName))
+	// Read the authentication token: can only be done if user has access to run directory
+	authToken, err := ioutil.ReadFile(filepath.Join(config.Datadog.GetString("run_path"), gui.AuthTokenName))
 	if err != nil {
 		return fmt.Errorf("unable to access GUI authentication token: " + err.Error())
 	}
