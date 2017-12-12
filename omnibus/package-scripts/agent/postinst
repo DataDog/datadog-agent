@@ -156,8 +156,7 @@ else
     fi
 
     echo "# Setting correct rights on conf"
-    chown -v $INSTALL_USER:admin $CONF_DIR/datadog.yaml
-    chown -vR $INSTALL_USER:admin $CONF_DIR/conf.d $CONF_DIR/checks.d
+    chown -vR $INSTALL_USER:admin $CONF_DIR
 
     # `datadog-agent` command line
     mkdir -vp /usr/local/bin
