@@ -51,18 +51,18 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 func processUDSOrigin(ancillary []byte) (string, error) {
 	messages, err := unix.ParseSocketControlMessage(ancillary)
 	if err != nil {
-		return "", err
+		return NoOrigin, err
 	}
 	if len(messages) == 0 {
-		return "", fmt.Errorf("ancillary data empty")
+		return NoOrigin, fmt.Errorf("ancillary data empty")
 	}
 	cred, err := unix.ParseUnixCredentials(&messages[0])
 	if err != nil {
-		return "", err
+		return NoOrigin, err
 	}
 	container, err := getContainerForPID(cred.Pid)
 	if err != nil {
-		return "", err
+		return NoOrigin, err
 	}
 	return container, nil
 }
@@ -77,9 +77,17 @@ func getContainerForPID(pid int32) (string, error) {
 	}
 	id, err := docker.ContainerIDForPID(int(pid))
 	if err != nil {
-		return "", err
+		return NoOrigin, err
 	}
-	value := fmt.Sprintf("docker://%s", id)
+
+	var value string
+	if len(id) == 0 {
+		// If no container is found, it's probably a host process,
+		// cache the `NoOrigin` result for future packets
+		value = NoOrigin
+	} else {
+		value = fmt.Sprintf("docker://%s", id)
+	}
 
 	cache.Cache.Set(key, value, 0)
 	return value, err

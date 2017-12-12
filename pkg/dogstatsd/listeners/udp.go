@@ -26,12 +26,12 @@ var (
 // Origin detection is not implemented for UDP.
 type UDPListener struct {
 	conn       net.PacketConn
-	bufferSize int
+	packetPool *PacketPool
 	packetOut  chan *Packet
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan *Packet) (*UDPListener, error) {
+func NewUDPListener(packetOut chan *Packet, packetPool *PacketPool) (*UDPListener, error) {
 	var conn net.PacketConn
 	var err error
 	var url string
@@ -51,7 +51,7 @@ func NewUDPListener(packetOut chan *Packet) (*UDPListener, error) {
 
 	listener := &UDPListener{
 		packetOut:  packetOut,
-		bufferSize: config.Datadog.GetInt("dogstatsd_buffer_size"),
+		packetPool: packetPool,
 		conn:       conn,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
@@ -62,8 +62,8 @@ func NewUDPListener(packetOut chan *Packet) (*UDPListener, error) {
 func (l *UDPListener) Listen() {
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		buf := make([]byte, l.bufferSize)
-		n, _, err := l.conn.ReadFrom(buf)
+		packet := l.packetPool.Get()
+		n, _, err := l.conn.ReadFrom(packet.buffer)
 		if err != nil {
 			// connection has been closed
 			if strings.HasSuffix(err.Error(), " use of closed network connection") {
@@ -75,11 +75,8 @@ func (l *UDPListener) Listen() {
 			continue
 		}
 
-		packet := &Packet{
-			Contents: buf[:n],
-		}
+		packet.Contents = packet.buffer[:n]
 		l.packetOut <- packet
-
 	}
 }
 
