@@ -99,7 +99,7 @@ func createCSRFToken() error {
 // Fetches the authentication token from the auth token file, creates one if it doesn't exist
 func fetchAuthToken() error {
 	// Check if the auth token file already exists
-	authTokenPath := filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), AuthTokenName)
+	authTokenPath := filepath.Join(config.Datadog.GetString("run_path"), AuthTokenName)
 
 	// Create a new token if there's an error with the current file/if it doesn't exist
 	if _, e := os.Stat(authTokenPath); e != nil {
