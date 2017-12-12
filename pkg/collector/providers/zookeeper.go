@@ -81,12 +81,9 @@ func (z *ZookeeperConfigProvider) IsUpToDate() (bool, error) {
 	if err != nil {
 		return false, nil
 	}
-	_, dirStat, err := z.client.Get(z.templateDir)
-	if err != nil {
-		return false, nil
-	}
+
 	// We want to be specifically notified if a template was added or removed. Then we flush the cache.
-	if int(dirStat.NumChildren) != len(z.cache.Adids2Node){
+	if len(identifiers) != len(z.cache.Adids2Node){
 		log.Infof("list of ADTemplates was modified. Cache is being updated...")
 		z.cache.Adids2Node = make(map[string]AdIdentfier2stats)
 		adTempAdded = true
@@ -98,7 +95,7 @@ func (z *ZookeeperConfigProvider) IsUpToDate() (bool, error) {
 		if err != nil {
 			return false, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
 		}
-		newStats :=  AdIdentfier2stats{Stats: make(map[string]int32)}
+		newStats := AdIdentfier2stats{Stats: make(map[string]int32)}
 		for _, gcn := range gChildren {
 			gcnPath := path.Join(identifier, gcn)
 			_, stat, err := z.client.Get(gcnPath)
