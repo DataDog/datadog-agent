@@ -48,7 +48,7 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 
 	// processing
 	assert.Equal(t, 0, len(rules[0].ProcessingRules))
-	assert.Equal(t, 2, len(rules[1].ProcessingRules))
+	assert.Equal(t, 4, len(rules[1].ProcessingRules))
 
 	pRule := rules[1].ProcessingRules[0]
 	assert.Equal(t, "mask_sequences", pRule.Type)
@@ -63,6 +63,16 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	re := mRule.Reg
 	assert.True(t, re.MatchString("123"))
 	assert.False(t, re.MatchString("a123"))
+
+	eRule := rules[1].ProcessingRules[2]
+	assert.Equal(t, "exclude_at_match", eRule.Type)
+	assert.Equal(t, "exclude_bob", eRule.Name)
+	assert.Equal(t, "^bob", eRule.Pattern)
+
+	iRule := rules[1].ProcessingRules[3]
+	assert.Equal(t, "include_at_match", iRule.Type)
+	assert.Equal(t, "include_datadoghq", iRule.Name)
+	assert.Equal(t, ".*@datadoghq.com$", iRule.Pattern)
 }
 
 func TestBuildTagsPayload(t *testing.T) {
