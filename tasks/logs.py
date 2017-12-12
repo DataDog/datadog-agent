@@ -24,7 +24,7 @@ def build(ctx):
     Build Logs Agent
     """    
     build_tags = get_default_build_tags()
-    cmd = "go build -tags {build_tags} -o {bin_name} {REPO_PATH}/cmd/logs/"
+    cmd = "go build -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/cmd/logs/"
     args = {
         "build_tags": " ".join(build_tags),
         "bin_name": LOGS_BIN_NAME,
