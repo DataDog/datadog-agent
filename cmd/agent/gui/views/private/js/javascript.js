@@ -8,8 +8,8 @@ function getAuthToken() {
   for (var i = 0; i < cookies.length; i++) {
       var c = cookies[i];
       while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-      if (c.indexOf("jwt=") == 0) {
-        return c.substring(4, c.length);
+      if (c.indexOf("authToken=") == 0) {
+        return c.substring(10, c.length);
       }
   }
   return null;
