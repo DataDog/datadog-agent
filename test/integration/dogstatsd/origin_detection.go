@@ -55,7 +55,8 @@ func testUDSOriginDetection(t *testing.T) {
 
 	// Start DSD
 	packetChannel := make(chan *listeners.Packet)
-	s, err := listeners.NewUDSListener(packetChannel)
+	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	s, err := listeners.NewUDSListener(packetChannel, packetPool)
 	require.Nil(t, err)
 
 	go s.Listen()
@@ -86,6 +87,7 @@ func testUDSOriginDetection(t *testing.T) {
 		require.NotNil(t, packet)
 		require.Equal(t, string(packet.Contents), "custom_counter1:1|c")
 		require.Equal(t, packet.Origin, fmt.Sprintf("docker://%s", containerId))
+		packetPool.Put(packet)
 	case <-time.After(2 * time.Second):
 		assert.FailNow(t, "Timeout on receive channel")
 	}

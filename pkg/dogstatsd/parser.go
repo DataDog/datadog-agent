@@ -30,7 +30,7 @@ var metricTypes = map[string]metrics.MetricType{
 	"dc": metrics.DistributionCType,
 }
 
-func nextPacket(datagram *[]byte) (packet []byte) {
+func nextMessage(datagram *[]byte) (message []byte) {
 	if len(*datagram) == 0 {
 		return nil
 	}
@@ -40,12 +40,12 @@ func nextPacket(datagram *[]byte) (packet []byte) {
 
 	// Remove trailing newline
 	if len(split) == 2 {
-		packet = split[0][:len(split[0])-1]
+		message = split[0][:len(split[0])-1]
 	} else {
-		packet = split[0]
+		message = split[0]
 	}
 
-	return packet
+	return message
 }
 
 // parseTags parses `rawTags` and returns a slice of tags and the value of the `host:` tag if found
@@ -64,19 +64,19 @@ func parseTags(rawTags []byte, extractHost bool) ([]string, string) {
 	return tagsList, host
 }
 
-func parseServiceCheckPacket(packet []byte) (*metrics.ServiceCheck, error) {
+func parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
 	// _sc|name|status|[metadata|...]
 
-	splitPacket := bytes.Split(packet, []byte("|"))
+	splitPacket := bytes.Split(message, []byte("|"))
 
 	if len(splitPacket) < 3 {
-		return nil, fmt.Errorf("Invalid packet format")
+		return nil, fmt.Errorf("Invalid message format")
 	}
 
 	rawName, rawStatus := splitPacket[1], splitPacket[2]
 
 	if len(rawName) == 0 || len(rawStatus) == 0 {
-		return nil, fmt.Errorf("Invalid ServiceCheck packet format: empty 'name' or 'status' field")
+		return nil, fmt.Errorf("Invalid ServiceCheck message format: empty 'name' or 'status' field")
 	}
 
 	service := metrics.ServiceCheck{
@@ -118,7 +118,7 @@ func parseServiceCheckPacket(packet []byte) (*metrics.ServiceCheck, error) {
 	return &service, nil
 }
 
-func parseEventPacket(packet []byte) (*metrics.Event, error) {
+func parseEventMessage(message []byte) (*metrics.Event, error) {
 	// _e{title.length,text.length}:title|text
 	//  [
 	//   |d:date_happened
@@ -129,37 +129,37 @@ func parseEventPacket(packet []byte) (*metrics.Event, error) {
 	//   |#tag1,tag2
 	//  ]
 
-	packetRaw := bytes.SplitN(packet, []byte(":"), 2)
-	if len(packetRaw) < 2 || len(packetRaw[0]) < 7 || len(packetRaw[1]) < 3 {
-		return nil, fmt.Errorf("Invalid packet format")
+	messageRaw := bytes.SplitN(message, []byte(":"), 2)
+	if len(messageRaw) < 2 || len(messageRaw[0]) < 7 || len(messageRaw[1]) < 3 {
+		return nil, fmt.Errorf("Invalid message format")
 	}
-	header := packetRaw[0]
-	packet = packetRaw[1]
+	header := messageRaw[0]
+	message = messageRaw[1]
 
 	rawLen := bytes.SplitN(header[3:], []byte(","), 2)
 	if len(rawLen) != 2 {
-		return nil, fmt.Errorf("Invalid packet format")
+		return nil, fmt.Errorf("Invalid message format")
 	}
 
 	titleLen, err := strconv.ParseInt(string(rawLen[0]), 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid packet format, could not parse title.length: '%s'", rawLen[0])
+		return nil, fmt.Errorf("Invalid message format, could not parse title.length: '%s'", rawLen[0])
 	}
 
 	textLen, err := strconv.ParseInt(string(rawLen[1][:len(rawLen[1])-1]), 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("Invalid packet format, could not parse text.length: '%s'", rawLen[0])
+		return nil, fmt.Errorf("Invalid message format, could not parse text.length: '%s'", rawLen[0])
 	}
-	if titleLen+textLen+1 > int64(len(packet)) {
-		return nil, fmt.Errorf("Invalid packet format, title.length and text.length exceed total message length")
+	if titleLen+textLen+1 > int64(len(message)) {
+		return nil, fmt.Errorf("Invalid message format, title.length and text.length exceed total message length")
 	}
 
-	rawTitle := packet[:titleLen]
-	rawText := packet[titleLen+1 : titleLen+1+textLen]
-	packet = packet[titleLen+1+textLen:]
+	rawTitle := message[:titleLen]
+	rawText := message[titleLen+1 : titleLen+1+textLen]
+	message = message[titleLen+1+textLen:]
 
 	if len(rawTitle) == 0 || len(rawText) == 0 {
-		return nil, fmt.Errorf("Invalid event packet format: empty 'title' or 'text' field")
+		return nil, fmt.Errorf("Invalid event message format: empty 'title' or 'text' field")
 	}
 
 	event := metrics.Event{
@@ -170,8 +170,8 @@ func parseEventPacket(packet []byte) (*metrics.Event, error) {
 	}
 
 	// Metadata
-	if len(packet) > 1 {
-		rawMetadataFields := bytes.Split(packet[1:], []byte("|"))
+	if len(message) > 1 {
+		rawMetadataFields := bytes.Split(message[1:], []byte("|"))
 
 		for i := range rawMetadataFields {
 			if bytes.HasPrefix(rawMetadataFields[i], []byte("d:")) {
@@ -212,34 +212,34 @@ func parseEventPacket(packet []byte) (*metrics.Event, error) {
 	return &event, nil
 }
 
-func parseMetricPacket(packet []byte) (*metrics.MetricSample, error) {
+func parseMetricMessage(message []byte) (*metrics.MetricSample, error) {
 	// daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2
 	// daemon:666|g|@0.1|#sometag:somevalue"
 
-	splitPacket := bytes.Split(packet, []byte("|"))
+	splitMessage := bytes.Split(message, []byte("|"))
 
-	if len(splitPacket) < 2 || len(splitPacket) > 4 {
-		return nil, errors.New("Invalid packet format")
+	if len(splitMessage) < 2 || len(splitMessage) > 4 {
+		return nil, errors.New("Invalid message format")
 	}
 
 	// Extract name, value and type
-	rawNameAndValue := bytes.Split(splitPacket[0], []byte(":"))
+	rawNameAndValue := bytes.Split(splitMessage[0], []byte(":"))
 
 	if len(rawNameAndValue) != 2 {
-		return nil, errors.New("Invalid packet format")
+		return nil, errors.New("Invalid message format")
 	}
 
-	rawName, rawValue, rawType := rawNameAndValue[0], rawNameAndValue[1], splitPacket[1]
+	rawName, rawValue, rawType := rawNameAndValue[0], rawNameAndValue[1], splitMessage[1]
 	if len(rawName) == 0 || len(rawValue) == 0 || len(rawType) == 0 {
-		return nil, fmt.Errorf("Invalid metric packet format: empty 'name', 'value' or 'text' field")
+		return nil, fmt.Errorf("Invalid metric message format: empty 'name', 'value' or 'text' field")
 	}
 
 	// Metadata
 	var metricTags []string
 	var host string
 	rawSampleRate := []byte("1")
-	if len(splitPacket) > 2 {
-		rawMetadataFields := splitPacket[2:]
+	if len(splitMessage) > 2 {
+		rawMetadataFields := splitMessage[2:]
 
 		for i := range rawMetadataFields {
 			if len(rawMetadataFields[i]) < 2 {

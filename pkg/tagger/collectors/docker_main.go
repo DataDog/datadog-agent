@@ -107,7 +107,7 @@ func (c *DockerCollector) Stop() error {
 // Fetch inspect a given container to get its tags on-demand (cache miss)
 func (c *DockerCollector) Fetch(container string) ([]string, []string, error) {
 	cid := strings.TrimPrefix(container, docker.DockerEntityPrefix)
-	if cid == container {
+	if cid == container || len(cid) == 0 {
 		return nil, nil, ErrNotFound
 	}
 	return c.fetchForDockerID(cid)
