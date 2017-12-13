@@ -178,8 +178,8 @@ else
     fi
 
     echo "# Configuring the agent as a launchd service for the current user (LaunchAgent)"
-    sudo -Hu $INSTALL_USER mkdir "$USER_HOME/Library/LaunchAgents"
-    sudo -Hu $INSTALL_USER cp "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+    sudo -Hu $INSTALL_USER mkdir -vp "$USER_HOME/Library/LaunchAgents"
+    sudo -Hu $INSTALL_USER cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
     sudo -Hu $INSTALL_USER launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
 
     if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
