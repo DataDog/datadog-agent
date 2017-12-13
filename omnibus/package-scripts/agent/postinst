@@ -150,8 +150,9 @@ else
         cp -vfR /tmp/conf.d/* $CONF_DIR/conf.d
         cp -vn /tmp/checks.d/* $CONF_DIR/checks.d
         rm -vrf /tmp/datadog.conf /tmp/conf.d /tmp/checks.d
+    fi
     # Or copying default
-    else
+    if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
         sed -E 's/^api_key:$/api_key: APIKEY/' $CONF_DIR/datadog.yaml.example > $CONF_DIR/datadog.yaml
     fi
 
