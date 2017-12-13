@@ -68,3 +68,4 @@ def clean(ctx):
     # remove the bin/agent folder
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/cluster-agent")
+
