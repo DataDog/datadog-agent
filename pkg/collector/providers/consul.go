@@ -106,7 +106,7 @@ func (p *ConsulConfigProvider) String() string {
 func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
 	configs := make([]check.Config, 0)
 	identifiers := p.getIdentifiers(p.TemplateDir)
-	log.Infof("identifiers found in backend: %v\n", identifiers)
+	log.Debugf("identifiers found in backend: %v", identifiers)
 	for _, id := range identifiers {
 		templates := p.getTemplates(id)
 		configs = append(configs, templates...)
@@ -152,7 +152,7 @@ func (p *ConsulConfigProvider) getIdentifiers(prefix string) []string {
 
 	identifiers := make([]string, 0)
 	// TODO: decide on the query parameters.
-	keys, _, err := kv.Keys(p.TemplateDir, "", nil)
+	keys, _, err := kv.Keys(prefix, "", nil)
 	if err != nil {
 		log.Error("Can't get templates keys from consul: ", err)
 		return identifiers
@@ -219,17 +219,10 @@ func (p *ConsulConfigProvider) getTemplates(key string) ([]check.Config) {
 		log.Errorf("Failed to retrieve instances at %s. Error: %s", instanceKey, err)
 		return templates
 	}
-
-	// sanity check
-	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
-		log.Error("Template entries don't all have the same length in consul, not using them.")
-		return templates
-	}
-
-	return templates
+	return buildTemplates(key, checkNames, initConfigs, instances)
 }
 
-// getValue returns value, idx, error
+// getValue returns value, error
 func (p *ConsulConfigProvider) getValue(key string) ([]byte, error) {
 	kv := p.Client.KV()
 	pair, _, err := kv.Get(key, nil)
