@@ -8,6 +8,7 @@ package aggregator
 import (
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -18,7 +19,7 @@ const defaultExpiry = 300.0 // number of seconds after which contexts are expire
 // from the same bucket can be merged into one
 type SerieSignature struct {
 	mType      metrics.APIMetricType
-	contextKey string
+	contextKey ckey.ContextKey
 	nameSuffix string
 }
 
@@ -28,7 +29,7 @@ type TimeSampler struct {
 	contextResolver             *ContextResolver
 	metricsByTimestamp          map[int64]metrics.ContextMetrics
 	defaultHostname             string
-	counterLastSampledByContext map[string]float64
+	counterLastSampledByContext map[ckey.ContextKey]float64
 	lastCutOffTime              int64
 }
 
@@ -39,7 +40,7 @@ func NewTimeSampler(interval int64, defaultHostname string) *TimeSampler {
 		contextResolver:             newContextResolver(),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		defaultHostname:             defaultHostname,
-		counterLastSampledByContext: map[string]float64{},
+		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 	}
 }
 
@@ -78,7 +79,7 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 	cutoffTime := s.calculateBucketStart(timestamp)
 
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
-	counterContextsToDelete := map[string]struct{}{}
+	counterContextsToDelete := map[ckey.ContextKey]struct{}{}
 
 	if len(s.metricsByTimestamp) > 0 {
 		for bucketTimestamp, contextMetrics := range s.metricsByTimestamp {
@@ -138,7 +139,7 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 	return result
 }
 
-func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics metrics.ContextMetrics, counterContextsToDelete map[string]struct{}) {
+func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics metrics.ContextMetrics, counterContextsToDelete map[ckey.ContextKey]struct{}) {
 	expirySeconds := config.Datadog.GetFloat64("dogstatsd_expiry_seconds")
 	for counterContext, lastSampled := range s.counterLastSampledByContext {
 		if expirySeconds+lastSampled > float64(timestamp) {

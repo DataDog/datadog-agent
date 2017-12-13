@@ -9,13 +9,14 @@ import (
 	"math"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestContextSketchSampling(t *testing.T) {
 	ctxSketch := MakeContextSketch()
-	contextKey := "context_key"
+	contextKey, _ := ckey.Parse("aaffffffffffffffffffffffffffffff")
 
 	ctxSketch.AddSample(contextKey, &MetricSample{Value: 1, Mtype: DistributionType}, 1, 10)
 	ctxSketch.AddSample(contextKey, &MetricSample{Value: 5, Mtype: DistributionType}, 3, 10)
@@ -40,7 +41,7 @@ func TestContextSketchSampling(t *testing.T) {
 
 	// KLL
 	ctxSketch = MakeContextSketch()
-	contextKey = "context_key"
+	contextKey, _ = ckey.Parse("bbffffffffffffffffffffffffffffff")
 
 	ctxSketch.AddSample(contextKey, &MetricSample{Value: 1, Mtype: DistributionKType}, 1, 10)
 	ctxSketch.AddSample(contextKey, &MetricSample{Value: 5, Mtype: DistributionKType}, 3, 10)
@@ -62,7 +63,7 @@ func TestContextSketchSampling(t *testing.T) {
 // The sketches ignore sample values of +Inf/-Inf
 func TestContextSketchSamplingInfinity(t *testing.T) {
 	ctxSketch := MakeContextSketch()
-	contextKey := "context_key"
+	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 
 	ctxSketch.AddSample(contextKey, &MetricSample{Value: math.Inf(1), Mtype: DistributionType}, 1, 10)
 	ctxSketch.AddSample(contextKey, &MetricSample{Value: math.Inf(-1), Mtype: DistributionType}, 2, 10)

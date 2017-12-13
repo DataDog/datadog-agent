@@ -11,13 +11,14 @@ import (
 	"testing"
 
 	// 3p
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestContextMetricsGaugeSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
-	contextKey := "context_key"
+	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 	mSample := MetricSample{
 		Value: 1,
 		Mtype: GaugeType,
@@ -42,7 +43,7 @@ func TestContextMetricsGaugeSampling(t *testing.T) {
 // Important for check metrics aggregation
 func TestContextMetricsGaugeSamplingNoSample(t *testing.T) {
 	metrics := MakeContextMetrics()
-	contextKey := "context_key"
+	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 	mSample := MetricSample{
 		Value: 1,
 		Mtype: GaugeType,
@@ -61,8 +62,8 @@ func TestContextMetricsGaugeSamplingNoSample(t *testing.T) {
 // No series should be flushed when the samples have values of +Inf/-Inf
 func TestContextMetricsGaugeSamplingInfinity(t *testing.T) {
 	metrics := MakeContextMetrics()
-	contextKey1 := "context_key1"
-	contextKey2 := "context_key2"
+	contextKey1, _ := ckey.Parse("aaffffffffffffffffffffffffffffff")
+	contextKey2, _ := ckey.Parse("bbffffffffffffffffffffffffffffff")
 	mSample1 := MetricSample{
 		Value: math.Inf(1),
 		Mtype: GaugeType,
@@ -83,7 +84,7 @@ func TestContextMetricsGaugeSamplingInfinity(t *testing.T) {
 // Important for check metrics aggregation
 func TestContextMetricsRateSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
-	contextKey := "context_key"
+	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 
 	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12340, 10)
 	series := metrics.Flush(12345)
@@ -107,7 +108,7 @@ func TestContextMetricsRateSampling(t *testing.T) {
 
 func TestContextMetricsCountSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
-	contextKey := "context_key"
+	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 
 	metrics.AddSample(contextKey, &MetricSample{Mtype: CountType, Value: 1}, 12340, 10)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: CountType, Value: 5}, 12345, 10)
@@ -126,7 +127,7 @@ func TestContextMetricsCountSampling(t *testing.T) {
 
 func TestContextMetricsMonotonicCountSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
-	contextKey := "context_key"
+	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 
 	metrics.AddSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 1}, 12340, 10)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 5}, 12345, 10)
@@ -145,7 +146,7 @@ func TestContextMetricsMonotonicCountSampling(t *testing.T) {
 
 func TestContextMetricsHistogramSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
-	contextKey := "context_key"
+	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12340, 10)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 2}, 12342, 10)
@@ -195,7 +196,7 @@ func TestContextMetricsHistogramSampling(t *testing.T) {
 
 func TestContextMetricsHistorateSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
-	contextKey := "context_key"
+	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 1}, 12340, 10)
 	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 2}, 12341, 10)

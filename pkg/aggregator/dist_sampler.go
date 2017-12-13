@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 
@@ -57,7 +58,7 @@ func (d *DistSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 func (d *DistSampler) flush(timestamp float64) percentile.SketchSeriesList {
 	var result []*percentile.SketchSeries
 
-	sketchesByContext := make(map[string]*percentile.SketchSeries)
+	sketchesByContext := make(map[ckey.ContextKey]*percentile.SketchSeries)
 
 	cutoffTime := d.calculateBucketStart(timestamp)
 	for bucketTimestamp, ctxSketch := range d.sketchesByTimestamp {
