@@ -150,8 +150,9 @@ else
         cp -vfR /tmp/conf.d/* $CONF_DIR/conf.d
         cp -vn /tmp/checks.d/* $CONF_DIR/checks.d
         rm -vrf /tmp/datadog.conf /tmp/conf.d /tmp/checks.d
+    fi
     # Or copying default
-    else
+    if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
         sed -E 's/^api_key:$/api_key: APIKEY/' $CONF_DIR/datadog.yaml.example > $CONF_DIR/datadog.yaml
     fi
 
@@ -178,8 +179,8 @@ else
     fi
 
     echo "# Configuring the agent as a launchd service for the current user (LaunchAgent)"
-    sudo -Hu $INSTALL_USER mkdir "$USER_HOME/Library/LaunchAgents"
-    sudo -Hu $INSTALL_USER cp "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+    sudo -Hu $INSTALL_USER mkdir -vp "$USER_HOME/Library/LaunchAgents"
+    sudo -Hu $INSTALL_USER cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
     sudo -Hu $INSTALL_USER launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
 
     if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
