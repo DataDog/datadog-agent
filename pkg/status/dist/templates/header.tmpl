@@ -19,7 +19,9 @@
 
   Clocks
   ======
-    {{- if .ntpOffset }}NTP offset: {{.ntpOffset}} s{{- end }}
+    {{- if .ntpOffset }}
+    NTP offset: {{.ntpOffset}} s
+    {{- end }}
     System UTC time: {{.time}}
 
   Host Info
@@ -37,4 +39,4 @@
     {{$name}}: {{$value}}
     {{- end }}
   {{- end }}
-
+{{/* this line intentionally left blank */}}
