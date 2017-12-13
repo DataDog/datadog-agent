@@ -210,6 +210,7 @@ agent_suse-x64:
 
 # build Agent package for Windows
 build_windows_msi_x64:
+  allow_failure: true  # FIXME: temporary until we fix the windows gitlab runner
   before_script:
     - if exist .omnibus rd /s/q .omnibus
     - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
