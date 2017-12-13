@@ -5,6 +5,10 @@ This guide assumes you upgraded to the beta using our [upgrade guide][upgrade-gu
 We have been careful to keep the legacy configurations in place to ease the the
 downgrade process should you decide you do not wish to continue trying the beta.
 
+* [Linux](#linux)
+* [Windows](#windows)
+* [MacOS](#macos)
+
 ## Linux
 
 #### Debian Flavored Systems
@@ -75,5 +79,12 @@ sudo -u dd-agent -- rm -rf /etc/datadog-agent/
 ## Windows
 
 Coming soon.
+
+## MacOS
+
+1. Stop the Agent with the systray app, if it's running
+2. Exit the systray app
+3. Uninstall the Datadog Agent application
+4. Install the Agent 5 DMG package using your preferred installation method
 
 [upgrade-guide]: upgrade.md
