@@ -132,7 +132,7 @@ You can either download the DMG package and install it manually, or use the one-
 
 ### Manual installation
 
-1. Download the DMG package of the latest beta version, please use the latest macOS release listed on the (release page)[https://github.com/DataDog/datadog-agent/releases] of the repo
+1. Download the DMG package of the latest beta version, please use the latest macOS release listed on the [release page](https://github.com/DataDog/datadog-agent/releases) of the repo
 2. Install the DMG package
 3. Add your api key to `/opt/datadog-agent/etc/datadog.yaml`
 
