@@ -1,5 +1,9 @@
 # Upgrade to Agent 6
 
+* [Linux](#linux)
+* [Windows](#windows)
+* [MacOS](#macos)
+
 ## Linux
 
 ### One-step install
@@ -93,7 +97,7 @@ If you ran the `install_script.sh` all agent and checks configuration should be 
 If you didn't you can run manually the import command:
 
 ```shell
-/opt/datadog-agent/bin/agent/agent import /etc/dd-agent /etc/datadog-agent 
+/opt/datadog-agent/bin/agent/agent import /etc/dd-agent /etc/datadog-agent
 ```
 
 As you'll see the agent 6 promotes a new directory structure with subfolders per check. This allows the regular configuration and the auto-configuration to sit next to each other.
@@ -120,3 +124,24 @@ sudo restart datadog-agent
 ## Windows
 
 Coming soon.
+
+
+## MacOS
+
+You can either download the DMG package and install it manually, or use the one-line install script.
+
+### Manual installation
+
+1. Download the DMG package of the latest beta version, please use the latest macOS release listed on the (release page)[https://github.com/DataDog/datadog-agent/releases] of the repo
+2. Install the DMG package
+3. Add your api key to `/opt/datadog-agent/etc/datadog.yaml`
+
+You can then start the Datadog Agent app (once started, you should see it in the system tray), and manage the Agent from there. The Agent6 also ships a web-based GUI to edit the Agent configuration files and much more, refer to the [changes and deprecations document][changes] document for more information.
+
+Unlike on Linux, the configuration path hasn't changed and remains in `~/.datadog-agent` (which links to `/opt/datadog-agent/etc`).
+
+### Install script
+
+Coming soon.
+
+[changes]: changes.md

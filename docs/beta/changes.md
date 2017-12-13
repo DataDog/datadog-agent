@@ -58,6 +58,25 @@ For example, for an Agent installed on Ubuntu, the differences are as follows:
 * on `upstart`-based systems: `sudo start/stop/restart datadog-agent`
 * on `systemd`-based systems: `sudo systemctl start/stop/restart datadog-agent`
 
+### MacOS
+
+* the _lifecycle commands_ (former `datadog-agent start`/`stop`/`restart`/`status` on the Agent 5) are replaced by `launchctl` commands on the `com.datadoghq.agent` service, and should be run under the logged-in user. For these commands, you can also use the Datadog Agent systray app
+* all the other commands can still be run with the `datadog-agent` command (located in the `PATH` (`/usr/local/bin/`) by default)
+* the `info` command has been renamed `status`
+
+A few examples:
+
+| Agent5 Command                     |  Agent6 Command                                      | Notes                              |
+| ---------------------------------- | ---------------------------------------------------- | ---------------------------------- |
+| `datadog-agent start`              | `launchctl start com.datadoghq.agent` or systray app | Start Agent as a service           |
+| `datadog-agent stop`               | `launchctl stop com.datadoghq.agent` or systray app  | Stop Agent running as a service    |
+| `datadog-agent restart`            | _run `stop` then `start`_ or systray app             | Restart Agent running as a service |
+| `datadog-agent status`             | `launchctl list com.datadoghq.agent` or systray app  | Status of Agent service            |
+| `datadog-agent info`               | `datadog-agent status` or web GUI                    | Status page of running Agent       |
+| `datadog-agent flare`              | `datadog-agent flare` or web GUI                     | Send flare                         |
+| _not implemented_                  | `datadog-agent --help`                               | Display command usage              |
+| `datadog-agent check <check_name>` | `datadog-agent check <check_name>`                   | Run a check (unchanged)            |
+
 ## Logs
 
 The Agent logs are still located in the `/var/log/datadog/` directory.
