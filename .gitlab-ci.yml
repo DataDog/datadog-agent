@@ -316,7 +316,7 @@ build_agent6:
   <<: *dind_job_definition
   variables:
     DD_DIND_BUILD_CONTEXT: Dockerfiles/agent
-    DD_DIND_IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent:$CI_PIPELINE_ID
+    DD_DIND_IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent:pipeline-$CI_PIPELINE_ID
     DD_DIND_ARTEFACTS: "true"
 
 # build the agent6 jmx image
@@ -324,7 +324,7 @@ build_agent6_jmx:
   <<: *dind_job_definition
   variables:
     DD_DIND_BUILD_CONTEXT: Dockerfiles/agent
-    DD_DIND_IMAGE: &agent_jmx_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent:${CI_PIPELINE_ID}-jmx
+    DD_DIND_IMAGE: &agent_jmx_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent:pipeline-${CI_PIPELINE_ID}-jmx
     DD_DIND_BUILD_ARG: "WITH_JMX=true"
     DD_DIND_ARTEFACTS: "true"
 
@@ -333,7 +333,7 @@ build_dogstatsd:
   <<: *dind_job_definition
   variables:
     DD_DIND_BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
-    DD_DIND_IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/dogstatsd:$CI_PIPELINE_ID
+    DD_DIND_IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/dogstatsd:pipeline-$CI_PIPELINE_ID
     DD_DIND_ARTEFACTS: "true"
 
 #
