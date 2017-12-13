@@ -6,7 +6,7 @@ listeners:
   - name: ecs
 
 config_providers:
-  ## The docker provider handles templates embedded in container labels, see
+  ## The ecs provider handles templates embedded in container labels, see
   ## https://docs.datadoghq.com/guides/autodiscovery/#template-source-docker-label-annotations
   - name: ecs
     polling: true
