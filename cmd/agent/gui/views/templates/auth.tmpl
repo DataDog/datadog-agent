@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,12 +10,12 @@
   urlParam = urlParam.split(";");
 
   // Decode the url parameters
-  var jwt = urlParam[0].substring(4);
-  var csrf = urlParam[1].substring(5);
-
+  var token = urlParam[0].substring(10);   // trim "authToken="
+  var csrf = urlParam[1].substring(5);     // trim "csrf="
+  
   if (csrf == "{{ .csrf }}") {
-    // Save JWT as a cookie
-    document.cookie = "jwt=" + jwt + "; path=/";
+    // Save auth token as a cookie
+    document.cookie = "authToken=" + token + "; path=/";
   }
 
   // Redirect to the GUI

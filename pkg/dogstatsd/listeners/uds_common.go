@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 
 	log "github.com/cihub/seelog"
 
@@ -28,13 +29,13 @@ var (
 type UDSListener struct {
 	conn            *net.UnixConn
 	packetOut       chan *Packet
-	bufferSize      int
-	oobSize         int
+	packetPool      *PacketPool
+	oobPool         *sync.Pool // For origin detection ancilary data
 	OriginDetection bool
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan *Packet) (*UDSListener, error) {
+func NewUDSListener(packetOut chan *Packet, packetPool *PacketPool) (*UDSListener, error) {
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	originDection := config.Datadog.GetBool("dogstatsd_origin_detection")
 
@@ -54,17 +55,24 @@ func NewUDSListener(packetOut chan *Packet) (*UDSListener, error) {
 			originDection = false
 		} else {
 			log.Debugf("dogstatsd-uds: enabling origin detection on %s", conn.LocalAddr())
-			// FIXME: remove when fully implemented
-			log.Warnf("dogstatsd-uds: origin detection feature is not complete yet")
+
 		}
 	}
 
 	listener := &UDSListener{
 		OriginDetection: originDection,
-		oobSize:         getUDSAncillarySize(),
-		bufferSize:      config.Datadog.GetInt("dogstatsd_buffer_size"),
 		packetOut:       packetOut,
+		packetPool:      packetPool,
 		conn:            conn,
+	}
+
+	// Init the oob buffer pool if origin detection is enabled
+	if originDection {
+		listener.oobPool = &sync.Pool{
+			New: func() interface{} {
+				return make([]byte, getUDSAncillarySize())
+			},
+		}
 	}
 
 	log.Debugf("dogstatsd-uds: %s successfully initialized", conn.LocalAddr())
@@ -75,16 +83,15 @@ func NewUDSListener(packetOut chan *Packet) (*UDSListener, error) {
 func (l *UDSListener) Listen() {
 	log.Infof("dogstatsd-uds: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		buf := make([]byte, l.bufferSize)
 		var n int
 		var err error
-		packet := &Packet{}
+		packet := l.packetPool.Get()
 
 		if l.OriginDetection {
 			// Read datagram + credentials in ancilary data
-			oob := make([]byte, l.oobSize)
+			oob := l.oobPool.Get().([]byte)
 			var oobn int
-			n, oobn, _, _, err = l.conn.ReadMsgUnix(buf, oob)
+			n, oobn, _, _, err = l.conn.ReadMsgUnix(packet.buffer, oob)
 
 			// Extract container id from credentials
 			container, err := processUDSOrigin(oob[:oobn])
@@ -94,9 +101,11 @@ func (l *UDSListener) Listen() {
 			} else {
 				packet.Origin = container
 			}
+			// Return the buffer back to the pool for reuse
+			l.oobPool.Put(oob)
 		} else {
 			// Read only datagram contents with no credentials
-			n, _, err = l.conn.ReadFromUnix(buf)
+			n, _, err = l.conn.ReadFromUnix(packet.buffer)
 		}
 
 		if err != nil {
@@ -110,7 +119,7 @@ func (l *UDSListener) Listen() {
 			continue
 		}
 
-		packet.Contents = buf[:n]
+		packet.Contents = packet.buffer[:n]
 		l.packetOut <- packet
 	}
 }

@@ -3,14 +3,27 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2017 Datadog, Inc.
 
+require 'pathname'
+
 name "datadog-logs-agent"
 always_build true
 
+binary_name = "logs"
+binary = "bin/logs/#{binary_name}"
+log_agent_binary_name = "logs-agent"
+log_agent_binary = "#{install_dir}/bin/agent/#{log_agent_binary_name}"
+
+source path: '..'
+relative_path 'src/github.com/DataDog/datadog-agent'
+
 build do
-  logs_agent_version = "alpha"
-  binary = "logagent"
-  url = "https://s3.amazonaws.com/public.binaries.sheepdog.datad0g.com/agent/#{logs_agent_version}/linux-amd64/#{binary}"
-  command "curl -f #{url} -o #{binary}"
+  # set GOPATH on the omnibus source dir for this software
+  gopath = Pathname.new(project_dir) + '../../../..'
+  env = {
+    'GOPATH' => gopath.to_path,
+    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+  }
+  command "invoke logs.build", env: env
   command "chmod +x #{binary}"
-  command "mv #{binary} #{install_dir}/bin/agent/logs-agent"
+  move binary, log_agent_binary
 end

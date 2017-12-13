@@ -8,7 +8,6 @@
 package collectors
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -24,11 +23,11 @@ const (
 // tags. It is to be supplemented by the cluster agent collector for tags from
 // the apiserver.
 type KubeletCollector struct {
-	watcher        *kubelet.PodWatcher
-	infoOut        chan<- []*TagInfo
-	lastExpire     time.Time
-	expireFreq     time.Duration
-	labelTagPrefix string
+	watcher      *kubelet.PodWatcher
+	infoOut      chan<- []*TagInfo
+	lastExpire   time.Time
+	expireFreq   time.Duration
+	labelsAsTags map[string]string
 }
 
 // Detect tries to connect to the kubelet
@@ -41,7 +40,9 @@ func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error)
 	c.infoOut = out
 	c.lastExpire = time.Now()
 	c.expireFreq = kubeletExpireFreq
-	c.labelTagPrefix = config.Datadog.GetString("kubernetes_pod_label_to_tag_prefix")
+
+	// viper lower-cases map keys, so extractor must lowercase before matching
+	c.labelsAsTags = config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
 
 	return PullCollection, nil
 }
@@ -98,7 +99,7 @@ func (c *KubeletCollector) Fetch(container string) ([]string, []string, error) {
 		}
 	}
 	// container not found in updates
-	return []string{}, []string{}, fmt.Errorf("entity %s not found in podlist", container)
+	return []string{}, []string{}, ErrNotFound
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects

@@ -22,7 +22,7 @@ import (
 
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	PyChecksPath = filepath.Join(_here, "..", "agent", "checks.d")
+	PyChecksPath = filepath.Join(_here, "..", "checks.d")
 	// PySitePackages holds the path to the python checks from integrations-core installed via wheels
 	PySitePackages = filepath.Join(_here, "lib", "python2.7", "site-packages")
 	distPath       string

@@ -8,66 +8,93 @@
 package collectors
 
 import (
-	"fmt"
 	"strings"
 
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
 // extractFromInspect extract tags for a container inspect JSON
 func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, []string, error) {
-	var low, high []string
+	tags := utils.NewTagList()
 
-	docker_image, err := c.dockerUtil.ResolveImageName(co.Image)
+	//TODO: remove when Inspect returns resolved image names
+	dockerImage, err := c.dockerUtil.ResolveImageName(co.Image)
 	if err != nil {
 		log.Debugf("error resolving image %s: %s", co.Image, err)
-
 	} else {
-		image_name, _, image_tag, err := docker.SplitImageName(docker_image)
-
-		low = append(low, fmt.Sprintf("docker_image:%s", docker_image))
-
-		if err != nil {
-			log.Debugf("error spliting %s: %s", docker_image, err)
-		} else {
-			low = append(low, fmt.Sprintf("image_name:%s", image_name))
-			low = append(low, fmt.Sprintf("image_tag:%s", image_tag))
-		}
+		dockerExtractImage(tags, dockerImage)
 	}
+	dockerExtractLabels(tags, co.Config.Labels, c.labelsAsTags)
+	dockerExtractEnvironmentVariables(tags, co.Config.Env, c.envAsTags)
 
-	if len(c.labelsAsTags) > 0 {
-		for label_name, label_value := range co.Config.Labels {
-			if tag_name, found := c.labelsAsTags[strings.ToLower(label_name)]; found {
-				if tag_name[0] == '+' {
-					high = append(high, fmt.Sprintf("%s:%s", tag_name[1:], label_value))
-				} else {
-					low = append(low, fmt.Sprintf("%s:%s", tag_name, label_value))
-				}
-			}
-		}
-	}
+	tags.AddHigh("container_name", strings.TrimPrefix(co.Name, "/"))
+	tags.AddHigh("container_id", co.ID)
 
-	if len(c.envAsTags) > 0 {
-		for _, envvar := range co.Config.Env {
-			parts := strings.SplitN(envvar, "=", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			if tag_name, found := c.envAsTags[strings.ToLower(parts[0])]; found {
-				if tag_name[0] == '+' {
-					high = append(high, fmt.Sprintf("%s:%s", tag_name[1:], parts[1]))
-				} else {
-					low = append(low, fmt.Sprintf("%s:%s", tag_name, parts[1]))
-				}
-			}
-		}
-	}
-
-	high = append(high, fmt.Sprintf("container_name:%s", strings.TrimPrefix(co.Name, "/")))
-	high = append(high, fmt.Sprintf("container_id:%s", co.ID))
-
+	low, high := tags.Compute()
 	return low, high, nil
+}
+
+func dockerExtractImage(tags *utils.TagList, dockerImage string) {
+	tags.AddLow("docker_image", dockerImage)
+	imageName, _, imageTag, err := docker.SplitImageName(dockerImage)
+	if err != nil {
+		log.Debugf("error splitting %s: %s", dockerImage, err)
+		return
+	}
+	tags.AddLow("image_name", imageName)
+	tags.AddLow("image_tag", imageTag)
+}
+
+// dockerExtractLabels contain hard-coded labels from:
+// - Docker swarm
+func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string, labelsAsTags map[string]string) {
+
+	for labelName, labelValue := range containerLabels {
+		switch labelName {
+		// Docker swarm
+		case "com.docker.swarm.service.name":
+			tags.AddLow("swarm_service", labelValue)
+
+		default:
+			if tagName, found := labelsAsTags[strings.ToLower(labelName)]; found {
+				tags.AddAuto(tagName, labelValue)
+			}
+		}
+	}
+}
+
+// dockerExtractEnvironmentVariables contain hard-coded environment variables from:
+// - Mesos/DCOS tags (mesos, marathon, chronos)
+func dockerExtractEnvironmentVariables(tags *utils.TagList, containerEnvVariables []string, envAsTags map[string]string) {
+	var envSplit []string
+	var envName, envValue string
+
+	for _, envEntry := range containerEnvVariables {
+		envSplit = strings.SplitN(envEntry, "=", 2)
+		envName = envSplit[0]
+		envValue = envSplit[1]
+		if len(envSplit) != 2 {
+			continue
+		}
+		switch envName {
+		// Mesos/DCOS tags (mesos, marathon, chronos)
+		case "MARATHON_APP_ID":
+			tags.AddLow("marathon_app", envValue)
+		case "CHRONOS_JOB_NAME":
+			tags.AddLow("chronos_job", envValue)
+		case "CHRONOS_JOB_OWNER":
+			tags.AddLow("chronos_job_owner", envValue)
+		case "MESOS_TASK_ID":
+			tags.AddHigh("mesos_task", envValue)
+
+		default:
+			if tagName, found := envAsTags[strings.ToLower(envSplit[0])]; found {
+				tags.AddAuto(tagName, envValue)
+			}
+		}
+	}
 }

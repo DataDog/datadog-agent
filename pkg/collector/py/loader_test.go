@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoad(t *testing.T) {
@@ -20,8 +21,8 @@ func TestLoad(t *testing.T) {
 	config.Instances = append(config.Instances, []byte("bar: baz"))
 
 	instances, err := l.Load(config)
-	assert.Nil(t, err)
-	assert.Equal(t, len(instances), 2)
+	require.Nil(t, err)
+	assert.Equal(t, 2, len(instances))
 
 	// the python module doesn't exist
 	config = check.Config{Name: "doesntexist"}

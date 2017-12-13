@@ -23,21 +23,21 @@ const epsilon = 0.1
 
 func TestParseEmptyDatagram(t *testing.T) {
 	emptyDatagram := []byte("")
-	pkt := nextPacket(&emptyDatagram)
+	pkt := nextMessage(&emptyDatagram)
 
 	assert.Nil(t, pkt)
 }
 
 func TestParseOneLineDatagram(t *testing.T) {
 	datagram := []byte("daemon:666|g")
-	pkt := nextPacket(&datagram)
+	pkt := nextMessage(&datagram)
 
 	assert.NotNil(t, pkt)
 	assert.Equal(t, 0, len(datagram))
 
 	// With trailing newline
 	datagram = []byte("daemon:666|g\n")
-	pkt = nextPacket(&datagram)
+	pkt = nextMessage(&datagram)
 
 	assert.NotNil(t, pkt)
 	assert.Equal(t, 0, len(datagram))
@@ -47,15 +47,15 @@ func TestParseMultipleLineDatagram(t *testing.T) {
 	datagram := []byte("daemon:666|g\ndaemon:667|g")
 
 	// First packet
-	pkt := nextPacket(&datagram)
+	pkt := nextMessage(&datagram)
 	assert.Equal(t, []byte("daemon:666|g"), pkt)
 
 	// Second packet
-	pkt = nextPacket(&datagram)
+	pkt = nextMessage(&datagram)
 	assert.Equal(t, []byte("daemon:667|g"), pkt)
 
 	// Nore more packet
-	pkt = nextPacket(&datagram)
+	pkt = nextMessage(&datagram)
 	assert.Nil(t, pkt)
 	assert.Equal(t, 0, len(datagram))
 }
@@ -65,7 +65,7 @@ func TestGaugePacketCounter(t *testing.T) {
 }
 
 func TestParseGauge(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("daemon:666|g"))
+	parsed, err := parseMetricMessage([]byte("daemon:666|g"))
 
 	assert.NoError(t, err)
 
@@ -78,7 +78,7 @@ func TestParseGauge(t *testing.T) {
 }
 
 func TestParseCounter(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("daemon:21|c"))
+	parsed, err := parseMetricMessage([]byte("daemon:21|c"))
 
 	assert.NoError(t, err)
 
@@ -90,7 +90,7 @@ func TestParseCounter(t *testing.T) {
 }
 
 func TestParseHistogram(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("daemon:21|h"))
+	parsed, err := parseMetricMessage([]byte("daemon:21|h"))
 
 	assert.NoError(t, err)
 
@@ -102,7 +102,7 @@ func TestParseHistogram(t *testing.T) {
 }
 
 func TestParseTimer(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("daemon:21|ms"))
+	parsed, err := parseMetricMessage([]byte("daemon:21|ms"))
 
 	assert.NoError(t, err)
 
@@ -114,7 +114,7 @@ func TestParseTimer(t *testing.T) {
 }
 
 func TestParseSet(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("daemon:abc|s"))
+	parsed, err := parseMetricMessage([]byte("daemon:abc|s"))
 
 	assert.NoError(t, err)
 
@@ -126,7 +126,7 @@ func TestParseSet(t *testing.T) {
 }
 
 func TestParseDistribution(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("daemon:3.5|d"))
+	parsed, err := parseMetricMessage([]byte("daemon:3.5|d"))
 
 	assert.NoError(t, err)
 
@@ -137,7 +137,7 @@ func TestParseDistribution(t *testing.T) {
 }
 
 func TestParseSetUnicode(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("daemon:♬†øU†øU¥ºuT0♪|s"))
+	parsed, err := parseMetricMessage([]byte("daemon:♬†øU†øU¥ºuT0♪|s"))
 
 	assert.NoError(t, err)
 
@@ -149,7 +149,7 @@ func TestParseSetUnicode(t *testing.T) {
 }
 
 func TestParseGaugeWithTags(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
 
 	assert.NoError(t, err)
 
@@ -163,7 +163,7 @@ func TestParseGaugeWithTags(t *testing.T) {
 }
 
 func TestParseGaugeWithHostTag(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"))
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"))
 
 	assert.NoError(t, err)
 
@@ -178,7 +178,7 @@ func TestParseGaugeWithHostTag(t *testing.T) {
 }
 
 func TestParseGaugeWithSampleRate(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("daemon:666|g|@0.21"))
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|@0.21"))
 
 	assert.NoError(t, err)
 
@@ -190,7 +190,7 @@ func TestParseGaugeWithSampleRate(t *testing.T) {
 }
 
 func TestParseGaugeWithPoundOnly(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("daemon:666|g|#"))
+	parsed, err := parseMetricMessage([]byte("daemon:666|g|#"))
 
 	assert.NoError(t, err)
 
@@ -202,7 +202,7 @@ func TestParseGaugeWithPoundOnly(t *testing.T) {
 }
 
 func TestParseGaugeWithUnicode(t *testing.T) {
-	parsed, err := parseMetricPacket([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"))
+	parsed, err := parseMetricMessage([]byte("♬†øU†øU¥ºuT0♪:666|g|#intitulé:T0µ"))
 
 	assert.NoError(t, err)
 
@@ -216,41 +216,41 @@ func TestParseGaugeWithUnicode(t *testing.T) {
 
 func TestParseMetricError(t *testing.T) {
 	// not enough information
-	_, err := parseMetricPacket([]byte("daemon:666"))
+	_, err := parseMetricMessage([]byte("daemon:666"))
 	assert.Error(t, err)
 
-	_, err = parseMetricPacket([]byte("daemon:666|"))
+	_, err = parseMetricMessage([]byte("daemon:666|"))
 	assert.Error(t, err)
 
-	_, err = parseMetricPacket([]byte("daemon:|g"))
+	_, err = parseMetricMessage([]byte("daemon:|g"))
 	assert.Error(t, err)
 
-	_, err = parseMetricPacket([]byte(":666|g"))
+	_, err = parseMetricMessage([]byte(":666|g"))
 	assert.Error(t, err)
 
 	// too many value
-	_, err = parseMetricPacket([]byte("daemon:666:777|g"))
+	_, err = parseMetricMessage([]byte("daemon:666:777|g"))
 	assert.Error(t, err)
 
 	// unknown metadata prefix
-	_, err = parseMetricPacket([]byte("daemon:666|g|m:test"))
+	_, err = parseMetricMessage([]byte("daemon:666|g|m:test"))
 	assert.NoError(t, err)
 
 	// invalid value
-	_, err = parseMetricPacket([]byte("daemon:abc|g"))
+	_, err = parseMetricMessage([]byte("daemon:abc|g"))
 	assert.Error(t, err)
 
 	// invalid metric type
-	_, err = parseMetricPacket([]byte("daemon:666|unknown"))
+	_, err = parseMetricMessage([]byte("daemon:666|unknown"))
 	assert.Error(t, err)
 
 	// invalid sample rate
-	_, err = parseMetricPacket([]byte("daemon:666|g|@abc"))
+	_, err = parseMetricMessage([]byte("daemon:666|g|@abc"))
 	assert.Error(t, err)
 }
 
 func TestParseMonokeyBatching(t *testing.T) {
-	// parsed, err := parseMetricPacket([]byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"))
+	// parsed, err := parseMetricMessage([]byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"))
 
 	// TODO: implement test
 }
@@ -272,7 +272,7 @@ func TestPacketStringEndings(t *testing.T) {
 }
 
 func TestServiceCheckMinimal(t *testing.T) {
-	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0"))
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0"))
 
 	assert.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -285,31 +285,31 @@ func TestServiceCheckMinimal(t *testing.T) {
 
 func TestServiceCheckError(t *testing.T) {
 	// not enough information
-	_, err := parseServiceCheckPacket([]byte("_sc|agent.up"))
+	_, err := parseServiceCheckMessage([]byte("_sc|agent.up"))
 	assert.Error(t, err)
 
-	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|"))
+	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|"))
 	assert.Error(t, err)
 
 	// not invalid status
-	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|OK"))
+	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|OK"))
 	assert.Error(t, err)
 
 	// not unknown status
-	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|21"))
+	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|21"))
 	assert.Error(t, err)
 
 	// invalid timestamp
-	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|0|d:some_time"))
+	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|0|d:some_time"))
 	assert.NoError(t, err)
 
 	// unknown metadata
-	_, err = parseServiceCheckPacket([]byte("_sc|agent.up|0|u:unknown"))
+	_, err = parseServiceCheckMessage([]byte("_sc|agent.up|0|u:unknown"))
 	assert.NoError(t, err)
 }
 
 func TestServiceCheckMetadataTimestamp(t *testing.T) {
-	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0|d:21"))
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|d:21"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -321,7 +321,7 @@ func TestServiceCheckMetadataTimestamp(t *testing.T) {
 }
 
 func TestServiceCheckMetadataHostname(t *testing.T) {
-	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0|h:localhost"))
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|h:localhost"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -333,7 +333,7 @@ func TestServiceCheckMetadataHostname(t *testing.T) {
 }
 
 func TestServiceCheckMetadataTags(t *testing.T) {
-	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"))
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|#tag1,tag2:test,tag3"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -345,7 +345,7 @@ func TestServiceCheckMetadataTags(t *testing.T) {
 }
 
 func TestServiceCheckMetadataMessage(t *testing.T) {
-	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0|m:this is fine"))
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|m:this is fine"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
@@ -358,7 +358,7 @@ func TestServiceCheckMetadataMessage(t *testing.T) {
 
 func TestServiceCheckMetadataMultiple(t *testing.T) {
 	// all type
-	sc, err := parseServiceCheckPacket([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"))
+	sc, err := parseServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|#tag1:test,tag2|m:this is fine"))
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost", sc.Host)
@@ -368,7 +368,7 @@ func TestServiceCheckMetadataMultiple(t *testing.T) {
 	assert.Equal(t, []string{"tag1:test", "tag2"}, sc.Tags)
 
 	// multiple time the same tag
-	sc, err = parseServiceCheckPacket([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"))
+	sc, err = parseServiceCheckMessage([]byte("_sc|agent.up|0|d:21|h:localhost|h:localhost2|d:22"))
 	require.Nil(t, err)
 	assert.Equal(t, "agent.up", sc.CheckName)
 	assert.Equal(t, "localhost2", sc.Host)
@@ -379,7 +379,7 @@ func TestServiceCheckMetadataMultiple(t *testing.T) {
 }
 
 func TestEventMinimal(t *testing.T) {
-	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text"))
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -395,7 +395,7 @@ func TestEventMinimal(t *testing.T) {
 }
 
 func TestEventMultilinesText(t *testing.T) {
-	e, err := parseEventPacket([]byte("_e{10,24}:test title|test\\line1\\nline2\\nline3"))
+	e, err := parseEventMessage([]byte("_e{10,24}:test title|test\\line1\\nline2\\nline3"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -411,7 +411,7 @@ func TestEventMultilinesText(t *testing.T) {
 }
 
 func TestEventPipeInTitle(t *testing.T) {
-	e, err := parseEventPacket([]byte("_e{10,24}:test|title|test\\line1\\nline2\\nline3"))
+	e, err := parseEventMessage([]byte("_e{10,24}:test|title|test\\line1\\nline2\\nline3"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "test|title", e.Title)
@@ -428,71 +428,71 @@ func TestEventPipeInTitle(t *testing.T) {
 
 func TestEventError(t *testing.T) {
 	// missing length header
-	_, err := parseEventPacket([]byte("_e:title|text"))
+	_, err := parseEventMessage([]byte("_e:title|text"))
 	assert.Error(t, err)
 
 	// greater length than packet
-	_, err = parseEventPacket([]byte("_e{10,10}:title|text"))
+	_, err = parseEventMessage([]byte("_e{10,10}:title|text"))
 	assert.Error(t, err)
 
 	// zero length
-	_, err = parseEventPacket([]byte("_e{0,0}:a|a"))
+	_, err = parseEventMessage([]byte("_e{0,0}:a|a"))
 	assert.Error(t, err)
 
 	// missing title or text length
-	_, err = parseEventPacket([]byte("_e{5555:title|text"))
+	_, err = parseEventMessage([]byte("_e{5555:title|text"))
 	assert.Error(t, err)
 
 	// missing wrong len format
-	_, err = parseEventPacket([]byte("_e{a,1}:title|text"))
+	_, err = parseEventMessage([]byte("_e{a,1}:title|text"))
 	assert.Error(t, err)
 
-	_, err = parseEventPacket([]byte("_e{1,a}:title|text"))
+	_, err = parseEventMessage([]byte("_e{1,a}:title|text"))
 	assert.Error(t, err)
 
 	// missing title or text length
-	_, err = parseEventPacket([]byte("_e{5,}:title|text"))
+	_, err = parseEventMessage([]byte("_e{5,}:title|text"))
 	assert.Error(t, err)
 
-	_, err = parseEventPacket([]byte("_e{,4}:title|text"))
+	_, err = parseEventMessage([]byte("_e{,4}:title|text"))
 	assert.Error(t, err)
 
-	_, err = parseEventPacket([]byte("_e{}:title|text"))
+	_, err = parseEventMessage([]byte("_e{}:title|text"))
 	assert.Error(t, err)
 
-	_, err = parseEventPacket([]byte("_e{,}:title|text"))
+	_, err = parseEventMessage([]byte("_e{,}:title|text"))
 	assert.Error(t, err)
 
 	// not enough information
-	_, err = parseEventPacket([]byte("_e|text"))
+	_, err = parseEventMessage([]byte("_e|text"))
 	assert.Error(t, err)
 
-	_, err = parseEventPacket([]byte("_e:|text"))
+	_, err = parseEventMessage([]byte("_e:|text"))
 	assert.Error(t, err)
 
 	// invalid timestamp
-	_, err = parseEventPacket([]byte("_e{5,4}:title|text|d:abc"))
+	_, err = parseEventMessage([]byte("_e{5,4}:title|text|d:abc"))
 	assert.NoError(t, err)
 
 	// invalid priority
-	_, err = parseEventPacket([]byte("_e{5,4}:title|text|p:urgent"))
+	_, err = parseEventMessage([]byte("_e{5,4}:title|text|p:urgent"))
 	assert.NoError(t, err)
 
 	// invalid priority
-	_, err = parseEventPacket([]byte("_e{5,4}:title|text|p:urgent"))
+	_, err = parseEventMessage([]byte("_e{5,4}:title|text|p:urgent"))
 	assert.NoError(t, err)
 
 	// invalid alert type
-	_, err = parseEventPacket([]byte("_e{5,4}:title|text|t:test"))
+	_, err = parseEventMessage([]byte("_e{5,4}:title|text|t:test"))
 	assert.NoError(t, err)
 
 	// unknown metadata
-	_, err = parseEventPacket([]byte("_e{5,4}:title|text|x:1234"))
+	_, err = parseEventMessage([]byte("_e{5,4}:title|text|x:1234"))
 	assert.NoError(t, err)
 }
 
 func TestEventMetadataTimestamp(t *testing.T) {
-	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|d:21"))
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|d:21"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -508,7 +508,7 @@ func TestEventMetadataTimestamp(t *testing.T) {
 }
 
 func TestEventMetadataPriority(t *testing.T) {
-	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|p:low"))
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|p:low"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -524,7 +524,7 @@ func TestEventMetadataPriority(t *testing.T) {
 }
 
 func TestEventMetadataHostname(t *testing.T) {
-	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|h:localhost"))
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|h:localhost"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -540,7 +540,7 @@ func TestEventMetadataHostname(t *testing.T) {
 }
 
 func TestEventMetadataAlertType(t *testing.T) {
-	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|t:warning"))
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|t:warning"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -556,7 +556,7 @@ func TestEventMetadataAlertType(t *testing.T) {
 }
 
 func TestEventMetadataAggregatioKey(t *testing.T) {
-	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|k:some aggregation key"))
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|k:some aggregation key"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -572,7 +572,7 @@ func TestEventMetadataAggregatioKey(t *testing.T) {
 }
 
 func TestEventMetadataSourceType(t *testing.T) {
-	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|s:this is the source"))
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|s:this is the source"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -588,7 +588,7 @@ func TestEventMetadataSourceType(t *testing.T) {
 }
 
 func TestEventMetadataTags(t *testing.T) {
-	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|#tag1,tag2:test"))
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|#tag1,tag2:test"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)
@@ -604,7 +604,7 @@ func TestEventMetadataTags(t *testing.T) {
 }
 
 func TestEventMetadataMultiple(t *testing.T) {
-	e, err := parseEventPacket([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
+	e, err := parseEventMessage([]byte("_e{10,9}:test title|test text|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
 
 	require.Nil(t, err)
 	assert.Equal(t, "test title", e.Title)

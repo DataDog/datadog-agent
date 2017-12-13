@@ -10,17 +10,11 @@ name "datadog-logs-agent-win"
 
 default_version "db/windows_svc"
 
-source git: 'https://github.com/DataDog/datadog-log-agent.git'
-relative_path 'src/github.com/DataDog/datadog-log-agent'
-
-if windows?
-  log_agent_binary = "logagent.exe"
-else
-  log_agent_binary = "logagent"
-end
+source git: 'https://github.com/DataDog/datadog-agent.git'
+relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
-  ship_license "https://raw.githubusercontent.com/DataDog/datadog-log-agent/#{version}/LICENSE"
+  ship_license "https://raw.githubusercontent.com/DataDog/datadog-agent/#{version}/LICENSE"
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
@@ -40,11 +34,11 @@ build do
   end
 
   #command "go get github.com/Masterminds/glide", :env => env
-  command "glide install", :env => env
-  command "rake build", :env => env
+  command "inv deps", :env => env
+  command "inv logs.build", :env => env
   if windows?
-    copy "build/#{log_agent_binary}", "#{install_dir}/bin/agent"
+    copy "#{install_dir}.exe", "#{log_agent_binary}.exe"
   else
-    copy log_agent_binary, "#{install_dir}/embedded/bin"
+    copy binary_name, "#{install_dir}/embedded/bin/#{log_agent_binary_name}"
   end
 end

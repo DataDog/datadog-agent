@@ -1,9 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <WixLocalization Culture="en-us" xmlns="http://schemas.microsoft.com/wix/2006/localization">
   <String Id="LANG">1033</String>
-  <String Id="ProductName"><%= friendly_name %></String>
-  <String Id="ManufacturerName"><%= maintainer %></String>
+  <String Id="ProductName" Overridable="no" Localizable="no">Datadog Agent</String>
+  <String Id="ManufacturerName" Overridable="no" Localizable="no">Datadog, Inc.</String>
+  <String Id="CompanyName" Overridable="no" Localizable="no">Datadog, Inc.</String>
+  <String Id="CompanyNameShort" Overridable="no" Localizable="no">Datadog</String>
+  <String Id="InstallerComment">Copyright 2015 [CompanyName]</String>
+
+  <!-- these strings are for the main agent service install -->
+  <String Id="ServiceDisplayName">[ProductName]</String>
+  <String Id="ServiceDescription">Send metrics to [CompanyNameShort]</String>
+  <!-- these strings are for the apm agent service install -->
+  <String Id="ServiceApmDisplayName">[CompanyShortName] Trace Agent</String>
+  <String Id="ServiceApmDescription">Send tracing metrics to [CompanyNameShort]</String>
+  
+
   <String Id="WelcomeDlgTitle">{\WixUI_Font_Bigger}Welcome to the [ProductName] Setup Wizard</String>
+  <String Id="WelcomeDlgDescription">{\WixUI_Font_Normal}The Setup Wizard will install [ProductName] on your computer.  Click Next to continue or Cancel to exit the Setup Wizard</String>
 
   <String Id="LicenseAgreementDlgTitle">{\WixUI_Font_Title_White}End-User License Agreement</String>
   <String Id="LicenseAgreementDlgDescription">{\WixUI_Font_Normal_White}Please read the following license agreement carefully</String>
@@ -18,7 +31,13 @@
   <String Id="FeatureMainName"><%= friendly_name %></String>
   <String Id="LaunchAgentManager"> Launch Datadog Agent Manager</String>
 
-  
+  <!-- these strings for the api key dialog -->
+  <String Id ="ApiKeyDialogTitle" Overridable="yes" Localizable="yes">[ProductName] Setup</String>
+  <String Id ="ApiKeyDialogDescription" Overridable="yes" Localizable="yes">{\WixUI_Font_Normal_White}Enter the API Key</String>
+  <String Id ="ApiKeyDialogBannerTitle"  Overridable="yes" Localizable="yes">{\WixUI_Font_Normal_White}[ShortCompanyName] API Key </String>
+  <String Id ="ApiKeyDialogKeyLabel" Overridable="yes" Localizable="yes">Please enter the [ShortCompanyName] API Key</String>
+  <String Id ="ApiKeySampleKey" Overridable="yes" Localizable="yes"></String>
+
   <String Id="Caption">[WixBundleName] Setup</String>
   <String Id="Title">[WixBundleName]</String>
   <String Id="ConfirmCancelMessage">Are you sure you want to cancel?</String>
@@ -62,5 +81,17 @@
   <String Id="FailureCloseButton">&amp;Close</String>
   <String Id="WillInstall">[WixBundleName] will be installed on your device</String>
   <String Id="InstallLicenseLinkText">By installing you accept these &lt;a href="#"&gt;license terms&lt;/a&gt;</String>
+
+  
+  <!-- Bitmap filenames -->
+  <String Id ="LicenseAgreementDlgBannerBitmap" Overridable="yes" Localizable="no">BannerBmp</String>
+  <String Id ="WelcomeDlgBitmap" Overridable="yes" Localizable="no">BackgroundBmp</String>
+  <String Id="VerifyReadyDlgBannerBitmap" Overridable="yes" Localizable="no">BannerBmp</String>
+  <String Id="UserExitBitmap" Overridable="yes" Localizable="no">BackgroundBmp</String>
+  <String Id="ExitDialogBitmap" Overridable="yes" Localizable="no">BackgroundBmp</String>
+  <String Id="PrepareDlgBitmap" Overridable="yes" Localizable="no">PrepBackgroundBmp</String>
+  <String Id="ProgressDlgBannerBitmap" Overridable="yes" Localizable="no" >BannerBmp</String>
+  <String Id="MaintenanceWelcomeDlgBitmap" Overridable="yes" Localizable="no" >BackgroundBmp</String>
+  <String Id="MaintenanceTypeDlgBannerBitmap" Overridable="yes" Localizable="no" >BannerBmp</String>
 
 </WixLocalization>

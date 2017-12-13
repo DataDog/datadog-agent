@@ -94,7 +94,13 @@ func init() {
 
 	} else {
 		Datadog.SetDefault("container_proc_root", "/proc")
-		Datadog.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+		// for amazon linux the cgroup directory on host is /cgroup/
+		// we pick memory.stat to make sure it exists and not empty
+		if _, err := os.Stat("/cgroup/memory/memory.stat"); !os.IsNotExist(err) {
+			Datadog.SetDefault("container_cgroup_root", "/cgroup/")
+		} else {
+			Datadog.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
+		}
 	}
 	Datadog.SetDefault("proc_root", "/proc")
 	Datadog.SetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
@@ -123,10 +129,11 @@ func init() {
 	// Docker
 	Datadog.SetDefault("docker_labels_as_tags", map[string]string{})
 	Datadog.SetDefault("docker_env_as_tags", map[string]string{})
+	Datadog.SetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
+
 	// Kubernetes
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
-	Datadog.SetDefault("kubernetes_pod_label_to_tag_prefix", "kube_")
 	// ECS
 	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
 
@@ -166,7 +173,6 @@ func init() {
 	Datadog.BindEnv("kubernetes_kubelet_host")
 	Datadog.BindEnv("kubernetes_http_kubelet_port")
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
-	Datadog.BindEnv("kubernetes_pod_label_to_tag_prefix")
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
 	Datadog.BindEnv("cloud_foundry")

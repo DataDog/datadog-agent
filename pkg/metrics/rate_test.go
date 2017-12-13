@@ -11,6 +11,7 @@ import (
 
 	// 3p
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRateSampling(t *testing.T) {
@@ -26,8 +27,8 @@ func TestRateSampling(t *testing.T) {
 	// First rate
 	series, err := mRate1.flush(60)
 	assert.Nil(t, err)
-	assert.Len(t, series, 1)
-	assert.Len(t, series[0].Points, 1)
+	require.Len(t, series, 1)
+	require.Len(t, series[0].Points, 1)
 	assert.InEpsilon(t, 4., series[0].Points[0].Value, epsilon)
 	assert.EqualValues(t, 52.5, series[0].Points[0].Ts)
 
@@ -48,8 +49,8 @@ func TestRateSamplingMultipleSamplesInSameFlush(t *testing.T) {
 	// Should compute rate based on the last 2 samples
 	series, err := mRate.flush(65)
 	assert.Nil(t, err)
-	assert.Len(t, series, 1)
-	assert.Len(t, series[0].Points, 1)
+	require.Len(t, series, 1)
+	require.Len(t, series[0].Points, 1)
 	assert.InEpsilon(t, 2./6., series[0].Points[0].Value, epsilon)
 	assert.EqualValues(t, 61, series[0].Points[0].Ts)
 }
@@ -75,8 +76,8 @@ func TestRateSamplingNoSampleForOneFlush(t *testing.T) {
 	// Should compute rate based on the last 2 samples
 	series, err := mRate.flush(60)
 	assert.Nil(t, err)
-	assert.Len(t, series, 1)
-	assert.Len(t, series[0].Points, 1)
+	require.Len(t, series, 1)
+	require.Len(t, series[0].Points, 1)
 	assert.InEpsilon(t, 2./5., series[0].Points[0].Value, epsilon)
 	assert.EqualValues(t, 60, series[0].Points[0].Ts)
 }
@@ -93,4 +94,28 @@ func TestRateSamplingSamplesAtSameTimestamp(t *testing.T) {
 
 	assert.NotNil(t, err)
 	assert.Len(t, series, 0)
+}
+
+func TestRateSamplingNegativeRate(t *testing.T) {
+	// Initialize rate
+	mRate := Rate{}
+
+	// Add samples, with second value below first one
+	mRate.addSample(&MetricSample{Value: 2}, 50)
+	mRate.addSample(&MetricSample{Value: 1}, 55)
+
+	// Should return an error
+	series, err := mRate.flush(60)
+	assert.NotNil(t, err)
+	assert.Len(t, series, 0)
+
+	// Add a sample again, this time with positive diff
+	mRate.addSample(&MetricSample{Value: 3}, 62)
+	// Should compute rate based on the last 2 samples
+	series, err = mRate.flush(70)
+	assert.Nil(t, err)
+	require.Len(t, series, 1)
+	require.Len(t, series[0].Points, 1)
+	assert.InEpsilon(t, (3.-1.)/(62.-55.), series[0].Points[0].Value, epsilon)
+	assert.EqualValues(t, 62, series[0].Points[0].Ts)
 }

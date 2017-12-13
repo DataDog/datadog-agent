@@ -29,6 +29,7 @@ type Server struct {
 	packetIn   chan *listeners.Packet // Unbuffered channel as packets processing is done in goroutines
 	Statistics *util.Stats
 	Started    bool
+	packetPool *listeners.PacketPool
 }
 
 // NewServer returns a running Dogstatsd server
@@ -44,11 +45,12 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 	}
 
 	packetChannel := make(chan *listeners.Packet)
+	packetPool := listeners.NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetChannel)
+		unixListener, err := listeners.NewUDSListener(packetChannel, packetPool)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -56,7 +58,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		}
 	}
 	if config.Datadog.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetChannel)
+		udpListener, err := listeners.NewUDPListener(packetChannel, packetPool)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -73,6 +75,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		Statistics: stats,
 		packetIn:   packetChannel,
 		listeners:  tmpListeners,
+		packetPool: packetPool,
 	}
 	go s.handleMessages(metricOut, eventOut, serviceCheckOut)
 
@@ -93,7 +96,7 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 		packet := <-s.packetIn
 		var originTags []string
 
-		if packet.Origin != "" {
+		if packet.Origin != listeners.NoOrigin {
 			var err error
 			log.Debugf("dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
 			originTags, err = tagger.Tag(packet.Origin, false)
@@ -108,8 +111,8 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 
 		go func() {
 			for {
-				packet := nextPacket(&packet.Contents)
-				if packet == nil {
+				message := nextMessage(&packet.Contents)
+				if message == nil {
 					break
 				}
 
@@ -117,8 +120,8 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 					s.Statistics.StatEvent(1)
 				}
 
-				if bytes.HasPrefix(packet, []byte("_sc")) {
-					serviceCheck, err := parseServiceCheckPacket(packet)
+				if bytes.HasPrefix(message, []byte("_sc")) {
+					serviceCheck, err := parseServiceCheckMessage(message)
 					if err != nil {
 						log.Errorf("dogstatsd: error parsing service check: %s", err)
 						dogstatsdExpvar.Add("ServiceCheckParseErrors", 1)
@@ -129,8 +132,8 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 					}
 					dogstatsdExpvar.Add("ServiceCheckPackets", 1)
 					serviceCheckOut <- *serviceCheck
-				} else if bytes.HasPrefix(packet, []byte("_e")) {
-					event, err := parseEventPacket(packet)
+				} else if bytes.HasPrefix(message, []byte("_e")) {
+					event, err := parseEventMessage(message)
 					if err != nil {
 						log.Errorf("dogstatsd: error parsing event: %s", err)
 						dogstatsdExpvar.Add("EventParseErrors", 1)
@@ -142,7 +145,7 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 					dogstatsdExpvar.Add("EventPackets", 1)
 					eventOut <- *event
 				} else {
-					sample, err := parseMetricPacket(packet)
+					sample, err := parseMetricMessage(message)
 					if err != nil {
 						log.Errorf("dogstatsd: error parsing metrics: %s", err)
 						dogstatsdExpvar.Add("MetricParseErrors", 1)
@@ -155,6 +158,8 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 					metricOut <- sample
 				}
 			}
+			// Return the packet object back to the object pool for reuse
+			s.packetPool.Put(packet)
 		}()
 	}
 }

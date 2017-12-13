@@ -47,14 +47,19 @@ func setupLogger(logLevel string) error {
 }
 
 func main() {
-	isIntSess, err := svc.IsAnInteractiveSession()
-	if err != nil {
-		fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
-	}
-	if !isIntSess {
-		common.EnableLoggingToFile()
-		runService(false)
-		return
+	// if command line arguments are supplied, even in a non interactive session,
+	// then just execute that.  Used when the service is executing the executable,
+	// for instance to trigger a restart.
+	if len(os.Args) == 1 {
+		isIntSess, err := svc.IsAnInteractiveSession()
+		if err != nil {
+			fmt.Printf("failed to determine if we are running in an interactive session: %v", err)
+		}
+		if !isIntSess {
+			common.EnableLoggingToFile()
+			runService(false)
+			return
+		}
 	}
 	defer log.Flush()
 

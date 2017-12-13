@@ -43,7 +43,7 @@ func apmInit() error {
 		iniFile = ini.Empty()
 	}
 	// this will create the section if it's not there
-	main := iniFile.Section("main")
+	main := iniFile.Section("Main")
 	k, err := main.GetKey("api_key")
 	if err != nil {
 		log.Warnf("API key not found in trace-agent.conf, adding")

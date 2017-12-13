@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/hectane/go-acl"
-	"github.com/kardianos/osext"
 	"golang.org/x/sys/windows"
 )
 
@@ -31,9 +31,13 @@ func init() {
 	}
 }
 
+func restartEnabled() bool {
+	return true
+}
+
 // restarts the agent using the windows service manager
 func restart() error {
-	here, _ := osext.ExecutableFolder()
+	here, _ := executable.Folder()
 	cmd := exec.Command(filepath.Join(here, "agent"), "restart-service")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -47,12 +51,12 @@ func restart() error {
 }
 
 // writes auth token(s) to a file with the same permissions as datadog.yaml
-func saveAuthToken(token string) error {
+func saveAuthToken(token, tokenPath string) error {
 
-	err := ioutil.WriteFile(authTokenPath, []byte(token), 0755)
+	err := ioutil.WriteFile(tokenPath, []byte(token), 0755)
 	if err == nil {
 		err = acl.Apply(
-			authTokenPath,
+			tokenPath,
 			true,  // replace the file permissions
 			false, // don't inherit
 			acl.GrantSid(windows.GENERIC_ALL, wellKnownSids["Administrators"]),

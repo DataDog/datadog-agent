@@ -32,7 +32,8 @@ func TestUDSPassCred(t *testing.T) {
 	config.Datadog.Set("dogstatsd_socket", socketPath)
 	config.Datadog.Set("dogstatsd_origin_detection", true)
 
-	s, err := NewUDSListener(nil)
+	packetPoolUDS := NewPacketPool(config.Datadog.GetInt("dogstatsd_buffer_size"))
+	s, err := NewUDSListener(nil, packetPoolUDS)
 	defer s.Stop()
 
 	assert.Nil(t, err)

@@ -150,7 +150,9 @@ func (sl *stickyLock) getPythonError() (string, error) {
 }
 
 // Search in module for a class deriving from baseClass and return the first match if any.
-// Notice: the passed `stickyLock` must be locked
+// Notice: classes that have been derived will be ignored, i.e. this function only
+// returns leaves of the hierarchy tree.
+// Notice: the passed `stickyLock` must be locked.
 func findSubclassOf(base, module *python.PyObject, gstate *stickyLock) (*python.PyObject, error) {
 	if base == nil || module == nil {
 		return nil, fmt.Errorf("both base class and module must be not nil")
@@ -177,24 +179,55 @@ func findSubclassOf(base, module *python.PyObject, gstate *stickyLock) (*python.
 			pyErr, err := gstate.getPythonError()
 
 			if err != nil {
-				return nil, fmt.Errorf("An error occurred while searching for the AgentCheck class and couldn't be formatted: %v", err)
+				return nil, fmt.Errorf("An error occurred while searching for the base class and couldn't be formatted: %v", err)
 			}
 			return nil, errors.New(pyErr)
 		}
 
+		// not a class, ignore
 		if !python.PyType_Check(class) {
-			// ignore this item
 			class.DecRef()
 			continue
 		}
 
-		// IsSubclass returns success if class is the same, we need to go deeper
-		if class.IsSubclass(base) == 1 && class.RichCompareBool(base, python.Py_EQ) != 1 {
-			return class, nil
+		// this is an unrelated class, ignore
+		if class.IsSubclass(base) != 1 {
+			class.DecRef()
+			continue
 		}
+
+		// `class` is actually `base` itself, ignore
+		if class.RichCompareBool(base, python.Py_EQ) == 1 {
+			class.DecRef()
+			continue
+		}
+
+		// does `class` have subclasses?
+		subclasses := class.CallMethod("__subclasses__")
+		if subclasses == nil {
+			pyErr, err := gstate.getPythonError()
+
+			if err != nil {
+				return nil, fmt.Errorf("An error occurred while checking for subclasses and couldn't be formatted: %v", err)
+			}
+			return nil, errors.New(pyErr)
+		}
+
+		subclassesCount := python.PyList_GET_SIZE(subclasses)
+		subclasses.DecRef()
+
+		// `class` has subclasses but checks are supposed to have none, ignore
+		if subclassesCount > 0 {
+			class.DecRef()
+			continue
+		}
+
+		// got it, return the check class
+		return class, nil
 	}
+
 	return nil, fmt.Errorf("cannot find a subclass of %s in module %s",
-		python.PyString_AS_STRING(base.Str()), python.PyString_AS_STRING(base.Str()))
+		python.PyString_AS_STRING(base.Str()), python.PyString_AS_STRING(module.Str()))
 }
 
 // Get the rightmost component of a module path like foo.bar.baz
