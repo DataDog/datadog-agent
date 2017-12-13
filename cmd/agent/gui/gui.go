@@ -9,12 +9,11 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
@@ -27,9 +26,6 @@ var (
 	// CsrfToken is a session-specific token passed to the GUI's authentication endpoint by app.launchGui
 	CsrfToken string
 )
-
-// AuthTokenName is the name of the file storing the GUI authentication token
-const AuthTokenName = "gui_auth_token"
 
 // Payload struct is for the JSON messages received from a client POST request
 type Payload struct {
@@ -83,7 +79,13 @@ func StartGUIServer(port string) error {
 		return e
 	}
 
-	return fetchAuthToken()
+	// Fetch the authentication token (persists across sessions)
+	authToken, e = security.FetchAuthToken()
+	if e != nil {
+		listener.Close()
+		listener = nil
+	}
+	return e
 }
 
 func createCSRFToken() error {
@@ -93,37 +95,6 @@ func createCSRFToken() error {
 		return fmt.Errorf("error creating CSRF token: " + e.Error())
 	}
 	CsrfToken = hex.EncodeToString(key)
-	return nil
-}
-
-// Fetches the authentication token from the auth token file, creates one if it doesn't exist
-func fetchAuthToken() error {
-	// Check if the auth token file already exists
-	authTokenPath := filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), AuthTokenName)
-
-	// Create a new token if there's an error with the current file/if it doesn't exist
-	if _, e := os.Stat(authTokenPath); e != nil {
-		key := make([]byte, 32)
-		_, e = rand.Read(key)
-		if e != nil {
-			return fmt.Errorf("error creating CSRF token: " + e.Error())
-		}
-		authToken = hex.EncodeToString(key)
-
-		// Write the auth token to the auth token file (platform-specific)
-		e := saveAuthToken(authToken, authTokenPath)
-		if e == nil {
-			log.Infof("Saved a new GUI authentication token to " + authTokenPath)
-		}
-		return e
-	}
-
-	// Read the token
-	authTokenRaw, e := ioutil.ReadFile(authTokenPath)
-	if e != nil {
-		return fmt.Errorf("unable to access GUI authentication token: " + e.Error())
-	}
-	authToken = string(authTokenRaw)
 	return nil
 }
 

@@ -62,7 +62,7 @@ var flareCmd = &cobra.Command{
 func requestFlare(caseID string) error {
 	fmt.Println("Asking the agent to build the flare archive.")
 	var e error
-	c := common.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("cmd_port"))
 
 	logFile := config.Datadog.GetString("log_file")
@@ -71,9 +71,12 @@ func requestFlare(caseID string) error {
 	}
 
 	// Set session token
-	util.SetAuthToken()
+	e = util.SetAuthToken()
+	if e != nil {
+		return e
+	}
 
-	r, e := common.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string
 	if e != nil {
 		if r != nil && string(r) != "" {
