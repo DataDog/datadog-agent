@@ -10,7 +10,6 @@ package providers
 import (
 	"fmt"
 	"net/url"
-	"path"
 	"sort"
 	"strings"
 
@@ -19,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"math"
 )
 
 // Abstractions for testing
@@ -26,6 +26,7 @@ type consulKVBackend interface {
 	Keys(prefix, separator string, q *consul.QueryOptions) ([]string, *consul.QueryMeta, error)
 	Get(key string, q *consul.QueryOptions) (*consul.KVPair, *consul.QueryMeta, error)
 	Txn(txn consul.KVTxnOps, q *consul.QueryOptions) (bool, *consul.KVTxnResponse, *consul.QueryMeta, error)
+	List(prefix string, q *consul.QueryOptions) (consul.KVPairs, *consul.QueryMeta, error)
 }
 
 type consulBackend interface {
@@ -44,9 +45,8 @@ func (c *consulWrapper) KV() consulKVBackend {
 // It should be called periodically and returns templates from consul for AutoConf.
 type ConsulConfigProvider struct {
 	Client      consulBackend
-	Cache       map[string][]check.Config
-	cacheIdx    map[string]ADEntryIndex
 	TemplateDir string
+	cache       *CacheProviderIndx
 }
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
@@ -58,7 +58,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 	clientCfg := consul.DefaultConfig()
 	clientCfg.Address = consulURL.Host
-	clientCfg.Address = consulURL.Scheme
+	clientCfg.Scheme = consulURL.Scheme
 	clientCfg.Token = config.Token
 
 	if consulURL.Scheme == "https" {
@@ -80,7 +80,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 		}
 		clientCfg.HttpAuth = auth
 	}
-
+	cacheProvider := NewCPCache()
 	cli, err := consul.NewClient(clientCfg)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to instantiate the consul client: %s", err)
@@ -93,8 +93,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 	return &ConsulConfigProvider{
 		Client:      c,
 		TemplateDir: config.TemplateDir,
-		Cache:       make(map[string][]check.Config),
-		cacheIdx:    make(map[string]ADEntryIndex),
+		cache: cacheProvider,
 	}, nil
 
 }
@@ -105,34 +104,44 @@ func (p *ConsulConfigProvider) String() string {
 
 // Collect retrieves templates from consul, builds Config objects and returns them
 func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
-	var templates []check.Config
-
 	configs := make([]check.Config, 0)
 	identifiers := p.getIdentifiers(p.TemplateDir)
-	log.Debugf("identifiers found in backend: %v\n", identifiers)
+	log.Infof("identifiers found in backend: %v\n", identifiers)
 	for _, id := range identifiers {
-		current, err := p.isIndexCurrent(id)
-		if err != nil {
-			return configs, err
-		}
-
-		if err == nil && current {
-			templates = p.Cache[id]
-		} else {
-			var index *ADEntryIndex
-			templates, index = p.getTemplates(id)
-			p.Cache[id] = templates
-			p.cacheIdx[id] = *index
-		}
-
+		templates := p.getTemplates(id)
 		configs = append(configs, templates...)
-	}
+		}
 	return configs, nil
 }
 
 func (p *ConsulConfigProvider) IsUpToDate() (bool, error) {
-	// TODO
-	return false, nil
+	kv := p.Client.KV()
+	adListUpdated := false
+	dateIdx := p.cache.AdTemplate2Idx
+
+	identifiers, _, err := kv.List(p.TemplateDir, nil)
+	if err != nil {
+		return false, err
+	}
+	if p.cache.NumAdTemplates != len(identifiers) {
+		if p.cache.NumAdTemplates == 0 {
+			log.Infof("Initializing cache for %v", p.String())
+		}
+		log.Debugf("List of AD Template was modified, updating cache.")
+		p.cache.NumAdTemplates = len(identifiers)
+		adListUpdated = true
+	}
+
+	for _, identifier := range identifiers {
+		dateIdx = math.Max(float64(identifier.ModifyIndex), dateIdx)
+	}
+	if dateIdx > p.cache.AdTemplate2Idx || adListUpdated {
+		log.Debugf("Cache Index was %v and is now %v", p.cache.AdTemplate2Idx, dateIdx)
+		p.cache.AdTemplate2Idx = dateIdx
+		log.Infof("cache updated for %v", p.String())
+		return false, nil
+	}
+	return true, nil
 }
 
 // getIdentifiers gets folders at the root of the TemplateDir
@@ -143,7 +152,7 @@ func (p *ConsulConfigProvider) getIdentifiers(prefix string) []string {
 
 	identifiers := make([]string, 0)
 	// TODO: decide on the query parameters.
-	keys, _, err := kv.Keys(prefix, "", nil)
+	keys, _, err := kv.Keys(p.TemplateDir, "", nil)
 	if err != nil {
 		log.Error("Can't get templates keys from consul: ", err)
 		return identifiers
@@ -186,132 +195,78 @@ func (p *ConsulConfigProvider) getIdentifiers(prefix string) []string {
 
 // getTemplates takes a path and returns a slice of templates if it finds
 // sufficient data under this path to build one.
-func (p *ConsulConfigProvider) getTemplates(key string) ([]check.Config, *ADEntryIndex) {
+func (p *ConsulConfigProvider) getTemplates(key string) ([]check.Config) {
 	templates := make([]check.Config, 0)
 
 	checkNameKey := buildStoreKey(key, checkNamePath)
 	initKey := buildStoreKey(key, initConfigPath)
 	instanceKey := buildStoreKey(key, instancePath)
 
-	checkNames, namesIdx, err := p.getCheckNames(checkNameKey)
+	checkNames, err := p.getCheckNames(checkNameKey)
 	if err != nil {
 		log.Errorf("Failed to retrieve check names at %s. Error: %s", checkNameKey, err)
-		return templates, nil
+		return templates
 	}
 
-	initConfigs, initIdx, err := p.getJSONValue(initKey)
+	initConfigs, err := p.getJSONValue(initKey)
 	if err != nil {
 		log.Errorf("Failed to retrieve init configs at %s. Error: %s", initKey, err)
-		return templates, nil
+		return templates
 	}
 
-	instances, instancesIdx, err := p.getJSONValue(instanceKey)
+	instances, err := p.getJSONValue(instanceKey)
 	if err != nil {
 		log.Errorf("Failed to retrieve instances at %s. Error: %s", instanceKey, err)
-		return templates, nil
+		return templates
 	}
 
 	// sanity check
 	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
 		log.Error("Template entries don't all have the same length in consul, not using them.")
-		return templates, nil
+		return templates
 	}
 
-	for idx := range checkNames {
-		instance := check.ConfigData(instances[idx])
-
-		templates = append(templates, check.Config{
-			Name:          checkNames[idx],
-			InitConfig:    check.ConfigData(initConfigs[idx]),
-			Instances:     []check.ConfigData{instance},
-			ADIdentifiers: []string{key},
-		})
-	}
-	index := &ADEntryIndex{
-		NamesIdx:     namesIdx,
-		InitIdx:      initIdx,
-		InstancesIdx: instancesIdx,
-	}
-	return templates, index
+	return templates
 }
 
 // getValue returns value, idx, error
-func (p *ConsulConfigProvider) getValue(key string) ([]byte, uint64, error) {
+func (p *ConsulConfigProvider) getValue(key string) ([]byte, error) {
 	kv := p.Client.KV()
 	pair, _, err := kv.Get(key, nil)
 	if err != nil || pair == nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	return pair.Value, pair.ModifyIndex, err
+	return pair.Value, err
 }
 
-// isIndexCurrent returns if the index for a key has changed since last checked.
-func (p *ConsulConfigProvider) isIndexCurrent(key string) (bool, error) {
-	checkNameKey := path.Join(p.TemplateDir, key, checkNamePath)
-	initKey := path.Join(p.TemplateDir, key, initConfigPath)
-	instanceKey := path.Join(p.TemplateDir, key, instancePath)
-
-	idx, _ := p.cacheIdx[key]
-
-	// I think these actually pull the the KV pairs :(
-	ops := consul.KVTxnOps{
-		&consul.KVTxnOp{
-			Verb:  consul.KVCheckIndex,
-			Key:   checkNameKey,
-			Index: idx.NamesIdx,
-		},
-		&consul.KVTxnOp{
-			Verb:  consul.KVCheckIndex,
-			Key:   initKey,
-			Index: idx.InitIdx,
-		},
-		&consul.KVTxnOp{
-			Verb:  consul.KVCheckIndex,
-			Key:   instanceKey,
-			Index: idx.InstancesIdx,
-		},
-	}
-
-	kv := p.Client.KV()
-	ok, response, _, err := kv.Txn(ops, nil)
-	if !ok || err != nil {
-		return false, err
-	}
-	if len(response.Errors) > 0 {
-		return false, nil
-	}
-
-	return true, nil
-}
-
-func (p *ConsulConfigProvider) getCheckNames(key string) ([]string, uint64, error) {
-	raw, idx, err := p.getValue(key)
+func (p *ConsulConfigProvider) getCheckNames(key string) ([]string, error) {
+	raw, err := p.getValue(key)
 	if err != nil {
 		err := fmt.Errorf("Couldn't get check names from consul: %s", err)
-		return nil, 0, err
+		return nil, err
 	}
 
 	names := string(raw)
 	if names == "" {
 		err = fmt.Errorf("check_names is empty")
-		return nil, 0, err
+		return nil, err
 	}
 
 	checks, err := parseCheckNames(names)
-	return checks, idx, err
+	return checks, err
 }
 
-func (p *ConsulConfigProvider) getJSONValue(key string) ([]check.ConfigData, uint64, error) {
-	rawValue, idx, err := p.getValue(key)
+func (p *ConsulConfigProvider) getJSONValue(key string) ([]check.ConfigData, error) {
+	rawValue, err := p.getValue(key)
 	if err != nil {
 		err := fmt.Errorf("Couldn't get key %s from consul: %s", key, err)
-		return nil, 0, err
+		return nil, err
 	}
 
 	r, err := parseJSONValue(string(rawValue))
 
-	return r, idx, err
+	return r, err
 }
 
 // isTemplateField verifies the key
