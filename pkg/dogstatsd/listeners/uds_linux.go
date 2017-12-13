@@ -35,13 +35,9 @@ func enableUDSPassCred(conn *net.UnixConn) error {
 		return err
 	}
 
-	err = rawconn.Control(func(fd uintptr) {
+	return rawconn.Control(func(fd uintptr) {
 		unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_PASSCRED, 1)
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // processUDSOrigin reads ancillary data to determine a packet's origin,
