@@ -4,7 +4,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 import os
 from invoke import Collection
 
-from . import agent, benchmarks, docker, dogstatsd, pylauncher
+from . import agent, benchmarks, docker, dogstatsd, pylauncher, cluster_agent
 
 from .go import fmt, lint, vet, deps, reset
 from .test import test, integration_tests
@@ -24,6 +24,7 @@ ns.add_task(reset)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
+ns.add_collection(cluster_agent)
 ns.add_collection(benchmarks, name="bench")
 ns.add_collection(docker)
 ns.add_collection(dogstatsd)
