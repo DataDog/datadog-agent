@@ -33,7 +33,13 @@ var subservices = []Servicedef{
 		configKey:   "apm_enabled",
 		serviceName: "datadog-trace-agent",
 		serviceInit: apmInit,
-	}}
+	},
+	{
+	name:        "process",
+	configKey:   "process_agent_enabled",
+	serviceName: "datadog-trace-agent",
+	serviceInit: processInit,
+}}
 
 func apmInit() error {
 	traceAgentConfPath := filepath.Join(common.DefaultConfPath, "trace-agent.conf")
@@ -56,6 +62,11 @@ func apmInit() error {
 	}
 	return err
 
+}
+
+
+func processInit() error {
+	return nil
 }
 
 // Start starts the service
