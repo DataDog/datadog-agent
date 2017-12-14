@@ -6,6 +6,7 @@
 package dogstatsd
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -30,21 +31,17 @@ var metricTypes = map[string]metrics.MetricType{
 	"dc": metrics.DistributionCType,
 }
 
-func nextMessage(datagram *[]byte) (message []byte) {
-	if len(*datagram) == 0 {
+func nextMessage(packet *[]byte) (message []byte) {
+	if len(*packet) == 0 {
 		return nil
 	}
-	split := bytes.SplitAfterN(*datagram, []byte("\n"), 2)
 
-	*datagram = (*datagram)[len(split[0]):]
-
-	// Remove trailing newline
-	if len(split) == 2 {
-		message = split[0][:len(split[0])-1]
-	} else {
-		message = split[0]
+	advance, message, err := bufio.ScanLines(*packet, true)
+	if err != nil || len(message) == 0 {
+		return nil
 	}
 
+	*packet = (*packet)[advance:]
 	return message
 }
 
