@@ -69,3 +69,56 @@ def clean(ctx):
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/cluster-agent")
 
+@task
+def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
+                  skip_deps=False):
+    """
+    Build the Agent packages with Omnibus Installer.
+    """
+    if not skip_deps:
+        deps(ctx)
+
+    # omnibus config overrides
+    overrides = []
+
+    # base dir (can be overridden through env vars, command line takes precendence)
+    base_dir = base_dir or os.environ.get("AGENT_OMNIBUS_BASE_DIR")
+    if base_dir:
+        overrides.append("base_dir:{}".format(base_dir))
+
+    overrides_cmd = ""
+    if overrides:
+        overrides_cmd = "--override=" + " ".join(overrides)
+
+    with ctx.cd("omnibus"):
+        cmd = "bundle install"
+        if gem_path:
+            cmd += " --path {}".format(gem_path)
+        ctx.run(cmd)
+        omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
+        cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
+        args = {
+            "omnibus": omnibus,
+            "project_name": "puppy" if puppy else "agent",
+            "log_level": log_level,
+            "overrides": overrides_cmd
+        }
+        ctx.run(cmd.format(**args))
+
+@task
+def image_build(ctx, base_dir="omnibus"):
+    """
+    Build the docker image
+    """
+    base_dir = base_dir or os.environ.get("AGENT_OMNIBUS_BASE_DIR")
+    pkg_dir = os.path.join(base_dir, 'pkg')
+    list_of_files = glob.glob(os.path.join(pkg_dir, 'datadog-agent*_amd64.deb'))
+    # get the last debian package built
+    if not list_of_files:
+        print("No debian package build found in {}".format(pkg_dir))
+        print("See agent.omnibus-build")
+        raise Exit(1)
+    latest_file = max(list_of_files, key=os.path.getctime)
+    shutil.copy2(latest_file, "Dockerfiles/agent/")
+    ctx.run("docker build -t {} Dockerfiles/agent".format(AGENT_TAG))
+    ctx.run("rm Dockerfiles/agent/datadog-agent*_amd64.deb")

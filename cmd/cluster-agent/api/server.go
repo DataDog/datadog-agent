@@ -76,8 +76,8 @@ func StartServer() error {
 		TLSConfig: &tlsConfig,
 	}
 	tlsListener := tls.NewListener(listener, &tlsConfig)
-
-	go srv.Serve(tlsListener)
+	fmt.Println(tlsListener)
+	go srv.Serve(listener)
 	return nil
 
 }

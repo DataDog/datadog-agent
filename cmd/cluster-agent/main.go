@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 )
 
 var (
@@ -114,9 +115,9 @@ func start(cmd *cobra.Command, args []string) error {
 	log.Infof("Hostname is: %s", hostname)
 
 	// start the cmd HTTP server
-	// if err = api.StartServer(); err != nil {
-	// 	return log.Errorf("Error while starting api server, exiting: %v", err)
-	// }
+	if err = api.StartServer(); err != nil {
+	 	return log.Errorf("Error while starting api server, exiting: %v", err)
+	 }
 
 	// Start the k8s custom metrics server
 	custommetrics.StartServer()
