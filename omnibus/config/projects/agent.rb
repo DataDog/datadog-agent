@@ -128,6 +128,9 @@ dependency 'jmxfetch'
 
 # External agents
 dependency 'datadog-trace-agent'
+if windows? 
+  dependency 'datadog-process-agent-win'
+end
 if linux?
   dependency 'datadog-process-agent'  
 end
