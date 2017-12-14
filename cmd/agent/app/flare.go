@@ -19,18 +19,19 @@ import (
 var (
 	customerEmail string
 	autoconfirm   bool
+	trobleshooting string
 )
 
 func init() {
 	AgentCmd.AddCommand(flareCmd)
-
+	flareCmd.AddCommand(trCmd)
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
 var flareCmd = &cobra.Command{
-	Use:   "flare [caseID]",
+	Use:   "flare [caseID] [troubleshooting]",
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -56,6 +57,15 @@ var flareCmd = &cobra.Command{
 		}
 
 		return requestFlare(caseID)
+	},
+}
+
+var trCmd = &cobra.Command{
+	Use:   "troubleshooting",
+	Short: "Collect a flare and send it to Datadog",
+	Long:  ``,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("test flare trobleshooting")
 	},
 }
 
