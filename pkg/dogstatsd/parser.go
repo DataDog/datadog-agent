@@ -56,9 +56,8 @@ func split2(slice, sep []byte) ([]byte, []byte) {
 	sepIndex := bytes.Index(slice, sep)
 	if sepIndex == -1 {
 		return slice, nil
-	} else {
-		return slice[:sepIndex], slice[sepIndex+1:]
 	}
+	return slice[:sepIndex], slice[sepIndex+1:]
 }
 
 // parseTags parses `rawTags` and returns a slice of tags and the value of the `host:` tag if found
