@@ -19,10 +19,11 @@ import (
 var (
 	customerEmail string
 	autoconfirm   bool
-	trobleshooting string
+	troubleshooting bool
 )
 
 func init() {
+	troubleshooting=false
 	AgentCmd.AddCommand(flareCmd)
 	flareCmd.AddCommand(trCmd)
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
@@ -31,7 +32,7 @@ func init() {
 }
 
 var flareCmd = &cobra.Command{
-	Use:   "flare [caseID] [troubleshooting]",
+	Use:   "flare [caseID]",
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -42,9 +43,8 @@ var flareCmd = &cobra.Command{
 
 		caseID := ""
 		if len(args) > 0 {
-			caseID = args[0]
+				caseID = args[0]			
 		}
-
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
 		config.SetupLogger("off", "", "", false, false, "", true)
 		if customerEmail == "" {
@@ -55,21 +55,40 @@ var flareCmd = &cobra.Command{
 				return err
 			}
 		}
-
-		return requestFlare(caseID)
+		return requestFlare(caseID, troubleshooting)
 	},
 }
 
 var trCmd = &cobra.Command{
-	Use:   "troubleshooting",
-	Short: "Collect a flare and send it to Datadog",
+	Use:   "troubleshooting [caseID]",
+	Short: "Collect troubleshooting information",
 	Long:  ``,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("test flare trobleshooting")
+	RunE: func(cmd *cobra.Command, args []string) error {
+		err := common.SetupConfig(confFilePath)
+		if err != nil {
+			return err
+		}
+
+		caseID := ""
+		if len(args) > 0 {
+				caseID = args[0]			
+		}
+		troubleshooting = true
+		// The flare command should not log anything, all errors should be reported directly to the console without the log format
+		config.SetupLogger("off", "", "", false, false, "", true)
+		if customerEmail == "" {
+			var err error
+			customerEmail, err = flare.AskForEmail()
+			if err != nil {
+				fmt.Println("Error reading email, please retry or contact support")
+				return err
+			}
+		}
+		return requestFlare(caseID, troubleshooting)
 	},
 }
 
-func requestFlare(caseID string) error {
+func requestFlare(caseID string, troubleshooting bool) error {
 	fmt.Println("Asking the agent to build the flare archive.")
 	var e error
 	c := common.GetClient(false) // FIX: get certificates right then make this true
@@ -93,7 +112,7 @@ func requestFlare(caseID string) error {
 		}
 		fmt.Println("Initiating flare locally.")
 
-		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
+		filePath, e = flare.CreateArchive(true, troubleshooting, common.GetDistPath(), common.PyChecksPath, logFile)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

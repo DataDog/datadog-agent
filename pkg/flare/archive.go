@@ -29,17 +29,17 @@ import (
 type SearchPaths map[string]string
 
 // CreateArchive packages up the files
-func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (string, error) {
+func CreateArchive(local, troubleshooting bool, distPath, pyChecksPath, logFilePath string) (string, error) {
 	zipFilePath := mkFilePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
 		"checksd": pyChecksPath,
 	}
-	return createArchive(zipFilePath, local, confSearchPaths, logFilePath)
+	return createArchive(zipFilePath, local, troubleshooting, confSearchPaths, logFilePath)
 }
 
-func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
+func createArchive(zipFilePath string, local, troubleshooting bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
 	zipFile := new(archivex.ZipFile)
 	zipFile.Create(zipFilePath)
 
@@ -82,12 +82,12 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	if err != nil {
 		return "", err
 	}
-
-	err = zipTroubleshoot(zipFile, hostname)
-	if err != nil {
-		return "", err
+    if troubleshooting {
+		err = zipTroubleshoot(zipFile, hostname)
+		if err != nil {
+			return "", err
+		}
 	}
-
 	if config.IsContainerized() {
 		err = zipDockerSelfInspect(zipFile, hostname)
 		if err != nil {
