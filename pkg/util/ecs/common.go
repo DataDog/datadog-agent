@@ -27,7 +27,6 @@ const (
 // GetTaskMetadata extracts the metadata payload for the task the agent is in.
 func GetTaskMetadata() (TaskMetadata, error) {
 	var meta TaskMetadata
-	log.Infof("Getting task metadata...") // TODO: delete me
 	client := http.Client{
 		Timeout: timeout,
 	}
@@ -40,7 +39,7 @@ func GetTaskMetadata() (TaskMetadata, error) {
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&meta)
 	if err != nil {
-		log.Errorf("decoding failed!") // TODO: delete me
+		log.Errorf("decoding task metadata failed - %s", err)
 	}
 	return meta, err
 }
