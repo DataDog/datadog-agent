@@ -9,10 +9,14 @@
 
   <!-- these strings are for the main agent service install -->
   <String Id="ServiceDisplayName">[ProductName]</String>
-  <String Id="ServiceDescription">Send metrics to [CompanyNameShort]</String>
+  <String Id="ServiceDescription">Send metrics to [ShortCompanyName]</String>
   <!-- these strings are for the apm agent service install -->
-  <String Id="ServiceApmDisplayName">[CompanyShortName] Trace Agent</String>
-  <String Id="ServiceApmDescription">Send tracing metrics to [CompanyNameShort]</String>
+  <String Id="ServiceApmDisplayName">[ShortCompanyName] Trace Agent</String>
+  <String Id="ServiceApmDescription">Send tracing metrics to [ShortCompanyName]</String>
+
+  <!-- these strings are for the process agent service install -->
+  <String Id="ServiceProcessDisplayName">[ShortCompanyName] Process Agent</String>
+  <String Id="ServiceProcessDescription">Send process metrics to [ShortCompanyName]</String>
   
 
   <String Id="WelcomeDlgTitle">{\WixUI_Font_Bigger}Welcome to the [ProductName] Setup Wizard</String>
