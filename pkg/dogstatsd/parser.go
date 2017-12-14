@@ -31,6 +31,8 @@ var metricTypes = map[string]metrics.MetricType{
 }
 
 var tagSeparator = []byte(",")
+var fieldSeparator = []byte("|")
+var valueSeparator = []byte(":")
 
 func nextMessage(packet *[]byte) (message []byte) {
 	if len(*packet) == 0 {
@@ -61,6 +63,9 @@ func split2(slice, sep []byte) ([]byte, []byte) {
 
 // parseTags parses `rawTags` and returns a slice of tags and the value of the `host:` tag if found
 func parseTags(rawTags []byte, extractHost bool) ([]string, string) {
+	if len(rawTags) == 0 {
+		return nil, ""
+	}
 	var host string
 	tagsList := make([]string, 0, bytes.Count(rawTags, tagSeparator)+1)
 	remainder := rawTags
@@ -123,7 +128,7 @@ func parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("h:")) {
 				service.Host = string(rawMetadataFields[i][2:])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
-				service.Tags, _ = parseTags(rawMetadataFields[i], false)
+				service.Tags, _ = parseTags(rawMetadataFields[i][1:], false)
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("m:")) {
 				service.Message = string(rawMetadataFields[i][2:])
 			} else {
@@ -219,7 +224,7 @@ func parseEventMessage(message []byte) (*metrics.Event, error) {
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("s:")) {
 				event.SourceTypeName = string(rawMetadataFields[i][2:])
 			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
-				event.Tags, _ = parseTags(rawMetadataFields[i], false)
+				event.Tags, _ = parseTags(rawMetadataFields[i][1:], false)
 			} else {
 				log.Warnf("unknown metadata type: '%s'", rawMetadataFields[i])
 			}
@@ -233,20 +238,20 @@ func parseMetricMessage(message []byte) (*metrics.MetricSample, error) {
 	// daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2
 	// daemon:666|g|@0.1|#sometag:somevalue"
 
-	splitMessage := bytes.Split(message, []byte("|"))
-
-	if len(splitMessage) < 2 || len(splitMessage) > 4 {
+	separatorCount := bytes.Count(message, fieldSeparator)
+	if separatorCount < 1 || separatorCount > 3 {
 		return nil, fmt.Errorf("invalid field number for %q", message)
 	}
 
 	// Extract name, value and type
-	rawNameAndValue := bytes.Split(splitMessage[0], []byte(":"))
+	rawNameAndValue, remainder := split2(message, fieldSeparator)
+	rawName, rawValue := split2(rawNameAndValue, valueSeparator)
 
-	if len(rawNameAndValue) != 2 {
+	if rawValue == nil {
 		return nil, fmt.Errorf("invalid field format for %q", message)
 	}
 
-	rawName, rawValue, rawType := rawNameAndValue[0], rawNameAndValue[1], splitMessage[1]
+	rawType, remainder := split2(remainder, fieldSeparator)
 	if len(rawName) == 0 || len(rawValue) == 0 || len(rawType) == 0 {
 		return nil, fmt.Errorf("invalid metric message format: empty 'name', 'value' or 'text' field")
 	}
@@ -254,37 +259,33 @@ func parseMetricMessage(message []byte) (*metrics.MetricSample, error) {
 	// Metadata
 	var metricTags []string
 	var host string
-	rawSampleRate := []byte("1")
-	if len(splitMessage) > 2 {
-		rawMetadataFields := splitMessage[2:]
+	var rawMetadataField []byte
+	sampleRate := 1.0
 
-		for i := range rawMetadataFields {
-			if len(rawMetadataFields[i]) < 2 {
-				continue
-			}
+	for {
+		rawMetadataField, remainder = split2(remainder, fieldSeparator)
 
-			if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
-				metricTags, host = parseTags(rawMetadataFields[i], true)
-			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("@")) {
-				rawSampleRate = rawMetadataFields[i][1:]
-			} else {
-				log.Warnf("unknown metadata type: %q", rawMetadataFields[i])
+		if bytes.HasPrefix(rawMetadataField, []byte("#")) {
+			metricTags, host = parseTags(rawMetadataField[1:], true)
+		} else if bytes.HasPrefix(rawMetadataField, []byte("@")) {
+			rawSampleRate := rawMetadataField[1:]
+			var err error
+			sampleRate, err = strconv.ParseFloat(string(rawSampleRate), 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid sample value for %q", message)
 			}
+		}
+
+		if remainder == nil {
+			break
 		}
 	}
 
-	// Casting
 	metricName := string(rawName)
 
-	var metricType metrics.MetricType
-	var ok bool
-	if metricType, ok = metricTypes[string(rawType)]; !ok {
+	metricType, ok := metricTypes[string(rawType)]
+	if !ok {
 		return nil, fmt.Errorf("invalid metric type for %q", message)
-	}
-
-	metricSampleRate, err := strconv.ParseFloat(string(rawSampleRate), 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid sample value for %q", message)
 	}
 
 	sample := &metrics.MetricSample{
@@ -292,7 +293,7 @@ func parseMetricMessage(message []byte) (*metrics.MetricSample, error) {
 		Mtype:      metricType,
 		Tags:       metricTags,
 		Host:       host,
-		SampleRate: metricSampleRate,
+		SampleRate: sampleRate,
 		Timestamp:  0,
 	}
 
