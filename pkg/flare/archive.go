@@ -83,6 +83,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		return "", err
 	}
 
+	err = zipTroubleshoot(zipFile, hostname)
+	if err != nil {
+		return "", err
+	}
+
 	if config.IsContainerized() {
 		err = zipDockerSelfInspect(zipFile, hostname)
 		if err != nil {
@@ -126,6 +131,15 @@ func zipLogFiles(zipFile *archivex.ZipFile, hostname, logFilePath string) error 
 	})
 
 	return err
+}
+
+func zipTroubleshoot(zipFile *archivex.ZipFile, hostname string) error {
+	err := zipFile.Add(filepath.Join(hostname, "troubleshoot", "test"), []byte("Hello Flare 2k"))
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func zipExpVar(zipFile *archivex.ZipFile, hostname string) error {
