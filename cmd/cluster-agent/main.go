@@ -70,6 +70,8 @@ func init() {
 
 	// local flags
 	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to datadog.yaml")
+	custommetrics.AddFlags(startCmd.Flags())
+
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath"))
 }
 
@@ -120,7 +122,12 @@ func start(cmd *cobra.Command, args []string) error {
 	 }
 
 	// Start the k8s custom metrics server
-	custommetrics.StartServer()
+	err = custommetrics.ValidateArgs(args)
+	if err != nil {
+		log.Error("Couldn't validate args for k8s custom metrics server, not starting it: ", err)
+	} else {
+		custommetrics.StartServer()
+	}
 
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()

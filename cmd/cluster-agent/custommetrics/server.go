@@ -4,15 +4,31 @@ import (
 	"os"
 
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/cmd/server"
+	"github.com/spf13/pflag"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 )
 
+var options *server.CustomMetricsAdapterServerOptions
 var stopCh chan struct{}
+
+func init() {
+	options = server.NewCustomMetricsAdapterServerOptions(os.Stdout, os.Stdout) // FIXME: log to seelog
+}
+
+func AddFlags(fs *pflag.FlagSet) {
+	options.SecureServing.AddFlags(fs)
+	options.Authentication.AddFlags(fs)
+	options.Authorization.AddFlags(fs)
+	options.Features.AddFlags(fs)
+}
+
+func ValidateArgs(args []string) error {
+	return options.Validate(args)
+}
 
 // StartServer creates and start a k8s custom metrics API server
 func StartServer() error {
-	options := server.NewCustomMetricsAdapterServerOptions(os.Stdout, os.Stdout) // FIXME: log to seelog
 	config, err := options.Config()
 	if err != nil {
 		return err
