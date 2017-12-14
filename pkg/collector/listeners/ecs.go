@@ -9,22 +9,14 @@ package listeners
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	log "github.com/cihub/seelog"
 )
-
-// ignore these container labels as we already have them in task metadata
-var labelBlackList = map[string]interface{}{
-	"com.amazonaws.ecs.cluster":                 nil,
-	"com.amazonaws.ecs.container-name":          nil,
-	"com.amazonaws.ecs.task-arn":                nil,
-	"com.amazonaws.ecs.task-definition-family":  nil,
-	"com.amazonaws.ecs.task-definition-version": nil,
-}
 
 // ECSListener implements the ServiceListener interface for fargate-backed ECS cluster.
 // It pulls its tasks container list periodically and checks for
@@ -98,7 +90,7 @@ func (l *ECSListener) refreshServices() {
 		log.Errorf("failed to get task metadata, not refreshing services - %s", err)
 		return
 	} else if meta.KnownStatus != "RUNNING" {
-		log.Errorf("task %s is not in RUNNING state yet, not refreshing services", meta.Family)
+		log.Debugf("task %s is not in RUNNING state yet, not refreshing services", meta.Family)
 	}
 	l.task = meta
 
@@ -120,10 +112,9 @@ func (l *ECSListener) refreshServices() {
 					delete(notSeen, c.DockerID)
 				}
 			} else {
-				log.Errorf("container %s is in status %s - skipping", c.DockerID, c.KnownStatus) // TODO: remove or move to debug
+				log.Debugf("container %s is in status %s - skipping", c.DockerID, c.KnownStatus)
 			}
 		} else {
-			log.Errorf("already know container %s, skipping", c.DockerID) // TODO: delete me
 			delete(notSeen, c.DockerID)
 		}
 	}
@@ -144,23 +135,23 @@ func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
 	}
 	_, err := svc.GetADIdentifiers()
 	if err != nil {
-		log.Errorf("Failed to extract info for container %s - %s", cID[:12], err)
+		log.Errorf("Failed to extract identifiers for container %s - %s", cID[:12], err)
 	}
 	_, err = svc.GetHosts()
 	if err != nil {
-		log.Errorf("Failed to extract info for container %s - %s", cID[:12], err)
+		log.Errorf("Failed to extract IP for container %s - %s", cID[:12], err)
 	}
-	_, err = svc.GetPorts()
-	if err != nil {
-		log.Errorf("Failed to extract info for container %s - %s", cID[:12], err)
-	}
-	_, err = svc.GetPid()
-	if err != nil {
-		log.Errorf("Failed to extract info for container %s - %s", cID[:12], err)
-	}
+	// _, err = svc.GetPorts()
+	// if err != nil {
+	// 	log.Errorf("Failed to extract ports for container %s - %s", cID[:12], err)
+	// }
+	// _, err = svc.GetPid()
+	// if err != nil {
+	// 	log.Errorf("Failed to extract pid for container %s - %s", cID[:12], err)
+	// }
 	_, err = svc.GetTags()
 	if err != nil {
-		log.Errorf("Failed to extract info for container %s - %s", cID[:12], err)
+		log.Errorf("Failed to extract tags for container %s - %s", cID[:12], err)
 	}
 	return svc, err
 }
@@ -212,60 +203,30 @@ func (s *ECSService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the container's ports
-// TODO: not supported yet, this is a place holder
+// TODO: not supported as ports are not in the metadata api
 func (s *ECSService) GetPorts() ([]int, error) {
-	if s.Ports == nil {
-		ports := make([]int, 0)
-		s.Ports = ports
-	}
+	return nil, fmt.Errorf("template variable 'port' is not supported on ECS")
+	// if s.Ports == nil {
+	// 	ports := make([]int, 0)
+	// 	s.Ports = ports
+	// }
 
-	return s.Ports, nil
+	// return s.Ports, nil
 }
 
 // GetTags retrieves a container's tags
-// TODO: move it to tagger
 func (s *ECSService) GetTags() ([]string, error) {
-	if len(s.Tags) > 0 {
-		return s.Tags, nil
-	}
-	var tags []string
-
-	// cluster
-	tags = append(tags, fmt.Sprintf("ecs_cluster_name:%s", s.clusterName))
-
-	// task
-	tags = append(tags, fmt.Sprintf("ecs_task_family:%s", s.taskFamily))
-	tags = append(tags, fmt.Sprintf("ecs_task_version:%s", s.taskVersion))
-
-	// container
-	tags = append(tags, fmt.Sprintf("ecs_container_name:%s", s.ecsContainer.Name))
-	tags = append(tags, fmt.Sprintf("docker_container_name::%s", s.ecsContainer.DockerName))
-
-	// container image
-	image := s.ecsContainer.Image
-	tags = append(tags, fmt.Sprintf("docker_image:%s", image))
-	imageSplit := strings.Split(image, ":")
-	imageName := strings.Join(imageSplit[:len(imageSplit)-1], ":")
-	tags = append(tags, fmt.Sprintf("imageName:%s", imageName))
-	if len(imageSplit) > 1 {
-		imageTag := imageSplit[len(imageSplit)-1]
-		tags = append(tags, fmt.Sprintf("image_tag:%s", imageTag))
+	entity := docker.ContainerIDToEntityName(string(s.ecsContainer.DockerID))
+	tags, err := tagger.Tag(entity, false)
+	if err != nil {
+		return []string{}, err
 	}
 
-	// container labels
-	for k, v := range s.ecsContainer.Labels {
-		if _, found := labelBlackList[k]; !found {
-			tags = append(tags, fmt.Sprintf("%s:%s", k, v))
-		}
-	}
-
-	s.Tags = tags
 	return tags, nil
 }
 
-// GetPid inspect the container an return its pid
+// GetPid inspect the container and return its pid
+// TODO: not supported as pid is not in the metadata api
 func (s *ECSService) GetPid() (int, error) {
-	// TODO: not available in the metadata api yet
-	s.Pid = 2
-	return 2, nil
+	return -1, fmt.Errorf("template variable 'pid' is not supported on ECS")
 }
