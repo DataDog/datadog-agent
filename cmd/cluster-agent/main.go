@@ -18,6 +18,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -89,6 +90,7 @@ func start(cmd *cobra.Command, args []string) error {
 		config.Datadog.GetBool("syslog_rfc"),
 		config.Datadog.GetBool("syslog_tls"),
 		config.Datadog.GetString("syslog_pem"),
+		config.Datadog.GetBool("log_to_console"),
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
@@ -115,6 +117,9 @@ func start(cmd *cobra.Command, args []string) error {
 	// if err = api.StartServer(); err != nil {
 	// 	return log.Errorf("Error while starting api server, exiting: %v", err)
 	// }
+
+	// Start the k8s custom metrics server
+	custommetrics.StartServer()
 
 	// setup the forwarder
 	keysPerDomain, err := config.GetMultipleEndpoints()

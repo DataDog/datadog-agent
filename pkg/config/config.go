@@ -134,6 +134,9 @@ func init() {
 	// Kubernetes
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
+	Datadog.SetDefault("kubernetes_pod_label_to_tag_prefix", "kube_")
+	Datadog.SetDefault("kubernetes_http_custom_metrics_port", 6443)
+
 	// ECS
 	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
 
@@ -173,6 +176,8 @@ func init() {
 	Datadog.BindEnv("kubernetes_kubelet_host")
 	Datadog.BindEnv("kubernetes_http_kubelet_port")
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
+	Datadog.BindEnv("kubernetes_pod_label_to_tag_prefix")
+	Datadog.BindEnv("kubernetes_http_custom_metrics_port")
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
 	Datadog.BindEnv("cloud_foundry")
