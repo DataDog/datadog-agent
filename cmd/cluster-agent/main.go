@@ -168,6 +168,7 @@ func start(cmd *cobra.Command, args []string) error {
 	if metaScheduler != nil {
 		metaScheduler.Stop()
 	}
+	custommetrics.StopServer()
 	clusterAgent.Stop()
 	log.Info("See ya!")
 	log.Flush()

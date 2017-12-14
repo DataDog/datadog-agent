@@ -30,7 +30,7 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False)
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent/"
     args = {
         "race_opt": "-race" if race else "",
-        "build_type": "-a" if rebuild else "",
+        "build_type": "-a" if rebuild else "-i",
         "build_tags": " ".join(build_tags),
         "bin_name": os.path.join(BIN_PATH, bin_name("cluster-agent")),
         "gcflags": gcflags,
