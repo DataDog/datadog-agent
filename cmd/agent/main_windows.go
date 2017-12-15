@@ -47,6 +47,7 @@ func setupLogger(logLevel string) error {
 }
 
 func main() {
+	common.EnableLoggingToFile()
 	// if command line arguments are supplied, even in a non interactive session,
 	// then just execute that.  Used when the service is executing the executable,
 	// for instance to trigger a restart.

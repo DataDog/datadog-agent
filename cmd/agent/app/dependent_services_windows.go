@@ -37,7 +37,7 @@ var subservices = []Servicedef{
 	{
 	name:        "process",
 	configKey:   "process_agent_enabled",
-	serviceName: "datadog-trace-agent",
+	serviceName: "datadog-process-agent",
 	serviceInit: processInit,
 }}
 
