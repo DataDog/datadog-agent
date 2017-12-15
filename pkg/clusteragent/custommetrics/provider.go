@@ -2,6 +2,7 @@ package custommetrics
 
 import (
 	"fmt"
+	"io/ioutil"
 	"time"
 
 	apierr "k8s.io/apimachinery/pkg/api/errors"
@@ -17,16 +18,36 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	//"github.com/golang/glog"
 	"github.com/cihub/seelog"
+	"gopkg.in/yaml.v2"
 )
 
 type datadogProvider struct {
 	client dynamic.ClientPool
 }
 
+type configuredValue struct {
+	Value int64 `yaml:"value"`
+}
+
 func NewDatadogProvider(client dynamic.ClientPool) provider.CustomMetricsProvider {
 	return &datadogProvider{
 		client: client,
 	}
+}
+
+func (p *datadogProvider) getValue() (int64, error) {
+	fileContents, err := ioutil.ReadFile("/opt/datadog-agent/dev/dist/value.yaml")
+	if err != nil {
+		return 0, fmt.Errorf("error reading value file at /opt/datadog-agent/dev/dist/value.yaml: %s", err)
+	}
+	decodedContents := configuredValue{}
+	err = yaml.Unmarshal(fileContents, &decodedContents)
+	if err != nil {
+		return 0, fmt.Errorf("error unmarshalling value file: %s", err)
+	}
+	value := decodedContents.Value
+
+	return value, nil
 }
 
 func (p *datadogProvider) metricFor(value int64, groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
@@ -65,7 +86,7 @@ func (p *datadogProvider) metricsFor(totalValue int64, groupResource schema.Grou
 	}
 
 	for i := range res {
-		res[i].Value = *resource.NewMilliQuantity(100*totalValue/int64(len(res)), resource.DecimalSI)
+		res[i].Value = *resource.NewQuantity(totalValue, resource.DecimalSI)
 	}
 
 	return &custom_metrics.MetricValueList{
@@ -107,10 +128,21 @@ func (p *datadogProvider) GetRootScopedMetricBySelector(groupResource schema.Gro
 }
 
 func (p *datadogProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	return p.metricFor(10, groupResource, namespace, name, metricName)
+	value, err := p.getValue()
+	if err != nil {
+		seelog.Warn("Could not read value from file, defaulting to 130: ", err)
+		value = 130
+	}
+	return p.metricFor(value, groupResource, namespace, name, metricName)
 }
 
 func (p *datadogProvider) GetNamespacedMetricBySelector(groupResource schema.GroupResource, namespace string, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
+	value, err := p.getValue()
+	if err != nil {
+		seelog.Warn("Could not read value from file, defaulting to 130: ", err)
+		value = 130
+	}
+
 	// construct a client to list the names of objects matching the label selector
 	client, err := p.client.ClientForGroupVersionResource(groupResource.WithVersion(""))
 	if err != nil {
@@ -137,7 +169,7 @@ func (p *datadogProvider) GetNamespacedMetricBySelector(groupResource schema.Gro
 	}
 
 	seelog.Warnf("in NamespacedBySelector. goupResour e is %v namespace is %v: , selctor is %v, metricName is %v", groupResource, namespace, selector, metricName)
-	return p.metricsFor(130, groupResource, metricName, matchingObjectsRaw)
+	return p.metricsFor(value, groupResource, metricName, matchingObjectsRaw)
 }
 
 func (p *datadogProvider) ListAllMetrics() []provider.MetricInfo {
