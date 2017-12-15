@@ -52,6 +52,7 @@ func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
 
 // Run a troubleshoot Python function
 func (c *PythonCheck) Troubleshoot() error {
+	fmt.Printf("In troubleshoot function \n")
 	// Lock the GIL and release it at the end of the run
 	gstate := newStickyLock()
 	defer gstate.unlock()
@@ -61,7 +62,7 @@ func (c *PythonCheck) Troubleshoot() error {
 	emptyTuple := python.PyTuple_New(0)
 	defer emptyTuple.DecRef()
 	result := c.instance.CallMethod("troubleshoot", emptyTuple)
-	log.Infof("Ran troubleshoot check ", c.ModuleName, c.id)
+	log.Infof("Ran troubleshoot check %s %s", c.ModuleName, c.id)
 	if result == nil {
 		pyErr, err := gstate.getPythonError()
 		if err != nil {
