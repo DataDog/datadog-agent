@@ -751,6 +751,12 @@ func (c *SNMPCheck) Run() error {
 	return nil
 }
 
+// Run the troubleshooting portion of the SNMP Check
+// [TODO] Reports nothing currently
+func (c *SNMPCheck) Troubleshoot() error {
+	return nil
+}
+
 // GetWarnings grabs the last warnings from the sender
 func (c *SNMPCheck) GetWarnings() []error {
 	w := c.lastWarnings
