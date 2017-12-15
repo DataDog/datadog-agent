@@ -100,8 +100,8 @@ var trshootCmd = &cobra.Command{
 
 			//getTroubleshootMetrics(agg)
 
-			checkStatus, _ := status.GetCheckStatus(c, s)
-			fmt.Println(string(checkStatus))
+			// checkStatus, _ := status.GetCheckStatus(c, s)
+			// fmt.Println(string(checkStatus))
 		}
 
 		return nil
