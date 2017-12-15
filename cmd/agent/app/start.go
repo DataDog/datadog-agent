@@ -42,6 +42,7 @@ import (
 	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 	_ "github.com/DataDog/datadog-agent/pkg/metadata"
+	"github.com/DataDog/datadog-agent/pkg/lifecycle"
 )
 
 var (
@@ -147,9 +148,11 @@ func StartAgent() error {
 
 	log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 
+	lifecycle.RecordHealthPath()
+
 	// Setup expvar server
-	var port = config.Datadog.GetString("expvar_port")
-	go http.ListenAndServe("127.0.0.1:"+port, http.DefaultServeMux)
+	var httpBind = fmt.Sprintf("127.0.0.1:%s", config.Datadog.GetString("expvar_port"))
+	go http.ListenAndServe(httpBind, http.DefaultServeMux)
 
 	if pidfilePath != "" {
 		err = pidfile.WritePID(pidfilePath)

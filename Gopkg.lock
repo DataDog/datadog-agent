@@ -67,6 +67,18 @@
   version = "v3.1.10"
 
 [[projects]]
+  name = "github.com/coreos/go-systemd"
+  packages = ["daemon","util"]
+  revision = "d2196463941895ee908e13531a23a39feb9e1243"
+  version = "v15"
+
+[[projects]]
+  name = "github.com/coreos/pkg"
+  packages = ["dlopen"]
+  revision = "3ac0863d7acf3bc44daf49afef8919af12f704ef"
+  version = "v3"
+
+[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "6d212800a42e8ab5c146b8ace3490ee17e5225f9"
@@ -401,6 +413,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d4f29aad1567ef7834793cec163267bd4d9a5a7009784ff2c5844cec8171b16c"
+  inputs-digest = "f168e929dacda51a47767c596f59c64abddf820e5f1b625c8a05b1bbebfbe158"
   solver-name = "gps-cdcl"
   solver-version = 1

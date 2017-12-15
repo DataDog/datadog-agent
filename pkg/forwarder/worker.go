@@ -14,6 +14,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/lifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
@@ -32,6 +33,8 @@ type Worker struct {
 
 	stopChan    chan bool
 	blockedList *blockedEndpoints
+
+	life *lifecycle.Lifecycle
 }
 
 // NewWorker returns a new worker to consume Transaction from inputChan
@@ -51,6 +54,7 @@ func NewWorker(highPrioChan <-chan Transaction, lowPrioChan <-chan Transaction, 
 		stopChan:    make(chan bool),
 		Client:      httpClient,
 		blockedList: blocked,
+		life:        lifecycle.GetLifecycle(),
 	}
 }
 
@@ -135,5 +139,6 @@ func (w *Worker) process(ctx context.Context, t Transaction) {
 		log.Errorf("Error while processing transaction: %v", err)
 	} else {
 		w.blockedList.unblock(target)
+		w.life.RefreshHealthStatus()
 	}
 }
