@@ -6,7 +6,7 @@
 package app
 
 import (
-	"encoding/json"
+	//"encoding/json"
 	"fmt"
 	"time"
 
@@ -98,7 +98,7 @@ var trshootCmd = &cobra.Command{
 			// Without a small delay some of the metrics will not show up
 			time.Sleep(time.Duration(trshootDelay) * time.Millisecond)
 
-			getTroubleshootMetrics(agg)
+			//getTroubleshootMetrics(agg)
 
 			checkStatus, _ := status.GetCheckStatus(c, s)
 			fmt.Println(string(checkStatus))
@@ -117,8 +117,8 @@ func runTroubleshoot(c check.Check, agg *aggregator.BufferedAggregator) *check.S
 	}
 	for i < times {
 		t0 := time.Now()
-		err := c.Run()
-		err = c.Troubleshoot()
+		//err := c.Run()
+		err := c.Troubleshoot()
 		warnings := c.GetWarnings()
 		mStats, _ := c.GetMetricStats()
 		s.Add(time.Since(t0), err, warnings, mStats)
@@ -128,32 +128,32 @@ func runTroubleshoot(c check.Check, agg *aggregator.BufferedAggregator) *check.S
 	return s
 }
 
-func getTroubleshootMetrics(agg *aggregator.BufferedAggregator) {
-	series := agg.GetSeries()
-	if len(series) != 0 {
-		fmt.Println("Series: ")
-		j, _ := json.MarshalIndent(series, "", "  ")
-		fmt.Println(string(j))
-	}
+// func getTroubleshootMetrics(agg *aggregator.BufferedAggregator) {
+// 	series := agg.GetSeries()
+// 	if len(series) != 0 {
+// 		fmt.Println("Series: ")
+// 		j, _ := json.MarshalIndent(series, "", "  ")
+// 		fmt.Println(string(j))
+// 	}
 
-	sketches := agg.GetSketches()
-	if len(sketches) != 0 {
-		fmt.Println("Sketches: ")
-		j, _ := json.MarshalIndent(sketches, "", "  ")
-		fmt.Println(string(j))
-	}
+// 	sketches := agg.GetSketches()
+// 	if len(sketches) != 0 {
+// 		fmt.Println("Sketches: ")
+// 		j, _ := json.MarshalIndent(sketches, "", "  ")
+// 		fmt.Println(string(j))
+// 	}
 
-	serviceChecks := agg.GetServiceChecks()
-	if len(serviceChecks) != 0 {
-		fmt.Println("Service Checks: ")
-		j, _ := json.MarshalIndent(serviceChecks, "", "  ")
-		fmt.Println(string(j))
-	}
+// 	serviceChecks := agg.GetServiceChecks()
+// 	if len(serviceChecks) != 0 {
+// 		fmt.Println("Service Checks: ")
+// 		j, _ := json.MarshalIndent(serviceChecks, "", "  ")
+// 		fmt.Println(string(j))
+// 	}
 
-	events := agg.GetEvents()
-	if len(events) != 0 {
-		fmt.Println("Events: ")
-		j, _ := json.MarshalIndent(events, "", "  ")
-		fmt.Println(string(j))
-	}
-}
+// 	events := agg.GetEvents()
+// 	if len(events) != 0 {
+// 		fmt.Println("Events: ")
+// 		j, _ := json.MarshalIndent(events, "", "  ")
+// 		fmt.Println(string(j))
+// 	}
+// }
