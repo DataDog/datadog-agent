@@ -88,10 +88,6 @@ func (c *PythonCheck) Run() error {
 	emptyTuple := python.PyTuple_New(0)
 	defer emptyTuple.DecRef()
 	result := c.instance.CallMethod("run", emptyTuple)
-	tr_result := c.instance.CallMethod("troubleshoot", emptyTuple)
-	//result := c.instance.CallMethod("troubleshoot", emptyTuple)
-	log.Infof("Running the python q : type is %s \n",reflect.TypeOf(result))
-	log.Infof(python.PyString_AsString(tr_result))
 	log.Debugf("Run returned for %s %s", c.ModuleName, c.id)
 	if result == nil {
 		pyErr, err := gstate.getPythonError()
@@ -101,7 +97,6 @@ func (c *PythonCheck) Run() error {
 		return errors.New(pyErr)
 	}
 	defer result.DecRef()
-	//defer tr_result.DecRef()
 
 	s, err := aggregator.GetSender(c.ID())
 	if err != nil {
