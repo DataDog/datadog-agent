@@ -9,19 +9,23 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/metrics/pkg/apis/custom_metrics"
 	//apierr "k8s.io/apimachinery/pkg/api/errors"
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"github.com/kubernetes-incubator/custom-metrics-apiserver/pkg/provider"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	//"github.com/golang/glog"
 	"github.com/cihub/seelog"
 )
 
-type datadogProvider struct{
+type datadogProvider struct {
+	client dynamic.ClientPool
 }
 
-func NewDatadogProvider() provider.CustomMetricsProvider {
-	return &datadogProvider{}
+func NewDatadogProvider(client dynamic.ClientPool) provider.CustomMetricsProvider {
+	return &datadogProvider{
+		client: client,
+	}
 }
 
 func (p *datadogProvider) metricFor(value int64, groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
@@ -108,29 +112,29 @@ func (p *datadogProvider) GetNamespacedMetricByName(groupResource schema.GroupRe
 
 func (p *datadogProvider) GetNamespacedMetricBySelector(groupResource schema.GroupResource, namespace string, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
 	// construct a client to list the names of objects matching the label selector
-/*	client, err := p.client.ClientForGroupVersionResource(groupResource.WithVersion(""))
-	if err != nil {
-		glog.Errorf("unable to construct dynamic client to list matching resource names: %v", err)
-		// don't leak implementation details to the user
-		return nil, apierr.NewInternalError(fmt.Errorf("unable to list matching resources"))
-	}*/
+	/*	client, err := p.client.ClientForGroupVersionResource(groupResource.WithVersion(""))
+		if err != nil {
+			glog.Errorf("unable to construct dynamic client to list matching resource names: %v", err)
+			// don't leak implementation details to the user
+			return nil, apierr.NewInternalError(fmt.Errorf("unable to list matching resources"))
+		}*/
 
 	//totalValue, err := p.valueFor(groupResource, metricName, true)
-/*	if err != nil {
+	/*	if err != nil {
 		return nil, err
 	}*/
 
 	// we can construct a this APIResource ourself, since the dynamic client only uses Name and Namespaced
-/*	apiRes := &metav1.APIResource{
-		Name:       groupResource.Resource,
-		Namespaced: true,
-	}
+	/*	apiRes := &metav1.APIResource{
+			Name:       groupResource.Resource,
+			Namespaced: true,
+		}
 
-	// matchingObjectsRaw, err := client.Resource(apiRes, namespace).
-	List(metav1.ListOptions{LabelSelector: selector.String()})
-	if err != nil {
-		return nil, err
-	}*/
+		// matchingObjectsRaw, err := client.Resource(apiRes, namespace).
+		List(metav1.ListOptions{LabelSelector: selector.String()})
+		if err != nil {
+			return nil, err
+		}*/
 
 	seelog.Warnf("in NamespacedBySelector. goupResour e is %v namespace is %v: , selctor is %v, metricName is %v", groupResource, namespace, selector, metricName)
 	return p.metricsFor(130, groupResource, metricName, nil)
