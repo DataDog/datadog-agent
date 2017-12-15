@@ -219,7 +219,7 @@ build_windows_msi_x64:
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv -e deps
   stage: package_build
-  tags: ["runner:windows"]
+  tags: ["runner:windows-agent6"]
   script:
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv agent.omnibus-build
