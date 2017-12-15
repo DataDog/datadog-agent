@@ -88,13 +88,12 @@ func parseTags(rawTags []byte, extractHost bool) ([]string, string) {
 func parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
 	// _sc|name|status|[metadata|...]
 
-	splitPacket := bytes.Split(message, []byte("|"))
-
-	if len(splitPacket) < 3 {
-		return nil, fmt.Errorf("Invalid message format")
+	separatorCount := bytes.Count(message, fieldSeparator)
+	if separatorCount < 2 {
+		return nil, fmt.Errorf("invalid field number for %q", message)
 	}
-
-	rawName, rawStatus := splitPacket[1], splitPacket[2]
+	rawName, remainder := split2(message[4:], fieldSeparator)
+	rawStatus, remainder := split2(remainder, fieldSeparator)
 
 	if len(rawName) == 0 || len(rawStatus) == 0 {
 		return nil, fmt.Errorf("Invalid ServiceCheck message format: empty 'name' or 'status' field")
@@ -113,26 +112,28 @@ func parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
 	}
 
 	// Metadata
-	if len(splitPacket) > 3 {
-		rawMetadataFields := splitPacket[3:]
+	for {
+		var rawMetadataField []byte
+		rawMetadataField, remainder = split2(remainder, fieldSeparator)
+		if rawMetadataField == nil {
+			break
+		}
 
-		for i := range rawMetadataFields {
-			if bytes.HasPrefix(rawMetadataFields[i], []byte("d:")) {
-				ts, err := strconv.ParseInt(string(rawMetadataFields[i][2:]), 10, 64)
-				if err != nil {
-					log.Warnf("skipping timestamp: %s", err)
-					continue
-				}
-				service.Ts = ts
-			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("h:")) {
-				service.Host = string(rawMetadataFields[i][2:])
-			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("#")) {
-				service.Tags, _ = parseTags(rawMetadataFields[i][1:], false)
-			} else if bytes.HasPrefix(rawMetadataFields[i], []byte("m:")) {
-				service.Message = string(rawMetadataFields[i][2:])
-			} else {
-				log.Warnf("unknown metadata type: '%s'", rawMetadataFields[i])
+		if bytes.HasPrefix(rawMetadataField, []byte("d:")) {
+			ts, err := strconv.ParseInt(string(rawMetadataField[2:]), 10, 64)
+			if err != nil {
+				log.Warnf("skipping timestamp: %s", err)
+				continue
 			}
+			service.Ts = ts
+		} else if bytes.HasPrefix(rawMetadataField, []byte("h:")) {
+			service.Host = string(rawMetadataField[2:])
+		} else if bytes.HasPrefix(rawMetadataField, []byte("#")) {
+			service.Tags, _ = parseTags(rawMetadataField[1:], false)
+		} else if bytes.HasPrefix(rawMetadataField, []byte("m:")) {
+			service.Message = string(rawMetadataField[2:])
+		} else {
+			log.Warnf("unknown metadata type: '%s'", rawMetadataField)
 		}
 	}
 
