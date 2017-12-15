@@ -31,7 +31,7 @@ func init() {
 }
 
 var flareCmd = &cobra.Command{
-	Use:   "flare [caseID]",
+	Use:   "flare [command] [caseID]",
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
 	PreRun: func(cmd *cobra.Command, args []string) {
@@ -60,8 +60,6 @@ func troubleshootingFlare(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
 				caseID = args[0]			
 		}
-		fmt.Printf("troubleshooting is:")
-		fmt.Println(troubleshooting)
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
 		config.SetupLogger("off", "", "", false, false, "", true)
 		if customerEmail == "" {
