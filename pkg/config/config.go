@@ -64,6 +64,7 @@ func init() {
 	// Configuration defaults
 	// Agent
 	Datadog.SetDefault("dd_url", "https://app.datadoghq.com")
+	Datadog.SetDefault("app_key", "")
 	Datadog.SetDefault("proxy", nil)
 	Datadog.SetDefault("skip_ssl_validation", false)
 	Datadog.SetDefault("hostname", "")
@@ -158,6 +159,7 @@ func init() {
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
+	Datadog.BindEnv("app_key")
 	Datadog.BindEnv("hostname")
 	Datadog.BindEnv("cmd_port")
 	Datadog.BindEnv("conf_path")

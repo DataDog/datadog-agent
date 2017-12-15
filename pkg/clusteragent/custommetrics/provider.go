@@ -25,8 +25,13 @@ type datadogProvider struct {
 	client dynamic.ClientPool
 }
 
-type configuredValue struct {
-	Value int64 `yaml:"value"`
+type config struct {
+	Metrics []configuredMetric `yaml:"metrics"`
+}
+
+type configuredMetric struct {
+	Name  string `yaml:"name,omitempty"`
+	Value int64  `yaml:"value,omitempty"`
 }
 
 func NewDatadogProvider(client dynamic.ClientPool) provider.CustomMetricsProvider {
@@ -35,19 +40,57 @@ func NewDatadogProvider(client dynamic.ClientPool) provider.CustomMetricsProvide
 	}
 }
 
-func (p *datadogProvider) getValue() (int64, error) {
-	fileContents, err := ioutil.ReadFile("/opt/datadog-agent/dev/dist/value.yaml")
+func (p *datadogProvider) getValueFromFile(metricName string) (int64, error) {
+	fileContents, err := ioutil.ReadFile("/opt/datadog-agent/dev/dist/metrics.yaml")
 	if err != nil {
-		return 0, fmt.Errorf("error reading value file at /opt/datadog-agent/dev/dist/value.yaml: %s", err)
+		return 0, fmt.Errorf("error reading metrics file at /opt/datadog-agent/dev/dist/metrics.yaml: %s", err)
 	}
-	decodedContents := configuredValue{}
-	err = yaml.Unmarshal(fileContents, &decodedContents)
+	unmarshalledConfig := config{}
+	err = yaml.Unmarshal(fileContents, &unmarshalledConfig)
 	if err != nil {
-		return 0, fmt.Errorf("error unmarshalling value file: %s", err)
+		return 0, fmt.Errorf("error unmarshalling metrics file: %s", err)
 	}
-	value := decodedContents.Value
+	for _, metric := range unmarshalledConfig.Metrics {
+		if metric.Name == metricName {
+			return metric.Value, nil
+		}
+	}
+
+	return 0, fmt.Errorf("Could not find metric name %s in conf file: %s", metricName, err)
+}
+
+func (p *datadogProvider) getValue(metricName string) (int64, error) {
+	value, err := p.getValueFromFile(metricName)
+	if err != nil {
+		seelog.Info("Metric %s value is not in file, querying API", metricName)
+
+		var err error
+		value, err = queryDatadog(metricName)
+		if err != nil {
+			return 0, err
+		}
+	}
 
 	return value, nil
+}
+
+func (p *datadogProvider) getMetricNames() ([]string, error) {
+	metricNames := []string{}
+
+	fileContents, err := ioutil.ReadFile("/opt/datadog-agent/dev/dist/metrics.yaml")
+	if err != nil {
+		return nil, fmt.Errorf("error reading metrics file at /opt/datadog-agent/dev/dist/metrics.yaml: %s", err)
+	}
+	unmarshalledConfig := config{}
+	err = yaml.Unmarshal(fileContents, &unmarshalledConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling metrics file: %s", err)
+	}
+
+	for _, metric := range unmarshalledConfig.Metrics {
+		metricNames = append(metricNames, metric.Name)
+	}
+	return metricNames, nil
 }
 
 func (p *datadogProvider) metricFor(value int64, groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
@@ -128,18 +171,18 @@ func (p *datadogProvider) GetRootScopedMetricBySelector(groupResource schema.Gro
 }
 
 func (p *datadogProvider) GetNamespacedMetricByName(groupResource schema.GroupResource, namespace string, name string, metricName string) (*custom_metrics.MetricValue, error) {
-	value, err := p.getValue()
+	value, err := p.getValue(metricName)
 	if err != nil {
-		seelog.Warn("Could not read value from file, defaulting to 130: ", err)
+		seelog.Warn("Could not get metric value, defaulting to 130: ", err)
 		value = 130
 	}
 	return p.metricFor(value, groupResource, namespace, name, metricName)
 }
 
 func (p *datadogProvider) GetNamespacedMetricBySelector(groupResource schema.GroupResource, namespace string, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
-	value, err := p.getValue()
+	value, err := p.getValue(metricName)
 	if err != nil {
-		seelog.Warn("Could not read value from file, defaulting to 130: ", err)
+		seelog.Warn("Could not get metric value, defaulting to 130: ", err)
 		value = 130
 	}
 
@@ -173,22 +216,25 @@ func (p *datadogProvider) GetNamespacedMetricBySelector(groupResource schema.Gro
 }
 
 func (p *datadogProvider) ListAllMetrics() []provider.MetricInfo {
-	// TODO: maybe dynamically generate this?
-	return []provider.MetricInfo{
-		{
-			GroupResource: schema.GroupResource{Group: "", Resource: "pods"},
-			Metric:        "nginx.net.connections",
-			Namespaced:    true,
-		},
-		// {
-		// 	GroupResource: schema.GroupResource{Group: "", Resource: "services"},
-		// 	Metric:        "connections-per-second",
-		// 	Namespaced:    true,
-		// },
-		// {
-		// 	GroupResource: schema.GroupResource{Group: "", Resource: "namespaces"},
-		// 	Metric:        "queue-length",
-		// 	Namespaced:    false,
-		// },
+	metricNames, err := p.getMetricNames()
+	if err != nil {
+		seelog.Error("Could not get metric list, defaulting to hardcoded one: ", err)
+		return []provider.MetricInfo{
+			{
+				GroupResource: schema.GroupResource{Group: "", Resource: "pods"},
+				Metric:        "nginx.net.connections",
+				Namespaced:    true,
+			},
+		}
 	}
+
+	metricInfos := []provider.MetricInfo{}
+	for _, metricName := range metricNames {
+		metricInfos = append(metricInfos, provider.MetricInfo{
+			GroupResource: schema.GroupResource{Group: "", Resource: "pods"},
+			Metric:        metricName,
+			Namespaced:    true,
+		})
+	}
+	return metricInfos
 }
