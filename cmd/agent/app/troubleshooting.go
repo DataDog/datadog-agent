@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	//"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/spf13/cobra"
 )
@@ -93,7 +93,8 @@ var trshootCmd = &cobra.Command{
 		}
 
 		for _, c := range cs {
-			s := runTroubleshoot(c, agg)
+			runTroubleshoot(c, agg)
+			// s := runTroubleshoot(c, agg)
 
 			// Without a small delay some of the metrics will not show up
 			time.Sleep(time.Duration(trshootDelay) * time.Millisecond)
