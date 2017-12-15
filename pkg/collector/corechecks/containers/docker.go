@@ -124,8 +124,8 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, du *docker.
 }
 
 // [TODO] The troubleshoot command does nothing for the Docker check
-func (d *DockerCheck) Troubleshoot() error {
-	return nil
+func (d *DockerCheck) Troubleshoot() (string, error) {
+	return "Not Implemented Yet", nil
 }
 
 // Run executes the check

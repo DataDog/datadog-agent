@@ -108,8 +108,8 @@ func (c *MemoryCheck) Run() error {
 }
 
 // [TODO] The troubleshoot command does nothing for the Memory check
-func (c *MemoryCheck) Troubleshoot() error {
-	return nil
+func (c *MemoryCheck) Troubleshoot() (string, error) {
+	return "Not Implemented Yet",nil
 }
 
 // Configure the Python check from YAML data

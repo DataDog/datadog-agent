@@ -55,8 +55,8 @@ func (c *LoadCheck) Run() error {
 }
 
 // [TODO] The troubleshoot command does nothing for the Load check
-func (c *LoadCheck) Troubleshoot() error {
-	return nil
+func (c *LoadCheck) Troubleshoot() (string, error) {
+	return "Not Implemented Yet", nil
 }
 
 // Configure the CPU check doesn't need configuration

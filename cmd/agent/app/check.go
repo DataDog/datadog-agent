@@ -118,7 +118,6 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	for i < times {
 		t0 := time.Now()
 		err := c.Run()
-		err = c.Troubleshoot()
 		warnings := c.GetWarnings()
 		mStats, _ := c.GetMetricStats()
 		s.Add(time.Since(t0), err, warnings, mStats)

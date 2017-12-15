@@ -59,8 +59,8 @@ func (c *ProcessAgentCheck) Run() error {
 }
 
 // [TODO] The troubleshoot command does nothing for the Process Agent check
-func (c *ProcessAgentCheck) Troubleshoot() error {
-	return nil
+func (c *ProcessAgentCheck) Troubleshoot() (string, error) {
+	return "Not Implemented Yet",nil
 }
 
 // run executes the check

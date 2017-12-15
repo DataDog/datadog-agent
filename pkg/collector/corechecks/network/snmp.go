@@ -753,8 +753,8 @@ func (c *SNMPCheck) Run() error {
 
 // Run the troubleshooting portion of the SNMP Check
 // [TODO] Reports nothing currently
-func (c *SNMPCheck) Troubleshoot() error {
-	return nil
+func (c *SNMPCheck) Troubleshoot() (string, error) {
+	return "Not Implemented Yet",nil
 }
 
 // GetWarnings grabs the last warnings from the sender

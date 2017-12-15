@@ -149,8 +149,8 @@ func (c *IOCheck) Run() error {
 }
 
 // [TODO] The troubleshoot command does nothing for the IO Nix check
-func (c *IOCheck) Troubleshoot() error {
-	return nil
+func (c *IOCheck) Troubleshoot() (string,error) {
+	return "Not Implemented Yet", nil
 }
 
 func init() {

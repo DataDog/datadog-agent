@@ -92,8 +92,8 @@ func (c *fhCheck) Run() error {
 }
 
 // [TODO] The troubleshoot command does nothing for the File Handles check
-func (c *fhCheck) Troubleshoot() error {
-	return nil
+func (c *fhCheck) Troubleshoot() (string,error) {
+	return "Not Implemented Yet", nil
 }
 
 // The check doesn't need configuration

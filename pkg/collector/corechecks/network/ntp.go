@@ -155,8 +155,8 @@ func (c *NTPCheck) Run() error {
 }
 
 // [TODO] The troubleshoot command does nothing for the NTP check
-func (c *NTPCheck) Troubleshoot() error {
-	return nil
+func (c *NTPCheck) Troubleshoot() (string, error) {
+	return "Not Implemented Yet", nil
 }
 
 // GetWarnings grabs the last warnings from the sender

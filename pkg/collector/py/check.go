@@ -51,7 +51,7 @@ func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
 }
 
 // Run a troubleshoot Python function
-func (c *PythonCheck) Troubleshoot() error {
+func (c *PythonCheck) Troubleshoot() (string, error) {
 	fmt.Printf("In troubleshoot function \n")
 	// Lock the GIL and release it at the end of the run
 	gstate := newStickyLock()
@@ -66,14 +66,14 @@ func (c *PythonCheck) Troubleshoot() error {
 	if result == nil {
 		pyErr, err := gstate.getPythonError()
 		if err != nil {
-			return fmt.Errorf("An error occurred while running python check and couldn't be formatted: %v", err)
+			return "Error occured while running check", fmt.Errorf("An error occurred while running python check and couldn't be formatted: %v", err)
 		}
-		return errors.New(pyErr)
+		return "Empty response returned from the Trobuleshoot function", errors.New(pyErr)
 	}
 	var resultStr = python.PyString_AsString(result)
+    var troubleStr = python.PyString_AsString(result)
 
-
-	return errors.New(resultStr)
+	return troubleStr, errors.New(resultStr)
 }
 
 // Run a Python check

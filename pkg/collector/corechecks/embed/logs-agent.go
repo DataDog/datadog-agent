@@ -144,8 +144,8 @@ func (c *LogsCheck) Stop() {
 }
 
 // [TODO] The troubleshoot command does nothing for the Logs check
-func (c *LogsCheck) Troubleshoot() error {
-	return nil
+func (c *LogsCheck) Troubleshoot() (string, error) {
+	return "Not Implemented Yet", nil
 }
 
 func init() {

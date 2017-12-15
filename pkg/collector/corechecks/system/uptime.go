@@ -49,8 +49,8 @@ func (c *UptimeCheck) Run() error {
 }
 
 // [TODO] The troubleshoot command does nothing for the Uptime check
-func (c *UptimeCheck) Troubleshoot() error {
-	return nil
+func (c *UptimeCheck) Troubleshoot() (string, error) {
+	return "Not Implemented Yet", nil
 }
 
 // Configure the CPU check doesn't need configuration

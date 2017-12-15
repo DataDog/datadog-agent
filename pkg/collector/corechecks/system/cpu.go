@@ -79,8 +79,8 @@ func (c *CPUCheck) Run() error {
 }
 
 // [TODO] The troubleshoot command does nothing for the CPU check
-func (c *CPUCheck) Troubleshoot() error {
-	return nil
+func (c *CPUCheck) Troubleshoot() (string,error) {
+	return "Not Implemented Yet", nil
 }
 
 // Configure the CPU check doesn't need configuration

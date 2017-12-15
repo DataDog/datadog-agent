@@ -53,8 +53,8 @@ func (c *APMCheck) Run() error {
 }
 
 // [TODO] The troubleshoot command does nothing for the APM check
-func (c *APMCheck) Troubleshoot() error {
-	return nil
+func (c *APMCheck) Troubleshoot() (string, error) {
+	return "Not Implemented Yet", nil
 }
 
 // run executes the check

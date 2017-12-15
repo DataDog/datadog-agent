@@ -91,7 +91,8 @@ var trshootCmd = &cobra.Command{
 		}
 
 		for _, c := range cs {
-			runTroubleshoot(c, agg)
+			result := runTroubleshoot(c, agg)
+			fmt.Println(result)
 			// s := runTroubleshoot(c, agg)
 
 			// Without a small delay some of the metrics will not show up
@@ -105,8 +106,10 @@ var trshootCmd = &cobra.Command{
 	},
 }
 
-func runTroubleshoot(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
+func runTroubleshoot(c check.Check, agg *aggregator.BufferedAggregator) string {
 	s := check.NewStats(c)
+	result := "Unrun Troubleshoot commands"
+	var err error
 	i := 0
 	times := 1
 	if trshootRate {
@@ -115,12 +118,12 @@ func runTroubleshoot(c check.Check, agg *aggregator.BufferedAggregator) *check.S
 	for i < times {
 		t0 := time.Now()
 		//err := c.Run()
-		err := c.Troubleshoot()
+		result, err = c.Troubleshoot()
 		warnings := c.GetWarnings()
 		mStats, _ := c.GetMetricStats()
 		s.Add(time.Since(t0), err, warnings, mStats)
 		i++
 	}
 
-	return s
+	return result
 }

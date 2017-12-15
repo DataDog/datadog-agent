@@ -112,8 +112,8 @@ func (c *JMXCheck) Run() error {
 }
 
 // [TODO] The troubleshoot command does nothing for the JMX checks
-func (c *JMXCheck) Troubleshoot() error {
-	return nil
+func (c *JMXCheck) Troubleshoot() (string, error) {
+	return "Not Implemented Yet", nil
 }
 
 // run executes the check
