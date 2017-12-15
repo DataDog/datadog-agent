@@ -25,6 +25,7 @@ const (
 // Logs rule types
 const (
 	ExcludeAtMatch = "exclude_at_match"
+	IncludeAtMatch = "include_at_match"
 	MaskSequences  = "mask_sequences"
 	MultiLine      = "multi_line"
 )
@@ -186,6 +187,8 @@ func validateProcessingRules(rules []LogsProcessingRule) ([]LogsProcessingRule, 
 		}
 		switch rule.Type {
 		case ExcludeAtMatch:
+			rules[i].Reg = regexp.MustCompile(rule.Pattern)
+		case IncludeAtMatch:
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)
 		case MaskSequences:
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)
