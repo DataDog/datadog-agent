@@ -15,6 +15,10 @@ type entityTags struct {
 	sync.RWMutex
 	lowCardTags  map[string][]string
 	highCardTags map[string][]string
+	cacheValid   bool
+	cachedSource []string
+	cachedAll    []string // Low + high
+	cachedLow    []string // Sub-slice of cachedAll
 }
 
 // tagStore stores entity tags in memory and handles search and collation.
@@ -62,6 +66,7 @@ func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
 	storedTags.Lock()
 	storedTags.lowCardTags[info.Source] = info.LowCardTags
 	storedTags.highCardTags[info.Source] = info.HighCardTags
+	storedTags.cacheValid = false
 	storedTags.Unlock()
 
 	if exist == false {
@@ -100,33 +105,55 @@ func (s *tagStore) prune() error {
 // lookup gets tags from the store and returns them concatenated in a []string
 // array. It returns the source names in the second []string to allow the
 // client to trigger manual lookups on missing sources.
-func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string, error) {
+func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string) {
 	s.storeMutex.RLock()
 	storedTags, present := s.store[entity]
 	s.storeMutex.RUnlock()
 
 	if present == false {
-		//return nil, nil, fmt.Errorf("entity not in memory store")
-		return nil, nil, nil
+		return nil, nil
+	}
+	return storedTags.get(highCard)
+}
+
+func (e *entityTags) get(highCard bool) ([]string, []string) {
+	e.RLock()
+
+	// Cache hit
+	if e.cacheValid {
+		defer e.RUnlock()
+		if highCard {
+			return e.cachedAll, e.cachedSource
+		}
+		return e.cachedLow, e.cachedSource
 	}
 
+	// Cache miss
 	var arrays [][]string
 	var sources []string
+	var lowCardCount int
 
-	// TODO: the concatenated array could be pre-computed
-	// in entityTags on first read and invalidated on write
-	storedTags.RLock()
-	for source, tags := range storedTags.lowCardTags {
+	for source, tags := range e.lowCardTags {
 		arrays = append(arrays, tags)
+		lowCardCount += len(tags)
 		sources = append(sources, source)
 	}
-	if highCard {
-		for _, tags := range storedTags.highCardTags {
-			arrays = append(arrays, tags)
-		}
+	for _, tags := range e.highCardTags {
+		arrays = append(arrays, tags)
 	}
 	tags := utils.ConcatenateTags(arrays)
-	storedTags.RUnlock()
 
-	return tags, sources, nil
+	// Write cache
+	e.RUnlock()
+	e.Lock()
+	e.cacheValid = true
+	e.cachedSource = sources
+	e.cachedAll = tags
+	e.cachedLow = e.cachedAll[:lowCardCount]
+	e.Unlock()
+
+	if highCard {
+		return tags, sources
+	}
+	return tags[:lowCardCount], sources
 }

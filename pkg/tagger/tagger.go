@@ -221,10 +221,8 @@ func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
 	if entity == "" {
 		return nil, errors.New("empty entity ID")
 	}
-	cachedTags, sources, err := t.tagStore.lookup(entity, highCard)
-	if err != nil {
-		return nil, err
-	}
+	cachedTags, sources := t.tagStore.lookup(entity, highCard)
+
 	if len(sources) == len(t.fetchers) {
 		// All sources sent data to cache
 		return cachedTags, nil

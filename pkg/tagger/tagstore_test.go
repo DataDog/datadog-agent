@@ -59,10 +59,8 @@ func (s *StoreTestSuite) TestLookup() {
 		LowCardTags: []string{"tag"},
 	})
 
-	tagsHigh, sourcesHigh, err := s.store.lookup("test", true)
-	assert.Nil(s.T(), err)
-	tagsLow, sourcesLow, err := s.store.lookup("test", false)
-	assert.Nil(s.T(), err)
+	tagsHigh, sourcesHigh := s.store.lookup("test", true)
+	tagsLow, sourcesLow := s.store.lookup("test", false)
 
 	assert.Len(s.T(), tagsHigh, 3)
 	assert.Len(s.T(), tagsLow, 2)
@@ -77,8 +75,7 @@ func (s *StoreTestSuite) TestLookup() {
 }
 
 func (s *StoreTestSuite) TestLookupNotPresent() {
-	tags, sources, err := s.store.lookup("test", false)
-	assert.Nil(s.T(), err)
+	tags, sources := s.store.lookup("test", false)
 	assert.Nil(s.T(), tags)
 	assert.Nil(s.T(), sources)
 }
@@ -119,12 +116,10 @@ func (s *StoreTestSuite) TestPrune() {
 	s.store.toDeleteMutex.RUnlock()
 
 	// Data should still be in the store
-	tagsHigh, sourcesHigh, err := s.store.lookup("test1", true)
-	assert.Nil(s.T(), err)
+	tagsHigh, sourcesHigh := s.store.lookup("test1", true)
 	assert.Len(s.T(), tagsHigh, 3)
 	assert.Len(s.T(), sourcesHigh, 2)
-	tagsHigh, sourcesHigh, err = s.store.lookup("test2", true)
-	assert.Nil(s.T(), err)
+	tagsHigh, sourcesHigh = s.store.lookup("test2", true)
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 
@@ -136,25 +131,21 @@ func (s *StoreTestSuite) TestPrune() {
 	s.store.toDeleteMutex.RUnlock()
 
 	// test1 should be removed, test2 still present
-	tagsHigh, sourcesHigh, err = s.store.lookup("test1", true)
-	assert.Nil(s.T(), err)
+	tagsHigh, sourcesHigh = s.store.lookup("test1", true)
 	assert.Nil(s.T(), tagsHigh)
 	assert.Nil(s.T(), sourcesHigh)
-	tagsHigh, sourcesHigh, err = s.store.lookup("test2", true)
-	assert.Nil(s.T(), err)
+	tagsHigh, sourcesHigh = s.store.lookup("test2", true)
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 
-	err = s.store.prune()
+	err := s.store.prune()
 	assert.Nil(s.T(), err)
 
 	// No impact if nothing is queued
-	tagsHigh, sourcesHigh, err = s.store.lookup("test1", true)
-	assert.Nil(s.T(), err)
+	tagsHigh, sourcesHigh = s.store.lookup("test1", true)
 	assert.Nil(s.T(), tagsHigh)
 	assert.Nil(s.T(), sourcesHigh)
-	tagsHigh, sourcesHigh, err = s.store.lookup("test2", true)
-	assert.Nil(s.T(), err)
+	tagsHigh, sourcesHigh = s.store.lookup("test2", true)
 	assert.Len(s.T(), tagsHigh, 2)
 	assert.Len(s.T(), sourcesHigh, 1)
 
