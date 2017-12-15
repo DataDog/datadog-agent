@@ -23,7 +23,6 @@ var (
 )
 
 func init() {
-	troubleshooting=false
 	AgentCmd.AddCommand(flareCmd)
 	flareCmd.AddCommand(trCmd)
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
@@ -35,35 +34,23 @@ var flareCmd = &cobra.Command{
 	Use:   "flare [caseID]",
 	Short: "Collect a flare and send it to Datadog",
 	Long:  ``,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		err := common.SetupConfig(confFilePath)
-		if err != nil {
-			return err
-		}
-
-		caseID := ""
-		if len(args) > 0 {
-				caseID = args[0]			
-		}
-		// The flare command should not log anything, all errors should be reported directly to the console without the log format
-		config.SetupLogger("off", "", "", false, false, "", true)
-		if customerEmail == "" {
-			var err error
-			customerEmail, err = flare.AskForEmail()
-			if err != nil {
-				fmt.Println("Error reading email, please retry or contact support")
-				return err
-			}
-		}
-		return requestFlare(caseID, troubleshooting)
+	PreRun: func(cmd *cobra.Command, args []string) {
+		troubleshooting = false
 	},
+	RunE: troubleshootingFlare,
 }
 
 var trCmd = &cobra.Command{
 	Use:   "troubleshooting [caseID]",
 	Short: "Collect troubleshooting information",
 	Long:  ``,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	PreRun: func(cmd *cobra.Command, args []string) {
+		troubleshooting = true
+	},
+	RunE: troubleshootingFlare,
+}
+
+func troubleshootingFlare(cmd *cobra.Command, args []string) error {
 		err := common.SetupConfig(confFilePath)
 		if err != nil {
 			return err
@@ -73,7 +60,8 @@ var trCmd = &cobra.Command{
 		if len(args) > 0 {
 				caseID = args[0]			
 		}
-		troubleshooting = true
+		fmt.Printf("troubleshooting is:")
+		fmt.Println(troubleshooting)
 		// The flare command should not log anything, all errors should be reported directly to the console without the log format
 		config.SetupLogger("off", "", "", false, false, "", true)
 		if customerEmail == "" {
@@ -85,7 +73,6 @@ var trCmd = &cobra.Command{
 			}
 		}
 		return requestFlare(caseID, troubleshooting)
-	},
 }
 
 func requestFlare(caseID string, troubleshooting bool) error {
