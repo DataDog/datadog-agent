@@ -58,6 +58,11 @@ func (c *ProcessAgentCheck) Run() error {
 	return err
 }
 
+// [TODO] The troubleshoot command does nothing for the Process Agent check
+func (c *ProcessAgentCheck) Troubleshoot() error {
+	return nil
+}
+
 // run executes the check
 func (c *ProcessAgentCheck) run() error {
 	if !c.enabled {
@@ -213,6 +218,7 @@ func (c *ProcessAgentCheck) Stop() {
 func (c *ProcessAgentCheck) GetMetricStats() (map[string]int64, error) {
 	return make(map[string]int64), nil
 }
+
 
 func init() {
 	factory := func() check.Check {

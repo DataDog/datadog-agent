@@ -135,7 +135,6 @@ func zipLogFiles(zipFile *archivex.ZipFile, hostname, logFilePath string) error 
 
 func zipTroubleshoot(zipFile *archivex.ZipFile, hostname string) error {
 	err := zipFile.Add(filepath.Join(hostname, "troubleshoot", "test"), []byte("Hello Flare 2k"))
-
 	if err != nil {
 		return err
 	}

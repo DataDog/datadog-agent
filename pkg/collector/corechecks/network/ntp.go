@@ -154,6 +154,11 @@ func (c *NTPCheck) Run() error {
 	return nil
 }
 
+// [TODO] The troubleshoot command does nothing for the NTP check
+func (c *NTPCheck) Troubleshoot() error {
+	return nil
+}
+
 // GetWarnings grabs the last warnings from the sender
 func (c *NTPCheck) GetWarnings() []error {
 	w := c.lastWarnings

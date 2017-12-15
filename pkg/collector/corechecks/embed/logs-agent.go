@@ -143,6 +143,11 @@ func (c *LogsCheck) Stop() {
 	<-c.stopDone
 }
 
+// [TODO] The troubleshoot command does nothing for the Logs check
+func (c *LogsCheck) Troubleshoot() error {
+	return nil
+}
+
 func init() {
 	factory := func() check.Check {
 		return &LogsCheck{

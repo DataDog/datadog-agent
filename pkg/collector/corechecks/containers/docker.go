@@ -123,6 +123,11 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, du *docker.
 	return nil
 }
 
+// [TODO] The troubleshoot command does nothing for the Docker check
+func (d *DockerCheck) Troubleshoot() error {
+	return nil
+}
+
 // Run executes the check
 func (d *DockerCheck) Run() error {
 	sender, err := d.GetSender()

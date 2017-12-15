@@ -78,6 +78,11 @@ func (c *CPUCheck) Run() error {
 	return nil
 }
 
+// [TODO] The troubleshoot command does nothing for the CPU check
+func (c *CPUCheck) Troubleshoot() error {
+	return nil
+}
+
 // Configure the CPU check doesn't need configuration
 func (c *CPUCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	// do nothing

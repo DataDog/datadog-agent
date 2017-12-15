@@ -148,6 +148,11 @@ func (c *IOCheck) Run() error {
 	return err
 }
 
+// [TODO] The troubleshoot command does nothing for the IO Nix check
+func (c *IOCheck) Troubleshoot() error {
+	return nil
+}
+
 func init() {
 	var err error
 	hz, err = xc.GetSystemFreq()

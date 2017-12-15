@@ -107,6 +107,11 @@ func (c *MemoryCheck) Run() error {
 	return nil
 }
 
+// [TODO] The troubleshoot command does nothing for the Memory check
+func (c *MemoryCheck) Troubleshoot() error {
+	return nil
+}
+
 // Configure the Python check from YAML data
 func (c *MemoryCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	// do nothing

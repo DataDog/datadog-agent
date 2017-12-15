@@ -91,6 +91,11 @@ func (c *fhCheck) Run() error {
 	return nil
 }
 
+// [TODO] The troubleshoot command does nothing for the File Handles check
+func (c *fhCheck) Troubleshoot() error {
+	return nil
+}
+
 // The check doesn't need configuration
 func (c *fhCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	// do nothing
