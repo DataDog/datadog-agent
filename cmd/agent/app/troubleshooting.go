@@ -6,7 +6,6 @@
 package app
 
 import (
-	//"encoding/json"
 	"fmt"
 	"time"
 
@@ -15,15 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	//"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/spf13/cobra"
 )
 
 var (
-	trshootRate  bool
+	//trshootRate  bool
 	integrationName  string
-	trshootDelay int
+	//trshootDelay int
 	trshootlogLevel  string
 )
 
@@ -33,9 +31,9 @@ const trshootCmdFlushInterval = time.Hour
 func init() {
 	AgentCmd.AddCommand(trshootCmd)
 
-	trshootCmd.Flags().BoolVarP(&trshootRate, "check-rate", "r", false, "check rates by running the check twice")
+	//trshootCmd.Flags().BoolVarP(&trshootRate, "check-rate", "r", false, "check rates by running the check twice")
 	trshootCmd.Flags().StringVarP(&trshootlogLevel, "log-level", "l", "", "set the log level (default 'off')")
-	trshootCmd.Flags().IntVarP(&trshootDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
+	//trshootCmd.Flags().IntVarP(&trshootDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
 	trshootCmd.SetArgs([]string{"integrationName"})
 }
 
@@ -84,12 +82,12 @@ var trshootCmd = &cobra.Command{
 		common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 		cs := common.AC.GetChecksByName(integrationName)
 		if len(cs) == 0 {
-			fmt.Println("no check found")
-			return fmt.Errorf("no check found")
+			fmt.Println("no integration found")
+			return fmt.Errorf("no integration found")
 		}
 
 		if len(cs) > 1 {
-			fmt.Println("Multiple check instances found, running each of them")
+			fmt.Println("Multiple integration instances found, running each of them")
 		}
 
 		for _, c := range cs {
@@ -97,9 +95,7 @@ var trshootCmd = &cobra.Command{
 			// s := runTroubleshoot(c, agg)
 
 			// Without a small delay some of the metrics will not show up
-			time.Sleep(time.Duration(trshootDelay) * time.Millisecond)
-
-			//getTroubleshootMetrics(agg)
+			//time.Sleep(time.Duration(trshootDelay) * time.Millisecond)
 
 			// checkStatus, _ := status.GetCheckStatus(c, s)
 			// fmt.Println(string(checkStatus))
@@ -128,33 +124,3 @@ func runTroubleshoot(c check.Check, agg *aggregator.BufferedAggregator) *check.S
 
 	return s
 }
-
-// func getTroubleshootMetrics(agg *aggregator.BufferedAggregator) {
-// 	series := agg.GetSeries()
-// 	if len(series) != 0 {
-// 		fmt.Println("Series: ")
-// 		j, _ := json.MarshalIndent(series, "", "  ")
-// 		fmt.Println(string(j))
-// 	}
-
-// 	sketches := agg.GetSketches()
-// 	if len(sketches) != 0 {
-// 		fmt.Println("Sketches: ")
-// 		j, _ := json.MarshalIndent(sketches, "", "  ")
-// 		fmt.Println(string(j))
-// 	}
-
-// 	serviceChecks := agg.GetServiceChecks()
-// 	if len(serviceChecks) != 0 {
-// 		fmt.Println("Service Checks: ")
-// 		j, _ := json.MarshalIndent(serviceChecks, "", "  ")
-// 		fmt.Println(string(j))
-// 	}
-
-// 	events := agg.GetEvents()
-// 	if len(events) != 0 {
-// 		fmt.Println("Events: ")
-// 		j, _ := json.MarshalIndent(events, "", "  ")
-// 		fmt.Println(string(j))
-// 	}
-// }
