@@ -21,9 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
+    "github.com/DataDog/datadog-agent/cmd/agent/common"
+
 	"github.com/jhoonb/archivex"
 	yaml "gopkg.in/yaml.v2"
+	"fmt"
+	"reflect"
 )
+
 
 // SearchPaths is just an alias for a map of strings
 type SearchPaths map[string]string
@@ -134,6 +139,9 @@ func zipLogFiles(zipFile *archivex.ZipFile, hostname, logFilePath string) error 
 }
 
 func zipTroubleshoot(zipFile *archivex.ZipFile, hostname string) error {
+	//checks := common.AC.GetConfigChecks()
+	//[TODO] Iterate through Checks and give them a log file
+	fmt.Print("Zipping Troubleshooting")
 	err := zipFile.Add(filepath.Join(hostname, "troubleshoot", "test"), []byte("Hello Flare 2k"))
 	if err != nil {
 		return err

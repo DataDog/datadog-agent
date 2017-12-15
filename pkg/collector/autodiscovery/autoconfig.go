@@ -181,6 +181,11 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	return checks
 }
 
+func (ac *AutoConfig) GetConfigChecks() []check.Check {
+	checks := ac.getAllConfigs()
+	return ac.getChecksFromConfigs(checks, false)
+}
+
 // getAllConfigs queries all the providers and returns all the check
 // configurations found, resolving the ones it can
 func (ac *AutoConfig) getAllConfigs() []check.Config {
