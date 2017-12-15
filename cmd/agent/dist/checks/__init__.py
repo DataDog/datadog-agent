@@ -88,7 +88,7 @@ class AgentCheck(object):
                 False,
                 "DEPRECATION NOTICE: `AgentCheck.increment`/`AgentCheck.decrement` are deprecated, please use " +
                 "`AgentCheck.gauge` or `AgentCheck.count` instead, with a different metric name",
-            ],
+                ],
             'device_name': [
                 False,
                 "DEPRECATION NOTICE: `device_name` is deprecated, please use a `device:` tag in the `tags` list instead",
@@ -308,4 +308,12 @@ class AgentCheck(object):
                 }
             ])
 
+        return result
+
+    def troubleshoot(self):
+        try:
+            result = self.troubleshooter(copy.deepcopy(self.instances[0]))
+        except:
+            result = "Issue running the troubleshooting check"
+        print result
         return result
