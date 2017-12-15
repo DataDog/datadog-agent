@@ -48,11 +48,10 @@ func nextMessage(packet *[]byte) (message []byte) {
 	return message
 }
 
-// split2 returns the slices before and after the separator, as a
-// no-heap alternative to bytes.Split.
-// If the separator is not found, the input slice is returned as
-// first part.
-func split2(slice, sep []byte) ([]byte, []byte) {
+// nextField returns the data found before the given separator and
+// the remainder, as a no-heap alternative to bytes.Split.
+// If the separator is not found, the remainder is nil.
+func nextField(slice, sep []byte) ([]byte, []byte) {
 	sepIndex := bytes.Index(slice, sep)
 	if sepIndex == -1 {
 		return slice, nil
@@ -71,7 +70,7 @@ func parseTags(rawTags []byte, extractHost bool) ([]string, string) {
 
 	var tag []byte
 	for {
-		tag, remainder = split2(remainder, tagSeparator)
+		tag, remainder = nextField(remainder, tagSeparator)
 		if extractHost && bytes.HasPrefix(tag, []byte("host:")) {
 			host = string(tag[5:])
 		} else {
@@ -92,8 +91,8 @@ func parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
 	if separatorCount < 2 {
 		return nil, fmt.Errorf("invalid field number for %q", message)
 	}
-	rawName, remainder := split2(message[4:], fieldSeparator)
-	rawStatus, remainder := split2(remainder, fieldSeparator)
+	rawName, remainder := nextField(message[4:], fieldSeparator)
+	rawStatus, remainder := nextField(remainder, fieldSeparator)
 
 	if len(rawName) == 0 || len(rawStatus) == 0 {
 		return nil, fmt.Errorf("Invalid ServiceCheck message format: empty 'name' or 'status' field")
@@ -114,7 +113,7 @@ func parseServiceCheckMessage(message []byte) (*metrics.ServiceCheck, error) {
 	// Metadata
 	for {
 		var rawMetadataField []byte
-		rawMetadataField, remainder = split2(remainder, fieldSeparator)
+		rawMetadataField, remainder = nextField(remainder, fieldSeparator)
 		if rawMetadataField == nil {
 			break
 		}
@@ -244,14 +243,14 @@ func parseMetricMessage(message []byte) (*metrics.MetricSample, error) {
 	}
 
 	// Extract name, value and type
-	rawNameAndValue, remainder := split2(message, fieldSeparator)
-	rawName, rawValue := split2(rawNameAndValue, valueSeparator)
+	rawNameAndValue, remainder := nextField(message, fieldSeparator)
+	rawName, rawValue := nextField(rawNameAndValue, valueSeparator)
 
 	if rawValue == nil {
 		return nil, fmt.Errorf("invalid field format for %q", message)
 	}
 
-	rawType, remainder := split2(remainder, fieldSeparator)
+	rawType, remainder := nextField(remainder, fieldSeparator)
 	if len(rawName) == 0 || len(rawValue) == 0 || len(rawType) == 0 {
 		return nil, fmt.Errorf("invalid metric message format: empty 'name', 'value' or 'text' field")
 	}
@@ -263,7 +262,7 @@ func parseMetricMessage(message []byte) (*metrics.MetricSample, error) {
 	sampleRate := 1.0
 
 	for {
-		rawMetadataField, remainder = split2(remainder, fieldSeparator)
+		rawMetadataField, remainder = nextField(remainder, fieldSeparator)
 
 		if bytes.HasPrefix(rawMetadataField, []byte("#")) {
 			metricTags, host = parseTags(rawMetadataField[1:], true)
