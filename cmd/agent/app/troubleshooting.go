@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	//trshootRate  bool
+	trshootRate  bool
 	integrationName  string
 	//trshootDelay int
 	trshootlogLevel  string
@@ -31,7 +31,7 @@ const trshootCmdFlushInterval = time.Hour
 func init() {
 	AgentCmd.AddCommand(trshootCmd)
 
-	//trshootCmd.Flags().BoolVarP(&trshootRate, "check-rate", "r", false, "check rates by running the check twice")
+	trshootCmd.Flags().BoolVarP(&trshootRate, "check-rate", "r", false, "check rates by troubleshooting the integration twice")
 	trshootCmd.Flags().StringVarP(&trshootlogLevel, "log-level", "l", "", "set the log level (default 'off')")
 	//trshootCmd.Flags().IntVarP(&trshootDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in miliseconds")
 	trshootCmd.SetArgs([]string{"integrationName"})
@@ -109,7 +109,7 @@ func runTroubleshoot(c check.Check, agg *aggregator.BufferedAggregator) *check.S
 	s := check.NewStats(c)
 	i := 0
 	times := 1
-	if checkRate {
+	if trshootRate {
 		times = 2
 	}
 	for i < times {
