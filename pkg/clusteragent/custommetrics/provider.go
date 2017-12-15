@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -67,7 +68,6 @@ func (p *datadogProvider) metricsFor(totalValue int64, groupResource schema.Grou
 		res[i].Value = *resource.NewMilliQuantity(100*totalValue/int64(len(res)), resource.DecimalSI)
 	}
 
-	//return p.metricFor(value, groupResource, "", name, metricName)
 	return &custom_metrics.MetricValueList{
 		Items: res,
 	}, nil
@@ -112,32 +112,32 @@ func (p *datadogProvider) GetNamespacedMetricByName(groupResource schema.GroupRe
 
 func (p *datadogProvider) GetNamespacedMetricBySelector(groupResource schema.GroupResource, namespace string, selector labels.Selector, metricName string) (*custom_metrics.MetricValueList, error) {
 	// construct a client to list the names of objects matching the label selector
-	/*	client, err := p.client.ClientForGroupVersionResource(groupResource.WithVersion(""))
-		if err != nil {
-			glog.Errorf("unable to construct dynamic client to list matching resource names: %v", err)
-			// don't leak implementation details to the user
-			return nil, apierr.NewInternalError(fmt.Errorf("unable to list matching resources"))
-		}*/
+	client, err := p.client.ClientForGroupVersionResource(groupResource.WithVersion(""))
+	if err != nil {
+		seelog.Errorf("unable to construct dynamic client to list matching resource names: %v", err)
+		// don't leak implementation details to the user
+		return nil, apierr.NewInternalError(fmt.Errorf("unable to list matching resources"))
+	}
 
 	//totalValue, err := p.valueFor(groupResource, metricName, true)
-	/*	if err != nil {
+	if err != nil {
 		return nil, err
-	}*/
+	}
 
 	// we can construct a this APIResource ourself, since the dynamic client only uses Name and Namespaced
-	/*	apiRes := &metav1.APIResource{
-			Name:       groupResource.Resource,
-			Namespaced: true,
-		}
+	apiRes := &metav1.APIResource{
+		Name:       groupResource.Resource,
+		Namespaced: true,
+	}
 
-		// matchingObjectsRaw, err := client.Resource(apiRes, namespace).
+	matchingObjectsRaw, err := client.Resource(apiRes, namespace).
 		List(metav1.ListOptions{LabelSelector: selector.String()})
-		if err != nil {
-			return nil, err
-		}*/
+	if err != nil {
+		return nil, err
+	}
 
 	seelog.Warnf("in NamespacedBySelector. goupResour e is %v namespace is %v: , selctor is %v, metricName is %v", groupResource, namespace, selector, metricName)
-	return p.metricsFor(130, groupResource, metricName, nil)
+	return p.metricsFor(130, groupResource, metricName, matchingObjectsRaw)
 }
 
 func (p *datadogProvider) ListAllMetrics() []provider.MetricInfo {
