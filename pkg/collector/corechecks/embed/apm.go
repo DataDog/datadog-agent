@@ -52,6 +52,11 @@ func (c *APMCheck) Run() error {
 	return err
 }
 
+// [TODO] The troubleshoot command does nothing for the APM check
+func (c *APMCheck) Troubleshoot() error {
+	return nil
+}
+
 // run executes the check
 func (c *APMCheck) run() error {
 	select {

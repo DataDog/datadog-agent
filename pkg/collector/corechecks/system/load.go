@@ -54,6 +54,11 @@ func (c *LoadCheck) Run() error {
 	return nil
 }
 
+// [TODO] The troubleshoot command does nothing for the Load check
+func (c *LoadCheck) Troubleshoot() error {
+	return nil
+}
+
 // Configure the CPU check doesn't need configuration
 func (c *LoadCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	// do nothing

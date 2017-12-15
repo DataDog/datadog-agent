@@ -48,6 +48,11 @@ func (c *UptimeCheck) Run() error {
 	return nil
 }
 
+// [TODO] The troubleshoot command does nothing for the Uptime check
+func (c *UptimeCheck) Troubleshoot() error {
+	return nil
+}
+
 // Configure the CPU check doesn't need configuration
 func (c *UptimeCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	// do nothing

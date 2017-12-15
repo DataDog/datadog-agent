@@ -167,6 +167,11 @@ func (c *IOCheck) Run() error {
 	return nil
 }
 
+// [TODO] The troubleshoot command does nothing for the IO Win check
+func (c *IOCheck) Troubleshoot() error {
+	return nil
+}
+
 func convertWindowsStringList(winput []uint16) []string {
 	var retstrings []string
 	var buffer bytes.Buffer

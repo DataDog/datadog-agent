@@ -111,6 +111,11 @@ func (c *JMXCheck) Run() error {
 	return err
 }
 
+// [TODO] The troubleshoot command does nothing for the JMX checks
+func (c *JMXCheck) Troubleshoot() error {
+	return nil
+}
+
 // run executes the check
 func (c *JMXCheck) run() error {
 	select {
