@@ -52,6 +52,9 @@ func (p *datadogProvider) getValueFromFile(metricName string) (int64, error) {
 	}
 	for _, metric := range unmarshalledConfig.Metrics {
 		if metric.Name == metricName {
+			if metric.Value == 0 {
+				return 0, fmt.Errorf("found value 0 in metrics file for %s, ignoring: %s", metricName, err)
+			}
 			return metric.Value, nil
 		}
 	}
