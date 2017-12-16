@@ -139,6 +139,7 @@ func zipLogFiles(zipFile *archivex.ZipFile, hostname, logFilePath string) error 
 }
 
 func zipTroubleshoot(zipFile *archivex.ZipFile, hostname string) error {
+	fmt.Println("Zippint up the Troubleshooting stuff ")
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	checks := common.AC.GetConfigChecks()
 	for _, check := range checks {
@@ -192,7 +193,7 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths 
 	if err != nil {
 		return err
 	}
-	err = zipFile.Add(filepath.Join(hostname, "datadog.yaml"), cleaned)
+	err = zipFile.Add(filepath.Join(hostname, "datadog.yaml_in_mem"), cleaned)
 	if err != nil {
 		return err
 	}
@@ -212,7 +213,7 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths 
 			if err != nil {
 				return e
 			}
-			fileName := filepath.Join(hostname, "etc", "datadog.yaml")
+			fileName := filepath.Join(hostname, "etc", "datadog.yaml_on_disk")
 			e = zipFile.Add(fileName, file)
 			if e != nil {
 				return e
