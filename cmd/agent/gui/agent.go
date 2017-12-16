@@ -132,7 +132,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Initiate the flare locally
-	filePath, e := flare.CreateArchive(true, false, common.GetDistPath(), common.PyChecksPath, logFile)
+	filePath, e := flare.CreateArchive(true, true, common.GetDistPath(), common.PyChecksPath, logFile)
 	if e != nil {
 		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
 		log.Errorf("Error creating flare zipfile: " + e.Error())
