@@ -25,8 +25,6 @@ import (
 
 	"github.com/jhoonb/archivex"
 	yaml "gopkg.in/yaml.v2"
-	"fmt"
-	//"reflect"
 )
 
 
@@ -139,12 +137,10 @@ func zipLogFiles(zipFile *archivex.ZipFile, hostname, logFilePath string) error 
 }
 
 func zipTroubleshoot(zipFile *archivex.ZipFile, hostname string) error {
-	fmt.Println("Zippint up the Troubleshooting stuff ")
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	checks := common.AC.GetConfigChecks()
 	for _, check := range checks {
 		result, err := check.Troubleshoot()
-		fmt.Print("Zipping Troubleshooting %s", check)
 		err = zipFile.Add(filepath.Join(hostname, "troubleshoot", check.String()), []byte(result))
 		if err != nil {
 			return err

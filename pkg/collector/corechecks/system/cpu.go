@@ -78,11 +78,10 @@ func (c *CPUCheck) Run() error {
 	return nil
 }
 
-// [TODO] The troubleshoot command does nothing for the CPU check
 func (c *CPUCheck) Troubleshoot() (string,error) {
 	cpuTimes, err := times(false)
 	if err != nil {
-		return "Error retrieving CPU metrics", err
+		return fmt.Sprintf("Error retrieving CPU metrics: %s", err), err
 	}
 	return fmt.Sprintf("CPU Stats from Psutil %s", cpuTimes), nil
 }

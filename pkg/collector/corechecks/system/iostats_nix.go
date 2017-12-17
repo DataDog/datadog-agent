@@ -149,11 +149,10 @@ func (c *IOCheck) Run() error {
 	return err
 }
 
-// [TODO] The troubleshoot command does nothing for the IO Nix check
 func (c *IOCheck) Troubleshoot() (string,error) {
 	iomap, err := ioCounters()
     if err != nil {
-    	return "Couldn't retrieve Unix IO Stats", err
+    	return fmt.Sprintf("Couldn't retrieve Unix IO Stats: %s", err), err
 	}
 	return fmt.Sprintf("Raw unix IO Stats: %s", iomap), nil
 }

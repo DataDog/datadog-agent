@@ -54,9 +54,12 @@ func (c *LoadCheck) Run() error {
 	return nil
 }
 
-// [TODO] The troubleshoot command does nothing for the Load check
 func (c *LoadCheck) Troubleshoot() (string, error) {
-	return "Not Implemented Yet", nil
+	avg, err := loadAvg()
+	if err != nil {
+		return fmt.Sprintf("Error retrieving Load metrics: %s", err), err
+	}
+	return fmt.Sprintf("Raw Load values: %s", avg), nil
 }
 
 // Configure the CPU check doesn't need configuration

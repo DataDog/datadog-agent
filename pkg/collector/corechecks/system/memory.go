@@ -107,9 +107,12 @@ func (c *MemoryCheck) Run() error {
 	return nil
 }
 
-// [TODO] The troubleshoot command does nothing for the Memory check
 func (c *MemoryCheck) Troubleshoot() (string, error) {
-	return "Not Implemented Yet",nil
+	v, errVirt := virtualMemory()
+	if errVirt != nil {
+		return fmt.Sprintf("Error retrieving Memory values: %s", errVirt), errVirt
+	}
+	return fmt.Sprintf("Raw memory Values: %s", v),nil
 }
 
 // Configure the Python check from YAML data

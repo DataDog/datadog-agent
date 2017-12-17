@@ -52,21 +52,19 @@ func NewPythonCheck(name string, class *python.PyObject) *PythonCheck {
 
 // Run a troubleshoot Python function
 func (c *PythonCheck) Troubleshoot() (string, error) {
-	fmt.Printf("In troubleshoot function \n")
 	// Lock the GIL and release it at the end of the run
 	gstate := newStickyLock()
 	defer gstate.unlock()
 
-	// call run function, it takes no args so we pass an empty tuple
-	log.Debugf("Running python check %s %s", c.ModuleName, c.id)
+	// call troubleshoot function, it takes no args so we pass an empty tuple
+	log.Debugf("Running python troubleshoot for check %s %s", c.ModuleName, c.id)
 	emptyTuple := python.PyTuple_New(0)
 	defer emptyTuple.DecRef()
 	result := c.instance.CallMethod("troubleshoot", emptyTuple)
-	log.Infof("Ran troubleshoot check %s %s", c.ModuleName, c.id)
 	if result == nil {
 		pyErr, err := gstate.getPythonError()
 		if err != nil {
-			return "Error occured while running check", fmt.Errorf("An error occurred while running python check and couldn't be formatted: %v", err)
+			return "Error occured while running check", fmt.Errorf("An error occurred while running python troubleshooting check and couldn't be formatted: %v", err)
 		}
 		return "Empty response returned from the Trobuleshoot function", errors.New(pyErr)
 	}

@@ -315,5 +315,4 @@ class AgentCheck(object):
             result = self.troubleshooter(copy.deepcopy(self.instances[0]))
         except:
             result = "Issue running the troubleshooting check"
-        print result
         return result

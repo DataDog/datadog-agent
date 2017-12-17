@@ -92,11 +92,10 @@ func (c *fhCheck) Run() error {
 	return nil
 }
 
-// [TODO] The troubleshoot command does nothing for the File Handles check
 func (c *fhCheck) Troubleshoot() (string,error) {
 	fileNrValues, err := c.getFileNrValues(fileNrHandle)
 	if err != nil {
-		return "Error retreiving File Handle values", err
+		return fmt.Sprintf("Error retreiving File Handle values: %s", err), err
 	}
 	return fmt.Sprintf("File Handle values from %s: %s", fileNrHandle, fileNrValues), nil
 }

@@ -48,9 +48,12 @@ func (c *UptimeCheck) Run() error {
 	return nil
 }
 
-// [TODO] The troubleshoot command does nothing for the Uptime check
 func (c *UptimeCheck) Troubleshoot() (string, error) {
-	return "Not Implemented Yet", nil
+	t, err := uptime()
+	if err != nil {
+		return fmt.Sprintf("Error retrieving Uptime values: %s", err), err
+	}
+	return fmt.Sprintf("Uptime values: %s", t), nil
 }
 
 // Configure the CPU check doesn't need configuration
