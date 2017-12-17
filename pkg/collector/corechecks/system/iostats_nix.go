@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/xc"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/disk"
+	"fmt"
 )
 
 // kernel ticks / sec
@@ -150,7 +151,11 @@ func (c *IOCheck) Run() error {
 
 // [TODO] The troubleshoot command does nothing for the IO Nix check
 func (c *IOCheck) Troubleshoot() (string,error) {
-	return "Not Implemented Yet", nil
+	iomap, err := ioCounters()
+    if err != nil {
+    	return "Couldn't retrieve Unix IO Stats", err
+	}
+	return fmt.Sprintf("Raw unix IO Stats: %s", iomap), nil
 }
 
 func init() {

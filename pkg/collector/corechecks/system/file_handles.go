@@ -18,6 +18,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"fmt"
 )
 
 // For testing
@@ -93,7 +94,11 @@ func (c *fhCheck) Run() error {
 
 // [TODO] The troubleshoot command does nothing for the File Handles check
 func (c *fhCheck) Troubleshoot() (string,error) {
-	return "Not Implemented Yet", nil
+	fileNrValues, err := c.getFileNrValues(fileNrHandle)
+	if err != nil {
+		return "Error retreiving File Handle values", err
+	}
+	return fmt.Sprintf("File Handle values from %s: %s", fileNrHandle, fileNrValues), nil
 }
 
 // The check doesn't need configuration

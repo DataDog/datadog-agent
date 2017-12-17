@@ -80,7 +80,11 @@ func (c *CPUCheck) Run() error {
 
 // [TODO] The troubleshoot command does nothing for the CPU check
 func (c *CPUCheck) Troubleshoot() (string,error) {
-	return "Not Implemented Yet", nil
+	cpuTimes, err := times(false)
+	if err != nil {
+		return "Error retrieving CPU metrics", err
+	}
+	return fmt.Sprintf("CPU Stats from Psutil %s", cpuTimes), nil
 }
 
 // Configure the CPU check doesn't need configuration
