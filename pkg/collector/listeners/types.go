@@ -5,7 +5,11 @@
 
 package listeners
 
-import log "github.com/cihub/seelog"
+import (
+	"errors"
+
+	log "github.com/cihub/seelog"
+)
 
 // ID is the representation of the unique ID of a Service
 type ID string
@@ -48,3 +52,6 @@ func Register(name string, factory ServiceListenerFactory) {
 	}
 	ServiceListenerFactories[name] = factory
 }
+
+// ErrNotSupported is thrown if listener doesn't support the asked variable
+var ErrNotSupported = errors.New("AD: variable not supported by listener")

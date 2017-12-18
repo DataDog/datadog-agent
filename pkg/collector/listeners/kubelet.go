@@ -160,6 +160,7 @@ func (s *PodContainerService) GetADIdentifiers() ([]string, error) {
 		for _, container := range s.PodInfos.Status.Containers {
 			if container.ID == searchedId {
 				s.ADIdentifiers = append(s.ADIdentifiers, container.Name, container.Image)
+				break
 			}
 		}
 	}
@@ -183,8 +184,7 @@ func (s *PodContainerService) GetHosts() (map[string]string, error) {
 
 // GetPid inspect the container an return its pid
 func (s *PodContainerService) GetPid() (int, error) {
-	// not supported throw error
-	return s.Pid, nil
+	return -1, ErrNotSupported
 }
 
 // GetPorts returns the container's ports
@@ -198,6 +198,7 @@ func (s *PodContainerService) GetPorts() ([]int, error) {
 	for _, container := range s.PodInfos.Status.Containers {
 		if container.ID == searchedId {
 			searchedContainerName = container.Name
+			break
 		}
 	}
 	var ports []int
@@ -206,6 +207,7 @@ func (s *PodContainerService) GetPorts() ([]int, error) {
 			for _, port := range container.Ports {
 				ports = append(ports, port.ContainerPort)
 			}
+			break
 		}
 	}
 

@@ -2,6 +2,7 @@
 ## please see datadog.yaml.example for all supported options
 
 # Autodiscovery
+# TODO: Switch to kubelet listener
 listeners:
   - name: docker
 
