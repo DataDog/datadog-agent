@@ -134,6 +134,10 @@ func init() {
 	// Kubernetes
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
+
+	// Kube ApiServer
+	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
+
 	// ECS
 	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
 

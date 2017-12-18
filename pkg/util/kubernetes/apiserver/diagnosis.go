@@ -3,21 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build kubeapiserver
+
 package apiserver
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	log "github.com/cihub/seelog"
-	"github.com/ericchiang/k8s"
+
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 func init() {
-	diagnosis.Register("K8s API Server availability", diagnose)
+	diagnosis.Register("Kubernetes API Server availability", diagnose)
 }
 
-// diagnosee the API server availability
+// diagnose the API server availability
 func diagnose() error {
-	_, err := k8s.NewInClusterClient()
+	_, err := GetApiClient()
 	if err != nil {
 		log.Error(err)
 	}
