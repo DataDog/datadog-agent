@@ -58,6 +58,36 @@ For example, for an Agent installed on Ubuntu, the differences are as follows:
 * on `upstart`-based systems: `sudo start/stop/restart datadog-agent`
 * on `systemd`-based systems: `sudo systemctl start/stop/restart datadog-agent`
 
+### Windows 
+
+There are a few major changes
+* the main executable name is now `agent.exe` (it was `ddagent.exe` previously)
+* Commands should be run with the command line `c:\program files\datadog\datadog-agent\embedded\agent.exe <command>`
+* The configuration GUI is now a browser based configuration application.  
+
+The agent has a new set of command-line options:
+| Command         | Notes
+| --------------- | -------------------------------------------------------------------------- |
+| check           | Run the specified check |
+| diagnose        | Execute some connectivity diagnosis on your system |
+| flare           | Collect a flare and send it to Datadog |
+| help            | Help about any command |
+| hostname        | Print the hostname used by the Agent |
+| import          | Import and convert configuration files from previous versions of the Agent |
+| installservice  | Installs the agent within the service control manager |
+| launch-gui      | starts the Datadog Agent GUI |
+| regimport       | Import the registry settings into datadog.yaml |
+| remove-service  | Removes the agent from the service control manager |
+| restart-service | restarts the agent within the service control manager |
+| start           | Start the Agent |
+| start-service   | starts the agent within the service control manager |
+| status          | Print the current status |
+| stopservice     | stops the agent within the service control manager |
+| version         | Print the version info |
+
+#### Gui
+* The browser session must be restarted each time the Agent service is restarted.  This will be fixed in an upcoming beta.
+
 ### MacOS
 
 * the _lifecycle commands_ (former `datadog-agent start`/`stop`/`restart`/`status` on the Agent 5) are replaced by `launchctl` commands on the `com.datadoghq.agent` service, and should be run under the logged-in user. For these commands, you can also use the Datadog Agent systray app

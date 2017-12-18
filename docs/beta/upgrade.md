@@ -123,7 +123,7 @@ sudo restart datadog-agent
 
 ## Windows
 
-Coming soon.
+Run the agent6 installation package.
 
 
 ## MacOS
