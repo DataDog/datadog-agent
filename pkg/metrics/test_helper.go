@@ -46,7 +46,7 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	assert.Equal(t, expected.MType, actual.MType)
 	assert.Equal(t, expected.Interval, actual.Interval)
 	assert.Equal(t, expected.SourceTypeName, actual.SourceTypeName)
-	if expected.ContextKey != "" {
+	if !expected.ContextKey.IsZero() {
 		// Only test the contextKey if it's set in the expected Serie
 		assert.Equal(t, expected.ContextKey, actual.ContextKey)
 	}
@@ -64,7 +64,7 @@ func AssertSketchSeriesEqual(t *testing.T, expected, actual *percentile.SketchSe
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.Interval, actual.Interval)
 	assert.Equal(t, expected.SketchType, actual.SketchType)
-	if expected.ContextKey != "" {
+	if !expected.ContextKey.IsZero() {
 		assert.Equal(t, expected.ContextKey, actual.ContextKey)
 	}
 	if expected.Sketches != nil {

@@ -14,6 +14,7 @@ import (
 	"expvar"
 
 	agentpayload "github.com/DataDog/agent-payload/gogen"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/gogo/protobuf/proto"
 
@@ -54,13 +55,13 @@ func (s SketchType) String() string {
 
 // SketchSeries holds an array of sketches.
 type SketchSeries struct {
-	Name       string     `json:"metric"`
-	Tags       []string   `json:"tags"`
-	Host       string     `json:"host"`
-	Interval   int64      `json:"interval"`
-	Sketches   []Sketch   `json:"sketches"`
-	SketchType SketchType `json:"sketch_type"`
-	ContextKey string     `json:"-"`
+	Name       string          `json:"metric"`
+	Tags       []string        `json:"tags"`
+	Host       string          `json:"host"`
+	Interval   int64           `json:"interval"`
+	Sketches   []Sketch        `json:"sketches"`
+	SketchType SketchType      `json:"sketch_type"`
+	ContextKey ckey.ContextKey `json:"-"`
 }
 
 // SketchSeriesList represents a list of SketchSeries ready to be serialized

@@ -8,20 +8,24 @@ package metrics
 import (
 	"math"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	log "github.com/cihub/seelog"
 )
 
+// ContextKey is a non-cryptographic hash unique to a context
+type ContextKey [16]byte
+
 // ContextMetrics stores all the metrics by context key
-type ContextMetrics map[string]Metric
+type ContextMetrics map[ckey.ContextKey]Metric
 
 // MakeContextMetrics returns a new ContextMetrics
 func MakeContextMetrics() ContextMetrics {
-	return ContextMetrics(make(map[string]Metric))
+	return ContextMetrics(make(map[ckey.ContextKey]Metric))
 }
 
 // AddSample add a sample to the current ContextMetrics and initialize a new metrics if needed.
 // TODO: Pass a reference to *MetricSample instead
-func (m ContextMetrics) AddSample(contextKey string, sample *MetricSample, timestamp float64, interval int64) {
+func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSample, timestamp float64, interval int64) {
 	if math.IsInf(sample.Value, 0) {
 		log.Warn("Ignoring sample with +/-Inf value on context key:", contextKey)
 		return
