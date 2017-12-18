@@ -107,6 +107,9 @@ jobs:
       - run:
           name: build puppy
           command: inv agent.build --puppy
+      - run:
+          name: test puppy
+          command: ./bin/agent/agent -c ./bin/agent/dist check cpu
 
 workflows:
   version: 2

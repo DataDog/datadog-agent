@@ -1,3 +1,5 @@
+// +build cpython
+
 #include "datadog_agent.h"
 
 // Functions

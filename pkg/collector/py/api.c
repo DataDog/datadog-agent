@@ -1,3 +1,5 @@
+// +build cpython
+
 #include "api.h"
 
 PyObject* SubmitMetric(PyObject*, char*, MetricType, char*, float, PyObject*, char*);

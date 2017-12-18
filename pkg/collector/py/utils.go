@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build cpython
+
 package py
 
 import (
@@ -39,21 +41,6 @@ import "C"
 type stickyLock struct {
 	gstate python.PyGILState
 	locked uint32 // Flag set to 1 if the lock is locked, 0 otherwise
-}
-
-//PythonStatsEntry are entries for specific object type memory usage
-type PythonStatsEntry struct {
-	Reference string
-	NObjects  int
-	Size      int
-}
-
-//PythonStats contains python memory statistics
-type PythonStats struct {
-	Type     string
-	NObjects int
-	Size     int
-	Entries  []*PythonStatsEntry
 }
 
 const (

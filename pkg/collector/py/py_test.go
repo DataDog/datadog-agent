@@ -1,3 +1,5 @@
+// +build cpython
+
 package py
 
 import (
