@@ -17,7 +17,7 @@ import (
 
 func TestAvailableIntegrationConfigs(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
-	assert.Equal(t, []string{"integration.yaml", "integration2.yaml", "integration.d/integration3.yaml"}, availableIntegrationConfigs(ddconfdPath))
+	assert.Equal(t, []string{"integration.yaml", "integration2.yaml", "misconfigured_integration.yaml", "integration.d/integration3.yaml"}, availableIntegrationConfigs(ddconfdPath))
 }
 
 func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {

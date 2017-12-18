@@ -8,6 +8,7 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"path/filepath"
 	"regexp"
 
@@ -95,23 +96,27 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 		viperCfg.SetConfigFile(filepath.Join(ddconfdPath, file))
 		err := viperCfg.ReadInConfig()
 		if err != nil {
-			return err
+			log.Println(err)
+			continue
 		}
 		err = viperCfg.Unmarshal(&integrationConfig)
 		if err != nil {
-			return err
+			log.Println(err)
+			continue
 		}
 
 		for _, logSourceConfigIterator := range integrationConfig.Logs {
 			logSourceConfig := logSourceConfigIterator
 			err = validateSource(logSourceConfig)
 			if err != nil {
-				return err
+				log.Println(err)
+				continue
 			}
 
 			rules, err := validateProcessingRules(logSourceConfig.ProcessingRules)
 			if err != nil {
-				return err
+				log.Println(err)
+				continue
 			}
 			logSourceConfig.ProcessingRules = rules
 
@@ -120,6 +125,11 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 			logsSourceConfigs = append(logsSourceConfigs, &logSourceConfig)
 		}
 	}
+
+	if len(logsSourceConfigs) == 0 {
+		return fmt.Errorf("Could not find any valid logs integration configuration file in %s", ddconfdPath)
+	}
+
 	config.Set(logsRules, logsSourceConfigs)
 	return nil
 }
