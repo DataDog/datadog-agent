@@ -45,7 +45,7 @@ func init() {
 func NewKubeletListener() (ServiceListener, error) {
 	watcher, err := kubelet.NewPodWatcher(5 * time.Second)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to connect to kubelet, Kubernetes listener will not work: %s", err)
+		return nil, fmt.Errorf("failed to connect to kubelet, Kubernetes listener will not work: %s", err)
 	}
 	return &KubeletListener{
 		watcher:  watcher,
@@ -70,6 +70,7 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 				updatedPods, err := l.watcher.PullChanges()
 				if err != nil {
 					log.Error(err)
+					continue
 				}
 				for _, pod := range updatedPods {
 					// Ignore pending/failed/succeeded/unknown states
@@ -81,6 +82,7 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 				expiredContainerList, err := l.watcher.ExpireContainers()
 				if err != nil {
 					log.Error(err)
+					continue
 				}
 				for _, containerID := range expiredContainerList {
 					l.removeService(ID(containerID))
@@ -176,7 +178,7 @@ func (s *PodContainerService) GetHosts() (map[string]string, error) {
 
 	podIp := s.PodInfos.Status.PodIP
 	if podIp == "" {
-		return nil, fmt.Errorf("Unable to get pod %s IP", s.PodInfos.Metadata.Name)
+		return nil, fmt.Errorf("unable to get pod %s IP", s.PodInfos.Metadata.Name)
 	}
 	s.Hosts = map[string]string{"pod": podIp}
 	return s.Hosts, nil
