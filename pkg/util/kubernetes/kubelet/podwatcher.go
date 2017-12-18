@@ -27,7 +27,7 @@ type PodWatcher struct {
 
 // NewPodWatcher creates a new watcher. User call must then trigger PullChanges
 // and ExpireContainers when needed.
-func NewPodWatcher() (*PodWatcher, error) {
+func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 	kubeutil, err := GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func NewPodWatcher() (*PodWatcher, error) {
 		kubeUtil:         kubeutil,
 		latestResVersion: -1,
 		lastSeen:         make(map[string]time.Time),
-		expiryDuration:   5 * time.Minute,
+		expiryDuration:   expiryDuration,
 	}
 	return watcher, nil
 }

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	log "github.com/cihub/seelog"
 )
@@ -34,7 +35,7 @@ type PodContainerService struct {
 	Hosts         map[string]string
 	Ports         []int
 	Pid           int
-	PodName       string
+	PodInfos      *kubelet.Pod
 }
 
 func init() {
@@ -42,14 +43,14 @@ func init() {
 }
 
 func NewKubeletListener() (ServiceListener, error) {
-	watcher, err := kubelet.NewPodWatcher()
+	watcher, err := kubelet.NewPodWatcher(5 * time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to connect to kubelet, Kubernetes listener will not work: %s", err)
 	}
 	return &KubeletListener{
 		watcher:  watcher,
 		services: make(map[ID]Service),
-		ticker:   time.NewTicker(time.Second * 5),
+		ticker:   time.NewTicker(5 * time.Second),
 		stop:     make(chan bool),
 	}, nil
 }
@@ -70,7 +71,12 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 				if err != nil {
 					log.Error(err)
 				}
-				log.Debug(updatedPods)
+				for _, pod := range updatedPods {
+					// Ignore pending/failed/succeeded/unknown states
+					if pod.Status.Phase == "Running" {
+						l.processNewPod(pod)
+					}
+				}
 				// Compute deleted pods
 				expiredContainerList, err := l.watcher.ExpireContainers()
 				if err != nil {
@@ -91,15 +97,36 @@ func (l *KubeletListener) Stop() {
 
 func (l *KubeletListener) processNewPod(pod *kubelet.Pod) {
 	for _, container := range pod.Status.Containers {
-		l.createService(ID(container.ID))
+		l.createService(ID(container.ID), pod)
 	}
 }
 
-func (l *KubeletListener) createService(cID ID) {
-	svc := PodContainerService{}
+func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
+	svc := PodContainerService{
+		ID:       id,
+		PodInfos: pod,
+	}
+
+	podName := pod.Metadata.Name
+	_, err := svc.GetADIdentifiers()
+	if err != nil {
+		log.Errorf("Failed to get AD identifiers for pod %s: %s", podName, err)
+	}
+	_, err = svc.GetHosts()
+	if err != nil {
+		log.Errorf("Failed to get hosts for pod %s: %s", podName, err)
+	}
+	_, err = svc.GetPorts()
+	if err != nil {
+		log.Errorf("Failed to get ports for pod %s: %s", podName, err)
+	}
+	_, err = svc.GetTags()
+	if err != nil {
+		log.Errorf("Failed to get tags for pod %s: %s", podName, err)
+	}
 
 	l.m.Lock()
-	l.services[ID(cID)] = &svc
+	l.services[ID(id)] = &svc
 	l.m.Unlock()
 
 	l.newService <- &svc
@@ -117,7 +144,7 @@ func (l *KubeletListener) removeService(cID ID) {
 
 		l.delService <- svc
 	} else {
-		log.Debugf("Container %s not found, not removing", cID[:12])
+		log.Debugf("Container %s not found, not removing", cID)
 	}
 }
 
@@ -129,7 +156,12 @@ func (s *PodContainerService) GetID() ID {
 // GetADIdentifiers returns the service AD identifiers
 func (s *PodContainerService) GetADIdentifiers() ([]string, error) {
 	if len(s.ADIdentifiers) == 0 {
-		// get image names from pod
+		searchedId := string(s.ID)
+		for _, container := range s.PodInfos.Status.Containers {
+			if container.ID == searchedId {
+				s.ADIdentifiers = append(s.ADIdentifiers, container.Name, container.Image)
+			}
+		}
 	}
 
 	return s.ADIdentifiers, nil
@@ -137,20 +169,61 @@ func (s *PodContainerService) GetADIdentifiers() ([]string, error) {
 
 // GetHosts returns the pod hosts
 func (s *PodContainerService) GetHosts() (map[string]string, error) {
+	if s.Hosts != nil {
+		return s.Hosts, nil
+	}
+
+	podIp := s.PodInfos.Status.PodIP
+	if podIp == "" {
+		return nil, fmt.Errorf("Unable to get pod %s IP", s.PodInfos.Metadata.Name)
+	}
+	s.Hosts = map[string]string{"pod": podIp}
 	return s.Hosts, nil
 }
 
 // GetPid inspect the container an return its pid
 func (s *PodContainerService) GetPid() (int, error) {
+	// not supported throw error
 	return s.Pid, nil
 }
 
 // GetPorts returns the container's ports
 func (s *PodContainerService) GetPorts() ([]int, error) {
+	if s.Ports != nil {
+		return s.Ports, nil
+	}
+
+	searchedId := string(s.ID)
+	searchedContainerName := ""
+	for _, container := range s.PodInfos.Status.Containers {
+		if container.ID == searchedId {
+			searchedContainerName = container.Name
+		}
+	}
+	var ports []int
+	for _, container := range s.PodInfos.Spec.Containers {
+		if container.Name == searchedContainerName {
+			for _, port := range container.Ports {
+				ports = append(ports, port.ContainerPort)
+			}
+		}
+	}
+
+	s.Ports = ports
+	if len(s.Ports) == 0 {
+		// Port might not be specified in pod spec
+		log.Warnf("No specified port found for pod %s", s.PodInfos.Metadata.Name)
+	}
+
 	return s.Ports, nil
 }
 
 // GetTags retrieves tags using the Tagger
 func (s *PodContainerService) GetTags() ([]string, error) {
-	return []string{}, nil
+	tags, err := tagger.Tag(string(s.ID), true)
+	if err != nil {
+		return []string{}, err
+	}
+
+	return tags, nil
 }
