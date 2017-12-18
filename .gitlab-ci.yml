@@ -41,26 +41,49 @@ before_script:
 
 
 # run tests for deb-x64
-run_tests_deb-x64:
+run_tests_deb_pkg_0-x64:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
-    - inv -e test --coverage
+    - inv -e test --coverage --number=0
 
-# run tests for rpm-x64
-run_test_rpm-x64:
+# run tests for deb-x64
+run_tests_deb_pkg_1-x64:
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
-    - inv -e test --coverage
+    - inv -e test --coverage --number=1
+
+# run tests for deb-x64
+run_tests_deb_pkg_2-x64:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e test --coverage --number=2
+
+# run tests for deb-x64
+run_tests_deb_pkg_3-x64:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e test --coverage --number=3
+
+# run tests for deb-x64
+run_tests_deb_others-x64:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e test --coverage --targets=./test,./cmd
 
 
 #
 # binary_build
 #
-
 
 # build dogstatsd static for deb-x64
 build_dogstatsd_static-deb_x64:
