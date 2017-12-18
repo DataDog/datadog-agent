@@ -25,8 +25,8 @@ var (
 func init() {
 	AgentCmd.AddCommand(flareCmd)
 	flareCmd.AddCommand(trCmd)
-	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
-	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	flareCmd.PersistentFlags().StringVarP(&customerEmail, "email", "e", "", "Your email")
+	flareCmd.PersistentFlags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.SetArgs([]string{"caseID"})
 }
 
