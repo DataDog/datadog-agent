@@ -89,6 +89,20 @@ func TestParseCounter(t *testing.T) {
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
+func TestParseCounterWithTags(t *testing.T) {
+	parsed, err := parseMetricMessage([]byte("custom_counter:1|c|#protocol:http,bench"))
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "custom_counter", parsed.Name)
+	assert.Equal(t, 1.0, parsed.Value)
+	assert.Equal(t, metrics.CounterType, parsed.Mtype)
+	assert.Equal(t, 2, len(parsed.Tags))
+	assert.Equal(t, "protocol:http", parsed.Tags[0])
+	assert.Equal(t, "bench", parsed.Tags[1])
+	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
+}
+
 func TestParseHistogram(t *testing.T) {
 	parsed, err := parseMetricMessage([]byte("daemon:21|h"))
 
@@ -164,7 +178,6 @@ func TestParseGaugeWithTags(t *testing.T) {
 
 func TestParseGaugeWithHostTag(t *testing.T) {
 	parsed, err := parseMetricMessage([]byte("daemon:666|g|#sometag1:somevalue1,host:my-hostname,sometag2:somevalue2"))
-
 	assert.NoError(t, err)
 
 	assert.Equal(t, "daemon", parsed.Name)
