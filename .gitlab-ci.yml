@@ -72,14 +72,6 @@ run_tests_deb_pkg_3-x64:
   script:
     - inv -e test --coverage --number=3
 
-# run tests for deb-x64
-run_tests_deb_others-x64:
-  stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
-  tags: [ "runner:main", "size:large" ]
-  script:
-    - inv -e test --coverage --targets=./test,./cmd
-
 
 #
 # binary_build

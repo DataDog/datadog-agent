@@ -65,7 +65,8 @@ def test(ctx, targets=None, number=None, max_number=3, coverage=False, race=Fals
 
         tool_targets = test_targets = directories
 
-        print(directories)
+        if number == 0:
+            tool_targets += "./cmd"
 
     build_tags = get_default_build_tags()
 
