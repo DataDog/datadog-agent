@@ -9,16 +9,18 @@ package tailer
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
-	"github.com/stretchr/testify/suite"
 )
 
 type ScannerTestSuite struct {
@@ -39,9 +41,10 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.pp = mock.NewMockProvider()
 	suite.outputChan = suite.pp.NextPipelineChan()
 
-	suite.testDir = "tests/scanner"
-	os.Remove(suite.testDir)
-	os.MkdirAll(suite.testDir, os.ModeDir)
+	var err error
+	suite.testDir, err = ioutil.TempDir("", "log-scanner-test-")
+	suite.Nil(err)
+
 	suite.testPath = fmt.Sprintf("%s/scanner.log", suite.testDir)
 	suite.testRotatedPath = fmt.Sprintf("%s.1", suite.testPath)
 

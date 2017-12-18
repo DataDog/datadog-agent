@@ -9,15 +9,17 @@ package tailer
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/suite"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/stretchr/testify/suite"
 )
 
 var chanSize = 10
@@ -34,9 +36,10 @@ type TailerTestSuite struct {
 }
 
 func (suite *TailerTestSuite) SetupTest() {
-	suite.testDir = "tests/tailer"
-	os.Remove(suite.testDir)
-	os.MkdirAll(suite.testDir, os.ModeDir)
+	var err error
+	suite.testDir, err = ioutil.TempDir("", "log-tailer-test-")
+	suite.Nil(err)
+
 	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
@@ -70,11 +73,11 @@ func (suite *TailerTestSuite) TestTailerTails() {
 	msg = <-suite.outputChan
 	suite.Equal("hello again", string(msg.Content()))
 
-	suite.Equal("file:tests/tailer/tailer.log", suite.tl.Identifier())
+	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
 }
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
-	suite.Equal("file:tests/tailer/tailer.log", suite.tl.Identifier())
+	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
 }
 
 func (suite *TailerTestSuite) TestTailerLifecycle() {
