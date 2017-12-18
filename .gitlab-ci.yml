@@ -368,6 +368,28 @@ agent6_jmx_docker_hub:
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
     DD_DIND_TAG_DEST: datadog/agent:${CI_COMMIT_TAG}-jmx
 
+agent6_docker_hub_latest:
+  <<: *dind_tag_job_definition
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent:latest
+
+agent6_jmx_docker_hub_latest:
+  <<: *dind_tag_job_definition
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_jmx_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent:latest-jmx
+
 agent6_dev_docker_hub:
   <<: *dind_tag_job_definition
   when: manual
