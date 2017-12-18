@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
+// +build cpython
+
 // NOTICE: See TestMain function in `utils_test.go` for Python initialization
 package py
 

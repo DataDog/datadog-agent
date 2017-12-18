@@ -1,3 +1,5 @@
+// +build cpython
+
 #ifndef _PY_API_H
 #define _PY_API_H
 
