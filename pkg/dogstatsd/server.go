@@ -80,7 +80,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		listeners:  tmpListeners,
 		packetPool: packetPool,
 	}
-	go s.handleMessages(metricOut, eventOut, serviceCheckOut)
+	s.handleMessages(metricOut, eventOut, serviceCheckOut)
 
 	return s, nil
 }
@@ -88,16 +88,15 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
-		defer s.Statistics.Stop()
 	}
 
 	for _, l := range s.listeners {
 		go l.Listen()
 	}
 
-	// Run min(2, NumCPU-2) workers, we dedicate a core to the
+	// Run min(2, GoMaxProcs-2) workers, we dedicate a core to the
 	// listener goroutine and another to aggregator + forwarder
-	workers := runtime.NumCPU() - 2
+	workers := runtime.GOMAXPROCS(-1) - 2
 	if workers < 2 {
 		workers = 2
 	}
@@ -188,6 +187,9 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 func (s *Server) Stop() {
 	for _, l := range s.listeners {
 		l.Stop()
+	}
+	if s.Statistics != nil {
+		s.Statistics.Stop()
 	}
 	s.Lock()
 	s.Started = false
