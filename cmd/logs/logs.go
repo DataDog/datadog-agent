@@ -35,7 +35,8 @@ func Start() {
 	l := listener.New(config.GetLogsSources(), pp)
 	l.Start()
 
-	s := tailer.New(config.GetLogsSources(), pp, a)
+	tailingLimit := config.LogsAgent.GetInt("log_open_files_limit")
+	s := tailer.New(config.GetLogsSources(), tailingLimit, pp, a)
 	s.Start()
 
 	c := container.New(config.GetLogsSources(), pp, a)

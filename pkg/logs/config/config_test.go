@@ -31,6 +31,7 @@ func TestBuildConfigWithCompleteFile(t *testing.T) {
 	assert.Equal(t, 10516, testConfig.GetInt("log_dd_port"))
 	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
 	assert.Equal(t, true, testConfig.GetBool("log_enabled"))
+	assert.Equal(t, 123, testConfig.GetInt("log_open_files_limit"))
 }
 
 func TestDDConfigDefaultValues(t *testing.T) {
@@ -44,6 +45,7 @@ func TestDDConfigDefaultValues(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "incomplete", "conf.d")
 	buildMainConfig(ddconfig.Datadog, ddconfigPath, ddconfdPath)
 	assert.Equal(t, hostname, ddconfig.Datadog.GetString("hostname"))
+	assert.Equal(t, 100, ddconfig.Datadog.GetInt("log_open_files_limit"))
 }
 
 func TestComputeConfigWithMisconfiguredFile(t *testing.T) {

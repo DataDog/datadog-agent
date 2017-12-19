@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -31,10 +32,11 @@ type ScannerTestSuite struct {
 	testRotatedPath string
 	testRotatedFile *os.File
 
-	outputChan chan message.Message
-	pp         pipeline.Provider
-	sources    []*config.IntegrationConfigLogSource
-	s          *Scanner
+	outputChan     chan message.Message
+	pp             pipeline.Provider
+	sources        []*config.IntegrationConfigLogSource
+	openFilesLimit int
+	s              *Scanner
 }
 
 func (suite *ScannerTestSuite) SetupTest() {
@@ -55,8 +57,9 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.Nil(err)
 	suite.testRotatedFile = f
 
+	suite.openFilesLimit = 100
 	suite.sources = []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: suite.testPath}}
-	suite.s = New(suite.sources, suite.pp, auditor.New(nil))
+	suite.s = New(suite.sources, suite.openFilesLimit, suite.pp, auditor.New(nil))
 	suite.s.setup()
 	for _, tl := range suite.s.tailers {
 		tl.sleepMutex.Lock()
@@ -167,6 +170,70 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	suite.Equal("third", string(msg.Content()))
 }
 
+func (suite *ScannerTestSuite) TestScannerScanWithFileRemovedAndCreated() {
+	s := suite.s
+	tailerLen := len(s.tailers)
+
+	var err error
+
+	// remove file
+	err = os.Remove(suite.testPath)
+	suite.Nil(err)
+	s.scan()
+	suite.Equal(tailerLen-1, len(s.tailers))
+
+	// create file
+	_, err = os.Create(suite.testPath)
+	suite.Nil(err)
+	s.scan()
+	suite.Equal(tailerLen, len(s.tailers))
+}
+
 func TestScannerTestSuite(t *testing.T) {
 	suite.Run(t, new(ScannerTestSuite))
+}
+
+func TestScannerScanWithTooManyFiles(t *testing.T) {
+	var err error
+	var path string
+
+	testDir, err := ioutil.TempDir("", "log-scanner-test-")
+	assert.Nil(t, err)
+
+	// creates files
+	path = fmt.Sprintf("%s/1.log", testDir)
+	_, err = os.Create(path)
+	assert.Nil(t, err)
+
+	path = fmt.Sprintf("%s/2.log", testDir)
+	_, err = os.Create(path)
+	assert.Nil(t, err)
+
+	path = fmt.Sprintf("%s/3.log", testDir)
+	_, err = os.Create(path)
+	assert.Nil(t, err)
+
+	// create scanner
+	path = fmt.Sprintf("%s/*.log", testDir)
+	sources := []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: path}}
+	openFilesLimit := 2
+	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil))
+
+	// test at setup
+	scanner.setup()
+	assert.Equal(t, 2, len(scanner.tailers))
+
+	// test at scan
+	scanner.scan()
+	assert.Equal(t, 2, len(scanner.tailers))
+
+	path = fmt.Sprintf("%s/2.log", testDir)
+	err = os.Remove(path)
+	assert.Nil(t, err)
+
+	scanner.scan()
+	assert.Equal(t, 1, len(scanner.tailers))
+
+	scanner.scan()
+	assert.Equal(t, 2, len(scanner.tailers))
 }

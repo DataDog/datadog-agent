@@ -5,3 +5,4 @@ logset: playground
 api_key: "helloworld"
 hostname: "my.host"
 log_enabled: true
+log_open_files_limit: 123
