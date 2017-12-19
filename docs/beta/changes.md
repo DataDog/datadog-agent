@@ -66,6 +66,7 @@ There are a few major changes
 * The configuration GUI is now a browser based configuration application.  
 
 The agent has a new set of command-line options:
+
 | Command         | Notes
 | --------------- | -------------------------------------------------------------------------- |
 | check           | Run the specified check |
