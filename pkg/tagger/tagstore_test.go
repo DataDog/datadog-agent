@@ -154,3 +154,38 @@ func (s *StoreTestSuite) TestPrune() {
 func TestStoreSuite(t *testing.T) {
 	suite.Run(t, &StoreTestSuite{})
 }
+
+func TestGetEntityTags(t *testing.T) {
+	etags := entityTags{
+		lowCardTags:  make(map[string][]string),
+		highCardTags: make(map[string][]string),
+		cacheValid:   false,
+	}
+	assert.False(t, etags.cacheValid)
+
+	// Get empty tags and make sure cache is now set to valid
+	tags, sources := etags.get(true)
+	assert.Len(t, tags, 0)
+	assert.Len(t, sources, 0)
+	assert.True(t, etags.cacheValid)
+
+	// Add tags but don't invalidate the cache, we should return empty arrays
+	etags.lowCardTags["source"] = []string{"low1", "low2"}
+	etags.highCardTags["source"] = []string{"high1", "high2"}
+	tags, sources = etags.get(true)
+	assert.Len(t, tags, 0)
+	assert.Len(t, sources, 0)
+	assert.True(t, etags.cacheValid)
+
+	// Invalidate the cache, we should now get the tags
+	etags.cacheValid = false
+	tags, sources = etags.get(true)
+	assert.Len(t, tags, 4)
+	assert.Contains(t, tags, "low1", "low2", "high1", "high2")
+	assert.Len(t, sources, 1)
+	assert.True(t, etags.cacheValid)
+	tags, sources = etags.get(false)
+	assert.Len(t, tags, 2)
+	assert.Contains(t, tags, "low1", "low2")
+	assert.Len(t, sources, 1)
+}

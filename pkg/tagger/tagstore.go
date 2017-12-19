@@ -131,7 +131,7 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 	// Cache miss
 	var arrays [][]string
 	var sources []string
-	var lowCardCount int
+	lowCardCount := 0
 
 	for source, tags := range e.lowCardTags {
 		arrays = append(arrays, tags)
