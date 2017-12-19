@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	log "github.com/cihub/seelog"
 )
@@ -35,7 +36,6 @@ type PodContainerService struct {
 	Hosts         map[string]string
 	Ports         []int
 	Pid           int
-	PodInfos      *kubelet.Pod
 }
 
 func init() {
@@ -105,24 +105,55 @@ func (l *KubeletListener) processNewPod(pod *kubelet.Pod) {
 
 func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 	svc := PodContainerService{
-		ID:       id,
-		PodInfos: pod,
+		ID: id,
+	}
+	podName := pod.Metadata.Name
+
+	// AD Identifiers
+	var containerName string
+	for _, container := range pod.Status.Containers {
+		if container.ID == string(svc.ID) {
+			svc.ADIdentifiers = append(svc.ADIdentifiers, container.Name)
+			long, short, _, err := docker.SplitImageName(container.Image)
+			if err != nil {
+				log.Warnf("Error while spliting image name: %s", err)
+			}
+			if len(long) > 0 {
+				svc.ADIdentifiers = append(svc.ADIdentifiers, long)
+			}
+			if len(short) > 0 && short != long && short != container.Name {
+				svc.ADIdentifiers = append(svc.ADIdentifiers, short)
+			}
+			containerName = container.Name
+			break
+		}
 	}
 
-	podName := pod.Metadata.Name
-	_, err := svc.GetADIdentifiers()
-	if err != nil {
-		log.Errorf("Failed to get AD identifiers for pod %s: %s", podName, err)
+	// Hosts
+	podIp := pod.Status.PodIP
+	if podIp == "" {
+		log.Errorf("Unable to get pod %s IP", podName)
 	}
-	_, err = svc.GetHosts()
-	if err != nil {
-		log.Errorf("Failed to get hosts for pod %s: %s", podName, err)
+	svc.Hosts = map[string]string{"pod": podIp}
+
+	// Ports
+	var ports []int
+	for _, container := range pod.Spec.Containers {
+		if container.Name == containerName {
+			for _, port := range container.Ports {
+				ports = append(ports, port.ContainerPort)
+			}
+			break
+		}
 	}
-	_, err = svc.GetPorts()
-	if err != nil {
-		log.Errorf("Failed to get ports for pod %s: %s", podName, err)
+	svc.Ports = ports
+	if len(svc.Ports) == 0 {
+		// Port might not be specified in pod spec
+		log.Errorf("Failed to get ports for pod %s", podName)
 	}
-	_, err = svc.GetTags()
+
+	// Tags
+	_, err := svc.GetTags()
 	if err != nil {
 		log.Errorf("Failed to get tags for pod %s: %s", podName, err)
 	}
@@ -157,30 +188,11 @@ func (s *PodContainerService) GetID() ID {
 
 // GetADIdentifiers returns the service AD identifiers
 func (s *PodContainerService) GetADIdentifiers() ([]string, error) {
-	if len(s.ADIdentifiers) == 0 {
-		searchedId := string(s.ID)
-		for _, container := range s.PodInfos.Status.Containers {
-			if container.ID == searchedId {
-				s.ADIdentifiers = append(s.ADIdentifiers, container.Name, container.Image)
-				break
-			}
-		}
-	}
-
 	return s.ADIdentifiers, nil
 }
 
 // GetHosts returns the pod hosts
 func (s *PodContainerService) GetHosts() (map[string]string, error) {
-	if s.Hosts != nil {
-		return s.Hosts, nil
-	}
-
-	podIp := s.PodInfos.Status.PodIP
-	if podIp == "" {
-		return nil, fmt.Errorf("unable to get pod %s IP", s.PodInfos.Metadata.Name)
-	}
-	s.Hosts = map[string]string{"pod": podIp}
 	return s.Hosts, nil
 }
 
@@ -191,34 +203,6 @@ func (s *PodContainerService) GetPid() (int, error) {
 
 // GetPorts returns the container's ports
 func (s *PodContainerService) GetPorts() ([]int, error) {
-	if s.Ports != nil {
-		return s.Ports, nil
-	}
-
-	searchedId := string(s.ID)
-	searchedContainerName := ""
-	for _, container := range s.PodInfos.Status.Containers {
-		if container.ID == searchedId {
-			searchedContainerName = container.Name
-			break
-		}
-	}
-	var ports []int
-	for _, container := range s.PodInfos.Spec.Containers {
-		if container.Name == searchedContainerName {
-			for _, port := range container.Ports {
-				ports = append(ports, port.ContainerPort)
-			}
-			break
-		}
-	}
-
-	s.Ports = ports
-	if len(s.Ports) == 0 {
-		// Port might not be specified in pod spec
-		log.Warnf("No specified port found for pod %s", s.PodInfos.Metadata.Name)
-	}
-
 	return s.Ports, nil
 }
 
