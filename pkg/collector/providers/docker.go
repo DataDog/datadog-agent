@@ -53,6 +53,7 @@ func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
 	return parseDockerLabels(containers)
 }
 
+// IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Docker's data.
 func (d *DockerConfigProvider) IsUpToDate() (bool, error) {
 	return false, nil
 }

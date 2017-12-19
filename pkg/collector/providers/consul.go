@@ -93,7 +93,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 	return &ConsulConfigProvider{
 		Client:      c,
 		TemplateDir: config.TemplateDir,
-		cache: cacheProvider,
+		cache:       cacheProvider,
 	}, nil
 
 }
@@ -110,10 +110,11 @@ func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
 	for _, id := range identifiers {
 		templates := p.getTemplates(id)
 		configs = append(configs, templates...)
-		}
+	}
 	return configs, nil
 }
 
+// IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Consul's data.
 func (p *ConsulConfigProvider) IsUpToDate() (bool, error) {
 	kv := p.Client.KV()
 	adListUpdated := false
@@ -138,7 +139,7 @@ func (p *ConsulConfigProvider) IsUpToDate() (bool, error) {
 	if dateIdx > p.cache.AdTemplate2Idx || adListUpdated {
 		log.Debugf("Cache Index was %v and is now %v", p.cache.AdTemplate2Idx, dateIdx)
 		p.cache.AdTemplate2Idx = dateIdx
-		log.Infof("cache updated for %v", p.String())
+		log.Infof("Cache updated for %v", p.String())
 		return false, nil
 	}
 	return true, nil
@@ -195,7 +196,7 @@ func (p *ConsulConfigProvider) getIdentifiers(prefix string) []string {
 
 // getTemplates takes a path and returns a slice of templates if it finds
 // sufficient data under this path to build one.
-func (p *ConsulConfigProvider) getTemplates(key string) ([]check.Config) {
+func (p *ConsulConfigProvider) getTemplates(key string) []check.Config {
 	templates := make([]check.Config, 0)
 
 	checkNameKey := buildStoreKey(key, checkNamePath)
@@ -236,7 +237,7 @@ func (p *ConsulConfigProvider) getValue(key string) ([]byte, error) {
 func (p *ConsulConfigProvider) getCheckNames(key string) ([]string, error) {
 	raw, err := p.getValue(key)
 	if err != nil {
-		err := fmt.Errorf("Couldn't get check names from consul: %s", err)
+		err := fmt.Errorf("couldn't get check names from consul: %s", err)
 		return nil, err
 	}
 

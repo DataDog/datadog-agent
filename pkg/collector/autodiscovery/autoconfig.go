@@ -350,14 +350,12 @@ func (ac *AutoConfig) pollConfigs() {
 						continue
 					}
 
-					// handle the initialization of the CPupdate cache. Fill it and trigger a Collect().
-
-
+					// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outadated.
 					upToDate, err := pd.provider.IsUpToDate()
 					if err != nil {
 						log.Errorf("cache processing of %v failed: %v", pd.provider.String(), err)
 					}
-					if upToDate == true{
+					if upToDate == true {
 						log.Infof("No modifications in the templates stored in %q ", pd.provider.String())
 						continue
 					}

@@ -148,6 +148,7 @@ func (p *EtcdConfigProvider) getIdx(key string) int {
 	return 0
 }
 
+// IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to ETCD's data.
 func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
 
 	adListUpdated := false
@@ -179,7 +180,7 @@ func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
 		}
 	}
 	if dateIdx > p.cache.AdTemplate2Idx || adListUpdated {
-		log.Infof("Idx was %v and is now %v", p.cache.AdTemplate2Idx, dateIdx)
+		log.Debugf("Idx was %v and is now %v", p.cache.AdTemplate2Idx, dateIdx)
 		p.cache.AdTemplate2Idx = dateIdx
 		log.Infof("cache updated for %v", p.String())
 		return false, nil

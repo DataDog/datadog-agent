@@ -120,6 +120,7 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 	return configs, nil
 }
 
+// IsUpToDate is not implemented for the file Providers as the files are not meant to change very often.
 func (c *FileConfigProvider) IsUpToDate() (bool, error) {
 	return false, nil
 }

@@ -64,7 +64,6 @@ func (z *ZookeeperConfigProvider) Collect() ([]check.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Debug("the identifiers are", identifiers)
 	for _, id := range identifiers {
 		c := z.getTemplates(id)
 		configs = append(configs, c...)
@@ -107,7 +106,7 @@ func (z *ZookeeperConfigProvider) IsUpToDate() (bool, error) {
 		}
 	}
 	if outdated > z.cache.AdTemplate2Idx || adListUpdated {
-		log.Infof("Idx was %v and is now %v", z.cache.AdTemplate2Idx, outdated)
+		log.Debugf("Idx was %v and is now %v", z.cache.AdTemplate2Idx, outdated)
 		z.cache.AdTemplate2Idx = outdated
 		log.Infof("cache updated for %v", z.String())
 		return false, nil
