@@ -27,7 +27,7 @@ type CacheProviderIndx struct {
 	NumAdTemplates int
 }
 
-// NewCPCache instanciate a CacheProviderIndx.
+// NewCPCache instantiate a CacheProviderIndx.
 func NewCPCache() *CacheProviderIndx {
 	return &CacheProviderIndx{
 		AdTemplate2Idx: 0,
