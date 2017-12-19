@@ -50,7 +50,7 @@ func NewKubeletListener() (ServiceListener, error) {
 	return &KubeletListener{
 		watcher:  watcher,
 		services: make(map[ID]Service),
-		ticker:   time.NewTicker(5 * time.Second),
+		ticker:   time.NewTicker(15 * time.Second),
 		stop:     make(chan bool),
 	}, nil
 }
@@ -113,15 +113,12 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 	var containerName string
 	for _, container := range pod.Status.Containers {
 		if container.ID == string(svc.ID) {
-			svc.ADIdentifiers = append(svc.ADIdentifiers, container.ID)
-			long, short, _, err := docker.SplitImageName(container.Image)
+			svc.ADIdentifiers = append(svc.ADIdentifiers, container.ID, container.Image)
+			_, short, _, err := docker.SplitImageName(container.Image)
 			if err != nil {
 				log.Warnf("Error while spliting image name: %s", err)
 			}
-			if len(long) > 0 {
-				svc.ADIdentifiers = append(svc.ADIdentifiers, long)
-			}
-			if len(short) > 0 && short != long {
+			if len(short) > 0 && short != container.Image {
 				svc.ADIdentifiers = append(svc.ADIdentifiers, short)
 			}
 			containerName = container.Name
