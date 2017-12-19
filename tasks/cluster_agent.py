@@ -88,7 +88,7 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
     overrides = []
 
     # base dir (can be overridden through env vars, command line takes precendence)
-    base_dir = base_dir or os.environ.get("DCA_OMNIBUS_BASE_DIR")
+    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     if base_dir:
         overrides.append("base_dir:{}".format(base_dir))
 
@@ -116,7 +116,7 @@ def image_build(ctx, base_dir="omnibus"):
     """
     Build the docker image
     """
-    base_dir = base_dir or os.environ.get("DCA_OMNIBUS_BASE_DIR")
+    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     pkg_dir = os.path.join(base_dir, 'pkg')
     list_of_files = glob.glob(os.path.join(pkg_dir, 'datadog-cluster-agent*_amd64.deb'))
     # get the last debian package built

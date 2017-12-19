@@ -36,5 +36,3 @@ func Run(mOut chan<- *metrics.MetricSample, eOut chan<- metrics.Event, scOut cha
 func (a *Agent) Stop() {
 	api.StopServer()
 }
-
-
