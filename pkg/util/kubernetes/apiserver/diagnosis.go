@@ -19,7 +19,7 @@ func init() {
 
 // diagnose the API server availability
 func diagnose() error {
-	_, err := GetApiClient()
+	_, err := GetAPIClient()
 	if err != nil {
 		log.Error(err)
 	}

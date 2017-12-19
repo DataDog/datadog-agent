@@ -17,7 +17,7 @@ var (
 	ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
 )
 
-// GetApiClient returns the shared ApiClient instance.
-func GetApiClient() (*ApiClient, error) {
+// GetAPIClient returns the shared ApiClient instance.
+func GetAPIClient() (*ApiClient, error) {
 	return nil, ErrNotCompiled
 }

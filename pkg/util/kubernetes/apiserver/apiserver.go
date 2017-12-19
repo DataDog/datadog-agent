@@ -20,20 +20,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
-var globalApiClient *ApiClient
+var globalApiClient *APIClient
 
 // ApiClient provides authenticated access to the
 // apiserver endpoints. Use the shared instance via GetApiClient.
-type ApiClient struct {
+type APIClient struct {
 	retry.Retrier
 	client *k8s.Client
 }
 
-// GetApiClient returns the shared ApiClient instance.
-func GetApiClient() (*ApiClient, error) {
+// GetAPIClient returns the shared ApiClient instance.
+func GetAPIClient() (*APIClient, error) {
 
 	if globalApiClient == nil {
-		globalApiClient = &ApiClient{}
+		globalApiClient = &APIClient{}
 		globalApiClient.SetupRetrier(&retry.Config{
 			Name:          "apiserver",
 			AttemptMethod: globalApiClient.connect,
@@ -50,7 +50,7 @@ func GetApiClient() (*ApiClient, error) {
 	return globalApiClient, nil
 }
 
-func (c *ApiClient) connect() error {
+func (c *APIClient) connect() error {
 	if c.client == nil {
 		var err error
 		cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
