@@ -31,7 +31,7 @@ type Service interface {
 // It holds a cache of running services, listens to new/killed services and
 // updates its cache, and the ConfigResolver with these events.
 type ServiceListener interface {
-	Listen(newSvc chan<- Service, delSvc chan<- Service)
+	Listen(newSvc, delSvc chan<- Service)
 	Stop()
 }
 
