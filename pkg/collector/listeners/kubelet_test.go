@@ -88,31 +88,39 @@ func TestProcessNewPod(t *testing.T) {
 	}
 	listener.processNewPod(getMockedPod())
 
-	service := <-services
-	assert.Equal(t, "docker://foorandomhash", string(service.GetID()))
-	adIdentifiers, err := service.GetADIdentifiers()
-	assert.Nil(t, err)
-	assert.Equal(t, []string{"docker://foorandomhash", "datadoghq.com/foo", "foo"}, adIdentifiers)
-	hosts, err := service.GetHosts()
-	assert.Nil(t, err)
-	assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
-	ports, err := service.GetPorts()
-	assert.Nil(t, err)
-	assert.Equal(t, []int{1337, 1339}, ports)
-	_, err = service.GetPid()
-	assert.Equal(t, ErrNotSupported, err)
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://foorandomhash", string(service.GetID()))
+		adIdentifiers, err := service.GetADIdentifiers()
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"docker://foorandomhash", "datadoghq.com/foo", "foo"}, adIdentifiers)
+		hosts, err := service.GetHosts()
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts()
+		assert.Nil(t, err)
+		assert.Equal(t, []int{1337, 1339}, ports)
+		_, err = service.GetPid()
+		assert.Equal(t, ErrNotSupported, err)
+	default:
+		t.FailNow()
+	}
 
-	service = <-services
-	assert.Equal(t, "rkt://bar-random-hash", string(service.GetID()))
-	adIdentifiers, err = service.GetADIdentifiers()
-	assert.Nil(t, err)
-	assert.Equal(t, []string{"rkt://bar-random-hash", "datadoghq.com/bar", "bar"}, adIdentifiers)
-	hosts, err = service.GetHosts()
-	assert.Nil(t, err)
-	assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
-	ports, err = service.GetPorts()
-	assert.Nil(t, err)
-	assert.Equal(t, []int{1122}, ports)
-	_, err = service.GetPid()
-	assert.Equal(t, ErrNotSupported, err)
+	select {
+	case service := <-services:
+		assert.Equal(t, "rkt://bar-random-hash", string(service.GetID()))
+		adIdentifiers, err := service.GetADIdentifiers()
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"rkt://bar-random-hash", "datadoghq.com/bar", "bar"}, adIdentifiers)
+		hosts, err := service.GetHosts()
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts()
+		assert.Nil(t, err)
+		assert.Equal(t, []int{1122}, ports)
+		_, err = service.GetPid()
+		assert.Equal(t, ErrNotSupported, err)
+	default:
+		t.FailNow()
+	}
 }
