@@ -24,6 +24,8 @@ For containerized installation, here are the command related to log collection:
 * `-e DD_API_KEY=<YOUR_API_KEY>:` Set the api key
 * `DD_LOG_ENABLED=true:` Activate log collection (disable by default)
 
+To start collecting logs for a given container filtered by image or label, you need to update the log section in an integration or custom yaml file as explained in our [documentation](https://docs.datadoghq.com/logs/#docker-log-collection).
+
 ## How to build it
 
 ### On debian-based systems
