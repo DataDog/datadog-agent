@@ -110,7 +110,7 @@ A few examples:
 
 ## Logs
 
-The Agent logs are still located in the `/var/log/datadog/` directory.
+The Agent logs are still located in the `/var/log/datadog/` directory.  On Windows, the logs are still located in the `c:\programdata\Datadog\logs` directory.
 
 Prior releases were logging to multiple files in that directory (`collector.log`,
 `forwarder.log`, `dogstatsd.log`, etc). Starting with 6.0 the Agent logs to a single log file, `agent.log`.
