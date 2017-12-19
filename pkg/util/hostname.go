@@ -137,7 +137,7 @@ func GetHostname() (string, error) {
 		log.Debug("GetHostname trying EC2 metadata...")
 		instanceID, err := getEC2Hostname(name)
 		if err == nil && ValidHostname(instanceID) == nil {
-			hostName = name
+			hostName = instanceID
 		}
 	}
 	// If at this point we don't have a name, bail out
