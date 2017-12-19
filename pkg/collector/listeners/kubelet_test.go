@@ -62,7 +62,7 @@ func getMockedPod() *kubelet.Pod {
 		{
 			Name:  "bar",
 			Image: "datadoghq.com/bar:latest",
-			ID:    "docker://barrandomhash",
+			ID:    "rkt://bar-random-hash",
 		},
 	}
 	kubeletStatus := kubelet.Status{
@@ -92,7 +92,7 @@ func TestProcessNewPod(t *testing.T) {
 	assert.Equal(t, "docker://foorandomhash", string(service.GetID()))
 	adIdentifiers, err := service.GetADIdentifiers()
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"foo", "datadoghq.com/foo"}, adIdentifiers)
+	assert.Equal(t, []string{"docker://foorandomhash", "datadoghq.com/foo", "foo"}, adIdentifiers)
 	hosts, err := service.GetHosts()
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
@@ -103,10 +103,10 @@ func TestProcessNewPod(t *testing.T) {
 	assert.Equal(t, ErrNotSupported, err)
 
 	service = <-services
-	assert.Equal(t, "docker://barrandomhash", string(service.GetID()))
+	assert.Equal(t, "rkt://bar-random-hash", string(service.GetID()))
 	adIdentifiers, err = service.GetADIdentifiers()
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"bar", "datadoghq.com/bar"}, adIdentifiers)
+	assert.Equal(t, []string{"rkt://bar-random-hash", "datadoghq.com/bar", "bar"}, adIdentifiers)
 	hosts, err = service.GetHosts()
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)

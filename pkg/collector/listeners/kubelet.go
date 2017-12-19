@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+
 	log "github.com/cihub/seelog"
 )
 
@@ -35,7 +36,6 @@ type PodContainerService struct {
 	ADIdentifiers []string
 	Hosts         map[string]string
 	Ports         []int
-	Pid           int
 }
 
 func init() {
@@ -43,7 +43,7 @@ func init() {
 }
 
 func NewKubeletListener() (ServiceListener, error) {
-	watcher, err := kubelet.NewPodWatcher(5 * time.Second)
+	watcher, err := kubelet.NewPodWatcher(15 * time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to kubelet, Kubernetes listener will not work: %s", err)
 	}
@@ -113,7 +113,7 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 	var containerName string
 	for _, container := range pod.Status.Containers {
 		if container.ID == string(svc.ID) {
-			svc.ADIdentifiers = append(svc.ADIdentifiers, container.Name)
+			svc.ADIdentifiers = append(svc.ADIdentifiers, container.ID)
 			long, short, _, err := docker.SplitImageName(container.Image)
 			if err != nil {
 				log.Warnf("Error while spliting image name: %s", err)
@@ -121,7 +121,7 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 			if len(long) > 0 {
 				svc.ADIdentifiers = append(svc.ADIdentifiers, long)
 			}
-			if len(short) > 0 && short != long && short != container.Name {
+			if len(short) > 0 && short != long {
 				svc.ADIdentifiers = append(svc.ADIdentifiers, short)
 			}
 			containerName = container.Name
@@ -150,12 +150,6 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 	if len(svc.Ports) == 0 {
 		// Port might not be specified in pod spec
 		log.Errorf("Failed to get ports for pod %s", podName)
-	}
-
-	// Tags
-	_, err := svc.GetTags()
-	if err != nil {
-		log.Errorf("Failed to get tags for pod %s: %s", podName, err)
 	}
 
 	l.m.Lock()
@@ -196,7 +190,7 @@ func (s *PodContainerService) GetHosts() (map[string]string, error) {
 	return s.Hosts, nil
 }
 
-// GetPid inspect the container an return its pid
+// GetPid is not supported for PodContainerService
 func (s *PodContainerService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
@@ -208,10 +202,5 @@ func (s *PodContainerService) GetPorts() ([]int, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *PodContainerService) GetTags() ([]string, error) {
-	tags, err := tagger.Tag(string(s.ID), true)
-	if err != nil {
-		return []string{}, err
-	}
-
-	return tags, nil
+	return tagger.Tag(string(s.ID), false)
 }
