@@ -10,10 +10,17 @@ package version
 // AgentVersion contains the version of the Agent
 var AgentVersion string
 
+// ClusterAgentVersion contains the version of the cluster agent
+var ClusterAgentVersion string
+
 var agentVersionDefault = "6.0.0"
+var clusterAgentVersionDefault = "6.0.0"
 
 func init() {
 	if AgentVersion == "" {
 		AgentVersion = agentVersionDefault
+	}
+	if ClusterAgentVersion == "" {
+		AgentVersion = clusterAgentVersionDefault
 	}
 }
