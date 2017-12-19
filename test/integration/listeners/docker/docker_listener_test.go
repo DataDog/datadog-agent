@@ -59,6 +59,7 @@ func (suite *DockerListenerTestSuite) SetupTest() {
 }
 
 func (suite *DockerListenerTestSuite) TearDownTest() {
+	suite.listener.Stop()
 	suite.listener = nil
 	suite.stopContainers()
 }
@@ -80,7 +81,8 @@ func (suite *DockerListenerTestSuite) stopContainers() error {
 	return err
 }
 
-// Listens in a channel until it. If several events are received for the same containerIDs, the last one is returned
+// Listens in a channel until it receives one service per listed container.
+// If several events are received for the same containerIDs, the last one is returned
 func (suite *DockerListenerTestSuite) getServices(containerIDs []string, channel chan listeners.Service, timeout time.Duration) (map[string]listeners.Service, error) {
 	services := make(map[string]listeners.Service)
 	timeoutTicker := time.NewTicker(timeout)
@@ -90,13 +92,15 @@ func (suite *DockerListenerTestSuite) getServices(containerIDs []string, channel
 		case svc := <-channel:
 			for _, id := range containerIDs {
 				if string(svc.GetID()) == id {
+					log.Infof("Service matches container %s, keeping", id)
 					services[id] = svc
+					log.Infof("Got services for %d containers so far, out of %d wanted", len(services), len(containerIDs))
 					if len(services) == len(containerIDs) {
+						log.Infof("Got all %d services, returning", len(services))
 						return services, nil
 					}
 				}
 			}
-			log.Infof("ignoring service from container ID %s", svc.GetID())
 		case <-timeoutTicker.C:
 			return services, fmt.Errorf("timeout listening for services, only got %d, expecting %d", len(services), len(containerIDs))
 		}

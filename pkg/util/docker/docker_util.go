@@ -9,6 +9,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -30,6 +31,11 @@ const (
 	pauseContainerGCR       string = "image:gcr.io/google_containers/pause.*"
 	pauseContainerOpenshift string = "image:openshift/origin-pod"
 )
+
+// FIXME: remove once DockerListener is moved to .Containers
+func (d *DockerUtil) ContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
+	return d.cli.ContainerList(ctx, options)
+}
 
 func detectServerAPIVersion() (string, error) {
 	host := os.Getenv("DOCKER_HOST")
@@ -81,6 +87,7 @@ func (d *DockerUtil) init() error {
 	d.cli = cli
 	d.networkMappings = make(map[string][]dockerNetwork)
 	d.imageNameBySha = make(map[string]string)
+	d.eventSuscribers = make(map[string]*eventSuscriber)
 	d.lastInvalidate = time.Now()
 
 	return nil
@@ -139,6 +146,8 @@ type DockerUtil struct {
 	networkMappings map[string][]dockerNetwork
 	// image sha mapping cache
 	imageNameBySha map[string]string
+	// event subscribers
+	eventSuscribers map[string]*eventSuscriber
 }
 
 // Images returns a slice of all images.
@@ -407,8 +416,9 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 
 // Inspect returns a docker inspect object for a given container ID.
 // It tries to locate the container in the inspect cache before making the docker inspect call
+// TODO: try sized inspect if withSize=false and unsized key cache misses
 func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, error) {
-	cacheKey := GetInspectCacheKey(id)
+	cacheKey := GetInspectCacheKey(id, withSize)
 	var container types.ContainerJSON
 	var err error
 	var ok bool
@@ -420,6 +430,13 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 		}
 	} else {
 		container, _, err = d.cli.ContainerInspectWithRaw(context.Background(), id, withSize)
+		if err != nil {
+			return container, err
+		}
+		// ContainerJSONBase is a pointer embed, so it might be nil and cause segfaults
+		if container.ContainerJSONBase == nil {
+			return container, errors.New("invalid inspect data")
+		}
 		// cache the inspect for 10 seconds to reduce pressure on the daemon
 		cache.Cache.Set(cacheKey, container, 10*time.Second)
 	}

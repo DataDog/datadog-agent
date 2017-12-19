@@ -33,15 +33,6 @@ var (
 	}
 )
 
-const (
-	ContainerCreatedState    string = "created"
-	ContainerRunningState    string = "running"
-	ContainerRestartingState string = "restarting"
-	ContainerPausedState     string = "paused"
-	ContainerExitedState     string = "exited"
-	ContainerDeadState       string = "dead"
-)
-
 // GetDockerUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
 func GetDockerUtil() (*DockerUtil, error) {
 	if globalDockerUtil == nil {
@@ -156,11 +147,6 @@ func (cfg *ContainerListConfig) GetCacheKey() string {
 	}
 
 	return cacheKey
-}
-
-// GetInspectCacheKey returns the key to a given container ID inspect in the agent cache
-func GetInspectCacheKey(ID string) string {
-	return "dockerutil.containers." + ID
 }
 
 // IsContainerized returns True if we're running in the docker-dd-agent container.
