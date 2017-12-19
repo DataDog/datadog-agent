@@ -120,14 +120,14 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 
 		if packet.Origin != listeners.NoOrigin {
 			var err error
-			log.Debugf("dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
+			log.Tracef("dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
 			originTags, err = tagger.Tag(packet.Origin, false)
 			if err != nil {
 				log.Errorf(err.Error())
 			}
-			log.Debugf("tags for %s: %s", packet.Origin, originTags)
+			log.Tracef("tags for %s: %s", packet.Origin, originTags)
 		} else {
-			log.Debugf("dogstatsd receive: %s", packet.Contents)
+			log.Tracef("dogstatsd receive: %s", packet.Contents)
 		}
 
 		for {
