@@ -359,7 +359,9 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
 	}
 	for net, settings := range cInspect.NetworkSettings.Networks {
-		ips[net] = settings.IPAddress
+		if len(settings.IPAddress) > 0 {
+			ips[net] = settings.IPAddress
+		}
 	}
 
 	// Rancher 1.x containers don't have docker networks as the orchestrator provides
