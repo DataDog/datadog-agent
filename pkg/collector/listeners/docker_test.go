@@ -204,14 +204,22 @@ func TestGetRancherIP(t *testing.T) {
 		ID:    id,
 		Image: "test",
 	}
+
+	nets := make(map[string]*network.EndpointSettings)
+	nets["none"] = &network.EndpointSettings{}
+
+	networkSettings := types.NetworkSettings{
+		Networks: nets,
+	}
+
 	cj := types.ContainerJSON{
 		ContainerJSONBase: &cBase,
 		Mounts:            make([]types.MountPoint, 0),
 		Config: &container.Config{Labels: map[string]string{
 			"io.datadog.check.id":     "w00tw00t",
-			"io.rancher.container.ip": "192.168.0.6/32",
+			"io.rancher.container.ip": "10.42.90.224/16",
 		}},
-		NetworkSettings: &types.NetworkSettings{},
+		NetworkSettings: &networkSettings,
 	}
 	// add cj to the cache to avoir having to query docker in the test
 	cacheKey := docker.GetInspectCacheKey(id)
@@ -222,7 +230,7 @@ func TestGetRancherIP(t *testing.T) {
 	}
 
 	hosts, _ := svc.GetHosts()
-	assert.Equal(t, "192.168.0.6", hosts["rancher"])
+	assert.Equal(t, "10.42.90.224", hosts["rancher"])
 	assert.Equal(t, 1, len(hosts))
 }
 
