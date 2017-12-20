@@ -10,8 +10,8 @@ package docker
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
+	"strconv"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -22,8 +22,8 @@ import (
 //// Can't be unit tested, covered by the listeners/docker
 //// and dogstatsd/origin_detection integration tests.
 
-// eventSuscriber holds the state for a subscriber
-type eventSuscriber struct {
+// eventSubscriber holds the state for a subscriber
+type eventSubscriber struct {
 	name       string
 	eventChan  chan *ContainerEvent
 	errorChan  chan error
@@ -31,23 +31,23 @@ type eventSuscriber struct {
 }
 
 // SubscribeToContainerEvents allows a package to suscribe to events from the event stream.
-// A unique subscriber name should be provided.
+// An unique subscriber name should be provided.
 func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerEvent, <-chan error, error) {
 	d.RLock()
-	if _, found := d.eventSuscribers[name]; found {
+	if _, found := d.eventSubscribers[name]; found {
 		d.RUnlock()
 		return nil, nil, errors.New("already suscribed")
 	}
 	d.RUnlock()
 
-	sub := &eventSuscriber{
+	sub := &eventSubscriber{
 		name:       name,
 		eventChan:  make(chan *ContainerEvent, 5),
 		errorChan:  make(chan error, 5),
 		cancelChan: make(chan struct{}),
 	}
 	d.Lock()
-	d.eventSuscribers[name] = sub
+	d.eventSubscribers[name] = sub
 	d.Unlock()
 
 	go d.streamEvents(sub.eventChan, sub.cancelChan)
@@ -58,15 +58,15 @@ func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerE
 // The call is blocking until the request is processed.
 func (d *DockerUtil) UnsuscribeFromContainerEvents(name string) error {
 	d.Lock()
-	sub, found := d.eventSuscribers[name]
+	sub, found := d.eventSubscribers[name]
 	if !found {
 		d.Unlock()
 		return errors.New("not suscribed")
 	}
-	delete(d.eventSuscribers, name)
+	delete(d.eventSubscribers, name)
 	d.Unlock()
 
-	// Block until the goroutine exists, then close all chans
+	// Block until the goroutine exits, then close all chans
 	sub.cancelChan <- struct{}{}
 	close(sub.cancelChan)
 	close(sub.errorChan)
@@ -76,26 +76,26 @@ func (d *DockerUtil) UnsuscribeFromContainerEvents(name string) error {
 }
 
 func (d *DockerUtil) streamEvents(dataChan chan<- *ContainerEvent, cancelChan <-chan struct{}) {
-	filters := filters.NewArgs()
-	filters.Add("type", "container")
-	filters.Add("event", "start")
-	filters.Add("event", "die")
+	fltrs := filters.NewArgs()
+	fltrs.Add("type", "container")
+	fltrs.Add("event", "start")
+	fltrs.Add("event", "die")
 
 	// Outer loop handles re-connecting in case the docker daemon closes the connection
 	for {
 		eventOptions := types.EventsOptions{
-			Since:   fmt.Sprintf("%d", time.Now().Unix()),
-			Filters: filters,
+			Since:   strconv.FormatInt(time.Now().Unix(), 10),
+			Filters: fltrs,
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		messages, errs := d.cli.Events(ctx, eventOptions)
+		defer cancel()
 
-	TRANSMIT: // Inner loop iterates over elements in the channel
+		// Inner loop iterates over elements in the channel
 		for {
 			select {
 			case <-cancelChan:
-				cancel()
 				return
 			case msg := <-messages:
 				event, err := d.processContainerEvent(msg)
@@ -107,9 +107,8 @@ func (d *DockerUtil) streamEvents(dataChan chan<- *ContainerEvent, cancelChan <-
 				if err != io.EOF { // Silently ignore io.EOF that happens on http connection reset
 					log.Warnf("error getting docker events: %s", err)
 				}
-				break TRANSMIT
+				return
 			}
 		}
-		cancel()
 	}
 }

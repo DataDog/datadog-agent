@@ -158,7 +158,7 @@ func (l *DockerListener) GetServices() map[ID]Service {
 	return ret
 }
 
-// processEvent takes a Docker Message, tries to find a service linked to it, and
+// processEvent takes a ContainerEvent, tries to find a service linked to it, and
 // figure out if the ConfigResolver could be interested to inspect it.
 func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
 	cID := ID(e.ContainerID)

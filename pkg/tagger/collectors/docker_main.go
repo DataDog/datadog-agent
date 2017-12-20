@@ -63,13 +63,12 @@ func (c *DockerCollector) Stream() error {
 	for {
 		select {
 		case <-c.stop:
-			c.dockerUtil.UnsuscribeFromContainerEvents("DockerCollector")
-			return nil
+			return c.dockerUtil.UnsuscribeFromContainerEvents("DockerCollector")
 		case msg := <-messages:
 			c.processEvent(msg)
-		case <-errs:
+		case err := <-errs:
 			if err != nil && err != io.EOF {
-				log.Errorf(": %v", err)
+				log.Errorf("stopping collection: %s", err)
 				return err
 			}
 			return nil

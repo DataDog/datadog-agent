@@ -87,7 +87,7 @@ func (d *DockerUtil) init() error {
 	d.cli = cli
 	d.networkMappings = make(map[string][]dockerNetwork)
 	d.imageNameBySha = make(map[string]string)
-	d.eventSuscribers = make(map[string]*eventSuscriber)
+	d.eventSubscribers = make(map[string]*eventSubscriber)
 	d.lastInvalidate = time.Now()
 
 	return nil
@@ -147,7 +147,7 @@ type DockerUtil struct {
 	// image sha mapping cache
 	imageNameBySha map[string]string
 	// event subscribers
-	eventSuscribers map[string]*eventSuscriber
+	eventSubscribers map[string]*eventSubscriber
 }
 
 // Images returns a slice of all images.
