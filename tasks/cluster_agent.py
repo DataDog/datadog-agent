@@ -3,10 +3,11 @@ Cluster Agent tasks
 """
 
 import os
-from invoke import task
-import invoke
 import glob
 import shutil
+
+from invoke import task
+import invoke
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags
@@ -74,10 +75,9 @@ def clean(ctx):
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/cluster-agent")
 
-# TODO omnibus and build task.
-@task
+@task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
 def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False):
+                  skip_deps=False, skip_sign=False):
     """
     Build the Cluster Agent packages with Omnibus Installer.
     """
@@ -109,7 +109,10 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
             "log_level": log_level,
             "overrides": overrides_cmd
         }
-        ctx.run(cmd.format(**args))
+        env = {}
+        if skip_sign:
+            env['SKIP_SIGN_MAC'] = 'true'
+        ctx.run(cmd.format(**args), env=env)
 
 @task
 def image_build(ctx, base_dir="omnibus"):
