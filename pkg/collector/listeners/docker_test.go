@@ -198,6 +198,34 @@ func TestGetHosts(t *testing.T) {
 	assert.Equal(t, 2, len(hosts))
 }
 
+func TestGetRancherIP(t *testing.T) {
+	id := "fooooooooooo"
+	cBase := types.ContainerJSONBase{
+		ID:    id,
+		Image: "test",
+	}
+	cj := types.ContainerJSON{
+		ContainerJSONBase: &cBase,
+		Mounts:            make([]types.MountPoint, 0),
+		Config: &container.Config{Labels: map[string]string{
+			"io.datadog.check.id":     "w00tw00t",
+			"io.rancher.container.ip": "192.168.0.6/32",
+		}},
+		NetworkSettings: &types.NetworkSettings{},
+	}
+	// add cj to the cache to avoir having to query docker in the test
+	cacheKey := docker.GetInspectCacheKey(id)
+	cache.Cache.Set(cacheKey, cj, 10*time.Second)
+
+	svc := DockerService{
+		ID: ID(id),
+	}
+
+	hosts, _ := svc.GetHosts()
+	assert.Equal(t, "192.168.0.6", hosts["rancher"])
+	assert.Equal(t, 1, len(hosts))
+}
+
 func TestGetPorts(t *testing.T) {
 	id := "deadbeefffff"
 	cBase := types.ContainerJSONBase{

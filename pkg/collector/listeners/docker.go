@@ -30,6 +30,7 @@ import (
 
 const (
 	identifierLabel string = "io.datadog.check.id"
+	rancherIPLabel  string = "io.rancher.container.ip"
 )
 
 // DockerListener implements the ServiceListener interface.
@@ -359,6 +360,18 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	}
 	for net, settings := range cInspect.NetworkSettings.Networks {
 		ips[net] = settings.IPAddress
+	}
+
+	// Rancher 1.x containers don't have docker networks as the orchestrator provides
+	// its own CNI. The IP is stored in the `io.rancher.container.ip` label.
+	rancherIP, found := cInspect.Config.Labels[rancherIPLabel]
+	if found {
+		parts := strings.SplitN(rancherIP, "/", 2)
+		if len(parts) < 1 || len(parts[0]) == 0 {
+			log.Warnf("error while retrieving Rancher IP: %q is not valid", rancherIP)
+		} else {
+			ips["rancher"] = parts[0]
+		}
 	}
 
 	s.Hosts = ips
