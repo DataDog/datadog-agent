@@ -82,6 +82,7 @@ func (d *DockerUtil) streamEvents(dataChan chan<- *ContainerEvent, cancelChan <-
 	fltrs.Add("event", "die")
 
 	// Outer loop handles re-connecting in case the docker daemon closes the connection
+CONNECT:
 	for {
 		eventOptions := types.EventsOptions{
 			Since:   strconv.FormatInt(time.Now().Unix(), 10),
@@ -90,24 +91,29 @@ func (d *DockerUtil) streamEvents(dataChan chan<- *ContainerEvent, cancelChan <-
 
 		ctx, cancel := context.WithCancel(context.Background())
 		messages, errs := d.cli.Events(ctx, eventOptions)
-		defer cancel()
 
 		// Inner loop iterates over elements in the channel
 		for {
 			select {
 			case <-cancelChan:
+				cancel()
 				return
 			case msg := <-messages:
 				event, err := d.processContainerEvent(msg)
 				if err != nil {
 					log.Debugf("skipping event: %s", err)
+					continue
 				}
 				dataChan <- event
 			case err := <-errs:
-				if err != io.EOF { // Silently ignore io.EOF that happens on http connection reset
+				if err == io.EOF {
+					// Silently ignore io.EOF that happens on http connection reset
+					log.Debug("got EOF, re-connecting")
+				} else {
 					log.Warnf("error getting docker events: %s", err)
 				}
-				return
+				cancel()
+				continue CONNECT // Re-connect to docker
 			}
 		}
 	}
