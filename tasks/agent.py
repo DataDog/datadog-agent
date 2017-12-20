@@ -19,6 +19,22 @@ from .go import deps
 #constants
 BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
+DEFAULT_BUILD_TAGS = [
+    "apm",
+    "consul",
+    "cpython",
+    "docker",
+    "ec2",
+    "etcd",
+    "gce",
+    "jmx",
+    "kubelet",
+    "log",
+    "process",
+    "snmp",
+    "zk",
+    "zlib",
+]
 
 
 @task
@@ -32,7 +48,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     Example invokation:
         inv agent.build --build-exclude=snmp
     """
-    build_include = ALL_TAGS if build_include is None else build_include.split(",")
+    build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)

@@ -20,6 +20,7 @@ ALL_TAGS = set([
     "snmp",
     "zk",
     "zlib",
+    "kubeapiserver",
 ])
 
 # PUPPY_TAGS lists the tags needed when building the Puppy Agent
@@ -36,7 +37,7 @@ def get_default_build_tags(puppy=False):
         return PUPPY_TAGS
 
     include = ["all"]
-    exclude = ["docker", "kubelet"] if invoke.platform.WINDOWS else []
+    exclude = ["docker", "kubelet", "kubeapiserver"] if invoke.platform.WINDOWS else []
     return get_build_tags(include, exclude)
 
 

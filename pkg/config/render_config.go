@@ -29,6 +29,7 @@ type context struct {
 	KubernetesTagging bool
 	ECS               bool
 	ProcessAgent      bool
+	KubeApiServer     bool
 }
 
 func mkContext(buildType string) context {
@@ -58,6 +59,12 @@ func mkContext(buildType string) context {
 			Logging:           true,
 			KubernetesTagging: true,
 			ECS:               true,
+		}
+	case "dca":
+		return context{
+			Common:        true,
+			Logging:       true,
+			KubeApiServer: true,
 		}
 	}
 
