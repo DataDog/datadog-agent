@@ -180,9 +180,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         ctx.run("{} {}".format(go_cmd, prefix))
 
 
-@task
+@task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
 def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False):
+                  skip_deps=False, skip_sign=False):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -206,6 +206,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         if gem_path:
             cmd += " --path {}".format(gem_path)
         ctx.run(cmd)
+
         omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
         args = {
@@ -214,7 +215,10 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             "log_level": log_level,
             "overrides": overrides_cmd
         }
-        ctx.run(cmd.format(**args))
+        env = {}
+        if skip_sign:
+            env['SKIP_SIGN_MAC'] = 'true'
+        ctx.run(cmd.format(**args), env=env)
 
 
 @task
