@@ -137,7 +137,7 @@ func GetDefaultSender() (Sender, error) {
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
 	s.smsOut <- senderMetricSample{s.id, &metrics.MetricSample{}, true}
-	go s.cyclemetricStats()
+	s.cyclemetricStats()
 }
 
 func (s *checkSender) GetMetricStats() map[string]int64 {
