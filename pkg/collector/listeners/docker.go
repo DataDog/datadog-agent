@@ -88,7 +88,7 @@ func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 		for {
 			select {
 			case <-l.stop:
-				l.dockerUtil.UnsuscribeFromContainerEvents("DockerListener")
+				l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener")
 				return
 			case msg := <-messages:
 				l.processEvent(msg)

@@ -30,13 +30,13 @@ type eventSubscriber struct {
 	cancelChan chan struct{}
 }
 
-// SubscribeToContainerEvents allows a package to suscribe to events from the event stream.
+// SubscribeToContainerEvents allows a package to subscribe to events from the event stream.
 // An unique subscriber name should be provided.
 func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerEvent, <-chan error, error) {
 	d.RLock()
 	if _, found := d.eventSubscribers[name]; found {
 		d.RUnlock()
-		return nil, nil, errors.New("already suscribed")
+		return nil, nil, errors.New("already subscribed")
 	}
 	d.RUnlock()
 
@@ -54,14 +54,14 @@ func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerE
 	return sub.eventChan, sub.errorChan, nil
 }
 
-// UnsuscribeFromContainerEvents allows a package to unsuscribe.
+// UnsubscribeFromContainerEvents allows a package to unsubscribe.
 // The call is blocking until the request is processed.
-func (d *DockerUtil) UnsuscribeFromContainerEvents(name string) error {
+func (d *DockerUtil) UnsubscribeFromContainerEvents(name string) error {
 	d.Lock()
 	sub, found := d.eventSubscribers[name]
 	if !found {
 		d.Unlock()
-		return errors.New("not suscribed")
+		return errors.New("not subscribed")
 	}
 	delete(d.eventSubscribers, name)
 	d.Unlock()

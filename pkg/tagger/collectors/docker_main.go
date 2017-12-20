@@ -63,7 +63,7 @@ func (c *DockerCollector) Stream() error {
 	for {
 		select {
 		case <-c.stop:
-			return c.dockerUtil.UnsuscribeFromContainerEvents("DockerCollector")
+			return c.dockerUtil.UnsubscribeFromContainerEvents("DockerCollector")
 		case msg := <-messages:
 			c.processEvent(msg)
 		case err := <-errs:
