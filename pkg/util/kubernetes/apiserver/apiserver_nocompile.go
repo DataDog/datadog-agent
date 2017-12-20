@@ -16,8 +16,3 @@ var (
 	// User classes should handle that case as gracefully as possible.
 	ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
 )
-
-// GetAPIClient returns the shared ApiClient instance.
-func GetAPIClient() (*ApiClient, error) {
-	return nil, ErrNotCompiled
-}
