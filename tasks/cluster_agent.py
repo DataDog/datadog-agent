@@ -18,7 +18,9 @@ from .go import deps
 #constants
 BIN_PATH = os.path.join(".", "bin", "cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
-
+DEFAULT_BUILD_TAGS = [
+    "kubeapiserver",
+]
 @task
 def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False):
     """
@@ -28,7 +30,7 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False)
         inv cluster-agent.build
     """
 
-    build_tags = get_build_tags("all", ["snmp", "cpython"])
+    build_tags = get_build_tags(DEFAULT_BUILD_TAGS, [])
 
     ldflags, gcflags = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
 
