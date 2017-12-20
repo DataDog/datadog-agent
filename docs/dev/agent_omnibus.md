@@ -37,6 +37,11 @@ To run Omnibus and build the package, make the `/opt` folder world readable and 
 inv agent.omnibus-build --base-dir=$HOME/.omnibus
 ```
 
+On Mac, you might want to skip the signing step by running:
+```
+inv agent.omnibus-build --base-dir=$HOME/.omnibus --skip-sign
+```
+
 The path you pass with the `--base-dir` option will contain the sources
 downloaded by Omnibus in the `src` folder, the binaries cached after building
 those sources in the `cache` folder and the final deb/rpm/dmg artifacts in the
