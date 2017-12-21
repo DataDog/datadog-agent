@@ -95,10 +95,10 @@ var checkCmd = &cobra.Command{
 		for _, c := range cs {
 			s := runCheck(c, agg)
 
-			// Without a small delay some of the metrics will not show up
+			// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 			time.Sleep(time.Duration(checkDelay) * time.Millisecond)
 
-			getMetrics(agg)
+			printMetrics(agg)
 
 			checkStatus, _ := status.GetCheckStatus(c, s)
 			fmt.Println(string(checkStatus))
@@ -127,7 +127,7 @@ func runCheck(c check.Check, agg *aggregator.BufferedAggregator) *check.Stats {
 	return s
 }
 
-func getMetrics(agg *aggregator.BufferedAggregator) {
+func printMetrics(agg *aggregator.BufferedAggregator) {
 	series := agg.GetSeries()
 	if len(series) != 0 {
 		fmt.Println("Series: ")
