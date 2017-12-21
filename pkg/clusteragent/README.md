@@ -8,14 +8,14 @@ The Datadog Cluster Agent (referred to as DCA) faithfully collects events and me
 [Datadog](https://app.datadoghq.com) on your behalf so that you can do something
 useful with your monitoring and performance data.
 
-The purpose of the DCA is to be used alongside of an Orchestrator.
-So far, only Kubernetes is supported.
+The purpose of the DCA is to be used alongside of an orchestrator. So far, only Kubernetes is supported.
+Without the DCA, node agents would have to hit the API Server, which would apply an important pressure on it especially in large clusters.
 
 The DCA has two goals:
  * Be the main interface with the API server to collect and forward events.
  * Implement the backend for applications requiring a single interface, for instance:
-    -  Keep a map of Container and their metadata associated that would otherwise need to be queried by each agent to the API Server.
-    -  Collect the Control Pane health check
+    -  Keep a map of container and their metadata associated that would otherwise need to be queried by each agent to the API Server.
+    -  Collect the Control Plane health check
 
 
 The present repository contains the source code of the Datadog Cluster Agent version 6,
@@ -23,14 +23,7 @@ currently in Alpha.
 
 ## Getting started
 
-To build the Agent you need:
- * [Go](https://golang.org/doc/install) 1.9.2 or later.
- * [Invoke](http://www.pyinvoke.org/installing.html), you can install it via
-   `pip install invoke` or via [Homebrew](https://brew.sh) on OSX/macOS with
-   `brew install pyinvoke`.
-
-Builds and tests are orchestrated with `invoke`, type `invoke --list` on a shell
-to see the available tasks.
+For pre-requisite, refer to the Agent's Getting Started section in the [README](https://github.com/DataDog/datadog-agent/blob/master/README.md)
 
 To start working on the Cluster Agent, you can build the `master` branch:
 
@@ -59,6 +52,8 @@ Once built, you can use the `start` command and the DCA will also try to connect
 If successful, it will forward the events from the API Server to your Datadog app and a health check for each component of the control pane.
 
 Secondly, it will start serving the CMD_PORT if set or 5001 by default with the following endpoints:
+
+```
 - /hostname
 - /version
 - /api/v1/{check}/checks (available for Kubernetes only in 6.0.0)
@@ -66,11 +61,12 @@ Secondly, it will start serving the CMD_PORT if set or 5001 by default with the 
 - /flare
 - /stop
 - /status
+```
 
 ## Documentation
 
 The general documentation of the project (including instructions on the Beta builds,
-Agent installation, development, etc) is located under the [docs](docs) directory
+Agent installation, development, etc) is located under the [docs](https://github.com/DataDog/datadog-agent/tree/master/docs) directory
 of the present repo.
 
 ## Contributing code

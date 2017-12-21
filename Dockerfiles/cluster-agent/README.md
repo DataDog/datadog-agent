@@ -1,6 +1,6 @@
 # Cluster Agent 6 docker image
 
-This is how the official Datadog Cluster Agent 6 (aka DCA) image available [here](https://hub.docker.com/r/datadog/cluster-agent-dev/) is built.
+This is how the official Datadog Cluster Agent 6 (aka DCA) image available [here](https://hub.docker.com/r/datadog/cluster-agent/) is built.
 
 ## How to run it
 
@@ -12,7 +12,7 @@ The following environment variables are supported:
 
 Example usage: `docker run -e DD_API_KEY=your-api-key-here -e CMD_PORT=1234 -it <image-name>`
 
-For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/cluster-agent-dev/)
+For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/cluster-agent/)
 
 ## How to build it
 
