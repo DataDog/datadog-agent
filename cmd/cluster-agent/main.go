@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
 
@@ -20,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -134,23 +132,6 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	log.Debugf("Using hostname: %s", hname)
 
-	var metaScheduler *metadata.Scheduler
-	if config.Datadog.GetBool("enable_metadata_collection") {
-		// start metadata collection
-		metaScheduler = metadata.NewScheduler(s, hname)
-
-		// add the host metadata collector
-		// TODO: make it configurable. We shouldn't report them
-		// twice if cluster agent and normal agents are on the same node
-		err = metaScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
-		if err != nil {
-			metaScheduler.Stop()
-			return log.Error("Host metadata is supposed to be always available in the catalog!")
-		}
-	} else {
-		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
-	}
-
 	aggregatorInstance := aggregator.InitAggregator(s, hname)
 	aggregatorInstance.AddAgentStartupEvent("DCA")
 	// TODO: run the actual thing
@@ -163,9 +144,6 @@ func start(cmd *cobra.Command, args []string) error {
 	// Block here until we receive the interrupt signal
 	<-signalCh
 
-	if metaScheduler != nil {
-		metaScheduler.Stop()
-	}
 	clusterAgent.Stop()
 	log.Info("See ya!")
 	log.Flush()

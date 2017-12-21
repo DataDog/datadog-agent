@@ -152,7 +152,7 @@ def query_version(ctx):
         commits_since_version = 0
 
     pre_regex = ""
-    # for the ouput, 6.0.0-beta.0-1-g4f19118, this will match beta.0
+    # for the output, 6.0.0-beta.0-1-g4f19118, this will match beta.0
     # if there have been no commits since, it will be just 6.0.0-beta.0,
     # and it will match beta.0
     if commits_since_version == 0:
@@ -165,7 +165,7 @@ def query_version(ctx):
     if pre_match and pre_match[0]:
         pre = pre_match[0]
 
-    # for the ouput, 6.0.0-beta.0-1-g4f19118, this will match g4f19118
+    # for the output, 6.0.0-beta.0-1-g4f19118, this will match g4f19118
     git_sha = ""
     if git_sha_match and git_sha_match[0]:
         git_sha = git_sha_match[0]

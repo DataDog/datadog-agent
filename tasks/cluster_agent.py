@@ -89,7 +89,7 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
     # omnibus config overrides
     overrides = []
 
-    # base dir (can be overridden through env vars, command line takes precendence)
+    # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     if base_dir:
         overrides.append("base_dir:{}".format(base_dir))
