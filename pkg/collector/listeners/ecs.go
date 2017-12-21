@@ -8,7 +8,6 @@
 package listeners
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -198,7 +197,7 @@ func (s *ECSService) GetHosts() (map[string]string, error) {
 
 // GetPorts returns nil and an error because port is not supported in Fargate-based ECS
 func (s *ECSService) GetPorts() ([]int, error) {
-	return nil, fmt.Errorf("template variable 'port' is not supported on ECS")
+	return nil, ErrNotSupported
 }
 
 // GetTags retrieves a container's tags
@@ -209,5 +208,5 @@ func (s *ECSService) GetTags() ([]string, error) {
 // GetPid inspect the container and return its pid
 // TODO: not supported as pid is not in the metadata api
 func (s *ECSService) GetPid() (int, error) {
-	return -1, fmt.Errorf("template variable 'pid' is not supported on ECS")
+	return -1, ErrNotSupported
 }
