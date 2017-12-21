@@ -17,12 +17,12 @@ import (
 )
 
 // ignore these container labels as we already have them in task metadata
-var labelBlackList = map[string]interface{}{
-	"com.amazonaws.ecs.cluster":                 nil,
-	"com.amazonaws.ecs.container-name":          nil,
-	"com.amazonaws.ecs.task-arn":                nil,
-	"com.amazonaws.ecs.task-definition-family":  nil,
-	"com.amazonaws.ecs.task-definition-version": nil,
+var isBlacklisted = map[string]bool{
+	"com.amazonaws.ecs.cluster":                 true,
+	"com.amazonaws.ecs.container-name":          true,
+	"com.amazonaws.ecs.task-arn":                true,
+	"com.amazonaws.ecs.task-definition-family":  true,
+	"com.amazonaws.ecs.task-definition-version": true,
 }
 
 // parseMetadata parses the the task metadata, and its container list, and returns a list of TagInfo for the new ones.
@@ -64,7 +64,7 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata) ([]*TagInfo, 
 
 			// container labels
 			for k, v := range ctr.Labels {
-				if _, found := labelBlackList[k]; !found {
+				if isBlacklisted[k] {
 					tags.AddHigh(k, v)
 				}
 			}

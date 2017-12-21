@@ -39,7 +39,6 @@ type ECSService struct {
 	Ports         []int
 	Pid           int
 	Tags          []string
-	ecsContainer  ecs.Container
 	clusterName   string
 	taskFamily    string
 	taskVersion   string
@@ -91,6 +90,7 @@ func (l *ECSListener) refreshServices() {
 		return
 	} else if meta.KnownStatus != "RUNNING" {
 		log.Debugf("task %s is not in RUNNING state yet, not refreshing services", meta.Family)
+		return
 	}
 	l.task = meta
 
@@ -100,59 +100,73 @@ func (l *ECSListener) refreshServices() {
 	for i := range l.services {
 		notSeen[i] = nil
 	}
+
 	for _, c := range meta.Containers {
-		if _, found := l.services[c.DockerID]; !found {
-			if c.KnownStatus == "RUNNING" {
-				s, err := l.createService(c)
-				if err != nil {
-					log.Errorf("couldn't create a service out of container %s - Auto Discovery will ignore it", c.DockerID)
-				} else {
-					l.services[c.DockerID] = &s
-					l.newService <- &s
-					delete(notSeen, c.DockerID)
-				}
-			} else {
-				log.Debugf("container %s is in status %s - skipping", c.DockerID, c.KnownStatus)
-			}
-		} else {
+		if _, found := l.services[c.DockerID]; found {
 			delete(notSeen, c.DockerID)
+			continue
 		}
+		if c.KnownStatus != "RUNNING" {
+			log.Debugf("container %s is in status %s - skipping", c.DockerID, c.KnownStatus)
+			continue
+		}
+		s, err := l.createService(c)
+		if err != nil {
+			log.Errorf("couldn't create a service out of container %s - Auto Discovery will ignore it", c.DockerID)
+			continue
+		}
+		l.m.Lock()
+		l.services[c.DockerID] = &s
+		l.m.Unlock()
+		l.newService <- &s
+		delete(notSeen, c.DockerID)
 	}
+
 	for cID := range notSeen {
+		l.m.RLock()
 		l.delService <- l.services[cID]
+		l.m.RUnlock()
+		l.m.Lock()
 		delete(l.services, cID)
+		l.m.Unlock()
 	}
 }
 
 func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
 	cID := ID(c.DockerID)
 	svc := ECSService{
-		ID:           cID,
-		ecsContainer: c,
-		clusterName:  l.task.ClusterName,
-		taskFamily:   l.task.Family,
-		taskVersion:  l.task.Version,
+		ID:          cID,
+		clusterName: l.task.ClusterName,
+		taskFamily:  l.task.Family,
+		taskVersion: l.task.Version,
 	}
-	_, err := svc.GetADIdentifiers()
-	if err != nil {
-		log.Errorf("Failed to extract identifiers for container %s - %s", cID[:12], err)
+
+	// ADIdentifiers
+	image := c.Image
+	labels := c.Labels
+	svc.ADIdentifiers = ComputeContainerServiceIDs(c.DockerID, image, labels)
+
+	// Host
+	ips := make(map[string]string)
+
+	for _, net := range c.Networks {
+		if net.NetworkMode == "awsvpc" && len(net.IPv4Addresses) > 0 {
+			ips["awsvpc"] = string(net.IPv4Addresses[0])
+		}
 	}
-	_, err = svc.GetHosts()
-	if err != nil {
-		log.Errorf("Failed to extract IP for container %s - %s", cID[:12], err)
-	}
-	// _, err = svc.GetPorts()
-	// if err != nil {
-	// 	log.Errorf("Failed to extract ports for container %s - %s", cID[:12], err)
-	// }
-	// _, err = svc.GetPid()
-	// if err != nil {
-	// 	log.Errorf("Failed to extract pid for container %s - %s", cID[:12], err)
-	// }
-	_, err = svc.GetTags()
+
+	// Tags
+	entity := docker.ContainerIDToEntityName(string(c.DockerID))
+	tags, err := tagger.Tag(entity, false)
 	if err != nil {
 		log.Errorf("Failed to extract tags for container %s - %s", cID[:12], err)
 	}
+	svc.Tags = tags
+
+	// Ports and Pid
+	svc.Ports = nil
+	svc.Pid = -1
+
 	return svc, err
 }
 
@@ -173,56 +187,23 @@ func (s *ECSService) GetID() ID {
 //   1. Long image name
 //   2. Short image name
 func (s *ECSService) GetADIdentifiers() ([]string, error) {
-	if len(s.ADIdentifiers) == 0 {
-		cID := s.ecsContainer.DockerID
-		image := s.ecsContainer.Image
-		labels := s.ecsContainer.Labels
-		s.ADIdentifiers = ComputeContainerServiceIDs(cID, image, labels)
-	}
-
 	return s.ADIdentifiers, nil
 }
 
 // GetHosts returns the container's hosts
 // TODO: using localhost should usually be enough
 func (s *ECSService) GetHosts() (map[string]string, error) {
-	if s.Hosts != nil {
-		return s.Hosts, nil
-	}
-
-	ips := make(map[string]string)
-
-	for _, net := range s.ecsContainer.Networks {
-		if net.NetworkMode == "awsvpc" && len(net.IPv4Addresses) > 0 {
-			ips["awsvpc"] = string(net.IPv4Addresses[0])
-		}
-	}
-
-	s.Hosts = ips
-	return ips, nil
+	return s.Hosts, nil
 }
 
-// GetPorts returns the container's ports
-// TODO: not supported as ports are not in the metadata api
+// GetPorts returns nil and an error because port is not supported in Fargate-based ECS
 func (s *ECSService) GetPorts() ([]int, error) {
 	return nil, fmt.Errorf("template variable 'port' is not supported on ECS")
-	// if s.Ports == nil {
-	// 	ports := make([]int, 0)
-	// 	s.Ports = ports
-	// }
-
-	// return s.Ports, nil
 }
 
 // GetTags retrieves a container's tags
 func (s *ECSService) GetTags() ([]string, error) {
-	entity := docker.ContainerIDToEntityName(string(s.ecsContainer.DockerID))
-	tags, err := tagger.Tag(entity, false)
-	if err != nil {
-		return []string{}, err
-	}
-
-	return tags, nil
+	return s.Tags, nil
 }
 
 // GetPid inspect the container and return its pid
