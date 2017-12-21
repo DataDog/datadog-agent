@@ -9,7 +9,6 @@ package ecs
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -19,9 +18,8 @@ import (
 
 const (
 	metadataURL string = "http://169.254.170.2/v2/metadata"
-	// StatsURL is the endpoint where task stats are exposed
-	StatsURL string = "http://169.254.170.2/v2/stats"
-	timeout         = 500 * time.Millisecond
+	statsURL    string = "http://169.254.170.2/v2/stats"
+	timeout            = 500 * time.Millisecond
 )
 
 // GetTaskMetadata extracts the metadata payload for the task the agent is in.
@@ -67,7 +65,7 @@ func GetContainers() ([]*docker.Container, error) {
 		return containers, err
 	}
 	for _, c := range ecsContainers {
-		entityID := fmt.Sprintf("docker://%s", c.DockerID)
+		entityID := docker.ContainerIDToEntityName(c.DockerID)
 		ctr := &docker.Container{
 			Type:     "ECS",
 			ID:       c.DockerID,
@@ -124,7 +122,7 @@ func GetContainerStats(c Container) (ContainerStats, error) {
 	client := http.Client{
 		Timeout: timeout,
 	}
-	resp, err := client.Get(StatsURL + "/" + c.DockerID)
+	resp, err := client.Get(statsURL + "/" + c.DockerID)
 	if err != nil {
 		return stats, err
 	}
@@ -133,7 +131,6 @@ func GetContainerStats(c Container) (ContainerStats, error) {
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&stats)
 	if err != nil {
-		log.Errorf("decoding failed!") // TODO: delete me
 		return stats, err
 	}
 	stats.IO.ReadBytes = computeIOStats(stats.IO.BytesPerDeviceAndKind, "Read")

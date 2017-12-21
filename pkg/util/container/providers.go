@@ -12,25 +12,6 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// ProviderCatalog keeps track of config providers by name
-// var ProviderCatalog = make(map[string]ContainerProvider)
-
-// RegisterProvider adds a container provider to the providers catalog
-// func RegisterProvider(name string, provider ContainerProvider) {
-// 	ProviderCatalog[name] = provider
-// }
-
-// ContainerProvider is the interface for singleton utils that can collect
-// containers (dockerutil, ecs, etc.)
-//
-// The goal of this interface is to provide a single method to get all containers
-// on the host without caring about the environment.
-// type ContainerProvider interface {
-// 	// TODO: we should not rely on docker types here
-// 	Containers(ContainerListConfig) ([]Container, error)
-// 	String() string
-// }
-
 // IsAvailable returns true if there's at least one container provider, false otherwise
 func IsAvailable() bool {
 	var listeners []config.Listeners
@@ -44,7 +25,7 @@ func IsAvailable() bool {
 	return false
 }
 
-// GetContainers it the unique method that returns all containers on the host (or in the task)
+// GetContainers is the unique method that returns all containers on the host (or in the task)
 // TODO: create a container interface that docker and ecs can implement
 // and that other agents can consume so that we don't have to
 // convert all containers to the format.

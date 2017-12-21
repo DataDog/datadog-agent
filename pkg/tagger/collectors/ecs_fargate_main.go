@@ -33,6 +33,7 @@ type ECSFargateCollector struct {
 // Detect tries to connect to the ECS metadata API
 func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	var err error
+
 	if ecsutil.IsFargateInstance() {
 		c.infoOut = out
 		c.lastExpire = time.Now()
@@ -44,10 +45,9 @@ func (c *ECSFargateCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 			return FetchOnlyCollection, fmt.Errorf("Failed to instantiate the container expiring process")
 		}
 		return FetchOnlyCollection, nil
-	} else {
-		return NoCollection, fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")
 	}
 
+	return NoCollection, fmt.Errorf("Failed to connect to task metadata API, ECS tagging will not work")
 }
 
 // Pull triggers a container-list refresh and sends new info. It also triggers
@@ -76,7 +76,6 @@ func (c *ECSFargateCollector) Pull() error {
 	c.infoOut <- expiries
 	c.lastExpire = time.Now()
 	return nil
-
 }
 
 // Fetch fetches ECS tags for a container on demand
