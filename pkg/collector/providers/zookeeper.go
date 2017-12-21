@@ -82,11 +82,11 @@ func (z *ZookeeperConfigProvider) IsUpToDate() (bool, error) {
 	adListUpdated := false
 
 	if z.cache.NumAdTemplates != len(identifiers) {
-		if z.cache.NumAdTemplates != 0 {
-			log.Infof("List of AD Template was modified, updating cache.")
-			adListUpdated = true
+		if z.cache.NumAdTemplates == 0 {
+			log.Infof("Initializing cache for %v", z.String())
 		}
-		log.Infof("Initializing cache for %v", z.String())
+		log.Debugf("List of AD Template was modified, updating cache.")
+		adListUpdated = true
 		z.cache.NumAdTemplates = len(identifiers)
 	}
 
