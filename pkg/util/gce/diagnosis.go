@@ -14,7 +14,7 @@ func init() {
 	diagnosis.Register("GCE Metadata availability", diagnose)
 }
 
-// diagnose the docker availability on the system
+// diagnose the GCE metadata API availability
 func diagnose() error {
 	_, err := GetHostname()
 	if err != nil {

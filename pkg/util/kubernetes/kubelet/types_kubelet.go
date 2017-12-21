@@ -62,6 +62,7 @@ type ContainerPortSpec struct {
 
 // Status contains fields for unmarshalling a Pod.Status
 type Status struct {
+	Phase      string            `json:"phase,omitempty"`
 	HostIP     string            `json:"hostIP,omitempty"`
 	PodIP      string            `json:"podIP,omitempty"`
 	Containers []ContainerStatus `json:"containerStatuses,omitempty"`
