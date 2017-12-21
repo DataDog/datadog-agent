@@ -29,7 +29,7 @@ func TestBuildConfigWithCompleteFile(t *testing.T) {
 	assert.Equal(t, "playground", testConfig.GetString("logset"))
 	assert.Equal(t, "my.url", testConfig.GetString("log_dd_url"))
 	assert.Equal(t, 10516, testConfig.GetInt("log_dd_port"))
-	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
+	assert.Equal(t, true, testConfig.GetBool("dev_mode_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("log_enabled"))
 }
 
@@ -38,6 +38,7 @@ func TestDDConfigDefaultValues(t *testing.T) {
 	assert.Equal(t, "intake.logs.datadoghq.com", ddconfig.Datadog.GetString("log_dd_url"))
 	assert.Equal(t, 10516, ddconfig.Datadog.GetInt("log_dd_port"))
 	assert.Equal(t, false, ddconfig.Datadog.GetBool("skip_ssl_validation"))
+	assert.Equal(t, false, ddconfig.Datadog.GetBool("dev_mode_no_ssl"))
 	assert.Equal(t, false, ddconfig.Datadog.GetBool("log_enabled"))
 	hostname, _ := util.GetHostname()
 	ddconfigPath := filepath.Join(testsPath, "incomplete", "datadog_test.yaml")
