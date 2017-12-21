@@ -4,3 +4,9 @@
 # Autodiscovery
 listeners:
   - name: ecs
+
+config_providers:
+  ## The ecs provider handles templates embedded in container labels, see
+  ## https://docs.datadoghq.com/guides/autodiscovery/#template-source-docker-label-annotations
+  - name: ecs
+    polling: true
