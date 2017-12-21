@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	log "github.com/cihub/seelog"
 )
 
@@ -56,8 +56,8 @@ func (p *ECSConfigProvider) Collect() ([]check.Config, error) {
 
 // getTaskMetadata queries the ECS metadata API and unmarshals the resulting json
 // into a TaskMetadata object.
-func (p *ECSConfigProvider) getTaskMetadata() (listeners.TaskMetadata, error) {
-	var meta listeners.TaskMetadata
+func (p *ECSConfigProvider) getTaskMetadata() (ecs.TaskMetadata, error) {
+	var meta ecs.TaskMetadata
 	resp, err := p.client.Get(metadataURL)
 	if err != nil {
 		log.Errorf("unable to get task metadata - %s", err)
@@ -75,7 +75,7 @@ func (p *ECSConfigProvider) getTaskMetadata() (listeners.TaskMetadata, error) {
 
 // parseECSContainers loops through ecs containers found in the ecs metadata response
 // and extracts configuration templates out of their labels.
-func parseECSContainers(containers []listeners.ECSContainer) ([]check.Config, error) {
+func parseECSContainers(containers []ecs.Container) ([]check.Config, error) {
 	var templates []check.Config
 	for _, c := range containers {
 		configs, err := extractTemplatesFromMap(docker.ContainerIDToEntityName(c.DockerID), c.Labels, ecsADLabelPrefix)
