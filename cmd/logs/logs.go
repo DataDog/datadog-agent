@@ -22,7 +22,7 @@ func Start() {
 	cm := sender.NewConnectionManager(
 		config.LogsAgent.GetString("log_dd_url"),
 		config.LogsAgent.GetInt("log_dd_port"),
-		config.LogsAgent.GetBool("skip_ssl_validation"),
+		config.LogsAgent.GetBool("dev_mode_no_ssl"),
 	)
 
 	auditorChan := make(chan message.Message, config.ChanSizes)
