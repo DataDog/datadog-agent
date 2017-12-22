@@ -8,8 +8,8 @@
 package providers
 
 import (
-	"golang.org/x/net/context"
 	"fmt"
+	"golang.org/x/net/context"
 	"math"
 	"strings"
 	"time"
@@ -24,6 +24,7 @@ import (
 type EtcdBackend interface {
 	Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error)
 }
+
 // EtcdConfigProvider implements the Config Provider interface
 // It should be called periodically and returns templates from etcd for AutoConf.
 type EtcdConfigProvider struct {
