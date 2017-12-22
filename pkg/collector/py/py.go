@@ -43,12 +43,17 @@ var (
 	// PythonPath contains the string representation of the Python list returned
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
+
+	pythonProgramName  = "/opt/datadog-agent/embedded/bin/python"
+	pPythonProgramName *C.char
 )
 
 // Initialize wraps all the operations needed to start the Python interpreter and
 // configure the environment. This function should be called at most once in the
 // Agent lifetime.
 func Initialize(paths ...string) *python.PyThreadState {
+
+	setPythonProgramName()
 
 	setPythonHome()
 
@@ -133,4 +138,15 @@ func setPythonHome() {
 	// set the python path
 	pPythonHome := C.CString(pythonHome)
 	C.Py_SetPythonHome(pPythonHome)
+}
+
+func setPythonProgramName() {
+	if pythonHome == "" {
+		// don't do anything if not set, to support system python builds
+		return
+	}
+
+	// set the python path
+	pPythonProgramName := C.CString(pythonProgramName)
+	C.Py_SetProgramName(pPythonProgramName)
 }
