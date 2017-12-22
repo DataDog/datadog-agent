@@ -21,10 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+type EtcdBackend interface {
+	Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error)
+}
 // EtcdConfigProvider implements the Config Provider interface
 // It should be called periodically and returns templates from etcd for AutoConf.
 type EtcdConfigProvider struct {
-	Client      client.KeysAPI
+	Client      EtcdBackend
 	templateDir string
 	cache       *CacheProviderIndx
 }

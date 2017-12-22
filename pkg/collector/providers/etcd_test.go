@@ -8,11 +8,25 @@
 package providers
 
 import (
+	"context"
 	"testing"
-
+	"github.com/stretchr/testify/mock"
 	"github.com/coreos/etcd/client"
 	"github.com/stretchr/testify/assert"
 )
+
+type etcdTest struct {
+	mock.Mock
+}
+
+func (m *etcdTest) Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error){
+	args := m.Called(ctx, key, opts)
+	resp, resp_ok := args.Get(0).(*client.Response)
+	if resp_ok {
+		return resp, nil
+	}
+	return nil, args.Error(1)
+}
 
 func createTestNode(key string) *client.Node {
 	return &client.Node{
@@ -45,4 +59,12 @@ func TestHasTemplateFields(t *testing.T) {
 	validNodes := []*client.Node{node1, node2, node3}
 	res = hasTemplateFields(validNodes)
 	assert.True(t, res)
+}
+
+func TestGetIdentifiers(t *testing.T){
+	backend := &etcdTest{}
+	resp := new(client.Response)
+	//kv.On("Get", context.Background(), "/datadog/tpl/nginx/check_names", &client.GetOptions{Recursive: true}).Return(resp, nil).Times(1)
+	etcd := EtcdConfigProvider{Client: backend, templateDir: "/datadog/check_configs" }
+
 }
