@@ -8,7 +8,7 @@
 package providers
 
 import (
-	"context"
+	context "golang.org/x/net/context"
 	"fmt"
 	"math"
 	"strings"
@@ -138,14 +138,6 @@ func (p *EtcdConfigProvider) getJSONValue(key string) ([]check.ConfigData, error
 	}
 
 	return parseJSONValue(rawValue)
-}
-
-// getIdx gets the last-modified index of a key
-// it's useful if you want to verify something changed
-// before triggering a full read
-func (p *EtcdConfigProvider) getIdx(key string) int {
-	// TODO
-	return 0
 }
 
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to ETCD's data.

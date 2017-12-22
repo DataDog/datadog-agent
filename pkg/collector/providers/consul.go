@@ -25,7 +25,6 @@ import (
 type consulKVBackend interface {
 	Keys(prefix, separator string, q *consul.QueryOptions) ([]string, *consul.QueryMeta, error)
 	Get(key string, q *consul.QueryOptions) (*consul.KVPair, *consul.QueryMeta, error)
-	Txn(txn consul.KVTxnOps, q *consul.QueryOptions) (bool, *consul.KVTxnResponse, *consul.QueryMeta, error)
 	List(prefix string, q *consul.QueryOptions) (consul.KVPairs, *consul.QueryMeta, error)
 }
 

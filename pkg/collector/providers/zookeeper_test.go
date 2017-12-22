@@ -219,5 +219,5 @@ func TestZKIsUpToDate(t *testing.T) {
 
 	update, _ = zkr.IsUpToDate()
 	assert.True(t,update)
-
+	backend.AssertExpectations(t)
 }
