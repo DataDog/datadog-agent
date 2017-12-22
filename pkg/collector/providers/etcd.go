@@ -8,7 +8,7 @@
 package providers
 
 import (
-	context "golang.org/x/net/context"
+	"golang.org/x/net/context"
 	"fmt"
 	"math"
 	"strings"

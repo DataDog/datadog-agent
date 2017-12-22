@@ -8,7 +8,7 @@
 package providers
 
 import (
-	"context"
+	"golang.org/x/net/context"
 	"testing"
 	"github.com/stretchr/testify/mock"
 	"github.com/coreos/etcd/client"
@@ -64,7 +64,46 @@ func TestHasTemplateFields(t *testing.T) {
 func TestGetIdentifiers(t *testing.T){
 	backend := &etcdTest{}
 	resp := new(client.Response)
-	//kv.On("Get", context.Background(), "/datadog/tpl/nginx/check_names", &client.GetOptions{Recursive: true}).Return(resp, nil).Times(1)
-	etcd := EtcdConfigProvider{Client: backend, templateDir: "/datadog/check_configs" }
+	configPath := new(client.Node)
+	node1 := createTestNode("check_names")
+	node2 := createTestNode("init_configs")
+	node3 := createTestNode("instances")
+	nodes := []*client.Node{node1, node2, node3}
+	configPath.Key = "/datadog/check_configs/"
+	nginx := &client.Node{
+		Key:	"/datadog/check_configs/nginx",
+		Dir:	true,
+		Nodes:	nodes,
+	}
+	adTemplate := []*client.Node{nginx}
+	configPath.Nodes = adTemplate
+	resp.Node = configPath
 
+	backend.On("Get", context.Background(), "/datadog/check_configs", &client.GetOptions{Recursive: true}).Return(resp, nil).Times(1)
+	etcd := EtcdConfigProvider{Client: backend, templateDir: "/datadog/check_configs" }
+	array := etcd.getIdentifiers("/datadog/check_configs")
+
+	assert.Len(t,array,1)
+	assert.Equal(t,array, []string{"nginx"})
+
+
+	badConf := new(client.Node)
+	toofew := []*client.Node{node1, node2}
+	badConf.Key = "/datadog/check_configs/"
+	haproxy := &client.Node{
+		Key:	"/datadog/check_configs/haproxy",
+		Dir:	true,
+		Nodes:	toofew,
+	}
+	adTemplate = []*client.Node{haproxy}
+	badConf.Nodes = adTemplate
+	resp.Node = badConf
+	backend.On("Get", context.Background(), "/datadog/check_configs", &client.GetOptions{Recursive: true}).Return(resp, nil)
+
+	err_array := etcd.getIdentifiers("/datadog/check_configs")
+
+	assert.Len(t,err_array,0)
+	assert.Equal(t,err_array, []string{})
+
+	backend.AssertExpectations(t)
 }

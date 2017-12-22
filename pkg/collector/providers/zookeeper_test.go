@@ -29,7 +29,7 @@ func (m *zkTest) Get(key string) ([]byte, *zk.Stat, error) {
 	args := m.Called(key)
 	array, arr_ok := args.Get(0).([]byte)
 	stats, stats_ok := args.Get(1).(*zk.Stat)
-	if arr_ok && stats_ok{
+	if arr_ok && stats_ok {
 		return array, stats, args.Error(2)
 	}
 	if arr_ok {
@@ -42,7 +42,7 @@ func (m *zkTest) Children(key string) ([]string, *zk.Stat, error) {
 	args := m.Called(key)
 	array, arr_ok := args.Get(0).([]string)
 	stats, stats_ok := args.Get(1).(*zk.Stat)
-	if arr_ok && stats_ok{
+	if arr_ok && stats_ok {
 		return array, stats, args.Error(2)
 	}
 	if arr_ok {
@@ -64,8 +64,8 @@ func TestZKGetIdentifiers(t *testing.T) {
 	expectedKeys := []string{checkNamePath, initConfigPath, instancePath}
 	backend.On("Children", "/datadog/tpl/nginx").Return(expectedKeys, nil, nil).Times(1)
 	backend.On("Children", "/datadog/tpl/redis").Return(append(expectedKeys, "an extra one"), nil, nil).Times(1)
-	backend.On("Children", "/datadog/tpl/incomplete").Return([]string{checkNamePath, "other one"},nil, nil).Times(1)
-	backend.On("Children", "/datadog/tpl/error").Return(nil, nil,fmt.Errorf("some error")).Times(1)
+	backend.On("Children", "/datadog/tpl/incomplete").Return([]string{checkNamePath, "other one"}, nil, nil).Times(1)
+	backend.On("Children", "/datadog/tpl/error").Return(nil, nil, fmt.Errorf("some error")).Times(1)
 
 	zk := ZookeeperConfigProvider{client: backend}
 
@@ -188,10 +188,10 @@ func TestZKIsUpToDate(t *testing.T) {
 
 	backend := &zkTest{}
 	z := new(zk.Stat)
-	backend.On("Children", "/datadog/check_configs").Return([]string{"config_folder_1"}, nil,nil).Times(1)
+	backend.On("Children", "/datadog/check_configs").Return([]string{"config_folder_1"}, nil, nil).Times(1)
 	expectedKeys := []string{checkNamePath, initConfigPath, instancePath}
 	backend.On("Children", "/datadog/check_configs/config_folder_1").Return(expectedKeys, nil, nil)
-	backend.On("Get", "/datadog/check_configs/config_folder_1/check_names").Return([]byte("[\"first_name\", \"second_name\"]"),z, nil)
+	backend.On("Get", "/datadog/check_configs/config_folder_1/check_names").Return([]byte("[\"first_name\", \"second_name\"]"), z, nil)
 	backend.On("Get", "/datadog/check_configs/config_folder_1/instances").Return([]byte("[{}, {}]"), z, nil)
 	z.Mtime = int64(709662600)
 	backend.On("Get", "/datadog/check_configs/config_folder_1/init_configs").Return([]byte("[{}, {}]"), z, nil)
@@ -203,21 +203,21 @@ func TestZKIsUpToDate(t *testing.T) {
 	assert.Equal(t, int(0), zkr.cache.NumAdTemplates)
 
 	update, _ := zkr.IsUpToDate()
-	assert.False(t,update)
+	assert.False(t, update)
 	assert.Equal(t, float64(709662600), zkr.cache.AdTemplate2Idx)
 
-	backend.On("Children", "/datadog/check_configs").Return([]string{"config_folder_1", "config_folder_2"}, nil,nil)
-	backend.On("Children", "/datadog/check_configs/config_folder_2").Return([]string{"check_names", "instances", "init_configs"},z, nil)
+	backend.On("Children", "/datadog/check_configs").Return([]string{"config_folder_1", "config_folder_2"}, nil, nil)
+	backend.On("Children", "/datadog/check_configs/config_folder_2").Return([]string{"check_names", "instances", "init_configs"}, z, nil)
 
 	backend.On("Get", "/datadog/check_configs/config_folder_2/check_names").Return([]byte("[\"third_name\"]"), z, nil)
 	backend.On("Get", "/datadog/check_configs/config_folder_2/instances").Return([]byte("[{}]"), z, nil)
-	backend.On("Get", "/datadog/check_configs/config_folder_2/init_configs").Return([]byte("[{}]"), z,nil)
+	backend.On("Get", "/datadog/check_configs/config_folder_2/init_configs").Return([]byte("[{}]"), z, nil)
 
 	update, _ = zkr.IsUpToDate()
-	assert.False(t,update)
+	assert.False(t, update)
 	assert.Equal(t, int(2), zkr.cache.NumAdTemplates)
 
 	update, _ = zkr.IsUpToDate()
-	assert.True(t,update)
+	assert.True(t, update)
 	backend.AssertExpectations(t)
 }
