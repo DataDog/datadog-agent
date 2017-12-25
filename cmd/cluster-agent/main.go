@@ -13,7 +13,7 @@ import (
 	"syscall"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
-
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
+	//_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 )
 
 var (
@@ -56,16 +58,13 @@ metadata for their metrics.`,
 	confPath string
 )
 
-// run the host metadata collector every 14400 seconds (4 hours)
-const hostMetadataCollectorInterval = 14400
-
 func init() {
 	// attach the command to the root
 	clusterAgentCmd.AddCommand(startCmd)
 	clusterAgentCmd.AddCommand(versionCmd)
 
 	// local flags
-	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to datadog.yaml")
+	startCmd.Flags().StringVarP(&confPath, "cfgpath", "c", "", "path to datadog-cluster.yaml")
 
 	config.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath"))
 }
@@ -140,7 +139,10 @@ func start(cmd *cobra.Command, args []string) error {
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
-
+	// create and setup the Autoconfig instance
+	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+	// start the autoconfig, this will immediately run any configured check
+	common.StartAutoConfig()
 	// Block here until we receive the interrupt signal
 	<-signalCh
 
@@ -162,3 +164,7 @@ func main() {
 		os.Exit(-1)
 	}
 }
+
+//func StartLoadAndRun() {
+//
+//}
