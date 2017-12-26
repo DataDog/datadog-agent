@@ -69,19 +69,6 @@ func parseCheckNames(names string) (res []string, err error) {
 	return res, nil
 }
 
-func sameSlice(a map[string]int32, b map[string]int32) (bool, error) {
-	if len(a) != len(b) {
-		return false, fmt.Errorf("arrays have different sizes")
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			log.Debugf("arrays %v and %v are not the same", a, b)
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
 func buildStoreKey(key ...string) string {
 	parts := []string{config.Datadog.GetString("autoconf_template_dir")}
 	parts = append(parts, key...)

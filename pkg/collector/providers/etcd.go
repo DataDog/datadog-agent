@@ -21,16 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-type EtcdBackend interface {
+type etcdBackend interface {
 	Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error)
 }
 
 // EtcdConfigProvider implements the Config Provider interface
 // It should be called periodically and returns templates from etcd for AutoConf.
 type EtcdConfigProvider struct {
-	Client      EtcdBackend
+	Client      etcdBackend
 	templateDir string
-	cache       *CacheProviderIndx
+	cache       *ProviderCache
 }
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
@@ -50,9 +50,9 @@ func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider
 	if err != nil {
 		return nil, fmt.Errorf("Unable to instantiate the etcd client: %s", err)
 	}
-	cacheProvider := NewCPCache()
+	cache := NewCPCache()
 	c := client.NewKeysAPI(cl)
-	return &EtcdConfigProvider{Client: c, templateDir: config.TemplateDir, cache: cacheProvider}, nil
+	return &EtcdConfigProvider{Client: c, templateDir: config.TemplateDir, cache: cache}, nil
 }
 
 // Collect retrieves templates from etcd, builds Config objects and returns them
@@ -148,7 +148,7 @@ func (p *EtcdConfigProvider) getJSONValue(key string) ([]check.ConfigData, error
 func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
 
 	adListUpdated := false
-	dateIdx := p.cache.AdTemplate2Idx
+	dateIdx := p.cache.LatestTemplateIdx
 
 	resp, err := p.Client.Get(context.Background(), p.templateDir, &client.GetOptions{Recursive: true})
 	if err != nil {
@@ -175,9 +175,9 @@ func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
 			dateIdx = math.Max(float64(tplkey.ModifiedIndex), dateIdx)
 		}
 	}
-	if dateIdx > p.cache.AdTemplate2Idx || adListUpdated {
-		log.Debugf("Idx was %v and is now %v", p.cache.AdTemplate2Idx, dateIdx)
-		p.cache.AdTemplate2Idx = dateIdx
+	if dateIdx > p.cache.LatestTemplateIdx || adListUpdated {
+		log.Debugf("Idx was %v and is now %v", p.cache.LatestTemplateIdx, dateIdx)
+		p.cache.LatestTemplateIdx = dateIdx
 		log.Infof("cache updated for %v", p.String())
 		return false, nil
 	}

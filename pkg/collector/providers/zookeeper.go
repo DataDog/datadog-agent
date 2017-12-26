@@ -33,7 +33,7 @@ type zkBackend interface {
 type ZookeeperConfigProvider struct {
 	client      zkBackend
 	templateDir string
-	cache       *CacheProviderIndx
+	cache       *ProviderCache
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
@@ -44,11 +44,11 @@ func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvid
 	if err != nil {
 		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", cfg.TemplateURL, strings.Join(urls, ", "), err)
 	}
-	cacheProvider := NewCPCache()
+	cache := NewCPCache()
 	return &ZookeeperConfigProvider{
 		client:      c,
 		templateDir: cfg.TemplateDir,
-		cache:       cacheProvider,
+		cache:       cache,
 	}, nil
 }
 
@@ -71,14 +71,14 @@ func (z *ZookeeperConfigProvider) Collect() ([]check.Config, error) {
 	return configs, nil
 }
 
-// Updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Zookeeper's data.
+// IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Zookeeper's data.
 func (z *ZookeeperConfigProvider) IsUpToDate() (bool, error) {
 
 	identifiers, err := z.getIdentifiers(z.templateDir)
 	if err != nil {
 		return false, err
 	}
-	outdated := z.cache.AdTemplate2Idx
+	outdated := z.cache.LatestTemplateIdx
 	adListUpdated := false
 
 	if z.cache.NumAdTemplates != len(identifiers) {
@@ -105,9 +105,9 @@ func (z *ZookeeperConfigProvider) IsUpToDate() (bool, error) {
 			outdated = math.Max(float64(stat.Mtime), outdated)
 		}
 	}
-	if outdated > z.cache.AdTemplate2Idx || adListUpdated {
-		log.Debugf("Idx was %v and is now %v", z.cache.AdTemplate2Idx, outdated)
-		z.cache.AdTemplate2Idx = outdated
+	if outdated > z.cache.LatestTemplateIdx || adListUpdated {
+		log.Debugf("Idx was %v and is now %v", z.cache.LatestTemplateIdx, outdated)
+		z.cache.LatestTemplateIdx = outdated
 		log.Infof("cache updated for %v", z.String())
 		return false, nil
 	}

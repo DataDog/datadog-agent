@@ -356,7 +356,7 @@ func (ac *AutoConfig) pollConfigs() {
 						log.Errorf("cache processing of %v failed: %v", pd.provider.String(), err)
 					}
 					if upToDate == true {
-						log.Infof("No modifications in the templates stored in %q ", pd.provider.String())
+						log.Debugf("No modifications in the templates stored in %q ", pd.provider.String())
 						continue
 					}
 

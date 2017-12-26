@@ -110,7 +110,7 @@ func TestGetIdentifiers(t *testing.T) {
 func TestETCDIsUpToDate(t *testing.T) {
 	// We want to check:
 	// The cache is properly initialized
-	// AdTemplate2Idx and NumAdTemplates are properly set
+	// LatestTemplateIdx and NumAdTemplates are properly set
 	// If the number of ADTemplate is modified we update
 	// If nothing changed we don't update
 
@@ -133,12 +133,12 @@ func TestETCDIsUpToDate(t *testing.T) {
 	resp.Node = configPath
 
 	backend.On("Get", context.Background(), "/datadog/check_configs", &client.GetOptions{Recursive: true}).Return(resp, nil).Times(1)
-	cacheProvider := NewCPCache()
-	etcd := EtcdConfigProvider{Client: backend, templateDir: "/datadog/check_configs", cache: cacheProvider}
+	cache := NewCPCache()
+	etcd := EtcdConfigProvider{Client: backend, templateDir: "/datadog/check_configs", cache: cache}
 	update, _ := etcd.IsUpToDate()
 
 	assert.False(t, update)
-	assert.Equal(t, float64(123456), etcd.cache.AdTemplate2Idx)
+	assert.Equal(t, float64(123456), etcd.cache.LatestTemplateIdx)
 	assert.Equal(t, 1, etcd.cache.NumAdTemplates)
 
 	node4 := &client.Node{
@@ -161,14 +161,14 @@ func TestETCDIsUpToDate(t *testing.T) {
 	update, _ = etcd.IsUpToDate()
 
 	assert.False(t, update)
-	assert.Equal(t, float64(9000000), etcd.cache.AdTemplate2Idx)
+	assert.Equal(t, float64(9000000), etcd.cache.LatestTemplateIdx)
 	assert.Equal(t, 2, etcd.cache.NumAdTemplates)
 
 	backend.On("Get", context.Background(), "/datadog/check_configs", &client.GetOptions{Recursive: true}).Return(resp, nil).Times(1)
 	update, _ = etcd.IsUpToDate()
 
 	assert.True(t, update)
-	assert.Equal(t, float64(9000000), etcd.cache.AdTemplate2Idx)
+	assert.Equal(t, float64(9000000), etcd.cache.LatestTemplateIdx)
 	assert.Equal(t, 2, etcd.cache.NumAdTemplates)
 	backend.AssertExpectations(t)
 }

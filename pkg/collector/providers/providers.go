@@ -21,17 +21,17 @@ func RegisterProvider(name string, factory ConfigProviderFactory) {
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance
 type ConfigProviderFactory func(cfg config.ConfigurationProviders) (ConfigProvider, error)
 
-// CacheProviderIndx contains the number of AD Templates and the latest Index
-type CacheProviderIndx struct {
-	AdTemplate2Idx float64
-	NumAdTemplates int
+// ProviderCache contains the number of AD Templates and the latest Index
+type ProviderCache struct {
+	LatestTemplateIdx float64
+	NumAdTemplates    int
 }
 
-// NewCPCache instantiate a CacheProviderIndx.
-func NewCPCache() *CacheProviderIndx {
-	return &CacheProviderIndx{
-		AdTemplate2Idx: 0,
-		NumAdTemplates: 0,
+// NewCPCache instantiate a ProviderCache.
+func NewCPCache() *ProviderCache {
+	return &ProviderCache{
+		LatestTemplateIdx: 0,
+		NumAdTemplates:    0,
 	}
 }
 

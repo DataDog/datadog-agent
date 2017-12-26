@@ -196,15 +196,15 @@ func TestZKIsUpToDate(t *testing.T) {
 	z.Mtime = int64(709662600)
 	backend.On("Get", "/datadog/check_configs/config_folder_1/init_configs").Return([]byte("[{}, {}]"), z, nil)
 
-	cacheProvider := NewCPCache()
+	cache := NewCPCache()
 
-	zkr := ZookeeperConfigProvider{client: backend, templateDir: "/datadog/check_configs", cache: cacheProvider}
-	assert.Equal(t, float64(0), zkr.cache.AdTemplate2Idx)
+	zkr := ZookeeperConfigProvider{client: backend, templateDir: "/datadog/check_configs", cache: cache}
+	assert.Equal(t, float64(0), zkr.cache.LatestTemplateIdx)
 	assert.Equal(t, int(0), zkr.cache.NumAdTemplates)
 
 	update, _ := zkr.IsUpToDate()
 	assert.False(t, update)
-	assert.Equal(t, float64(709662600), zkr.cache.AdTemplate2Idx)
+	assert.Equal(t, float64(709662600), zkr.cache.LatestTemplateIdx)
 
 	backend.On("Children", "/datadog/check_configs").Return([]string{"config_folder_1", "config_folder_2"}, nil, nil)
 	backend.On("Children", "/datadog/check_configs/config_folder_2").Return([]string{"check_names", "instances", "init_configs"}, z, nil)

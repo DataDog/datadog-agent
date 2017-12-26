@@ -45,7 +45,7 @@ func (c *consulWrapper) KV() consulKVBackend {
 type ConsulConfigProvider struct {
 	Client      consulBackend
 	TemplateDir string
-	cache       *CacheProviderIndx
+	cache       *ProviderCache
 }
 
 // NewConsulConfigProvider creates a client connection to consul and create a new ConsulConfigProvider
@@ -79,7 +79,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 		}
 		clientCfg.HttpAuth = auth
 	}
-	cacheProvider := NewCPCache()
+	cache := NewCPCache()
 	cli, err := consul.NewClient(clientCfg)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to instantiate the consul client: %s", err)
@@ -92,7 +92,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 	return &ConsulConfigProvider{
 		Client:      c,
 		TemplateDir: config.TemplateDir,
-		cache:       cacheProvider,
+		cache:       cache,
 	}, nil
 
 }
@@ -117,7 +117,7 @@ func (p *ConsulConfigProvider) Collect() ([]check.Config, error) {
 func (p *ConsulConfigProvider) IsUpToDate() (bool, error) {
 	kv := p.Client.KV()
 	adListUpdated := false
-	dateIdx := p.cache.AdTemplate2Idx
+	dateIdx := p.cache.LatestTemplateIdx
 
 	identifiers, _, err := kv.List(p.TemplateDir, nil)
 	if err != nil {
@@ -135,9 +135,9 @@ func (p *ConsulConfigProvider) IsUpToDate() (bool, error) {
 	for _, identifier := range identifiers {
 		dateIdx = math.Max(float64(identifier.ModifyIndex), dateIdx)
 	}
-	if dateIdx > p.cache.AdTemplate2Idx || adListUpdated {
-		log.Debugf("Cache Index was %v and is now %v", p.cache.AdTemplate2Idx, dateIdx)
-		p.cache.AdTemplate2Idx = dateIdx
+	if dateIdx > p.cache.LatestTemplateIdx || adListUpdated {
+		log.Debugf("Cache Index was %v and is now %v", p.cache.LatestTemplateIdx, dateIdx)
+		p.cache.LatestTemplateIdx = dateIdx
 		log.Infof("Cache updated for %v", p.String())
 		return false, nil
 	}
