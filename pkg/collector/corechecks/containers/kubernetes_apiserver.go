@@ -7,18 +7,22 @@
 
 package containers
 
-import(
-	"time"
+import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	log "github.com/cihub/seelog"
-	yaml "gopkg.in/yaml.v2"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	_ "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	log "github.com/cihub/seelog"
+	yaml "gopkg.in/yaml.v2"
+	"time"
+	//"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"context"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/ericchiang/k8s"
 )
+
 // Covers the Controle pannel service check and the in memory pod metadata.
 
-const kubernetesApiServerCheck = "kuberenetes_apiserver"
+const kubernetesApiServerCheck = "kubernetes_apiserver"
 
 const (
 	KubeControlPaneCheck string = "kubernetes_APIServer.controlePlaneUp"
@@ -26,15 +30,15 @@ const (
 
 type KubeASConfig struct {
 	//CollectContainerSize bool               `yaml:"collect_container_size"`
-	Tags                 []string           `yaml:"tags"`
+	Tags []string `yaml:"tags"`
 	//CollectEvent         bool               `yaml:"collect_events"`
 	//FilteredEventType    []string           `yaml:"filtered_event_types"`
 }
 
 // KubeASCheck grabs docker metrics
 type KubeASCheck struct {
-	lastWarnings   []error
-	instance       *KubeASConfig
+	lastWarnings []error
+	instance     *KubeASConfig
 	//lastEventTime  time.Time
 	KubeApiServerHostname string
 }
@@ -75,19 +79,54 @@ func (k *KubeASCheck) ID() check.ID {
 func (k *KubeASCheck) Interval() time.Duration {
 	return check.DefaultCheckInterval
 }
+
 // Run executes the check
 func (k *KubeASCheck) Run() error {
 	sender, err := aggregator.GetSender(k.ID())
 	if err != nil {
 		return err
 	}
+	client, err := k8s.NewInClusterClient()
+	if err != nil {
+		log.Errorf("could not instantiate the cluster: %q", err)
+		return nil
+	}
+	componentsStatus, err := client.CoreV1().ListComponentStatuses(context.Background())
+	if err != nil {
+		log.Errorf("could not retrieve the status from the control pannel's components", err)
+		return nil
+	}
+	for _, component := range componentsStatus.Items {
+
+		tag_comp := []string{}
+		tag_comp = append(k.instance.Tags, *component.Metadata.Name)
+
+		// We only expect the Healthy condition. May change in the future. https://godoc.org/github.com/ericchiang/k8s/api/v1#ComponentCondition
+		for condition := range component.Conditions {
+			// We only expect True, False and Unknown.
+			if *component.Conditions[condition].Type != "Healthy" {
+				log.Debug("Condition %q not supported", *component.Conditions[condition].Type)
+				continue
+			}
+			if *component.Conditions[condition].Status == "True" {
+				sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckOK, "", tag_comp, "")
+				continue
+			}
+			if *component.Conditions[condition].Status == "False" {
+				sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckCritical, "", tag_comp, "")
+				continue
+			}
+			sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckUnknown, "", tag_comp, "")
+		}
+	}
+
 	sender.Gauge("kubernetes_api_server", 10, "", k.instance.Tags)
 	sender.Commit()
 	return nil
 }
+
 // Stop does nothing
 func (k *KubeASCheck) Stop() {}
-
 
 // DockerFactory is exported for integration testing
 func KubernetesASFactory() check.Check {

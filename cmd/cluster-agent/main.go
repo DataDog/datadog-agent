@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -24,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
-	//_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
 )
 
 var (
@@ -164,7 +163,3 @@ func main() {
 		os.Exit(-1)
 	}
 }
-
-//func StartLoadAndRun() {
-//
-//}
