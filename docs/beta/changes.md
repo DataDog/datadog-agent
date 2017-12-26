@@ -5,7 +5,7 @@ a drop in replacement, there were a small number of deprecations or changes in
 behavior which will be listed in this document.
 
 Note: If you see anything that's incorrect about this document (and that's not
-covered by the [known_issues.md][known-issues] document), do not hesistate to
+covered by the [known_issues.md][known-issues] document), do not hesitate to
 open an issue or submit a Pull Request.
 
 ## Configuration Files

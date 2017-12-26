@@ -21,6 +21,20 @@ func RegisterProvider(name string, factory ConfigProviderFactory) {
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance
 type ConfigProviderFactory func(cfg config.ConfigurationProviders) (ConfigProvider, error)
 
+// ProviderCache contains the number of AD Templates and the latest Index
+type ProviderCache struct {
+	LatestTemplateIdx float64
+	NumAdTemplates    int
+}
+
+// NewCPCache instantiate a ProviderCache.
+func NewCPCache() *ProviderCache {
+	return &ProviderCache{
+		LatestTemplateIdx: 0,
+		NumAdTemplates:    0,
+	}
+}
+
 // ConfigProvider is the interface that wraps the Collect method
 //
 // Collect is responsible of populating a list of CheckConfig instances
@@ -29,7 +43,9 @@ type ConfigProviderFactory func(cfg config.ConfigurationProviders) (ConfigProvid
 //
 // Any type implementing the interface will take care of any dependency
 // or data needed to access the resource providing the configuration.
+// IsUpToDate checks the local cache of the CP and returns accordingly.
 type ConfigProvider interface {
 	Collect() ([]check.Config, error)
 	String() string
+	IsUpToDate() (bool, error)
 }

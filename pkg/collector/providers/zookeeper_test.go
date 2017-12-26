@@ -27,18 +27,28 @@ type zkTest struct {
 
 func (m *zkTest) Get(key string) ([]byte, *zk.Stat, error) {
 	args := m.Called(key)
-	if v, ok := args.Get(0).([]byte); ok {
-		return v, nil, args.Error(1)
+	array, arr_ok := args.Get(0).([]byte)
+	stats, stats_ok := args.Get(1).(*zk.Stat)
+	if arr_ok && stats_ok {
+		return array, stats, args.Error(2)
 	}
-	return nil, nil, args.Error(1)
+	if arr_ok {
+		return array, nil, args.Error(2)
+	}
+	return nil, nil, args.Error(2)
 }
 
 func (m *zkTest) Children(key string) ([]string, *zk.Stat, error) {
 	args := m.Called(key)
-	if v, ok := args.Get(0).([]string); ok {
-		return v, nil, args.Error(1)
+	array, arr_ok := args.Get(0).([]string)
+	stats, stats_ok := args.Get(1).(*zk.Stat)
+	if arr_ok && stats_ok {
+		return array, stats, args.Error(2)
 	}
-	return nil, nil, args.Error(1)
+	if arr_ok {
+		return array, nil, args.Error(2)
+	}
+	return nil, nil, args.Error(2)
 }
 
 //
@@ -48,14 +58,14 @@ func (m *zkTest) Children(key string) ([]string, *zk.Stat, error) {
 func TestZKGetIdentifiers(t *testing.T) {
 	backend := &zkTest{}
 
-	backend.On("Children", "/test/").Return(nil, fmt.Errorf("some error")).Times(1)
-	backend.On("Children", "/datadog/tpl").Return([]string{"nginx", "redis", "incomplete", "error"}, nil).Times(1)
+	backend.On("Children", "/test/").Return(nil, nil, fmt.Errorf("some error")).Times(1)
+	backend.On("Children", "/datadog/tpl").Return([]string{"nginx", "redis", "incomplete", "error"}, nil, nil).Times(1)
 
 	expectedKeys := []string{checkNamePath, initConfigPath, instancePath}
-	backend.On("Children", "/datadog/tpl/nginx").Return(expectedKeys, nil).Times(1)
-	backend.On("Children", "/datadog/tpl/redis").Return(append(expectedKeys, "an extra one"), nil).Times(1)
-	backend.On("Children", "/datadog/tpl/incomplete").Return([]string{checkNamePath, "other one"}, nil).Times(1)
-	backend.On("Children", "/datadog/tpl/error").Return(nil, fmt.Errorf("some error")).Times(1)
+	backend.On("Children", "/datadog/tpl/nginx").Return(expectedKeys, nil, nil).Times(1)
+	backend.On("Children", "/datadog/tpl/redis").Return(append(expectedKeys, "an extra one"), nil, nil).Times(1)
+	backend.On("Children", "/datadog/tpl/incomplete").Return([]string{checkNamePath, "other one"}, nil, nil).Times(1)
+	backend.On("Children", "/datadog/tpl/error").Return(nil, nil, fmt.Errorf("some error")).Times(1)
 
 	zk := ZookeeperConfigProvider{client: backend}
 
@@ -74,37 +84,37 @@ func TestZKGetIdentifiers(t *testing.T) {
 func TestZKGetTemplates(t *testing.T) {
 	backend := &zkTest{}
 
-	backend.On("Get", "/error1/check_names").Return(nil, fmt.Errorf("some error")).Times(1)
+	backend.On("Get", "/error1/check_names").Return(nil, nil, fmt.Errorf("some error")).Times(1)
 	zk := ZookeeperConfigProvider{client: backend}
 	res := zk.getTemplates("/error1/")
 	assert.Nil(t, res)
 
-	backend.On("Get", "/error2/check_names").Return([]byte("[\"first_name\"]"), nil).Times(1)
-	backend.On("Get", "/error2/init_configs").Return(nil, fmt.Errorf("some error")).Times(1)
+	backend.On("Get", "/error2/check_names").Return([]byte("[\"first_name\"]"), nil, nil).Times(1)
+	backend.On("Get", "/error2/init_configs").Return(nil, nil, fmt.Errorf("some error")).Times(1)
 	res = zk.getTemplates("/error2/")
 	assert.Nil(t, res)
 
-	backend.On("Get", "/error3/check_names").Return([]byte("[\"first_name\"]"), nil).Times(1)
-	backend.On("Get", "/error3/init_configs").Return([]byte("[{}]"), nil).Times(1)
-	backend.On("Get", "/error3/instances").Return(nil, fmt.Errorf("some error")).Times(1)
+	backend.On("Get", "/error3/check_names").Return([]byte("[\"first_name\"]"), nil, nil).Times(1)
+	backend.On("Get", "/error3/init_configs").Return([]byte("[{}]"), nil, nil).Times(1)
+	backend.On("Get", "/error3/instances").Return(nil, nil, fmt.Errorf("some error")).Times(1)
 	res = zk.getTemplates("/error3/")
 	assert.Nil(t, res)
 
-	backend.On("Get", "/error4/check_names").Return([]byte("[\"first_name\"]"), nil).Times(1)
-	backend.On("Get", "/error4/instances").Return([]byte("[{}]"), nil).Times(1)
-	backend.On("Get", "/error4/init_configs").Return([]byte("[{}, {}]"), nil).Times(1)
+	backend.On("Get", "/error4/check_names").Return([]byte("[\"first_name\"]"), nil, nil).Times(1)
+	backend.On("Get", "/error4/instances").Return([]byte("[{}]"), nil, nil).Times(1)
+	backend.On("Get", "/error4/init_configs").Return([]byte("[{}, {}]"), nil, nil).Times(1)
 	res = zk.getTemplates("/error4/")
 	assert.Len(t, res, 0)
 
-	backend.On("Get", "/error5/check_names").Return([]byte(""), nil).Times(1)
-	backend.On("Get", "/error5/instances").Return([]byte("[{}]"), nil).Times(1)
-	backend.On("Get", "/error5/init_configs").Return([]byte("[{}]"), nil).Times(1)
+	backend.On("Get", "/error5/check_names").Return([]byte(""), nil, nil).Times(1)
+	backend.On("Get", "/error5/instances").Return([]byte("[{}]"), nil, nil).Times(1)
+	backend.On("Get", "/error5/init_configs").Return([]byte("[{}]"), nil, nil).Times(1)
 	res = zk.getTemplates("/error5/")
 	assert.Len(t, res, 0)
 
-	backend.On("Get", "/config/check_names").Return([]byte("[\"first_name\", \"second_name\"]"), nil).Times(1)
-	backend.On("Get", "/config/instances").Return([]byte("[{\"test\": 21, \"test2\": \"data\"}, {\"data1\": \"21\", \"data2\": {\"number\": 21}}]"), nil).Times(1)
-	backend.On("Get", "/config/init_configs").Return([]byte("[{\"a\": \"b\"}, {}]"), nil).Times(1)
+	backend.On("Get", "/config/check_names").Return([]byte("[\"first_name\", \"second_name\"]"), nil, nil).Times(1)
+	backend.On("Get", "/config/instances").Return([]byte("[{\"test\": 21, \"test2\": \"data\"}, {\"data1\": \"21\", \"data2\": {\"number\": 21}}]"), nil, nil).Times(1)
+	backend.On("Get", "/config/init_configs").Return([]byte("[{\"a\": \"b\"}, {}]"), nil, nil).Times(1)
 	//zk = ZookeeperConfigProvider{client: backend}
 	res = zk.getTemplates("/config/")
 	assert.NotNil(t, res)
@@ -128,18 +138,18 @@ func TestZKGetTemplates(t *testing.T) {
 func TestZKCollect(t *testing.T) {
 	backend := &zkTest{}
 
-	backend.On("Children", "/datadog/check_configs").Return([]string{"other", "config_folder_1", "config_folder_2"}, nil).Times(1)
-	backend.On("Children", "/datadog/check_configs/other").Return([]string{"test", "check_names"}, nil).Times(1)
+	backend.On("Children", "/datadog/check_configs").Return([]string{"other", "config_folder_1", "config_folder_2"}, nil, nil).Times(1)
+	backend.On("Children", "/datadog/check_configs/other").Return([]string{"test", "check_names"}, nil, nil).Times(1)
 
-	backend.On("Children", "/datadog/check_configs/config_folder_1").Return([]string{"check_names", "instances", "init_configs"}, nil).Times(1)
-	backend.On("Get", "/datadog/check_configs/config_folder_1/check_names").Return([]byte("[\"first_name\", \"second_name\"]"), nil).Times(1)
-	backend.On("Get", "/datadog/check_configs/config_folder_1/instances").Return([]byte("[{}, {}]"), nil).Times(1)
-	backend.On("Get", "/datadog/check_configs/config_folder_1/init_configs").Return([]byte("[{}, {}]"), nil).Times(1)
+	backend.On("Children", "/datadog/check_configs/config_folder_1").Return([]string{"check_names", "instances", "init_configs"}, nil, nil).Times(1)
+	backend.On("Get", "/datadog/check_configs/config_folder_1/check_names").Return([]byte("[\"first_name\", \"second_name\"]"), nil, nil).Times(1)
+	backend.On("Get", "/datadog/check_configs/config_folder_1/instances").Return([]byte("[{}, {}]"), nil, nil).Times(1)
+	backend.On("Get", "/datadog/check_configs/config_folder_1/init_configs").Return([]byte("[{}, {}]"), nil, nil).Times(1)
 
-	backend.On("Children", "/datadog/check_configs/config_folder_2").Return([]string{"check_names", "instances", "init_configs", "test"}, nil).Times(1)
-	backend.On("Get", "/datadog/check_configs/config_folder_2/check_names").Return([]byte("[\"third_name\"]"), nil).Times(1)
-	backend.On("Get", "/datadog/check_configs/config_folder_2/instances").Return([]byte("[{}]"), nil).Times(1)
-	backend.On("Get", "/datadog/check_configs/config_folder_2/init_configs").Return([]byte("[{}]"), nil).Times(1)
+	backend.On("Children", "/datadog/check_configs/config_folder_2").Return([]string{"check_names", "instances", "init_configs", "test"}, nil, nil).Times(1)
+	backend.On("Get", "/datadog/check_configs/config_folder_2/check_names").Return([]byte("[\"third_name\"]"), nil, nil).Times(1)
+	backend.On("Get", "/datadog/check_configs/config_folder_2/instances").Return([]byte("[{}]"), nil, nil).Times(1)
+	backend.On("Get", "/datadog/check_configs/config_folder_2/init_configs").Return([]byte("[{}]"), nil, nil).Times(1)
 
 	zk := ZookeeperConfigProvider{client: backend, templateDir: "/datadog/check_configs"}
 
@@ -167,4 +177,47 @@ func TestZKCollect(t *testing.T) {
 	assert.Equal(t, "{}", string(res[2].InitConfig))
 	require.Len(t, res[2].Instances, 1)
 	assert.Equal(t, "{}", string(res[2].Instances[0]))
+}
+
+func TestZKIsUpToDate(t *testing.T) {
+	// We want to check:
+	// The cache is properly initialized
+	// If one Mtime is newer than what was in cache we update
+	// If the number of ADTemplate is modified we update
+	// If nothing changed we don't update
+
+	backend := &zkTest{}
+	z := new(zk.Stat)
+	backend.On("Children", "/datadog/check_configs").Return([]string{"config_folder_1"}, nil, nil).Times(1)
+	expectedKeys := []string{checkNamePath, initConfigPath, instancePath}
+	backend.On("Children", "/datadog/check_configs/config_folder_1").Return(expectedKeys, nil, nil)
+	backend.On("Get", "/datadog/check_configs/config_folder_1/check_names").Return([]byte("[\"first_name\", \"second_name\"]"), z, nil)
+	backend.On("Get", "/datadog/check_configs/config_folder_1/instances").Return([]byte("[{}, {}]"), z, nil)
+	z.Mtime = int64(709662600)
+	backend.On("Get", "/datadog/check_configs/config_folder_1/init_configs").Return([]byte("[{}, {}]"), z, nil)
+
+	cache := NewCPCache()
+
+	zkr := ZookeeperConfigProvider{client: backend, templateDir: "/datadog/check_configs", cache: cache}
+	assert.Equal(t, float64(0), zkr.cache.LatestTemplateIdx)
+	assert.Equal(t, int(0), zkr.cache.NumAdTemplates)
+
+	update, _ := zkr.IsUpToDate()
+	assert.False(t, update)
+	assert.Equal(t, float64(709662600), zkr.cache.LatestTemplateIdx)
+
+	backend.On("Children", "/datadog/check_configs").Return([]string{"config_folder_1", "config_folder_2"}, nil, nil)
+	backend.On("Children", "/datadog/check_configs/config_folder_2").Return([]string{"check_names", "instances", "init_configs"}, z, nil)
+
+	backend.On("Get", "/datadog/check_configs/config_folder_2/check_names").Return([]byte("[\"third_name\"]"), z, nil)
+	backend.On("Get", "/datadog/check_configs/config_folder_2/instances").Return([]byte("[{}]"), z, nil)
+	backend.On("Get", "/datadog/check_configs/config_folder_2/init_configs").Return([]byte("[{}]"), z, nil)
+
+	update, _ = zkr.IsUpToDate()
+	assert.False(t, update)
+	assert.Equal(t, int(2), zkr.cache.NumAdTemplates)
+
+	update, _ = zkr.IsUpToDate()
+	assert.True(t, update)
+	backend.AssertExpectations(t)
 }

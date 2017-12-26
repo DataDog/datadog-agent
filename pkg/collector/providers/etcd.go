@@ -8,8 +8,9 @@
 package providers
 
 import (
-	"context"
 	"fmt"
+	"golang.org/x/net/context"
+	"math"
 	"strings"
 	"time"
 
@@ -20,10 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+type etcdBackend interface {
+	Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error)
+}
+
 // EtcdConfigProvider implements the Config Provider interface
 // It should be called periodically and returns templates from etcd for AutoConf.
 type EtcdConfigProvider struct {
-	Client client.KeysAPI
+	Client      etcdBackend
+	templateDir string
+	cache       *ProviderCache
 }
 
 // NewEtcdConfigProvider creates a client connection to etcd and create a new EtcdConfigProvider
@@ -33,7 +40,6 @@ func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider
 		Transport:               client.DefaultTransport,
 		HeaderTimeoutPerRequest: time.Second,
 	}
-
 	if len(config.Username) > 0 && len(config.Password) > 0 {
 		log.Info("Using provided etcd credentials: username ", config.Username)
 		clientCfg.Username = config.Username
@@ -44,16 +50,16 @@ func NewEtcdConfigProvider(config config.ConfigurationProviders) (ConfigProvider
 	if err != nil {
 		return nil, fmt.Errorf("Unable to instantiate the etcd client: %s", err)
 	}
-
+	cache := NewCPCache()
 	c := client.NewKeysAPI(cl)
-	return &EtcdConfigProvider{Client: c}, nil
+	return &EtcdConfigProvider{Client: c, templateDir: config.TemplateDir, cache: cache}, nil
 }
 
 // Collect retrieves templates from etcd, builds Config objects and returns them
 // TODO: cache templates and last-modified index to avoid future full crawl if no template changed.
 func (p *EtcdConfigProvider) Collect() ([]check.Config, error) {
 	configs := make([]check.Config, 0)
-	identifiers := p.getIdentifiers(config.Datadog.GetString("autoconf_template_dir"))
+	identifiers := p.getIdentifiers(p.templateDir)
 	for _, id := range identifiers {
 		templates := p.getTemplates(id)
 		configs = append(configs, templates...)
@@ -138,12 +144,45 @@ func (p *EtcdConfigProvider) getJSONValue(key string) ([]check.ConfigData, error
 	return parseJSONValue(rawValue)
 }
 
-// getIdx gets the last-modified index of a key
-// it's useful if you want to verify something changed
-// before triggering a full read
-func (p *EtcdConfigProvider) getIdx(key string) int {
-	// TODO
-	return 0
+// IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to ETCD's data.
+func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
+
+	adListUpdated := false
+	dateIdx := p.cache.LatestTemplateIdx
+
+	resp, err := p.Client.Get(context.Background(), p.templateDir, &client.GetOptions{Recursive: true})
+	if err != nil {
+		return false, err
+	}
+	identifiers := resp.Node.Nodes
+
+	// When a node is deleted the Modified time of the children processed isn't changed.
+	if p.cache.NumAdTemplates != len(identifiers) {
+		if p.cache.NumAdTemplates != 0 {
+			log.Debugf("List of AD Template was modified, updating cache.")
+			adListUpdated = true
+		}
+		log.Debugf("Initializing cache for %v", p.String())
+		p.cache.NumAdTemplates = len(identifiers)
+	}
+
+	for _, identifier := range identifiers {
+		if len(identifier.Nodes) != 3 {
+			log.Infof("%v does not have a correct format to be considered in the cache", identifier.Key)
+			continue
+		}
+		for _, tplkey := range identifier.Nodes {
+			dateIdx = math.Max(float64(tplkey.ModifiedIndex), dateIdx)
+		}
+	}
+	if dateIdx > p.cache.LatestTemplateIdx || adListUpdated {
+		log.Debugf("Idx was %v and is now %v", p.cache.LatestTemplateIdx, dateIdx)
+		p.cache.LatestTemplateIdx = dateIdx
+		log.Infof("cache updated for %v", p.String())
+		return false, nil
+	}
+	log.Infof("cache up to date for %v", p.String())
+	return true, nil
 }
 
 func (p *EtcdConfigProvider) String() string {

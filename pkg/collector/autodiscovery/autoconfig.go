@@ -85,7 +85,6 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		stop:            make(chan bool),
 	}
 	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
-
 	return ac
 }
 
@@ -348,6 +347,16 @@ func (ac *AutoConfig) pollConfigs() {
 				for _, pd := range ac.providers {
 					// skip providers that don't want to be polled
 					if !pd.poll {
+						continue
+					}
+
+					// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outadated.
+					upToDate, err := pd.provider.IsUpToDate()
+					if err != nil {
+						log.Errorf("cache processing of %v failed: %v", pd.provider.String(), err)
+					}
+					if upToDate == true {
+						log.Debugf("No modifications in the templates stored in %q ", pd.provider.String())
 						continue
 					}
 

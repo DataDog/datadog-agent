@@ -6,7 +6,7 @@ This guide will help you to develop and contribute code to the project.
 
   * [Sign the CLA][legal].
   * Read the [contributing][contributing] guidelines.
-  * Setup your [development enviroment][dev-env].
+  * Setup your [development environment][dev-env].
   * Learn about [testing][testing].
   * [Build][agent-omnibus] your own packages.
 

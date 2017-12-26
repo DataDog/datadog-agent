@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -53,13 +52,13 @@ func (m *consulKVMock) Keys(prefix, separator string, q *consul.QueryOptions) ([
 	return nil, nil, args.Error(2)
 }
 
-func (m *consulKVMock) Txn(txn consul.KVTxnOps, q *consul.QueryOptions) (bool, *consul.KVTxnResponse, *consul.QueryMeta, error) {
-	// tweak this.
-	args := m.Called(txn, q)
-	if v, ok := args.Get(0).(bool); ok {
-		return v, nil, nil, args.Error(3)
+func (m *consulKVMock) List(prefix string, q *consul.QueryOptions) (consul.KVPairs, *consul.QueryMeta, error) {
+	args := m.Called(prefix, q)
+	kvpairs, kvpairs_ok := args.Get(0).(consul.KVPairs)
+	if kvpairs_ok {
+		return kvpairs, nil, nil
 	}
-	return true, nil, nil, args.Error(3)
+	return nil, nil, args.Error(2)
 }
 
 //
@@ -157,9 +156,8 @@ func TestConsulGetTemplates(t *testing.T) {
 		TemplateDir: "/datadog/tpl",
 	}
 
-	res, idx := consulCli.getTemplates("nginx")
+	res := consulCli.getTemplates("nginx")
 	require.Len(t, res, 2)
-	assert.NotNil(t, idx)
 
 	assert.Len(t, res[0].ADIdentifiers, 1)
 	assert.Equal(t, "nginx", res[0].ADIdentifiers[0])
@@ -179,9 +177,8 @@ func TestConsulGetTemplates(t *testing.T) {
 	kv.On("Get", "/datadog/tpl/nginx_aux/init_configs", (*consul.QueryOptions)(nil)).Return(kvNginxInit, nil, nil).Times(1)
 	kv.On("Get", "/datadog/tpl/nginx_aux/instances", (*consul.QueryOptions)(nil)).Return(nil, nil, errors.New("unavailable")).Times(1)
 
-	res, idx = consulCli.getTemplates("nginx_aux")
+	res = consulCli.getTemplates("nginx_aux")
 	require.Len(t, res, 0)
-	assert.Nil(t, idx)
 
 	provider.AssertExpectations(t)
 	kv.AssertExpectations(t)
@@ -248,50 +245,9 @@ func TestConsulCollect(t *testing.T) {
 	kv.On("Get", "/datadog/tpl/consul/init_configs", (*consul.QueryOptions)(nil)).Return(kvConsulInit, nil, nil).Times(1)
 	kv.On("Get", "/datadog/tpl/consul/instances", (*consul.QueryOptions)(nil)).Return(kvConsulInstances, nil, nil).Times(1)
 
-	txConsul := consul.KVTxnOps{
-		&consul.KVTxnOp{
-			Verb:  consul.KVCheckIndex,
-			Key:   "/datadog/tpl/consul/check_names",
-			Index: 0,
-		},
-		&consul.KVTxnOp{
-			Verb:  consul.KVCheckIndex,
-			Key:   "/datadog/tpl/consul/init_configs",
-			Index: 0,
-		},
-		&consul.KVTxnOp{
-			Verb:  consul.KVCheckIndex,
-			Key:   "/datadog/tpl/consul/instances",
-			Index: 0,
-		},
-	}
-	txNginx := consul.KVTxnOps{
-		&consul.KVTxnOp{
-			Verb:  consul.KVCheckIndex,
-			Key:   "/datadog/tpl/nginx/check_names",
-			Index: 0,
-		},
-		&consul.KVTxnOp{
-			Verb:  consul.KVCheckIndex,
-			Key:   "/datadog/tpl/nginx/init_configs",
-			Index: 0,
-		},
-		&consul.KVTxnOp{
-			Verb:  consul.KVCheckIndex,
-			Key:   "/datadog/tpl/nginx/instances",
-			Index: 0,
-		},
-	}
-	kv.On("Txn", txConsul, (*consul.QueryOptions)(nil)).Return(false, nil, nil, nil).Times(1)
-	kv.On("Txn", txNginx, (*consul.QueryOptions)(nil)).Return(false, nil, nil, nil).Times(1)
-	// kv.On("Txn", , (*consul.QueryOptions)(nil)).Return(kvConsulInit, nil, nil).Times(1)
-	// kv.On("Txn", , (*consul.QueryOptions)(nil)).Return(kvConsulInstances, nil, nil).Times(1)
-
 	consulCli := ConsulConfigProvider{
 		Client:      provider,
 		TemplateDir: "/datadog/tpl",
-		Cache:       make(map[string][]check.Config),
-		cacheIdx:    make(map[string]ADEntryIndex),
 	}
 
 	res, err := consulCli.Collect()
@@ -319,6 +275,74 @@ func TestConsulCollect(t *testing.T) {
 	require.Len(t, res[2].Instances, 1)
 	assert.Equal(t, "{\"pool\":{\"server\":\"foo\"},\"port\":\"21\"}", string(res[2].Instances[0]))
 
+	provider.AssertExpectations(t)
+	kv.AssertExpectations(t)
+}
+
+func TestIsUpToDate(t *testing.T) {
+	// We want to check:
+	// The cache is properly initialized
+	// LatestTemplateIdx and NumAdTemplates are properly set
+	// If the number of ADTemplate is modified we update
+	// If nothing changed we don't update
+
+	kv := &consulKVMock{}
+	provider := &consulMock{kv: kv}
+
+	kvNginx := &consul.KVPair{
+		Key:         "/datadog/check_configs/nginx",
+		CreateIndex: 0,
+		ModifyIndex: 9,
+		Value:       []byte(""),
+	}
+	kvNginxNames := &consul.KVPair{
+		Key:         "/datadog/check_configs/nginx/check_names",
+		CreateIndex: 1,
+		ModifyIndex: 10,
+		Value:       []byte("[\"nginx\", \"haproxy\"]"),
+	}
+	kvNginxInit := &consul.KVPair{
+		Key:         "/datadog/check_configs/nginx/init_configs",
+		CreateIndex: 2,
+		ModifyIndex: 11,
+		Value:       []byte("[{}, {}]"),
+	}
+	kvNginxInstances := &consul.KVPair{
+		Key:         "/datadog/check_configs/nginx/instances",
+		CreateIndex: 3,
+		ModifyIndex: 12,
+		Value:       []byte("[{\"port\": 21, \"host\": \"localhost\"}, {\"port\": \"21\", \"pool\": {\"server\": \"foo\"}}]"),
+	}
+	kv.On("List", "/datadog/check_configs", (*consul.QueryOptions)(nil)).Return(consul.KVPairs{kvNginx, kvNginxNames, kvNginxInit, kvNginxInstances}, nil, nil).Times(1)
+
+	cache := NewCPCache()
+	consulCli := ConsulConfigProvider{
+		Client:      provider,
+		TemplateDir: "/datadog/check_configs",
+		cache:       cache,
+	}
+	assert.Equal(t, int(0), consulCli.cache.NumAdTemplates)
+	assert.Equal(t, float64(0), consulCli.cache.LatestTemplateIdx)
+
+	update, _ := consulCli.IsUpToDate()
+	assert.False(t, update)
+	assert.Equal(t, int(4), consulCli.cache.NumAdTemplates)
+	assert.Equal(t, float64(12), consulCli.cache.LatestTemplateIdx)
+
+	kvNewTemplate := &consul.KVPair{
+		Key:         "/datadog/check_configs/new",
+		CreateIndex: 15,
+		ModifyIndex: 15,
+		Value:       []byte(""),
+	}
+	kv.On("List", "/datadog/check_configs", (*consul.QueryOptions)(nil)).Return(consul.KVPairs{kvNewTemplate, kvNginx, kvNginxNames, kvNginxInit, kvNginxInstances}, nil, nil)
+	update, _ = consulCli.IsUpToDate()
+	assert.False(t, update)
+	assert.Equal(t, int(5), consulCli.cache.NumAdTemplates)
+	assert.Equal(t, float64(15), consulCli.cache.LatestTemplateIdx)
+
+	update, _ = consulCli.IsUpToDate()
+	assert.True(t, update)
 	provider.AssertExpectations(t)
 	kv.AssertExpectations(t)
 }
