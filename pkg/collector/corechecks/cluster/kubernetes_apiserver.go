@@ -5,7 +5,7 @@
 
 // +build kubeapiserver
 
-package containers
+package cluster
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -14,10 +14,8 @@ import (
 	log "github.com/cihub/seelog"
 	yaml "gopkg.in/yaml.v2"
 	"time"
-	//"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"context"
+	as_util "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/ericchiang/k8s"
 )
 
 // Covers the Controle pannel service check and the in memory pod metadata.
@@ -86,37 +84,39 @@ func (k *KubeASCheck) Run() error {
 	if err != nil {
 		return err
 	}
-	client, err := k8s.NewInClusterClient()
+
+	asclient, err := as_util.GetAPIClient()
+
 	if err != nil {
 		log.Errorf("could not instantiate the cluster: %q", err)
 		return nil
 	}
-	componentsStatus, err := client.CoreV1().ListComponentStatuses(context.Background())
-	if err != nil {
-		log.Errorf("could not retrieve the status from the control pannel's components", err)
-		return nil
-	}
+
+	componentsStatus := asclient.GetComponents()
+
 	for _, component := range componentsStatus.Items {
 
-		tag_comp := []string{}
-		tag_comp = append(k.instance.Tags, *component.Metadata.Name)
+		tag_comp := append(k.instance.Tags, *component.Metadata.Name)
 
 		// We only expect the Healthy condition. May change in the future. https://godoc.org/github.com/ericchiang/k8s/api/v1#ComponentCondition
-		for condition := range component.Conditions {
+		for _, condition := range component.Conditions {
 			// We only expect True, False and Unknown.
-			if *component.Conditions[condition].Type != "Healthy" {
-				log.Debug("Condition %q not supported", *component.Conditions[condition].Type)
+			switch {
+			case *condition.Type != "Healthy" :
+				log.Debug("Condition %q not supported", *condition.Type)
 				continue
-			}
-			if *component.Conditions[condition].Status == "True" {
+
+			case *condition.Status == "True" :
 				sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckOK, "", tag_comp, "")
 				continue
-			}
-			if *component.Conditions[condition].Status == "False" {
+
+			case *condition.Status == "False" :
 				sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckCritical, "", tag_comp, "")
 				continue
+
+			default:
+				sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckUnknown, "", tag_comp, "")
 			}
-			sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckUnknown, "", tag_comp, "")
 		}
 	}
 

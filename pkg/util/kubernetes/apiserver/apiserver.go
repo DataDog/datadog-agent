@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/ericchiang/k8s/api/v1"
 )
 
 var globalApiClient *APIClient
@@ -90,4 +91,15 @@ func parseKubeConfig(fpath string) (*k8s.Config, error) {
 	config := &k8s.Config{}
 	err = yaml.Unmarshal(yamlFile, config)
 	return config, err
+}
+
+func (c *APIClient) GetComponents() (*v1.ComponentStatusList){
+	componentsStatus, err := c.client.CoreV1().ListComponentStatuses(context.Background())
+	if err != nil || componentsStatus == nil{
+		log.Errorf("could not retrieve the status from the control pannel's components", err)
+		return nil
+	}
+
+	return componentsStatus
+
 }
