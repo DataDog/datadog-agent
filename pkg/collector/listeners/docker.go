@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,7 +30,6 @@ import (
 
 const (
 	identifierLabel string = "io.datadog.check.id"
-	rancherIPLabel  string = "io.rancher.container.ip"
 )
 
 // DockerListener implements the ServiceListener interface.
@@ -298,7 +296,7 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 		}
 	}
 
-	rancherIP, found := findRancherIPInLabels(co.Labels)
+	rancherIP, found := docker.FindRancherIPInLabels(co.Labels)
 	if found {
 		ips["rancher"] = rancherIP
 	}
@@ -372,7 +370,7 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 		}
 	}
 
-	rancherIP, found := findRancherIPInLabels(cInspect.Config.Labels)
+	rancherIP, found := docker.FindRancherIPInLabels(cInspect.Config.Labels)
 	if found {
 		ips["rancher"] = rancherIP
 	}
@@ -483,19 +481,4 @@ func findKubernetesInLabels(labels map[string]string) bool {
 		}
 	}
 	return false
-}
-
-// Rancher 1.x containers don't have docker networks as the orchestrator provides
-// its own CNI. The IP is stored in the `io.rancher.container.ip` label.
-func findRancherIPInLabels(labels map[string]string) (string, bool) {
-	cidr, found := labels[rancherIPLabel]
-	if found {
-		ipv4Addr, _, err := net.ParseCIDR(cidr)
-		if err != nil {
-			log.Warnf("error while retrieving Rancher IP: %q is not valid", cidr)
-		}
-		return ipv4Addr.String(), true
-	}
-
-	return "", false
 }
