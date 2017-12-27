@@ -38,7 +38,6 @@ type DockerConfig struct {
 	CollectEvent         bool               `yaml:"collect_events"`
 	FilteredEventType    []string           `yaml:"filtered_event_types"`
 	CappedMetrics        map[string]float64 `yaml:"capped_metrics"`
-	//CustomCGroup           bool               `yaml:"custom_cgroups"`
 }
 
 const (
@@ -207,10 +206,15 @@ func (d *DockerCheck) Run() error {
 		}
 	}
 
+	var totalRunning, totalStopped int64
 	for _, image := range images {
 		sender.Gauge("docker.containers.running", float64(image.running), "", append(d.instance.Tags, image.tags...))
+		totalRunning += image.running
 		sender.Gauge("docker.containers.stopped", float64(image.stopped), "", append(d.instance.Tags, image.tags...))
+		totalStopped += image.stopped
 	}
+	sender.Gauge("docker.containers.running.total", float64(totalRunning), "", d.instance.Tags)
+	sender.Gauge("docker.containers.stopped.total", float64(totalStopped), "", d.instance.Tags)
 
 	if err := d.countAndWeightImages(sender, du); err != nil {
 		log.Error(err.Error())
