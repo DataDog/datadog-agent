@@ -85,6 +85,36 @@ func TestGetHostsFromPs(t *testing.T) {
 	assert.Equal(t, 2, len(hosts))
 }
 
+func TestGetRancherIPFromPs(t *testing.T) {
+	dl := DockerListener{}
+
+	co := types.Container{
+		ID:    "foo",
+		Image: "test",
+	}
+
+	assert.Empty(t, dl.getHostsFromPs(co))
+
+	nets := make(map[string]*network.EndpointSettings)
+	nets["none"] = &network.EndpointSettings{}
+	networkSettings := types.SummaryNetworkSettings{
+		Networks: nets}
+
+	co = types.Container{
+		ID:              "deadbeef",
+		Image:           "test",
+		NetworkSettings: &networkSettings,
+		Ports:           []types.Port{{PrivatePort: 1337}, {PrivatePort: 42}},
+		Labels: map[string]string{
+			"io.rancher.container.ip": "10.42.90.224/16",
+		},
+	}
+	hosts := dl.getHostsFromPs(co)
+
+	assert.Equal(t, "10.42.90.224", hosts["rancher"])
+	assert.Equal(t, 1, len(hosts))
+}
+
 func TestGetPortsFromPs(t *testing.T) {
 	dl := DockerListener{}
 

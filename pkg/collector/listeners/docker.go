@@ -291,8 +291,15 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 	ips := make(map[string]string)
 	if co.NetworkSettings != nil {
 		for net, settings := range co.NetworkSettings.Networks {
-			ips[net] = settings.IPAddress
+			if len(settings.IPAddress) > 0 {
+				ips[net] = settings.IPAddress
+			}
 		}
+	}
+
+	rancherIP, found := findRancherIPInLabels(co.Labels)
+	if found {
+		ips["rancher"] = rancherIP
 	}
 	return ips
 }
@@ -352,7 +359,7 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	ips := make(map[string]string)
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		return ips, err
+		return nil, err
 	}
 	cInspect, err := du.Inspect(string(s.ID), false)
 	if err != nil {
@@ -364,16 +371,9 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 		}
 	}
 
-	// Rancher 1.x containers don't have docker networks as the orchestrator provides
-	// its own CNI. The IP is stored in the `io.rancher.container.ip` label.
-	rancherIP, found := cInspect.Config.Labels[rancherIPLabel]
+	rancherIP, found := findRancherIPInLabels(cInspect.Config.Labels)
 	if found {
-		parts := strings.SplitN(rancherIP, "/", 2)
-		if len(parts) < 1 || len(parts[0]) == 0 {
-			log.Warnf("error while retrieving Rancher IP: %q is not valid", rancherIP)
-		} else {
-			ips["rancher"] = parts[0]
-		}
+		ips["rancher"] = rancherIP
 	}
 
 	s.Hosts = ips
@@ -482,4 +482,20 @@ func findKubernetesInLabels(labels map[string]string) bool {
 		}
 	}
 	return false
+}
+
+// Rancher 1.x containers don't have docker networks as the orchestrator provides
+// its own CNI. The IP is stored in the `io.rancher.container.ip` label.
+func findRancherIPInLabels(labels map[string]string) (string, bool) {
+	rancherIP, found := labels[rancherIPLabel]
+	if found {
+		parts := strings.SplitN(rancherIP, "/", 2)
+		if len(parts) < 1 || len(parts[0]) == 0 {
+			log.Warnf("error while retrieving Rancher IP: %q is not valid", rancherIP)
+		} else {
+			return parts[0], true
+		}
+	}
+
+	return "", false
 }
