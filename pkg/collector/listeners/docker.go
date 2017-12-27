@@ -276,8 +276,15 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 	ips := make(map[string]string)
 	if co.NetworkSettings != nil {
 		for net, settings := range co.NetworkSettings.Networks {
-			ips[net] = settings.IPAddress
+			if len(settings.IPAddress) > 0 {
+				ips[net] = settings.IPAddress
+			}
 		}
+	}
+
+	rancherIP, found := docker.FindRancherIPInLabels(co.Labels)
+	if found {
+		ips["rancher"] = rancherIP
 	}
 	return ips
 }
@@ -337,14 +344,21 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	ips := make(map[string]string)
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		return ips, err
+		return nil, err
 	}
 	cInspect, err := du.Inspect(string(s.ID), false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
 	}
 	for net, settings := range cInspect.NetworkSettings.Networks {
-		ips[net] = settings.IPAddress
+		if len(settings.IPAddress) > 0 {
+			ips[net] = settings.IPAddress
+		}
+	}
+
+	rancherIP, found := docker.FindRancherIPInLabels(cInspect.Config.Labels)
+	if found {
+		ips["rancher"] = rancherIP
 	}
 
 	s.Hosts = ips

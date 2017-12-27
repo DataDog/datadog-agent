@@ -59,6 +59,14 @@ func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string,
 		case "com.docker.swarm.service.name":
 			tags.AddLow("swarm_service", labelValue)
 
+		// Rancher 1.x
+		case "io.rancher.container.name":
+			tags.AddHigh("rancher_container", labelValue)
+		case "io.rancher.stack.name":
+			tags.AddLow("rancher_stack", labelValue)
+		case "io.rancher.stack_service.name":
+			tags.AddLow("rancher_service", labelValue)
+
 		default:
 			if tagName, found := labelsAsTags[strings.ToLower(labelName)]; found {
 				tags.AddAuto(tagName, labelValue)

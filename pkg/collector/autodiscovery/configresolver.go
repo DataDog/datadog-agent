@@ -263,7 +263,6 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 	}
 }
 
-// TODO support orchestrators
 func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	hosts, err := svc.GetHosts()
 	if err != nil {
@@ -297,8 +296,8 @@ func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 // 		- if we can't find it we fail because we shouldn't try and guess the IP address
 func getFallbackHost(hosts map[string]string) (string, error) {
 	if len(hosts) == 1 {
-		for k := range hosts {
-			return hosts[k], nil
+		for _, host := range hosts {
+			return host, nil
 		}
 	}
 	for k, v := range hosts {
