@@ -9,10 +9,11 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"sync"
 	"time"
+
+	log "github.com/cihub/seelog"
 )
 
 const (
@@ -54,14 +55,14 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 
 	for {
 		if cm.firstConn {
-			log.Println("Connecting to the backend:", cm.connectionString)
+			log.Info("Connecting to the backend: ", cm.connectionString)
 			cm.firstConn = false
 		}
 
 		cm.retries++
 		outConn, err := net.DialTimeout("tcp", cm.connectionString, timeout)
 		if err != nil {
-			log.Println(err)
+			log.Warn(err)
 			cm.backoff()
 			continue
 		}
@@ -73,7 +74,7 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 			sslConn := tls.Client(outConn, config)
 			err = sslConn.Handshake()
 			if err != nil {
-				log.Println(err)
+				log.Warn(err)
 				cm.backoff()
 				continue
 			}
@@ -101,7 +102,7 @@ func (cm *ConnectionManager) handleServerClose(conn net.Conn) {
 			cm.CloseConnection(conn)
 			return
 		} else if err != nil {
-			log.Println(err)
+			log.Warn(err)
 			return
 		}
 	}

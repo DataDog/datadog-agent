@@ -8,10 +8,11 @@
 package tailer
 
 import (
-	"log"
 	"os"
 	"syscall"
 	"time"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -59,7 +60,7 @@ func (s *Scanner) setup() {
 			return
 		}
 		if _, ok := s.tailers[file.Path]; ok {
-			log.Println("Can't tail file twice:", file.Path)
+			log.Warn("Can't tail file twice: ", file.Path)
 		} else {
 			s.setupTailer(file, false, s.pp.NextPipelineChan())
 		}
@@ -77,7 +78,7 @@ func (s *Scanner) setupTailer(file *File, tailFromBeginning bool, outputChan cha
 		err = t.recoverTailing(s.auditor)
 	}
 	if err != nil {
-		log.Println(err)
+		log.Warn(err)
 	}
 	s.tailers[file.Path] = t
 }
@@ -168,7 +169,7 @@ func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
 
 // onFileRotation safely stops tailer and setup a new one
 func (s *Scanner) onFileRotation(tailer *Tailer, file *File) {
-	log.Println("Log rotation happened to", tailer.path)
+	log.Info("Log rotation happened to", tailer.path)
 	shouldTrackOffset := false
 	tailer.Stop(shouldTrackOffset)
 	s.setupTailer(file, true, tailer.outputChan)

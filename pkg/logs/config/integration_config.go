@@ -8,11 +8,11 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 	"regexp"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
 )
 
@@ -105,12 +105,12 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 		viperCfg.SetConfigFile(filepath.Join(ddconfdPath, file))
 		err := viperCfg.ReadInConfig()
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			continue
 		}
 		err = viperCfg.Unmarshal(&integrationConfig)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			continue
 		}
 
@@ -118,13 +118,13 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 			logSourceConfig := logSourceConfigIterator
 			err = validateSource(logSourceConfig)
 			if err != nil {
-				log.Println(err)
+				log.Error(err)
 				continue
 			}
 
 			rules, err := validateProcessingRules(logSourceConfig.ProcessingRules)
 			if err != nil {
-				log.Println(err)
+				log.Error(err)
 				continue
 			}
 			logSourceConfig.ProcessingRules = rules
