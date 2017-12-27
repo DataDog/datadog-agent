@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -487,14 +488,13 @@ func findKubernetesInLabels(labels map[string]string) bool {
 // Rancher 1.x containers don't have docker networks as the orchestrator provides
 // its own CNI. The IP is stored in the `io.rancher.container.ip` label.
 func findRancherIPInLabels(labels map[string]string) (string, bool) {
-	rancherIP, found := labels[rancherIPLabel]
+	cidr, found := labels[rancherIPLabel]
 	if found {
-		parts := strings.SplitN(rancherIP, "/", 2)
-		if len(parts) < 1 || len(parts[0]) == 0 {
-			log.Warnf("error while retrieving Rancher IP: %q is not valid", rancherIP)
-		} else {
-			return parts[0], true
+		ipv4Addr, _, err := net.ParseCIDR(cidr)
+		if err != nil {
+			log.Warnf("error while retrieving Rancher IP: %q is not valid", cidr)
 		}
+		return ipv4Addr.String(), true
 	}
 
 	return "", false
