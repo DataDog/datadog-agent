@@ -252,7 +252,7 @@ func TestGetRancherIP(t *testing.T) {
 		NetworkSettings: &networkSettings,
 	}
 	// add cj to the cache to avoir having to query docker in the test
-	cacheKey := docker.GetInspectCacheKey(id)
+	cacheKey := docker.GetInspectCacheKey(id, false)
 	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
 	svc := DockerService{
