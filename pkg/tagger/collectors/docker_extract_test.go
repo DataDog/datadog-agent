@@ -145,6 +145,39 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedLow:  []string{"swarm_service:helloworld", "custom_add_swarm_node:zdtab51ei97djzrpa1y2tz8li"},
 			expectedHigh: []string{"custom_add_task_name:helloworld.1.knk1rz1szius7pvyznn9zolld"},
 		},
+		{
+			testName: "extractRancherLabels",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{"PATH=/bin"},
+					Labels: map[string]string{
+						"io.rancher.cni.network":             "ipsec",
+						"io.rancher.cni.wait":                "true",
+						"io.rancher.container.ip":            "10.42.234.7/16",
+						"io.rancher.container.mac_address":   "02:f1:dd:48:4c:d9",
+						"io.rancher.container.name":          "testAD-redis-1",
+						"io.rancher.container.pull_image":    "always",
+						"io.rancher.container.uuid":          "8e969193-2bc7-4a58-9a54-9eed44b01bb2",
+						"io.rancher.environment.uuid":        "adminProject",
+						"io.rancher.project.name":            "testAD",
+						"io.rancher.project_service.name":    "testAD/redis",
+						"io.rancher.service.deployment.unit": "06c082fc-4b66-4b6c-b098-30dbf29ed204",
+						"io.rancher.service.launch.config":   "io.rancher.service.primary.launch.config",
+						"io.rancher.stack.name":              "testAD",
+						"io.rancher.stack_service.name":      "testAD/redis",
+					},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow: []string{
+				"rancher_service:testAD/redis",
+				"rancher_stack:testAD",
+			},
+			expectedHigh: []string{
+				"rancher_container:testAD-redis-1",
+			},
+		},
 	}
 
 	dc := &DockerCollector{}
