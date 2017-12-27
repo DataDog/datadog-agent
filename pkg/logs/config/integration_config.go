@@ -12,8 +12,12 @@ import (
 	"path/filepath"
 	"regexp"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/viper"
 )
+
+// LogsAgent is the global configuration object
+var LogsAgent = ddconfig.Datadog
 
 // Logs source types
 const (
@@ -86,8 +90,8 @@ func getLogsSources(config *viper.Viper) []*IntegrationConfigLogSource {
 
 // BuildLogsAgentIntegrationsConfigs looks for all yml configs in the ddconfdPath directory,
 // and initializes the LogsAgent integrations configs
-func BuildLogsAgentIntegrationsConfigs(ddconfdPath string) error {
-	return buildLogsAgentIntegrationsConfig(LogsAgent, ddconfdPath)
+func BuildLogsAgentIntegrationsConfigs() error {
+	return buildLogsAgentIntegrationsConfig(LogsAgent, LogsAgent.GetString("confd_path"))
 }
 
 func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) error {

@@ -155,6 +155,7 @@ func init() {
 
 	// Log Agent
 	Datadog.SetDefault("log_enabled", true)
+	Datadog.SetDefault("log_open_files_limit", 100)
 
 	Datadog.SetDefault("logging_frequency", int64(20))
 
