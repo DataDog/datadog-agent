@@ -61,7 +61,7 @@ func (c *CPUCheck) Run() error {
 		system := ((t.System + t.Irq + t.Softirq) - (c.lastTimes.System + c.lastTimes.Irq + c.lastTimes.Softirq)) / c.nbCPU
 		iowait := (t.Iowait - c.lastTimes.Iowait) / c.nbCPU
 		idle := (t.Idle - c.lastTimes.Idle) / c.nbCPU
-		stolen := (t.Stolen - c.lastTimes.Stolen) / c.nbCPU
+		stolen := (t.Steal - c.lastTimes.Steal) / c.nbCPU
 		guest := (t.Guest - c.lastTimes.Guest) / c.nbCPU
 
 		sender.Gauge("system.cpu.user", user*toPercent, "", nil)
