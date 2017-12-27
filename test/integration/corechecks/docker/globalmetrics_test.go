@@ -26,4 +26,7 @@ func TestGlobalMetrics(t *testing.T) {
 
 	buxyboxTags := append(expectedTags, []string{"docker_image:busybox:latest", "image_name:busybox", "image_tag:latest"}...)
 	sender.AssertCalled(t, "Gauge", "docker.containers.stopped", mocksender.IsGreaterOrEqual(1), "", mocksender.MatchTagsContains(buxyboxTags))
+
+	sender.AssertCalled(t, "Gauge", "docker.containers.running.total", mocksender.IsGreaterOrEqual(1), "", mocksender.MatchTagsContains(expectedTags))
+	sender.AssertCalled(t, "Gauge", "docker.containers.stopped.total", mocksender.IsGreaterOrEqual(1), "", mocksender.MatchTagsContains(expectedTags))
 }
