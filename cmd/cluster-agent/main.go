@@ -139,7 +139,7 @@ func start(cmd *cobra.Command, args []string) error {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	// create and setup the Autoconfig instance
-	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+	common.SetupAutoConfig(config.Datadog.GetString("confd_dca_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
 	// Block here until we receive the interrupt signal

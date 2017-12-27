@@ -93,10 +93,10 @@ func parseKubeConfig(fpath string) (*k8s.Config, error) {
 	return config, err
 }
 
-func (c *APIClient) GetComponents() (*v1.ComponentStatusList){
+func (c *APIClient) GetComponents() *v1.ComponentStatusList {
 	componentsStatus, err := c.client.CoreV1().ListComponentStatuses(context.Background())
-	if err != nil || componentsStatus == nil{
-		log.Errorf("could not retrieve the status from the control pannel's components", err)
+	if err != nil || componentsStatus == nil {
+		log.Errorf("could not retrieve the status from the control pannel's components %q", err)
 		return nil
 	}
 

@@ -4,7 +4,7 @@
 // Copyright 2017 Datadog, Inc.
 
 /*
-Package containers provides core checks for cluster level checks, used by the Datadog Cluster Agent.
+Package cluster provides core checks for cluster level checks, used by the Datadog Cluster Agent.
 
 */
 package cluster

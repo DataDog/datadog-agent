@@ -5,7 +5,7 @@
 
 require "./lib/ostools.rb"
 
-name 'cluster-agent'
+name 'datadog-cluster-agent'
 package_name 'datadog-cluster-agent'
 
 homepage 'http://www.datadoghq.com'

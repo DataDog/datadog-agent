@@ -39,8 +39,9 @@ build do
   end
 
   # move around bin and config files
-  copy 'bin/cluster-agent/cluster-agent', "#{install_dir}/bin"
-  move 'bin/cluster-agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
+  move 'bin/datadog-cluster-agent/dist/datadog-cluster.yaml', "#{conf_dir}/datadog-cluster.yaml.example"
+  move 'bin/datadog-cluster-agent/dist/conf.d', "#{conf_dir}/"
+  copy 'bin', install_dir
 
   if linux?
     erb source: "upstart.conf.erb",

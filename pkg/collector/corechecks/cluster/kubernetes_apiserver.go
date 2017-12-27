@@ -11,11 +11,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	as_util "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	log "github.com/cihub/seelog"
 	yaml "gopkg.in/yaml.v2"
 	"time"
-	as_util "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // Covers the Controle pannel service check and the in memory pod metadata.
@@ -102,15 +102,15 @@ func (k *KubeASCheck) Run() error {
 		for _, condition := range component.Conditions {
 			// We only expect True, False and Unknown.
 			switch {
-			case *condition.Type != "Healthy" :
+			case *condition.Type != "Healthy":
 				log.Debug("Condition %q not supported", *condition.Type)
 				continue
 
-			case *condition.Status == "True" :
+			case *condition.Status == "True":
 				sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckOK, "", tag_comp, "")
 				continue
 
-			case *condition.Status == "False" :
+			case *condition.Status == "False":
 				sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckCritical, "", tag_comp, "")
 				continue
 

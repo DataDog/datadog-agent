@@ -37,13 +37,13 @@ Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details
 
 ## Run
 
-To start the agent type `cluster-agent start` from the `bin/cluster-agent` folder, it will take
+To start the agent type `cluster-agent start` from the `bin/datadog-cluster-agent` folder, it will take
 care of adjusting paths and run the binary in foreground.
 
 You need to provide a valid API key, either through the config file or passing
 the environment variable like:
 ```
-DD_API_KEY=12345678990 ./bin/cluster-agent/cluster-agent
+DD_API_KEY=12345678990 ./bin/datadog-cluster-agent/datadog-cluster-agent
 ```
 
 ## Features
