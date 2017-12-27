@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -306,4 +307,36 @@ func IsContainerized() bool {
 // file used to populate the registry
 func FileUsedDir() string {
 	return filepath.Dir(Datadog.ConfigFileUsed())
+}
+
+func isDockerSocket() bool {
+	const dockerSocket = "docker.sock"
+
+	for _, directory := range []string{"/var/run/", "/run"} {
+		socketPath := path.Join(directory, dockerSocket)
+		st, err := os.Stat(socketPath)
+		if err != nil {
+			continue
+		}
+		if (st.Mode() & os.ModeSocket) != 0 {
+			log.Debugf("found docker socket: %s", socketPath)
+			return true
+		}
+	}
+	return false
+}
+
+// AutoAddDockerListener adds the docker listener if the docker socket is found
+func AutoAddDockerListener(listeners []Listeners) []Listeners {
+	isDocker := false
+	for _, l := range listeners {
+		if l.Name == "docker" {
+			isDocker = true
+		}
+	}
+	if isDocker == false && isDockerSocket() == true {
+		log.Infof("docker socket found: add docker listener")
+		listeners = append(listeners, Listeners{Name: "docker"})
+	}
+	return listeners
 }
