@@ -27,3 +27,6 @@ dogstatsd.yaml
 
 # jetbrains IDE directory
 /.idea/
+
+# Ignore debs from the root of the project.
+datadog-agent*_amd64.deb
