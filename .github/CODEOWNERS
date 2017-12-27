@@ -11,6 +11,7 @@
 
 /cmd/                                   @DataDog/croissant
 /omnibus/                               @DataDog/croissant
+/pkg/                                   @DataDog/croissant
 /pkg/aggregator/                        @DataDog/croissant
 /pkg/collector/                         @DataDog/croissant
 /pkg/forwarder/                         @DataDog/croissant
@@ -28,6 +29,8 @@
 /pkg/util/docker/                       @DataDog/kenafeh @DataDog/burrito
 /pkg/util/ecs/                          @DataDog/kenafeh @DataDog/burrito
 /pkg/util/kubernetes/                   @DataDog/kenafeh @DataDog/burrito
+
+/pkg/logs/                              @DataDog/ramen-intake
 
 /pkg/metrics/percentile/                @DataDog/sandwich
 
