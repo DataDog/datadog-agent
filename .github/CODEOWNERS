@@ -29,6 +29,7 @@
 /pkg/util/docker/                       @DataDog/kenafeh @DataDog/burrito
 /pkg/util/ecs/                          @DataDog/kenafeh @DataDog/burrito
 /pkg/util/kubernetes/                   @DataDog/kenafeh @DataDog/burrito
+/pkg/util/retry/                        @DataDog/kenafeh
 
 /pkg/logs/                              @DataDog/ramen-intake
 
