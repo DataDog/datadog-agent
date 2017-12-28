@@ -21,6 +21,7 @@ type context struct {
 	Agent             bool
 	Metadata          bool
 	Dogstatsd         bool
+	LogsAgent         bool
 	JMX               bool
 	Autoconfig        bool
 	Logging           bool
@@ -42,6 +43,7 @@ func mkContext(buildType string) context {
 			Agent:             true,
 			Metadata:          true,
 			Dogstatsd:         true,
+			LogsAgent:         true,
 			JMX:               true,
 			Autoconfig:        true,
 			Logging:           true,
