@@ -1,5 +1,8 @@
 # Datadog Agent
 
+**Important**: the new Agent is currently in Beta, we recommend to check out [this
+document](../beta.md) before starting using it.
+
 ## TOC
 
  * [Changes][changes]
