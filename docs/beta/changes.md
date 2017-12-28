@@ -8,6 +8,19 @@ Note: If you see anything that's incorrect about this document (and that's not
 covered by the [known_issues.md][known-issues] document), do not hesitate to
 open an issue or submit a Pull Request.
 
+* [Configuration Files](#configuration-files)
+* [CLI](#cli)
+* [Logs](#logs)
+* [Checks](#checks)
+* [APM agent](#apm-agent)
+* [Process agent](#process-agent)
+* [Python Modules](#python-modules)
+* [Kubernetes support](#kubernetes-support)
+* [JMX](#jmx)
+* [Dogstream](#dogstream)
+* [Custom Emitters](#custom-emitters)
+* [GUI](#gui)
+
 ## Configuration Files
 
 Prior releases of Datadog Agent stored configuration files in `/etc/dd-agent`.
@@ -128,6 +141,47 @@ to:
 ```python
 gauge(self, name, value, tags=None, hostname=None, device_name=None)
 ```
+
+## APM agent
+
+The APM agent (also known as _trace agent_) is shipped by default with the
+Agent 6 in the Linux, MacOS and Windows packages.
+
+Similar to the Agent 5, the APM agent is enabled by default. To disable it, set
+`apm_enabled` to `false` in the main agent configuration (`datadog.yaml`).
+
+_Optional_: If you need to use apm-specific configuration options (i.e. options that would be
+specified under the `[trace.config]`, `[trace.sampler]` and `[trace.receiver]` in
+the former `datadog.conf` file), specify them in `trace-agent.conf` under the agent's
+configuration directory (`/etc/datadog-agent/` on Linux). This file should be
+INI-formatted, similar to the former `datadog.conf` file. See the `trace-agent.conf.example`
+file for an example configuration file.
+
+We're working on merging these configuration options into the main `datadog.yaml` file.
+
+## Process agent
+
+The process agent is shipped by default with the Agent 6 in the Linux packages only.
+
+The process agent is not enabled by default. To enable it, copy `/etc/datadog-agent/conf.d/process_agent.yaml.default`
+to `/etc/datadog-agent/conf.d/process_agent.yaml` and edit `/etc/datadog-agent/conf.d/process_agent.yaml`
+as following:
+
+```yaml
+init_config:
+  enabled: true  # this enables the process agent
+
+instances:
+  - {}
+```
+
+_Optional_: If you need to use process-specific configuration options (i.e. options
+that would be specified under the `[process.config]` section in the former `datadog.conf`
+file), specify them in a `/etc/datadog-agent/process-agent.conf`. This file should
+be INI-formatted, similar to the former `datadog.conf` file. See the `process-agent.conf.example`
+file for an example configuration file.
+
+We're working on merging these configuration options into the main `datadog.yaml` file.
 
 ### Docker check
 
