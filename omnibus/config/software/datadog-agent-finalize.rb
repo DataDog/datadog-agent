@@ -25,7 +25,7 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
             move "#{install_dir}/etc/datadog-agent/trace-agent.conf.example", conf_dir_root, :force=>true
             #move "#{install_dir}/etc/datadog-agent/process-agent.conf.example", conf_dir
-            move "#{install_dir}/etc/datadog-agent/conf.d", conf_dir, :force=>true
+            move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
             delete "#{install_dir}/bin/agent/agent.exe"
             # TODO why does this get generated at all
             delete "#{install_dir}/bin/agent/agent.exe~"
