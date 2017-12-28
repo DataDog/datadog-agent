@@ -167,7 +167,7 @@ The process agent is not enabled by default. To enable it, copy `/etc/datadog-ag
 to `/etc/datadog-agent/conf.d/process_agent.yaml` and edit `/etc/datadog-agent/conf.d/process_agent.yaml`
 as following:
 
-```
+```yaml
 init_config:
   enabled: true  # this enables the process agent
 
