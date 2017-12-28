@@ -282,7 +282,8 @@ The `kube_service` tagging depends on the `Datadog Cluster Agent`, which is not 
 
 ## JMX
 
-The Agent 6 ships JMXFetch and supports all of its features (except those that are listed in the [known_issues.md][known-issues] document).
+The Agent 6 ships JMXFetch and supports all of its features, except those that
+are listed in the _Known Issues_ section of the [beta docs](../beta.md).
 
 The Agent 6 does not ship the `jmxterm` JAR. If you wish to download and use `jmxterm`, please refer to the [upstream project](https://github.com/jiaqi/jmxterm).
 
