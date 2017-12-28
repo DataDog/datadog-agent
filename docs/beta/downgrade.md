@@ -43,7 +43,7 @@ rm /etc/yum.repos.d/datadog-beta.repo
 
 ##### Update your local yum cache and downgrade the agent
 ```shell
-sudo yum clean expire-cache
+sudo yum clean expire-cache metadata
 sudo yum check-update
 sudo yum remove datadog-agent
 sudo yum install datadog-agent
