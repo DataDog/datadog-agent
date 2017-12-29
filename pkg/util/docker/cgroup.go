@@ -577,8 +577,18 @@ func parseCgroupPaths(r io.Reader) (string, map[string]string, error) {
 		}
 		// Target can be comma-separate values like cpu,cpuacct
 		tsp := strings.Split(sp[1], ",")
+		// for RancherOS, their path has 2 "docker/" in there, e.g.:
+		// 7:cpu,cpuacct:/docker/<id-1>/docker/<id-2>
+		// we need to check this case and only use "docker/<id-2>/" as the path
+		var path string
+		if strings.Count(sp[2], "/docker/") == 2 {
+			pathRe := regexp.MustCompile("\\/docker\\/[a-z0-9]+")
+			path = pathRe.FindAllStringSubmatch(sp[2], -1)[1][0]
+		} else {
+			path = sp[2]
+		}
 		for _, target := range tsp {
-			paths[target] = sp[2]
+			paths[target] = path
 		}
 	}
 	if err := scanner.Err(); err != nil {
