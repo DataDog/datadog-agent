@@ -31,8 +31,13 @@ const (
 	MultiLine      = "multi_line"
 )
 
+// Valid integration config extensions
+const (
+	yamlExtension = ".yaml"
+	ymlExtension  = ".yml"
+)
+
 const logsRules = "LogsRules"
-const integrationConfigExtention = ".yaml"
 
 // LogsProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
@@ -155,7 +160,8 @@ func integrationConfigsFromDirectory(dir string, prefix string) []string {
 	files, _ := ioutil.ReadDir(dir)
 	for _, f := range files {
 		if !f.IsDir() {
-			if filepath.Ext(f.Name()) == integrationConfigExtention {
+			ext := filepath.Ext(f.Name())
+			if ext == yamlExtension || ext == ymlExtension {
 				integrationConfigFiles = append(integrationConfigFiles, filepath.Join(prefix, f.Name()))
 			}
 		}
