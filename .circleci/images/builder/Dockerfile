@@ -70,7 +70,10 @@ ENV BUNDLER_VERSION 1.15.3
 
 RUN gem install bundler --version "$BUNDLER_VERSION"
 
-RUN apt-get update && apt-get install -y python-pip  && pip install invoke && pip install docker
+RUN apt-get update && apt-get install -y python-pip  \
+	&& pip install invoke \
+	&& pip install docker \
+	&& pip install reno
 
 # install things globally, for great justice
 # and don't create ".bundle" in all our apps
