@@ -77,6 +77,9 @@ func TestParseComponentStatus(t *testing.T) {
 			},
 		},
 	}
+	empty := &v1.ComponentStatusList{
+		Items: nil,
+	}
 
 	kubeASCheck := &KubeASCheck{
 		lastWarnings: []error{},
@@ -106,6 +109,10 @@ func TestParseComponentStatus(t *testing.T) {
 	kubeASCheck.parseComponentStatus(mock, unknown)
 	mock.AssertNumberOfCalls(t, "ServiceCheck", 3)
 	mock.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"test", "component:DCA"}, "")
+
+	empty_resp := kubeASCheck.parseComponentStatus(mock, empty)
+	assert.Nil(t, empty_resp, "metadata structure has changed. Not collecting API Server's Components status")
+	mock.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
 	mock.AssertExpectations(t)
 }

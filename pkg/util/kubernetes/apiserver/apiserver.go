@@ -14,7 +14,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -101,11 +101,6 @@ func parseKubeConfig(fpath string) (*k8s.Config, error) {
 func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	componentsStatus, err := c.client.CoreV1().ListComponentStatuses(ctx)
-	if err != nil || componentsStatus == nil {
-		return nil, err
-	}
-
-	return componentsStatus, nil
+	return c.client.CoreV1().ListComponentStatuses(ctx)
 
 }

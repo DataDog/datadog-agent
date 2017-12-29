@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
 var (
 	clusterAgentCmd = &cobra.Command{
 		Use:   "cluster-agent [command]",
@@ -139,7 +140,6 @@ func start(cmd *cobra.Command, args []string) error {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	// create and setup the Autoconfig instance
-	// TODO: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
 	common.SetupAutoConfig(config.Datadog.GetString("confd_dca_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()

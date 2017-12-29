@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s/api/v1"
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 	"time"
 )
 
@@ -67,6 +67,14 @@ func (k *KubeASCheck) GetWarnings() []error {
 	return w
 }
 
+// Warn will log a warning and add it to the warnings
+func (k *KubeASCheck) warn(v ...interface{}) error {
+	w := log.Warn(v)
+	k.lastWarnings = append(k.lastWarnings, w)
+
+	return w
+}
+
 // ID returns the name of the check since there should be only one instance running.
 func (k *KubeASCheck) ID() check.ID {
 	return check.ID(k.String())
@@ -93,12 +101,12 @@ func (k *KubeASCheck) Run() error {
 
 	componentsStatus, err := asclient.ComponentStatuses()
 	if err != nil {
-		log.Errorf("could not retrieve the status from the control plane's components %q", err)
+		k.warn("could not retrieve the status from the control plane's components", err.Error())
 	}
 
 	err = k.parseComponentStatus(sender, componentsStatus)
 	if err != nil {
-		log.Warnf("could not collect API Server component status: %s", err)
+		k.warn("could not collect API Server component status: ", err.Error())
 	}
 	sender.Commit()
 	return nil

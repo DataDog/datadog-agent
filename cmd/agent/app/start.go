@@ -204,7 +204,6 @@ func StartAgent() error {
 	log.Debugf("statsd started")
 
 	// create and setup the Autoconfig instance
-	// TODO: move SetupAutoConfig and StartAutoConfig in their own package.
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 	// start the autoconfig, this will immediately run any configured check
 	common.StartAutoConfig()
