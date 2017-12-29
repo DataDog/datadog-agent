@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/ericchiang/k8s/api/v1"
 )
 
 var globalApiClient *APIClient
@@ -26,14 +27,17 @@ var globalApiClient *APIClient
 // apiserver endpoints. Use the shared instance via GetApiClient.
 type APIClient struct {
 	retry.Retrier
-	client *k8s.Client
+	client  *k8s.Client
+	timeout time.Duration
 }
 
 // GetAPIClient returns the shared ApiClient instance.
 func GetAPIClient() (*APIClient, error) {
-
 	if globalApiClient == nil {
-		globalApiClient = &APIClient{}
+		globalApiClient = &APIClient{
+			// TODO: make it configurable if requested
+			timeout: 5 * time.Second,
+		}
 		globalApiClient.SetupRetrier(&retry.Config{
 			Name:          "apiserver",
 			AttemptMethod: globalApiClient.connect,
@@ -74,9 +78,11 @@ func (c *APIClient) connect() error {
 	}
 
 	// Try to get apiserver version to confim connectivity
-	version, err := c.client.Discovery().Version(context.TODO())
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	version, err := c.client.Discovery().Version(ctx)
 	if err == nil {
-		log.Debugf("connected to apiserver, version %s", version.GitVersion)
+		log.Debugf("connected to kubernetes apiserver, version %s", version.GitVersion)
 	}
 	return err
 }
@@ -90,4 +96,11 @@ func parseKubeConfig(fpath string) (*k8s.Config, error) {
 	config := &k8s.Config{}
 	err = yaml.Unmarshal(yamlFile, config)
 	return config, err
+}
+
+func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	return c.client.CoreV1().ListComponentStatuses(ctx)
+
 }

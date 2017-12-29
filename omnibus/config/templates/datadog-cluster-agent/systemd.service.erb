@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=dd-agent
 Restart=on-failure
-ExecStart=<%= install_dir %>/bin/cluster-agent start -c /etc/datadog-cluster-agent
+ExecStart=<%= install_dir %>/bin/datadog-cluster-agent start -c /etc/datadog-cluster-agent
 
 [Install]
 WantedBy=multi-user.target

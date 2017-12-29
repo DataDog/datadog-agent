@@ -16,7 +16,7 @@ from .utils import REPO_PATH
 from .go import deps
 
 #constants
-BIN_PATH = os.path.join(".", "bin", "cluster-agent")
+BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
 DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
@@ -40,7 +40,7 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False)
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "-i",
         "build_tags": " ".join(build_tags),
-        "bin_name": os.path.join(BIN_PATH, bin_name("cluster-agent")),
+        "bin_name": os.path.join(BIN_PATH, bin_name("datadog-cluster-agent")),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
@@ -57,10 +57,10 @@ def run(ctx, rebuild=False, race=False, skip_build=False, development=True):
         print("Building the Cluster Agent...")
         build(ctx, rebuild=rebuild, race=race)
 
-    target = os.path.join(BIN_PATH, bin_name("cluster-agent"))
+    target = os.path.join(BIN_PATH, bin_name("datadog-cluster-agent"))
     cfgPath = ""
     if development:
-        cfgPath = "-c dev/dist/datadog.yaml"
+        cfgPath = "-c dev/dist/datadog-cluster.yaml"
 
     ctx.run("{0} start {1}".format(target, cfgPath))
 
@@ -75,7 +75,7 @@ def clean(ctx):
 
     # remove the bin/agent folder
     print("Remove agent binary folder")
-    ctx.run("rm -rf ./bin/cluster-agent")
+    ctx.run("rm -rf ./bin/datadog-cluster-agent")
 
 @task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
 def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
@@ -107,7 +107,7 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
         cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
-            "project_name": "cluster-agent",
+            "project_name": "datadog-cluster-agent",
             "log_level": log_level,
             "overrides": overrides_cmd
         }

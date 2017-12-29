@@ -1,0 +1,10 @@
+#init_configs:
+#instances:
+#  -
+## Tagging
+##
+
+# You can add extra tags to your Kubernetes API Server metrics, events and Service Checks with the tags list option.
+# Example: ["extra_tag", "env:testing"]
+#
+#   tags: ["foo"]

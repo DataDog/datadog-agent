@@ -3,10 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-// +build kubeapiserver
+/*
+Package cluster provides core checks for cluster level checks, used by the Datadog Cluster Agent.
 
-package containers
-
-import (
-	_ "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-)
+*/
+package cluster

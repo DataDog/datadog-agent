@@ -21,4 +21,4 @@ EXPOSE 8125/udp
 
 ENTRYPOINT ["/entrypoint.sh"]
 
-CMD ["/opt/datadog-cluster-agent/bin/cluster-agent", "start"]
+CMD ["/opt/datadog-cluster-agent/bin/datadog-cluster-agent/datadog-cluster-agent", "start"]

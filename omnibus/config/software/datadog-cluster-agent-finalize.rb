@@ -18,20 +18,23 @@ build do
         conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-cluster-agent"
         conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
         mkdir conf_dir
-        move "#{install_dir}/etc/datadog-cluster-agent/datadog.yaml.example", conf_dir_root, :force=>true
+        move "#{install_dir}/etc/datadog-cluster-agent/datadog-cluster.yaml.example", conf_dir_root, :force=>true
     else
         # Move configuration files
         mkdir "/etc/datadog-cluster-agent"
-        move "#{install_dir}/etc/datadog-cluster-agent/datadog.yaml.example", "/etc/datadog-cluster-agent"
+        move "#{install_dir}/etc/datadog-cluster-agent/datadog-cluster.yaml.example", "/etc/datadog-cluster-agent"
 
-        # Move system service files
+        # Move system service filess
         mkdir "/etc/init"
         move "#{install_dir}/scripts/datadog-cluster-agent.conf", "/etc/init"
         mkdir "/lib/systemd/system"
         move "#{install_dir}/scripts/datadog-cluster-agent.service", "/lib/systemd/system"
 
+        mkdir "/etc/datadog-cluster-agent/etc"
+        move "#{install_dir}/etc/datadog-cluster-agent/conf.d", "/etc/datadog-cluster-agent/etc/", :force=>true
+
         # cleanup clutter
         delete "#{install_dir}/etc" if !osx?
-        delete "#{install_dir}/bin/cluster-agent/dist"
+        delete "#{install_dir}/bin/datadog-cluster-agent/dist"
     end
 end
