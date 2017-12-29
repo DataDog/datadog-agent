@@ -9,16 +9,16 @@ package apiserver
 
 import (
 	"context"
+	"encoding/json"
 	"io/ioutil"
 	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s"
-	yaml "gopkg.in/yaml.v2"
+	"github.com/ericchiang/k8s/api/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/ericchiang/k8s/api/v1"
 )
 
 var globalApiClient *APIClient
@@ -66,7 +66,7 @@ func (c *APIClient) connect() error {
 			// Kubeconfig provided by conf
 			log.Debugf("using credentials from %s", cfgPath)
 			var config *k8s.Config
-			config, err = parseKubeConfig(cfgPath)
+			config, err = ParseKubeConfig(cfgPath)
 			if err != nil {
 				return err
 			}
@@ -87,14 +87,17 @@ func (c *APIClient) connect() error {
 	return err
 }
 
-func parseKubeConfig(fpath string) (*k8s.Config, error) {
-	yamlFile, err := ioutil.ReadFile(fpath)
+// ParseKubeConfig reads and unmarcshals a kubeconfig file
+// in an object ready to use. Exported for integration testing.
+func ParseKubeConfig(fpath string) (*k8s.Config, error) {
+	// TODO: support yaml too
+	jsonFile, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return nil, err
 	}
 
 	config := &k8s.Config{}
-	err = yaml.Unmarshal(yamlFile, config)
+	err = json.Unmarshal(jsonFile, config)
 	return config, err
 }
 
@@ -102,5 +105,4 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 	return c.client.CoreV1().ListComponentStatuses(ctx)
-
 }
