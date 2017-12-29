@@ -118,6 +118,12 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
     if coverage:
         ctx.run("go tool cover -func {}".format(PROFILE_COV))
 
+@task
+def lint_releasenote(ctx):
+    """
+    Lint release notes with Reno
+    """
+    ctx.run("reno lint")
 
 @task
 def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):

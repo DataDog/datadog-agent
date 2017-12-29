@@ -25,6 +25,7 @@ when submitting your PR:
   * preferably make sure that all tests pass locally.
   * summarize your PR with an explanatory title and a message describing your
     changes, cross-referencing any related bugs/PRs.
+  * Use [Reno](#reno) to create a releasenote.
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing
 an error and don't think it's your fault, it may not be! [Join us on Slack][slack]
@@ -54,6 +55,25 @@ body to skip the build and give that slot to someone else who does need it.
 Please rebase your changes on `master` and squash your commits whenever possible,
 it keeps history cleaner and it's easier to revert things. It also makes developers
 happier!
+
+### Reno
+
+To install reno: `pip install reno`
+
+We use `Reno` to create our CHANGELOG. Reno is a pretty simple
+[tool](https://docs.openstack.org/reno/latest/user/usage.html).
+
+Ultra quick `Reno` HOWTO:
+
+```bash
+$> reno new <topic-of-my-pr> --edit
+[...]
+# Remove unused section and fill the relevant ones
+# Reno will create a new file in releasenotes/notes
+[...]
+```
+
+Then just add and commit the new releasenote (located in `releasenotes/notes/`) with your PR.
 
 ## Integrations
 
