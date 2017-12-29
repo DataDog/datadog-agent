@@ -77,6 +77,16 @@ jobs:
           name: run integration tests
           command: inv  -e integration-tests --race --remote-docker
 
+  reno_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - setup_remote_docker
+      - run:
+          name: run reno linting
+          command: inv -e lint-releasenote
+
   docker_integration_tests:
     <<: *job_template
     steps:
@@ -123,6 +133,9 @@ workflows:
           requires:
             - dependencies
       - integration_tests:
+          requires:
+            - dependencies
+      - reno_linting:
           requires:
             - dependencies
       - docker_integration_tests:
