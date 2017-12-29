@@ -212,7 +212,9 @@ metadata_collectors:
 #
 # Choose "auto" if you want to let the agent find any relevant listener on your host
 # At the moment, the only auto listener supported is docker
+# If you have already set docker anywhere in the listeners, the auto listener is ignored
 # listeners:
+#   - name: auto
 #   - name: docker
 #
 # Exclude containers based on their name or image

@@ -12,7 +12,9 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// AutoAddListeners adds the docker listener if needed
+// AutoAddListeners checks if the listener auto is selected and
+// adds the docker listener if the host support it
+// no effect if the listeners already contain the docker one
 // TODO: support more listeners (kubelet, ...)
 func AutoAddListeners(listeners []Listeners) []Listeners {
 	autoAdd := false
@@ -24,7 +26,7 @@ func AutoAddListeners(listeners []Listeners) []Listeners {
 			autoAdd = true
 		}
 	}
-	if autoAdd == false || isDockerRun() == false {
+	if autoAdd == false || isDockerRunning() == false {
 		return listeners
 	}
 	dl := Listeners{Name: "docker"}
@@ -42,6 +44,7 @@ func isDockerSocketPresent() bool {
 		if err != nil {
 			continue
 		}
+		// check if the fileMode is a socket
 		if (st.Mode() & os.ModeSocket) != 0 {
 			log.Debugf("found docker socket: %s", socketPath)
 			return true
@@ -55,8 +58,8 @@ func isDockerHostEnv() bool {
 	return os.Getenv("DOCKER_HOST") != ""
 }
 
-// isDockerRun check with several options to determine if docker runs
-func isDockerRun() bool {
+// isDockerRunning check with several options to determine if docker is running
+func isDockerRunning() bool {
 	if isDockerHostEnv() == true {
 		return true
 	}
