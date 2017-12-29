@@ -14,7 +14,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -98,13 +98,14 @@ func parseKubeConfig(fpath string) (*k8s.Config, error) {
 	return config, err
 }
 
-func (c *APIClient) GetComponents() *v1.ComponentStatusList {
-	componentsStatus, err := c.client.CoreV1().ListComponentStatuses(context.Background())
+func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	componentsStatus, err := c.client.CoreV1().ListComponentStatuses(ctx)
 	if err != nil || componentsStatus == nil {
-		log.Errorf("could not retrieve the status from the control plane's components %q", err)
-		return nil
+		return nil, err
 	}
 
-	return componentsStatus
+	return componentsStatus, nil
 
 }

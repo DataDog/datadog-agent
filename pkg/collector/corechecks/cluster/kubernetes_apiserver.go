@@ -7,12 +7,13 @@
 package cluster
 
 import (
+	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	as_util "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s/api/v1"
 	"gopkg.in/yaml.v2"
@@ -27,17 +28,13 @@ const (
 
 // KubeASConfig is the config of the API server.
 type KubeASConfig struct {
-	//CollectContainerSize bool               `yaml:"collect_container_size"`
 	Tags []string `yaml:"tags"`
-	//CollectEvent         bool               `yaml:"collect_events"`
-	//FilteredEventType    []string           `yaml:"filtered_event_types"`
 }
 
 // KubeASCheck grabs metrics and events from the API server.
 type KubeASCheck struct {
-	lastWarnings []error
-	instance     *KubeASConfig
-	//lastEventTime  time.Time
+	lastWarnings          []error
+	instance              *KubeASConfig
 	KubeAPIServerHostname string
 }
 
@@ -87,17 +84,23 @@ func (k *KubeASCheck) Run() error {
 		return err
 	}
 
-	asclient, err := as_util.GetAPIClient()
+	asclient, err := apiserver.GetAPIClient()
 
 	if err != nil {
-		log.Errorf("could not instantiate the cluster %q", err)
+		log.Errorf("could not connect to apiserver: %s", err)
 		return err
 	}
 
-	componentsStatus := asclient.GetComponents()
+	componentsStatus, err := asclient.ComponentStatuses()
+	if err != nil {
+		log.Errorf("could not retrieve the status from the control plane's components %q", err)
+	}
 
-	k.parseComponentStatus(sender, componentsStatus)
-
+	err = k.parseComponentStatus(sender, componentsStatus)
+	if err != nil {
+		log.Warnf("could not collect API Server component status: %s", err)
+	}
+	sender.Commit()
 	return nil
 }
 
@@ -120,38 +123,37 @@ func (k *KubeASCheck) GetMetricStats() (map[string]int64, error) {
 	return sender.GetMetricStats(), nil
 }
 
-func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) {
-
+func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
 	for _, component := range componentsStatus.Items {
 
-		if component.Metadata.Name == nil || component.Conditions == nil {
-			log.Error("Metadata structure has changed. Not collecting API Server's Components status")
-			return
+		if component.Metadata == nil {
+			return errors.New("metadata structure has changed. Not collecting API Server's Components status")
+		}
+		if component.Conditions == nil || component.Metadata.Name == nil {
+			log.Debug("API Server component's structure is not expected")
+			continue
 		}
 		tagComp := append(k.instance.Tags, fmt.Sprintf("component:%s", *component.Metadata.Name))
-		// We only expect the Healthy condition. May change in the future. https://godoc.org/github.com/ericchiang/k8s/api/v1#ComponentCondition
 		for _, condition := range component.Conditions {
-			// We only expect True, False and Unknown.
-			switch {
-			case *condition.Type != "Healthy":
+			status_check := metrics.ServiceCheckUnknown
+
+			// We only expect the Healthy condition. May change in the future. https://github.com/kubernetes/community/blob/master/contributors/devel/api-conventions.md#typical-status-properties
+			if *condition.Type != "Healthy" {
 				log.Debugf("Condition %q not supported", *condition.Type)
-				sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckUnknown, k.KubeAPIServerHostname, tagComp, "The Component's condition type isn't supported")
 				continue
-
-			case *condition.Status == "True":
-				sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckOK, k.KubeAPIServerHostname, tagComp, "")
-				continue
-
-			case *condition.Status == "False":
-				sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckCritical, k.KubeAPIServerHostname, tagComp, "")
-				continue
-
-			default:
-				sender.ServiceCheck(KubeControlPaneCheck, metrics.ServiceCheckUnknown, k.KubeAPIServerHostname, tagComp, "")
 			}
+			// We only expect True, False and Unknown (default).
+			switch *condition.Status {
+			case "True":
+				status_check = metrics.ServiceCheckOK
+
+			case "False":
+				status_check = metrics.ServiceCheckCritical
+			}
+			sender.ServiceCheck(KubeControlPaneCheck, status_check, k.KubeAPIServerHostname, tagComp, "")
 		}
 	}
-	sender.Commit()
+	return nil
 }
 func init() {
 	core.RegisterCheck("kubernetes_apiserver", KubernetesASFactory)

@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/ericchiang/k8s/api/v1"
 	obj "github.com/ericchiang/k8s/apis/meta/v1"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -25,7 +26,8 @@ func TestParseComponentStatus(t *testing.T) {
 
 	expectedComp := &v1.ComponentCondition{Type: toStr("Healthy"), Status: toStr("True")}
 	unExpectedComp := &v1.ComponentCondition{Type: toStr("Not Supported"), Status: toStr("True")}
-	unhealthyComp := &v1.ComponentCondition{Type: toStr("Healthy"), Status: toStr("False")}
+	unHealthyComp := &v1.ComponentCondition{Type: toStr("Healthy"), Status: toStr("False")}
+	unExpectedStatus := &v1.ComponentCondition{Type: toStr("Healthy"), Status: toStr("Other")}
 
 	expected := &v1.ComponentStatusList{
 		Items: []*v1.ComponentStatus{
@@ -46,21 +48,31 @@ func TestParseComponentStatus(t *testing.T) {
 				Conditions: []*v1.ComponentCondition{
 					unExpectedComp,
 				},
-				Metadata: &obj.ObjectMeta{
-					Name: toStr("Consul"),
-				},
+				Metadata: nil,
 			},
 		},
 	}
 
-	unhealthy := &v1.ComponentStatusList{
+	unHealthy := &v1.ComponentStatusList{
 		Items: []*v1.ComponentStatus{
 			{
 				Conditions: []*v1.ComponentCondition{
-					unhealthyComp,
+					unHealthyComp,
 				},
 				Metadata: &obj.ObjectMeta{
 					Name: toStr("ETCD"),
+				},
+			},
+		},
+	}
+	unknown := &v1.ComponentStatusList{
+		Items: []*v1.ComponentStatus{
+			{
+				Conditions: []*v1.ComponentCondition{
+					unExpectedStatus,
+				},
+				Metadata: &obj.ObjectMeta{
+					Name: toStr("DCA"),
 				},
 			},
 		},
@@ -76,20 +88,24 @@ func TestParseComponentStatus(t *testing.T) {
 
 	mock := mocksender.NewMockSender(kubeASCheck.ID())
 	mock.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"test", "component:Zookeeper"}, "")
-	mock.On("Commit").Return()
 	kubeASCheck.parseComponentStatus(mock, expected)
 
-	mock.AssertNumberOfCalls(t, "Commit", 1)
+	mock.AssertNumberOfCalls(t, "ServiceCheck", 1)
+	mock.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckOK, "hostname", []string{"test", "component:Zookeeper"}, "")
 
-	mock.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"test", "component:Consul"}, "The Component's condition type isn't supported")
-	mock.On("Commit").Return()
-	kubeASCheck.parseComponentStatus(mock, unExpected)
-	mock.AssertNumberOfCalls(t, "Commit", 2)
+	err := kubeASCheck.parseComponentStatus(mock, unExpected)
+	assert.EqualError(t, err, "metadata structure has changed. Not collecting API Server's Components status")
+	mock.AssertNotCalled(t, "ServiceCheck", "kube_apiserver_controlplane.up")
 
 	mock.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"test", "component:ETCD"}, "")
-	mock.On("Commit").Return()
-	kubeASCheck.parseComponentStatus(mock, unhealthy)
-	mock.AssertNumberOfCalls(t, "Commit", 3)
+	kubeASCheck.parseComponentStatus(mock, unHealthy)
+	mock.AssertNumberOfCalls(t, "ServiceCheck", 2)
+	mock.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckCritical, "hostname", []string{"test", "component:ETCD"}, "")
+
+	mock.On("ServiceCheck", "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"test", "component:DCA"}, "")
+	kubeASCheck.parseComponentStatus(mock, unknown)
+	mock.AssertNumberOfCalls(t, "ServiceCheck", 3)
+	mock.AssertServiceCheck(t, "kube_apiserver_controlplane.up", metrics.ServiceCheckUnknown, "hostname", []string{"test", "component:DCA"}, "")
 
 	mock.AssertExpectations(t)
 }
