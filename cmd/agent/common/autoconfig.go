@@ -77,7 +77,7 @@ func SetupAutoConfig(confdPath string) {
 	// have only docker
 	var Listeners []config.Listeners
 	if err = config.Datadog.UnmarshalKey("listeners", &Listeners); err == nil {
-		Listeners = config.AutoAddListeners(Listeners)
+		Listeners = AutoAddListeners(Listeners)
 		for _, l := range Listeners {
 			serviceListenerFactory, ok := listeners.ServiceListenerFactories[l.Name]
 			if !ok {
