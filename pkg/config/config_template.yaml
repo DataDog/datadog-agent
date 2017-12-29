@@ -210,6 +210,8 @@ metadata_collectors:
 #
 # container_proc_root: /host/proc
 #
+# Choose "auto" if you want to let the agent find any relevant listener on your host
+# At the moment, the only auto listener supported is docker
 # listeners:
 #   - name: docker
 #
