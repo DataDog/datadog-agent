@@ -8,11 +8,9 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
@@ -46,24 +44,28 @@ func launchGui(cmd *cobra.Command, args []string) error {
 	}
 
 	// Read the authentication token: can only be done if user can read from datadog.yaml
-	authToken, err := ioutil.ReadFile(filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), gui.AuthTokenName))
+	authToken, err := security.FetchAuthToken()
 	if err != nil {
-		return fmt.Errorf("unable to access GUI authentication token: " + err.Error())
+		return err
 	}
 
-	// Get the CSRF token
-	c := common.GetClient(false) // FIX: get certificates right then make this true
+	// Get the CSRF token from the agent
+	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/gui/csrf-token", config.Datadog.GetInt("cmd_port"))
-	util.SetAuthToken()
-	csrfToken, e := common.DoGet(c, urlstr)
-	if e != nil {
+	err = util.SetAuthToken()
+	if err != nil {
+		return err
+	}
+
+	csrfToken, err := util.DoGet(c, urlstr)
+	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(csrfToken, errMap)
-		if err, found := errMap["error"]; found {
-			e = fmt.Errorf(err)
+		if e, found := errMap["error"]; found {
+			err = fmt.Errorf(e)
 		}
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before attempting to open the GUI.\n", e)
-		return e
+		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before attempting to open the GUI.\n", err)
+		return err
 	}
 
 	// Open the GUI in a browser, passing the authorization tokens as parameters

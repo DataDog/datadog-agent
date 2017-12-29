@@ -10,13 +10,22 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/pem"
+	"io/ioutil"
 	"math/big"
+	"os"
+	"path/filepath"
 
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	log "github.com/cihub/seelog"
 )
+
+const authTokenName = "auth_token"
 
 // GenerateKeyPair create a public/private keypair
 func GenerateKeyPair(bits int) (*rsa.PrivateKey, error) {
@@ -91,4 +100,40 @@ func GenerateRootCert(hosts []string, bits int) (
 	b := pem.Block{Type: "CERTIFICATE", Bytes: certDER}
 	certPEM = pem.EncodeToMemory(&b)
 	return
+}
+
+// FetchAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist
+// Requires that the config has been set up before calling
+func FetchAuthToken() (string, error) {
+	authTokenFile := filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), authTokenName)
+
+	// Create a new token if it doesn't exist
+	if _, e := os.Stat(authTokenFile); os.IsNotExist(e) {
+		key := make([]byte, 32)
+		_, e = rand.Read(key)
+		if e != nil {
+			return "", fmt.Errorf("error creating authentication token: %s", e)
+		}
+
+		// Write the auth token to the auth token file (platform-specific)
+		e = saveAuthToken(hex.EncodeToString(key), authTokenFile)
+		if e != nil {
+			return "", fmt.Errorf("error creating authentication token: %s", e)
+		}
+		log.Infof("Saved a new authentication token to %s", authTokenFile)
+	}
+
+	// Read the token
+	authTokenRaw, e := ioutil.ReadFile(authTokenFile)
+	if e != nil {
+		return "", fmt.Errorf("unable to access authentication token: " + e.Error())
+	}
+
+	// Do some basic validation
+	authToken := string(authTokenRaw)
+	if len(authToken) < 32 {
+		return "", fmt.Errorf("invalid authentication token: must be at least 32 characters in length")
+	}
+
+	return authToken, nil
 }

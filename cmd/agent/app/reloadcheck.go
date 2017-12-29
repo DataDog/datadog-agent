@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
 )
@@ -47,12 +48,12 @@ func doReloadCheck(checkName string) error {
 		return fmt.Errorf("Must supply a check name to query")
 	}
 
-	c := common.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/check/%s/reload", config.Datadog.GetInt("cmd_port"), checkName)
 
 	postbody := ""
 
-	body, e := common.DoPost(c, urlstr, "application/json", strings.NewReader(postbody))
+	body, e := util.DoPost(c, urlstr, "application/json", strings.NewReader(postbody))
 	if e != nil {
 		return fmt.Errorf("error getting check status for check %s: %v", checkName, e)
 	}
