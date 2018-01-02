@@ -58,7 +58,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	av, _ := version.New(version.ClusterAgentVersion)
+	av, _ := version.New(version.AgentVersion)
 	j, _ := json.Marshal(av)
 	w.Write(j)
 }
