@@ -18,9 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 )
 
-// done keeps the pipeline up and running until Stop is called
-var done = make(chan bool)
-
 // Start starts logs-agent
 func Start() error {
 	err := config.BuildLogsAgentIntegrationsConfigs()
@@ -55,11 +52,4 @@ func run() {
 
 	c := container.New(config.GetLogsSources(), pp, a)
 	c.Start()
-
-	<-done
-}
-
-// Stop stops logs-agent
-func Stop() {
-	close(done)
 }

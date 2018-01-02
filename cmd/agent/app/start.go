@@ -206,6 +206,8 @@ func StartAgent() error {
 
 	// start logs-agent
 	if config.Datadog.GetBool("log_enabled") {
+		// logs-agent does provide any Stop method yet
+		// data loss may happen when stopping agent
 		err := logs.Start()
 		if err != nil {
 			log.Error("Could not start logs-agent: ", err)
@@ -277,7 +279,6 @@ func StopAgent() {
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
 	}
-	logs.Stop()
 	gui.StopGUIServer()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")

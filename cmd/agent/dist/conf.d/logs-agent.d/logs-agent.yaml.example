@@ -1,7 +1,6 @@
 init_config:
 
 instances:
-    [{}]
     
 #Log section
 logs:
