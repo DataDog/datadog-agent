@@ -22,6 +22,7 @@ type configFormat struct {
 	ADIdentifiers []string    `yaml:"ad_identifiers"`
 	InitConfig    interface{} `yaml:"init_config"`
 	MetricConfig  interface{} `yaml:"jmx_metrics"`
+	LogsConfig    interface{} `yaml:"logs"`
 	Instances     []check.ConfigRawMap
 }
 
@@ -32,11 +33,12 @@ type configPkg struct {
 }
 
 type configEntry struct {
-	conf      check.Config
-	name      string
-	isDefault bool
-	isMetric  bool
-	err       error
+	conf       check.Config
+	name       string
+	isDefault  bool
+	isMetric   bool
+	isLogsOnly bool
+	err        error
 }
 
 // FileConfigProvider collect configuration files from disk
@@ -93,6 +95,11 @@ func (c *FileConfigProvider) Collect() ([]check.Config, error) {
 			// we don't collect metric files from the root dir (which check is it for? that's nonsensical!)
 			if entry.err != nil || entry.isMetric {
 				// logging is handled in collectEntry
+				continue
+			}
+
+			if entry.isLogsOnly {
+				// skip logs-only configs for now as they are not processed by autodiscovery
 				continue
 			}
 
@@ -175,6 +182,11 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkNa
 		return entry
 	}
 
+	// if logs is the only integration, set isLogsOnly to true
+	if entry.conf.LogsConfig != nil && entry.conf.MetricConfig == nil && len(entry.conf.Instances) == 0 && len(entry.conf.ADIdentifiers) == 0 {
+		entry.isLogsOnly = true
+	}
+
 	delete(c.Errors, checkName) // noop if entry is nonexistant
 	log.Debug("Found valid configuration in file:", absPath)
 	return entry
@@ -219,6 +231,8 @@ func (c *FileConfigProvider) collectDir(parentPath string, folder os.FileInfo) c
 				defaultConfigs = append(defaultConfigs, entry.conf)
 			} else if entry.isMetric {
 				metricConfigs = append(metricConfigs, entry.conf)
+			} else if entry.isLogsOnly {
+				// skip logs-only configs for now as they are not processed by autodiscovery
 			} else {
 				configs = append(configs, entry.conf)
 			}
@@ -246,8 +260,9 @@ func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 		return config, err
 	}
 
-	// If no valid instances were found & this is not a metrics file, this is not a valid configuration file
-	if cf.MetricConfig == nil && len(cf.Instances) < 1 {
+	// If no valid instances were found & this is neither a metrics file, nor a logs file
+	// this is not a valid configuration file
+	if cf.MetricConfig == nil && cf.LogsConfig == nil && len(cf.Instances) < 1 {
 		return config, errors.New("Configuration file contains no valid instances")
 	}
 
@@ -270,6 +285,12 @@ func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 
 	// Copy auto discovery identifiers
 	config.ADIdentifiers = cf.ADIdentifiers
+
+	// If logs was found, add it to the config
+	if cf.LogsConfig != nil {
+		rawLogsConfig, _ := yaml.Marshal(cf.LogsConfig)
+		config.LogsConfig = rawLogsConfig
+	}
 
 	return config, err
 }

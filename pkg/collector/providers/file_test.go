@@ -32,6 +32,11 @@ func TestGetCheckConfig(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotNil(t, config.MetricConfig)
 
+	// valid logs-agent file
+	config, err = GetCheckConfigFromFile("foo", "tests/logs-agent_only.yaml")
+	assert.Nil(t, err)
+	assert.NotNil(t, config.LogsConfig)
+
 	// valid configuration file
 	config, err = GetCheckConfigFromFile("foo", "tests/testcheck.yaml")
 	require.Nil(t, err)
@@ -104,7 +109,7 @@ func TestCollect(t *testing.T) {
 	assert.Equal(t, 0, len(get("metrics")))
 
 	// total number of configurations found
-	assert.Equal(t, 10, len(configs))
+	assert.Equal(t, 11, len(configs))
 
 	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml)
 	assert.Equal(t, 2, len(provider.Errors))
