@@ -30,6 +30,9 @@ var (
 	containerRe = regexp.MustCompile("[0-9a-f]{64}")
 	// ErrMissingTarget is an error set when a cgroup target is missing.
 	ErrMissingTarget = errors.New("Missing cgroup target")
+	// dindCgroupRe represents the cgroup pattern that the container runs inside a dind container,
+	// the second capturing group is the correct path we need for cgroup path
+	dindCgroupRe = regexp.MustCompile("^\\/docker\\/[0-9a-f]{64}(\\/docker\\/[0-9a-f]{64})")
 )
 
 // NanoToUserHZDivisor holds the divisor to convert cpu.usage to the
@@ -411,7 +414,18 @@ func (c ContainerCgroup) cgroupFilePath(target, file string) string {
 		log.Errorf("missing target %s from paths", target)
 		return ""
 	}
-
+	// sometimes the container is running inside a "dind container" instead of directly on the host,
+	// we need to cover that case if the default full path doesn't exist
+	// the dind container cgroup format looks like:
+	//
+	//	"/docker/$dind_container_id/docker/$container_id"
+	//
+	// and the actual cgroup path for that case is "docker/$container_id"
+	if !pathExists(filepath.Join(mount, targetPath, file)) {
+		if dindCgroupRe.MatchString(targetPath) {
+			targetPath = dindCgroupRe.FindStringSubmatch(targetPath)[1]
+		}
+	}
 	return filepath.Join(mount, targetPath, file)
 }
 
