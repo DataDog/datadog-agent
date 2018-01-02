@@ -99,6 +99,19 @@ func TestMemLimit(t *testing.T) {
 	assert.Equal(t, value, uint64(1234))
 }
 
+// TestDindContainer is to test if our agent can handle dind container correctly
+func TestDindContainer(t *testing.T) {
+	containerId := "6ab998413f7ae63bb26403dfe9e7ec02aa92b5cfc019de79da925594786c985f"
+	tempFolder, cgroup, err := newDindContainerCgroup("dind-container", "memory", containerId)
+	assert.NoError(t, err)
+	tempFolder.add("memory.limit_in_bytes", "1234")
+	defer tempFolder.removeAll()
+
+	value, err := cgroup.MemLimit()
+	assert.NoError(t, err)
+	assert.Equal(t, value, uint64(1234))
+}
+
 func TestParseSingleStat(t *testing.T) {
 	tempFolder, err := newTempFolder("test-parse-single-stat")
 	assert.Nil(t, err)
