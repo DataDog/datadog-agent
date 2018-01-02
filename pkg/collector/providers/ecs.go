@@ -44,6 +44,11 @@ func (p *ECSConfigProvider) String() string {
 	return "ECS container labels"
 }
 
+// IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to ECS' data.
+func (p *ECSConfigProvider) IsUpToDate() (bool, error) {
+	return false, nil
+}
+
 // Collect finds all running containers in the agent's task, reads their labels
 // and extract configuration templates from them for auto discovery.
 func (p *ECSConfigProvider) Collect() ([]check.Config, error) {
