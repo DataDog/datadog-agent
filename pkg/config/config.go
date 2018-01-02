@@ -189,6 +189,8 @@ func init() {
 	Datadog.BindEnv("histogram_percentiles")
 	Datadog.BindEnv("kubernetes_kubeconfig_path")
 
+	Datadog.BindEnv("process_agent_enabled")
+
 	// Logs
 	BindEnvAndSetDefault("log_enabled", false)
 	BindEnvAndSetDefault("logset", "")
