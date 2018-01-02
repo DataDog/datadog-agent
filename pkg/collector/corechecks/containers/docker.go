@@ -63,7 +63,7 @@ func (c *DockerConfig) Parse(data []byte) error {
 
 // DockerCheck grabs docker metrics
 type DockerCheck struct {
-	lastWarnings   []error
+	core.CheckBase
 	instance       *DockerConfig
 	lastEventTime  time.Time
 	dockerHostname string
@@ -287,10 +287,6 @@ func (d *DockerCheck) Run() error {
 // Stop does nothing
 func (d *DockerCheck) Stop() {}
 
-func (d *DockerCheck) String() string {
-	return dockerCheckName
-}
-
 // Configure parses the check configuration and init the check
 func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 	d.instance.Parse(config)
@@ -307,35 +303,10 @@ func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 	return nil
 }
 
-// Interval returns the scheduling time for the check
-func (d *DockerCheck) Interval() time.Duration {
-	return check.DefaultCheckInterval
-}
-
-// ID returns the name of the check since there should be only one instance running
-func (d *DockerCheck) ID() check.ID {
-	return check.ID(d.String())
-}
-
-// GetWarnings grabs the last warnings from the sender
-func (d *DockerCheck) GetWarnings() []error {
-	w := d.lastWarnings
-	d.lastWarnings = []error{}
-	return w
-}
-
-// GetMetricStats returns the stats from the last run of the check
-func (d *DockerCheck) GetMetricStats() (map[string]int64, error) {
-	sender, err := aggregator.GetSender(d.ID())
-	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
-	}
-	return sender.GetMetricStats(), nil
-}
-
 // DockerFactory is exported for integration testing
 func DockerFactory() check.Check {
 	return &DockerCheck{
+		CheckBase: core.NewCheckBase(dockerCheckName),
 		instance: &DockerConfig{},
 	}
 }
