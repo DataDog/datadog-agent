@@ -36,6 +36,7 @@ type KubeASCheck struct {
 	core.CheckBase
 	instance              *KubeASConfig
 	KubeAPIServerHostname string
+	eventResVersion       string
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -77,6 +78,32 @@ func (k *KubeASCheck) Run() error {
 	err = k.parseComponentStatus(sender, componentsStatus)
 	if err != nil {
 		k.Warn("could not collect API Server component status: ", err.Error())
+	}
+
+	newEvents, modifiedEvents, resVersion, err := asclient.LatestEvents(k.eventResVersion)
+
+	if resVersion != k.eventResVersion {
+		k.eventResVersion = resVersion
+		evToSubmit, err := k.aggregateEvents(newEvents, false)
+		if err != nil {
+			k.warn("could not get the new events from the Kubenetes API Server", err.Error())
+		}
+
+		// We send the events in 2 steps to make sure the new events are initializing the aggregation keys.
+		for _, ev := range evToSubmit {
+			sender.Event(ev)
+		}
+
+		if len(modifiedEvents) != 0 {
+			modifiedEv, err := k.aggregateEvents(modifiedEvents, true)
+			if err != nil {
+				k.warn("could not get the modified events from the Kubenetes API Server", err.Error())
+			}
+
+			for _, ev := range modifiedEv {
+				sender.Event(ev)
+			}
+		}
 	}
 	sender.Commit()
 	return nil
@@ -122,6 +149,27 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 	}
 	return nil
 }
+
+func (k *KubeASCheck) aggregateEvents(events []*v1.Event, modified bool) (evs []metrics.Event, err error) {
+	eventsByNode := make(map[string]*kubernetesEventBundle)
+	//TODO filteredByType := make(map[string]int)
+
+	for _, event := range events {
+		bundle, found := eventsByNode[*event.InvolvedObject.Uid]
+		if found == false {
+			bundle = newKubernetesEventBundler(*event.InvolvedObject.Uid)
+			eventsByNode[*event.InvolvedObject.Uid] = bundle
+		}
+		bundle.addEvent(event)
+	}
+	for _, bundle := range eventsByNode {
+		datadogEv, _ := bundle.formatEvents(k.KubeAPIServerHostname, modified)
+		datadogEv.Tags = append(datadogEv.Tags, k.instance.Tags...)
+		evs = append(evs, datadogEv)
+	}
+	return evs, nil
+}
+
 func init() {
 	core.RegisterCheck(kubernetesAPIServerCheckName, KubernetesASFactory)
 }
