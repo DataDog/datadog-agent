@@ -110,7 +110,7 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 }
 
 func (suite *KubeletTestSuite) TestGetLocalPodList() {
-	kubelet, err := newDummyKubelet("./test/podlist_1.6.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
@@ -139,7 +139,7 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 }
 
 func (suite *KubeletTestSuite) TestGetNodeInfo() {
-	kubelet, err := newDummyKubelet("./test/podlist_1.6.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
@@ -168,7 +168,7 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 }
 
 func (suite *KubeletTestSuite) TestGetPodForContainerID() {
-	kubelet, err := newDummyKubelet("./test/podlist_1.6.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
