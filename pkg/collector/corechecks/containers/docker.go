@@ -284,9 +284,6 @@ func (d *DockerCheck) Run() error {
 	return nil
 }
 
-// Stop does nothing
-func (d *DockerCheck) Stop() {}
-
 // Configure parses the check configuration and init the check
 func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 	d.instance.Parse(config)
@@ -307,7 +304,7 @@ func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 func DockerFactory() check.Check {
 	return &DockerCheck{
 		CheckBase: core.NewCheckBase(dockerCheckName),
-		instance: &DockerConfig{},
+		instance:  &DockerConfig{},
 	}
 }
 

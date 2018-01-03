@@ -46,9 +46,9 @@ type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
-	blacklist    *regexp.Regexp
-	drivemap     map[string]Win32_PerfRawData_PerfDisk_LogicalDisk
-	lastWarnings []error
+	core.CheckBase
+	blacklist *regexp.Regexp
+	drivemap  map[string]Win32_PerfRawData_PerfDisk_LogicalDisk
 }
 
 // Configure the IOstats check

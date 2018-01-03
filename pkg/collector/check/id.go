@@ -13,13 +13,18 @@ import (
 // ID is the representation of the unique ID of a Check instance
 type ID string
 
-// Identify returns the ID of the check
+// Identify returns a unique ID for a check and its configuration
 func Identify(check Check, instance ConfigData, initConfig ConfigData) ID {
+	return BuildID(check.String(), instance, initConfig)
+}
+
+// BuildID returns a unique ID for a check name and its configuration
+func BuildID(checkName string, instance, initConfig ConfigData) ID {
 	h := fnv.New64()
 	h.Write([]byte(instance))
 	h.Write([]byte(initConfig))
 
-	id := check.String() + ":"
+	id := checkName + ":"
 	id += strconv.FormatUint(h.Sum64(), 16)
 	return ID(id)
 }

@@ -6,73 +6,101 @@
 package corechecks
 
 import (
-    "fmt"
-    "time"
+	"fmt"
+	"time"
 
-    "github.com/DataDog/datadog-agent/pkg/collector/check"
-    "github.com/DataDog/datadog-agent/pkg/aggregator"
-    log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	log "github.com/cihub/seelog"
 )
 
-// CheckBase provides default for most methods required by
-// the check.Check interface to make it easier to bootstrap a
-// new corecheck.
+// CheckBase provides default implementations for most of the check.Check
+// interface to make it easier to bootstrap a new corecheck.
+//
+// To use it, you need to embed it in your check struct, by calling
+// NewCheckBase() in your factory, plus:
+// - long-running checks must override Stop() and Interval()
+// - checks supporting multiple instances must call BuildID() from
+// their Config() method
+//
+// Integration warnings are handled via the Warn and Warnf methods
+// that forward the warning to the logger and send the warning to
+// the collector for display in the status page and the web UI.
 type CheckBase struct {
-    checkId      string
-    lastWarnings []error
+	checkName      string
+	checkID        check.ID
+	latestWarnings []error
 }
 
-func NewCheckBase(id string) CheckBase {
-    return CheckBase{
-        checkId: id,
-    }
+// NewCheckBase returns a check base struct with a given check name
+func NewCheckBase(name string) CheckBase {
+	return CheckBase{
+		checkName: name,
+		checkID:   check.ID(name),
+	}
 }
 
-func (c *CheckBase) String() string {
-    return c.checkId
+// BuildID is to be called by the check's Config() method to generate
+// the unique check ID.
+func (c *CheckBase) BuildID(instance, initConfig check.ConfigData) {
+	c.checkID = check.BuildID(c.checkName, instance, initConfig)
 }
 
-// ID returns the name of the check since there should be only one instance running
-func (c *CheckBase) ID() check.ID {
-    return check.ID(c.String())
+// Warn sends an integration warning to logs + agent status.
+func (c *CheckBase) Warn(v ...interface{}) error {
+	w := log.Warn(v)
+	c.latestWarnings = append(c.latestWarnings, w)
+
+	return w
 }
 
-// Interval returns the scheduling time for the check
+// Warnf sends an integration warning to logs + agent status.
+func (c *CheckBase) Warnf(format string, params ...interface{}) error {
+	w := log.Warnf(format, params)
+	c.latestWarnings = append(c.latestWarnings, w)
+
+	return w
+}
+
+// Stop does nothing by default, you need to implement it in
+// long-running checks (persisting after Run() exits)
+func (c *CheckBase) Stop() {}
+
+// Interval returns the scheduling time for the check.
+// Long-running checks should override to return 0.
 func (c *CheckBase) Interval() time.Duration {
-    return check.DefaultCheckInterval
+	return check.DefaultCheckInterval
 }
 
-// GetWarnings grabs the last warnings from the sender
+// String returns the name of the check, the same for every instance
+func (c *CheckBase) String() string {
+	return c.checkName
+}
+
+// ID returns a unique ID for that check instance
+//
+// For checks that only support one instance, the default value is
+// the check name. Regular checks must call BuildID() from Config()
+// to build their ID.
+func (c *CheckBase) ID() check.ID {
+	return c.checkID
+}
+
+// GetWarnings grabs the latest integration warnings for the check.
 func (c *CheckBase) GetWarnings() []error {
-    if len(c.lastWarnings) == 0 {
-        return nil
-    }
-    w := c.lastWarnings
-    c.lastWarnings = []error{}
-    return w
+	if len(c.latestWarnings) == 0 {
+		return nil
+	}
+	w := c.latestWarnings
+	c.latestWarnings = []error{}
+	return w
 }
 
-// Warn will log a warning and add it to the warnings
-func (c *CheckBase) warn(v ...interface{}) error {
-    w := log.Warn(v)
-    c.lastWarnings = append(c.lastWarnings, w)
-
-    return w
-}
-
-// Warnf will log a formatted warning and add it to the warnings
-func (c *CheckBase) warnf(format string, params ...interface{}) error {
-    w := log.Warnf(format, params)
-    c.lastWarnings = append(c.lastWarnings, w)
-
-    return w
-}
-
-// GetMetricStats returns the stats from the last run of the check
+// GetMetricStats returns the stats from the last run of the check.
 func (c *CheckBase) GetMetricStats() (map[string]int64, error) {
-    sender, err := aggregator.GetSender(c.ID())
-    if err != nil {
-        return nil, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
-    }
-    return sender.GetMetricStats(), nil
+	sender, err := aggregator.GetSender(c.ID())
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve a sender: %v", err)
+	}
+	return sender.GetMetricStats(), nil
 }
