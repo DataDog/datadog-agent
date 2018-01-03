@@ -101,8 +101,8 @@ func TestMemLimit(t *testing.T) {
 
 // TestDindContainer is to test if our agent can handle dind container correctly
 func TestDindContainer(t *testing.T) {
-	containerId := "6ab998413f7ae63bb26403dfe9e7ec02aa92b5cfc019de79da925594786c985f"
-	tempFolder, cgroup, err := newDindContainerCgroup("dind-container", "memory", containerId)
+	containerID := "6ab998413f7ae63bb26403dfe9e7ec02aa92b5cfc019de79da925594786c985f"
+	tempFolder, cgroup, err := newDindContainerCgroup("dind-container", "memory", containerID)
 	assert.NoError(t, err)
 	tempFolder.add("memory.limit_in_bytes", "1234")
 	defer tempFolder.removeAll()

@@ -75,23 +75,23 @@ func newDummyContainerCgroup(rootPath string, targets ...string) *ContainerCgrou
 	return cgroup
 }
 
-func newDindContainerCgroup(namePrefix, target, containerId string) (*tempFolder, *ContainerCgroup, error) {
+func newDindContainerCgroup(namePrefix, target, containerID string) (*tempFolder, *ContainerCgroup, error) {
 	// first make a dir that matches the actual cgroup path(contains only one level of container id)
 	path, err := ioutil.TempDir("", namePrefix)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	actualPath := filepath.Join(path, "docker", containerId)
+	actualPath := filepath.Join(path, "docker", containerID)
 	err = os.MkdirAll(actualPath, 0777)
 	if err != nil {
 		return nil, nil, err
 	}
 	t := &tempFolder{actualPath}
-	dindContainerId := "ada6d7f86865047ecbca0eedc44722173cf48c0ff7184a61ed56a80e7564bc0c"
+	dindContainerID := "ada6d7f86865047ecbca0eedc44722173cf48c0ff7184a61ed56a80e7564bc0c"
 	return t, &ContainerCgroup{
 		ContainerID: "dummy",
 		Mounts:      map[string]string{target: path},
-		Paths:       map[string]string{target: filepath.Join("/docker", dindContainerId, "docker", containerId)},
+		Paths:       map[string]string{target: filepath.Join("/docker", dindContainerID, "docker", containerID)},
 	}, nil
 }
