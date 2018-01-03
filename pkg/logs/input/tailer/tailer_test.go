@@ -9,15 +9,17 @@ package tailer
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/suite"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/stretchr/testify/suite"
 )
 
 var chanSize = 10
@@ -34,9 +36,10 @@ type TailerTestSuite struct {
 }
 
 func (suite *TailerTestSuite) SetupTest() {
-	suite.testDir = "tests/tailer"
-	os.Remove(suite.testDir)
-	os.MkdirAll(suite.testDir, os.ModeDir)
+	var err error
+	suite.testDir, err = ioutil.TempDir("", "log-tailer-test-")
+	suite.Nil(err)
+
 	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
@@ -46,7 +49,7 @@ func (suite *TailerTestSuite) SetupTest() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	}
-	suite.tl = NewTailer(suite.outputChan, suite.source)
+	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath)
 	suite.tl.sleepDuration = 10 * time.Millisecond
 }
 
@@ -70,11 +73,11 @@ func (suite *TailerTestSuite) TestTailerTails() {
 	msg = <-suite.outputChan
 	suite.Equal("hello again", string(msg.Content()))
 
-	suite.Equal("file:tests/tailer/tailer.log", suite.tl.Identifier())
+	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
 }
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
-	suite.Equal("file:tests/tailer/tailer.log", suite.tl.Identifier())
+	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
 }
 
 func (suite *TailerTestSuite) TestTailerLifecycle() {
@@ -151,7 +154,7 @@ func (suite *TailerTestSuite) TestTailerIsTooSlowAndClosed() {
 	testPath := fmt.Sprintf("%s/tailer2.log", suite.testDir)
 	testFile, _ := os.Create(testPath)
 	defer testFile.Close()
-	tl := NewTailer(nil, &config.IntegrationConfigLogSource{Type: config.FileType, Path: testPath})
+	tl := NewTailer(nil, &config.IntegrationConfigLogSource{Type: config.FileType, Path: testPath}, testPath)
 	tl.sleepDuration = 50 * time.Millisecond
 	tl.closeTimeout = 2 * time.Millisecond
 

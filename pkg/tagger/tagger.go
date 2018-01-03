@@ -221,10 +221,8 @@ func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
 	if entity == "" {
 		return nil, errors.New("empty entity ID")
 	}
-	cachedTags, sources, err := t.tagStore.lookup(entity, highCard)
-	if err != nil {
-		return nil, err
-	}
+	cachedTags, sources := t.tagStore.lookup(entity, highCard)
+
 	if len(sources) == len(t.fetchers) {
 		// All sources sent data to cache
 		return cachedTags, nil
@@ -241,7 +239,7 @@ ITER_COLLECTORS:
 				continue ITER_COLLECTORS // source was in cache, don't lookup again
 			}
 		}
-		log.Debugf("cache miss for %s, collecting", name)
+		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
 		low, high, err := collector.Fetch(entity)
 		switch {
 		case err == collectors.ErrNotFound:

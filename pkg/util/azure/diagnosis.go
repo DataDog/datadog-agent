@@ -14,7 +14,7 @@ func init() {
 	diagnosis.Register("Azure Metadata availability", diagnose)
 }
 
-// diagnose the docker availability on the system
+// diagnose the azure metadata API availability
 func diagnose() error {
 	_, err := GetHostAlias()
 	if err != nil {

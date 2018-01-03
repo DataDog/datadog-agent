@@ -64,12 +64,14 @@ func init() {
 	// Configuration defaults
 	// Agent
 	Datadog.SetDefault("dd_url", "https://app.datadoghq.com")
+	Datadog.SetDefault("app_key", "")
 	Datadog.SetDefault("proxy", nil)
 	Datadog.SetDefault("skip_ssl_validation", false)
 	Datadog.SetDefault("hostname", "")
 	Datadog.SetDefault("tags", []string{})
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
+	Datadog.SetDefault("confd_dca_path", defaultDCAConfdPath)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("log_to_syslog", false)
@@ -134,6 +136,10 @@ func init() {
 	// Kubernetes
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
+
+	// Kube ApiServer
+	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
+
 	// ECS
 	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
 
@@ -155,6 +161,7 @@ func init() {
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
+	Datadog.BindEnv("app_key")
 	Datadog.BindEnv("hostname")
 	Datadog.BindEnv("cmd_port")
 	Datadog.BindEnv("conf_path")
@@ -173,12 +180,16 @@ func init() {
 	Datadog.BindEnv("kubernetes_kubelet_host")
 	Datadog.BindEnv("kubernetes_http_kubelet_port")
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
+
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
 	Datadog.BindEnv("cloud_foundry")
 	Datadog.BindEnv("bosh_id")
 	Datadog.BindEnv("histogram_aggregates")
 	Datadog.BindEnv("histogram_percentiles")
+	Datadog.BindEnv("kubernetes_kubeconfig_path")
+
+	Datadog.BindEnv("process_agent_enabled")
 
 	// Logs
 	BindEnvAndSetDefault("log_enabled", false)

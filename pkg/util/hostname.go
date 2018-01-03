@@ -103,8 +103,8 @@ func GetHostname() (string, error) {
 		return name, err
 	}
 
-	log.Warnf("unable to get the hostname from the config file: %s", err)
-	log.Warn("trying to determine a reliable host name automatically...")
+	log.Debugf("Unable to get the hostname from the config file: %s", err)
+	log.Debug("Trying to determine a reliable host name automatically...")
 
 	// GCE metadata
 	log.Debug("GetHostname trying GCE metadata...")
@@ -113,6 +113,7 @@ func GetHostname() (string, error) {
 		if err == nil {
 			return name, err
 		}
+		log.Debug("Unable to get hostname from GCE: ", err)
 	}
 
 	isContainerized, name := getContainerHostname()
@@ -126,6 +127,8 @@ func GetHostname() (string, error) {
 		name, err = os.Hostname()
 		if err == nil {
 			hostName = name
+		} else {
+			log.Debug("Unable to get hostname from OS: ", err)
 		}
 	}
 
@@ -136,13 +139,21 @@ func GetHostname() (string, error) {
 	if getEC2Hostname, found := hostname.ProviderCatalog["ec2"]; found {
 		log.Debug("GetHostname trying EC2 metadata...")
 		instanceID, err := getEC2Hostname(name)
-		if err == nil && ValidHostname(instanceID) == nil {
-			hostName = name
+		if err == nil {
+			err = ValidHostname(instanceID)
+			if err == nil {
+				hostName = instanceID
+			} else {
+				log.Debug("EC2 instance ID is not a valid hostname: ", err)
+			}
+		} else {
+			log.Debug("Unable to determine hostname from EC2: ", err)
 		}
 	}
+
 	// If at this point we don't have a name, bail out
 	if hostName == "" {
-		err = fmt.Errorf("Unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
+		err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")
 	} else {
 		// we got a hostname, residual errors are irrelevant now
 		err = nil

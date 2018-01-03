@@ -30,18 +30,14 @@ func getUDSAncillarySize() int {
 // enableUDSPassCred enables credential passing from the kernel for origin detection.
 // That flag can be ignored if origin dection is disabled.
 func enableUDSPassCred(conn *net.UnixConn) error {
-	f, err := conn.File()
-	defer f.Close()
+	rawconn, err := conn.SyscallConn()
+	if err != nil {
+		return err
+	}
 
-	if err != nil {
-		return err
-	}
-	fd := int(f.Fd())
-	err = unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_PASSCRED, 1)
-	if err != nil {
-		return err
-	}
-	return nil
+	return rawconn.Control(func(fd uintptr) {
+		unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_PASSCRED, 1)
+	})
 }
 
 // processUDSOrigin reads ancillary data to determine a packet's origin,

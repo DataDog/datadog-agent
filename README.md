@@ -15,7 +15,7 @@ currently in Beta. The source code of the stable Datadog Agent 5 is located in t
 ## Getting started
 
 To build the Agent you need:
- * [Go](https://golang.org/doc/install) 1.8.1 or later.
+ * [Go](https://golang.org/doc/install) 1.9.2 or later.
  * Python 2.7 along with development libraries.
  * [Invoke](http://www.pyinvoke.org/installing.html), you can install it via
    `pip install invoke` or via [Homebrew](https://brew.sh) on OSX/macOS with

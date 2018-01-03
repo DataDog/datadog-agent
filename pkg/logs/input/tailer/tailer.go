@@ -49,9 +49,9 @@ type Tailer struct {
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan message.Message, source *config.IntegrationConfigLogSource) *Tailer {
+func NewTailer(outputChan chan message.Message, source *config.IntegrationConfigLogSource, path string) *Tailer {
 	return &Tailer{
-		path:       source.Path,
+		path:       path,
 		outputChan: outputChan,
 		d:          decoder.InitializeDecoder(source),
 		source:     source,
@@ -69,7 +69,7 @@ func NewTailer(outputChan chan message.Message, source *config.IntegrationConfig
 
 // Identifier returns a string that uniquely identifies a source
 func (t *Tailer) Identifier() string {
-	return fmt.Sprintf("file:%s", t.source.Path)
+	return fmt.Sprintf("file:%s", t.path)
 }
 
 // recoverTailing starts the tailing from the last log line processed, or now

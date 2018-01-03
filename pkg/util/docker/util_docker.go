@@ -26,3 +26,8 @@ func buildDockerFilter(args ...string) (filters.Args, error) {
 	}
 	return filter, nil
 }
+
+// GetInspectCacheKey returns the key to a given container ID inspect in the agent cache
+func GetInspectCacheKey(ID string, withSize bool) string {
+	return fmt.Sprintf("dockerutil.containers.%s.withsize.%t", ID, withSize)
+}

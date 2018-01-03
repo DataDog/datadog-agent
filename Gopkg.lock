@@ -14,6 +14,12 @@
   revision = "d80d0f562a71fa2380fbeccc93ba5a2e325606e4"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/DataDog/mmh3"
+  packages = ["."]
+  revision = "2cfb68475274527a10701355c739f31dd404718c"
+
+[[projects]]
   branch = "1.x"
   name = "github.com/DataDog/zstd"
   packages = ["."]
@@ -70,12 +76,6 @@
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "6d212800a42e8ab5c146b8ace3490ee17e5225f9"
-
-[[projects]]
-  name = "github.com/dgrijalva/jwt-go"
-  packages = ["."]
-  revision = "dbeaa9332f19a944acb5736b4456cfcc02140e29"
-  version = "v3.1.0"
 
 [[projects]]
   name = "github.com/docker/distribution"
@@ -401,6 +401,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d4f29aad1567ef7834793cec163267bd4d9a5a7009784ff2c5844cec8171b16c"
+  inputs-digest = "c2077c0c76de7e9f127153bfe9b20fb511398a03e7821e713b8cbc841bce9d72"
   solver-name = "gps-cdcl"
   solver-version = 1

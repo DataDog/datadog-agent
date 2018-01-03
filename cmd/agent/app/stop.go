@@ -34,14 +34,17 @@ func init() {
 func stop(*cobra.Command, []string) error {
 	// Global Agent configuration
 	common.SetupConfig("")
-	c := common.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	util.SetAuthToken()
+	e := util.SetAuthToken()
+	if e != nil {
+		return e
+	}
 
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/stop", config.Datadog.GetInt("cmd_port"))
 
-	_, e := common.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	_, e = util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {
 		return fmt.Errorf("Error stopping the agent: %v", e)
 	}

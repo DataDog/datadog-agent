@@ -48,9 +48,12 @@ func StartServer() error {
 		// no way we can recover from this error
 		return fmt.Errorf("Unable to create the api server: %v", err)
 	}
-	util.SetAuthToken()
 
-	//
+	err = util.SetAuthToken()
+	if err != nil {
+		return err
+	}
+
 	hosts := []string{"127.0.0.1", "localhost"}
 	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
 	if err != nil {

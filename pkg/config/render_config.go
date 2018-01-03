@@ -21,6 +21,7 @@ type context struct {
 	Agent             bool
 	Metadata          bool
 	Dogstatsd         bool
+	LogsAgent         bool
 	JMX               bool
 	Autoconfig        bool
 	Logging           bool
@@ -29,6 +30,7 @@ type context struct {
 	KubernetesTagging bool
 	ECS               bool
 	ProcessAgent      bool
+	KubeApiServer     bool
 }
 
 func mkContext(buildType string) context {
@@ -41,6 +43,7 @@ func mkContext(buildType string) context {
 			Agent:             true,
 			Metadata:          true,
 			Dogstatsd:         true,
+			LogsAgent:         true,
 			JMX:               true,
 			Autoconfig:        true,
 			Logging:           true,
@@ -58,6 +61,12 @@ func mkContext(buildType string) context {
 			Logging:           true,
 			KubernetesTagging: true,
 			ECS:               true,
+		}
+	case "dca":
+		return context{
+			Common:        true,
+			Logging:       true,
+			KubeApiServer: true,
 		}
 	}
 

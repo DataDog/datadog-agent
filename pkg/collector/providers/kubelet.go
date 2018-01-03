@@ -56,6 +56,11 @@ func (k *KubeletConfigProvider) Collect() ([]check.Config, error) {
 	return parseKubeletPodlist(pods)
 }
 
+// Updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Kubernetes's data.
+func (k *KubeletConfigProvider) IsUpToDate() (bool, error) {
+	return false, nil
+}
+
 func parseKubeletPodlist(podlist []*kubelet.Pod) ([]check.Config, error) {
 	var configs []check.Config
 	for _, pod := range podlist {

@@ -130,7 +130,7 @@ func (suite *PodwatcherTestSuite) TestPullChanges() {
 	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
 	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
 
-	watcher, err := NewPodWatcher()
+	watcher, err := NewPodWatcher(5 * time.Minute)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), watcher)
 	<-kubelet.Requests // Throwing away /healthz GET

@@ -12,6 +12,7 @@ import (
 	// 3p
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -26,7 +27,7 @@ func TestGenerateContextKey(t *testing.T) {
 	}
 
 	contextKey := generateContextKey(&mSample)
-	assert.Equal(t, "my.metric.name,bar,foo,metric-hostname", contextKey)
+	assert.Equal(t, "f15c7df5722489dd29b6dbcd0cafda62", contextKey.String())
 }
 
 func TestTrackContext(t *testing.T) {
@@ -83,7 +84,8 @@ func TestTrackContext(t *testing.T) {
 	assert.Equal(t, expectedContext3, *context3)
 
 	// Looking for a missing context key returns an error
-	_, ok := contextResolver.contextsByKey["missingContextKey"]
+	unknownContextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
+	_, ok := contextResolver.contextsByKey[unknownContextKey]
 	assert.False(t, ok)
 }
 

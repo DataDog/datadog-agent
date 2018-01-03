@@ -219,12 +219,60 @@ build_windows_msi_x64:
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv -e deps
   stage: package_build
-  tags: ["runner:windows"]
+  tags: ["runner:windows-agent6"]
   script:
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv agent.omnibus-build
   after_script:
     - '"C:\Program Files\Amazon\AWSCLI\aws.exe" s3 cp --profile ci-datadog-agent %S3_CP_OPTIONS% --recursive --exclude "*" --include "*.msi" .omnibus/pkg/ %S3_ARTEFACTS_URI%/'
+
+# build Cluster Agent package for deb-x64
+cluster-agent_deb-x64:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    # Artifacts and cache must live within project directory but we run omnibus
+    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
+    # pointing to a gitlab-friendly location.
+    - inv -e cluster-agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR
+    - dpkg -c $OMNIBUS_PACKAGE_DIR/datadog-cluster-agent*_amd64.deb
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-cluster-agent*_amd64.deb $S3_ARTEFACTS_URI/datadog-cluster-agent_amd64.deb
+  cache:
+    # cache per branch
+    key: $CI_COMMIT_REF_NAME
+    paths:
+      - $OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+
+# build Cluster Agent package for rpm-x64
+cluster-agent_rpm-x64:
+  stage: package_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    # Artifacts and cache must live within project directory but we run omnibus
+    # from the GOPATH (see above). We then call `invoke` passing --base-dir,
+    # pointing to a gitlab-friendly location.
+    - set +x
+    - RPM_GPG_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_private_key --with-decryption --query "Parameter.Value" --out text)
+    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
+    - export RPM_SIGNING_PASSPHRASE=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.rpm_signing_key_passphrase --with-decryption --query "Parameter.Value" --out text)
+    - set -x
+    - inv -e cluster-agent.omnibus-build --base-dir $OMNIBUS_BASE_DIR
+    - rpm -i $OMNIBUS_PACKAGE_DIR/*.rpm
+  cache:
+    # cache per branch
+    key: $CI_COMMIT_REF_NAME
+    paths:
+      - $OMNIBUS_BASE_DIR
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
 
 # build Dogstastd package for deb-x64
 dogstatsd_deb-x64:
@@ -328,6 +376,14 @@ build_agent6_jmx:
     DD_DIND_BUILD_ARG: "WITH_JMX=true"
     DD_DIND_ARTEFACTS: "true"
 
+# build the cluster-agent image
+build_cluster_agent:
+  <<: *dind_job_definition
+  variables:
+    DD_DIND_BUILD_CONTEXT: Dockerfiles/cluster-agent
+    DD_DIND_IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/cluster-agent:pipeline-$CI_PIPELINE_ID
+    DD_DIND_ARTEFACTS: "true"
+
 # build the dogstatsd image
 build_dogstatsd:
   <<: *dind_job_definition
@@ -345,28 +401,6 @@ build_dogstatsd:
   tags: [ "runner:dind", "size:large" ]
   stage: image_deploy
   script: [ "# noop" ]
-
-agent6_docker_hub:
-  <<: *dind_tag_job_definition
-  when: manual
-  only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
-  variables:
-    DD_DIND_TAG_SOURCE: *agent_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/agent:$CI_COMMIT_TAG
-
-agent6_jmx_docker_hub:
-  <<: *dind_tag_job_definition
-  when: manual
-  only:
-    - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
-  variables:
-    DD_DIND_TAG_SOURCE: *agent_jmx_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/agent:${CI_COMMIT_TAG}-jmx
 
 agent6_dev_docker_hub:
   <<: *dind_tag_job_definition
@@ -406,16 +440,15 @@ agent6_jmx_dev_docker_hub_master:
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
     DD_DIND_TAG_DEST: datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
 
-dogstatsd_docker_hub:
+cluster_agent_dev_docker_hub:
   <<: *dind_tag_job_definition
   when: manual
-  only:
+  except:
     - master
-    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
-    DD_DIND_TAG_SOURCE: *dogstatsd_ecr
+    DD_DIND_TAG_SOURCE: *cluster-agent_ecr
     DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/dogstatsd:$CI_COMMIT_TAG
+    DD_DIND_TAG_DEST: datadog/cluster-agent-dev:$CI_COMMIT_REF_SLUG
 
 dogstatsd_dev_docker_hub:
   <<: *dind_tag_job_definition
@@ -473,6 +506,9 @@ deploy_deb:
     - echo "$APT_SIGNING_KEY_DEPRECATED_ID"
     - printf -- "$APT_SIGNING_PRIVATE_KEY_DEPRECATED" | gpg --import --batch
 
+    # grab the updated public key to extend the expiration date
+    - gpg --keyserver hkp://keyserver.ubuntu.com:80 --receive-keys "$APT_SIGNING_KEY_DEPRECATED_ID"
+
     # FIXME: remove this once we move to the new apt repo on our staging and production environments
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET_DEPRECATED -a amd64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c unstable -b $DEB_S3_BUCKET_DEPRECATED -a x86_64 --sign=$APT_SIGNING_KEY_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
@@ -485,6 +521,7 @@ deploy_deb:
 
     - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
     - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+
 
 # deploy rpm packages to yum staging repo
 deploy_rpm:
@@ -538,3 +575,99 @@ deploy_dsd:
     - $S3_CP_CMD $S3_ARTEFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
     - export VERSION=$(inv version)
     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/dogstatsd-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+tag_push_agent:
+  <<: *dind_tag_job_definition
+  stage: deploy
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent:$CI_COMMIT_TAG
+
+tag_jmx_push_agent:
+  <<: *dind_tag_job_definition
+  stage: deploy
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_jmx_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent:${CI_COMMIT_TAG}-jmx
+
+latest_push_agent:
+  <<: *dind_tag_job_definition
+  stage: deploy
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent:latest
+
+latest_jmx_push_agent:
+  <<: *dind_tag_job_definition
+  stage: deploy
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *agent_jmx_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/agent:latest-jmx
+
+tag_push_cluster_agent:
+  <<: *dind_tag_job_definition
+  stage: deploy
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *cluster-agent_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/cluster-agent:$CI_COMMIT_TAG
+
+latest_push_cluster_agent:
+  <<: *dind_tag_job_definition
+  stage: deploy
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *cluster-agent_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/cluster-agent:latest
+
+tag_dsd_push:
+  <<: *dind_tag_job_definition
+  stage: deploy
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *dogstatsd_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/dogstatsd:$CI_COMMIT_TAG
+
+latest_dsd_push:
+  <<: *dind_tag_job_definition
+  stage: deploy
+  when: manual
+  only:
+    - master
+    - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
+  variables:
+    DD_DIND_TAG_SOURCE: *dogstatsd_ecr
+    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
+    DD_DIND_TAG_DEST: datadog/dogstatsd:latest

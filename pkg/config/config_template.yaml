@@ -19,7 +19,9 @@ api_key:
 #     - host1
 #     - host2
 
-# If you run the agent behind haproxy, you might want to set this to yes
+# Setting this option to "yes" will tell the agent to skip validation of SSL/TLS certificates.
+# This may be necessary if the agent is running behind a proxy. See this page for details:
+# https://github.com/DataDog/dd-agent/wiki/Proxy-Configuration#using-haproxy-as-a-proxy
 # skip_ssl_validation: no
 
 # Force the hostname to whatever you want. (default: auto-detected)
@@ -125,6 +127,12 @@ metadata_collectors:
 #
 # The port for the go_expvar server
 # dogstatsd_stats_port: 5000
+{{ end -}}
+{{- if .LogsAgent }}
+# Logs agent
+#
+# Logs agent is disabled by default
+# log_enabled: false
 {{ end -}}
 {{- if .JMX }}
 # JMX
@@ -276,7 +284,20 @@ metadata_collectors:
 #
 # URL where the ECS agent can be found. Standard cases will be autodetected.
 # ecs_agent_url: http://localhost:51678
+#
 {{ end -}}
+{{- if .KubeApiServer }}
+# Kubernetes apiserver integration
+#
+# When running in a pod, the agent will automatically use the pod's serviceaccount
+# to authenticate with the apiserver. If you wish to install the agent out of a pod
+# or customise connection parameters, you can provide the path to a KubeConfig file
+# see https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
+#
+# kubernetes_kubeconfig_path: /path/to/file
+#
+{{ end -}}
+
 {{- if .ProcessAgent }}
 # Process agent specific settings
 #

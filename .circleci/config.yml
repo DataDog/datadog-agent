@@ -13,7 +13,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.1.1
+      - image: jfullaondo/datadog-agent-builder-deb:0.2.0
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -77,6 +77,16 @@ jobs:
           name: run integration tests
           command: inv  -e integration-tests --race --remote-docker
 
+  reno_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - setup_remote_docker
+      - run:
+          name: run reno linting
+          command: inv -e lint-releasenote
+
   docker_integration_tests:
     <<: *job_template
     steps:
@@ -107,6 +117,9 @@ jobs:
       - run:
           name: build puppy
           command: inv agent.build --puppy
+      - run:
+          name: test puppy
+          command: ./bin/agent/agent -c ./bin/agent/dist check cpu
 
 workflows:
   version: 2
@@ -120,6 +133,9 @@ workflows:
           requires:
             - dependencies
       - integration_tests:
+          requires:
+            - dependencies
+      - reno_linting:
           requires:
             - dependencies
       - docker_integration_tests:

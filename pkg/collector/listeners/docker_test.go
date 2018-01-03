@@ -85,6 +85,36 @@ func TestGetHostsFromPs(t *testing.T) {
 	assert.Equal(t, 2, len(hosts))
 }
 
+func TestGetRancherIPFromPs(t *testing.T) {
+	dl := DockerListener{}
+
+	co := types.Container{
+		ID:    "foo",
+		Image: "test",
+	}
+
+	assert.Empty(t, dl.getHostsFromPs(co))
+
+	nets := make(map[string]*network.EndpointSettings)
+	nets["none"] = &network.EndpointSettings{}
+	networkSettings := types.SummaryNetworkSettings{
+		Networks: nets}
+
+	co = types.Container{
+		ID:              "deadbeef",
+		Image:           "test",
+		NetworkSettings: &networkSettings,
+		Ports:           []types.Port{{PrivatePort: 1337}, {PrivatePort: 42}},
+		Labels: map[string]string{
+			"io.rancher.container.ip": "10.42.90.224/16",
+		},
+	}
+	hosts := dl.getHostsFromPs(co)
+
+	assert.Equal(t, "10.42.90.224", hosts["rancher"])
+	assert.Equal(t, 1, len(hosts))
+}
+
 func TestGetPortsFromPs(t *testing.T) {
 	dl := DockerListener{}
 
@@ -115,7 +145,7 @@ func TestGetADIdentifiers(t *testing.T) {
 		Config:            &container.Config{},
 		NetworkSettings:   &types.NetworkSettings{},
 	}
-	cacheKey := docker.GetInspectCacheKey("deadbeef")
+	cacheKey := docker.GetInspectCacheKey("deadbeef", false)
 	cache.Cache.Set(cacheKey, co, 10*time.Second)
 
 	ids, err := s.GetADIdentifiers()
@@ -149,7 +179,7 @@ func TestGetHosts(t *testing.T) {
 		NetworkSettings:   &types.NetworkSettings{},
 	}
 	// add cj to the cache to avoir having to query docker in the test
-	cacheKey := docker.GetInspectCacheKey(id)
+	cacheKey := docker.GetInspectCacheKey(id, false)
 	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
 	svc := DockerService{
@@ -185,7 +215,7 @@ func TestGetHosts(t *testing.T) {
 		NetworkSettings:   &networkSettings,
 	}
 	// update cj in the cache
-	cacheKey = docker.GetInspectCacheKey(id)
+	cacheKey = docker.GetInspectCacheKey(id, false)
 	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
 	svc = DockerService{
@@ -196,6 +226,42 @@ func TestGetHosts(t *testing.T) {
 	assert.Equal(t, "172.17.0.2", hosts["bridge"])
 	assert.Equal(t, "172.17.0.3", hosts["foo"])
 	assert.Equal(t, 2, len(hosts))
+}
+
+func TestGetRancherIP(t *testing.T) {
+	id := "fooooooooooo"
+	cBase := types.ContainerJSONBase{
+		ID:    id,
+		Image: "test",
+	}
+
+	nets := make(map[string]*network.EndpointSettings)
+	nets["none"] = &network.EndpointSettings{}
+
+	networkSettings := types.NetworkSettings{
+		Networks: nets,
+	}
+
+	cj := types.ContainerJSON{
+		ContainerJSONBase: &cBase,
+		Mounts:            make([]types.MountPoint, 0),
+		Config: &container.Config{Labels: map[string]string{
+			"io.datadog.check.id":     "w00tw00t",
+			"io.rancher.container.ip": "10.42.90.224/16",
+		}},
+		NetworkSettings: &networkSettings,
+	}
+	// add cj to the cache to avoir having to query docker in the test
+	cacheKey := docker.GetInspectCacheKey(id, false)
+	cache.Cache.Set(cacheKey, cj, 10*time.Second)
+
+	svc := DockerService{
+		ID: ID(id),
+	}
+
+	hosts, _ := svc.GetHosts()
+	assert.Equal(t, "10.42.90.224", hosts["rancher"])
+	assert.Equal(t, 1, len(hosts))
 }
 
 func TestGetPorts(t *testing.T) {
@@ -218,7 +284,7 @@ func TestGetPorts(t *testing.T) {
 		NetworkSettings:   &networkSettings,
 	}
 	// add cj to the cache so svc.GetPorts finds it
-	cacheKey := docker.GetInspectCacheKey(id)
+	cacheKey := docker.GetInspectCacheKey(id, false)
 	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
 	svc := DockerService{
@@ -251,7 +317,7 @@ func TestGetPorts(t *testing.T) {
 		NetworkSettings:   &networkSettings,
 	}
 	// add cj to the cache so svc.GetPorts finds it
-	cacheKey = docker.GetInspectCacheKey(id)
+	cacheKey = docker.GetInspectCacheKey(id, false)
 	cache.Cache.Set(cacheKey, cj, 10*time.Second)
 
 	svc = DockerService{
@@ -275,7 +341,7 @@ func TestGetPid(t *testing.T) {
 		State: &state,
 	}
 	co := types.ContainerJSON{ContainerJSONBase: &cBase}
-	cacheKey := docker.GetInspectCacheKey("foo")
+	cacheKey := docker.GetInspectCacheKey("foo", false)
 	cache.Cache.Set(cacheKey, co, 10*time.Second)
 
 	pid, err := s.GetPid()

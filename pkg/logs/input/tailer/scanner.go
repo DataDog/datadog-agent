@@ -19,18 +19,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
+// scanPeriod represents the period of scanning
 const scanPeriod = 10 * time.Second
 
-// Scanner checks all files metadata and updates its tailers if needed
+// Scanner checks all files provided by fileProvider and create new tailers
+// or update the old ones if needed
 type Scanner struct {
-	sources []*config.IntegrationConfigLogSource
-	pp      pipeline.Provider
-	tailers map[string]*Tailer
-	auditor *auditor.Auditor
+	pp           pipeline.Provider
+	tailingLimit int
+	fileProvider *FileProvider
+	tailers      map[string]*Tailer
+	auditor      *auditor.Auditor
 }
 
 // New returns an initialized Scanner
-func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
+func New(sources []*config.IntegrationConfigLogSource, tailingLimit int, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
 	tailSources := []*config.IntegrationConfigLogSource{}
 	for _, source := range sources {
 		switch source.Type {
@@ -40,27 +43,32 @@ func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider, aud
 		}
 	}
 	return &Scanner{
-		sources: tailSources,
-		pp:      pp,
-		tailers: make(map[string]*Tailer),
-		auditor: auditor,
+		pp:           pp,
+		tailingLimit: tailingLimit,
+		fileProvider: NewFileProvider(tailSources, tailingLimit),
+		tailers:      make(map[string]*Tailer),
+		auditor:      auditor,
 	}
 }
 
 // setup sets all tailers
 func (s *Scanner) setup() {
-	for _, source := range s.sources {
-		if _, ok := s.tailers[source.Path]; ok {
-			log.Println("Can't tail file twice:", source.Path)
+	files := s.fileProvider.FilesToTail()
+	for _, file := range files {
+		if len(s.tailers) == s.tailingLimit {
+			return
+		}
+		if _, ok := s.tailers[file.Path]; ok {
+			log.Println("Can't tail file twice:", file.Path)
 		} else {
-			s.setupTailer(source, false, s.pp.NextPipelineChan())
+			s.setupTailer(file, false, s.pp.NextPipelineChan())
 		}
 	}
 }
 
 // setupTailer sets one tailer, making it tail from the beginning or the end
-func (s *Scanner) setupTailer(source *config.IntegrationConfigLogSource, tailFromBeginning bool, outputChan chan message.Message) {
-	t := NewTailer(outputChan, source)
+func (s *Scanner) setupTailer(file *File, tailFromBeginning bool, outputChan chan message.Message) {
+	t := NewTailer(outputChan, file.Source, file.Path)
 	var err error
 	if tailFromBeginning {
 		err = t.tailFromBeginning()
@@ -71,7 +79,7 @@ func (s *Scanner) setupTailer(source *config.IntegrationConfigLogSource, tailFro
 	if err != nil {
 		log.Println(err)
 	}
-	s.tailers[source.Path] = t
+	s.tailers[file.Path] = t
 }
 
 // Start starts the Scanner
@@ -96,36 +104,81 @@ func (s *Scanner) run() {
 // The Scanner needs to stop that previous tailer,
 // and start a new one for the new file.
 func (s *Scanner) scan() {
-	for _, source := range s.sources {
-		tailer := s.tailers[source.Path]
-		f, err := os.Open(source.Path)
-		if err != nil {
-			continue
-		}
-		stat1, err := f.Stat()
-		if err != nil {
-			continue
-		}
-		stat2, err := tailer.file.Stat()
-		if err != nil {
-			s.onFileRotation(tailer, source)
-			continue
-		}
-		if inode(stat1) != inode(stat2) {
-			s.onFileRotation(tailer, source)
+	files := s.fileProvider.FilesToTail()
+	filesTailed := make(map[string]bool)
+	tailersLen := len(s.tailers)
+
+	for _, file := range files {
+		tailer, exists := s.tailers[file.Path]
+		if !exists && tailersLen >= s.tailingLimit {
+			// can't create new tailer because tailingLimit is reached
 			continue
 		}
 
-		if stat1.Size() < tailer.GetReadOffset() {
-			s.onFileRotation(tailer, source)
+		if !exists && tailersLen < s.tailingLimit {
+			// create new tailer for file
+			s.setupTailer(file, false, s.pp.NextPipelineChan())
+			tailersLen++
+			filesTailed[file.Path] = true
+			continue
+		}
+
+		didRotate, err := s.didFileRotate(file, tailer)
+		if err != nil {
+			continue
+		}
+
+		if didRotate {
+			// update tailer because of file-rotation on file
+			s.onFileRotation(tailer, file)
+		}
+
+		filesTailed[file.Path] = true
+	}
+
+	for path, tailer := range s.tailers {
+		// stop all tailers which have not been selected
+		_, shouldTail := filesTailed[path]
+		if !shouldTail {
+			s.stopTailer(tailer)
 		}
 	}
 }
 
-func (s *Scanner) onFileRotation(tailer *Tailer, source *config.IntegrationConfigLogSource) {
+// didFileRotate returns true if a file-rotation happened to file
+// since tailer has been set up, otherwise returns false
+func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
+	f, err := os.Open(file.Path)
+	if err != nil {
+		return false, err
+	}
+
+	stat1, err := f.Stat()
+	if err != nil {
+		return false, err
+	}
+
+	stat2, err := tailer.file.Stat()
+	if err != nil {
+		return true, nil
+	}
+
+	return inode(stat1) != inode(stat2) || stat1.Size() < tailer.GetReadOffset(), nil
+}
+
+// onFileRotation safely stops tailer and setup a new one
+func (s *Scanner) onFileRotation(tailer *Tailer, file *File) {
+	log.Println("Log rotation happened to", tailer.path)
 	shouldTrackOffset := false
 	tailer.Stop(shouldTrackOffset)
-	s.setupTailer(source, true, tailer.outputChan)
+	s.setupTailer(file, true, tailer.outputChan)
+}
+
+// stopTailer safely stops tailer and remove its reference from tailers
+func (s *Scanner) stopTailer(tailer *Tailer) {
+	shouldTrackOffset := false
+	tailer.Stop(shouldTrackOffset)
+	delete(s.tailers, tailer.path)
 }
 
 // Stop stops the Scanner and its tailers

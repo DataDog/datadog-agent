@@ -37,7 +37,7 @@ This is the complete list of the available components:
 * `zstd`: use Zstandard instead of Zlib.
 
 Please note you might need to provide some extra dependencies in your dev
-enviroment to build certain bits (see [development enviroment][dev-env]).
+environment to build certain bits (see [development environment][dev-env]).
 
 ## Additional details
 

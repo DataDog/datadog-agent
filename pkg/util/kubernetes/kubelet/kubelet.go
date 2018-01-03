@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-
-	log "github.com/cihub/seelog"
 )
 
 // Kubelet constants

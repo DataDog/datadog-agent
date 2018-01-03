@@ -48,21 +48,13 @@ var (
 	}
 )
 
+// checkInstanceCfg lists the config options on the instance against which we make some sanity checks
+// on how they're configured. All the other options should be checked on JMXFetch's side.
 type checkInstanceCfg struct {
-	Host               string            `yaml:"host,omitempty"`
-	Port               int               `yaml:"port,omitempty"`
-	User               string            `yaml:"user,omitempty"`
-	Password           string            `yaml:"password,omitempty"`
-	JMXUrl             string            `yaml:"jmx_url,omitempty"`
-	Name               string            `yaml:"name,omitempty"`
-	JavaBinPath        string            `yaml:"java_bin_path,omitempty"`
-	JavaOptions        string            `yaml:"java_options,omitempty"`
-	ToolsJarPath       string            `yaml:"tools_jar_path,omitempty"`
-	TrustStorePath     string            `yaml:"trust_store_path,omitempty"`
-	TrustStorePassword string            `yaml:"trust_store_password,omitempty"`
-	ProcessNameRegex   string            `yaml:"process_name_regex,omitempty"`
-	RefreshBeans       int               `yaml:"refresh_beans,omitempty"`
-	Tags               map[string]string `yaml:"tags,omitempty"`
+	JavaBinPath      string `yaml:"java_bin_path,omitempty"`
+	JavaOptions      string `yaml:"java_options,omitempty"`
+	ToolsJarPath     string `yaml:"tools_jar_path,omitempty"`
+	ProcessNameRegex string `yaml:"process_name_regex,omitempty"`
 }
 
 type checkInitCfg struct {

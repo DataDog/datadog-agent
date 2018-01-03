@@ -15,16 +15,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
+
+	log "github.com/cihub/seelog"
+	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	log "github.com/cihub/seelog"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/events"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/client"
 )
 
 const (
@@ -36,7 +33,6 @@ const (
 // It also holds a cache of services that the ConfigResolver can query to
 // match templates against.
 type DockerListener struct {
-	Client     *client.Client
 	dockerUtil *docker.DockerUtil
 	services   map[ID]Service
 	newService chan<- Service
@@ -61,16 +57,11 @@ func init() {
 // NewDockerListener creates a client connection to Docker and instantiate a DockerListener with it
 // TODO: TLS support
 func NewDockerListener() (ServiceListener, error) {
-	c, err := docker.ConnectToDocker()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to connect to Docker, auto discovery will not work: %s", err)
-	}
 	d, err := docker.GetDockerUtil()
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Docker, auto discovery will not work: %s", err)
 	}
 	return &DockerListener{
-		Client:     c,
 		dockerUtil: d,
 		services:   make(map[ID]Service),
 		stop:       make(chan bool),
@@ -86,28 +77,24 @@ func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	// process containers that might be already running
 	l.init()
 
-	// filters only match start/stop container events
-	filters := filters.NewArgs()
-	filters.Add("type", "container")
-	filters.Add("event", "start")
-	filters.Add("event", "die")
-	eventOptions := types.EventsOptions{
-		Since:   fmt.Sprintf("%d", time.Now().Unix()),
-		Filters: filters,
+	messages, errs, err := l.dockerUtil.SubscribeToContainerEvents("DockerListener")
+	if err != nil {
+		log.Errorf("can't listen to docker events: %v", err)
+		signals.ErrorStopper <- true
+		return
 	}
-
-	messages, errs := l.Client.Events(context.Background(), eventOptions)
 
 	go func() {
 		for {
 			select {
 			case <-l.stop:
+				l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener")
 				return
 			case msg := <-messages:
 				l.processEvent(msg)
 			case err := <-errs:
 				if err != nil && err != io.EOF {
-					log.Errorf("Docker listener error: %v", err)
+					log.Errorf("docker listener error: %v", err)
 					signals.ErrorStopper <- true
 				}
 				return
@@ -128,7 +115,7 @@ func (l *DockerListener) init() {
 	l.m.Lock()
 	defer l.m.Unlock()
 
-	containers, err := l.Client.ContainerList(context.Background(), types.ContainerListOptions{})
+	containers, err := l.dockerUtil.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
 		log.Errorf("Couldn't retrieve container list - %s", err)
 	}
@@ -171,10 +158,10 @@ func (l *DockerListener) GetServices() map[ID]Service {
 	return ret
 }
 
-// processEvent takes a Docker Message, tries to find a service linked to it, and
+// processEvent takes a ContainerEvent, tries to find a service linked to it, and
 // figure out if the ConfigResolver could be interested to inspect it.
-func (l *DockerListener) processEvent(e events.Message) {
-	cID := ID(e.Actor.ID)
+func (l *DockerListener) processEvent(e *docker.ContainerEvent) {
+	cID := ID(e.ContainerID)
 
 	l.m.RLock()
 	_, found := l.services[cID]
@@ -289,8 +276,15 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 	ips := make(map[string]string)
 	if co.NetworkSettings != nil {
 		for net, settings := range co.NetworkSettings.Networks {
-			ips[net] = settings.IPAddress
+			if len(settings.IPAddress) > 0 {
+				ips[net] = settings.IPAddress
+			}
 		}
+	}
+
+	rancherIP, found := docker.FindRancherIPInLabels(co.Labels)
+	if found {
+		ips["rancher"] = rancherIP
 	}
 	return ips
 }
@@ -350,14 +344,21 @@ func (s *DockerService) GetHosts() (map[string]string, error) {
 	ips := make(map[string]string)
 	du, err := docker.GetDockerUtil()
 	if err != nil {
-		return ips, err
+		return nil, err
 	}
 	cInspect, err := du.Inspect(string(s.ID), false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
 	}
 	for net, settings := range cInspect.NetworkSettings.Networks {
-		ips[net] = settings.IPAddress
+		if len(settings.IPAddress) > 0 {
+			ips[net] = settings.IPAddress
+		}
+	}
+
+	rancherIP, found := docker.FindRancherIPInLabels(cInspect.Config.Labels)
+	if found {
+		ips["rancher"] = rancherIP
 	}
 
 	s.Hosts = ips

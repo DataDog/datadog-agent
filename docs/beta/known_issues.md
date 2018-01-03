@@ -121,10 +121,11 @@ We do not yet build packages for the full gamut of systems that Agent 5 targets.
 While some will be dropped as unsupported, others are simply not yet supported.
 Beta is currently available on these platforms:
 
-* Debian x86_64 version 7 (wheezy) and above
+* Debian x86_64 version 7 (wheezy) and above (we do not support SysVinit)
 * Ubuntu x86_64 version 12.04 and above
 * RedHat/CentOS x86_64 version 6 and above
 * SUSE Enterprise Linux x86_64 version 11 SP4 and above (we do not support SysVinit)
+* MacOS 10.10 and above
 
 Next on the pipeline but still unavailable:
 * Windows 64-bit

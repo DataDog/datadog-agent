@@ -12,6 +12,8 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 )
 
 func createSketchSeries() []*SketchSeries {
@@ -23,8 +25,9 @@ func createSketchSeries() []*SketchSeries {
 		Entries:  []Entry{{V: 10, G: 1, Delta: 0}, {V: 14, G: 3, Delta: 0}, {V: 21, G: 2, Delta: 0}},
 		Incoming: []float64{},
 		Min:      10, Count: 6, Sum: 96, Avg: 16, Max: 21}
+	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 	series := []*SketchSeries{{
-		ContextKey: "test_context",
+		ContextKey: contextKey,
 		Sketches:   []Sketch{{Timestamp: int64(12345), Sketch: sketch1}, {Timestamp: int64(67890), Sketch: sketch2}},
 		Name:       "test.metrics",
 		Host:       "localhost",
@@ -48,22 +51,26 @@ func createMultiSketchSeries() []*SketchSeries {
 		Values: []float64{2, 8},
 		Min:    2, Count: 2, Sum: 10, Avg: 5, Max: 8,
 	}
+	contextKey1, _ := ckey.Parse("aaffffffffffffffffffffffffffffff")
+	contextKey2, _ := ckey.Parse("bbffffffffffffffffffffffffffffff")
+	contextKey3, _ := ckey.Parse("ccffffffffffffffffffffffffffffff")
+
 	series := []*SketchSeries{{
-		ContextKey: "test_context1",
+		ContextKey: contextKey1,
 		Sketches:   []Sketch{{Timestamp: int64(12345), Sketch: sketch1}},
 		Name:       "test.metrics1",
 		Host:       "localhost",
 		Tags:       []string{"tag1", "tag2:yes"},
 		SketchType: SketchGK,
 	}, {
-		ContextKey: "test_context2",
+		ContextKey: contextKey2,
 		Sketches:   []Sketch{{Timestamp: int64(12345), Sketch: sketch2}},
 		Name:       "test.metrics2",
 		Host:       "localhost",
 		Tags:       []string{"tag2:yes"},
 		SketchType: SketchKLL,
 	}, {
-		ContextKey: "test_context3",
+		ContextKey: contextKey3,
 		Sketches:   []Sketch{{Timestamp: int64(12345), Sketch: sketch3}},
 		Name:       "test.metrics3",
 		Host:       "localhost",

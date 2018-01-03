@@ -25,8 +25,10 @@ func BuildLogsAgentConfig(ddconfigPath, ddconfdPath string) error {
 }
 
 func buildMainConfig(config *viper.Viper, ddconfigPath, ddconfdPath string) error {
-
 	config.SetConfigFile(ddconfigPath)
+
+	// default values
+	config.SetDefault("log_open_files_limit", DefaultTailingLimit)
 
 	err := config.ReadInConfig()
 	if err != nil {

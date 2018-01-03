@@ -19,6 +19,22 @@ from .go import deps
 #constants
 BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
+DEFAULT_BUILD_TAGS = [
+    "apm",
+    "consul",
+    "cpython",
+    "docker",
+    "ec2",
+    "etcd",
+    "gce",
+    "jmx",
+    "kubelet",
+    "log",
+    "process",
+    "snmp",
+    "zk",
+    "zlib",
+]
 
 
 @task
@@ -32,7 +48,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     Example invokation:
         inv agent.build --build-exclude=snmp
     """
-    build_include = ALL_TAGS if build_include is None else build_include.split(",")
+    build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
@@ -180,9 +196,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         ctx.run("{} {}".format(go_cmd, prefix))
 
 
-@task
+@task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
 def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False):
+                  skip_deps=False, skip_sign=False):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -192,7 +208,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
     # omnibus config overrides
     overrides = []
 
-    # base dir (can be overridden through env vars, command line takes precendence)
+    # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
     if base_dir:
         overrides.append("base_dir:{}".format(base_dir))
@@ -206,6 +222,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         if gem_path:
             cmd += " --path {}".format(gem_path)
         ctx.run(cmd)
+
         omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
         args = {
@@ -214,7 +231,10 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             "log_level": log_level,
             "overrides": overrides_cmd
         }
-        ctx.run(cmd.format(**args))
+        env = {}
+        if skip_sign:
+            env['SKIP_SIGN_MAC'] = 'true'
+        ctx.run(cmd.format(**args), env=env)
 
 
 @task

@@ -25,7 +25,7 @@ type TCPTestSuite struct {
 	outputChan chan message.Message
 	pp         pipeline.Provider
 	source     *config.IntegrationConfigLogSource
-	tcpl       *AbstractNetworkListener
+	tcpl       *TCPListener
 }
 
 func (suite *TCPTestSuite) SetupTest() {

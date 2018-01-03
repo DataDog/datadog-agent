@@ -137,7 +137,7 @@ func GetDefaultSender() (Sender, error) {
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
 	s.smsOut <- senderMetricSample{s.id, &metrics.MetricSample{}, true}
-	go s.cyclemetricStats()
+	s.cyclemetricStats()
 }
 
 func (s *checkSender) GetMetricStats() map[string]int64 {
@@ -172,7 +172,7 @@ func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
 }
 
 func (s *checkSender) sendMetricSample(metric string, value float64, hostname string, tags []string, mType metrics.MetricType) {
-	log.Debug(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
+	log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
 
 	metricSample := &metrics.MetricSample{
 		Name:       metric,
@@ -238,7 +238,7 @@ func (s *checkSender) SendRawServiceCheck(sc *metrics.ServiceCheck) {
 
 // ServiceCheck submits a service check
 func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheckStatus, hostname string, tags []string, message string) {
-	log.Debug("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
+	log.Trace("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
 	serviceCheck := metrics.ServiceCheck{
 		CheckName: checkName,
 		Status:    status,
@@ -257,7 +257,7 @@ func (s *checkSender) ServiceCheck(checkName string, status metrics.ServiceCheck
 
 // Event submits an event
 func (s *checkSender) Event(e metrics.Event) {
-	log.Debug("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
+	log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
 
 	s.eventOut <- e
 

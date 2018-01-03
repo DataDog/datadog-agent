@@ -10,20 +10,23 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 )
 
 var token string
 
 // SetAuthToken sets the session token
+// Requires that the config has been set up before calling
 func SetAuthToken() error {
+	// Noop if token is already set
 	if token != "" {
-		return fmt.Errorf("session token already set")
+		return nil
 	}
 
 	// token is only set once, no need to mutex protect
-	token = config.Datadog.GetString("api_key") // FIXME: encode this into JWT?
-	return nil
+	var err error
+	token, err = security.FetchAuthToken()
+	return err
 }
 
 // GetAuthToken gets the session token

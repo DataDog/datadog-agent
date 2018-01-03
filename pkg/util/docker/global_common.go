@@ -23,6 +23,16 @@ var (
 // DockerEntityPrefix is the entity prefix for docker containers
 const DockerEntityPrefix = "docker://"
 
+// Container state constants
+const (
+	ContainerCreatedState    string = "created"
+	ContainerRunningState    string = "running"
+	ContainerRestartingState string = "restarting"
+	ContainerPausedState     string = "paused"
+	ContainerExitedState     string = "exited"
+	ContainerDeadState       string = "dead"
+)
+
 // ContainerIDToEntityName returns a prefixed entity name from a container ID
 func ContainerIDToEntityName(cid string) string {
 	if cid == "" {

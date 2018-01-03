@@ -22,7 +22,7 @@ func Start() {
 	cm := sender.NewConnectionManager(
 		config.LogsAgent.GetString("log_dd_url"),
 		config.LogsAgent.GetInt("log_dd_port"),
-		config.LogsAgent.GetBool("skip_ssl_validation"),
+		config.LogsAgent.GetBool("dev_mode_no_ssl"),
 	)
 
 	auditorChan := make(chan message.Message, config.ChanSizes)
@@ -35,7 +35,8 @@ func Start() {
 	l := listener.New(config.GetLogsSources(), pp)
 	l.Start()
 
-	s := tailer.New(config.GetLogsSources(), pp, a)
+	tailingLimit := config.LogsAgent.GetInt("log_open_files_limit")
+	s := tailer.New(config.GetLogsSources(), tailingLimit, pp, a)
 	s.Start()
 
 	c := container.New(config.GetLogsSources(), pp, a)

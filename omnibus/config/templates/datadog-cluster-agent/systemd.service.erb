@@ -1,0 +1,12 @@
+[Unit]
+Description="Datadog Cluster Agent"
+After=network.target
+
+[Service]
+Type=simple
+User=dd-agent
+Restart=on-failure
+ExecStart=<%= install_dir %>/bin/datadog-cluster-agent start -c /etc/datadog-cluster-agent
+
+[Install]
+WantedBy=multi-user.target

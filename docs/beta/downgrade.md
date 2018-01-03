@@ -5,6 +5,10 @@ This guide assumes you upgraded to the beta using our [upgrade guide][upgrade-gu
 We have been careful to keep the legacy configurations in place to ease the the
 downgrade process should you decide you do not wish to continue trying the beta.
 
+* [Linux](#linux)
+* [Windows](#windows)
+* [MacOS](#macos)
+
 ## Linux
 
 #### Debian Flavored Systems
@@ -39,7 +43,7 @@ rm /etc/yum.repos.d/datadog-beta.repo
 
 ##### Update your local yum cache and downgrade the agent
 ```shell
-sudo yum clean expire-cache
+sudo yum clean expire-cache metadata
 sudo yum check-update
 sudo yum remove datadog-agent
 sudo yum install datadog-agent
@@ -74,6 +78,13 @@ sudo -u dd-agent -- rm -rf /etc/datadog-agent/
 
 ## Windows
 
-Coming soon.
+Run the agent5 installer package.
+
+## MacOS
+
+1. Stop the Agent with the systray app, if it's running
+2. Exit the systray app
+3. Uninstall the Datadog Agent application
+4. Install the Agent 5 DMG package using your preferred installation method
 
 [upgrade-guide]: upgrade.md

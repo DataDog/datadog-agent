@@ -52,13 +52,16 @@ func requestStatus() error {
 	fmt.Printf("Getting the status from the agent.\n\n")
 	var e error
 	var s string
-	c := common.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/status", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	util.SetAuthToken()
+	e = util.SetAuthToken()
+	if e != nil {
+		return e
+	}
 
-	r, e := common.DoGet(c, urlstr)
+	r, e := util.DoGet(c, urlstr)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, errMap)

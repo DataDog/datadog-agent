@@ -5,8 +5,21 @@ a drop in replacement, there were a small number of deprecations or changes in
 behavior which will be listed in this document.
 
 Note: If you see anything that's incorrect about this document (and that's not
-covered by the [known_issues.md][known-issues] document), do not hesistate to
+covered by the [known_issues.md][known-issues] document), do not hesitate to
 open an issue or submit a Pull Request.
+
+* [Configuration Files](#configuration-files)
+* [CLI](#cli)
+* [Logs](#logs)
+* [Checks](#checks)
+* [APM agent](#apm-agent)
+* [Process agent](#process-agent)
+* [Python Modules](#python-modules)
+* [Kubernetes support](#kubernetes-support)
+* [JMX](#jmx)
+* [Dogstream](#dogstream)
+* [Custom Emitters](#custom-emitters)
+* [GUI](#gui)
 
 ## Configuration Files
 
@@ -58,9 +71,59 @@ For example, for an Agent installed on Ubuntu, the differences are as follows:
 * on `upstart`-based systems: `sudo start/stop/restart datadog-agent`
 * on `systemd`-based systems: `sudo systemctl start/stop/restart datadog-agent`
 
+### Windows 
+
+There are a few major changes
+* the main executable name is now `agent.exe` (it was `ddagent.exe` previously)
+* Commands should be run with the command line `c:\program files\datadog\datadog-agent\embedded\agent.exe <command>`
+* The configuration GUI is now a browser based configuration application.  
+
+The agent has a new set of command-line options:
+
+| Command         | Notes
+| --------------- | -------------------------------------------------------------------------- |
+| check           | Run the specified check |
+| diagnose        | Execute some connectivity diagnosis on your system |
+| flare           | Collect a flare and send it to Datadog |
+| help            | Help about any command |
+| hostname        | Print the hostname used by the Agent |
+| import          | Import and convert configuration files from previous versions of the Agent |
+| installservice  | Installs the agent within the service control manager |
+| launch-gui      | starts the Datadog Agent GUI |
+| regimport       | Import the registry settings into datadog.yaml |
+| remove-service  | Removes the agent from the service control manager |
+| restart-service | restarts the agent within the service control manager |
+| start           | Start the Agent |
+| start-service   | starts the agent within the service control manager |
+| status          | Print the current status |
+| stopservice     | stops the agent within the service control manager |
+| version         | Print the version info |
+
+#### Gui
+* The browser session must be restarted each time the Agent service is restarted.  This will be fixed in an upcoming beta.
+
+### MacOS
+
+* the _lifecycle commands_ (former `datadog-agent start`/`stop`/`restart`/`status` on the Agent 5) are replaced by `launchctl` commands on the `com.datadoghq.agent` service, and should be run under the logged-in user. For these commands, you can also use the Datadog Agent systray app
+* all the other commands can still be run with the `datadog-agent` command (located in the `PATH` (`/usr/local/bin/`) by default)
+* the `info` command has been renamed `status`
+
+A few examples:
+
+| Agent5 Command                     |  Agent6 Command                                      | Notes                              |
+| ---------------------------------- | ---------------------------------------------------- | ---------------------------------- |
+| `datadog-agent start`              | `launchctl start com.datadoghq.agent` or systray app | Start Agent as a service           |
+| `datadog-agent stop`               | `launchctl stop com.datadoghq.agent` or systray app  | Stop Agent running as a service    |
+| `datadog-agent restart`            | _run `stop` then `start`_ or systray app             | Restart Agent running as a service |
+| `datadog-agent status`             | `launchctl list com.datadoghq.agent` or systray app  | Status of Agent service            |
+| `datadog-agent info`               | `datadog-agent status` or web GUI                    | Status page of running Agent       |
+| `datadog-agent flare`              | `datadog-agent flare` or web GUI                     | Send flare                         |
+| _not implemented_                  | `datadog-agent --help`                               | Display command usage              |
+| `datadog-agent check <check_name>` | `datadog-agent check <check_name>`                   | Run a check (unchanged)            |
+
 ## Logs
 
-The Agent logs are still located in the `/var/log/datadog/` directory.
+The Agent logs are still located in the `/var/log/datadog/` directory.  On Windows, the logs are still located in the `c:\programdata\Datadog\logs` directory.
 
 Prior releases were logging to multiple files in that directory (`collector.log`,
 `forwarder.log`, `dogstatsd.log`, etc). Starting with 6.0 the Agent logs to a single log file, `agent.log`.
@@ -109,6 +172,47 @@ to:
 ```python
 gauge(self, name, value, tags=None, hostname=None, device_name=None)
 ```
+
+## APM agent
+
+The APM agent (also known as _trace agent_) is shipped by default with the
+Agent 6 in the Linux, MacOS and Windows packages.
+
+Similar to the Agent 5, the APM agent is enabled by default. To disable it, set
+`apm_enabled` to `false` in the main agent configuration (`datadog.yaml`).
+
+_Optional_: If you need to use apm-specific configuration options (i.e. options that would be
+specified under the `[trace.config]`, `[trace.sampler]` and `[trace.receiver]` in
+the former `datadog.conf` file), specify them in `trace-agent.conf` under the agent's
+configuration directory (`/etc/datadog-agent/` on Linux). This file should be
+INI-formatted, similar to the former `datadog.conf` file. See the `trace-agent.conf.example`
+file for an example configuration file.
+
+We're working on merging these configuration options into the main `datadog.yaml` file.
+
+## Process agent
+
+The process agent is shipped by default with the Agent 6 in the Linux packages only.
+
+The process agent is not enabled by default. To enable it, copy `/etc/datadog-agent/conf.d/process_agent.yaml.default`
+to `/etc/datadog-agent/conf.d/process_agent.yaml` and edit `/etc/datadog-agent/conf.d/process_agent.yaml`
+as following:
+
+```yaml
+init_config:
+  enabled: true  # this enables the process agent
+
+instances:
+  - {}
+```
+
+_Optional_: If you need to use process-specific configuration options (i.e. options
+that would be specified under the `[process.config]` section in the former `datadog.conf`
+file), specify them in a `/etc/datadog-agent/process-agent.conf`. This file should
+be INI-formatted, similar to the former `datadog.conf` file. See the `process-agent.conf.example`
+file for an example configuration file.
+
+We're working on merging these configuration options into the main `datadog.yaml` file.
 
 ### Docker check
 

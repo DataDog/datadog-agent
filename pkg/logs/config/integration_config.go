@@ -8,6 +8,7 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"path/filepath"
 	"regexp"
 
@@ -25,12 +26,18 @@ const (
 // Logs rule types
 const (
 	ExcludeAtMatch = "exclude_at_match"
+	IncludeAtMatch = "include_at_match"
 	MaskSequences  = "mask_sequences"
 	MultiLine      = "multi_line"
 )
 
+// Valid integration config extensions
+const (
+	yamlExtension = ".yaml"
+	ymlExtension  = ".yml"
+)
+
 const logsRules = "LogsRules"
-const integrationConfigExtention = ".yaml"
 
 // LogsProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
@@ -94,23 +101,27 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 		viperCfg.SetConfigFile(filepath.Join(ddconfdPath, file))
 		err := viperCfg.ReadInConfig()
 		if err != nil {
-			return err
+			log.Println(err)
+			continue
 		}
 		err = viperCfg.Unmarshal(&integrationConfig)
 		if err != nil {
-			return err
+			log.Println(err)
+			continue
 		}
 
 		for _, logSourceConfigIterator := range integrationConfig.Logs {
 			logSourceConfig := logSourceConfigIterator
 			err = validateSource(logSourceConfig)
 			if err != nil {
-				return err
+				log.Println(err)
+				continue
 			}
 
 			rules, err := validateProcessingRules(logSourceConfig.ProcessingRules)
 			if err != nil {
-				return err
+				log.Println(err)
+				continue
 			}
 			logSourceConfig.ProcessingRules = rules
 
@@ -119,6 +130,11 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 			logsSourceConfigs = append(logsSourceConfigs, &logSourceConfig)
 		}
 	}
+
+	if len(logsSourceConfigs) == 0 {
+		return fmt.Errorf("Could not find any valid logs integration configuration file in %s", ddconfdPath)
+	}
+
 	config.Set(logsRules, logsSourceConfigs)
 	return nil
 }
@@ -144,7 +160,8 @@ func integrationConfigsFromDirectory(dir string, prefix string) []string {
 	files, _ := ioutil.ReadDir(dir)
 	for _, f := range files {
 		if !f.IsDir() {
-			if filepath.Ext(f.Name()) == integrationConfigExtention {
+			ext := filepath.Ext(f.Name())
+			if ext == yamlExtension || ext == ymlExtension {
 				integrationConfigFiles = append(integrationConfigFiles, filepath.Join(prefix, f.Name()))
 			}
 		}
@@ -186,6 +203,8 @@ func validateProcessingRules(rules []LogsProcessingRule) ([]LogsProcessingRule, 
 		}
 		switch rule.Type {
 		case ExcludeAtMatch:
+			rules[i].Reg = regexp.MustCompile(rule.Pattern)
+		case IncludeAtMatch:
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)
 		case MaskSequences:
 			rules[i].Reg = regexp.MustCompile(rule.Pattern)

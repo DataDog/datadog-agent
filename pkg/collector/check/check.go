@@ -61,6 +61,7 @@ type Config struct {
 	Instances     []ConfigData // array of Yaml configurations
 	InitConfig    ConfigData   // the init_config in Yaml (python check only)
 	MetricConfig  ConfigData   // the metric config in Yaml (jmx check only)
+	LogsConfig    ConfigData   // the logs config in Yaml (logs-agent only)
 	ADIdentifiers []string     // the list of AutoDiscovery identifiers (optional)
 }
 

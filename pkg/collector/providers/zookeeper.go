@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"math"
 )
 
 const sessionTimeout = 1 * time.Second
@@ -32,19 +33,22 @@ type zkBackend interface {
 type ZookeeperConfigProvider struct {
 	client      zkBackend
 	templateDir string
+	cache       *ProviderCache
 }
 
 // NewZookeeperConfigProvider returns a new Client connected to a Zookeeper backend.
 func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvider, error) {
 	urls := strings.Split(cfg.TemplateURL, ",")
+
 	c, _, err := zk.Connect(urls, sessionTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to '%s': %s", cfg.TemplateURL, err)
+		return nil, fmt.Errorf("ZookeeperConfigProvider: couldn't connect to %q (%s): %s", cfg.TemplateURL, strings.Join(urls, ", "), err)
 	}
-
+	cache := NewCPCache()
 	return &ZookeeperConfigProvider{
 		client:      c,
 		templateDir: cfg.TemplateDir,
+		cache:       cache,
 	}, nil
 }
 
@@ -60,12 +64,55 @@ func (z *ZookeeperConfigProvider) Collect() ([]check.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	for _, id := range identifiers {
 		c := z.getTemplates(id)
 		configs = append(configs, c...)
 	}
 	return configs, nil
+}
+
+// IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Zookeeper's data.
+func (z *ZookeeperConfigProvider) IsUpToDate() (bool, error) {
+
+	identifiers, err := z.getIdentifiers(z.templateDir)
+	if err != nil {
+		return false, err
+	}
+	outdated := z.cache.LatestTemplateIdx
+	adListUpdated := false
+
+	if z.cache.NumAdTemplates != len(identifiers) {
+		if z.cache.NumAdTemplates == 0 {
+			log.Infof("Initializing cache for %v", z.String())
+		}
+		log.Debugf("List of AD Template was modified, updating cache.")
+		adListUpdated = true
+		z.cache.NumAdTemplates = len(identifiers)
+	}
+
+	for _, identifier := range identifiers {
+		gChildren, _, err := z.client.Children(identifier)
+
+		if err != nil {
+			return false, err
+		}
+		for _, gcn := range gChildren {
+			gcnPath := path.Join(identifier, gcn)
+			_, stat, err := z.client.Get(gcnPath)
+			if err != nil {
+				return false, fmt.Errorf("couldn't get key '%s' from zookeeper: %s", identifier, err)
+			}
+			outdated = math.Max(float64(stat.Mtime), outdated)
+		}
+	}
+	if outdated > z.cache.LatestTemplateIdx || adListUpdated {
+		log.Debugf("Idx was %v and is now %v", z.cache.LatestTemplateIdx, outdated)
+		z.cache.LatestTemplateIdx = outdated
+		log.Infof("cache updated for %v", z.String())
+		return false, nil
+	}
+	log.Infof("cache up to date for %v", z.String())
+	return true, nil
 }
 
 // getIdentifiers gets folders at the root of the template dir

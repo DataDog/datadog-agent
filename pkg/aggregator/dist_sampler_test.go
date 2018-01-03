@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 )
@@ -25,7 +26,7 @@ func (oss OrderedSketchSeries) Len() int {
 }
 
 func (oss OrderedSketchSeries) Less(i, j int) bool {
-	return oss.sketchSeries[i].ContextKey < oss.sketchSeries[j].ContextKey
+	return ckey.Compare(oss.sketchSeries[i].ContextKey, oss.sketchSeries[j].ContextKey) == -1
 }
 
 func (oss OrderedSketchSeries) Swap(i, j int) {
@@ -68,7 +69,7 @@ func TestDistSamplerBucketSampling(t *testing.T) {
 			{Timestamp: 10000, Sketch: expectedSketch},
 			{Timestamp: 10010, Sketch: expectedSketch},
 		},
-		ContextKey: "test.metric.name,a,b,",
+		ContextKey: generateContextKey(&mSample1),
 	}
 	assert.Equal(t, 1, len(sketchSeries))
 	metrics.AssertSketchSeriesEqual(t, expectedSeries, sketchSeries[0])
@@ -110,7 +111,7 @@ func TestDistSamplerContextSampling(t *testing.T) {
 		Sketches: []percentile.Sketch{
 			{Timestamp: 10010, Sketch: expectedSketch},
 		},
-		ContextKey: "test.metric.name1,a,b,",
+		ContextKey: generateContextKey(&mSample1),
 	}
 	expectedSeries2 := &percentile.SketchSeries{
 		Name:     "test.metric.name2",
@@ -119,12 +120,12 @@ func TestDistSamplerContextSampling(t *testing.T) {
 		Sketches: []percentile.Sketch{
 			{Timestamp: 10010, Sketch: expectedSketch},
 		},
-		ContextKey: "test.metric.name2,a,c,",
+		ContextKey: generateContextKey(&mSample2),
 	}
 
 	assert.Equal(t, 2, len(sketchSeries))
-	metrics.AssertSketchSeriesEqual(t, expectedSeries1, sketchSeries[0])
-	metrics.AssertSketchSeriesEqual(t, expectedSeries2, sketchSeries[1])
+	metrics.AssertSketchSeriesEqual(t, expectedSeries1, sketchSeries[1])
+	metrics.AssertSketchSeriesEqual(t, expectedSeries2, sketchSeries[0])
 }
 
 func TestDistSamplerMultiSketchContextSampling(t *testing.T) {
@@ -160,7 +161,7 @@ func TestDistSamplerMultiSketchContextSampling(t *testing.T) {
 		Sketches: []percentile.Sketch{
 			{Timestamp: 10010, Sketch: expectedSketch1},
 		},
-		ContextKey: "test.metric.name1,a,b,",
+		ContextKey: generateContextKey(&mSample1),
 		SketchType: percentile.SketchGK,
 	}
 	expectedSketch2 := percentile.NewKLL()
@@ -172,13 +173,13 @@ func TestDistSamplerMultiSketchContextSampling(t *testing.T) {
 		Sketches: []percentile.Sketch{
 			{Timestamp: 10010, Sketch: expectedSketch2},
 		},
-		ContextKey: "test.metric.name2,a,c,",
+		ContextKey: generateContextKey(&mSample2),
 		SketchType: percentile.SketchKLL,
 	}
 
 	assert.Equal(t, 2, len(sketchSeries))
-	metrics.AssertSketchSeriesEqual(t, expectedSeries1, sketchSeries[0])
-	metrics.AssertSketchSeriesEqual(t, expectedSeries2, sketchSeries[1])
+	metrics.AssertSketchSeriesEqual(t, expectedSeries1, sketchSeries[1])
+	metrics.AssertSketchSeriesEqual(t, expectedSeries2, sketchSeries[0])
 }
 
 func TestDistSamplerWrongSketchType(t *testing.T) {
@@ -212,7 +213,7 @@ func TestDistSamplerWrongSketchType(t *testing.T) {
 		Sketches: []percentile.Sketch{
 			{Timestamp: 10010, Sketch: expectedSketch},
 		},
-		ContextKey: "test.metric.name1,a,b,",
+		ContextKey: generateContextKey(&mSample1),
 		SketchType: percentile.SketchGK,
 	}
 	assert.Equal(t, 1, len(sketchSeries))
