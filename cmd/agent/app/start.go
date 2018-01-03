@@ -206,8 +206,8 @@ func StartAgent() error {
 
 	// start logs-agent
 	if config.Datadog.GetBool("log_enabled") {
-		// logs-agent does provide any Stop method yet
-		// data loss may happen when stopping agent
+		// logs-agent does not provide any Stop method yet
+		// data loss may happen when stopping the agent
 		err := logs.Start()
 		if err != nil {
 			log.Error("Could not start logs-agent: ", err)
