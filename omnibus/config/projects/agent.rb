@@ -73,20 +73,15 @@ package :pkg do
 end
 compress :dmg do
   window_bounds '200, 200, 750, 600'
+
   pkg_position '10, 10'
 end
 
 # Windows .msi specific flags
 package :msi do
-  # previous upgrade code was used for older installs, and generated
-  # per-user installs.  Changing upgrade code, and switching to
-  # per-machine
-  per_user_upgrade_code = '82210ed1-bbe4-4051-aa15-002ea31dde15'
 
   # For a consistent package management, please NEVER change this code
   upgrade_code '0c50421b-aefb-4f15-a809-7af256d608a5'
-  bundle_msi true
-  bundle_theme true
   wix_candle_extension 'WixUtilExtension'
   wix_light_extension 'WixUtilExtension'
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
@@ -99,7 +94,6 @@ package :msi do
     'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
     'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent",
     'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent",
-    'PerUserUpgradeCode' => per_user_upgrade_code
   })
 end
 
@@ -119,7 +113,6 @@ dependency 'datadog-agent-prepare'
 
 # Windows-specific dependencies
 if windows?
-  dependency 'datadog-upgrade-helper'
   dependency 'pywin32'
 end
 
