@@ -12,10 +12,12 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/StackExchange/wmi"
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
 var (

@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"time"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	log "github.com/cihub/seelog"
 )
 
 // CheckBase provides default implementations for most of the check.Check
