@@ -123,7 +123,7 @@ sudo restart datadog-agent
 
 ## Windows
 
-Run the agent6 installation package.
+Run the agent6 installation package.  Download the MSI package of the latest beta version, please use the latest Windows release listed on the [release page](https://github.com/DataDog/datadog-agent/releases)
 
 
 ## MacOS
