@@ -1,4 +1,4 @@
-# Anatomy of a Check
+# Anatomy of a Python Check
 
 An Agent Check is a Python class that inherits from `AgentCheck` and implements
 the `check` method:
