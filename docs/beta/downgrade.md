@@ -78,7 +78,7 @@ sudo -u dd-agent -- rm -rf /etc/datadog-agent/
 
 ## Windows
 
-Coming soon.
+Run the agent5 installer package.
 
 ## MacOS
 
