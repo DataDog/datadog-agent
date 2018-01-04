@@ -81,9 +81,10 @@ func (d *DockerUtil) UnsubscribeFromContainerEvents(name string) error {
 func (e *eventStreamState) unsubscribe(name string) (error, bool) {
 	var shouldStop bool
 	e.Lock()
+	defer e.Unlock()
+
 	sub, found := e.subscribers[name]
 	if !found {
-		e.Unlock()
 		return ErrNotSubscribed, false
 	}
 
@@ -96,7 +97,6 @@ func (e *eventStreamState) unsubscribe(name string) (error, bool) {
 	if e.running && len(e.subscribers) == 0 {
 		shouldStop = true
 	}
-	e.Unlock()
 	return nil, shouldStop
 }
 
