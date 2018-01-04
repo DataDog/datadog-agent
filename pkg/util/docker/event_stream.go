@@ -152,30 +152,30 @@ func (e *eventStreamState) dispatch(event *ContainerEvent) []*eventSubscriber {
 	var badSubs []*eventSubscriber
 	e.RLock()
 	for _, sub := range e.subscribers {
-		err := sub.sendEvent(event)
+		err := e.sendEvent(event, sub)
 		if err != nil {
 			badSubs = append(badSubs, sub)
-			sub.sendError(err)
 		}
 	}
 	e.RUnlock()
 	return badSubs
 }
 
-func (s *eventSubscriber) sendEvent(ev *ContainerEvent) error {
+func (s *eventStreamState) sendEvent(ev *ContainerEvent, sub *eventSubscriber) error {
+	var err error
 	select {
-	case s.eventChan <- ev:
+	case sub.eventChan <- ev:
 		return nil
 	case <-time.After(eventSendTimeout):
-		return ErrEventTimeout
+		err = ErrEventTimeout
 	}
-}
 
-func (s *eventSubscriber) sendError(err error) error {
+	// We timeouted, let's try to send the error to the subscriber
 	select {
-	case s.errorChan <- err:
-		return nil
+	case sub.errorChan <- err:
+		// Send successful
 	case <-time.After(eventSendTimeout):
-		return ErrEventTimeout
+		// We don't want to block, let's return
 	}
+	return err
 }
