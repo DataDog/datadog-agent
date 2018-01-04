@@ -8,6 +8,7 @@ import fnmatch
 
 import invoke
 from invoke import task
+from invoke.exceptions import Exit
 
 from .utils import pkg_config_path, get_version
 from .go import fmt, lint, vet, misspell, ineffassign
@@ -123,6 +124,27 @@ def lint_releasenote(ctx):
     """
     Lint release notes with Reno
     """
+
+    # checking if a releasenote has been added/changed
+    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
+    if pr_url:
+        import requests
+        pr_id = pr_url.rsplit('/')[-1]
+
+        # first check 'noreno' label
+        res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/issues/{}".format(pr_id))
+        issue = res.json()
+        if any([l['name'] == 'noreno' for l in issue.get('labels', {})]):
+            print("'noreno' label found on the PR: skipping linting")
+            return
+
+        # Then check that at least one note was touched by the PR
+        res = requests.get("https://api.github.com/repos/DataDog/datadog-agent/pulls/{}/files".format(pr_id))
+        files = res.json()
+        if not any([f['filename'].startswith("releasenotes/notes/") for f in files]):
+            print("Error: No releasenote was found for this PR. Please add one using 'reno'.")
+            raise Exit(1)
+
     ctx.run("reno lint")
 
 @task
