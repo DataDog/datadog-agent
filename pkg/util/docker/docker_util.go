@@ -50,7 +50,7 @@ type DockerUtil struct {
 	// image sha mapping cache
 	imageNameBySha map[string]string
 	// event subscribers and state
-	eventState eventStreamState
+	eventState *eventStreamState
 }
 
 func detectServerAPIVersion() (string, error) {
@@ -104,8 +104,10 @@ func (d *DockerUtil) init() error {
 	d.networkMappings = make(map[string][]dockerNetwork)
 	d.imageNameBySha = make(map[string]string)
 	d.lastInvalidate = time.Now()
-	d.eventState.subscribers = make(map[string]*eventSubscriber)
-	d.eventState.cancelChan = make(chan struct{})
+	d.eventState = &eventStreamState{
+		subscribers: make(map[string]*eventSubscriber),
+		cancelChan:  make(chan struct{}),
+	}
 
 	return nil
 }

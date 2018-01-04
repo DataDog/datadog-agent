@@ -26,59 +26,84 @@ const eventSendTimeout = 100 * time.Millisecond
 // SubscribeToContainerEvents allows a package to subscribe to events from the event stream.
 // A unique subscriber name should be provided.
 func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerEvent, <-chan error, error) {
-	d.eventState.RLock()
-	if _, found := d.eventState.subscribers[name]; found {
-		d.eventState.RUnlock()
-		return nil, nil, ErrAlreadySubscribed
+	c1, c2, err, shouldStart := d.eventState.subscribe(name)
+
+	if shouldStart {
+		d.eventState.Lock()
+		d.eventState.running = true
+		go d.dispatchEvents(d.eventState.cancelChan)
+		d.eventState.Unlock()
 	}
-	d.eventState.RUnlock()
+
+	return c1, c2, err
+}
+
+func (e *eventStreamState) subscribe(name string) (<-chan *ContainerEvent, <-chan error, error, bool) {
+	var shouldStart bool
+	e.RLock()
+	if _, found := e.subscribers[name]; found {
+		e.RUnlock()
+		return nil, nil, ErrAlreadySubscribed, false
+	}
+	e.RUnlock()
 
 	sub := &eventSubscriber{
 		name:      name,
 		eventChan: make(chan *ContainerEvent, 5),
 		errorChan: make(chan error, 1),
 	}
-	d.eventState.Lock()
-	d.eventState.subscribers[name] = sub
-	if !d.eventState.running {
-		d.eventState.running = true
-		go d.dispatchEvents()
+	e.Lock()
+	e.subscribers[name] = sub
+	if !e.running {
+		shouldStart = true
 	}
-	d.eventState.Unlock()
+	e.Unlock()
 
-	return sub.eventChan, sub.errorChan, nil
+	return sub.eventChan, sub.errorChan, nil, shouldStart
 }
 
 // UnsubscribeFromContainerEvents allows a package to unsubscribe.
 // The call is blocking until the request is processed.
 func (d *DockerUtil) UnsubscribeFromContainerEvents(name string) error {
-	d.eventState.Lock()
-	sub, found := d.eventState.subscribers[name]
-	if !found {
+	err, shouldStop := d.eventState.unsubscribe(name)
+
+	if shouldStop {
+		d.eventState.Lock()
+		d.eventState.running = false
+		d.eventState.cancelChan <- struct{}{}
 		d.eventState.Unlock()
-		return ErrNotSubscribed
+	}
+
+	return err
+}
+
+func (e *eventStreamState) unsubscribe(name string) (error, bool) {
+	var shouldStop bool
+	e.Lock()
+	sub, found := e.subscribers[name]
+	if !found {
+		e.Unlock()
+		return ErrNotSubscribed, false
 	}
 
 	// Remove subscriber
 	close(sub.errorChan)
 	close(sub.eventChan)
-	delete(d.eventState.subscribers, name)
+	delete(e.subscribers, name)
 
 	// Stop dispatch if no subs remaining
-	if d.eventState.running && len(d.eventState.subscribers) == 0 {
-		d.eventState.cancelChan <- struct{}{}
+	if e.running && len(e.subscribers) == 0 {
+		shouldStop = true
 	}
-	d.eventState.Unlock()
-	return nil
+	e.Unlock()
+	return nil, shouldStop
 }
 
-func (d *DockerUtil) dispatchEvents() {
+func (d *DockerUtil) dispatchEvents(cancelChan <-chan struct{}) {
 	fltrs := filters.NewArgs()
 	fltrs.Add("type", "container")
 	fltrs.Add("event", "start")
 	fltrs.Add("event", "die")
-
-	badSubs := make(map[*eventSubscriber]error)
 
 	// Outer loop handles re-connecting in case the docker daemon closes the connection
 CONNECT:
@@ -94,7 +119,7 @@ CONNECT:
 		// Inner loop iterates over elements in the channel
 		for {
 			select {
-			case <-d.eventState.cancelChan:
+			case <-cancelChan:
 				cancel()
 				return
 			case err := <-errs:
@@ -112,27 +137,29 @@ CONNECT:
 					log.Debugf("skipping event: %s", err)
 					continue
 				}
-
-				d.eventState.RLock()
-				for _, sub := range d.eventState.subscribers {
-					err := sub.sendEvent(event)
-					if err != nil {
-						badSubs[sub] = err
-					}
-				}
-				d.eventState.RUnlock()
-
+				badSubs := d.eventState.dispatch(event)
 				if len(badSubs) > 0 {
-					for sub, err := range badSubs {
-						log.Infof("forcefully unsuscribing %s from: %s", sub.name, err)
-						sub.sendError(err)
+					for _, sub := range badSubs {
 						d.UnsubscribeFromContainerEvents(sub.name)
 					}
-					badSubs = make(map[*eventSubscriber]error)
 				}
 			}
 		}
 	}
+}
+
+func (e *eventStreamState) dispatch(event *ContainerEvent) []*eventSubscriber {
+	var badSubs []*eventSubscriber
+	e.RLock()
+	for _, sub := range e.subscribers {
+		err := sub.sendEvent(event)
+		if err != nil {
+			badSubs = append(badSubs, sub)
+			sub.sendError(err)
+		}
+	}
+	e.RUnlock()
+	return badSubs
 }
 
 func (s *eventSubscriber) sendEvent(ev *ContainerEvent) error {
