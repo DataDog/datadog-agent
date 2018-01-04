@@ -126,7 +126,7 @@ CONNECT:
 			case err := <-errs:
 				if err == io.EOF {
 					// Silently ignore io.EOF that happens on http connection reset
-					log.Debug("got EOF, re-connecting")
+					log.Debug("Got EOF, re-connecting")
 				} else {
 					log.Warnf("error getting docker events: %s", err)
 				}
@@ -135,14 +135,13 @@ CONNECT:
 			case msg := <-messages:
 				event, err := d.processContainerEvent(msg)
 				if err != nil {
-					log.Debugf("skipping event: %s", err)
+					log.Debugf("Skipping event: %s", err)
 					continue
 				}
+
 				badSubs := d.eventState.dispatch(event)
-				if len(badSubs) > 0 {
-					for _, sub := range badSubs {
-						d.UnsubscribeFromContainerEvents(sub.name)
-					}
+				for _, sub := range badSubs {
+					d.UnsubscribeFromContainerEvents(sub.name)
 				}
 			}
 		}
