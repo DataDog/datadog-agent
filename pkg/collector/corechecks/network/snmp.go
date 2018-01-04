@@ -38,8 +38,7 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/k-sone/snmpgo"
-
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -47,6 +46,7 @@ const (
 	defaultPort    = 161
 	nonRepeaters   = 0
 	maxRepetitions = 10
+	snmpCheckName  = "snmp"
 )
 
 var once sync.Once
@@ -104,13 +104,8 @@ type snmpConfig struct {
 
 // SNMPCheck grabs SNMP metrics
 type SNMPCheck struct {
-	id           check.ID
-	lastWarnings []error
-	cfg          *snmpConfig
-}
-
-func (c *SNMPCheck) String() string {
-	return "snmp"
+	core.CheckBase
+	cfg *snmpConfig
 }
 
 func initCNetSnmpLib(cfg *snmpInitCfg) (err error) {
@@ -400,7 +395,7 @@ func (cfg *snmpInstanceCfg) generateTagMap() error {
 	return nil
 }
 
-func (c *snmpConfig) Parse(data []byte, initData []byte) error {
+func (c *snmpConfig) parse(data []byte, initData []byte) error {
 	var tagbuff bytes.Buffer
 	var instance snmpInstanceCfg
 	var initConf snmpInitCfg
@@ -456,7 +451,7 @@ func (c *snmpConfig) Parse(data []byte, initData []byte) error {
 }
 
 func (c *SNMPCheck) submitSNMP(oids snmpgo.Oids, vbs snmpgo.VarBinds) error {
-	sender, err := aggregator.GetSender(c.id)
+	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
 	}
@@ -500,7 +495,7 @@ func (c *SNMPCheck) submitSNMP(oids snmpgo.Oids, vbs snmpgo.VarBinds) error {
 
 		if metric, ok := symbolicOID.(string); ok {
 			for idx, collected := range varbinds {
-				tag := ""
+				var tag string
 				var tagbuff bytes.Buffer
 				var value *big.Int
 				var err error
@@ -650,12 +645,12 @@ func (c *SNMPCheck) getSNMP() error {
 func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 
 	cfg := new(snmpConfig)
-	err := cfg.Parse(data, initConfig)
+	err := cfg.parse(data, initConfig)
 	if err != nil {
 		log.Criticalf("Error parsing configuration file: %s ", err)
 		return err
 	}
-	c.id = check.Identify(c, data, initConfig)
+	c.BuildID(data, initConfig)
 	c.cfg = cfg
 
 	//init SNMP - will fail if missing snmp libs.
@@ -718,31 +713,8 @@ func (c *SNMPCheck) Configure(data check.ConfigData, initConfig check.ConfigData
 	return nil
 }
 
-// Interval returns the scheduling time for the check
-func (c *SNMPCheck) Interval() time.Duration {
-	return check.DefaultCheckInterval
-}
-
-// ID FIXME: this should return a real identifier
-func (c *SNMPCheck) ID() check.ID {
-	return c.id
-}
-
-// GetMetricStats returns the stats from the last run of the check
-func (c *SNMPCheck) GetMetricStats() (map[string]int64, error) {
-	sender, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
-	}
-	return sender.GetMetricStats(), nil
-}
-
-// Stop does nothing
-func (c *SNMPCheck) Stop() {}
-
 // Run runs the check
 func (c *SNMPCheck) Run() error {
-
 	log.Debugf("Grabbing SNMP variables...")
 	if err := c.getSNMP(); err != nil {
 		return err
@@ -751,33 +723,12 @@ func (c *SNMPCheck) Run() error {
 	return nil
 }
 
-// GetWarnings grabs the last warnings from the sender
-func (c *SNMPCheck) GetWarnings() []error {
-	w := c.lastWarnings
-	c.lastWarnings = []error{}
-	return w
-}
-
-// Warn will log a warning and add it to the warnings
-func (c *SNMPCheck) warn(v ...interface{}) error {
-	w := log.Warn(v)
-	c.lastWarnings = append(c.lastWarnings, w)
-
-	return w
-}
-
-// Warnf will log a formatted warning and add it to the warnings
-func (c *SNMPCheck) warnf(format string, params ...interface{}) error {
-	w := log.Warnf(format, params)
-	c.lastWarnings = append(c.lastWarnings, w)
-
-	return w
-}
-
 func snmpFactory() check.Check {
-	return &SNMPCheck{}
+	return &SNMPCheck{
+		CheckBase: core.NewCheckBase(snmpCheckName),
+	}
 }
 
 func init() {
-	core.RegisterCheck("snmp", snmpFactory)
+	core.RegisterCheck(snmpCheckName, snmpFactory)
 }

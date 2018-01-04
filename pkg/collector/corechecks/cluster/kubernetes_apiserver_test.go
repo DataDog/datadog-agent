@@ -7,12 +7,15 @@
 package cluster
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"testing"
+
 	"github.com/ericchiang/k8s/api/v1"
 	obj "github.com/ericchiang/k8s/apis/meta/v1"
 	"github.com/stretchr/testify/assert"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func toStr(str string) *string {
@@ -81,11 +84,12 @@ func TestParseComponentStatus(t *testing.T) {
 		Items: nil,
 	}
 
+	// FIXME: use the factory instead
 	kubeASCheck := &KubeASCheck{
-		lastWarnings: []error{},
 		instance: &KubeASConfig{
 			Tags: []string{"test"},
 		},
+		CheckBase:             core.NewCheckBase(kubernetesAPIServerCheckName),
 		KubeAPIServerHostname: "hostname",
 	}
 

@@ -11,7 +11,6 @@ import (
 	"io/ioutil"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -20,15 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
+const fileHandlesCheckName = "file_handle"
+
 // For testing
 var fileNrHandle = "/proc/sys/fs/file-nr"
 
 type fhCheck struct {
-	lastWarnings []error
-}
-
-func (c *fhCheck) String() string {
-	return "file_handle"
+	core.CheckBase
 }
 
 func (c *fhCheck) getFileNrValues(fn string) ([]string, error) {
@@ -97,55 +94,12 @@ func (c *fhCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 	return nil
 }
 
-// Interval returns the scheduling time for the check
-func (c *fhCheck) Interval() time.Duration {
-	return check.DefaultCheckInterval
-}
-
-// ID returns the name of the check since there should be only one instance running
-func (c *fhCheck) ID() check.ID {
-	return check.ID(c.String())
-}
-
-// GetMetricStats returns the stats from the last run of the check
-func (c *fhCheck) GetMetricStats() (map[string]int64, error) {
-	sender, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		return nil, log.Errorf("Failed to retrieve a Sender instance: %v", err)
-	}
-	return sender.GetMetricStats(), nil
-}
-
-// GetWarnings grabs the last warnings from the sender
-func (c *fhCheck) GetWarnings() []error {
-	w := c.lastWarnings
-	c.lastWarnings = []error{}
-	return w
-}
-
-// Warn will log a warning and add it to the warnings
-func (c *fhCheck) warn(v ...interface{}) error {
-	w := log.Warn(v)
-	c.lastWarnings = append(c.lastWarnings, w)
-
-	return w
-}
-
-// Warnf will log a formatted warning and add it to the warnings
-func (c *fhCheck) warnf(format string, params ...interface{}) error {
-	w := log.Warnf(format, params)
-	c.lastWarnings = append(c.lastWarnings, w)
-
-	return w
-}
-
-// Stop does nothing
-func (c *fhCheck) Stop() {}
-
 func fhFactory() check.Check {
-	return &fhCheck{}
+	return &fhCheck{
+		CheckBase: core.NewCheckBase(fileHandlesCheckName),
+	}
 }
 
 func init() {
-	core.RegisterCheck("file_handle", fhFactory)
+	core.RegisterCheck(fileHandlesCheckName, fhFactory)
 }

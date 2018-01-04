@@ -12,10 +12,12 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/StackExchange/wmi"
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
 var (
@@ -46,9 +48,9 @@ type Win32_PerfRawData_PerfDisk_LogicalDisk struct {
 
 // IOCheck doesn't need additional fields
 type IOCheck struct {
-	blacklist    *regexp.Regexp
-	drivemap     map[string]Win32_PerfRawData_PerfDisk_LogicalDisk
-	lastWarnings []error
+	core.CheckBase
+	blacklist *regexp.Regexp
+	drivemap  map[string]Win32_PerfRawData_PerfDisk_LogicalDisk
 }
 
 // Configure the IOstats check
