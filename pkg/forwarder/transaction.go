@@ -130,7 +130,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
 	if successfulTransactions.Value() == 1 {
-		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every 20 transactions", logURL)
+		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every %d transactions", logURL, loggingFrequency)
 		log.Debugf("Url: %q payload: %s", logURL, string(body))
 		return nil
 	}
