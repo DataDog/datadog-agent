@@ -1,8 +1,0 @@
-log_dd_url: "my.url"
-log_dd_port: 10516
-dev_mode_no_ssl: true
-logset: playground
-api_key: "helloworld"
-hostname: "my.host"
-log_enabled: true
-log_open_files_limit: 123

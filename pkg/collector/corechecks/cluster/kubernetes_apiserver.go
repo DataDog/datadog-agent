@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 // +build kubeapiserver
 
 package cluster
@@ -9,6 +9,7 @@ package cluster
 import (
 	"errors"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -17,13 +18,12 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s/api/v1"
 	yaml "gopkg.in/yaml.v2"
-	"time"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
 const (
-	KubeControlPaneCheck     = "kube_apiserver_controlplane.up"
-	kubernetesAPIServerCheck = "kubernetes_apiserver"
+	KubeControlPaneCheck         = "kube_apiserver_controlplane.up"
+	kubernetesAPIServerCheckName = "kubernetes_apiserver"
 )
 
 // KubeASConfig is the config of the API server.
@@ -33,14 +33,9 @@ type KubeASConfig struct {
 
 // KubeASCheck grabs metrics and events from the API server.
 type KubeASCheck struct {
-	lastWarnings          []error
+	core.CheckBase
 	instance              *KubeASConfig
 	KubeAPIServerHostname string
-}
-
-// String returns the name of the API Server check.
-func (k *KubeASCheck) String() string {
-	return kubernetesAPIServerCheck
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -60,31 +55,6 @@ func (k *KubeASCheck) Configure(config, initConfig check.ConfigData) error {
 	return nil
 }
 
-// GetWarnings grabs the last warnings from the sender.
-func (k *KubeASCheck) GetWarnings() []error {
-	w := k.lastWarnings
-	k.lastWarnings = []error{}
-	return w
-}
-
-// Warn will log a warning and add it to the warnings
-func (k *KubeASCheck) warn(v ...interface{}) error {
-	w := log.Warn(v)
-	k.lastWarnings = append(k.lastWarnings, w)
-
-	return w
-}
-
-// ID returns the name of the check since there should be only one instance running.
-func (k *KubeASCheck) ID() check.ID {
-	return check.ID(k.String())
-}
-
-// Interval returns the scheduling time for the check.
-func (k *KubeASCheck) Interval() time.Duration {
-	return check.DefaultCheckInterval
-}
-
 // Run executes the check.
 func (k *KubeASCheck) Run() error {
 	sender, err := aggregator.GetSender(k.ID())
@@ -101,34 +71,23 @@ func (k *KubeASCheck) Run() error {
 
 	componentsStatus, err := asclient.ComponentStatuses()
 	if err != nil {
-		k.warn("could not retrieve the status from the control plane's components", err.Error())
+		k.Warn("could not retrieve the status from the control plane's components", err.Error())
 	}
 
 	err = k.parseComponentStatus(sender, componentsStatus)
 	if err != nil {
-		k.warn("could not collect API Server component status: ", err.Error())
+		k.Warn("could not collect API Server component status: ", err.Error())
 	}
 	sender.Commit()
 	return nil
 }
 
-// Stop does nothing.
-func (k *KubeASCheck) Stop() {}
-
 // KubernetesASFactory is exported for integration testing.
 func KubernetesASFactory() check.Check {
 	return &KubeASCheck{
-		instance: &KubeASConfig{},
+		CheckBase: core.NewCheckBase(kubernetesAPIServerCheckName),
+		instance:  &KubeASConfig{},
 	}
-}
-
-// GetMetricStats returns the stats from the last run of the check.
-func (k *KubeASCheck) GetMetricStats() (map[string]int64, error) {
-	sender, err := aggregator.GetSender(k.ID())
-	if err != nil {
-		return nil, log.Errorf("Failed to retrieve a Sender instance: %v", err)
-	}
-	return sender.GetMetricStats(), nil
 }
 
 func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
@@ -164,5 +123,5 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 	return nil
 }
 func init() {
-	core.RegisterCheck("kubernetes_apiserver", KubernetesASFactory)
+	core.RegisterCheck(kubernetesAPIServerCheckName, KubernetesASFactory)
 }

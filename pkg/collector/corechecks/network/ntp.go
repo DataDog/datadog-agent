@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package network
 
@@ -9,7 +9,6 @@ import (
 	"expvar"
 	"fmt"
 	"math/rand"
-	"time"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/beevik/ntp"
@@ -21,6 +20,8 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+const ntpCheckName = "ntp"
+
 var (
 	ntpExpVar = expvar.NewFloat("ntpOffset")
 	// for testing purpose
@@ -29,9 +30,8 @@ var (
 
 // NTPCheck only has sender and config
 type NTPCheck struct {
-	id           check.ID
-	lastWarnings []error
-	cfg          *ntpConfig
+	core.CheckBase
+	cfg *ntpConfig
 }
 
 type ntpInstanceConfig struct {
@@ -53,7 +53,7 @@ func (c *NTPCheck) String() string {
 	return "ntp"
 }
 
-func (c *ntpConfig) Parse(data []byte, initData []byte) error {
+func (c *ntpConfig) parse(data []byte, initData []byte) error {
 	var instance ntpInstanceConfig
 	var initConf ntpInitConfig
 	defaultVersion := 3
@@ -93,30 +93,17 @@ func (c *ntpConfig) Parse(data []byte, initData []byte) error {
 // Configure configure the data from the yaml
 func (c *NTPCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	cfg := new(ntpConfig)
-	err := cfg.Parse(data, initConfig)
+	err := cfg.parse(data, initConfig)
 	if err != nil {
 		log.Criticalf("Error parsing configuration file: %s", err)
 		return err
 	}
 
-	c.id = check.Identify(c, data, initConfig)
+	c.BuildID(data, initConfig)
 	c.cfg = cfg
 
 	return nil
 }
-
-// ID returns the id of the instance
-func (c *NTPCheck) ID() check.ID {
-	return c.id
-}
-
-// Interval returns the scheduling time for the check
-func (c *NTPCheck) Interval() time.Duration {
-	return check.DefaultCheckInterval
-}
-
-// Stop does nothing
-func (c *NTPCheck) Stop() {}
 
 // Run runs the check
 func (c *NTPCheck) Run() error {
@@ -154,42 +141,12 @@ func (c *NTPCheck) Run() error {
 	return nil
 }
 
-// GetWarnings grabs the last warnings from the sender
-func (c *NTPCheck) GetWarnings() []error {
-	w := c.lastWarnings
-	c.lastWarnings = []error{}
-	return w
-}
-
-// Warn will log a warning and add it to the warnings
-func (c *NTPCheck) warn(v ...interface{}) error {
-	w := log.Warn(v)
-	c.lastWarnings = append(c.lastWarnings, w)
-
-	return w
-}
-
-// Warnf will log a formatted warning and add it to the warnings
-func (c *NTPCheck) warnf(format string, params ...interface{}) error {
-	w := log.Warnf(format, params)
-	c.lastWarnings = append(c.lastWarnings, w)
-
-	return w
-}
-
-// GetMetricStats returns the stats from the last run of the check
-func (c *NTPCheck) GetMetricStats() (map[string]int64, error) {
-	sender, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
-	}
-	return sender.GetMetricStats(), nil
-}
-
 func ntpFactory() check.Check {
-	return &NTPCheck{}
+	return &NTPCheck{
+		CheckBase: core.NewCheckBase(ntpCheckName),
+	}
 }
 
 func init() {
-	core.RegisterCheck("ntp", ntpFactory)
+	core.RegisterCheck(ntpCheckName, ntpFactory)
 }

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 // +build !windows
 
@@ -13,13 +13,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"reflect"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -160,7 +160,7 @@ func (dt *DockerTailer) readForever() {
 			continue
 		}
 		if err != nil {
-			log.Println("Err:", err)
+			log.Error("Err: ", err)
 			return
 		}
 		if n == 0 {
@@ -185,7 +185,7 @@ func (dt *DockerTailer) forwardMessages() {
 
 		ts, sev, updatedMsg, err := dt.parseMessage(output.Content)
 		if err != nil {
-			log.Println(err)
+			log.Warn(err)
 			continue
 		}
 
@@ -215,7 +215,7 @@ func (dt *DockerTailer) keepDockerTagsUpdated() {
 func (dt *DockerTailer) checkForNewDockerTags() {
 	tags, err := tagger.Tag(dockerutil.ContainerIDToEntityName(dt.ContainerID), true)
 	if err != nil {
-		log.Println(err)
+		log.Warn(err)
 	} else {
 		if !reflect.DeepEqual(tags, dt.containerTags) {
 			dt.containerTags = tags

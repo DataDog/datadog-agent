@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 package forwarder
 
 import (
@@ -135,7 +135,7 @@ func TestProcessHTTPError(t *testing.T) {
 
 	err := transaction.Process(context.Background(), client)
 	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "Error '503 Service Unavailable' while sending transaction")
+	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusBadRequest

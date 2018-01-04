@@ -1,15 +1,16 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 // +build !windows
 
 package tailer
 
 import (
-	"log"
 	"path/filepath"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
@@ -53,12 +54,12 @@ func (r *FileProvider) FilesToTail() []*File {
 		pattern := source.Path
 		paths, err := filepath.Glob(pattern)
 		if err != nil {
-			log.Println("Malformed pattern, could not find any file:", pattern)
+			log.Warn("Malformed pattern, could not find any file: ", pattern)
 			continue
 		}
 		for _, path := range paths {
 			if len(filesToTail) == r.filesLimit {
-				log.Println("Reached the limit on the maximum number of files in use:", r.filesLimit)
+				log.Warn("Reached the limit on the maximum number of files in use: ", r.filesLimit)
 				return filesToTail
 			}
 			filesToTail = append(filesToTail, NewFile(path, source))

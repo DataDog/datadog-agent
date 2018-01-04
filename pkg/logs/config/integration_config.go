@@ -1,19 +1,23 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package config
 
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 	"regexp"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
 )
+
+// LogsAgent is the global configuration object
+var LogsAgent = ddconfig.Datadog
 
 // Logs source types
 const (
@@ -86,8 +90,8 @@ func getLogsSources(config *viper.Viper) []*IntegrationConfigLogSource {
 
 // BuildLogsAgentIntegrationsConfigs looks for all yml configs in the ddconfdPath directory,
 // and initializes the LogsAgent integrations configs
-func BuildLogsAgentIntegrationsConfigs(ddconfdPath string) error {
-	return buildLogsAgentIntegrationsConfig(LogsAgent, ddconfdPath)
+func BuildLogsAgentIntegrationsConfigs() error {
+	return buildLogsAgentIntegrationsConfig(LogsAgent, LogsAgent.GetString("confd_path"))
 }
 
 func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) error {
@@ -101,12 +105,12 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 		viperCfg.SetConfigFile(filepath.Join(ddconfdPath, file))
 		err := viperCfg.ReadInConfig()
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			continue
 		}
 		err = viperCfg.Unmarshal(&integrationConfig)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			continue
 		}
 
@@ -114,13 +118,13 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 			logSourceConfig := logSourceConfigIterator
 			err = validateSource(logSourceConfig)
 			if err != nil {
-				log.Println(err)
+				log.Error(err)
 				continue
 			}
 
 			rules, err := validateProcessingRules(logSourceConfig.ProcessingRules)
 			if err != nil {
-				log.Println(err)
+				log.Error(err)
 				continue
 			}
 			logSourceConfig.ProcessingRules = rules

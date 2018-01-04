@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package decoder
 
 import (
+	"bytes"
 	"regexp"
 	"sync"
 	"time"
@@ -19,16 +20,16 @@ type Line struct {
 	content []byte
 }
 
-// NewLine returns a new Line
-func NewLine(content []byte) *Line {
+// newLine returns a new Line
+func newLine(content []byte) *Line {
 	return &Line{
 		content: content,
 	}
 }
 
-// LineHandler handles Lines to form output
+// LineHandler handles byte slices to form line output
 type LineHandler interface {
-	Handle(line *Line)
+	Handle(content []byte)
 	Stop()
 }
 
@@ -50,9 +51,10 @@ func NewSingleLineHandler(outputChan chan *Output) *SingleLineHandler {
 	return &lineHandler
 }
 
-// Handle forward lines to lineChan to process them
-func (lh *SingleLineHandler) Handle(line *Line) {
-	lh.lineChan <- line
+// Handle trims leading and trailing whitespaces from content,
+// and sends it as a new Line to lineChan.
+func (lh *SingleLineHandler) Handle(content []byte) {
+	lh.lineChan <- newLine(bytes.TrimSpace(content))
 }
 
 // Stop stops the handler from processing new lines
@@ -130,8 +132,8 @@ func NewMultiLineLineHandler(outputChan chan *Output, newContentRe *regexp.Regex
 }
 
 // Handle forward lines to lineChan to process them
-func (lh *MultiLineLineHandler) Handle(line *Line) {
-	lh.lineChan <- line
+func (lh *MultiLineLineHandler) Handle(content []byte) {
+	lh.lineChan <- newLine(content)
 }
 
 // Stop stops the lineHandler from processing lines

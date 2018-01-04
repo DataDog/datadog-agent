@@ -1,14 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package listener
 
 import (
 	"fmt"
-	"log"
 	"net"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -22,7 +23,7 @@ type UDPListener struct {
 
 // NewUDPListener returns an initialized UDPListener
 func NewUDPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*UDPListener, error) {
-	log.Println("Starting UDP forwarder on port", source.Port)
+	log.Info("Starting UDP forwarder on port", source.Port)
 	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", source.Port))
 	if err != nil {
 		return nil, err
