@@ -8,6 +8,8 @@
 package providers
 
 import (
+	"sync"
+
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -21,7 +23,10 @@ const (
 
 // DockerConfigProvider implements the ConfigProvider interface for the docker labels.
 type DockerConfigProvider struct {
+	sync.RWMutex
 	dockerUtil *docker.DockerUtil
+	upToDate   bool
+	streaming  bool
 }
 
 // NewDockerConfigProvider returns a new ConfigProvider connected to docker.
@@ -35,7 +40,6 @@ func (d *DockerConfigProvider) String() string {
 }
 
 // Collect retrieves all running containers and extract AD templates from their labels.
-// TODO: suscribe to docker events and only invalidate cache if we get a `start` event since last Collect.
 func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
 	var err error
 	if d.dockerUtil == nil {
@@ -43,6 +47,7 @@ func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
 		if err != nil {
 			return []check.Config{}, err
 		}
+		go d.listen()
 	}
 
 	containers, err := d.dockerUtil.AllContainerLabels()
@@ -50,12 +55,56 @@ func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
 		return []check.Config{}, err
 	}
 
+	d.Lock()
+	d.upToDate = true
+	d.Unlock()
+
 	return parseDockerLabels(containers)
 }
 
-// IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to Docker's data.
+// We listen to docker events and invalidate our cache when we receive a start/die event
+func (d *DockerConfigProvider) listen() {
+	d.Lock()
+	d.streaming = true
+	d.Unlock()
+
+CONNECT:
+	for {
+		eventChan, errChan, err := d.dockerUtil.SubscribeToContainerEvents(d.String())
+		if err != nil {
+			log.Warnf("error subscribing to docker events: %s", err)
+			break CONNECT // We disable streaming and revert to always-pull behaviour
+		}
+
+		for {
+			select {
+			case ev := <-eventChan:
+				if ev.Action == "start" || ev.Action == "die" {
+					d.Lock()
+					d.upToDate = false
+					d.Unlock()
+				}
+			case err := <-errChan:
+				log.Warnf("error getting docker events: %s", err)
+				d.Lock()
+				d.upToDate = false
+				d.Unlock()
+				continue CONNECT // Re-connect to dockerutils
+			}
+		}
+	}
+
+	d.Lock()
+	d.streaming = false
+	d.Unlock()
+}
+
+// IsUpToDate checks whether we have new containers to parse, based on events received by the listen goroutine.
+// If listening fails, we fallback to Collecting everytime.
 func (d *DockerConfigProvider) IsUpToDate() (bool, error) {
-	return false, nil
+	d.RLock()
+	defer d.RUnlock()
+	return (d.streaming && d.upToDate), nil
 }
 
 func parseDockerLabels(containers map[string]map[string]string) ([]check.Config, error) {
