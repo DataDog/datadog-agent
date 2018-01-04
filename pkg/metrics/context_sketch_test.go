@@ -23,12 +23,11 @@ func TestContextSketchSampling(t *testing.T) {
 	resultSeries := ctxSketch.Flush(12345.0)
 
 	expectedSketch := percentile.NewGKArray()
-	expectedSketch = expectedSketch.Add(1).(percentile.GKArray)
-	expectedSketch = expectedSketch.Add(5).(percentile.GKArray)
+	expectedSketch = expectedSketch.Add(1)
+	expectedSketch = expectedSketch.Add(5)
 	expectedSeries := &percentile.SketchSeries{
 		ContextKey: contextKey,
 		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketch}},
-		SketchType: percentile.SketchGK,
 	}
 
 	assert.Equal(t, 1, len(resultSeries))
@@ -38,26 +37,6 @@ func TestContextSketchSampling(t *testing.T) {
 	// last flush
 	resultSeries = ctxSketch.Flush(12355.0)
 	assert.Equal(t, 0, len(resultSeries))
-
-	// KLL
-	ctxSketch = MakeContextSketch()
-	contextKey, _ = ckey.Parse("bbffffffffffffffffffffffffffffff")
-
-	ctxSketch.AddSample(contextKey, &MetricSample{Value: 1, Mtype: DistributionKType}, 1, 10)
-	ctxSketch.AddSample(contextKey, &MetricSample{Value: 5, Mtype: DistributionKType}, 3, 10)
-	resultSeries = ctxSketch.Flush(12345.0)
-
-	expectedSketchK := percentile.NewKLL()
-	expectedSketchK = expectedSketchK.Add(1).(percentile.KLL)
-	expectedSketchK = expectedSketchK.Add(5).(percentile.KLL)
-	expectedSeriesK := &percentile.SketchSeries{
-		ContextKey: contextKey,
-		Sketches:   []percentile.Sketch{{Timestamp: int64(12345), Sketch: expectedSketchK}},
-		SketchType: percentile.SketchKLL,
-	}
-
-	assert.Equal(t, 1, len(resultSeries))
-	AssertSketchSeriesEqual(t, expectedSeriesK, resultSeries[0])
 }
 
 // The sketches ignore sample values of +Inf/-Inf

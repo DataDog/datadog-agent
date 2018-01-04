@@ -11,8 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
-
-	log "github.com/cihub/seelog"
 )
 
 // FIXME(Jee) : This should be integrated with time_sampler.go since it
@@ -52,9 +50,6 @@ func (d *DistSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 	sketch.AddSample(contextKey, metricSample, timestamp, d.interval)
 }
 
-// flush returns a list of SketchSeries, each of which contains sketches
-// of the same SketchType. Only sketches of the first occurring SketchType
-// will be flushed.
 func (d *DistSampler) flush(timestamp float64) percentile.SketchSeriesList {
 	var result []*percentile.SketchSeries
 
@@ -71,14 +66,7 @@ func (d *DistSampler) flush(timestamp float64) percentile.SketchSeriesList {
 			contextKey := sketchSeries.ContextKey
 
 			if existingSeries, ok := sketchesByContext[contextKey]; ok {
-				// Make sure that all sketches in a SketchSeries are of the same type
-				if existingSeries.SketchType == sketchSeries.SketchType {
-					existingSeries.Sketches = append(existingSeries.Sketches, sketchSeries.Sketches[0])
-				} else {
-					log.Errorf("ContextKey %s has two SketchTypes %s and %s. Dropping %s",
-						contextKey, existingSeries.SketchType,
-						sketchSeries.SketchType, sketchSeries.SketchType)
-				}
+				existingSeries.Sketches = append(existingSeries.Sketches, sketchSeries.Sketches[0])
 			} else {
 				context := d.contextResolver.contextsByKey[contextKey]
 				sketchSeries.Name = context.Name

@@ -13,7 +13,7 @@ import (
 )
 
 func TestDistributionSampling(t *testing.T) {
-	distro := NewDistributionGK()
+	distro := NewDistribution()
 
 	// OK to flush an empty distribution
 	_, err := distro.flush(10)
@@ -31,12 +31,12 @@ func TestDistributionSampling(t *testing.T) {
 	assert.Nil(t, err)
 
 	expectedSketch := percentile.NewGKArray()
-	expectedSketch = expectedSketch.Add(1).(percentile.GKArray)
-	expectedSketch = expectedSketch.Add(10).(percentile.GKArray)
-	expectedSketch = expectedSketch.Add(5).(percentile.GKArray)
+	expectedSketch = expectedSketch.Add(1)
+	expectedSketch = expectedSketch.Add(10)
+	expectedSketch = expectedSketch.Add(5)
 	expectedSeries := &percentile.SketchSeries{
-		Sketches:   []percentile.Sketch{{Timestamp: int64(15), Sketch: expectedSketch}},
-		SketchType: percentile.SketchGK}
+		Sketches: []percentile.Sketch{{Timestamp: int64(15), Sketch: expectedSketch}},
+	}
 
 	AssertSketchSeriesEqual(t, expectedSeries, sketchSeries)
 
@@ -44,13 +44,4 @@ func TestDistributionSampling(t *testing.T) {
 	assert.Equal(t, int64(0), distro.count)
 	_, err = distro.flush(20)
 	assert.NotNil(t, err)
-}
-
-func TestDistributionWrongSampleType(t *testing.T) {
-	distro := NewDistributionKLL()
-
-	// Sample with wrong Mtype does not get added
-	distro.addSample(&MetricSample{Value: 1, Mtype: DistributionType}, 10)
-	distro.addSample(&MetricSample{Value: 1, Mtype: DistributionKType}, 10)
-	assert.Equal(t, int64(1), distro.count)
 }

@@ -20,15 +20,11 @@ const (
 	SetType
 	// NOTE: DistributionType is in development and is NOT supported
 	DistributionType
-	DistributionKType
-	DistributionCType
 )
 
 // DistributionMetricTypes contains the MetricTypes that are used for percentiles
 var DistributionMetricTypes = map[MetricType]struct{}{
-	DistributionType:  {},
-	DistributionKType: {},
-	DistributionCType: {},
+	DistributionType: {},
 }
 
 // String returns a string representation of MetricType
@@ -52,10 +48,6 @@ func (m MetricType) String() string {
 		return "Set"
 	case DistributionType:
 		return "Distribution"
-	case DistributionKType:
-		return "DistributionK"
-	case DistributionCType:
-		return "DistributionC"
 	default:
 		return ""
 	}
