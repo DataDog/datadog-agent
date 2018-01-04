@@ -20,15 +20,3 @@ Each log line comes from a source (e.g. file, network, docker), and then enters 
 `Forwarder` submits the messages to the intake, and notifies the auditor
 
 `Auditor` notes that messages were properly submitted, stores offsets for agent restarts
-
-## How to run
-
-From root:
-- `inv deps`
-- `inv logs.build`
-- setup config files
-- `./bin/logs/logs --ddconfig /etc/datadog/datadog.yaml --ddconfd /etc/datadog/conf.d/`
-
-or:
-- `inv deps`
-- `inv logs.run --ddconfig=datadog.yaml --ddconfd=conf.d`

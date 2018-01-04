@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -202,6 +203,20 @@ func StartAgent() error {
 		}
 	}
 	log.Debugf("statsd started")
+
+	// start logs-agent
+	if config.Datadog.GetBool("log_enabled") {
+		// logs-agent does not provide any Stop method yet
+		// data loss may happen when stopping the agent
+		err := logs.Start()
+		if err != nil {
+			log.Error("Could not start logs-agent: ", err)
+		} else {
+			log.Info("Starting logs-agent")
+		}
+	} else {
+		log.Info("logs-agent disabled")
+	}
 
 	// create and setup the Autoconfig instance
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))

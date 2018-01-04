@@ -33,7 +33,6 @@ build do
             # remove the config files for the subservices; they'll be started
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
-            delete "#{conf_dir}/logs-agent.yaml.default"
             delete "#{conf_dir}/process_agent.yaml.default"
 
             # cleanup clutter

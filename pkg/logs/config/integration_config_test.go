@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testsPath = "tests"
+
 func TestAvailableIntegrationConfigs(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
 	assert.Equal(t, []string{"integration.yaml", "integration2.yml", "misconfigured_integration.yaml", "integration.d/integration3.yaml"}, availableIntegrationConfigs(ddconfdPath))
@@ -75,8 +77,43 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	assert.Equal(t, ".*@datadoghq.com$", iRule.Pattern)
 }
 
+func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
+	var testConfig = viper.New()
+	var ddconfdPath string
+	var err error
+	ddconfdPath = filepath.Join(testsPath, "misconfigured_1")
+	err = buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	assert.NotNil(t, err)
+
+	ddconfdPath = filepath.Join(testsPath, "misconfigured_2", "conf.d")
+	err = buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	assert.NotNil(t, err)
+
+	ddconfdPath = filepath.Join(testsPath, "misconfigured_3", "conf.d")
+	err = buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	assert.NotNil(t, err)
+
+	ddconfdPath = filepath.Join(testsPath, "misconfigured_4", "conf.d")
+	err = buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	assert.NotNil(t, err)
+
+	ddconfdPath = filepath.Join(testsPath, "misconfigured_5", "conf.d")
+	err = buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	assert.NotNil(t, err)
+}
+
 func TestBuildTagsPayload(t *testing.T) {
 	assert.Equal(t, "-", string(BuildTagsPayload("", "", "")))
 	assert.Equal(t, "[dd ddtags=\"hello:world\"]", string(BuildTagsPayload("hello:world", "", "")))
 	assert.Equal(t, "[dd ddsource=\"nginx\"][dd ddsourcecategory=\"http_access\"][dd ddtags=\"hello:world, hi\"]", string(BuildTagsPayload("hello:world, hi", "nginx", "http_access")))
+}
+
+func TestLogsAgentDefaultValues(t *testing.T) {
+	assert.Equal(t, "", LogsAgent.GetString("logset"))
+	assert.Equal(t, "intake.logs.datadoghq.com", LogsAgent.GetString("log_dd_url"))
+	assert.Equal(t, 10516, LogsAgent.GetInt("log_dd_port"))
+	assert.Equal(t, false, LogsAgent.GetBool("skip_ssl_validation"))
+	assert.Equal(t, false, LogsAgent.GetBool("dev_mode_no_ssl"))
+	assert.Equal(t, false, LogsAgent.GetBool("log_enabled"))
+	assert.Equal(t, 100, LogsAgent.GetInt("log_open_files_limit"))
 }

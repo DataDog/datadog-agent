@@ -1,4 +1,0 @@
-instances:
-- {} # default instance, if you need to customize its configuration, please do so
-     # in the main datadog.yaml
-

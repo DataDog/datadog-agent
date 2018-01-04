@@ -126,8 +126,7 @@ dependency 'jmxfetch'
 # External agents
 dependency 'datadog-trace-agent'
 if linux?
-  dependency 'datadog-process-agent'
-  dependency 'datadog-logs-agent'
+  dependency 'datadog-process-agent'  
 end
 
 if osx?
