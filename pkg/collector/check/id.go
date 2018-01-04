@@ -6,25 +6,24 @@
 package check
 
 import (
+	"fmt"
 	"hash/fnv"
-	"strconv"
 )
 
 // ID is the representation of the unique ID of a Check instance
 type ID string
 
-// Identify returns a unique ID for a check and its configuration
+// Identify returns an unique ID for a check and its configuration
 func Identify(check Check, instance ConfigData, initConfig ConfigData) ID {
 	return BuildID(check.String(), instance, initConfig)
 }
 
-// BuildID returns a unique ID for a check name and its configuration
+// BuildID returns an unique ID for a check name and its configuration
 func BuildID(checkName string, instance, initConfig ConfigData) ID {
 	h := fnv.New64()
 	h.Write([]byte(instance))
 	h.Write([]byte(initConfig))
 
-	id := checkName + ":"
-	id += strconv.FormatUint(h.Sum64(), 16)
+	id := fmt.Sprintf("%s:%x", checkName, h.Sum64())
 	return ID(id)
 }
