@@ -135,7 +135,7 @@ func TestProcessHTTPError(t *testing.T) {
 
 	err := transaction.Process(context.Background(), client)
 	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "Error '503 Service Unavailable' while sending transaction")
+	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusBadRequest
