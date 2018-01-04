@@ -48,15 +48,14 @@ First let’s create two directories on the host that we will later mount on the
 To  run a Docker container which embeds the Datadog Agent to monitor your host use the following command:
 
 ```
-docker run -d --name dd-agent -h `hostname` -e DD_API_KEY=<YOUR_API_KEY>  -e DD_LOG_ENABLED=true -e SD_BACKEND=docker -v /var/run/docker.sock:/var/run/docker.sock:ro -v /proc/:/host/proc/:ro -v /opt/datadog-agent/run:/opt/datadog-agent/run:rw -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro -v /opt/datadog-agent/conf.d:/conf.d:ro datadog/agent:6.0.0-beta.6
+docker run -d --name dd-agent -h `hostname` -e DD_API_KEY=<YOUR_API_KEY> -e DD_LOG_ENABLED=true -v /var/run/docker.sock:/var/run/docker.sock:ro -v /proc/:/host/proc/:ro -v /opt/datadog-agent/run:/opt/datadog-agent/run:rw -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro -v /opt/datadog-agent/conf.d:/conf.d:ro datadog/agent:latest
 ```
 
 *Important notes*: 
 
-- The Docker integration is enabled by default, as well as [autodiscovery](https://docs.datadoghq.com/guides/servicediscovery/) in auto config mode (remove the `SD_BACKEND` variable to disable it).
+- The Docker integration is enabled by default, as well as [autodiscovery](https://docs.datadoghq.com/guides/servicediscovery/) in auto config mode ((remove the `listeners: -docker` section in `datadog.yaml` to disable it).
 
-- For this example we used the image 6.0.0-beta.6 of the agent. You can find [here](https://hub.docker.com/r/datadog/agent/tags/) the latest available images for agent 6 and we encourage you to always pick the latest version
-
+- You can find [here](https://hub.docker.com/r/datadog/agent/tags/) the list of available images for agent 6 and we encourage you to always pick the latest version.
 
 The parameters specific to log collection are the following:
 
