@@ -37,9 +37,9 @@ type HTTPTransaction struct {
 }
 
 const (
-	apiKeyReplacement               = "api_key=*************************$1"
-	retryInterval     time.Duration = 20 * time.Second
-	maxRetryInterval  time.Duration = 90 * time.Second
+	apiKeyReplacement = "api_key=*************************$1"
+	retryInterval     = 20 * time.Second
+	maxRetryInterval  = 90 * time.Second
 )
 
 var apiKeyRegExp = regexp.MustCompile("api_key=*\\w+(\\w{5})")
@@ -78,7 +78,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 
 	req, err := http.NewRequest("POST", url, reader)
 	if err != nil {
-		log.Errorf("Could not create request for transaction to invalid URL '%s' (dropping transaction): %s", logURL, err)
+		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
 		transactionsExpvar.Add("Errors", 1)
 		return nil
 	}
@@ -93,13 +93,18 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		}
 		t.ErrorCount++
 		transactionsExpvar.Add("Errors", 1)
-		return fmt.Errorf("Error while sending transaction, rescheduling it: %s", apiKeyRegExp.ReplaceAllString(err.Error(), apiKeyReplacement))
+		return fmt.Errorf("error while sending transaction, rescheduling it: %s", apiKeyRegExp.ReplaceAllString(err.Error(), apiKeyReplacement))
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Errorf("fail to read the response Body: %s", err)
+		return err
+	}
+
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
-		log.Errorf("Error code '%s' received while sending transaction to '%s': %s, dropping it", resp.Status, logURL, string(body))
+		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
 		transactionsExpvar.Add("Dropped", 1)
 		if apiKeyStatus.Get(t.apiKeyStatusKey) == nil {
 			apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyStatusUnknown)
@@ -116,7 +121,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		if apiKeyStatus.Get(t.apiKeyStatusKey) == nil {
 			apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyStatusUnknown)
 		}
-		return fmt.Errorf("Error '%s' while sending transaction to '%s', rescheduling it", resp.Status, logURL)
+		return fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
 
 	successfulTransactions.Add(1)
@@ -125,15 +130,16 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
 	if successfulTransactions.Value() == 1 {
-		log.Infof("successfully posted payload to '%s', the agent will only log transaction success every 20 transactions", logURL, string(body))
-		log.Debugf("payload: %s", logURL, string(body))
-	} else if successfulTransactions.Value()%loggingFrequency == 0 {
-		log.Infof("successfully posted payload to '%s'", logURL, string(body))
-		log.Debugf("payload: %s", logURL, string(body))
-	} else {
-		log.Debugf("successfully posted payload to '%s': %s", logURL, string(body))
+		log.Infof("successfully posted payload to %q, the agent will only log transaction success every 20 transactions", logURL)
+		log.Debugf("url: %q payload: %s", logURL, string(body))
+		return nil
 	}
-
+	if successfulTransactions.Value()%loggingFrequency == 0 {
+		log.Infof("successfully posted payload to %q", logURL)
+		log.Debugf("payload: %s", logURL, string(body))
+		return nil
+	}
+	log.Debugf("successfully posted payload to %q: %s", logURL, string(body))
 	return nil
 }
 
