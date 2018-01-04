@@ -49,7 +49,7 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata) ([]*TagInfo, 
 
 			// container
 			tags.AddLow("ecs_container_name", ctr.Name)
-			tags.AddHigh("docker_container_name", ctr.DockerName)
+			tags.AddHigh("container_name", ctr.DockerName)
 
 			// container image
 			image := ctr.Image
