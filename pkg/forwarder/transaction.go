@@ -99,7 +99,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Errorf("fail to read the response Body: %s", err)
+		log.Errorf("Fail to read the response Body: %s", err)
 		return err
 	}
 
@@ -130,16 +130,16 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 
 	if successfulTransactions.Value() == 1 {
-		log.Infof("successfully posted payload to %q, the agent will only log transaction success every 20 transactions", logURL)
-		log.Debugf("url: %q payload: %s", logURL, string(body))
+		log.Infof("Successfully posted payload to %q, the agent will only log transaction success every 20 transactions", logURL)
+		log.Debugf("Url: %q payload: %s", logURL, string(body))
 		return nil
 	}
 	if successfulTransactions.Value()%loggingFrequency == 0 {
-		log.Infof("successfully posted payload to %q", logURL)
-		log.Debugf("payload: %s", logURL, string(body))
+		log.Infof("Successfully posted payload to %q", logURL)
+		log.Debugf("Payload: %s", logURL, string(body))
 		return nil
 	}
-	log.Debugf("successfully posted payload to %q: %s", logURL, string(body))
+	log.Debugf("Successfully posted payload to %q: %s", logURL, string(body))
 	return nil
 }
 
