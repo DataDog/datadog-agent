@@ -41,11 +41,11 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata) ([]*TagInfo, 
 			tags := utils.NewTagList()
 
 			// cluster
-			tags.AddLow("ecs_cluster_name", meta.ClusterName)
+			tags.AddLow("cluster_name", meta.ClusterName)
 
 			// task
-			tags.AddLow("ecs_task_family", meta.Family)
-			tags.AddLow("ecs_task_version", meta.Version)
+			tags.AddLow("task_family", meta.Family)
+			tags.AddLow("task_version", meta.Version)
 
 			// container
 			tags.AddLow("ecs_container_name", ctr.Name)
@@ -56,7 +56,7 @@ func (c *ECSFargateCollector) parseMetadata(meta ecs.TaskMetadata) ([]*TagInfo, 
 			tags.AddLow("docker_image", image)
 			imageSplit := strings.Split(image, ":")
 			imageName := strings.Join(imageSplit[:len(imageSplit)-1], ":")
-			tags.AddLow("imageName", imageName)
+			tags.AddLow("image_name", imageName)
 			if len(imageSplit) > 1 {
 				imageTag := imageSplit[len(imageSplit)-1]
 				tags.AddLow("image_tag", imageTag)
