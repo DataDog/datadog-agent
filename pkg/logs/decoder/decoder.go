@@ -130,6 +130,5 @@ func (d *Decoder) sendLine() {
 	content := make([]byte, d.lineBuffer.Len())
 	copy(content, d.lineBuffer.Bytes())
 	d.lineBuffer.Reset()
-	newLine := NewLine(content)
-	d.lineHandler.Handle(newLine)
+	d.lineHandler.Handle(content)
 }
