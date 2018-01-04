@@ -104,10 +104,7 @@ func (d *DockerUtil) init() error {
 	d.networkMappings = make(map[string][]dockerNetwork)
 	d.imageNameBySha = make(map[string]string)
 	d.lastInvalidate = time.Now()
-	d.eventState = &eventStreamState{
-		subscribers: make(map[string]*eventSubscriber),
-		cancelChan:  make(chan struct{}),
-	}
+	d.eventState = newEventStreamState()
 
 	return nil
 }

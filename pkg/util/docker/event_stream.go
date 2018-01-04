@@ -18,10 +18,11 @@ import (
 	"github.com/docker/docker/api/types/filters"
 )
 
-//// Can't be unit tested, covered by the listeners/docker
-//// and dogstatsd/origin_detection integration tests.
+//// eventStreamState logic unit tested in event_stream_test.go
+//// DockerUtil logic covered by the listeners/docker and dogstatsd/origin_detection integration tests.
 
 const eventSendTimeout = 100 * time.Millisecond
+const eventSendBuffer = 5
 
 // SubscribeToContainerEvents allows a package to subscribe to events from the event stream.
 // A unique subscriber name should be provided.
@@ -49,7 +50,7 @@ func (e *eventStreamState) subscribe(name string) (<-chan *ContainerEvent, <-cha
 
 	sub := &eventSubscriber{
 		name:      name,
-		eventChan: make(chan *ContainerEvent, 5),
+		eventChan: make(chan *ContainerEvent, eventSendBuffer),
 		errorChan: make(chan error, 1),
 	}
 	e.Lock()

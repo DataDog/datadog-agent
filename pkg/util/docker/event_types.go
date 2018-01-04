@@ -47,3 +47,10 @@ type eventStreamState struct {
 	cancelChan  chan struct{}
 	running     bool
 }
+
+func newEventStreamState() *eventStreamState {
+	return &eventStreamState{
+		subscribers: make(map[string]*eventSubscriber),
+		cancelChan:  make(chan struct{}),
+	}
+}
