@@ -79,6 +79,10 @@ CONNECT:
 		for {
 			select {
 			case ev := <-eventChan:
+				// As our input is the docker `client.ContainerList`, which lists running containers,
+				// only these two event types will change what containers appear.
+				// Container labels cannot change once they are created, so we don't need to react on
+				// other lifecycle events.
 				if ev.Action == "start" || ev.Action == "die" {
 					d.Lock()
 					d.upToDate = false
