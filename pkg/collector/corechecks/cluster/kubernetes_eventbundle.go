@@ -17,29 +17,31 @@ import (
 )
 
 type kubernetesEventBundle struct {
-	nodeUid       string
+	objName       string
+	readableKey   string
+	component     string
 	events        []*v1.Event
-	firstTime     int64
-	lastTime      int64
+	timeStamp     int64
 	countByAction map[string]int
 }
 
-func newKubernetesEventBundler(nodeUid string) *kubernetesEventBundle {
+func newKubernetesEventBundler(objName string, compName string) *kubernetesEventBundle {
 	return &kubernetesEventBundle{
-		nodeUid:       nodeUid,
+		objName:       objName,
 		events:        []*v1.Event{},
+		component:     compName,
 		countByAction: make(map[string]int),
 	}
 }
 
 func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
-	if *event.InvolvedObject.Uid != k.nodeUid {
-		return fmt.Errorf("mismatching Node Id name: %s != %s", event.InvolvedObject.Uid, k.nodeUid)
+	if *event.InvolvedObject.Name != k.objName {
+		return fmt.Errorf("mismatching Object name: %s != %s", event.InvolvedObject.Name, k.objName)
 	}
 	k.events = append(k.events, event)
 	k.countByAction[*event.Reason] += int(*event.Count)
-	k.firstTime = *event.FirstTimestamp.Seconds
-	k.lastTime = int64(math.Max(float64(k.lastTime), float64(*event.LastTimestamp.Seconds)))
+	k.timeStamp = int64(math.Max(float64(k.timeStamp), float64(*event.LastTimestamp.Seconds)))
+	k.readableKey = fmt.Sprintf("%s %s", *event.InvolvedObject.Kind, *event.InvolvedObject.Name)
 	return nil
 }
 
@@ -47,24 +49,23 @@ func (k *kubernetesEventBundle) formatEvents(hostname string, modified bool) (me
 	output := metrics.Event{
 		Priority:       metrics.EventPriorityNormal,
 		Host:           hostname,
-		SourceTypeName: kubernetesAPIServerCheck,
-		EventType:      kubernetesAPIServerCheck,
-		Ts:             int64(k.lastTime),
-		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", k.nodeUid),
+		SourceTypeName: "kubernetes",
+		EventType:      kubernetesAPIServerCheckName,
+		Ts:             int64(k.timeStamp),
+		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", k.objName),
 	}
 	if len(k.events) == 0 {
 		return output, errors.New("no event to export")
 	}
-	output.Title = fmt.Sprintf("Events of %s on %s",
-		k.nodeUid,
-		hostname)
 
-	//if k.lastTime != k.firstTime {
-	//	// Modified events
-	//	output.Text = fmt.Sprintf("%s events seen at %s", formatStringIntMap(k.countByAction), time.Unix(k.lastTime,0))
-	//	return output, nil
-	//}
-	output.Text = fmt.Sprintf("%s new events seen at %s", formatStringIntMap(k.countByAction), time.Unix(k.lastTime, 0))
+	output.Title = fmt.Sprintf("Events from the %s",
+		k.readableKey)
+
+	if modified {
+		output.Text = fmt.Sprintf("%s events emitted by the %s seen at %s", formatStringIntMap(k.countByAction), k.component, time.Unix(k.timeStamp, 0))
+		return output, nil
+	}
+	output.Text = fmt.Sprintf("%s new events emitted by the %s seen at %s", formatStringIntMap(k.countByAction), k.component, time.Unix(k.timeStamp, 0))
 	return output, nil
 }
 
