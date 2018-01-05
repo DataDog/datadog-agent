@@ -91,7 +91,7 @@ func (p *Processor) computeExtraContent(msg message.Message) []byte {
 		extraContent = append(extraContent, ' ')
 
 		// Hostname
-		extraContent = append(extraContent, []byte(config.LogsAgent.GetString("hostname"))...)
+		extraContent = append(extraContent, []byte(config.GetHostname())...)
 		extraContent = append(extraContent, ' ')
 
 		// Service

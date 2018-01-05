@@ -11,13 +11,9 @@ import (
 	"path/filepath"
 	"regexp"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
 )
-
-// LogsAgent is the global configuration object
-var LogsAgent = ddconfig.Datadog
 
 // Logs source types
 const (
@@ -40,8 +36,6 @@ const (
 	yamlExtension = ".yaml"
 	ymlExtension  = ".yml"
 )
-
-const logsRules = "LogsRules"
 
 // LogsProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
@@ -79,22 +73,9 @@ type IntegrationConfig struct {
 	Logs []IntegrationConfigLogSource
 }
 
-// GetLogsSources returns a list of integration sources
-func GetLogsSources() []*IntegrationConfigLogSource {
-	return getLogsSources(LogsAgent)
-}
-
-func getLogsSources(config *viper.Viper) []*IntegrationConfigLogSource {
-	return config.Get(logsRules).([]*IntegrationConfigLogSource)
-}
-
-// BuildLogsAgentIntegrationsConfigs looks for all yml configs in the ddconfdPath directory,
-// and initializes the LogsAgent integrations configs
-func BuildLogsAgentIntegrationsConfigs() error {
-	return buildLogsAgentIntegrationsConfig(LogsAgent, LogsAgent.GetString("confd_path"))
-}
-
-func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) error {
+// buildLogsSources looks for all yml configs in the ddconfdPath directory,
+// and returns a list of all the valid logs sources
+func buildLogsSources(ddconfdPath string) ([]*IntegrationConfigLogSource, error) {
 
 	integrationConfigFiles := availableIntegrationConfigs(ddconfdPath)
 	logsSourceConfigs := []*IntegrationConfigLogSource{}
@@ -136,11 +117,10 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 	}
 
 	if len(logsSourceConfigs) == 0 {
-		return fmt.Errorf("Could not find any valid logs integration configuration file in %s", ddconfdPath)
+		return nil, fmt.Errorf("Could not find any valid logs integration configuration file in %s", ddconfdPath)
 	}
 
-	config.Set(logsRules, logsSourceConfigs)
-	return nil
+	return logsSourceConfigs, nil
 }
 
 // availableIntegrationConfigs lists yaml files in ddconfdPath
