@@ -42,6 +42,8 @@ func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerE
 	return eventChan, errorChan, err
 }
 
+// extracted from SubscribeToContainerEvents for unit testing, additional boolean
+// indicates whether the dispatch goroutine should be started by DockerUtil
 func (e *eventStreamState) subscribe(name string) (<-chan *ContainerEvent, <-chan error, error, bool) {
 	var shouldStart bool
 	e.RLock()
@@ -81,6 +83,8 @@ func (d *DockerUtil) UnsubscribeFromContainerEvents(name string) error {
 	return err
 }
 
+// extracted from UnsubscribeFromContainerEvents for unit testing, additional boolean
+// indicates whether the dispatch goroutine should be stopped by DockerUtil
 func (e *eventStreamState) unsubscribe(name string) (error, bool) {
 	var shouldStop bool
 	e.Lock()
