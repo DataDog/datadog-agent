@@ -158,7 +158,8 @@ func formatTitle(title string) string {
 
 	// Split camel case words
 	var words []string
-	l := 0
+	var l int
+
 	for s := title; s != ""; s = s[l:] {
 		l = strings.IndexFunc(s[1:], unicode.IsUpper) + 1
 		if l <= 0 {
