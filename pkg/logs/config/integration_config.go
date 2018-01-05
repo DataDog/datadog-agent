@@ -171,7 +171,7 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 	config.Set(logsIntegrationsStatus, integrationsStatus)
 
 	if len(logsSourceConfigs) == 0 {
-		return fmt.Errorf("Could not find any valid logs integration configuration file in %s", ddconfdPath)
+		return fmt.Errorf("Could not find any valid logs configuration file in %s", ddconfdPath)
 	}
 
 	config.Set(logsRules, logsSourceConfigs)
@@ -239,7 +239,10 @@ func validateSource(config IntegrationConfigLogSource) error {
 func validateProcessingRules(rules []LogsProcessingRule) ([]LogsProcessingRule, error) {
 	for i, rule := range rules {
 		if rule.Name == "" {
-			return nil, fmt.Errorf("LogsAgent misconfigured: all log processing rules need a name")
+			return nil, fmt.Errorf("logs-agent misconfigured: all logs processing rules must have a name")
+		}
+		if rule.Pattern == "" {
+			return nil, fmt.Errorf("logs-agent misconfigured: all logs processing rules must have a pattern")
 		}
 		switch rule.Type {
 		case ExcludeAtMatch:
@@ -253,9 +256,9 @@ func validateProcessingRules(rules []LogsProcessingRule) ([]LogsProcessingRule, 
 			rules[i].Reg = regexp.MustCompile("^" + rule.Pattern)
 		default:
 			if rule.Type == "" {
-				return nil, fmt.Errorf("LogsAgent misconfigured: type must be set for log processing rule `%s`", rule.Name)
+				return nil, fmt.Errorf("logs-agent misconfigured: type must be set for logs processing rule `%s`", rule.Name)
 			}
-			return nil, fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
+			return nil, fmt.Errorf("logs-agent misconfigured: type %s is not supported for logs processing rule `%s`", rule.Type, rule.Name)
 		}
 	}
 	return rules, nil
