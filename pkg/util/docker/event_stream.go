@@ -26,8 +26,11 @@ const eventSendBuffer = 5
 
 // SubscribeToContainerEvents allows a package to subscribe to events from the event stream.
 // A unique subscriber name should be provided.
+//
+// Attention: events sent through the channel are references to objects shared between subscribers,
+// subscribers should NOT modify them.
 func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerEvent, <-chan error, error) {
-	c1, c2, err, shouldStart := d.eventState.subscribe(name)
+	eventChan, errorChan, err, shouldStart := d.eventState.subscribe(name)
 
 	if shouldStart {
 		d.eventState.Lock()
@@ -36,7 +39,7 @@ func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerE
 		d.eventState.Unlock()
 	}
 
-	return c1, c2, err
+	return eventChan, errorChan, err
 }
 
 func (e *eventStreamState) subscribe(name string) (<-chan *ContainerEvent, <-chan error, error, bool) {
