@@ -1,0 +1,26 @@
+==========
+Logs-agent
+==========
+{{ if (not .is_enabled) }}
+  logs-agent is disabled
+{{ else }}
+  Configuration
+  =============
+  {{- if (not .integrations) }}
+    no integrations
+  {{- end }}
+  {{- range .integrations }}
+    {{ .name }}
+    {{printDashes .name "-"}}
+    {{- range .sources }}
+      Type: {{ .type }}
+      Info: {{ .info }}
+    {{- end }}
+    {{- if .errors }}
+      Errors:
+      {{- range .errors }}
+        {{ .message }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{ end }}

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
 // Start starts logs-agent
@@ -52,4 +53,12 @@ func run() {
 
 	c := container.New(config.GetLogsSources(), pp, a)
 	c.Start()
+}
+
+// GetStatus returns the status of logs-agent
+func GetStatus() status.Status {
+	return status.Status{
+		IsEnabled:    config.LogsAgent.GetBool("log_enabled"),
+		Integrations: config.GetIntegrationsStatus(),
+	}
 }

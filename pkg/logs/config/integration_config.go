@@ -10,10 +10,13 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
 // LogsAgent is the global configuration object
@@ -42,6 +45,7 @@ const (
 )
 
 const logsRules = "LogsRules"
+const logsIntegrationsStatus = "LogsIntegrationsStatus"
 
 // LogsProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
@@ -88,6 +92,19 @@ func getLogsSources(config *viper.Viper) []*IntegrationConfigLogSource {
 	return config.Get(logsRules).([]*IntegrationConfigLogSource)
 }
 
+// GetIntegrationsStatus returns all the integrations status
+// if not set returns nil
+func GetIntegrationsStatus() []status.Integration {
+	return getIntegrationsStatus(LogsAgent)
+}
+
+func getIntegrationsStatus(config *viper.Viper) []status.Integration {
+	if config.Get(logsIntegrationsStatus) != nil {
+		return config.Get(logsIntegrationsStatus).([]status.Integration)
+	}
+	return nil
+}
+
 // BuildLogsAgentIntegrationsConfigs looks for all yml configs in the ddconfdPath directory,
 // and initializes the LogsAgent integrations configs
 func BuildLogsAgentIntegrationsConfigs() error {
@@ -98,19 +115,29 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 
 	integrationConfigFiles := availableIntegrationConfigs(ddconfdPath)
 	logsSourceConfigs := []*IntegrationConfigLogSource{}
+	integrationsStatus := []status.Integration{}
 
 	for _, file := range integrationConfigFiles {
 		var integrationConfig IntegrationConfig
 		var viperCfg = viper.New()
+
+		integrationName := strings.TrimSuffix(file, filepath.Ext(file))
+		integrationSources := []status.Source{}
+		integrationErrors := []status.Error{}
+
 		viperCfg.SetConfigFile(filepath.Join(ddconfdPath, file))
 		err := viperCfg.ReadInConfig()
 		if err != nil {
 			log.Error(err)
+			integrationErrors = append(integrationErrors, status.Error{err.Error()})
+			integrationsStatus = append(integrationsStatus, status.Integration{Name: integrationName, Errors: integrationErrors})
 			continue
 		}
 		err = viperCfg.Unmarshal(&integrationConfig)
 		if err != nil {
 			log.Error(err)
+			integrationErrors = append(integrationErrors, status.Error{err.Error()})
+			integrationsStatus = append(integrationsStatus, status.Integration{Name: integrationName, Errors: integrationErrors})
 			continue
 		}
 
@@ -119,12 +146,14 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 			err = validateSource(logSourceConfig)
 			if err != nil {
 				log.Error(err)
+				integrationErrors = append(integrationErrors, status.Error{err.Error()})
 				continue
 			}
 
 			rules, err := validateProcessingRules(logSourceConfig.ProcessingRules)
 			if err != nil {
 				log.Error(err)
+				integrationErrors = append(integrationErrors, status.Error{err.Error()})
 				continue
 			}
 			logSourceConfig.ProcessingRules = rules
@@ -132,14 +161,21 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 			logSourceConfig.TagsPayload = BuildTagsPayload(logSourceConfig.Tags, logSourceConfig.Source, logSourceConfig.SourceCategory)
 
 			logsSourceConfigs = append(logsSourceConfigs, &logSourceConfig)
+			integrationSources = append(integrationSources, buildSourceStatus(logSourceConfig))
 		}
+
+		integrationsStatus = append(integrationsStatus, status.Integration{Name: integrationName, Sources: integrationSources, Errors: integrationErrors})
 	}
 
+	// save the integrations status for further status queries
+	config.Set(logsIntegrationsStatus, integrationsStatus)
+
 	if len(logsSourceConfigs) == 0 {
-		return fmt.Errorf("Could not find any valid logs integration configuration file in %s", ddconfdPath)
+		return fmt.Errorf("Could not find any valid logs configuration file in %s", ddconfdPath)
 	}
 
 	config.Set(logsRules, logsSourceConfigs)
+
 	return nil
 }
 
@@ -203,7 +239,10 @@ func validateSource(config IntegrationConfigLogSource) error {
 func validateProcessingRules(rules []LogsProcessingRule) ([]LogsProcessingRule, error) {
 	for i, rule := range rules {
 		if rule.Name == "" {
-			return nil, fmt.Errorf("LogsAgent misconfigured: all log processing rules need a name")
+			return nil, fmt.Errorf("logs-agent misconfigured: all logs processing rules must have a name")
+		}
+		if rule.Pattern == "" {
+			return nil, fmt.Errorf("logs-agent misconfigured: all logs processing rules must have a pattern")
 		}
 		switch rule.Type {
 		case ExcludeAtMatch:
@@ -217,9 +256,9 @@ func validateProcessingRules(rules []LogsProcessingRule) ([]LogsProcessingRule, 
 			rules[i].Reg = regexp.MustCompile("^" + rule.Pattern)
 		default:
 			if rule.Type == "" {
-				return nil, fmt.Errorf("LogsAgent misconfigured: type must be set for log processing rule `%s`", rule.Name)
+				return nil, fmt.Errorf("logs-agent misconfigured: type must be set for logs processing rule `%s`", rule.Name)
 			}
-			return nil, fmt.Errorf("LogsAgent misconfigured: type %s is unsupported for log processing rule `%s`", rule.Type, rule.Name)
+			return nil, fmt.Errorf("logs-agent misconfigured: type %s is not supported for logs processing rule `%s`", rule.Type, rule.Name)
 		}
 	}
 	return rules, nil
@@ -253,4 +292,18 @@ func BuildTagsPayload(configTags, source, sourceCategory string) []byte {
 	}
 
 	return tagsPayload
+}
+
+// buildSourceStatus returns the status of source
+func buildSourceStatus(source IntegrationConfigLogSource) status.Source {
+	var info string
+	switch source.Type {
+	case FileType:
+		info = fmt.Sprintf("tailing file(s) matching %s", source.Path)
+	case DockerType:
+		info = fmt.Sprintf("tailing docker image %s", source.Image)
+	case TCPType, UDPType:
+		info = fmt.Sprintf("listenning on port %d", source.Port)
+	}
+	return status.Source{Type: source.Type, Info: info}
 }

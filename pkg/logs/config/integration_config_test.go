@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
@@ -116,4 +117,62 @@ func TestLogsAgentDefaultValues(t *testing.T) {
 	assert.Equal(t, false, LogsAgent.GetBool("dev_mode_no_ssl"))
 	assert.Equal(t, false, LogsAgent.GetBool("log_enabled"))
 	assert.Equal(t, 100, LogsAgent.GetInt("log_open_files_limit"))
+}
+
+func TestIntegrationsStatus(t *testing.T) {
+	var testConfig = viper.New()
+	var ddconfdPath string
+	var integrationsStatus []status.Integration
+
+	ddconfdPath = filepath.Join(testsPath, "complete", "conf.d")
+	buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	integrationsStatus = getIntegrationsStatus(testConfig)
+	assert.Equal(t, 4, len(integrationsStatus))
+
+	var integration status.Integration
+
+	ddconfdPath = filepath.Join(testsPath, "misconfigured_1")
+	buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	integrationsStatus = getIntegrationsStatus(testConfig)
+	assert.Equal(t, 1, len(integrationsStatus))
+	integration = integrationsStatus[0]
+	assert.Equal(t, "integration", integration.Name)
+	assert.Equal(t, 1, len(integration.Errors))
+
+	ddconfdPath = filepath.Join(testsPath, "misconfigured_2", "conf.d")
+	buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	integrationsStatus = getIntegrationsStatus(testConfig)
+	assert.Equal(t, 1, len(integrationsStatus))
+	integration = integrationsStatus[0]
+	assert.Equal(t, "integration", integration.Name)
+	assert.Equal(t, 1, len(integration.Errors))
+
+	ddconfdPath = filepath.Join(testsPath, "misconfigured_3", "conf.d")
+	buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	integrationsStatus = getIntegrationsStatus(testConfig)
+	assert.Equal(t, 1, len(integrationsStatus))
+	integration = integrationsStatus[0]
+	assert.Equal(t, "integration", integration.Name)
+	assert.Equal(t, 1, len(integration.Errors))
+
+	ddconfdPath = filepath.Join(testsPath, "misconfigured_4", "conf.d")
+	buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	integrationsStatus = getIntegrationsStatus(testConfig)
+	assert.Equal(t, 1, len(integrationsStatus))
+	integration = integrationsStatus[0]
+	assert.Equal(t, "integration", integration.Name)
+	assert.Equal(t, 1, len(integration.Errors))
+
+	ddconfdPath = filepath.Join(testsPath, "misconfigured_5", "conf.d")
+	buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	integrationsStatus = getIntegrationsStatus(testConfig)
+	assert.Equal(t, 1, len(integrationsStatus))
+	integration = integrationsStatus[0]
+	assert.Equal(t, "integration", integration.Name)
+	assert.Equal(t, 1, len(integration.Errors))
+
+	ddconfdPath = filepath.Join(testsPath, "does_not_exist")
+	buildLogsAgentIntegrationsConfig(testConfig, ddconfdPath)
+	integrationsStatus = getIntegrationsStatus(testConfig)
+	assert.Equal(t, 0, len(integrationsStatus))
 }
