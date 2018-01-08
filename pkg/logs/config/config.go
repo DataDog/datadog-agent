@@ -6,13 +6,7 @@
 package config
 
 import (
-	"strings"
-
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util"
-
-	log "github.com/cihub/seelog"
-	"github.com/spf13/viper"
 )
 
 // LogsAgent is the global configuration object
@@ -20,14 +14,8 @@ var LogsAgent = ddconfig.Datadog
 
 // private configuration properties
 var (
-	hostname    string
 	logsSources []*IntegrationConfigLogSource
 )
-
-// GetHostname returns logs-agent hostname
-func GetHostname() string {
-	return hostname
-}
 
 // GetLogsSources returns the list of logs sources
 func GetLogsSources() []*IntegrationConfigLogSource {
@@ -41,20 +29,8 @@ func Build() error {
 		return err
 	}
 	logsSources = sources
-	hostname = buildHostname(LogsAgent)
-	return nil
-}
-
-// buildHostname computes the hostname for logs-agent
-func buildHostname(config *viper.Viper) string {
-	configHostname := config.GetString("hostname")
-	if strings.TrimSpace(configHostname) == "" {
-		hostname, err := util.GetHostname()
-		if err != nil {
-			log.Warn(err)
-			hostname = "unknown"
-		}
-		return hostname
+	if err != nil {
+		return err
 	}
-	return configHostname
+	return nil
 }
