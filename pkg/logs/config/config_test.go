@@ -8,7 +8,6 @@ package config
 import (
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,21 +19,4 @@ func TestLogsAgentDefaultValues(t *testing.T) {
 	assert.Equal(t, false, LogsAgent.GetBool("dev_mode_no_ssl"))
 	assert.Equal(t, false, LogsAgent.GetBool("log_enabled"))
 	assert.Equal(t, 100, LogsAgent.GetInt("log_open_files_limit"))
-}
-
-func TestBuildHostname(t *testing.T) {
-	var config = viper.New()
-	var hostname string
-
-	hostname = buildHostname(config)
-	assert.NotEqual(t, "", hostname)
-
-	config.SetDefault("hostname", "\t \n")
-	hostname = buildHostname(config)
-	assert.NotEqual(t, "\t \n", hostname)
-	assert.NotEqual(t, "", hostname)
-
-	config.SetDefault("hostname", "foo")
-	hostname = buildHostname(config)
-	assert.Equal(t, "foo", hostname)
 }
