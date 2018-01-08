@@ -187,7 +187,7 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths 
 			if err != nil {
 				return e
 			}
-			fileName := filepath.Join(hostname, "etc", "datadog.yaml")
+			fileName := filepath.Join(hostname, "etc", "runtime_config_dump.yaml")
 			e = zipFile.Add(fileName, file)
 			if e != nil {
 				return e
