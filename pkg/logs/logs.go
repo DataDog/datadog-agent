@@ -20,7 +20,7 @@ import (
 
 // Start starts logs-agent
 func Start() error {
-	err := config.BuildLogsAgentIntegrationsConfigs()
+	err := config.Build()
 	if err != nil {
 		return err
 	}
