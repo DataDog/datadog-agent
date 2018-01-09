@@ -18,6 +18,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s/api/v1"
 	yaml "gopkg.in/yaml.v2"
+	"strconv"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
@@ -35,10 +36,10 @@ type KubeASConfig struct {
 // KubeASCheck grabs metrics and events from the API server.
 type KubeASCheck struct {
 	core.CheckBase
-	lastWarnings            []error
-	instance                *KubeASConfig
-	KubeAPIServerHostname   string
-	latest_latestEventToken string
+	lastWarnings          []error
+	instance              *KubeASConfig
+	KubeAPIServerHostname string
+	latestEventToken      int
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -82,25 +83,33 @@ func (k *KubeASCheck) Run() error {
 		k.Warn("could not collect API Server component status: ", err.Error())
 	}
 
-	newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(k.latest_latestEventToken)
+	token := strconv.Itoa(k.latestEventToken)
+	if k.latestEventToken == 0 {
+		token = ""
+	}
+
+	newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(token)
+
 	if err != nil {
 		k.Warn("could not collect events from the api server: ", err.Error())
 	}
 
-	if versionToken != k.latest_latestEventToken {
-		k.latest_latestEventToken = versionToken
-		evToSubmit := k.aggregateEvents(newEvents, false)
+	lastVersion, _ := strconv.Atoi(versionToken)
 
-		// We send the events in 2 steps to make sure the new events are initializing the aggregation keys.
-		for _, ev := range evToSubmit {
-			sender.Event(ev)
+	if lastVersion > k.latestEventToken {
+		k.latestEventToken = lastVersion
+		err := k.aggregateEvents(sender, newEvents, false)
+
+		if err != nil {
+			k.Warnf("Could not submit new event", err.Error())
 		}
 
+		// We send the events in 2 steps to make sure the new events are initializing the aggregation keys and as modified events have a different payload.
 		if len(modifiedEvents) != 0 {
-			modifiedEv := k.aggregateEvents(modifiedEvents, true)
+			err := k.aggregateEvents(sender, modifiedEvents, true)
 
-			for _, ev := range modifiedEv {
-				sender.Event(ev)
+			if err != nil {
+				k.Warnf("Could not submit modified event ", err.Error())
 			}
 		}
 	}
@@ -149,10 +158,9 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 	return nil
 }
 
-func (k *KubeASCheck) aggregateEvents(events []*v1.Event, modified bool) []metrics.Event {
+func (k *KubeASCheck) aggregateEvents(sender aggregator.Sender, events []*v1.Event, modified bool) error {
 	eventsByObject := make(map[string]*kubernetesEventBundle)
 	filteredByType := make(map[string]int)
-	var evs []metrics.Event
 
 ITER_EVENTS:
 	for _, event := range events {
@@ -161,23 +169,31 @@ ITER_EVENTS:
 				filteredByType[action] = filteredByType[action] + 1
 				continue ITER_EVENTS
 			}
-			bundle, found := eventsByObject[*event.InvolvedObject.Name]
-			if found == false {
-				bundle = newKubernetesEventBundler(*event.InvolvedObject.Name, *event.Source.Component)
-				eventsByObject[*event.InvolvedObject.Name] = bundle
-			}
-			bundle.addEvent(event)
 		}
+		bundle, found := eventsByObject[*event.InvolvedObject.Uid]
+		if found == false {
+			bundle = newKubernetesEventBundler(*event.InvolvedObject.Uid, *event.Source.Component)
+			eventsByObject[*event.InvolvedObject.Uid] = bundle
+		}
+		err := bundle.addEvent(event)
+		if err != nil {
+			k.Warnf("Error while bundling events, %s.", err.Error())
+		}
+
 		if len(filteredByType) > 0 {
 			log.Debugf("filtered out the following events: %s", formatStringIntMap(filteredByType))
 		}
 	}
 	for _, bundle := range eventsByObject {
-		datadogEv, _ := bundle.formatEvents(k.KubeAPIServerHostname, modified)
+		datadogEv, err := bundle.formatEvents(k.KubeAPIServerHostname, modified)
+		if err != nil {
+			k.Warnf("Error while formatting bundled events, %s. Not submitting", err.Error())
+			continue
+		}
 		datadogEv.Tags = append(datadogEv.Tags, k.instance.Tags...)
-		evs = append(evs, datadogEv)
+		sender.Event(datadogEv)
 	}
-	return evs
+	return nil
 }
 
 func init() {

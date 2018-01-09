@@ -17,17 +17,18 @@ import (
 )
 
 type kubernetesEventBundle struct {
-	objName       string
+	objUid        string
 	readableKey   string
 	component     string
 	events        []*v1.Event
 	timeStamp     int64
+	lastTimestamp int64
 	countByAction map[string]int
 }
 
-func newKubernetesEventBundler(objName string, compName string) *kubernetesEventBundle {
+func newKubernetesEventBundler(objUid string, compName string) *kubernetesEventBundle {
 	return &kubernetesEventBundle{
-		objName:       objName,
+		objUid:        objUid,
 		events:        []*v1.Event{},
 		component:     compName,
 		countByAction: make(map[string]int),
@@ -35,13 +36,14 @@ func newKubernetesEventBundler(objName string, compName string) *kubernetesEvent
 }
 
 func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
-	if *event.InvolvedObject.Name != k.objName {
-		return fmt.Errorf("mismatching Object name: %s != %s", event.InvolvedObject.Name, k.objName)
+	if *event.InvolvedObject.Uid != k.objUid {
+		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.Uid, k.objUid)
 	}
 	k.events = append(k.events, event)
-	k.countByAction[*event.Reason] += int(*event.Count)
-	k.timeStamp = int64(math.Max(float64(k.timeStamp), float64(*event.LastTimestamp.Seconds)))
-	k.readableKey = fmt.Sprintf("%s %s", *event.InvolvedObject.Kind, *event.InvolvedObject.Name)
+	k.countByAction[fmt.Sprintf("**%s**: %s\n", *event.Reason, *event.Message)] += int(*event.Count)
+	k.timeStamp = int64(math.Max(float64(k.timeStamp), float64(*event.Metadata.CreationTimestamp.Seconds)))
+	k.lastTimestamp = int64(math.Max(float64(k.timeStamp), float64(*event.LastTimestamp.Seconds)))
+	k.readableKey = fmt.Sprintf("%s %s", *event.InvolvedObject.Name, *event.InvolvedObject.Kind)
 	return nil
 }
 
@@ -52,7 +54,7 @@ func (k *kubernetesEventBundle) formatEvents(hostname string, modified bool) (me
 		SourceTypeName: "kubernetes",
 		EventType:      kubernetesAPIServerCheckName,
 		Ts:             int64(k.timeStamp),
-		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", k.objName),
+		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", k.objUid),
 	}
 	if len(k.events) == 0 {
 		return output, errors.New("no event to export")
@@ -62,10 +64,11 @@ func (k *kubernetesEventBundle) formatEvents(hostname string, modified bool) (me
 		k.readableKey)
 
 	if modified {
-		output.Text = fmt.Sprintf("%s events emitted by the %s seen at %s", formatStringIntMap(k.countByAction), k.component, time.Unix(k.timeStamp, 0))
+		output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s_ \n", formatStringIntMap(k.countByAction), k.component, time.Unix(k.lastTimestamp, 0)) + "\n %%%"
+		output.Ts = int64(k.lastTimestamp)
 		return output, nil
 	}
-	output.Text = fmt.Sprintf("%s new events emitted by the %s seen at %s", formatStringIntMap(k.countByAction), k.component, time.Unix(k.timeStamp, 0))
+	output.Text = "%%% \n" + fmt.Sprintf("%s \n _New events emitted by the %s seen at %s_ \n", formatStringIntMap(k.countByAction), k.component, time.Unix(k.timeStamp, 0)) + "\n %%%"
 	return output, nil
 }
 

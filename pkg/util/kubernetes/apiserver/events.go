@@ -12,6 +12,7 @@ package apiserver
 import (
 	"context"
 	"io"
+	"strconv"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -36,7 +37,7 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 	} else {
 		// Only retrieve what is in the apiserver cache.
 		// Else we'll get one hour worth of events.
-		sinceOption = k8s.ResourceVersion("0")
+		sinceOption = k8s.ResourceVersion("")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
@@ -62,7 +63,15 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 		timeout.Reset(eventReadTimeout)
 
 		if event != nil && event.Metadata != nil && event.Metadata.ResourceVersion != nil {
-			latestResVersion = event.Metadata.ResourceVersion
+			resVersionMetadata, err := strconv.Atoi(*event.Metadata.ResourceVersion)
+			resVersionCached, _ := strconv.Atoi(*latestResVersion)
+			if err != nil {
+				log.Errorf("The Resource version associated with the event %s is not supported: %s", event.Metadata.Uid, err.Error())
+				continue
+			}
+			if resVersionMetadata > resVersionCached {
+				latestResVersion = event.Metadata.ResourceVersion
+			}
 		} else {
 			log.Debugf("skipping invalid event: %v", event)
 			continue
