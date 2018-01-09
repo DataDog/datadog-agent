@@ -8,6 +8,8 @@
 package listeners
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -123,6 +126,7 @@ func TestGetPortsFromPs(t *testing.T) {
 		Image: "test",
 	}
 	assert.Empty(t, dl.getPortsFromPs(co))
+	assert.Nil(t, dl.getPortsFromPs(co)) // return must be nil to trigger GetPorts on resolution
 
 	co.Ports = make([]types.Port, 0)
 	assert.Empty(t, dl.getPortsFromPs(co))
@@ -265,23 +269,30 @@ func TestGetRancherIP(t *testing.T) {
 }
 
 func TestGetPorts(t *testing.T) {
-	id := "deadbeefffff"
+	id := "no_ports"
 	cBase := types.ContainerJSONBase{
 		ID:    id,
 		Image: "test",
 	}
 
+	// Priority source
 	ports := make(nat.PortMap)
 	networkSettings := types.NetworkSettings{
 		NetworkSettingsBase: types.NetworkSettingsBase{Ports: ports},
 		Networks:            make(map[string]*network.EndpointSettings),
 	}
 
+	// Fallback source
+	exposedPorts := make(map[nat.Port]struct{})
+
+	// Empty ports
 	cj := types.ContainerJSON{
 		ContainerJSONBase: &cBase,
 		Mounts:            make([]types.MountPoint, 0),
-		Config:            &container.Config{},
-		NetworkSettings:   &networkSettings,
+		Config: &container.Config{
+			ExposedPorts: exposedPorts,
+		},
+		NetworkSettings: &networkSettings,
 	}
 	// add cj to the cache so svc.GetPorts finds it
 	cacheKey := docker.GetInspectCacheKey(id, false)
@@ -291,8 +302,48 @@ func TestGetPorts(t *testing.T) {
 		ID: ID(id),
 	}
 	svcPorts, _ := svc.GetPorts()
+	assert.NotNil(t, svcPorts) // Return array must be non-nil to avoid calling GetPorts again
 	assert.Empty(t, svcPorts)
 
+	// Only exposed ports, should be picked up
+	id = "only_exposed"
+	cBase = types.ContainerJSONBase{
+		ID:    id,
+		Image: "test",
+	}
+
+	ep, _ := nat.NewPort("tcp", "42-45")
+	exposedPorts[ep] = struct{}{}
+
+	networkSettings = types.NetworkSettings{
+		NetworkSettingsBase: types.NetworkSettingsBase{Ports: ports},
+		Networks:            make(map[string]*network.EndpointSettings),
+	}
+
+	cj = types.ContainerJSON{
+		ContainerJSONBase: &cBase,
+		Mounts:            make([]types.MountPoint, 0),
+		Config: &container.Config{
+			ExposedPorts: exposedPorts,
+		},
+		NetworkSettings: &networkSettings,
+	}
+	// add cj to the cache so svc.GetPorts finds it
+	cacheKey = docker.GetInspectCacheKey(id, false)
+	cache.Cache.Set(cacheKey, cj, 10*time.Second)
+
+	svc = DockerService{
+		ID: ID(id),
+	}
+
+	pts, _ := svc.GetPorts()
+	assert.Equal(t, 4, len(pts))
+	assert.Contains(t, pts, 42)
+	assert.Contains(t, pts, 43)
+	assert.Contains(t, pts, 44)
+	assert.Contains(t, pts, 45)
+
+	// Both binding ports and exposed ports, only firsts should be picked up
 	id = "test"
 	cBase = types.ContainerJSONBase{
 		ID:    id,
@@ -313,8 +364,10 @@ func TestGetPorts(t *testing.T) {
 	cj = types.ContainerJSON{
 		ContainerJSONBase: &cBase,
 		Mounts:            make([]types.MountPoint, 0),
-		Config:            &container.Config{},
-		NetworkSettings:   &networkSettings,
+		Config: &container.Config{
+			ExposedPorts: exposedPorts,
+		},
+		NetworkSettings: &networkSettings,
 	}
 	// add cj to the cache so svc.GetPorts finds it
 	cacheKey = docker.GetInspectCacheKey(id, false)
@@ -324,7 +377,7 @@ func TestGetPorts(t *testing.T) {
 		ID: ID(id),
 	}
 
-	pts, _ := svc.GetPorts()
+	pts, _ = svc.GetPorts()
 	assert.Equal(t, 2, len(pts))
 	assert.Contains(t, pts, 1234)
 	assert.Contains(t, pts, 4321)
@@ -347,4 +400,49 @@ func TestGetPid(t *testing.T) {
 	pid, err := s.GetPid()
 	assert.Equal(t, 1337, pid)
 	assert.Nil(t, err)
+}
+
+func TestParseDockerPort(t *testing.T) {
+	testCases := []struct {
+		proto         string
+		port          string
+		expectedPorts []int
+		expectedError error
+	}{
+		{
+			proto:         "tcp",
+			port:          "42",
+			expectedPorts: []int{42},
+			expectedError: nil,
+		},
+		{
+			proto:         "udp",
+			port:          "500-503",
+			expectedPorts: []int{500, 501, 502, 503},
+			expectedError: nil,
+		},
+		{
+			proto:         "tcp",
+			port:          "0",
+			expectedPorts: nil,
+			expectedError: errors.New("failed to extract port 0/tcp"),
+		},
+	}
+
+	for i, test := range testCases {
+		t.Run(fmt.Sprintf("case %d: %s/%s", i, test.port, test.proto), func(t *testing.T) {
+			p, err := nat.NewPort(test.proto, test.port)
+			assert.Nil(t, err)
+
+			ports, err := parseDockerPort(p)
+			if test.expectedError == nil {
+				assert.Nil(t, err)
+			} else {
+				require.NotNil(t, err)
+				assert.Equal(t, test.expectedError.Error(), err.Error())
+			}
+
+			assert.Equal(t, test.expectedPorts, ports)
+		})
+	}
 }

@@ -12,12 +12,12 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/go-connections/nat"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -291,7 +291,9 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 
 // getPortsFromPs gets the service ports of a container.
 func (l *DockerListener) getPortsFromPs(co types.Container) []int {
-	ports := make([]int, 0)
+	// Nil array by default, we'll need to inspect the container
+	// later if we don't find any port in the PS
+	var ports []int
 
 	for _, p := range co.Ports {
 		ports = append(ports, int(p.PrivatePort))
@@ -371,7 +373,9 @@ func (s *DockerService) GetPorts() ([]int, error) {
 		return s.Ports, nil
 	}
 
-	ports := make([]int, 0)
+	// Make a non-nil array to avoid re-running if we find zero port
+	ports := []int{}
+
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return ports, err
@@ -381,20 +385,51 @@ func (s *DockerService) GetPorts() ([]int, error) {
 		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
 	}
 
-	for p := range cInspect.NetworkSettings.Ports {
-		portStr := string(p)
-		if strings.Contains(portStr, "/") {
-			portStr = strings.Split(portStr, "/")[0]
+	switch {
+	case cInspect.NetworkSettings != nil && len(cInspect.NetworkSettings.Ports) > 0:
+		for p := range cInspect.NetworkSettings.Ports {
+			out, err := parseDockerPort(p)
+			if err != nil {
+				log.Warn(err.Error())
+			} else {
+				ports = append(ports, out...)
+			}
 		}
-		port, err := strconv.Atoi(portStr)
-		if err != nil {
-			log.Warnf("failed to extract port %s", string(p))
+	case cInspect.Config != nil && len(cInspect.Config.ExposedPorts) > 0:
+		log.Infof("using ExposedPorts for container %s as no port bindings are listed", string(s.ID)[:12])
+		for p := range cInspect.Config.ExposedPorts {
+			out, err := parseDockerPort(p)
+			if err != nil {
+				log.Warn(err.Error())
+			} else {
+				ports = append(ports, out...)
+			}
 		}
-		ports = append(ports, port)
 	}
+
 	sort.Ints(ports)
 	s.Ports = ports
 	return ports, nil
+}
+
+func parseDockerPort(port nat.Port) ([]int, error) {
+	var output []int
+
+	first, last, err := port.Range()
+	if err == nil && last > first {
+		for p := first; p <= last; p++ {
+			output = append(output, p)
+		}
+		return output, nil
+	}
+
+	p := port.Int()
+	if p > 0 {
+		output = append(output, p)
+		return output, nil
+	}
+
+	return output, fmt.Errorf("failed to extract port %s", string(port))
 }
 
 // GetTags retrieves tags using the Tagger
