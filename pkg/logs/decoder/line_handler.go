@@ -93,41 +93,43 @@ func (lh *SingleLineHandler) process(line []byte) {
 // when no more line is received
 const flushTimeout = 1 * time.Second
 
-// MultiLineLineHandler reads lines from lineChan and uses lineBuffer to send them
+// MultiLineHandler reads lines from lineChan and uses lineBuffer to send them
 // when a new line matches with re or flushTimer is fired
-type MultiLineLineHandler struct {
-	lineChan     chan []byte
-	outputChan   chan *Output
-	lineBuffer   *LineBuffer
-	newContentRe *regexp.Regexp
-	flushTimer   *time.Timer
-	mu           sync.Mutex
-	shouldStop   bool
+type MultiLineHandler struct {
+	lineChan      chan []byte
+	outputChan    chan *Output
+	lineBuffer    *LineBuffer
+	lineUnwrapper LineUnwrapper
+	newContentRe  *regexp.Regexp
+	flushTimer    *time.Timer
+	mu            sync.Mutex
+	shouldStop    bool
 }
 
-// NewMultiLineLineHandler returns a new MultiLineLineHandler
-func NewMultiLineLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp) *MultiLineLineHandler {
+// NewMultiLineHandler returns a new MultiLineHandler
+func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, lineUnwrapper LineUnwrapper) *MultiLineHandler {
 	lineChan := make(chan []byte)
 	lineBuffer := NewLineBuffer()
 	flushTimer := time.NewTimer(flushTimeout)
-	lineHandler := MultiLineLineHandler{
-		lineChan:     lineChan,
-		outputChan:   outputChan,
-		lineBuffer:   lineBuffer,
-		newContentRe: newContentRe,
-		flushTimer:   flushTimer,
+	lineHandler := MultiLineHandler{
+		lineChan:      lineChan,
+		outputChan:    outputChan,
+		lineBuffer:    lineBuffer,
+		lineUnwrapper: lineUnwrapper,
+		newContentRe:  newContentRe,
+		flushTimer:    flushTimer,
 	}
 	go lineHandler.start()
 	return &lineHandler
 }
 
 // Handle forward lines to lineChan to process them
-func (lh *MultiLineLineHandler) Handle(content []byte) {
+func (lh *MultiLineHandler) Handle(content []byte) {
 	lh.lineChan <- content
 }
 
 // Stop stops the lineHandler from processing lines
-func (lh *MultiLineLineHandler) Stop() {
+func (lh *MultiLineHandler) Stop() {
 	lh.mu.Lock()
 	close(lh.lineChan)
 	lh.shouldStop = true
@@ -137,13 +139,13 @@ func (lh *MultiLineLineHandler) Stop() {
 }
 
 // start starts the delimiter
-func (lh *MultiLineLineHandler) start() {
+func (lh *MultiLineHandler) start() {
 	go lh.handleExpiration()
 	go lh.run()
 }
 
 // run reads lines from lineChan to process them
-func (lh *MultiLineLineHandler) run() {
+func (lh *MultiLineHandler) run() {
 	// read and process lines safely
 	for line := range lh.lineChan {
 		lh.mu.Lock()
@@ -157,7 +159,7 @@ func (lh *MultiLineLineHandler) run() {
 }
 
 // handleExpiration flushes content in lineBuffer when flushTimer expires
-func (lh *MultiLineLineHandler) handleExpiration() {
+func (lh *MultiLineHandler) handleExpiration() {
 	for range lh.flushTimer.C {
 		lh.mu.Lock()
 		lh.sendContent()
@@ -171,10 +173,14 @@ func (lh *MultiLineLineHandler) handleExpiration() {
 
 // process accumulates lines in lineBuffer and flushes lineBuffer when a new line matches with newContentRe
 // When lines are too long, they are truncated
-func (lh *MultiLineLineHandler) process(line []byte) {
-	if lh.newContentRe.Match(line) {
+func (lh *MultiLineHandler) process(line []byte) {
+	unwrappedLine := lh.lineUnwrapper.Unwrap(line)
+	if lh.newContentRe.Match(unwrappedLine) {
 		// send content from lineBuffer
 		lh.sendContent()
+	} else {
+		// unwrap all lines that don't start a new content
+		line = unwrappedLine
 	}
 	if !lh.lineBuffer.IsEmpty() {
 		// add '\n' to content in lineBuffer
@@ -195,7 +201,7 @@ func (lh *MultiLineLineHandler) process(line []byte) {
 }
 
 // sendContent forwards the content from lineBuffer to outputChan
-func (lh *MultiLineLineHandler) sendContent() {
+func (lh *MultiLineHandler) sendContent() {
 	defer lh.lineBuffer.Reset()
 	content, rawDataLen := lh.lineBuffer.Content()
 	content = bytes.TrimSpace(content)

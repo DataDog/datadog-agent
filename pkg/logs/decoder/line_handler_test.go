@@ -30,7 +30,7 @@ func TestTrimSingleLine(t *testing.T) {
 func TestTrimMultiLine(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outChan := make(chan *Output, 10)
-	h := NewMultiLineLineHandler(outChan, re)
+	h := NewMultiLineHandler(outChan, re, NewUnwrapper())
 
 	var out *Output
 
