@@ -58,7 +58,7 @@ func (c *ECSFargateCollector) Pull() error {
 	if err != nil {
 		return err
 	}
-	updates, deadCo, err := c.parseMetadata(meta)
+	updates, deadCo, err := c.pullMetadata(meta)
 	if err != nil {
 		return err
 	}
@@ -84,16 +84,14 @@ func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, error
 	if err != nil {
 		return []string{}, []string{}, err
 	}
-	updates, deadCo, err := c.parseMetadata(meta)
+
+	// since we download the metadata anyway might as well do a Pull refresh
+	updates, deadCo, err := c.pullMetadata(meta)
 	if err != nil {
 		return []string{}, []string{}, err
 	}
-	c.infoOut <- updates
 
-	// Throttle deletion computations
-	if time.Now().Sub(c.lastExpire) < c.expireFreq {
-		return nil, nil, nil
-	}
+	c.infoOut <- updates
 
 	expiries, err := c.parseExpires(deadCo)
 	if err != nil {
@@ -102,13 +100,7 @@ func (c *ECSFargateCollector) Fetch(container string) ([]string, []string, error
 	c.infoOut <- expiries
 	c.lastExpire = time.Now()
 
-	for _, info := range updates {
-		if info.Entity == container {
-			return info.LowCardTags, info.HighCardTags, nil
-		}
-	}
-	// container not found in updates
-	return []string{}, []string{}, fmt.Errorf("entity %s not found in container list", container)
+	return c.fetchMetadata(meta, container)
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects

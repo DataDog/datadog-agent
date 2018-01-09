@@ -103,7 +103,6 @@ func (t *Tagger) run() error {
 			t.retryTicker.Stop()
 			return nil
 		case msg := <-t.infoIn:
-			log.Debugf("listener message: %s", msg)
 			for _, info := range msg {
 				t.tagStore.processTagInfo(info)
 			}

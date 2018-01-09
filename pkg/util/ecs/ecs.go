@@ -74,10 +74,20 @@ func IsInstance() bool {
 	return true
 }
 
-// IsFargateInstance returns whether the agent is in an ECS fargate task
+// IsFargateInstance returns whether the agent is in an ECS fargate task.
+// It detects it by getting and unmarshalling the metadata API response.
 func IsFargateInstance() bool {
-	url := testURLs([]string{metadataURL}, 500*time.Millisecond)
-	if url == "" {
+	client := &http.Client{Timeout: timeout}
+	r, err := client.Get(metadataURL)
+	if err != nil {
+		return false
+	}
+	if r.StatusCode != http.StatusOK {
+		return false
+	}
+	var resp TaskMetadata
+	if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
+		fmt.Printf("decode err: %s\n", err)
 		return false
 	}
 	return true
