@@ -178,11 +178,10 @@ func (lh *MultiLineHandler) process(line []byte) {
 	if lh.newContentRe.Match(unwrappedLine) {
 		// send content from lineBuffer
 		lh.sendContent()
-	} else {
-		// unwrap all lines that don't start a new content
-		line = unwrappedLine
 	}
 	if !lh.lineBuffer.IsEmpty() {
+		// unwrap all the following lines
+		line = unwrappedLine
 		// add '\n' to content in lineBuffer
 		lh.lineBuffer.AddEndOfLine()
 	}
