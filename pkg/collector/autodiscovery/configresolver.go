@@ -196,7 +196,7 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 		cr.adIDToServices[adID] = append(cr.adIDToServices[adID], svc.GetID())
 		tpls, err := cr.templates.Get(adID)
 		if err != nil {
-			log.Errorf("Unable to fetch templates from the cache: %v", err)
+			log.Debugf("Unable to fetch templates from the cache: %v", err)
 		}
 		templates = append(templates, tpls...)
 	}

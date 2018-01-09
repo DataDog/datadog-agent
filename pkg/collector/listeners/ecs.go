@@ -153,6 +153,7 @@ func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
 			ips["awsvpc"] = string(net.IPv4Addresses[0])
 		}
 	}
+	svc.Hosts = ips
 
 	// Tags
 	entity := docker.ContainerIDToEntityName(string(c.DockerID))
