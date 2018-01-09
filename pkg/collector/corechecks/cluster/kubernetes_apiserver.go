@@ -40,6 +40,7 @@ type KubeASCheck struct {
 	instance              *KubeASConfig
 	KubeAPIServerHostname string
 	latestEventToken      int
+	configMapAvailable    bool
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -83,9 +84,17 @@ func (k *KubeASCheck) Run() error {
 		k.Warn("could not collect API Server component status: ", err.Error())
 	}
 
-	token := strconv.Itoa(k.latestEventToken)
+	var token string
+
 	if k.latestEventToken == 0 {
-		token = ""
+		// Initialization: Checking if we previously stored the latestEventToken in a configMap
+		token, found, err := asclient.EventTokenFetcher()
+		if err != nil {
+			k.Warnf("Could not get the LatestEventToken from the eventtokendca ConfigMap: %s", err.Error())
+			token = ""
+		}
+		k.configMapAvailable = found
+		k.latestEventToken, _ = strconv.Atoi(token)
 	}
 
 	newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(token)
@@ -98,6 +107,12 @@ func (k *KubeASCheck) Run() error {
 
 	if lastVersion > k.latestEventToken {
 		k.latestEventToken = lastVersion
+		if k.configMapAvailable {
+			configMapErr := asclient.EventTokenSetter(versionToken)
+			if configMapErr != nil {
+				k.Warnf("Could not store the LastEventToken in the ConfigMap event_token_dca: %s", configMapErr.Error())
+			}
+		}
 		err := k.aggregateEvents(sender, newEvents, false)
 
 		if err != nil {

@@ -107,3 +107,31 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	defer cancel()
 	return c.client.CoreV1().ListComponentStatuses(ctx)
 }
+
+func (c *APIClient) EventTokenFetcher() (string, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, "eventtokendca", "default")
+	if err != nil {
+		return "", false, err
+	}
+	log.Infof("Fetched LatestEventToken from the eventtokendca ConfigMap")
+	token, found := tokenConfigMap.Data["eventToken"]
+	log.Debugf("LatestEventToken is %s", token)
+	return token, found, nil
+}
+func (c *APIClient) EventTokenSetter(token string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, "eventtokendca", "default")
+	if err != nil {
+		return err
+	}
+	tokenConfigMap.Data["eventToken"] = token
+	_, err = c.client.CoreV1().UpdateConfigMap(ctx, tokenConfigMap)
+	if err != nil {
+		return err
+	}
+	log.Debugf("Updated LatestEventToken in the eventtokendca ConfigMap to %s", token)
+	return nil
+}

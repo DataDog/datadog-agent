@@ -74,3 +74,9 @@ of the present repo.
 You must sign a CLA before we can accept your contributions. If you submit a PR
 without having signed it, our bot will prompt you to do so. Once signed you will
 be set for all contributions going forward.
+
+## Pre-requisites for the DCA to interact with the API server.
+
+For the DCA to produce events, service checks and run checks one needs to enable it to perform a few actions.
+Please find the minimum RBAC [here](https://hub.docker.com/r/datadog/cluster-agent/) to get the full scope of features.
+This manifest will create a Service Account, a Cluster Role with a restricted scope and actions detailed below and a Cluster Role Binding as well.

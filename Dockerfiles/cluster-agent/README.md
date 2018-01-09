@@ -31,3 +31,100 @@ You'll need to download one of the `datadog-cluster-agent*_amd64.deb` package in
 You can then build the image using `docker build -t datadog/cluster-agent:master .`
 
 If you are on macOS, use the --skip-sign option on the omnibus-build.
+
+## Running the DCA with Kubernetes
+
+To run the DCA in Kubernetes, you can simply run `kubectl create -f dca_deploy.yaml` and use the following manifest
+
+```
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: dca
+spec:
+  template:
+    metadata:
+      labels:
+        app: dca
+      name: dca
+      namespace: default
+    spec:
+      serviceAccountName: dca
+      containers:
+      - image: datadog/cluster-agent
+        imagePullPolicy: Always
+        name: dca
+        env:
+          - name: DD_API_KEY
+            value: XXXX
+```
+And use the RBAC below to get the best out of it.
+
+## Pre-requisites for the DCA to interact with the API server.
+
+For the DCA to produce events, service checks and run checks one needs to enable it to perform a few actions.
+Please find the minimum RBAC below to get the full scope of features.
+This manifest will create a Service Account, a Cluster Role with a restricted scope and actions detailed below and a Cluster Role Binding as well.
+
+### The DCA needs:
+
+- `get`, `list` and `watch` of `Componenentstatuses` to produce the controle plane service checks.
+- `get` and `update` of the `Configmaps` named `eventtokendca` to update and query the most up to date version token corresponding to the latest event stored in ETCD.
+- `watch` the `Services` to perform the Autodiscovery based off of services activity
+- `get`, `list` and `watch` of the `Pods`
+- `get`, `list` and `watch`  of the `Nodes`
+- `get`, `list` and `watch`  of the `Endpoints` to run cluster level health checks.
+
+
+```
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dca
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - services
+  - events
+  - endpoints
+  - pods
+  - nodes
+  - componentstatuses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  resourceNames:
+  - eventtokendca
+  verbs:
+  - get
+  - update
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: dca
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dca
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dca
+subjects:
+- kind: ServiceAccount
+  name: dca
+  namespace: default
+---
+```
+
+The ConfigMap to store the `LatestEventToken` has to be deployed in the `default` namespace and be named `eventtokendca`
+Simply running `kubectl create configmap eventtokendca --from-literal="eventToken"="12"`
