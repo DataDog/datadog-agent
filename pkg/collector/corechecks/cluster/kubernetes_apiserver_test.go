@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"time"
 )
 
 func toStr(str string) *string {
@@ -170,7 +171,7 @@ func TestAggregateEvents(t *testing.T) {
 	// 1 Scheduled:
 	newDatadogEvent := metrics.Event{
 		Title:          "Events from the dca-789976f5d7-2ljx6 Pod",
-		Text:           "%%% \n2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n \n _New events emitted by the default-scheduler seen at 1992-06-27 12:30:00 -0400 EDT_ \n\n %%%",
+		Text:           "%%% \n2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n \n _New events emitted by the default-scheduler seen at " + time.Unix(709662600, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
 		Tags:           []string{"test"},
 		AggregationKey: "kubernetes_apiserver:e6417a7f-f566-11e7-9749-0e4863e1cbf4",
@@ -193,7 +194,7 @@ func TestAggregateEvents(t *testing.T) {
 	}
 	newDatadogEvents := metrics.Event{
 		Title:          "Events from the dca-789976f5d7-2ljx6 Pod",
-		Text:           "%%% \n2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n 3 **Started**: Started container\n \n _New events emitted by the default-scheduler seen at 1992-06-27 12:30:00 -0400 EDT_ \n\n %%%",
+		Text:           "%%% \n2 **Scheduled**: Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54\n 3 **Started**: Started container\n \n _New events emitted by the default-scheduler seen at " + time.Unix(709662600, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
 		Tags:           []string{"test"},
 		AggregationKey: "kubernetes_apiserver:e6417a7f-f566-11e7-9749-0e4863e1cbf4",
@@ -220,7 +221,7 @@ func TestAggregateEvents(t *testing.T) {
 	}
 	modifiedNewDatadogEvents := metrics.Event{
 		Title:          "Events from the localhost Node",
-		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at 1992-06-27 16:00:00 -0400 EDT_ \n\n %%%",
+		Text:           "%%% \n30 **MissingClusterDNS**: MountVolume.SetUp succeeded\n \n _Events emitted by the kubelet seen at " + time.Unix(709675200, 0).String() + "_ \n\n %%%",
 		Priority:       "normal",
 		Tags:           []string{"test"},
 		AggregationKey: "kubernetes_apiserver:e63e74fa-f566-11e7-9749-0e4863e1cbf4",
