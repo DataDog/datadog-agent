@@ -6,7 +6,7 @@
 package decoder
 
 import (
-	"bytes"
+	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
 )
 
 // LineUnwrapper removes all the extra information that were added to the original log
@@ -41,13 +41,10 @@ func NewDockerUnwrapper() *DockerUnwrapper {
 
 // Unwrap removes the header and the timestamp from container logs
 func (u DockerUnwrapper) Unwrap(line []byte) []byte {
-	if len(line) < headerLen {
+	_, _, unwrappedLine, err := parser.ParseMessage(line)
+	if err != nil {
+		// something went wrong, we'd rather process the line rather than drop it
 		return line
 	}
-	to := bytes.Index(line[headerLen:], []byte{' '}) // skip the timestamp
-	if to == -1 {
-		return line
-	}
-	to += headerLen // skip the header
-	return line[to+1:]
+	return unwrappedLine
 }
