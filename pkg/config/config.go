@@ -88,6 +88,10 @@ func init() {
 	Datadog.SetDefault("enable_gohai", true)
 	Datadog.SetDefault("check_runners", int64(0))
 	Datadog.SetDefault("expvar_port", "5000")
+
+	// Use to force client side TLS version to 1.2
+	BindEnvAndSetDefault("force_tls_12", false)
+
 	// Agent GUI access port
 	Datadog.SetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
