@@ -136,7 +136,7 @@ func (p *Processor) buildPayload(apikeyString, redactedMessage, extraContent []b
 		payload = append(payload, extraContent...)
 	}
 	payload = append(payload, redactedMessage...)
-	payload = append(payload, '\n') // TODO: move this in decoder
+	payload = append(payload, '\n')
 	return payload
 }
 
