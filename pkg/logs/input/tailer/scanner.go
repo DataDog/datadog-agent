@@ -3,13 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
 
 package tailer
 
 import (
-	"os"
-	"syscall"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -149,22 +146,7 @@ func (s *Scanner) scan() {
 // didFileRotate returns true if a file-rotation happened to file
 // since tailer has been set up, otherwise returns false
 func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
-	f, err := os.Open(file.Path)
-	if err != nil {
-		return false, err
-	}
-
-	stat1, err := f.Stat()
-	if err != nil {
-		return false, err
-	}
-
-	stat2, err := tailer.file.Stat()
-	if err != nil {
-		return true, nil
-	}
-
-	return inode(stat1) != inode(stat2) || stat1.Size() < tailer.GetReadOffset(), nil
+	return tailer.checkForRotation()
 }
 
 // onFileRotation safely stops tailer and setup a new one
@@ -190,16 +172,3 @@ func (s *Scanner) Stop() {
 	}
 }
 
-// inode uniquely identifies a file on a filesystem
-func inode(f os.FileInfo) uint64 {
-	s := f.Sys()
-	if s == nil {
-		return 0
-	}
-	switch s := s.(type) {
-	case *syscall.Stat_t:
-		return uint64(s.Ino)
-	default:
-		return 0
-	}
-}

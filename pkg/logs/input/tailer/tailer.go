@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -195,6 +196,28 @@ func (t *Tailer) readForever() {
 	}
 }
 
+func (t *Tailer) checkForRotation() (bool, error) {
+	f, err := os.Open(t.path)
+	if err != nil {
+		return false, err
+	}
+	stat1, err := f.Stat()
+	if err != nil {
+		return false, err
+	}
+	stat2, err := t.file.Stat()
+	if err != nil {
+		return true, nil
+	}
+	if inode(stat1) != inode(stat2) {
+		return true, nil
+	}
+
+	if stat1.Size() < t.GetReadOffset() {
+		return true, nil
+	}
+	return false, nil
+}
 func (t *Tailer) shouldHardStop() bool {
 	t.stopMutex.Lock()
 	defer t.stopMutex.Unlock()
@@ -228,4 +251,18 @@ func (t *Tailer) wait() {
 	t.sleepMutex.Lock()
 	defer t.sleepMutex.Unlock()
 	time.Sleep(t.sleepDuration)
+}
+
+// inode uniquely identifies a file on a filesystem
+func inode(f os.FileInfo) uint64 {
+	s := f.Sys()
+	if s == nil {
+		return 0
+	}
+	switch s := s.(type) {
+	case *syscall.Stat_t:
+		return uint64(s.Ino)
+	default:
+		return 0
+	}
 }
