@@ -26,6 +26,7 @@ import (
 const (
 	KubeControlPaneCheck         = "kube_apiserver_controlplane.up"
 	kubernetesAPIServerCheckName = "kubernetes_apiserver"
+	eventTokenKey                = "eventToken"
 )
 
 // KubeASConfig is the config of the API server.
@@ -89,7 +90,7 @@ func (k *KubeASCheck) Run() error {
 
 	if k.latestEventToken == 0 {
 		// Initialization: Checking if we previously stored the latestEventToken in a configMap
-		token, found, err := asclient.EventTokenFetcher()
+		token, found, err := asclient.ConfigMapTokenFetcher(eventTokenKey)
 		if err != nil {
 			k.Warnf("Could not get the LatestEventToken from the eventtokendca ConfigMap: %s", err.Error())
 			token = ""
@@ -115,7 +116,7 @@ func (k *KubeASCheck) Run() error {
 	if lastVersion > k.latestEventToken {
 		k.latestEventToken = lastVersion
 		if k.configMapAvailable {
-			configMapErr := asclient.EventTokenSetter(versionToken)
+			configMapErr := asclient.ConfigMapTokenSetter(eventTokenKey, versionToken)
 			if configMapErr != nil {
 				k.Warnf("Could not store the LastEventToken in the ConfigMap eventtokendca: %s", configMapErr.Error())
 			}

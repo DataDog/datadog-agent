@@ -114,8 +114,8 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	return c.client.CoreV1().ListComponentStatuses(ctx)
 }
 
-// EventTokenFetcher returns the value of the token `eventToken` in the ConfigMap `eventtokendca`
-func (c *APIClient) EventTokenFetcher() (string, bool, error) {
+// EventTokenFetcher returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `eventtokendca`
+func (c *APIClient) ConfigMapTokenFetcher(tokenKey string) (string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapEventToken, defaultNamespace)
@@ -123,24 +123,25 @@ func (c *APIClient) EventTokenFetcher() (string, bool, error) {
 		return "", false, err
 	}
 	log.Infof("Fetched LatestEventToken from the %s ConfigMap", configMapEventToken)
-	token, found := tokenConfigMap.Data["eventToken"]
+	token, found := tokenConfigMap.Data[tokenKey]
 	log.Debugf("LatestEventToken is %s", token)
 	return token, found, nil
 }
 
-//EventTokenSetter upadtes the value of the token `eventToken` in the ConfigMap `configMapEventToken`
-func (c *APIClient) EventTokenSetter(token string) error {
+//EventTokenSetter upadtes the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapEventToken`
+func (c *APIClient) ConfigMapTokenSetter(tokenKey, tokenValue string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapEventToken, defaultNamespace)
 	if err != nil {
 		return err
 	}
-	tokenConfigMap.Data["eventToken"] = token
+	tokenConfigMap.Data[tokenKey] = tokenValue
+
 	_, err = c.client.CoreV1().UpdateConfigMap(ctx, tokenConfigMap)
 	if err != nil {
 		return err
 	}
-	log.Debugf("Updated LatestEventToken in the %s ConfigMap to %s", configMapEventToken, token)
+	log.Debugf("Updated LatestEventToken in the %s ConfigMap to %s", configMapEventToken, tokenValue)
 	return nil
 }
