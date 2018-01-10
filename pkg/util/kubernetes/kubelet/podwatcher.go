@@ -1,14 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 // +build kubelet
 
 package kubelet
 
 import (
-	"strconv"
 	"sync"
 	"time"
 
@@ -19,10 +18,9 @@ import (
 // It keeps an internal state to only send the updated pods.
 type PodWatcher struct {
 	sync.Mutex
-	kubeUtil         *KubeUtil
-	latestResVersion int
-	expiryDuration   time.Duration
-	lastSeen         map[string]time.Time
+	kubeUtil       *KubeUtil
+	expiryDuration time.Duration
+	lastSeen       map[string]time.Time
 }
 
 // NewPodWatcher creates a new watcher. User call must then trigger PullChanges
@@ -33,10 +31,9 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 		return nil, err
 	}
 	watcher := &PodWatcher{
-		kubeUtil:         kubeutil,
-		latestResVersion: -1,
-		lastSeen:         make(map[string]time.Time),
-		expiryDuration:   expiryDuration,
+		kubeUtil:       kubeutil,
+		lastSeen:       make(map[string]time.Time),
+		expiryDuration: expiryDuration,
 	}
 	return watcher, nil
 }
@@ -55,37 +52,12 @@ func (w *PodWatcher) PullChanges() ([]*Pod, error) {
 // computechanges is used by PullChanges, split for testing
 func (w *PodWatcher) computechanges(podlist []*Pod) ([]*Pod, error) {
 	now := time.Now()
-	newResVersion := w.latestResVersion
 	var updatedPods []*Pod
 
 	w.Lock()
 	defer w.Unlock()
 	for _, pod := range podlist {
-		// Converting resVersion
-		var version int
-		if pod.Metadata.ResVersion == "" {
-			/* System pods don't have a ressource version, using
-			   0 to return them once. If they're restarted, we
-			   will detect the new containers and send the pod
-			   again anyway */
-			version = 0
-		} else {
-			var err error
-			version, err = strconv.Atoi(pod.Metadata.ResVersion)
-			if err != nil {
-				log.Warnf("can't parse resVersion %s for pod %s: %s",
-					pod.Metadata.ResVersion, pod.Metadata.Name, err)
-			}
-		}
-		// Detect new/updated pods
-		newPod := false
-		if version > w.latestResVersion {
-			newPod = true
-			if version > newResVersion {
-				newResVersion = version
-			}
-		}
-		// Detect new containers within existing pods
+		// Detect new containers
 		newContainer := false
 		for _, container := range pod.Status.Containers {
 			if _, found := w.lastSeen[container.ID]; found == false {
@@ -93,13 +65,12 @@ func (w *PodWatcher) computechanges(podlist []*Pod) ([]*Pod, error) {
 			}
 			w.lastSeen[container.ID] = now
 		}
-		if newPod || newContainer {
+		if newContainer {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
-	log.Debugf("found %d changed pods out of %d, new resversion %d",
-		len(updatedPods), len(podlist), newResVersion)
-	w.latestResVersion = newResVersion
+	log.Debugf("found %d changed pods out of %d",
+		len(updatedPods), len(podlist))
 	return updatedPods, nil
 }
 

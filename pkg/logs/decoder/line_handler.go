@@ -1,11 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package decoder
 
 import (
+	"bytes"
 	"regexp"
 	"sync"
 	"time"
@@ -14,34 +15,22 @@ import (
 // TRUNCATED is the warning we add at the beginning or/and at the end of a truncated message
 var TRUNCATED = []byte("...TRUNCATED...")
 
-// Line represents content separated by two '\n'
-type Line struct {
-	content []byte
-}
-
-// NewLine returns a new Line
-func NewLine(content []byte) *Line {
-	return &Line{
-		content: content,
-	}
-}
-
-// LineHandler handles Lines to form output
+// LineHandler handles byte slices to form line output
 type LineHandler interface {
-	Handle(line *Line)
+	Handle(content []byte)
 	Stop()
 }
 
 // SingleLineHandler creates and forward outputs to outputChan from single-lines
 type SingleLineHandler struct {
-	lineChan       chan *Line
+	lineChan       chan []byte
 	outputChan     chan *Output
 	shouldTruncate bool
 }
 
 // NewSingleLineHandler returns a new SingleLineHandler
 func NewSingleLineHandler(outputChan chan *Output) *SingleLineHandler {
-	lineChan := make(chan *Line)
+	lineChan := make(chan []byte)
 	lineHandler := SingleLineHandler{
 		lineChan:   lineChan,
 		outputChan: outputChan,
@@ -50,9 +39,10 @@ func NewSingleLineHandler(outputChan chan *Output) *SingleLineHandler {
 	return &lineHandler
 }
 
-// Handle forward lines to lineChan to process them
-func (lh *SingleLineHandler) Handle(line *Line) {
-	lh.lineChan <- line
+// Handle trims leading and trailing whitespaces from content,
+// and sends it as a new Line to lineChan.
+func (lh *SingleLineHandler) Handle(content []byte) {
+	lh.lineChan <- bytes.TrimSpace(content)
 }
 
 // Stop stops the handler from processing new lines
@@ -70,8 +60,8 @@ func (lh *SingleLineHandler) start() {
 
 // process creates outputs from lines and forwards them to outputChan
 // When lines are too long, they are truncated
-func (lh *SingleLineHandler) process(line *Line) {
-	lineLen := len(line.content)
+func (lh *SingleLineHandler) process(line []byte) {
+	lineLen := len(line)
 	if lineLen == 0 {
 		return
 	}
@@ -79,11 +69,11 @@ func (lh *SingleLineHandler) process(line *Line) {
 	var content []byte
 	if lh.shouldTruncate {
 		// add TRUNCATED at the beginning of content
-		content = append(TRUNCATED, line.content...)
+		content = append(TRUNCATED, line...)
 		lh.shouldTruncate = false
 	} else {
 		// keep content the same
-		content = line.content
+		content = line
 	}
 
 	if lineLen < contentLenLimit {
@@ -106,7 +96,8 @@ const flushTimeout = 1 * time.Second
 // MultiLineLineHandler reads lines from lineChan and uses lineBuffer to send them
 // when a new line matches with re or flushTimer is fired
 type MultiLineLineHandler struct {
-	lineChan     chan *Line
+	lineChan     chan []byte
+	outputChan   chan *Output
 	lineBuffer   *LineBuffer
 	newContentRe *regexp.Regexp
 	flushTimer   *time.Timer
@@ -116,11 +107,12 @@ type MultiLineLineHandler struct {
 
 // NewMultiLineLineHandler returns a new MultiLineLineHandler
 func NewMultiLineLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp) *MultiLineLineHandler {
-	lineChan := make(chan *Line)
-	lineBuffer := NewLineBuffer(outputChan)
+	lineChan := make(chan []byte)
+	lineBuffer := NewLineBuffer()
 	flushTimer := time.NewTimer(flushTimeout)
 	lineHandler := MultiLineLineHandler{
 		lineChan:     lineChan,
+		outputChan:   outputChan,
 		lineBuffer:   lineBuffer,
 		newContentRe: newContentRe,
 		flushTimer:   flushTimer,
@@ -130,8 +122,8 @@ func NewMultiLineLineHandler(outputChan chan *Output, newContentRe *regexp.Regex
 }
 
 // Handle forward lines to lineChan to process them
-func (lh *MultiLineLineHandler) Handle(line *Line) {
-	lh.lineChan <- line
+func (lh *MultiLineLineHandler) Handle(content []byte) {
+	lh.lineChan <- content
 }
 
 // Stop stops the lineHandler from processing lines
@@ -168,35 +160,47 @@ func (lh *MultiLineLineHandler) run() {
 func (lh *MultiLineLineHandler) handleExpiration() {
 	for range lh.flushTimer.C {
 		lh.mu.Lock()
-		lh.lineBuffer.Flush()
+		lh.sendContent()
 		lh.mu.Unlock()
 		if lh.shouldStop {
 			break
 		}
 	}
-	lh.lineBuffer.Stop()
+	lh.outputChan <- newStopOutput()
 }
 
 // process accumulates lines in lineBuffer and flushes lineBuffer when a new line matches with newContentRe
 // When lines are too long, they are truncated
-func (lh *MultiLineLineHandler) process(line *Line) {
-	if lh.newContentRe.Match(line.content) {
-		// send content in lineBuffer
-		lh.lineBuffer.Flush()
+func (lh *MultiLineLineHandler) process(line []byte) {
+	if lh.newContentRe.Match(line) {
+		// send content from lineBuffer
+		lh.sendContent()
 	}
 	if !lh.lineBuffer.IsEmpty() {
 		// add '\n' to content in lineBuffer
 		lh.lineBuffer.AddEndOfLine()
 	}
-	if len(line.content)+lh.lineBuffer.Length() < contentLenLimit {
+	if len(line)+lh.lineBuffer.Length() < contentLenLimit {
 		// add line to content in lineBuffer
 		lh.lineBuffer.Add(line)
 	} else {
 		// add line and truncate and flush content in lineBuffer
 		lh.lineBuffer.AddIncompleteLine(line)
 		lh.lineBuffer.AddTruncate(line)
-		lh.lineBuffer.Flush()
+		// send content from lineBuffer
+		lh.sendContent()
 		// truncate next content
 		lh.lineBuffer.AddTruncate(line)
+	}
+}
+
+// sendContent forwards the content from lineBuffer to outputChan
+func (lh *MultiLineLineHandler) sendContent() {
+	defer lh.lineBuffer.Reset()
+	content, rawDataLen := lh.lineBuffer.Content()
+	content = bytes.TrimSpace(content)
+	if len(content) > 0 {
+		output := NewOutput(content, rawDataLen)
+		lh.outputChan <- output
 	}
 }

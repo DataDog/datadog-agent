@@ -1,7 +1,26 @@
-# Known Issues
+# Datadog Agent 6 Beta
 
-There are some issues with the Beta Agent. We apologize for this, but it is a beta.
+## Anything important to know before joining the beta?
+
+To see if anything you rely upon is currently available in the new major release,
+please look at the [changes and deprecations document][changes]. There are a number
+of issues with the Beta version we're aware of, we apologize for this, but it is a beta.
 This document will be updated as these issues are resolved.
+
+## How do I join the beta?
+
+The beta is open for everyone! Take a look at the document about how to
+[install the agent][upgrade] and you'll be ready to go.
+
+## That was cool, but I need to go back to `stable`
+
+We've tried to keep it easy and straight-forward to downgrade back to
+agent 5 until things are more mature for you on agent 6.
+
+Please check out our [downgrade guide][downgrade] for instructions on
+how to get back on the `stable` agent 5 repo.
+
+# Known Issues
 
 ## Checks
 
@@ -129,3 +148,8 @@ Beta is currently available on these platforms:
 
 Next on the pipeline but still unavailable:
 * Windows 64-bit
+
+
+[changes]: agent/changes.md
+[upgrade]: agent/upgrade.md
+[downgrade]: agent/downgrade.md

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 // +build !windows
 
@@ -10,12 +10,13 @@ package tailer
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -91,7 +92,7 @@ func (t *Tailer) Stop(shouldTrackOffset bool) {
 func (t *Tailer) onStop() {
 	t.stopMutex.Lock()
 	t.d.Stop()
-	log.Println("Closing", t.path)
+	log.Info("Closing", t.path)
 	t.file.Close()
 	t.stopTimer.Stop()
 	t.stopMutex.Unlock()
@@ -112,7 +113,7 @@ func (t *Tailer) startReading(offset int64, whence int) error {
 	if err != nil {
 		return err
 	}
-	log.Println("Opening", t.path)
+	log.Info("Opening", t.path)
 	f, err := os.Open(fullpath)
 	if err != nil {
 		return err
@@ -182,7 +183,7 @@ func (t *Tailer) readForever() {
 			continue
 		}
 		if err != nil {
-			log.Println("Err:", err)
+			log.Warn("Err: ", err)
 			return
 		}
 		if n == 0 {

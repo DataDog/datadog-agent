@@ -24,6 +24,10 @@ api_key:
 # https://github.com/DataDog/dd-agent/wiki/Proxy-Configuration#using-haproxy-as-a-proxy
 # skip_ssl_validation: no
 
+# Setting this option to "yes" will force the agent to only use TLS 1.2 when
+# pushing data to the url specified in "dd_url".
+# force_tls_12: no
+
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 
@@ -210,7 +214,11 @@ metadata_collectors:
 #
 # container_proc_root: /host/proc
 #
+# Choose "auto" if you want to let the agent find any relevant listener on your host
+# At the moment, the only auto listener supported is docker
+# If you have already set docker anywhere in the listeners, the auto listener is ignored
 # listeners:
+#   - name: auto
 #   - name: docker
 #
 # Exclude containers based on their name or image

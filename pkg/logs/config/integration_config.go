@@ -1,17 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package config
 
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 	"regexp"
 
+	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
 )
 
@@ -36,8 +36,6 @@ const (
 	yamlExtension = ".yaml"
 	ymlExtension  = ".yml"
 )
-
-const logsRules = "LogsRules"
 
 // LogsProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
@@ -75,22 +73,9 @@ type IntegrationConfig struct {
 	Logs []IntegrationConfigLogSource
 }
 
-// GetLogsSources returns a list of integration sources
-func GetLogsSources() []*IntegrationConfigLogSource {
-	return getLogsSources(LogsAgent)
-}
-
-func getLogsSources(config *viper.Viper) []*IntegrationConfigLogSource {
-	return config.Get(logsRules).([]*IntegrationConfigLogSource)
-}
-
-// BuildLogsAgentIntegrationsConfigs looks for all yml configs in the ddconfdPath directory,
-// and initializes the LogsAgent integrations configs
-func BuildLogsAgentIntegrationsConfigs(ddconfdPath string) error {
-	return buildLogsAgentIntegrationsConfig(LogsAgent, ddconfdPath)
-}
-
-func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) error {
+// buildLogsSources looks for all yml configs in the ddconfdPath directory,
+// and returns a list of all the valid logs sources
+func buildLogsSources(ddconfdPath string) ([]*IntegrationConfigLogSource, error) {
 
 	integrationConfigFiles := availableIntegrationConfigs(ddconfdPath)
 	logsSourceConfigs := []*IntegrationConfigLogSource{}
@@ -101,12 +86,12 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 		viperCfg.SetConfigFile(filepath.Join(ddconfdPath, file))
 		err := viperCfg.ReadInConfig()
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			continue
 		}
 		err = viperCfg.Unmarshal(&integrationConfig)
 		if err != nil {
-			log.Println(err)
+			log.Error(err)
 			continue
 		}
 
@@ -114,13 +99,13 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 			logSourceConfig := logSourceConfigIterator
 			err = validateSource(logSourceConfig)
 			if err != nil {
-				log.Println(err)
+				log.Error(err)
 				continue
 			}
 
 			rules, err := validateProcessingRules(logSourceConfig.ProcessingRules)
 			if err != nil {
-				log.Println(err)
+				log.Error(err)
 				continue
 			}
 			logSourceConfig.ProcessingRules = rules
@@ -132,11 +117,10 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 	}
 
 	if len(logsSourceConfigs) == 0 {
-		return fmt.Errorf("Could not find any valid logs integration configuration file in %s", ddconfdPath)
+		return nil, fmt.Errorf("Could not find any valid logs integration configuration file in %s", ddconfdPath)
 	}
 
-	config.Set(logsRules, logsSourceConfigs)
-	return nil
+	return logsSourceConfigs, nil
 }
 
 // availableIntegrationConfigs lists yaml files in ddconfdPath

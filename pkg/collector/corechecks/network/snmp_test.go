@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 // +build !windows
 // +build snmp
@@ -140,7 +140,7 @@ func TestIndexTagExtraction(t *testing.T) {
 func TestConfigureV2(t *testing.T) {
 	cfg := new(snmpConfig)
 
-	err := cfg.Parse(bytes.NewBufferString(goodV2Cfg).Bytes(), []byte{})
+	err := cfg.parse(bytes.NewBufferString(goodV2Cfg).Bytes(), []byte{})
 	if err != nil {
 		t.Fatalf("Unable to parse configuration: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestConfigureV2(t *testing.T) {
 func TestConfigureV3(t *testing.T) {
 	cfg := new(snmpConfig)
 
-	err := cfg.Parse(bytes.NewBufferString(goodV3Cfg).Bytes(), []byte{})
+	err := cfg.parse(bytes.NewBufferString(goodV3Cfg).Bytes(), []byte{})
 	if err != nil {
 		t.Fatalf("Unable to parse configuration: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestSubmitSNMP(t *testing.T) {
 
 	mock := mocksender.NewMockSender(snmpCheck.ID())
 
-	if err := cfg.Parse(bytes.NewBufferString(basicCfg).Bytes(), []byte{}); err != nil {
+	if err := cfg.parse(bytes.NewBufferString(basicCfg).Bytes(), []byte{}); err != nil {
 		t.Fatalf("Unable to parse configuration: %v", err)
 	}
 	snmpCheck.cfg = cfg

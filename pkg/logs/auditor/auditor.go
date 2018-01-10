@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package auditor
 
@@ -9,11 +9,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -75,7 +76,7 @@ func (a *Auditor) flushRegistryPediodically() {
 		case <-a.flushTicker.C:
 			err := a.flushRegistry(a.registry, a.registryPath)
 			if err != nil {
-				log.Println(err)
+				log.Warn(err)
 			}
 		}
 	}
@@ -119,12 +120,12 @@ func (a *Auditor) updateRegistry(identifier string, offset int64, timestamp stri
 func (a *Auditor) recoverRegistry(path string) map[string]*RegistryEntry {
 	mr, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 		return make(map[string]*RegistryEntry)
 	}
 	r, err := a.unmarshalRegistry(mr)
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 		return make(map[string]*RegistryEntry)
 	}
 	return r

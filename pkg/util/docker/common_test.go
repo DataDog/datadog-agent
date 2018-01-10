@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package docker
 
@@ -73,4 +73,25 @@ func newDummyContainerCgroup(rootPath string, targets ...string) *ContainerCgrou
 		cgroup.Paths[target] = target
 	}
 	return cgroup
+}
+
+func newDindContainerCgroup(namePrefix, target, containerID string) (*tempFolder, *ContainerCgroup, error) {
+	// first make a dir that matches the actual cgroup path(contains only one level of container id)
+	path, err := ioutil.TempDir("", namePrefix)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	actualPath := filepath.Join(path, "docker", containerID)
+	err = os.MkdirAll(actualPath, 0777)
+	if err != nil {
+		return nil, nil, err
+	}
+	t := &tempFolder{actualPath}
+	dindContainerID := "ada6d7f86865047ecbca0eedc44722173cf48c0ff7184a61ed56a80e7564bc0c"
+	return t, &ContainerCgroup{
+		ContainerID: "dummy",
+		Mounts:      map[string]string{target: path},
+		Paths:       map[string]string{target: filepath.Join("/docker", dindContainerID, "docker", containerID)},
+	}, nil
 }

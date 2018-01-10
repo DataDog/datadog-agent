@@ -1,14 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package listener
 
 import (
 	"fmt"
-	"log"
 	"net"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
@@ -22,7 +23,7 @@ type TCPListener struct {
 
 // NewTCPListener returns an initialized TCPListener
 func NewTCPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*TCPListener, error) {
-	log.Println("Starting TCP forwarder on port", source.Port)
+	log.Info("Starting TCP forwarder on port", source.Port)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", source.Port))
 	if err != nil {
 		return nil, err
@@ -47,7 +48,7 @@ func (tcpListener *TCPListener) run() {
 	for {
 		conn, err := tcpListener.listener.Accept()
 		if err != nil {
-			log.Println("Can't listen:", err)
+			log.Error("Can't listen: ", err)
 			return
 		}
 		go tcpListener.connHandler.handleConnection(conn)

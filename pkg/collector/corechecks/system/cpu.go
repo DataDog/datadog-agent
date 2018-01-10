@@ -1,13 +1,12 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package system
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -17,20 +16,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
+const cpuCheckName = "cpu"
+
 // For testing purpose
 var times = cpu.Times
 var cpuInfo = cpu.Info
 
 // CPUCheck doesn't need additional fields
 type CPUCheck struct {
-	nbCPU        float64
-	lastNbCycle  float64
-	lastWarnings []error
-	lastTimes    cpu.TimesStat
-}
-
-func (c *CPUCheck) String() string {
-	return "cpu"
+	core.CheckBase
+	nbCPU       float64
+	lastNbCycle float64
+	lastTimes   cpu.TimesStat
 }
 
 // Run executes the check
@@ -91,55 +88,12 @@ func (c *CPUCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 	return nil
 }
 
-// Interval returns the scheduling time for the check
-func (c *CPUCheck) Interval() time.Duration {
-	return check.DefaultCheckInterval
-}
-
-// ID returns the name of the check since there should be only one instance running
-func (c *CPUCheck) ID() check.ID {
-	return check.ID(c.String())
-}
-
-// Stop does nothing
-func (c *CPUCheck) Stop() {}
-
-// GetWarnings grabs the last warnings from the sender
-func (c *CPUCheck) GetWarnings() []error {
-	w := c.lastWarnings
-	c.lastWarnings = []error{}
-	return w
-}
-
-// Warn will log a warning and add it to the warnings
-func (c *CPUCheck) warn(v ...interface{}) error {
-	w := log.Warn(v)
-	c.lastWarnings = append(c.lastWarnings, w)
-
-	return w
-}
-
-// Warnf will log a formatted warning and add it to the warnings
-func (c *CPUCheck) warnf(format string, params ...interface{}) error {
-	w := log.Warnf(format, params)
-	c.lastWarnings = append(c.lastWarnings, w)
-
-	return w
-}
-
-// GetMetricStats returns the stats from the last run of the check
-func (c *CPUCheck) GetMetricStats() (map[string]int64, error) {
-	sender, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		return nil, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
-	}
-	return sender.GetMetricStats(), nil
-}
-
 func cpuFactory() check.Check {
-	return &CPUCheck{}
+	return &CPUCheck{
+		CheckBase: core.NewCheckBase(cpuCheckName),
+	}
 }
 
 func init() {
-	core.RegisterCheck("cpu", cpuFactory)
+	core.RegisterCheck(cpuCheckName, cpuFactory)
 }

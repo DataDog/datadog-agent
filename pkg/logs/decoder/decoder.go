@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package decoder
 
@@ -130,6 +130,5 @@ func (d *Decoder) sendLine() {
 	content := make([]byte, d.lineBuffer.Len())
 	copy(content, d.lineBuffer.Bytes())
 	d.lineBuffer.Reset()
-	newLine := NewLine(content)
-	d.lineHandler.Handle(newLine)
+	d.lineHandler.Handle(content)
 }

@@ -1,13 +1,15 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package processor
 
 import (
 	"fmt"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -91,7 +93,12 @@ func (p *Processor) computeExtraContent(msg message.Message) []byte {
 		extraContent = append(extraContent, ' ')
 
 		// Hostname
-		extraContent = append(extraContent, []byte(config.LogsAgent.GetString("hostname"))...)
+		hostname, err := util.GetHostname()
+		if err != nil {
+			// this scenario is not likely to happen since the agent can not start without a hostname
+			hostname = "unknown"
+		}
+		extraContent = append(extraContent, []byte(hostname)...)
 		extraContent = append(extraContent, ' ')
 
 		// Service
@@ -129,7 +136,7 @@ func (p *Processor) buildPayload(apikeyString, redactedMessage, extraContent []b
 		payload = append(payload, extraContent...)
 	}
 	payload = append(payload, redactedMessage...)
-	payload = append(payload, '\n') // TODO: move this in decoder
+	payload = append(payload, '\n')
 	return payload
 }
 

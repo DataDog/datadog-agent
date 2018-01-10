@@ -1,13 +1,13 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 package flare
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,7 +47,7 @@ log_level: info
 `
 
 	wd, _ := os.Getwd()
-	filePath := path.Join(wd, "test", "datadog.yaml")
+	filePath := filepath.Join(wd, "test", "datadog.yaml")
 	cleaned, err := credentialsCleanerFile(filePath)
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)

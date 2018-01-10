@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 // +build docker
 
@@ -35,6 +35,22 @@ const (
 // FIXME: remove once DockerListener is moved to .Containers
 func (d *DockerUtil) ContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
 	return d.cli.ContainerList(ctx, options)
+}
+
+// DockerUtil wraps interactions with a local docker API.
+type DockerUtil struct {
+	retry.Retrier
+	sync.Mutex
+	cfg *Config
+	cli *client.Client
+	// tracks the last time we invalidate our internal caches
+	lastInvalidate time.Time
+	// networkMappings by container id
+	networkMappings map[string][]dockerNetwork
+	// image sha mapping cache
+	imageNameBySha map[string]string
+	// event subscribers and state
+	eventState *eventStreamState
 }
 
 func detectServerAPIVersion() (string, error) {
@@ -87,8 +103,8 @@ func (d *DockerUtil) init() error {
 	d.cli = cli
 	d.networkMappings = make(map[string][]dockerNetwork)
 	d.imageNameBySha = make(map[string]string)
-	d.eventSubscribers = make(map[string]*eventSubscriber)
 	d.lastInvalidate = time.Now()
+	d.eventState = newEventStreamState()
 
 	return nil
 }
@@ -132,22 +148,6 @@ func ConnectToDocker() (*client.Client, error) {
 		cli.UpdateClientVersion(serverVersion)
 	}
 	return cli, nil
-}
-
-// DockerUtil wraps interactions with a local docker API.
-type DockerUtil struct {
-	retry.Retrier
-	sync.Mutex
-	cfg *Config
-	cli *client.Client
-	// tracks the last time we invalidate our internal caches
-	lastInvalidate time.Time
-	// networkMappings by container id
-	networkMappings map[string][]dockerNetwork
-	// image sha mapping cache
-	imageNameBySha map[string]string
-	// event subscribers
-	eventSubscribers map[string]*eventSubscriber
 }
 
 // Images returns a slice of all images.
