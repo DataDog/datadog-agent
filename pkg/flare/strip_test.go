@@ -7,7 +7,7 @@ package flare
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,7 +47,7 @@ log_level: info
 `
 
 	wd, _ := os.Getwd()
-	filePath := path.Join(wd, "test", "datadog.yaml")
+	filePath := filepath.Join(wd, "test", "datadog.yaml")
 	cleaned, err := credentialsCleanerFile(filePath)
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)
