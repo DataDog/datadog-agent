@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 
+	"strconv"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -18,7 +20,6 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s/api/v1"
 	yaml "gopkg.in/yaml.v2"
-	"strconv"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
@@ -76,12 +77,12 @@ func (k *KubeASCheck) Run() error {
 
 	componentsStatus, err := asclient.ComponentStatuses()
 	if err != nil {
-		k.Warn("could not retrieve the status from the control plane's components", err.Error())
+		k.Warnf("Could not retrieve the status from the control plane's components %s", err.Error())
 	}
 
 	err = k.parseComponentStatus(sender, componentsStatus)
 	if err != nil {
-		k.Warn("could not collect API Server component status: ", err.Error())
+		k.Warnf("Could not collect API Server component status: %s", err.Error())
 	}
 
 	var token string
@@ -94,29 +95,35 @@ func (k *KubeASCheck) Run() error {
 			token = ""
 		}
 		k.configMapAvailable = found
-		k.latestEventToken, _ = strconv.Atoi(token)
+		k.latestEventToken, err = strconv.Atoi(token)
+		if err != nil {
+			k.Warnf("Not able to convert the latestEventToken: %s", err.Error())
+		}
 	}
 
 	newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(token)
 
 	if err != nil {
-		k.Warn("could not collect events from the api server: ", err.Error())
+		k.Warnf("Could not collect events from the api server: %s", err.Error())
 	}
 
-	lastVersion, _ := strconv.Atoi(versionToken)
+	lastVersion, err := strconv.Atoi(versionToken)
 
+	if err != nil {
+		k.Warnf("Not able to convert events lastVersion key: %s", err.Error())
+	}
 	if lastVersion > k.latestEventToken {
 		k.latestEventToken = lastVersion
 		if k.configMapAvailable {
 			configMapErr := asclient.EventTokenSetter(versionToken)
 			if configMapErr != nil {
-				k.Warnf("Could not store the LastEventToken in the ConfigMap event_token_dca: %s", configMapErr.Error())
+				k.Warnf("Could not store the LastEventToken in the ConfigMap eventtokendca: %s", configMapErr.Error())
 			}
 		}
 		err := k.aggregateEvents(sender, newEvents, false)
 
 		if err != nil {
-			k.Warnf("Could not submit new event", err.Error())
+			k.Warnf("Could not submit new event %s", err.Error())
 		}
 
 		// We send the events in 2 steps to make sure the new events are initializing the aggregation keys and as modified events have a different payload.
@@ -124,7 +131,7 @@ func (k *KubeASCheck) Run() error {
 			err := k.aggregateEvents(sender, modifiedEvents, true)
 
 			if err != nil {
-				k.Warnf("Could not submit modified event ", err.Error())
+				k.Warnf("Could not submit modified event %s", err.Error())
 			}
 		}
 	}

@@ -24,6 +24,11 @@ import (
 
 var globalApiClient *APIClient
 
+const (
+	configMapEventToken = "eventtokendca"
+	defaultNamespace    = "default"
+)
+
 // ApiClient provides authenticated access to the
 // apiserver endpoints. Use the shared instance via GetApiClient.
 type APIClient struct {
@@ -102,28 +107,32 @@ func ParseKubeConfig(fpath string) (*k8s.Config, error) {
 	return config, err
 }
 
+// ComponentStatuses returns the component status list from the APIServer
 func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 	return c.client.CoreV1().ListComponentStatuses(ctx)
 }
 
+// EventTokenFetcher returns the value of the token `eventToken` in the ConfigMap `eventtokendca`
 func (c *APIClient) EventTokenFetcher() (string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, "eventtokendca", "default")
+	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapEventToken, defaultNamespace)
 	if err != nil {
 		return "", false, err
 	}
-	log.Infof("Fetched LatestEventToken from the eventtokendca ConfigMap")
+	log.Infof("Fetched LatestEventToken from the %s ConfigMap", configMapEventToken)
 	token, found := tokenConfigMap.Data["eventToken"]
 	log.Debugf("LatestEventToken is %s", token)
 	return token, found, nil
 }
+
+//EventTokenSetter upadtes the value of the token `eventToken` in the ConfigMap `configMapEventToken`
 func (c *APIClient) EventTokenSetter(token string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, "eventtokendca", "default")
+	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapEventToken, defaultNamespace)
 	if err != nil {
 		return err
 	}
@@ -132,6 +141,6 @@ func (c *APIClient) EventTokenSetter(token string) error {
 	if err != nil {
 		return err
 	}
-	log.Debugf("Updated LatestEventToken in the eventtokendca ConfigMap to %s", token)
+	log.Debugf("Updated LatestEventToken in the %s ConfigMap to %s", configMapEventToken, token)
 	return nil
 }

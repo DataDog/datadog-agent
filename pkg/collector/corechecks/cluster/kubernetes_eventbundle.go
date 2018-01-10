@@ -9,11 +9,12 @@ package cluster
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/ericchiang/k8s/api/v1"
 	"math"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/ericchiang/k8s/api/v1"
 )
 
 type kubernetesEventBundle struct {

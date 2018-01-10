@@ -13,10 +13,11 @@ import (
 	obj "github.com/ericchiang/k8s/apis/meta/v1"
 	"github.com/stretchr/testify/assert"
 
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"time"
 )
 
 func toStr(str string) *string {
@@ -121,8 +122,8 @@ func TestParseComponentStatus(t *testing.T) {
 
 	mock.AssertExpectations(t)
 }
-func createEvent(count int32, objname, objkind, objuid, component, reason string, message string, timestamp int64) *v1.Event {
 
+func createEvent(count int32, objname, objkind, objuid, component, reason string, message string, timestamp int64) *v1.Event {
 	return &v1.Event{
 		Metadata: &obj.ObjectMeta{
 			CreationTimestamp: &obj.Time{
