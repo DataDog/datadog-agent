@@ -8,7 +8,7 @@ require 'pathname'
 
 name "datadog-process-agent-win"
 
-default_version "db/windows"
+default_version "db/new_windows"
 
 source git: 'https://github.com/DataDog/datadog-process-agent.git'
 relative_path 'src/github.com/DataDog/datadog-process-agent'
