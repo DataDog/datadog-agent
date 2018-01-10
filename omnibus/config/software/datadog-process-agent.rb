@@ -6,7 +6,7 @@
 name "datadog-process-agent"
 always_build true
 
-default_version '5.20.2'
+default_version '5.21.0'
 
 
 build do
