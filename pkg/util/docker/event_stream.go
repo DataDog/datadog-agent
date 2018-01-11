@@ -146,7 +146,6 @@ CONNECT:
 					continue
 				}
 				if event == nil {
-					log.Debug("Processed nil event, skipping")
 					continue
 				}
 				badSubs := d.eventState.dispatch(event)

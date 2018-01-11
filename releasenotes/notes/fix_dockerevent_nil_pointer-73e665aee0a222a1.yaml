@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Avoid processing of nil events.
