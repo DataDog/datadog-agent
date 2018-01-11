@@ -1,9 +1,14 @@
 ==========
 Logs-agent
 ==========
-{{ if (not .is_enabled) }}
+
+  Status
+  ======
+{{- if (not .is_enabled) }}
   logs-agent is disabled
 {{ else }}
+  logs-agent is active
+
   Configuration
   =============
   {{- if (not .integrations) }}
