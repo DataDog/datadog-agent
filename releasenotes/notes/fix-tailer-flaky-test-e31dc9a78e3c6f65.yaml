@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixed a flaky test causing the build pipeline to fail
