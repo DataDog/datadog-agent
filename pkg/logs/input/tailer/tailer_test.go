@@ -122,14 +122,6 @@ func (suite *TailerTestSuite) TestTailerIsSlowAndCatchesUp() {
 	of2 := suite.tl.GetReadOffset()
 	suite.True(of1 < of2)
 
-	// assert reads are blocked: we write in the file but
-	// offset is unchanged
-	for i := 0; i < 5; i++ {
-		writeMessage(suite.testFile)
-	}
-	of3 := suite.tl.GetReadOffset()
-	suite.Equal(of2, of3)
-
 	// slowly process all logs in the channel
 	tick()
 	var messagesReceived uint64
