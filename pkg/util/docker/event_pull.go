@@ -40,6 +40,8 @@ func (d *DockerUtil) openEventChannel(since, until time.Time, filter map[string]
 	return d.cli.Events(context.Background(), options)
 }
 
+// processContainerEvent formats the events from a channel.
+// It can return nil, nil if the event is filtered out, one should check for nil pointers before using the event.
 func (d *DockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent, error) {
 	// Type filtering
 	if msg.Type != "container" {
@@ -67,6 +69,7 @@ func (d *DockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 		}
 	}
 	if d.cfg.filter.computeIsExcluded(containerName, imageName) {
+		log.Tracef("events from %s are skipped as the image is excluded for the event collection", containerName)
 		return nil, nil
 	}
 
