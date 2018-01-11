@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    Avoid processing of nil events.
+    Fix a nil-pointer segfault in docker event processing when an event is ignored
