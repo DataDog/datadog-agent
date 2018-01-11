@@ -39,10 +39,10 @@ Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details
 To start the agent type `agent start` from the `bin/agent` folder, it will take
 care of adjusting paths and run the binary in foreground.
 
-You need to provide a valid API key, either through the config file or passing
-the environment variable like:
+You need to provide a valid API key. You can either use the config file or
+overwrite it with the environment variable like:
 ```
-DD_API_KEY=12345678990 ./bin/agent/agent
+DD_API_KEY=12345678990 ./bin/agent/agent -c bin/agent/dist/datadog.yaml
 ```
 
 ## Documentation
