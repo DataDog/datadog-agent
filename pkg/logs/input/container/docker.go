@@ -8,9 +8,7 @@
 package container
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -24,18 +22,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 )
 
 const defaultSleepDuration = 1 * time.Second
 const tagsUpdatePeriod = 10 * time.Second
-
-// Length of the docker message header.
-// See https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs:
-// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
-const messageHeaderLength = 8
 
 // DockerTailer tails logs coming from stdout and stderr of a docker container
 // With docker api, there is no way to know if a log comes from strout or stderr
@@ -183,7 +178,7 @@ func (dt *DockerTailer) forwardMessages() {
 			return
 		}
 
-		ts, sev, updatedMsg, err := dt.parseMessage(output.Content)
+		ts, sev, updatedMsg, err := parser.ParseMessage(output.Content)
 		if err != nil {
 			log.Warn(err)
 			continue
@@ -227,33 +222,6 @@ func (dt *DockerTailer) checkForNewDockerTags() {
 func (dt *DockerTailer) buildTagsPayload() []byte {
 	tagsString := fmt.Sprintf("%s,%s", strings.Join(dt.containerTags, ","), dt.source.Tags)
 	return config.BuildTagsPayload(tagsString, dt.source.Source, dt.source.SourceCategory)
-}
-
-// parseMessage extracts the date and the severity from the raw docker message
-// see https://godoc.org/github.com/moby/moby/client#Client.ContainerLogs
-func (dt *DockerTailer) parseMessage(msg []byte) (string, []byte, []byte, error) {
-
-	// The format of the message should be :
-	// [8]byte{STREAM_TYPE, 0, 0, 0, SIZE1, SIZE2, SIZE3, SIZE4}[]byte{OUTPUT}
-	// If we don't have at the very least 8 bytes we can consider this message can't be parsed.
-	if len(msg) < messageHeaderLength {
-		return "", nil, nil, errors.New("Can't parse docker message: expected a 8 bytes header")
-	}
-
-	// First byte is 1 for stdout and 2 for stderr
-	sev := config.SevInfo
-	if msg[0] == 2 {
-		sev = config.SevError
-	}
-
-	// timestamp goes from byte 8 till first space
-	to := bytes.Index(msg[messageHeaderLength:], []byte{' '})
-	if to == -1 {
-		return "", nil, nil, errors.New("Can't parse docker message: expected a whitespace after header")
-	}
-	to += messageHeaderLength
-	ts := string(msg[messageHeaderLength:to])
-	return ts, sev, msg[to+1:], nil
 }
 
 // wait lets the reader sleep for a bit

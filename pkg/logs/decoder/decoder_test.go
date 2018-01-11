@@ -98,7 +98,7 @@ func TestDecodeIncomingDataForMultiLineLogs(t *testing.T) {
 	inChan := make(chan *Input, 10)
 	outChan := make(chan *Output, 10)
 	re := regexp.MustCompile("[0-9]+\\.")
-	d := New(inChan, outChan, NewMultiLineLineHandler(outChan, re))
+	d := New(inChan, outChan, NewMultiLineHandler(outChan, re, NewUnwrapper()))
 
 	var out *Output
 
@@ -213,7 +213,7 @@ func TestSingleLineDecoderLifecycle(t *testing.T) {
 func TestMultiLineDecoderLifecycle(t *testing.T) {
 	inChan := make(chan *Input, 10)
 	outChan := make(chan *Output, 10)
-	d := New(inChan, outChan, NewMultiLineLineHandler(outChan, nil))
+	d := New(inChan, outChan, NewMultiLineHandler(outChan, nil, NewUnwrapper()))
 	d.Start()
 
 	d.Stop()

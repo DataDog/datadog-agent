@@ -6,6 +6,7 @@
 package decoder
 
 import (
+	"bytes"
 	"regexp"
 	"testing"
 
@@ -14,6 +15,21 @@ import (
 
 // All valid whitespace characters
 const whitespace = "\t\n\v\f\r\u0085\u00a0 "
+
+// Unwrapper mocks the logic of LineUnwrapper
+type MockUnwrapper struct {
+	header []byte
+}
+
+// NewUnwrapper returns a new Unwrapper
+func NewMockUnwrapper(header string) LineUnwrapper {
+	return &MockUnwrapper{[]byte(header)}
+}
+
+// Unwrap removes header from line
+func (u MockUnwrapper) Unwrap(line []byte) []byte {
+	return bytes.Replace(line, u.header, []byte(""), 1)
+}
 
 func TestTrimSingleLine(t *testing.T) {
 	outChan := make(chan *Output, 10)
@@ -30,7 +46,7 @@ func TestTrimSingleLine(t *testing.T) {
 func TestTrimMultiLine(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outChan := make(chan *Output, 10)
-	h := NewMultiLineLineHandler(outChan, re)
+	h := NewMultiLineHandler(outChan, re, NewUnwrapper())
 
 	var out *Output
 
@@ -44,4 +60,37 @@ func TestTrimMultiLine(t *testing.T) {
 	h.Handle([]byte("bar" + whitespace))
 	out = <-outChan
 	assert.Equal(t, "foo"+whitespace+"\\n"+"bar", string(out.Content))
+}
+
+func TestMultiLine(t *testing.T) {
+	const header = "HEADER"
+
+	re := regexp.MustCompile("[0-9]+\\.")
+	outChan := make(chan *Output, 10)
+	h := NewMultiLineHandler(outChan, re, NewMockUnwrapper(header))
+
+	var out *Output
+
+	// Only the header of the first line of each Output should be kept
+	h.Handle([]byte(header + "1. first line"))
+	h.Handle([]byte(header + "second line"))
+	h.Handle([]byte(header + "2. first line"))
+	h.Handle([]byte(header + "3. first line"))
+
+	out = <-outChan
+	assert.Equal(t, header+"1. first line"+"\\n"+"second line", string(out.Content))
+	out = <-outChan
+	assert.Equal(t, header+"2. first line", string(out.Content))
+	out = <-outChan
+	assert.Equal(t, header+"3. first line", string(out.Content))
+
+	// The header of the malformed content should remain
+	h.Handle([]byte(header + "malformed first line"))
+	h.Handle([]byte(header + "second line"))
+	h.Handle([]byte(header + "4. first line"))
+
+	out = <-outChan
+	assert.Equal(t, header+"malformed first line\\nsecond line", string(out.Content))
+	out = <-outChan
+	assert.Equal(t, header+"4. first line", string(out.Content))
 }

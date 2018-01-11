@@ -62,7 +62,15 @@ func InitializeDecoder(source *config.IntegrationConfigLogSource) *Decoder {
 	for _, rule := range source.ProcessingRules {
 		switch rule.Type {
 		case config.MultiLine:
-			lineHandler = NewMultiLineLineHandler(outputChan, rule.Reg)
+			var lineUnwrapper LineUnwrapper
+			switch source.Type {
+			case config.DockerType:
+				lineUnwrapper = NewDockerUnwrapper()
+			default:
+				lineUnwrapper = NewUnwrapper()
+			}
+			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, lineUnwrapper)
+			break
 		}
 	}
 	if lineHandler == nil {
