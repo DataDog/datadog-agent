@@ -46,7 +46,6 @@ func GetTaskMetadata() (TaskMetadata, error) {
 func GetECSContainers() ([]Container, error) {
 	meta, err := GetTaskMetadata()
 	if err != nil || len(meta.Containers) == 0 {
-		log.Errorf("unable to retrieve task metadata")
 		return nil, err
 	}
 	return meta.Containers, nil
@@ -61,7 +60,6 @@ func GetContainers() ([]*docker.Container, error) {
 
 	ecsContainers, err := GetECSContainers()
 	if err != nil {
-		log.Error("unable to get the container list from ecs")
 		return containers, err
 	}
 	for _, c := range ecsContainers {
@@ -98,7 +96,7 @@ func GetContainers() ([]*docker.Container, error) {
 		}
 		stats, err = GetContainerStats(c)
 		if err != nil {
-			log.Errorf("Unable to get stats from ECS for container %s - %s", c.DockerID, err)
+			log.Errorf("unable to get stats from ECS for container %s - %s", c.DockerID, err)
 		} else {
 			// TODO: add metrics - complete for https://github.com/DataDog/datadog-process-agent/blob/970729924e6b2b6fe3a912b62657c297621723cc/checks/container_rt.go#L110-L128
 			// start with a hack (translate ecs stats to docker cgroup stuff)
