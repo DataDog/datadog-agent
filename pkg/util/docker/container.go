@@ -3,9 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-// +build docker
-
 package docker
+
+// InterfaceNetStats stores network statistics about a Docker network interface
+type InterfaceNetStats struct {
+	NetworkName string
+	BytesSent   uint64
+	BytesRcvd   uint64
+	PacketsSent uint64
+	PacketsRcvd uint64
+}
+
+// ContainerNetStats stores network statistics about a Docker container per interface
+type ContainerNetStats []*InterfaceNetStats
 
 // Expose container states
 const (
