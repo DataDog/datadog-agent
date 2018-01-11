@@ -43,6 +43,7 @@ func (d *DockerUtil) openEventChannel(since, until time.Time, filter map[string]
 func (d *DockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent, error) {
 	// Type filtering
 	if msg.Type != "container" {
+		log.Warnf("Event skipped because of a type mismatch. Expected 'container' got %s", msg.Type)
 		return nil, nil
 	}
 
@@ -67,6 +68,7 @@ func (d *DockerUtil) processContainerEvent(msg events.Message) (*ContainerEvent,
 		}
 	}
 	if d.cfg.filter.computeIsExcluded(containerName, imageName) {
+		log.Debugf("events from %s are skipped as the image is excluded for the event collection", containerName)
 		return nil, nil
 	}
 

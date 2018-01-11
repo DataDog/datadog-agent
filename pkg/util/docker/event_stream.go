@@ -145,7 +145,10 @@ CONNECT:
 					log.Debugf("Skipping event: %s", err)
 					continue
 				}
-
+				if event == nil {
+					log.Debug("Processed nil event, skipping")
+					continue
+				}
 				badSubs := d.eventState.dispatch(event)
 				for _, sub := range badSubs {
 					d.UnsubscribeFromContainerEvents(sub.name)
