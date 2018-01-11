@@ -102,6 +102,22 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 			expectedHigh: []string{"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001"},
 		},
 		{
+			testName: "NoValue",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{
+						"NOVALUE=",
+						"AVALUE=value",
+					},
+					Labels: map[string]string{},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{"avalue": "v"},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow:          []string{"v:value"},
+			expectedHigh:         []string{},
+		},
+		{
 			testName: "extractSwarmLabels",
 			co: &types.ContainerJSON{
 				Config: &container.Config{

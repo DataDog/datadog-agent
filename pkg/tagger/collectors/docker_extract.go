@@ -83,11 +83,11 @@ func dockerExtractEnvironmentVariables(tags *utils.TagList, containerEnvVariable
 
 	for _, envEntry := range containerEnvVariables {
 		envSplit = strings.SplitN(envEntry, "=", 2)
-		envName = envSplit[0]
-		envValue = envSplit[1]
 		if len(envSplit) != 2 {
 			continue
 		}
+		envName = envSplit[0]
+		envValue = envSplit[1]
 		switch envName {
 		// Mesos/DCOS tags (mesos, marathon, chronos)
 		case "MARATHON_APP_ID":
