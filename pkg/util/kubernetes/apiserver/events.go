@@ -63,10 +63,14 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 		timeout.Reset(eventReadTimeout)
 
 		if event != nil && event.Metadata != nil && event.Metadata.ResourceVersion != nil {
-			resVersionMetadata, err := strconv.Atoi(*event.Metadata.ResourceVersion)
-			resVersionCached, _ := strconv.Atoi(*latestResVersion)
-			if err != nil {
+			resVersionMetadata, kubeEventErr := strconv.Atoi(*event.Metadata.ResourceVersion)
+			resVersionCached, cachedResErr := strconv.Atoi(*latestResVersion)
+			if kubeEventErr != nil {
 				log.Errorf("The Resource version associated with the event %s is not supported: %s", event.Metadata.Uid, err.Error())
+				continue
+			}
+			if cachedResErr != nil {
+				log.Errorf("The cached event token could not be parsed: ", err.Error())
 				continue
 			}
 			if resVersionMetadata > resVersionCached {
