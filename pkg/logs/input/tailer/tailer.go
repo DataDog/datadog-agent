@@ -92,7 +92,7 @@ func (t *Tailer) Stop(shouldTrackOffset bool) {
 func (t *Tailer) onStop() {
 	t.stopMutex.Lock()
 	t.d.Stop()
-	log.Info("Closing", t.path)
+	log.Info("Closing ", t.path)
 	t.file.Close()
 	t.stopTimer.Stop()
 	t.stopMutex.Unlock()
@@ -113,7 +113,7 @@ func (t *Tailer) startReading(offset int64, whence int) error {
 	if err != nil {
 		return err
 	}
-	log.Info("Opening", t.path)
+	log.Info("Opening ", t.path)
 	f, err := os.Open(fullpath)
 	if err != nil {
 		return err

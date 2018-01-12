@@ -169,7 +169,7 @@ func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
 
 // onFileRotation safely stops tailer and setup a new one
 func (s *Scanner) onFileRotation(tailer *Tailer, file *File) {
-	log.Info("Log rotation happened to", tailer.path)
+	log.Info("Log rotation happened to ", tailer.path)
 	shouldTrackOffset := false
 	tailer.Stop(shouldTrackOffset)
 	s.setupTailer(file, true, tailer.outputChan)

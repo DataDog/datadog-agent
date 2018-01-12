@@ -106,7 +106,7 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 }
 
 func (s *Scanner) stopTailer(tailer *DockerTailer) {
-	log.Info("Stop tailing container", s.humanReadableContainerID(tailer.ContainerID))
+	log.Info("Stop tailing container ", s.humanReadableContainerID(tailer.ContainerID))
 	tailer.Stop()
 	delete(s.tailers, tailer.ContainerID)
 }
@@ -114,7 +114,7 @@ func (s *Scanner) stopTailer(tailer *DockerTailer) {
 func (s *Scanner) listContainers() []types.Container {
 	containers, err := s.cli.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
-		log.Error("Can't tail containers,", err)
+		log.Error("Can't tail containers, ", err)
 		log.Error("Is datadog-agent part of docker user group?")
 		return []types.Container{}
 	}
@@ -162,7 +162,7 @@ func (s *Scanner) setup() error {
 
 // setupTailer sets one tailer, making it tail from the beginning or the end
 func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.IntegrationConfigLogSource, tailFromBeginning bool, outputChan chan message.Message) {
-	log.Info("Detected container", container.Image, "-", s.humanReadableContainerID(container.ID))
+	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
 	t := NewDockerTailer(cli, container, source, outputChan)
 	var err error
 	if tailFromBeginning {
