@@ -127,4 +127,4 @@ subjects:
 ```
 
 The ConfigMap to store the `LatestEventToken` has to be deployed in the `default` namespace and be named `eventtokendca`
-Simply running `kubectl create configmap eventtokendca --from-literal="eventToken"="12"`
+Simply running `kubectl create configmap configmaptokendca --from-literal="eventToken"="12"`

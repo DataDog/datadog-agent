@@ -26,7 +26,7 @@ import (
 const (
 	KubeControlPaneCheck         = "kube_apiserver_controlplane.up"
 	kubernetesAPIServerCheckName = "kubernetes_apiserver"
-	eventTokenKey                = "eventToken"
+	eventTokenKey                = "eventKey"
 )
 
 // KubeASConfig is the config of the API server.

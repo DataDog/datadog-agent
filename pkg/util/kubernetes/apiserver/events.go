@@ -70,7 +70,7 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 				continue
 			}
 			if cachedResErr != nil {
-				log.Errorf("The cached event token could not be parsed: ", err.Error())
+				log.Errorf("The cached event token could not be parsed: %s", err.Error())
 				continue
 			}
 			if resVersionMetadata > resVersionCached {

@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"strconv"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/ericchiang/k8s/api/v1"
 
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -25,8 +27,10 @@ import (
 var globalApiClient *APIClient
 
 const (
-	configMapEventToken = "eventtokendca"
-	defaultNamespace    = "default"
+	configMapDCAToken = "configmaptokendca"
+	defaultNamespace  = "default"
+	tokenTime         = "tokenTimestamp"
+	tokenTimeout      = 60
 )
 
 // ApiClient provides authenticated access to the
@@ -114,34 +118,58 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	return c.client.CoreV1().ListComponentStatuses(ctx)
 }
 
-// EventTokenFetcher returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `eventtokendca`
+// ConfigMapTokenFetcher returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configmaptokendca` if its timestamp is less than tokenTimeout old.
 func (c *APIClient) ConfigMapTokenFetcher(tokenKey string) (string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapEventToken, defaultNamespace)
+	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, defaultNamespace)
 	if err != nil {
 		return "", false, err
 	}
-	log.Infof("Fetched LatestEventToken from the %s ConfigMap", configMapEventToken)
+	log.Infof("Found the ConfigMap %s", configMapDCAToken)
+
 	token, found := tokenConfigMap.Data[tokenKey]
-	log.Debugf("LatestEventToken is %s", token)
-	return token, found, nil
+	if !found {
+		return "", found, log.Errorf("%s was not found in the ConfigMap %s", tokenKey, configMapDCAToken)
+	}
+	log.Debugf("%s is %s", tokenKey, token)
+
+	tokenTimeStr, set := tokenConfigMap.Data[fmt.Sprintf("%s.%s", tokenKey, tokenTime)] // This is so we can have one timestamp per tokenKey
+
+	if set {
+		tokenTime, err := strconv.Atoi(tokenTimeStr)
+		if err != nil {
+			return "", found, log.Errorf("could not convert the timestamp associated with %s from the ConfigMap %s", tokenKey, configMapDCAToken)
+		}
+		tokenAge := int(time.Now().Unix()) - tokenTime
+
+		if tokenAge > tokenTimeout {
+			log.Infof("The event token is outdated, refreshing the events")
+			return "", found, nil
+		}
+	}
+
+	log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", tokenKey, configMapDCAToken)
+
+	// We return token = "" to reset the token and its timestamp as tokenKey's timestamp was not found.
+	return "", found, log.Errorf("could not find %s in the ConfigMap %s", tokenKey, configMapDCAToken)
 }
 
-//EventTokenSetter upadtes the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapEventToken`
+//EventTokenSetter updates the value of the `tokenValue` from the `tokenKey` and sets its collected timestamp in the ConfigMap `configmaptokendca`
 func (c *APIClient) ConfigMapTokenSetter(tokenKey, tokenValue string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapEventToken, defaultNamespace)
+	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, defaultNamespace)
 	if err != nil {
 		return err
 	}
 	tokenConfigMap.Data[tokenKey] = tokenValue
+	tokenConfigMap.Data[fmt.Sprintf("%s.%s", tokenKey, tokenTime)] = string(int(time.Now().Unix())) // Timestamps in the ConfigMap should all use the type int.
 
 	_, err = c.client.CoreV1().UpdateConfigMap(ctx, tokenConfigMap)
 	if err != nil {
 		return err
 	}
-	log.Debugf("Updated LatestEventToken in the %s ConfigMap to %s", configMapEventToken, tokenValue)
+	log.Debugf("Updated %s to %s in the ConfigMap %s", tokenKey, tokenValue, configMapDCAToken)
 	return nil
 }
