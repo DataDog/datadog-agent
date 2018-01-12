@@ -128,13 +128,14 @@ build do
       # We don't have auto_conf on windows yet
       if os != 'windows'
         if File.exist? "#{check_dir}/auto_conf.yaml"
-          mkdir check_conf_dir unless File.exists? (check_conf_dir)
-          copy "#{check_dir}/auto_conf.yaml", "#{check_conf_dir}/"
+          mkdir check_conf_dir
+          copy "#{check_dir}/auto_conf.yaml", "#{check_conf_dir}/" unless File.exist? "#{check_conf_dir}/auto_conf.yaml"
         end
       end
 
       File.file?("#{check_dir}/setup.py") || next
       if windows?
+        build_args = "wheel --no-deps ."
         command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{build_args}", :cwd => "#{project_dir}\\#{check}"
         Dir.glob("#{project_dir}\\#{check}\\*.whl").each do |wheel_path|
           whl_file = wheel_path.split('/').last
