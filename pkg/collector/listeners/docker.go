@@ -391,9 +391,9 @@ func (s *DockerService) GetPorts() ([]int, error) {
 			out, err := parseDockerPort(p)
 			if err != nil {
 				log.Warn(err.Error())
-			} else {
-				ports = append(ports, out...)
+				continue
 			}
+			ports = append(ports, out...)
 		}
 	case cInspect.Config != nil && len(cInspect.Config.ExposedPorts) > 0:
 		log.Infof("using ExposedPorts for container %s as no port bindings are listed", string(s.ID)[:12])
@@ -401,9 +401,9 @@ func (s *DockerService) GetPorts() ([]int, error) {
 			out, err := parseDockerPort(p)
 			if err != nil {
 				log.Warn(err.Error())
-			} else {
-				ports = append(ports, out...)
+				continue
 			}
+			ports = append(ports, out...)
 		}
 	}
 
@@ -415,6 +415,7 @@ func (s *DockerService) GetPorts() ([]int, error) {
 func parseDockerPort(port nat.Port) ([]int, error) {
 	var output []int
 
+	// Try to parse a port range, eg. 22-25
 	first, last, err := port.Range()
 	if err == nil && last > first {
 		for p := first; p <= last; p++ {
@@ -423,13 +424,14 @@ func parseDockerPort(port nat.Port) ([]int, error) {
 		return output, nil
 	}
 
+	// Try to parse a single port (most common case)
 	p := port.Int()
 	if p > 0 {
 		output = append(output, p)
 		return output, nil
 	}
 
-	return output, fmt.Errorf("failed to extract port %s", string(port))
+	return output, fmt.Errorf("failed to extract port from: %v", port)
 }
 
 // GetTags retrieves tags using the Tagger
