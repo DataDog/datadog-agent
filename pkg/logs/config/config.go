@@ -7,6 +7,8 @@ package config
 
 import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
 // LogsAgent is the global configuration object
@@ -24,13 +26,11 @@ func GetLogsSources() []*IntegrationConfigLogSource {
 
 // Build initializes logs-agent configuration
 func Build() error {
-	sources, err := buildLogsSources(LogsAgent.GetString("confd_path"))
+	sources, sourcesToTrack, err := buildLogsSources(LogsAgent.GetString("confd_path"))
 	if err != nil {
 		return err
 	}
 	logsSources = sources
-	if err != nil {
-		return err
-	}
+	status.Initialize(sourcesToTrack)
 	return nil
 }
