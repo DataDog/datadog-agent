@@ -128,7 +128,7 @@ func (c *APIClient) ConfigMapTokenFetcher(tokenKey string) (string, bool, error)
 	}
 	log.Infof("Found the ConfigMap %s", configMapDCAToken)
 
-	token, found := tokenConfigMap.Data[tokenKey]
+	token, found := tokenConfigMap.Data[fmt.Sprintf("%s.Key", tokenKey)]
 	if !found {
 		return "", found, log.Errorf("%s was not found in the ConfigMap %s", tokenKey, configMapDCAToken)
 	}
@@ -137,11 +137,11 @@ func (c *APIClient) ConfigMapTokenFetcher(tokenKey string) (string, bool, error)
 	tokenTimeStr, set := tokenConfigMap.Data[fmt.Sprintf("%s.%s", tokenKey, tokenTime)] // This is so we can have one timestamp per tokenKey
 
 	if set {
-		tokenTime, err := strconv.Atoi(tokenTimeStr)
+		tokenTime, err := time.Parse(time.RFC822, tokenTimeStr)
 		if err != nil {
 			return "", found, log.Errorf("could not convert the timestamp associated with %s from the ConfigMap %s", tokenKey, configMapDCAToken)
 		}
-		tokenAge := int(time.Now().Unix()) - tokenTime
+		tokenAge := time.Now().Unix() - tokenTime.Unix()
 
 		if tokenAge > tokenTimeout {
 			log.Infof("The event token is outdated, refreshing the events")
@@ -164,7 +164,8 @@ func (c *APIClient) ConfigMapTokenSetter(tokenKey, tokenValue string) error {
 		return err
 	}
 	tokenConfigMap.Data[tokenKey] = tokenValue
-	tokenConfigMap.Data[fmt.Sprintf("%s.%s", tokenKey, tokenTime)] = string(int(time.Now().Unix())) // Timestamps in the ConfigMap should all use the type int.
+	now := time.Now()
+	tokenConfigMap.Data[fmt.Sprintf("%s.%s", tokenKey, tokenTime)] = now.Format(time.RFC822) // Timestamps in the ConfigMap should all use the type int.
 
 	_, err = c.client.CoreV1().UpdateConfigMap(ctx, tokenConfigMap)
 	if err != nil {

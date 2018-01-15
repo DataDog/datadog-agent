@@ -32,13 +32,13 @@ const (
 // KubeASConfig is the config of the API server.
 type KubeASConfig struct {
 	Tags              []string `yaml:"tags"`
+	CollectEvent      bool     `yaml:"collect_events"`
 	FilteredEventType []string `yaml:"filtered_event_types"`
 }
 
 // KubeASCheck grabs metrics and events from the API server.
 type KubeASCheck struct {
 	core.CheckBase
-	lastWarnings          []error
 	instance              *KubeASConfig
 	KubeAPIServerHostname string
 	latestEventToken      int
@@ -46,6 +46,9 @@ type KubeASCheck struct {
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
+	// default values
+	c.CollectEvent = true
+
 	return yaml.Unmarshal(data, c)
 }
 
@@ -86,53 +89,56 @@ func (k *KubeASCheck) Run() error {
 		k.Warnf("Could not collect API Server component status: %s", err.Error())
 	}
 
-	var token string
+	if k.instance.CollectEvent {
 
-	if k.latestEventToken == 0 {
-		// Initialization: Checking if we previously stored the latestEventToken in a configMap
-		token, found, err := asclient.ConfigMapTokenFetcher(eventTokenKey)
-		if err != nil {
-			k.Warnf("Could not get the LatestEventToken from the eventtokendca ConfigMap: %s", err.Error())
-			token = "0"
-		}
-		k.configMapAvailable = found
-		k.latestEventToken, err = strconv.Atoi(token)
-		if err != nil {
-			k.Warnf("Not able to convert the latestEventToken: %s", err.Error())
-		}
-	}
+		var token string
 
-	newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(token)
-
-	if err != nil {
-		k.Warnf("Could not collect events from the api server: %s", err.Error())
-	}
-
-	lastVersion, err := strconv.Atoi(versionToken)
-
-	if err != nil {
-		k.Warnf("Not able to convert events lastVersion key: %s", err.Error())
-	}
-	if lastVersion > k.latestEventToken {
-		k.latestEventToken = lastVersion
-		if k.configMapAvailable {
-			configMapErr := asclient.ConfigMapTokenSetter(eventTokenKey, versionToken)
-			if configMapErr != nil {
-				k.Warnf("Could not store the LastEventToken in the ConfigMap eventtokendca: %s", configMapErr.Error())
+		if k.latestEventToken == 0 {
+			// Initialization: Checking if we previously stored the latestEventToken in a configMap
+			token, found, err := asclient.ConfigMapTokenFetcher(eventTokenKey)
+			if err != nil {
+				k.Warnf("Could not get the %s from the ConfigMap: %s", eventTokenKey, err.Error())
+				token = "0"
+			}
+			k.configMapAvailable = found
+			k.latestEventToken, err = strconv.Atoi(token)
+			if err != nil {
+				k.Warnf("Not able to convert the %s: %s", eventTokenKey, err.Error())
 			}
 		}
-		err := k.aggregateEvents(sender, newEvents, false)
+
+		newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(token)
 
 		if err != nil {
-			k.Warnf("Could not submit new event %s", err.Error())
+			k.Warnf("Could not collect events from the api server: %s", err.Error())
 		}
 
-		// We send the events in 2 steps to make sure the new events are initializing the aggregation keys and as modified events have a different payload.
-		if len(modifiedEvents) != 0 {
-			err := k.aggregateEvents(sender, modifiedEvents, true)
+		lastVersion, err := strconv.Atoi(versionToken)
+
+		if err != nil {
+			k.Warnf("Not able to convert events lastVersion key: %s", err.Error())
+		}
+		if lastVersion > k.latestEventToken {
+			k.latestEventToken = lastVersion
+			if k.configMapAvailable {
+				configMapErr := asclient.ConfigMapTokenSetter(eventTokenKey, versionToken)
+				if configMapErr != nil {
+					k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
+				}
+			}
+			err := k.aggregateEvents(sender, newEvents, false)
 
 			if err != nil {
-				k.Warnf("Could not submit modified event %s", err.Error())
+				k.Warnf("Could not submit new event %s", err.Error())
+			}
+
+			// We send the events in 2 steps to make sure the new events are initializing the aggregation keys and as modified events have a different payload.
+			if len(modifiedEvents) != 0 {
+				err := k.aggregateEvents(sender, modifiedEvents, true)
+
+				if err != nil {
+					k.Warnf("Could not submit modified event %s", err.Error())
+				}
 			}
 		}
 	}
