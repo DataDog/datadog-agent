@@ -41,11 +41,11 @@ func getAvailableUDPPort() (int, error) {
 
 func TestNewServer(t *testing.T) {
 	port, err := getAvailableUDPPort()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
 	s, err := NewServer(nil, nil, nil)
-	assert.Nil(t, err)
+	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 	assert.NotNil(t, s)
 	assert.True(t, s.Started)
@@ -53,35 +53,36 @@ func TestNewServer(t *testing.T) {
 
 func TestStopServer(t *testing.T) {
 	port, err := getAvailableUDPPort()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
 	s, err := NewServer(nil, nil, nil)
-	assert.Nil(t, err)
+	require.NoError(t, err, "cannot start DSD")
 	s.Stop()
 
 	// check that the port can be bound
-	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
+	address, err := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
+	require.NoError(t, err, "cannot resolve address")
 	conn, err := net.ListenUDP("udp", address)
-	assert.Nil(t, err)
+	require.NoError(t, err, "port is not available, it should be")
 	conn.Close()
 }
 
 func TestUPDReceive(t *testing.T) {
 	port, err := getAvailableUDPPort()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
 	metricOut := make(chan *metrics.MetricSample)
 	eventOut := make(chan metrics.Event)
 	serviceOut := make(chan metrics.ServiceCheck)
 	s, err := NewServer(metricOut, eventOut, serviceOut)
-	assert.Nil(t, err)
+	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
 	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
 	conn, err := net.Dial("udp", url)
-	assert.Nil(t, err)
+	require.NoError(t, err, "cannot connect to DSD socket")
 	defer conn.Close()
 
 	// Test metric
