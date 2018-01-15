@@ -93,7 +93,7 @@ func (k *KubeASCheck) Run() error {
 		token, found, err := asclient.ConfigMapTokenFetcher(eventTokenKey)
 		if err != nil {
 			k.Warnf("Could not get the LatestEventToken from the eventtokendca ConfigMap: %s", err.Error())
-			token = ""
+			token = "0"
 		}
 		k.configMapAvailable = found
 		k.latestEventToken, err = strconv.Atoi(token)

@@ -48,7 +48,7 @@ func TestKubeEvents(t *testing.T) {
 	require.NotNil(t, core)
 
 	// Ignore potential startup events
-	_, _, initresversion, err := apiclient.LatestEvents("")
+	_, _, initresversion, err := apiclient.LatestEvents("0")
 	require.Nil(t, err)
 
 	// Create started event
