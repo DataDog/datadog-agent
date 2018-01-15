@@ -46,12 +46,18 @@ func TestStartStopUDPListener(t *testing.T) {
 	assert.NotNil(t, err)
 
 	s.Stop()
-	// Port should be available again
-	conn, err := net.ListenUDP("udp", address)
-	require.NotNil(t, conn)
 
-	assert.Nil(t, err)
-	conn.Close()
+	// check that the port can be bound, try for 100 ms
+	for i := 0; i < 10; i++ {
+		var conn net.Conn
+		conn, err = net.ListenUDP("udp", address)
+		if err == nil {
+			conn.Close()
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	require.NoError(t, err, "port is not available, it should be")
 }
 
 func TestUDPNonLocal(t *testing.T) {

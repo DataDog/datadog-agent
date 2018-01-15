@@ -60,12 +60,19 @@ func TestStopServer(t *testing.T) {
 	require.NoError(t, err, "cannot start DSD")
 	s.Stop()
 
-	// check that the port can be bound
+	// check that the port can be bound, try for 100 ms
 	address, err := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	require.NoError(t, err, "cannot resolve address")
-	conn, err := net.ListenUDP("udp", address)
+	for i := 0; i < 10; i++ {
+		var conn net.Conn
+		conn, err = net.ListenUDP("udp", address)
+		if err == nil {
+			conn.Close()
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	require.NoError(t, err, "port is not available, it should be")
-	conn.Close()
 }
 
 func TestUPDReceive(t *testing.T) {
