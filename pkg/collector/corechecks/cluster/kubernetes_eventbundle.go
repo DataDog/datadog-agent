@@ -30,7 +30,6 @@ type kubernetesEventBundle struct {
 func newKubernetesEventBundler(objUid string, compName string) *kubernetesEventBundle {
 	return &kubernetesEventBundle{
 		objUid:        objUid,
-		events:        []*v1.Event{},
 		component:     compName,
 		countByAction: make(map[string]int),
 	}
@@ -41,9 +40,13 @@ func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
 		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.Uid, k.objUid)
 	}
 	k.events = append(k.events, event)
-	k.countByAction[fmt.Sprintf("**%s**: %s\n", *event.Reason, *event.Message)] += int(*event.Count)
 	k.timeStamp = int64(math.Max(float64(k.timeStamp), float64(*event.Metadata.CreationTimestamp.Seconds)))
 	k.lastTimestamp = int64(math.Max(float64(k.timeStamp), float64(*event.LastTimestamp.Seconds)))
+
+	if *event.Reason == nil || *event.Message == nil || *event.InvolvedObject.Name == nil || *event.InvolvedObject.Kind == nil {
+		return errors.New("could not retrieve some attributes of the event")
+	}
+	k.countByAction[fmt.Sprintf("**%s**: %s\n", *event.Reason, *event.Message)] += int(*event.Count)
 	k.readableKey = fmt.Sprintf("%s %s", *event.InvolvedObject.Name, *event.InvolvedObject.Kind)
 	return nil
 }

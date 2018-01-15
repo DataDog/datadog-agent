@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
-	"strconv"
 	"time"
 
 	log "github.com/cihub/seelog"

@@ -41,7 +41,7 @@ type KubeASCheck struct {
 	core.CheckBase
 	instance              *KubeASConfig
 	KubeAPIServerHostname string
-	latestEventToken      int
+	latestEventToken      string
 	configMapAvailable    bool
 }
 
@@ -90,10 +90,8 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	if k.instance.CollectEvent {
-
 		var token string
-
-		if k.latestEventToken == 0 {
+		if k.latestEventToken == "" {
 			// Initialization: Checking if we previously stored the latestEventToken in a configMap
 			token, found, err := asclient.ConfigMapTokenFetcher(eventTokenKey)
 			if err != nil {
@@ -101,7 +99,7 @@ func (k *KubeASCheck) Run() error {
 				token = "0"
 			}
 			k.configMapAvailable = found
-			k.latestEventToken, err = strconv.Atoi(token)
+			k.latestEventToken = token
 			if err != nil {
 				k.Warnf("Not able to convert the %s: %s", eventTokenKey, err.Error())
 			}
@@ -113,28 +111,27 @@ func (k *KubeASCheck) Run() error {
 			k.Warnf("Could not collect events from the api server: %s", err.Error())
 		}
 
-		lastVersion, err := strconv.Atoi(versionToken)
-
 		if err != nil {
-			k.Warnf("Not able to convert events lastVersion key: %s", err.Error())
+			k.Warnf("Not able to convert events versionToken key: %s", err.Error())
 		}
-		if lastVersion > k.latestEventToken {
-			k.latestEventToken = lastVersion
+		// We check that the resversion gotten from the API Server is more recent than the one cached in the util.
+		if len(newEvents)+len(modifiedEvents) > 0 {
+			k.latestEventToken = versionToken
 			if k.configMapAvailable {
 				configMapErr := asclient.ConfigMapTokenSetter(eventTokenKey, versionToken)
 				if configMapErr != nil {
 					k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
 				}
 			}
-			err := k.aggregateEvents(sender, newEvents, false)
+			err := k.processEvents(sender, newEvents, false)
 
 			if err != nil {
 				k.Warnf("Could not submit new event %s", err.Error())
 			}
 
 			// We send the events in 2 steps to make sure the new events are initializing the aggregation keys and as modified events have a different payload.
-			if len(modifiedEvents) != 0 {
-				err := k.aggregateEvents(sender, modifiedEvents, true)
+			if len(modifiedEvents) > 0 {
+				err := k.processEvents(sender, modifiedEvents, true)
 
 				if err != nil {
 					k.Warnf("Could not submit modified event %s", err.Error())
@@ -187,10 +184,12 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 	return nil
 }
 
-func (k *KubeASCheck) aggregateEvents(sender aggregator.Sender, events []*v1.Event, modified bool) error {
+// processEvents aggregates and submits the events collected by the API Server.
+func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event, modified bool) error {
 	eventsByObject := make(map[string]*kubernetesEventBundle)
 	filteredByType := make(map[string]int)
 
+	// Only process the events which actions aren't part of the FilteredEventType list in the yaml config.
 ITER_EVENTS:
 	for _, event := range events {
 		for _, action := range k.instance.FilteredEventType {
