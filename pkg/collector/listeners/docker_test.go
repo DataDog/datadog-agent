@@ -425,7 +425,7 @@ func TestParseDockerPort(t *testing.T) {
 			proto:         "tcp",
 			port:          "0",
 			expectedPorts: nil,
-			expectedError: errors.New("failed to extract port 0/tcp"),
+			expectedError: errors.New("failed to extract port from: 0/tcp"),
 		},
 	}
 
