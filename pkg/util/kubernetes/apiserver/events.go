@@ -31,6 +31,14 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 	var addedEvents, modifiedEvents []*v1.Event
 	latestResVersion := &since
 
+	// If `since` is "" strconv.Atoi(*latestResVersion) below will panic as we evaluate the error.
+	// One could chose to use "" instead of 0 to not query the API Server cache.
+	// We decide to only rely on the cache as it avoids crawling everything from the API Server at once.
+	resVersionCached, cachedResErr := strconv.Atoi(*latestResVersion)
+	if cachedResErr != nil {
+		log.Errorf("The cached event token could not be parsed: %s, pulling events from the API server's cache", cachedResErr.Error())
+		resVersionCached = 0
+	}
 	var sinceOption k8s.Option
 
 	if len(since) > 0 {
@@ -39,10 +47,6 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 		// Only retrieve what is in the apiserver cache.
 		// Else we'll get one hour worth of events.
 		sinceOption = k8s.ResourceVersion("0")
-		// If `since` is "" strconv.Atoi(*latestResVersion) below will panic as we evaluate the error.
-		// One could chose to use "" instead of 0 to not query the API Server cache.
-		// We decide to only rely on the cache as it avoids crawling everything from the API Server at once.
-		*latestResVersion = "0"
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
@@ -73,13 +77,10 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 				log.Errorf("The Resource version associated with the event %s is not supported: %s", event.Metadata.Uid, err.Error())
 				continue
 			}
-			resVersionCached, cachedResErr := strconv.Atoi(*latestResVersion)
-			if cachedResErr != nil {
-				log.Errorf("The cached event token could not be parsed: %s", err.Error())
-				continue
-			}
+
 			if resVersionMetadata > resVersionCached {
 				latestResVersion = event.Metadata.ResourceVersion
+				resVersionCached = resVersionMetadata
 			}
 		} else {
 			log.Debugf("skipping invalid event: %v", event)
