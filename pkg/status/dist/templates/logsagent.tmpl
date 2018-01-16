@@ -4,20 +4,12 @@ Logs-agent
 {{ if (not .is_running) }}
   logs-agent is not running
 {{ else }}
-{{- if (not .integrations) }}
-  no integrations
-{{- else }}
 {{- range .integrations }}
   {{ .name }}
   {{printDashes .name "-"}}
-  {{- if (not .sources) }}
-    no sources
-  {{- else }}
   {{- range .sources }}
     Type: {{ .type }}
-    Status: {{ .status }}  
-  {{- end }}
-  {{- end }}
+    Status: {{ .status }}
+  {{ end }}
 {{- end }}
 {{- end }}
-{{ end }}
