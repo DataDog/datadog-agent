@@ -124,7 +124,7 @@ func (k *KubeASCheck) Run() error {
 		}
 	}
 
-	err := k.processEvents(sender, newEvents, false)
+	err = k.processEvents(sender, newEvents, false)
 	if err != nil {
 		k.Warnf("Could not submit new event %s", err.Error())
 	}
@@ -133,7 +133,7 @@ func (k *KubeASCheck) Run() error {
 	if len(modifiedEvents) == 0 {
 		return nil
 	}
-	err := k.processEvents(sender, modifiedEvents, true)
+	err = k.processEvents(sender, modifiedEvents, true)
 	if err != nil {
 		k.Warnf("Could not submit modified event %s", err.Error())
 	}

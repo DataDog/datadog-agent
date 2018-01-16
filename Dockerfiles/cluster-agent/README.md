@@ -80,7 +80,7 @@ This manifest will create a Service Account, a Cluster Role with a restricted sc
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: dca
+  name: datadog-dca
 rules:
 - apiGroups:
   - ""
@@ -100,7 +100,7 @@ rules:
   resources:
   - configmaps
   resourceNames:
-  - eventtokendca
+  - configmapdcatoken
   verbs:
   - get
   - update
@@ -108,23 +108,28 @@ rules:
 kind: ServiceAccount
 apiVersion: v1
 metadata:
-  name: dca
+  name: datadog-dca
   namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: dca
+  name: datadog-dca
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: dca
+  name: datadog-dca
 subjects:
 - kind: ServiceAccount
-  name: dca
+  name: datadog-dca
   namespace: default
 ---
 ```
 
-The ConfigMap to store the `LatestEventToken` has to be deployed in the `default` namespace and be named `eventtokendca`
-Simply running `kubectl create configmap configmaptokendca --from-literal="eventToken"="12"`
+The ConfigMap to store the `event.tokenKey` and the `event.tokenTimestamp` has to be deployed in the `default` namespace and be named `configmapdcatoken`
+One can simply run `kubectl create configmap configmapdcatoken --from-literal="event.tokenKey"="0"` .
+NB: you can set any resversion here, make sure it's not set to a value superior to the actual curent resversion.
+
+You can also set the `event.tokenTimestamp`, if not present, it will be automatically set.
+
+

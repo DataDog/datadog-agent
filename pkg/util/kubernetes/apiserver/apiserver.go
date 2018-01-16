@@ -28,7 +28,7 @@ import (
 var globalApiClient *APIClient
 
 const (
-	configMapDCAToken = "configmaptokendca"
+	configMapDCAToken = "configmapdcatoken"
 	defaultNamespace  = "default"
 	tokenTime         = "tokenTimestamp"
 	tokenKey          = "tokenKey"
