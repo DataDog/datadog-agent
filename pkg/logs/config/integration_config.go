@@ -93,9 +93,6 @@ func buildLogsSources(ddconfdPath string) ([]*IntegrationConfigLogSource, []*sta
 			log.Error(err)
 			continue
 		}
-		if !viperCfg.IsSet("logs") {
-			continue
-		}
 		err = viperCfg.Unmarshal(&integrationConfig)
 		if err != nil {
 			log.Error(err)
@@ -104,22 +101,24 @@ func buildLogsSources(ddconfdPath string) ([]*IntegrationConfigLogSource, []*sta
 		integrationName := strings.TrimSuffix(file, filepath.Ext(file))
 		for _, logSourceConfigIterator := range integrationConfig.Logs {
 			logSourceConfig := logSourceConfigIterator
+			tracker := status.NewTracker(logSourceConfig.Type)
+			sourcesToTrack = append(sourcesToTrack, status.NewSourceToTrack(integrationName, tracker))
 			err = validateSource(logSourceConfig)
 			if err != nil {
+				tracker.TrackError(err)
 				log.Error(err)
 				continue
 			}
 			rules, err := validateProcessingRules(logSourceConfig.ProcessingRules)
 			if err != nil {
+				tracker.TrackError(err)
 				log.Error(err)
 				continue
 			}
 			logSourceConfig.ProcessingRules = rules
 			logSourceConfig.TagsPayload = BuildTagsPayload(logSourceConfig.Tags, logSourceConfig.Source, logSourceConfig.SourceCategory)
-			tracker := status.NewTracker(logSourceConfig.Type)
 			logSourceConfig.Tracker = tracker
 			logsSourceConfigs = append(logsSourceConfigs, &logSourceConfig)
-			sourcesToTrack = append(sourcesToTrack, status.NewSourceToTrack(integrationName, tracker))
 		}
 	}
 
