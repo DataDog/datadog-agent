@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Added the "procfs_path" to `/host/proc` in the `/etc/datadog-agent/datadog.yaml` docker image.
+    This change allow the network check to collect metrics from the host.
