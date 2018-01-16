@@ -151,11 +151,13 @@ func (s *Scanner) scan() {
 func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
 	f, err := os.Open(file.Path)
 	if err != nil {
+		tailer.source.Tracker.TrackError(err)
 		return false, err
 	}
 
 	stat1, err := f.Stat()
 	if err != nil {
+		tailer.source.Tracker.TrackError(err)
 		return false, err
 	}
 

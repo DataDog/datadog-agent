@@ -54,6 +54,7 @@ func (r *FileProvider) FilesToTail() []*File {
 		pattern := source.Path
 		paths, err := filepath.Glob(pattern)
 		if err != nil {
+			source.Tracker.TrackError(err)
 			log.Warn("Malformed pattern, could not find any file: ", pattern)
 			continue
 		}

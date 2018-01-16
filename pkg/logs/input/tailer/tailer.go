@@ -111,13 +111,17 @@ func (t *Tailer) tailFrom(offset int64, whence int) error {
 func (t *Tailer) startReading(offset int64, whence int) error {
 	fullpath, err := filepath.Abs(t.path)
 	if err != nil {
+		t.source.Tracker.TrackError(err)
 		return err
 	}
 	log.Info("Opening ", t.path)
 	f, err := os.Open(fullpath)
 	if err != nil {
+		t.source.Tracker.TrackError(err)
 		return err
 	}
+	t.source.Tracker.TrackSuccess()
+
 	ret, _ := f.Seek(offset, whence)
 	t.file = f
 	t.readOffset = ret
@@ -183,7 +187,8 @@ func (t *Tailer) readForever() {
 			continue
 		}
 		if err != nil {
-			log.Warn("Err: ", err)
+			t.source.Tracker.TrackError(err)
+			log.Error("Err: ", err)
 			return
 		}
 		if n == 0 {
