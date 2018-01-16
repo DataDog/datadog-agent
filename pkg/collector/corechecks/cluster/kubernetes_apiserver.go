@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s/api/v1"
@@ -24,7 +25,7 @@ import (
 const (
 	KubeControlPaneCheck         = "kube_apiserver_controlplane.up"
 	kubernetesAPIServerCheckName = "kubernetes_apiserver"
-	eventTokenKey                = "eventKey"
+	eventTokenKey                = "event"
 )
 
 // KubeASConfig is the config of the API server.
@@ -90,13 +91,18 @@ func (k *KubeASCheck) Run() error {
 	if k.instance.CollectEvent {
 		if k.latestEventToken == "" {
 			// Initialization: Checking if we previously stored the latestEventToken in a configMap
-			token, found, err := asclient.ConfigMapTokenFetcher(eventTokenKey)
-			if err != nil {
-				k.Warnf("Could not get the %s from the ConfigMap: %s", eventTokenKey, err.Error())
+			token, found, err := asclient.ConfigMapTokenFetcher(eventTokenKey, 60)
+			switch {
+			case err == collectors.ErrOutdated:
+				k.configMapAvailable = found
+				k.latestEventToken = token
+			case err == collectors.ErrNotFound:
 				token = "0"
+			case err == nil:
+				k.configMapAvailable = found
+				k.latestEventToken = token
 			}
-			k.configMapAvailable = found
-			k.latestEventToken = token
+
 		}
 
 		newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(k.latestEventToken)

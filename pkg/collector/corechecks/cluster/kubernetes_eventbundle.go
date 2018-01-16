@@ -52,6 +52,9 @@ func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
 }
 
 func (k *kubernetesEventBundle) formatEvents(hostname string, modified bool) (metrics.Event, error) {
+	if len(k.events) == 0 {
+		return metrics.Event{}, errors.New("no event to export")
+	}
 	output := metrics.Event{
 		Priority:       metrics.EventPriorityNormal,
 		Host:           hostname,
@@ -59,9 +62,6 @@ func (k *kubernetesEventBundle) formatEvents(hostname string, modified bool) (me
 		EventType:      kubernetesAPIServerCheckName,
 		Ts:             int64(k.timeStamp),
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", k.objUid),
-	}
-	if len(k.events) == 0 {
-		return output, errors.New("no event to export")
 	}
 
 	output.Title = fmt.Sprintf("Events from the %s", k.readableKey)
