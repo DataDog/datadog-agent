@@ -22,7 +22,7 @@ type Tracker struct {
 func NewTracker(sourceType string) *Tracker {
 	return &Tracker{
 		sourceType: sourceType,
-		status:     "Status: Undefined",
+		status:     "Pending",
 		mu:         &sync.Mutex{},
 	}
 }
@@ -30,14 +30,14 @@ func NewTracker(sourceType string) *Tracker {
 // TrackError formats the error and keeps it in status
 func (t *Tracker) TrackError(err error) {
 	t.mu.Lock()
-	t.status = fmt.Sprintf("Status: Error: %s", err.Error())
+	t.status = fmt.Sprintf("Error: %s", err.Error())
 	t.mu.Unlock()
 }
 
 // TrackSuccess formats the success operation and keeps it in status
 func (t *Tracker) TrackSuccess() {
 	t.mu.Lock()
-	t.status = "Status: OK"
+	t.status = "OK"
 	t.mu.Unlock()
 }
 

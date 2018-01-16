@@ -23,7 +23,7 @@ type Integration struct {
 
 // Status provides some information about logs-agent
 type Status struct {
-	IsEnabled    bool          `json:"is_enabled"`
+	IsRunning    bool          `json:"is_running"`
 	Integrations []Integration `json:"integrations"`
 }
 

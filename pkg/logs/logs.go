@@ -19,6 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
+// isRunning indicates whether logs-agent is running or not
+var isRunning bool
+
 // Start starts logs-agent
 func Start() error {
 	err := config.Build()
@@ -31,6 +34,8 @@ func Start() error {
 
 // run sets up the pipeline to process logs and them to Datadog back-end
 func run() {
+	isRunning = true
+
 	cm := sender.NewConnectionManager(
 		config.LogsAgent.GetString("log_dd_url"),
 		config.LogsAgent.GetInt("log_dd_port"),
@@ -56,8 +61,8 @@ func run() {
 }
 
 func GetStatus() status.Status {
-	if config.LogsAgent.GetBool("log_enabled") {
-		return status.Status{IsEnabled: false}
+	if !isRunning {
+		return status.Status{IsRunning: false}
 	}
 	return status.Get()
 }

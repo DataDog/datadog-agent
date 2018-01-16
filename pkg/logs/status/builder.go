@@ -50,7 +50,7 @@ func (b *Builder) Build() Status {
 		integrations = append(integrations, Integration{Name: name, Sources: sources})
 	}
 	return Status{
-		IsEnabled:    true,
+		IsRunning:    true,
 		Integrations: integrations,
 	}
 }
