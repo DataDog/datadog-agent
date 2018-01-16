@@ -140,7 +140,7 @@ func (s *Scanner) sourceShouldMonitorContainer(source *config.IntegrationConfigL
 			})
 			// If we have exactly two parts, check there is a container label that matches both.
 			// Otherwise fall back to checking the whole label exists as a key.
-			if _, ok := container.Labels[label]; ok || len(parts) == 2 && container.Labels[parts[0]] == parts[1] {
+			if _, exists := container.Labels[label]; exists || len(parts) == 2 && container.Labels[parts[0]] == parts[1] {
 				return true
 			}
 		}
