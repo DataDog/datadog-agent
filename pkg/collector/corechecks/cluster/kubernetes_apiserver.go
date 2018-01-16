@@ -97,7 +97,7 @@ func (k *KubeASCheck) Run() error {
 				k.configMapAvailable = found
 				k.latestEventToken = token
 			case err == collectors.ErrNotFound:
-				token = "0"
+				k.latestEventToken = "0"
 			case err == nil:
 				k.configMapAvailable = found
 				k.latestEventToken = token

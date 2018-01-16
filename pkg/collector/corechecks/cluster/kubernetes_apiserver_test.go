@@ -147,7 +147,7 @@ func createEvent(count int32, objname, objkind, objuid, component, reason string
 	}
 }
 
-func TestAggregateEvents(t *testing.T) {
+func TestProcessEvents(t *testing.T) {
 	// We want to check if the format of 1 New event, several new events and several modified events creates DD events accordingly
 	// We also want to check that a modified event with an existing key is aggregated (i.e. the key is already known)
 
@@ -182,7 +182,7 @@ func TestAggregateEvents(t *testing.T) {
 		EventType:      "kubernetes_apiserver",
 	}
 	mock.On("Event", newDatadogEvent).Times(1)
-	kubeASCheck.aggregateEvents(mock, newKubeEventBundle, false)
+	kubeASCheck.processEvents(mock, newKubeEventBundle, false)
 	mock.AssertEvent(t, newDatadogEvent, 0)
 	mock.AssertExpectations(t)
 
@@ -208,7 +208,7 @@ func TestAggregateEvents(t *testing.T) {
 	mock = mocksender.NewMockSender(kubeASCheck.ID())
 	mock.On("Event", newDatadogEvents).Times(1)
 
-	kubeASCheck.aggregateEvents(mock, newKubeEventsBundle, false)
+	kubeASCheck.processEvents(mock, newKubeEventsBundle, false)
 	assert.Contains(t, newDatadogEvents.Text, "2 **Scheduled**")
 	assert.Contains(t, newDatadogEvents.Text, "3 **Started**")
 	mock.AssertNumberOfCalls(t, "Event", 1)
@@ -234,7 +234,7 @@ func TestAggregateEvents(t *testing.T) {
 	mock = mocksender.NewMockSender(kubeASCheck.ID())
 	mock.On("Event", modifiedNewDatadogEvents).Times(1)
 
-	kubeASCheck.aggregateEvents(mock, modifiedKubeEventsBundle, true)
+	kubeASCheck.processEvents(mock, modifiedKubeEventsBundle, true)
 
 	mock.AssertEvent(t, modifiedNewDatadogEvents, 0)
 	mock.AssertExpectations(t)
@@ -242,7 +242,7 @@ func TestAggregateEvents(t *testing.T) {
 	// No events
 	empty := []*v1.Event{}
 	mock = mocksender.NewMockSender(kubeASCheck.ID())
-	kubeASCheck.aggregateEvents(mock, empty, false)
+	kubeASCheck.processEvents(mock, empty, false)
 	mock.AssertNotCalled(t, "Event")
 	mock.AssertExpectations(t)
 
@@ -252,7 +252,7 @@ func TestAggregateEvents(t *testing.T) {
 		ev5,
 	}
 	mock = mocksender.NewMockSender(kubeASCheck.ID())
-	kubeASCheck.aggregateEvents(mock, filteredKubeEventsBundle, false)
+	kubeASCheck.processEvents(mock, filteredKubeEventsBundle, false)
 	mock.AssertNotCalled(t, "Event")
 	mock.AssertExpectations(t)
 

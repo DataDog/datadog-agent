@@ -18,13 +18,13 @@ import (
 )
 
 type kubernetesEventBundle struct {
-	objUid        string
-	readableKey   string
-	component     string
-	events        []*v1.Event
-	timeStamp     float64
-	lastTimestamp float64
-	countByAction map[string]int
+	objUid        string         // Unique object Identifier used as the Aggregation key
+	readableKey   string         // Formated key used in the Title in the events
+	component     string         // Used to identify the Kubernetes component which generated the event
+	events        []*v1.Event    // List of events in the bundle
+	timeStamp     float64        // Used for the new events in the bundle to specify when they first occurred
+	lastTimestamp float64        // Used for the modified events in the bundle to specify when they last occurred
+	countByAction map[string]int // Map of count per action to aggregate several events from the same ObjUid in one event
 }
 
 func newKubernetesEventBundler(objUid string, compName string) *kubernetesEventBundle {
@@ -36,6 +36,9 @@ func newKubernetesEventBundler(objUid string, compName string) *kubernetesEventB
 }
 
 func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
+	if event == nil || event.InvolvedObject == nil {
+		return errors.New("could not retrieve some parent attributes of the event")
+	}
 	if *event.InvolvedObject.Uid != k.objUid {
 		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.Uid, k.objUid)
 	}
