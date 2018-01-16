@@ -13,7 +13,6 @@ The following environment variables are supported:
 - `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
 - `DD_LOG_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
 
-
 Example usage: `docker run -e DD_API_KEY=your-api-key-here -it <image-name>`
 
 For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/agent/)
