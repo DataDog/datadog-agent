@@ -34,7 +34,7 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 	// If `since` is "" strconv.Atoi(*latestResVersion) below will panic as we evaluate the error.
 	// One could chose to use "" instead of 0 to not query the API Server cache.
 	// We decide to only rely on the cache as it avoids crawling everything from the API Server at once.
-	resVersionCached, cachedResErr := strconv.Atoi(*latestResVersion)
+	resVersionCached, cachedResErr := strconv.Atoi(since)
 	if cachedResErr != nil {
 		log.Errorf("The cached event token could not be parsed: %s, pulling events from the API server's cache", cachedResErr.Error())
 	}

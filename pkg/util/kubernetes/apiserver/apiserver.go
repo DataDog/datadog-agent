@@ -127,11 +127,11 @@ func (c *APIClient) ConfigMapTokenFetcher(tokenKey string) (string, bool, error)
 	}
 	log.Infof("Found the ConfigMap %s", configMapDCAToken)
 
-	token, found := tokenConfigMap.Data[fmt.Sprintf("%s.Key", tokenKey)]
+	token, found := tokenConfigMap.Data[tokenKey]
 	if !found {
 		return "", found, log.Errorf("%s was not found in the ConfigMap %s", tokenKey, configMapDCAToken)
 	}
-	log.Debugf("%s is %s", tokenKey, token)
+	log.Tracef("%s is %s", tokenKey, token)
 
 	tokenTimeStr, set := tokenConfigMap.Data[fmt.Sprintf("%s.%s", tokenKey, tokenTime)] // This is so we can have one timestamp per tokenKey
 
@@ -143,7 +143,7 @@ func (c *APIClient) ConfigMapTokenFetcher(tokenKey string) (string, bool, error)
 		tokenAge := time.Now().Unix() - tokenTime.Unix()
 
 		if tokenAge > tokenTimeout {
-			log.Infof("The event token is outdated, refreshing the events")
+			log.Infof("The token is outdated, refreshing the state")
 			return "", found, nil
 		}
 	}

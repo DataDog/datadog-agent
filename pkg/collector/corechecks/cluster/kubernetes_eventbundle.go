@@ -22,8 +22,8 @@ type kubernetesEventBundle struct {
 	readableKey   string
 	component     string
 	events        []*v1.Event
-	timeStamp     int64
-	lastTimestamp int64
+	timeStamp     float64
+	lastTimestamp float64
 	countByAction map[string]int
 }
 
@@ -40,10 +40,10 @@ func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
 		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.Uid, k.objUid)
 	}
 	k.events = append(k.events, event)
-	k.timeStamp = int64(math.Max(float64(k.timeStamp), float64(*event.Metadata.CreationTimestamp.Seconds)))
-	k.lastTimestamp = int64(math.Max(float64(k.timeStamp), float64(*event.LastTimestamp.Seconds)))
+	k.timeStamp = math.Max(k.timeStamp, float64(*event.Metadata.CreationTimestamp.Seconds))
+	k.lastTimestamp = math.Max(k.timeStamp, float64(*event.LastTimestamp.Seconds))
 
-	if *event.Reason == nil || *event.Message == nil || *event.InvolvedObject.Name == nil || *event.InvolvedObject.Kind == nil {
+	if event.Reason == nil || event.Message == nil || event.InvolvedObject.Name == nil || event.InvolvedObject.Kind == nil {
 		return errors.New("could not retrieve some attributes of the event")
 	}
 	k.countByAction[fmt.Sprintf("**%s**: %s\n", *event.Reason, *event.Message)] += int(*event.Count)
@@ -64,15 +64,14 @@ func (k *kubernetesEventBundle) formatEvents(hostname string, modified bool) (me
 		return output, errors.New("no event to export")
 	}
 
-	output.Title = fmt.Sprintf("Events from the %s",
-		k.readableKey)
+	output.Title = fmt.Sprintf("Events from the %s", k.readableKey)
 
 	if modified {
-		output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s_ \n", formatStringIntMap(k.countByAction), k.component, time.Unix(k.lastTimestamp, 0)) + "\n %%%"
+		output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s_ \n", formatStringIntMap(k.countByAction), k.component, time.Unix(int64(k.lastTimestamp), 0)) + "\n %%%"
 		output.Ts = int64(k.lastTimestamp)
 		return output, nil
 	}
-	output.Text = "%%% \n" + fmt.Sprintf("%s \n _New events emitted by the %s seen at %s_ \n", formatStringIntMap(k.countByAction), k.component, time.Unix(k.timeStamp, 0)) + "\n %%%"
+	output.Text = "%%% \n" + fmt.Sprintf("%s \n _New events emitted by the %s seen at %s_ \n", formatStringIntMap(k.countByAction), k.component, time.Unix(int64(k.timeStamp), 0)) + "\n %%%"
 	return output, nil
 }
 

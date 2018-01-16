@@ -10,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 
-	"strconv"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -90,7 +88,6 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	if k.instance.CollectEvent {
-		var token string
 		if k.latestEventToken == "" {
 			// Initialization: Checking if we previously stored the latestEventToken in a configMap
 			token, found, err := asclient.ConfigMapTokenFetcher(eventTokenKey)
@@ -100,19 +97,12 @@ func (k *KubeASCheck) Run() error {
 			}
 			k.configMapAvailable = found
 			k.latestEventToken = token
-			if err != nil {
-				k.Warnf("Not able to convert the %s: %s", eventTokenKey, err.Error())
-			}
 		}
 
-		newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(token)
+		newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(k.latestEventToken)
 
 		if err != nil {
 			k.Warnf("Could not collect events from the api server: %s", err.Error())
-		}
-
-		if err != nil {
-			k.Warnf("Not able to convert events versionToken key: %s", err.Error())
 		}
 		// We check that the resversion gotten from the API Server is more recent than the one cached in the util.
 		if len(newEvents)+len(modifiedEvents) > 0 {
