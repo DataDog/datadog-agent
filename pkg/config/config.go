@@ -96,8 +96,8 @@ func init() {
 	Datadog.SetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
 		Datadog.SetDefault("container_proc_root", "/host/proc")
+		Datadog.SetDefault("procfs_path", "/host/proc")
 		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
-
 	} else {
 		Datadog.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -195,6 +195,7 @@ func init() {
 	Datadog.BindEnv("kubernetes_kubeconfig_path")
 
 	Datadog.BindEnv("process_agent_enabled")
+	Datadog.BindEnv("procfs_path")
 
 	// Logs
 	BindEnvAndSetDefault("log_enabled", false)

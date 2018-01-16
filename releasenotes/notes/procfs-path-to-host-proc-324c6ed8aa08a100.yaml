@@ -1,5 +1,6 @@
 ---
 features:
   - |
-    Added the "procfs_path" to `/host/proc` in the `/etc/datadog-agent/datadog.yaml` docker image.
+    Added the "procfs_path" configuration to `/host/proc` when containerized.
+    This configuration is binded with the envvar DD_PROCFS_PATH.
     This change allow the network check to collect metrics from the host.
