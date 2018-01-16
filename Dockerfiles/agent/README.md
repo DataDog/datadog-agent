@@ -9,6 +9,11 @@ The following environment variables are supported:
 - `DD_API_KEY`: your API key (**required**)
 - `DD_HOSTNAME`: hostname to use for metrics
 
+- `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
+- `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
+- `DD_LOG_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
+
+
 Example usage: `docker run -e DD_API_KEY=your-api-key-here -it <image-name>`
 
 For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/agent/)
@@ -34,8 +39,8 @@ To build the jmx variant, add `--build-arg WITH_JMX=true` to the build command
 ## How to activate log collection
 
 The Datadog Agent can collect logs from containers starting at the version 6. Two installations are possible:
- 
-- on the host: where the agent is external to the Docker environment 
+
+- on the host: where the agent is external to the Docker environment
 - or by deploying its containerized version in the Docker environment
 
 ### Setup
@@ -43,7 +48,7 @@ The Datadog Agent can collect logs from containers starting at the version 6. Tw
 First let’s create two directories on the host that we will later mount on the containerized agent:
 
 - `/opt/datadog-agent/run`: to make sure we do not lose any logs from containers during restarts or network issues we store on the host the last line that was collected for each container in this directory
-- ` /opt/datadog-agent/conf.d`: this is where you will provide your integration instructions. Any configuration file added there will automatically be picked up by the containerized agent when restarted. For more information about this check [here](https://github.com/DataDog/docker-dd-agent#enabling-integrations).
+- `/opt/datadog-agent/conf.d`: this is where you will provide your integration instructions. Any configuration file added there will automatically be picked up by the containerized agent when restarted. For more information about this check [here](https://github.com/DataDog/docker-dd-agent#enabling-integrations).
 
 To  run a Docker container which embeds the Datadog Agent to monitor your host use the following command:
 
@@ -51,7 +56,7 @@ To  run a Docker container which embeds the Datadog Agent to monitor your host u
 docker run -d --name dd-agent -h `hostname` -e DD_API_KEY=<YOUR_API_KEY> -e DD_LOG_ENABLED=true -v /var/run/docker.sock:/var/run/docker.sock:ro -v /proc/:/host/proc/:ro -v /opt/datadog-agent/run:/opt/datadog-agent/run:rw -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro -v /opt/datadog-agent/conf.d:/conf.d:ro datadog/agent:latest
 ```
 
-*Important notes*: 
+*Important notes*:
 
 - The Docker integration is enabled by default, as well as [autodiscovery](https://docs.datadoghq.com/guides/servicediscovery/) in auto config mode ((remove the `listeners: -docker` section in `datadog.yaml` to disable it).
 
@@ -66,7 +71,7 @@ The parameters specific to log collection are the following:
 ### Configuration file example
 
 Now that the agent is ready to collect logs, you need to define which containers you want to follow.
-To start collecting logs for a given container filtered by image or label, you need to update the log section in an integration or custom .yaml file. 
+To start collecting logs for a given container filtered by image or label, you need to update the log section in an integration or custom .yaml file.
 Add a new yaml file in the conf.d directory with the following parameters:
 
 ```
@@ -77,7 +82,7 @@ instances:
 
 #Log section
 
-logs:    
+logs:
    - type: docker
      image: my_image_name    #or label: mylabel
      service: my_application_name
