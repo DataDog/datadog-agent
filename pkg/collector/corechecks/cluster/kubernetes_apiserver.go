@@ -88,53 +88,55 @@ func (k *KubeASCheck) Run() error {
 		k.Warnf("Could not collect API Server component status: %s", err.Error())
 	}
 
-	if k.instance.CollectEvent {
-		if k.latestEventToken == "" {
-			// Initialization: Checking if we previously stored the latestEventToken in a configMap
-			token, found, err := asclient.GetTokenFromConfigmap(eventTokenKey, 60)
-			switch {
-			case err == collectors.ErrOutdated:
-				k.configMapAvailable = found
-				k.latestEventToken = token
-			case err == collectors.ErrNotFound:
-				k.latestEventToken = "0"
-			case err == nil:
-				k.configMapAvailable = found
-				k.latestEventToken = token
-			}
-		}
-
-		newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(k.latestEventToken)
-
-		if err != nil {
-			k.Warnf("Could not collect events from the api server: %s", err.Error())
-		}
-		// We check that the resversion gotten from the API Server is more recent than the one cached in the util.
-		if len(newEvents)+len(modifiedEvents) > 0 {
-			k.latestEventToken = versionToken
-			if k.configMapAvailable {
-				configMapErr := asclient.UpdateTokenInConfigmap(eventTokenKey, versionToken)
-				if configMapErr != nil {
-					k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
-				}
-			}
-			err := k.processEvents(sender, newEvents, false)
-
-			if err != nil {
-				k.Warnf("Could not submit new event %s", err.Error())
-			}
-
-			// We send the events in 2 steps to make sure the new events are initializing the aggregation keys and as modified events have a different payload.
-			if len(modifiedEvents) > 0 {
-				err := k.processEvents(sender, modifiedEvents, true)
-
-				if err != nil {
-					k.Warnf("Could not submit modified event %s", err.Error())
-				}
-			}
+	defer sender.Commit()
+	if !k.instance.CollectEvent {
+		return nil
+	}
+	if k.latestEventToken == "" {
+		// Initialization: Checking if we previously stored the latestEventToken in a configMap
+		token, found, err := asclient.GetTokenFromConfigmap(eventTokenKey, 60)
+		switch {
+		case err == collectors.ErrOutdated:
+			k.configMapAvailable = found
+			k.latestEventToken = token
+		case err == collectors.ErrNotFound:
+			k.latestEventToken = "0"
+		case err == nil:
+			k.configMapAvailable = found
+			k.latestEventToken = token
 		}
 	}
-	sender.Commit()
+
+	newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(k.latestEventToken)
+	if err != nil {
+		k.Warnf("Could not collect events from the api server: %s", err.Error())
+	}
+
+	// We check that the resversion gotten from the API Server is more recent than the one cached in the util.
+	if len(newEvents)+len(modifiedEvents) == 0 {
+		return nil
+	}
+	k.latestEventToken = versionToken
+	if k.configMapAvailable {
+		configMapErr := asclient.UpdateTokenInConfigmap(eventTokenKey, versionToken)
+		if configMapErr != nil {
+			k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
+		}
+	}
+
+	err := k.processEvents(sender, newEvents, false)
+	if err != nil {
+		k.Warnf("Could not submit new event %s", err.Error())
+	}
+
+	// We send the events in 2 steps to make sure the new events are initializing the aggregation keys and as modified events have a different payload.
+	if len(modifiedEvents) == 0 {
+		return nil
+	}
+	err := k.processEvents(sender, modifiedEvents, true)
+	if err != nil {
+		k.Warnf("Could not submit modified event %s", err.Error())
+	}
 	return nil
 }
 
@@ -179,7 +181,10 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 	return nil
 }
 
-// processEvents aggregates and submits the events collected by the API Server.
+// processEvents:
+// - iterates over the Kubernetes Events
+// - extracts some attributes and builds a structure ready to be submitted as a Datadog event (bundle)
+// - formats the bundle and submit the Datadog event
 func (k *KubeASCheck) processEvents(sender aggregator.Sender, events []*v1.Event, modified bool) error {
 	eventsByObject := make(map[string]*kubernetesEventBundle)
 	filteredByType := make(map[string]int)
@@ -204,7 +209,7 @@ ITER_EVENTS:
 		}
 
 		if len(filteredByType) > 0 {
-			log.Debugf("filtered out the following events: %s", formatStringIntMap(filteredByType))
+			log.Debugf("Filtered out the following events: %s", formatStringIntMap(filteredByType))
 		}
 	}
 	for _, bundle := range eventsByObject {

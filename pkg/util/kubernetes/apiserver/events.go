@@ -69,36 +69,33 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 			break
 		}
 		timeout.Reset(eventReadTimeout)
-
-		if event != nil && event.Metadata != nil && event.Metadata.ResourceVersion != nil {
-			resVersionMetadata, kubeEventErr := strconv.Atoi(*event.Metadata.ResourceVersion)
-			if kubeEventErr != nil {
-				log.Errorf("The Resource version associated with the event %s is not supported: %s", event.Metadata.Uid, err.Error())
-				continue
-			}
-
-			if resVersionMetadata > resVersionCached {
-				latestResVersion = event.Metadata.ResourceVersion
-				resVersionCached = resVersionMetadata
-			}
-		} else {
+		if event != nil || event.Metadata != nil || event.Metadata.ResourceVersion != nil {
 			log.Debugf("skipping invalid event: %v", event)
 			continue
 		}
 
-		if meta != nil && meta.Type != nil {
-			switch *meta.Type {
-			case k8s.EventAdded:
-				addedEvents = append(addedEvents, event)
-			case k8s.EventModified:
-				modifiedEvents = append(modifiedEvents, event)
-			}
-		} else {
+		resVersionMetadata, kubeEventErr := strconv.Atoi(*event.Metadata.ResourceVersion)
+		if kubeEventErr != nil {
+			log.Errorf("The Resource version associated with the event %s is not supported: %s", event.Metadata.Uid, err.Error())
+			continue
+		}
+
+		if resVersionMetadata > resVersionCached {
+			latestResVersion = event.Metadata.ResourceVersion
+			resVersionCached = resVersionMetadata
+		}
+
+		if meta != nil || meta.Type != nil {
 			log.Debugf("skipping invalid event: %v", meta)
 			continue
 		}
+		switch *meta.Type {
+		case k8s.EventAdded:
+			addedEvents = append(addedEvents, event)
+		case k8s.EventModified:
+			modifiedEvents = append(modifiedEvents, event)
+		}
 	}
-
 	watcher.Close()
 	return addedEvents, modifiedEvents, *latestResVersion, nil
 }

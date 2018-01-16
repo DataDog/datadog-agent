@@ -125,7 +125,7 @@ func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (str
 	defer cancel()
 	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, defaultNamespace)
 	if err != nil {
-		log.Debugf("could not find the ConfigMap %s: %s", configMapDCAToken, err.Error())
+		log.Debugf("Could not find the ConfigMap %s: %s", configMapDCAToken, err.Error())
 		return "", false, collectors.ErrNotFound
 	}
 	log.Infof("Found the ConfigMap %s", configMapDCAToken)
@@ -139,23 +139,24 @@ func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (str
 
 	tokenTimeStr, set := tokenConfigMap.Data[fmt.Sprintf("%s.%s", token, tokenTime)] // This is so we can have one timestamp per token
 
-	if set {
-		tokenTime, err := time.Parse(time.RFC822, tokenTimeStr)
-		if err != nil {
-			return "", found, log.Errorf("could not convert the timestamp associated with %s from the ConfigMap %s", token, configMapDCAToken)
-		}
-		tokenAge := time.Now().Unix() - tokenTime.Unix()
-
-		if tokenAge > tokenTimeout {
-			log.Debugf("The tokenValue %s is outdated, refreshing the state", token)
-			return tokenValue, found, collectors.ErrOutdated
-		}
-		log.Debugf("Token %s was updated recently, using value to collect newer events.", token)
-		return tokenValue, found, nil
+	if !set {
+		log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", token, configMapDCAToken)
+		// We return tokenValue = "" to reset the tokenValue and its timestamp as token's timestamp was not found.
+		return token, found, collectors.ErrOutdated
 	}
-	log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", token, configMapDCAToken)
-	// We return tokenValue = "" to reset the tokenValue and its timestamp as token's timestamp was not found.
-	return token, found, collectors.ErrOutdated
+
+	tokenTime, err := time.Parse(time.RFC822, tokenTimeStr)
+	if err != nil {
+		return "", found, log.Errorf("could not convert the timestamp associated with %s from the ConfigMap %s", token, configMapDCAToken)
+	}
+	tokenAge := time.Now().Unix() - tokenTime.Unix()
+
+	if tokenAge > tokenTimeout {
+		log.Debugf("The tokenValue %s is outdated, refreshing the state", token)
+		return tokenValue, found, collectors.ErrOutdated
+	}
+	log.Debugf("Token %s was updated recently, using value to collect newer events.", token)
+	return tokenValue, found, nil
 }
 
 // UpdateTokenInConfigmap updates the value of the `tokenValue` from the `tokenKey` and sets its collected timestamp in the ConfigMap `configmaptokendca`

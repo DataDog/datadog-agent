@@ -36,19 +36,21 @@ func newKubernetesEventBundler(objUid string, compName string) *kubernetesEventB
 }
 
 func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
+	// As some fields are optional, we want to avoid evaluating nil pointers
 	if event == nil || event.InvolvedObject == nil {
 		return errors.New("could not retrieve some parent attributes of the event")
+	}
+	if event.Reason == nil || event.Message == nil || event.InvolvedObject.Name == nil || event.InvolvedObject.Kind == nil {
+		return errors.New("could not retrieve some attributes of the event")
 	}
 	if *event.InvolvedObject.Uid != k.objUid {
 		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.Uid, k.objUid)
 	}
+
 	k.events = append(k.events, event)
 	k.timeStamp = math.Max(k.timeStamp, float64(*event.Metadata.CreationTimestamp.Seconds))
 	k.lastTimestamp = math.Max(k.timeStamp, float64(*event.LastTimestamp.Seconds))
 
-	if event.Reason == nil || event.Message == nil || event.InvolvedObject.Name == nil || event.InvolvedObject.Kind == nil {
-		return errors.New("could not retrieve some attributes of the event")
-	}
 	k.countByAction[fmt.Sprintf("**%s**: %s\n", *event.Reason, *event.Message)] += int(*event.Count)
 	k.readableKey = fmt.Sprintf("%s %s", *event.InvolvedObject.Name, *event.InvolvedObject.Kind)
 	return nil
@@ -59,6 +61,7 @@ func (k *kubernetesEventBundle) formatEvents(hostname string, modified bool) (me
 		return metrics.Event{}, errors.New("no event to export")
 	}
 	output := metrics.Event{
+		Title:          fmt.Sprintf("Events from the %s", k.readableKey),
 		Priority:       metrics.EventPriorityNormal,
 		Host:           hostname,
 		SourceTypeName: "kubernetes",
@@ -66,8 +69,6 @@ func (k *kubernetesEventBundle) formatEvents(hostname string, modified bool) (me
 		Ts:             int64(k.timeStamp),
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", k.objUid),
 	}
-
-	output.Title = fmt.Sprintf("Events from the %s", k.readableKey)
 
 	if modified {
 		output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s_ \n", formatStringIntMap(k.countByAction), k.component, time.Unix(int64(k.lastTimestamp), 0)) + "\n %%%"
