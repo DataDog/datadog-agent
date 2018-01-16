@@ -154,7 +154,7 @@ func (c *APIClient) ConfigMapTokenFetcher(token string, tokenTimeout int64) (str
 	}
 	log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", token, configMapDCAToken)
 	// We return tokenValue = "" to reset the tokenValue and its timestamp as token's timestamp was not found.
-	return "", found, collectors.ErrOutdated
+	return token, found, collectors.ErrOutdated
 }
 
 //EventTokenSetter updates the value of the `tokenValue` from the `tokenKey` and sets its collected timestamp in the ConfigMap `configmaptokendca`
