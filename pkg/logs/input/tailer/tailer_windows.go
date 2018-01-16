@@ -9,7 +9,7 @@ package tailer
 import (
 	"fmt"
 	"io"
-	
+
 	"os"
 	"path/filepath"
 	"sync"
@@ -20,8 +20,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	log "github.com/cihub/seelog"
 )
 
@@ -192,7 +192,7 @@ func (t *Tailer) readAvailable() (bool, error) {
 		return true, err
 	}
 	defer f.Close()
-	
+
 	st, err := f.Stat()
 	if err == nil {
 		sz := st.Size()

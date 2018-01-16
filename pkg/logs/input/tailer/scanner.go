@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-
 package tailer
 
 import (
@@ -171,4 +170,3 @@ func (s *Scanner) Stop() {
 		t.Stop(shouldTrackOffset)
 	}
 }
-
