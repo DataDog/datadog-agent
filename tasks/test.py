@@ -21,6 +21,7 @@ PROFILE_COV = "profile.cov"
 # List of packages to ignore when running tests on Windows platform
 WIN_PKG_BLACKLIST = [
     "./pkg\\util\\xc",
+    "./pkg\\util\\container",
 ]
 
 DEFAULT_TOOL_TARGETS = [
