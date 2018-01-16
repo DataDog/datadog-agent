@@ -19,6 +19,7 @@ import (
 	"github.com/ericchiang/k8s/api/v1"
 
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -118,8 +119,8 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	return c.client.CoreV1().ListComponentStatuses(ctx)
 }
 
-// ConfigMapTokenFetcher returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configmaptokendca` if its timestamp is less than tokenTimeout old.
-func (c *APIClient) ConfigMapTokenFetcher(token string, tokenTimeout int64) (string, bool, error) {
+// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configmaptokendca` if its timestamp is less than tokenTimeout old.
+func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, defaultNamespace)
@@ -157,8 +158,8 @@ func (c *APIClient) ConfigMapTokenFetcher(token string, tokenTimeout int64) (str
 	return token, found, collectors.ErrOutdated
 }
 
-//EventTokenSetter updates the value of the `tokenValue` from the `tokenKey` and sets its collected timestamp in the ConfigMap `configmaptokendca`
-func (c *APIClient) ConfigMapTokenSetter(token, tokenValue string) error {
+// UpdateTokenInConfigmap updates the value of the `tokenValue` from the `tokenKey` and sets its collected timestamp in the ConfigMap `configmaptokendca`
+func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, defaultNamespace)

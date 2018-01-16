@@ -91,7 +91,7 @@ func (k *KubeASCheck) Run() error {
 	if k.instance.CollectEvent {
 		if k.latestEventToken == "" {
 			// Initialization: Checking if we previously stored the latestEventToken in a configMap
-			token, found, err := asclient.ConfigMapTokenFetcher(eventTokenKey, 60)
+			token, found, err := asclient.GetTokenFromConfigmap(eventTokenKey, 60)
 			switch {
 			case err == collectors.ErrOutdated:
 				k.configMapAvailable = found
@@ -102,7 +102,6 @@ func (k *KubeASCheck) Run() error {
 				k.configMapAvailable = found
 				k.latestEventToken = token
 			}
-
 		}
 
 		newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(k.latestEventToken)
@@ -114,7 +113,7 @@ func (k *KubeASCheck) Run() error {
 		if len(newEvents)+len(modifiedEvents) > 0 {
 			k.latestEventToken = versionToken
 			if k.configMapAvailable {
-				configMapErr := asclient.ConfigMapTokenSetter(eventTokenKey, versionToken)
+				configMapErr := asclient.UpdateTokenInConfigmap(eventTokenKey, versionToken)
 				if configMapErr != nil {
 					k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
 				}

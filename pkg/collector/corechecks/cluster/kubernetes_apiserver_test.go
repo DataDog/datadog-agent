@@ -255,5 +255,4 @@ func TestProcessEvents(t *testing.T) {
 	kubeASCheck.processEvents(mock, filteredKubeEventsBundle, false)
 	mock.AssertNotCalled(t, "Event")
 	mock.AssertExpectations(t)
-
 }
