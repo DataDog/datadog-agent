@@ -102,6 +102,7 @@ func buildLogsSources(ddconfdPath string) ([]*IntegrationConfigLogSource, []*sta
 		for _, logSourceConfigIterator := range integrationConfig.Logs {
 			logSourceConfig := logSourceConfigIterator
 			tracker := status.NewTracker(logSourceConfig.Type)
+			// misconfigured sources are also tracked to repport configuration errors
 			sourcesToTrack = append(sourcesToTrack, status.NewSourceToTrack(integrationName, tracker))
 			err = validateSource(logSourceConfig)
 			if err != nil {

@@ -60,6 +60,7 @@ func run() {
 	c.Start()
 }
 
+// GetStatus returns logs-agent status
 func GetStatus() status.Status {
 	if !isRunning {
 		return status.Status{IsRunning: false}

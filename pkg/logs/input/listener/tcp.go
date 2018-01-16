@@ -54,6 +54,7 @@ func (tcpListener *TCPListener) run() {
 			log.Error("Can't listen: ", err)
 			return
 		}
+		tcpListener.connHandler.source.Tracker.TrackSuccess()
 		go tcpListener.connHandler.handleConnection(conn)
 	}
 }
