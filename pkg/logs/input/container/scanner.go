@@ -122,9 +122,13 @@ func (s *Scanner) listContainers() []types.Container {
 	return containers
 }
 
+// sourceShouldMonitorContainer returns whether a container matches a log source configuration.
+// Both image and label may be used:
+// - If the source defines an image, the container must match it exactly.
+// - If the source defines one or several labels, at least one of them must match the labels of the container.
 func (s *Scanner) sourceShouldMonitorContainer(source *config.IntegrationConfigLogSource, container types.Container) bool {
-	if source.Image != "" {
-		return container.Image == source.Image
+	if source.Image != "" && container.Image != source.Image {
+		return false
 	}
 	if source.Label != "" {
 		// Expect a comma-separated list of labels, eg: foo:bar, baz

@@ -32,7 +32,7 @@ func (suite *ContainerScannerTestSuite) TestContainerScannerFilter() {
 	container = types.Container{Image: "myapp2"}
 	suite.False(suite.c.sourceShouldMonitorContainer(cfg, container))
 
-	cfg = &config.IntegrationConfigLogSource{Type: config.DockerType, Label: "mylabel"}
+	cfg = &config.IntegrationConfigLogSource{Type: config.DockerType, Image: "myapp", Label: "mylabel"}
 	l1 := make(map[string]string)
 	l2 := make(map[string]string)
 	l2["mylabel"] = "anything"
