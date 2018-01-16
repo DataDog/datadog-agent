@@ -119,7 +119,7 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	return c.client.CoreV1().ListComponentStatuses(ctx)
 }
 
-// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configmaptokendca` if its timestamp is less than tokenTimeout old.
+// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap configMapDCAToken if its timestamp is less than tokenTimeout old.
 func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
@@ -141,8 +141,8 @@ func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (str
 
 	if !set {
 		log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", token, configMapDCAToken)
-		// We return tokenValue = "" to reset the tokenValue and its timestamp as token's timestamp was not found.
-		return token, found, collectors.ErrOutdated
+		// We return ErrOutdated to reset the tokenValue and its timestamp as token's timestamp was not found.
+		return tokenValue, found, collectors.ErrOutdated
 	}
 
 	tokenTime, err := time.Parse(time.RFC822, tokenTimeStr)

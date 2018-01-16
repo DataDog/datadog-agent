@@ -64,13 +64,13 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 		meta, event, err := watcher.Next()
 		if err != nil {
 			if err != context.Canceled && err != io.EOF {
-				log.Debugf("stopping event collection, got error: %s", err)
+				log.Debugf("Stopping event collection, got error: %s", err)
 			} // else silently stop
 			break
 		}
 		timeout.Reset(eventReadTimeout)
-		if event != nil || event.Metadata != nil || event.Metadata.ResourceVersion != nil {
-			log.Debugf("skipping invalid event: %v", event)
+		if event == nil || event.Metadata == nil || event.Metadata.ResourceVersion == nil {
+			log.Tracef("Skipping invalid event: %v", event)
 			continue
 		}
 
@@ -85,7 +85,7 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 			resVersionCached = resVersionMetadata
 		}
 
-		if meta != nil || meta.Type != nil {
+		if meta == nil || meta.Type == nil {
 			log.Debugf("skipping invalid event: %v", meta)
 			continue
 		}
