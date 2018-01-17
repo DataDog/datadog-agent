@@ -38,6 +38,7 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
 COPY datadog*.yaml etc/datadog-agent/
 RUN mv etc/datadog-agent/conf.d/docker.d/conf.yaml.example etc/datadog-agent/conf.d/docker.d/conf.yaml.default \
  && sed -i "s/enabled: false/enabled: true/" etc/datadog-agent/conf.d/process_agent.yaml.default
+
 COPY entrypoint.sh .
 
 
