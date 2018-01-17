@@ -455,7 +455,7 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 	for _, loader := range ac.loaders {
 		res, err := loader.Load(config)
 		if err == nil {
-			log.Infof("%v: successfully loaded check '%s'", loader, config.Name)
+			log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
 			errorStats.removeLoaderErrors(config.Name)
 			return res, nil
 		}
@@ -466,7 +466,7 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 		if len(res) != 0 {
 			return res, nil
 		}
-		log.Errorf("%v: unable to load the check '%s': %s", loader, config.Name, err) // TODO: temp - delete me
+		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
 	}
 
 	return []check.Check{}, fmt.Errorf("unable to load any check from config '%s'", config.Name)
