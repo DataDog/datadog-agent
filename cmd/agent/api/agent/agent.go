@@ -14,6 +14,7 @@ import (
 	"net/http"
 
 	log "github.com/cihub/seelog"
+	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -25,9 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/gorilla/mux"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
@@ -38,6 +39,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
+	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
@@ -195,6 +197,23 @@ func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write(s)
+}
+
+func getHealth(w http.ResponseWriter, r *http.Request) {
+	if err := apiutil.Validate(w, r); err != nil {
+		return
+	}
+	h := health.Status()
+
+	jsonHealth, err := json.Marshal(h)
+	if err != nil {
+		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, h)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonHealth)
 }
 
 func getCSRFToken(w http.ResponseWriter, r *http.Request) {
