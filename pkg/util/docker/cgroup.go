@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"os"
 	"path"
@@ -489,7 +490,7 @@ func parseCgroupMountPoints(r io.Reader) map[string]string {
 // ScrapeAllCgroups returns ContainerCgroup for every container that's in a Cgroup.
 // This version iterates on /{host/}proc to retrieve processes out of the namespace.
 // We return as a map[containerID]Cgroup for easy look-up.
-func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
+func ScrapeAllCgroups(debug bool) (map[string]*ContainerCgroup, error) {
 	mountPoints, err := cgroupMountPoints()
 	if err != nil {
 		return nil, err
@@ -514,7 +515,7 @@ func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 			continue
 		}
 		cgPath := hostProc(dirName, "cgroup")
-		containerID, paths, err := readCgroupPaths(cgPath)
+		containerID, paths, err := readCgroupPaths(cgPath, debug)
 		if containerID == "" {
 			continue
 		}
@@ -541,13 +542,13 @@ func ScrapeAllCgroups() (map[string]*ContainerCgroup, error) {
 // the PID is not in a container.
 func ContainerIDForPID(pid int) (string, error) {
 	cgPath := hostProc(strconv.Itoa(pid), "cgroup")
-	containerID, _, err := readCgroupPaths(cgPath)
+	containerID, _, err := readCgroupPaths(cgPath, false)
 
 	return containerID, err
 }
 
 // readCgroupPaths reads the cgroups from a /proc/$pid/cgroup path.
-func readCgroupPaths(pidCgroupPath string) (string, map[string]string, error) {
+func readCgroupPaths(pidCgroupPath string, debug bool) (string, map[string]string, error) {
 	f, err := os.Open(pidCgroupPath)
 	if os.IsNotExist(err) {
 		log.Debugf("cgroup path '%s' could not be read: %s", pidCgroupPath, err)
@@ -557,6 +558,16 @@ func readCgroupPaths(pidCgroupPath string) (string, map[string]string, error) {
 		return "", nil, err
 	}
 	defer f.Close()
+
+	if debug {
+		b, err := ioutil.ReadAll(f)
+		if err != nil {
+			fmt.Printf("ERR: Unable to read cgroup file: %s", err)
+		}
+		fmt.Printf("Cgroup File: %s, Value:\n%s\n", pidCgroupPath, b)
+		f.Seek(0, 0)
+	}
+
 	return parseCgroupPaths(f)
 }
 
@@ -621,4 +632,25 @@ func containerIDFromCgroup(cgroup string) (string, bool) {
 		return "", false
 	}
 	return matches[len(matches)-1], true
+}
+
+// DebugCgroups will output a bunch of logs about the state of the system cgroups.
+func DebugCgroups() {
+	fmt.Printf("Cgroup Root: %s\n", config.Datadog.GetString("container_cgroup_root"))
+
+	mp, err := cgroupMountPoints()
+	if err != nil {
+		fmt.Printf("ERR: Could not get cgroup mount points: %s\n", err)
+		return
+	}
+
+	fmt.Printf("Cgroup mount points:\n")
+	for target, path := range mp {
+		fmt.Printf("- %s: %s\n", target, path)
+	}
+	fmt.Printf("\n")
+
+	if _, err := ScrapeAllCgroups(true); err != nil {
+		fmt.Printf("ERR: Could not scrape cgroups: %s\n", err)
+	}
 }

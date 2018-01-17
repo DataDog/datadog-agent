@@ -242,7 +242,7 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 		var cgByContainer map[string]*ContainerCgroup
 		var err error
 
-		cgByContainer, err = ScrapeAllCgroups()
+		cgByContainer, err = ScrapeAllCgroups(false)
 		if err != nil {
 			return nil, fmt.Errorf("could not get cgroups: %s", err)
 		}
@@ -428,7 +428,7 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 
 // Inspect detect the container ID we are running in and returns the inspect contents.
 func (d *DockerUtil) InspectSelf() (types.ContainerJSON, error) {
-	cID, _, err := readCgroupPaths("/proc/self/cgroup")
+	cID, _, err := readCgroupPaths("/proc/self/cgroup", false)
 	if err != nil {
 		return types.ContainerJSON{}, err
 	}
