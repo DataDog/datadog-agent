@@ -466,7 +466,7 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 		if len(res) != 0 {
 			return res, nil
 		}
-		log.Debugf("%v: unable to load the check '%s': %s", loader, config.Name, err)
+		log.Errorf("%v: unable to load the check '%s': %s", loader, config.Name, err) // TODO: temp - delete me
 	}
 
 	return []check.Check{}, fmt.Errorf("unable to load any check from config '%s'", config.Name)
