@@ -9,19 +9,30 @@ package apiserver
 
 import (
 	"context"
+	"encoding/json"
 	"io/ioutil"
 	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s"
-	yaml "gopkg.in/yaml.v2"
+
+	"github.com/ericchiang/k8s/api/v1"
+
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/ericchiang/k8s/api/v1"
 )
 
 var globalApiClient *APIClient
+
+const (
+	configMapDCAToken = "configmapdcatoken"
+	defaultNamespace  = "default"
+	tokenTime         = "tokenTimestamp"
+	tokenKey          = "tokenKey"
+)
 
 // ApiClient provides authenticated access to the
 // apiserver endpoints. Use the shared instance via GetApiClient.
@@ -66,7 +77,7 @@ func (c *APIClient) connect() error {
 			// Kubeconfig provided by conf
 			log.Debugf("using credentials from %s", cfgPath)
 			var config *k8s.Config
-			config, err = parseKubeConfig(cfgPath)
+			config, err = ParseKubeConfig(cfgPath)
 			if err != nil {
 				return err
 			}
@@ -87,20 +98,83 @@ func (c *APIClient) connect() error {
 	return err
 }
 
-func parseKubeConfig(fpath string) (*k8s.Config, error) {
-	yamlFile, err := ioutil.ReadFile(fpath)
+// ParseKubeConfig reads and unmarcshals a kubeconfig file
+// in an object ready to use. Exported for integration testing.
+func ParseKubeConfig(fpath string) (*k8s.Config, error) {
+	// TODO: support yaml too
+	jsonFile, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return nil, err
 	}
 
 	config := &k8s.Config{}
-	err = yaml.Unmarshal(yamlFile, config)
+	err = json.Unmarshal(jsonFile, config)
 	return config, err
 }
 
+// ComponentStatuses returns the component status list from the APIServer
 func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 	return c.client.CoreV1().ListComponentStatuses(ctx)
+}
 
+// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap configMapDCAToken if its timestamp is less than tokenTimeout old.
+func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, defaultNamespace)
+	if err != nil {
+		log.Debugf("Could not find the ConfigMap %s: %s", configMapDCAToken, err.Error())
+		return "", false, collectors.ErrNotFound
+	}
+	log.Infof("Found the ConfigMap %s", configMapDCAToken)
+
+	tokenValue, found := tokenConfigMap.Data[fmt.Sprintf("%s.%s", token, tokenKey)]
+	if !found {
+		log.Errorf("%s was not found in the ConfigMap %s", token, configMapDCAToken)
+		return "", found, collectors.ErrNotFound
+	}
+	log.Tracef("%s is %s", token, tokenValue)
+
+	tokenTimeStr, set := tokenConfigMap.Data[fmt.Sprintf("%s.%s", token, tokenTime)] // This is so we can have one timestamp per token
+
+	if !set {
+		log.Debugf("Could not find timestamp associated with %s in the ConfigMap %s. Refreshing.", token, configMapDCAToken)
+		// We return ErrOutdated to reset the tokenValue and its timestamp as token's timestamp was not found.
+		return tokenValue, found, collectors.ErrOutdated
+	}
+
+	tokenTime, err := time.Parse(time.RFC822, tokenTimeStr)
+	if err != nil {
+		return "", found, log.Errorf("could not convert the timestamp associated with %s from the ConfigMap %s", token, configMapDCAToken)
+	}
+	tokenAge := time.Now().Unix() - tokenTime.Unix()
+
+	if tokenAge > tokenTimeout {
+		log.Debugf("The tokenValue %s is outdated, refreshing the state", token)
+		return tokenValue, found, collectors.ErrOutdated
+	}
+	log.Debugf("Token %s was updated recently, using value to collect newer events.", token)
+	return tokenValue, found, nil
+}
+
+// UpdateTokenInConfigmap updates the value of the `tokenValue` from the `tokenKey` and sets its collected timestamp in the ConfigMap `configmaptokendca`
+func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, defaultNamespace)
+	if err != nil {
+		return err
+	}
+	tokenConfigMap.Data[fmt.Sprintf("%s.%s", token, tokenKey)] = tokenValue
+	now := time.Now()
+	tokenConfigMap.Data[fmt.Sprintf("%s.%s", token, tokenTime)] = now.Format(time.RFC822) // Timestamps in the ConfigMap should all use the type int.
+
+	_, err = c.client.CoreV1().UpdateConfigMap(ctx, tokenConfigMap)
+	if err != nil {
+		return err
+	}
+	log.Debugf("Updated %s to %s in the ConfigMap %s", token, tokenValue, configMapDCAToken)
+	return nil
 }

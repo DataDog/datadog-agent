@@ -15,6 +15,7 @@ from .go import fmt, lint, vet, misspell, ineffassign
 from .build_tags import get_default_build_tags
 from .agent import integration_tests as agent_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
+from .cluster_agent import integration_tests as dca_integration_tests
 
 PROFILE_COV = "profile.cov"
 
@@ -154,6 +155,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     """
     agent_integration_tests(ctx, install_deps, race, remote_docker)
     dsd_integration_tests(ctx, install_deps, race, remote_docker)
+    dca_integration_tests(ctx, install_deps, race, remote_docker)
 
 
 @task
