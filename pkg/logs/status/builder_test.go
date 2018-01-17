@@ -6,6 +6,7 @@
 package status
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,17 +20,18 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 	}
 	builder := NewBuilder(sourcesToTrack)
 
-	var integration Integration
-
 	status := builder.Build()
 	assert.Equal(t, true, status.IsRunning)
 	assert.Equal(t, 2, len(status.Integrations))
 
-	integration = status.Integrations[0]
-	assert.Equal(t, "foo", integration.Name)
-	assert.Equal(t, 2, len(integration.Sources))
-
-	integration = status.Integrations[1]
-	assert.Equal(t, "bar", integration.Name)
-	assert.Equal(t, 1, len(integration.Sources))
+	for _, integration := range status.Integrations {
+		switch integration.Name {
+		case "foo":
+			assert.Equal(t, 2, len(integration.Sources))
+		case "bar":
+			assert.Equal(t, 1, len(integration.Sources))
+		default:
+			assert.Fail(t, fmt.Sprintf("Expected foo or bar, got %s", integration.Name))
+		}
+	}
 }
