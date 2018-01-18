@@ -106,3 +106,26 @@ func TestBuildTagsPayload(t *testing.T) {
 	assert.Equal(t, "[dd ddtags=\"hello:world\"]", string(BuildTagsPayload("hello:world", "", "")))
 	assert.Equal(t, "[dd ddsource=\"nginx\"][dd ddsourcecategory=\"http_access\"][dd ddtags=\"hello:world, hi\"]", string(BuildTagsPayload("hello:world, hi", "nginx", "http_access")))
 }
+
+func TestIntegrationName(t *testing.T) {
+	var integrationName string
+	var err error
+
+	integrationName, err = buildIntegrationName("foo.d/bar.yml")
+	assert.Equal(t, "foo", integrationName)
+	assert.Nil(t, err)
+
+	integrationName, err = buildIntegrationName("bar.yaml")
+	assert.Equal(t, "bar", integrationName)
+	assert.Nil(t, err)
+
+	integrationName, err = buildIntegrationName("bar.yml")
+	assert.Equal(t, "bar", integrationName)
+	assert.Nil(t, err)
+
+	_, err = buildIntegrationName("foo.bar")
+	assert.NotNil(t, err)
+
+	_, err = buildIntegrationName("foo.b/bar.yml")
+	assert.NotNil(t, err)
+}

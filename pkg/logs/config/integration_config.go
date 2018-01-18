@@ -8,6 +8,7 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -36,8 +37,9 @@ const (
 
 // Valid integration config extensions
 const (
-	yamlExtension = ".yaml"
-	ymlExtension  = ".yml"
+	directoryExtension = ".d"
+	yamlExtension      = ".yaml"
+	ymlExtension       = ".yml"
 )
 
 // LogsProcessingRule defines an exclusion or a masking rule to
@@ -98,7 +100,11 @@ func buildLogsSources(ddconfdPath string) ([]*IntegrationConfigLogSource, []*sta
 			log.Error(err)
 			continue
 		}
-		integrationName := strings.TrimSuffix(file, filepath.Ext(file))
+		integrationName, err := buildIntegrationName(file)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
 		for _, logSourceConfigIterator := range integrationConfig.Logs {
 			logSourceConfig := logSourceConfigIterator
 			tracker := status.NewTracker(logSourceConfig.Type)
@@ -128,6 +134,26 @@ func buildLogsSources(ddconfdPath string) ([]*IntegrationConfigLogSource, []*sta
 	}
 
 	return logsSourceConfigs, sourcesToTrack, nil
+}
+
+// buildIntegrationName returns the name of the integration
+func buildIntegrationName(filePath string) (string, error) {
+	validFileExtensions := []string{yamlExtension, ymlExtension}
+	components := strings.Split(filePath, string(os.PathSeparator))
+	if len(components) == 1 {
+		for _, ext := range validFileExtensions {
+			// check if file has a valid extension
+			if strings.HasSuffix(components[0], ext) {
+				return strings.TrimSuffix(components[0], ext), nil
+			}
+		}
+	} else if len(components) == 2 {
+		// check if directory has a valid extension
+		if strings.HasSuffix(components[0], directoryExtension) {
+			return strings.TrimSuffix(components[0], directoryExtension), nil
+		}
+	}
+	return "", fmt.Errorf("Invalid file path: %s", filePath)
 }
 
 // availableIntegrationConfigs lists yaml files in ddconfdPath
