@@ -113,17 +113,18 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireContainers() {
 func (suite *PodwatcherTestSuite) TestPullChanges() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
 	require.Nil(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
+	ts, kubeletPort, err := kubelet.StartTLS()
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
 	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
-	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
+	config.Datadog.SetDefault("kubernetes_https_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubelet_tls_verify", false)
 
 	watcher, err := NewPodWatcher(5 * time.Minute)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), watcher)
-	<-kubelet.Requests // Throwing away /healthz GET
+	<-kubelet.Requests // Throwing away the first /pods GET
 
 	pods, err := watcher.PullChanges()
 	<-kubelet.Requests // Throwing away /pods GET
