@@ -16,7 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
+
+// isRunning indicates whether logs-agent is running or not
+var isRunning bool
 
 // Start starts logs-agent
 func Start() error {
@@ -30,6 +34,8 @@ func Start() error {
 
 // run sets up the pipeline to process logs and them to Datadog back-end
 func run() {
+	isRunning = true
+
 	cm := sender.NewConnectionManager(
 		config.LogsAgent.GetString("log_dd_url"),
 		config.LogsAgent.GetInt("log_dd_port"),
@@ -52,4 +58,12 @@ func run() {
 
 	c := container.New(config.GetLogsSources(), pp, a)
 	c.Start()
+}
+
+// GetStatus returns logs-agent status
+func GetStatus() status.Status {
+	if !isRunning {
+		return status.Status{IsRunning: false}
+	}
+	return status.Get()
 }

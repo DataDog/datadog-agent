@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/mock"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -31,7 +32,7 @@ type TCPTestSuite struct {
 func (suite *TCPTestSuite) SetupTest() {
 	suite.pp = mock.NewMockProvider()
 	suite.outputChan = suite.pp.NextPipelineChan()
-	suite.source = &config.IntegrationConfigLogSource{Type: config.TCPType, Port: tcpTestPort}
+	suite.source = &config.IntegrationConfigLogSource{Type: config.TCPType, Port: tcpTestPort, Tracker: status.NewTracker()}
 	tcpl, err := NewTCPListener(suite.pp, suite.source)
 	suite.Nil(err)
 	suite.tcpl = tcpl

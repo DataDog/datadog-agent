@@ -26,12 +26,15 @@ func NewUDPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSou
 	log.Info("Starting UDP forwarder on port ", source.Port)
 	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", source.Port))
 	if err != nil {
+		source.Tracker.TrackError(err)
 		return nil, err
 	}
 	conn, err := net.ListenUDP("udp", udpAddr)
 	if err != nil {
+		source.Tracker.TrackError(err)
 		return nil, err
 	}
+	source.Tracker.TrackSuccess()
 	connHandler := &ConnectionHandler{
 		pp:     pp,
 		source: source,

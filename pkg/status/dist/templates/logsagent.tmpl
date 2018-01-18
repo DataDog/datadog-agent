@@ -1,0 +1,15 @@
+==========
+Logs-agent
+==========
+{{ if (not .is_running) }}
+  logs-agent is not running
+{{ else }}
+{{- range .integrations }}
+  {{ .name }}
+  {{printDashes .name "-"}}
+  {{- range .sources }}
+    Type: {{ .type }}
+    Status: {{ .status }}
+  {{ end }}
+{{- end }}
+{{- end }}

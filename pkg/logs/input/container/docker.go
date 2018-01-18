@@ -128,8 +128,10 @@ func (dt *DockerTailer) startReading(from string) error {
 	}
 	reader, err := dt.cli.ContainerLogs(context.Background(), dt.ContainerID, options)
 	if err != nil {
+		dt.source.Tracker.TrackError(err)
 		return err
 	}
+	dt.source.Tracker.TrackSuccess()
 	dt.reader = reader
 	go dt.readForever()
 	return nil
@@ -155,6 +157,7 @@ func (dt *DockerTailer) readForever() {
 			continue
 		}
 		if err != nil {
+			dt.source.Tracker.TrackError(err)
 			log.Error("Err: ", err)
 			return
 		}

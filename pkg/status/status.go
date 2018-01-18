@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -54,6 +55,8 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["time"] = now.Format(timeFormat)
 
 	stats["JMXStatus"] = GetJMXStatus()
+
+	stats["logsStats"] = logs.GetStatus()
 
 	return stats, nil
 }

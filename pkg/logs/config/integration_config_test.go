@@ -23,11 +23,12 @@ func TestAvailableIntegrationConfigs(t *testing.T) {
 
 func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
-	sources, err := buildLogsSources(ddconfdPath)
+	sources, sourcesToTrack, err := buildLogsSources(ddconfdPath)
 
 	assert.Nil(t, err)
-
 	assert.Equal(t, 3, len(sources))
+	assert.Equal(t, 4, len(sourcesToTrack))
+
 	assert.Equal(t, "file", sources[0].Type)
 	assert.Equal(t, "/var/log/access.log", sources[0].Path)
 	assert.Equal(t, "nginx", sources[0].Service)
@@ -80,23 +81,23 @@ func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
 	var ddconfdPath string
 	var err error
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_1")
-	_, err = buildLogsSources(ddconfdPath)
+	_, _, err = buildLogsSources(ddconfdPath)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_2", "conf.d")
-	_, err = buildLogsSources(ddconfdPath)
+	_, _, err = buildLogsSources(ddconfdPath)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_3", "conf.d")
-	_, err = buildLogsSources(ddconfdPath)
+	_, _, err = buildLogsSources(ddconfdPath)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_4", "conf.d")
-	_, err = buildLogsSources(ddconfdPath)
+	_, _, err = buildLogsSources(ddconfdPath)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_5", "conf.d")
-	_, err = buildLogsSources(ddconfdPath)
+	_, _, err = buildLogsSources(ddconfdPath)
 	assert.NotNil(t, err)
 }
 
@@ -104,4 +105,27 @@ func TestBuildTagsPayload(t *testing.T) {
 	assert.Equal(t, "-", string(BuildTagsPayload("", "", "")))
 	assert.Equal(t, "[dd ddtags=\"hello:world\"]", string(BuildTagsPayload("hello:world", "", "")))
 	assert.Equal(t, "[dd ddsource=\"nginx\"][dd ddsourcecategory=\"http_access\"][dd ddtags=\"hello:world, hi\"]", string(BuildTagsPayload("hello:world, hi", "nginx", "http_access")))
+}
+
+func TestIntegrationName(t *testing.T) {
+	var integrationName string
+	var err error
+
+	integrationName, err = buildIntegrationName("foo.d/bar.yml")
+	assert.Equal(t, "foo", integrationName)
+	assert.Nil(t, err)
+
+	integrationName, err = buildIntegrationName("bar.yaml")
+	assert.Equal(t, "bar", integrationName)
+	assert.Nil(t, err)
+
+	integrationName, err = buildIntegrationName("bar.yml")
+	assert.Equal(t, "bar", integrationName)
+	assert.Nil(t, err)
+
+	_, err = buildIntegrationName("foo.bar")
+	assert.NotNil(t, err)
+
+	_, err = buildIntegrationName("foo.b/bar.yml")
+	assert.NotNil(t, err)
 }
