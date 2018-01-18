@@ -13,20 +13,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
+	"net/url"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-)
-
-// Kubelet constants
-const (
-	KubeletHealthPath = "/healthz"
 )
 
 var globalKubeUtil *KubeUtil
@@ -35,16 +30,26 @@ var globalKubeUtil *KubeUtil
 // Instantiate with GetKubeUtil
 type KubeUtil struct {
 	retry.Retrier
-	kubeletAPIURL string
+	kubeletApiEndpoint       string
+	kubeletApiClient         *http.Client
+	kubeletApiRequestHeaders *http.Header
+}
+
+func newKubeUtil() *KubeUtil {
+	ku := &KubeUtil{
+		kubeletApiClient:         &http.Client{},
+		kubeletApiRequestHeaders: &http.Header{},
+	}
+	return ku
 }
 
 // GetKubeUtil returns an instance of KubeUtil.
 func GetKubeUtil() (*KubeUtil, error) {
 	if globalKubeUtil == nil {
-		globalKubeUtil = &KubeUtil{}
+		globalKubeUtil = newKubeUtil()
 		globalKubeUtil.SetupRetrier(&retry.Config{
 			Name:          "kubeutil",
-			AttemptMethod: globalKubeUtil.locateKubelet,
+			AttemptMethod: globalKubeUtil.init,
 			Strategy:      retry.RetryCount,
 			RetryCount:    10,
 			RetryDelay:    30 * time.Second,
@@ -52,19 +57,10 @@ func GetKubeUtil() (*KubeUtil, error) {
 	}
 	err := globalKubeUtil.TriggerRetry()
 	if err != nil {
-		log.Debugf("init error: %s", err)
+		log.Debugf("Init error: %s", err)
 		return nil, err
 	}
 	return globalKubeUtil, nil
-}
-
-func (ku *KubeUtil) locateKubelet() error {
-	url, err := locateKubelet()
-	if err == nil {
-		ku.kubeletAPIURL = url
-		return nil
-	}
-	return err
 }
 
 // GetNodeInfo returns the IP address and the hostname of the node where
@@ -72,7 +68,7 @@ func (ku *KubeUtil) locateKubelet() error {
 func (ku *KubeUtil) GetNodeInfo() (ip, name string, err error) {
 	pods, err := ku.GetLocalPodList()
 	if err != nil {
-		return "", "", fmt.Errorf("Error getting pod list from kubelet: %s", err)
+		return "", "", fmt.Errorf("error getting pod list from kubelet: %s", err)
 	}
 
 	for _, pod := range pods {
@@ -81,22 +77,21 @@ func (ku *KubeUtil) GetNodeInfo() (ip, name string, err error) {
 		}
 	}
 
-	return "", "", fmt.Errorf("Failed to get node info")
+	return "", "", fmt.Errorf("failed to get node info")
 }
 
 // GetLocalPodList returns the list of pods running on the node where this pod is running
 func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
-
-	data, err := PerformKubeletQuery(fmt.Sprintf("%s/pods", ku.kubeletAPIURL))
+	data, err := ku.QueryKubelet("/pods")
 	if err != nil {
-		return nil, fmt.Errorf("Error performing kubelet query: %s", err)
+		return nil, fmt.Errorf("error performing kubelet query: %s", err)
 	}
 
-	v := new(PodList)
-	if err := json.Unmarshal(data, v); err != nil {
-		return nil, fmt.Errorf("Error unmarshalling json: %s", err)
+	v := &PodList{}
+	err = json.Unmarshal(data, v)
+	if err != nil {
+		return nil, err
 	}
-
 	return v.Items, nil
 }
 
@@ -125,58 +120,113 @@ func (ku *KubeUtil) searchPodForContainerID(podlist []*Pod, containerID string) 
 	return nil, fmt.Errorf("container %s not found in podlist", containerID)
 }
 
-// Try and find the hostname to query the kubelet
-// TODO: Add TLS verification
-func locateKubelet() (string, error) {
-	host := config.Datadog.GetString("kubernetes_kubelet_host")
-	if host == "" {
-		var err error
-		host, err = docker.HostnameProvider("")
+// setupKubeletApiClient will try to setup the http client to query the kubelet
+// with the following settings, in order:
+//  - HTTPS w/ configured certificates
+//  - HTTPS w/ configured token
+//  - HTTPS w/ service account token
+//  - HTTP
+func (ku *KubeUtil) setupKubeletApiClient() error {
+	tlsConfig, err := getTLSConfig()
+	if err != nil {
+		return err
+	}
+	transport := http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+	ku.kubeletApiClient.Transport = &transport
+
+	switch {
+	case isConfiguredCertificates():
+		tlsConfig.Certificates, err = kubernetes.GetCertificates(
+			config.Datadog.GetString("kubelet_client_crt"),
+			config.Datadog.GetString("kubelet_client_key"),
+		)
+		return err
+
+	case isConfiguredTokenPath():
+		return ku.setBearerToken(config.Datadog.GetString("kubelet_auth_token_path"))
+
+	case kubernetes.IsServiceAccountToken():
+		return ku.setBearerToken(kubernetes.ServiceAccountTokenPath)
+
+		// Without Token and without certificates
+	default:
+		return nil
+	}
+}
+
+func (ku *KubeUtil) setBearerToken(tokenPath string) error {
+	token, err := kubernetes.GetBearerToken(tokenPath)
+	if err != nil {
+		return err
+	}
+	ku.kubeletApiRequestHeaders.Set("Authorization", token)
+	return nil
+}
+
+func (ku *KubeUtil) createKubeletRequest(path string) (*http.Request, error) {
+	var err error
+
+	req := &http.Request{}
+	req.Header = *ku.kubeletApiRequestHeaders
+	req.URL, err = url.Parse(fmt.Sprintf("%s%s", ku.kubeletApiEndpoint, path))
+	return req, err
+}
+
+func (ku *KubeUtil) QueryKubelet(path string) ([]byte, error) {
+	req, err := ku.createKubeletRequest(path)
+	if err != nil {
+		log.Debugf("Fail to create the kubelet request: %s", err)
+		return nil, err
+	}
+	response, err := ku.kubeletApiClient.Do(req)
+	if err != nil {
+		log.Debugf("Fail to request %s: %s", req.URL.String(), err)
+		return nil, err
+	}
+	defer response.Body.Close()
+	log.Debugf("Successfully connected to %s, reading body", req.URL.String())
+	return ioutil.ReadAll(response.Body)
+}
+
+func (ku *KubeUtil) setupKubeletApiEndpoint() error {
+	var err error
+
+	kubeHost := config.Datadog.GetString("kubernetes_kubelet_host")
+	if kubeHost == "" {
+		kubeHost, err = docker.HostnameProvider("")
 		if err != nil {
-			return "", fmt.Errorf("unable to get hostname from docker, please set the kubernetes_kubelet_host option: %s", err)
+			return fmt.Errorf("unable to get hostname from docker, please set the kubernetes_kubelet_host option: %s", err)
 		}
 	}
 
-	port := config.Datadog.GetInt("kubernetes_http_kubelet_port")
-	url := fmt.Sprintf("http://%s:%d", host, port)
-	healthzURL := fmt.Sprintf("%s%s", url, KubeletHealthPath)
-	if _, err := PerformKubeletQuery(healthzURL); err == nil {
-		return url, nil
+	// HTTPS
+	ku.kubeletApiEndpoint = fmt.Sprintf("https://%s:%d", kubeHost, config.Datadog.GetInt("kubernetes_https_kubelet_port"))
+	_, httpsUrlErr := ku.QueryKubelet("/pods")
+	if httpsUrlErr == nil {
+		return nil
 	}
-	log.Debugf("Couldn't query kubelet over HTTP, assuming it's not in no_auth mode.")
+	log.Debugf("Fail to use %s: %s", ku.kubeletApiEndpoint, httpsUrlErr)
 
-	port = config.Datadog.GetInt("kubernetes_https_kubelet_port")
-	url = fmt.Sprintf("https://%s:%d", host, port)
-	healthzURL = fmt.Sprintf("%s%s", url, KubeletHealthPath)
-	if _, err := PerformKubeletQuery(healthzURL); err == nil {
-		return url, nil
+	// We don't want to carry the token in open http communication
+	ku.kubeletApiRequestHeaders.Del("Authorization")
+
+	// HTTP
+	ku.kubeletApiEndpoint = fmt.Sprintf("http://%s:%d", kubeHost, config.Datadog.GetInt("kubernetes_http_kubelet_port"))
+	_, httpUrlErr := ku.QueryKubelet("/pods")
+	if httpUrlErr == nil {
+		return nil
 	}
+	log.Debugf("Fail to use %s: %s", ku.kubeletApiEndpoint, httpUrlErr)
 
-	return "", fmt.Errorf("Could not find a method to connect to kubelet")
+	return fmt.Errorf("no valid API endpoint for the kubelet: https: %s, http: %s", httpsUrlErr, httpUrlErr)
 }
 
-// PerformKubeletQuery performs a GET query against kubelet and return the response body
-// Supports token-based auth
-// TODO: TLS
-func PerformKubeletQuery(url string) ([]byte, error) {
-	req, err := http.NewRequest("GET", url, nil)
+func (ku *KubeUtil) init() error {
+	err := ku.setupKubeletApiClient()
 	if err != nil {
-		return nil, fmt.Errorf("Could not create request: %s", err)
+		return err
 	}
-
-	if strings.HasPrefix(url, "https") {
-		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", kubernetes.GetAuthToken()))
-	}
-
-	res, err := http.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("Error executing request to %s: %s", url, err)
-	}
-	defer res.Body.Close()
-
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return nil, fmt.Errorf("Error reading response from %s: %s", url, err)
-	}
-	return body, nil
+	return ku.setupKubeletApiEndpoint()
 }
