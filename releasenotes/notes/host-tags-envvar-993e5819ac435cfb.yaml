@@ -6,4 +6,4 @@ features:
 upgrade:
   - |
     Tags in the DD_TAGS environment variable are now separated by spaces
-    instead of comas in agent5
+    instead of commas in agent5
