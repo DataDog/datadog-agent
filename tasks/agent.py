@@ -96,6 +96,14 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     }
     ctx.run(cmd.format(**args), env=env)
 
+    # Render the configuration file template
+    #
+    # We need to remove cross compiling bits if any because go generate must
+    # build and execute in the native platform
+    env.update({
+        "GOOS": "",
+        "GOARCH": "",
+    })
     cmd = "go generate {}/cmd/agent"
     ctx.run(cmd.format(REPO_PATH), env=env)
 
