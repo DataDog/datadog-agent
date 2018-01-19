@@ -5,6 +5,9 @@ from __future__ import print_function
 
 import os
 import fnmatch
+import re
+import operator
+import sys
 
 import invoke
 from invoke import task
@@ -36,7 +39,7 @@ DEFAULT_TEST_TARGETS = [
 
 
 @task()
-def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False, fail_on_fmt=False):
+def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -58,6 +61,7 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
 
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
+    print("--- Linting:")
     fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
     lint(ctx, targets=tool_targets)
     vet(ctx, targets=tool_targets)
@@ -70,6 +74,11 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
     }
+
+    if profile:
+        test_profiler = TestProfiler()
+    else:
+        test_profiler = None  # Use stdout
 
     race_opt = ""
     covermode_opt = ""
@@ -84,7 +93,7 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
         else:
             covermode_opt = "-covermode=count"
 
-    if race or coverage:
+    if coverage:
         matches = []
         for target in test_targets:
             for root, _, filenames in os.walk(target):
@@ -93,6 +102,7 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
     else:
         matches = ["{}/...".format(t) for t in test_targets]
 
+    print("\n--- Running unit tests:")
     for match in matches:
         if invoke.platform.WINDOWS:
             if match in WIN_PKG_BLACKLIST:
@@ -111,7 +121,7 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
             "coverprofile": coverprofile,
             "pkg_folder": match,
         }
-        ctx.run(cmd.format(**args), env=env)
+        ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)
 
         if coverage:
             if os.path.exists(profile_tmp):
@@ -119,7 +129,13 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
                 os.remove(profile_tmp)
 
     if coverage:
+        print("\n--- Test coverage:")
         ctx.run("go tool cover -func {}".format(PROFILE_COV))
+
+    if profile:
+        print ("\n--- Top 15 packages sorted by run time:")
+        test_profiler.print_sorted(15)
+
 
 @task
 def lint_releasenote(ctx):
@@ -149,6 +165,7 @@ def lint_releasenote(ctx):
 
     ctx.run("reno lint")
 
+
 @task
 def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     """
@@ -162,3 +179,30 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 @task
 def version(ctx):
     print(get_version(ctx, include_git=True))
+
+
+class TestProfiler:
+    times = []
+    parser = re.compile("^ok\s+github.com\/DataDog\/datadog-agent\/(\S+)\s+([0-9\.]+)s", re.MULTILINE)
+
+    def write(self, txt):
+        # Output to stdout
+        sys.stdout.write(txt)
+        # Extract the run time
+        for result in self.parser.finditer(txt):
+            self.times.append((result.group(1), float(result.group(2))))
+
+    def flush(self):
+        sys.stdout.flush()
+
+    def reset(self):
+        self.out_buffer = ""
+
+    def print_sorted(self, limit=0):
+        if self.times:
+            sorted_times = sorted(self.times, key=operator.itemgetter(1), reverse=True)
+
+            if limit:
+                sorted_times = sorted_times[:limit]
+            for pkg, time in sorted_times:
+                print("{}s\t{}".format(time, pkg))
