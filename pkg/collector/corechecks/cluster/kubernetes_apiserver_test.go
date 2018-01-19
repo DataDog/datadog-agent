@@ -201,7 +201,7 @@ func TestProcessBundledEvents(t *testing.T) {
 		EventType:      "kubernetes_apiserver",
 	}
 	mocked = mocksender.NewMockSender(kubeASCheck.ID())
-	mocked.On("Event", modifiedNewDatadogEvents).Times(1)
+	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 
 	kubeASCheck.processEvents(mocked, modifiedKubeEventsBundle, true)
 
@@ -211,7 +211,6 @@ func TestProcessBundledEvents(t *testing.T) {
 func TestProcessEvent(t *testing.T) {
 	// We want to check if the format of 1 New event creates a DD event accordingly.
 	// We also want to check that filtered and empty events aren't submitted
-
 	ev1 := createEvent(2, "dca-789976f5d7-2ljx6", "Pod", "e6417a7f-f566-11e7-9749-0e4863e1cbf4", "default-scheduler", "Scheduled", "Successfully assigned dca-789976f5d7-2ljx6 to ip-10-0-0-54", 709662600)
 
 	kubeASCheck := &KubeASCheck{
@@ -239,7 +238,7 @@ func TestProcessEvent(t *testing.T) {
 		Host:           "hostname",
 		EventType:      "kubernetes_apiserver",
 	}
-	mocked.On("Event", newDatadogEvent).Times(1)
+	mocked.On("Event", mock.AnythingOfType("metrics.Event"))
 	kubeASCheck.processEvents(mocked, newKubeEventBundle, false)
 	mocked.AssertEvent(t, newDatadogEvent, 0)
 	mocked.AssertExpectations(t)

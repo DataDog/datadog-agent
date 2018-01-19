@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixing the event collection test for the kubernetes_apiserver check of the DCA.
