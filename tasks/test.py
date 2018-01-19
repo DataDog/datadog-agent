@@ -36,7 +36,7 @@ DEFAULT_TEST_TARGETS = [
 
 
 @task()
-def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False, fail_on_fmt=False):
+def test(ctx, targets=None, number=None, max_number=3, coverage=False, race=False, use_embedded_libs=False, fail_on_fmt=False):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -53,6 +53,23 @@ def test(ctx, targets=None, coverage=False, race=False, use_embedded_libs=False,
         test_targets = DEFAULT_TEST_TARGETS
     else:
         tool_targets = test_targets = targets
+
+
+    if number is not None:
+        number = int(number)
+        max_number = int(max_number)
+        directories = []
+        idx = 0
+        for f in os.listdir("./pkg"):
+            if idx % max_number == number:
+                if os.path.isdir(os.path.join("./pkg", f)):
+                    directories.append(os.path.join("./pkg", f))
+            idx += 1
+
+        tool_targets = test_targets = directories
+
+        if number == 0:
+            tool_targets += "./cmd"
 
     build_tags = get_default_build_tags()
 
