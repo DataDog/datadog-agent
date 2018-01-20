@@ -143,10 +143,11 @@ func init() {
 	Datadog.SetDefault("kubernetes_https_kubelet_port", 10250)
 
 	Datadog.SetDefault("kubelet_tls_verify", true)
+	Datadog.SetDefault("kubelet_client_ca", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+
 	Datadog.SetDefault("kubelet_auth_token_path", "")
 	Datadog.SetDefault("kubelet_client_crt", "")
 	Datadog.SetDefault("kubelet_client_key", "")
-	Datadog.SetDefault("kubelet_client_ca", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
 
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
