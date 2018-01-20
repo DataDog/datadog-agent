@@ -220,7 +220,7 @@ func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 	}
 	log.Debugf("Fail to use %s: %s", ku.kubeletApiEndpoint, httpUrlErr)
 
-	return fmt.Errorf("no valid API endpoint for the kubelet: https: %s, http: %s", httpsUrlErr, httpUrlErr)
+	return fmt.Errorf("no valid API endpoint for the kubelet: https: %q, http: %q", httpsUrlErr, httpUrlErr)
 }
 
 func (ku *KubeUtil) init() error {

@@ -16,7 +16,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -51,13 +50,13 @@ func newDummyKubelet(podListJSONPath string) (*dummyKubelet, error) {
 		return kubelet, nil
 	}
 
-	podlist, err := ioutil.ReadFile(podListJSONPath)
+	podList, err := ioutil.ReadFile(podListJSONPath)
 	if err != nil {
 		return nil, err
 	}
 	kubelet := &dummyKubelet{
 		Requests: make(chan *http.Request, 3),
-		PodsBody: podlist,
+		PodsBody: podList,
 	}
 	return kubelet, nil
 }
@@ -113,20 +112,22 @@ func (suite *KubeletTestSuite) SetupTest() {
 }
 
 func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
-	kubelet, err := newDummyKubelet("")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
-	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubernetes_https_kubelet_port", kubeletPort)
 	config.Datadog.Set("kubelet_tls_verify", false)
 	config.Datadog.Set("kubelet_auth_token_path", "")
 
-	kubeutil, err := GetKubeUtil()
+	ku := newKubeUtil()
+	err = ku.init()
 	require.Nil(suite.T(), err)
-	require.NotNil(suite.T(), kubeutil)
+	require.NotNil(suite.T(), ku)
 
 	select {
 	case r := <-kubelet.Requests:
@@ -144,8 +145,8 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
-	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
 	config.Datadog.Set("kubelet_tls_verify", false)
 	config.Datadog.Set("kubelet_auth_token_path", "")
 
@@ -175,8 +176,8 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
-	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
 	config.Datadog.Set("kubelet_tls_verify", false)
 	config.Datadog.Set("kubelet_auth_token_path", "")
 
@@ -206,8 +207,8 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
-	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
 
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
@@ -236,11 +237,7 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	require.Equal(suite.T(), pod.Metadata.Name, "kube-dns-1829567597-2xtct")
 }
 
-func TestKubeletTestSuite(t *testing.T) {
-	suite.Run(t, new(KubeletTestSuite))
-}
-
-func TestKubeletInitFailOnToken(t *testing.T) {
+func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 	fakePath := createFakePath()
 	config.Datadog.Set("kubelet_auth_token_path", fakePath)
 	config.Datadog.Set("kubelet_tls_verify", false)
@@ -248,80 +245,84 @@ func TestKubeletInitFailOnToken(t *testing.T) {
 	ku := newKubeUtil()
 	err := ku.init()
 	expectedErr := fmt.Errorf("could not read token from %s: open %s: no such file or directory", fakePath, fakePath)
-	assert.Equal(t, err, expectedErr)
+	assert.Equal(suite.T(), expectedErr, err)
 }
 
-func TestKubeletInitTokenHttps(t *testing.T) {
+func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	// with a token, without certs on HTTPS insecure
 	k, err := newDummyKubelet("./testdata/podlist_1.6.json")
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 
-	s, port, err := k.StartTLS()
-	require.Nil(t, err)
+	s, kubeletPort, err := k.StartTLS()
+	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	config.Datadog.Set("kubernetes_https_kubelet_port", port)
+	config.Datadog.Set("kubernetes_https_kubelet_port", kubeletPort)
 	config.Datadog.Set("kubelet_auth_token_path", "./testdata/fakeBearerToken")
 	config.Datadog.Set("kubelet_tls_verify", false)
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := newKubeUtil()
 	err = ku.init()
-	require.Nil(t, err)
-	assert.True(t, strings.HasPrefix(ku.kubeletApiEndpoint, fmt.Sprintf("https://127.0.0.1:%d", port)))
-	assert.Equal(t, "bearer fakeBearerToken", ku.kubeletApiRequestHeaders.Get("Authorization"))
-	assert.True(t, ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
+	require.Nil(suite.T(), err)
+	assert.Equal(suite.T(), fmt.Sprintf("https://127.0.0.1:%d", kubeletPort), ku.kubeletApiEndpoint)
+	assert.Equal(suite.T(), "bearer fakeBearerToken", ku.kubeletApiRequestHeaders.Get("Authorization"))
+	assert.True(suite.T(), ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 	b, err := ku.QueryKubelet("/healthz")
-	assert.Nil(t, err)
-	assert.Equal(t, "ok", string(b))
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), "ok", string(b))
 }
 
-func TestKubeletInitTokenHttp(t *testing.T) {
+func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	// with an unused token, without certs on HTTP
 	k, err := newDummyKubelet("./testdata/podlist_1.6.json")
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 
-	s, port, err := k.Start()
-	require.Nil(t, err)
+	s, kubeletPort, err := k.Start()
+	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	config.Datadog.Set("kubernetes_http_kubelet_port", port)
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
 	config.Datadog.Set("kubelet_auth_token_path", "./testdata/unusedBearerToken")
 	config.Datadog.Set("kubelet_tls_verify", false)
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := newKubeUtil()
 	err = ku.init()
-	require.Nil(t, err)
-	assert.True(t, strings.HasPrefix(ku.kubeletApiEndpoint, fmt.Sprintf("http://127.0.0.1:%d", port)))
-	assert.Equal(t, "", ku.kubeletApiRequestHeaders.Get("Authorization"))
-	assert.True(t, ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
+	require.Nil(suite.T(), err)
+	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletApiEndpoint)
+	assert.Equal(suite.T(), "", ku.kubeletApiRequestHeaders.Get("Authorization"))
+	assert.True(suite.T(), ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 	b, err := ku.QueryKubelet("/healthz")
-	assert.Nil(t, err)
-	assert.Equal(t, "ok", string(b))
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), "ok", string(b))
 }
 
-func TestKubeletInitHttp(t *testing.T) {
+func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 	// without token, without certs on HTTP
 	k, err := newDummyKubelet("./testdata/podlist_1.6.json")
-	require.Nil(t, err)
+	require.Nil(suite.T(), err)
 
-	s, port, err := k.Start()
-	require.Nil(t, err)
+	s, kubeletPort, err := k.Start()
+	require.Nil(suite.T(), err)
 	defer s.Close()
 
-	config.Datadog.Set("kubernetes_http_kubelet_port", port)
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
 	config.Datadog.Set("kubelet_auth_token_path", "")
 	config.Datadog.Set("kubelet_tls_verify", false)
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := newKubeUtil()
 	err = ku.init()
-	require.Nil(t, err)
-	assert.True(t, strings.HasPrefix(ku.kubeletApiEndpoint, fmt.Sprintf("http://127.0.0.1:%d", port)))
-	assert.Equal(t, "", ku.kubeletApiRequestHeaders.Get("Authorization"))
-	assert.True(t, ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
+	require.Nil(suite.T(), err)
+	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletApiEndpoint)
+	assert.Equal(suite.T(), "", ku.kubeletApiRequestHeaders.Get("Authorization"))
+	assert.True(suite.T(), ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 	b, err := ku.QueryKubelet("/healthz")
-	assert.Nil(t, err)
-	assert.Equal(t, "ok", string(b))
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), "ok", string(b))
+}
+
+func TestKubeletTestSuite(t *testing.T) {
+	suite.Run(t, new(KubeletTestSuite))
 }
