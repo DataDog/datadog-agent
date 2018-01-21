@@ -37,6 +37,12 @@ type KubeUtil struct {
 	kubeletApiRequestHeaders *http.Header
 }
 
+// ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
+// It should be called essentially in the tests
+func ResetGlobalKubeUtil() {
+	globalKubeUtil = nil
+}
+
 func newKubeUtil() *KubeUtil {
 	ku := &KubeUtil{
 		kubeletApiClient:         &http.Client{},
@@ -190,6 +196,11 @@ func (ku *KubeUtil) QueryKubelet(path string) ([]byte, error) {
 	defer response.Body.Close()
 	log.Debugf("Successfully connected to %s, reading body", req.URL.String())
 	return ioutil.ReadAll(response.Body)
+}
+
+// GetKubeletApiEndpoint returns the current endpoint used to perform QueryKubelet
+func (ku *KubeUtil) GetKubeletApiEndpoint() string {
+	return ku.kubeletApiEndpoint
 }
 
 func (ku *KubeUtil) setupKubeletApiEndpoint() error {

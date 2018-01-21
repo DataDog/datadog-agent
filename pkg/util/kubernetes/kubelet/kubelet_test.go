@@ -108,7 +108,7 @@ type KubeletTestSuite struct {
 
 // Make sure globalKubeUtil is deleted before each test
 func (suite *KubeletTestSuite) SetupTest() {
-	globalKubeUtil = nil
+	ResetGlobalKubeUtil()
 }
 
 func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
