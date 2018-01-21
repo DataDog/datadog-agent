@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
+// +build docker
+
 package utils
 
 import (
@@ -10,6 +12,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
 type ComposeConf struct {
@@ -66,4 +70,19 @@ func (c *ComposeConf) ListContainers() ([]string, error) {
 		}
 	}
 	return containerIDs, nil
+}
+
+// GetNetworkMode provide a way to feed docker-compose network_mode
+func GetNetworkMode() (string, error) {
+	du, err := docker.GetDockerUtil()
+	if err != nil {
+		return "", err
+	}
+
+	// Get container id if containerized
+	co, err := du.InspectSelf()
+	if err != nil {
+		return "host", nil
+	}
+	return fmt.Sprintf("container:%s", co.ID), nil
 }
