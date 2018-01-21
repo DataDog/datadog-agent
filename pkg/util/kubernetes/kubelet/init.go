@@ -10,7 +10,6 @@ package kubelet
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -27,8 +26,7 @@ func isConfiguredTokenPath() bool {
 func getCertificateAuthority() (*x509.CertPool, error) {
 	certPath := config.Datadog.GetString("kubelet_client_ca")
 	if certPath == "" {
-		// Not configured: fall back to ServiceAccount CA
-		certPath = fmt.Sprintf("%s/%s", kubernetes.ServiceAccountPath, "ca.crt")
+		return nil, nil
 	}
 	return kubernetes.GetCertificateAuthority(certPath)
 }
@@ -47,7 +45,7 @@ func getTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return tlsConfig, err
 	}
-	tlsConfig.ClientCAs = caPool
+	tlsConfig.RootCAs = caPool
 	tlsConfig.BuildNameToCertificate()
 	return tlsConfig, nil
 }

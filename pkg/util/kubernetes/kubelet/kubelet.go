@@ -128,8 +128,9 @@ func (ku *KubeUtil) searchPodForContainerID(podlist []*Pod, containerID string) 
 	return nil, fmt.Errorf("container %s not found in podlist", containerID)
 }
 
-// setupKubeletApiClient will try to setup the http client to query the kubelet
+// setupKubeletApiClient will try to setup the http(s) client to query the kubelet
 // with the following settings, in order:
+//  - Load Certificate Authority if needed
 //  - HTTPS w/ configured certificates
 //  - HTTPS w/ configured token
 //  - HTTPS w/ service account token
@@ -139,10 +140,10 @@ func (ku *KubeUtil) setupKubeletApiClient() error {
 	if err != nil {
 		return err
 	}
-	transport := http.Transport{
+	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
 	}
-	ku.kubeletApiClient.Transport = &transport
+	ku.kubeletApiClient.Transport = transport
 
 	switch {
 	case isConfiguredCertificates():
