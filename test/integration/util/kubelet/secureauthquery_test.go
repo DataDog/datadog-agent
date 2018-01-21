@@ -8,8 +8,10 @@
 package kubernetes
 
 import (
+	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -18,47 +20,26 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type QueryTestSuite struct {
+type SecureAuthQueryTestSuite struct {
 	suite.Suite
+	certsConfig *utils.CertificatesConfig
 }
 
 // Make sure globalKubeUtil is deleted before each test
-func (suite *QueryTestSuite) SetupTest() {
+func (suite *SecureAuthQueryTestSuite) SetupTest() {
 	kubelet.ResetGlobalKubeUtil()
 }
 
-func (suite *QueryTestSuite) TestOpenHTTPKubelet() {
-	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
-
-	// Giving 10255 http port to https setting will force an intended https discovery failure
-	// Then it forces the http usage
-	config.Datadog.Set("kubernetes_https_kubelet_port", 10255)
-
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_tls_verify", false)
-	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
-
-	ku, err := kubelet.GetKubeUtil()
-	require.Nil(suite.T(), err)
-	assert.Equal(suite.T(), "http://127.0.0.1:10255", ku.GetKubeletApiEndpoint())
-	b, err := ku.QueryKubelet("/healthz")
-	require.Nil(suite.T(), err)
-	assert.Equal(suite.T(), "ok", string(b))
-
-	b, err = ku.QueryKubelet("/pods")
-	require.Nil(suite.T(), err)
-	assert.Equal(suite.T(), emptyPodList, string(b))
-
-	podList, err := ku.GetLocalPodList()
-	require.Nil(suite.T(), err)
-	assert.Equal(suite.T(), 0, len(podList))
-}
-
-func (suite *QueryTestSuite) TestOpenHTTPSKubelet() {
-	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
+// TestSecureHTTPSKubelet with:
+// - https
+// - tls_verify
+// - cacert
+// - token
+func (suite *SecureAuthQueryTestSuite) TestSecureAuthHTTPSKubelet() {
 	config.Datadog.Set("kubernetes_https_kubelet_port", 10250)
-	config.Datadog.Set("kubelet_auth_token_path", "")
-	config.Datadog.Set("kubelet_tls_verify", false)
+	config.Datadog.Set("kubelet_auth_token_path", tokenPath)
+	config.Datadog.Set("kubelet_tls_verify", true)
+	config.Datadog.Set("kubelet_client_ca", certAuthPath)
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
@@ -77,12 +58,43 @@ func (suite *QueryTestSuite) TestOpenHTTPSKubelet() {
 	assert.Equal(suite.T(), 0, len(podList))
 }
 
-func TestKubeletTestSuite(t *testing.T) {
-	compose, err := initOpenKubelet()
+// TestSecureHTTPSKubelet with:
+// - https
+// - tls_verify
+// - cacert
+// - WITHOUT token
+func (suite *SecureAuthQueryTestSuite) TestUnauthorizedSecureHTTPSKubelet() {
+	config.Datadog.Set("kubernetes_https_kubelet_port", 10250)
+	config.Datadog.Set("kubelet_auth_token_path", "")
+	config.Datadog.Set("kubelet_tls_verify", true)
+	config.Datadog.Set("kubelet_client_ca", certAuthPath)
+	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+
+	ku, err := kubelet.GetKubeUtil()
+	require.Nil(suite.T(), err)
+	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
+	b, err := ku.QueryKubelet("/healthz")
+	require.Nil(suite.T(), err)
+	assert.Equal(suite.T(), "Unauthorized", string(b))
+}
+
+func TestSecureAuthKubeletTestSuite(t *testing.T) {
+	compose, certsConfig, err := initSecureKubelet(true)
+	defer os.Remove(certsConfig.CertFilePath)
+	defer os.Remove(certsConfig.KeyFilePath)
 	require.Nil(t, err)
+
 	output, err := compose.Start()
 	defer compose.Stop()
 	require.Nil(t, err, string(output))
 
-	suite.Run(t, new(QueryTestSuite))
+	err = createCaToken()
+	defer os.Remove(tokenPath)
+	defer os.Remove(certAuthPath)
+	require.Nil(t, err)
+
+	sqt := &SecureAuthQueryTestSuite{
+		certsConfig: certsConfig,
+	}
+	suite.Run(t, sqt)
 }
