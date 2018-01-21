@@ -29,7 +29,9 @@ var globalKubeUtil *KubeUtil
 // KubeUtil is a struct to hold the kubelet api url
 // Instantiate with GetKubeUtil
 type KubeUtil struct {
-	retry.Retrier
+	// used to setup the KubeUtil
+	initRetry retry.Retrier
+
 	kubeletApiEndpoint       string
 	kubeletApiClient         *http.Client
 	kubeletApiRequestHeaders *http.Header
@@ -47,7 +49,7 @@ func newKubeUtil() *KubeUtil {
 func GetKubeUtil() (*KubeUtil, error) {
 	if globalKubeUtil == nil {
 		globalKubeUtil = newKubeUtil()
-		globalKubeUtil.SetupRetrier(&retry.Config{
+		globalKubeUtil.initRetry.SetupRetrier(&retry.Config{
 			Name:          "kubeutil",
 			AttemptMethod: globalKubeUtil.init,
 			Strategy:      retry.RetryCount,
@@ -55,7 +57,7 @@ func GetKubeUtil() (*KubeUtil, error) {
 			RetryDelay:    30 * time.Second,
 		})
 	}
-	err := globalKubeUtil.TriggerRetry()
+	err := globalKubeUtil.initRetry.TriggerRetry()
 	if err != nil {
 		log.Debugf("Init error: %s", err)
 		return nil, err
