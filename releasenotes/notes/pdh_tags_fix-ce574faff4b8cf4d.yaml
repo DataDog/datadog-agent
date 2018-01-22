@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes an issue when pulling tags from a yaml config file with any integration
+    that uses the PDHBaseCheck class
