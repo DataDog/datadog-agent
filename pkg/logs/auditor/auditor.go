@@ -24,6 +24,12 @@ const defaultFlushPeriod = 1 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 const defaultTTL = 23 * time.Hour
 
+// FileOffsetStorage provides the last offset recorded by the agent after successfully sent data coming
+// from the file matching identifier
+type FileOffsetStorage interface {
+	GetLastCommittedOffset(identifier string) (int64, int)
+}
+
 // A RegistryEntry represends an entry in the registry where we keep track
 // of current offsets
 type RegistryEntry struct {
