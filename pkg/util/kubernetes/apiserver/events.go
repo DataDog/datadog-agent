@@ -69,14 +69,14 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 			break
 		}
 		timeout.Reset(eventReadTimeout)
-		if event == nil || event.Metadata == nil || event.Metadata.ResourceVersion == nil {
+		if event == nil || event.Metadata == nil || event.Metadata.ResourceVersion == nil || event.Metadata.Uid == nil {
 			log.Tracef("Skipping invalid event: %v", event)
 			continue
 		}
 
 		resVersionMetadata, kubeEventErr := strconv.Atoi(*event.Metadata.ResourceVersion)
 		if kubeEventErr != nil {
-			log.Errorf("The Resource version associated with the event %s is not supported: %s", event.Metadata.Uid, err.Error())
+			log.Errorf("The Resource version associated with the event %s is not supported: %s", *event.Metadata.Uid, err.Error())
 			continue
 		}
 
