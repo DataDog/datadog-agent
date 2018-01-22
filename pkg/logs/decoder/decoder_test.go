@@ -51,7 +51,7 @@ func TestDecodeIncomingData(t *testing.T) {
 	assert.Equal(t, "goodandyou", d.lineBuffer.String())
 	d.lineBuffer.Reset()
 
-	// multiple lines in multiple raws should be sent
+	// multiple lines in multiple rows should be sent
 	d.decodeIncomingData([]byte("helloworld\nthisisa"))
 	line = <-h.lineChan
 	assert.Equal(t, "helloworld", string(line))
@@ -62,7 +62,7 @@ func TestDecodeIncomingData(t *testing.T) {
 	assert.Equal(t, "indeed", d.lineBuffer.String())
 	d.lineBuffer.Reset()
 
-	// one line in multiple raws should be sent
+	// one line in multiple rows should be sent
 	d.decodeIncomingData([]byte("hello world"))
 	d.decodeIncomingData([]byte("!\n"))
 	line = <-h.lineChan
@@ -75,7 +75,7 @@ func TestDecodeIncomingData(t *testing.T) {
 	line = <-h.lineChan
 	assert.Equal(t, strings.Repeat("a", 10), string(line))
 
-	// too long line in multiple raws should be sent by chuncks
+	// too long line in multiple rows should be sent by chuncks
 	d.decodeIncomingData([]byte(strings.Repeat("a", contentLenLimit-5)))
 	d.decodeIncomingData([]byte(strings.Repeat("a", 15) + "\n"))
 	line = <-h.lineChan
