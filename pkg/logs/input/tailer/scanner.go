@@ -9,6 +9,7 @@ package tailer
 
 import (
 	"os"
+	"sync"
 	"syscall"
 	"time"
 
@@ -31,6 +32,9 @@ type Scanner struct {
 	fileProvider *FileProvider
 	tailers      map[string]*Tailer
 	auditor      *auditor.Auditor
+	ticker       *time.Ticker
+	mu           *sync.Mutex
+	shouldStop   bool
 }
 
 // New returns an initialized Scanner
@@ -49,6 +53,8 @@ func New(sources []*config.IntegrationConfigLogSource, tailingLimit int, pp pipe
 		fileProvider: NewFileProvider(tailSources, tailingLimit),
 		tailers:      make(map[string]*Tailer),
 		auditor:      auditor,
+		ticker:       time.NewTicker(scanPeriod),
+		mu:           &sync.Mutex{},
 	}
 }
 
@@ -85,14 +91,25 @@ func (s *Scanner) setupTailer(file *File, tailFromBeginning bool, outputChan cha
 
 // Start starts the Scanner
 func (s *Scanner) Start() {
+	s.shouldStop = false
 	s.setup()
 	go s.run()
 }
 
+// Stop stops the Scanner and its tailers
+func (s *Scanner) Stop() {
+	s.mu.Lock()
+	s.shouldStop = true
+	s.ticker.Stop()
+	for _, t := range s.tailers {
+		s.stopTailer(t, true)
+	}
+	s.mu.Unlock()
+}
+
 // run lets the Scanner tail its file
 func (s *Scanner) run() {
-	ticker := time.NewTicker(scanPeriod)
-	for range ticker.C {
+	for range s.ticker.C {
 		s.scan()
 	}
 }
@@ -105,6 +122,13 @@ func (s *Scanner) run() {
 // The Scanner needs to stop that previous tailer,
 // and start a new one for the new file.
 func (s *Scanner) scan() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.shouldStop {
+		// prevent the scanner to create new tailers if stopped
+		return
+	}
+
 	files := s.fileProvider.FilesToTail()
 	filesTailed := make(map[string]bool)
 	tailersLen := len(s.tailers)
@@ -141,7 +165,7 @@ func (s *Scanner) scan() {
 		// stop all tailers which have not been selected
 		_, shouldTail := filesTailed[path]
 		if !shouldTail {
-			s.stopTailer(tailer)
+			s.stopTailer(tailer, false)
 		}
 	}
 }
@@ -178,18 +202,9 @@ func (s *Scanner) onFileRotation(tailer *Tailer, file *File) {
 }
 
 // stopTailer safely stops tailer and remove its reference from tailers
-func (s *Scanner) stopTailer(tailer *Tailer) {
-	shouldTrackOffset := false
+func (s *Scanner) stopTailer(tailer *Tailer, shouldTrackOffset bool) {
 	tailer.Stop(shouldTrackOffset)
 	delete(s.tailers, tailer.path)
-}
-
-// Stop stops the Scanner and its tailers
-func (s *Scanner) Stop() {
-	shouldTrackOffset := true
-	for _, t := range s.tailers {
-		t.Stop(shouldTrackOffset)
-	}
 }
 
 // inode uniquely identifies a file on a filesystem

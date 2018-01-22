@@ -78,7 +78,7 @@ func (t *Tailer) recoverTailing(offset int64, whence int) error {
 	return t.tailFrom(offset, whence)
 }
 
-// Stop lets  the tailer stop
+// Stop lets the tailer stop
 func (t *Tailer) Stop(shouldTrackOffset bool) {
 	t.stopMutex.Lock()
 	t.shouldStop = true
