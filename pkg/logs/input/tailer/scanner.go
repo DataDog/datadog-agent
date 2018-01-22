@@ -9,6 +9,7 @@ package tailer
 
 import (
 	"os"
+	"sync"
 	"syscall"
 	"time"
 
@@ -26,15 +27,20 @@ const scanPeriod = 10 * time.Second
 // Scanner checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
 type Scanner struct {
-	pp           pipeline.Provider
-	tailingLimit int
-	fileProvider *FileProvider
-	tailers      map[string]*Tailer
-	auditor      *auditor.Auditor
+	pp                 pipeline.Provider
+	tailingLimit       int
+	fileProvider       *FileProvider
+	tailers            map[string]*Tailer
+	auditor            *auditor.Auditor
+	tailerWaitDuration time.Duration
+	ticker             *time.Ticker
+	mu                 *sync.Mutex
+	shouldStop         bool
+	wg                 *sync.WaitGroup
 }
 
 // New returns an initialized Scanner
-func New(sources []*config.IntegrationConfigLogSource, tailingLimit int, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
+func New(sources []*config.IntegrationConfigLogSource, tailingLimit int, pp pipeline.Provider, auditor *auditor.Auditor, tailerWaitDuration time.Duration) *Scanner {
 	tailSources := []*config.IntegrationConfigLogSource{}
 	for _, source := range sources {
 		switch source.Type {
@@ -44,11 +50,15 @@ func New(sources []*config.IntegrationConfigLogSource, tailingLimit int, pp pipe
 		}
 	}
 	return &Scanner{
-		pp:           pp,
-		tailingLimit: tailingLimit,
-		fileProvider: NewFileProvider(tailSources, tailingLimit),
-		tailers:      make(map[string]*Tailer),
-		auditor:      auditor,
+		pp:                 pp,
+		tailingLimit:       tailingLimit,
+		fileProvider:       NewFileProvider(tailSources, tailingLimit),
+		tailers:            make(map[string]*Tailer),
+		auditor:            auditor,
+		tailerWaitDuration: tailerWaitDuration,
+		ticker:             time.NewTicker(scanPeriod),
+		mu:                 &sync.Mutex{},
+		wg:                 &sync.WaitGroup{},
 	}
 }
 
@@ -69,7 +79,8 @@ func (s *Scanner) setup() {
 
 // setupTailer sets one tailer, making it tail from the beginning or the end
 func (s *Scanner) setupTailer(file *File, tailFromBeginning bool, outputChan chan message.Message) {
-	t := NewTailer(outputChan, file.Source, file.Path)
+	t := NewTailer(outputChan, file.Source, file.Path, s.tailerWaitDuration, s.wg)
+	s.wg.Add(1)
 	var err error
 	if tailFromBeginning {
 		err = t.tailFromBeginning()
@@ -89,10 +100,21 @@ func (s *Scanner) Start() {
 	go s.run()
 }
 
+// Stop stops the Scanner and its tailers
+func (s *Scanner) Stop() {
+	s.mu.Lock()
+	s.shouldStop = true
+	s.ticker.Stop()
+	for _, t := range s.tailers {
+		s.stopTailer(t)
+	}
+	s.wg.Wait()
+	s.mu.Unlock()
+}
+
 // run lets the Scanner tail its file
 func (s *Scanner) run() {
-	ticker := time.NewTicker(scanPeriod)
-	for range ticker.C {
+	for range s.ticker.C {
 		s.scan()
 	}
 }
@@ -105,6 +127,13 @@ func (s *Scanner) run() {
 // The Scanner needs to stop that previous tailer,
 // and start a new one for the new file.
 func (s *Scanner) scan() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.shouldStop {
+		// prevent the scanner to create new tailers if stopped
+		return
+	}
+
 	files := s.fileProvider.FilesToTail()
 	filesTailed := make(map[string]bool)
 	tailersLen := len(s.tailers)
@@ -172,24 +201,14 @@ func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
 // onFileRotation safely stops tailer and setup a new one
 func (s *Scanner) onFileRotation(tailer *Tailer, file *File) {
 	log.Info("Log rotation happened to ", tailer.path)
-	shouldTrackOffset := false
-	tailer.Stop(shouldTrackOffset)
+	tailer.Stop(true)
 	s.setupTailer(file, true, tailer.outputChan)
 }
 
 // stopTailer safely stops tailer and remove its reference from tailers
 func (s *Scanner) stopTailer(tailer *Tailer) {
-	shouldTrackOffset := false
-	tailer.Stop(shouldTrackOffset)
+	tailer.Stop(false)
 	delete(s.tailers, tailer.path)
-}
-
-// Stop stops the Scanner and its tailers
-func (s *Scanner) Stop() {
-	shouldTrackOffset := true
-	for _, t := range s.tailers {
-		t.Stop(shouldTrackOffset)
-	}
 }
 
 // inode uniquely identifies a file on a filesystem

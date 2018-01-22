@@ -23,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
-const defaultSleepDuration = 1 * time.Second
+// DefaultWaitDuration represents the amount of time the tailer waits when no more data can be read
+const DefaultWaitDuration = 1 * time.Second
+
 const defaultCloseTimeout = 60 * time.Second
 
 // Tailer tails one file and sends messages to an output channel
@@ -31,39 +33,38 @@ type Tailer struct {
 	path string
 	file *os.File
 
-	readOffset        int64
-	decodedOffset     int64
-	shouldTrackOffset bool
+	readOffset    int64
+	decodedOffset int64
 
 	outputChan chan message.Message
 	d          *decoder.Decoder
 	source     *config.IntegrationConfigLogSource
 
 	sleepDuration time.Duration
-	sleepMutex    sync.Mutex
 
-	closeTimeout time.Duration
-	shouldStop   bool
-	stopTimer    *time.Timer
-	stopMutex    sync.Mutex
+	closeTimeout  time.Duration
+	didFileRotate bool
+	shouldStop    bool
+	stopTimer     *time.Timer
+	mu            *sync.Mutex
+	wg            *sync.WaitGroup
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan message.Message, source *config.IntegrationConfigLogSource, path string) *Tailer {
+func NewTailer(outputChan chan message.Message, source *config.IntegrationConfigLogSource, path string, sleepDuration time.Duration, wg *sync.WaitGroup) *Tailer {
 	return &Tailer{
 		path:       path,
 		outputChan: outputChan,
 		d:          decoder.InitializeDecoder(source),
 		source:     source,
 
-		readOffset:        0,
-		shouldTrackOffset: true,
+		readOffset: 0,
 
-		sleepDuration: defaultSleepDuration,
-		sleepMutex:    sync.Mutex{},
-		shouldStop:    false,
-		stopMutex:     sync.Mutex{},
-		closeTimeout:  defaultCloseTimeout,
+		sleepDuration: sleepDuration,
+
+		closeTimeout: defaultCloseTimeout,
+		mu:           &sync.Mutex{},
+		wg:           wg,
 	}
 }
 
@@ -78,23 +79,21 @@ func (t *Tailer) recoverTailing(offset int64, whence int) error {
 	return t.tailFrom(offset, whence)
 }
 
-// Stop lets  the tailer stop
-func (t *Tailer) Stop(shouldTrackOffset bool) {
-	t.stopMutex.Lock()
+// Stop lets the tailer stop
+func (t *Tailer) Stop(didFileRotate bool) {
+	t.mu.Lock()
 	t.shouldStop = true
-	t.shouldTrackOffset = shouldTrackOffset
+	t.didFileRotate = didFileRotate
 	t.stopTimer = time.NewTimer(t.closeTimeout)
-	t.stopMutex.Unlock()
+	t.mu.Unlock()
 }
 
 // onStop handles the housekeeping when we stop the tailer
 func (t *Tailer) onStop() {
-	t.stopMutex.Lock()
 	t.d.Stop()
 	log.Info("Closing ", t.path)
 	t.file.Close()
 	t.stopTimer.Stop()
-	t.stopMutex.Unlock()
 }
 
 // tailFrom let's the tailer open a file and tail from whence
@@ -140,13 +139,14 @@ func (t *Tailer) tailFromBeginning() error {
 func (t *Tailer) forwardMessages() {
 	for output := range t.d.OutputChan {
 		if output.ShouldStop {
+			t.wg.Done()
 			return
 		}
 
 		fileMsg := message.NewFileMessage(output.Content)
 		msgOffset := t.decodedOffset + int64(output.RawDataLen)
 		identifier := t.Identifier()
-		if !t.shouldTrackOffset {
+		if !t.shouldTrackOffset() {
 			msgOffset = 0
 			identifier = ""
 		}
@@ -164,8 +164,10 @@ func (t *Tailer) forwardMessages() {
 // until it is closed.
 func (t *Tailer) readForever() {
 	for {
+		t.mu.Lock()
 		if t.shouldHardStop() {
 			t.onStop()
+			t.mu.Unlock()
 			return
 		}
 
@@ -174,42 +176,52 @@ func (t *Tailer) readForever() {
 		if err == io.EOF {
 			if t.shouldSoftStop() {
 				t.onStop()
+				t.mu.Unlock()
 				return
 			}
 			t.wait()
+			t.mu.Unlock()
 			continue
 		}
 		if err != nil {
 			t.source.Tracker.TrackError(err)
 			log.Error("Err: ", err)
+			t.onStop()
+			t.mu.Unlock()
 			return
 		}
 		if n == 0 {
 			t.wait()
+			t.mu.Unlock()
 			continue
 		}
 		t.d.InputChan <- decoder.NewInput(inBuf[:n])
 		t.incrementReadOffset(n)
+		t.mu.Unlock()
 	}
 }
 
 func (t *Tailer) shouldHardStop() bool {
-	t.stopMutex.Lock()
-	defer t.stopMutex.Unlock()
-	if t.stopTimer != nil {
-		select {
-		case <-t.stopTimer.C:
-			return true
-		default:
-		}
+	if !t.shouldStop {
+		return false
 	}
-	return false
+	if !t.didFileRotate {
+		return true
+	}
+	select {
+	case <-t.stopTimer.C:
+		return true
+	default:
+		return false
+	}
 }
 
 func (t *Tailer) shouldSoftStop() bool {
-	t.stopMutex.Lock()
-	defer t.stopMutex.Unlock()
 	return t.shouldStop
+}
+
+func (t *Tailer) shouldTrackOffset() bool {
+	return !t.didFileRotate
 }
 
 func (t *Tailer) incrementReadOffset(n int) {
@@ -223,7 +235,5 @@ func (t *Tailer) GetReadOffset() int64 {
 
 // wait lets the tailer sleep for a bit
 func (t *Tailer) wait() {
-	t.sleepMutex.Lock()
-	defer t.sleepMutex.Unlock()
 	time.Sleep(t.sleepDuration)
 }

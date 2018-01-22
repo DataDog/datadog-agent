@@ -60,13 +60,9 @@ func (suite *ScannerTestSuite) SetupTest() {
 
 	suite.openFilesLimit = 100
 	suite.sources = []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: suite.testPath, Tracker: status.NewTracker()}}
-	suite.s = New(suite.sources, suite.openFilesLimit, suite.pp, auditor.New(nil))
+	sleepDuration := 20 * time.Millisecond
+	suite.s = New(suite.sources, suite.openFilesLimit, suite.pp, auditor.New(nil), sleepDuration)
 	suite.s.setup()
-	for _, tl := range suite.s.tailers {
-		tl.sleepMutex.Lock()
-		tl.sleepDuration = 100 * time.Millisecond
-		tl.sleepMutex.Unlock()
-	}
 }
 
 func (suite *ScannerTestSuite) TearDownTest() {
@@ -186,6 +182,25 @@ func (suite *ScannerTestSuite) TestScannerScanWithFileRemovedAndCreated() {
 	suite.Equal(tailerLen, len(s.tailers))
 }
 
+func (suite *ScannerTestSuite) TestScannerLifeCycle() {
+	s := suite.s
+
+	tailersLen := len(s.tailers)
+	suite.True(tailersLen > 0)
+
+	// all tailers should be stopped
+	s.Stop()
+	suite.Equal(0, len(s.tailers))
+
+	// no tailer should be created
+	s.scan()
+	suite.Equal(0, len(s.tailers))
+
+	// new tailers should be created
+	s.Start()
+	suite.Equal(tailersLen, len(s.tailers))
+}
+
 func TestScannerTestSuite(t *testing.T) {
 	suite.Run(t, new(ScannerTestSuite))
 }
@@ -214,7 +229,8 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 	path = fmt.Sprintf("%s/*.log", testDir)
 	sources := []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: path, Tracker: status.NewTracker()}}
 	openFilesLimit := 2
-	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil))
+	sleepDuration := 20 * time.Millisecond
+	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil), sleepDuration)
 
 	// test at setup
 	scanner.setup()

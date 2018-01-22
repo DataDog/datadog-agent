@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -34,6 +35,7 @@ type TailerTestSuite struct {
 	tl         *Tailer
 	outputChan chan message.Message
 	source     *config.IntegrationConfigLogSource
+	wg         *sync.WaitGroup
 }
 
 func (suite *TailerTestSuite) SetupTest() {
@@ -51,8 +53,10 @@ func (suite *TailerTestSuite) SetupTest() {
 		Path:    suite.testPath,
 		Tracker: status.NewTracker(),
 	}
-	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath)
-	suite.tl.sleepDuration = 10 * time.Millisecond
+	sleepDuration := 10 * time.Millisecond
+	wg := &sync.WaitGroup{}
+	suite.wg = wg
+	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath, sleepDuration, wg)
 }
 
 func (suite *TailerTestSuite) TearDownTest() {
@@ -71,6 +75,7 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	_, err = suite.testFile.WriteString(lines[0])
 	suite.Nil(err)
 
+	suite.tl.wg.Add(1)
 	suite.tl.tailFromBeginning()
 
 	// those lines should be tailed
@@ -108,6 +113,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	_, err = suite.testFile.WriteString(lines[1])
 	suite.Nil(err)
 
+	suite.tl.wg.Add(1)
 	suite.tl.recoverTailing(int64(len(lines[0])), os.SEEK_CUR)
 
 	// this line should be tailed

@@ -53,7 +53,7 @@ func run() {
 	l.Start()
 
 	tailingLimit := config.LogsAgent.GetInt("log_open_files_limit")
-	s := tailer.New(config.GetLogsSources(), tailingLimit, pp, a)
+	s := tailer.New(config.GetLogsSources(), tailingLimit, pp, a, tailer.DefaultWaitDuration)
 	s.Start()
 
 	c := container.New(config.GetLogsSources(), pp, a)
