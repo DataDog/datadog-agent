@@ -19,8 +19,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
-// isRunning indicates whether logs-agent is running or not
-var isRunning bool
+var (
+	// isRunning indicates whether logs-agent is running or not
+	isRunning bool
+
+	// logs sources
+	filesScanner      *tailer.Scanner
+	containersScanner *container.Scanner
+	networkListener   *listener.Listener
+)
 
 // Start starts logs-agent
 func Start() error {
@@ -36,28 +43,37 @@ func Start() error {
 func run() {
 	isRunning = true
 
-	cm := sender.NewConnectionManager(
+	connectionManager := sender.NewConnectionManager(
 		config.LogsAgent.GetString("log_dd_url"),
 		config.LogsAgent.GetInt("log_dd_port"),
 		config.LogsAgent.GetBool("dev_mode_no_ssl"),
 	)
 
-	auditorChan := make(chan message.Message, config.ChanSizes)
-	a := auditor.New(auditorChan)
-	a.Start()
+	messageChan := make(chan message.Message, config.ChanSizes)
+	auditor := auditor.New(messageChan)
+	auditor.Start()
 
-	pp := pipeline.NewProvider()
-	pp.Start(cm, auditorChan)
+	pipelineProvider := pipeline.NewProvider()
+	pipelineProvider.Start(connectionManager, messageChan)
 
-	l := listener.New(config.GetLogsSources(), pp)
-	l.Start()
+	networkListener = listener.New(config.GetLogsSources(), pipelineProvider)
+	networkListener.Start()
 
 	tailingLimit := config.LogsAgent.GetInt("log_open_files_limit")
-	s := tailer.New(config.GetLogsSources(), tailingLimit, pp, a)
-	s.Start()
+	filesScanner = tailer.New(config.GetLogsSources(), tailingLimit, pipelineProvider, auditor)
+	filesScanner.Start()
 
-	c := container.New(config.GetLogsSources(), pp, a)
-	c.Start()
+	containersScanner = container.New(config.GetLogsSources(), pipelineProvider, auditor)
+	containersScanner.Start()
+}
+
+// Stop stops properly all the log collectors to prevent
+func Stop() {
+	if isRunning {
+		filesScanner.Stop()
+		networkListener.Stop()
+		containersScanner.Stop()
+	}
 }
 
 // GetStatus returns logs-agent status

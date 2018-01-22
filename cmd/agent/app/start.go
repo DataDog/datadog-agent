@@ -279,6 +279,7 @@ func StopAgent() {
 	if common.Forwarder != nil {
 		common.Forwarder.Stop()
 	}
+	logs.Stop()
 	gui.StopGUIServer()
 	os.Remove(pidfilePath)
 	log.Info("See ya!")
