@@ -35,7 +35,7 @@ class PDHBaseCheck(AgentCheck):
 
                 cfg_tags = instance.get('tags')
                 if cfg_tags is not None:
-                    tags = cfg_tags.join(",")
+                    tags = ",".join(cfg_tags)
                     self._tags[key] = list(tags) if tags else []
                 remote_machine = None
                 host = instance.get('host')
