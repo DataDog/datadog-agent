@@ -6,6 +6,7 @@
 package tailer
 
 import (
+	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -22,15 +23,19 @@ const scanPeriod = 10 * time.Second
 // Scanner checks all files provided by fileProvider and create new tailers
 // or update the old ones if needed
 type Scanner struct {
-	pp           pipeline.Provider
-	tailingLimit int
-	fileProvider *FileProvider
-	tailers      map[string]*Tailer
-	auditor      *auditor.Auditor
+	pp                  pipeline.Provider
+	tailingLimit        int
+	fileProvider        *FileProvider
+	tailers             map[string]*Tailer
+	auditor             *auditor.Auditor
+	tailerSleepDuration time.Duration
+	ticker              *time.Ticker
+	mu                  *sync.Mutex
+	shouldStop          bool
 }
 
 // New returns an initialized Scanner
-func New(sources []*config.LogSource, tailingLimit int, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
+func New(sources []*config.LogSource, tailingLimit int, pp pipeline.Provider, auditor *auditor.Auditor, tailerSleepDuration time.Duration) *Scanner {
 	tailSources := []*config.LogSource{}
 	for _, source := range sources {
 		switch source.Config.Type {
@@ -40,11 +45,14 @@ func New(sources []*config.LogSource, tailingLimit int, pp pipeline.Provider, au
 		}
 	}
 	return &Scanner{
-		pp:           pp,
-		tailingLimit: tailingLimit,
-		fileProvider: NewFileProvider(tailSources, tailingLimit),
-		tailers:      make(map[string]*Tailer),
-		auditor:      auditor,
+		pp:                  pp,
+		tailingLimit:        tailingLimit,
+		fileProvider:        NewFileProvider(tailSources, tailingLimit),
+		tailers:             make(map[string]*Tailer),
+		auditor:             auditor,
+		tailerSleepDuration: tailerSleepDuration,
+		ticker:              time.NewTicker(scanPeriod),
+		mu:                  &sync.Mutex{},
 	}
 }
 
@@ -65,7 +73,7 @@ func (s *Scanner) setup() {
 
 // setupTailer sets one tailer, making it tail from the beginning or the end
 func (s *Scanner) setupTailer(file *File, tailFromBeginning bool, outputChan chan message.Message) {
-	t := NewTailer(outputChan, file.Source, file.Path)
+	t := NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
 	var err error
 	if tailFromBeginning {
 		err = t.tailFromBeginning()
@@ -85,10 +93,28 @@ func (s *Scanner) Start() {
 	go s.run()
 }
 
+// Stop stops the Scanner and its tailers
+func (s *Scanner) Stop() {
+	s.mu.Lock()
+	s.shouldStop = true
+	s.ticker.Stop()
+	wg := &sync.WaitGroup{}
+	for _, tailer := range s.tailers {
+		// stop the tailers in parallel
+		wg.Add(1)
+		go func(t *Tailer) {
+			t.Stop(false, true)
+			wg.Done()
+		}(tailer)
+		delete(s.tailers, tailer.path)
+	}
+	wg.Wait()
+	s.mu.Unlock()
+}
+
 // run lets the Scanner tail its file
 func (s *Scanner) run() {
-	ticker := time.NewTicker(scanPeriod)
-	for range ticker.C {
+	for range s.ticker.C {
 		s.scan()
 	}
 }
@@ -101,6 +127,13 @@ func (s *Scanner) run() {
 // The Scanner needs to stop that previous tailer,
 // and start a new one for the new file.
 func (s *Scanner) scan() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.shouldStop {
+		// prevent the scanner to create new tailers if stopped
+		return
+	}
+
 	files := s.fileProvider.FilesToTail()
 	filesTailed := make(map[string]bool)
 	tailersLen := len(s.tailers)
@@ -151,22 +184,12 @@ func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
 // onFileRotation safely stops tailer and setup a new one
 func (s *Scanner) onFileRotation(tailer *Tailer, file *File) {
 	log.Info("Log rotation happened to ", tailer.path)
-	shouldTrackOffset := false
-	tailer.Stop(shouldTrackOffset)
+	tailer.Stop(true, false)
 	s.setupTailer(file, true, tailer.outputChan)
 }
 
-// stopTailer safely stops tailer and remove its reference from tailers
+// stopTailer stops the tailer
 func (s *Scanner) stopTailer(tailer *Tailer) {
-	shouldTrackOffset := false
-	tailer.Stop(shouldTrackOffset)
+	tailer.Stop(false, false)
 	delete(s.tailers, tailer.path)
-}
-
-// Stop stops the Scanner and its tailers
-func (s *Scanner) Stop() {
-	shouldTrackOffset := true
-	for _, t := range s.tailers {
-		t.Stop(shouldTrackOffset)
-	}
 }

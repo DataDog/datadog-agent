@@ -42,59 +42,57 @@ func (t *Tailer) startReading(offset int64, whence int) error {
 	return nil
 }
 
+// readForever lets the tailer tail the content of a file
+// until it is closed or the tailer is stopped.
 func (t *Tailer) readForever() {
+	defer t.onStop()
 	for {
-		if t.shouldHardStop() {
-			t.onStop()
+		t.rwMu.RLock()
+		if t.shouldStop {
+			t.rwMu.RUnlock()
 			return
 		}
 
 		inBuf := make([]byte, 4096)
 		n, err := t.file.Read(inBuf)
-		if err == io.EOF {
-			if t.shouldSoftStop() {
-				t.onStop()
-				return
-			}
-			t.wait()
-			continue
-		}
-		if err != nil {
+		if err != nil && err != io.EOF {
+			// an unexpected error occurred, stop the tailor
 			t.source.Status.Error(err)
 			log.Error("Err: ", err)
+			t.rwMu.RUnlock()
 			return
 		}
 		if n == 0 {
+			// wait for new data to come
 			t.wait()
+			t.rwMu.RUnlock()
 			continue
 		}
 		t.d.InputChan <- decoder.NewInput(inBuf[:n])
 		t.incrementReadOffset(n)
+		t.rwMu.RUnlock()
 	}
 }
+
 func (t *Tailer) checkForRotation() (bool, error) {
 	f, err := os.Open(t.path)
 	if err != nil {
 		t.source.Status.Error(err)
 		return false, err
 	}
+
 	stat1, err := f.Stat()
 	if err != nil {
 		t.source.Status.Error(err)
 		return false, err
 	}
+
 	stat2, err := t.file.Stat()
 	if err != nil {
 		return true, nil
 	}
-	if inode(stat1) != inode(stat2) {
-		return true, nil
-	}
 
-	if stat1.Size() < t.GetReadOffset() {
-		return true, nil
-	}
-	return false, nil
+	return inode(stat1) != inode(stat2) || stat1.Size() < t.GetReadOffset(), nil
 }
 
 // inode uniquely identifies a file on a filesystem

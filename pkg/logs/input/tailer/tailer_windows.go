@@ -77,25 +77,23 @@ func (t *Tailer) readAvailable() (err error) {
 // readForever lets the tailer tail the content of a file
 // until it is closed.
 func (t *Tailer) readForever() {
-
+	defer t.onStop()
 	for {
-		if t.shouldHardStop() {
-			t.onStop()
+		t.rwMu.RLock()
+		if t.shouldStop {
+			t.rwMu.RUnlock()
 			return
 		}
-		t.wait()
 		err := t.readAvailable()
-
 		if err == io.EOF || os.IsNotExist(err) {
-			if t.shouldSoftStop() {
-				t.onStop()
-				return
-			}
+			t.wait()
+			t.rwMu.RUnlock()
 			continue
 		}
 		if err != nil {
 			t.source.Status.Error(err)
 			log.Error("Err: ", err)
+			t.rwMu.RUnlock()
 			return
 		}
 	}

@@ -50,7 +50,7 @@ func run(config *config.Config) {
 	l := listener.New(sources.GetValidSources(), pp)
 	l.Start()
 
-	s := tailer.New(sources.GetValidSources(), config.GetOpenFilesLimit(), pp, a)
+	s := tailer.New(sources.GetValidSources(), config.GetOpenFilesLimit(), pp, a, tailer.DefaultSleepDuration)
 	s.Start()
 
 	c := container.New(sources.GetValidSources(), pp, a)
