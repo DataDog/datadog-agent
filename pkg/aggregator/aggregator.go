@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 // DefaultFlushInterval aggregator default flush interval
@@ -131,6 +132,8 @@ type BufferedAggregator struct {
 	hostnameUpdate     chan string
 	hostnameUpdateDone chan struct{}    // signals that the hostname update is finished
 	TickerChan         <-chan time.Time // For test/benchmark purposes: it allows the flush to be controlled from the outside
+	healthTicker       *time.Ticker
+	healthToken        health.ID
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
@@ -148,6 +151,8 @@ func NewBufferedAggregator(s *serializer.Serializer, hostname string, flushInter
 		hostname:           hostname,
 		hostnameUpdate:     make(chan string),
 		hostnameUpdateDone: make(chan struct{}),
+		healthTicker:       time.NewTicker(15 * time.Second),
+		healthToken:        health.Register("aggregator"),
 	}
 
 	return aggregator
@@ -406,6 +411,8 @@ func (agg *BufferedAggregator) run() {
 	}
 	for {
 		select {
+		case <-agg.healthTicker.C:
+			health.Ping(agg.healthToken)
 		case <-agg.TickerChan:
 			start := time.Now()
 			agg.flush()

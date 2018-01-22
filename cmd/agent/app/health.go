@@ -62,7 +62,7 @@ func requestHealth() error {
 		return err
 	}
 
-	s := new(health.HealthStatus)
+	s := new(health.Status)
 	if err = json.Unmarshal(r, s); err != nil {
 		return fmt.Errorf("Error unmarshalling json: %s", err)
 	}

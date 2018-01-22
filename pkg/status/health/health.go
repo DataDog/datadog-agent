@@ -34,8 +34,8 @@ var catalog = componentCatalog{
 	components: make(map[ID]*component),
 }
 
-// HealthStatus represents the current status of registered components
-type HealthStatus struct {
+// Status represents the current status of registered components
+type Status struct {
 	Healthy   []string
 	UnHealthy []string
 }
@@ -88,9 +88,9 @@ func registerPing(token ID, timestamp time.Time) error {
 	return nil
 }
 
-// Status allows to query the health status of the agent
-func Status() HealthStatus {
-	status := HealthStatus{}
+// GetStatus allows to query the health status of the agent
+func GetStatus() Status {
+	status := Status{}
 	now := time.Now()
 
 	catalog.RLock()

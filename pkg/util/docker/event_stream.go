@@ -16,6 +16,8 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
+
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 //// eventStreamState logic unit tested in event_stream_test.go
@@ -113,6 +115,9 @@ func (d *DockerUtil) dispatchEvents(cancelChan <-chan struct{}) {
 	fltrs.Add("event", "start")
 	fltrs.Add("event", "die")
 
+	healthTicker := time.NewTicker(15 * time.Second)
+	healthToken := health.Register("dockerutil-event-dispatch")
+
 	// Outer loop handles re-connecting in case the docker daemon closes the connection
 CONNECT:
 	for {
@@ -129,7 +134,11 @@ CONNECT:
 			select {
 			case <-cancelChan:
 				cancel()
+				healthTicker.Stop()
+				health.Deregister(healthToken)
 				return
+			case <-healthTicker.C:
+				health.Ping(healthToken)
 			case err := <-errs:
 				if err == io.EOF {
 					// Silently ignore io.EOF that happens on http connection reset

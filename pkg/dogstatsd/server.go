@@ -12,12 +12,14 @@ import (
 	"net"
 	"runtime"
 	"sync"
+	"time"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -29,11 +31,14 @@ var (
 // Server represent a Dogstatsd server
 type Server struct {
 	sync.RWMutex
-	listeners  []listeners.StatsdListener
-	packetIn   chan *listeners.Packet
-	Statistics *util.Stats
-	Started    bool
-	packetPool *listeners.PacketPool
+	listeners    []listeners.StatsdListener
+	packetIn     chan *listeners.Packet
+	Statistics   *util.Stats
+	Started      bool
+	packetPool   *listeners.PacketPool
+	stopChan     chan bool
+	healthTicker *time.Ticker
+	healthToken  health.ID
 }
 
 // NewServer returns a running Dogstatsd server
@@ -75,11 +80,14 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 	}
 
 	s := &Server{
-		Started:    true,
-		Statistics: stats,
-		packetIn:   packetChannel,
-		listeners:  tmpListeners,
-		packetPool: packetPool,
+		Started:      true,
+		Statistics:   stats,
+		packetIn:     packetChannel,
+		listeners:    tmpListeners,
+		packetPool:   packetPool,
+		stopChan:     make(chan bool),
+		healthTicker: time.NewTicker(15 * time.Second),
+		healthToken:  health.Register("dogstatsd-main"),
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -147,78 +155,81 @@ func (s *Server) forwarder(fcon net.Conn, packetChannel chan *listeners.Packet) 
 
 func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
 	for {
-		s.RLock()
-		if s.Started == false {
-			s.RUnlock()
+		select {
+		case <-s.stopChan:
 			return
-		}
-		s.RUnlock()
+		case <-s.healthTicker.C:
+			// Shared token between all workers, one healthy worker is enough
+			// to get data through, we can refine later if needed.
+			s.RLock()
+			health.Ping(s.healthToken)
+			s.RUnlock()
+		case packet := <-s.packetIn:
+			var originTags []string
 
-		packet := <-s.packetIn
-		var originTags []string
-
-		if packet.Origin != listeners.NoOrigin {
-			var err error
-			log.Tracef("dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
-			originTags, err = tagger.Tag(packet.Origin, false)
-			if err != nil {
-				log.Errorf(err.Error())
-			}
-			log.Tracef("tags for %s: %s", packet.Origin, originTags)
-		} else {
-			log.Tracef("dogstatsd receive: %s", packet.Contents)
-		}
-
-		for {
-			message := nextMessage(&packet.Contents)
-			if message == nil {
-				break
-			}
-
-			if s.Statistics != nil {
-				s.Statistics.StatEvent(1)
-			}
-
-			if bytes.HasPrefix(message, []byte("_sc")) {
-				serviceCheck, err := parseServiceCheckMessage(message)
+			if packet.Origin != listeners.NoOrigin {
+				var err error
+				log.Tracef("dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
+				originTags, err = tagger.Tag(packet.Origin, false)
 				if err != nil {
-					log.Errorf("dogstatsd: error parsing service check: %s", err)
-					dogstatsdExpvar.Add("ServiceCheckParseErrors", 1)
-					continue
+					log.Errorf(err.Error())
 				}
-				if len(originTags) > 0 {
-					serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
-				}
-				dogstatsdExpvar.Add("ServiceCheckPackets", 1)
-				serviceCheckOut <- *serviceCheck
-			} else if bytes.HasPrefix(message, []byte("_e")) {
-				event, err := parseEventMessage(message)
-				if err != nil {
-					log.Errorf("dogstatsd: error parsing event: %s", err)
-					dogstatsdExpvar.Add("EventParseErrors", 1)
-					continue
-				}
-				if len(originTags) > 0 {
-					event.Tags = append(event.Tags, originTags...)
-				}
-				dogstatsdExpvar.Add("EventPackets", 1)
-				eventOut <- *event
+				log.Tracef("tags for %s: %s", packet.Origin, originTags)
 			} else {
-				sample, err := parseMetricMessage(message)
-				if err != nil {
-					log.Errorf("dogstatsd: error parsing metrics: %s", err)
-					dogstatsdExpvar.Add("MetricParseErrors", 1)
-					continue
-				}
-				if len(originTags) > 0 {
-					sample.Tags = append(sample.Tags, originTags...)
-				}
-				dogstatsdExpvar.Add("MetricPackets", 1)
-				metricOut <- sample
+				log.Tracef("dogstatsd receive: %s", packet.Contents)
 			}
+
+			for {
+				message := nextMessage(&packet.Contents)
+				if message == nil {
+					break
+				}
+
+				if s.Statistics != nil {
+					s.Statistics.StatEvent(1)
+				}
+
+				if bytes.HasPrefix(message, []byte("_sc")) {
+					serviceCheck, err := parseServiceCheckMessage(message)
+					if err != nil {
+						log.Errorf("dogstatsd: error parsing service check: %s", err)
+						dogstatsdExpvar.Add("ServiceCheckParseErrors", 1)
+						continue
+					}
+					if len(originTags) > 0 {
+						serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
+					}
+					dogstatsdExpvar.Add("ServiceCheckPackets", 1)
+					serviceCheckOut <- *serviceCheck
+				} else if bytes.HasPrefix(message, []byte("_e")) {
+					event, err := parseEventMessage(message)
+					if err != nil {
+						log.Errorf("dogstatsd: error parsing event: %s", err)
+						dogstatsdExpvar.Add("EventParseErrors", 1)
+						continue
+					}
+					if len(originTags) > 0 {
+						event.Tags = append(event.Tags, originTags...)
+					}
+					dogstatsdExpvar.Add("EventPackets", 1)
+					eventOut <- *event
+				} else {
+					sample, err := parseMetricMessage(message)
+					if err != nil {
+						log.Errorf("dogstatsd: error parsing metrics: %s", err)
+						dogstatsdExpvar.Add("MetricParseErrors", 1)
+						continue
+					}
+					if len(originTags) > 0 {
+						sample.Tags = append(sample.Tags, originTags...)
+					}
+					dogstatsdExpvar.Add("MetricPackets", 1)
+					metricOut <- sample
+				}
+			}
+			// Return the packet object back to the object pool for reuse
+			s.packetPool.Put(packet)
 		}
-		// Return the packet object back to the object pool for reuse
-		s.packetPool.Put(packet)
 	}
 }
 
@@ -230,6 +241,8 @@ func (s *Server) Stop() {
 	if s.Statistics != nil {
 		s.Statistics.Stop()
 	}
+	s.healthTicker.Stop()
+	health.Deregister(s.healthToken)
 	s.Lock()
 	s.Started = false
 	s.Unlock()

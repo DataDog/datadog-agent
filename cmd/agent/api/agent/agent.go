@@ -203,7 +203,7 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
-	h := health.Status()
+	h := health.GetStatus()
 
 	jsonHealth, err := json.Marshal(h)
 	if err != nil {

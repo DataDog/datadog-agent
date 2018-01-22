@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"time"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 // Catalog keeps track of metadata collectors by name
@@ -20,9 +22,10 @@ var catalog = make(map[string]Collector)
 // Scheduler takes care of sending metadata at specific
 // time intervals
 type Scheduler struct {
-	srl      *serializer.Serializer
-	hostname string
-	tickers  []*time.Ticker
+	srl          *serializer.Serializer
+	hostname     string
+	tickers      []*time.Ticker
+	healthTokens []health.ID
 }
 
 // NewScheduler builds and returns a new Metadata Scheduler
@@ -45,6 +48,9 @@ func (c *Scheduler) Stop() {
 	for _, t := range c.tickers {
 		t.Stop()
 	}
+	for _, t := range c.healthTokens {
+		health.Deregister(t)
+	}
 }
 
 // AddCollector schedules a Metadata Collector at the given interval
@@ -54,13 +60,23 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 		return fmt.Errorf("Unable to find metadata collector: %s", name)
 	}
 
-	ticker := time.NewTicker(interval)
+	sendTicker := time.NewTicker(interval)
+	healthTicker := time.NewTicker(15 * time.Second)
+	healthToken := health.Register("metadata-" + name)
+
 	go func() {
-		for range ticker.C {
-			p.Send(c.srl)
+		for {
+			select {
+			case <-healthTicker.C:
+				health.Ping(healthToken)
+			case <-sendTicker.C:
+				p.Send(c.srl)
+			}
 		}
 	}()
-	c.tickers = append(c.tickers, ticker)
+	c.tickers = append(c.tickers, sendTicker)
+	c.tickers = append(c.tickers, healthTicker)
+	c.healthTokens = append(c.healthTokens, healthToken)
 
 	return nil
 }

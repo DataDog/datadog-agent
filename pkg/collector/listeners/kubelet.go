@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -21,13 +22,15 @@ import (
 
 // KubeletListener listen to kubelet pod creation
 type KubeletListener struct {
-	watcher    *kubelet.PodWatcher
-	services   map[ID]Service
-	newService chan<- Service
-	delService chan<- Service
-	ticker     *time.Ticker
-	stop       chan bool
-	m          sync.RWMutex
+	watcher      *kubelet.PodWatcher
+	services     map[ID]Service
+	newService   chan<- Service
+	delService   chan<- Service
+	ticker       *time.Ticker
+	stop         chan bool
+	healthTicker *time.Ticker
+	healthToken  health.ID
+	m            sync.RWMutex
 }
 
 // PodContainerService implements and store results from the Service interface for the Kubelet listener
@@ -48,10 +51,12 @@ func NewKubeletListener() (ServiceListener, error) {
 		return nil, fmt.Errorf("failed to connect to kubelet, Kubernetes listener will not work: %s", err)
 	}
 	return &KubeletListener{
-		watcher:  watcher,
-		services: make(map[ID]Service),
-		ticker:   time.NewTicker(15 * time.Second),
-		stop:     make(chan bool),
+		watcher:      watcher,
+		services:     make(map[ID]Service),
+		ticker:       time.NewTicker(15 * time.Second),
+		stop:         make(chan bool),
+		healthTicker: time.NewTicker(15 * time.Second),
+		healthToken:  health.Register("ad-kubeletlistener"),
 	}, nil
 }
 
@@ -64,7 +69,11 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 		for {
 			select {
 			case <-l.stop:
+				l.healthTicker.Stop()
+				health.Deregister(l.healthToken)
 				return
+			case <-l.healthTicker.C:
+				health.Ping(l.healthToken)
 			case <-l.ticker.C:
 				// Compute new/updated pods
 				updatedPods, err := l.watcher.PullChanges()

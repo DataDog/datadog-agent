@@ -14,12 +14,14 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/go-connections/nat"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
@@ -29,12 +31,14 @@ import (
 // It also holds a cache of services that the ConfigResolver can query to
 // match templates against.
 type DockerListener struct {
-	dockerUtil *docker.DockerUtil
-	services   map[ID]Service
-	newService chan<- Service
-	delService chan<- Service
-	stop       chan bool
-	m          sync.RWMutex
+	dockerUtil   *docker.DockerUtil
+	services     map[ID]Service
+	newService   chan<- Service
+	delService   chan<- Service
+	stop         chan bool
+	healthTicker *time.Ticker
+	healthToken  health.ID
+	m            sync.RWMutex
 }
 
 // DockerService implements and store results from the Service interface for the Docker listener
@@ -58,9 +62,11 @@ func NewDockerListener() (ServiceListener, error) {
 		return nil, fmt.Errorf("failed to connect to Docker, auto discovery will not work: %s", err)
 	}
 	return &DockerListener{
-		dockerUtil: d,
-		services:   make(map[ID]Service),
-		stop:       make(chan bool),
+		dockerUtil:   d,
+		services:     make(map[ID]Service),
+		stop:         make(chan bool),
+		healthTicker: time.NewTicker(15 * time.Second),
+		healthToken:  health.Register("ad-dockerlistener"),
 	}, nil
 }
 
@@ -85,7 +91,11 @@ func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 			select {
 			case <-l.stop:
 				l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener")
+				l.healthTicker.Stop()
+				health.Deregister(l.healthToken)
 				return
+			case <-l.healthTicker.C:
+				health.Ping(l.healthToken)
 			case msg := <-messages:
 				l.processEvent(msg)
 			case err := <-errs:

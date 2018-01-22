@@ -107,9 +107,10 @@ func (t *Tagger) run() error {
 			t.pruneTicker.Stop()
 			t.retryTicker.Stop()
 			t.healthTicker.Stop()
+			health.Deregister(t.healthToken)
 			return nil
 		case <-t.healthTicker.C:
-			err := health.Ping(t.healthToken)
+			health.Ping(t.healthToken)
 		case msg := <-t.infoIn:
 			for _, info := range msg {
 				t.tagStore.processTagInfo(info)

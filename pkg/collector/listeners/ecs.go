@@ -11,23 +11,27 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
-	log "github.com/cihub/seelog"
 )
 
 // ECSListener implements the ServiceListener interface for fargate-backed ECS cluster.
 // It pulls its tasks container list periodically and checks for
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
-	task       ecs.TaskMetadata
-	services   map[string]Service // maps container IDs to services
-	newService chan<- Service
-	delService chan<- Service
-	stop       chan bool
-	m          sync.RWMutex
-	t          *time.Ticker
+	task         ecs.TaskMetadata
+	services     map[string]Service // maps container IDs to services
+	newService   chan<- Service
+	delService   chan<- Service
+	stop         chan bool
+	t            *time.Ticker
+	healthTicker *time.Ticker
+	healthToken  health.ID
+	m            sync.RWMutex
 }
 
 // ECSService implements and store results from the Service interface for the ECS listener
@@ -50,9 +54,11 @@ func init() {
 // NewECSListener creates an ECSListener
 func NewECSListener() (ServiceListener, error) {
 	return &ECSListener{
-		services: make(map[string]Service),
-		stop:     make(chan bool),
-		t:        time.NewTicker(2 * time.Second),
+		services:     make(map[string]Service),
+		stop:         make(chan bool),
+		t:            time.NewTicker(2 * time.Second),
+		healthTicker: time.NewTicker(15 * time.Second),
+		healthToken:  health.Register("ad-ecslistener"),
 	}, nil
 }
 
@@ -65,10 +71,14 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	go func() {
 		for {
 			select {
+			case <-l.stop:
+				l.healthTicker.Stop()
+				health.Deregister(l.healthToken)
+				return
+			case <-l.healthTicker.C:
+				health.Ping(l.healthToken)
 			case <-l.t.C:
 				l.refreshServices()
-			case <-l.stop:
-				return
 			}
 		}
 	}()

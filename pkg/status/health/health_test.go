@@ -33,7 +33,7 @@ func (s *HealthTestSuite) TestRegisterAndUnhealthy() {
 	assert.EqualValues(s.T(), 30, c.timeout.Seconds())
 	assert.True(s.T(), time.Now().After(c.latestPing))
 
-	status := Status()
+	status := GetStatus()
 	assert.Len(s.T(), status.Healthy, 0)
 	assert.Len(s.T(), status.UnHealthy, 1)
 	assert.Contains(s.T(), status.UnHealthy, "test1")
@@ -89,7 +89,7 @@ func (s *HealthTestSuite) TestPingNotRegistered() {
 
 func (s *HealthTestSuite) TestUnhealthyAndBack() {
 	token := Register("test")
-	status := Status()
+	status := GetStatus()
 	assert.NotContains(s.T(), status.Healthy, "test")
 	assert.Contains(s.T(), status.UnHealthy, "test")
 
