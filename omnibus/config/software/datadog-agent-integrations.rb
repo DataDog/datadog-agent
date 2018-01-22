@@ -15,11 +15,11 @@ whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
-integrations_core_branch = ENV['INTEGRATIONS_CORE_BRANCH']
-if integrations_core_branch.nil? || integrations_core_branch.empty?
-  integrations_core_branch = 'master'
+integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
+if integrations_core_version.nil? || integrations_core_version.empty?
+  integrations_core_version = 'master'
 end
-default_version integrations_core_branch
+default_version integrations_core_version
 
 
 blacklist = [

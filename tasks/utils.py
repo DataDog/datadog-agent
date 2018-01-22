@@ -6,6 +6,7 @@ from __future__ import print_function
 import os
 import platform
 import re
+import json
 from subprocess import check_output
 
 import invoke
@@ -186,3 +187,12 @@ def get_version(ctx, include_git=False):
 def get_version_numeric_only(ctx):
     version, _, _, _ = query_version(ctx)
     return version
+
+def load_release_versions(ctx, target_version):
+    with open("release.json", "r") as f:
+        versions = json.load(f)
+        if target_version in versions:
+            # windows runners don't accepts anything else than strings in the
+            # environment when running a subprocess.
+            return {str(k):str(v) for k, v in versions[target_version].iteritems()}
+    raise Exception("Could not find '{}' version in release.json".format(target_version))
