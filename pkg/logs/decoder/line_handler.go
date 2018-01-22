@@ -89,9 +89,9 @@ func (lh *SingleLineHandler) process(line []byte) {
 	}
 }
 
-// flushTimeout represents the time we want to wait before flushing lineBuffer
+// defaultFlushTimeout represents the time we want to wait before flushing lineBuffer
 // when no more line is received
-const flushTimeout = 1 * time.Second
+const defaultFlushTimeout = 1000 * time.Millisecond
 
 // MultiLineHandler reads lines from lineChan and uses lineBuffer to send them
 // when a new line matches with re or flushTimer is fired
@@ -101,13 +101,14 @@ type MultiLineHandler struct {
 	lineBuffer    *LineBuffer
 	lineUnwrapper LineUnwrapper
 	newContentRe  *regexp.Regexp
+	flushTimeout  time.Duration
 	flushTimer    *time.Timer
 	mu            sync.Mutex
 	shouldStop    bool
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler
-func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, lineUnwrapper LineUnwrapper) *MultiLineHandler {
+func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, flushTimeout time.Duration, lineUnwrapper LineUnwrapper) *MultiLineHandler {
 	lineChan := make(chan []byte)
 	lineBuffer := NewLineBuffer()
 	flushTimer := time.NewTimer(flushTimeout)
@@ -117,6 +118,7 @@ func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, l
 		lineBuffer:    lineBuffer,
 		lineUnwrapper: lineUnwrapper,
 		newContentRe:  newContentRe,
+		flushTimeout:  flushTimeout,
 		flushTimer:    flushTimer,
 	}
 	go lineHandler.start()
@@ -134,7 +136,7 @@ func (lh *MultiLineHandler) Stop() {
 	close(lh.lineChan)
 	lh.shouldStop = true
 	// assure to stop timer goroutine
-	lh.flushTimer.Reset(flushTimeout)
+	lh.flushTimer.Reset(lh.flushTimeout)
 	lh.mu.Unlock()
 }
 
@@ -153,7 +155,7 @@ func (lh *MultiLineHandler) run() {
 		lh.flushTimer.Stop()
 		lh.process(line)
 		// restart timer if no more lines are received
-		lh.flushTimer.Reset(flushTimeout)
+		lh.flushTimer.Reset(lh.flushTimeout)
 		lh.mu.Unlock()
 	}
 }

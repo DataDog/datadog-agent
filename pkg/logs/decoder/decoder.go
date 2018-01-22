@@ -69,7 +69,7 @@ func InitializeDecoder(source *config.IntegrationConfigLogSource) *Decoder {
 			default:
 				lineUnwrapper = NewUnwrapper()
 			}
-			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, lineUnwrapper)
+			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, defaultFlushTimeout, lineUnwrapper)
 			break
 		}
 	}
