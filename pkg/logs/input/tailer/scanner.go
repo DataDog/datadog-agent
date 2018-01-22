@@ -75,7 +75,7 @@ func (s *Scanner) setupTailer(file *File, tailFromBeginning bool, outputChan cha
 		err = t.tailFromBeginning()
 	} else {
 		// resume tailing from last committed offset
-		err = t.recoverTailing(s.auditor)
+		err = t.recoverTailing(s.auditor.GetLastCommittedOffset(t.Identifier()))
 	}
 	if err != nil {
 		log.Warn(err)

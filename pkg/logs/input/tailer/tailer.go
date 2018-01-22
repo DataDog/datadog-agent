@@ -18,7 +18,6 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -75,8 +74,8 @@ func (t *Tailer) Identifier() string {
 
 // recoverTailing starts the tailing from the last log line processed, or now
 // if we tail this file for the first time
-func (t *Tailer) recoverTailing(offsetStorage auditor.FileOffsetStorage) error {
-	return t.tailFrom(offsetStorage.GetLastCommittedOffset(t.Identifier()))
+func (t *Tailer) recoverTailing(offset int64, whence int) error {
+	return t.tailFrom(offset, whence)
 }
 
 // Stop lets  the tailer stop

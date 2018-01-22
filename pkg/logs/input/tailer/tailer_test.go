@@ -17,7 +17,6 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	auditor "github.com/DataDog/datadog-agent/pkg/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -97,7 +96,6 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 
 func (suite *TailerTestSuite) TestRecoverTailing() {
 	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
-	fileOffsetStorage := auditor.NewFileOffsetStorage(len(lines[0]))
 
 	var msg message.Message
 	var err error
@@ -110,7 +108,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	_, err = suite.testFile.WriteString(lines[1])
 	suite.Nil(err)
 
-	suite.tl.recoverTailing(fileOffsetStorage)
+	suite.tl.recoverTailing(int64(len(lines[0])), os.SEEK_CUR)
 
 	// this line should be tailed
 	_, err = suite.testFile.WriteString(lines[2])
