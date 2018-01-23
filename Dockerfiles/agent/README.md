@@ -8,6 +8,7 @@ The following environment variables are supported:
 
 - `DD_API_KEY`: your API key (**required**)
 - `DD_HOSTNAME`: hostname to use for metrics
+- `DD_TAGS`: host tags, separated by spaces. For example: `simple-tag-0 tag-key-1:tag-value-1`
 
 - `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
 - `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
