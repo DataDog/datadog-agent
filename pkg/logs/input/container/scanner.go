@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -29,11 +30,15 @@ const dockerAPIVersion = "1.25"
 
 // A Scanner listens for stdout and stderr of containers
 type Scanner struct {
-	pp      pipeline.Provider
-	sources []*config.IntegrationConfigLogSource
-	tailers map[string]*DockerTailer
-	cli     *client.Client
-	auditor *auditor.Auditor
+	pp         pipeline.Provider
+	sources    []*config.IntegrationConfigLogSource
+	tailers    map[string]*DockerTailer
+	cli        *client.Client
+	auditor    *auditor.Auditor
+	ticker     *time.Ticker
+	mu         *sync.Mutex
+	shouldStop bool
+	wg         *sync.WaitGroup
 }
 
 // New returns an initialized Scanner
@@ -53,6 +58,9 @@ func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider, a *
 		sources: containerSources,
 		tailers: make(map[string]*DockerTailer),
 		auditor: a,
+		ticker:  time.NewTicker(scanPeriod),
+		mu:      &sync.Mutex{},
+		wg:      &sync.WaitGroup{},
 	}
 }
 
@@ -64,10 +72,21 @@ func (s *Scanner) Start() {
 	}
 }
 
+// Stop stops the Scanner and its tailers
+func (s *Scanner) Stop() {
+	s.mu.Lock()
+	s.ticker.Stop()
+	s.shouldStop = true
+	for _, t := range s.tailers {
+		s.stopTailer(t)
+	}
+	s.wg.Wait()
+	s.mu.Unlock()
+}
+
 // run lets the Scanner tail docker stdouts
 func (s *Scanner) run() {
-	ticker := time.NewTicker(scanPeriod)
-	for range ticker.C {
+	for range s.ticker.C {
 		s.scan(true)
 	}
 }
@@ -76,6 +95,13 @@ func (s *Scanner) run() {
 // tail, as well as stopped containers or containers that
 // restarted
 func (s *Scanner) scan(tailFromBeginning bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.shouldStop {
+		// no docker container should be tailed if stopped
+		return
+	}
+
 	runningContainers := s.listContainers()
 	containersToMonitor := make(map[string]bool)
 
@@ -180,7 +206,8 @@ func (s *Scanner) setup() error {
 // setupTailer sets one tailer, making it tail from the beginning or the end
 func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.IntegrationConfigLogSource, tailFromBeginning bool, outputChan chan message.Message) {
 	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
-	t := NewDockerTailer(cli, container, source, outputChan)
+	t := NewDockerTailer(cli, container, source, outputChan, s.wg)
+	s.wg.Add(1)
 	var err error
 	if tailFromBeginning {
 		err = t.tailFromBeginning()
@@ -191,13 +218,6 @@ func (s *Scanner) setupTailer(cli *client.Client, container types.Container, sou
 		log.Warn(err)
 	}
 	s.tailers[container.ID] = t
-}
-
-// Stop stops the Scanner and its tailers
-func (s *Scanner) Stop() {
-	for _, t := range s.tailers {
-		t.Stop()
-	}
 }
 
 func (s *Scanner) humanReadableContainerID(containerID string) string {
