@@ -41,11 +41,13 @@ func (suite *QueryTestSuite) TestOpenHTTPKubelet() {
 	ku, err := kubelet.GetKubeUtil()
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "http://127.0.0.1:10255", ku.GetKubeletApiEndpoint())
-	b, err := ku.QueryKubelet("/healthz")
+	b, code, err := ku.QueryKubelet("/healthz")
 	require.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), "ok", string(b))
 
-	b, err = ku.QueryKubelet("/pods")
+	b, code, err = ku.QueryKubelet("/pods")
+	assert.Equal(suite.T(), 200, code)
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
@@ -64,11 +66,13 @@ func (suite *QueryTestSuite) TestOpenHTTPSKubelet() {
 	ku, err := kubelet.GetKubeUtil()
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
-	b, err := ku.QueryKubelet("/healthz")
+	b, code, err := ku.QueryKubelet("/healthz")
+	assert.Equal(suite.T(), 200, code)
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 
-	b, err = ku.QueryKubelet("/pods")
+	b, code, err = ku.QueryKubelet("/pods")
+	assert.Equal(suite.T(), 200, code)
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), emptyPodList, string(b))
 

@@ -12,7 +12,7 @@ services:
       retries: 10
 
   apiserver:
-    image: &hyperkube_image "gcr.io/google_containers/hyperkube:v1.8.3"
+    build: ./
     command: "/hyperkube
         apiserver
         --apiserver-count=1
@@ -26,9 +26,6 @@ services:
         --tls-cert-file=/etc/secrets/cert.pem
         --tls-private-key-file=/etc/secrets/key.pem
         "
-    volumes:
-      - ${certpem_path}:/etc/secrets/cert.pem
-      - ${keypem_path}:/etc/secrets/key.pem
     network_mode: ${network_mode}
     depends_on:
       etcd:
@@ -40,7 +37,7 @@ services:
       retries: 10
 
   controller_manager:
-    image: *hyperkube_image
+    build: ./
     command: "/hyperkube
         controller-manager
         --master=http://127.0.0.1:8080
@@ -49,9 +46,6 @@ services:
         --cluster-signing-key-file=/etc/secrets/key.pem
         --root-ca-file=/etc/secrets/cert.pem
         "
-    volumes:
-      - ${certpem_path}:/etc/secrets/cert.pem
-      - ${keypem_path}:/etc/secrets/key.pem
     network_mode: ${network_mode}
     depends_on:
       apiserver:
@@ -63,7 +57,7 @@ services:
       retries: 10
 
   kubelet:
-    image: *hyperkube_image
+    build: ./
     command: "/hyperkube
         kubelet
         --cloud-provider=''
@@ -88,9 +82,6 @@ services:
       retries: 20
     volumes:
         - /var/run/docker.sock:/var/run/docker.sock
-        - ${kubeconfig_path}:/var/lib/kubelet/kubeconfig
-        - ${certpem_path}:/etc/secrets/cert.pem
-        - ${keypem_path}:/etc/secrets/key.pem
 
   pause:
     #
