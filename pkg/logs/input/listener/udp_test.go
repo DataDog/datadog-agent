@@ -42,9 +42,22 @@ func (suite *UDPTestSuite) SetupTest() {
 func (suite *UDPTestSuite) TestUDPReceivesMessages() {
 	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
 	suite.Nil(err)
+
+	// should receive and decode message
 	fmt.Fprintf(conn, "hello world\n")
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
+
+	suite.udpl.Stop()
+
+	// should not receive message
+	fmt.Fprintf(conn, "hello world\n")
+	select {
+	case <-suite.outputChan:
+		suite.Fail("error: should not receive message after stop")
+	default:
+		break
+	}
 }
 
 func TestUDPTestSuite(t *testing.T) {

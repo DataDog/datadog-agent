@@ -42,9 +42,26 @@ func (suite *TCPTestSuite) SetupTest() {
 func (suite *TCPTestSuite) TestTCPReceivesMessages() {
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
 	suite.Nil(err)
+
+	// should receive and decode message
 	fmt.Fprintf(conn, "hello world\n")
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
+
+	suite.tcpl.Stop()
+
+	// tcp connection should be refused
+	_, err = net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
+	suite.NotNil(err)
+
+	// should not receive message
+	fmt.Fprintf(conn, "hello world\n")
+	select {
+	case <-suite.outputChan:
+		suite.Fail("error: should not receive message after stop")
+	default:
+		break
+	}
 }
 
 func TestTCPTestSuite(t *testing.T) {
