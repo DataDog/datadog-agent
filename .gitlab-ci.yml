@@ -211,7 +211,6 @@ agent_suse-x64:
 
 # build Agent package for Windows
 build_windows_msi_x64:
-  allow_failure: true  # FIXME: temporary until we fix the windows gitlab runner
   before_script:
     - if exist .omnibus rd /s/q .omnibus
     - if exist %GOPATH%\src\github.com\DataDog\datadog-agent rd /s/q %GOPATH%\src\github.com\DataDog\datadog-agent
@@ -223,7 +222,7 @@ build_windows_msi_x64:
   tags: ["runner:windows-agent6"]
   script:
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
-    - inv agent.omnibus-build --release-version "$RELEASE_VERSION"
+    - inv agent.omnibus-build --release-version %RELEASE_VERSION%
   after_script:
     - '"C:\Program Files\Amazon\AWSCLI\aws.exe" s3 cp --profile ci-datadog-agent %S3_CP_OPTIONS% --recursive --exclude "*" --include "*.msi" .omnibus/pkg/ %S3_ARTEFACTS_URI%/'
 
