@@ -26,7 +26,7 @@ func TestMessage(t *testing.T) {
 	o.Timestamp = "ts"
 	assert.Equal(t, "ts", message.GetTimestamp())
 
-	o.LogSource = &config.IntegrationConfigLogSource{TagsPayload: []byte("sourceTags")}
+	o.LogSource = config.NewLogSource("", &config.LogsConfig{TagsPayload: []byte("sourceTags")})
 	assert.Equal(t, "sourceTags", string(message.GetTagsPayload()))
 
 	message.SetTagsPayload([]byte("messageTags"))

@@ -15,11 +15,11 @@ import (
 // A Listener summons different protocol specific listeners based on configuration
 type Listener struct {
 	pp      pipeline.Provider
-	sources []*config.IntegrationConfigLogSource
+	sources []*config.LogSource
 }
 
 // New returns an initialized Listener
-func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider) *Listener {
+func New(sources []*config.LogSource, pp pipeline.Provider) *Listener {
 	return &Listener{
 		pp:      pp,
 		sources: sources,
@@ -29,7 +29,7 @@ func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider) *Li
 // Start starts the Listener
 func (l *Listener) Start() {
 	for _, source := range l.sources {
-		switch source.Type {
+		switch source.Config.Type {
 		case config.TCPType:
 			tcpl, err := NewTCPListener(l.pp, source)
 			if err != nil {

@@ -38,7 +38,7 @@ type Tailer struct {
 
 	outputChan chan message.Message
 	d          *decoder.Decoder
-	source     *config.IntegrationConfigLogSource
+	source     *config.LogSource
 
 	sleepDuration time.Duration
 	sleepMutex    sync.Mutex
@@ -50,7 +50,7 @@ type Tailer struct {
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan message.Message, source *config.IntegrationConfigLogSource, path string) *Tailer {
+func NewTailer(outputChan chan message.Message, source *config.LogSource, path string) *Tailer {
 	return &Tailer{
 		path:       path,
 		outputChan: outputChan,
@@ -83,6 +83,7 @@ func (t *Tailer) recoverTailing(a *auditor.Auditor) error {
 func (t *Tailer) Stop(shouldTrackOffset bool) {
 	t.stopMutex.Lock()
 	t.shouldStop = true
+	t.source.RemoveInput(t.file.Name())
 	t.shouldTrackOffset = shouldTrackOffset
 	t.stopTimer = time.NewTimer(t.closeTimeout)
 	t.stopMutex.Unlock()
@@ -111,16 +112,17 @@ func (t *Tailer) tailFrom(offset int64, whence int) error {
 func (t *Tailer) startReading(offset int64, whence int) error {
 	fullpath, err := filepath.Abs(t.path)
 	if err != nil {
-		t.source.Tracker.TrackError(err)
+		t.source.Status.Error(err)
 		return err
 	}
 	log.Info("Opening ", t.path)
 	f, err := os.Open(fullpath)
 	if err != nil {
-		t.source.Tracker.TrackError(err)
+		t.source.Status.Error(err)
 		return err
 	}
-	t.source.Tracker.TrackSuccess()
+	t.source.Status.Success()
+	t.source.AddInput(f.Name())
 
 	ret, _ := f.Seek(offset, whence)
 	t.file = f
@@ -187,7 +189,7 @@ func (t *Tailer) readForever() {
 			continue
 		}
 		if err != nil {
-			t.source.Tracker.TrackError(err)
+			t.source.Status.Error(err)
 			log.Error("Err: ", err)
 			return
 		}

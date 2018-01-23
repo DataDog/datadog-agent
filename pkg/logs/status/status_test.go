@@ -9,18 +9,18 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestSourceAreGroupedByIntegrations(t *testing.T) {
-	sourcesToTrack := []*SourceToTrack{
-		NewSourceToTrack("foo", NewTracker("")),
-		NewSourceToTrack("bar", NewTracker("")),
-		NewSourceToTrack("foo", NewTracker("")),
+	sources := []*config.LogSource{
+		config.NewLogSource("foo", &config.LogsConfig{}),
+		config.NewLogSource("bar", &config.LogsConfig{}),
+		config.NewLogSource("foo", &config.LogsConfig{}),
 	}
-	builder := NewBuilder(sourcesToTrack)
-
-	status := builder.Build()
+	Initialize(sources)
+	status := Get()
 	assert.Equal(t, true, status.IsRunning)
 	assert.Equal(t, 2, len(status.Integrations))
 

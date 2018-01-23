@@ -26,7 +26,7 @@ type FileProviderTestSuite struct {
 
 // newFileProvider returns a new FileProvider initialized with the right configuration
 func (suite *FileProviderTestSuite) newFileProvider(path string) *FileProvider {
-	sources := []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: path}}
+	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 	return NewFileProvider(sources, suite.filesLimit)
 }
 

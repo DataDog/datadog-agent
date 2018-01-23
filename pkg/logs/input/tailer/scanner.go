@@ -34,10 +34,10 @@ type Scanner struct {
 }
 
 // New returns an initialized Scanner
-func New(sources []*config.IntegrationConfigLogSource, tailingLimit int, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
-	tailSources := []*config.IntegrationConfigLogSource{}
+func New(sources []*config.LogSource, tailingLimit int, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
+	tailSources := []*config.LogSource{}
 	for _, source := range sources {
-		switch source.Type {
+		switch source.Config.Type {
 		case config.FileType:
 			tailSources = append(tailSources, source)
 		default:
@@ -151,13 +151,13 @@ func (s *Scanner) scan() {
 func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
 	f, err := os.Open(file.Path)
 	if err != nil {
-		tailer.source.Tracker.TrackError(err)
+		tailer.source.Status.Error(err)
 		return false, err
 	}
 
 	stat1, err := f.Stat()
 	if err != nil {
-		tailer.source.Tracker.TrackError(err)
+		tailer.source.Status.Error(err)
 		return false, err
 	}
 

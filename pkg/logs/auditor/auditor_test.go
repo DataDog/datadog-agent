@@ -27,7 +27,7 @@ type AuditorTestSuite struct {
 
 	inputChan chan message.Message
 	a         *Auditor
-	source    *config.IntegrationConfigLogSource
+	source    *config.LogSource
 }
 
 func (suite *AuditorTestSuite) SetupTest() {
@@ -42,7 +42,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 	suite.inputChan = make(chan message.Message)
 	suite.a = New(suite.inputChan)
 	suite.a.registryPath = suite.testPath
-	suite.source = &config.IntegrationConfigLogSource{Path: testpath}
+	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})
 }
 
 func (suite *AuditorTestSuite) TearDownTest() {
@@ -52,12 +52,12 @@ func (suite *AuditorTestSuite) TearDownTest() {
 func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.Equal(0, len(suite.a.registry))
-	suite.a.updateRegistry(suite.source.Path, 42, "")
+	suite.a.updateRegistry(suite.source.Config.Path, 42, "")
 	suite.Equal(1, len(suite.a.registry))
-	suite.Equal(int64(42), suite.a.registry[suite.source.Path].Offset)
-	suite.Equal("", suite.a.registry[suite.source.Path].Timestamp)
-	suite.a.updateRegistry(suite.source.Path, 43, "")
-	suite.Equal(int64(43), suite.a.registry[suite.source.Path].Offset)
+	suite.Equal(int64(42), suite.a.registry[suite.source.Config.Path].Offset)
+	suite.Equal("", suite.a.registry[suite.source.Config.Path].Timestamp)
+	suite.a.updateRegistry(suite.source.Config.Path, 43, "")
+	suite.Equal(int64(43), suite.a.registry[suite.source.Config.Path].Offset)
 	ts := time.Now().UTC().Format("2006-01-02T15:04:05.000000")
 	suite.a.updateRegistry("containerid", 0, ts)
 	suite.Equal(ts, suite.a.registry["containerid"].Timestamp)
@@ -65,7 +65,7 @@ func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {
 
 func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 	suite.a.registry = make(map[string]*RegistryEntry)
-	suite.a.registry[suite.source.Path] = &RegistryEntry{
+	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
 		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
 		Offset:      42,
 	}
@@ -76,21 +76,21 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry = suite.a.recoverRegistry(suite.testPath)
-	suite.Equal(int64(42), suite.a.registry[suite.source.Path].Offset)
+	suite.Equal(int64(42), suite.a.registry[suite.source.Config.Path].Offset)
 }
 
 func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {
 	suite.a.registry = make(map[string]*RegistryEntry)
-	suite.a.registry[suite.source.Path] = &RegistryEntry{
+	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
 		Offset: 42,
 	}
 
-	offset, whence := suite.a.GetLastCommittedOffset(suite.source.Path)
+	offset, whence := suite.a.GetLastCommittedOffset(suite.source.Config.Path)
 	suite.Equal(int64(42), offset)
 	suite.Equal(os.SEEK_CUR, whence)
 
-	othersource := &config.IntegrationConfigLogSource{Path: "anotherpath"}
-	offset, whence = suite.a.GetLastCommittedOffset(othersource.Path)
+	othersource := config.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
+	offset, whence = suite.a.GetLastCommittedOffset(othersource.Config.Path)
 	suite.Equal(int64(0), offset)
 	suite.Equal(os.SEEK_END, whence)
 }
@@ -99,16 +99,16 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForTimestamp() {
 	ts := time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC).Format("2006-01-02T15:04:05.000000")
 
 	suite.a.registry = make(map[string]*RegistryEntry)
-	suite.a.registry[suite.source.Path] = &RegistryEntry{Timestamp: ts}
-	suite.Equal(ts, suite.a.GetLastCommittedTimestamp(suite.source.Path))
+	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{Timestamp: ts}
+	suite.Equal(ts, suite.a.GetLastCommittedTimestamp(suite.source.Config.Path))
 
-	othersource := &config.IntegrationConfigLogSource{Path: "anotherpath"}
-	suite.Equal("", suite.a.GetLastCommittedTimestamp(othersource.Path))
+	othersource := config.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
+	suite.Equal("", suite.a.GetLastCommittedTimestamp(othersource.Config.Path))
 }
 
 func (suite *AuditorTestSuite) TestAuditorCleansupRegistry() {
 	suite.a.registry = make(map[string]*RegistryEntry)
-	suite.a.registry[suite.source.Path] = &RegistryEntry{
+	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
 		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
 		Offset:      42,
 	}

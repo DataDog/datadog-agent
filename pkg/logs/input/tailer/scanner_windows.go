@@ -18,7 +18,7 @@ import (
 type Scanner struct{}
 
 // New returns an initialized Scanner
-func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
+func New(sources []*config.LogSource, pp pipeline.Provider, auditor *auditor.Auditor) *Scanner {
 	return &Scanner{}
 }
 
