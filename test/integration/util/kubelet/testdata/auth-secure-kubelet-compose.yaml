@@ -7,10 +7,9 @@ services:
       - ETCDCTL_API=3
     healthcheck:
       test: ["CMD", "etcdctl", "--command-timeout=2s", "--dial-timeout=2s", "--endpoints", "http://127.0.0.1:2379", "endpoint", "health"]
-      interval: 5s
-      timeout: 5s
+      interval: 1s
+      timeout: 1s
       retries: 10
-
   apiserver:
     build: ./
     command: "/hyperkube
@@ -36,8 +35,8 @@ services:
         condition: service_healthy
     healthcheck: &getcs
       test: ["CMD", "/hyperkube", "kubectl", "get", "cs"]
-      interval: 5s
-      timeout: 5s
+      interval: 1s
+      timeout: 1s
       retries: 10
 
   controller_manager:
@@ -56,8 +55,8 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "sh", "-c", "/hyperkube kubectl get cs | grep -c Healthy"]
-      interval: 5s
-      timeout: 5s
+      interval: 1s
+      timeout: 1s
       retries: 10
 
   kubelet:
@@ -86,9 +85,9 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "/hyperkube", "kubectl", "get", "no", "localhost"]
-      interval: 5s
-      timeout: 10s
-      retries: 20
+      interval: 1s
+      timeout: 1s
+      retries: 10
     volumes:
         - /var/run/docker.sock:/var/run/docker.sock
 
