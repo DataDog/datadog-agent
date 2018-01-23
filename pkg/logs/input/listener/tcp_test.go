@@ -41,6 +41,8 @@ func (suite *TCPTestSuite) SetupTest() {
 func (suite *TCPTestSuite) TestTCPReceivesMessages() {
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
 	suite.Nil(err)
+
+	// should receive and decode message
 	fmt.Fprintf(conn, "hello world\n")
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))

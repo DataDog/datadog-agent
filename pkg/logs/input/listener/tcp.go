@@ -8,6 +8,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	log "github.com/cihub/seelog"
 
@@ -17,44 +18,66 @@ import (
 
 // A TCPListener listens and accepts TCP connections and delegates the work to connHandler
 type TCPListener struct {
+	port        int
 	listener    net.Listener
 	connHandler *ConnectionHandler
+	shouldStop  bool
+	mu          *sync.Mutex
 }
 
 // NewTCPListener returns an initialized TCPListener
 func NewTCPListener(pp pipeline.Provider, source *config.LogSource) (*TCPListener, error) {
-	log.Info("Starting TCP forwarder on port ", source.Config.Port)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", source.Config.Port))
 	if err != nil {
 		source.Status.Error(err)
 		return nil, err
 	}
 	source.Status.Success()
-	connHandler := &ConnectionHandler{
-		pp:     pp,
-		source: source,
-	}
+	connHandler := NewConnectionHandler(pp, source)
 	return &TCPListener{
+		port:        source.Config.Port,
 		listener:    listener,
 		connHandler: connHandler,
+		mu:          &sync.Mutex{},
 	}, nil
 }
 
 // Start listens to TCP connections on another routine
-func (tcpListener *TCPListener) Start() {
-	go tcpListener.run()
+func (l *TCPListener) Start() {
+	log.Info("Starting TCP forwarder on port ", l.port)
+	go l.run()
+}
+
+// Stop prevents listener to accept new incoming connections and close all open connections
+func (l *TCPListener) Stop() {
+	log.Info("Stopping TCP forwarder on port ", l.port)
+	l.mu.Lock()
+	l.shouldStop = true
+	err := l.listener.Close()
+	if err != nil {
+		log.Warn(err)
+	}
+	l.connHandler.Stop()
+	l.mu.Unlock()
 }
 
 // run accepts new TCP connections and lets connHandler handle them
-func (tcpListener *TCPListener) run() {
+func (l *TCPListener) run() {
 	for {
-		conn, err := tcpListener.listener.Accept()
-		if err != nil {
-			tcpListener.connHandler.source.Status.Error(err)
-			log.Error("Can't listen: ", err)
+		conn, err := l.listener.Accept()
+		l.mu.Lock()
+		if l.shouldStop {
+			l.mu.Unlock()
 			return
 		}
-		tcpListener.connHandler.source.Status.Success()
-		go tcpListener.connHandler.handleConnection(conn)
+		if err != nil {
+			l.connHandler.source.Status.Error(err)
+			log.Error("Can't listen: ", err)
+			l.mu.Unlock()
+			return
+		}
+		l.connHandler.source.Status.Success()
+		go l.connHandler.HandleConnection(conn)
+		l.mu.Unlock()
 	}
 }
