@@ -8,6 +8,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	log "github.com/cihub/seelog"
 
@@ -19,6 +20,7 @@ import (
 type UDPListener struct {
 	conn        *net.UDPConn
 	connHandler *ConnectionHandler
+	mu          *sync.Mutex
 }
 
 // NewUDPListener returns an initialized UDPListener
@@ -35,22 +37,29 @@ func NewUDPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSou
 		return nil, err
 	}
 	source.Tracker.TrackSuccess()
-	connHandler := &ConnectionHandler{
-		pp:     pp,
-		source: source,
-	}
+	connHandler := NewConnectionHandler(pp, source)
 	return &UDPListener{
 		conn:        conn,
 		connHandler: connHandler,
+		mu:          &sync.Mutex{},
 	}, nil
 }
 
 // Start listens to UDP connections on another routine
-func (udpListener *UDPListener) Start() {
-	go udpListener.run()
+func (l *UDPListener) Start() {
+	go l.run()
+}
+
+// Stop closes the UDP connection
+func (l *UDPListener) Stop() {
+	l.mu.Lock()
+	l.connHandler.Stop()
+	l.mu.Unlock()
 }
 
 // run lets connHandler handle new UDP connections
-func (udpListener *UDPListener) run() {
-	go udpListener.connHandler.handleConnection(udpListener.conn)
+func (l *UDPListener) run() {
+	l.mu.Lock()
+	l.connHandler.HandleConnection(l.conn)
+	l.mu.Unlock()
 }

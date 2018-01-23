@@ -8,6 +8,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	log "github.com/cihub/seelog"
 
@@ -19,6 +20,8 @@ import (
 type TCPListener struct {
 	listener    net.Listener
 	connHandler *ConnectionHandler
+	shouldStop  bool
+	mu          *sync.Mutex
 }
 
 // NewTCPListener returns an initialized TCPListener
@@ -30,31 +33,48 @@ func NewTCPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSou
 		return nil, err
 	}
 	source.Tracker.TrackSuccess()
-	connHandler := &ConnectionHandler{
-		pp:     pp,
-		source: source,
-	}
+	connHandler := NewConnectionHandler(pp, source)
 	return &TCPListener{
 		listener:    listener,
 		connHandler: connHandler,
+		mu:          &sync.Mutex{},
 	}, nil
 }
 
 // Start listens to TCP connections on another routine
-func (tcpListener *TCPListener) Start() {
-	go tcpListener.run()
+func (l *TCPListener) Start() {
+	l.shouldStop = false
+	go l.run()
+}
+
+// Stop prevents listener to accept new incoming connections and close all open connections
+func (l *TCPListener) Stop() {
+	l.mu.Lock()
+	l.shouldStop = true
+	err := l.listener.Close()
+	if err != nil {
+		log.Warn(err)
+	}
+	l.connHandler.Stop()
+	l.mu.Unlock()
 }
 
 // run accepts new TCP connections and lets connHandler handle them
-func (tcpListener *TCPListener) run() {
+func (l *TCPListener) run() {
 	for {
-		conn, err := tcpListener.listener.Accept()
+		conn, err := l.listener.Accept()
+		l.mu.Lock()
+		if l.shouldStop {
+			l.mu.Unlock()
+			return
+		}
 		if err != nil {
-			tcpListener.connHandler.source.Tracker.TrackError(err)
+			l.connHandler.source.Tracker.TrackError(err)
 			log.Error("Can't listen: ", err)
 			return
 		}
-		tcpListener.connHandler.source.Tracker.TrackSuccess()
-		go tcpListener.connHandler.handleConnection(conn)
+		l.connHandler.source.Tracker.TrackSuccess()
+		go l.connHandler.HandleConnection(conn)
+		l.mu.Unlock()
 	}
 }

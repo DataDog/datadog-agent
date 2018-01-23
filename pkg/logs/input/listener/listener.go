@@ -14,15 +14,19 @@ import (
 
 // A Listener summons different protocol specific listeners based on configuration
 type Listener struct {
-	pp      pipeline.Provider
-	sources []*config.IntegrationConfigLogSource
+	pp           pipeline.Provider
+	sources      []*config.IntegrationConfigLogSource
+	tcpListeners []*TCPListener
+	udpListeners []*UDPListener
 }
 
 // New returns an initialized Listener
 func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider) *Listener {
 	return &Listener{
-		pp:      pp,
-		sources: sources,
+		pp:           pp,
+		sources:      sources,
+		tcpListeners: []*TCPListener{},
+		udpListeners: []*UDPListener{},
 	}
 }
 
@@ -34,17 +38,33 @@ func (l *Listener) Start() {
 			tcpl, err := NewTCPListener(l.pp, source)
 			if err != nil {
 				log.Error("Can't start tcp source: ", err)
-			} else {
-				tcpl.Start()
+				continue
 			}
+			tcpl.Start()
+			l.tcpListeners = append(l.tcpListeners, tcpl)
 		case config.UDPType:
 			udpl, err := NewUDPListener(l.pp, source)
 			if err != nil {
 				log.Error("Can't start udp source: ", err)
-			} else {
-				udpl.Start()
+				continue
 			}
-		default:
+			udpl.Start()
+			l.udpListeners = append(l.udpListeners, udpl)
 		}
 	}
+}
+
+// Stop closes all the open connections
+func (l *Listener) Stop() {
+	// stop all tcp connections
+	for _, tcpl := range l.tcpListeners {
+		tcpl.Stop()
+	}
+	l.tcpListeners = l.tcpListeners[:0]
+
+	// stop all udp connections
+	for _, udpl := range l.udpListeners {
+		udpl.Stop()
+	}
+	l.udpListeners = l.udpListeners[:0]
 }

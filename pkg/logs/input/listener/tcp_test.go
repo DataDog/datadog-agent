@@ -7,6 +7,7 @@ package listener
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"testing"
 
@@ -45,6 +46,28 @@ func (suite *TCPTestSuite) TestTCPReceivesMessages() {
 	fmt.Fprintf(conn, "hello world\n")
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
+}
+
+func (suite *TCPTestSuite) TestLifeCycle() {
+	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
+	suite.Nil(err)
+
+	// conn should be still alive and message should be received
+	_, err = conn.Write([]byte("hello world\n"))
+	suite.Nil(err)
+	msg := <-suite.outputChan
+	suite.Equal("hello world", string(msg.Content()))
+
+	suite.tcpl.Stop()
+
+	// conn should be stopped
+	inBuf := make([]byte, 1024)
+	_, err = conn.Read(inBuf)
+	suite.Equal(io.EOF, err)
+
+	// tcp connection should be refused
+	_, err = net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
+	suite.NotNil(err)
 }
 
 func TestTCPTestSuite(t *testing.T) {

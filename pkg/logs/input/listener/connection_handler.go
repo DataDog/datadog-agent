@@ -20,12 +20,39 @@ import (
 // ConnectionHandler reads bytes from new connections, passes them to a decoder and
 // transforms decoder output into messages to forward them
 type ConnectionHandler struct {
-	pp     pipeline.Provider
-	source *config.IntegrationConfigLogSource
+	pp          pipeline.Provider
+	source      *config.IntegrationConfigLogSource
+	connections []net.Conn
+}
+
+// NewConnectionHandler returns a new ConnectionHandler
+func NewConnectionHandler(pp pipeline.Provider, source *config.IntegrationConfigLogSource) *ConnectionHandler {
+	return &ConnectionHandler{
+		pp:          pp,
+		source:      source,
+		connections: []net.Conn{},
+	}
+}
+
+// HandleConnection reads bytes from a connection and passes them to a decoder
+func (h *ConnectionHandler) HandleConnection(conn net.Conn) {
+	h.connections = append(h.connections, conn)
+	decoder := decoder.InitializeDecoder(h.source)
+	decoder.Start()
+	go h.forwardMessages(decoder, h.pp.NextPipelineChan())
+	go h.readForever(conn, decoder)
+}
+
+// Stop closes all the open connections
+func (h *ConnectionHandler) Stop() {
+	for _, conn := range h.connections {
+		conn.Close()
+	}
+	h.connections = h.connections[:0]
 }
 
 // forwardMessages forwards messages to output channel
-func (connHandler *ConnectionHandler) forwardMessages(d *decoder.Decoder, outputChan chan message.Message) {
+func (h *ConnectionHandler) forwardMessages(d *decoder.Decoder, outputChan chan message.Message) {
 	for output := range d.OutputChan {
 		if output.ShouldStop {
 			return
@@ -33,17 +60,14 @@ func (connHandler *ConnectionHandler) forwardMessages(d *decoder.Decoder, output
 
 		netMsg := message.NewNetworkMessage(output.Content)
 		o := message.NewOrigin()
-		o.LogSource = connHandler.source
+		o.LogSource = h.source
 		netMsg.SetOrigin(o)
 		outputChan <- netMsg
 	}
 }
 
-// handleConnection reads bytes from a connection and passes them to a decoder
-func (connHandler *ConnectionHandler) handleConnection(conn net.Conn) {
-	d := decoder.InitializeDecoder(connHandler.source)
-	d.Start()
-	go connHandler.forwardMessages(d, connHandler.pp.NextPipelineChan())
+// readForever reads the data from conn until an error or EOF is reached
+func (h *ConnectionHandler) readForever(conn net.Conn, d *decoder.Decoder) {
 	for {
 		inBuf := make([]byte, 4096)
 		n, err := conn.Read(inBuf)
@@ -52,7 +76,7 @@ func (connHandler *ConnectionHandler) handleConnection(conn net.Conn) {
 			return
 		}
 		if err != nil {
-			connHandler.source.Tracker.TrackError(err)
+			h.source.Tracker.TrackError(err)
 			log.Warn("Couldn't read message from connection: ", err)
 			d.Stop()
 			return
