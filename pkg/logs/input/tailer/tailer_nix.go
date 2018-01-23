@@ -8,19 +8,14 @@
 package tailer
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
-	"sync/atomic"
-	"time"
+	"syscall"
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func (t *Tailer) startReading(offset int64, whence int) error {
@@ -78,7 +73,7 @@ func (t *Tailer) readForever() {
 }
 func (t *Tailer) checkForRotation() (bool, error) {
 	f, err := os.Open(t.path)
-	if err != nil {if err != nil {
+	if err != nil {
 		t.source.Tracker.TrackError(err)
 		return false, err
 	}
@@ -99,4 +94,18 @@ func (t *Tailer) checkForRotation() (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+// inode uniquely identifies a file on a filesystem
+func inode(f os.FileInfo) uint64 {
+	s := f.Sys()
+	if s == nil {
+		return 0
+	}
+	switch s := s.(type) {
+	case *syscall.Stat_t:
+		return uint64(s.Ino)
+	default:
+		return 0
+	}
 }
