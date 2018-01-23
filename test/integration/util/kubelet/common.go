@@ -84,33 +84,17 @@ func createCaToken() error {
 
 // initOpenKubelet create a standalone kubelet open to http and https calls
 func initOpenKubelet() (*utils.ComposeConf, error) {
-	networkMode, err := utils.GetNetworkMode()
-	if err != nil {
-		return nil, err
-	}
-
 	compose := &utils.ComposeConf{
 		ProjectName: "open_kubelet_kubeutil",
 		FilePath:    "testdata/open-kubelet-compose.yaml",
-		Variables:   map[string]string{"network_mode": networkMode},
+		Variables:   map[string]string{},
 	}
 	return compose, nil
 }
 
 // initSecureKubelet create an etcd, kube-apiserver and kubelet to open https authNZ calls
 func initSecureKubelet(auth bool) (*utils.ComposeConf, *utils.CertificatesConfig, error) {
-	networkMode, err := utils.GetNetworkMode()
-	if err != nil {
-		return nil, nil, err
-	}
-
 	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	kubeConfigPath := path.Join(cwd, "testdata/kubeconfig.json")
-	_, err = os.Stat(kubeConfigPath)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -139,11 +123,14 @@ func initSecureKubelet(auth bool) (*utils.ComposeConf, *utils.CertificatesConfig
 		ProjectName: projectName,
 		FilePath:    fmt.Sprintf("testdata/%s", composeFile),
 		Variables: map[string]string{
-			"network_mode":    networkMode,
-			"kubeconfig_path": kubeConfigPath,
-			"certpem_path":    certsConfig.CertFilePath,
-			"keypem_path":     certsConfig.KeyFilePath,
+			"certpem_path": certsConfig.CertFilePath,
+			"keypem_path":  certsConfig.KeyFilePath,
 		},
+		RemoveImages: true,
 	}
+	// try to remove any old staling resources, especially images
+	// this is because an old image can contain old certificates, key
+	// issued from a previous unTearDown build/test
+	compose.Stop()
 	return compose, certsConfig, nil
 }

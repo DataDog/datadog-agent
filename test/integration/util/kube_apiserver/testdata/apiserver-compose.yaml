@@ -3,8 +3,10 @@ services:
   etcd:
     image: "quay.io/coreos/etcd:latest"
     network_mode: ${network_mode}
+    environment:
+      - ETCDCTL_API=3
     healthcheck:
-      test: ["CMD", "etcdctl", "--endpoints", "http://127.0.0.1:2379", "cluster-health"]
+      test: ["CMD", "etcdctl", "--command-timeout=2s", "--dial-timeout=2s", "--endpoints", "http://127.0.0.1:2379", "endpoint", "health"]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -19,7 +21,6 @@ services:
         --service-cluster-ip-range=192.168.1.1/24
         --admission-control=NamespaceLifecycle,LimitRanger,DefaultStorageClass,ResourceQuota
         --authorization-mode=AlwaysAllow
-        --anonymous-auth=false
         --etcd-servers=http://127.0.0.1:2379"
     network_mode: ${network_mode}
     depends_on:

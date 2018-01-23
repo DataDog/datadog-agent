@@ -9,6 +9,7 @@ package kubernetes
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/integration/utils"
@@ -43,14 +44,16 @@ func (suite *SecureAuthQueryTestSuite) TestSecureAuthHTTPSKubelet() {
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
-	require.Nil(suite.T(), err)
+	require.Nil(suite.T(), err, err)
 	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
-	b, err := ku.QueryKubelet("/healthz")
+	b, code, err := ku.QueryKubelet("/healthz")
 	require.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), "ok", string(b))
 
-	b, err = ku.QueryKubelet("/pods")
+	b, code, err = ku.QueryKubelet("/pods")
 	require.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
@@ -70,12 +73,9 @@ func (suite *SecureAuthQueryTestSuite) TestUnauthorizedSecureHTTPSKubelet() {
 	config.Datadog.Set("kubelet_client_ca", certAuthPath)
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
-	ku, err := kubelet.GetKubeUtil()
-	require.Nil(suite.T(), err)
-	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
-	b, err := ku.QueryKubelet("/healthz")
-	require.Nil(suite.T(), err)
-	assert.Equal(suite.T(), "Unauthorized", string(b))
+	_, err := kubelet.GetKubeUtil()
+	require.NotNil(suite.T(), err)
+	assert.True(suite.T(), strings.Contains(err.Error(), "unexpected status code 401 on endpoint https://127.0.0.1:10250/pods"))
 }
 
 func TestSecureAuthKubeletTestSuite(t *testing.T) {

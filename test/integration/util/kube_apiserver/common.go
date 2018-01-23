@@ -18,15 +18,10 @@ import (
 // with etcd and the apiserver running in the same network
 // namespace as the current process.
 func initAPIServerCompose() (*utils.ComposeConf, error) {
-	networkMode, err := utils.GetNetworkMode()
-	if err != nil {
-		return nil, err
-	}
-
 	compose := &utils.ComposeConf{
 		ProjectName: "kube_events",
-		FilePath:    "testdata/apiserver.compose",
-		Variables:   map[string]string{"network_mode": networkMode},
+		FilePath:    "testdata/apiserver-compose.yaml",
+		Variables:   map[string]string{},
 	}
 	return compose, nil
 }

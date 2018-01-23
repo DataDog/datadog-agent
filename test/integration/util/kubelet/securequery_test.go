@@ -45,12 +45,14 @@ func (suite *SecureQueryTestSuite) TestSecureHTTPSKubelet() {
 	ku, err := kubelet.GetKubeUtil()
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
-	b, err := ku.QueryKubelet("/healthz")
+	b, code, err := ku.QueryKubelet("/healthz")
 	require.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), "ok", string(b))
 
-	b, err = ku.QueryKubelet("/pods")
+	b, code, err = ku.QueryKubelet("/pods")
 	require.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
@@ -72,11 +74,13 @@ func (suite *SecureQueryTestSuite) TestSecureSAHTTPSKubelet() {
 	ku, err := kubelet.GetKubeUtil()
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
-	b, err := ku.QueryKubelet("/healthz")
+	b, code, err := ku.QueryKubelet("/healthz")
 	require.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), "ok", string(b))
 
-	b, err = ku.QueryKubelet("/pods")
+	b, code, err = ku.QueryKubelet("/pods")
+	assert.Equal(suite.T(), 200, code)
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
@@ -98,7 +102,7 @@ func (suite *SecureQueryTestSuite) TestSecureUnknownAuthHTTPSKubelet() {
 
 	_, err := kubelet.GetKubeUtil()
 	require.NotNil(suite.T(), err)
-	assert.True(suite.T(), strings.Contains(err.Error(), "Get https://127.0.0.1:10250/pods: x509: certificate signed by unknown authority"))
+	assert.True(suite.T(), strings.Contains(err.Error(), "Get https://127.0.0.1:10250/pods: x509: "))
 }
 
 func TestSecureKubeletTestSuite(t *testing.T) {

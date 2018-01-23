@@ -90,9 +90,12 @@ func (ku *KubeUtil) GetNodeInfo() (ip, name string, err error) {
 
 // GetLocalPodList returns the list of pods running on the node where this pod is running
 func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
-	data, err := ku.QueryKubelet("/pods")
+	data, code, err := ku.QueryKubelet("/pods")
 	if err != nil {
-		return nil, fmt.Errorf("error performing kubelet query: %s", err)
+		return nil, fmt.Errorf("error performing kubelet query %s/pods: %s", ku.kubeletApiEndpoint, err)
+	}
+	if code != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d on %s/pods: %s", code, ku.kubeletApiEndpoint, string(data))
 	}
 
 	v := &PodList{}
@@ -183,20 +186,28 @@ func (ku *KubeUtil) createKubeletRequest(path string) (*http.Request, error) {
 	return req, err
 }
 
-func (ku *KubeUtil) QueryKubelet(path string) ([]byte, error) {
+//QueryKubelet allows to query the KubeUtil registered kubelet API on the parameter path
+// path commonly used are /healthz, /pods, /metrics
+// return the content of the response, the response HTTP status code and an error in case of
+func (ku *KubeUtil) QueryKubelet(path string) ([]byte, int, error) {
 	req, err := ku.createKubeletRequest(path)
 	if err != nil {
 		log.Debugf("Fail to create the kubelet request: %s", err)
-		return nil, err
+		return nil, 0, err
 	}
 	response, err := ku.kubeletApiClient.Do(req)
 	if err != nil {
-		log.Debugf("Fail to request %s: %s", req.URL.String(), err)
-		return nil, err
+		log.Debugf("Cannot request %s: %s", req.URL.String(), err)
+		return nil, 0, err
 	}
 	defer response.Body.Close()
-	log.Debugf("Successfully connected to %s, reading body", req.URL.String())
-	return ioutil.ReadAll(response.Body)
+	b, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		log.Debugf("Fail to read request %s body: %s", req.URL.String(), err)
+		return nil, 0, err
+	}
+	log.Debugf("Successfully connected to %s, status code: %d, body len: %d", req.URL.String(), response.StatusCode, len(b))
+	return b, response.StatusCode, nil
 }
 
 // GetKubeletApiEndpoint returns the current endpoint used to perform QueryKubelet
@@ -217,22 +228,25 @@ func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 
 	// HTTPS
 	ku.kubeletApiEndpoint = fmt.Sprintf("https://%s:%d", kubeHost, config.Datadog.GetInt("kubernetes_https_kubelet_port"))
-	_, httpsUrlErr := ku.QueryKubelet("/pods")
+	_, code, httpsUrlErr := ku.QueryKubelet("/pods")
 	if httpsUrlErr == nil {
-		return nil
+		if code == http.StatusOK {
+			return nil
+		}
+		return fmt.Errorf("unexpected status code %d on endpoint %s/pods", code, ku.kubeletApiEndpoint)
 	}
-	log.Debugf("Fail to use %s: %s", ku.kubeletApiEndpoint, httpsUrlErr)
+	log.Debugf("Cannot use %s: %s", ku.kubeletApiEndpoint, httpsUrlErr)
 
 	// We don't want to carry the token in open http communication
 	ku.kubeletApiRequestHeaders.Del("Authorization")
 
 	// HTTP
 	ku.kubeletApiEndpoint = fmt.Sprintf("http://%s:%d", kubeHost, config.Datadog.GetInt("kubernetes_http_kubelet_port"))
-	_, httpUrlErr := ku.QueryKubelet("/pods")
+	_, _, httpUrlErr := ku.QueryKubelet("/pods")
 	if httpUrlErr == nil {
 		return nil
 	}
-	log.Debugf("Fail to use %s: %s", ku.kubeletApiEndpoint, httpUrlErr)
+	log.Debugf("Cannot use %s: %s", ku.kubeletApiEndpoint, httpUrlErr)
 
 	return fmt.Errorf("no valid API endpoint for the kubelet: https: %q, http: %q", httpsUrlErr, httpUrlErr)
 }
