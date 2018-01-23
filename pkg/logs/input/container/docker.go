@@ -13,6 +13,7 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -47,6 +48,8 @@ type DockerTailer struct {
 
 	sleepDuration time.Duration
 	shouldStop    bool
+	mu            *sync.Mutex
+	isFlushed     chan struct{}
 }
 
 // NewDockerTailer returns a new DockerTailer
@@ -59,6 +62,8 @@ func NewDockerTailer(cli *client.Client, container types.Container, source *conf
 		cli:         cli,
 
 		sleepDuration: defaultSleepDuration,
+		mu:            &sync.Mutex{},
+		isFlushed:     make(chan struct{}, 1),
 	}
 }
 
@@ -68,10 +73,17 @@ func (dt *DockerTailer) Identifier() string {
 }
 
 // Stop stops the DockerTailer
-func (dt *DockerTailer) Stop() {
+func (dt *DockerTailer) Stop(mustWaitFlush bool) {
+	log.Info("Stop tailing container ", dt.ContainerID[:12])
+	dt.mu.Lock()
 	dt.shouldStop = true
 	dt.source.RemoveInput(dt.ContainerID)
 	dt.d.Stop()
+	if mustWaitFlush {
+		// blocks until flush
+		<-dt.isFlushed
+	}
+	dt.mu.Unlock()
 }
 
 // tailFromBeginning starts the tailing from the beginning
@@ -143,31 +155,34 @@ func (dt *DockerTailer) startReading(from string) error {
 // and sleeps when there is nothing to read
 func (dt *DockerTailer) readForever() {
 	for {
-
+		dt.mu.Lock()
 		if dt.shouldStop {
 			// this means that we stop reading as soon as we get the stop message,
 			// but on the other hand we get it when the container is stopped so it should be fine
+			dt.mu.Unlock()
 			return
 		}
 
 		inBuf := make([]byte, 4096)
 		n, err := dt.reader.Read(inBuf)
-		if err == io.EOF {
-			// reader is closed, maybe container stopped running
-			// let's close tailer. Scanner will reopen if needed
-			dt.shouldStop = true
-			continue
-		}
 		if err != nil {
-			dt.source.Status.Error(err)
-			log.Error("Err: ", err)
+			// stops tailing the docker container when error
+			if err != io.EOF {
+				dt.source.Status.Error(err)
+				log.Error("Err: ", err)
+			}
+			dt.shouldStop = true
+			dt.mu.Unlock()
 			return
 		}
 		if n == 0 {
+			// wait for new data to come
 			dt.wait()
+			dt.mu.Unlock()
 			continue
 		}
 		dt.d.InputChan <- decoder.NewInput(inBuf[:n])
+		dt.mu.Unlock()
 	}
 }
 
@@ -180,6 +195,7 @@ func (dt *DockerTailer) readForever() {
 func (dt *DockerTailer) forwardMessages() {
 	for output := range dt.d.OutputChan {
 		if output.ShouldStop {
+			dt.isFlushed <- struct{}{}
 			return
 		}
 
