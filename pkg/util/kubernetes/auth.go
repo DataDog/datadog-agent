@@ -19,8 +19,8 @@ const (
 	ServiceAccountTokenPath = ServiceAccountPath + "/token"
 )
 
-// IsServiceAccountToken returns if a service account token is present on the const path
-func IsServiceAccountToken() bool {
+// IsServiceAccountTokenAvailable returns if a service account token is available on disk
+func IsServiceAccountTokenAvailable() bool {
 	_, err := os.Stat(ServiceAccountTokenPath)
 	return err == nil
 }
@@ -44,7 +44,7 @@ func GetCertificates(certFilePath, keyFilePath string) ([]tls.Certificate, error
 	return append(certs, cert), nil
 }
 
-// GetCertificateAuthority load the issuing certificate authority
+// GetCertificateAuthority loads the issuing certificate authority
 func GetCertificateAuthority(certPath string) (*x509.CertPool, error) {
 	caCert, err := ioutil.ReadFile(certPath)
 	if err != nil {

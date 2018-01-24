@@ -13,8 +13,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -27,21 +25,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+const fakePath = "./testdata/invalidTokenFilePath"
+
 // dummyKubelet allows tests to mock a kubelet's responses
 type dummyKubelet struct {
 	Requests chan *http.Request
 	PodsBody []byte
-}
-
-func createFakePath() string {
-	fakePath := "/tmp"
-	for {
-		fakePath = filepath.Join(fakePath, "layer")
-		_, err := os.Stat(fakePath)
-		if err != nil && os.IsNotExist(err) {
-			return fakePath
-		}
-	}
 }
 
 func newDummyKubelet(podListJSONPath string) (*dummyKubelet, error) {
@@ -132,7 +121,7 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 	select {
 	case r := <-kubelet.Requests:
 		require.Equal(suite.T(), "GET", r.Method)
-		require.Equal(suite.T(), "/pods", r.URL.Path)
+		require.Equal(suite.T(), "/", r.URL.Path)
 	case <-time.After(2 * time.Second):
 		require.FailNow(suite.T(), "Timeout on receive channel")
 	}
@@ -184,7 +173,7 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), kubeutil)
-	<-kubelet.Requests // Throwing away /healthz GET
+	<-kubelet.Requests // Throwing away GET
 
 	ip, name, err := kubeutil.GetNodeInfo()
 	require.Nil(suite.T(), err)
@@ -238,12 +227,21 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
-	fakePath := createFakePath()
+	// with a token, without certs on HTTPS insecure
+	k, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	require.Nil(suite.T(), err)
+
+	s, kubeletPort, err := k.StartTLS()
+	require.Nil(suite.T(), err)
+	defer s.Close()
+
+	config.Datadog.Set("kubernetes_https_kubelet_port", kubeletPort)
 	config.Datadog.Set("kubelet_auth_token_path", fakePath)
 	config.Datadog.Set("kubelet_tls_verify", false)
+	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := newKubeUtil()
-	err := ku.init()
+	err = ku.init()
 	expectedErr := fmt.Errorf("could not read token from %s: open %s: no such file or directory", fakePath, fakePath)
 	assert.Equal(suite.T(), expectedErr, err)
 }
@@ -292,7 +290,7 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	err = ku.init()
 	require.Nil(suite.T(), err)
 	assert.Equal(suite.T(), fmt.Sprintf("http://127.0.0.1:%d", kubeletPort), ku.kubeletApiEndpoint)
-	assert.Equal(suite.T(), "", ku.kubeletApiRequestHeaders.Get("Authorization"))
+	assert.Equal(suite.T(), "", ku.kubeletApiRequestHeaders.Get(authorizationHeaderKey))
 	assert.True(suite.T(), ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify)
 	b, code, err := ku.QueryKubelet("/healthz")
 	assert.Nil(suite.T(), err)

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2018 Datadog, Inc.
+
 package utils
 
 import (
@@ -51,6 +56,7 @@ func pemBlockForKey(privateKey interface{}) (*pem.Block, error) {
 	}
 }
 
+// GenerateCertificates create a self-signed certificate with a private key according the config in parameter
 func GenerateCertificates(config *CertificatesConfig) error {
 	var privateKey interface{}
 	var err error
