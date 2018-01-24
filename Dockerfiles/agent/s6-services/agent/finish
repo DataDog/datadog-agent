@@ -1,0 +1,5 @@
+#!/usr/bin/execlineb -S0
+
+# Kill the container if the main agent were to exit
+
+s6-svscanctl -t /var/run/s6/services

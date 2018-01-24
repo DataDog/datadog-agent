@@ -1,0 +1,3 @@
+#!/usr/bin/execlineb -P
+
+process-agent --config=/etc/datadog-agent/datadog.yaml

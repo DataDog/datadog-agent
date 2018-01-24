@@ -1,0 +1,7 @@
+#!/usr/bin/execlineb -P
+
+# Set the DD_HOSTNAME from the `agent hostname` command then start
+# the trace agent with this variable
+
+backtick DD_HOSTNAME { agent hostname }
+trace-agent --config=/etc/datadog-agent/datadog.yaml

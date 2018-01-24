@@ -23,7 +23,7 @@ The following environment variables are supported:
 
 Example usage: `docker run -e DD_API_KEY=your-api-key-here -it <image-name>`
 
-For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/agent/)
+For more information about the container's lifecycle, see [SUPERVISION.md](SUPERVISION.md).
 
 ## How to build it
 
