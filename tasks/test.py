@@ -157,22 +157,20 @@ def lint_releasenote(ctx):
             return
 
         # Then check that at least one note was touched by the PR
-        filenames = []
         url = requests.get("https://api.github.com/repos/DataDog/datadog-agent/pulls/{}/files".format(pr_id))
         # traverse paginated github response
         while True:
             res = requests.get(url)
-            for f in res.json():
-                filenames.append(f['filename'])
+            files = res.json()
+            if any([f['filename'].startswith("releasenotes/notes/") for f in files]):
+                break
 
             if 'next' in res.links:
                 url = res.links['next']['url']
             else:
-                break
+                print("Error: No releasenote was found for this PR. Please add one using 'reno'.")
+                raise Exit(1)
 
-        if not any([f['filename'].startswith("releasenotes/notes/") for f in files]):
-            print("Error: No releasenote was found for this PR. Please add one using 'reno'.")
-            raise Exit(1)
 
     ctx.run("reno lint")
 
