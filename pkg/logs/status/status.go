@@ -7,7 +7,6 @@ package status
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"strings"
 )
 
 var (
@@ -72,8 +71,8 @@ func Get() Status {
 				status = "Pending"
 			} else if source.Status.IsSuccess() {
 				status = "OK"
-			} else if source.Status.HasErrors() {
-				status = strings.Join(source.Status.GetErrors(), ", ")
+			} else if source.Status.IsError() {
+				status = source.Status.GetError()
 			}
 			sources = append(sources, Source{
 				Type:   source.Config.Type,

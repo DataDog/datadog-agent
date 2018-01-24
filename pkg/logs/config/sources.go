@@ -25,7 +25,7 @@ func (s *LogSources) GetSources() []*LogSource {
 // GetValidSources returns all the sources currently held not having errors.
 func (s *LogSources) GetValidSources() []*LogSource {
 	return s.getSources(func(source *LogSource) bool {
-		return !source.Status.HasErrors()
+		return !source.Status.IsError()
 	})
 }
 

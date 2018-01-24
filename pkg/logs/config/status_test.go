@@ -21,8 +21,8 @@ func (s *LogStatusSuite) TestPending() {
 	s.status = NewLogStatus()
 	s.True(s.status.IsPending())
 	s.False(s.status.IsSuccess())
-	s.False(s.status.HasErrors())
-	s.Equal(0, len(s.status.GetErrors()))
+	s.False(s.status.IsError())
+	s.Equal("", s.status.GetError())
 }
 
 func (s *LogStatusSuite) TestSuccess() {
@@ -30,8 +30,8 @@ func (s *LogStatusSuite) TestSuccess() {
 	s.status.Success()
 	s.False(s.status.IsPending())
 	s.True(s.status.IsSuccess())
-	s.False(s.status.HasErrors())
-	s.Equal(0, len(s.status.GetErrors()))
+	s.False(s.status.IsError())
+	s.Equal("", s.status.GetError())
 }
 
 func (s *LogStatusSuite) TestError() {
@@ -39,9 +39,8 @@ func (s *LogStatusSuite) TestError() {
 	s.status.Error(errors.New("bar"))
 	s.False(s.status.IsPending())
 	s.False(s.status.IsSuccess())
-	s.True(s.status.HasErrors())
-	s.Equal(1, len(s.status.GetErrors()))
-	s.Equal("Error: bar", s.status.GetErrors()[0])
+	s.True(s.status.IsError())
+	s.Equal("Error: bar", s.status.GetError())
 }
 
 func TestLogStatusSuite(t *testing.T) {

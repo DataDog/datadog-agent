@@ -13,7 +13,7 @@ import (
 // LogStatus tracks errors and success.
 type LogStatus struct {
 	pending bool
-	errors  []string
+	error   string
 	mu      *sync.Mutex
 }
 
@@ -30,7 +30,7 @@ func (s *LogStatus) Success() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pending = false
-	s.errors = make([]string, 0)
+	s.error = ""
 }
 
 // Error records the given error.
@@ -38,7 +38,7 @@ func (s *LogStatus) Error(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pending = false
-	s.errors = append(s.errors, fmt.Sprintf("Error: %s", err.Error()))
+	s.error = fmt.Sprintf("Error: %s", err.Error())
 }
 
 // IsPending returns whether the current status is not yet determined.
@@ -52,19 +52,19 @@ func (s *LogStatus) IsPending() bool {
 func (s *LogStatus) IsSuccess() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return !s.pending && len(s.errors) == 0
+	return !s.pending && s.error == ""
 }
 
-// HasErrors returns whether the current status has errors.
-func (s *LogStatus) HasErrors() bool {
+// IsError returns whether the current status is an error.
+func (s *LogStatus) IsError() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return len(s.errors) > 0
+	return s.error != ""
 }
 
-// GetErrors returns the errors.
-func (s *LogStatus) GetErrors() []string {
+// GetError returns the error.
+func (s *LogStatus) GetError() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.errors
+	return s.error
 }
