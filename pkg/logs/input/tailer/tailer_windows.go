@@ -24,18 +24,7 @@ func (t *Tailer) startReading(offset int64, whence int) error {
 		t.source.Tracker.TrackError(err)
 		return err
 	}
-	log.Info("startReading ", t.fullpath)
-	/*
-		f, err := os.Open(fullpath)
-		if err != nil {
-			t.source.Tracker.TrackError(err)
-			return err
-		}
-		t.source.Tracker.TrackSuccess()
-
-		ret, _ := f.Seek(offset, whence)
-		t.file = f
-	*/
+	log.Info("Opening ", t.fullpath)
 	t.readOffset = offset
 	t.decodedOffset = offset
 
@@ -108,6 +97,9 @@ func (t *Tailer) readForever() {
 		}
 	}
 }
+
+// checkForRotation does nothing on windows, log rotations
+// are for now handled by the readAvailable method
 func (t *Tailer) checkForRotation() (bool, error) {
 	return false, nil
 }
