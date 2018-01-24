@@ -61,12 +61,11 @@ func (lh *SingleLineHandler) start() {
 // process creates outputs from lines and forwards them to outputChan
 // When lines are too long, they are truncated
 func (lh *SingleLineHandler) process(line []byte) {
-	if len(bytes.TrimSpace(line)) == 0 {
-		return
-	}
-
 	lineLen := len(line)
 	line = bytes.TrimSpace(line)
+	if len(line) == 0 {
+		return
+	}
 
 	var content []byte
 	if lh.shouldTruncate {
