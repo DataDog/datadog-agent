@@ -42,7 +42,7 @@ func NewSingleLineHandler(outputChan chan *Output) *SingleLineHandler {
 // Handle trims leading and trailing whitespaces from content,
 // and sends it as a new Line to lineChan.
 func (lh *SingleLineHandler) Handle(content []byte) {
-	lh.lineChan <- bytes.TrimSpace(content)
+	lh.lineChan <- content
 }
 
 // Stop stops the handler from processing new lines
@@ -61,10 +61,12 @@ func (lh *SingleLineHandler) start() {
 // process creates outputs from lines and forwards them to outputChan
 // When lines are too long, they are truncated
 func (lh *SingleLineHandler) process(line []byte) {
-	lineLen := len(line)
-	if lineLen == 0 {
+	if len(bytes.TrimSpace(line)) == 0 {
 		return
 	}
+
+	lineLen := len(line)
+	line = bytes.TrimSpace(line)
 
 	var content []byte
 	if lh.shouldTruncate {

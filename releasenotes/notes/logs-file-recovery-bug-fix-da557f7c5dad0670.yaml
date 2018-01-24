@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed bug on file tailing causing the logs-agent to reprocess multiple times the same data
