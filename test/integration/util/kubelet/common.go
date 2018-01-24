@@ -17,6 +17,8 @@ import (
 	"path"
 	"time"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -43,9 +45,26 @@ type Data struct {
 	Token string `json:"token"`
 }
 
+func downloadCertificateAuthAndToken() error {
+	tick := time.Tick(time.Second)
+	timeout := time.Tick(time.Second * 10)
+	for {
+		select {
+		case <-tick:
+			err := createCaToken()
+			if err == nil {
+				return nil
+			}
+			log.Warn(err)
+		case <-timeout:
+			return fmt.Errorf("fail to download and create cacert and token")
+		}
+	}
+}
+
 // createCaToken connect to the kube-apiserver and get the token and cacert from the service account secrets
 func createCaToken() error {
-	c := &http.Client{}
+	c := &http.Client{Timeout: time.Second}
 	resp, err := c.Get(apiServerUrl)
 	if err != nil {
 		return err

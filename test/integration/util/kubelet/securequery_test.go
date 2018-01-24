@@ -118,7 +118,7 @@ func TestSecureKubeletTestSuite(t *testing.T) {
 	defer compose.Stop()
 	require.Nil(t, err, string(output))
 
-	err = createCaToken()
+	err = downloadCertificateAuthAndToken()
 	defer os.Remove(tokenPath)
 	defer os.Remove(certAuthPath)
 	require.Nil(t, err, fmt.Sprintf("%v", err))
