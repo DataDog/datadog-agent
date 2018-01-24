@@ -27,6 +27,7 @@ func (t *Tailer) startReading(offset int64, whence int) error {
 	log.Info("Opening ", t.fullpath)
 	t.readOffset = offset
 	t.decodedOffset = offset
+	t.source.Tracker.TrackSuccess()
 
 	go t.readForever()
 	return nil
@@ -55,6 +56,7 @@ func (t *Tailer) readAvailable() (err error) {
 		}
 	} else {
 		log.Debugf("Error stat()ing file %v", err)
+		return err
 	}
 	f.Seek(t.GetReadOffset(), io.SeekStart)
 	inBuf := make([]byte, 4096)
@@ -63,7 +65,7 @@ func (t *Tailer) readAvailable() (err error) {
 		n, err := f.Read(inBuf)
 		if n == 0 || err != nil {
 			log.Debugf("Done reading")
-			break
+			return err
 		}
 		log.Debugf("Sending %d bytes to input channel", n)
 		t.d.InputChan <- decoder.NewInput(inBuf[:n])
