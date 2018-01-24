@@ -24,6 +24,7 @@ New Features
   releasenotes where added/updated to the PR. A 'noreno' label can be added
   to the PR to skip this test.
 
+- Config parsing errors are now displayed in the output of the 'status' command.
 
 Bug Fixes
 ---------
