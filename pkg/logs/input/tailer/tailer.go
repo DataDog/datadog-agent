@@ -46,6 +46,7 @@ type Tailer struct {
 	shouldStop   bool
 	stopTimer    *time.Timer
 	stopMutex    sync.Mutex
+	isFlushed    chan bool
 }
 
 // NewTailer returns an initialized Tailer
@@ -64,6 +65,7 @@ func NewTailer(outputChan chan message.Message, source *config.IntegrationConfig
 		shouldStop:    false,
 		stopMutex:     sync.Mutex{},
 		closeTimeout:  defaultCloseTimeout,
+		isFlushed:     make(chan bool, 1),
 	}
 }
 
@@ -140,6 +142,7 @@ func (t *Tailer) tailFromBeginning() error {
 func (t *Tailer) forwardMessages() {
 	for output := range t.d.OutputChan {
 		if output.ShouldStop {
+			t.isFlushed <- true
 			return
 		}
 

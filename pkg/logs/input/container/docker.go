@@ -47,6 +47,7 @@ type DockerTailer struct {
 
 	sleepDuration time.Duration
 	shouldStop    bool
+	isFlushed     chan bool
 }
 
 // NewDockerTailer returns a new DockerTailer
@@ -59,6 +60,7 @@ func NewDockerTailer(cli *client.Client, container types.Container, source *conf
 		cli:         cli,
 
 		sleepDuration: defaultSleepDuration,
+		isFlushed:     make(chan bool, 1),
 	}
 }
 
@@ -71,6 +73,7 @@ func (dt *DockerTailer) Identifier() string {
 func (dt *DockerTailer) Stop() {
 	dt.shouldStop = true
 	dt.d.Stop()
+	<-dt.isFlushed
 }
 
 // tailFromBeginning starts the tailing from the beginning
@@ -178,6 +181,7 @@ func (dt *DockerTailer) readForever() {
 func (dt *DockerTailer) forwardMessages() {
 	for output := range dt.d.OutputChan {
 		if output.ShouldStop {
+			dt.isFlushed <- true
 			return
 		}
 
