@@ -88,7 +88,6 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 				tailer, isTailed := s.tailers[container.ID]
 				if isTailed && tailer.shouldStop {
 					s.stopTailer(tailer)
-					// TODO
 					isTailed = false
 				}
 				if !isTailed {
