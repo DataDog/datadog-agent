@@ -43,6 +43,7 @@ type Data struct {
 	Token string `json:"token"`
 }
 
+// createCaToken connect to the kube-apiserver and get the token and cacert from the service account secrets
 func createCaToken() error {
 	c := &http.Client{}
 	resp, err := c.Get(apiServerUrl)
@@ -82,17 +83,18 @@ func createCaToken() error {
 	return fmt.Errorf("cannot find valid %q token/cacrt in len(%d)", saSecret, len(s.Items))
 }
 
-// initOpenKubelet create a standalone kubelet open to http and https calls
-func initOpenKubelet() (*utils.ComposeConf, error) {
+// initInsecureKubelet create a standalone kubelet open to http and https calls
+func initInsecureKubelet() (*utils.ComposeConf, error) {
 	compose := &utils.ComposeConf{
-		ProjectName: "open_kubelet_kubeutil",
-		FilePath:    "testdata/open-kubelet-compose.yaml",
+		ProjectName: "insecure_kubelet",
+		FilePath:    "testdata/insecure-kubelet-compose.yaml",
 		Variables:   map[string]string{},
 	}
 	return compose, nil
 }
 
 // initSecureKubelet create an etcd, kube-apiserver and kubelet to open https authNZ calls
+// auth parameter allows to switch to secure + authenticated setup
 func initSecureKubelet(auth bool) (*utils.ComposeConf, *utils.CertificatesConfig, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -112,7 +114,7 @@ func initSecureKubelet(auth bool) (*utils.ComposeConf, *utils.CertificatesConfig
 		return nil, nil, err
 	}
 
-	projectName := "secure_kubelet_kubeutil"
+	projectName := "secure_kubelet"
 	composeFile := "secure-kubelet-compose.yaml"
 	if auth == true {
 		projectName = fmt.Sprintf("auth%s", projectName)
@@ -126,7 +128,7 @@ func initSecureKubelet(auth bool) (*utils.ComposeConf, *utils.CertificatesConfig
 			"certpem_path": certsConfig.CertFilePath,
 			"keypem_path":  certsConfig.KeyFilePath,
 		},
-		RemoveImages: true,
+		RemoveRebuildImages: true,
 	}
 	// try to remove any old staling resources, especially images
 	// this is because an old image can contain old certificates, key

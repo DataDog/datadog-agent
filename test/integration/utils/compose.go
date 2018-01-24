@@ -17,11 +17,11 @@ import (
 )
 
 type ComposeConf struct {
-	ProjectName  string
-	FilePath     string
-	Variables    map[string]string
-	NetworkMode  string
-	RemoveImages bool
+	ProjectName         string
+	FilePath            string
+	Variables           map[string]string
+	NetworkMode         string
+	RemoveRebuildImages bool
 }
 
 // Start runs a docker-compose configuration
@@ -40,11 +40,16 @@ func (c *ComposeConf) Start() ([]byte, error) {
 	}
 
 	c.Variables["network_mode"] = c.NetworkMode
-	runCmd := exec.Command(
-		"docker-compose",
+	args := []string{
 		"--project-name", c.ProjectName,
 		"--file", c.FilePath,
-		"up", "-d")
+		"up",
+		"-d",
+	}
+	if c.RemoveRebuildImages {
+		args = append(args, "--build")
+	}
+	runCmd := exec.Command("docker-compose", args...)
 
 	customEnv := os.Environ()
 	for k, v := range c.Variables {
@@ -62,7 +67,7 @@ func (c *ComposeConf) Stop() ([]byte, error) {
 		"--file", c.FilePath,
 		"down",
 	}
-	if c.RemoveImages {
+	if c.RemoveRebuildImages {
 		args = append(args, "--rmi", "all")
 	}
 	runCmd := exec.Command("docker-compose", args...)

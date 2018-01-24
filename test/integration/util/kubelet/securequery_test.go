@@ -8,17 +8,18 @@
 package kubernetes
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/integration/utils"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
 type SecureQueryTestSuite struct {
@@ -95,6 +96,7 @@ func (suite *SecureQueryTestSuite) TestSecureSAHTTPSKubelet() {
 // - WITHOUT cacert (expecting failure)
 func (suite *SecureQueryTestSuite) TestSecureUnknownAuthHTTPSKubelet() {
 	config.Datadog.Set("kubernetes_https_kubelet_port", 10250)
+	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
 	config.Datadog.Set("kubelet_auth_token_path", "")
 	config.Datadog.Set("kubelet_tls_verify", true)
 	config.Datadog.Set("kubelet_client_ca", "")
@@ -102,14 +104,15 @@ func (suite *SecureQueryTestSuite) TestSecureUnknownAuthHTTPSKubelet() {
 
 	_, err := kubelet.GetKubeUtil()
 	require.NotNil(suite.T(), err)
-	assert.True(suite.T(), strings.Contains(err.Error(), "Get https://127.0.0.1:10250/pods: x509: "))
+	assert.True(suite.T(), strings.Contains(err.Error(), "Get https://127.0.0.1:10250/pods: x509: "), err.Error())
+	assert.True(suite.T(), strings.Contains(err.Error(), "Get http://127.0.0.1:10255/pods: dial tcp 127.0.0.1:10255: getsockopt: connection refused"), err.Error())
 }
 
 func TestSecureKubeletTestSuite(t *testing.T) {
 	compose, certsConfig, err := initSecureKubelet(false)
 	defer os.Remove(certsConfig.CertFilePath)
 	defer os.Remove(certsConfig.KeyFilePath)
-	require.Nil(t, err)
+	require.Nil(t, err, fmt.Sprintf("%v", err))
 
 	output, err := compose.Start()
 	defer compose.Stop()
@@ -118,7 +121,7 @@ func TestSecureKubeletTestSuite(t *testing.T) {
 	err = createCaToken()
 	defer os.Remove(tokenPath)
 	defer os.Remove(certAuthPath)
-	require.Nil(t, err)
+	require.Nil(t, err, fmt.Sprintf("%v", err))
 
 	sqt := &SecureQueryTestSuite{
 		certsConfig: certsConfig,

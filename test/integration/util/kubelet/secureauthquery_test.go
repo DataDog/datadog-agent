@@ -8,17 +8,18 @@
 package kubernetes
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/integration/utils"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
 type SecureAuthQueryTestSuite struct {
@@ -44,7 +45,7 @@ func (suite *SecureAuthQueryTestSuite) TestSecureAuthHTTPSKubelet() {
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
-	require.Nil(suite.T(), err, err)
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
 	b, code, err := ku.QueryKubelet("/healthz")
 	require.Nil(suite.T(), err)
@@ -75,7 +76,24 @@ func (suite *SecureAuthQueryTestSuite) TestUnauthorizedSecureHTTPSKubelet() {
 
 	_, err := kubelet.GetKubeUtil()
 	require.NotNil(suite.T(), err)
-	assert.True(suite.T(), strings.Contains(err.Error(), "unexpected status code 401 on endpoint https://127.0.0.1:10250/pods"))
+	assert.True(suite.T(), strings.Contains(err.Error(), "unexpected status code 401 on endpoint https://127.0.0.1:10250/pods"), err.Error())
+}
+
+// TestFailOnTokenSecureHTTPSKubelet with:
+// - https
+// - tls_verify
+// - cacert
+// - with a wrong token path
+func (suite *SecureAuthQueryTestSuite) TestFailOnTokenSecureHTTPSKubelet() {
+	config.Datadog.Set("kubernetes_https_kubelet_port", 10250)
+	config.Datadog.Set("kubelet_auth_token_path", "./testdata/notExistingToken")
+	config.Datadog.Set("kubelet_tls_verify", true)
+	config.Datadog.Set("kubelet_client_ca", certAuthPath)
+	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+
+	_, err := kubelet.GetKubeUtil()
+	require.NotNil(suite.T(), err)
+	assert.True(suite.T(), strings.Contains(err.Error(), "could not read token from ./testdata/notExistingToken: open ./testdata/notExistingToken: no such file or directory"), err.Error())
 }
 
 func TestSecureAuthKubeletTestSuite(t *testing.T) {
