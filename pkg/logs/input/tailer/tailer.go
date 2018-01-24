@@ -168,6 +168,12 @@ func (t *Tailer) SetReadOffset(off int64) {
 	atomic.StoreInt64(&t.readOffset, off)
 }
 
+// SetDecodedOffset sets the position of the last byte decoded in the
+// file
+func (t *Tailer) SetDecodedOffset(off int64) {
+	atomic.StoreInt64(&t.decodedOffset, off)
+}
+
 // wait lets the tailer sleep for a bit
 func (t *Tailer) wait() {
 	t.sleepMutex.Lock()

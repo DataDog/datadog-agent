@@ -47,9 +47,11 @@ func (t *Tailer) readAvailable() (err error) {
 		if sz == 0 {
 			log.Debug("File size now zero, resetting offset")
 			t.SetReadOffset(0)
+			t.SetDecodedOffset(0)
 		} else if sz < t.GetReadOffset() {
 			log.Debug("Offset off end of file, resetting")
 			t.SetReadOffset(0)
+			t.SetDecodedOffset(0)
 		}
 	} else {
 		log.Debugf("Error stat()ing file %v", err)
