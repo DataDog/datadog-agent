@@ -127,7 +127,7 @@ func buildLogSources(ddconfdPath string) (*LogSources, error) {
 	logSources := &LogSources{sources}
 
 	if len(logSources.GetValidSources()) == 0 {
-		return nil, fmt.Errorf("could not find any valid logs integration configuration file in %s", ddconfdPath)
+		return nil, fmt.Errorf("could not find any valid logs configuration file in %s", ddconfdPath)
 	}
 
 	return logSources, nil
