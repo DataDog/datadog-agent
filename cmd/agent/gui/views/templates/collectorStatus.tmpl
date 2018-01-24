@@ -30,6 +30,19 @@
   </div>
 
   {{- with .autoConfigStats -}}
+    {{- if .ConfigErrors}}
+      <div class="stat">
+        <span class="stat_title">Config Errors</span>
+        <span class="stat_data">
+          {{- range $checkname, $error := .ConfigErrors}}
+            <span class="stat_subtitle">{{$checkname}}</span>
+            <span class="stat_subdata">
+              {{ stringToHTML $error -}}
+            </span>
+          {{end -}}
+        </span>
+      </div>
+    {{- end}}
     {{- if .LoaderErrors}}
       <div class="stat">
         <span class="stat_title">Loading Errors</span>
