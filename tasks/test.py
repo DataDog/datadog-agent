@@ -157,7 +157,7 @@ def lint_releasenote(ctx):
             return
 
         # Then check that at least one note was touched by the PR
-        url = requests.get("https://api.github.com/repos/DataDog/datadog-agent/pulls/{}/files".format(pr_id))
+        url = "https://api.github.com/repos/DataDog/datadog-agent/pulls/{}/files".format(pr_id)
         # traverse paginated github response
         while True:
             res = requests.get(url)
