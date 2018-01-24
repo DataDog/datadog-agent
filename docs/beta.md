@@ -145,9 +145,7 @@ Beta is currently available on these platforms:
 * RedHat/CentOS x86_64 version 6 and above
 * SUSE Enterprise Linux x86_64 version 11 SP4 and above (we do not support SysVinit)
 * MacOS 10.10 and above
-
-Next on the pipeline but still unavailable:
-* Windows 64-bit
+* Windows Server 64-bit 2008 R2 and above
 
 
 [changes]: agent/changes.md

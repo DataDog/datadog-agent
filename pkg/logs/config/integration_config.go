@@ -8,16 +8,16 @@ package config
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
-)
 
-// LogsAgent is the global configuration object
-var LogsAgent = ddconfig.Datadog
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
+)
 
 // Logs source types
 const (
@@ -37,11 +37,10 @@ const (
 
 // Valid integration config extensions
 const (
-	yamlExtension = ".yaml"
-	ymlExtension  = ".yml"
+	directoryExtension = ".d"
+	yamlExtension      = ".yaml"
+	ymlExtension       = ".yml"
 )
-
-const logsRules = "LogsRules"
 
 // LogsProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
@@ -72,6 +71,8 @@ type IntegrationConfigLogSource struct {
 	Tags            string
 	TagsPayload     []byte
 	ProcessingRules []LogsProcessingRule `mapstructure:"log_processing_rules"`
+
+	Tracker *status.Tracker
 }
 
 // IntegrationConfig represents a dd agent config, which includes infra and logs parts
@@ -79,26 +80,12 @@ type IntegrationConfig struct {
 	Logs []IntegrationConfigLogSource
 }
 
-// GetLogsSources returns a list of integration sources
-func GetLogsSources() []*IntegrationConfigLogSource {
-	return getLogsSources(LogsAgent)
-}
-
-func getLogsSources(config *viper.Viper) []*IntegrationConfigLogSource {
-	return config.Get(logsRules).([]*IntegrationConfigLogSource)
-}
-
-// BuildLogsAgentIntegrationsConfigs looks for all yml configs in the ddconfdPath directory,
-// and initializes the LogsAgent integrations configs
-func BuildLogsAgentIntegrationsConfigs() error {
-	return buildLogsAgentIntegrationsConfig(LogsAgent, LogsAgent.GetString("confd_path"))
-}
-
-func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) error {
-
+// buildLogsSources looks for all yml configs in the ddconfdPath directory,
+// and returns a list of all the valid logs sources along with their trackers
+func buildLogsSources(ddconfdPath string) ([]*IntegrationConfigLogSource, []*status.SourceToTrack, error) {
 	integrationConfigFiles := availableIntegrationConfigs(ddconfdPath)
 	logsSourceConfigs := []*IntegrationConfigLogSource{}
-
+	sourcesToTrack := []*status.SourceToTrack{}
 	for _, file := range integrationConfigFiles {
 		var integrationConfig IntegrationConfig
 		var viperCfg = viper.New()
@@ -113,34 +100,60 @@ func buildLogsAgentIntegrationsConfig(config *viper.Viper, ddconfdPath string) e
 			log.Error(err)
 			continue
 		}
-
+		integrationName, err := buildIntegrationName(file)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
 		for _, logSourceConfigIterator := range integrationConfig.Logs {
 			logSourceConfig := logSourceConfigIterator
+			tracker := status.NewTracker(logSourceConfig.Type)
+			// misconfigured sources are also tracked to repport configuration errors
+			sourcesToTrack = append(sourcesToTrack, status.NewSourceToTrack(integrationName, tracker))
 			err = validateSource(logSourceConfig)
 			if err != nil {
+				tracker.TrackError(err)
 				log.Error(err)
 				continue
 			}
-
 			rules, err := validateProcessingRules(logSourceConfig.ProcessingRules)
 			if err != nil {
+				tracker.TrackError(err)
 				log.Error(err)
 				continue
 			}
 			logSourceConfig.ProcessingRules = rules
-
 			logSourceConfig.TagsPayload = BuildTagsPayload(logSourceConfig.Tags, logSourceConfig.Source, logSourceConfig.SourceCategory)
-
+			logSourceConfig.Tracker = tracker
 			logsSourceConfigs = append(logsSourceConfigs, &logSourceConfig)
 		}
 	}
 
 	if len(logsSourceConfigs) == 0 {
-		return fmt.Errorf("Could not find any valid logs integration configuration file in %s", ddconfdPath)
+		return nil, nil, fmt.Errorf("Could not find any valid logs integration configuration file in %s", ddconfdPath)
 	}
 
-	config.Set(logsRules, logsSourceConfigs)
-	return nil
+	return logsSourceConfigs, sourcesToTrack, nil
+}
+
+// buildIntegrationName returns the name of the integration
+func buildIntegrationName(filePath string) (string, error) {
+	validFileExtensions := []string{yamlExtension, ymlExtension}
+	components := strings.Split(filePath, string(os.PathSeparator))
+	if len(components) == 1 {
+		for _, ext := range validFileExtensions {
+			// check if file has a valid extension
+			if strings.HasSuffix(components[0], ext) {
+				return strings.TrimSuffix(components[0], ext), nil
+			}
+		}
+	} else if len(components) == 2 {
+		// check if directory has a valid extension
+		if strings.HasSuffix(components[0], directoryExtension) {
+			return strings.TrimSuffix(components[0], directoryExtension), nil
+		}
+	}
+	return "", fmt.Errorf("Invalid file path: %s", filePath)
 }
 
 // availableIntegrationConfigs lists yaml files in ddconfdPath

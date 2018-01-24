@@ -85,7 +85,10 @@ package :msi do
   wix_candle_extension 'WixUtilExtension'
   wix_light_extension 'WixUtilExtension'
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
-  additional_sign_files ["#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"]
+  additional_sign_files [
+      "#{install_dir}\\bin\\agent\\trace-agent.exe",
+      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
+    ]
   if ENV['SIGN_WINDOWS']
     signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
   end
@@ -126,7 +129,7 @@ dependency 'jmxfetch'
 # External agents
 dependency 'datadog-trace-agent'
 if linux?
-  dependency 'datadog-process-agent'  
+  dependency 'datadog-process-agent'
 end
 
 if osx?

@@ -38,6 +38,7 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
 COPY datadog*.yaml etc/datadog-agent/
 RUN mv etc/datadog-agent/conf.d/docker.d/conf.yaml.example etc/datadog-agent/conf.d/docker.d/conf.yaml.default \
  && sed -i "s/enabled: false/enabled: true/" etc/datadog-agent/conf.d/process_agent.yaml.default
+
 COPY entrypoint.sh .
 
 
@@ -57,6 +58,13 @@ RUN if [ -n "$WITH_JMX" ]; then apt-get update \
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /
+
+# Prepare for running without root
+RUN adduser --group dd-agent \
+ && adduser --system --no-create-home --disabled-password --ingroup dd-agent dd-agent \
+ && chown -R dd-agent:dd-agent /etc/datadog-agent/ \
+ && mkdir /var/log/datadog \
+ && chown dd-agent:dd-agent /var/log/datadog/
 
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp

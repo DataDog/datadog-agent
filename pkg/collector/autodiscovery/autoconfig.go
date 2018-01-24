@@ -455,7 +455,7 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 	for _, loader := range ac.loaders {
 		res, err := loader.Load(config)
 		if err == nil {
-			log.Infof("%v: successfully loaded check '%s'", loader, config.Name)
+			log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
 			errorStats.removeLoaderErrors(config.Name)
 			return res, nil
 		}

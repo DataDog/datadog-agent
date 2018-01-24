@@ -77,6 +77,7 @@ def clean(ctx):
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/datadog-cluster-agent")
 
+
 @task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
 def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
                   skip_deps=False, skip_sign=False):
@@ -115,6 +116,37 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
         if skip_sign:
             env['SKIP_SIGN_MAC'] = 'true'
         ctx.run(cmd.format(**args), env=env)
+
+
+@task
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
+    """
+    Run integration tests for cluster-agent
+    """
+    if install_deps:
+        deps(ctx)
+
+    # We need docker for the kubeapiserver integration tests
+    tags = DEFAULT_BUILD_TAGS + ["docker"]
+
+    test_args = {
+        "go_build_tags": " ".join(get_build_tags(tags, [])),
+        "race_opt": "-race" if race else "",
+        "exec_opts": "",
+    }
+
+    if remote_docker:
+        test_args["exec_opts"] = "-exec \"inv docker.dockerize-test\""
+
+    go_cmd = 'go test {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)
+
+    prefixes = [
+        "./test/integration/util/kube_apiserver",
+    ]
+
+    for prefix in prefixes:
+        ctx.run("{} {}".format(go_cmd, prefix))
+
 
 @task
 def image_build(ctx, base_dir="omnibus"):

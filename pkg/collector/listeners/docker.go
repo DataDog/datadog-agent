@@ -12,20 +12,16 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/go-connections/nat"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-)
-
-const (
-	identifierLabel string = "io.datadog.check.id"
 )
 
 // DockerListener implements the ServiceListener interface.
@@ -268,7 +264,7 @@ func (l *DockerListener) getConfigIDFromPs(co types.Container) []string {
 	if err != nil {
 		log.Warnf("error while resolving image name: %s", err)
 	}
-	return computeDockerIDs(co.ID, image, co.Labels)
+	return ComputeContainerServiceIDs(co.ID, image, co.Labels)
 }
 
 // getHostsFromPs gets the addresss (for now IP address only) of a container on all its networks.
@@ -291,7 +287,9 @@ func (l *DockerListener) getHostsFromPs(co types.Container) map[string]string {
 
 // getPortsFromPs gets the service ports of a container.
 func (l *DockerListener) getPortsFromPs(co types.Container) []int {
-	ports := make([]int, 0)
+	// Nil array by default, we'll need to inspect the container
+	// later if we don't find any port in the PS
+	var ports []int
 
 	for _, p := range co.Ports {
 		ports = append(ports, int(p.PrivatePort))
@@ -329,7 +327,7 @@ func (s *DockerService) GetADIdentifiers() ([]string, error) {
 		if err != nil {
 			log.Warnf("error while resolving image name: %s", err)
 		}
-		s.ADIdentifiers = computeDockerIDs(string(s.ID), image, cj.Config.Labels)
+		s.ADIdentifiers = ComputeContainerServiceIDs(string(s.ID), image, cj.Config.Labels)
 	}
 
 	return s.ADIdentifiers, nil
@@ -371,7 +369,9 @@ func (s *DockerService) GetPorts() ([]int, error) {
 		return s.Ports, nil
 	}
 
-	ports := make([]int, 0)
+	// Make a non-nil array to avoid re-running if we find zero port
+	ports := []int{}
+
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return ports, err
@@ -381,20 +381,53 @@ func (s *DockerService) GetPorts() ([]int, error) {
 		return nil, fmt.Errorf("failed to inspect container %s", string(s.ID)[:12])
 	}
 
-	for p := range cInspect.NetworkSettings.Ports {
-		portStr := string(p)
-		if strings.Contains(portStr, "/") {
-			portStr = strings.Split(portStr, "/")[0]
+	switch {
+	case cInspect.NetworkSettings != nil && len(cInspect.NetworkSettings.Ports) > 0:
+		for p := range cInspect.NetworkSettings.Ports {
+			out, err := parseDockerPort(p)
+			if err != nil {
+				log.Warn(err.Error())
+				continue
+			}
+			ports = append(ports, out...)
 		}
-		port, err := strconv.Atoi(portStr)
-		if err != nil {
-			log.Warnf("failed to extract port %s", string(p))
+	case cInspect.Config != nil && len(cInspect.Config.ExposedPorts) > 0:
+		log.Infof("using ExposedPorts for container %s as no port bindings are listed", string(s.ID)[:12])
+		for p := range cInspect.Config.ExposedPorts {
+			out, err := parseDockerPort(p)
+			if err != nil {
+				log.Warn(err.Error())
+				continue
+			}
+			ports = append(ports, out...)
 		}
-		ports = append(ports, port)
 	}
+
 	sort.Ints(ports)
 	s.Ports = ports
 	return ports, nil
+}
+
+func parseDockerPort(port nat.Port) ([]int, error) {
+	var output []int
+
+	// Try to parse a port range, eg. 22-25
+	first, last, err := port.Range()
+	if err == nil && last > first {
+		for p := first; p <= last; p++ {
+			output = append(output, p)
+		}
+		return output, nil
+	}
+
+	// Try to parse a single port (most common case)
+	p := port.Int()
+	if p > 0 {
+		output = append(output, p)
+		return output, nil
+	}
+
+	return output, fmt.Errorf("failed to extract port from: %v", port)
 }
 
 // GetTags retrieves tags using the Tagger
@@ -424,38 +457,6 @@ func (s *DockerService) GetPid() (int, error) {
 	}
 
 	return s.Pid, nil
-}
-
-// computeDockerIDs factors in code for getConfigIDFromPs and GetADIdentifiers
-// it assumes the image name's sha is already resolved via docker.ResolveImageName
-func computeDockerIDs(cid string, image string, labels map[string]string) []string {
-	ids := []string{}
-
-	// check for an identifier label
-	for l, v := range labels {
-		if l == identifierLabel {
-			ids = append(ids, v)
-			// Let's not return the image name if we find the label
-			return ids
-		}
-	}
-
-	// add the container ID for templates in labels/annotations
-	ids = append(ids, docker.ContainerIDToEntityName(cid))
-
-	// add the image names (long then short if different)
-	long, short, _, err := docker.SplitImageName(image)
-	if err != nil {
-		log.Warnf("error while spliting image name: %s", err)
-	}
-	if len(long) > 0 {
-		ids = append(ids, long)
-	}
-	if len(short) > 0 && short != long {
-		ids = append(ids, short)
-	}
-
-	return ids
 }
 
 // findKubernetesInLabels traverses a map of container labels and

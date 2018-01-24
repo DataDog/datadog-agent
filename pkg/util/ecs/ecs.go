@@ -74,6 +74,25 @@ func IsInstance() bool {
 	return true
 }
 
+// IsFargateInstance returns whether the agent is in an ECS fargate task.
+// It detects it by getting and unmarshalling the metadata API response.
+func IsFargateInstance() bool {
+	client := &http.Client{Timeout: timeout}
+	r, err := client.Get(metadataURL)
+	if err != nil {
+		return false
+	}
+	if r.StatusCode != http.StatusOK {
+		return false
+	}
+	var resp TaskMetadata
+	if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
+		fmt.Printf("decode err: %s\n", err)
+		return false
+	}
+	return true
+}
+
 // IsAgentNotDetected indicates if an error from GetTasks was about no
 // ECS agent being detected. This is a used as a way to check if is available
 // or if the host is not in an ECS cluster.

@@ -7,6 +7,8 @@ package logs
 
 import (
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
 // Start returns an error because logs-agent is not supported on windows yet
@@ -16,3 +18,8 @@ func Start() error {
 
 // Stop does nothing at the moment
 func Stop() {}
+
+// GetStatus returns is not running at the moment
+func GetStatus() status.Status {
+	return status.Status{IsRunning: false}
+}

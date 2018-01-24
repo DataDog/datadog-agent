@@ -6,28 +6,174 @@
 package decoder
 
 import (
+	"bytes"
+	"reflect"
+	"regexp"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
+// All valid whitespace characters
+const whitespace = "\t\n\v\f\r\u0085\u00a0 "
+
+// Unwrapper mocks the logic of LineUnwrapper
+type MockUnwrapper struct {
+	header []byte
+}
+
+// NewUnwrapper returns a new Unwrapper
+func NewMockUnwrapper(header string) LineUnwrapper {
+	return &MockUnwrapper{[]byte(header)}
+}
+
+// Unwrap removes header from line
+func (u MockUnwrapper) Unwrap(line []byte) []byte {
+	return bytes.Replace(line, u.header, []byte(""), 1)
+}
+
+func TestSingleLineHandler(t *testing.T) {
+	outputChan := make(chan *Output, 10)
+	h := NewSingleLineHandler(outputChan)
+
+	var output *Output
+
+	// valid line should be sent
+	h.Handle([]byte("hello world"))
+	output = <-outputChan
+	assert.Equal(t, "hello world", string(output.Content))
+
+	// empty line should be dropped
+	h.Handle([]byte(""))
+	assert.Equal(t, 0, len(outputChan))
+
+	// too long line should be truncated
+	h.Handle([]byte(strings.Repeat("a", contentLenLimit+10)))
+	output = <-outputChan
+	assert.Equal(t, contentLenLimit+len(TRUNCATED)+10, len(output.Content))
+	h.Handle([]byte(strings.Repeat("a", 10)))
+	output = <-outputChan
+	assert.Equal(t, string(TRUNCATED)+strings.Repeat("a", 10), string(output.Content))
+}
+
+func TestSingleLineHandlerLifeCyle(t *testing.T) {
+	outputChan := make(chan *Output, 10)
+	h := NewSingleLineHandler(outputChan)
+	h.Stop()
+	output := <-outputChan
+	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
+}
+
 func TestTrimSingleLine(t *testing.T) {
-	outChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outChan)
+	outputChan := make(chan *Output, 10)
+	h := NewSingleLineHandler(outputChan)
 
-	var out *Output
-
-	// All valid whitespace characters
-	whitespace := "\t\n\v\f\r\u0085\u00a0 "
+	var output *Output
 
 	// All leading and trailing whitespace characters should be trimmed
 	h.Handle([]byte(whitespace + "foo" + whitespace + "bar" + whitespace))
-	out = <-outChan
-	assert.Equal(t, "foo"+whitespace+"bar", string(out.Content))
+	output = <-outputChan
+	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))
+}
+
+func TestMultiLineHandler(t *testing.T) {
+	re := regexp.MustCompile("[0-9]+\\.")
+	outputChan := make(chan *Output, 10)
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewUnwrapper())
+
+	var output *Output
+
+	// two lines long message should be sent
+	h.Handle([]byte("1. first line"))
+	h.Handle([]byte("second line"))
+
+	// one line long message should be sent
+	h.Handle([]byte("2. first line"))
+
+	output = <-outputChan
+	assert.Equal(t, "1. first line"+"\\n"+"second line", string(output.Content))
+	output = <-outputChan
+	assert.Equal(t, "2. first line", string(output.Content))
+
+	// too long line should be truncated
+	h.Handle([]byte(strings.Repeat("a", contentLenLimit+10)))
+	output = <-outputChan
+	assert.Equal(t, contentLenLimit+len(TRUNCATED)+10, len(output.Content))
+	h.Handle([]byte(strings.Repeat("a", 10)))
+	output = <-outputChan
+	assert.Equal(t, string(TRUNCATED)+strings.Repeat("a", 10), string(output.Content))
+
+	// twice too long lines should be double truncated
+	h.Handle([]byte(strings.Repeat("a", contentLenLimit+10)))
+	output = <-outputChan
+	assert.Equal(t, contentLenLimit+len(TRUNCATED)+10, len(output.Content))
+	h.Handle([]byte(strings.Repeat("a", contentLenLimit+10)))
+	output = <-outputChan
+	assert.Equal(t, len(TRUNCATED)+contentLenLimit+len(TRUNCATED)+10, len(output.Content))
+	h.Handle([]byte(strings.Repeat("a", 10)))
+	output = <-outputChan
+	assert.Equal(t, string(TRUNCATED)+strings.Repeat("a", 10), string(output.Content))
+}
+
+func TestTrimMultiLine(t *testing.T) {
+	re := regexp.MustCompile("[0-9]+\\.")
+	outputChan := make(chan *Output, 10)
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewUnwrapper())
+
+	var output *Output
+
+	// All leading and trailing whitespace characters should be trimmed
+	h.Handle([]byte(whitespace + "foo" + whitespace + "bar" + whitespace))
+	output = <-outputChan
+	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))
 
 	// With line break
-	h.Handle([]byte(" foo \n bar "))
-	out = <-outChan
-	assert.Equal(t, "foo \n bar", string(out.Content))
+	h.Handle([]byte(whitespace + "foo" + whitespace))
+	h.Handle([]byte("bar" + whitespace))
+	output = <-outputChan
+	assert.Equal(t, "foo"+whitespace+"\\n"+"bar", string(output.Content))
+}
 
+func TestUnwrapMultiLine(t *testing.T) {
+	const header = "HEADER"
+
+	re := regexp.MustCompile("[0-9]+\\.")
+	outputChan := make(chan *Output, 10)
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockUnwrapper(header))
+
+	var output *Output
+
+	// Only the header of the first line of each Output should be kept
+	h.Handle([]byte(header + "1. first line"))
+	h.Handle([]byte(header + "second line"))
+	h.Handle([]byte(header + "2. first line"))
+	h.Handle([]byte(header + "3. first line"))
+
+	output = <-outputChan
+	assert.Equal(t, header+"1. first line"+"\\n"+"second line", string(output.Content))
+	output = <-outputChan
+	assert.Equal(t, header+"2. first line", string(output.Content))
+	output = <-outputChan
+	assert.Equal(t, header+"3. first line", string(output.Content))
+
+	// The header of the malformed content should remain
+	h.Handle([]byte(header + "malformed first line"))
+	h.Handle([]byte(header + "second line"))
+	h.Handle([]byte(header + "4. first line"))
+
+	output = <-outputChan
+	assert.Equal(t, header+"malformed first line\\nsecond line", string(output.Content))
+	output = <-outputChan
+	assert.Equal(t, header+"4. first line", string(output.Content))
+}
+
+func TestMultiLineHandlerLifeCyle(t *testing.T) {
+	re := regexp.MustCompile("[0-9]+\\.")
+	outputChan := make(chan *Output, 10)
+	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewUnwrapper())
+	h.Stop()
+	output := <-outputChan
+	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
 }

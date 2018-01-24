@@ -11,7 +11,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/google/gofuzz"
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -88,7 +88,7 @@ func (d *Dataset) Sort() {
 
 var testQuantiles = []float64{0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.999, 1}
 
-var testSizes = []int{3, 5, 10, 100, 1000, 10000, 100000}
+var testSizes = []int{3, 5, 10, 100, 1000}
 
 func EvaluateSketch(t *testing.T, n int, gen Generator) {
 	g := NewGKArray()

@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/mock"
 )
 
 type ScannerTestSuite struct {
@@ -58,7 +59,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.testRotatedFile = f
 
 	suite.openFilesLimit = 100
-	suite.sources = []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: suite.testPath}}
+	suite.sources = []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: suite.testPath, Tracker: status.NewTracker()}}
 	suite.s = New(suite.sources, suite.openFilesLimit, suite.pp, auditor.New(nil))
 	suite.s.setup()
 	for _, tl := range suite.s.tailers {
@@ -91,15 +92,12 @@ func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 	var newTailer *Tailer
 	var err error
 	var msg message.Message
-	var readOffset int64
 
 	tailer = s.tailers[sources[0].Path]
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
-	readOffset = tailer.GetReadOffset()
-	suite.True(readOffset > 0)
 
 	s.scan()
 	newTailer = s.tailers[sources[0].Path]
@@ -110,7 +108,6 @@ func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 	suite.Nil(err)
 	msg = <-suite.outputChan
 	suite.Equal("hello again", string(msg.Content()))
-	suite.True(tailer.GetReadOffset() > readOffset)
 }
 
 func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
@@ -215,7 +212,7 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 
 	// create scanner
 	path = fmt.Sprintf("%s/*.log", testDir)
-	sources := []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: path}}
+	sources := []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: path, Tracker: status.NewTracker()}}
 	openFilesLimit := 2
 	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil))
 

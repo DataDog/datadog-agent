@@ -75,7 +75,7 @@ func (s *Scanner) setupTailer(file *File, tailFromBeginning bool, outputChan cha
 		err = t.tailFromBeginning()
 	} else {
 		// resume tailing from last committed offset
-		err = t.recoverTailing(s.auditor)
+		err = t.recoverTailing(s.auditor.GetLastCommittedOffset(t.Identifier()))
 	}
 	if err != nil {
 		log.Warn(err)
@@ -151,11 +151,13 @@ func (s *Scanner) scan() {
 func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
 	f, err := os.Open(file.Path)
 	if err != nil {
+		tailer.source.Tracker.TrackError(err)
 		return false, err
 	}
 
 	stat1, err := f.Stat()
 	if err != nil {
+		tailer.source.Tracker.TrackError(err)
 		return false, err
 	}
 
@@ -169,7 +171,7 @@ func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
 
 // onFileRotation safely stops tailer and setup a new one
 func (s *Scanner) onFileRotation(tailer *Tailer, file *File) {
-	log.Info("Log rotation happened to", tailer.path)
+	log.Info("Log rotation happened to ", tailer.path)
 	shouldTrackOffset := false
 	tailer.Stop(shouldTrackOffset)
 	s.setupTailer(file, true, tailer.outputChan)

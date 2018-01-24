@@ -112,10 +112,16 @@ func GetProxyTransportFunc(p *config.Proxy) func(*http.Request) (*url.URL, error
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
 func CreateHTTPTransport() *http.Transport {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
+	}
+
+	if config.Datadog.GetBool("force_tls_12") {
+		tlsConfig.MinVersion = tls.VersionTLS12
+	}
+
 	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: config.Datadog.GetBool("skip_ssl_validation"),
-		},
+		TLSClientConfig: tlsConfig,
 	}
 
 	if proxies := config.Datadog.Get("proxy"); proxies != nil {

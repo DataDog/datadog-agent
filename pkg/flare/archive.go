@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"expvar"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -109,7 +108,7 @@ func zipStatusFile(zipFile *archivex.ZipFile, hostname string) error {
 }
 
 func zipLogFiles(zipFile *archivex.ZipFile, hostname, logFilePath string) error {
-	logFileDir := path.Dir(logFilePath)
+	logFileDir := filepath.Dir(logFilePath)
 	err := filepath.Walk(logFileDir, func(path string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil
@@ -167,7 +166,7 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths 
 	if err != nil {
 		return err
 	}
-	err = zipFile.Add(filepath.Join(hostname, "datadog.yaml"), cleaned)
+	err = zipFile.Add(filepath.Join(hostname, "runtime_config_dump.yaml"), cleaned)
 	if err != nil {
 		return err
 	}
@@ -259,6 +258,6 @@ func mkFilePath() string {
 	timeString := t.Format("2006-01-02-15-04-05")
 	fileName := strings.Join([]string{"datadog", "agent", timeString}, "-")
 	fileName = strings.Join([]string{fileName, "zip"}, ".")
-	filePath := path.Join(dir, fileName)
+	filePath := filepath.Join(dir, fileName)
 	return filePath
 }

@@ -88,12 +88,17 @@ func init() {
 	Datadog.SetDefault("enable_gohai", true)
 	Datadog.SetDefault("check_runners", int64(0))
 	Datadog.SetDefault("expvar_port", "5000")
+
+	// Use to force client side TLS version to 1.2
+	BindEnvAndSetDefault("force_tls_12", false)
+
 	// Agent GUI access port
 	Datadog.SetDefault("GUI_port", defaultGuiPort)
 	if IsContainerized() {
 		Datadog.SetDefault("container_proc_root", "/host/proc")
+		Datadog.SetDefault("procfs_path", "/host/proc")
 		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
-
+		Datadog.BindEnv("procfs_path")
 	} else {
 		Datadog.SetDefault("container_proc_root", "/proc")
 		// for amazon linux the cgroup directory on host is /cgroup/
@@ -147,23 +152,28 @@ func init() {
 	Datadog.SetDefault("cloud_foundry", false)
 	Datadog.SetDefault("bosh_id", "")
 	// APM
-	Datadog.SetDefault("apm_enabled", true) // this is to support the transition to the new config file
+	BindEnvAndSetDefault("apm_enabled", true) // this is to support the transition to the new config file
+
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
 	// Process Agent
-	Datadog.SetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
+	BindEnvAndSetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
 
 	// Log Agent
-	Datadog.SetDefault("log_enabled", true)
 	Datadog.SetDefault("log_open_files_limit", 100)
-
 	Datadog.SetDefault("logging_frequency", int64(20))
+	BindEnvAndSetDefault("log_enabled", false)
+	BindEnvAndSetDefault("logset", "")
+	BindEnvAndSetDefault("log_dd_url", "intake.logs.datadoghq.com")
+	BindEnvAndSetDefault("log_dd_port", 10516)
+	BindEnvAndSetDefault("run_path", defaultRunPath)
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")
 	Datadog.BindEnv("app_key")
 	Datadog.BindEnv("hostname")
+	Datadog.BindEnv("tags")
 	Datadog.BindEnv("cmd_port")
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("enable_metadata_collection")
@@ -189,15 +199,6 @@ func init() {
 	Datadog.BindEnv("histogram_aggregates")
 	Datadog.BindEnv("histogram_percentiles")
 	Datadog.BindEnv("kubernetes_kubeconfig_path")
-
-	Datadog.BindEnv("process_agent_enabled")
-
-	// Logs
-	BindEnvAndSetDefault("log_enabled", false)
-	BindEnvAndSetDefault("logset", "")
-	BindEnvAndSetDefault("log_dd_url", "intake.logs.datadoghq.com")
-	BindEnvAndSetDefault("log_dd_port", 10516)
-	BindEnvAndSetDefault("run_path", defaultRunPath)
 }
 
 // BindEnvAndSetDefault sets the default value for a config parameter, and adds an env binding

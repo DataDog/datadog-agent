@@ -18,7 +18,6 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -75,8 +74,8 @@ func (t *Tailer) Identifier() string {
 
 // recoverTailing starts the tailing from the last log line processed, or now
 // if we tail this file for the first time
-func (t *Tailer) recoverTailing(a *auditor.Auditor) error {
-	return t.tailFrom(a.GetLastCommittedOffset(t.Identifier()))
+func (t *Tailer) recoverTailing(offset int64, whence int) error {
+	return t.tailFrom(offset, whence)
 }
 
 // Stop lets  the tailer stop
@@ -92,7 +91,7 @@ func (t *Tailer) Stop(shouldTrackOffset bool) {
 func (t *Tailer) onStop() {
 	t.stopMutex.Lock()
 	t.d.Stop()
-	log.Info("Closing", t.path)
+	log.Info("Closing ", t.path)
 	t.file.Close()
 	t.stopTimer.Stop()
 	t.stopMutex.Unlock()
@@ -111,13 +110,17 @@ func (t *Tailer) tailFrom(offset int64, whence int) error {
 func (t *Tailer) startReading(offset int64, whence int) error {
 	fullpath, err := filepath.Abs(t.path)
 	if err != nil {
+		t.source.Tracker.TrackError(err)
 		return err
 	}
-	log.Info("Opening", t.path)
+	log.Info("Opening ", t.path)
 	f, err := os.Open(fullpath)
 	if err != nil {
+		t.source.Tracker.TrackError(err)
 		return err
 	}
+	t.source.Tracker.TrackSuccess()
+
 	ret, _ := f.Seek(offset, whence)
 	t.file = f
 	t.readOffset = ret
@@ -131,12 +134,6 @@ func (t *Tailer) startReading(offset int64, whence int) error {
 // from the beginning
 func (t *Tailer) tailFromBeginning() error {
 	return t.tailFrom(0, os.SEEK_SET)
-}
-
-// tailFromEnd lets the tailer start tailing its file
-// from the end
-func (t *Tailer) tailFromEnd() error {
-	return t.tailFrom(0, os.SEEK_END)
 }
 
 // forwardMessages lets the Tailer forward log messages to the output channel
@@ -183,7 +180,8 @@ func (t *Tailer) readForever() {
 			continue
 		}
 		if err != nil {
-			log.Warn("Err: ", err)
+			t.source.Tracker.TrackError(err)
+			log.Error("Err: ", err)
 			return
 		}
 		if n == 0 {

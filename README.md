@@ -4,12 +4,12 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/kcwhmlsc0oq3m49p/branch/master?svg=true)](https://ci.appveyor.com/project/Datadog/datadog-agent/branch/master)
 [![GoDoc](https://godoc.org/github.com/DataDog/datadog-agent?status.svg)](https://godoc.org/github.com/DataDog/datadog-agent)
 
-The Datadog Agent faithfully collects events and metrics and brings them to
-[Datadog](https://app.datadoghq.com) on your behalf so that you can do something
-useful with your monitoring and performance data.
-
 The present repository contains the source code of the Datadog Agent version 6,
-currently in Beta. The source code of the stable Datadog Agent 5 is located in the
+**currently in beta**. Please refer to the [beta docs](docs/beta.md) for more
+informations about the status of the project, the limitations and how to install
+the latest version of the Agent.
+
+**Note:** the source code of the **stable** Datadog Agent 5 is located in the
 [dd-agent](https://github.com/DataDog/dd-agent) repository.
 
 ## Getting started
@@ -39,10 +39,10 @@ Please refer to the [Agent Developer Guide](docs/dev/README.md) for more details
 To start the agent type `agent start` from the `bin/agent` folder, it will take
 care of adjusting paths and run the binary in foreground.
 
-You need to provide a valid API key, either through the config file or passing
-the environment variable like:
+You need to provide a valid API key. You can either use the config file or
+overwrite it with the environment variable like:
 ```
-DD_API_KEY=12345678990 ./bin/agent/agent
+DD_API_KEY=12345678990 ./bin/agent/agent -c bin/agent/dist/datadog.yaml
 ```
 
 ## Documentation
