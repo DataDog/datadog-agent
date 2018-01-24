@@ -183,8 +183,10 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 // getAllConfigs queries all the providers and returns all the check
 // configurations found, resolving the ones it can
 func (ac *AutoConfig) getAllConfigs() []check.Config {
-	rawConfigs := []check.Config{}
+	resolvedConfigs := []check.Config{}
+
 	for _, pd := range ac.providers {
+		resolvedProviderConfigs := []check.Config{}
 		cfgs, _ := pd.provider.Collect()
 
 		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
@@ -213,15 +215,16 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 
 			cfgs = goodConfs
 		}
-		rawConfigs = append(rawConfigs, cfgs...)
-	}
-	resolvedConfigs := []check.Config{}
-	for _, config := range rawConfigs {
-		rc, err := ac.resolve(config)
-		if err != nil {
-			log.Error(err)
+		for _, config := range cfgs {
+			rc, err := ac.resolve(config)
+			if err != nil {
+				log.Error(err)
+			}
+			resolvedProviderConfigs = append(resolvedConfigs, rc...)
+			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
-		resolvedConfigs = append(resolvedConfigs, rc...)
+		// Store all resolved config in the provider
+		pd.configs = resolvedProviderConfigs
 	}
 
 	return resolvedConfigs
@@ -262,8 +265,7 @@ func (ac *AutoConfig) schedule(checks []check.Check) {
 	}
 }
 
-// resolve loads and resolves a given config and can optionnaly schedules the
-// corresponding Check instances. Returns a slice of resolved configs
+// resolve loads and resolves a given config into a slice of resolved configs
 func (ac *AutoConfig) resolve(config check.Config) ([]check.Config, error) {
 	configs := []check.Config{}
 
@@ -290,9 +292,7 @@ func (ac *AutoConfig) resolve(config check.Config) ([]check.Config, error) {
 			return configs, nil
 		}
 
-		// If success, get the checks for each config resolved
-		// and schedule for running, each template can resolve
-		// to multiple configs
+		// each template can resolve to multiple configs
 		for _, config := range resolvedConfigs {
 			configs = append(configs, config)
 		}
