@@ -19,6 +19,7 @@ from config import (
 )
 from utils.proxy import (
     get_requests_proxy,
+    get_no_proxy_from_env,
     config_proxy_skip
 )
 
@@ -106,8 +107,9 @@ class AgentCheck(object):
         return False
 
 
-    def get_instance_proxy(self, instance, uri):
-        proxies = self.proxies.copy()
+    def get_instance_proxy(self, instance, uri, proxies=None):
+        proxies = proxies if proxies is not None else self.proxies.copy()
+        proxies['no'] = get_no_proxy_from_env()
 
         skip = _is_affirmative(instance.get('no_proxy', not self._use_agent_proxy))
         return config_proxy_skip(proxies, uri, skip)
