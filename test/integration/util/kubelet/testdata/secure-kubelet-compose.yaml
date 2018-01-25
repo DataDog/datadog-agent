@@ -1,0 +1,36 @@
+version: '2.3'
+services:
+  kubelet:
+    build: ./
+    command: "/hyperkube
+        kubelet
+        --cloud-provider=''
+        --hostname-override=localhost
+        --fail-swap-on=false
+        --make-iptables-util-chains=false
+        --hairpin-mode=none
+        --read-only-port 0
+        --client-ca-file=/etc/secrets/cert.pem
+        --tls-cert-file=/etc/secrets/cert.pem
+        --tls-private-key-file=/etc/secrets/key.pem
+        --pod-manifest-path=/opt
+        "
+    network_mode: ${network_mode}
+    healthcheck:
+      test: ["CMD", "/bin/ls", "/var/lib/kubelet"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+    volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+
+  pause:
+    #
+    # This pause container is here to wait until the apiserver
+    # is healthy before returning.
+    #
+    image: "gcr.io/google_containers/pause"
+    depends_on:
+      kubelet:
+        condition: service_healthy
+    network_mode: none

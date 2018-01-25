@@ -43,31 +43,31 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChanges() {
 		expiryDuration: 5 * time.Minute,
 	}
 
-	changes, err := watcher.computechanges(threePods)
+	changes, err := watcher.computeChanges(threePods)
 	require.Nil(suite.T(), err)
 	// The second pod is pending with no container
 	require.Len(suite.T(), changes, 2)
 
 	// Same list should detect no change
-	changes, err = watcher.computechanges(threePods)
+	changes, err = watcher.computeChanges(threePods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 0)
 
 	// A pod with new containers should be sent
-	changes, err = watcher.computechanges(fourthPod)
+	changes, err = watcher.computeChanges(fourthPod)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 	require.Equal(suite.T(), changes[0].Metadata.UID, fourthPod[0].Metadata.UID)
 
 	// A new container ID in an existing pod should trigger
 	fourthPod[0].Status.Containers[0].ID = "testNewID"
-	changes, err = watcher.computechanges(fourthPod)
+	changes, err = watcher.computeChanges(fourthPod)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 	require.Equal(suite.T(), changes[0].Metadata.UID, fourthPod[0].Metadata.UID)
 
 	// Sending the same pod again with no change
-	changes, err = watcher.computechanges(fourthPod)
+	changes, err = watcher.computeChanges(fourthPod)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 0)
 }
@@ -85,7 +85,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireContainers() {
 		expiryDuration: 5 * time.Minute,
 	}
 
-	_, err = watcher.computechanges(sourcePods)
+	_, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), watcher.lastSeen, 5)
 
@@ -113,21 +113,22 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireContainers() {
 func (suite *PodwatcherTestSuite) TestPullChanges() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
 	require.Nil(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
+	ts, kubeletPort, err := kubelet.StartTLS()
 	defer ts.Close()
 	require.Nil(suite.T(), err)
 
-	config.Datadog.SetDefault("kubernetes_kubelet_host", "localhost")
-	config.Datadog.SetDefault("kubernetes_http_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
+	config.Datadog.Set("kubernetes_https_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubelet_tls_verify", false)
 
 	watcher, err := NewPodWatcher(5 * time.Minute)
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), watcher)
-	<-kubelet.Requests // Throwing away /healthz GET
+	<-kubelet.Requests // Throwing away the first /pods GET
 
 	pods, err := watcher.PullChanges()
-	<-kubelet.Requests // Throwing away /pods GET
 	require.Nil(suite.T(), err)
+	<-kubelet.Requests // Throwing away /pods GET
 	// The second pod is pending with no container
 	require.Len(suite.T(), pods, 3)
 }
