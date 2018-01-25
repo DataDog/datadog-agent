@@ -6,54 +6,22 @@
 package kubernetes
 
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"fmt"
 	"io/ioutil"
-	"os"
+
+	log "github.com/cihub/seelog"
 )
 
-// Kubernetes constants
+// Kubelet constants
 const (
-	ServiceAccountPath      = "/var/run/secrets/kubernetes.io/serviceaccount"
-	ServiceAccountTokenPath = ServiceAccountPath + "/token"
+	AuthTokenPath = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 )
 
-// IsServiceAccountTokenAvailable returns if a service account token is available on disk
-func IsServiceAccountTokenAvailable() bool {
-	_, err := os.Stat(ServiceAccountTokenPath)
-	return err == nil
-}
-
-// GetBearerToken reads the serviceaccount token
-func GetBearerToken(authTokenPath string) (string, error) {
-	token, err := ioutil.ReadFile(authTokenPath)
+// GetAuthToken reads the serviceaccount token
+func GetAuthToken() string {
+	token, err := ioutil.ReadFile(AuthTokenPath)
 	if err != nil {
-		return "", fmt.Errorf("could not read token from %s: %s", authTokenPath, err)
+		log.Errorf("Could not read token from %s: %s", AuthTokenPath, err)
+		return ""
 	}
-	return fmt.Sprintf("bearer %s", token), nil
-}
-
-// GetCertificates loads the certificate and the private key
-func GetCertificates(certFilePath, keyFilePath string) ([]tls.Certificate, error) {
-	var certs []tls.Certificate
-	cert, err := tls.LoadX509KeyPair(certFilePath, keyFilePath)
-	if err != nil {
-		return certs, err
-	}
-	return append(certs, cert), nil
-}
-
-// GetCertificateAuthority loads the issuing certificate authority
-func GetCertificateAuthority(certPath string) (*x509.CertPool, error) {
-	caCert, err := ioutil.ReadFile(certPath)
-	if err != nil {
-		return nil, err
-	}
-	caCertPool := x509.NewCertPool()
-	ok := caCertPool.AppendCertsFromPEM(caCert)
-	if ok == false {
-		return caCertPool, fmt.Errorf("fail to load certificate authority: %s", certPath)
-	}
-	return caCertPool, nil
+	return string(token)
 }

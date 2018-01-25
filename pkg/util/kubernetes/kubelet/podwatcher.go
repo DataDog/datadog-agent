@@ -38,20 +38,19 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 	return watcher, nil
 }
 
-// PullChanges pulls a new podList from the kubelet and returns Pod objects for
+// PullChanges pulls a new podlist from the kubelet and returns Pod objects for
 // new / updated pods. Updated pods will be sent entirely, user must replace
 // previous info for these pods.
 func (w *PodWatcher) PullChanges() ([]*Pod, error) {
-	var podList []*Pod
-	podList, err := w.kubeUtil.GetLocalPodList()
+	podlist, err := w.kubeUtil.GetLocalPodList()
 	if err != nil {
-		return podList, err
+		return []*Pod{}, err
 	}
-	return w.computeChanges(podList)
+	return w.computechanges(podlist)
 }
 
-// computeChanges is used by PullChanges, split for testing
-func (w *PodWatcher) computeChanges(podlist []*Pod) ([]*Pod, error) {
+// computechanges is used by PullChanges, split for testing
+func (w *PodWatcher) computechanges(podlist []*Pod) ([]*Pod, error) {
 	now := time.Now()
 	var updatedPods []*Pod
 
@@ -70,7 +69,8 @@ func (w *PodWatcher) computeChanges(podlist []*Pod) ([]*Pod, error) {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
-	log.Debugf("found %d changed pods out of %d", len(updatedPods), len(podlist))
+	log.Debugf("found %d changed pods out of %d",
+		len(updatedPods), len(podlist))
 	return updatedPods, nil
 }
 
