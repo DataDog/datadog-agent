@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/mock"
 )
 
 type ScannerTestSuite struct {
@@ -35,7 +34,7 @@ type ScannerTestSuite struct {
 
 	outputChan     chan message.Message
 	pp             pipeline.Provider
-	sources        []*config.IntegrationConfigLogSource
+	sources        []*config.LogSource
 	openFilesLimit int
 	s              *Scanner
 }
@@ -59,7 +58,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 	suite.testRotatedFile = f
 
 	suite.openFilesLimit = 100
-	suite.sources = []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: suite.testPath, Tracker: status.NewTracker()}}
+	suite.sources = []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testPath})}
 	suite.s = New(suite.sources, suite.openFilesLimit, suite.pp, auditor.New(nil))
 	suite.s.setup()
 	for _, tl := range suite.s.tailers {
@@ -93,14 +92,14 @@ func (suite *ScannerTestSuite) TestScannerScanWithoutLogRotation() {
 	var err error
 	var msg message.Message
 
-	tailer = s.tailers[sources[0].Path]
+	tailer = s.tailers[sources[0].Config.Path]
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
 
 	s.scan()
-	newTailer = s.tailers[sources[0].Path]
+	newTailer = s.tailers[sources[0].Config.Path]
 	// testing that scanner did not have to create a new tailer
 	suite.True(tailer == newTailer)
 
@@ -124,12 +123,12 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotation() {
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
 
-	tailer = s.tailers[sources[0].Path]
+	tailer = s.tailers[sources[0].Config.Path]
 	os.Rename(suite.testPath, suite.testRotatedPath)
 	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
 	s.scan()
-	newTailer = s.tailers[sources[0].Path]
+	newTailer = s.tailers[sources[0].Config.Path]
 	suite.True(tailer != newTailer)
 
 	_, err = f.WriteString("hello again\n")
@@ -147,7 +146,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	var err error
 	var msg message.Message
 
-	tailer = s.tailers[sources[0].Path]
+	tailer = s.tailers[sources[0].Config.Path]
 	_, err = suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg = <-suite.outputChan
@@ -160,7 +159,7 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 	_, err = f.WriteString("third\n")
 	suite.Nil(err)
 	s.scan()
-	newTailer = s.tailers[sources[0].Path]
+	newTailer = s.tailers[sources[0].Config.Path]
 	suite.True(tailer != newTailer)
 
 	msg = <-suite.outputChan
@@ -212,7 +211,7 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 
 	// create scanner
 	path = fmt.Sprintf("%s/*.log", testDir)
-	sources := []*config.IntegrationConfigLogSource{{Type: config.FileType, Path: path, Tracker: status.NewTracker()}}
+	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 	openFilesLimit := 2
 	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil))
 

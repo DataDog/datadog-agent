@@ -31,7 +31,7 @@ func (t *Tailer) startReading(offset int64, whence int) error {
 		return err
 	}
 	t.source.Status.Success()
-	t.source.AddInput(f.Name())
+	t.source.AddInput(t.path)
 
 	ret, _ := f.Seek(offset, whence)
 	t.file = f

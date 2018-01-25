@@ -28,7 +28,7 @@ func (t *Tailer) startReading(offset int64, whence int) error {
 	t.readOffset = offset
 	t.decodedOffset = offset
 	t.source.Status.Success()
-	t.source.AddInput(f.Name())
+	t.source.AddInput(t.path)
 
 	go t.readForever()
 	return nil

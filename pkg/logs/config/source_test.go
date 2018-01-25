@@ -22,6 +22,10 @@ func (s *LogSourceSuite) TestInputs() {
 	s.source.AddInput("foo")
 	s.Equal(1, len(s.source.GetInputs()))
 	s.Equal("foo", s.source.GetInputs()[0])
+	s.source.RemoveInput("foo")
+	s.Equal(0, len(s.source.GetInputs()))
+	s.source.RemoveInput("bar")
+
 }
 
 func TestTrackerSuite(t *testing.T) {

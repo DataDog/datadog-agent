@@ -79,7 +79,7 @@ func (t *Tailer) recoverTailing(offset int64, whence int) error {
 func (t *Tailer) Stop(shouldTrackOffset bool) {
 	t.stopMutex.Lock()
 	t.shouldStop = true
-	t.source.RemoveInput(t.file.Name())
+	t.source.RemoveInput(t.path)
 	t.shouldTrackOffset = shouldTrackOffset
 	t.stopTimer = time.NewTimer(t.closeTimeout)
 	t.stopMutex.Unlock()
