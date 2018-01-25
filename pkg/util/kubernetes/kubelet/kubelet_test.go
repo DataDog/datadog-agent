@@ -30,15 +30,16 @@ import (
 )
 
 const (
-	fakePath           = "./testdata/invalidTokenFilePath"
-	testingCertificate = "./testdata/cert.pem"
-	testingPrivateKey  = "./testdata/key.pem"
+	fakePath = "./testdata/invalidTokenFilePath"
 )
 
 // dummyKubelet allows tests to mock a kubelet's responses
 type dummyKubelet struct {
 	Requests chan *http.Request
 	PodsBody []byte
+
+	testingCertificate string
+	testingPrivateKey  string
 }
 
 func newDummyKubelet(podListJSONPath string) (*dummyKubelet, error) {
@@ -106,11 +107,13 @@ func (d *dummyKubelet) StartTLS() (*httptest.Server, int, error) {
 	if len(ts.TLS.Certificates) != 1 {
 		return ts, 0, fmt.Errorf("unexpected number of testing certificates: 1 != %d", len(ts.TLS.Certificates))
 	}
-	certOut, err := os.Create(testingCertificate)
+	certOut, err := ioutil.TempFile("", "kubelet-test-cert-")
+	d.testingCertificate = certOut.Name()
 	if err != nil {
 		return ts, 0, err
 	}
-	keyOut, err := os.Create(testingPrivateKey)
+	keyOut, err := ioutil.TempFile("", "kubelet-test-key-")
+	d.testingPrivateKey = keyOut.Name()
 	if err != nil {
 		return ts, 0, err
 	}
@@ -282,11 +285,13 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
-	// with a token, without certs on HTTPS insecure
+	// without token, with certs on HTTPS insecure
 	k, err := newDummyKubelet("./testdata/podlist_1.6.json")
 	require.Nil(suite.T(), err)
 
 	s, kubeletPort, err := k.StartTLS()
+	defer os.Remove(k.testingCertificate)
+	defer os.Remove(k.testingPrivateKey)
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
@@ -308,6 +313,8 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	require.Nil(suite.T(), err)
 
 	s, kubeletPort, err := k.StartTLS()
+	defer os.Remove(k.testingCertificate)
+	defer os.Remove(k.testingPrivateKey)
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
@@ -339,15 +346,17 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 	require.Nil(suite.T(), err)
 
 	s, kubeletPort, err := k.StartTLS()
+	defer os.Remove(k.testingCertificate)
+	defer os.Remove(k.testingPrivateKey)
 	require.Nil(suite.T(), err)
 	defer s.Close()
 
 	config.Datadog.Set("kubernetes_https_kubelet_port", kubeletPort)
 	config.Datadog.Set("kubelet_auth_token_path", "")
 	config.Datadog.Set("kubelet_tls_verify", true)
-	config.Datadog.Set("kubelet_client_crt", testingCertificate)
-	config.Datadog.Set("kubelet_client_key", testingPrivateKey)
-	config.Datadog.Set("kubelet_client_ca", testingCertificate)
+	config.Datadog.Set("kubelet_client_crt", k.testingCertificate)
+	config.Datadog.Set("kubelet_client_key", k.testingPrivateKey)
+	config.Datadog.Set("kubelet_client_ca", k.testingCertificate)
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku := newKubeUtil()
@@ -423,7 +432,5 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 }
 
 func TestKubeletTestSuite(t *testing.T) {
-	defer os.Remove(testingCertificate)
-	defer os.Remove(testingPrivateKey)
 	suite.Run(t, new(KubeletTestSuite))
 }
