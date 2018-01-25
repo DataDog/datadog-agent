@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -32,6 +34,8 @@ const (
 	defaultNamespace  = "default"
 	tokenTime         = "tokenTimestamp"
 	tokenKey          = "tokenKey"
+	servicesPollIntl  = 10 * time.Second
+	serviceMapExpire  = 5 * time.Minute
 )
 
 // ApiClient provides authenticated access to the
@@ -41,6 +45,12 @@ type APIClient struct {
 	client  *k8s.Client
 	timeout time.Duration
 }
+
+// // CachedServiceMap stores the higher level cache containing each node name and their corresponding ServiceMapperBundle.
+// type ticker struct {
+// 	servicesPollTicker *time.Ticker
+// 	//stop                      chan bool
+// }
 
 // GetAPIClient returns the shared ApiClient instance.
 func GetAPIClient() (*APIClient, error) {
@@ -92,10 +102,72 @@ func (c *APIClient) connect() error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 	version, err := c.client.Discovery().Version(ctx)
-	if err == nil {
-		log.Debugf("connected to kubernetes apiserver, version %s", version.GitVersion)
+	if err != nil {
+		return err
 	}
-	return err
+	log.Debugf("connected to kubernetes apiserver, version %s", version.GitVersion)
+	c.startServiceMapping() // Is this correct ?
+	return nil
+}
+
+// func newcachedServiceMap() *CachedServiceMap {
+// 	return &CachedServiceMap{
+// 		servicesPollTicker: time.NewTicker(servicesPollIntl),
+// 		//stop:            make(chan bool),
+// 	}
+// }
+// ServiceMapperBundle maps the podNames to the serviceNames they are associated with.
+// It is updated by mapServices in services.go
+type ServiceMapperBundle struct {
+	PodNameToServices map[string][]string
+	m                 sync.RWMutex
+}
+
+func newServiceMapperBundle() *ServiceMapperBundle {
+	return &ServiceMapperBundle{
+		PodNameToServices: make(map[string][]string),
+	}
+}
+
+func (c *APIClient) startServiceMapping() {
+	tickerSvcProcess := time.NewTicker(servicesPollIntl)
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel() // is it good with the go func below ?
+	go func() {
+		for {
+			select {
+			// case <-csm.stop:
+			// 	if csm.servicesPollTicker != nil {
+			// 		csm.m.Lock()
+			// 		defer csm.m.Unlock()
+			// 		csm.stop <- true
+			// 	}
+			// 	return
+			case <-tickerSvcProcess.C:
+				pods, err := c.client.CoreV1().ListPods(ctx, "")
+				if err != nil {
+					log.Errorf("could not collect pods from the API Server: %q", err.Error())
+				}
+				endpointList, err := c.client.CoreV1().ListEndpoints(ctx, "")
+				if err != nil {
+					log.Errorf("could not collect endpoints from the API Server: %q", err.Error())
+				}
+				nodes, err := c.client.CoreV1().ListNodes(ctx)
+				if err != nil {
+					log.Errorf("could not collect nodes from the API Server: %q", err.Error())
+				}
+
+				for _, node := range nodes.Items {
+					smb, found := cache.Cache.Get(*node.Metadata.Name)
+					if !found {
+						smb = newServiceMapperBundle()
+					}
+					smb.(*ServiceMapperBundle).mapServices(*pods, *endpointList)
+					cache.Cache.Set(*node.Metadata.Name, smb.(*ServiceMapperBundle).PodNameToServices, serviceMapExpire)
+				}
+			}
+		}
+	}()
 }
 
 // ParseKubeConfig reads and unmarcshals a kubeconfig file
