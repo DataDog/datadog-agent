@@ -79,7 +79,8 @@ func (lh *SingleLineHandler) process(line []byte) {
 
 	if lineLen < contentLenLimit {
 		// send content
-		output := NewOutput(content, lineLen+1) // add 1 to take into account '\n'
+		// add 1 to take into account '\n' that we didn't include in content
+		output := NewOutput(content, lineLen+1)
 		lh.outputChan <- output
 	} else {
 		// add TRUNCATED at the end of content and send it
