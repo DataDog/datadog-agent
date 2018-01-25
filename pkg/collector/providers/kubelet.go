@@ -8,6 +8,7 @@
 package providers
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -33,8 +34,14 @@ func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvi
 	return &KubeletConfigProvider{}, nil
 }
 
+// String returns a string representation of the KubeletConfigProvider
 func (k *KubeletConfigProvider) String() string {
 	return "Kubernetes pod annotation"
+}
+
+// MarshalJSON returns the serialized json provider info
+func (k *KubeletConfigProvider) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
 }
 
 // Collect retrieves templates from the kubelet's pdolist, builds Config objects and returns them

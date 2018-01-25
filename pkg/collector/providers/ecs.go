@@ -44,6 +44,11 @@ func (p *ECSConfigProvider) String() string {
 	return "ECS container labels"
 }
 
+// MarshalJSON returns the serialized json provider info
+func (p *ECSConfigProvider) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.String())
+}
+
 // IsUpToDate updates the list of AD templates versions in the Agent's cache and checks the list is up to date compared to ECS' data.
 func (p *ECSConfigProvider) IsUpToDate() (bool, error) {
 	return false, nil

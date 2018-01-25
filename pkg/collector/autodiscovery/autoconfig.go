@@ -6,6 +6,7 @@
 package autodiscovery
 
 import (
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"strings"
@@ -37,14 +38,17 @@ func init() {
 	acErrors.Set("RunErrors", expvar.Func(func() interface{} {
 		return errorStats.getRunErrors()
 	}))
+	acErrors.Set("ResolveErrors", expvar.Func(func() interface{} {
+		return errorStats.getResolveErrors()
+	}))
 }
 
 // providerDescriptor keeps track of the configurations loaded by a certain
 // `providers.ConfigProvider` and whether it should be polled or not.
 type providerDescriptor struct {
-	provider providers.ConfigProvider
-	configs  []check.Config
-	poll     bool
+	Provider providers.ConfigProvider `json:"provider"`
+	Configs  []check.Config           `json:"configs"`
+	Poll     bool                     `json:"is_polled"`
 }
 
 // AutoConfig is responsible to collect checks configurations from
@@ -136,7 +140,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 	defer ac.m.Unlock()
 
 	for _, pd := range ac.providers {
-		if pd.provider == provider {
+		if pd.Provider == provider {
 			// we already know this configuration provider, don't do anything
 
 			// this is formatted inline since logging is done on a background thread,
@@ -148,9 +152,9 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 	}
 
 	pd := &providerDescriptor{
-		provider: provider,
-		configs:  []check.Config{},
-		poll:     shouldPoll,
+		Provider: provider,
+		Configs:  []check.Config{},
+		Poll:     shouldPoll,
 	}
 	ac.providers = append(ac.providers, pd)
 }
@@ -187,10 +191,9 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 
 	for _, pd := range ac.providers {
 		resolvedProviderConfigs := []check.Config{}
-		cfgs, _ := pd.provider.Collect()
+		cfgs, _ := pd.Provider.Collect()
 
-		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
-
+		if fileConfPd, ok := pd.Provider.(*providers.FileConfigProvider); ok {
 			var goodConfs []check.Config
 			for _, cfg := range cfgs {
 				// JMX checks can have 2 YAML files: one containing the metrics to collect, one containing the
@@ -216,15 +219,12 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 			cfgs = goodConfs
 		}
 		for _, config := range cfgs {
-			rc, err := ac.resolve(config)
-			if err != nil {
-				log.Error(err)
-			}
+			rc := ac.resolve(config)
 			resolvedProviderConfigs = append(resolvedConfigs, rc...)
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
 		// Store all resolved config in the provider
-		pd.configs = resolvedProviderConfigs
+		pd.Configs = resolvedProviderConfigs
 	}
 
 	return resolvedConfigs
@@ -266,7 +266,7 @@ func (ac *AutoConfig) schedule(checks []check.Check) {
 }
 
 // resolve loads and resolves a given config into a slice of resolved configs
-func (ac *AutoConfig) resolve(config check.Config) ([]check.Config, error) {
+func (ac *AutoConfig) resolve(config check.Config) []check.Config {
 	configs := []check.Config{}
 
 	// add default metrics to collect to JMX checks
@@ -288,9 +288,13 @@ func (ac *AutoConfig) resolve(config check.Config) ([]check.Config, error) {
 		// try to resolve the template
 		resolvedConfigs := ac.configResolver.ResolveTemplate(config)
 		if len(resolvedConfigs) == 0 {
-			log.Infof("Can't resolve the template for %s at this moment.", config.Name)
-			return configs, nil
+			e := fmt.Sprintf("Can't resolve the template for %s at this moment.", config.Name)
+			log.Infof(e)
+			// This might not be a legit error but we store it in errorStats for debug purposes
+			errorStats.setResolveError(config.Name, e)
+			return configs
 		}
+		errorStats.removeResolveError(config.Name)
 
 		// each template can resolve to multiple configs
 		for _, config := range resolvedConfigs {
@@ -300,7 +304,7 @@ func (ac *AutoConfig) resolve(config check.Config) ([]check.Config, error) {
 		configs = append(configs, config)
 	}
 
-	return configs, nil
+	return configs
 }
 
 // AddListener adds a service listener to AutoConfig.
@@ -347,17 +351,17 @@ func (ac *AutoConfig) pollConfigs() {
 				// invoke Collect on the known providers
 				for _, pd := range ac.providers {
 					// skip providers that don't want to be polled
-					if !pd.poll {
+					if !pd.Poll {
 						continue
 					}
 
 					// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outadated.
-					upToDate, err := pd.provider.IsUpToDate()
+					upToDate, err := pd.Provider.IsUpToDate()
 					if err != nil {
-						log.Errorf("cache processing of %v failed: %v", pd.provider.String(), err)
+						log.Errorf("cache processing of %v failed: %v", pd.Provider.String(), err)
 					}
 					if upToDate == true {
-						log.Debugf("No modifications in the templates stored in %q ", pd.provider.String())
+						log.Debugf("No modifications in the templates stored in %q ", pd.Provider.String())
 						continue
 					}
 
@@ -366,10 +370,7 @@ func (ac *AutoConfig) pollConfigs() {
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
 						// store the checks we schedule for this config locally
-						resolvedConfigs, err := ac.resolve(config)
-						if err != nil {
-							log.Error(err)
-						}
+						resolvedConfigs := ac.resolve(config)
 						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
 						ac.schedule(checks)
 					}
@@ -424,9 +425,9 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []check.Conf
 	new = []check.Config{}
 	removed = []check.Config{}
 
-	fetched, err := pd.provider.Collect()
+	fetched, err := pd.Provider.Collect()
 	if err != nil {
-		log.Errorf("Unable to collect configurations from provider %s: %s", pd.provider, err)
+		log.Errorf("Unable to collect configurations from provider %s: %s", pd.Provider, err)
 		return
 	}
 
@@ -436,8 +437,8 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []check.Conf
 		}
 	}
 
-	old := pd.configs
-	pd.configs = fetched
+	old := pd.Configs
+	pd.Configs = fetched
 
 	for _, c := range old {
 		if !pd.contains(&c) {
@@ -445,7 +446,7 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []check.Conf
 		}
 	}
 
-	log.Infof("%v: collected %d new configurations, removed %d", pd.provider, len(new), len(removed))
+	log.Infof("%v: collected %d new configurations, removed %d", pd.Provider, len(new), len(removed))
 
 	return
 }
@@ -473,9 +474,18 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 	return []check.Check{}, fmt.Errorf("unable to load any check from config '%s'", config.Name)
 }
 
+// GetMarshalledConfigs returns all configs in json format
+func (ac *AutoConfig) GetMarshalledConfigs() []byte {
+	json, err := json.Marshal(ac.providers)
+	if err != nil {
+		log.Errorf("Unable to marshal loaded configs: %s", err)
+	}
+	return json
+}
+
 // check if the descriptor contains the Config passed
 func (pd *providerDescriptor) contains(c *check.Config) bool {
-	for _, config := range pd.configs {
+	for _, config := range pd.Configs {
 		if config.Equal(c) {
 			return true
 		}
@@ -492,4 +502,9 @@ func GetLoaderErrors() map[string]LoaderErrors {
 // GetConfigErrors gets the config errors
 func GetConfigErrors() map[string]string {
 	return errorStats.getConfigErrors()
+}
+
+// GetResolveErrors get the resolve errors
+func GetResolveErrors() map[string]string {
+	return errorStats.getResolveErrors()
 }

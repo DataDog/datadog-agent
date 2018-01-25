@@ -48,4 +48,5 @@ type ConfigProvider interface {
 	Collect() ([]check.Config, error)
 	String() string
 	IsUpToDate() (bool, error)
+	MarshalJSON() ([]byte, error)
 }

@@ -8,7 +8,9 @@
 package providers
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"net/url"
 	"sort"
 	"strings"
@@ -18,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"math"
 )
 
 // Abstractions for testing
@@ -97,8 +98,14 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 }
 
+// String returns a string representation of the ConsulConfigProvider
 func (p *ConsulConfigProvider) String() string {
 	return "consul Configuration Provider"
+}
+
+// MarshalJSON returns the serialized json provider info
+func (p *ConsulConfigProvider) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.String())
 }
 
 // Collect retrieves templates from consul, builds Config objects and returns them

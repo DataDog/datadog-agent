@@ -8,6 +8,7 @@
 package providers
 
 import (
+	"encoding/json"
 	"sync"
 
 	log "github.com/cihub/seelog"
@@ -35,8 +36,14 @@ func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 	return &DockerConfigProvider{}, nil
 }
 
+// String returns a string representation of the DockerConfigProvider
 func (d *DockerConfigProvider) String() string {
 	return "Docker container labels"
+}
+
+// MarshalJSON returns the serialized json provider info
+func (d *DockerConfigProvider) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.String())
 }
 
 // Collect retrieves all running containers and extract AD templates from their labels.

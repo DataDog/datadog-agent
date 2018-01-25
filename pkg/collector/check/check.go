@@ -7,6 +7,7 @@ package check
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"regexp"
@@ -49,6 +50,11 @@ var jmxChecks = [...]string{
 // ConfigData contains YAML code
 type ConfigData []byte
 
+// MarshalJSON returns the string representation of the config
+func (c *ConfigData) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string([]byte(*c)[:]))
+}
+
 // ConfigRawMap is the generic type to hold YAML configurations
 type ConfigRawMap map[interface{}]interface{}
 
@@ -57,12 +63,12 @@ type ConfigJSONMap map[string]interface{}
 
 // Config is a generic container for configuration files
 type Config struct {
-	Name          string       // the name of the check
-	Instances     []ConfigData // array of Yaml configurations
-	InitConfig    ConfigData   // the init_config in Yaml (python check only)
-	MetricConfig  ConfigData   // the metric config in Yaml (jmx check only)
-	LogsConfig    ConfigData   // the logs config in Yaml (logs-agent only)
-	ADIdentifiers []string     // the list of AutoDiscovery identifiers (optional)
+	Name          string       `json:"check_name"`     // the name of the check
+	Instances     []ConfigData `json:"instances"`      // array of Yaml configurations
+	InitConfig    ConfigData   `json:"init_config"`    // the init_config in Yaml (python check only)
+	MetricConfig  ConfigData   `json:"metric_config"`  // the metric config in Yaml (jmx check only)
+	LogsConfig    ConfigData   `json:"log_config"`     // the logs config in Yaml (logs-agent only)
+	ADIdentifiers []string     `json:"ad_identifiers"` // the list of AutoDiscovery identifiers (optional)
 }
 
 // Check is an interface for types capable to run checks

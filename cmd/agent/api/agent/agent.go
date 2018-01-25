@@ -40,6 +40,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
+	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -199,4 +200,8 @@ func getCSRFToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write([]byte(gui.CsrfToken))
+}
+
+func getConfigCheck(w http.ResponseWriter, r *http.Request) {
+	w.Write(common.AC.GetMarshalledConfigs())
 }

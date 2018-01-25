@@ -8,11 +8,13 @@
 package providers
 
 import (
+	"encoding/json"
 	"fmt"
-	"golang.org/x/net/context"
 	"math"
 	"strings"
 	"time"
+
+	"golang.org/x/net/context"
 
 	log "github.com/cihub/seelog"
 	"github.com/coreos/etcd/client"
@@ -185,8 +187,14 @@ func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
 	return true, nil
 }
 
+// String returns a string representation of the EtcdConfigProvider
 func (p *EtcdConfigProvider) String() string {
 	return "etcd Configuration Provider"
+}
+
+// MarshalJSON returns the serialized json provider info
+func (p *EtcdConfigProvider) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.String())
 }
 
 // hasTemplateFields verifies that a node array contains
