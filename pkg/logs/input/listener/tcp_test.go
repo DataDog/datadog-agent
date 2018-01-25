@@ -7,7 +7,6 @@ package listener
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"testing"
 
@@ -20,6 +19,7 @@ import (
 )
 
 const tcpTestPort = 10512
+const tcpTimeout = 20
 
 type TCPTestSuite struct {
 	suite.Suite
@@ -34,7 +34,7 @@ func (suite *TCPTestSuite) SetupTest() {
 	suite.pp = mock.NewMockProvider()
 	suite.outputChan = suite.pp.NextPipelineChan()
 	suite.source = &config.IntegrationConfigLogSource{Type: config.TCPType, Port: tcpTestPort, Tracker: status.NewTracker()}
-	tcpl, err := NewTCPListener(suite.pp, suite.source)
+	tcpl, err := NewTCPListener(suite.pp, suite.source, tcpTimeout)
 	suite.Nil(err)
 	suite.tcpl = tcpl
 	suite.tcpl.Start()
@@ -43,31 +43,26 @@ func (suite *TCPTestSuite) SetupTest() {
 func (suite *TCPTestSuite) TestTCPReceivesMessages() {
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
 	suite.Nil(err)
+
+	// should receive and decode message
 	fmt.Fprintf(conn, "hello world\n")
-	msg := <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content()))
-}
-
-func (suite *TCPTestSuite) TestLifeCycle() {
-	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
-	suite.Nil(err)
-
-	// conn should be still alive and message should be received
-	_, err = conn.Write([]byte("hello world\n"))
-	suite.Nil(err)
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
 
 	suite.tcpl.Stop()
 
-	// conn should be stopped
-	inBuf := make([]byte, 1024)
-	_, err = conn.Read(inBuf)
-	suite.Equal(io.EOF, err)
-
 	// tcp connection should be refused
 	_, err = net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
 	suite.NotNil(err)
+
+	// should not receive message
+	fmt.Fprintf(conn, "hello world\n")
+	select {
+	case <-suite.outputChan:
+		suite.Fail("error: should not receive message after stop")
+	default:
+		break
+	}
 }
 
 func TestTCPTestSuite(t *testing.T) {

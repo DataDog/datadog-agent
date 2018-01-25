@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -25,7 +26,7 @@ type TCPListener struct {
 }
 
 // NewTCPListener returns an initialized TCPListener
-func NewTCPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*TCPListener, error) {
+func NewTCPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource, timeout time.Duration) (*TCPListener, error) {
 	log.Info("Starting TCP forwarder on port ", source.Port)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", source.Port))
 	if err != nil {
@@ -33,7 +34,7 @@ func NewTCPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSou
 		return nil, err
 	}
 	source.Tracker.TrackSuccess()
-	connHandler := NewConnectionHandler(pp, source)
+	connHandler := NewConnectionHandler(pp, source, timeout)
 	return &TCPListener{
 		listener:    listener,
 		connHandler: connHandler,

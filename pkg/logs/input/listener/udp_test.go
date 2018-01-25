@@ -19,6 +19,7 @@ import (
 )
 
 const udpTestPort = 10513
+const udpTimeout = 20
 
 type UDPTestSuite struct {
 	suite.Suite
@@ -33,7 +34,7 @@ func (suite *UDPTestSuite) SetupTest() {
 	suite.pp = mock.NewMockProvider()
 	suite.outputChan = suite.pp.NextPipelineChan()
 	suite.source = &config.IntegrationConfigLogSource{Type: config.UDPType, Port: udpTestPort, Tracker: status.NewTracker()}
-	udpl, err := NewUDPListener(suite.pp, suite.source)
+	udpl, err := NewUDPListener(suite.pp, suite.source, udpTimeout)
 	suite.Nil(err)
 	suite.udpl = udpl
 	suite.udpl.Start()
@@ -42,9 +43,26 @@ func (suite *UDPTestSuite) SetupTest() {
 func (suite *UDPTestSuite) TestUDPReceivesMessages() {
 	conn, err := net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
 	suite.Nil(err)
+
+	// should receive and decode message
 	fmt.Fprintf(conn, "hello world\n")
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))
+
+	suite.udpl.Stop()
+
+	// udp connection should be refused
+	// _, err = net.Dial("udp", fmt.Sprintf("localhost:%d", udpTestPort))
+	// suite.NotNil(err)
+
+	// should not receive message
+	fmt.Fprintf(conn, "hello world\n")
+	select {
+	case <-suite.outputChan:
+		suite.Fail("error: should not receive message after stop")
+	default:
+		break
+	}
 }
 
 func TestUDPTestSuite(t *testing.T) {

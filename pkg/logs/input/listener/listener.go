@@ -35,7 +35,7 @@ func (l *Listener) Start() {
 	for _, source := range l.sources {
 		switch source.Type {
 		case config.TCPType:
-			tcpl, err := NewTCPListener(l.pp, source)
+			tcpl, err := NewTCPListener(l.pp, source, defaultTimeout)
 			if err != nil {
 				log.Error("Can't start tcp source: ", err)
 				continue
@@ -43,7 +43,7 @@ func (l *Listener) Start() {
 			tcpl.Start()
 			l.tcpListeners = append(l.tcpListeners, tcpl)
 		case config.UDPType:
-			udpl, err := NewUDPListener(l.pp, source)
+			udpl, err := NewUDPListener(l.pp, source, defaultTimeout)
 			if err != nil {
 				log.Error("Can't start udp source: ", err)
 				continue

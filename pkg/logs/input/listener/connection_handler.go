@@ -8,6 +8,8 @@ package listener
 import (
 	"io"
 	"net"
+	"sync"
+	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -17,44 +19,47 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 )
 
+// defaultTimeout represents the time after which a connection is closed when no data is read
+const defaultTimeout time.Duration = 60000
+
 // ConnectionHandler reads bytes from new connections, passes them to a decoder and
 // transforms decoder output into messages to forward them
 type ConnectionHandler struct {
-	pp          pipeline.Provider
-	source      *config.IntegrationConfigLogSource
-	connections []net.Conn
+	pp      pipeline.Provider
+	source  *config.IntegrationConfigLogSource
+	timeout time.Duration
+	wg      *sync.WaitGroup
 }
 
 // NewConnectionHandler returns a new ConnectionHandler
-func NewConnectionHandler(pp pipeline.Provider, source *config.IntegrationConfigLogSource) *ConnectionHandler {
+func NewConnectionHandler(pp pipeline.Provider, source *config.IntegrationConfigLogSource, timeout time.Duration) *ConnectionHandler {
 	return &ConnectionHandler{
-		pp:          pp,
-		source:      source,
-		connections: []net.Conn{},
+		pp:      pp,
+		source:  source,
+		wg:      &sync.WaitGroup{},
+		timeout: timeout,
 	}
 }
 
 // HandleConnection reads bytes from a connection and passes them to a decoder
 func (h *ConnectionHandler) HandleConnection(conn net.Conn) {
-	h.connections = append(h.connections, conn)
+	h.wg.Add(1)
 	decoder := decoder.InitializeDecoder(h.source)
 	decoder.Start()
 	go h.forwardMessages(decoder, h.pp.NextPipelineChan())
 	go h.readForever(conn, decoder)
 }
 
-// Stop closes all the open connections
+// Stop waits for all connections to be closed and all data to be decoded
 func (h *ConnectionHandler) Stop() {
-	for _, conn := range h.connections {
-		conn.Close()
-	}
-	h.connections = h.connections[:0]
+	h.wg.Wait()
 }
 
 // forwardMessages forwards messages to output channel
 func (h *ConnectionHandler) forwardMessages(d *decoder.Decoder, outputChan chan message.Message) {
 	for output := range d.OutputChan {
 		if output.ShouldStop {
+			h.wg.Done()
 			return
 		}
 
@@ -66,19 +71,26 @@ func (h *ConnectionHandler) forwardMessages(d *decoder.Decoder, outputChan chan 
 	}
 }
 
-// readForever reads the data from conn until an error or EOF is reached
+// readForever reads the data from conn until timeout or an error or EOF is reached
 func (h *ConnectionHandler) readForever(conn net.Conn, d *decoder.Decoder) {
+	defer func() {
+		conn.Close()
+		d.Stop()
+	}()
+
 	for {
+		conn.SetReadDeadline(time.Now().Add(h.timeout * time.Millisecond))
 		inBuf := make([]byte, 4096)
 		n, err := conn.Read(inBuf)
 		if err == io.EOF {
-			d.Stop()
+			return
+		}
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 			return
 		}
 		if err != nil {
 			h.source.Tracker.TrackError(err)
 			log.Warn("Couldn't read message from connection: ", err)
-			d.Stop()
 			return
 		}
 		d.InputChan <- decoder.NewInput(inBuf[:n])

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -24,7 +25,7 @@ type UDPListener struct {
 }
 
 // NewUDPListener returns an initialized UDPListener
-func NewUDPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*UDPListener, error) {
+func NewUDPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource, timeout time.Duration) (*UDPListener, error) {
 	log.Info("Starting UDP forwarder on port ", source.Port)
 	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", source.Port))
 	if err != nil {
@@ -37,7 +38,7 @@ func NewUDPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSou
 		return nil, err
 	}
 	source.Tracker.TrackSuccess()
-	connHandler := NewConnectionHandler(pp, source)
+	connHandler := NewConnectionHandler(pp, source, timeout)
 	return &UDPListener{
 		conn:        conn,
 		connHandler: connHandler,
