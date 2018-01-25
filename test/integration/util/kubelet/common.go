@@ -8,16 +8,10 @@
 package kubernetes
 
 import (
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"path"
 	"time"
-
-	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
@@ -25,82 +19,7 @@ import (
 const (
 	emptyPodList = `{"kind":"PodList","apiVersion":"v1","metadata":{},"items":null}
 `
-	tokenPath    = "testdata/sa-token"
-	certAuthPath = "testdata/sa-cacert"
-	apiServerUrl = "http://127.0.0.1:8080/api/v1/namespaces/default/secrets"
-	saSecret     = "kubernetes.io/service-account-token"
 )
-
-type SecretList struct {
-	Items []Items `json:"items"`
-}
-
-type Items struct {
-	Data Data   `json:"data"`
-	Type string `json:"type"`
-}
-
-type Data struct {
-	CaCrt string `json:"ca.crt"`
-	Token string `json:"token"`
-}
-
-func downloadCertificateAuthAndToken() error {
-	tick := time.Tick(time.Second)
-	timeout := time.Tick(time.Second * 10)
-	for {
-		select {
-		case <-tick:
-			err := createCaToken()
-			if err == nil {
-				return nil
-			}
-			log.Warn(err)
-		case <-timeout:
-			return fmt.Errorf("fail to download and create cacert and token")
-		}
-	}
-}
-
-// createCaToken connect to the kube-apiserver and get the token and cacert from the service account secrets
-func createCaToken() error {
-	c := &http.Client{Timeout: time.Second}
-	resp, err := c.Get(apiServerUrl)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	s := &SecretList{}
-	err = json.Unmarshal(b, s)
-	if err != nil {
-		return err
-	}
-	for _, item := range s.Items {
-		if item.Type != saSecret {
-			continue
-		}
-		token, err := base64.StdEncoding.DecodeString(item.Data.Token)
-		if err != nil {
-			continue
-		}
-		certificateAuth, err := base64.StdEncoding.DecodeString(item.Data.CaCrt)
-		if err != nil {
-			continue
-		}
-		err = ioutil.WriteFile(tokenPath, token, 0600)
-		if err != nil {
-			return err
-		}
-		return ioutil.WriteFile(certAuthPath, certificateAuth, 0600)
-	}
-	return fmt.Errorf("cannot find valid %q token/cacrt in len(%d)", saSecret, len(s.Items))
-}
 
 // initInsecureKubelet create a standalone kubelet open to http and https calls
 func initInsecureKubelet() (*utils.ComposeConf, error) {
@@ -114,7 +33,7 @@ func initInsecureKubelet() (*utils.ComposeConf, error) {
 
 // initSecureKubelet create an etcd, kube-apiserver and kubelet to open https authNZ calls
 // auth parameter allows to switch to secure + authenticated setup
-func initSecureKubelet(auth bool) (*utils.ComposeConf, *utils.CertificatesConfig, error) {
+func initSecureKubelet() (*utils.ComposeConf, *utils.CertificatesConfig, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, nil, err
@@ -133,12 +52,8 @@ func initSecureKubelet(auth bool) (*utils.ComposeConf, *utils.CertificatesConfig
 		return nil, nil, err
 	}
 
-	projectName := "secure_kubelet"
+	projectName := "kubelet"
 	composeFile := "secure-kubelet-compose.yaml"
-	if auth == true {
-		projectName = fmt.Sprintf("auth%s", projectName)
-		composeFile = fmt.Sprintf("auth-%s", composeFile)
-	}
 
 	compose := &utils.ComposeConf{
 		ProjectName: projectName,
