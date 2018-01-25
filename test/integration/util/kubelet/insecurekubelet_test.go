@@ -19,22 +19,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-type InsecureQueryTestSuite struct {
+type InsecureTestSuite struct {
 	suite.Suite
 }
 
 // Make sure globalKubeUtil is deleted before each test
-func (suite *InsecureQueryTestSuite) SetupTest() {
+func (suite *InsecureTestSuite) SetupTest() {
 	kubelet.ResetGlobalKubeUtil()
 }
 
-func (suite *InsecureQueryTestSuite) TestInsecureHTTPKubelet() {
+func (suite *InsecureTestSuite) TestHTTP() {
 	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
 
 	// Giving 10255 http port to https setting will force an intended https discovery failure
 	// Then it forces the http usage
 	config.Datadog.Set("kubernetes_https_kubelet_port", 10255)
-
 	config.Datadog.Set("kubelet_auth_token_path", "")
 	config.Datadog.Set("kubelet_tls_verify", false)
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
@@ -57,7 +56,7 @@ func (suite *InsecureQueryTestSuite) TestInsecureHTTPKubelet() {
 	assert.Equal(suite.T(), 0, len(podList))
 }
 
-func (suite *InsecureQueryTestSuite) TestInsecureHTTPSKubelet() {
+func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
 	config.Datadog.Set("kubernetes_https_kubelet_port", 10250)
 	config.Datadog.Set("kubelet_auth_token_path", "")
@@ -82,12 +81,12 @@ func (suite *InsecureQueryTestSuite) TestInsecureHTTPSKubelet() {
 	assert.Equal(suite.T(), 0, len(podList))
 }
 
-func TestInsecureHTTPSKubeletTestSuite(t *testing.T) {
+func TestInsecureKubeletSuite(t *testing.T) {
 	compose, err := initInsecureKubelet()
 	require.Nil(t, err)
 	output, err := compose.Start()
 	defer compose.Stop()
 	require.Nil(t, err, string(output))
 
-	suite.Run(t, new(InsecureQueryTestSuite))
+	suite.Run(t, new(InsecureTestSuite))
 }

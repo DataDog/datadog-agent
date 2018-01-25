@@ -20,11 +20,13 @@ type ComposeConf struct {
 	ProjectName         string
 	FilePath            string
 	Variables           map[string]string
-	NetworkMode         string
+	NetworkMode         string // will provide $network_mode
 	RemoveRebuildImages bool
 }
 
 // Start runs a docker-compose configuration
+// All environment variables are propagated to the compose as $variable
+// $network_mode is automatically set if empty
 func (c *ComposeConf) Start() ([]byte, error) {
 	var err error
 

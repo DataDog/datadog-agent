@@ -1,68 +1,11 @@
 version: '2.3'
 services:
-  etcd:
-    image: "quay.io/coreos/etcd:latest"
-    network_mode: ${network_mode}
-    environment:
-      - ETCDCTL_API=3
-    healthcheck:
-      test: ["CMD", "etcdctl", "--command-timeout=2s", "--dial-timeout=2s", "--endpoints", "http://127.0.0.1:2379", "endpoint", "health"]
-      interval: 1s
-      timeout: 1s
-      retries: 10
-
-  apiserver:
-    build: ./
-    command: "/hyperkube
-        apiserver
-        --apiserver-count=1
-        --insecure-bind-address=127.0.0.1
-        --insecure-port=8080
-        --service-cluster-ip-range=192.168.1.1/24
-        --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota
-        --etcd-servers=http://127.0.0.1:2379
-        --service-account-lookup=true
-        --service-account-key-file=/etc/secrets/key.pem
-        --tls-cert-file=/etc/secrets/cert.pem
-        --tls-private-key-file=/etc/secrets/key.pem
-        "
-    network_mode: ${network_mode}
-    depends_on:
-      etcd:
-        condition: service_healthy
-    healthcheck: &getcs
-      test: ["CMD", "/hyperkube", "kubectl", "get", "cs"]
-      interval: 1s
-      timeout: 1s
-      retries: 10
-
-  controller_manager:
-    build: ./
-    command: "/hyperkube
-        controller-manager
-        --master=http://127.0.0.1:8080
-        --service-account-private-key-file=/etc/secrets/key.pem
-        --cluster-signing-cert-file=/etc/secrets/cert.pem
-        --cluster-signing-key-file=/etc/secrets/key.pem
-        --root-ca-file=/etc/secrets/cert.pem
-        "
-    network_mode: ${network_mode}
-    depends_on:
-      apiserver:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "sh", "-c", "/hyperkube kubectl get cs | grep -c Healthy"]
-      interval: 1s
-      timeout: 1s
-      retries: 10
-
   kubelet:
     build: ./
     command: "/hyperkube
         kubelet
         --cloud-provider=''
         --hostname-override=localhost
-        --kubeconfig=/var/lib/kubelet/kubeconfig
         --fail-swap-on=false
         --make-iptables-util-chains=false
         --hairpin-mode=none
@@ -70,13 +13,11 @@ services:
         --client-ca-file=/etc/secrets/cert.pem
         --tls-cert-file=/etc/secrets/cert.pem
         --tls-private-key-file=/etc/secrets/key.pem
+        --pod-manifest-path=/opt
         "
     network_mode: ${network_mode}
-    depends_on:
-      apiserver:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD", "/hyperkube", "kubectl", "get", "no", "localhost"]
+      test: ["CMD", "/bin/ls", "/var/lib/kubelet"]
       interval: 1s
       timeout: 1s
       retries: 10
@@ -90,12 +31,6 @@ services:
     #
     image: "gcr.io/google_containers/pause"
     depends_on:
-      etcd:
-        condition: service_healthy
-      apiserver:
-        condition: service_healthy
-      controller_manager:
-        condition: service_healthy
       kubelet:
         condition: service_healthy
     network_mode: none
