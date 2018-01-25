@@ -37,7 +37,9 @@ const (
 // ApiClient provides authenticated access to the
 // apiserver endpoints. Use the shared instance via GetApiClient.
 type APIClient struct {
-	retry.Retrier
+	// used to setup the APIClient
+	initRetry retry.Retrier
+
 	client  *k8s.Client
 	timeout time.Duration
 }
@@ -49,7 +51,7 @@ func GetAPIClient() (*APIClient, error) {
 			// TODO: make it configurable if requested
 			timeout: 5 * time.Second,
 		}
-		globalApiClient.SetupRetrier(&retry.Config{
+		globalApiClient.initRetry.SetupRetrier(&retry.Config{
 			Name:          "apiserver",
 			AttemptMethod: globalApiClient.connect,
 			Strategy:      retry.RetryCount,
@@ -57,7 +59,7 @@ func GetAPIClient() (*APIClient, error) {
 			RetryDelay:    30 * time.Second,
 		})
 	}
-	err := globalApiClient.TriggerRetry()
+	err := globalApiClient.initRetry.TriggerRetry()
 	if err != nil {
 		log.Debugf("init error: %s", err)
 		return nil, err
