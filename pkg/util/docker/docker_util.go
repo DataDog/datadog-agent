@@ -39,9 +39,7 @@ func (d *DockerUtil) ContainerList(ctx context.Context, options types.ContainerL
 
 // DockerUtil wraps interactions with a local docker API.
 type DockerUtil struct {
-	// used to setup the DockerUtil
-	initRetry retry.Retrier
-
+	retry.Retrier
 	sync.Mutex
 	cfg *Config
 	cli *client.Client
