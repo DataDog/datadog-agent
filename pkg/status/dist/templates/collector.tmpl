@@ -29,6 +29,16 @@ Collector
 {{- end }}
 
 {{- with .AutoConfigStats }}
+  {{- if .ConfigErrors}}
+  Config Errors
+  ==============
+    {{- range $checkname, $error := .ConfigErrors }}
+    {{$checkname}}
+    {{printDashes $checkname "-"}}
+      {{ configError $error }}
+    {{- end }}
+  {{- end}}
+
   {{- if .LoaderErrors}}
   Loading Errors
   ==============

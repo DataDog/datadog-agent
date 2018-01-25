@@ -7,183 +7,143 @@
 
 package tailer
 
-// import (
-// 	"fmt"
-// 	"io/ioutil"
-// 	"os"
-// 	"sync/atomic"
-// 	"testing"
-// 	"time"
+import (
+	"fmt"
+	"io/ioutil"
+	"os"
+	"sync/atomic"
+	"testing"
+	"time"
 
-// 	"github.com/stretchr/testify/suite"
+	"github.com/stretchr/testify/suite"
 
-// 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-// 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
-// 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-// )
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/mock"
+)
 
-// var chanSize = 10
+var chanSize = 10
 
-// type TailerTestSuite struct {
-// 	suite.Suite
-// 	testDir  string
-// 	testPath string
-// 	testFile *os.File
+type TailerTestSuite struct {
+	suite.Suite
+	testDir  string
+	testPath string
+	testFile *os.File
 
-// 	tl         *Tailer
-// 	outputChan chan message.Message
-// 	source     *config.IntegrationConfigLogSource
-// }
+	tl         *Tailer
+	outputChan chan message.Message
+	source     *config.IntegrationConfigLogSource
+}
 
-// func (suite *TailerTestSuite) SetupTest() {
-// 	var err error
-// 	suite.testDir, err = ioutil.TempDir("", "log-tailer-test-")
-// 	suite.Nil(err)
+func (suite *TailerTestSuite) SetupTest() {
+	var err error
+	suite.testDir, err = ioutil.TempDir("", "log-tailer-test-")
+	suite.Nil(err)
 
-// 	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
-// 	f, err := os.Create(suite.testPath)
-// 	suite.Nil(err)
-// 	suite.testFile = f
-// 	suite.outputChan = make(chan message.Message, chanSize)
-// 	suite.source = &config.IntegrationConfigLogSource{
-// 		Type: config.FileType,
-// 		Path: suite.testPath,
-// 	}
-// 	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath)
-// 	suite.tl.sleepDuration = 10 * time.Millisecond
-// }
+	suite.testPath = fmt.Sprintf("%s/tailer.log", suite.testDir)
+	f, err := os.Create(suite.testPath)
+	suite.Nil(err)
+	suite.testFile = f
+	suite.outputChan = make(chan message.Message, chanSize)
+	suite.source = &config.IntegrationConfigLogSource{
+		Type:    config.FileType,
+		Path:    suite.testPath,
+		Tracker: status.NewTracker(),
+	}
+	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath)
+	suite.tl.sleepDuration = 10 * time.Millisecond
+}
 
-// func (suite *TailerTestSuite) TearDownTest() {
-// 	suite.tl.Stop(false)
-// 	suite.testFile.Close()
-// 	os.Remove(suite.testDir)
-// }
+func (suite *TailerTestSuite) TearDownTest() {
+	suite.tl.Stop(false)
+	suite.testFile.Close()
+	os.Remove(suite.testDir)
+}
 
-// func (suite *TailerTestSuite) TestTailerTails() {
-// 	suite.tl.tailFromEnd()
+func (suite *TailerTestSuite) TestTailFromBeginning() {
+	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
 
-// 	var msg message.Message
-// 	var err error
-// 	_, err = suite.testFile.WriteString("hello world\n")
-// 	suite.Nil(err)
-// 	_, err = suite.testFile.WriteString("hello again\n")
-// 	suite.Nil(err)
-// 	msg = <-suite.outputChan
-// 	suite.Equal("hello world", string(msg.Content()))
-// 	msg = <-suite.outputChan
-// 	suite.Equal("hello again", string(msg.Content()))
+	var msg message.Message
+	var err error
 
-// 	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
-// }
+	// this line should be tailed
+	_, err = suite.testFile.WriteString(lines[0])
+	suite.Nil(err)
 
-// func (suite *TailerTestSuite) TestTailerIdentifier() {
-// 	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
-// }
+	suite.tl.tailFromBeginning()
 
-// func (suite *TailerTestSuite) TestTailerLifecycle() {
-// 	suite.tl.tailFromEnd()
-// 	suite.tl.Stop(false)
-// 	// FIXME: for now there is now way to know it properly stopped.
-// 	// this will be fixed when we implement stop pills
-// }
+	// those lines should be tailed
+	_, err = suite.testFile.WriteString(lines[1])
+	suite.Nil(err)
+	_, err = suite.testFile.WriteString(lines[2])
+	suite.Nil(err)
 
-// func writeMessage(file *os.File) {
-// 	time.Sleep(time.Millisecond)
-// 	file.WriteString("hello world\n")
-// }
+	msg = <-suite.outputChan
+	suite.Equal("hello world", string(msg.Content()))
+	suite.Equal(len(lines[0]), int(msg.GetOrigin().Offset))
 
-// func listenToChan(inputChan chan *decoder.Input, messagesReceived *uint64) {
-// 	for range inputChan {
-// 		atomic.AddUint64(messagesReceived, 1)
-// 		tick()
-// 	}
-// }
+	msg = <-suite.outputChan
+	suite.Equal("hello again", string(msg.Content()))
+	suite.Equal(len(lines[0])+len(lines[1]), int(msg.GetOrigin().Offset))
 
-// func tick() {
-// 	time.Sleep(10 * time.Millisecond)
-// }
+	msg = <-suite.outputChan
+	suite.Equal("good bye", string(msg.Content()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(msg.GetOrigin().Offset))
 
-// // TestTailerIsSlowAndCatchesUp tests that when the tailer
-// // is delayed and we stop it, it still processes the file
-// // until EOF
-// func (suite *TailerTestSuite) TestTailerIsSlowAndCatchesUp() {
-// 	suite.tl.sleepDuration = time.Millisecond
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetReadOffset()))
+}
 
-// 	// mock tailer output channel
-// 	suite.tl.d.InputChan = make(chan *decoder.Input, 2)
-// 	suite.tl.startReading(0, os.SEEK_END)
+func (suite *TailerTestSuite) TestRecoverTailing() {
+	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
 
-// 	// fill output channel
-// 	of1 := suite.tl.GetReadOffset()
-// 	for i := 0; i < 5; i++ {
-// 		writeMessage(suite.testFile)
-// 	}
-// 	// assert we read part of the file
-// 	of2 := suite.tl.GetReadOffset()
-// 	suite.True(of1 < of2)
+	var msg message.Message
+	var err error
 
-// 	// assert reads are blocked: we write in the file but
-// 	// offset is unchanged
-// 	for i := 0; i < 5; i++ {
-// 		writeMessage(suite.testFile)
-// 	}
-// 	of3 := suite.tl.GetReadOffset()
-// 	suite.Equal(of2, of3)
+	// those line should be skipped
+	_, err = suite.testFile.WriteString(lines[0])
+	suite.Nil(err)
 
-// 	// slowly process all logs in the channel
-// 	tick()
-// 	var messagesReceived uint64
-// 	go listenToChan(suite.tl.d.InputChan, &messagesReceived)
-// 	tick()
-// 	received := atomic.LoadUint64(&messagesReceived)
-// 	suite.True(received > 0)
+	// this line should be tailed
+	_, err = suite.testFile.WriteString(lines[1])
+	suite.Nil(err)
 
-// 	// Stop tailer - it should keep processing till end of file
-// 	suite.tl.Stop(false)
-// 	tick()
+	suite.tl.recoverTailing(int64(len(lines[0])), os.SEEK_CUR)
 
-// 	// converge - it should have read all data and stopped
-// 	time.Sleep(100 * time.Millisecond)
-// 	suite.True(atomic.LoadUint64(&messagesReceived) > received)
-// }
+	// this line should be tailed
+	_, err = suite.testFile.WriteString(lines[2])
+	suite.Nil(err)
 
-// // TestTailerIsTooSlowAndClosed tests that when the tailer
-// // is very delayed and we stop it, it stops if it doesn't reach
-// // EOF after a configured time period
-// func (suite *TailerTestSuite) TestTailerIsTooSlowAndClosed() {
-// 	testPath := fmt.Sprintf("%s/tailer2.log", suite.testDir)
-// 	testFile, _ := os.Create(testPath)
-// 	defer testFile.Close()
-// 	tl := NewTailer(nil, &config.IntegrationConfigLogSource{Type: config.FileType, Path: testPath}, testPath)
-// 	tl.sleepDuration = 50 * time.Millisecond
-// 	tl.closeTimeout = 2 * time.Millisecond
+	msg = <-suite.outputChan
+	suite.Equal("hello again", string(msg.Content()))
+	suite.Equal(len(lines[0])+len(lines[1]), int(msg.GetOrigin().Offset))
 
-// 	// mock tailer output channel
-// 	tl.d.InputChan = make(chan *decoder.Input, 2)
-// 	tl.startReading(0, os.SEEK_END)
+	msg = <-suite.outputChan
+	suite.Equal("good bye", string(msg.Content()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(msg.GetOrigin().Offset))
 
-// 	// fill output channel
-// 	for i := 0; i < 20; i++ {
-// 		writeMessage(testFile)
-// 	}
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetReadOffset()))
+}
 
-// 	// slowly process all logs in the channel
-// 	tick()
-// 	var messagesReceived uint64
-// 	go listenToChan(tl.d.InputChan, &messagesReceived)
-// 	tick()
+func (suite *TailerTestSuite) TestTailerIdentifier() {
+	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
+}
 
-// 	// Stop tailer - it should keep processing till end of file
-// 	// or after closeTimeout
-// 	tl.Stop(false)
-// 	tick()
+func writeMessage(file *os.File) {
+	file.WriteString("hello world\n")
+}
 
-// 	// converge - it should have stopped processing data
-// 	received := atomic.LoadUint64(&messagesReceived)
-// 	tick()
-// 	suite.Equal(int(atomic.LoadUint64(&messagesReceived)), int(received))
-// }
+func listenToChan(inputChan chan *decoder.Input, messagesReceived *uint64) {
+	for range inputChan {
+		atomic.AddUint64(messagesReceived, 1)
+		tick()
+	}
+}
 
-// func TestTailerTestSuite(t *testing.T) {
-// 	suite.Run(t, new(TailerTestSuite))
-// }
+func tick() {
+	time.Sleep(10 * time.Millisecond)
+}
+
+func TestTailerTestSuite(t *testing.T) {
+	suite.Run(t, new(TailerTestSuite))
+}

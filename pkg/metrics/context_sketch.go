@@ -20,11 +20,11 @@ import (
 // the logic.
 
 // ContextSketch stores the distributions by context key
-type ContextSketch map[ckey.ContextKey]DistributionMetric
+type ContextSketch map[ckey.ContextKey]*Distribution
 
 // MakeContextSketch returns a new ContextSketch
 func MakeContextSketch() ContextSketch {
-	return ContextSketch(make(map[ckey.ContextKey]DistributionMetric))
+	return ContextSketch(make(map[ckey.ContextKey]*Distribution))
 }
 
 // AddSample adds a sample to the ContextSketch
@@ -34,16 +34,7 @@ func (c ContextSketch) AddSample(contextKey ckey.ContextKey, sample *MetricSampl
 		return
 	}
 	if _, ok := c[contextKey]; !ok {
-		switch sample.Mtype {
-		case DistributionType:
-			c[contextKey] = NewDistributionGK()
-		case DistributionKType:
-			c[contextKey] = NewDistributionKLL()
-		case DistributionCType:
-			c[contextKey] = NewDistributionComplete()
-		default:
-			log.Error("Unknown distribution metric type:", sample.Mtype)
-		}
+		c[contextKey] = NewDistribution()
 	}
 	c[contextKey].addSample(sample, timestamp)
 }

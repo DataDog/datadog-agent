@@ -44,7 +44,7 @@ func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
 		return errors.New("could not retrieve some attributes of the event")
 	}
 	if *event.InvolvedObject.Uid != k.objUid {
-		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.Uid, k.objUid)
+		return fmt.Errorf("mismatching Object UIDs: %s != %s", *event.InvolvedObject.Uid, k.objUid)
 	}
 
 	k.events = append(k.events, event)

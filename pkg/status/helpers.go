@@ -23,6 +23,7 @@ func init() {
 		"lastErrorTraceback": lastErrorTraceback,
 		"lastErrorMessage":   LastErrorMessage,
 		"pythonLoaderError":  pythonLoaderError,
+		"configError":        configError,
 		"printDashes":        printDashes,
 		"formatUnixTime":     FormatUnixTime,
 		"humanize":           MkHuman,
@@ -43,6 +44,10 @@ func pythonLoaderError(value string) template.HTML {
 	var loaderErrorArray []string
 	json.Unmarshal([]byte(value), &loaderErrorArray)
 	return template.HTML(value)
+}
+
+func configError(value string) template.HTML {
+	return template.HTML(value + "\n")
 }
 
 func lastError(value string) template.HTML {

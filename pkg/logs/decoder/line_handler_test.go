@@ -39,23 +39,37 @@ func TestSingleLineHandler(t *testing.T) {
 	h := NewSingleLineHandler(outputChan)
 
 	var output *Output
+	var line string
 
 	// valid line should be sent
-	h.Handle([]byte("hello world"))
+	line = "hello world"
+	h.Handle([]byte(line))
 	output = <-outputChan
-	assert.Equal(t, "hello world", string(output.Content))
+	assert.Equal(t, line, string(output.Content))
+	assert.Equal(t, len(line)+1, output.RawDataLen)
 
 	// empty line should be dropped
 	h.Handle([]byte(""))
 	assert.Equal(t, 0, len(outputChan))
 
 	// too long line should be truncated
-	h.Handle([]byte(strings.Repeat("a", contentLenLimit+10)))
+	line = strings.Repeat("a", contentLenLimit+10)
+	h.Handle([]byte(line))
 	output = <-outputChan
-	assert.Equal(t, contentLenLimit+len(TRUNCATED)+10, len(output.Content))
-	h.Handle([]byte(strings.Repeat("a", 10)))
+	assert.Equal(t, len(line)+len(TRUNCATED), len(output.Content))
+	assert.Equal(t, len(line), output.RawDataLen)
+
+	line = strings.Repeat("a", contentLenLimit+10)
+	h.Handle([]byte(line))
 	output = <-outputChan
-	assert.Equal(t, string(TRUNCATED)+strings.Repeat("a", 10), string(output.Content))
+	assert.Equal(t, len(TRUNCATED)+len(line)+len(TRUNCATED), len(output.Content))
+	assert.Equal(t, len(line), output.RawDataLen)
+
+	line = strings.Repeat("a", 10)
+	h.Handle([]byte(line))
+	output = <-outputChan
+	assert.Equal(t, string(TRUNCATED)+line, string(output.Content))
+	assert.Equal(t, len(line)+1, output.RawDataLen)
 }
 
 func TestSingleLineHandlerLifeCyle(t *testing.T) {
@@ -71,11 +85,14 @@ func TestTrimSingleLine(t *testing.T) {
 	h := NewSingleLineHandler(outputChan)
 
 	var output *Output
+	var line string
 
 	// All leading and trailing whitespace characters should be trimmed
-	h.Handle([]byte(whitespace + "foo" + whitespace + "bar" + whitespace))
+	line = whitespace + "foo" + whitespace + "bar" + whitespace
+	h.Handle([]byte(line))
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))
+	assert.Equal(t, len(line)+1, output.RawDataLen)
 }
 
 func TestMultiLineHandler(t *testing.T) {
@@ -94,27 +111,38 @@ func TestMultiLineHandler(t *testing.T) {
 
 	output = <-outputChan
 	assert.Equal(t, "1. first line"+"\\n"+"second line", string(output.Content))
+	assert.Equal(t, len("1. first line"+"second line")+2, output.RawDataLen)
+
 	output = <-outputChan
 	assert.Equal(t, "2. first line", string(output.Content))
+	assert.Equal(t, len("2. first line")+1, output.RawDataLen)
 
 	// too long line should be truncated
 	h.Handle([]byte(strings.Repeat("a", contentLenLimit+10)))
 	output = <-outputChan
 	assert.Equal(t, contentLenLimit+len(TRUNCATED)+10, len(output.Content))
+	assert.Equal(t, contentLenLimit+10, output.RawDataLen)
+
 	h.Handle([]byte(strings.Repeat("a", 10)))
 	output = <-outputChan
 	assert.Equal(t, string(TRUNCATED)+strings.Repeat("a", 10), string(output.Content))
+	assert.Equal(t, 10+1, output.RawDataLen)
 
 	// twice too long lines should be double truncated
 	h.Handle([]byte(strings.Repeat("a", contentLenLimit+10)))
 	output = <-outputChan
 	assert.Equal(t, contentLenLimit+len(TRUNCATED)+10, len(output.Content))
+	assert.Equal(t, contentLenLimit+10, output.RawDataLen)
+
 	h.Handle([]byte(strings.Repeat("a", contentLenLimit+10)))
 	output = <-outputChan
 	assert.Equal(t, len(TRUNCATED)+contentLenLimit+len(TRUNCATED)+10, len(output.Content))
+	assert.Equal(t, contentLenLimit+10, output.RawDataLen)
+
 	h.Handle([]byte(strings.Repeat("a", 10)))
 	output = <-outputChan
 	assert.Equal(t, string(TRUNCATED)+strings.Repeat("a", 10), string(output.Content))
+	assert.Equal(t, 10+1, output.RawDataLen)
 }
 
 func TestTrimMultiLine(t *testing.T) {
@@ -128,12 +156,14 @@ func TestTrimMultiLine(t *testing.T) {
 	h.Handle([]byte(whitespace + "foo" + whitespace + "bar" + whitespace))
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))
+	assert.Equal(t, len(whitespace+"foo"+whitespace+"bar"+whitespace)+1, output.RawDataLen)
 
 	// With line break
 	h.Handle([]byte(whitespace + "foo" + whitespace))
 	h.Handle([]byte("bar" + whitespace))
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"\\n"+"bar", string(output.Content))
+	assert.Equal(t, len(whitespace+"foo"+whitespace)+1+len("bar"+whitespace)+1, output.RawDataLen)
 }
 
 func TestUnwrapMultiLine(t *testing.T) {

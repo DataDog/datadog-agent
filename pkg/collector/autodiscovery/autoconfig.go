@@ -188,10 +188,6 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 		cfgs, _ := pd.provider.Collect()
 
 		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
-			// Grab any errors that occurred when reading the YAML file
-			for name, e := range fileConfPd.Errors {
-				errorStats.setConfigError(name, e)
-			}
 
 			var goodConfs []check.Config
 			for _, cfg := range cfgs {
@@ -208,6 +204,11 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 
 				// Clear any old errors if a valid config file is found
 				errorStats.removeConfigError(cfg.Name)
+			}
+
+			// Grab any errors that occurred when reading the YAML file
+			for name, e := range fileConfPd.Errors {
+				errorStats.setConfigError(name, e)
 			}
 
 			cfgs = goodConfs
@@ -455,7 +456,7 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 	for _, loader := range ac.loaders {
 		res, err := loader.Load(config)
 		if err == nil {
-			log.Infof("%v: successfully loaded check '%s'", loader, config.Name)
+			log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
 			errorStats.removeLoaderErrors(config.Name)
 			return res, nil
 		}
