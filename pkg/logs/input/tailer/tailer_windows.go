@@ -71,8 +71,6 @@ func (t *Tailer) readAvailable() (err error) {
 		t.d.InputChan <- decoder.NewInput(inBuf[:n])
 		t.incrementReadOffset(n)
 	}
-	return nil
-
 }
 
 // readForever lets the tailer tail the content of a file
