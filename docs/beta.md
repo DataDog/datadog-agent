@@ -30,16 +30,11 @@ ready yet. This is the list of checks that are expected to fail if run within th
 beta Agent:
 
 * agent_metrics
-* docker_daemon
-* kubernetes
-* kubernetes_state
+* docker_daemon [replaced by a new `docker` check](changes.md#docker-check)
+* kubernetes [to be replaced by new checks](changes.md#kubernetes-support)
 * vsphere
 
-The Docker and Kubernetes checks are being rewritten in Go to take advantage of
-the new internal architecture of the Agent, mainly bringing a consistent
-behaviour across every container related component. Therefore the Python
-versions will never work within Agent 6. The rewrite is not yet finished, but
-the new `docker` check offers [basic functionalities](changes.md#docker-check) .
+### Check API
 
 Some methods in the `AgentCheck` class are not yet implemented. These include:
 
