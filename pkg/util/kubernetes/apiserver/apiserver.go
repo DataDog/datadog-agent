@@ -131,8 +131,6 @@ func newServiceMapperBundle() *ServiceMapperBundle {
 
 func (c *APIClient) startServiceMapping() {
 	tickerSvcProcess := time.NewTicker(servicesPollIntl)
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
-	defer cancel() // is it good with the go func below ?
 	go func() {
 		for {
 			select {
@@ -144,17 +142,23 @@ func (c *APIClient) startServiceMapping() {
 			// 	}
 			// 	return
 			case <-tickerSvcProcess.C:
+				ctx, cancel := context.WithTimeout(context.Background(), servicesPollIntl)
+				defer cancel() // is it good with the go func below ?
 				pods, err := c.client.CoreV1().ListPods(ctx, "")
+
 				if err != nil {
 					log.Errorf("could not collect pods from the API Server: %q", err.Error())
+					continue
 				}
 				endpointList, err := c.client.CoreV1().ListEndpoints(ctx, "")
 				if err != nil {
 					log.Errorf("could not collect endpoints from the API Server: %q", err.Error())
+					continue
 				}
 				nodes, err := c.client.CoreV1().ListNodes(ctx)
 				if err != nil {
 					log.Errorf("could not collect nodes from the API Server: %q", err.Error())
+					continue
 				}
 
 				for _, node := range nodes.Items {
@@ -163,7 +167,7 @@ func (c *APIClient) startServiceMapping() {
 						smb = newServiceMapperBundle()
 					}
 					smb.(*ServiceMapperBundle).mapServices(*pods, *endpointList)
-					cache.Cache.Set(*node.Metadata.Name, smb.(*ServiceMapperBundle).PodNameToServices, serviceMapExpire)
+					cache.Cache.Set(*node.Metadata.Name, smb, serviceMapExpire)
 				}
 			}
 		}

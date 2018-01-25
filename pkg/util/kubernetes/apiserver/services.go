@@ -19,7 +19,7 @@ import (
 func (smb *ServiceMapperBundle) mapServices(pods v1.PodList, endpointList v1.EndpointsList) error {
 	smb.m.Lock()
 	defer smb.m.Unlock()
-	ipToEndpoint := make(map[string][]string) // maps the Ips endpoints for a given service
+	ipToEndpoints := make(map[string][]string) // maps an IP address to associated services svc/endpoint
 	podToIp := make(map[string]string)
 
 	for _, pod := range pods.Items {
@@ -34,16 +34,16 @@ func (smb *ServiceMapperBundle) mapServices(pods v1.PodList, endpointList v1.End
 		for _, endpointsSubsets := range svc.Subsets {
 			log.Infof("evanluated endpointSub is %q \n", *endpointsSubsets)
 			for _, edpt := range endpointsSubsets.Addresses {
-				ipToEndpoint[*edpt.Ip] = append(ipToEndpoint[*edpt.Ip], *svc.Metadata.Name)
+				ipToEndpoints[*edpt.Ip] = append(ipToEndpoints[*edpt.Ip], *svc.Metadata.Name)
 				if edpt.NodeName != nil {
-					log.Infof("nodename for %s is %q\n\n", *svc.Metadata.Name, edpt.NodeName)
+					log.Infof("service for %s is %q\n\n", *svc.Metadata.Name, edpt.NodeName)
 				}
 			}
 		}
 	}
-	log.Infof("This is ipToEndpoint %q \n", ipToEndpoint)
+	log.Infof("This is ipToEndpoint %q \n", ipToEndpoints)
 	for name, ip := range podToIp {
-		if svc, found := ipToEndpoint[ip]; found {
+		if svc, found := ipToEndpoints[ip]; found {
 			smb.PodNameToServices[name] = svc
 		}
 	}
