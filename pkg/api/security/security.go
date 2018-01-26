@@ -25,7 +25,10 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-const authTokenName = "auth_token"
+const (
+	authTokenName = "auth_token"
+	authTokenLen  = 32
+)
 
 // GenerateKeyPair create a public/private keypair
 func GenerateKeyPair(bits int) (*rsa.PrivateKey, error) {
@@ -102,38 +105,67 @@ func GenerateRootCert(hosts []string, bits int) (
 	return
 }
 
-// FetchAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist
+// FetchAuthToken gets the authentication token from:
+// - configuration (yaml or environment variable)
+// - the auth token file & creates one if it doesn't exist
 // Requires that the config has been set up before calling
 func FetchAuthToken() (string, error) {
 	authTokenFile := filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), authTokenName)
+	_, err := os.Stat(authTokenFile)
+	var isAuthTokenFile bool
+	if err == nil {
+		isAuthTokenFile = true
+	}
+
+	authTokenEnv := config.Datadog.GetString("auth_token")
+
+	if authTokenEnv != "" {
+		if isAuthTokenFile {
+			log.Warnf("authentication token configured via \"auth_token\", ignoring existing token file: %q", authTokenFile)
+		}
+		err := authTokenValidation(authTokenEnv)
+		if err != nil {
+			return "", err
+		}
+		return authTokenEnv, nil
+	}
 
 	// Create a new token if it doesn't exist
-	if _, e := os.Stat(authTokenFile); os.IsNotExist(e) {
-		key := make([]byte, 32)
-		_, e = rand.Read(key)
-		if e != nil {
-			return "", fmt.Errorf("error creating authentication token: %s", e)
+	if isAuthTokenFile == false {
+		key := make([]byte, authTokenLen)
+		_, err = rand.Read(key)
+		if err != nil {
+			return "", fmt.Errorf("error creating authentication token: %s", err)
 		}
 
 		// Write the auth token to the auth token file (platform-specific)
-		e = saveAuthToken(hex.EncodeToString(key), authTokenFile)
-		if e != nil {
-			return "", fmt.Errorf("error creating authentication token: %s", e)
+		err = saveAuthToken(hex.EncodeToString(key), authTokenFile)
+		if err != nil {
+			return "", fmt.Errorf("error creating authentication token: %s", err)
 		}
 		log.Infof("Saved a new authentication token to %s", authTokenFile)
 	}
 
 	// Read the token
-	authTokenRaw, e := ioutil.ReadFile(authTokenFile)
-	if e != nil {
-		return "", fmt.Errorf("unable to access authentication token: " + e.Error())
+	authTokenRaw, err := ioutil.ReadFile(authTokenFile)
+	if err != nil {
+		return "", fmt.Errorf("unable to access authentication token: %s", err)
 	}
+
+	authToken := string(authTokenRaw)
 
 	// Do some basic validation
-	authToken := string(authTokenRaw)
-	if len(authToken) < 32 {
-		return "", fmt.Errorf("invalid authentication token: must be at least 32 characters in length")
+	err = authTokenValidation(authToken)
+	if err != nil {
+		return "", err
 	}
-
 	return authToken, nil
+}
+
+func authTokenValidation(authToken string) error {
+	tokenLen := len(authToken)
+	if tokenLen < authTokenLen {
+		return fmt.Errorf("invalid authentication token, length is %d: must be at least %d characters", tokenLen, authTokenLen)
+	}
+	return nil
 }
