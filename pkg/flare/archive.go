@@ -82,13 +82,14 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		return "", err
 	}
 
-	err = zipEnvvars(zipFile, hostname)
-	if err != nil {
-		return "", err
-	}
-
 	if config.IsContainerized() {
 		err = zipDockerSelfInspect(zipFile, hostname)
+		if err != nil {
+			return "", err
+		}
+		// Only collecting them if running in a container
+		// to avoid exposing sensitive credentials
+		err = zipEnvvars(zipFile, hostname)
 		if err != nil {
 			return "", err
 		}
@@ -221,6 +222,7 @@ func zipEnvvars(zipFile *archivex.ZipFile, hostname string) error {
 	var b bytes.Buffer
 
 	for _, envvar := range os.Environ() {
+
 		b.WriteString(envvar)
 		b.WriteString("\n")
 	}

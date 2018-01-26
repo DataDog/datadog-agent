@@ -1,3 +1,3 @@
 ---
 other:
-  - The flare now includes a dump of environment variables in the `envvars.log` file
+  - The flare now includes a dump of environment variables if running in a container.
