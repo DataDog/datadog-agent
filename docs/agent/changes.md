@@ -248,14 +248,15 @@ are ported, excepted the following deprecations:
 * Some options have moved from `docker_daemon.yaml` to the main `datadog.yaml`:
   * `collect_labels_as_tags` has been renamed `docker_labels_as_tags` and now
     supports high cardinality tags, see the details in `datadog.yaml.example`
-  * `exclude` and `include` list have been renamed `ac_include` and
-    `ac_exclude`. They will impact every container-related component of the
-    agent. Those only lists supports `image` name and `container` name (instead of
-    any tags)
+  * `exclude` and `include` lists have been renamed `ac_include` and
+    `ac_exclude`. In order to make filtering consistent accross all components of
+    the agent, we had to drop filtering on arbitrary tags. The only supported
+    filtering tags are `image` (image name) and `name` (container name).
+    Regexp filtering is still available, see `datadog.yaml.example` for examples
   * `docker_root` option has been split in two options `container_cgroup_root`
     and `container_proc_root`
   * `exclude_pause_container` has been added to exclude pause containers on
-    Kubernetes and Openshift (default to true). This will avoid users removing
+    Kubernetes and Openshift (default to true). This will avoid removing
     them from the exclude list by error
 
 The [`import`](#configuration-files) command support a `--docker` flag to convert the old
@@ -269,7 +270,7 @@ needed settings from `docker_daemon.yaml` to `datadog.yaml`.
 We are still working on kubernetes integration, feature parity for the `kubernetes`
 check will be provided by combining:
   * The (work-in-progress) `kubelet` check retrieving metrics from the kubelet
-  * The (work-in-processs) `kubernetes_apiserver` check retrieving events and
+  * The (work-in-progress) `kubernetes_apiserver` check retrieving events and
   service checks from the apiserver
 
 Both are around the corner, but unfortunately are not yet ready for prime-time.
