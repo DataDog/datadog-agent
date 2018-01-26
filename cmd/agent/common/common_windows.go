@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"strings"
 
 	"path/filepath"
 
@@ -156,7 +157,7 @@ func ImportRegistryConfig() error {
 		log.Debug("API key not found, not setting")
 	}
 	if val, _, err = k.GetStringValue("tags"); err == nil {
-		config.Datadog.Set("tags", val)
+		config.Datadog.Set("tags", strings.Split(val, ","))
 		log.Debugf("Setting tags %s", val)
 	} else {
 		log.Debug("Tags not found, not setting")
