@@ -35,8 +35,8 @@ func (s *HealthTestSuite) TestRegisterAndUnhealthy() {
 
 	status := GetStatus()
 	assert.Len(s.T(), status.Healthy, 0)
-	assert.Len(s.T(), status.UnHealthy, 1)
-	assert.Contains(s.T(), status.UnHealthy, "test1")
+	assert.Len(s.T(), status.Unhealthy, 1)
+	assert.Contains(s.T(), status.Unhealthy, "test1")
 }
 
 func (s *HealthTestSuite) TestRegisterCustomTimeout() {
@@ -47,6 +47,28 @@ func (s *HealthTestSuite) TestRegisterCustomTimeout() {
 
 	assert.Equal(s.T(), "test1", c.name)
 	assert.EqualValues(s.T(), 90, c.timeout.Seconds())
+}
+
+func (s *HealthTestSuite) TestRegisterTriplets() {
+	token1 := Register("triplet")
+	assert.EqualValues(s.T(), "triplet", token1)
+	token2 := Register("triplet")
+	assert.EqualValues(s.T(), "triplet-2", token2)
+	token3 := Register("triplet")
+	assert.EqualValues(s.T(), "triplet-3", token3)
+}
+
+func (s *HealthTestSuite) TestRegisterReuseNumbers() {
+	token1 := Register("triplet")
+	assert.EqualValues(s.T(), "triplet", token1)
+	token2 := Register("triplet")
+	assert.EqualValues(s.T(), "triplet-2", token2)
+	token3 := Register("triplet")
+	assert.EqualValues(s.T(), "triplet-3", token3)
+
+	Deregister(token2)
+	token4 := Register("triplet")
+	assert.EqualValues(s.T(), "triplet-2", token4)
 }
 
 func (s *HealthTestSuite) TestDeregister() {
@@ -91,24 +113,24 @@ func (s *HealthTestSuite) TestUnhealthyAndBack() {
 	token := Register("test")
 	status := GetStatus()
 	assert.NotContains(s.T(), status.Healthy, "test")
-	assert.Contains(s.T(), status.UnHealthy, "test")
+	assert.Contains(s.T(), status.Unhealthy, "test")
 
 	// Become healthy
 	Ping(token)
-	status = Status()
-	assert.NotContains(s.T(), status.UnHealthy, "test")
+	status = GetStatus()
+	assert.NotContains(s.T(), status.Unhealthy, "test")
 	assert.Contains(s.T(), status.Healthy, "test")
 
 	// Become unhealthy
 	registerPing(token, time.Now().Add(-10*time.Minute))
-	status = Status()
+	status = GetStatus()
 	assert.NotContains(s.T(), status.Healthy, "test")
-	assert.Contains(s.T(), status.UnHealthy, "test")
+	assert.Contains(s.T(), status.Unhealthy, "test")
 
 	// Become healthy again
 	Ping(token)
-	status = Status()
-	assert.NotContains(s.T(), status.UnHealthy, "test")
+	status = GetStatus()
+	assert.NotContains(s.T(), status.Unhealthy, "test")
 	assert.Contains(s.T(), status.Healthy, "test")
 }
 

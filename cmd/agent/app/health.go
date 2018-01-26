@@ -8,6 +8,8 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -27,9 +29,10 @@ func init() {
 }
 
 var healthCmd = &cobra.Command{
-	Use:   "health",
-	Short: "Print the current agent component health",
-	Long:  ``,
+	Use:          "health",
+	Short:        "Print the current agent health",
+	Long:         ``,
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := common.SetupConfig(confFilePath)
 		if err != nil {
@@ -68,11 +71,24 @@ func requestHealth() error {
 	}
 
 	if healthVerbose {
-		fmt.Printf("Agent health: %+v \n", s)
+		if len(s.Unhealthy) > 0 {
+			sort.Strings(s.Unhealthy)
+			fmt.Printf("Agent health: NOK\n")
+			fmt.Printf("\tUnhealthy: %s\n", strings.Join(s.Unhealthy, ", "))
+		} else {
+			fmt.Printf("Agent health: OK\n")
+
+		}
+		if len(s.Healthy) > 0 {
+			sort.Strings(s.Healthy)
+			fmt.Printf("\tHealthy: %s\n", strings.Join(s.Healthy, ", "))
+		}
+		fmt.Print("\n")
 	}
 
-	if len(s.UnHealthy) > 0 {
-		return fmt.Errorf("Found %d unhealthy components: %v", len(s.UnHealthy), s.UnHealthy)
+	if len(s.Unhealthy) > 0 {
+		sort.Strings(s.Unhealthy)
+		return fmt.Errorf("found %d unhealthy components: %v", len(s.Unhealthy), strings.Join(s.Unhealthy, ", "))
 	}
 
 	return nil

@@ -245,8 +245,8 @@ func zipHealth(zipFile *archivex.ZipFile, hostname string) error {
 	if len(s.Healthy) > 0 {
 		sort.Strings(s.Healthy)
 	}
-	if len(s.UnHealthy) > 0 {
-		sort.Strings(s.UnHealthy)
+	if len(s.Unhealthy) > 0 {
+		sort.Strings(s.Unhealthy)
 	}
 
 	yamlValue, err := yaml.Marshal(s)

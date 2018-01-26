@@ -37,7 +37,7 @@ var catalog = componentCatalog{
 // Status represents the current status of registered components
 type Status struct {
 	Healthy   []string
-	UnHealthy []string
+	Unhealthy []string
 }
 
 // Register a component with the default 30 seconds timeout, returns a token
@@ -50,14 +50,28 @@ func RegisterWithCustomTimeout(name string, timeout time.Duration) ID {
 	catalog.Lock()
 	defer catalog.Unlock()
 
-	// TODO: create unique IDs
-	catalog.components[ID(name)] = &component{
+	id := ID(name)
+	_, taken := catalog.components[id]
+	if taken {
+		for n := 2; n < 99; n++ {
+			// Loop to 99 to avoid introducing an infinite loop
+			//
+			newid := ID(fmt.Sprintf("%s-%d", name, n))
+			_, taken := catalog.components[newid]
+			if !taken {
+				id = newid
+				break
+			}
+		}
+	}
+
+	catalog.components[id] = &component{
 		name:       name,
 		timeout:    timeout,
 		latestPing: time.Now().Add(-2 * timeout), // Register as unhealthy by default
 	}
 
-	return ID(name)
+	return id
 }
 
 // Deregister a component from the healthcheck
@@ -99,11 +113,11 @@ func GetStatus() Status {
 	for _, c := range catalog.components {
 		if c.latestPing.IsZero() {
 			log.Warnf("Error processing component %q, considering it unhealthy", c.name)
-			status.UnHealthy = append(status.UnHealthy, c.name)
+			status.Unhealthy = append(status.Unhealthy, c.name)
 			continue
 		}
 		if now.After(c.latestPing.Add(c.timeout)) {
-			status.UnHealthy = append(status.UnHealthy, c.name)
+			status.Unhealthy = append(status.Unhealthy, c.name)
 		} else {
 			status.Healthy = append(status.Healthy, c.name)
 		}
