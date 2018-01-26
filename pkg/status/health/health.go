@@ -13,11 +13,20 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// DefaultTimeout holds the duration used for default
+// DefaultPingFreq holds the preferred time between two pings
+const DefaultPingFreq = 15 * time.Second
+
+// DefaultTimeout holds the duration used for default (twice DefaultPingFreq)
 const DefaultTimeout = 30 * time.Second
 
-// ID is returned when registering and is to be used when pinging
+// ID objects are returned when registering and are to be used when pinging
 type ID string
+
+// Status represents the current status of registered components
+type Status struct {
+	Healthy   []string
+	Unhealthy []string
+}
 
 type component struct {
 	name       string
@@ -32,12 +41,6 @@ type componentCatalog struct {
 
 var catalog = componentCatalog{
 	components: make(map[ID]*component),
-}
-
-// Status represents the current status of registered components
-type Status struct {
-	Healthy   []string
-	Unhealthy []string
 }
 
 // Register a component with the default 30 seconds timeout, returns a token

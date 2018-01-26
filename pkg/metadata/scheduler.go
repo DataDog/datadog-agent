@@ -62,7 +62,7 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 
 	sendTicker := time.NewTicker(interval)
 	healthTicker := time.NewTicker(15 * time.Second)
-	healthToken := health.Register("metadata" + name)
+	healthToken := health.Register("metadata-" + name)
 
 	go func() {
 		for {
