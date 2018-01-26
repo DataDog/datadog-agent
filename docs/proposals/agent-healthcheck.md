@@ -15,7 +15,7 @@ The agent is running as a collection of decoupled components asynchronously work
 
 Determining what makes an agent healthy is the biggest issue at hand here. For example, in agent5, we used to only check the collector's health, and missed containers that had their forwarder oom-killed by the kernel.
 
-"Business" errors that would not benefit from restarting the agent (eg. integration warnings, configuration parsing errors, internet connectivity issues, ...) should not trigger an unhealthy status, but be signaled through the existing systems. 
+"Business" errors that would not benefit from restarting the agent (eg. integration warnings, configuration parsing errors, internet connectivity issues, ...) should not trigger an unhealthy status, but be signaled through the existing systems.
 
 ## Constraints
 
@@ -46,7 +46,7 @@ On a typical agent, we should monitor the following components:
 - check scheduling goroutine
 - autodiscovery, if a listener is registered
 - tagger, if it manages to init at least one collector
-- forwarder
+- forwarder (still healthy on http errors, but unhealthy on invalid apikey)
 
 As a first approach, we'll make them register at the end of their init phase, then create a ticker that calls the health update from their main goroutine(s). The logic can then be improved component by component, depending on what "healthy" means for it.
 
@@ -57,10 +57,6 @@ As a first approach, we'll make them register at the end of their init phase, th
 The `pkg/status` package defines an standard way for components to expose statistics to be displayed on the `agent status` page. It is backed by `goexpvar`. That could be achieved by updating an `int64` timestamp as a goexpvar value, and parsing it.
 
 The drawback is that we will be "polluting" the expvar namespace with these timestamps. Plus, we don't have an obvious way to do component registration at runtime, so we'll need to introduce a registry for that.
-
-## Open Questions
-
-- As we already have the integration warning system and the `status` / `diagnose` commands, the health could be reported as a simple healthy/unhealthy boolean state. We could also extend the available states to a third "erroring-out, user action required, but restarting will not fix it" state (apikey errors, connectivity issues...).
 
 ## Appendix
 
