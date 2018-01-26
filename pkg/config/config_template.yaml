@@ -57,6 +57,9 @@ api_key:
 # maximum length of the forwarder's retry queue (each request in the queue
 # takes no more than 2MB in memory)
 # forwarder_retry_queue_max_size: 30
+
+# Set this option to "yes" to output logs in JSON format
+# log_format_json: no
 {{ end }}
 {{- if .Agent }}
 # The path containing check configuration files
