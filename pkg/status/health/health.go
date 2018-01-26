@@ -53,15 +53,18 @@ func RegisterWithCustomTimeout(name string, timeout time.Duration) ID {
 	id := ID(name)
 	_, taken := catalog.components[id]
 	if taken {
-		for n := 2; n < 99; n++ {
-			// Loop to 99 to avoid introducing an infinite loop
-			//
+		for n := 2; n < 100; n++ {
+			// Loop to 99 to avoid introducing an infinite loop.
 			newid := ID(fmt.Sprintf("%s-%d", name, n))
-			_, taken := catalog.components[newid]
+			_, taken = catalog.components[newid]
 			if !taken {
 				id = newid
 				break
 			}
+		}
+		// The case is improbable though, so we errorf and continue
+		if taken {
+			log.Errorf("Failed to find a unique token for component %s", name)
 		}
 	}
 
