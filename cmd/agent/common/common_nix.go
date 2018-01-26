@@ -21,8 +21,6 @@ const (
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "..", "checks.d")
-	// PySitePackages holds the path to the python checks from integrations-core installed via wheels
-	PySitePackages = filepath.Join(_here, "..", "..", "embedded", "lib", "python2.7", "site-packages")
 	// DistPath holds the path to the folder containing distribution files
 	distPath = filepath.Join(_here, "dist")
 )
