@@ -1,0 +1,13 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+init_config:
+
+# Network check supports only one configured instance
+instances:
+<% @instances.each do |i| -%>
+ - collect_connection_state: <%= i['collect_connection_state'] || 'false' %>
+   excluded_interfaces:
+ <% i["excluded_interfaces"].each do |interface| -%>
+     - <%= interface %>
+ <% end -%>
+<% end -%>
