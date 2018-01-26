@@ -28,6 +28,9 @@ var (
 	filesScanner      *tailer.Scanner
 	containersScanner *container.Scanner
 	networkListeners  *listener.Listeners
+
+	// pipeline provider
+	pipelineProvider pipeline.Provider
 )
 
 // Start starts logs-agent
@@ -77,6 +80,11 @@ func Stop() {
 		filesScanner.Stop()
 		networkListeners.Stop()
 		containersScanner.Stop()
+
+		// stop all the different pipelines
+		pipelineProvider.Stop()
+
+		// auditor.Stop()
 	}
 }
 

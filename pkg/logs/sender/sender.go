@@ -18,6 +18,7 @@ type Sender struct {
 	outputChan  chan message.Message
 	connManager *ConnectionManager
 	conn        net.Conn
+	isFlushed   chan struct{}
 }
 
 // New returns an initialized Sender
@@ -26,6 +27,7 @@ func New(inputChan, outputChan chan message.Message, connManager *ConnectionMana
 		inputChan:   inputChan,
 		outputChan:  outputChan,
 		connManager: connManager,
+		isFlushed:   make(chan struct{}),
 	}
 }
 
@@ -34,11 +36,18 @@ func (s *Sender) Start() {
 	go s.run()
 }
 
+// Stop stops the Sender
+func (s *Sender) Stop() {
+	close(s.inputChan)
+	<-s.isFlushed
+}
+
 // run lets the sender wire messages
 func (s *Sender) run() {
 	for payload := range s.inputChan {
 		s.wireMessage(payload)
 	}
+	s.isFlushed <- struct{}{}
 }
 
 // wireMessage lets the Sender send a message to datadog's intake
