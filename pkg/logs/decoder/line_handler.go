@@ -164,11 +164,13 @@ func (lh *MultiLineHandler) run() {
 func (lh *MultiLineHandler) handleExpiration() {
 	for range lh.flushTimer.C {
 		lh.mu.Lock()
-		lh.sendContent()
-		lh.mu.Unlock()
 		if lh.shouldStop {
+			// don't send content to prevent from sending a truncated message
+			lh.mu.Unlock()
 			break
 		}
+		lh.sendContent()
+		lh.mu.Unlock()
 	}
 	lh.outputChan <- newStopOutput()
 }
