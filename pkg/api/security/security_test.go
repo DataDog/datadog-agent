@@ -37,11 +37,18 @@ func TestFetchAuthTokenValidConf(t *testing.T) {
 }
 
 func TestFetchAuthTokenValidGen(t *testing.T) {
-	ddFile, err := ioutil.TempFile("", "fake-datadog-yaml-")
+	testDir, err := ioutil.TempDir("", "fake-datadog-etc-")
 	require.Nil(t, err, fmt.Sprintf("%v", err))
-	expectTokenPath := path.Join(path.Dir(ddFile.Name()), "auth_token")
+	defer os.RemoveAll(testDir)
+
+	f, err := ioutil.TempFile(testDir, "fake-datadog-yaml-")
+	require.Nil(t, err, fmt.Errorf("%v", err))
+	defer os.Remove(f.Name())
+
+	config.Datadog.SetConfigFile(f.Name())
+	expectTokenPath := path.Join(testDir, "auth_token")
 	defer os.Remove(expectTokenPath)
-	config.Datadog.SetConfigFile(ddFile.Name())
+
 	config.Datadog.Set("auth_token", "")
 	token, err := FetchAuthToken()
 	require.Nil(t, err, fmt.Sprintf("%v", err))

@@ -106,7 +106,7 @@ func GenerateRootCert(hosts []string, bits int) (
 }
 
 // FetchAuthToken gets the authentication token from:
-// - configuration (yaml or environment variable)
+// - configuration (datadog.yaml or environment variable)
 // - the auth token file & creates one if it doesn't exist
 // Requires that the config has been set up before calling
 func FetchAuthToken() (string, error) {
