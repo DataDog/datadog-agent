@@ -58,7 +58,13 @@ def config_proxy_skip(proxies, uri, skip_proxy=False):
         proxies['http'] = None
         proxies['https'] = None
     elif proxies.get('no'):
-        for url in proxies['no'].replace(';', ',').split(','):
+        urls = []
+        if isinstance(proxies['no'], basestring):
+            urls = proxies['no'].replace(';', ',').split(",")
+        elif hasattr(proxies['no'], '__iter__'):
+            urls = proxies['no']
+
+        for url in urls:
             if url in parsed_uri.netloc:
                 proxies['http'] = None
                 proxies['https'] = None
