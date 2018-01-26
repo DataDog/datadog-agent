@@ -115,7 +115,7 @@ func (d *DockerUtil) dispatchEvents(cancelChan <-chan struct{}) {
 	fltrs.Add("event", "start")
 	fltrs.Add("event", "die")
 
-	healthTicker := time.NewTicker(15 * time.Second)
+	healthTicker := time.NewTicker(health.DefaultPingFreq)
 	healthToken := health.Register("dockerutil-event-dispatch")
 
 	// Outer loop handles re-connecting in case the docker daemon closes the connection

@@ -151,7 +151,7 @@ func NewBufferedAggregator(s *serializer.Serializer, hostname string, flushInter
 		hostname:           hostname,
 		hostnameUpdate:     make(chan string),
 		hostnameUpdateDone: make(chan struct{}),
-		healthTicker:       time.NewTicker(15 * time.Second),
+		healthTicker:       time.NewTicker(health.DefaultPingFreq),
 		healthToken:        health.Register("aggregator"),
 	}
 

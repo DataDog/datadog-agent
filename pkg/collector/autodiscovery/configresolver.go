@@ -63,7 +63,7 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 		newService:      make(chan listeners.Service),
 		delService:      make(chan listeners.Service),
 		stop:            make(chan bool),
-		healthTicker:    time.NewTicker(15 * time.Second),
+		healthTicker:    time.NewTicker(health.DefaultPingFreq),
 		healthToken:     health.Register("ad-configresolver"),
 	}
 

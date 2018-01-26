@@ -65,7 +65,7 @@ func NewDockerListener() (ServiceListener, error) {
 		dockerUtil:   d,
 		services:     make(map[ID]Service),
 		stop:         make(chan bool),
-		healthTicker: time.NewTicker(15 * time.Second),
+		healthTicker: time.NewTicker(health.DefaultPingFreq),
 		healthToken:  health.Register("ad-dockerlistener"),
 	}, nil
 }

@@ -55,7 +55,7 @@ func NewKubeletListener() (ServiceListener, error) {
 		services:     make(map[ID]Service),
 		ticker:       time.NewTicker(15 * time.Second),
 		stop:         make(chan bool),
-		healthTicker: time.NewTicker(15 * time.Second),
+		healthTicker: time.NewTicker(health.DefaultPingFreq),
 		healthToken:  health.Register("ad-kubeletlistener"),
 	}, nil
 }

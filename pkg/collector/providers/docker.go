@@ -71,7 +71,7 @@ func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
 func (d *DockerConfigProvider) listen() {
 	d.Lock()
 	d.streaming = true
-	d.healthTicker = time.NewTicker(15 * time.Second)
+	d.healthTicker = time.NewTicker(health.DefaultPingFreq)
 	d.healthToken = health.Register("ad-dockerprovider")
 	d.Unlock()
 

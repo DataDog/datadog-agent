@@ -57,7 +57,7 @@ func NewECSListener() (ServiceListener, error) {
 		services:     make(map[string]Service),
 		stop:         make(chan bool),
 		t:            time.NewTicker(2 * time.Second),
-		healthTicker: time.NewTicker(15 * time.Second),
+		healthTicker: time.NewTicker(health.DefaultPingFreq),
 		healthToken:  health.Register("ad-ecslistener"),
 	}, nil
 }
