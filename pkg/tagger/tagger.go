@@ -63,7 +63,7 @@ func newTagger() (*Tagger, error) {
 		pruneTicker:  time.NewTicker(5 * time.Minute),
 		retryTicker:  time.NewTicker(30 * time.Second),
 		stop:         make(chan bool),
-		healthTicker: time.NewTicker(15 * time.Second),
+		healthTicker: time.NewTicker(health.DefaultPingFreq),
 		healthToken:  health.Register("tagger"),
 	}
 
