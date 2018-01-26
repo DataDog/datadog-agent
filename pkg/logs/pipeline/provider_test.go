@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -21,23 +20,26 @@ type ProviderTestSuite struct {
 func (suite *ProviderTestSuite) SetupTest() {
 	suite.p = &provider{
 		numberOfPipelines: 3,
-		chanSize:          10,
-		pipelinesChans:    [](chan message.Message){},
-		currentChanIdx:    0,
 		config:            &config.Config{},
+		pipelines:         []*Pipeline{},
 	}
 }
 
 func (suite *ProviderTestSuite) TestProvider() {
 	suite.p.Start(nil, nil)
-	suite.Equal(3, len(suite.p.pipelinesChans))
+	suite.Equal(3, len(suite.p.pipelines))
 
 	c := suite.p.NextPipelineChan()
-	suite.Equal(int32(1), suite.p.currentChanIdx)
+	suite.Equal(int32(1), suite.p.currentPipelineIndex)
+
 	suite.p.NextPipelineChan()
-	suite.Equal(int32(2), suite.p.currentChanIdx)
+	suite.Equal(int32(2), suite.p.currentPipelineIndex)
+
 	suite.p.NextPipelineChan()
 	suite.Equal(c, suite.p.NextPipelineChan())
+
+	suite.p.Stop()
+	suite.Nil(suite.p.NextPipelineChan())
 }
 
 func TestProviderTestSuite(t *testing.T) {

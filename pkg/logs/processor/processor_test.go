@@ -18,7 +18,7 @@ import (
 )
 
 func NewTestProcessor() Processor {
-	return Processor{nil, nil, []byte("")}
+	return Processor{nil, nil, nil, nil}
 }
 
 func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) config.LogSource {

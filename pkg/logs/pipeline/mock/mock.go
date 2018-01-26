@@ -26,6 +26,9 @@ func NewMockProvider() pipeline.Provider {
 // Start does nothing
 func (p *mockProvider) Start(cm *sender.ConnectionManager, auditorChan chan message.Message) {}
 
+// Stop does nothing
+func (p *mockProvider) Stop() {}
+
 // NextPipelineChan returns the next pipeline
 func (p *mockProvider) NextPipelineChan() chan message.Message {
 	return p.msgChan
