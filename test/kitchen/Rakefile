@@ -1,0 +1,67 @@
+#!/usr/bin/env rake
+
+desc "Check out cookbooks from Berkshelf to local path"
+task :berks do
+  sh %{rm -fr ./cookbooks}
+  sh %{chef exec berks vendor ./cookbooks}
+end
+
+begin
+  require 'kitchen/rake_tasks'
+  Kitchen::RakeTasks.new
+rescue LoadError
+  puts ">>>>> Kitchen gem not loaded, omitting tasks" unless ENV['CI']
+end
+
+task :default => [
+  :berks,
+  "kitchen:all",
+]
+
+def generate_test_and_parallel_test(name, description, shell_command, driver, destroy_strategy)
+  desc description + " with the #{driver} driver"
+  task "#{name}-#{driver}".to_sym do
+    Rake::Task['berks'].invoke
+    sh shell_command + " '^dd*.*-#{driver}$'" + " -d #{destroy_strategy}"
+  end
+
+  desc description + " in parallel with the #{driver} driver"
+  task "#{name}-#{driver}-parallel".to_sym, :concurrency do |t, args|
+    Rake::Task['berks'].invoke
+    concurrency = args[:concurrency] || "4"
+    sh shell_command + " '^dd*.*-#{driver}$'" + ' --concurrency=' + concurrency + " -d #{destroy_strategy}"
+  end
+end
+
+# When run on Digital Ocean, always destroy all instances
+generate_test_and_parallel_test(
+  :"dd-agent",
+  'Run test for all of the Agent installation method on every platform',
+  "kitchen test",
+  "azure",
+  "always"
+)
+
+require 'time'
+
+desc "Cleans up all digitalocean instances on which the uptime is greater than the specified value (in minutes, defaults to 50)"
+task :"cleanup-digitalocean", :minutes, :type do |t, args|
+  minutes = args[:minutes] || "50"
+  type = args[:type] || "agent"
+  client = DropletKit::Client.new(access_token: ENV['DIGITALOCEAN_ACCESS_TOKEN'])
+  client.droplets.all().each do |droplet|
+    created_at = Time.parse(droplet.created_at)
+    if !(/^dd-#{Regexp.quote(type)}-testing-/ =~ droplet.name).nil? && (Time.now() - created_at) > minutes.to_i * 60
+      client.droplets.delete(id: droplet.id)
+      puts ">>>>> Deleted #{droplet.name} (id #{droplet.id}), running since #{created_at}"
+    else
+      puts ">>>>> Ignored #{droplet.name} (id #{droplet.id}), running since #{created_at}"
+    end
+  end
+end
+
+desc "Cleans up all dd-agent-testing digitalocean instances on which the uptime is greater than the specified value (in minutes, defaults to 50)"
+task :"agent-cleanup-digitalocean", :minutes do |t, args|
+  minutes = args[:minutes] || "50"
+  Rake::Task['berks'].invoke(minutes, "agent")
+end

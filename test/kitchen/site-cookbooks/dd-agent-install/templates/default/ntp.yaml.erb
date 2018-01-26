@@ -1,0 +1,5 @@
+<%# Sanitize the compiled Mash to standard Array/Hash objects by way of JSON -%>
+<%= JSON.parse(({ 'instances' => @instances, 'logs' => @logs }).to_json).to_yaml %>
+
+init_config:
+# Nothing to configure here

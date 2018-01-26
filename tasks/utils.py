@@ -131,7 +131,7 @@ def get_git_branch_name():
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
 
 
-def query_version(ctx):
+def query_version(ctx, git_sha_length=7):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     described_version = ctx.run("git describe --tags", hide=True).stdout.strip()
@@ -169,19 +169,23 @@ def query_version(ctx):
     # for the output, 6.0.0-beta.0-1-g4f19118, this will match g4f19118
     git_sha = ""
     if git_sha_match and git_sha_match[0]:
-        git_sha = git_sha_match[0]
+        git_sha_long = ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
+        git_sha = git_sha_long[:git_sha_length]
 
     return version, pre, commits_since_version, git_sha
 
 
-def get_version(ctx, include_git=False):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
     version = ""
-    version, pre, commits_since_version, git_sha = query_version(ctx)
+    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length)
     if pre:
         version = "{0}-{1}".format(version, pre)
     if commits_since_version and include_git:
-        version = "{0}+git.{1}.{2}".format(version, commits_since_version,git_sha)
+        if url_safe:
+            version = "{0}.git.{1}.{2}".format(version, commits_since_version,git_sha)
+        else:
+            version = "{0}+git.{1}.{2}".format(version, commits_since_version,git_sha)
     return version
 
 def get_version_numeric_only(ctx):

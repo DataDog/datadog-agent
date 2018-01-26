@@ -1,0 +1,21 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+# Each instance requires a directory and an array of queues.
+# Tags are optional.
+instances:
+  <% @instances.each do |instance| -%>
+  - directory: <%= instance['directory'] %>
+    queues:
+      <% Array(instance['queues']).each do |queue| -%>
+      - <%= queue %>
+      <% end -%>
+    <% if instance.key?('tags') -%>
+    tags:
+      <% Array(instance['tags']).each do |tag| -%>
+      - <%= tag %>
+      <% end -%>
+    <% end -%>
+  <% end -%>
+
+# Postfix check does not require any init_config
+init_config:
