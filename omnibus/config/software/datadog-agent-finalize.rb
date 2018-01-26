@@ -58,6 +58,12 @@ build do
             # cleanup clutter
             delete "#{install_dir}/etc"
         elsif osx?
+            # Remove linux specific configs
+            conf_dir = "#{install_dir}/etc/conf.d"
+            delete "#{conf_dir}/process_agent.yaml.default"
+            delete "#{conf_dir}/file_handle.d"
+            delete "#{install_dir}/etc/process-agent.conf.example"
+
             # Nothing to move on osx, the confs already live in /opt/datadog-agent/etc/
         end
     end
