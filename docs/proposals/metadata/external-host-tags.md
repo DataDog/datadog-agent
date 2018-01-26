@@ -21,21 +21,31 @@ must be defined to provide the new Agent with the same feature.
 
 ## Constraints
 
-Changes to the checks must be compatible with both the agents 5.x and 6.x.
+Changes to the checks must be compatible with both the agents 5.x and 6.x so that
+we don't need to backport the changes to Agent 5.
 
 ## Recommended Solution
 
 ### Change the collection model from "Pull" to "Push"
 
 Instead of invoking a method exposed by the checks at every metadata collection,
-let the checks push data to the Agent. External tags would be stored and used by
-the Agent when it's time to send the metadata payload.
+let the checks push data to the Agent.
 
-This would only require to add a new method to the Python Checks API exposed by
-the Agent. On the check side, `get_external_host_tags` would be preserved for
-backward compatibility and some logic would be added to send host tags during
-metrics collection (some strategy might be needed to avoid sending external host
-tags at every collection cycle, this might be different from one check to another).
+To keep the Agent in charge of deciding when to send those payloads to the intake
+(such payloads might be hard to ingest so we need control), External tags would
+be cached and used by the Agent when it's time to send the metadata payload.
+External host tags coming from different checks could be sent in the same payload.
+
+This would only require to add a new method to the `Sender` exposed to Python checks
+by the Agent. On the check side, `get_external_host_tags` would be preserved for
+backward compatibility and some logic would be added so that that method is called
+from the `check` method but only in Agent6; Agent5 will keep the current behaviour,
+dynamically calling by itself `get_external_host_tags` outside the collection cycle.
+
+If collecting those tags is heavy and we can't afford to do it at every collection
+cycle, some strategy would be needed (only when the check runs in Agent6) to do
+that every few iterations instead: this is out of the scope of this proposal and
+should be handled on a case by case basis.
 
 - Strengths
     - keep the Agent code simple and move logic to the check
