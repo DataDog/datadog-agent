@@ -46,12 +46,6 @@ type APIClient struct {
 	timeout time.Duration
 }
 
-// // CachedServiceMap stores the higher level cache containing each node name and their corresponding ServiceMapperBundle.
-// type ticker struct {
-// 	servicesPollTicker *time.Ticker
-// 	//stop                      chan bool
-// }
-
 // GetAPIClient returns the shared ApiClient instance.
 func GetAPIClient() (*APIClient, error) {
 	if globalApiClient == nil {
@@ -106,16 +100,14 @@ func (c *APIClient) connect() error {
 		return err
 	}
 	log.Debugf("connected to kubernetes apiserver, version %s", version.GitVersion)
-	c.startServiceMapping() // Is this correct ?
+	useServiceMapper := config.Datadog.GetBool("service_mapper_disabled")
+	if !useServiceMapper {
+		return nil
+	}
+	c.startServiceMapping()
 	return nil
 }
 
-// func newcachedServiceMap() *CachedServiceMap {
-// 	return &CachedServiceMap{
-// 		servicesPollTicker: time.NewTicker(servicesPollIntl),
-// 		//stop:            make(chan bool),
-// 	}
-// }
 // ServiceMapperBundle maps the podNames to the serviceNames they are associated with.
 // It is updated by mapServices in services.go
 type ServiceMapperBundle struct {
@@ -129,25 +121,24 @@ func newServiceMapperBundle() *ServiceMapperBundle {
 	}
 }
 
+// startServiceMapping is only called once, when we have confirmed we could correctly connect to the API server.
+// The logic here is solely to retrieve Nodes, Pods and Endpoints. The processing part is in mapServices.
 func (c *APIClient) startServiceMapping() {
 	tickerSvcProcess := time.NewTicker(servicesPollIntl)
 	go func() {
 		for {
 			select {
-			// case <-csm.stop:
-			// 	if csm.servicesPollTicker != nil {
-			// 		csm.m.Lock()
-			// 		defer csm.m.Unlock()
-			// 		csm.stop <- true
-			// 	}
-			// 	return
 			case <-tickerSvcProcess.C:
+				// The timeout for the context is the same as the poll frequency.
+				// We use a new context at each run, to recover if we can't access the API server temporarily.
+				// A poll run should take less than the poll frequency.
 				ctx, cancel := context.WithTimeout(context.Background(), servicesPollIntl)
-				defer cancel() // is it good with the go func below ?
-				pods, err := c.client.CoreV1().ListPods(ctx, "")
+				defer cancel()
 
+				// We fetch nodes to reliably use nodename as key in the cache. Avoiding to retrieve them from the endpoints/pods.
+				nodes, err := c.client.CoreV1().ListNodes(ctx)
 				if err != nil {
-					log.Errorf("could not collect pods from the API Server: %q", err.Error())
+					log.Errorf("could not collect nodes from the API Server: %q", err.Error())
 					continue
 				}
 				endpointList, err := c.client.CoreV1().ListEndpoints(ctx, "")
@@ -155,9 +146,13 @@ func (c *APIClient) startServiceMapping() {
 					log.Errorf("could not collect endpoints from the API Server: %q", err.Error())
 					continue
 				}
-				nodes, err := c.client.CoreV1().ListNodes(ctx)
+				if endpointList.Items == nil {
+					log.Debug("No services collected from the API server")
+					continue
+				}
+				pods, err := c.client.CoreV1().ListPods(ctx, "")
 				if err != nil {
-					log.Errorf("could not collect nodes from the API Server: %q", err.Error())
+					log.Errorf("could not collect pods from the API Server: %q", err.Error())
 					continue
 				}
 
@@ -166,7 +161,11 @@ func (c *APIClient) startServiceMapping() {
 					if !found {
 						smb = newServiceMapperBundle()
 					}
-					smb.(*ServiceMapperBundle).mapServices(*pods, *endpointList)
+					err := smb.(*ServiceMapperBundle).mapServices(*node.Metadata.Name, *pods, *endpointList)
+					if err != nil {
+						log.Errorf("could not map the services: %s on node %s", err.Error, *node.Metadata.Name)
+						continue
+					}
 					cache.Cache.Set(*node.Metadata.Name, smb, serviceMapExpire)
 				}
 			}

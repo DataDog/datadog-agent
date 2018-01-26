@@ -1,53 +1,62 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2017 Datadog, Inc.
+// Copyright 2018 Datadog, Inc.
 
 // +build kubeapiserver
 
 package apiserver
 
-//// Covered by test/integration/util/kube_apiserver/services_test.go
-
 import (
+	"errors"
+
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/ericchiang/k8s/api/v1"
 )
 
-func (smb *ServiceMapperBundle) mapServices(pods v1.PodList, endpointList v1.EndpointsList) error {
+// mapServices maps each pod (endpoint) to the services connected to it.
+// It is on a per node basis to avoid mixing up the services pods are actually connected to if all pods of different nodes share a similar subnet, therefore sharing a similar IP.
+func (smb *ServiceMapperBundle) mapServices(nodeName string, pods v1.PodList, endpointList v1.EndpointsList) error {
 	smb.m.Lock()
 	defer smb.m.Unlock()
-	ipToEndpoints := make(map[string][]string) // maps an IP address to associated services svc/endpoint
-	podToIp := make(map[string]string)
+	ipToEndpoints := make(map[string][]string) // maps the IP address from an endpoint (pod) to associated services ex: "10.10.1.1" : ["service1","service2"]
+	podToIp := make(map[string]string)         // maps the pods of the currently evaluated node to their IP.
+
+	if pods.Items == nil {
+		err := errors.New("empty podlist received")
+		return err
+	}
 
 	for _, pod := range pods.Items {
 		if *pod.Status.PodIP != "" {
 			podToIp[*pod.Metadata.Name] = *pod.Status.PodIP
 		}
 	}
-	log.Infof("this is the podToIp %q", podToIp)
-	log.Infof("There are %d services in the cluster\n", len(endpointList.Items))
 	for _, svc := range endpointList.Items {
-		log.Infof("evanluated svc is %q \n", svc)
 		for _, endpointsSubsets := range svc.Subsets {
-			log.Infof("evanluated endpointSub is %q \n", *endpointsSubsets)
+			if endpointsSubsets.Addresses == nil {
+				log.Tracef("A subset of endpoints from %s could not be evaluated", *svc.Metadata.Name)
+				continue
+			}
 			for _, edpt := range endpointsSubsets.Addresses {
-				ipToEndpoints[*edpt.Ip] = append(ipToEndpoints[*edpt.Ip], *svc.Metadata.Name)
-				if edpt.NodeName != nil {
-					log.Infof("service for %s is %q\n\n", *svc.Metadata.Name, edpt.NodeName)
+				if edpt == nil {
+					log.Tracef("An endpoint from %s could not be evaluated", *svc.Metadata.Name)
+					continue
+				}
+				if edpt.NodeName != nil && *edpt.NodeName == nodeName {
+					ipToEndpoints[*edpt.Ip] = append(ipToEndpoints[*edpt.Ip], *svc.Metadata.Name)
 				}
 			}
 		}
 	}
-	log.Infof("This is ipToEndpoint %q \n", ipToEndpoints)
 	for name, ip := range podToIp {
 		if svc, found := ipToEndpoints[ip]; found {
 			smb.PodNameToServices[name] = svc
 		}
 	}
-	log.Infof("the services matched %q \n", smb.PodNameToServices)
+	log.Tracef("the services matched %q \n", smb.PodNameToServices)
 	return nil
 }
 
