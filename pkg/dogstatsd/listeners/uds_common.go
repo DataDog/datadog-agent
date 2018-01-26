@@ -47,6 +47,10 @@ func NewUDSListener(packetOut chan *Packet, packetPool *PacketPool) (*UDSListene
 	if err != nil {
 		return nil, fmt.Errorf("can't listen: %s", err)
 	}
+	err = os.Chmod(socketPath, 0722)
+	if err != nil {
+		return nil, fmt.Errorf("can't set the socket at write only: %s", err)
+	}
 
 	if originDection {
 		err = enableUDSPassCred(conn)
