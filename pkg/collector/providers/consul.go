@@ -8,7 +8,6 @@
 package providers
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"net/url"
@@ -101,11 +100,6 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 // String returns a string representation of the ConsulConfigProvider
 func (p *ConsulConfigProvider) String() string {
 	return "consul Configuration Provider"
-}
-
-// MarshalJSON returns the serialized json provider info
-func (p *ConsulConfigProvider) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.String())
 }
 
 // Collect retrieves templates from consul, builds Config objects and returns them

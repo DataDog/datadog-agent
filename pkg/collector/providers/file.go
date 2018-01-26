@@ -6,7 +6,6 @@
 package providers
 
 import (
-	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"os"
@@ -136,11 +135,6 @@ func (c *FileConfigProvider) IsUpToDate() (bool, error) {
 // String returns a string representation of the FileConfigProvider
 func (c *FileConfigProvider) String() string {
 	return "File Configuration Provider"
-}
-
-// MarshalJSON returns the serialized json provider info
-func (c *FileConfigProvider) MarshalJSON() ([]byte, error) {
-	return json.Marshal(c.String())
 }
 
 // collectEntry collects a file entry and return it's configuration if valid

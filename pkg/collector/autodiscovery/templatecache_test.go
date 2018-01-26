@@ -24,10 +24,10 @@ func TestSet(t *testing.T) {
 	cache := NewTemplateCache()
 
 	tpl1 := check.Config{ADIdentifiers: []string{"foo", "bar"}}
-	err := cache.Set(tpl1)
+	err := cache.Set(tpl1, "test provider")
 	require.Nil(t, err)
 	// adding again should be no-op
-	err = cache.Set(tpl1)
+	err = cache.Set(tpl1, "test provider")
 	require.Nil(t, err)
 
 	assert.Len(t, cache.id2digests, 2)
@@ -37,7 +37,7 @@ func TestSet(t *testing.T) {
 	assert.Len(t, cache.digest2template, 1)
 
 	tpl2 := check.Config{ADIdentifiers: []string{"foo"}}
-	err = cache.Set(tpl2)
+	err = cache.Set(tpl2, "test provider")
 
 	require.Nil(t, err)
 	assert.Len(t, cache.id2digests, 2)
@@ -48,7 +48,7 @@ func TestSet(t *testing.T) {
 
 	// no identifiers at all
 	tpl3 := check.Config{ADIdentifiers: []string{}}
-	err = cache.Set(tpl3)
+	err = cache.Set(tpl3, "test provider")
 
 	require.NotNil(t, err)
 }
@@ -56,7 +56,7 @@ func TestSet(t *testing.T) {
 func TestDel(t *testing.T) {
 	cache := NewTemplateCache()
 	tpl := check.Config{ADIdentifiers: []string{"foo", "bar"}}
-	err := cache.Set(tpl)
+	err := cache.Set(tpl, "test provider")
 	require.Nil(t, err)
 
 	err = cache.Del(tpl)
@@ -76,7 +76,7 @@ func TestDel(t *testing.T) {
 func TestGet(t *testing.T) {
 	cache := NewTemplateCache()
 	tpl := check.Config{ADIdentifiers: []string{"foo", "bar"}}
-	cache.Set(tpl)
+	cache.Set(tpl, "test provider")
 
 	ret, err := cache.Get("foo")
 	require.Nil(t, err)
@@ -87,4 +87,12 @@ func TestGet(t *testing.T) {
 	// id not in cache
 	_, err = cache.Get("baz")
 	assert.NotNil(t, err)
+}
+
+func TestGetProviderFromDigest(t *testing.T) {
+	cache := NewTemplateCache()
+	tpl := check.Config{ADIdentifiers: []string{"foo", "bar"}}
+	cache.Set(tpl, "test provider")
+
+	assert.Equal(t, cache.digest2provider[tpl.Digest()], "test provider")
 }

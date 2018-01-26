@@ -6,8 +6,12 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/api/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -59,6 +63,36 @@ func getConfigCheck() error {
 		}
 	}
 
-	fmt.Println(fmt.Sprintf("%s", r))
+	w := color.Output
+
+	cr := agent.ConfigCheckResponse{}
+	err = json.Unmarshal(r, &cr)
+	if err != nil {
+		fmt.Println("json")
+		return err
+	}
+
+	for provider, configs := range cr.Configs {
+		fmt.Fprintln(w, fmt.Sprintf("====== Provider %s ======", color.BlueString(provider)))
+		for _, c := range configs {
+			fmt.Fprintln(w, fmt.Sprintf("\n--- Check %s ---", color.GreenString(c.Name)))
+			for i, inst := range c.Instances {
+				fmt.Fprintln(w, fmt.Sprintf("*** Instance %s", color.CyanString(strconv.Itoa(i+1))))
+				fmt.Fprint(w, fmt.Sprintf("%s", inst))
+				fmt.Fprintln(w, strings.Repeat("*", 3))
+			}
+			fmt.Fprintln(w, fmt.Sprintf("Init Config: %s", c.InitConfig))
+			fmt.Fprintln(w, fmt.Sprintf("Metric Config: %s", c.MetricConfig))
+			fmt.Fprintln(w, fmt.Sprintf("Log Config: %s", c.LogsConfig))
+			fmt.Fprintln(w, strings.Repeat("-", 3))
+		}
+		fmt.Fprintln(w, strings.Repeat("=", 10))
+	}
+
+	for check, warning := range cr.Warnings {
+		fmt.Fprintln(w, check)
+		fmt.Fprintln(w, warning)
+	}
+
 	return nil
 }

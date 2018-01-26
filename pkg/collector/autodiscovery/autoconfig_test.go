@@ -7,7 +7,6 @@ package autodiscovery
 
 import (
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -63,8 +62,8 @@ func TestAddProvider(t *testing.T) {
 	ac.LoadAndRun()
 	require.Len(t, ac.providers, 2)
 	assert.Equal(t, 1, mp.collectCounter)
-	assert.False(t, ac.providers[0].Poll)
-	assert.True(t, ac.providers[1].Poll)
+	assert.False(t, ac.providers[0].poll)
+	assert.True(t, ac.providers[1].poll)
 }
 
 func TestAddLoader(t *testing.T) {
@@ -88,7 +87,7 @@ func TestContains(t *testing.T) {
 	c1 := check.Config{Name: "bar"}
 	c2 := check.Config{Name: "foo"}
 	pd := providerDescriptor{}
-	pd.Configs = append(pd.Configs, c1)
+	pd.configs = append(pd.configs, c1)
 	assert.True(t, pd.contains(&c1))
 	assert.False(t, pd.contains(&c2))
 }
@@ -104,19 +103,4 @@ func TestStop(t *testing.T) {
 
 	assert.True(t, ml.stopReceived)
 	assert.True(t, ml.stopReceived)
-}
-
-func TestGetConfigs(t *testing.T) {
-	ac := NewAutoConfig(nil)
-	c1 := check.Config{
-		Name:          "http_check",
-		Instances:     []check.ConfigData{check.ConfigData("{\"name\":\"My service\",\"timeout\":1,\"url\":\"http://%%host%%\"}")},
-		InitConfig:    check.ConfigData("{}"),
-		ADIdentifiers: []string{"id"},
-	}
-	mp := &MockProvider{}
-	pd := providerDescriptor{Configs: []check.Config{c1}, Provider: mp}
-	ac.providers = append(ac.providers, &pd)
-	json := ac.GetMarshalledConfigs()
-	fmt.Println(string(json))
 }

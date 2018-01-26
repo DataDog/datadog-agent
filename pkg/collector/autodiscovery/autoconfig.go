@@ -6,7 +6,6 @@
 package autodiscovery
 
 import (
-	"encoding/json"
 	"expvar"
 	"fmt"
 	"strings"
@@ -46,9 +45,9 @@ func init() {
 // providerDescriptor keeps track of the configurations loaded by a certain
 // `providers.ConfigProvider` and whether it should be polled or not.
 type providerDescriptor struct {
-	Provider providers.ConfigProvider `json:"provider"`
-	Configs  []check.Config           `json:"configs"`
-	Poll     bool                     `json:"is_polled"`
+	provider providers.ConfigProvider
+	configs  []check.Config
+	poll     bool
 }
 
 // AutoConfig is responsible to collect checks configurations from
@@ -63,30 +62,32 @@ type providerDescriptor struct {
 // Notice the `AutoConfig` public API speaks in terms of `check.Config`,
 // meaning that you cannot use it to schedule check instances directly.
 type AutoConfig struct {
-	collector         *collector.Collector
-	providers         []*providerDescriptor
-	loaders           []check.Loader
-	templateCache     *TemplateCache
-	listeners         []listeners.ServiceListener
-	configResolver    *ConfigResolver
-	configsPollTicker *time.Ticker
-	config2checks     map[string][]check.ID       // cache the ID of checks we load for each config
-	name2jmxmetrics   map[string]check.ConfigData // holds the metrics to collect for JMX checks
-	stop              chan bool
-	pollerActive      bool
-	m                 sync.RWMutex
+	collector             *collector.Collector
+	providers             []*providerDescriptor
+	loaders               []check.Loader
+	templateCache         *TemplateCache
+	listeners             []listeners.ServiceListener
+	configResolver        *ConfigResolver
+	configsPollTicker     *time.Ticker
+	config2checks         map[string][]check.ID       // cache the ID of checks we load for each config
+	name2jmxmetrics       map[string]check.ConfigData // holds the metrics to collect for JMX checks
+	providerLoadedConfigs map[string][]check.Config   // holds the resolved config per provider
+	stop                  chan bool
+	pollerActive          bool
+	m                     sync.RWMutex
 }
 
 // NewAutoConfig creates an AutoConfig instance.
 func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 	ac := &AutoConfig{
-		collector:       collector,
-		providers:       make([]*providerDescriptor, 0, 5),
-		loaders:         make([]check.Loader, 0, 5),
-		templateCache:   NewTemplateCache(),
-		config2checks:   make(map[string][]check.ID),
-		name2jmxmetrics: make(map[string]check.ConfigData),
-		stop:            make(chan bool),
+		collector:             collector,
+		providers:             make([]*providerDescriptor, 0, 5),
+		loaders:               make([]check.Loader, 0, 5),
+		templateCache:         NewTemplateCache(),
+		config2checks:         make(map[string][]check.ID),
+		name2jmxmetrics:       make(map[string]check.ConfigData),
+		providerLoadedConfigs: make(map[string][]check.Config),
+		stop: make(chan bool),
 	}
 	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
 	return ac
@@ -140,7 +141,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 	defer ac.m.Unlock()
 
 	for _, pd := range ac.providers {
-		if pd.Provider == provider {
+		if pd.provider == provider {
 			// we already know this configuration provider, don't do anything
 
 			// this is formatted inline since logging is done on a background thread,
@@ -152,9 +153,9 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 	}
 
 	pd := &providerDescriptor{
-		Provider: provider,
-		Configs:  []check.Config{},
-		Poll:     shouldPoll,
+		provider: provider,
+		configs:  []check.Config{},
+		poll:     shouldPoll,
 	}
 	ac.providers = append(ac.providers, pd)
 }
@@ -190,10 +191,9 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 	resolvedConfigs := []check.Config{}
 
 	for _, pd := range ac.providers {
-		resolvedProviderConfigs := []check.Config{}
-		cfgs, _ := pd.Provider.Collect()
+		cfgs, _ := pd.provider.Collect()
 
-		if fileConfPd, ok := pd.Provider.(*providers.FileConfigProvider); ok {
+		if fileConfPd, ok := pd.provider.(*providers.FileConfigProvider); ok {
 			var goodConfs []check.Config
 			for _, cfg := range cfgs {
 				// JMX checks can have 2 YAML files: one containing the metrics to collect, one containing the
@@ -218,13 +218,14 @@ func (ac *AutoConfig) getAllConfigs() []check.Config {
 
 			cfgs = goodConfs
 		}
+		// Store all raw configs in the provider
+		pd.configs = cfgs
+
+		// resolve configs if needed
 		for _, config := range cfgs {
-			rc := ac.resolve(config)
-			resolvedProviderConfigs = append(resolvedConfigs, rc...)
+			rc := ac.resolve(config, pd.provider.String())
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
-		// Store all resolved config in the provider
-		pd.Configs = resolvedProviderConfigs
 	}
 
 	return resolvedConfigs
@@ -266,7 +267,7 @@ func (ac *AutoConfig) schedule(checks []check.Check) {
 }
 
 // resolve loads and resolves a given config into a slice of resolved configs
-func (ac *AutoConfig) resolve(config check.Config) []check.Config {
+func (ac *AutoConfig) resolve(config check.Config, provider string) []check.Config {
 	configs := []check.Config{}
 
 	// add default metrics to collect to JMX checks
@@ -281,7 +282,7 @@ func (ac *AutoConfig) resolve(config check.Config) []check.Config {
 
 	if config.IsTemplate() {
 		// store the template in the cache in any case
-		if err := ac.templateCache.Set(config); err != nil {
+		if err := ac.templateCache.Set(config, provider); err != nil {
 			log.Errorf("Unable to store Check configuration in the cache: %s", err)
 		}
 
@@ -302,6 +303,8 @@ func (ac *AutoConfig) resolve(config check.Config) []check.Config {
 		}
 	} else {
 		configs = append(configs, config)
+		// store non template configs in the AC
+		ac.providerLoadedConfigs[provider] = append(ac.providerLoadedConfigs[provider], config)
 	}
 
 	return configs
@@ -351,17 +354,17 @@ func (ac *AutoConfig) pollConfigs() {
 				// invoke Collect on the known providers
 				for _, pd := range ac.providers {
 					// skip providers that don't want to be polled
-					if !pd.Poll {
+					if !pd.poll {
 						continue
 					}
 
 					// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outadated.
-					upToDate, err := pd.Provider.IsUpToDate()
+					upToDate, err := pd.provider.IsUpToDate()
 					if err != nil {
-						log.Errorf("cache processing of %v failed: %v", pd.Provider.String(), err)
+						log.Errorf("cache processing of %v failed: %v", pd.provider.String(), err)
 					}
 					if upToDate == true {
-						log.Debugf("No modifications in the templates stored in %q ", pd.Provider.String())
+						log.Debugf("No modifications in the templates stored in %q ", pd.provider.String())
 						continue
 					}
 
@@ -370,7 +373,7 @@ func (ac *AutoConfig) pollConfigs() {
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
 						// store the checks we schedule for this config locally
-						resolvedConfigs := ac.resolve(config)
+						resolvedConfigs := ac.resolve(config, pd.provider.String())
 						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
 						ac.schedule(checks)
 					}
@@ -425,9 +428,9 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []check.Conf
 	new = []check.Config{}
 	removed = []check.Config{}
 
-	fetched, err := pd.Provider.Collect()
+	fetched, err := pd.provider.Collect()
 	if err != nil {
-		log.Errorf("Unable to collect configurations from provider %s: %s", pd.Provider, err)
+		log.Errorf("Unable to collect configurations from provider %s: %s", pd.provider, err)
 		return
 	}
 
@@ -437,8 +440,8 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []check.Conf
 		}
 	}
 
-	old := pd.Configs
-	pd.Configs = fetched
+	old := pd.configs
+	pd.configs = fetched
 
 	for _, c := range old {
 		if !pd.contains(&c) {
@@ -446,7 +449,7 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []check.Conf
 		}
 	}
 
-	log.Infof("%v: collected %d new configurations, removed %d", pd.Provider, len(new), len(removed))
+	log.Infof("%v: collected %d new configurations, removed %d", pd.provider, len(new), len(removed))
 
 	return
 }
@@ -474,18 +477,14 @@ func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
 	return []check.Check{}, fmt.Errorf("unable to load any check from config '%s'", config.Name)
 }
 
-// GetMarshalledConfigs returns all configs in json format
-func (ac *AutoConfig) GetMarshalledConfigs() []byte {
-	json, err := json.Marshal(ac.providers)
-	if err != nil {
-		log.Errorf("Unable to marshal loaded configs: %s", err)
-	}
-	return json
+// GetProviderLoadedConfigs returns configs loaded by provider
+func (ac *AutoConfig) GetProviderLoadedConfigs() map[string][]check.Config {
+	return ac.providerLoadedConfigs
 }
 
 // check if the descriptor contains the Config passed
 func (pd *providerDescriptor) contains(c *check.Config) bool {
-	for _, config := range pd.Configs {
+	for _, config := range pd.configs {
 		if config.Equal(c) {
 			return true
 		}

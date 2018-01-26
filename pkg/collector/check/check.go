@@ -7,7 +7,6 @@ package check
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"regexp"
@@ -49,11 +48,6 @@ var jmxChecks = [...]string{
 
 // ConfigData contains YAML code
 type ConfigData []byte
-
-// MarshalJSON returns the string representation of the config
-func (c *ConfigData) MarshalJSON() ([]byte, error) {
-	return json.Marshal(string([]byte(*c)[:]))
-}
 
 // ConfigRawMap is the generic type to hold YAML configurations
 type ConfigRawMap map[interface{}]interface{}

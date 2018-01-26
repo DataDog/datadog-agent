@@ -8,16 +8,14 @@
 package providers
 
 import (
-	"encoding/json"
 	"fmt"
+	"math"
 	"path"
 	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/samuel/go-zookeeper/zk"
-
-	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -57,11 +55,6 @@ func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvid
 // String returns a string representation of the ZookeeperConfigProvider
 func (z *ZookeeperConfigProvider) String() string {
 	return "zookeeper Configuration Provider"
-}
-
-// MarshalJSON returns the serialized json provider info
-func (z *ZookeeperConfigProvider) MarshalJSON() ([]byte, error) {
-	return json.Marshal(z.String())
 }
 
 // Collect retrieves templates from Zookeeper, builds Config objects and returns them

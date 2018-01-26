@@ -146,6 +146,9 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
 
+	// Get provider to map configs with it
+	provider := cr.templates.GetProviderFromDigest(tpl.Digest())
+
 	tags, err := svc.GetTags()
 	if err != nil {
 		return resolvedConfig, err
@@ -170,6 +173,9 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 			return resolvedConfig, err
 		}
 	}
+
+	// store resolved configs in the AC
+	cr.ac.providerLoadedConfigs[provider] = append(cr.ac.providerLoadedConfigs[provider], resolvedConfig)
 
 	return resolvedConfig, nil
 }
