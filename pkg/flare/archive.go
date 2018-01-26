@@ -222,7 +222,6 @@ func zipEnvvars(zipFile *archivex.ZipFile, hostname string) error {
 	var b bytes.Buffer
 
 	for _, envvar := range os.Environ() {
-
 		b.WriteString(envvar)
 		b.WriteString("\n")
 	}
