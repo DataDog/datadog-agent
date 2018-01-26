@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -36,6 +37,9 @@ func TestNewUDSListener(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
+	fi, err := os.Stat(socketPath)
+	require.Nil(t, err)
+	assert.Equal(t, "Srwx-w--w-", fi.Mode().String())
 }
 
 func TestStartStopUDSListener(t *testing.T) {
