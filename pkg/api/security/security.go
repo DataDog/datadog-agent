@@ -121,7 +121,7 @@ func FetchAuthToken() (string, error) {
 
 	if authTokenEnv != "" {
 		if isAuthTokenFile {
-			log.Warnf("authentication token configured via \"auth_token\", ignoring existing token file: %q", authTokenFile)
+			log.Infof("Authentication token configured via \"auth_token\", ignoring existing token file: %q", authTokenFile)
 		}
 		err := authTokenValidation(authTokenEnv)
 		if err != nil {
