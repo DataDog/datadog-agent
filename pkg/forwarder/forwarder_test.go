@@ -14,6 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -106,9 +108,10 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, endpoint, transactions[1].Endpoint)
 	assert.Equal(t, endpoint, transactions[2].Endpoint)
 	assert.Equal(t, endpoint, transactions[3].Endpoint)
-	assert.Len(t, transactions[0].Headers, 2)
+	assert.Len(t, transactions[0].Headers, 3)
 	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
+	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
 	assert.Equal(t, p1, *(transactions[0].Payload))
 	assert.Equal(t, p1, *(transactions[1].Payload))
 	assert.Equal(t, p2, *(transactions[2].Payload))

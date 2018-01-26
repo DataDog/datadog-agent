@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 )
 
@@ -63,7 +64,8 @@ const (
 	hostMetadataEndpoint  = "/api/v2/host_metadata"
 	metadataEndpoint      = "/api/v2/metadata"
 
-	apiHTTPHeaderKey = "DD-Api-Key"
+	apiHTTPHeaderKey     = "DD-Api-Key"
+	versionHTTPHeaderKey = "DD-Agent-Version"
 )
 
 const (
@@ -277,6 +279,7 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payl
 				t.Endpoint = transactionEndpoint
 				t.Payload = payload
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
+				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 
 				t.apiKeyStatusKey = fmt.Sprintf("%s,*************************", domain)
 				if len(apiKey) > 5 {
