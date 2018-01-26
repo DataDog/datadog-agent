@@ -302,7 +302,13 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 	}
 
 	for _, t := range transactions {
-		f.highPrio <- t
+		// We don't want to block the collector if the highPrio queue is full
+		select {
+		case f.highPrio <- t:
+		default:
+			log.Errorf("the input queue of the forwarder is full: dropping transaction")
+			transactionsExpvar.Add("Dropped", 1)
+		}
 	}
 
 	return nil
