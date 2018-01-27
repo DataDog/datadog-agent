@@ -13,25 +13,24 @@ import (
 
 	"github.com/ericchiang/k8s/api/v1"
 	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
-type podStruct struct {
+type podTest struct {
 	ip   string
 	name string
 }
 
-type svcStruct struct {
+type serviceTest struct {
 	svcName string
 	podIps  []string
 }
 
 func toPtr(str string) *string {
-	strToptr := str
-	return &strToptr
+	return &str
 }
 
-func createSvcList(nodeName string, svcs []svcStruct) v1.EndpointsList {
+func createSvcList(nodeName string, svcs []serviceTest) v1.EndpointsList {
 	var list v1.EndpointsList
 	for _, svc := range svcs {
 		var endpoints v1.Endpoints
@@ -41,17 +40,17 @@ func createSvcList(nodeName string, svcs []svcStruct) v1.EndpointsList {
 		endpoints.Metadata.Name = toPtr(svc.svcName)
 
 		for _, e := range svc.podIps {
-			var edpt v1.EndpointAddress
-			edpt.NodeName = &nodeName
-			edpt.Ip = toPtr(e)
-			endpointsSubset.Addresses = append(endpointsSubset.Addresses, &edpt)
+			var ep v1.EndpointAddress
+			ep.NodeName = &nodeName
+			ep.Ip = toPtr(e)
+			endpointsSubset.Addresses = append(endpointsSubset.Addresses, &ep)
 		}
 		list.Items = append(list.Items, &endpoints)
 	}
 	return list
 }
 
-func createPodList(listPodStructs []podStruct) v1.PodList {
+func createPodList(listPodStructs []podTest) v1.PodList {
 	var podlist v1.PodList
 	for _, ps := range listPodStructs {
 		var pod v1.Pod
@@ -75,89 +74,98 @@ func createNode(nodeName string) v1.Node {
 }
 
 func TestMapServices(t *testing.T) {
-	// Test 1 node 1 pod 1 service.
-	smb := newServiceMapperBundle()
-
-	node1 := createNode("firstNode")
-	pod1 := podStruct{
-		ip:   "1.1.1.1",
-		name: "pod1_name",
-	}
-	svc1 := svcStruct{
-		svcName: "svc1",
-		podIps:  []string{"1.1.1.1"},
-	}
-	k8PodList1 := createPodList([]podStruct{pod1})
-	k8EpList := createSvcList(*node1.Metadata.Name, []svcStruct{svc1})
-
-	smb.mapServices(*node1.Metadata.Name, k8PodList1, k8EpList)
-
-	res := make(map[string][]string)
-	res[pod1.name] = []string{svc1.svcName}
-
-	require.Equal(t, res, smb.PodNameToServices)
-
-	// Test 3 nodes, 5 pods, 4 services
-	smb1 := newServiceMapperBundle()
-
-	node2 := createNode("secondNode")
-	pod2 := podStruct{
-		ip:   "2.2.2.2",
-		name: "pod2_name",
-	}
-	pod3 := podStruct{
-		ip:   "3.3.3.3",
-		name: "pod3_name",
-	}
-	pod4 := podStruct{
-		ip:   "4.4.4.4",
-		name: "pod4_name",
-	}
-	pod5 := podStruct{
-		ip:   "5.5.5.5",
-		name: "pod5_name",
-	}
-	svc2 := svcStruct{
-		svcName: "svc2",
-		podIps: []string{
-			"2.2.2.2",
+	testCases := []struct {
+		caseName        string
+		node            v1.Node
+		pods            []podTest
+		services        []serviceTest
+		expectedMapping map[string][]string
+	}{
+		{
+			caseName: "1 node, 1 pod, 1 service",
+			node:     createNode("firstNode"),
+			pods: []podTest{
+				{
+					ip:   "1.1.1.1",
+					name: "pod1_name",
+				},
+			},
+			services: []serviceTest{
+				{
+					svcName: "svc1",
+					podIps:  []string{"1.1.1.1"},
+				},
+			},
+			expectedMapping: map[string][]string{
+				"pod1_name": {"svc1"},
+			},
+		},
+		{
+			caseName: "3 nodes, 4 pods, 3 services",
+			node:     createNode("firstNode"),
+			pods: []podTest{
+				{
+					ip:   "2.2.2.2",
+					name: "pod2_name",
+				},
+				{
+					ip:   "3.3.3.3",
+					name: "pod3_name",
+				},
+				{
+					ip:   "4.4.4.4",
+					name: "pod4_name",
+				},
+				{
+					ip:   "5.5.5.5",
+					name: "pod5_name",
+				},
+			},
+			services: []serviceTest{
+				{
+					svcName: "svc2",
+					podIps:  []string{"2.2.2.2"},
+				},
+				{
+					svcName: "svc3",
+					podIps: []string{
+						"2.2.2.2",
+						"5.5.5.5",
+						"1.1.1.1",
+					},
+				},
+				{
+					svcName: "svc4",
+					podIps: []string{
+						"2.2.2.2",
+						"3.3.3.3",
+					},
+				},
+			},
+			expectedMapping: map[string][]string{
+				"pod2_name": {"svc2", "svc3", "svc4"},
+				"pod3_name": {"svc4"},
+				"pod5_name": {"svc3"},
+			},
 		},
 	}
-	svc3 := svcStruct{
-		svcName: "svc3",
-		podIps: []string{
-			"2.2.2.2",
-			"5.5.5.5",
-			"1.1.1.1",
-		},
+	expectedAllCasesBundle := map[string][]string{
+		"pod1_name": {"svc1"},
+		"pod2_name": {"svc2", "svc3", "svc4"},
+		"pod3_name": {"svc4"},
+		"pod5_name": {"svc3"},
 	}
-	svc4 := svcStruct{
-		svcName: "svc4",
-		podIps: []string{
-			"2.2.2.2",
-			"3.3.3.3",
-		},
+	allCasesBundle := newServiceMapperBundle()
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
+			testCaseBundle := newServiceMapperBundle()
+			podList := createPodList(testCase.pods)
+			epList := createSvcList(*testCase.node.Metadata.Name, testCase.services)
+			testCaseBundle.mapServices(*testCase.node.Metadata.Name, podList, epList)
+			assert.Equal(t, testCase.expectedMapping, testCaseBundle.PodNameToServices)
+
+			allCasesBundle.mapServices(*testCase.node.Metadata.Name, podList, epList)
+		})
 	}
-	k8PodList2 := createPodList([]podStruct{pod1, pod2, pod3, pod4})
-	k8EpList2 := createSvcList(*node2.Metadata.Name, []svcStruct{svc1, svc3, svc4})
-
-	fmt.Printf("input is pod list %q and ep list %q", k8PodList2, k8EpList2)
-	smb1.mapServices(*node2.Metadata.Name, k8PodList2, k8EpList2) // Simulate that we evaluate the node2
-
-	res2 := make(map[string][]string)
-	res2[pod1.name] = []string{svc1.svcName, svc3.svcName}
-	res2[pod2.name] = []string{svc3.svcName, svc4.svcName} // No SV2 as it's on pod2
-	res2[pod3.name] = []string{svc4.svcName}
-	fmt.Printf("smb is %q", smb1.PodNameToServices)
-	require.Equal(t, res2, smb1.PodNameToServices) // Though pod4 and sv4 are being evaluated, as none of the svcs point to pod4, it won't be in the list.
-
-	// We check that evaluating new services/pods on a given SMB (that would be gotten from the cache) maps as expected.
-	k8PodList3 := createPodList([]podStruct{pod1, pod2, pod3, pod4, pod5})
-	k8EpLis3 := createSvcList(*node2.Metadata.Name, []svcStruct{svc1, svc2, svc3, svc4})
-
-	res2[pod5.name] = []string{svc3.svcName}
-	res2[pod2.name] = []string{svc2.svcName, svc3.svcName, svc4.svcName} // SV2 as it's on pod2
-	smb1.mapServices(*node2.Metadata.Name, k8PodList3, k8EpLis3)
-	fmt.Printf("smb is %q", smb1.PodNameToServices)
-	require.Equal(t, res2, smb1.PodNameToServices) // We can imagine a case
+	assert.Equal(t, expectedAllCasesBundle, allCasesBundle.PodNameToServices)
 }

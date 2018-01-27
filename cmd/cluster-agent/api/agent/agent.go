@@ -13,13 +13,14 @@ import (
 	"fmt"
 	"net/http"
 
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
@@ -127,7 +128,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
-	svcList := apiserver.GetPodSvcs(nodeName, podName)
+	svcList := as.GetPodSvcs(nodeName, podName)
 	slcB, err := json.Marshal(svcList)
 	if err != nil {
 		log.Errorf("Could not process the list of services of: %s", podName)

@@ -28,6 +28,9 @@ func (smb *ServiceMapperBundle) mapServices(nodeName string, pods v1.PodList, en
 		err := errors.New("empty podlist received")
 		return err
 	}
+	if nodeName == "" {
+		log.Debugf("Service mapper was given an empty node name. Mapping might be incorrect.")
+	}
 
 	for _, pod := range pods.Items {
 		if *pod.Status.PodIP != "" {
@@ -56,7 +59,7 @@ func (smb *ServiceMapperBundle) mapServices(nodeName string, pods v1.PodList, en
 			smb.PodNameToServices[name] = svc
 		}
 	}
-	log.Tracef("the services matched %q \n", smb.PodNameToServices)
+	log.Tracef("the services matched %q", smb.PodNameToServices)
 	return nil
 }
 
@@ -68,6 +71,10 @@ func GetPodSvcs(nodeName string, podName string) []string {
 		return nil
 	}
 
-	serviceList, _ := smb.(*ServiceMapperBundle).PodNameToServices[podName]
+	serviceList, found := smb.(*ServiceMapperBundle).PodNameToServices[podName]
+	if !found {
+		log.Debugf("No cached metadata found for the pod %s on the node %s", podName, nodeName)
+		return nil
+	}
 	return serviceList
 }
