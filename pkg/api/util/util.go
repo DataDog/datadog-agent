@@ -35,21 +35,22 @@ func GetAuthToken() string {
 }
 
 // Validate validates an http request
-func Validate(w http.ResponseWriter, r *http.Request) (err error) {
+func Validate(w http.ResponseWriter, r *http.Request) error {
+	var err error
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
 		w.Header().Set("WWW-Authenticate", "Bearer realm=\"Datadog Agent\"")
 		err = fmt.Errorf("no session token provided")
 		http.Error(w, err.Error(), 401)
-		return
+		return err
 	}
 
 	tok := strings.Split(auth, " ")
 	if tok[0] != "Bearer" {
 		w.Header().Set("WWW-Authenticate", "Bearer realm=\"Datadog Agent\"")
-		err = fmt.Errorf("Unsupported authorization scheme: %s", tok[0])
+		err = fmt.Errorf("unsupported authorization scheme: %s", tok[0])
 		http.Error(w, err.Error(), 401)
-		return
+		return err
 	}
 
 	if len(tok) < 2 || tok[1] != GetAuthToken() {
@@ -57,5 +58,5 @@ func Validate(w http.ResponseWriter, r *http.Request) (err error) {
 		http.Error(w, err.Error(), 403)
 	}
 
-	return
+	return err
 }
