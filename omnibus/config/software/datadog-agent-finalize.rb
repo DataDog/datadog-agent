@@ -34,6 +34,8 @@ build do
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
             delete "#{conf_dir}/process_agent.yaml.default"
+            # load isn't supported by windows
+            delete "#{conf_dir}/load.d"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
