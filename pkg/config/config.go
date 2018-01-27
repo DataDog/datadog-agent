@@ -88,6 +88,8 @@ func init() {
 	Datadog.SetDefault("enable_gohai", true)
 	Datadog.SetDefault("check_runners", int64(0))
 	Datadog.SetDefault("expvar_port", "5000")
+	// auth_token must be a string >= 32 chars
+	Datadog.SetDefault("auth_token", "")
 
 	// Use to force client side TLS version to 1.2
 	BindEnvAndSetDefault("force_tls_12", false)
@@ -188,6 +190,7 @@ func init() {
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
 	Datadog.BindEnv("log_to_console")
+	Datadog.BindEnv("auth_token")
 	Datadog.BindEnv("kubernetes_kubelet_host")
 	Datadog.BindEnv("kubernetes_http_kubelet_port")
 	Datadog.BindEnv("kubernetes_https_kubelet_port")

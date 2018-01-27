@@ -28,6 +28,19 @@ api_key:
 # pushing data to the url specified in "dd_url".
 # force_tls_12: no
 
+# This authentication token is used for the authentication of the internal components of the agent to
+# the exposed API endpoints. It is also used optionally for the node-agent to authenticate against the
+# cluster-agent API endpoints.
+# The auth_token's stored value must be greater than 32 characters.
+#
+# Process to configure it:
+# - We first evaluate if it is set in datadog.yaml and meets the requirements.
+# - If not, we then evaluate if a file named "auth_token" exists in the same directory as
+# the datadog.yaml and auth_token key is not referenced in datadog.yaml
+# - Otherwise the token will be generated and therefore won't be shared amongst the node-agents and the
+# cluster-agent(s).
+# auth_token: ""
+
 # Force the hostname to whatever you want. (default: auto-detected)
 # hostname: mymachine.mydomain
 

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Allows users to configure the token via datadog.yaml ("auth_token") or environment variable ("DD_AUTH_TOKEN")
