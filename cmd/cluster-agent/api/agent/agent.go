@@ -6,9 +6,6 @@
 // Package agent implements the api endpoints for the `/agent` prefix.
 // This group of endpoints is meant to provide high-level functionalities
 // at the agent level.
-
-// +build kubeapiserver
-
 package agent
 
 import (
