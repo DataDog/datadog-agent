@@ -163,7 +163,7 @@ func (c *APIClient) startServiceMapping() {
 					}
 					err := smb.(*ServiceMapperBundle).mapServices(*node.Metadata.Name, *pods, *endpointList)
 					if err != nil {
-						log.Errorf("could not map the services: %s on node %s", err.Error, *node.Metadata.Name)
+						log.Errorf("could not map the services: %s on node %s", err.Error(), *node.Metadata.Name)
 						continue
 					}
 					cache.Cache.Set(*node.Metadata.Name, smb, serviceMapExpire)

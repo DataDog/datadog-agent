@@ -26,6 +26,7 @@ PROFILE_COV = "profile.cov"
 WIN_PKG_BLACKLIST = [
     "./pkg\\util\\xc",
     "./pkg\\util\\container",
+    "./pkg\\util\\kubernetes",
 ]
 
 DEFAULT_TOOL_TARGETS = [
@@ -101,7 +102,6 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
                     matches.append(root)
     else:
         matches = ["{}/...".format(t) for t in test_targets]
-
     print("\n--- Running unit tests:")
     for match in matches:
         if invoke.platform.WINDOWS:

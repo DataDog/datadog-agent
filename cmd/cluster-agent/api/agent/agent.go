@@ -6,6 +6,9 @@
 // Package agent implements the api endpoints for the `/agent` prefix.
 // This group of endpoints is meant to provide high-level functionalities
 // at the agent level.
+
+// +build kubeapiserver
+
 package agent
 
 import (
@@ -129,6 +132,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
 	svcList := as.GetPodSvcs(nodeName, podName)
+
 	slcB, err := json.Marshal(svcList)
 	if err != nil {
 		log.Errorf("Could not process the list of services of: %s", podName)
