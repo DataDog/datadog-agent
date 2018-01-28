@@ -64,7 +64,7 @@ func (smb *ServiceMapperBundle) mapServices(nodeName string, pods v1.PodList, en
 func GetPodSvcs(nodeName string, podName string) []string {
 	smb, found := cache.Cache.Get(nodeName)
 	if !found {
-		log.Debugf("No metadata was found for the pod %s", podName)
+		log.Debugf("No metadata was found for the pod %s on node %s", podName, nodeName)
 		return nil
 	}
 

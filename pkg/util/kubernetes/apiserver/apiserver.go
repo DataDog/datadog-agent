@@ -100,7 +100,7 @@ func (c *APIClient) connect() error {
 		return err
 	}
 	log.Debugf("connected to kubernetes apiserver, version %s", version.GitVersion)
-	useServiceMapper := config.Datadog.GetBool("service_mapper_disabled")
+	useServiceMapper := config.Datadog.GetBool("use_service_mapper")
 	if !useServiceMapper {
 		return nil
 	}
