@@ -31,8 +31,6 @@ beta Agent:
 
 * agent_metrics
 * docker_daemon
-* kubernetes
-* kubernetes_state
 * vsphere
 
 The Docker and Kubernetes checks are being rewritten in Go to take advantage of
