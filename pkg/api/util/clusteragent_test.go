@@ -56,7 +56,7 @@ func (d *dummyClusterAgent) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(403)
 		return
 	}
-	// path should be like: /api/v1/metadata/{nodeName}/{pod-[0-9a-z]{5}}
+	// path should be like: /api/v1/metadata/{nodeName}/{pod-[0-9a-z]+}
 	s := strings.Split(r.URL.Path, "/")
 	if len(s) != 6 {
 		w.WriteHeader(http.StatusInternalServerError)

@@ -86,11 +86,10 @@ func (c *ClusterAgentUtil) init() error {
 	return nil
 }
 
-// getClusterAgentEndpoint provides a validated https endpoint from:
-// 1. configuration key "cluster_agent_url" like https
-// add the https prefix if the scheme isn't specified
-// 2. environment variables associated with "cluster_agent_kubernetes_service_name"
-// ${dcaServiceName}_SERVICE_HOST and ${dcaServiceName}_SERVICE_PORT
+// getClusterAgentEndpoint provides a validated https endpoint from configuration keys in datadog.yaml:
+// 1st. configuration key "cluster_agent_url", add the https prefix if the scheme isn't specified
+// 2nd. environment variables associated with "cluster_agent_kubernetes_service_name"
+//      ${dcaServiceName}_SERVICE_HOST and ${dcaServiceName}_SERVICE_PORT
 func getClusterAgentEndpoint() (string, error) {
 	const configDcaURL = "cluster_agent_url"
 	const configDcaSvcName = "cluster_agent_kubernetes_service_name"
@@ -109,7 +108,7 @@ func getClusterAgentEndpoint() (string, error) {
 			return "", err
 		}
 		if u.Scheme != "https" {
-			return "", fmt.Errorf("connot get cluster agent endpoint, not a https scheme: %s", u.Scheme)
+			return "", fmt.Errorf("cannot get cluster agent endpoint, not a https scheme: %s", u.Scheme)
 		}
 		return u.String(), nil
 	}
@@ -156,7 +155,7 @@ func (c *ClusterAgentUtil) GetKubernetesServiceNames(nodeName, podName string) (
 	req := &http.Request{
 		Header: *c.clusterAgentAPIRequestHeaders,
 	}
-	// https://host:port /api/v1/metadata/ {nodeName}/ {pod-[0-9a-z]{5}}
+	// https://host:port /api/v1/metadata/ {nodeName}/ {pod-[0-9a-z]+}
 	rawURL := fmt.Sprintf("%s/%s/%s/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName, podName)
 	req.URL, err = url.Parse(rawURL)
 	if err != nil {
