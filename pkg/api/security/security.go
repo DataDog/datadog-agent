@@ -25,7 +25,10 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-const authTokenName = "auth_token"
+const (
+	authTokenName       = "auth_token"
+	authTokenMinimalLen = 32
+)
 
 // GenerateKeyPair create a public/private keypair
 func GenerateKeyPair(bits int) (*rsa.PrivateKey, error) {
@@ -109,7 +112,7 @@ func FetchAuthToken() (string, error) {
 
 	// Create a new token if it doesn't exist
 	if _, e := os.Stat(authTokenFile); os.IsNotExist(e) {
-		key := make([]byte, 32)
+		key := make([]byte, authTokenMinimalLen)
 		_, e = rand.Read(key)
 		if e != nil {
 			return "", fmt.Errorf("error creating authentication token: %s", e)
@@ -131,8 +134,8 @@ func FetchAuthToken() (string, error) {
 
 	// Do some basic validation
 	authToken := string(authTokenRaw)
-	if len(authToken) < 32 {
-		return "", fmt.Errorf("invalid authentication token: must be at least 32 characters in length")
+	if len(authToken) < authTokenMinimalLen {
+		return "", fmt.Errorf("invalid authentication token: must be at least %d characters in length", authTokenMinimalLen)
 	}
 
 	return authToken, nil
