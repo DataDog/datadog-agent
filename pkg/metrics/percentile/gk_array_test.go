@@ -11,7 +11,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/google/gofuzz"
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -88,51 +88,32 @@ func (d *Dataset) Sort() {
 
 var testQuantiles = []float64{0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.999, 1}
 
-var testSizes = []int{3, 5, 10, 100, 1000, 10000, 100000}
+var testSizes = []int{3, 5, 10, 100, 1000}
 
 func EvaluateSketch(t *testing.T, n int, gen Generator) {
 	g := NewGKArray()
-	k := NewKLL()
-	c := NewCompleteDS()
 	d := NewDataset()
 	for i := 0; i < n; i++ {
 		value := gen.Generate()
-		g = g.Add(value).(GKArray)
-		k = k.Add(value).(KLL)
-		c = c.Add(value).(CompleteDS)
+		g = g.Add(value)
 		d.Add(value)
 	}
 	// Need to compress before querying for quantiles
 	g = g.compressWithIncoming(nil)
-	AssertSketchesAccurate(t, d, g, k, c, n)
+	AssertSketchesAccurate(t, d, g, n)
 }
 
-func AssertSketchesAccurate(t *testing.T, d *Dataset, g GKArray, k KLL, c CompleteDS, n int) {
+func AssertSketchesAccurate(t *testing.T, d *Dataset, g GKArray, n int) {
 	assert := assert.New(t)
 	eps := float64(1.0e-6)
 	for _, q := range testQuantiles {
 		assert.InDelta(d.Quantile(q), g.Quantile(q), EPSILON*(float64(n)))
-		assert.InDelta(d.Quantile(q), k.Quantile(q), 2.0*EPSILON*(float64(n)))
-		assert.Equal(d.Quantile(q), c.Quantile(q))
 	}
-	// GKArray
 	assert.Equal(d.Min(), g.Min)
 	assert.Equal(d.Max(), g.Max)
 	assert.InEpsilon(d.Avg(), g.Avg, eps)
 	assert.InEpsilon(d.Sum(), g.Sum, eps)
 	assert.Equal(d.Count, g.Count)
-	// KLL
-	assert.Equal(d.Min(), k.Min)
-	assert.Equal(d.Max(), k.Max)
-	assert.InEpsilon(d.Avg(), k.Avg, eps)
-	assert.InEpsilon(d.Sum(), k.Sum, eps)
-	assert.Equal(d.Count, k.Count)
-	// CompleteDS
-	assert.Equal(d.Min(), c.Min)
-	assert.Equal(d.Max(), c.Max)
-	assert.InEpsilon(d.Avg(), c.Avg, eps)
-	assert.InEpsilon(d.Sum(), c.Sum, eps)
-	assert.Equal(d.Count, c.Count)
 }
 
 // Constant stream
@@ -145,22 +126,16 @@ func TestConstant(t *testing.T) {
 	for _, n := range testSizes {
 		constantGenerator := NewConstant(42)
 		g := NewGKArray()
-		k := NewKLL()
-		c := NewCompleteDS()
 		d := NewDataset()
 		for i := 0; i < n; i++ {
 			value := constantGenerator.Generate()
-			g = g.Add(value).(GKArray)
-			k = k.Add(value).(KLL)
-			c = c.Add(value).(CompleteDS)
+			g = g.Add(value)
 			d.Add(value)
 		}
 		// Need to compress before querying for quantiles
 		g = g.compressWithIncoming(nil)
 		for _, q := range testQuantiles {
 			assert.Equal(t, 42.0, g.Quantile(q))
-			assert.Equal(t, 42.0, k.Quantile(q))
-			assert.Equal(t, 42.0, c.Quantile(q))
 		}
 	}
 }
@@ -211,46 +186,30 @@ func TestMergeNormal(t *testing.T) {
 	for _, n := range testSizes {
 		d := NewDataset()
 		g1 := NewGKArray()
-		k1 := NewKLL()
-		c1 := NewCompleteDS()
 		generator1 := NewNormal(35, 1)
 		for i := 0; i < n; i += 3 {
 			value := generator1.Generate()
-			g1 = g1.Add(value).(GKArray)
-			k1 = k1.Add(value).(KLL)
-			c1 = c1.Add(value).(CompleteDS)
+			g1 = g1.Add(value)
 			d.Add(value)
 		}
 		g2 := NewGKArray()
-		k2 := NewKLL()
-		c2 := NewCompleteDS()
 		generator2 := NewNormal(50, 2)
 		for i := 1; i < n; i += 3 {
 			value := generator2.Generate()
-			g2 = g2.Add(value).(GKArray)
-			k2 = k2.Add(value).(KLL)
-			c2 = c2.Add(value).(CompleteDS)
+			g2 = g2.Add(value)
 			d.Add(value)
 		}
 		g1 = g1.Merge(g2)
-		k1 = k1.Merge(k2)
-		c1 = c1.Merge(c2)
 
 		g3 := NewGKArray()
-		k3 := NewKLL()
-		c3 := NewCompleteDS()
 		generator3 := NewNormal(40, 0.5)
 		for i := 2; i < n; i += 3 {
 			value := generator3.Generate()
-			g3 = g3.Add(value).(GKArray)
-			k3 = k3.Add(value).(KLL)
-			c3 = c3.Add(value).(CompleteDS)
+			g3 = g3.Add(value)
 			d.Add(value)
 		}
 		g1 = g1.Merge(g3)
-		k1 = k1.Merge(k3)
-		c1 = c1.Merge(c3)
-		AssertSketchesAccurate(t, d, g1, k1, c1, n)
+		AssertSketchesAccurate(t, d, g1, n)
 	}
 }
 
@@ -259,33 +218,20 @@ func TestMergeEmpty(t *testing.T) {
 		d := NewDataset()
 		// Merge a non-empty sketch to an empty sketch
 		g1 := NewGKArray()
-		k1 := NewKLL()
-		c1 := NewCompleteDS()
 		g2 := NewGKArray()
-		k2 := NewKLL()
-		c2 := NewCompleteDS()
 		generator := NewExponential(5)
 		for i := 0; i < n; i++ {
 			value := generator.Generate()
-			g2 = g2.Add(value).(GKArray)
-			k2 = k2.Add(value).(KLL)
-			c2 = c2.Add(value).(CompleteDS)
+			g2 = g2.Add(value)
 			d.Add(value)
 		}
 		g1 = g1.Merge(g2)
-		k1 = k1.Merge(k2)
-		c1 = c1.Merge(c2)
-		AssertSketchesAccurate(t, d, g1, k1, c1, n)
+		AssertSketchesAccurate(t, d, g1, n)
 
 		// Merge an empty sketch to a non-empty sketch
 		g3 := NewGKArray()
-		k3 := NewKLL()
-		c3 := NewCompleteDS()
-
 		g2 = g2.Merge(g3)
-		k2 = k2.Merge(k3)
-		c2 = c2.Merge(c3)
-		AssertSketchesAccurate(t, d, g2, k2, c2, n)
+		AssertSketchesAccurate(t, d, g2, n)
 	}
 }
 
@@ -293,47 +239,31 @@ func TestMergeMixed(t *testing.T) {
 	for _, n := range testSizes {
 		d := NewDataset()
 		g1 := NewGKArray()
-		k1 := NewKLL()
-		c1 := NewCompleteDS()
 		generator1 := NewNormal(100, 1)
 		for i := 0; i < n; i += 3 {
 			value := generator1.Generate()
-			g1 = g1.Add(value).(GKArray)
-			k1 = k1.Add(value).(KLL)
-			c1 = c1.Add(value).(CompleteDS)
+			g1 = g1.Add(value)
 			d.Add(value)
 		}
 		g2 := NewGKArray()
-		k2 := NewKLL()
-		c2 := NewCompleteDS()
 		generator2 := NewExponential(5)
 		for i := 1; i < n; i += 3 {
 			value := generator2.Generate()
-			g2 = g2.Add(value).(GKArray)
-			k2 = k2.Add(value).(KLL)
-			c2 = c2.Add(value).(CompleteDS)
+			g2 = g2.Add(value)
 			d.Add(value)
 		}
 		g1 = g1.Merge(g2)
-		k1 = k1.Merge(k2)
-		c1 = c1.Merge(c2)
 
 		g3 := NewGKArray()
-		k3 := NewKLL()
-		c3 := NewCompleteDS()
 		generator3 := NewExponential(0.1)
 		for i := 2; i < n; i += 3 {
 			value := generator3.Generate()
-			g3 = g3.Add(value).(GKArray)
-			k3 = k3.Add(value).(KLL)
-			c3 = c3.Add(value).(CompleteDS)
+			g3 = g3.Add(value)
 			d.Add(value)
 		}
 		g1 = g1.Merge(g3)
-		k1 = k1.Merge(k3)
-		c1 = c1.Merge(c3)
 
-		AssertSketchesAccurate(t, d, g1, k1, c1, n)
+		AssertSketchesAccurate(t, d, g1, n)
 	}
 }
 
@@ -341,19 +271,13 @@ func TestInterpolatedQuantile(t *testing.T) {
 	for _, n := range testSizes {
 		if n < int(1/EPSILON) {
 			g := NewGKArray()
-			k := NewKLL()
-			c := NewCompleteDS()
 			for i := 0; i < n; i++ {
-				g = g.Add(float64(i)).(GKArray)
-				k = k.Add(float64(i)).(KLL)
-				c = c.Add(float64(i)).(CompleteDS)
+				g = g.Add(float64(i))
 			}
 			g = g.compressWithIncoming(nil)
 			for _, q := range testQuantiles {
 				expected := q * (float64(n) - 1)
 				assert.Equal(t, expected, g.Quantile(q))
-				assert.Equal(t, expected, k.Quantile(q))
-				assert.Equal(t, expected, c.Quantile(q))
 			}
 		}
 	}
@@ -404,7 +328,7 @@ func TestQuantiles(t *testing.T) {
 		sort.Float64s(qVals)
 		vFuzzer.Fuzz(&vals)
 		for _, v := range vals {
-			s = s.Add(v).(GKArray)
+			s = s.Add(v)
 		}
 		s = s.compressWithIncoming(nil)
 		quantiles := s.Quantiles(qVals)
@@ -425,7 +349,7 @@ func TestQuantilesInvalid(t *testing.T) {
 	qVals := []float64{-0.2, -0.1, 0.5, 0.75, 0.95, 1.2}
 	n := 200
 	for i := 0; i < n; i++ {
-		s = s.Add(gen.Generate()).(GKArray)
+		s = s.Add(gen.Generate())
 	}
 	quantiles := s.Quantiles(qVals)
 	assert.True(t, math.IsNaN(quantiles[0]))
@@ -449,7 +373,7 @@ func TestConsistentQuantile(t *testing.T) {
 		vfuzzer.Fuzz(&vals)
 		fuzzer.Fuzz(&q)
 		for _, v := range vals {
-			s = s.Add(v).(GKArray)
+			s = s.Add(v)
 		}
 		q1 := s.Quantile(q)
 		q2 := s.Quantile(q)
@@ -460,11 +384,8 @@ func TestConsistentQuantile(t *testing.T) {
 // Test that Quantile() calls do not panic for number of values up to 1/epsilon
 func TestNoPanic(t *testing.T) {
 	s := NewGKArray()
-	k := NewKLL()
 	for i := 0; i < 2*int(1/EPSILON); i++ {
-		s = s.Add(float64(i)).(GKArray)
-		k = k.Add(float64(i)).(KLL)
+		s = s.Add(float64(i))
 		assert.NotPanics(t, func() { s.Quantile(0.9) })
-		assert.NotPanics(t, func() { k.Quantile(0.9) })
 	}
 }

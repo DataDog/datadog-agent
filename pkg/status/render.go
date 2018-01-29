@@ -38,12 +38,14 @@ func FormatStatus(data []byte) (string, error) {
 	autoConfigStats := stats["autoConfigStats"]
 	aggregatorStats := stats["aggregatorStats"]
 	jmxStats := stats["JMXStatus"]
+	logsStats := stats["logsStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 	renderHeader(b, stats)
 	renderChecksStats(b, runnerStats, autoConfigStats, "")
 	renderJMXFetchStatus(b, jmxStats)
 	renderForwarderStatus(b, forwarderStats)
+	renderLogsStatus(b, logsStats)
 	renderDogstatsdStatus(b, aggregatorStats)
 
 	return b.String(), nil
@@ -104,6 +106,14 @@ func renderJMXFetchStatus(w io.Writer, jmxStats interface{}) {
 	t := template.Must(template.New("jmxfetch.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "jmxfetch.tmpl")))
 
 	err := t.Execute(w, stats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderLogsStatus(w io.Writer, logsStats interface{}) {
+	t := template.Must(template.New("logsagent.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "logsagent.tmpl")))
+	err := t.Execute(w, logsStats)
 	if err != nil {
 		fmt.Println(err)
 	}

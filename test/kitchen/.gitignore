@@ -1,0 +1,11 @@
+.kitchen/
+.rbenv-version
+.ruby-gemset
+.ruby-version
+.rvmrc
+.vagrant
+Berksfile.lock
+cookbooks/
+.kitchen.yml
+ssh-key
+ssh-key.pub

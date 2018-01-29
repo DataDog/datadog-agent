@@ -5,19 +5,16 @@
 
 name "jmxfetch"
 
-default_version "0.18.1"
+jmxfetch_version = ENV['JMXFETCH_VERSION']
+jmxfetch_hash = ENV['JMXFETCH_HASH']
 
-version "0.17.0" do
-  source sha256: "e4bea1b045a3770736fbc1bc41cb37ebfd3b628d2180985e363b4b9cd8e77f95"
+if jmxfetch_version.nil? || jmxfetch_version.empty?
+  jmxfetch_version = '0.18.1'
+  jmxfetch_hash = "7101da32c9d3fb0bd92cec735dea78f3614a40ce8c4a1f09877f3d6ef6c6f8f9"
 end
 
-version "0.18.0" do
-  source sha256: "a99edc3e2e82f2c08554ba310960e269e534f149b2cb17fd99dc3bfaec891190"
-end
-
-version "0.18.1" do
-  source sha256: "7101da32c9d3fb0bd92cec735dea78f3614a40ce8c4a1f09877f3d6ef6c6f8f9"
-end
+default_version jmxfetch_version
+source sha256: jmxfetch_hash
 
 source :url => "https://dd-jmxfetch.s3.amazonaws.com/jmxfetch-#{version}-jar-with-dependencies.jar"
 

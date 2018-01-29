@@ -1,0 +1,18 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+  <% @instances.each do |i| -%>
+  - url: <%= i['url'] %>
+    <% if i.key?('port') -%>
+    port: <%= i['port'] %>
+    <% end -%>
+    <% if i.key?('tags') -%>
+    tags:
+      <% i['tags'].each do |t| -%>
+      - <%= t %>
+      <% end -%>
+    <% end -%>
+  <% end -%>
+
+init_config:
+# No init_config section needed

@@ -10,6 +10,7 @@ package container
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -121,13 +122,29 @@ func (s *Scanner) listContainers() []types.Container {
 	return containers
 }
 
+// sourceShouldMonitorContainer returns whether a container matches a log source configuration.
+// Both image and label may be used:
+// - If the source defines an image, the container must match it exactly.
+// - If the source defines one or several labels, at least one of them must match the labels of the container.
 func (s *Scanner) sourceShouldMonitorContainer(source *config.IntegrationConfigLogSource, container types.Container) bool {
 	if source.Image != "" && container.Image != source.Image {
 		return false
 	}
 	if source.Label != "" {
-		_, ok := container.Labels[source.Label]
-		return ok
+		// Expect a comma-separated list of labels, eg: foo:bar, baz
+		for _, value := range strings.Split(source.Label, ",") {
+			// Trim whitespace, then check whether the label format is either key:value or key=value
+			label := strings.TrimSpace(value)
+			parts := strings.FieldsFunc(label, func(c rune) bool {
+				return c == ':' || c == '='
+			})
+			// If we have exactly two parts, check there is a container label that matches both.
+			// Otherwise fall back to checking the whole label exists as a key.
+			if _, exists := container.Labels[label]; exists || len(parts) == 2 && container.Labels[parts[0]] == parts[1] {
+				return true
+			}
+		}
+		return false
 	}
 	return true
 }

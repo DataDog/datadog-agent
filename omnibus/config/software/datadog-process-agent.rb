@@ -6,7 +6,11 @@
 name "datadog-process-agent"
 always_build true
 
-default_version 'master'
+process_agent_version = ENV['PROCESS_AGENT_VERSION']
+if process_agent_version.nil? || process_agent_version.empty?
+  process_agent_version = 'master'
+end
+default_version process_agent_version
 
 
 build do

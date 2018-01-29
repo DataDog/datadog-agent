@@ -1,0 +1,22 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+<% excluded_keys = ["host", "port", "timeout", "tags"] -%>
+instances:
+  <% @instances.each do |instance| -%>
+  - host: <%= instance["host"] %>
+    port: <%= instance["port"] %>
+    <% if instance.key?("timeout") -%>
+    timeout: <%= instance["timeout"] %>
+    <% end -%>
+    <% if instance.key?("tags") -%>
+    tags:
+      <% instance["tags"].each do |tag| -%>
+      - <%= tag %>
+      <% end -%>
+    <% end -%>
+    <% (instance.keys - excluded_keys).each do |key| -%>
+    <%= key %>: <%= instance[key] %>
+    <% end -%>
+  <% end %>
+
+init_config:

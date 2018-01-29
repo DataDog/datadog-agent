@@ -52,6 +52,7 @@ func (connHandler *ConnectionHandler) handleConnection(conn net.Conn) {
 			return
 		}
 		if err != nil {
+			connHandler.source.Tracker.TrackError(err)
 			log.Warn("Couldn't read message from connection: ", err)
 			d.Stop()
 			return

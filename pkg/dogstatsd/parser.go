@@ -26,8 +26,6 @@ var metricTypes = map[string]metrics.MetricType{
 	"h":  metrics.HistogramType,
 	"ms": metrics.HistogramType,
 	"d":  metrics.DistributionType,
-	"dk": metrics.DistributionKType,
-	"dc": metrics.DistributionCType,
 }
 
 var tagSeparator = []byte(",")

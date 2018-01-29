@@ -1,0 +1,15 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+<% @instances.each do |i| -%>
+  - proc_name: <%= i['proc_name'] %>
+  <% if i.key?('tags') -%>
+    tags:
+    <% i['tags'].each do |t| -%>
+    - <%= t %>
+    <% end -%>
+  <% end -%>
+<% end -%>
+
+# Nothing to configure here
+init_config:

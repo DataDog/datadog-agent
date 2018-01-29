@@ -3,22 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build !windows
-
 package tailer
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -29,8 +24,9 @@ const defaultCloseTimeout = 60 * time.Second
 
 // Tailer tails one file and sends messages to an output channel
 type Tailer struct {
-	path string
-	file *os.File
+	path     string
+	fullpath string
+	file     *os.File
 
 	readOffset        int64
 	decodedOffset     int64
@@ -75,8 +71,8 @@ func (t *Tailer) Identifier() string {
 
 // recoverTailing starts the tailing from the last log line processed, or now
 // if we tail this file for the first time
-func (t *Tailer) recoverTailing(a *auditor.Auditor) error {
-	return t.tailFrom(a.GetLastCommittedOffset(t.Identifier()))
+func (t *Tailer) recoverTailing(offset int64, whence int) error {
+	return t.tailFrom(offset, whence)
 }
 
 // Stop lets  the tailer stop
@@ -108,35 +104,10 @@ func (t *Tailer) tailFrom(offset int64, whence int) error {
 	return err
 }
 
-func (t *Tailer) startReading(offset int64, whence int) error {
-	fullpath, err := filepath.Abs(t.path)
-	if err != nil {
-		return err
-	}
-	log.Info("Opening ", t.path)
-	f, err := os.Open(fullpath)
-	if err != nil {
-		return err
-	}
-	ret, _ := f.Seek(offset, whence)
-	t.file = f
-	t.readOffset = ret
-	t.decodedOffset = ret
-
-	go t.readForever()
-	return nil
-}
-
 // tailFromBeginning lets the tailer start tailing its file
 // from the beginning
 func (t *Tailer) tailFromBeginning() error {
 	return t.tailFrom(0, os.SEEK_SET)
-}
-
-// tailFromEnd lets the tailer start tailing its file
-// from the end
-func (t *Tailer) tailFromEnd() error {
-	return t.tailFrom(0, os.SEEK_END)
 }
 
 // forwardMessages lets the Tailer forward log messages to the output channel
@@ -160,38 +131,6 @@ func (t *Tailer) forwardMessages() {
 		msgOrigin.Offset = msgOffset
 		fileMsg.SetOrigin(msgOrigin)
 		t.outputChan <- fileMsg
-	}
-}
-
-// readForever lets the tailer tail the content of a file
-// until it is closed.
-func (t *Tailer) readForever() {
-	for {
-		if t.shouldHardStop() {
-			t.onStop()
-			return
-		}
-
-		inBuf := make([]byte, 4096)
-		n, err := t.file.Read(inBuf)
-		if err == io.EOF {
-			if t.shouldSoftStop() {
-				t.onStop()
-				return
-			}
-			t.wait()
-			continue
-		}
-		if err != nil {
-			log.Warn("Err: ", err)
-			return
-		}
-		if n == 0 {
-			t.wait()
-			continue
-		}
-		t.d.InputChan <- decoder.NewInput(inBuf[:n])
-		t.incrementReadOffset(n)
 	}
 }
 
@@ -221,6 +160,18 @@ func (t *Tailer) incrementReadOffset(n int) {
 // GetReadOffset returns the position of the last byte read in file
 func (t *Tailer) GetReadOffset() int64 {
 	return atomic.LoadInt64(&t.readOffset)
+}
+
+// SetReadOffset sets the position of the last byte read in the
+// file
+func (t *Tailer) SetReadOffset(off int64) {
+	atomic.StoreInt64(&t.readOffset, off)
+}
+
+// SetDecodedOffset sets the position of the last byte decoded in the
+// file
+func (t *Tailer) SetDecodedOffset(off int64) {
+	atomic.StoreInt64(&t.decodedOffset, off)
 }
 
 // wait lets the tailer sleep for a bit

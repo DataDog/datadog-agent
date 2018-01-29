@@ -15,18 +15,6 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// InterfaceNetStats stores network statistics about a Docker network interface
-type InterfaceNetStats struct {
-	NetworkName string
-	BytesSent   uint64
-	BytesRcvd   uint64
-	PacketsSent uint64
-	PacketsRcvd uint64
-}
-
-// ContainerNetStats stores network statistics about a Docker container per interface
-type ContainerNetStats []*InterfaceNetStats
-
 // SumInterfaces sums stats from all interfaces into a single InterfaceNetStats
 func (ns ContainerNetStats) SumInterfaces() *InterfaceNetStats {
 	sum := &InterfaceNetStats{}

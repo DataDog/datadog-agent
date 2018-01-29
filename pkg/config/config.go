@@ -173,6 +173,7 @@ func init() {
 	Datadog.BindEnv("dd_url")
 	Datadog.BindEnv("app_key")
 	Datadog.BindEnv("hostname")
+	Datadog.BindEnv("tags")
 	Datadog.BindEnv("cmd_port")
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("enable_metadata_collection")

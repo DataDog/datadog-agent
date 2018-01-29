@@ -215,15 +215,19 @@ def image_build(ctx, skip_build=False):
     import docker
     client = docker.from_env()
 
-    target = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
+    src = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
+    dst = os.path.join("Dockerfiles", "dogstatsd", "alpine", "static")
+
     if not skip_build:
         build(ctx, rebuild=True, static=True)
-    if not os.path.exists(target):
+    if not os.path.exists(src):
         raise Exit(1)
+    if not os.path.exists(dst):
+        os.makedirs(dst)
 
-    shutil.copy2(target, "Dockerfiles/dogstatsd/alpine/dogstatsd")
+    shutil.copy(src, dst)
     client.images.build(path="Dockerfiles/dogstatsd/alpine/", rm=True, tag=DOGSTATSD_TAG)
-    ctx.run("rm Dockerfiles/dogstatsd/alpine/dogstatsd")
+    ctx.run("rm -rf Dockerfiles/dogstatsd/alpine/static")
 
 
 @task

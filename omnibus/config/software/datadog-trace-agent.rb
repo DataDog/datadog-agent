@@ -10,7 +10,11 @@ name "datadog-trace-agent"
 
 dependency "datadog-agent"
 
-default_version "master"
+trace_agent_version = ENV['TRACE_AGENT_VERSION']
+if trace_agent_version.nil? || trace_agent_version.empty?
+  trace_agent_version = 'master'
+end
+default_version trace_agent_version
 
 source git: 'https://github.com/DataDog/datadog-trace-agent.git'
 relative_path 'src/github.com/DataDog/datadog-trace-agent'

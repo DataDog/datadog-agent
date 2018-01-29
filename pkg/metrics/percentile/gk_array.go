@@ -109,7 +109,7 @@ func NewGKArray() GKArray {
 }
 
 // Add a new value to the summary.
-func (s GKArray) Add(v float64) QSketch {
+func (s GKArray) Add(v float64) GKArray {
 	s.Count++
 	s.Sum += v
 	s.Avg += (v - s.Avg) / float64(s.Count)
@@ -124,7 +124,7 @@ func (s GKArray) Add(v float64) QSketch {
 		return s.compressAndAllocateBuf()
 	}
 
-	return QSketch(s)
+	return s
 }
 
 // compressAndAllocateBuf compresses Incoming into Entries, then allocates

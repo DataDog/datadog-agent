@@ -5,8 +5,7 @@ a drop in replacement, there were a small number of deprecations or changes in
 behavior which will be listed in this document.
 For a list of features that haven't been ported, see [this doc](missing_features.md).
 
-Note: If you see anything that's incorrect about this document (and that's not
-covered by the [known_issues.md][known-issues] document), do not hesitate to
+Note: If you see anything that's incorrect about this document, do not hesitate to
 open an issue or submit a Pull Request.
 
 * [Configuration Files](#configuration-files)
@@ -70,12 +69,12 @@ For example, for an Agent installed on Ubuntu, the differences are as follows:
 * on `upstart`-based systems: `sudo start/stop/restart datadog-agent`
 * on `systemd`-based systems: `sudo systemctl start/stop/restart datadog-agent`
 
-### Windows 
+### Windows
 
 There are a few major changes
 * the main executable name is now `agent.exe` (it was `ddagent.exe` previously)
 * Commands should be run with the command line `c:\program files\datadog\datadog-agent\embedded\agent.exe <command>`
-* The configuration GUI is now a browser based configuration application.  
+* The configuration GUI is now a browser based configuration application.
 
 The agent has a new set of command-line options:
 
@@ -128,6 +127,21 @@ Prior releases were logging to multiple files in that directory (`collector.log`
 `forwarder.log`, `dogstatsd.log`, etc). Starting with 6.0 the Agent logs to a single log file, `agent.log`.
 
 ## Checks
+
+### Custom check precedence
+
+Starting from beta version `6.0.0-beta.9` and going forward, the order of precedence between custom
+checks (i.e. checks in the `/etc/datadog-agent/checks.d/` folder by default on Linux) and the checks shipped
+with the Agent by default (i.e. checks from [`integrations-core`][integrations-core]) has changed: the
+`integrations-core` checks now have precedence over custom checks.
+
+This affects your setup if you have custom checks that have the same name as existing `integrations-core`
+checks: these custom checks will now be ignored, and the `integrations-core` checks loaded instead.
+
+To fix your custom check setup with Agent 6, rename your affected custom checks to a new and unused name,
+and rename the related `.yaml` configuration files accordingly.
+
+### `AgentCheck` interface
 
 The base class for python checks remains `AgentCheck`, and you will import it in
 the same way. However, there are a number of things that have been removed or
@@ -298,3 +312,4 @@ Agent 6 deprecated Agent5's Windows Agent Manager GUI, replacing it with a brows
 [sheepdog]: https://www.datadoghq.com/blog/datadog-acquires-logmatic-io/
 [python-dev]: https://github.com/DataDog/datadog-agent/tree/master/docs/dev/checks#python-checks
 [config]: config.md
+[integrations-core]: https://github.com/DataDog/integrations-core

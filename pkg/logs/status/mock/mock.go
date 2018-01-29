@@ -3,16 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017 Datadog, Inc.
 
-package logs
+package mock
 
 import (
-	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
-// Start returns an error because logs-agent is not supported on windows yet
-func Start() error {
-	return fmt.Errorf("logs-agent is not supported on windows yet")
+// NewTracker returns a new mock Tracker
+func NewTracker() *status.Tracker {
+	return status.NewTracker("")
 }
-
-// Stop does nothing at the moment
-func Stop() {}

@@ -13,7 +13,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: jfullaondo/datadog-agent-builder-deb:0.2.0
+      - image: datadog/datadog-agent-runner-circle:latest
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent
@@ -65,7 +65,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
-          command: inv -e test --coverage --race --fail-on-fmt
+          command: inv -e test --coverage --race --profile --fail-on-fmt
 
   integration_tests:
     <<: *job_template

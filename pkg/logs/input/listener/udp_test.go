@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/mock"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -31,7 +32,7 @@ type UDPTestSuite struct {
 func (suite *UDPTestSuite) SetupTest() {
 	suite.pp = mock.NewMockProvider()
 	suite.outputChan = suite.pp.NextPipelineChan()
-	suite.source = &config.IntegrationConfigLogSource{Type: config.UDPType, Port: udpTestPort}
+	suite.source = &config.IntegrationConfigLogSource{Type: config.UDPType, Port: udpTestPort, Tracker: status.NewTracker()}
 	udpl, err := NewUDPListener(suite.pp, suite.source)
 	suite.Nil(err)
 	suite.udpl = udpl

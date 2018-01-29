@@ -4,13 +4,21 @@
 [[projects]]
   name = "github.com/DataDog/agent-payload"
   packages = ["gogen"]
-  revision = "b0b883b8c68f11698e1eee462d1efa83e76bf14a"
-  version = "4.6"
+  revision = "246130ded2c16b070b54933d8518fd1f14bc700f"
+  version = "4.7"
 
 [[projects]]
   branch = "master"
   name = "github.com/DataDog/gohai"
-  packages = ["cpu","filesystem","memory","network","platform","processes","processes/gops"]
+  packages = [
+    "cpu",
+    "filesystem",
+    "memory",
+    "network",
+    "platform",
+    "processes",
+    "processes/gops"
+  ]
   revision = "d80d0f562a71fa2380fbeccc93ba5a2e325606e4"
 
 [[projects]]
@@ -45,7 +53,33 @@
 
 [[projects]]
   name = "github.com/aws/aws-sdk-go"
-  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","internal/shareddefaults","private/protocol","private/protocol/ec2query","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/xml/xmlutil","service/ec2","service/sts"]
+  packages = [
+    "aws",
+    "aws/awserr",
+    "aws/awsutil",
+    "aws/client",
+    "aws/client/metadata",
+    "aws/corehandlers",
+    "aws/credentials",
+    "aws/credentials/ec2rolecreds",
+    "aws/credentials/endpointcreds",
+    "aws/credentials/stscreds",
+    "aws/defaults",
+    "aws/ec2metadata",
+    "aws/endpoints",
+    "aws/request",
+    "aws/session",
+    "aws/signer/v4",
+    "internal/shareddefaults",
+    "private/protocol",
+    "private/protocol/ec2query",
+    "private/protocol/query",
+    "private/protocol/query/queryutil",
+    "private/protocol/rest",
+    "private/protocol/xml/xmlutil",
+    "service/ec2",
+    "service/sts"
+  ]
   revision = "e63027ac6e05f6d4ae9f97ce0294d7468ca652da"
   version = "v1.10.33"
 
@@ -68,7 +102,11 @@
 
 [[projects]]
   name = "github.com/coreos/etcd"
-  packages = ["client","pkg/pathutil","pkg/types"]
+  packages = [
+    "client",
+    "pkg/pathutil",
+    "pkg/types"
+  ]
   revision = "0520cb9304cb2385f7e72b8bc02d6e4d3257158a"
   version = "v3.1.10"
 
@@ -79,18 +117,42 @@
 
 [[projects]]
   name = "github.com/docker/distribution"
-  packages = ["digestset","reference"]
+  packages = [
+    "digestset",
+    "reference"
+  ]
   revision = "5cfdfbdce59c0b1854b9d82189e9c6164d54456a"
 
 [[projects]]
   name = "github.com/docker/docker"
-  packages = ["api/types","api/types/blkiodev","api/types/container","api/types/events","api/types/filters","api/types/mount","api/types/network","api/types/reference","api/types/registry","api/types/strslice","api/types/swarm","api/types/time","api/types/versions","api/types/volume","client","pkg/tlsconfig"]
+  packages = [
+    "api/types",
+    "api/types/blkiodev",
+    "api/types/container",
+    "api/types/events",
+    "api/types/filters",
+    "api/types/mount",
+    "api/types/network",
+    "api/types/reference",
+    "api/types/registry",
+    "api/types/strslice",
+    "api/types/swarm",
+    "api/types/time",
+    "api/types/versions",
+    "api/types/volume",
+    "client",
+    "pkg/tlsconfig"
+  ]
   revision = "092cba3727bb9b4a2f0e922cd6c0f93ea270e363"
   version = "v1.13.1"
 
 [[projects]]
   name = "github.com/docker/go-connections"
-  packages = ["nat","sockets","tlsconfig"]
+  packages = [
+    "nat",
+    "sockets",
+    "tlsconfig"
+  ]
   revision = "e15c02316c12de00874640cd76311849de2aeed5"
 
 [[projects]]
@@ -101,7 +163,38 @@
 
 [[projects]]
   name = "github.com/ericchiang/k8s"
-  packages = [".","api/resource","api/unversioned","api/v1","apis/apps/v1alpha1","apis/apps/v1beta1","apis/authentication/v1","apis/authentication/v1beta1","apis/authorization/v1","apis/authorization/v1beta1","apis/autoscaling/v1","apis/autoscaling/v2alpha1","apis/batch/v1","apis/batch/v2alpha1","apis/certificates/v1alpha1","apis/certificates/v1beta1","apis/extensions/v1beta1","apis/imagepolicy/v1alpha1","apis/meta/v1","apis/policy/v1alpha1","apis/policy/v1beta1","apis/rbac/v1alpha1","apis/rbac/v1beta1","apis/settings/v1alpha1","apis/storage/v1","apis/storage/v1beta1","runtime","runtime/schema","util/intstr","watch/versioned"]
+  packages = [
+    ".",
+    "api/resource",
+    "api/unversioned",
+    "api/v1",
+    "apis/apps/v1alpha1",
+    "apis/apps/v1beta1",
+    "apis/authentication/v1",
+    "apis/authentication/v1beta1",
+    "apis/authorization/v1",
+    "apis/authorization/v1beta1",
+    "apis/autoscaling/v1",
+    "apis/autoscaling/v2alpha1",
+    "apis/batch/v1",
+    "apis/batch/v2alpha1",
+    "apis/certificates/v1alpha1",
+    "apis/certificates/v1beta1",
+    "apis/extensions/v1beta1",
+    "apis/imagepolicy/v1alpha1",
+    "apis/meta/v1",
+    "apis/policy/v1alpha1",
+    "apis/policy/v1beta1",
+    "apis/rbac/v1alpha1",
+    "apis/rbac/v1beta1",
+    "apis/settings/v1alpha1",
+    "apis/storage/v1",
+    "apis/storage/v1beta1",
+    "runtime",
+    "runtime/schema",
+    "util/intstr",
+    "watch/versioned"
+  ]
   revision = "fa30591be9ccaacee478995fbba53c648e901483"
 
 [[projects]]
@@ -130,12 +223,19 @@
 
 [[projects]]
   name = "github.com/go-ole/go-ole"
-  packages = [".","oleutil"]
+  packages = [
+    ".",
+    "oleutil"
+  ]
   revision = "de8695c8edbf8236f30d6e1376e20b198a028d42"
 
 [[projects]]
   name = "github.com/gogo/protobuf"
-  packages = ["gogoproto","proto","protoc-gen-gogo/descriptor"]
+  packages = [
+    "gogoproto",
+    "proto",
+    "protoc-gen-gogo/descriptor"
+  ]
   revision = "909568be09de550ed094403c2bf8a261b5bb730a"
   version = "v0.3"
 
@@ -181,7 +281,17 @@
 
 [[projects]]
   name = "github.com/hashicorp/hcl"
-  packages = [".","hcl/ast","hcl/parser","hcl/scanner","hcl/strconv","hcl/token","json/parser","json/scanner","json/token"]
+  packages = [
+    ".",
+    "hcl/ast",
+    "hcl/parser",
+    "hcl/scanner",
+    "hcl/strconv",
+    "hcl/token",
+    "json/parser",
+    "json/scanner",
+    "json/token"
+  ]
   revision = "7fa7fff964d035e8a162cce3a164b3ad02ad651b"
 
 [[projects]]
@@ -192,7 +302,10 @@
 [[projects]]
   branch = "master"
   name = "github.com/hectane/go-acl"
-  packages = [".","api"]
+  packages = [
+    ".",
+    "api"
+  ]
   revision = "7f56832555fc229dad908c67d65ed3ce6156b70c"
 
 [[projects]]
@@ -302,7 +415,16 @@
 
 [[projects]]
   name = "github.com/shirou/gopsutil"
-  packages = ["cpu","disk","host","internal/common","load","mem","net","process"]
+  packages = [
+    "cpu",
+    "disk",
+    "host",
+    "internal/common",
+    "load",
+    "mem",
+    "net",
+    "process"
+  ]
   revision = "a452de7c734a0fa0f16d2e5725b0fa5934d9fbec"
   version = "v2.17.08"
 
@@ -315,7 +437,10 @@
 [[projects]]
   branch = "master"
   name = "github.com/spf13/afero"
-  packages = [".","mem"]
+  packages = [
+    ".",
+    "mem"
+  ]
   revision = "9be650865eab0c12963d8753212f4f9c66cdcf12"
 
 [[projects]]
@@ -351,7 +476,12 @@
 
 [[projects]]
   name = "github.com/stretchr/testify"
-  packages = ["assert","mock","require","suite"]
+  packages = [
+    "assert",
+    "mock",
+    "require",
+    "suite"
+  ]
   revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
   version = "v1.1.4"
 
@@ -368,23 +498,50 @@
 
 [[projects]]
   name = "golang.org/x/net"
-  packages = ["context","context/ctxhttp","http2","http2/hpack","idna","lex/httplex","proxy"]
+  packages = [
+    "context",
+    "context/ctxhttp",
+    "http2",
+    "http2/hpack",
+    "idna",
+    "lex/httplex",
+    "proxy"
+  ]
   revision = "f2499483f923065a842d38eb4c7f1927e6fc6e6d"
 
 [[projects]]
   name = "golang.org/x/sys"
-  packages = ["unix","windows","windows/registry","windows/svc","windows/svc/debug","windows/svc/eventlog","windows/svc/mgr"]
+  packages = [
+    "unix",
+    "windows",
+    "windows/registry",
+    "windows/svc",
+    "windows/svc/debug",
+    "windows/svc/eventlog",
+    "windows/svc/mgr"
+  ]
   revision = "8f0908ab3b2457e2e15403d3697c9ef5cb4b57a9"
 
 [[projects]]
   name = "golang.org/x/text"
-  packages = ["internal/gen","internal/triegen","internal/ucd","transform","unicode/cldr","unicode/norm"]
+  packages = [
+    "internal/gen",
+    "internal/triegen",
+    "internal/ucd",
+    "transform",
+    "unicode/cldr",
+    "unicode/norm"
+  ]
   revision = "2910a502d2bf9e43193af9d68ca516529614eed3"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/tools"
-  packages = ["go/ast/astutil","go/buildutil","go/loader"]
+  packages = [
+    "go/ast/astutil",
+    "go/buildutil",
+    "go/loader"
+  ]
   revision = "9badcbe49be523255546b669968041d707ece12e"
 
 [[projects]]
@@ -401,6 +558,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "187102bd7429c9658500ae54996cc1e24d561f8e28ff571d2957d3354c90a3d7"
+  inputs-digest = "05d679bd9642db4d2078a16c9f4eb2b9f50de0387dc54c07adb99e4f38c0b088"
   solver-name = "gps-cdcl"
   solver-version = 1

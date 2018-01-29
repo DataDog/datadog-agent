@@ -1,0 +1,24 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+<% @instances.each do |i| -%>
+  - varnishstat: <%= i["varnishstat"] || "/usr/bin/varnishstat" %>
+  <% if i.key?("name") -%>
+    name: <%= i["name"] %>
+  <% end -%>
+  <% if i.key?("tags") -%>
+    tags:
+    <% i["tags"].each do |t| -%>
+    -  <%= t %>
+    <% end -%>
+  <% end -%>
+  <% if i.key?("varnishadm") -%>
+    varnishadm: <%= i["varnishadm"] %>
+  <% end -%>
+  <% if i.key?("secretfile") -%>
+    secretfile: <%= i["secretfile"] %>
+  <% end -%>
+<% end -%>
+
+init_config:
+# Nothing to configure here
