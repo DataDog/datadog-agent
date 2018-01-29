@@ -2,7 +2,7 @@
 
 - Authors: Massimiliano Pippi
 - Date: 2018-01-15
-- Status: review
+- Status: accepted
 - [Discussion](https://github.com/DataDog/datadog-agent/pull/1053)
 
 ## Overview
