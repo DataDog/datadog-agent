@@ -37,7 +37,7 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	if enabled, err := isAffirmative(agentConfig["process_agent_enabled"]); err == nil && !enabled {
-		// process agent is enabled by default through the check config file `process_agent.yaml.default`
+		// process agent is enabled in datadog.yaml
 		config.Datadog.Set("process_agent_enabled", false)
 	}
 

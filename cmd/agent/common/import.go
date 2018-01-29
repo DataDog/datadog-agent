@@ -26,7 +26,6 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	datadogConfPath := filepath.Join(oldConfigDir, "datadog.conf")
 	datadogYamlPath := filepath.Join(newConfigDir, "datadog.yaml")
 	traceAgentConfPath := filepath.Join(newConfigDir, "trace-agent.conf")
-	processAgentConfPath := filepath.Join(newConfigDir, "process-agent.conf")
 	const cfgExt = ".yaml"
 	const dirExt = ".d"
 
@@ -175,15 +174,6 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		fmt.Printf("Wrote Trace Agent specific settings to %s\n", traceAgentConfPath)
 	}
 
-	// Extract process-agent specific info and dump it to its own config file.
-	imported, err = configProcessAgent(datadogConfPath, processAgentConfPath, force)
-	if err != nil {
-		return fmt.Errorf("failed to import Process Agent specific settings: %v", err)
-	}
-	if imported {
-		fmt.Printf("Wrote Process Agent specific settings to %s\n", processAgentConfPath)
-	}
-
 	return nil
 }
 
@@ -249,22 +239,4 @@ func configTraceAgent(datadogConfPath, traceAgentConfPath string, overwrite bool
 	}
 
 	return legacy.ImportTraceAgentConfig(datadogConfPath, traceAgentConfPath)
-}
-
-// configProcessAgent extracts process-agent specific info and dump to its own config file
-func configProcessAgent(datadogConfPath, processAgentConfPath string, overwrite bool) (bool, error) {
-	// if the file exists check whether we can overwrite
-	if _, err := os.Stat(processAgentConfPath); !os.IsNotExist(err) {
-		if overwrite {
-			// we'll overwrite, backup the original file first
-			err = os.Rename(processAgentConfPath, processAgentConfPath+".bak")
-			if err != nil {
-				return false, fmt.Errorf("unable to create a backup for the existing file: %s", processAgentConfPath)
-			}
-		} else {
-			return false, fmt.Errorf("destination file %s already exists, run the command again with --force or -f to overwrite it", processAgentConfPath)
-		}
-	}
-
-	return legacy.ImportProcessAgentConfig(datadogConfPath, processAgentConfPath)
 }

@@ -168,20 +168,6 @@ func (c *ProcessAgentCheck) Configure(data check.ConfigData, initConfig check.Co
 		c.binPath = defaultBinPath
 	}
 
-	// let the process agent use its own config file provided by the Agent package
-	// if we haven't found one in the process-agent.yaml check config
-	configFile := checkConf.ConfPath
-	if configFile == "" {
-		configFile = path.Join(config.FileUsedDir(), "process-agent.conf")
-	}
-
-	c.commandOpts = []string{}
-
-	// if the process-agent.conf file is available, use it
-	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
-		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-ddconfig=%s", configFile))
-	}
-
 	return nil
 }
 

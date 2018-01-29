@@ -19,11 +19,10 @@
 
 is_windows = node['platform_family'] == 'windows'
 
-# FIXME: with the agent6, we still need the agent5 conf file in duplicate in /etc/datadog-agent/trace-agent.conf
-#        and /etc/datadog-agent/process-agent.conf for the trace and process agents.
+# FIXME: with the agent6, we still need the agent5 conf file in duplicate 
+#        in /etc/datadog-agent/trace-agent.conf for the trace agent.
 #        Remove them when these agents can read from datadog.yaml.
 trace_agent_config_file = ::File.join(node['dd-agent-install']['agent6_config_dir'], 'trace-agent.conf')
-process_agent_config_file = ::File.join(node['dd-agent-install']['agent6_config_dir'], 'process-agent.conf')
 config_dir = node['dd-agent-install']['agent6'] ? node['dd-agent-install']['agent6_config_dir'] : node['dd-agent-install']['config_dir']
 
 
@@ -55,57 +54,10 @@ template trace_agent_config_file do
   notifies :restart, 'service[datadog-agent]', :delayed unless node['dd-agent-install']['agent_start'] == false
 end
 
-template process_agent_config_file do
-  def conf_template_vars
-    {
-      :api_keys => [Chef::Datadog.api_key(node)],
-      :dd_urls => [node['dd-agent-install']['url']]
-    }
-  end
-  variables(
-    if respond_to?(:lazy)
-      lazy { conf_template_vars }
-    else
-      conf_template_vars
-    end
-  )
-  if is_windows
-    owner 'Administrators'
-    rights :full_control, 'Administrators'
-    inherits false
-  else
-    owner 'dd-agent'
-    group 'dd-agent'
-    mode '640'
-  end
-  source 'datadog.conf.erb'
-  sensitive true if Chef::Resource.instance_methods(false).include?(:sensitive)
-  notifies :restart, 'service[datadog-agent]', :delayed unless node['dd-agent-install']['agent_start'] == false
-end
 
 # With agent6, the process-agent and trace-agent are enabled as long-running checks
 # TODO: on agent6, we can't really make the trace-agent _not_ run yet
 template ::File.join(config_dir, 'conf.d', "apm.yaml") do
-  if node['platform_family'] == 'windows'
-    owner 'Administrators'
-    rights :full_control, 'Administrators'
-    inherits false
-  else
-    owner 'dd-agent'
-    mode '600'
-  end
-
-  source 'integration.yaml.erb'
-
-  variables(
-    instances:   [{}]
-  )
-  sensitive true if Chef::Resource.instance_methods(false).include?(:sensitive)
-  notifies :restart, 'service[datadog-agent]', :delayed if node['dd-agent-install']['agent_start']
-end
-
-process_agent_init_config = { enabled: node['dd-agent-install']['enable_process_agent'] }
-template ::File.join(config_dir, 'conf.d', "process_agent.yaml") do
   if node['platform_family'] == 'windows'
     owner 'Administrators'
     rights :full_control, 'Administrators'
