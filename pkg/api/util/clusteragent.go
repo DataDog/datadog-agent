@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -22,8 +23,9 @@ import (
 )
 
 const (
-	authorizationHeaderKey      = "Authorization"
-	clusterAgentAuthTokenMinLen = 32
+	authorizationHeaderKey        = "Authorization"
+	clusterAgentAuthTokenMinLen   = 32
+	clusterAgentAuthTokenFilename = "dca_auth_token"
 )
 
 var globalClusterAgentUtil *ClusterAgentUtil
@@ -60,6 +62,41 @@ func GetClusterAgentUtil() (*ClusterAgentUtil, error) {
 	return globalClusterAgentUtil, nil
 }
 
+func validateAuthToken(authToken string) error {
+	if len(authToken) < clusterAgentAuthTokenMinLen {
+		return fmt.Errorf("need at least a length of %d for cluster_agent_auth_token: %d", clusterAgentAuthTokenMinLen, len(authToken))
+	}
+	return nil
+}
+
+// GetClusterAgentAuthToken load the authentication token from:
+// 1srt. the configuration value of "cluster_agent_auth_token" in datadog.yaml
+// 2nd. from the filesystem
+// If using the token from the filesystem, the token file must be next to the datadog.yaml
+// with the filename: dca_auth_token
+func GetClusterAgentAuthToken() (string, error) {
+	authToken := config.Datadog.GetString("cluster_agent_auth_token")
+	if authToken != "" {
+		return authToken, validateAuthToken(authToken)
+	}
+
+	// load the cluster agent auth token from filesystem
+	tokenAbsPath := path.Join(config.FileUsedDir(), clusterAgentAuthTokenFilename)
+	log.Debugf("empty cluster_agent_auth_token, loading from %s", tokenAbsPath)
+	_, err := os.Stat(tokenAbsPath)
+	if err != nil {
+		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot find %q: %s", tokenAbsPath, err)
+	}
+	b, err := ioutil.ReadFile(tokenAbsPath)
+	if err != nil {
+		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot read %s: %s", tokenAbsPath, err)
+	}
+	log.Debugf("cluster_agent_auth_token loaded from %s", tokenAbsPath)
+
+	authToken = string(b)
+	return authToken, validateAuthToken(authToken)
+}
+
 func (c *ClusterAgentUtil) init() error {
 	var err error
 
@@ -68,12 +105,9 @@ func (c *ClusterAgentUtil) init() error {
 		return err
 	}
 
-	authToken := config.Datadog.GetString("cluster_agent_auth_token")
-	if authToken == "" {
-		return fmt.Errorf("empty cluster_agent_auth_token")
-	}
-	if len(authToken) < clusterAgentAuthTokenMinLen {
-		return fmt.Errorf("need at least a length of %d for cluster_agent_auth_token: %d", clusterAgentAuthTokenMinLen, len(authToken))
+	authToken, err := GetClusterAgentAuthToken()
+	if err != nil {
+		return err
 	}
 
 	c.clusterAgentAPIRequestHeaders = &http.Header{}
