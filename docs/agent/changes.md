@@ -15,7 +15,7 @@ open an issue or submit a Pull Request.
 * [APM agent](#apm-agent)
 * [Process agent](#process-agent)
 * [Python Modules](#python-modules)
-* [Docker]((#docker-check))
+* [Docker](#docker-check)
 * [Kubernetes](#kubernetes-support)
 * [JMX](#jmx)
 * [GUI](#gui)
@@ -292,7 +292,7 @@ The `kube_service` tagging depends on the `Datadog Cluster Agent`, which is not 
 
 ## Python Modules
 
-While we are continuing to ship the python libraries that shipped with Agent 5,
+While we are continuing to ship the python libraries that ship with Agent 5,
 some of the embedded libraries have been removed. `util.py` and its associated
 functions have been removed from the agent. `util.headers(...)` is still included
 in the agent, but implemented in C and Go and passed through to the check.

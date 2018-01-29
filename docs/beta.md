@@ -30,8 +30,8 @@ ready yet. This is the list of checks that are expected to fail if run within th
 beta Agent:
 
 * agent_metrics
-* docker_daemon [replaced by a new `docker` check](changes.md#docker-check)
-* kubernetes [to be replaced by new checks](changes.md#kubernetes-support)
+* docker_daemon [replaced by a new `docker` check](agent/changes.md#docker-check)
+* kubernetes [to be replaced by new checks](agent/changes.md#kubernetes-support)
 * vsphere
 
 ### Check API
