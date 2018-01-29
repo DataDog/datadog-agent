@@ -147,6 +147,12 @@ Beta is currently available on these platforms:
 * MacOS 10.10 and above
 * Windows Server 64-bit 2008 R2 and above
 
+## Dogstatsd unix socket rights
+
+The default rights for the unix socket from
+[Dogstatsd](https://github.com/DataDog/datadog-agent/blob/e0acb0f803ec2f340e72bbb303c33a87cb21d4ce/pkg/config/config_template.yaml#L111)
+don't allow external users to send metrics to Dogstatsd. The fix will be
+available in beta10.
 
 [changes]: agent/changes.md
 [upgrade]: agent/upgrade.md
