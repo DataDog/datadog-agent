@@ -58,8 +58,14 @@ api_key:
 # takes no more than 2MB in memory)
 # forwarder_retry_queue_max_size: 30
 
+# The number of workers used by the forwarder. Please note each worker will
+# open an outbound HTTP connection towards Datadog's metrics intake at every
+# flush.
+# forwarder_num_workers: 1
+
 # Set this option to "yes" to output logs in JSON format
 # log_format_json: no
+
 {{ end }}
 {{- if .Agent }}
 # The path containing check configuration files
