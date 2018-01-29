@@ -108,7 +108,9 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 		// check out whether any service we know has this identifier
 		serviceIds, found := cr.adIDToServices[id]
 		if !found {
-			log.Debugf("No service found with this AD identifier: %s", id)
+			s := fmt.Sprintf("No service found with this AD identifier: %s", id)
+			log.Debugf(s)
+			errorStats.setResolveError(tpl.Name, s)
 			continue
 		}
 
@@ -117,8 +119,10 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 			if err == nil {
 				resolvedSet[config.Digest()] = config
 			} else {
-				log.Warnf("Error resolving template %s for service %s: %v",
+				err := fmt.Errorf("Error resolving template %s for service %s: %v",
 					config.Name, serviceID, err)
+				log.Warn(err)
+				errorStats.setResolveError(tpl.Name, err.Error())
 			}
 		}
 	}

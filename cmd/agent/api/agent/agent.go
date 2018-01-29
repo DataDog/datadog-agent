@@ -15,12 +15,12 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -204,14 +204,8 @@ func getCSRFToken(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(gui.CsrfToken))
 }
 
-// ConfigCheckResponse holds the config check response
-type ConfigCheckResponse struct {
-	Configs  map[string][]check.Config `json:"configs"`
-	Warnings map[string]string         `json:"warnings"`
-}
-
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
-	var response ConfigCheckResponse
+	var response response.ConfigCheckResponse
 
 	response.Configs = common.AC.GetProviderLoadedConfigs()
 	response.Warnings = autodiscovery.GetResolveErrors()

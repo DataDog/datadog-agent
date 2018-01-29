@@ -503,7 +503,7 @@ func GetConfigErrors() map[string]string {
 	return errorStats.getConfigErrors()
 }
 
-// GetResolveErrors get the resolve errors
-func GetResolveErrors() map[string]string {
+// GetResolveErrors get the resolve warnings/errors
+func GetResolveErrors() map[string][]string {
 	return errorStats.getResolveErrors()
 }

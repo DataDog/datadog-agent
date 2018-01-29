@@ -19,7 +19,7 @@ type acErrorStats struct {
 	config  map[string]string       // config file name -> error
 	loader  map[string]LoaderErrors // check name -> LoaderErrors
 	run     map[check.ID]string     // check ID -> error
-	resolve map[string]string       // config file name -> error
+	resolve map[string][]string     // config file name -> errors
 	m       sync.RWMutex
 }
 
@@ -29,7 +29,7 @@ func newAcErrorStats() *acErrorStats {
 		config:  make(map[string]string),
 		loader:  make(map[string]LoaderErrors),
 		run:     make(map[check.ID]string),
-		resolve: make(map[string]string),
+		resolve: make(map[string][]string),
 	}
 }
 
@@ -131,7 +131,7 @@ func (es *acErrorStats) setResolveError(checkName string, err string) {
 	es.m.Lock()
 	defer es.m.Unlock()
 
-	es.config[checkName] = err
+	es.resolve[checkName] = append(es.resolve[checkName], err)
 }
 
 // removeResolveErrors removes the errors for a check config file
@@ -139,18 +139,18 @@ func (es *acErrorStats) removeResolveError(checkName string) {
 	es.m.Lock()
 	defer es.m.Unlock()
 
-	delete(es.config, checkName)
+	delete(es.resolve, checkName)
 }
 
 // getResolveErrors will safely get the errors a check config file
-func (es *acErrorStats) getResolveErrors() map[string]string {
+func (es *acErrorStats) getResolveErrors() map[string][]string {
 	es.m.RLock()
 	defer es.m.RUnlock()
 
-	configCopy := make(map[string]string)
-	for k, v := range es.config {
-		configCopy[k] = v
+	resolveCopy := make(map[string][]string)
+	for k, v := range es.resolve {
+		resolveCopy[k] = v
 	}
 
-	return configCopy
+	return resolveCopy
 }

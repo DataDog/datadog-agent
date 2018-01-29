@@ -87,6 +87,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		return "", err
 	}
 
+	err = zipConfigCheck(zipFile, hostname)
+	if err != nil {
+		return "", err
+	}
+
 	if config.IsContainerized() {
 		err = zipDockerSelfInspect(zipFile, hostname)
 		if err != nil {
@@ -210,6 +215,21 @@ func zipDiagnose(zipFile *archivex.ZipFile, hostname string) error {
 	writer.Flush()
 
 	err := zipFile.Add(filepath.Join(hostname, "diagnose.log"), b.Bytes())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func zipConfigCheck(zipFile *archivex.ZipFile, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	GetConfigCheck(writer, true)
+	writer.Flush()
+
+	err := zipFile.Add(filepath.Join(hostname, "config-check.log"), b.Bytes())
 	if err != nil {
 		return err
 	}
