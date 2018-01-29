@@ -162,8 +162,3 @@ func GetHostname() (string, error) {
 	cache.Cache.Set(cacheHostnameKey, hostName, cache.NoExpiration)
 	return hostName, err
 }
-
-// IsKubernetes returns whether the Agent is running on a kubernetes cluster
-func isKubernetes() bool {
-	return os.Getenv("KUBERNETES_PORT") != ""
-}
