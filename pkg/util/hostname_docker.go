@@ -17,17 +17,26 @@ import (
 
 func getContainerHostname() (bool, string) {
 	var name string
-	if config.IsContainerized() {
-		// Docker
-		log.Debug("GetHostname trying Docker API...")
-		if getDockerHostname, found := hostname.ProviderCatalog["docker"]; found {
-			name, err := getDockerHostname(name)
-			if err == nil && ValidHostname(name) == nil {
-				return true, name
-			} else if isKubernetes() {
-				log.Debug("GetHostname trying k8s...")
-				// TODO
-			}
+
+	if config.IsContainerized() == false {
+		return false, name
+	}
+
+	// Docker
+	log.Debug("GetHostname trying Docker API...")
+	if getDockerHostname, found := hostname.ProviderCatalog["docker"]; found {
+		name, err := getDockerHostname(name)
+		if err == nil && ValidHostname(name) == nil {
+			return true, name
+		}
+	}
+
+	// Kubernetes
+	log.Debug("GetHostname trying Kubernetes trough kubelet API...")
+	if getKubeletHostname, found := hostname.ProviderCatalog["kubelet"]; found {
+		name, err := getKubeletHostname(name)
+		if err == nil && ValidHostname(name) == nil {
+			return true, name
 		}
 	}
 
