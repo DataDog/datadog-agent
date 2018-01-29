@@ -208,7 +208,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	var response response.ConfigCheckResponse
 
 	response.Configs = common.AC.GetProviderLoadedConfigs()
-	response.Warnings = autodiscovery.GetResolveErrors()
+	response.Warnings = autodiscovery.GetResolveWarnings()
 
 	json, err := json.Marshal(response)
 	if err != nil {

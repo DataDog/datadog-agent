@@ -15,17 +15,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var withResolveErrors bool
+var withResolveWarnings bool
 
 func init() {
 	AgentCmd.AddCommand(configCheckCommand)
 
-	configCheckCommand.Flags().BoolVarP(&withResolveErrors, "verbose", "v", false, "prints resolve warnings/errors")
+	configCheckCommand.Flags().BoolVarP(&withResolveWarnings, "verbose", "v", false, "prints resolve warnings")
 }
 
 var configCheckCommand = &cobra.Command{
 	Use:   "configcheck",
-	Short: "Execute some connectivity diagnosis on your system",
+	Short: "Print all configurations loaded & resolved of a running agent",
 	Long:  ``,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := common.SetupConfig(confFilePath)
@@ -35,7 +35,7 @@ var configCheckCommand = &cobra.Command{
 		if flagNoColor {
 			color.NoColor = true
 		}
-		err = flare.GetConfigCheck(color.Output, withResolveErrors)
+		err = flare.GetConfigCheck(color.Output, withResolveWarnings)
 		if err != nil {
 			return err
 		}

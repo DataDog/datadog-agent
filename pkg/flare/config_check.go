@@ -49,27 +49,43 @@ func GetConfigCheck(w io.Writer, withResolveWarnings bool) error {
 	}
 
 	for provider, configs := range cr.Configs {
-		fmt.Fprintln(w, fmt.Sprintf("====== Provider %s ======", color.BlueString(provider)))
+		fmt.Fprintln(w, fmt.Sprintf("=== Provider: %s ===", color.BlueString(provider)))
 		for _, c := range configs {
-			fmt.Fprintln(w, fmt.Sprintf("\n--- Check %s ---", color.GreenString(c.Name)))
+			fmt.Fprintln(w, fmt.Sprintf("\n--- %s check ---", color.GreenString(c.Name)))
 			for i, inst := range c.Instances {
-				fmt.Fprintln(w, fmt.Sprintf("*** Instance %s", color.CyanString(strconv.Itoa(i+1))))
+				fmt.Fprintln(w, fmt.Sprintf("%s %s:", color.BlueString("Instance"), color.CyanString(strconv.Itoa(i+1))))
 				fmt.Fprint(w, fmt.Sprintf("%s", inst))
-				fmt.Fprintln(w, strings.Repeat("*", 3))
+				fmt.Fprintln(w, "~")
 			}
-			fmt.Fprintln(w, fmt.Sprintf("Init Config: %s", c.InitConfig))
-			fmt.Fprintln(w, fmt.Sprintf("Metric Config: %s", c.MetricConfig))
-			fmt.Fprintln(w, fmt.Sprintf("Log Config: %s", c.LogsConfig))
+			if len(c.InitConfig) > 0 {
+				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Init Config")))
+				fmt.Fprintln(w, string(c.InitConfig))
+			}
+			if len(c.MetricConfig) > 0 {
+				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Metric Config")))
+				fmt.Fprintln(w, string(c.MetricConfig))
+			}
+			if len(c.LogsConfig) > 0 {
+				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Log Config")))
+				fmt.Fprintln(w, string(c.LogsConfig))
+			}
+			if len(c.ADIdentifiers) > 0 {
+				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Auto-discovery IDs")))
+				for _, id := range c.ADIdentifiers {
+					fmt.Fprintln(w, fmt.Sprintf("* %s", color.CyanString(id)))
+				}
+			}
 			fmt.Fprintln(w, strings.Repeat("-", 3))
 		}
 		fmt.Fprintln(w, strings.Repeat("=", 10))
 	}
 
-	if withResolveWarnings {
+	if withResolveWarnings && len(cr.Warnings) > 0 {
+		fmt.Fprintln(w, fmt.Sprintf("\n=== Resolve %s ===", color.YellowString("warnings")))
 		for check, warnings := range cr.Warnings {
-			fmt.Fprintln(w, check)
+			fmt.Fprintln(w, fmt.Sprintf("\n%s", color.YellowString(check)))
 			for _, warning := range warnings {
-				fmt.Fprintln(w, warning)
+				fmt.Fprintln(w, fmt.Sprintf("* %s", warning))
 			}
 		}
 	}

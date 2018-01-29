@@ -268,8 +268,10 @@ func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 	}
 
 	// at this point the Yaml was already parsed, no need to check the error
-	rawInitConfig, _ := yaml.Marshal(cf.InitConfig)
-	config.InitConfig = rawInitConfig
+	if cf.InitConfig != nil {
+		rawInitConfig, _ := yaml.Marshal(cf.InitConfig)
+		config.InitConfig = rawInitConfig
+	}
 
 	// Go through instances and return corresponding []byte
 	for _, instance := range cf.Instances {

@@ -37,8 +37,8 @@ func init() {
 	acErrors.Set("RunErrors", expvar.Func(func() interface{} {
 		return errorStats.getRunErrors()
 	}))
-	acErrors.Set("ResolveErrors", expvar.Func(func() interface{} {
-		return errorStats.getResolveErrors()
+	acErrors.Set("ResolveWarnings", expvar.Func(func() interface{} {
+		return errorStats.getResolveWarnings()
 	}))
 }
 
@@ -290,12 +290,11 @@ func (ac *AutoConfig) resolve(config check.Config, provider string) []check.Conf
 		resolvedConfigs := ac.configResolver.ResolveTemplate(config)
 		if len(resolvedConfigs) == 0 {
 			e := fmt.Sprintf("Can't resolve the template for %s at this moment.", config.Name)
+			errorStats.setResolveWarning(config.Name, e)
 			log.Infof(e)
-			// This might not be a legit error but we store it in errorStats for debug purposes
-			errorStats.setResolveError(config.Name, e)
 			return configs
 		}
-		errorStats.removeResolveError(config.Name)
+		errorStats.removeResolveWarnings(config.Name)
 
 		// each template can resolve to multiple configs
 		for _, config := range resolvedConfigs {
@@ -503,7 +502,7 @@ func GetConfigErrors() map[string]string {
 	return errorStats.getConfigErrors()
 }
 
-// GetResolveErrors get the resolve warnings/errors
-func GetResolveErrors() map[string][]string {
-	return errorStats.getResolveErrors()
+// GetResolveWarnings get the resolve warnings/errors
+func GetResolveWarnings() map[string][]string {
+	return errorStats.getResolveWarnings()
 }

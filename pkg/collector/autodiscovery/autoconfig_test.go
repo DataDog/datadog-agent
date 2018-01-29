@@ -6,7 +6,6 @@
 package autodiscovery
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -27,12 +26,9 @@ func (p *MockProvider) Collect() ([]check.Config, error) {
 func (p *MockProvider) String() string {
 	return "mocked"
 }
+
 func (p *MockProvider) IsUpToDate() (bool, error) {
 	return true, nil
-}
-
-func (p *MockProvider) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.String())
 }
 
 type MockProvider2 struct {

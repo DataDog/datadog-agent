@@ -109,8 +109,8 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 		serviceIds, found := cr.adIDToServices[id]
 		if !found {
 			s := fmt.Sprintf("No service found with this AD identifier: %s", id)
+			errorStats.setResolveWarning(tpl.Name, s)
 			log.Debugf(s)
-			errorStats.setResolveError(tpl.Name, s)
 			continue
 		}
 
@@ -121,8 +121,8 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 			} else {
 				err := fmt.Errorf("Error resolving template %s for service %s: %v",
 					config.Name, serviceID, err)
+				errorStats.setResolveWarning(tpl.Name, err.Error())
 				log.Warn(err)
-				errorStats.setResolveError(tpl.Name, err.Error())
 			}
 		}
 	}
@@ -215,9 +215,12 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 		// resolve the template
 		config, err := cr.resolve(template, svc)
 		if err != nil {
-			log.Errorf("Unable to resolve configuration template: %v", err)
+			s := fmt.Sprintf("Unable to resolve configuration template: %v", err)
+			errorStats.setResolveWarning(template.Name, s)
+			log.Errorf(s)
 			continue
 		}
+		errorStats.removeResolveWarnings(config.Name)
 
 		// load the checks for this config using Autoconfig
 		checks, err := cr.ac.GetChecks(config)

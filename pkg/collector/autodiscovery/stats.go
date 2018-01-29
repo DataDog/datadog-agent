@@ -126,24 +126,24 @@ func (es *acErrorStats) getRunErrors() map[check.ID]string {
 	return runCopy
 }
 
-// setResolveError will safely set the error for a check configuration file
-func (es *acErrorStats) setResolveError(checkName string, err string) {
+// setResolveWarning will safely set the error for a check configuration file
+func (es *acErrorStats) setResolveWarning(checkName string, err string) {
 	es.m.Lock()
 	defer es.m.Unlock()
 
 	es.resolve[checkName] = append(es.resolve[checkName], err)
 }
 
-// removeResolveErrors removes the errors for a check config file
-func (es *acErrorStats) removeResolveError(checkName string) {
+// removeResolveWarnings removes the errors for a check config file
+func (es *acErrorStats) removeResolveWarnings(checkName string) {
 	es.m.Lock()
 	defer es.m.Unlock()
 
 	delete(es.resolve, checkName)
 }
 
-// getResolveErrors will safely get the errors a check config file
-func (es *acErrorStats) getResolveErrors() map[string][]string {
+// getResolveWarnings will safely get the errors a check config file
+func (es *acErrorStats) getResolveWarnings() map[string][]string {
 	es.m.RLock()
 	defer es.m.RUnlock()
 
