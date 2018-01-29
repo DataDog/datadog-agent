@@ -438,7 +438,6 @@ testkitchen_testing:
   tags: [ "runner:main", "size:large" ]
   script:
     - cd $CI_PROJECT_DIR
-    # - export AGENT_VERSION=$(inv version --url-safe)
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
