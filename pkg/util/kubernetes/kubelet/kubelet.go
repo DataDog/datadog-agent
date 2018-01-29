@@ -248,6 +248,7 @@ func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 	_, code, httpsUrlErr := ku.QueryKubelet(kubeletPodPath)
 	if httpsUrlErr == nil {
 		if code == http.StatusOK {
+			log.Debugf("Kubelet endpoint is: %s", ku.kubeletApiEndpoint)
 			return nil
 		}
 		return fmt.Errorf("unexpected status code %d on endpoint %s%s", code, ku.kubeletApiEndpoint, kubeletPodPath)
@@ -262,6 +263,7 @@ func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 	_, code, httpUrlErr := ku.QueryKubelet(kubeletPodPath)
 	if httpUrlErr == nil {
 		if code == http.StatusOK {
+			log.Debugf("Kubelet endpoint is: %s", ku.kubeletApiEndpoint)
 			return nil
 		}
 		return fmt.Errorf("unexpected status code %d on endpoint %s%s", code, ku.kubeletApiEndpoint, kubeletPodPath)
@@ -290,13 +292,13 @@ func (ku *KubeUtil) init() error {
 	// HTTPS first
 	_, errHTTPS = c.Get(fmt.Sprintf("https://%s:%d/", ku.kubeletHost, config.Datadog.GetInt("kubernetes_https_kubelet_port")))
 	if errHTTPS != nil {
-		log.Debugf("cannot connect: %s", errHTTPS)
+		log.Debugf("Cannot connect: %s, try trough http", errHTTPS)
 		// Only try the HTTP if HTTPS failed
 		_, errHTTP = c.Get(fmt.Sprintf("http://%s:%d/", ku.kubeletHost, config.Datadog.GetInt("kubernetes_http_kubelet_port")))
 	}
 
 	if errHTTP != nil {
-		log.Debugf("cannot connect: %s", errHTTP)
+		log.Debugf("Cannot connect: %s", errHTTP)
 		return fmt.Errorf("cannot connect: https: %q, http: %q", errHTTPS, errHTTP)
 	}
 
