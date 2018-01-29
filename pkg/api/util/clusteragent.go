@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -64,7 +64,7 @@ func GetClusterAgentUtil() (*ClusterAgentUtil, error) {
 
 func validateAuthToken(authToken string) error {
 	if len(authToken) < clusterAgentAuthTokenMinLen {
-		return fmt.Errorf("need at least a length of %d for cluster_agent_auth_token: %d", clusterAgentAuthTokenMinLen, len(authToken))
+		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", clusterAgentAuthTokenMinLen, len(authToken))
 	}
 	return nil
 }
