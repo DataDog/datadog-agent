@@ -292,7 +292,7 @@ func (ku *KubeUtil) init() error {
 	// HTTPS first
 	_, errHTTPS = c.Get(fmt.Sprintf("https://%s:%d/", ku.kubeletHost, config.Datadog.GetInt("kubernetes_https_kubelet_port")))
 	if errHTTPS != nil {
-		log.Debugf("Cannot connect: %s, try trough http", errHTTPS)
+		log.Debugf("Cannot connect: %s, trying trough http", errHTTPS)
 		// Only try the HTTP if HTTPS failed
 		_, errHTTP = c.Get(fmt.Sprintf("http://%s:%d/", ku.kubeletHost, config.Datadog.GetInt("kubernetes_http_kubelet_port")))
 	}
