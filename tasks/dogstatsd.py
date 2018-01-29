@@ -58,8 +58,16 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     }
     ctx.run(cmd.format(**args))
 
+    # Render the configuration file template
+    #
+    # We need to remove cross compiling bits if any because go generate must
+    # build and execute in the native platform
+    env = {
+        "GOOS": "",
+        "GOARCH": "",
+    }
     cmd = "go generate {}/cmd/dogstatsd"
-    ctx.run(cmd.format(REPO_PATH))
+    ctx.run(cmd.format(REPO_PATH), env=env)
 
     refresh_assets(ctx)
 
