@@ -147,7 +147,6 @@ func init() {
 
 	// Datadog cluster agent
 	Datadog.SetDefault("cluster_agent_auth_token", "")
-	// TODO support loading the dca auth token from a file path
 	Datadog.SetDefault("cluster_agent_url", "")
 	Datadog.SetDefault("cluster_agent_kubernetes_service_name", "dca")
 
