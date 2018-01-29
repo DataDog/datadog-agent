@@ -29,7 +29,7 @@ func TestNewDefaultForwarder(t *testing.T) {
 	forwarder := NewDefaultForwarder(keysPerDomains)
 
 	assert.NotNil(t, forwarder)
-	assert.Equal(t, forwarder.NumberOfWorkers, 4)
+	assert.Equal(t, forwarder.NumberOfWorkers, 1)
 	assert.Equal(t, forwarder.KeysPerDomains, keysPerDomains)
 
 	assert.Nil(t, forwarder.highPrio)

@@ -126,6 +126,7 @@ func init() {
 	// Forwarder
 	Datadog.SetDefault("forwarder_timeout", 20)
 	Datadog.SetDefault("forwarder_retry_queue_max_size", 30)
+	BindEnvAndSetDefault("forwarder_num_workers", 1)
 	// Dogstatsd
 	Datadog.SetDefault("use_dogstatsd", true)
 	Datadog.SetDefault("dogstatsd_port", 8125)          // Notice: 0 means UDP port closed
