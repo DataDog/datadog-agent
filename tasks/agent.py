@@ -198,6 +198,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         "./test/integration/config_providers/...",
         "./test/integration/corechecks/...",
         "./test/integration/listeners/...",
+        "./test/integration/util/kubelet/...",
     ]
 
     for prefix in prefixes:
