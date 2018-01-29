@@ -84,12 +84,12 @@ func (c *APIClient) connect() error {
 		} else {
 			// Kubeconfig provided by conf
 			log.Debugf("using credentials from %s", cfgPath)
-			var config *k8s.Config
-			config, err = ParseKubeConfig(cfgPath)
+			var k8sconfig *k8s.Config
+			k8sconfig, err = ParseKubeConfig(cfgPath)
 			if err != nil {
 				return err
 			}
-			c.client, err = k8s.NewClient(config)
+			c.client, err = k8s.NewClient(k8sconfig)
 		}
 		if err != nil {
 			return err
@@ -226,9 +226,9 @@ func ParseKubeConfig(fpath string) (*k8s.Config, error) {
 		return nil, err
 	}
 
-	config := &k8s.Config{}
-	err = json.Unmarshal(jsonFile, config)
-	return config, err
+	k8sconfig := &k8s.Config{}
+	err = json.Unmarshal(jsonFile, k8sconfig)
+	return k8sconfig, err
 }
 
 // ComponentStatuses returns the component status list from the APIServer
