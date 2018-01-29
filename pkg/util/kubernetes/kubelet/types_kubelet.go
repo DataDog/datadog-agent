@@ -40,7 +40,6 @@ type PodOwner struct {
 // Spec contains fields for unmarshalling a Pod.Spec
 type Spec struct {
 	HostNetwork bool            `json:"hostNetwork,omitempty"`
-	Hostname    string          `json:"hostname,omitempty"` // TODO: does it exist?
 	NodeName    string          `json:"nodeName,omitempty"`
 	Containers  []ContainerSpec `json:"containers,omitempty"`
 }
