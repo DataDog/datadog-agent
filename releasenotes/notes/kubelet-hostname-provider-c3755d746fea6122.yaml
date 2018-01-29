@@ -1,5 +1,4 @@
 ---
 features:
   - |
-    The kubelet register a Hostname Provider function.
-    This function allows to get the spec.nodeName of any Pod running on the node.
+    Added ability to retrieve the hostname from the Kubernetes kubelet API.
