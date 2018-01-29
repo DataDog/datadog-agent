@@ -152,6 +152,11 @@ func init() {
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
 
+	// Datadog cluster agent
+	Datadog.SetDefault("cluster_agent.auth_token", "")
+	Datadog.SetDefault("cluster_agent.url", "")
+	Datadog.SetDefault("cluster_agent.kubernetes_service_name", "dca")
+
 	// ECS
 	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
 
@@ -200,6 +205,8 @@ func init() {
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
 	Datadog.BindEnv("kubelet_client_crt")
 	Datadog.BindEnv("kubelet_client_key")
+
+	Datadog.BindEnv("cluster_agent.auth_token")
 
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
