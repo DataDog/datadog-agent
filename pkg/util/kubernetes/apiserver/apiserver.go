@@ -210,7 +210,6 @@ func (c *APIClient) checkResourcesAuth() error {
 	if config.Datadog.GetBool("use_service_mapper") == false {
 		return aggregateCheckResourcesErrors(errorMessages)
 	}
-
 	_, err = c.client.CoreV1().ListServices(ctx, "")
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
