@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-package util
+package clusteragent
 
 import (
 	"encoding/json"
@@ -18,9 +18,14 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
+
+/*
+Utils to query the Datadog Cluster Agent (DCA) API
+*/
 
 const (
 	authorizationHeaderKey        = "Authorization"
@@ -28,13 +33,13 @@ const (
 	clusterAgentAuthTokenFilename = "dca_auth_token"
 )
 
-var globalClusterAgentUtil *ClusterAgentUtil
+var globalClusterAgentUtil *DCAUtil
 
 type serviceNames []string
 
-// ClusterAgentUtil is required to query the API of Datadog cluster agent
-type ClusterAgentUtil struct {
-	// used to setup the ClusterAgentUtil
+// DCAUtil is required to query the API of Datadog cluster agent
+type DCAUtil struct {
+	// used to setup the DCAUtil
 	initRetry retry.Retrier
 
 	clusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
@@ -42,10 +47,10 @@ type ClusterAgentUtil struct {
 	clusterAgentAPIRequestHeaders *http.Header
 }
 
-// GetClusterAgentUtil returns or init the ClusterAgentUtil
-func GetClusterAgentUtil() (*ClusterAgentUtil, error) {
+// GetClusterAgentUtil returns or init the DCAUtil
+func GetClusterAgentUtil() (*DCAUtil, error) {
 	if globalClusterAgentUtil == nil {
-		globalClusterAgentUtil = &ClusterAgentUtil{}
+		globalClusterAgentUtil = &DCAUtil{}
 		globalClusterAgentUtil.initRetry.SetupRetrier(&retry.Config{
 			Name:          "clusterAgentClient",
 			AttemptMethod: globalClusterAgentUtil.init,
@@ -97,7 +102,7 @@ func GetClusterAgentAuthToken() (string, error) {
 	return authToken, validateAuthToken(authToken)
 }
 
-func (c *ClusterAgentUtil) init() error {
+func (c *DCAUtil) init() error {
 	var err error
 
 	c.clusterAgentAPIEndpoint, err = getClusterAgentEndpoint()
@@ -114,7 +119,7 @@ func (c *ClusterAgentUtil) init() error {
 	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
 
 	// TODO remove insecure
-	c.clusterAgentAPIClient = GetClient(false)
+	c.clusterAgentAPIClient = util.GetClient(false)
 	c.clusterAgentAPIClient.Timeout = 2 * time.Second
 
 	return nil
@@ -181,7 +186,7 @@ func getClusterAgentEndpoint() (string, error) {
 
 // GetKubernetesServiceNames query the datadog cluster agent to get nodeName/podName registered
 // Kubernetes services.
-func (c *ClusterAgentUtil) GetKubernetesServiceNames(nodeName, podName string) ([]string, error) {
+func (c *DCAUtil) GetKubernetesServiceNames(nodeName, podName string) ([]string, error) {
 	const dcaMetadataPath = "api/v1/metadata"
 	var serviceNames serviceNames
 	var err error
