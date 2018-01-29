@@ -107,11 +107,12 @@ const (
 	clusterAgentServiceName = "DCA"
 	clusterAgentServiceHost = clusterAgentServiceName + "_SERVICE_HOST"
 	clusterAgentServicePort = clusterAgentServiceName + "_SERVICE_PORT"
+	clusterAgentTokenValue  = "01234567890123456789012345678901"
 )
 
 func (suite *clusterAgentSuite) SetupTest() {
 	os.Remove(suite.authTokenPath)
-	config.Datadog.Set("cluster_agent_auth_token", "01234567890123456789012345678901")
+	config.Datadog.Set("cluster_agent_auth_token", clusterAgentTokenValue)
 	config.Datadog.Set("cluster_agent_url", "")
 	config.Datadog.Set("cluster_agent_kubernetes_service_name", "")
 	os.Unsetenv(clusterAgentServiceHost)
@@ -121,30 +122,66 @@ func (suite *clusterAgentSuite) SetupTest() {
 func (suite *clusterAgentSuite) TestGetClusterAgentEndpointEmpty() {
 	config.Datadog.Set("cluster_agent_url", "")
 	config.Datadog.Set("cluster_agent_kubernetes_service_name", "")
+
 	_, err := getClusterAgentEndpoint()
 	require.NotNil(suite.T(), err)
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmpty() {
 	config.Datadog.Set("cluster_agent_auth_token", "")
+
 	_, err := GetClusterAgentAuthToken()
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
-func (suite *clusterAgentSuite) TestGetClusterAgentAuthToken() {
-	const tokenValue = "abcdefabcdefabcdefabcdefabcdefabcdefabcdef"
-	ioutil.WriteFile(suite.authTokenPath, []byte(tokenValue), os.ModePerm)
+func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmptyFile() {
 	config.Datadog.Set("cluster_agent_auth_token", "")
+	err := ioutil.WriteFile(suite.authTokenPath, []byte(""), os.ModePerm)
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	_, err = GetClusterAgentAuthToken()
+	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
+}
+
+func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenFileInvalid() {
+	config.Datadog.Set("cluster_agent_auth_token", "")
+	err := ioutil.WriteFile(suite.authTokenPath, []byte("tooshort"), os.ModePerm)
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	_, err = GetClusterAgentAuthToken()
+	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
+}
+
+func (suite *clusterAgentSuite) TestGetClusterAgentAuthToken() {
+	const tokenFileValue = "abcdefabcdefabcdefabcdefabcdefabcdefabcdef"
+	config.Datadog.Set("cluster_agent_auth_token", "")
+	err := ioutil.WriteFile(suite.authTokenPath, []byte(tokenFileValue), os.ModePerm)
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
 	t, err := GetClusterAgentAuthToken()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	assert.Equal(suite.T(), tokenValue, t)
+	assert.Equal(suite.T(), tokenFileValue, t)
+}
+
+func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenConfigPriority() {
+	const tokenFileValue = "abcdefabcdefabcdefabcdefabcdefabcdefabcdef"
+	config.Datadog.Set("cluster_agent_auth_token", clusterAgentTokenValue)
+	err := ioutil.WriteFile(suite.authTokenPath, []byte(tokenFileValue), os.ModePerm)
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	// load config token value instead of filesystem
+	t, err := GetClusterAgentAuthToken()
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+	assert.Equal(suite.T(), clusterAgentTokenValue, t)
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenTooShort() {
 	const tokenValue = "tooshort"
-	ioutil.WriteFile(suite.authTokenPath, []byte(tokenValue), os.ModePerm)
 	config.Datadog.Set("cluster_agent_auth_token", "")
-	_, err := GetClusterAgentAuthToken()
+	err := ioutil.WriteFile(suite.authTokenPath, []byte(tokenValue), os.ModePerm)
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
+
+	_, err = GetClusterAgentAuthToken()
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
