@@ -10,6 +10,7 @@ package apiserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"sync"
 	"time"
@@ -72,6 +73,7 @@ func GetAPIClient() (*APIClient, error) {
 }
 
 func (c *APIClient) connect() error {
+
 	if c.client == nil {
 		var err error
 		cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
@@ -102,6 +104,12 @@ func (c *APIClient) connect() error {
 		return err
 	}
 	log.Debugf("connected to kubernetes apiserver, version %s", version.GitVersion)
+	resourcesAuthProbError := c.resourcesAuthProb()
+	if resourcesAuthProbError != nil {
+		return resourcesAuthProbError
+	}
+	log.Debug("Could successfully collect Pods, Nodes, Services and Events.")
+
 	useServiceMapper := config.Datadog.GetBool("use_service_mapper")
 	if !useServiceMapper {
 		return nil
@@ -140,12 +148,12 @@ func (c *APIClient) startServiceMapping() {
 				// We fetch nodes to reliably use nodename as key in the cache. Avoiding to retrieve them from the endpoints/pods.
 				nodes, err := c.client.CoreV1().ListNodes(ctx)
 				if err != nil {
-					log.Errorf("could not collect nodes from the API Server: %q", err.Error())
+					log.Errorf("Could not collect nodes from the API Server: %q", err.Error())
 					continue
 				}
 				endpointList, err := c.client.CoreV1().ListEndpoints(ctx, "")
 				if err != nil {
-					log.Errorf("could not collect endpoints from the API Server: %q", err.Error())
+					log.Errorf("Could not collect endpoints from the API Server: %q", err.Error())
 					continue
 				}
 				if endpointList.Items == nil {
@@ -154,7 +162,7 @@ func (c *APIClient) startServiceMapping() {
 				}
 				pods, err := c.client.CoreV1().ListPods(ctx, "")
 				if err != nil {
-					log.Errorf("could not collect pods from the API Server: %q", err.Error())
+					log.Errorf("Could not collect pods from the API Server: %q", err.Error())
 					continue
 				}
 
@@ -165,7 +173,7 @@ func (c *APIClient) startServiceMapping() {
 					}
 					err := smb.(*ServiceMapperBundle).mapServices(*node.Metadata.Name, *pods, *endpointList)
 					if err != nil {
-						log.Errorf("could not map the services: %s on node %s", err.Error(), *node.Metadata.Name)
+						log.Errorf("Could not map the services: %s on node %s", err.Error(), *node.Metadata.Name)
 						continue
 					}
 					cache.Cache.Set(*node.Metadata.Name, smb, serviceMapExpire)
@@ -173,6 +181,40 @@ func (c *APIClient) startServiceMapping() {
 			}
 		}
 	}()
+}
+
+func (c *APIClient) resourcesAuthProb() error {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	var resourcesError error
+	var serviceMapperAuthError string
+	var eventAuthError string
+
+	_, errEvents := c.client.CoreV1().ListEvents(ctx, "")
+	if errEvents != nil {
+		eventAuthError = fmt.Sprintf("Event collection error: %s", errEvents.Error)
+	}
+	_, errServices := c.client.CoreV1().ListServices(ctx, "")
+	if errServices != nil {
+		serviceMapperAuthError = fmt.Sprintf("Service collection error: %s", errServices.Error)
+	}
+	_, errPods := c.client.CoreV1().ListPods(ctx, "")
+	if errPods != nil {
+		serviceMapperAuthError = fmt.Sprintf("%s \nPods collection error: %s", serviceMapperAuthError, errPods.Error)
+	}
+	_, errNodes := c.client.CoreV1().ListNodes(ctx)
+	if errNodes != nil {
+		serviceMapperAuthError = fmt.Sprintf("%s \nNodes collection error: %s", serviceMapperAuthError, errNodes.Error)
+	}
+
+	if eventAuthError != "" && config.Datadog.GetBool("collect_events") {
+		resourcesError = errors.New(fmt.Sprintf("cannot collect events: %s /n", eventAuthError))
+	}
+	if serviceMapperAuthError != "" && config.Datadog.GetBool("use_service_mapper") {
+		resourcesError = errors.New(fmt.Sprintf("%s cannot compute the service mapper: %s", resourcesError, serviceMapperAuthError))
+	}
+	return resourcesError
+
 }
 
 // ParseKubeConfig reads and unmarcshals a kubeconfig file
