@@ -24,7 +24,7 @@ import (
 )
 
 /*
-Utils to query the Datadog Cluster Agent (DCA) API
+Client to query the Datadog Cluster Agent (DCA) API.
 */
 
 const (
@@ -33,13 +33,13 @@ const (
 	clusterAgentAuthTokenFilename = "dca_auth_token"
 )
 
-var globalClusterAgentUtil *DCAUtil
+var globalClusterAgentClient *DCAClient
 
 type serviceNames []string
 
-// DCAUtil is required to query the API of Datadog cluster agent
-type DCAUtil struct {
-	// used to setup the DCAUtil
+// DCAClient is required to query the API of Datadog cluster agent
+type DCAClient struct {
+	// used to setup the DCAClient
 	initRetry retry.Retrier
 
 	clusterAgentAPIEndpoint       string // ${SCHEME}://${clusterAgentHost}:${PORT}
@@ -47,24 +47,24 @@ type DCAUtil struct {
 	clusterAgentAPIRequestHeaders *http.Header
 }
 
-// GetClusterAgentUtil returns or init the DCAUtil
-func GetClusterAgentUtil() (*DCAUtil, error) {
-	if globalClusterAgentUtil == nil {
-		globalClusterAgentUtil = &DCAUtil{}
-		globalClusterAgentUtil.initRetry.SetupRetrier(&retry.Config{
+// GetClusterAgentClient returns or init the DCAClient
+func GetClusterAgentClient() (*DCAClient, error) {
+	if globalClusterAgentClient == nil {
+		globalClusterAgentClient = &DCAClient{}
+		globalClusterAgentClient.initRetry.SetupRetrier(&retry.Config{
 			Name:          "clusterAgentClient",
-			AttemptMethod: globalClusterAgentUtil.init,
+			AttemptMethod: globalClusterAgentClient.init,
 			Strategy:      retry.RetryCount,
 			RetryCount:    10,
 			RetryDelay:    30 * time.Second,
 		})
 	}
-	err := globalClusterAgentUtil.initRetry.TriggerRetry()
+	err := globalClusterAgentClient.initRetry.TriggerRetry()
 	if err != nil {
 		log.Debugf("Init error: %s", err)
 		return nil, err
 	}
-	return globalClusterAgentUtil, nil
+	return globalClusterAgentClient, nil
 }
 
 func validateAuthToken(authToken string) error {
@@ -80,7 +80,7 @@ func validateAuthToken(authToken string) error {
 // If using the token from the filesystem, the token file must be next to the datadog.yaml
 // with the filename: dca_auth_token
 func GetClusterAgentAuthToken() (string, error) {
-	authToken := config.Datadog.GetString("cluster_agent_auth_token")
+	authToken := config.Datadog.GetString("cluster_agent.auth_token")
 	if authToken != "" {
 		return authToken, validateAuthToken(authToken)
 	}
@@ -102,7 +102,7 @@ func GetClusterAgentAuthToken() (string, error) {
 	return authToken, validateAuthToken(authToken)
 }
 
-func (c *DCAUtil) init() error {
+func (c *DCAClient) init() error {
 	var err error
 
 	c.clusterAgentAPIEndpoint, err = getClusterAgentEndpoint()
@@ -130,8 +130,8 @@ func (c *DCAUtil) init() error {
 // 2nd. environment variables associated with "cluster_agent_kubernetes_service_name"
 //      ${dcaServiceName}_SERVICE_HOST and ${dcaServiceName}_SERVICE_PORT
 func getClusterAgentEndpoint() (string, error) {
-	const configDcaURL = "cluster_agent_url"
-	const configDcaSvcName = "cluster_agent_kubernetes_service_name"
+	const configDcaURL = "cluster_agent.url"
+	const configDcaSvcName = "cluster_agent.kubernetes_service_name"
 
 	dcaURL := config.Datadog.GetString(configDcaURL)
 	if dcaURL != "" {
@@ -184,9 +184,9 @@ func getClusterAgentEndpoint() (string, error) {
 	return u.String(), nil
 }
 
-// GetKubernetesServiceNames query the datadog cluster agent to get nodeName/podName registered
+// GetKubernetesServiceNames queries the datadog cluster agent to get nodeName/podName registered
 // Kubernetes services.
-func (c *DCAUtil) GetKubernetesServiceNames(nodeName, podName string) ([]string, error) {
+func (c *DCAClient) GetKubernetesServiceNames(nodeName, podName string) ([]string, error) {
 	const dcaMetadataPath = "api/v1/metadata"
 	var serviceNames serviceNames
 	var err error
