@@ -324,3 +324,16 @@ func IsContainerized() bool {
 func FileUsedDir() string {
 	return filepath.Dir(Datadog.ConfigFileUsed())
 }
+
+// IsKubernetes returns whether the Agent is running on a kubernetes cluster
+func IsKubernetes() bool {
+	// Injected by Kubernetes itself
+	if os.Getenv("KUBERNETES_SERVICE_PORT") != "" {
+		return true
+	}
+	// support of Datadog environment variable for Kubernetes
+	if os.Getenv("KUBERNETES") != "" {
+		return true
+	}
+	return false
+}

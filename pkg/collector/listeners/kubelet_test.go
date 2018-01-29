@@ -49,7 +49,6 @@ func getMockedPod() *kubelet.Pod {
 	}
 	kubeletSpec := kubelet.Spec{
 		HostNetwork: false,
-		Hostname:    "mock",
 		NodeName:    "mockn-node",
 		Containers:  containerSpecs,
 	}

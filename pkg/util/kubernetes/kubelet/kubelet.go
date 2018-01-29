@@ -78,9 +78,17 @@ func GetKubeUtil() (*KubeUtil, error) {
 	return globalKubeUtil, nil
 }
 
-// GetNodeInfo returns the IP address and the hostname of the node where
-// this pod is running.
-func (ku *KubeUtil) GetNodeInfo() (ip, name string, err error) {
+// HostnameProvider kubelet implementation for the hostname provider
+func HostnameProvider(hostName string) (string, error) {
+	ku, err := GetKubeUtil()
+	if err != nil {
+		return "", err
+	}
+	return ku.GetHostname()
+}
+
+// GetNodeInfo returns the IP address and the hostname of the first valid pod in the PodList
+func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 	pods, err := ku.GetLocalPodList()
 	if err != nil {
 		return "", "", fmt.Errorf("error getting pod list from kubelet: %s", err)
@@ -92,10 +100,27 @@ func (ku *KubeUtil) GetNodeInfo() (ip, name string, err error) {
 		}
 	}
 
-	return "", "", fmt.Errorf("failed to get node info")
+	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
 }
 
-// GetLocalPodList returns the list of pods running on the node where this pod is running
+// GetHostname returns the hostname of the first pod.spec.nodeName in the PodList
+func (ku *KubeUtil) GetHostname() (string, error) {
+	pods, err := ku.GetLocalPodList()
+	if err != nil {
+		return "", fmt.Errorf("error getting pod list from kubelet: %s", err)
+	}
+
+	for _, pod := range pods {
+		if pod.Spec.NodeName == "" {
+			continue
+		}
+		return pod.Spec.NodeName, nil
+	}
+
+	return "", fmt.Errorf("failed to get hostname, pod list length: %d", len(pods))
+}
+
+// GetLocalPodList returns the list of pods running on the node
 func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	data, code, err := ku.QueryKubelet(kubeletPodPath)
 	if err != nil {
@@ -223,6 +248,7 @@ func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 	_, code, httpsUrlErr := ku.QueryKubelet(kubeletPodPath)
 	if httpsUrlErr == nil {
 		if code == http.StatusOK {
+			log.Debugf("Kubelet endpoint is: %s", ku.kubeletApiEndpoint)
 			return nil
 		}
 		return fmt.Errorf("unexpected status code %d on endpoint %s%s", code, ku.kubeletApiEndpoint, kubeletPodPath)
@@ -237,6 +263,7 @@ func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 	_, code, httpUrlErr := ku.QueryKubelet(kubeletPodPath)
 	if httpUrlErr == nil {
 		if code == http.StatusOK {
+			log.Debugf("Kubelet endpoint is: %s", ku.kubeletApiEndpoint)
 			return nil
 		}
 		return fmt.Errorf("unexpected status code %d on endpoint %s%s", code, ku.kubeletApiEndpoint, kubeletPodPath)
@@ -265,13 +292,13 @@ func (ku *KubeUtil) init() error {
 	// HTTPS first
 	_, errHTTPS = c.Get(fmt.Sprintf("https://%s:%d/", ku.kubeletHost, config.Datadog.GetInt("kubernetes_https_kubelet_port")))
 	if errHTTPS != nil {
-		log.Debugf("cannot connect: %s", errHTTPS)
+		log.Debugf("Cannot connect: %s, trying trough http", errHTTPS)
 		// Only try the HTTP if HTTPS failed
 		_, errHTTP = c.Get(fmt.Sprintf("http://%s:%d/", ku.kubeletHost, config.Datadog.GetInt("kubernetes_http_kubelet_port")))
 	}
 
 	if errHTTP != nil {
-		log.Debugf("cannot connect: %s", errHTTP)
+		log.Debugf("Cannot connect: %s", errHTTP)
 		return fmt.Errorf("cannot connect: https: %q, http: %q", errHTTPS, errHTTP)
 	}
 

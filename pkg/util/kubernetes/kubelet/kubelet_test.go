@@ -247,6 +247,62 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 	}
 }
 
+func (suite *KubeletTestSuite) TestGetHostname() {
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubelet_tls_verify", false)
+	config.Datadog.Set("kubelet_auth_token_path", "")
+
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	<-kubelet.Requests // Throwing away first GET
+
+	hostname, err := kubeutil.GetHostname()
+	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), "hostname", hostname)
+
+	select {
+	case r := <-kubelet.Requests:
+		require.Equal(suite.T(), r.Method, "GET")
+		require.Equal(suite.T(), r.URL.Path, "/pods")
+	case <-time.After(2 * time.Second):
+		require.FailNow(suite.T(), "Timeout on receive channel")
+	}
+}
+
+func (suite *KubeletTestSuite) TestHostnameProvider() {
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
+	config.Datadog.Set("kubelet_tls_verify", false)
+	config.Datadog.Set("kubelet_auth_token_path", "")
+
+	hostname, err := HostnameProvider("")
+	require.Nil(suite.T(), err)
+	require.Equal(suite.T(), "hostname", hostname)
+	<-kubelet.Requests // Throwing away first GET
+
+	select {
+	case r := <-kubelet.Requests:
+		require.Equal(suite.T(), r.Method, "GET")
+		require.Equal(suite.T(), r.URL.Path, "/pods")
+	case <-time.After(2 * time.Second):
+		require.FailNow(suite.T(), "Timeout on receive channel")
+	}
+}
+
 func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
 	require.Nil(suite.T(), err)
