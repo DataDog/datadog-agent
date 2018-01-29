@@ -9,7 +9,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	aud "github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
+// global variables
 var (
 	// isRunning indicates whether logs-agent is running or not
 	isRunning bool
@@ -31,6 +32,9 @@ var (
 
 	// pipeline provider
 	pipelineProvider pipeline.Provider
+
+	// auditor
+	auditor *aud.Auditor
 )
 
 // Start starts logs-agent
@@ -84,7 +88,8 @@ func Stop() {
 		// stop all the different pipelines
 		pipelineProvider.Stop()
 
-		// auditor.Stop()
+		// stop the auditor
+		auditor.Stop()
 	}
 }
 
