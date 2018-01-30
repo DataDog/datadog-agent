@@ -132,12 +132,15 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	var ok bool
 	pods := PodList{}
 
-	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
+	cached, hit := cache.Cache.Get(podListCacheKey)
+	if hit {
 		pods, ok = cached.(PodList)
 		if !ok {
 			log.Errorf("Invalid pod list cache format, forcing a cache miss")
+			hit = false
 		}
-	} else {
+	}
+	if !hit {
 		data, code, err := ku.QueryKubelet(kubeletPodPath)
 		if err != nil {
 			return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, err)
