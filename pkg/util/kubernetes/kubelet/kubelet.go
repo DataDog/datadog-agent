@@ -147,7 +147,11 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 		}
 
 		// cache the podlist for 10 seconds to reduce pressure on the kubelet
-		cache.Cache.Set(podListCacheKey, pods, 10*time.Second)
+		cacheDuration := 10 * time.Second
+		if config.Datadog.GetBool("process_agent_enabled") {
+			cacheDuration = 2 * time.Second
+		}
+		cache.Cache.Set(podListCacheKey, pods, cacheDuration)
 	}
 
 	return pods.Items, nil
