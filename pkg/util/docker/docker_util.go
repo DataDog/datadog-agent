@@ -255,7 +255,7 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 		var ok bool
 		containers, ok = cached.([]*Container)
 		if !ok {
-			log.Errorf("invalid cache format, forcing a cache miss")
+			log.Errorf("invalid container list cache format, forcing a cache miss")
 			hit = false
 		}
 	}
@@ -428,7 +428,7 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 	if cached, hit := cache.Cache.Get(cacheKey); hit {
 		container, ok = cached.(types.ContainerJSON)
 		if !ok {
-			log.Errorf("invalid cache format, forcing a cache miss")
+			log.Errorf("Invalid inspect cache format, forcing a cache miss")
 		}
 	} else {
 		container, _, err = d.cli.ContainerInspectWithRaw(context.Background(), id, withSize)

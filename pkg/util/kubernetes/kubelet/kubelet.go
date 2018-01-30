@@ -52,6 +52,11 @@ func ResetGlobalKubeUtil() {
 	globalKubeUtil = nil
 }
 
+// ResetCache deletes existing kubeutil related cache
+func ResetCache() {
+	cache.Cache.Delete(podListCacheKey)
+}
+
 func newKubeUtil() *KubeUtil {
 	ku := &KubeUtil{
 		kubeletApiClient:         &http.Client{Timeout: time.Second},
@@ -130,7 +135,7 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
 		pods, ok = cached.(PodList)
 		if !ok {
-			log.Errorf("Invalid cache format, forcing a cache miss")
+			log.Errorf("Invalid pod list cache format, forcing a cache miss")
 		}
 	} else {
 		data, code, err := ku.QueryKubelet(kubeletPodPath)
