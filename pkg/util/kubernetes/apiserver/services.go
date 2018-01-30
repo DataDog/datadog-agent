@@ -63,18 +63,25 @@ func (smb *ServiceMapperBundle) mapServices(nodeName string, pods v1.PodList, en
 	return nil
 }
 
-// GetPodSvcs is used when the API endpoint of the DCA to get the services of a pod is hit.
-func GetPodSvcs(nodeName string, podName string) []string {
-	smb, found := cache.Cache.Get(nodeName)
+// GetPodServiceNames is used when the API endpoint of the DCA to get the services of a pod is hit.
+func GetPodServiceNames(nodeName string, podName string) []string {
+	var serviceList []string
+	smbInterface, found := cache.Cache.Get(nodeName)
 	if !found {
 		log.Debugf("No metadata was found for the pod %s on node %s", podName, nodeName)
-		return nil
+		return serviceList
 	}
 
-	serviceList, found := smb.(*ServiceMapperBundle).PodNameToServices[podName]
+	smb, ok := smbInterface.(*ServiceMapperBundle)
+	if !ok {
+		log.Debugf("Invalid cache format")
+		return serviceList
+	}
+
+	serviceList, found = smb.PodNameToServices[podName]
 	if !found {
 		log.Debugf("No cached metadata found for the pod %s on the node %s", podName, nodeName)
-		return nil
+		return serviceList
 	}
 	return serviceList
 }

@@ -19,8 +19,8 @@ var (
 	ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
 )
 
-// GetPodSvcs is used when the API endpoint of the DCA to get the services of a pod is hit.
-func GetPodSvcs(nodeName string, podName string) []string {
-	log.Errorf("GetPodSvcs not implemented %s", ErrNotCompiled.Error())
+// GetPodServiceNames is used when the API endpoint of the DCA to get the services of a pod is hit.
+func GetPodServiceNames(nodeName string, podName string) []string {
+	log.Errorf("GetPodServiceNames not implemented %s", ErrNotCompiled.Error())
 	return nil
 }
