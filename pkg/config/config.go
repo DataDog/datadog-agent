@@ -93,6 +93,9 @@ func init() {
 	// Use to output logs in JSON format
 	BindEnvAndSetDefault("log_format_json", false)
 
+	// IPC API server timeout
+	BindEnvAndSetDefault("server_timeout", 15)
+
 	// Use to force client side TLS version to 1.2
 	BindEnvAndSetDefault("force_tls_12", false)
 
