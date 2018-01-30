@@ -10,11 +10,13 @@ services:
         --make-iptables-util-chains=false
         --hairpin-mode=none
         --read-only-port 0
-        --client-ca-file=/etc/secrets/cert.pem
+        --anonymous-auth=true
         --tls-cert-file=/etc/secrets/cert.pem
         --tls-private-key-file=/etc/secrets/key.pem
         --pod-manifest-path=/opt
         "
+        # Removed --client-ca-file=/etc/secrets/cert.pem as it
+        # depends on an apiserver running to verify the username
     network_mode: ${network_mode}
     healthcheck:
       test: ["CMD", "/bin/ls", "/var/lib/kubelet"]

@@ -183,6 +183,11 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 	case <-time.After(2 * time.Second):
 		require.FailNow(suite.T(), "Timeout on receive channel")
 	}
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url": fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+		}, ku.GetRawConnectionInfo())
 }
 
 func (suite *KubeletTestSuite) TestGetLocalPodList() {
@@ -394,6 +399,13 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	r := <-k.Requests
 	assert.Equal(suite.T(), "bearer fakeBearerToken", r.Header.Get(authorizationHeaderKey))
 	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url":        fmt.Sprintf("https://127.0.0.1:%d", kubeletPort),
+			"verify_tls": "false",
+			"token":      "fakeBearerToken",
+		}, ku.GetRawConnectionInfo())
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
@@ -431,6 +443,15 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 	clientCerts := ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates
 	require.Equal(suite.T(), 1, len(clientCerts))
 	assert.Equal(suite.T(), clientCerts, s.TLS.Certificates)
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url":        fmt.Sprintf("https://127.0.0.1:%d", kubeletPort),
+			"verify_tls": "true",
+			"client_crt": k.testingCertificate,
+			"client_key": k.testingPrivateKey,
+			"ca_cert":    k.testingCertificate,
+		}, ku.GetRawConnectionInfo())
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
@@ -458,6 +479,12 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url": fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+			// token must be unset
+		}, ku.GetRawConnectionInfo())
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitHttp() {
@@ -485,6 +512,11 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url": fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+		}, ku.GetRawConnectionInfo())
 }
 
 func TestKubeletTestSuite(t *testing.T) {

@@ -42,6 +42,7 @@ type KubeUtil struct {
 	kubeletApiEndpoint       string // ${SCHEME}://${kubeletHost}:${PORT}
 	kubeletApiClient         *http.Client
 	kubeletApiRequestHeaders *http.Header
+	rawConnectionInfo        map[string]string // kept to pass to the python kubelet check
 }
 
 // ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
@@ -54,6 +55,7 @@ func newKubeUtil() *KubeUtil {
 	ku := &KubeUtil{
 		kubeletApiClient:         &http.Client{Timeout: time.Second},
 		kubeletApiRequestHeaders: &http.Header{},
+		rawConnectionInfo:        make(map[string]string),
 	}
 	return ku
 }
@@ -171,20 +173,23 @@ func (ku *KubeUtil) searchPodForContainerID(podlist []*Pod, containerID string) 
 //  - HTTPS w/ service account token
 //  - HTTP (unauthenticated)
 func (ku *KubeUtil) setupKubeletApiClient() error {
-	tlsConfig, err := getTLSConfig()
+	transport := &http.Transport{}
+	err := ku.setupTLS(
+		config.Datadog.GetBool("kubelet_tls_verify"),
+		config.Datadog.GetString("kubelet_client_ca"),
+		transport)
 	if err != nil {
-		return err
+		log.Debugf("Fail to init tls, will try http only: %s", err)
+		return nil
 	}
-	transport := &http.Transport{TLSClientConfig: tlsConfig}
-	ku.kubeletApiClient.Transport = transport
 
+	ku.kubeletApiClient.Transport = transport
 	switch {
 	case isCertificatesConfigured():
-		tlsConfig.Certificates, err = kubernetes.GetCertificates(
+		return ku.setCertificates(
 			config.Datadog.GetString("kubelet_client_crt"),
 			config.Datadog.GetString("kubelet_client_key"),
-		)
-		return err
+			transport.TLSClientConfig)
 
 	case isTokenPathConfigured():
 		return ku.setBearerToken(config.Datadog.GetString("kubelet_auth_token_path"))
@@ -198,13 +203,53 @@ func (ku *KubeUtil) setupKubeletApiClient() error {
 	}
 }
 
+func (ku *KubeUtil) setupTLS(verifyTLS bool, caPath string, transport *http.Transport) error {
+	if transport == nil {
+		return errors.New("uninitialized http transport")
+	}
+
+	tlsConf, err := buildTLSConfig(verifyTLS, caPath)
+	if err != nil {
+		return err
+	}
+	transport.TLSClientConfig = tlsConf
+
+	ku.rawConnectionInfo["verify_tls"] = fmt.Sprintf("%v", verifyTLS)
+	if verifyTLS {
+		ku.rawConnectionInfo["ca_cert"] = caPath
+	}
+	return nil
+}
+
+func (ku *KubeUtil) setCertificates(crt, key string, tlsConfig *tls.Config) error {
+	if tlsConfig == nil {
+		return errors.New("uninitialized TLS config")
+	}
+	certs, err := kubernetes.GetCertificates(crt, key)
+	if err != nil {
+		return err
+	}
+	tlsConfig.Certificates = certs
+
+	ku.rawConnectionInfo["client_crt"] = crt
+	ku.rawConnectionInfo["client_key"] = key
+
+	return nil
+}
+
 func (ku *KubeUtil) setBearerToken(tokenPath string) error {
 	token, err := kubernetes.GetBearerToken(tokenPath)
 	if err != nil {
 		return err
 	}
-	ku.kubeletApiRequestHeaders.Set("Authorization", token)
+	ku.kubeletApiRequestHeaders.Set("Authorization", fmt.Sprintf("bearer %s", token))
+	ku.rawConnectionInfo["token"] = token
 	return nil
+}
+
+func (ku *KubeUtil) resetCredentials() {
+	ku.kubeletApiRequestHeaders.Del(authorizationHeaderKey)
+	ku.rawConnectionInfo = make(map[string]string)
 }
 
 // QueryKubelet allows to query the KubeUtil registered kubelet API on the parameter path
@@ -242,6 +287,21 @@ func (ku *KubeUtil) GetKubeletApiEndpoint() string {
 	return ku.kubeletApiEndpoint
 }
 
+// GetConnectionInfo returns a map containging the url and credentials to connect to the kubelet
+// Possible map entries:
+//   - url: full url with scheme (required)
+//   - verify_tls: "true" or "false" string
+//   - ca_cert: path to the kubelet CA cert if set
+//   - token: content of the bearer token if set
+//   - client_crt: path to the client cert if set
+//   - client_key: path to the client key if set
+func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
+	if _, ok := ku.rawConnectionInfo["url"]; !ok {
+		ku.rawConnectionInfo["url"] = ku.kubeletApiEndpoint
+	}
+	return ku.rawConnectionInfo
+}
+
 func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 	// HTTPS
 	ku.kubeletApiEndpoint = fmt.Sprintf("https://%s:%d", ku.kubeletHost, config.Datadog.GetInt("kubernetes_https_kubelet_port"))
@@ -256,7 +316,7 @@ func (ku *KubeUtil) setupKubeletApiEndpoint() error {
 	log.Debugf("Cannot query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, httpsUrlErr)
 
 	// We don't want to carry the token in open http communication
-	ku.kubeletApiRequestHeaders.Del(authorizationHeaderKey)
+	ku.resetCredentials()
 
 	// HTTP
 	ku.kubeletApiEndpoint = fmt.Sprintf("http://%s:%d", ku.kubeletHost, config.Datadog.GetInt("kubernetes_http_kubelet_port"))
