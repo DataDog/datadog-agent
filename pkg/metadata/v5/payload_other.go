@@ -13,6 +13,6 @@ type Payload struct {
 	HostPayload
 	ResourcesPayload
 	// TODO: host-tags
-	ExternalHostTags
+	ExternalHostPayload
 	// TODO: gohai alternative (or fix gohai)
 }

@@ -24,10 +24,10 @@ func GetPayload(hostname string) *Payload {
 	ehp := externalhost.GetPayload()
 
 	p := &Payload{
-		CommonPayload:    CommonPayload{*cp},
-		HostPayload:      HostPayload{*hp},
-		ResourcesPayload: ResourcesPayload{*rp},
-		ExternalHostTags: ExternalHostTags{*ehp},
+		CommonPayload:       CommonPayload{*cp},
+		HostPayload:         HostPayload{*hp},
+		ResourcesPayload:    ResourcesPayload{*rp},
+		ExternalHostPayload: ExternalHostPayload{*ehp},
 	}
 
 	if config.Datadog.GetBool("enable_gohai") {

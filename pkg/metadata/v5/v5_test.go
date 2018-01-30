@@ -9,7 +9,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	python "github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 )
@@ -26,7 +29,22 @@ func TestMain(m *testing.M) {
 	os.Exit(ret)
 }
 
-func TestFoo(t *testing.T) {
+func TestGetPayload(t *testing.T) {
 	pl := GetPayload("testhostname")
 	assert.NotNil(t, pl)
+}
+
+func TestExternalHostTags(t *testing.T) {
+	host := "localhost"
+	eTags := externalhost.ExternalTags{"vsphere": []string{"foo", "bar"}}
+	externalhost.AddExternalTags(host, eTags)
+	externalhost.AddExternalTags(host+"2", eTags)
+
+	pl := GetPayload(host)
+	hpl := pl.ExternalHostPayload.Payload
+	assert.Len(t, hpl, 2)
+	assert.Equal(t, host, hpl[0][0])
+	tags, ok := hpl[0][1].(externalhost.ExternalTags)
+	require.True(t, ok)
+	assert.Len(t, tags["vsphere"], 2)
 }

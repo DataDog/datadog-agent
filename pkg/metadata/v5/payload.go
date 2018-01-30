@@ -30,8 +30,8 @@ type ResourcesPayload struct {
 	resources.Payload `json:"resources"`
 }
 
-// ExternalHostTags wraps Payload from the `externalhost` package
-type ExternalHostTags struct {
+// ExternalHostPayload wraps Payload from the `externalhost` package
+type ExternalHostPayload struct {
 	externalhost.Payload `json:"external_host_tags"`
 }
 

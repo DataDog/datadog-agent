@@ -14,8 +14,8 @@ external_host_metadata = [
 ]
 */
 
-// SOURCE_TYPE -> list of tags
-type externalTags map[string][]string
+// ExternalTags maps SOURCE_TYPE -> list of tags
+type ExternalTags map[string][]string
 
 // hostname -> list of externalTags
 type hostTags []interface{}
