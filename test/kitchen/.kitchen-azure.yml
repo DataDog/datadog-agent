@@ -37,11 +37,11 @@ platforms:
 # for both drivers
 <% azure_test_platforms = [
       # working
-      ['centos-74', 'OpenLogic:CentOS:7.4:7.4.20171110'],
-      ['ubuntu-14-04', 'Canonical:UbuntuServer:14.04.5-LTS:14.04.201711151'],
-      ['ubuntu-16-04','Canonical:UbuntuServer:16.04.0-LTS:16.04.201610200'],
-      ['debian-8', 'credativ:Debian:8:8.0.201801170'],
-      ['sles-12', 'SUSE:SLES:12-SP3:2017.12.11'],
+      # ['centos-74', 'OpenLogic:CentOS:7.4:7.4.20171110'],
+      # ['ubuntu-14-04', 'Canonical:UbuntuServer:14.04.5-LTS:14.04.201711151'],
+      # ['ubuntu-16-04','Canonical:UbuntuServer:16.04.0-LTS:16.04.201610200'],
+      # ['debian-8', 'credativ:Debian:8:8.0.201801170'],
+      # ['sles-12', 'SUSE:SLES:12-SP3:2017.12.11'],
 
       ['win2012', 'MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20171115'],
       ['win2012r2', 'MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20171115'],
@@ -106,6 +106,8 @@ platforms:
     location: <%= location %>
     <% if windows %>
     vm_name: ddat<%= platform[0] %>
+    username: datadog
+    password: <%= ENV['SERVER_PASSWORD'] %>
     <% else %>
     vm_name: dd-agent-testing-<%= platform[0] %>-azure
     <% end %>
