@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -46,7 +47,7 @@ type KubeASCheck struct {
 
 func (c *KubeASConfig) parse(data []byte) error {
 	// default values
-	c.CollectEvent = true
+	c.CollectEvent = config.Datadog.GetBool("collect_kubernetes_events")
 
 	return yaml.Unmarshal(data, c)
 }

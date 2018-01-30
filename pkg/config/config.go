@@ -206,6 +206,7 @@ func init() {
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
 	Datadog.BindEnv("kubelet_client_crt")
 	Datadog.BindEnv("kubelet_client_key")
+	Datadog.BindEnv("collect_kubernetes_events")
 
 	Datadog.BindEnv("cluster_agent.auth_token")
 
