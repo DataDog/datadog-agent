@@ -20,6 +20,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -28,6 +29,7 @@ import (
 const (
 	kubeletPodPath         = "/pods"
 	authorizationHeaderKey = "Authorization"
+	podListCacheKey        = "KubeletPodListCacheKey"
 )
 
 var globalKubeUtil *KubeUtil
@@ -122,20 +124,33 @@ func (ku *KubeUtil) GetHostname() (string, error) {
 
 // GetLocalPodList returns the list of pods running on the node
 func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
-	data, code, err := ku.QueryKubelet(kubeletPodPath)
-	if err != nil {
-		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, err)
-	}
-	if code != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletPodPath, string(data))
+	var ok bool
+	pods := PodList{}
+
+	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
+		pods, ok = cached.(PodList)
+		if !ok {
+			log.Errorf("Invalid cache format, forcing a cache miss")
+		}
+	} else {
+		data, code, err := ku.QueryKubelet(kubeletPodPath)
+		if err != nil {
+			return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, err)
+		}
+		if code != http.StatusOK {
+			return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletPodPath, string(data))
+		}
+
+		err = json.Unmarshal(data, &pods)
+		if err != nil {
+			return nil, err
+		}
+
+		// cache the podlist for 10 seconds to reduce pressure on the kubelet
+		cache.Cache.Set(podListCacheKey, pods, 10*time.Second)
 	}
 
-	v := &PodList{}
-	err = json.Unmarshal(data, v)
-	if err != nil {
-		return nil, err
-	}
-	return v.Items, nil
+	return pods.Items, nil
 }
 
 // GetPodForContainerID fetches the podlist and returns the pod running
