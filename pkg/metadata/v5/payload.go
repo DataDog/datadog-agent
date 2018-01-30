@@ -10,23 +10,29 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
 )
 
-// CommonPayload wraps Payload from the common package
+// CommonPayload wraps Payload from the `common` package
 type CommonPayload struct {
 	common.Payload
 }
 
-// HostPayload wraps Payload from the host package
+// HostPayload wraps Payload from the `host` package
 type HostPayload struct {
 	host.Payload
 }
 
-// ResourcesPayload wraps Payload from the resources package
+// ResourcesPayload wraps Payload from the `resources` package
 type ResourcesPayload struct {
 	resources.Payload `json:"resources"`
+}
+
+// ExternalHostTags wraps Payload from the `externalhost` package
+type ExternalHostTags struct {
+	externalhost.Payload `json:"external_host_tags"`
 }
 
 // MarshalJSON serialization a Payload to JSON
