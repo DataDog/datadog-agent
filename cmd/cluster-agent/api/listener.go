@@ -3,12 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
+/*
+Package api implements the agent IPC api. Using HTTP
+calls, it's possible to communicate with the agent,
+sending commands and receiving infos.
+*/
 package api
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"net"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // getListener returns a listening connection

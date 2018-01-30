@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"net/http"
 
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -37,7 +39,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	// r.HandleFunc("/status", getStatus).Methods("GET")
 	// r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
-	r.HandleFunc("/api/v1/metadata/{host}/{container:[0-9a-z]{64}}", getContainerMetadata).Methods("GET")
+	r.HandleFunc("/api/v1/metadata/{nodeName}/{podName}", getPodMetadata).Methods("GET")
 	r.HandleFunc("/api/v1/{check}/events", getCheckLatestEvents).Methods("GET")
 }
 
@@ -122,12 +124,22 @@ func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// TODO: complete it
-func getContainerMetadata(w http.ResponseWriter, r *http.Request) {
+func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	host := vars["host"]
-	cID := vars["container"]
-	// TODO: check host (in store/ not in store)
-	// then check container
-	w.Write([]byte("host: " + host + ", container: " + cID))
+	nodeName := vars["nodeName"]
+	podName := vars["podName"]
+	svcList := as.GetPodSvcs(nodeName, podName)
+
+	slcB, err := json.Marshal(svcList)
+	if err != nil {
+		log.Errorf("Could not process the list of services of: %s", podName)
+	}
+	if len(svcList) != 0 {
+		w.WriteHeader(200)
+		w.Write(slcB)
+		return
+	}
+	w.WriteHeader(404)
+	w.Write([]byte(fmt.Sprintf("Could not find associated services mapped to the pod: %s on node: %s", podName, nodeName)))
+
 }

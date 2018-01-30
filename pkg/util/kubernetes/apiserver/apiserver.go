@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -32,6 +34,8 @@ const (
 	defaultNamespace  = "default"
 	tokenTime         = "tokenTimestamp"
 	tokenKey          = "tokenKey"
+	servicesPollIntl  = 10 * time.Second
+	serviceMapExpire  = 5 * time.Minute
 )
 
 // ApiClient provides authenticated access to the
@@ -94,10 +98,81 @@ func (c *APIClient) connect() error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
 	version, err := c.client.Discovery().Version(ctx)
-	if err == nil {
-		log.Debugf("connected to kubernetes apiserver, version %s", version.GitVersion)
+	if err != nil {
+		return err
 	}
-	return err
+	log.Debugf("connected to kubernetes apiserver, version %s", version.GitVersion)
+	useServiceMapper := config.Datadog.GetBool("use_service_mapper")
+	if !useServiceMapper {
+		return nil
+	}
+	c.startServiceMapping()
+	return nil
+}
+
+// ServiceMapperBundle maps the podNames to the serviceNames they are associated with.
+// It is updated by mapServices in services.go
+type ServiceMapperBundle struct {
+	PodNameToServices map[string][]string
+	m                 sync.RWMutex
+}
+
+func newServiceMapperBundle() *ServiceMapperBundle {
+	return &ServiceMapperBundle{
+		PodNameToServices: make(map[string][]string),
+	}
+}
+
+// startServiceMapping is only called once, when we have confirmed we could correctly connect to the API server.
+// The logic here is solely to retrieve Nodes, Pods and Endpoints. The processing part is in mapServices.
+func (c *APIClient) startServiceMapping() {
+	tickerSvcProcess := time.NewTicker(servicesPollIntl)
+	go func() {
+		for {
+			select {
+			case <-tickerSvcProcess.C:
+				// The timeout for the context is the same as the poll frequency.
+				// We use a new context at each run, to recover if we can't access the API server temporarily.
+				// A poll run should take less than the poll frequency.
+				ctx, cancel := context.WithTimeout(context.Background(), servicesPollIntl)
+				defer cancel()
+
+				// We fetch nodes to reliably use nodename as key in the cache. Avoiding to retrieve them from the endpoints/pods.
+				nodes, err := c.client.CoreV1().ListNodes(ctx)
+				if err != nil {
+					log.Errorf("could not collect nodes from the API Server: %q", err.Error())
+					continue
+				}
+				endpointList, err := c.client.CoreV1().ListEndpoints(ctx, "")
+				if err != nil {
+					log.Errorf("could not collect endpoints from the API Server: %q", err.Error())
+					continue
+				}
+				if endpointList.Items == nil {
+					log.Debug("No services collected from the API server")
+					continue
+				}
+				pods, err := c.client.CoreV1().ListPods(ctx, "")
+				if err != nil {
+					log.Errorf("could not collect pods from the API Server: %q", err.Error())
+					continue
+				}
+
+				for _, node := range nodes.Items {
+					smb, found := cache.Cache.Get(*node.Metadata.Name)
+					if !found {
+						smb = newServiceMapperBundle()
+					}
+					err := smb.(*ServiceMapperBundle).mapServices(*node.Metadata.Name, *pods, *endpointList)
+					if err != nil {
+						log.Errorf("could not map the services: %s on node %s", err.Error(), *node.Metadata.Name)
+						continue
+					}
+					cache.Cache.Set(*node.Metadata.Name, smb, serviceMapExpire)
+				}
+			}
+		}
+	}()
 }
 
 // ParseKubeConfig reads and unmarcshals a kubeconfig file

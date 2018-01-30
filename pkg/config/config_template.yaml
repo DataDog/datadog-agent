@@ -328,6 +328,10 @@ metadata_collectors:
 #
 # kubernetes_kubeconfig_path: /path/to/file
 #
+# By default use_service_mapper is set to true, as it allows the DCA to fetch services and map them to pods.
+# Uncomment if you don't want the DCA to perform this action.
+#
+# use_service_mapper: false
 {{ end -}}
 
 {{- if .ProcessAgent }}
