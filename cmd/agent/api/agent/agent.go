@@ -209,6 +209,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 
 	response.Configs = common.AC.GetProviderLoadedConfigs()
 	response.Warnings = autodiscovery.GetResolveWarnings()
+	response.Unresolved = common.AC.GetUnresolvedTemplates()
 
 	json, err := json.Marshal(response)
 	if err != nil {

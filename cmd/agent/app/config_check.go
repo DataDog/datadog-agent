@@ -15,12 +15,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var withResolveWarnings bool
+var withDebug bool
 
 func init() {
 	AgentCmd.AddCommand(configCheckCommand)
 
-	configCheckCommand.Flags().BoolVarP(&withResolveWarnings, "verbose", "v", false, "prints resolve warnings")
+	configCheckCommand.Flags().BoolVarP(&withDebug, "verbose", "v", false, "print additional debug info")
 }
 
 var configCheckCommand = &cobra.Command{
@@ -35,7 +35,7 @@ var configCheckCommand = &cobra.Command{
 		if flagNoColor {
 			color.NoColor = true
 		}
-		err = flare.GetConfigCheck(color.Output, withResolveWarnings)
+		err = flare.GetConfigCheck(color.Output, withDebug)
 		if err != nil {
 			return err
 		}

@@ -9,6 +9,7 @@ import "github.com/DataDog/datadog-agent/pkg/collector/check"
 
 // ConfigCheckResponse holds the config check response
 type ConfigCheckResponse struct {
-	Configs  map[string][]check.Config `json:"configs"`
-	Warnings map[string][]string       `json:"warnings"`
+	Configs    map[string][]check.Config `json:"configs"`
+	Warnings   map[string][]string       `json:"warnings"`
+	Unresolved map[string]check.Config   `json:"unresolved"`
 }

@@ -96,3 +96,14 @@ func TestGetProviderFromDigest(t *testing.T) {
 
 	assert.Equal(t, cache.digest2provider[tpl.Digest()], "test provider")
 }
+
+func TestGetUnresolvedTemplates(t *testing.T) {
+	cache := NewTemplateCache()
+	tpl := check.Config{ADIdentifiers: []string{"foo", "bar"}}
+	cache.Set(tpl, "test provider")
+	expected := map[string]check.Config{
+		"foo,bar": tpl,
+	}
+
+	assert.Equal(t, cache.GetUnresolvedTemplates(), expected)
+}

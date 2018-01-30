@@ -19,7 +19,7 @@ import (
 )
 
 // GetConfigCheck dump all loaded configurations to the writer
-func GetConfigCheck(w io.Writer, withResolveWarnings bool) error {
+func GetConfigCheck(w io.Writer, withDebug bool) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
@@ -80,12 +80,22 @@ func GetConfigCheck(w io.Writer, withResolveWarnings bool) error {
 		fmt.Fprintln(w, strings.Repeat("=", 10))
 	}
 
-	if withResolveWarnings && len(cr.Warnings) > 0 {
-		fmt.Fprintln(w, fmt.Sprintf("\n=== Resolve %s ===", color.YellowString("warnings")))
-		for check, warnings := range cr.Warnings {
-			fmt.Fprintln(w, fmt.Sprintf("\n%s", color.YellowString(check)))
-			for _, warning := range warnings {
-				fmt.Fprintln(w, fmt.Sprintf("* %s", warning))
+	if withDebug {
+		if len(cr.Warnings) > 0 {
+			fmt.Fprintln(w, fmt.Sprintf("\n=== Resolve %s ===", color.YellowString("warnings")))
+			for check, warnings := range cr.Warnings {
+				fmt.Fprintln(w, fmt.Sprintf("\n%s", color.YellowString(check)))
+				for _, warning := range warnings {
+					fmt.Fprintln(w, fmt.Sprintf("* %s", warning))
+				}
+			}
+		}
+		if len(cr.Unresolved) > 0 {
+			fmt.Fprintln(w, fmt.Sprintf("\n=== %s Configs ===", color.YellowString("Unresolved")))
+			for ids, config := range cr.Unresolved {
+				fmt.Fprintln(w, fmt.Sprintf("\n%s: %s", color.BlueString("Auto-discovery IDs"), color.YellowString(ids)))
+				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Template")))
+				fmt.Fprintln(w, config.String())
 			}
 		}
 	}

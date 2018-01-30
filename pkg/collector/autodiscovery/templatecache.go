@@ -7,6 +7,7 @@ package autodiscovery
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -87,6 +88,16 @@ func (cache *TemplateCache) GetProviderFromDigest(digest string) string {
 		return provider
 	}
 	return UnknownProvider
+}
+
+// GetUnresolvedTemplates returns templates yet to be resolved
+func (cache *TemplateCache) GetUnresolvedTemplates() map[string]check.Config {
+	tpls := make(map[string]check.Config)
+	for d, config := range cache.digest2template {
+		ids := strings.Join(cache.digest2ids[d][:], ",")
+		tpls[ids] = config
+	}
+	return tpls
 }
 
 // Del removes a template from the cache

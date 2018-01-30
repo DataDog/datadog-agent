@@ -481,6 +481,11 @@ func (ac *AutoConfig) GetProviderLoadedConfigs() map[string][]check.Config {
 	return ac.providerLoadedConfigs
 }
 
+// GetUnresolvedTemplates returns templates in cache yet to be resolved
+func (ac *AutoConfig) GetUnresolvedTemplates() map[string]check.Config {
+	return ac.templateCache.GetUnresolvedTemplates()
+}
+
 // check if the descriptor contains the Config passed
 func (pd *providerDescriptor) contains(c *check.Config) bool {
 	for _, config := range pd.configs {
