@@ -135,8 +135,11 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("Could not process the list of services of: %s", podName)
 	}
 	if len(svcList) != 0 {
+		w.WriteHeader(200)
 		w.Write(slcB)
 		return
 	}
-	w.Write([]byte("Could not find associated services mapped to the pod: " + podName + " on node: " + nodeName))
+	w.WriteHeader(404)
+	w.Write([]byte(fmt.Sprintf("Could not find associated services mapped to the pod: %s on node: %s", podName, nodeName)))
+
 }

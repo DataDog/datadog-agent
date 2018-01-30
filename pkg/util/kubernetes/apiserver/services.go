@@ -59,7 +59,7 @@ func (smb *ServiceMapperBundle) mapServices(nodeName string, pods v1.PodList, en
 			smb.PodNameToServices[name] = svc
 		}
 	}
-	log.Tracef("the services matched %q", smb.PodNameToServices)
+	log.Tracef("The services matched %q", smb.PodNameToServices)
 	return nil
 }
 

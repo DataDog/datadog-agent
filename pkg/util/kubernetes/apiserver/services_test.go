@@ -58,8 +58,6 @@ func createPodList(listPodStructs []podTest) v1.PodList {
 		pod.Metadata = &metav1.ObjectMeta{}
 		pod.Status.PodIP = toPtr(ps.ip)
 		pod.Metadata.Name = toPtr(ps.name)
-		fmt.Printf("\n ps.name is %s, toPtr ps.name is %q and &ps.name is %q \n\n", ps.name, toPtr(ps.name), &ps.name)
-		//fmt.Printf("current pod added is %s and pod list is %q \n", ps.name, podlist.Items)
 		podlist.Items = append(podlist.Items, &pod)
 	}
 
