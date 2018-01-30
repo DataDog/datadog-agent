@@ -126,7 +126,6 @@ if [ $OS = "RedHat" ]; then
 
     printf "\033[34m* Installing the Datadog Agent package\n\033[0m\n"
     $sudo_cmd yum -y clean expire-cache
-    $sudo_cmd yum -y check-update
     $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog-beta' install datadog-agent || $sudo_cmd yum -y install datadog-agent
 elif [ $OS = "Debian" ]; then
     printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
