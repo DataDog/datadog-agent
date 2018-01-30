@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,6 +73,7 @@ func GetAPIClient() (*APIClient, error) {
 }
 
 func (c *APIClient) connect() error {
+
 	if c.client == nil {
 		var err error
 		cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
@@ -82,12 +84,12 @@ func (c *APIClient) connect() error {
 		} else {
 			// Kubeconfig provided by conf
 			log.Debugf("using credentials from %s", cfgPath)
-			var config *k8s.Config
-			config, err = ParseKubeConfig(cfgPath)
+			var k8sconfig *k8s.Config
+			k8sconfig, err = ParseKubeConfig(cfgPath)
 			if err != nil {
 				return err
 			}
-			c.client, err = k8s.NewClient(config)
+			c.client, err = k8s.NewClient(k8sconfig)
 		}
 		if err != nil {
 			return err
@@ -101,7 +103,15 @@ func (c *APIClient) connect() error {
 	if err != nil {
 		return err
 	}
-	log.Debugf("connected to kubernetes apiserver, version %s", version.GitVersion)
+
+	log.Debugf("Connected to kubernetes apiserver, version %s", version.GitVersion)
+
+	err = c.checkResourcesAuth()
+	if err != nil {
+		return err
+	}
+	log.Debug("Could successfully collect Pods, Nodes, Services and Events.")
+
 	useServiceMapper := config.Datadog.GetBool("use_service_mapper")
 	if !useServiceMapper {
 		return nil
@@ -140,12 +150,12 @@ func (c *APIClient) startServiceMapping() {
 				// We fetch nodes to reliably use nodename as key in the cache. Avoiding to retrieve them from the endpoints/pods.
 				nodes, err := c.client.CoreV1().ListNodes(ctx)
 				if err != nil {
-					log.Errorf("could not collect nodes from the API Server: %q", err.Error())
+					log.Errorf("Could not collect nodes from the API Server: %q", err.Error())
 					continue
 				}
 				endpointList, err := c.client.CoreV1().ListEndpoints(ctx, "")
 				if err != nil {
-					log.Errorf("could not collect endpoints from the API Server: %q", err.Error())
+					log.Errorf("Could not collect endpoints from the API Server: %q", err.Error())
 					continue
 				}
 				if endpointList.Items == nil {
@@ -154,7 +164,7 @@ func (c *APIClient) startServiceMapping() {
 				}
 				pods, err := c.client.CoreV1().ListPods(ctx, "")
 				if err != nil {
-					log.Errorf("could not collect pods from the API Server: %q", err.Error())
+					log.Errorf("Could not collect pods from the API Server: %q", err.Error())
 					continue
 				}
 
@@ -165,7 +175,7 @@ func (c *APIClient) startServiceMapping() {
 					}
 					err := smb.(*ServiceMapperBundle).mapServices(*node.Metadata.Name, *pods, *endpointList)
 					if err != nil {
-						log.Errorf("could not map the services: %s on node %s", err.Error(), *node.Metadata.Name)
+						log.Errorf("Could not map the services: %s on node %s", err.Error(), *node.Metadata.Name)
 						continue
 					}
 					cache.Cache.Set(*node.Metadata.Name, smb, serviceMapExpire)
@@ -173,6 +183,46 @@ func (c *APIClient) startServiceMapping() {
 			}
 		}
 	}()
+}
+
+func aggregateCheckResourcesErrors(errorMessages []string) error {
+	if len(errorMessages) == 0 {
+		return nil
+	}
+	return fmt.Errorf("check resources failed: %s", strings.Join(errorMessages, ", "))
+}
+
+// checkResourcesAuth is meant to check that we can query resources from the API server.
+// Depending on the user's config we only trigger an error if necessary.
+// The Event check requires getting Events data.
+// The ServiceMapper case, requires access to Services, Nodes and Pods.
+func (c *APIClient) checkResourcesAuth() error {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	var errorMessages []string
+
+	// We always want to collect events
+	_, err := c.client.CoreV1().ListEvents(ctx, "")
+	if err != nil {
+		errorMessages = append(errorMessages, fmt.Sprintf("event collection: %q", err.Error()))
+	}
+
+	if config.Datadog.GetBool("use_service_mapper") == false {
+		return aggregateCheckResourcesErrors(errorMessages)
+	}
+	_, err = c.client.CoreV1().ListServices(ctx, "")
+	if err != nil {
+		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
+	}
+	_, err = c.client.CoreV1().ListPods(ctx, "")
+	if err != nil {
+		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
+	}
+	_, err = c.client.CoreV1().ListNodes(ctx)
+	if err != nil {
+		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
+	}
+	return aggregateCheckResourcesErrors(errorMessages)
 }
 
 // ParseKubeConfig reads and unmarcshals a kubeconfig file
@@ -184,9 +234,9 @@ func ParseKubeConfig(fpath string) (*k8s.Config, error) {
 		return nil, err
 	}
 
-	config := &k8s.Config{}
-	err = json.Unmarshal(jsonFile, config)
-	return config, err
+	k8sconfig := &k8s.Config{}
+	err = json.Unmarshal(jsonFile, k8sconfig)
+	return k8sconfig, err
 }
 
 // ComponentStatuses returns the component status list from the APIServer
