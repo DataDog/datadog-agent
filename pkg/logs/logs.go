@@ -11,6 +11,7 @@ import (
 
 	aud "github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/input"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/tailer"
@@ -20,15 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
-// global variables
 var (
 	// isRunning indicates whether logs-agent is running or not
 	isRunning bool
 
-	// logs sources
-	filesScanner      *tailer.Scanner
-	containersScanner *container.Scanner
-	networkListeners  *listener.Listeners
+	// input components
+	inputs *input.Inputs
 
 	// pipeline provider
 	pipelineProvider pipeline.Provider
@@ -47,7 +45,7 @@ func Start(ddConfig *viper.Viper) error {
 	return nil
 }
 
-// run sets up the pipeline to process logs and them to Datadog back-end
+// run sets up the pipeline to process logs and send them to Datadog back-end
 func run(config *config.Config) {
 	isRunning = true
 
@@ -62,14 +60,16 @@ func run(config *config.Config) {
 
 	sources := config.GetLogsSources()
 
-	networkListeners = listener.New(sources.GetValidSources(), pipelineProvider)
-	networkListeners.Start()
-
+	networkListeners := listener.New(sources.GetValidSources(), pipelineProvider)
+	containersScanner := container.New(sources.GetValidSources(), pipelineProvider, auditor)
 	filesScanner = tailer.New(sources.GetValidSources(), config.GetOpenFilesLimit(), pipelineProvider, auditor, tailer.DefaultSleepDuration)
-	filesScanner.Start()
 
-	containersScanner = container.New(sources.GetValidSources(), pipelineProvider, auditor)
-	containersScanner.Start()
+	inputs = input.NewInputs([]input.Input{
+		networkListeners,
+		filesScanner,
+		containersScanner,
+	})
+	inputs.Start()
 
 	status.Initialize(sources.GetSources())
 }
@@ -80,10 +80,8 @@ func run(config *config.Config) {
 func Stop() {
 	log.Info("Stopping logs-agent")
 	if isRunning {
-		// stop all input components, i.e. the  two first stages of the pipeline
-		filesScanner.Stop()
-		networkListeners.Stop()
-		containersScanner.Stop()
+		// stop all input components
+		inputs.Stop()
 
 		// stop all the different pipelines
 		pipelineProvider.Stop()
