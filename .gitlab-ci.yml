@@ -636,11 +636,10 @@ deploy_deb:
     # grab the updated public key to extend the expiration date
     - gpg --keyserver hkp://keyserver.ubuntu.com:80 --receive-keys "$APT_SIGNING_KEY_DEPRECATED_ID"
 
-    # Check if it is in the pool, if it is, do not release the new one
-    # FIXME: move this to a script in the build image
-    - PACKAGE_VERSION=`ls $OMNIBUS_PACKAGE_DIR/ | grep _amd64.deb | sed s/datadog-agent_// | sed s/_amd64.deb//`
-    - if curl --output /dev/null --silent --head --fail -v "https://s3.amazonaws.com/apt.datad0g.com/pool/d/da/datadog-agent_${PACKAGE_VERSION}_amd64.deb"; then echo "datadog-agent_${PACKAGE_VERSION}_amd64.deb already exists in the APT pool, releasing this one instead of the latest build."; rm -f $OMNIBUS_PACKAGE_DIR/datadog-agent_${PACKAGE_VERSION}_amd64.deb; curl -v -o $OMNIBUS_PACKAGE_DIR "https://s3.amazonaws.com/apt.datad0g.com/pool/d/da/datadog-agent_${PACKAGE_VERSION}_${1}.deb"; fi;
+    # Check if each artifact is already in the shared APT pool. If it is, re-release the one in the pool instead of the new artifact.
+    - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/check_apt_pool.sh && cd -
 
+    # Release the artifacts
     - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
     - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
 
