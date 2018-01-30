@@ -22,14 +22,14 @@ type TCPListener struct {
 }
 
 // NewTCPListener returns an initialized TCPListener
-func NewTCPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*TCPListener, error) {
-	log.Info("Starting TCP forwarder on port ", source.Port)
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", source.Port))
+func NewTCPListener(pp pipeline.Provider, source *config.LogSource) (*TCPListener, error) {
+	log.Info("Starting TCP forwarder on port ", source.Config.Port)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", source.Config.Port))
 	if err != nil {
-		source.Tracker.TrackError(err)
+		source.Status.Error(err)
 		return nil, err
 	}
-	source.Tracker.TrackSuccess()
+	source.Status.Success()
 	connHandler := &ConnectionHandler{
 		pp:     pp,
 		source: source,
@@ -50,11 +50,11 @@ func (tcpListener *TCPListener) run() {
 	for {
 		conn, err := tcpListener.listener.Accept()
 		if err != nil {
-			tcpListener.connHandler.source.Tracker.TrackError(err)
+			tcpListener.connHandler.source.Status.Error(err)
 			log.Error("Can't listen: ", err)
 			return
 		}
-		tcpListener.connHandler.source.Tracker.TrackSuccess()
+		tcpListener.connHandler.source.Status.Success()
 		go tcpListener.connHandler.handleConnection(conn)
 	}
 }

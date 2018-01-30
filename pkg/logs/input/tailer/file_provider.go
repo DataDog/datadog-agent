@@ -17,11 +17,11 @@ import (
 // File represents a file to tail
 type File struct {
 	Path   string
-	Source *config.IntegrationConfigLogSource
+	Source *config.LogSource
 }
 
 // NewFile returns a new File
-func NewFile(path string, source *config.IntegrationConfigLogSource) *File {
+func NewFile(path string, source *config.LogSource) *File {
 	return &File{
 		Path:   path,
 		Source: source,
@@ -30,12 +30,12 @@ func NewFile(path string, source *config.IntegrationConfigLogSource) *File {
 
 // FileProvider implements the logic to retrieve at most filesLimit Files defined in sources
 type FileProvider struct {
-	sources    []*config.IntegrationConfigLogSource
+	sources    []*config.LogSource
 	filesLimit int
 }
 
 // NewFileProvider returns a new FileProvider
-func NewFileProvider(sources []*config.IntegrationConfigLogSource, filesLimit int) *FileProvider {
+func NewFileProvider(sources []*config.LogSource, filesLimit int) *FileProvider {
 	return &FileProvider{
 		sources:    sources,
 		filesLimit: filesLimit,
@@ -50,17 +50,17 @@ func (r *FileProvider) FilesToTail() []*File {
 	filesToTail := []*File{}
 	for _, source := range r.sources {
 		// search all files matching pattern and append them all until filesLimit is reached
-		pattern := source.Path
+		pattern := source.Config.Path
 		paths, err := filepath.Glob(pattern)
 		if err != nil {
 			err := fmt.Errorf("Malformed pattern, could not find any file: %s", pattern)
-			source.Tracker.TrackError(err)
+			source.Status.Error(err)
 			log.Error(err)
 			continue
 		}
 		if len(paths) == 0 {
 			err := fmt.Errorf("No file are matching pattern: %s", pattern)
-			source.Tracker.TrackError(err)
+			source.Status.Error(err)
 			log.Error(err)
 			continue
 		}

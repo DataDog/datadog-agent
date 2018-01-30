@@ -25,7 +25,7 @@ type Message interface {
 // Origin represents the Origin of a message
 type Origin struct {
 	Identifier string
-	LogSource  *config.IntegrationConfigLogSource
+	LogSource  *config.LogSource
 	Offset     int64
 	Timestamp  string
 }
@@ -89,7 +89,7 @@ func (m *message) GetTagsPayload() []byte {
 		return m.tagsPayload
 	}
 	if m.Origin != nil && m.Origin.LogSource != nil {
-		return m.Origin.LogSource.TagsPayload
+		return m.Origin.LogSource.Config.TagsPayload
 	}
 	return nil
 }

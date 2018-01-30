@@ -34,7 +34,7 @@ type Tailer struct {
 
 	outputChan chan message.Message
 	d          *decoder.Decoder
-	source     *config.IntegrationConfigLogSource
+	source     *config.LogSource
 
 	sleepDuration time.Duration
 	sleepMutex    sync.Mutex
@@ -46,7 +46,7 @@ type Tailer struct {
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan message.Message, source *config.IntegrationConfigLogSource, path string) *Tailer {
+func NewTailer(outputChan chan message.Message, source *config.LogSource, path string) *Tailer {
 	return &Tailer{
 		path:       path,
 		outputChan: outputChan,
@@ -79,6 +79,7 @@ func (t *Tailer) recoverTailing(offset int64, whence int) error {
 func (t *Tailer) Stop(shouldTrackOffset bool) {
 	t.stopMutex.Lock()
 	t.shouldStop = true
+	t.source.RemoveInput(t.path)
 	t.shouldTrackOffset = shouldTrackOffset
 	t.stopTimer = time.NewTimer(t.closeTimeout)
 	t.stopMutex.Unlock()

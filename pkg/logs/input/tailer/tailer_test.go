@@ -11,16 +11,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/mock"
 )
 
 var chanSize = 10
@@ -33,7 +30,7 @@ type TailerTestSuite struct {
 
 	tl         *Tailer
 	outputChan chan message.Message
-	source     *config.IntegrationConfigLogSource
+	source     *config.LogSource
 }
 
 func (suite *TailerTestSuite) SetupTest() {
@@ -46,11 +43,10 @@ func (suite *TailerTestSuite) SetupTest() {
 	suite.Nil(err)
 	suite.testFile = f
 	suite.outputChan = make(chan message.Message, chanSize)
-	suite.source = &config.IntegrationConfigLogSource{
-		Type:    config.FileType,
-		Path:    suite.testPath,
-		Tracker: status.NewTracker(),
-	}
+	suite.source = config.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+	})
 	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath)
 	suite.tl.sleepDuration = 10 * time.Millisecond
 }
@@ -127,21 +123,6 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
-}
-
-func writeMessage(file *os.File) {
-	file.WriteString("hello world\n")
-}
-
-func listenToChan(inputChan chan *decoder.Input, messagesReceived *uint64) {
-	for range inputChan {
-		atomic.AddUint64(messagesReceived, 1)
-		tick()
-	}
-}
-
-func tick() {
-	time.Sleep(10 * time.Millisecond)
 }
 
 func TestTailerTestSuite(t *testing.T) {

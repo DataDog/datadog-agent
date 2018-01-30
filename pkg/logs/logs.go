@@ -47,15 +47,20 @@ func run() {
 	pp := pipeline.NewProvider()
 	pp.Start(cm, auditorChan)
 
-	l := listener.New(config.GetLogsSources(), pp)
+	sources := config.GetLogsSources()
+
+	l := listener.New(sources.GetValidSources(), pp)
 	l.Start()
 
 	tailingLimit := config.LogsAgent.GetInt("log_open_files_limit")
-	s := tailer.New(config.GetLogsSources(), tailingLimit, pp, a)
+	s := tailer.New(sources.GetValidSources(), tailingLimit, pp, a)
 	s.Start()
 
-	c := container.New(config.GetLogsSources(), pp, a)
+	c := container.New(sources.GetValidSources(), pp, a)
 	c.Start()
+
+	status.Initialize(sources.GetSources())
+
 }
 
 // GetStatus returns logs-agent status

@@ -21,7 +21,7 @@ import (
 // transforms decoder output into messages to forward them
 type ConnectionHandler struct {
 	pp     pipeline.Provider
-	source *config.IntegrationConfigLogSource
+	source *config.LogSource
 }
 
 // forwardMessages forwards messages to output channel
@@ -52,7 +52,7 @@ func (connHandler *ConnectionHandler) handleConnection(conn net.Conn) {
 			return
 		}
 		if err != nil {
-			connHandler.source.Tracker.TrackError(err)
+			connHandler.source.Status.Error(err)
 			log.Warn("Couldn't read message from connection: ", err)
 			d.Stop()
 			return

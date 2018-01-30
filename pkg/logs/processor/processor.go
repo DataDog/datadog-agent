@@ -102,7 +102,7 @@ func (p *Processor) computeExtraContent(msg message.Message) []byte {
 		extraContent = append(extraContent, ' ')
 
 		// Service
-		service := msg.GetOrigin().LogSource.Service
+		service := msg.GetOrigin().LogSource.Config.Service
 		if service != "" {
 			extraContent = append(extraContent, []byte(service)...)
 		} else {
@@ -122,7 +122,7 @@ func (p *Processor) computeExtraContent(msg message.Message) []byte {
 }
 
 func (p *Processor) computeAPIKeyString(msg message.Message) []byte {
-	sourceLogset := msg.GetOrigin().LogSource.Logset
+	sourceLogset := msg.GetOrigin().LogSource.Config.Logset
 	if sourceLogset != "" {
 		return []byte(fmt.Sprintf("%s/%s", p.apikey, sourceLogset))
 	}
@@ -144,7 +144,7 @@ func (p *Processor) buildPayload(apikeyString, redactedMessage, extraContent []b
 // and a copy of the message with some fields redacted, depending on config
 func (p *Processor) applyRedactingRules(msg message.Message) (bool, []byte) {
 	content := msg.Content()
-	for _, rule := range msg.GetOrigin().LogSource.ProcessingRules {
+	for _, rule := range msg.GetOrigin().LogSource.Config.ProcessingRules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
 			if rule.Reg.Match(content) {

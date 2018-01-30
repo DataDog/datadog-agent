@@ -41,7 +41,7 @@ type DockerTailer struct {
 	d             *decoder.Decoder
 	reader        io.ReadCloser
 	cli           *client.Client
-	source        *config.IntegrationConfigLogSource
+	source        *config.LogSource
 	containerTags []string
 	tagsPayload   []byte
 
@@ -50,7 +50,7 @@ type DockerTailer struct {
 }
 
 // NewDockerTailer returns a new DockerTailer
-func NewDockerTailer(cli *client.Client, container types.Container, source *config.IntegrationConfigLogSource, outputChan chan message.Message) *DockerTailer {
+func NewDockerTailer(cli *client.Client, container types.Container, source *config.LogSource, outputChan chan message.Message) *DockerTailer {
 	return &DockerTailer{
 		ContainerID: container.ID,
 		outputChan:  outputChan,
@@ -70,6 +70,7 @@ func (dt *DockerTailer) Identifier() string {
 // Stop stops the DockerTailer
 func (dt *DockerTailer) Stop() {
 	dt.shouldStop = true
+	dt.source.RemoveInput(dt.ContainerID)
 	dt.d.Stop()
 }
 
@@ -128,10 +129,11 @@ func (dt *DockerTailer) startReading(from string) error {
 	}
 	reader, err := dt.cli.ContainerLogs(context.Background(), dt.ContainerID, options)
 	if err != nil {
-		dt.source.Tracker.TrackError(err)
+		dt.source.Status.Error(err)
 		return err
 	}
-	dt.source.Tracker.TrackSuccess()
+	dt.source.Status.Success()
+	dt.source.AddInput(dt.ContainerID)
 	dt.reader = reader
 	go dt.readForever()
 	return nil
@@ -157,7 +159,7 @@ func (dt *DockerTailer) readForever() {
 			continue
 		}
 		if err != nil {
-			dt.source.Tracker.TrackError(err)
+			dt.source.Status.Error(err)
 			log.Error("Err: ", err)
 			return
 		}
@@ -223,8 +225,8 @@ func (dt *DockerTailer) checkForNewDockerTags() {
 }
 
 func (dt *DockerTailer) buildTagsPayload() []byte {
-	tagsString := fmt.Sprintf("%s,%s", strings.Join(dt.containerTags, ","), dt.source.Tags)
-	return config.BuildTagsPayload(tagsString, dt.source.Source, dt.source.SourceCategory)
+	tagsString := fmt.Sprintf("%s,%s", strings.Join(dt.containerTags, ","), dt.source.Config.Tags)
+	return config.BuildTagsPayload(tagsString, dt.source.Config.Source, dt.source.Config.SourceCategory)
 }
 
 // wait lets the reader sleep for a bit

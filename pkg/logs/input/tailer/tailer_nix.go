@@ -21,16 +21,17 @@ import (
 func (t *Tailer) startReading(offset int64, whence int) error {
 	fullpath, err := filepath.Abs(t.path)
 	if err != nil {
-		t.source.Tracker.TrackError(err)
+		t.source.Status.Error(err)
 		return err
 	}
 	log.Info("Opening ", t.path)
 	f, err := os.Open(fullpath)
 	if err != nil {
-		t.source.Tracker.TrackError(err)
+		t.source.Status.Error(err)
 		return err
 	}
-	t.source.Tracker.TrackSuccess()
+	t.source.Status.Success()
+	t.source.AddInput(t.path)
 
 	ret, _ := f.Seek(offset, whence)
 	t.file = f
@@ -59,7 +60,7 @@ func (t *Tailer) readForever() {
 			continue
 		}
 		if err != nil {
-			t.source.Tracker.TrackError(err)
+			t.source.Status.Error(err)
 			log.Error("Err: ", err)
 			return
 		}
@@ -74,12 +75,12 @@ func (t *Tailer) readForever() {
 func (t *Tailer) checkForRotation() (bool, error) {
 	f, err := os.Open(t.path)
 	if err != nil {
-		t.source.Tracker.TrackError(err)
+		t.source.Status.Error(err)
 		return false, err
 	}
 	stat1, err := f.Stat()
 	if err != nil {
-		t.source.Tracker.TrackError(err)
+		t.source.Status.Error(err)
 		return false, err
 	}
 	stat2, err := t.file.Stat()

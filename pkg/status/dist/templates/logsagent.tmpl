@@ -9,7 +9,24 @@ Logs-agent
   {{printDashes .name "-"}}
   {{- range .sources }}
     Type: {{ .type }}
+    {{- if .path }}
+    Path: {{ .path }}
+    {{- end }}
+    {{- if .port }}
+    Port: {{ .port }}
+    {{- end }}
+    {{- if .image }}
+    Image: {{ .image }}
+    {{- end }}
+    {{- if .label }}
+    Label: {{ .label }}
+    {{- end }}
+    {{- if .status }}
     Status: {{ .status }}
+    {{- end }}
+    {{- if .inputs }}
+    Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
+    {{- end }}
   {{ end }}
 {{- end }}
 {{- end }}

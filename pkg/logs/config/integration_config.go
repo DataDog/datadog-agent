@@ -15,8 +15,6 @@ import (
 
 	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
 // Logs source types
@@ -45,17 +43,18 @@ const (
 // LogsProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
 type LogsProcessingRule struct {
-	Type                    string
-	Name                    string
-	ReplacePlaceholder      string `mapstructure:"replace_placeholder"`
-	Pattern                 string
+	Type               string
+	Name               string
+	ReplacePlaceholder string `mapstructure:"replace_placeholder"`
+	Pattern            string
+	// TODO: should be moved out
 	Reg                     *regexp.Regexp
 	ReplacePlaceholderBytes []byte
 }
 
-// IntegrationConfigLogSource represents a log source config, which can be for instance
-// a file to tail or a port to listen to
-type IntegrationConfigLogSource struct {
+// LogsConfig represents a log source config, which can be for instance
+// a file to tail or a port to listen to.
+type LogsConfig struct {
 	Type string
 
 	Port int    // Network
@@ -64,28 +63,26 @@ type IntegrationConfigLogSource struct {
 	Image string // Docker
 	Label string // Docker
 
-	Service         string
-	Logset          string
-	Source          string
-	SourceCategory  string
-	Tags            string
+	Service        string
+	Logset         string
+	Source         string
+	SourceCategory string
+	Tags           string
+	// TODO: should be moved out
 	TagsPayload     []byte
 	ProcessingRules []LogsProcessingRule `mapstructure:"log_processing_rules"`
-
-	Tracker *status.Tracker
 }
 
-// IntegrationConfig represents a dd agent config, which includes infra and logs parts
+// IntegrationConfig represents a DataDog agent configuration file, which includes infra and logs parts.
 type IntegrationConfig struct {
-	Logs []IntegrationConfigLogSource
+	Logs []LogsConfig
 }
 
-// buildLogsSources looks for all yml configs in the ddconfdPath directory,
+// buildLogSources looks for all yml configs in the ddconfdPath directory,
 // and returns a list of all the valid logs sources along with their trackers
-func buildLogsSources(ddconfdPath string) ([]*IntegrationConfigLogSource, []*status.SourceToTrack, error) {
+func buildLogSources(ddconfdPath string) (*LogSources, error) {
 	integrationConfigFiles := availableIntegrationConfigs(ddconfdPath)
-	logsSourceConfigs := []*IntegrationConfigLogSource{}
-	sourcesToTrack := []*status.SourceToTrack{}
+	var sources []*LogSource
 	for _, file := range integrationConfigFiles {
 		var integrationConfig IntegrationConfig
 		var viperCfg = viper.New()
@@ -106,34 +103,34 @@ func buildLogsSources(ddconfdPath string) ([]*IntegrationConfigLogSource, []*sta
 			continue
 		}
 		for _, logSourceConfigIterator := range integrationConfig.Logs {
-			logSourceConfig := logSourceConfigIterator
-			tracker := status.NewTracker(logSourceConfig.Type)
-			// misconfigured sources are also tracked to repport configuration errors
-			sourcesToTrack = append(sourcesToTrack, status.NewSourceToTrack(integrationName, tracker))
-			err = validateSource(logSourceConfig)
+			config := logSourceConfigIterator
+			source := NewLogSource(integrationName, &config)
+			sources = append(sources, source)
+			// Mis-configured sources are also tracked to report configuration errors
+			err = validateConfig(config)
 			if err != nil {
-				tracker.TrackError(err)
+				source.Status.Error(err)
 				log.Error(err)
 				continue
 			}
-			rules, err := validateProcessingRules(logSourceConfig.ProcessingRules)
+			rules, err := validateProcessingRules(config.ProcessingRules)
 			if err != nil {
-				tracker.TrackError(err)
+				source.Status.Error(err)
 				log.Error(err)
 				continue
 			}
-			logSourceConfig.ProcessingRules = rules
-			logSourceConfig.TagsPayload = BuildTagsPayload(logSourceConfig.Tags, logSourceConfig.Source, logSourceConfig.SourceCategory)
-			logSourceConfig.Tracker = tracker
-			logsSourceConfigs = append(logsSourceConfigs, &logSourceConfig)
+			config.ProcessingRules = rules
+			config.TagsPayload = BuildTagsPayload(config.Tags, config.Source, config.SourceCategory)
 		}
 	}
 
-	if len(logsSourceConfigs) == 0 {
-		return nil, nil, fmt.Errorf("Could not find any valid logs integration configuration file in %s", ddconfdPath)
+	logSources := &LogSources{sources}
+
+	if len(logSources.GetValidSources()) == 0 {
+		return nil, fmt.Errorf("could not find any valid logs configuration file in %s", ddconfdPath)
 	}
 
-	return logsSourceConfigs, sourcesToTrack, nil
+	return logSources, nil
 }
 
 // buildIntegrationName returns the name of the integration
@@ -186,7 +183,7 @@ func integrationConfigsFromDirectory(dir string, prefix string) []string {
 	return integrationConfigFiles
 }
 
-func validateSource(config IntegrationConfigLogSource) error {
+func validateConfig(config LogsConfig) error {
 
 	switch config.Type {
 	case FileType,

@@ -71,10 +71,10 @@ func (suite *DockerTailerTestSuite) TestDockerTailerIdentifier() {
 
 func (suite *DockerTailerTestSuite) TestBuildTagsPayload() {
 	suite.tailer.containerTags = []string{"test", "hello:world"}
-	suite.tailer.source = &config.IntegrationConfigLogSource{Source: "mysource", Tags: "sourceTags"}
+	suite.tailer.source = config.NewLogSource("", &config.LogsConfig{Source: "mysource", Tags: "sourceTags"})
 	suite.Equal("[dd ddsource=\"mysource\"][dd ddtags=\"test,hello:world,sourceTags\"]", string(suite.tailer.buildTagsPayload()))
 
-	suite.tailer.source = &config.IntegrationConfigLogSource{}
+	suite.tailer.source = config.NewLogSource("", &config.LogsConfig{})
 	suite.Equal("[dd ddtags=\"test,hello:world,\"]", string(suite.tailer.buildTagsPayload()))
 }
 

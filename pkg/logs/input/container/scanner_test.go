@@ -26,13 +26,13 @@ func (suite *ContainerScannerTestSuite) SetupTest() {
 }
 
 func (suite *ContainerScannerTestSuite) TestContainerScannerFilter() {
-	cfg := &config.IntegrationConfigLogSource{Type: config.DockerType, Image: "myapp"}
+	cfg := config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp"})
 	container := types.Container{Image: "myapp"}
 	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
 	container = types.Container{Image: "myapp2"}
 	suite.False(suite.c.sourceShouldMonitorContainer(cfg, container))
 
-	cfg = &config.IntegrationConfigLogSource{Type: config.DockerType, Image: "myapp", Label: "mylabel"}
+	cfg = config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"})
 	l1 := make(map[string]string)
 	l2 := make(map[string]string)
 	l2["mylabel"] = "anything"
@@ -41,7 +41,7 @@ func (suite *ContainerScannerTestSuite) TestContainerScannerFilter() {
 	container = types.Container{Image: "myapp", Labels: l2}
 	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
 
-	cfg = &config.IntegrationConfigLogSource{Type: config.DockerType}
+	cfg = config.NewLogSource("", &config.LogsConfig{Type: config.DockerType})
 	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
 }
 
@@ -71,7 +71,7 @@ func (suite *ContainerScannerTestSuite) TestContainerLabelFilter() {
 }
 
 func (suite *ContainerScannerTestSuite) shouldMonitor(configLabel string, containerLabels map[string]string) bool {
-	cfg := &config.IntegrationConfigLogSource{Type: config.DockerType, Label: configLabel}
+	cfg := config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: configLabel})
 	container := types.Container{Labels: containerLabels}
 	return suite.c.sourceShouldMonitorContainer(cfg, container)
 }

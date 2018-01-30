@@ -30,18 +30,18 @@ const dockerAPIVersion = "1.25"
 // A Scanner listens for stdout and stderr of containers
 type Scanner struct {
 	pp      pipeline.Provider
-	sources []*config.IntegrationConfigLogSource
+	sources []*config.LogSource
 	tailers map[string]*DockerTailer
 	cli     *client.Client
 	auditor *auditor.Auditor
 }
 
 // New returns an initialized Scanner
-func New(sources []*config.IntegrationConfigLogSource, pp pipeline.Provider, a *auditor.Auditor) *Scanner {
+func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) *Scanner {
 
-	containerSources := []*config.IntegrationConfigLogSource{}
+	containerSources := []*config.LogSource{}
 	for _, source := range sources {
-		switch source.Type {
+		switch source.Config.Type {
 		case config.DockerType:
 			containerSources = append(containerSources, source)
 		default:
@@ -126,13 +126,13 @@ func (s *Scanner) listContainers() []types.Container {
 // Both image and label may be used:
 // - If the source defines an image, the container must match it exactly.
 // - If the source defines one or several labels, at least one of them must match the labels of the container.
-func (s *Scanner) sourceShouldMonitorContainer(source *config.IntegrationConfigLogSource, container types.Container) bool {
-	if source.Image != "" && container.Image != source.Image {
+func (s *Scanner) sourceShouldMonitorContainer(source *config.LogSource, container types.Container) bool {
+	if source.Config.Image != "" && container.Image != source.Config.Image {
 		return false
 	}
-	if source.Label != "" {
+	if source.Config.Label != "" {
 		// Expect a comma-separated list of labels, eg: foo:bar, baz
-		for _, value := range strings.Split(source.Label, ",") {
+		for _, value := range strings.Split(source.Config.Label, ",") {
 			// Trim whitespace, then check whether the label format is either key:value or key=value
 			label := strings.TrimSpace(value)
 			parts := strings.FieldsFunc(label, func(c rune) bool {
@@ -178,7 +178,7 @@ func (s *Scanner) setup() error {
 }
 
 // setupTailer sets one tailer, making it tail from the beginning or the end
-func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.IntegrationConfigLogSource, tailFromBeginning bool, outputChan chan message.Message) {
+func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) {
 	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
 	t := NewDockerTailer(cli, container, source, outputChan)
 	var err error
