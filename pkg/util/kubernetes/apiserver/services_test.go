@@ -9,6 +9,7 @@ package apiserver
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/ericchiang/k8s/api/v1"
@@ -154,16 +155,21 @@ func TestMapServices(t *testing.T) {
 		"pod5_name": {"svc3"},
 	}
 	allCasesBundle := newServiceMapperBundle()
+	allBundleMu := &sync.RWMutex{}
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			testCaseBundle := newServiceMapperBundle()
 			podList := createPodList(testCase.pods)
-			epList := createSvcList(*testCase.node.Metadata.Name, testCase.services)
-			testCaseBundle.mapServices(*testCase.node.Metadata.Name, podList, epList)
+			nodeName := *testCase.node.Metadata.Name
+			epList := createSvcList(nodeName, testCase.services)
+			testCaseBundle.mapServices(nodeName, podList, epList)
 			assert.Equal(t, testCase.expectedMapping, testCaseBundle.PodNameToServices)
-
-			allCasesBundle.mapServices(*testCase.node.Metadata.Name, podList, epList)
+			allBundleMu.Lock()
+			allCasesBundle.mapServices(nodeName, podList, epList)
+			allBundleMu.Unlock()
 		})
 	}
+	allBundleMu.RLock()
+	defer allBundleMu.RUnlock()
 	assert.Equal(t, expectedAllCasesBundle, allCasesBundle.PodNameToServices)
 }
