@@ -65,8 +65,8 @@ sudo apt-get install datadog-agent
 ##### Set up Datadog's Yum repo on your system
 
 ```
-[datadog]
-name = Datadog, Inc.
+[datadog-beta]
+name = Beta, Datadog, Inc.
 baseurl = https://yum.datadoghq.com/beta/x86_64/
 enabled=1
 gpgcheck=1
@@ -79,14 +79,13 @@ You can use this command to do it directly:
 
 ```shell
 # Red Hat
-echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://yum.datadoghq.com/beta/x86_64/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.datadoghq.com/DATADOG_RPM_KEY.public\n       https://yum.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public' | sudo tee /etc/yum.repos.d/datadog-beta.repo
+echo -e '[datadog-beta]\nname = Beta, Datadog, Inc.\nbaseurl = https://yum.datadoghq.com/beta/x86_64/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.datadoghq.com/DATADOG_RPM_KEY.public\n       https://yum.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public' | sudo tee /etc/yum.repos.d/datadog-beta.repo
 ```
 
 ##### Update your local yum cache and install/update the agent
 
 ```shell
 sudo yum clean expire-cache
-sudo yum check-update
 sudo yum install datadog-agent
 ```
 
