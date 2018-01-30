@@ -148,7 +148,7 @@ func TestMapServices(t *testing.T) {
 			},
 		},
 	}
-	expectedAllCasesBundle := map[string][]string{
+	expectedAllPodNameToServices := map[string][]string{
 		"pod1_name": {"svc1"},
 		"pod2_name": {"svc2", "svc3", "svc4"},
 		"pod3_name": {"svc4"},
@@ -171,5 +171,5 @@ func TestMapServices(t *testing.T) {
 	}
 	allBundleMu.RLock()
 	defer allBundleMu.RUnlock()
-	assert.Equal(t, expectedAllCasesBundle, allCasesBundle.PodNameToServices)
+	assert.Equal(t, expectedAllPodNameToServices, allCasesBundle.PodNameToServices)
 }
