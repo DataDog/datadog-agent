@@ -92,6 +92,9 @@ api_key:
 
 # Enable the gohai collection of systems data
 # enable_gohai: true
+
+# IPC api server timeout in seconds
+# server_timeout: 15
 {{ end -}}
 {{- if .Metadata }}
 # Metadata collectors, add or remove from the list to enable or disable collection.
