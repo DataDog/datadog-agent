@@ -79,7 +79,6 @@ else
     if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
         SCRIPT_INSTALL="yes"
         INSTALL_USER=`cat /tmp/datadog-install-user || echo 'root'`
-        rm -v /tmp/datadog-install-user || true
     fi
     echo "INSTALL_USER: $INSTALL_USER"
 
