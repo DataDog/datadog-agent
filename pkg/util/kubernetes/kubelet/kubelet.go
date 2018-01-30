@@ -132,35 +132,34 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	var ok bool
 	pods := PodList{}
 
-	cached, hit := cache.Cache.Get(podListCacheKey)
-	if hit {
+	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
 		pods, ok = cached.(PodList)
 		if !ok {
 			log.Errorf("Invalid pod list cache format, forcing a cache miss")
-			hit = false
+		} else {
+			return pods.Items, nil
 		}
 	}
-	if !hit {
-		data, code, err := ku.QueryKubelet(kubeletPodPath)
-		if err != nil {
-			return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, err)
-		}
-		if code != http.StatusOK {
-			return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletPodPath, string(data))
-		}
 
-		err = json.Unmarshal(data, &pods)
-		if err != nil {
-			return nil, err
-		}
-
-		// cache the podlist for 10 seconds to reduce pressure on the kubelet
-		cacheDuration := 10 * time.Second
-		if config.Datadog.GetBool("process_agent_enabled") {
-			cacheDuration = 2 * time.Second
-		}
-		cache.Cache.Set(podListCacheKey, pods, cacheDuration)
+	data, code, err := ku.QueryKubelet(kubeletPodPath)
+	if err != nil {
+		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, err)
 	}
+	if code != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletPodPath, string(data))
+	}
+
+	err = json.Unmarshal(data, &pods)
+	if err != nil {
+		return nil, err
+	}
+
+	// cache the podlist for 10 seconds to reduce pressure on the kubelet
+	cacheDuration := 10 * time.Second
+	if config.Datadog.GetBool("process_agent_enabled") {
+		cacheDuration = 2 * time.Second
+	}
+	cache.Cache.Set(podListCacheKey, pods, cacheDuration)
 
 	return pods.Items, nil
 }

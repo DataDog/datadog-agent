@@ -195,7 +195,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 				i, err := d.cli.ContainerInspect(context.Background(), c.ID)
 				if err != nil && client.IsErrContainerNotFound(err) {
 					d.Unlock()
-					log.Debugf("error inspecting container %s: %s", c.ID, err)
+					log.Debugf("Error inspecting container %s: %s", c.ID, err)
 					continue
 				}
 				d.networkMappings[c.ID] = findDockerNetworks(c.ID, i.State.Pid, c)
@@ -205,7 +205,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 
 		image, err := d.ResolveImageName(c.Image)
 		if err != nil {
-			log.Warnf("can't resolve image name %s: %s", c.Image, err)
+			log.Warnf("Can't resolve image name %s: %s", c.Image, err)
 		}
 
 		entityID := fmt.Sprintf("docker://%s", c.ID)
@@ -284,11 +284,11 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 			container.cgroup = cgroup
 			container.CPULimit, err = cgroup.CPULimit()
 			if err != nil {
-				log.Debugf("cgroup cpu limit: %s", err)
+				log.Debugf("Cgroup cpu limit: %s", err)
 			}
 			container.MemLimit, err = cgroup.MemLimit()
 			if err != nil {
-				log.Debugf("cgroup cpu limit: %s", err)
+				log.Debugf("Cgroup cpu limit: %s", err)
 			}
 		}
 		cache.Cache.Set(cacheKey, containers, d.cfg.CacheDuration)
@@ -310,28 +310,28 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 
 		cgroup := container.cgroup
 		if cgroup == nil {
-			log.Debugf("container id %s has an empty cgroup, skipping", container.ID[:12])
+			log.Debugf("Container id %s has an empty cgroup, skipping", container.ID[:12])
 			continue
 		}
 
 		container.Memory, err = cgroup.Mem()
 		if err != nil {
-			log.Debugf("cgroup memory: %s", err)
+			log.Debugf("Cgroup memory: %s", err)
 			continue
 		}
 		container.CPU, err = cgroup.CPU()
 		if err != nil {
-			log.Debugf("cgroup cpu: %s", err)
+			log.Debugf("Cgroup cpu: %s", err)
 			continue
 		}
 		container.CPUNrThrottled, err = cgroup.CPUNrThrottled()
 		if err != nil {
-			log.Debugf("cgroup cpuNrThrottled: %s", err)
+			log.Debugf("Cgroup cpuNrThrottled: %s", err)
 			continue
 		}
 		container.IO, err = cgroup.IO()
 		if err != nil {
-			log.Debugf("cgroup i/o: %s", err)
+			log.Debugf("Cgroup i/o: %s", err)
 			continue
 		}
 
@@ -342,7 +342,7 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 			if ok && len(cgroup.Pids) > 0 {
 				netStat, err := collectNetworkStats(cgroup.ContainerID, int(cgroup.Pids[0]), networks)
 				if err != nil {
-					log.Debugf("could not collect network stats for container %s: %s", container.ID, err)
+					log.Debugf("Could not collect network stats for container %s: %s", container.ID, err)
 					continue
 				}
 				container.Network = netStat
@@ -353,7 +353,7 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 
 		startedAt, err := cgroup.ContainerStartTime()
 		if err != nil {
-			log.Debugf("failed to get container start time: %s", err)
+			log.Debugf("Failed to get container start time: %s", err)
 			continue
 		}
 		container.StartedAt = startedAt
@@ -361,6 +361,7 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 
 		newContainers = append(newContainers, container)
 	}
+
 	return newContainers, nil
 }
 
@@ -422,31 +423,28 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, error) {
 	cacheKey := GetInspectCacheKey(id, withSize)
 	var container types.ContainerJSON
-	var err error
-	var ok bool
 
 	cached, hit := cache.Cache.Get(cacheKey)
 	if hit {
-		container, ok = cached.(types.ContainerJSON)
+		container, ok := cached.(types.ContainerJSON)
 		if !ok {
 			log.Errorf("Invalid inspect cache format, forcing a cache miss")
-			hit = false
+		} else {
+			return container, nil
 		}
 	}
-	if !hit {
-		container, _, err = d.cli.ContainerInspectWithRaw(context.Background(), id, withSize)
-		if err != nil {
-			return container, err
-		}
-		// ContainerJSONBase is a pointer embed, so it might be nil and cause segfaults
-		if container.ContainerJSONBase == nil {
-			return container, errors.New("invalid inspect data")
-		}
-		// cache the inspect for 10 seconds to reduce pressure on the daemon
-		cache.Cache.Set(cacheKey, container, 10*time.Second)
+	container, _, err := d.cli.ContainerInspectWithRaw(context.Background(), id, withSize)
+	if err != nil {
+		return container, err
 	}
+	// ContainerJSONBase is a pointer embed, so it might be nil and cause segfaults
+	if container.ContainerJSONBase == nil {
+		return container, errors.New("invalid inspect data")
+	}
+	// cache the inspect for 10 seconds to reduce pressure on the daemon
+	cache.Cache.Set(cacheKey, container, 10*time.Second)
 
-	return container, err
+	return container, nil
 }
 
 // Inspect detect the container ID we are running in and returns the inspect contents.
