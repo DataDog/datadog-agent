@@ -38,6 +38,7 @@ func getWhitelistedEnvvars() []string {
 		for _, prefix := range envvarPrefixWhitelist {
 			if strings.HasPrefix(envvar, prefix) {
 				vars = append(vars, envvar)
+				continue
 			}
 		}
 	}
