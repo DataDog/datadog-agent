@@ -15,7 +15,8 @@ open an issue or submit a Pull Request.
 * [APM agent](#apm-agent)
 * [Process agent](#process-agent)
 * [Python Modules](#python-modules)
-* [Kubernetes support](#kubernetes-support)
+* [Docker](#docker-check)
+* [Kubernetes](#kubernetes-support)
 * [JMX](#jmx)
 * [GUI](#gui)
 
@@ -227,57 +228,52 @@ file for an example configuration file.
 
 We're working on merging these configuration options into the main `datadog.yaml` file.
 
-### Docker check
+## Docker check
 
-The Docker check is being rewritten in Go to take advantage of the new
+The Docker check has been rewritten in Go to take advantage of the new
 internal architecture of the Agent, mainly bringing a consistent behaviour
 across every container related component. Therefore the Python version will
-never work within Agent 6. The rewrite is not yet finished, but the new
-`docker` check offers basic functionalities.
+never work within Agent 6.
 
-The new check is named `docker` and no longer `docker_daemon`.
+* The new check is named `docker` and no longer `docker_daemon`. All features
+are ported, excepted the following deprecations:
 
-For now we support a subset of metrics, docker events and `docker.status`
-service check. Look into
-[`docker.yaml.example`](/pkg/collector/dist/conf.d/docker.yaml.example) for
-more information.
-
-Main changes:
+  * the `url`, `api_version` and `tags*` options are deprecated, direct use of the
+    [standard docker environment variables](https://docs.docker.com/engine/reference/commandline/cli/#environment-variables) is encouraged
+  * the `ecs_tags`, `performance_tags` and `container_tags` options are deprecated. Every
+    relevant tag is now collected by default
+  * the `collect_container_count` option to enable the `docker.container.count` metric
+    is not supported. `docker.containers.running` and `.stopped` are to be used
 
 * Some options have moved from `docker_daemon.yaml` to the main `datadog.yaml`:
-  * `docker_root` option has been split in two options `container_cgroup_root`
-    and `container_proc_root`.
-  * `exclude` and `include` list have been renamed `ac_include` and
-    `ac_exclude`. They will impact every container-related component of the
-    agent. Those only lists supports image name and container name (instead of
-    any tags).
-  * `exclude_pause_container` has been added to exclude pause containers on
-    Kubernetes and Openshift(default to true). This will avoid users removing
-    them from the exclude list by error.
   * `collect_labels_as_tags` has been renamed `docker_labels_as_tags` and now
-    supports high cardinality tags
+    supports high cardinality tags, see the details in `datadog.yaml.example`
+  * `exclude` and `include` lists have been renamed `ac_include` and
+    `ac_exclude`. In order to make filtering consistent accross all components of
+    the agent, we had to drop filtering on arbitrary tags. The only supported
+    filtering tags are `image` (image name) and `name` (container name).
+    Regexp filtering is still available, see `datadog.yaml.example` for examples
+  * `docker_root` option has been split in two options `container_cgroup_root`
+    and `container_proc_root`
+  * `exclude_pause_container` has been added to exclude pause containers on
+    Kubernetes and Openshift (default to true). This will avoid removing
+    them from the exclude list by error
 
 The [`import`](#configuration-files) command support a `--docker` flag to convert the old
 `docker_daemon.yaml` to the new `docker.yaml`. The command will also move
 needed settings from `docker_daemon.yaml` to `datadog.yaml`.
 
-## Python Modules
-
-While we are continuing to ship the python libraries that shipped with Agent 5,
-some of the embedded libraries have been removed. `util.py` and its associated
-functions have been removed from the agent. `util.headers(...)` is still included
-in the agent, but implemented in C and Go and passed through to the check.
-
-**Note:** all the official integrations have had these obsolete modules removed
-from them, so these changes will only affect custom checks.
-
-Much of the `utils` directory has been removed from the agent as well. However,
-most of what was removed was not diretly related to checks and wouldn't be imported
-in almost anyone's checks. The flare module, for example, was removed and
-reimplemented in Go, but is unlikely to have been used by anyone in a custom check.
-To learn more, you can read about the details in the [development documentation][python-dev].
-
 ## Kubernetes support
+
+### Kubernetes metrics and events
+
+We are still working on kubernetes integration, feature parity for the `kubernetes`
+check will be provided by combining:
+  * The (work-in-progress) `kubelet` check retrieving metrics from the kubelet
+  * The (work-in-progress) `kubernetes_apiserver` check retrieving events and
+  service checks from the apiserver
+
+Both are around the corner, but unfortunately are not yet ready for prime-time.
 
 ### Tagging
 
@@ -293,6 +289,22 @@ The following options and tags are deprecated:
      not systematically. Use the relevant creator tag (`kube_deployment` / `kube_daemon_set`...)
 
 The `kube_service` tagging depends on the `Datadog Cluster Agent`, which is not released yet.
+
+## Python Modules
+
+While we are continuing to ship the python libraries that ship with Agent 5,
+some of the embedded libraries have been removed. `util.py` and its associated
+functions have been removed from the agent. `util.headers(...)` is still included
+in the agent, but implemented in C and Go and passed through to the check.
+
+**Note:** all the official integrations have had these obsolete modules removed
+from them, so these changes will only affect custom checks.
+
+Much of the `utils` directory has been removed from the agent as well. However,
+most of what was removed was not diretly related to checks and wouldn't be imported
+in almost anyone's checks. The flare module, for example, was removed and
+reimplemented in Go, but is unlikely to have been used by anyone in a custom check.
+To learn more, you can read about the details in the [development documentation][python-dev].
 
 ## JMX
 
