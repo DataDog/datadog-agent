@@ -303,6 +303,39 @@ func (suite *KubeletTestSuite) TestHostnameProvider() {
 	}
 }
 
+func (suite *KubeletTestSuite) TestPodlistCache() {
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
+
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	<-kubelet.Requests // Throwing away first GET
+
+	kubeutil.GetLocalPodList()
+	<-kubelet.Requests
+
+	// The request should be cached now
+	kubeutil.GetLocalPodList()
+	select {
+	case <-kubelet.Requests:
+		assert.FailNow(suite.T(), "podlist request should have been cached")
+	default:
+		// Cache working as expected
+	}
+
+	// test successful cache wipe
+	ResetCache()
+	kubeutil.GetLocalPodList()
+	<-kubelet.Requests
+}
+
 func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
 	require.Nil(suite.T(), err)
@@ -320,7 +353,7 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 
 	// Empty container ID
 	pod, err := kubeutil.GetPodForContainerID("")
-	// The /pods request is still cached
+	<-kubelet.Requests // cache the first /pods request
 	require.Nil(suite.T(), pod)
 	require.NotNil(suite.T(), err)
 	require.Contains(suite.T(), err.Error(), "containerID is empty")
