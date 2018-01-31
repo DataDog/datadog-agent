@@ -197,7 +197,15 @@ shared_examples_for "an installed Agent" do
 
   it 'is properly signed' do
     if os == :windows
-      msi_path = 'C:\\Users\\azure\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi'
+      msi_path_base = 'C:\\Users\\'
+      msi_path_end = '\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi'
+      msi_path_azure = msi_path_base + 'azure' + msi_path_end
+      msi_path_datadog = msi_path_base + 'datadog' + msi_path_end
+      if File.exist?(msi_path_azure)
+        msi_path = msi_path_azure
+      else
+        msi_path = msi_path_datadog
+      end
       output = `powershell -command "get-authenticodesignature #{msi_path}"`
       signature_hash = "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C"
       expect(output).to include(signature_hash)
