@@ -31,7 +31,7 @@ import (
 var globalApiClient *APIClient
 
 const (
-	configMapDCAToken = "configmapdcatoken"
+	configMapDCAToken = "datadogtoken"
 	defaultNamespace  = "default"
 	tokenTime         = "tokenTimestamp"
 	tokenKey          = "tokenKey"
@@ -246,7 +246,7 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 	return c.client.CoreV1().ListComponentStatuses(ctx)
 }
 
-// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap configMapDCAToken if its timestamp is less than tokenTimeout old.
+// GetTokenFromConfigmap returns the value of the `tokenValue` from the `tokenKey` in the ConfigMap `configMapDCAToken` if its timestamp is less than tokenTimeout old.
 func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()

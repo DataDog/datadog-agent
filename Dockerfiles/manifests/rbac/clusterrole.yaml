@@ -11,6 +11,7 @@ rules:
   - endpoints
   - pods
   - nodes
+  - componentstatuses
   verbs:
   - get
   - list
@@ -20,7 +21,7 @@ rules:
   resources:
   - configmaps
   resourceNames:
-  - configmapdatadogtoken
+  - datadogtoken
   verbs:
   - get
   - update

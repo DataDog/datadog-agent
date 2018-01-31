@@ -98,10 +98,12 @@ To deploy the Agent in your Kubernetes cluster, you can use the manifest in mani
 Make sure you have the correct RBAC in place. You can use the files in manifest/rbac that contain the minimal requirements to collect events and perform the leader election.
 `kubectl create -f manifest/rbac`
 
-If you want the event collection to be resilient, you can create a ConfigMap `configmapdatadogtoken` that agents will use to save and share a state reflecting which events where pulled last.
+If you want the event collection to be resilient, you can create a ConfigMap `datadogtoken` that agents will use to save and share a state reflecting which events where pulled last.
 To create such a ConfigMap, you can use the following command:
 `kubectl create -f manifest/datadog_configmap.yaml`
 See details in [Event Collection](#event-collection).
+
+The agent also needs the right to `list` the `componentstatuses` resource, in order to submit service checks for the Controle Plane's components status.
 
 ### Event Collection
 <a name="event-collection"></a>
@@ -109,11 +111,11 @@ Similarly to the Agent 5, the Agent 6 can collect events from the Kubernetes API
 First and foremost, you need to set the `collect_kubernetes_events` variable to true in the datadog.yaml, this can be achieved via the environment variable `DD_COLLECT_KUBERNETES_EVENTS` that is resolved at start time.
 You will need to allow the agent to be allowed to perform a few actions:
 
-- `get` and `update` of the `Configmaps` named `configmapdatadogtoken` to update and query the most up to date version token corresponding to the latest event stored in ETCD.
+- `get` and `update` of the `Configmaps` named `datadogtoken` to update and query the most up to date version token corresponding to the latest event stored in ETCD.
 - `list` and `watch` of the `Events` to pull the events from the API Server, format and submit them.
 
 
-The ConfigMap to store the `event.tokenKey` and the `event.tokenTimestamp` has to be deployed in the `default` namespace and be named `configmapdatadogtoken`
-One can simply run `kubectl create configmap configmapdatadogtoken --from-literal="event.tokenKey"="0"` .
+The ConfigMap to store the `event.tokenKey` and the `event.tokenTimestamp` has to be deployed in the `default` namespace and be named `datadogtoken`
+One can simply run `kubectl create configmap datadogtoken --from-literal="event.tokenKey"="0"` .
 
 When the ConfigMap is not used, if the agent in charge (via the leader election) of collecting the events dies the  next leader elected will pull all the events from the API server's cache  which could result in duplicates.

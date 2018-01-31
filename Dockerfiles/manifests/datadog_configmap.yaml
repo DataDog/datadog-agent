@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: configmapdatadogtoken
+  name: datadogtoken
   namespace: default
 data:
-  event.tokenKey: "0" 
+  event.tokenKey: "0"
