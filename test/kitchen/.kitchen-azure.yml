@@ -106,6 +106,8 @@ platforms:
     location: <%= location %>
     <% if windows %>
     vm_name: ddat<%= platform[0] %>
+    username: datadog
+    password: <%= ENV['SERVER_PASSWORD'] %>
     <% else %>
     vm_name: dd-agent-testing-<%= platform[0] %>-azure
     <% end %>
