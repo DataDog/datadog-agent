@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/leaderelection"
+
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -20,6 +22,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s/api/v1"
 	yaml "gopkg.in/yaml.v2"
+	"os"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
@@ -71,13 +74,25 @@ func (k *KubeASCheck) Run() error {
 	if err != nil {
 		return err
 	}
-
 	asclient, err := apiserver.GetAPIClient()
+
 
 	if err != nil {
 		log.Errorf("could not connect to apiserver: %s", err)
 		return err
 	}
+	leaderName := leaderelection.GetLeader()
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Error("Can't fetch OS hostname, Kubernetes check will fail")
+		return err
+	}
+
+	if leaderName != hostname {
+		errNotLeader := errors.New(fmt.Sprintf("%s is not the leader, not running Kubernetes cluster related checks and collecting events",hostname))
+		return errNotLeader
+	}
+	log.Debugf("%s is the Leader, running Kubernetes cluster related checks and collecting events")
 
 	componentsStatus, err := asclient.ComponentStatuses()
 	if err != nil {

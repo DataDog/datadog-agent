@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/leaderelection"
 )
 
 var (
@@ -121,6 +122,11 @@ func (c *APIClient) connect() error {
 		return nil
 	}
 	c.startServiceMapping()
+	err = leaderelection.StartLeaderelection()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
