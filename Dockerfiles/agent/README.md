@@ -115,7 +115,4 @@ You will need to allow the agent to be allowed to perform a few actions:
 The ConfigMap to store the `event.tokenKey` and the `event.tokenTimestamp` has to be deployed in the `default` namespace and be named `configmapdatadogtoken`
 One can simply run `kubectl create configmap configmapdatadogtoken --from-literal="event.tokenKey"="0"` .
 
-NB: you can set any resversion here, make sure it's **not** set to a value superior to the actual curent resversion.
-You can also set the `event.tokenTimestamp`, if not present, it will be automatically set.
-
 When the ConfigMap is not used, if the agent in charge (via the leader election) of collecting the events dies the  next leader elected will pull all the events from the API server's cache  which could result in duplicates.
