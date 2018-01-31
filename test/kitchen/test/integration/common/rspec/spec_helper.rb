@@ -197,6 +197,8 @@ shared_examples_for "an installed Agent" do
 
   it 'is properly signed' do
     if os == :windows
+      # The user in the yaml file is "datadog", however the default test kitchen user is azure.
+      # This allows either to be used without changing the test. 
       msi_path_base = 'C:\\Users\\'
       msi_path_end = '\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi'
       msi_path_azure = msi_path_base + 'azure' + msi_path_end
