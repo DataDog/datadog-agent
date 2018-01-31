@@ -141,8 +141,14 @@ metadata_collectors:
 {{- if .JMX }}
 # JMX
 #
+# If you require custom jars to be loaded for JMX checks, you can set their paths here
+# instead of setting them in the checks' custom_jar_paths option
+# jmx_custom_jars:
+#   - /jmx-jars/jboss-cli-client.jar
+#
 # jmx_pipe_path:
 # jmx_pipe_name: dd-auto_discovery
+#
 {{ end -}}
 {{- if .Autoconfig }}
 # Autoconfig

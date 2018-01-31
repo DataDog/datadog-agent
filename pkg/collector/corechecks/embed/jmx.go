@@ -18,12 +18,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	log "github.com/cihub/seelog"
+	yaml "gopkg.in/yaml.v2"
+
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
-	log "github.com/cihub/seelog"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -244,6 +245,12 @@ func (c *JMXCheck) start() error {
 	if c.javaToolsJarPath != "" {
 		classpath = fmt.Sprintf("%s:%s", c.javaToolsJarPath, classpath)
 	}
+
+	globalCustomJars := config.Datadog.GetStringSlice("jmx_custom_jars")
+	if len(globalCustomJars) > 0 {
+		classpath = fmt.Sprintf("%s:%s", strings.Join(globalCustomJars, ":"), classpath)
+	}
+
 	if len(c.javaCustomJarPaths) > 0 {
 		classpath = fmt.Sprintf("%s:%s", strings.Join(c.javaCustomJarPaths, ":"), classpath)
 	}
