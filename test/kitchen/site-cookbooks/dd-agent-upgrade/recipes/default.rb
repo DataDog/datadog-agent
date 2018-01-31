@@ -105,17 +105,10 @@ if node['platform_family'] == 'windows'
     retry_delay package_retry_delay unless package_retry_delay.nil?
   end
 
-  # Install the package
-  windows_package 'Datadog Agent' do # ~FC009
-    source temp_file
-    installer_type installer_type
-    options install_options
-    action :install
-    if respond_to?(:returns)
-      returns [0, 3010]
-    else
-      success_codes [0, 3010]
-    end
+  execute "install-agent" do
+    command "start /wait #{temp_file} #{install_options}"
+    action :run
     notifies :restart, 'service[datadog-agent]'
   end
+
 end
