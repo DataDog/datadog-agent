@@ -18,27 +18,20 @@ import (
 // A Processor updates messages from an inputChan and pushes
 // in an outputChan
 type Processor struct {
-	inputChan    chan message.Message
-	outputChan   chan message.Message
-	apikey       string
-	logset       string
-	apikeyString []byte
+	inputChan  chan message.Message
+	outputChan chan message.Message
+	apiKey     []byte
 }
 
 // New returns an initialized Processor
-func New(inputChan, outputChan chan message.Message, apikey, logset string) *Processor {
-	var apikeyString string
+func New(inputChan, outputChan chan message.Message, apiKey, logset string) *Processor {
 	if logset != "" {
-		apikeyString = fmt.Sprintf("%s/%s", apikey, logset)
-	} else {
-		apikeyString = fmt.Sprintf("%s", apikey)
+		apiKey = fmt.Sprintf("%s/%s", apiKey, logset)
 	}
 	return &Processor{
-		inputChan:    inputChan,
-		outputChan:   outputChan,
-		apikey:       apikey,
-		logset:       logset,
-		apikeyString: []byte(apikeyString),
+		inputChan:  inputChan,
+		outputChan: outputChan,
+		apiKey:     []byte(apiKey),
 	}
 }
 
@@ -52,9 +45,9 @@ func (p *Processor) run() {
 	for msg := range p.inputChan {
 		shouldProcess, redactedMessage := p.applyRedactingRules(msg)
 		if shouldProcess {
+			apiKey := p.apiKey
 			extraContent := p.computeExtraContent(msg)
-			apikeyString := p.computeAPIKeyString(msg)
-			payload := p.buildPayload(apikeyString, redactedMessage, extraContent)
+			payload := p.buildPayload(apiKey, redactedMessage, extraContent)
 			msg.SetContent(payload)
 			p.outputChan <- msg
 		}
@@ -121,17 +114,9 @@ func (p *Processor) computeExtraContent(msg message.Message) []byte {
 	return nil
 }
 
-func (p *Processor) computeAPIKeyString(msg message.Message) []byte {
-	sourceLogset := msg.GetOrigin().LogSource.Config.Logset
-	if sourceLogset != "" {
-		return []byte(fmt.Sprintf("%s/%s", p.apikey, sourceLogset))
-	}
-	return p.apikeyString
-}
-
 // buildPayload returns a processed payload from a raw message
-func (p *Processor) buildPayload(apikeyString, redactedMessage, extraContent []byte) []byte {
-	payload := append(apikeyString, ' ')
+func (p *Processor) buildPayload(apiKey, redactedMessage, extraContent []byte) []byte {
+	payload := append(apiKey, ' ')
 	if extraContent != nil {
 		payload = append(payload, extraContent...)
 	}
