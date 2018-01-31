@@ -168,7 +168,7 @@ func init() {
 	BindEnvAndSetDefault("apm_enabled", true) // this is to support the transition to the new config file
 
 	// JMXFetch
-	Datadog.SetDefault("jmx_custom_jars", []string)
+	Datadog.SetDefault("jmx_custom_jars", []string{})
 
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
