@@ -98,8 +98,9 @@ To deploy the Agent in your Kubernetes cluster, you can use the manifest in mani
 Make sure you have the correct RBAC in place. You can use the files in manifest/rbac that contain the minimal requirements to collect events and perform the leader election.
 `kubectl create -f manifest/rbac`
 
-If you want the event collection to be resilient, please create a ConfigMap as follows:
-`kubectl create configmap configmapdatadogtoken --from-literal="event.tokenKey"="0"`
+If you want the event collection to be resilient, you can create a ConfigMap `configmapdatadogtoken` that agents will use to save and share a state reflecting which events where pulled last.
+To create such a ConfigMap, you can use the following command:
+`kubectl create -f manifest/datadog_configmap.yaml`
 See details in [Event Collection](#event-collection).
 
 ### Event Collection
