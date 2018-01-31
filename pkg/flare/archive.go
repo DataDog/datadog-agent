@@ -82,6 +82,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		return "", err
 	}
 
+	err = zipEnvvars(zipFile, hostname)
+	if err != nil {
+		return "", err
+	}
+
 	if config.IsContainerized() {
 		err = zipDockerSelfInspect(zipFile, hostname)
 		if err != nil {
