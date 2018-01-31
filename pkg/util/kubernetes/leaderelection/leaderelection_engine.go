@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/golang/glog"
+	log "github.com/cihub/seelog"
 
 	ld "k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -93,7 +93,7 @@ func NewElection(electionId, id, namespace string, ttl time.Duration, callback f
 		OnStoppedLeading: func() {
 			leader, _, err := getCurrentLeader(electionId, namespace, c)
 			if err != nil {
-				glog.Errorf("failed to get leader: %v", err)
+				log.Errorf("failed to get leader: %v", err)
 				// empty string means leader is unknown
 				callback("")
 				return

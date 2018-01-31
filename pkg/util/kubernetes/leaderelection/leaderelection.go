@@ -30,6 +30,7 @@ func getClient() (*corev1.CoreV1Client, error){
 	config.Insecure = true
 
 	if err != nil {
+		log.Debug("Can't create official client")
 		return nil, err
 	}
 	coreClient, err := corev1.NewForConfig(config)
