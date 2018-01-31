@@ -58,6 +58,9 @@ build do
             # cleanup clutter
             delete "#{install_dir}/etc"
         elsif osx?
+            # Remove linux specific configs
+            delete "#{install_dir}/etc/conf.d/file_handle.d"
+
             # Nothing to move on osx, the confs already live in /opt/datadog-agent/etc/
         end
     end
