@@ -41,6 +41,7 @@ var (
 		"sd_backend_password",
 		"sd_template_dir",
 		"consul_token",
+		"jmx_custom_jars",
 		"use_dogstatsd",
 		"dogstatsd_port",
 		"statsd_metric_namespace",
