@@ -13,7 +13,7 @@ The following environment variables are supported:
 - `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
 - `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
 - `DD_LOG_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
-
+- `DD_COLLECT_KUBERNETES_EVENTS`: Configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
 Example usage: `docker run -e DD_API_KEY=your-api-key-here -it <image-name>`
 
 For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/agent/)
@@ -90,3 +90,32 @@ logs:
      sourcecategory: sourcecode
 ```
 For more examples of configuration files or agent capabilities (such as filtering, redacting, multiline, …) read [this documentation](https://docs.datadoghq.com/logs/#filter-logs).
+
+### Kubernetes
+
+To deploy the Agent in your Kubernetes cluster, you can use the manifest in manifests/agent.yaml.
+`kubectl create -f manifest/agent.yaml`
+Make sure you have the correct RBAC in place. You can use the files in manifest/rbac that contain the minimal requirements to collect events and perform the leader election.
+`kubectl create -f manifest/rbac`
+
+If you want the event collection to be resilient, you can create a ConfigMap `datadogtoken` that agents will use to save and share a state reflecting which events where pulled last.
+To create such a ConfigMap, you can use the following command:
+`kubectl create -f manifest/datadog_configmap.yaml`
+See details in [Event Collection](#event-collection).
+
+The agent also needs the right to `list` the `componentstatuses` resource, in order to submit service checks for the Controle Plane's components status.
+
+### Event Collection
+<a name="event-collection"></a>
+Similarly to the Agent 5, the Agent 6 can collect events from the Kubernetes API server.
+First and foremost, you need to set the `collect_kubernetes_events` variable to true in the datadog.yaml, this can be achieved via the environment variable `DD_COLLECT_KUBERNETES_EVENTS` that is resolved at start time.
+You will need to allow the agent to be allowed to perform a few actions:
+
+- `get` and `update` of the `Configmaps` named `datadogtoken` to update and query the most up to date version token corresponding to the latest event stored in ETCD.
+- `list` and `watch` of the `Events` to pull the events from the API Server, format and submit them.
+
+
+The ConfigMap to store the `event.tokenKey` and the `event.tokenTimestamp` has to be deployed in the `default` namespace and be named `datadogtoken`
+One can simply run `kubectl create configmap datadogtoken --from-literal="event.tokenKey"="0"` .
+
+When the ConfigMap is not used, if the agent in charge (via the leader election) of collecting the events dies the  next leader elected will pull all the events from the API server's cache  which could result in duplicates.
