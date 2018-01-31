@@ -50,14 +50,18 @@ func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error)
 // Pull triggers a podlist refresh and sends new info. It also triggers
 // container deletion computation every 'expireFreq'
 func (c *KubeletCollector) Pull() error {
-	// TODO waiting for DCA
-	doServiceMapping()
-
 	// Compute new/updated pods
 	updatedPods, err := c.watcher.PullChanges()
 	if err != nil {
 		return err
 	}
+
+	// TODO remove when we have the DCA
+	podList, err := c.watcher.ForceGetLocalPodList()
+	if err == nil {
+		doServiceMapping(podList)
+	}
+
 	updates, err := c.parsePods(updatedPods)
 	if err != nil {
 		return err
@@ -91,14 +95,17 @@ func (c *KubeletCollector) Fetch(container string) ([]string, []string, error) {
 		return []string{}, []string{}, err
 	}
 
-	// TODO waiting for DCA
-	doServiceMapping()
-
 	updates, err := c.parsePods([]*kubelet.Pod{pod})
 	if err != nil {
 		return []string{}, []string{}, err
 	}
 	c.infoOut <- updates
+
+	// TODO remove when we have the DCA
+	podList, err := c.watcher.ForceGetLocalPodList()
+	if err == nil {
+		doServiceMapping(podList)
+	}
 
 	for _, info := range updates {
 		if info.Entity == container {

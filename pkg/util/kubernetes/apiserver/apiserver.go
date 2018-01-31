@@ -20,6 +20,7 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s"
 	"github.com/ericchiang/k8s/api/v1"
+	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -34,12 +35,13 @@ var (
 )
 
 const (
-	configMapDCAToken = "datadogtoken"
-	defaultNamespace  = "default"
-	tokenTime         = "tokenTimestamp"
-	tokenKey          = "tokenKey"
-	servicesPollIntl  = 20 * time.Second
-	serviceMapExpire  = 5 * time.Minute
+	configMapDCAToken        = "datadogtoken"
+	defaultNamespace         = "default"
+	tokenTime                = "tokenTimestamp"
+	tokenKey                 = "tokenKey"
+	servicesPollIntl         = 20 * time.Second
+	serviceMapExpire         = 5 * time.Minute
+	serviceMapperCachePrefix = "KubernetesServiceMapping"
 )
 
 // ApiClient provides authenticated access to the
@@ -135,36 +137,12 @@ func newServiceMapperBundle() *ServiceMapperBundle {
 	}
 }
 
-// FetchAndStoreServiceMapping queries the Kubernetes apiserver to get the following resources:
-// - node(s), let nodeName as "" to get all nodes (TODO remove when we have the DCA)
-// - all endpoints of all namespaces
-// - all pods of all namespaces
-// Then it stores in cache the ServiceMapperBundle of each node.
-func (c *APIClient) FetchAndStoreServiceMapping(nodeName string) error {
-	var err error
-	// The timeout for the context is the same as the poll frequency.
-	// We use a new context at each run, to recover if we can't access the API server temporarily.
-	// A poll run should take less than the poll frequency.
+// NodeServiceMapping only fetch the endpoints from Kubernetes apiserver and add the serviceMapper of the
+// node to the cache
+// TODO remove when the DCA is here
+func (c *APIClient) NodeServiceMapping(nodeName string, podList *v1.PodList) error {
 	ctx, cancel := context.WithTimeout(context.Background(), servicesPollIntl)
 	defer cancel()
-
-	var nodeList *v1.NodeList
-	// TODO remove the else part when we have the DCA
-	if nodeName == "" {
-		// We fetch nodes to reliably use nodename as key in the cache. Avoiding to retrieve them from the endpoints/pods.
-		nodeList, err = c.client.CoreV1().ListNodes(ctx)
-		if err != nil {
-			log.Errorf("Could not collect all nodes from the API Server: %q", err.Error())
-			return err
-		}
-	} else {
-		oneNode, err := c.client.CoreV1().GetNode(ctx, nodeName)
-		if err != nil {
-			log.Errorf("Could not collect node %s from the API Server: %q", nodeName, err.Error())
-			return err
-		}
-		nodeList = &v1.NodeList{Items: []*v1.Node{oneNode}}
-	}
 
 	endpointList, err := c.client.CoreV1().ListEndpoints(ctx, "")
 	if err != nil {
@@ -172,29 +150,89 @@ func (c *APIClient) FetchAndStoreServiceMapping(nodeName string) error {
 		return err
 	}
 	if endpointList.Items == nil {
-		log.Debug("No services collected from the API server")
+		log.Debug("No endpoints collected from the API server")
+		return nil
+	}
+	log.Debugf("Successfully collected endpoints")
+
+	node := &v1.Node{Metadata: &metav1.ObjectMeta{Name: &nodeName}}
+	nodeList := &v1.NodeList{
+		Items: []*v1.Node{
+			node,
+		},
+	}
+	processKubeResources(nodeList, podList, endpointList)
+	return nil
+}
+
+// ClusterServiceMapping queries the Kubernetes apiserver to get the following resources:
+// - all nodes
+// - all endpoints of all namespaces
+// - all pods of all namespaces
+// Then it stores in cache the ServiceMapperBundle of each node.
+func (c *APIClient) ClusterServiceMapping() error {
+	// The timeout for the context is the same as the poll frequency.
+	// We use a new context at each run, to recover if we can't access the API server temporarily.
+	// A poll run should take less than the poll frequency.
+	ctx, cancel := context.WithTimeout(context.Background(), servicesPollIntl)
+	defer cancel()
+
+	// We fetch nodes to reliably use nodename as key in the cache.
+	// Avoiding to retrieve them from the endpoints/podList.
+	nodeList, err := c.client.CoreV1().ListNodes(ctx)
+	if err != nil {
+		log.Errorf("Could not collect nodes from the kube-apiserver: %q", err.Error())
 		return err
 	}
-	pods, err := c.client.CoreV1().ListPods(ctx, k8s.AllNamespaces)
-	if err != nil {
-		log.Errorf("Could not collect pods from the API Server: %q", err.Error())
-		return err
+	if nodeList.Items == nil {
+		log.Debug("No node collected from the kube-apiserver")
+		return nil
 	}
 
+	endpointList, err := c.client.CoreV1().ListEndpoints(ctx, k8s.AllNamespaces)
+	if err != nil {
+		log.Errorf("Could not collect endpoints from the kube-apiserver: %q", err.Error())
+		return err
+	}
+	if endpointList.Items == nil {
+		log.Debug("No endpoint collected from the kube-apiserver")
+		return nil
+	}
+
+	podList, err := c.client.CoreV1().ListPods(ctx, k8s.AllNamespaces)
+	if err != nil {
+		log.Errorf("Could not collect pods from the kube-apiserver: %q", err.Error())
+		return err
+	}
+	if podList.Items == nil {
+		log.Debug("No pod collected from the kube-apiserver")
+		return nil
+	}
+
+	processKubeResources(nodeList, podList, endpointList)
+	return nil
+}
+
+// processKubeResources add to cache the serviceMapper, pointer parameters must be non nil
+func processKubeResources(nodeList *v1.NodeList, podList *v1.PodList, endpointList *v1.EndpointsList) {
+	if nodeList.Items == nil || podList.Items == nil || endpointList.Items == nil {
+		return
+	}
+	log.Debugf("%d node, %d pod, %d endpoints", len(nodeList.Items), len(podList.Items), len(endpointList.Items))
 	for _, node := range nodeList.Items {
 		nodeName := *node.Metadata.Name
-		smb, found := cache.Cache.Get(nodeName)
+		nodeNameCacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
+		smb, found := cache.Cache.Get(nodeNameCacheKey)
 		if !found {
 			smb = newServiceMapperBundle()
 		}
-		err := smb.(*ServiceMapperBundle).mapServices(nodeName, *pods, *endpointList)
+		err := smb.(*ServiceMapperBundle).mapServices(nodeName, *podList, *endpointList)
 		if err != nil {
-			log.Errorf("Could not map the services: %s on node %s", err.Error(), nodeName)
+			log.Errorf("Could not map the services: %s on node %s", err.Error(), *node.Metadata.Name)
 			continue
 		}
-		cache.Cache.Set(nodeName, smb, serviceMapExpire)
+		cache.Cache.Set(nodeNameCacheKey, smb, serviceMapExpire)
 	}
-	return nil
 }
 
 // startServiceMapping is only called once, when we have confirmed we could correctly connect to the API server.
@@ -205,7 +243,7 @@ func (c *APIClient) startServiceMapping() {
 		for {
 			select {
 			case <-tickerSvcProcess.C:
-				c.FetchAndStoreServiceMapping("")
+				c.ClusterServiceMapping()
 			}
 		}
 	}()
@@ -251,7 +289,7 @@ func (c *APIClient) checkResourcesAuth() error {
 	return aggregateCheckResourcesErrors(errorMessages)
 }
 
-// ParseKubeConfig reads and unmarcshals a kubeconfig file
+// ParseKubeConfig reads and unmarshal a kubeconfig file
 // in an object ready to use. Exported for integration testing.
 func ParseKubeConfig(fpath string) (*k8s.Config, error) {
 	// TODO: support yaml too

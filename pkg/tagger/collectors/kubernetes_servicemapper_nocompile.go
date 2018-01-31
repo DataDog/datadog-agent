@@ -12,12 +12,12 @@ import (
 )
 
 // doServiceMapping TODO waiting for the DCA
-func doServiceMapping() {
+func doServiceMapping(interfaces ...interface{}) {
 	log.Error("nocompile package")
 }
 
 // doServiceMapping TODO waiting for the DCA
-func getPodServiceNames(nodeName, podName string) []string {
+func getPodServiceNames(interfaces ...interface{}) []string {
 	log.Error("nocompile package")
 	return nil
 }
