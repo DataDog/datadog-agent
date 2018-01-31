@@ -57,10 +57,7 @@ func (c *KubeletCollector) Pull() error {
 	}
 
 	// TODO remove when we have the DCA
-	podList, err := c.watcher.ForceGetLocalPodList()
-	if err == nil {
-		doServiceMapping(podList)
-	}
+	doServiceMapping(updatedPods)
 
 	updates, err := c.parsePods(updatedPods)
 	if err != nil {
@@ -94,18 +91,16 @@ func (c *KubeletCollector) Fetch(container string) ([]string, []string, error) {
 	if err != nil {
 		return []string{}, []string{}, err
 	}
+	podList := []*kubelet.Pod{pod}
 
-	updates, err := c.parsePods([]*kubelet.Pod{pod})
+	// TODO remove when we have the DCA
+	doServiceMapping(podList)
+
+	updates, err := c.parsePods(podList)
 	if err != nil {
 		return []string{}, []string{}, err
 	}
 	c.infoOut <- updates
-
-	// TODO remove when we have the DCA
-	podList, err := c.watcher.ForceGetLocalPodList()
-	if err == nil {
-		doServiceMapping(podList)
-	}
 
 	for _, info := range updates {
 		if info.Entity == container {

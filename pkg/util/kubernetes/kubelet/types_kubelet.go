@@ -65,6 +65,13 @@ type Status struct {
 	HostIP     string            `json:"hostIP,omitempty"`
 	PodIP      string            `json:"podIP,omitempty"`
 	Containers []ContainerStatus `json:"containerStatuses,omitempty"`
+	Conditions []Conditions      `json:"conditions,omitempty"`
+}
+
+// Conditions contains fields for unmarshalling a Pod.Status.Conditions
+type Conditions struct {
+	Type   string `json:"type,omitempty"`
+	Status string `json:"status,omitempty"`
 }
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers

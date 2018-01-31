@@ -51,9 +51,19 @@ func (w *PodWatcher) PullChanges() ([]*Pod, error) {
 }
 
 // ForceGetLocalPodList directly call the kubeutil ForceGetLocalPodList
-// Should bypass any cache
+// Refresh the cache
 func (w *PodWatcher) ForceGetLocalPodList() ([]*Pod, error) {
+	ResetCache()
 	return w.kubeUtil.GetLocalPodList()
+}
+
+func isPodReady(pod *Pod) bool {
+	for _, status := range pod.Status.Conditions {
+		if status.Type == "Ready" && status.Status == "True" {
+			return true
+		}
+	}
+	return false
 }
 
 // computeChanges is used by PullChanges, split for testing
@@ -64,6 +74,10 @@ func (w *PodWatcher) computeChanges(podlist []*Pod) ([]*Pod, error) {
 	w.Lock()
 	defer w.Unlock()
 	for _, pod := range podlist {
+		// Only process a ready pod
+		if isPodReady(pod) == false {
+			continue
+		}
 		// Detect new containers
 		newContainer := false
 		for _, container := range pod.Status.Containers {
@@ -76,7 +90,7 @@ func (w *PodWatcher) computeChanges(podlist []*Pod) ([]*Pod, error) {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
-	log.Debugf("found %d changed pods out of %d", len(updatedPods), len(podlist))
+	log.Debugf("Found %d changed pods out of %d", len(updatedPods), len(podlist))
 	return updatedPods, nil
 }
 
