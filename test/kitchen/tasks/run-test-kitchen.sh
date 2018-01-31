@@ -84,7 +84,7 @@ fi
 
 # Generate a password to use for the windows servers
 if [ -z ${SERVER_PASSWORD+x} ]; then
-  export SERVER_PASSWORD=$(date +%s | sha256sum | base64 | head -c 32 ; echo)
+  export SERVER_PASSWORD=$(< /dev/urandom tr -dc A-Za-z0-9 | head -c32)
 fi
 
 chef gem install net-ssh berkshelf rake psych:2.2.2 kitchen-azurerm:0.13.0 test-kitchen
