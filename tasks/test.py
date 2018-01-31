@@ -29,6 +29,10 @@ WIN_PKG_BLACKLIST = [
     "./pkg\\util\\kubernetes",
 ]
 
+NOTWIN_PKG_BLACKLIST = [
+    "./pkg/util/winutil",
+    "./pkg/util/winutil/pdhutil",
+]
 DEFAULT_TOOL_TARGETS = [
     "./pkg",
     "./cmd",
@@ -106,6 +110,10 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
     for match in matches:
         if invoke.platform.WINDOWS:
             if match in WIN_PKG_BLACKLIST:
+                print("Skipping blacklisted directory {}\n".format(match))
+                continue
+        else:
+            if match in NOTWIN_PKG_BLACKLIST:
                 print("Skipping blacklisted directory {}\n".format(match))
                 continue
 
