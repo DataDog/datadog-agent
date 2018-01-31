@@ -87,8 +87,11 @@ api_key:
 # Default is '5002' on Windows and macOS ; turned off on Linux
 # GUI_port: -1
 
-# How many workers will be used to run the check (if not specified, is automatically
-# determined based on number of checks running)
+
+# The Agent runs workers in parallel to execute checks. By default the number
+# of workers is automatically determined based on the number of checks running.
+# This optimizes checks collection time but might produce CPU spikes. You can
+# enforce a fix number of workers so less CPU is used.
 # check_runners: 4
 
 # Metadata collection should always be enabled, except if you are running several
