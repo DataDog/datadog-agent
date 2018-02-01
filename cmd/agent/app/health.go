@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -41,6 +42,10 @@ var healthCmd = &cobra.Command{
 }
 
 func requestHealth() error {
+	if flagNoColor {
+		color.NoColor = true
+	}
+
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/status/health", config.Datadog.GetInt("cmd_port"))
 
@@ -68,24 +73,25 @@ func requestHealth() error {
 		return fmt.Errorf("Error unmarshalling json: %s", err)
 	}
 
-	if healthVerbose {
+	if healthVerbose || len(s.Unhealthy) > 0 {
+		sort.Strings(s.Unhealthy)
+		sort.Strings(s.Healthy)
+
 		if len(s.Unhealthy) > 0 {
-			sort.Strings(s.Unhealthy)
-			fmt.Printf("Agent health: NOK\n")
-			fmt.Printf("\tUnhealthy: %s\n", strings.Join(s.Unhealthy, ", "))
+			fmt.Println(color.RedString("Agent health: FAIL"))
+			fmt.Println("=== Unhealthy components ===")
+			fmt.Println(strings.Join(s.Unhealthy, ", "))
 		} else {
-			fmt.Printf("Agent health: OK\n")
+			fmt.Println(color.GreenString("Agent health: PASS"))
 		}
 		if len(s.Healthy) > 0 {
-			sort.Strings(s.Healthy)
-			fmt.Printf("\tHealthy: %s\n", strings.Join(s.Healthy, ", "))
+			fmt.Println("=== Healthy components ===")
+			fmt.Println(strings.Join(s.Healthy, ", "))
 		}
-		fmt.Print("\n")
 	}
 
 	if len(s.Unhealthy) > 0 {
-		sort.Strings(s.Unhealthy)
-		return fmt.Errorf("found %d unhealthy components: %v", len(s.Unhealthy), strings.Join(s.Unhealthy, ", "))
+		return fmt.Errorf("found %d unhealthy components", len(s.Unhealthy))
 	}
 
 	return nil
