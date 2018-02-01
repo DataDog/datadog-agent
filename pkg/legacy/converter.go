@@ -124,23 +124,27 @@ func isAffirmative(value string) (bool, error) {
 	return v == "true" || v == "yes" || v == "1", nil
 }
 
-func buildProxySettings(agentConfig Config) (string, error) {
+func buildProxySettings(agentConfig Config) (map[string]string, error) {
 	proxyHost := agentConfig["proxy_host"]
+	
+	proxy_map := make(map[string]string)
+	scheme := true
 
 	if proxyHost == "" {
 		// this is expected, not an error
-		return "", nil
+		return nil, nil
 	}
 
 	var err error
 	var u *url.URL
 
 	if u, err = url.Parse(proxyHost); err != nil {
-		return "", fmt.Errorf("unable to import value of settings 'proxy_host': %v", err)
+		return nil, fmt.Errorf("unable to import value of settings 'proxy_host': %v", err)
 	}
 
 	// set scheme if missing
 	if u.Scheme == "" {
+		scheme = false
 		u, _ = url.Parse("http://" + proxyHost)
 	}
 
@@ -156,7 +160,14 @@ func buildProxySettings(agentConfig Config) (string, error) {
 		}
 	}
 
-	return u.String(), nil
+	if scheme {
+		proxy_map["https"] = u.String()		
+	} else {
+		proxy_map["http"] = u.String()
+	}
+
+	return proxy_map, nil
+
 }
 
 func buildSyslogURI(agentConfig Config) string {
