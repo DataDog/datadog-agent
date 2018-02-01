@@ -48,7 +48,8 @@ func NewFileProvider(sources []*config.LogSource, filesLimit int) *FileProvider 
 // they are just returned in alphabetical order
 func (r *FileProvider) FilesToTail() []*File {
 	filesToTail := []*File{}
-	for _, source := range r.sources {
+	for i := 0; i < len(r.sources) && len(filesToTail) < r.filesLimit; i++ {
+		source := r.sources[i]
 		// search all files matching pattern and append them all until filesLimit is reached
 		pattern := source.Config.Path
 		paths, err := filepath.Glob(pattern)
@@ -59,18 +60,18 @@ func (r *FileProvider) FilesToTail() []*File {
 			continue
 		}
 		if len(paths) == 0 {
-			err := fmt.Errorf("No file are matching pattern: %s", pattern)
-			source.Status.Error(err)
-			log.Error(err)
-			continue
+			// no file was found, appends a File with the path specified in source
+			filesToTail = append(filesToTail, NewFile(source.Config.Path, source))
 		}
-		for _, path := range paths {
-			if len(filesToTail) == r.filesLimit {
-				log.Warn("Reached the limit on the maximum number of files in use: ", r.filesLimit)
-				return filesToTail
-			}
+		for j := 0; j < len(paths) && len(filesToTail) < r.filesLimit; j++ {
+			path := paths[j]
 			filesToTail = append(filesToTail, NewFile(path, source))
 		}
 	}
+	if len(filesToTail) == r.filesLimit {
+		log.Warn("Reached the limit on the maximum number of files in use: ", r.filesLimit)
+		return filesToTail
+	}
+
 	return filesToTail
 }
