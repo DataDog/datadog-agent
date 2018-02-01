@@ -3,8 +3,6 @@ services:
   zk:
     image: "datadog/docker-library:zookeeper_${version}"
     network_mode: ${network_mode}
-    environment:
-      - ETCDCTL_API=3
     healthcheck:
       test: ["CMD", "echo", "srvr", "|", "nc", "localhost", "2180", "|", "grep", "Mode"]
       interval: 1s
