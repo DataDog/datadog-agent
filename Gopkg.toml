@@ -92,3 +92,7 @@
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
   version = "v1.10.33"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/lxn/win"

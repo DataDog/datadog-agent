@@ -337,6 +337,12 @@
   revision = "9d302b58e975387d0b4d9be876622c86cefe64be"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/lxn/win"
+  packages = ["."]
+  revision = "aaf8f59e531a7f484381fbc5453def0cffe9c526"
+
+[[projects]]
   name = "github.com/magiconair/properties"
   packages = ["."]
   revision = "51463bfca2576e06c62a8504b5c0f06d61312647"
@@ -558,6 +564,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "05d679bd9642db4d2078a16c9f4eb2b9f50de0387dc54c07adb99e4f38c0b088"
+  inputs-digest = "aa71cac4e8edd4c7bef396db630a9af0859f76b623fdeaba65da136be4bd0183"
   solver-name = "gps-cdcl"
   solver-version = 1
