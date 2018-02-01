@@ -200,7 +200,7 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), kubeutil)
-	<-kubelet.Requests // Throwing away first / GET
+	<-kubelet.Requests // Throwing away first GET
 
 	pods, err := kubeutil.GetLocalPodList()
 	require.Nil(suite.T(), err)
@@ -303,6 +303,39 @@ func (suite *KubeletTestSuite) TestHostnameProvider() {
 	}
 }
 
+func (suite *KubeletTestSuite) TestPodlistCache() {
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
+
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	<-kubelet.Requests // Throwing away first GET
+
+	kubeutil.GetLocalPodList()
+	<-kubelet.Requests
+
+	// The request should be cached now
+	kubeutil.GetLocalPodList()
+	select {
+	case <-kubelet.Requests:
+		assert.FailNow(suite.T(), "podlist request should have been cached")
+	default:
+		// Cache working as expected
+	}
+
+	// test successful cache wipe
+	ResetCache()
+	kubeutil.GetLocalPodList()
+	<-kubelet.Requests
+}
+
 func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
 	require.Nil(suite.T(), err)
@@ -320,21 +353,21 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 
 	// Empty container ID
 	pod, err := kubeutil.GetPodForContainerID("")
-	<-kubelet.Requests // Throwing away /pods GET
+	<-kubelet.Requests // cache the first /pods request
 	require.Nil(suite.T(), pod)
 	require.NotNil(suite.T(), err)
 	require.Contains(suite.T(), err.Error(), "containerID is empty")
 
 	// Invalid container ID
 	pod, err = kubeutil.GetPodForContainerID("invalid")
-	<-kubelet.Requests // Throwing away /pods GET
+	// The /pods request is still cached
 	require.Nil(suite.T(), pod)
 	require.NotNil(suite.T(), err)
 	require.Contains(suite.T(), err.Error(), "container invalid not found in podlist")
 
 	// Valid container ID
 	pod, err = kubeutil.GetPodForContainerID("docker://1ce04128b3cccd7de0ae383516c28e0fe35cbb093195a72661723bdc06934840")
-	<-kubelet.Requests // Throwing away /pods GET
+	// The /pods request is still cached
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pod)
 	require.Equal(suite.T(), pod.Metadata.Name, "kube-dns-1829567597-2xtct")

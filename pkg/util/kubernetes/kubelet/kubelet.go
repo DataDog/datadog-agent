@@ -20,6 +20,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -28,6 +29,7 @@ import (
 const (
 	kubeletPodPath         = "/pods"
 	authorizationHeaderKey = "Authorization"
+	podListCacheKey        = "KubeletPodListCacheKey"
 )
 
 var globalKubeUtil *KubeUtil
@@ -48,6 +50,11 @@ type KubeUtil struct {
 // It is ONLY to be used for tests
 func ResetGlobalKubeUtil() {
 	globalKubeUtil = nil
+}
+
+// ResetCache deletes existing kubeutil related cache
+func ResetCache() {
+	cache.Cache.Delete(podListCacheKey)
 }
 
 func newKubeUtil() *KubeUtil {
@@ -122,6 +129,18 @@ func (ku *KubeUtil) GetHostname() (string, error) {
 
 // GetLocalPodList returns the list of pods running on the node
 func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
+	var ok bool
+	pods := PodList{}
+
+	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
+		pods, ok = cached.(PodList)
+		if !ok {
+			log.Errorf("Invalid pod list cache format, forcing a cache miss")
+		} else {
+			return pods.Items, nil
+		}
+	}
+
 	data, code, err := ku.QueryKubelet(kubeletPodPath)
 	if err != nil {
 		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletApiEndpoint, kubeletPodPath, err)
@@ -130,12 +149,19 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletApiEndpoint, kubeletPodPath, string(data))
 	}
 
-	v := &PodList{}
-	err = json.Unmarshal(data, v)
+	err = json.Unmarshal(data, &pods)
 	if err != nil {
 		return nil, err
 	}
-	return v.Items, nil
+
+	// cache the podlist for 10 seconds to reduce pressure on the kubelet
+	cacheDuration := 10 * time.Second
+	if config.Datadog.GetBool("process_agent_enabled") {
+		cacheDuration = 2 * time.Second
+	}
+	cache.Cache.Set(podListCacheKey, pods, cacheDuration)
+
+	return pods.Items, nil
 }
 
 // GetPodForContainerID fetches the podlist and returns the pod running
