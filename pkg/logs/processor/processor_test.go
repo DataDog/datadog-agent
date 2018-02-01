@@ -29,7 +29,7 @@ func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) conf
 		Pattern:                 pattern,
 		Reg:                     regexp.MustCompile(pattern),
 	}
-	return config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.LogsProcessingRule{rule}, TagsPayload: []byte{'-'}}}
+	return config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.LogsProcessingRule{rule}}}
 }
 
 func newNetworkMessage(content []byte, source *config.LogSource) message.Message {
@@ -111,7 +111,7 @@ func TestExclusionWithInclusion(t *testing.T) {
 		Pattern: iPattern,
 		Reg:     regexp.MustCompile(iPattern),
 	}
-	source := config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.LogsProcessingRule{eRule, iRule}, TagsPayload: []byte{'-'}}}
+	source := config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.LogsProcessingRule{eRule, iRule}}}
 
 	shouldProcess, redactedMessage = p.applyRedactingRules(newNetworkMessage([]byte("bob@datadoghq.com"), &source))
 	assert.Equal(t, false, shouldProcess)

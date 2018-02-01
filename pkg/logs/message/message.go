@@ -89,7 +89,7 @@ func (m *message) GetTagsPayload() []byte {
 		return m.tagsPayload
 	}
 	if m.Origin != nil && m.Origin.LogSource != nil {
-		return m.Origin.LogSource.Config.TagsPayload
+		return []byte(m.Origin.LogSource.Config.Tags)
 	}
 	return nil
 }

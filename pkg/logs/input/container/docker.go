@@ -225,8 +225,7 @@ func (dt *DockerTailer) checkForNewDockerTags() {
 }
 
 func (dt *DockerTailer) buildTagsPayload() []byte {
-	tagsString := fmt.Sprintf("%s,%s", strings.Join(dt.containerTags, ","), dt.source.Config.Tags)
-	return config.BuildTagsPayload(tagsString, dt.source.Config.Source, dt.source.Config.SourceCategory)
+	return []byte(fmt.Sprintf("%s,%s", strings.Join(dt.containerTags, ","), dt.source.Config.Tags))
 }
 
 // wait lets the reader sleep for a bit
