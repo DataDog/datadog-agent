@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/leaderelection"
 
+	"os"
+
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -22,7 +24,6 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s/api/v1"
 	yaml "gopkg.in/yaml.v2"
-	"os"
 )
 
 // Covers the Control Plane service check and the in memory pod metadata.
@@ -74,25 +75,35 @@ func (k *KubeASCheck) Run() error {
 	if err != nil {
 		return err
 	}
+	// Only run if Leader Election is enabled.
+	if !config.Datadog.GetBool("leader_election") {
+		log.Error("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
+		return nil
+	}
+
 	asclient, err := apiserver.GetAPIClient()
-
-
 	if err != nil {
 		log.Errorf("could not connect to apiserver: %s", err)
 		return err
 	}
-	leaderName := leaderelection.GetLeader()
+
 	hostname, err := os.Hostname()
 	if err != nil {
-		log.Error("Can't fetch OS hostname, Kubernetes check will fail")
+		log.Error("Can't fetch OS hostname, Kubernetes API Server check will fail")
 		return err
 	}
 
-	if leaderName != hostname {
-		errNotLeader := errors.New(fmt.Sprintf("%s is not the leader, not running Kubernetes cluster related checks and collecting events",hostname))
-		return errNotLeader
+	leaderName := leaderelection.GetLeader()
+	if leaderName == "" {
+		log.Error("Leader not elected yet. Skipping Kubernetes API Server check at this run ...")
+		return nil
 	}
-	log.Debugf("%s is the Leader, running Kubernetes cluster related checks and collecting events")
+
+	if leaderName != hostname {
+		log.Debugf("%s is not the leader. Leader is: %s , not running Kubernetes API Server check and not collecting Kubernetes events", hostname, leaderName)
+		return nil
+	}
+	log.Tracef("%s is the Leader, running Kubernetes cluster related checks and collecting events", leaderName)
 
 	componentsStatus, err := asclient.ComponentStatuses()
 	if err != nil {
