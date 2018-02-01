@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"expvar"
 	"fmt"
+	"net"
 	"runtime"
 	"sync"
 
@@ -80,6 +81,25 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		listeners:  tmpListeners,
 		packetPool: packetPool,
 	}
+
+	forwardHost := config.Datadog.GetString("statsd_forward_host")
+	forwardPort := config.Datadog.GetString("statsd_forward_port")
+
+	if forwardHost != "" && forwardPort != "" {
+
+		forwardAddress := fmt.Sprintf("%s:%s", forwardHost, forwardPort)
+
+		con, err := net.Dial("udp", forwardAddress)
+
+		if err != nil {
+			log.Warnf("could not connect to statsd forward host : %s", err)
+		} else {
+			forwardedPacketChanel := make(chan *listeners.Packet, 100)
+			s.packetIn = forwardedPacketChanel
+			go s.forwarder(con, packetChannel)
+		}
+	}
+
 	s.handleMessages(metricOut, eventOut, serviceCheckOut)
 
 	return s, nil
@@ -103,6 +123,26 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 
 	for i := 0; i < workers; i++ {
 		go s.worker(metricOut, eventOut, serviceCheckOut)
+	}
+}
+
+func (s *Server) forwarder(fcon net.Conn, packetChannel chan *listeners.Packet) {
+	for {
+		s.RLock()
+		if s.Started == false {
+			s.RUnlock()
+			return
+		}
+		s.RUnlock()
+
+		packet := <-packetChannel
+		_, err := fcon.Write(packet.Contents)
+
+		if err != nil {
+			log.Warnf("forwarding packet failed : %s", err)
+		}
+
+		s.packetIn <- packet
 	}
 }
 

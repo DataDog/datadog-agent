@@ -199,3 +199,48 @@ func TestUPDReceive(t *testing.T) {
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 }
+
+func TestUDPForward(t *testing.T) {
+	fport, err := getAvailableUDPPort()
+	require.NoError(t, err)
+
+	// Setup UDP server to forward to
+	config.Datadog.SetDefault("statsd_forward_port", fport)
+	config.Datadog.SetDefault("statsd_forward_host", "127.0.0.1")
+
+	addr := fmt.Sprintf("127.0.0.1:%d", fport)
+	pc, err := net.ListenPacket("udp", addr)
+	require.NoError(t, err)
+
+	defer pc.Close()
+
+	// Setup dogstatsd server
+	port, err := getAvailableUDPPort()
+	require.NoError(t, err)
+	config.Datadog.SetDefault("dogstatsd_port", port)
+
+	metricOut := make(chan *metrics.MetricSample)
+	eventOut := make(chan metrics.Event)
+	serviceOut := make(chan metrics.ServiceCheck)
+	s, err := NewServer(metricOut, eventOut, serviceOut)
+	require.NoError(t, err, "cannot start DSD")
+	defer s.Stop()
+
+	url := fmt.Sprintf("127.0.0.1:%d", config.Datadog.GetInt("dogstatsd_port"))
+	conn, err := net.Dial("udp", url)
+	require.NoError(t, err, "cannot connect to DSD socket")
+	defer conn.Close()
+
+	// Check if message is forwarded
+	message := []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
+
+	conn.Write(message)
+
+	pc.SetReadDeadline(time.Now().Add(2 * time.Second))
+
+	buffer := make([]byte, len(message))
+	_, _, err = pc.ReadFrom(buffer)
+	require.NoError(t, err)
+
+	assert.Equal(t, message, buffer)
+}
