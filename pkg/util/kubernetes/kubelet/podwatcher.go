@@ -58,6 +58,9 @@ func (w *PodWatcher) ForceGetLocalPodList() ([]*Pod, error) {
 }
 
 func isPodReady(pod *Pod) bool {
+	if pod.Status.Phase != "Running" {
+		return false
+	}
 	for _, status := range pod.Status.Conditions {
 		if status.Type == "Ready" && status.Status == "True" {
 			return true
@@ -67,13 +70,13 @@ func isPodReady(pod *Pod) bool {
 }
 
 // computeChanges is used by PullChanges, split for testing
-func (w *PodWatcher) computeChanges(podlist []*Pod) ([]*Pod, error) {
+func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 	now := time.Now()
 	var updatedPods []*Pod
 
 	w.Lock()
 	defer w.Unlock()
-	for _, pod := range podlist {
+	for _, pod := range podList {
 		// Only process a ready pod
 		if isPodReady(pod) == false {
 			continue
@@ -90,7 +93,7 @@ func (w *PodWatcher) computeChanges(podlist []*Pod) ([]*Pod, error) {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
-	log.Debugf("Found %d changed pods out of %d", len(updatedPods), len(podlist))
+	log.Debugf("Found %d changed pods out of %d", len(updatedPods), len(podList))
 	return updatedPods, nil
 }
 
