@@ -70,6 +70,25 @@ func (suite *ContainerScannerTestSuite) TestContainerLabelFilter() {
 
 }
 
+func (suite *ContainerScannerTestSuite) TestComputeClientAPIVersion() {
+	var version string
+	var err error
+
+	// should raise an error
+	_, err = suite.c.computeClientAPIVersion("1.12")
+	suite.NotNil(err)
+
+	// should return a version lower than the max
+	version, err = suite.c.computeClientAPIVersion("1.24")
+	suite.Nil(err)
+	suite.Equal("1.24", version)
+
+	// should return the max version
+	version, err = suite.c.computeClientAPIVersion("1.35")
+	suite.Nil(err)
+	suite.Equal(maxVersion, version)
+}
+
 func (suite *ContainerScannerTestSuite) shouldMonitor(configLabel string, containerLabels map[string]string) bool {
 	cfg := config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: configLabel})
 	container := types.Container{Labels: containerLabels}
