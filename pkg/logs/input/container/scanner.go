@@ -130,8 +130,7 @@ func (s *Scanner) stopTailer(tailer *DockerTailer) {
 func (s *Scanner) listContainers() []types.Container {
 	containers, err := s.cli.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
-		err = fmt.Errorf("Can't tail containers, %s", err)
-		log.Error(err)
+		log.Error("Can't tail containers, ", err)
 		log.Error("Is datadog-agent part of docker user group?")
 		s.reportErrorToAllSources(err)
 		return []types.Container{}
