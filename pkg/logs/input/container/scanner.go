@@ -65,8 +65,17 @@ func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) 
 // Start starts the Scanner
 func (s *Scanner) Start() {
 	err := s.setup()
-	if err == nil {
-		go s.run()
+	if err != nil {
+		s.reportErrorToAllSources(err)
+		return
+	}
+	go s.run()
+}
+
+// reportErrorToAllSources changes the status of all sources to Error with err
+func (s *Scanner) reportErrorToAllSources(err error) {
+	for _, source := range s.sources {
+		source.Status.Error(err)
 	}
 }
 
@@ -121,8 +130,10 @@ func (s *Scanner) stopTailer(tailer *DockerTailer) {
 func (s *Scanner) listContainers() []types.Container {
 	containers, err := s.cli.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
-		log.Error("Can't tail containers, ", err)
+		err = fmt.Errorf("Can't tail containers, %s", err)
+		log.Error(err)
 		log.Error("Is datadog-agent part of docker user group?")
+		s.reportErrorToAllSources(err)
 		return []types.Container{}
 	}
 	return containers
