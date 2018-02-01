@@ -11,11 +11,6 @@ const (
 	NumberOfPipelines = int32(4)
 )
 
-// Default open files limit
-const (
-	DefaultTailingLimit = 100
-)
-
 // Date and time format
 const (
 	DateFormat = "2006-01-02T15:04:05.000000000Z"
@@ -23,6 +18,8 @@ const (
 
 // Severities
 var (
-	SevInfo  = []byte("<46>")
-	SevError = []byte("<43>")
+	SevInfo     = []byte("<46>")
+	SevError    = []byte("<43>")
+	StatusInfo  = "info"
+	StatusError = "error"
 )

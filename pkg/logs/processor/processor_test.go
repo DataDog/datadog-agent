@@ -6,19 +6,18 @@
 package processor
 
 import (
-	"math"
 	"regexp"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/pb"
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 )
 
 func NewTestProcessor() Processor {
-	return Processor{nil, nil, []byte("")}
+	return Processor{nil, nil, "", ""}
 }
 
 func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) config.LogSource {
@@ -44,9 +43,8 @@ func newNetworkMessage(content []byte, source *config.LogSource) message.Message
 func TestProcessor(t *testing.T) {
 	var p *Processor
 	p = New(nil, nil, "hello", "world")
-	assert.Equal(t, []byte("hello/world"), p.apiKey)
-	p = New(nil, nil, "helloworld", "")
-	assert.Equal(t, []byte("helloworld"), p.apiKey)
+	assert.Equal(t, "hello", p.apikey)
+	assert.Equal(t, "world", p.logset)
 }
 
 func TestExclusion(t *testing.T) {
@@ -166,47 +164,100 @@ func TestTruncate(t *testing.T) {
 	assert.Equal(t, []byte("hello"), redactedMessage)
 }
 
-func TestComputeExtraContent(t *testing.T) {
+func TestToProtoPayload(t *testing.T) {
+
+	apikey := "foo"
+	logset := "bar"
+
 	p := NewTestProcessor()
-	var extraContent []byte
-	var extraContentParts []string
-	source := config.NewLogSource("", &config.LogsConfig{TagsPayload: []byte{'-'}})
+	p.apikey = apikey
+	p.logset = logset
 
-	// message with Content only, check default values
+	logsConfig := &config.LogsConfig{
+		Service:        "Service",
+		Source:         "Source",
+		SourceCategory: "SourceCategory",
+	}
 
-	extraContent = p.computeExtraContent(newNetworkMessage([]byte("message"), source))
-	extraContentParts = strings.Split(string(extraContent), " ")
-	assert.Equal(t, 8, len(extraContentParts))
+	source := config.NewLogSource("", logsConfig)
 
-	assert.Equal(t, "<46>0", extraContentParts[0])
-	format := "2006-01-02T15:04:05"
-	timestamp, err := time.Parse(format, extraContentParts[1][:len(format)])
-	assert.Nil(t, err)
-	assert.True(t, math.Abs(time.Now().UTC().Sub(timestamp).Minutes()) < 1)
+	rawMessage := "message"
+	message := newNetworkMessage([]byte(rawMessage), source)
+	message.SetSeverity(config.SevError)
+	message.GetOrigin().Timestamp = "Timestamp"
+	message.SetTagsPayload([]byte("tag:a,b:c,d"))
 
-	extraContent = p.computeExtraContent(newNetworkMessage([]byte("<message"), source))
-	assert.NotNil(t, extraContent)
+	redactedMessage := "redacted"
 
-	extraContent = p.computeExtraContent(newNetworkMessage([]byte("<46>0 message"), source))
-	assert.Nil(t, extraContent)
+	payload := p.toProtoPayload(message, []byte(redactedMessage))
 
-	// message with additional information
-	msg := newNetworkMessage([]byte("message"), source)
-	msg.GetOrigin().Timestamp = "ts"
-	msg.SetSeverity([]byte("sev"))
-	msg.SetTagsPayload([]byte("tags"))
+	assert.Equal(t, payload.GetApiKey(), apikey)
+	assert.Equal(t, payload.GetLogset(), logset)
 
-	extraContent = p.computeExtraContent(msg)
-	extraContentParts = strings.Split(string(extraContent), " ")
-	assert.Equal(t, "sev0", extraContentParts[0])
-	assert.Equal(t, "ts", extraContentParts[1])
-	assert.Equal(t, "tags", extraContentParts[6])
+	assert.NotEmpty(t, payload.GetLog().Hostname)
+
+	assert.Equal(t, payload.GetLog().Service, logsConfig.Service)
+	assert.Equal(t, payload.GetLog().Source, logsConfig.Source)
+	assert.Equal(t, payload.GetLog().Category, logsConfig.SourceCategory)
+	assert.Equal(t, payload.GetLog().Tags, []string{"tag:a", "b:c", "d"})
+
+	assert.Equal(t, payload.GetLog().Message, redactedMessage)
+	assert.Equal(t, payload.GetLog().Status, config.StatusError)
+	assert.Equal(t, payload.GetLog().Timestamp, message.GetOrigin().Timestamp)
+
 }
 
-func TestIsRFC5424Formatted(t *testing.T) {
+func TestToProtoPayloadEmpty(t *testing.T) {
+
 	p := NewTestProcessor()
-	assert.False(t, p.isRFC5424Formatted([]byte("<- test message ->")))
-	assert.False(t, p.isRFC5424Formatted([]byte("- test message ->")))
-	assert.False(t, p.isRFC5424Formatted([]byte("<46> the rest of the message")))
-	assert.True(t, p.isRFC5424Formatted([]byte("<46>0 the rest of the message")))
+
+	logsConfig := &config.LogsConfig{}
+
+	source := config.NewLogSource("", logsConfig)
+
+	rawMessage := ""
+	message := newNetworkMessage([]byte(rawMessage), source)
+
+	redactedMessage := ""
+
+	payload := p.toProtoPayload(message, []byte(redactedMessage))
+
+	assert.Empty(t, payload.GetApiKey())
+	assert.Empty(t, payload.GetLogset())
+
+	assert.NotEmpty(t, payload.GetLog().Hostname)
+
+	assert.Empty(t, payload.GetLog().Service)
+	assert.Empty(t, payload.GetLog().Source)
+	assert.Empty(t, payload.GetLog().Category)
+	assert.Empty(t, payload.GetLog().Tags)
+
+	assert.Empty(t, payload.GetLog().Message)
+	assert.Equal(t, payload.GetLog().Status, config.StatusInfo)
+	assert.Empty(t, payload.GetLog().Timestamp, message.GetOrigin().Timestamp)
+
+}
+
+func TestToBytePayload(t *testing.T) {
+
+	p := NewTestProcessor()
+
+	payload := &pb.LogPayload{}
+	raw, err := p.toBytePayload(payload)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(raw))
+	assert.Equal(t, []byte{0x0}, []byte{raw[0]})
+
+	payload1 := &pb.LogPayload{Log: &pb.Log{Message: "foo"}}
+	bytes, err := payload1.Marshal()
+	assert.Nil(t, err)
+	raw, err = p.toBytePayload(payload1)
+	assert.Nil(t, err)
+	assert.True(t, len(raw) > 1)
+	assert.Equal(t, proto.EncodeVarint(uint64(len(bytes))), []byte{raw[0]})
+	payload2 := &pb.LogPayload{}
+	err = payload2.Unmarshal(raw[1:])
+	assert.Nil(t, err)
+	assert.Equal(t, payload1, payload2)
+
 }
