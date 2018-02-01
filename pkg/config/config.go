@@ -190,7 +190,7 @@ func init() {
 	BindEnvAndSetDefault("log_enabled", false)
 	BindEnvAndSetDefault("logset", "")
 	BindEnvAndSetDefault("log_dd_url", "intake.logs.datadoghq.com")
-	BindEnvAndSetDefault("log_dd_port", 10516)
+	BindEnvAndSetDefault("log_dd_port", 10526)
 	BindEnvAndSetDefault("run_path", defaultRunPath)
 
 	// ENV vars bindings
