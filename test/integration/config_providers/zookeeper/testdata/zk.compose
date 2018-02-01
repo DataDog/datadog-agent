@@ -4,7 +4,7 @@ services:
     image: "datadog/docker-library:zookeeper_${version}"
     network_mode: ${network_mode}
     healthcheck:
-      test: ["CMD", "echo", "srvr", "|", "nc", "localhost", "2180", "|", "grep", "Mode"]
+      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2180", "|", "grep", "imok"]
       interval: 1s
       timeout: 1s
       retries: 30
