@@ -6,6 +6,7 @@
 package leaderelection
 
 import (
+	"flag"
 	log "github.com/cihub/seelog"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -49,6 +50,10 @@ func GetLeader() string {
 // It is a go routine that runs asynchronously with the agent and leverages the official Leader Election
 // See the doc https://godoc.org/k8s.io/client-go/tools/leaderelection
 func StartLeaderElection(leaseDuration time.Duration) error {
+	// Avoid logging glog from the API Server.
+	flag.Lookup("stderrthreshold").Value.Set("FATAL")
+	flag.Parse()
+
 	kubeClient, err := getClient()
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err.Error())
