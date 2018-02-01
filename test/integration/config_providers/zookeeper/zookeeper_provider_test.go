@@ -6,13 +6,10 @@
 package zookeeper
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	log "github.com/cihub/seelog"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 	"github.com/samuel/go-zookeeper/zk"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -74,6 +71,7 @@ type ZkTestSuite struct {
 	zkVersion      string
 	zkURL          string
 	providerConfig config.ConfigurationProviders
+	compose        *utils.ComposeConf
 }
 
 // use a constructor to make the suite parametric
@@ -87,20 +85,18 @@ func NewZkTestSuite(zkVersion, containerName string) *ZkTestSuite {
 func (suite *ZkTestSuite) SetupSuite() {
 	var err error
 
-	// pull the image, create a standalone zk container
-	imageName := "datadog/docker-library:zookeeper_" + suite.zkVersion
-	containerID, err := utils.StartZkContainer(imageName, suite.containerName)
-	if err != nil {
-		// failing in SetupSuite won't call TearDownSuite, do it manually
-		suite.TearDownSuite()
-		suite.FailNow(err.Error())
+	suite.compose = &utils.ComposeConf{
+		ProjectName: "zk",
+		FilePath:    "testdata/zk.compose",
+		Variables: map[string]string{
+			"version": suite.zkVersion,
+		},
 	}
 
-	suite.zkURL, err = utils.GetContainerIP(containerID)
-	if err != nil {
-		suite.TearDownSuite()
-		suite.FailNow(err.Error())
-	}
+	output, err := suite.compose.Start()
+	require.Nil(suite.T(), err, string(output))
+
+	suite.zkURL = "localhost"
 
 	suite.client, _, err = zk.Connect([]string{suite.zkURL}, 2*time.Second)
 	if err != nil {
@@ -110,14 +106,7 @@ func (suite *ZkTestSuite) SetupSuite() {
 }
 
 func (suite *ZkTestSuite) TearDownSuite() {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-
-	ctx := context.Background()
-
-	cli.ContainerRemove(ctx, suite.containerName, types.ContainerRemoveOptions{Force: true})
+	suite.compose.Stop()
 }
 
 // put configuration back in a known state before each test
