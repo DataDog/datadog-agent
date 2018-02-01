@@ -97,7 +97,7 @@
         "dnsPolicy": "ClusterFirst",
         "serviceAccountName": "default",
         "serviceAccount": "default",
-        "nodeName": "my-nodeName",
+        "nodeName": "my-node-name",
         "hostNetwork": true,
         "securityContext": {},
         "schedulerName": "default-scheduler",
@@ -254,7 +254,7 @@
         "dnsPolicy": "ClusterFirst",
         "serviceAccountName": "default",
         "serviceAccount": "default",
-        "nodeName": "my-nodeName",
+        "nodeName": "my-node-name",
         "hostNetwork": true,
         "securityContext": {},
         "schedulerName": "default-scheduler"
@@ -307,9 +307,9 @@
     },
     {
       "metadata": {
-        "name": "kube-apiserver-my-nodeName",
+        "name": "kube-apiserver-my-node-name",
         "namespace": "kube-system",
-        "selfLink": "/api/v1/namespaces/kube-system/pods/kube-apiserver-my-nodeName",
+        "selfLink": "/api/v1/namespaces/kube-system/pods/kube-apiserver-my-node-name",
         "uid": "0a8863810b43d4d891fab0af80e28e4c",
         "creationTimestamp": null,
         "labels": {
@@ -378,7 +378,7 @@
         "restartPolicy": "Always",
         "terminationGracePeriodSeconds": 30,
         "dnsPolicy": "ClusterFirst",
-        "nodeName": "my-nodeName",
+        "nodeName": "my-node-name",
         "hostNetwork": true,
         "securityContext": {},
         "schedulerName": "default-scheduler",
@@ -486,7 +486,7 @@
         "serviceAccountName": "kube-controller-manager",
         "serviceAccount": "kube-controller-manager",
         "automountServiceAccountToken": false,
-        "nodeName": "my-nodeName",
+        "nodeName": "my-node-name",
         "hostNetwork": true,
         "securityContext": {},
         "schedulerName": "default-scheduler"
@@ -607,7 +607,7 @@
         "dnsPolicy": "ClusterFirst",
         "serviceAccountName": "default",
         "serviceAccount": "default",
-        "nodeName": "my-nodeName",
+        "nodeName": "my-node-name",
         "hostNetwork": true,
         "securityContext": {},
         "schedulerName": "default-scheduler",
@@ -673,6 +673,115 @@
             "image": "gcr.io/google_containers/hyperkube:v1.8.3",
             "imageID": "docker-pullable://gcr.io/google_containers/hyperkube@sha256:2fbd3d9ace56ac3ec2775f64f5ec5e6551ab30c5e25cc0c2633f33b15b8ca542",
             "containerID": "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6"
+          }
+        ],
+        "qosClass": "BestEffort"
+      }
+    },
+    {
+      "metadata": {
+        "name": "redis-75586d7d7c-jrm7j",
+        "generateName": "redis-75586d7d7c-",
+        "namespace": "default",
+        "selfLink": "/api/v1/namespaces/default/pods/redis-75586d7d7c-jrm7j",
+        "uid": "d91aa43c-0769-11e8-afcc-000c29dea4f6",
+        "resourceVersion": "4479",
+        "creationTimestamp": "2018-02-01T16:06:23Z",
+        "labels": {
+          "pod-template-hash": "3114283837",
+          "run": "redis"
+        },
+        "annotations": {
+          "kubernetes.io/config.seen": "2018-02-01T17:06:23.040314023+01:00",
+          "kubernetes.io/config.source": "api",
+          "kubernetes.io/created-by": "{\"kind\":\"SerializedReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"ReplicaSet\",\"namespace\":\"default\",\"name\":\"redis-75586d7d7c\",\"uid\":\"d916f7c5-0769-11e8-afcc-000c29dea4f6\",\"apiVersion\":\"extensions\",\"resourceVersion\":\"4473\"}}\n"
+        },
+        "ownerReferences": [
+          {
+            "apiVersion": "extensions/v1beta1",
+            "kind": "ReplicaSet",
+            "name": "redis-75586d7d7c",
+            "uid": "d916f7c5-0769-11e8-afcc-000c29dea4f6",
+            "controller": true,
+            "blockOwnerDeletion": true
+          }
+        ]
+      },
+      "spec": {
+        "volumes": [
+          {
+            "name": "default-token-qjvgz",
+            "secret": {
+              "secretName": "default-token-qjvgz",
+              "defaultMode": 420
+            }
+          }
+        ],
+        "containers": [
+          {
+            "name": "redis",
+            "image": "redis",
+            "resources": {},
+            "volumeMounts": [
+              {
+                "name": "default-token-qjvgz",
+                "readOnly": true,
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount"
+              }
+            ],
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "imagePullPolicy": "Always"
+          }
+        ],
+        "restartPolicy": "Always",
+        "terminationGracePeriodSeconds": 30,
+        "dnsPolicy": "ClusterFirst",
+        "serviceAccountName": "default",
+        "serviceAccount": "default",
+        "nodeName": "my-node-name",
+        "securityContext": {},
+        "schedulerName": "default-scheduler"
+      },
+      "status": {
+        "phase": "Running",
+        "conditions": [
+          {
+            "type": "Initialized",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2018-02-01T16:06:23Z"
+          },
+          {
+            "type": "Ready",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2018-02-01T16:06:34Z"
+          },
+          {
+            "type": "PodScheduled",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2018-02-01T16:06:23Z"
+          }
+        ],
+        "hostIP": "192.168.128.141",
+        "podIP": "172.17.0.3",
+        "startTime": "2018-02-01T16:06:23Z",
+        "containerStatuses": [
+          {
+            "name": "redis",
+            "state": {
+              "running": {
+                "startedAt": "2018-02-01T16:06:34Z"
+              }
+            },
+            "lastState": {},
+            "ready": true,
+            "restartCount": 0,
+            "image": "redis:latest",
+            "imageID": "docker-pullable://redis@sha256:3446883dfe13ab3db67433aace0e72d8cd669c528e60c617c42d6c697f0fa41f",
+            "containerID": "docker://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a"
           }
         ],
         "qosClass": "BestEffort"

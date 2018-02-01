@@ -102,9 +102,10 @@ func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 	}
 
 	for _, pod := range pods {
-		if !pod.Spec.HostNetwork {
-			return pod.Status.HostIP, pod.Spec.NodeName, nil
+		if pod.Status.HostIP == "" || pod.Spec.NodeName == "" {
+			continue
 		}
+		return pod.Status.HostIP, pod.Spec.NodeName, nil
 	}
 
 	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
