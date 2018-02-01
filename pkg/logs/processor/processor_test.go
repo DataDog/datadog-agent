@@ -18,7 +18,7 @@ import (
 )
 
 func NewTestProcessor() Processor {
-	return Processor{nil, nil, "", "", nil}
+	return Processor{nil, nil, []byte("")}
 }
 
 func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) config.LogSource {
@@ -44,9 +44,9 @@ func newNetworkMessage(content []byte, source *config.LogSource) message.Message
 func TestProcessor(t *testing.T) {
 	var p *Processor
 	p = New(nil, nil, "hello", "world")
-	assert.Equal(t, "hello/world", string(p.apikeyString))
+	assert.Equal(t, []byte("hello/world"), p.apiKey)
 	p = New(nil, nil, "helloworld", "")
-	assert.Equal(t, "helloworld", string(p.apikeyString))
+	assert.Equal(t, []byte("helloworld"), p.apiKey)
 }
 
 func TestExclusion(t *testing.T) {
@@ -198,16 +198,4 @@ func TestComputeExtraContent(t *testing.T) {
 	assert.Equal(t, "sev0", extraContentParts[0])
 	assert.Equal(t, "ts", extraContentParts[1])
 	assert.Equal(t, "tags", extraContentParts[6])
-}
-
-func TestComputeApiKeyString(t *testing.T) {
-	p := New(nil, nil, "hello", "world")
-
-	source := config.NewLogSource("", &config.LogsConfig{})
-	extraContent := p.computeAPIKeyString(newNetworkMessage(nil, source))
-	assert.Equal(t, "hello/world", string(extraContent))
-
-	source = config.NewLogSource("", &config.LogsConfig{Logset: "hi"})
-	extraContent = p.computeAPIKeyString(newNetworkMessage(nil, source))
-	assert.Equal(t, "hello/hi", string(extraContent))
 }

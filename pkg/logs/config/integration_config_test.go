@@ -36,13 +36,11 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	assert.Equal(t, "nginx", sources[0].Config.Service)
 	assert.Equal(t, "nginx", sources[0].Config.Source)
 	assert.Equal(t, "http_access", sources[0].Config.SourceCategory)
-	assert.Equal(t, "", sources[0].Config.Logset)
 	assert.Equal(t, "env:prod", sources[0].Config.Tags)
 	assert.Equal(t, "[dd ddsource=\"nginx\"][dd ddsourcecategory=\"http_access\"][dd ddtags=\"env:prod\"]", string(sources[0].Config.TagsPayload))
 
 	assert.Equal(t, "tcp", sources[1].Config.Type)
 	assert.Equal(t, 10514, sources[1].Config.Port)
-	assert.Equal(t, "devteam", sources[1].Config.Logset)
 	assert.Equal(t, "", sources[1].Config.Service)
 	assert.Equal(t, "", sources[1].Config.Source)
 	assert.Equal(t, 0, len(sources[1].Config.Tags))
