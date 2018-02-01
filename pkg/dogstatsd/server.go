@@ -83,19 +83,18 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
-	forwardPort := config.Datadog.GetString("statsd_forward_port")
+	forwardPort := config.Datadog.GetInt("statsd_forward_port")
 
-	if forwardHost != "" && forwardPort != "" {
+	if forwardHost != "" && forwardPort != 0 {
 
-		forwardAddress := fmt.Sprintf("%s:%s", forwardHost, forwardPort)
+		forwardAddress := fmt.Sprintf("%s:%d", forwardHost, forwardPort)
 
 		con, err := net.Dial("udp", forwardAddress)
 
 		if err != nil {
 			log.Warnf("could not connect to statsd forward host : %s", err)
 		} else {
-			forwardedPacketChanel := make(chan *listeners.Packet, 100)
-			s.packetIn = forwardedPacketChanel
+			s.packetIn = make(chan *listeners.Packet, 100)
 			go s.forwarder(con, packetChannel)
 		}
 	}
