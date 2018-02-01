@@ -12,6 +12,7 @@ import (
 )
 
 var pingFrequency = 15 * time.Second
+var bufferSize = 2
 
 // Handle holds the token and the channel for components to use
 type Handle struct {
@@ -53,11 +54,16 @@ func (c *catalog) register(name string) *Handle {
 
 	component := &component{
 		name:       name,
-		healthChan: make(chan struct{}, 2),
+		healthChan: make(chan struct{}, bufferSize),
 		healthy:    false,
 	}
 	h := &Handle{
 		C: component.healthChan,
+	}
+
+	// Start with a full channel to component is unhealthy until its first read
+	for i := 0; i < bufferSize; i++ {
+		component.healthChan <- struct{}{}
 	}
 
 	c.components[h] = component
