@@ -51,7 +51,6 @@ func GetLeader() string {
 // It is a go routine that runs asynchronously with the agent and leverages the official Leader Election
 // See the doc https://godoc.org/k8s.io/client-go/tools/leaderelection
 func StartLeaderElection(leaseDuration int) error {
-
 	kubeClient, err := getClient()
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err.Error())
@@ -67,14 +66,16 @@ func StartLeaderElection(leaseDuration int) error {
 		log.Error("Cannot get OS hostname. Not setting up the Leader Election: %s", errHostname.Error())
 		return errHostname
 	}
+
+	var leaderLeaseDuration time.Time
 	if leaseDuration != 0 {
-		leaseDuration = time.Second * leaseDuration
+		leaderLeaseDuration = time.Second * leaseDuration
 	} else {
 		log.Debugf("Leader Lease duration not properly set, defaulting to 60 seconds")
-		leaseDuration = defaultLeaderLeaseDuration
+		leaderLeaseDuration = defaultLeaderLeaseDuration
 	}
 
-	e, err := NewElection(datadogLeaderElection, id, metav1.NamespaceDefault, leaseDuration, callbackFunc, kubeClient)
+	e, err := NewElection(datadogLeaderElection, id, metav1.NamespaceDefault, leaderLeaseDuration, callbackFunc, kubeClient)
 
 	if err != nil {
 		log.Errorf("Could not initialize the Leader Election process: %s", err.Error())
