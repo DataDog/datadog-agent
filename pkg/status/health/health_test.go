@@ -7,10 +7,35 @@ package health
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCatalogStartsHealthy(t *testing.T) {
+	cat := newCatalog()
+
+	status := cat.getStatus()
+	assert.Len(t, status.Healthy, 1)
+	assert.Contains(t, status.Healthy, "healthcheck")
+	assert.Len(t, status.Unhealthy, 0)
+}
+
+func TestCatalogGetsUnhealthyAndBack(t *testing.T) {
+	cat := newCatalog()
+
+	status := cat.getStatus()
+	assert.Contains(t, status.Healthy, "healthcheck")
+
+	cat.latestRun = time.Now().Add(-1 * time.Hour)
+	status = cat.getStatus()
+	assert.Contains(t, status.Unhealthy, "healthcheck")
+
+	cat.latestRun = time.Now()
+	status = cat.getStatus()
+	assert.Contains(t, status.Healthy, "healthcheck")
+}
 
 func TestRegisterAndUnhealthy(t *testing.T) {
 	cat := newCatalog()
@@ -20,7 +45,7 @@ func TestRegisterAndUnhealthy(t *testing.T) {
 	require.True(t, found)
 
 	status := cat.getStatus()
-	assert.Len(t, status.Healthy, 0)
+	assert.Len(t, status.Healthy, 1)
 	assert.Len(t, status.Unhealthy, 1)
 	assert.Contains(t, status.Unhealthy, "test1")
 }
@@ -64,7 +89,7 @@ func TestGetHealthy(t *testing.T) {
 	token := cat.register("test1")
 
 	status := cat.getStatus()
-	assert.Len(t, status.Healthy, 0)
+	assert.Len(t, status.Healthy, 1)
 	assert.Len(t, status.Unhealthy, 1)
 
 	for i := 1; i < 10; i++ {
@@ -73,7 +98,7 @@ func TestGetHealthy(t *testing.T) {
 	}
 
 	status = cat.getStatus()
-	assert.Len(t, status.Healthy, 1)
+	assert.Len(t, status.Healthy, 2)
 	assert.Len(t, status.Unhealthy, 0)
 }
 
@@ -82,7 +107,7 @@ func TestUnhealthyAndBack(t *testing.T) {
 	token := cat.register("test1")
 
 	status := cat.getStatus()
-	assert.Len(t, status.Healthy, 0)
+	assert.Len(t, status.Healthy, 1)
 	assert.Len(t, status.Unhealthy, 1)
 
 	for i := 1; i < 10; i++ {
@@ -90,7 +115,7 @@ func TestUnhealthyAndBack(t *testing.T) {
 	}
 
 	status = cat.getStatus()
-	assert.Len(t, status.Healthy, 0)
+	assert.Len(t, status.Healthy, 1)
 	assert.Len(t, status.Unhealthy, 1)
 
 	for i := 1; i < 10; i++ {
@@ -99,6 +124,6 @@ func TestUnhealthyAndBack(t *testing.T) {
 	}
 
 	status = cat.getStatus()
-	assert.Len(t, status.Healthy, 1)
+	assert.Len(t, status.Healthy, 2)
 	assert.Len(t, status.Unhealthy, 0)
 }

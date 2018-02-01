@@ -11,20 +11,16 @@ import (
 	"time"
 )
 
+var pingFrequency = 15 * time.Second
+
 // Handle holds the token and the channel for components to use
 type Handle struct {
 	C <-chan struct{}
 }
 
+// Deregister allows a component to easily deregister itself
 func (h *Handle) Deregister() error {
 	return Deregister(h)
-}
-
-// Status represents the current status of registered components
-// it is built and returned by GetStatus()
-type Status struct {
-	Healthy   []string
-	Unhealthy []string
 }
 
 type component struct {
@@ -36,11 +32,13 @@ type component struct {
 type catalog struct {
 	sync.RWMutex
 	components map[*Handle]*component
+	latestRun  time.Time
 }
 
 func newCatalog() *catalog {
 	return &catalog{
 		components: make(map[*Handle]*component),
+		latestRun:  time.Now(), // Start healthy
 	}
 }
 
@@ -66,20 +64,11 @@ func (c *catalog) register(name string) *Handle {
 	return h
 }
 
-// deregister a component from the healthcheck
-func (c *catalog) deregister(handle *Handle) error {
-	c.Lock()
-	defer c.Unlock()
-	if _, found := c.components[handle]; !found {
-		return errors.New("component not registered")
-	}
-	close(c.components[handle].healthChan)
-	delete(c.components, handle)
-	return nil
-}
-
+// run is the healthcheck goroutine that triggers a ping every 15 sec
+// it must be started when the first component registers, and will
+// return if no components are registered anymore
 func (c *catalog) run() {
-	pingTicker := time.NewTicker(15 * time.Second)
+	pingTicker := time.NewTicker(pingFrequency)
 
 	for {
 		<-pingTicker.C
@@ -93,6 +82,8 @@ func (c *catalog) run() {
 	pingTicker.Stop()
 }
 
+// pingComponents is the actual pinging logic, separated for unit tests
+// lock is handled by the parent run method
 func (c *catalog) pingComponents() {
 	for _, component := range c.components {
 		select {
@@ -102,6 +93,26 @@ func (c *catalog) pingComponents() {
 			component.healthy = false
 		}
 	}
+	c.latestRun = time.Now()
+}
+
+// deregister a component from the healthcheck
+func (c *catalog) deregister(handle *Handle) error {
+	c.Lock()
+	defer c.Unlock()
+	if _, found := c.components[handle]; !found {
+		return errors.New("component not registered")
+	}
+	close(c.components[handle].healthChan)
+	delete(c.components, handle)
+	return nil
+}
+
+// Status represents the current status of registered components
+// it is built and returned by GetStatus()
+type Status struct {
+	Healthy   []string
+	Unhealthy []string
 }
 
 // getStatus allows to query the health status of the agent
@@ -110,6 +121,14 @@ func (c *catalog) getStatus() Status {
 	c.RLock()
 	defer c.RUnlock()
 
+	// Test the checker itself
+	if time.Now().After(c.latestRun.Add(2 * pingFrequency)) {
+		status.Unhealthy = append(status.Unhealthy, "healthcheck")
+	} else {
+		status.Healthy = append(status.Healthy, "healthcheck")
+	}
+
+	// Check components
 	for _, component := range c.components {
 		if component.healthy {
 			status.Healthy = append(status.Healthy, component.name)
