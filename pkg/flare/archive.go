@@ -242,12 +242,8 @@ func zipConfigCheck(zipFile *archivex.ZipFile, hostname string) error {
 
 func zipHealth(zipFile *archivex.ZipFile, hostname string) error {
 	s := health.GetStatus()
-	if len(s.Healthy) > 0 {
-		sort.Strings(s.Healthy)
-	}
-	if len(s.Unhealthy) > 0 {
-		sort.Strings(s.Unhealthy)
-	}
+	sort.Strings(s.Healthy)
+	sort.Strings(s.Unhealthy)
 
 	yamlValue, err := yaml.Marshal(s)
 	if err != nil {
