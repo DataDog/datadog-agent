@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
@@ -105,6 +106,11 @@ func GetHostname() (string, error) {
 
 	log.Debugf("Unable to get the hostname from the config file: %s", err)
 	log.Debug("Trying to determine a reliable host name automatically...")
+
+	// if fargate we strip the hostname
+	if ecs.IsFargateInstance() {
+		return "", nil
+	}
 
 	// GCE metadata
 	log.Debug("GetHostname trying GCE metadata...")
