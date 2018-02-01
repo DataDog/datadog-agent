@@ -29,8 +29,6 @@ rules:
   - ""
   resources:
   - endpoints
-  resourceNames:
-  - datadog-leader-election
   verbs:
   - get
   - update

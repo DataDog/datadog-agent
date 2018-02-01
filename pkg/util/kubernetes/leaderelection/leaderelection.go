@@ -32,13 +32,11 @@ func getClient() (*corev1.CoreV1Client, error) {
 
 	config, err := rest.InClusterConfig()
 	config.Timeout = clientTimeout
-
 	if err != nil {
 		log.Debug("Can't create official client")
 		return nil, err
 	}
 	coreClient, err := corev1.NewForConfig(config)
-
 	return coreClient, err
 }
 
@@ -50,7 +48,7 @@ func GetLeader() string {
 // StartLeaderElection is the main method that triggers the Leader Election process.
 // It is a go routine that runs asynchronously with the agent and leverages the official Leader Election
 // See the doc https://godoc.org/k8s.io/client-go/tools/leaderelection
-func StartLeaderElection(leaseDuration int) error {
+func StartLeaderElection(leaseDuration time.Duration) error {
 	kubeClient, err := getClient()
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err.Error())
@@ -67,9 +65,9 @@ func StartLeaderElection(leaseDuration int) error {
 		return errHostname
 	}
 
-	var leaderLeaseDuration time.Time
-	if leaseDuration != 0 {
-		leaderLeaseDuration = time.Second * leaseDuration
+	var leaderLeaseDuration time.Duration
+	if leaseDuration.Seconds() > 0 {
+		leaderLeaseDuration = leaseDuration
 	} else {
 		log.Debugf("Leader Lease duration not properly set, defaulting to 60 seconds")
 		leaderLeaseDuration = defaultLeaderLeaseDuration
