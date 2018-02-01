@@ -88,7 +88,7 @@ func (suite *ZkTestSuite) SetupSuite() {
 	var err error
 
 	// pull the image, create a standalone zk container
-	imageName := "zookeeper:" + suite.zkVersion
+	imageName := "datadog/docker-library:zookeeper_" + suite.zkVersion
 	containerID, err := utils.StartZkContainer(imageName, suite.containerName)
 	if err != nil {
 		// failing in SetupSuite won't call TearDownSuite, do it manually
@@ -171,6 +171,6 @@ func (suite *ZkTestSuite) TestCollect() {
 }
 
 func TestZkSuite(t *testing.T) {
-	suite.Run(t, NewZkTestSuite("3.3.6", "datadog-agent-test-zk"))
-	suite.Run(t, NewZkTestSuite("3.4.10", "datadog-agent-test-zk"))
+	suite.Run(t, NewZkTestSuite("3_3_6", "datadog-agent-test-zk"))
+	suite.Run(t, NewZkTestSuite("3_4_10", "datadog-agent-test-zk"))
 }

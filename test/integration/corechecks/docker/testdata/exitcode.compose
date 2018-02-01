@@ -5,7 +5,7 @@
 version: '2'
 services:
   exit0: &exit_base
-    image: "busybox:latest"
+    image: "datadog/docker-library:busybox_1_28_0"
     entrypoint: /bin/sh
     command: "-c 'exit 0'"
     labels:

@@ -6,6 +6,7 @@ import tempfile
 import shutil
 import sys
 import os
+import re
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -95,3 +96,26 @@ COPY test.bin /test.bin
 
     if exit_code != 0:
         raise Exit(exit_code)
+
+
+@task
+def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="auto"):
+    """
+    Pull an upstream image and mirror it to our docker-library repository
+    for integration tests. Tag format should be A-Z_n_n_n
+    """
+    if dst_tag == "auto":
+        # Autogenerate tag
+        match = re.search('([^:\/\s]+):[v]?(.*)$', src_image)
+        if not match:
+            print("Cannot guess destination tag for {}, please provide a --dst-tag option".format(src_image))
+            raise Exit(1)
+        dst_tag = "_".join(match.groups()).replace(".", "_")
+
+    dst = "{}:{}".format(dst_image, dst_tag)
+    print("Uploading {} to {}".format(src_image, dst))
+
+    # TODO: use docker python lib
+    ctx.run("docker pull {src} && docker tag {src} {dst} && docker push {dst}".format(
+        src = src_image,
+        dst = dst))

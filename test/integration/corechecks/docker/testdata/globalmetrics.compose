@@ -5,7 +5,7 @@
 version: '2'
 services:
   globalmetrics0: &globalmetrics_base
-    image: "redis:latest"
+    image: "datadog/docker-library:redis_3_2_11-alpine"
     labels:
         low.card.label: "globalmetricslow"
         high.card.label: "globalmetricshigh"
@@ -14,5 +14,5 @@ services:
         HIGH_CARD_ENV: "globalmetricshighenv"
   globalmetrics1:
     <<: *globalmetrics_base
-    image: "busybox:latest"
+    image: "datadog/docker-library:busybox_1_28_0"
     command: /bin/echo

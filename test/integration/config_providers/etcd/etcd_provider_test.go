@@ -48,7 +48,7 @@ func NewEtcdTestSuite(etcdVersion, containerName string) *EtcdTestSuite {
 
 func (suite *EtcdTestSuite) SetupSuite() {
 	// pull the latest etcd image, create a standalone etcd container
-	etcdImg := "quay.io/coreos/etcd:" + suite.etcdVersion
+	etcdImg := "datadog/docker-library:etcd_" + suite.etcdVersion
 	containerID, err := utils.StartEtcdContainer(etcdImg, suite.containerName)
 	if err != nil {
 		// failing in SetupSuite won't call TearDownSuite, do it manually
@@ -217,5 +217,5 @@ func (suite *EtcdTestSuite) TestBadAuth() {
 }
 
 func TestEtcdSuite(t *testing.T) {
-	suite.Run(t, NewEtcdTestSuite("v3.2.6", "datadog-agent-test-etcd"))
+	suite.Run(t, NewEtcdTestSuite("3_2_6", "datadog-agent-test-etcd"))
 }
