@@ -51,6 +51,10 @@ func (suite *FileProviderTestSuite) SetupTest() {
 	_, err = os.Create(path)
 	suite.Nil(err)
 
+	path = fmt.Sprintf("%s/1/?.log", suite.testDir)
+	_, err = os.Create(path)
+	suite.Nil(err)
+
 	path = fmt.Sprintf("%s/2", suite.testDir)
 	err = os.Mkdir(path, os.ModePerm)
 	suite.Nil(err)
@@ -77,33 +81,34 @@ func (suite *FileProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[0].Path)
 }
 
-func (suite *FileProviderTestSuite) TestFilesToTailReturnsAllFilesInDirectory() {
+func (suite *FileProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
+	fileProvider := suite.newFileProvider(path)
+	files := fileProvider.FilesToTail()
+
+	suite.Equal(3, len(files))
+	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[0].Path)
+	suite.Equal(fmt.Sprintf("%s/1/2.log", suite.testDir), files[1].Path)
+	suite.Equal(fmt.Sprintf("%s/1/?.log", suite.testDir), files[2].Path)
+}
+
+func (suite *FileProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWithRightPermissions() {
+	path := fmt.Sprintf("%s/*/*1.log", suite.testDir)
 	fileProvider := suite.newFileProvider(path)
 	files := fileProvider.FilesToTail()
 
 	suite.Equal(2, len(files))
 	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[0].Path)
-	suite.Equal(fmt.Sprintf("%s/1/2.log", suite.testDir), files[1].Path)
-}
-
-func (suite *FileProviderTestSuite) TestFilesToTailReturnsAllFilesInAnyDirectory() {
-	path := fmt.Sprintf("%s/*/*1.log", suite.testDir)
-	fileProvider := suite.newFileProvider(path)
-	files := fileProvider.FilesToTail()
-
-	suite.Equal(len(files), 2)
-	suite.Equal(fmt.Sprintf("%s/1/1.log", suite.testDir), files[0].Path)
 	suite.Equal(fmt.Sprintf("%s/2/1.log", suite.testDir), files[1].Path)
 }
 
-func (suite *FileProviderTestSuite) TestFilesToTailReturnsAlwaysFileEvenWhenNotFound() {
-	path := fmt.Sprintf("%s/n/1.log", suite.testDir)
+func (suite *FileProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard() {
+	path := fmt.Sprintf("%s/1/?.log", suite.testDir)
 	fileProvider := suite.newFileProvider(path)
 	files := fileProvider.FilesToTail()
 
-	suite.Equal(len(files), 1)
-	suite.Equal(fmt.Sprintf("%s/n/1.log", suite.testDir), files[0].Path)
+	suite.Equal(1, len(files))
+	suite.Equal(fmt.Sprintf("%s/1/?.log", suite.testDir), files[0].Path)
 }
 
 func (suite *FileProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
