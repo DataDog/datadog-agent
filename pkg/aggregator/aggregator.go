@@ -132,8 +132,7 @@ type BufferedAggregator struct {
 	hostnameUpdate     chan string
 	hostnameUpdateDone chan struct{}    // signals that the hostname update is finished
 	TickerChan         <-chan time.Time // For test/benchmark purposes: it allows the flush to be controlled from the outside
-	healthTicker       *time.Ticker
-	healthToken        health.ID
+	health             *health.Handle
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
@@ -151,8 +150,7 @@ func NewBufferedAggregator(s *serializer.Serializer, hostname string, flushInter
 		hostname:           hostname,
 		hostnameUpdate:     make(chan string),
 		hostnameUpdateDone: make(chan struct{}),
-		healthTicker:       time.NewTicker(health.DefaultPingFreq),
-		healthToken:        health.Register("aggregator"),
+		health:             health.Register("aggregator"),
 	}
 
 	return aggregator
@@ -411,8 +409,7 @@ func (agg *BufferedAggregator) run() {
 	}
 	for {
 		select {
-		case <-agg.healthTicker.C:
-			health.Ping(agg.healthToken)
+		case <-agg.health.C:
 		case <-agg.TickerChan:
 			start := time.Now()
 			agg.flush()

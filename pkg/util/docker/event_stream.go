@@ -115,8 +115,7 @@ func (d *DockerUtil) dispatchEvents(cancelChan <-chan struct{}) {
 	fltrs.Add("event", "start")
 	fltrs.Add("event", "die")
 
-	healthTicker := time.NewTicker(health.DefaultPingFreq)
-	healthToken := health.Register("dockerutil-event-dispatch")
+	healthHandle := health.Register("dockerutil-event-dispatch")
 
 	// Outer loop handles re-connecting in case the docker daemon closes the connection
 CONNECT:
@@ -134,11 +133,9 @@ CONNECT:
 			select {
 			case <-cancelChan:
 				cancel()
-				healthTicker.Stop()
-				health.Deregister(healthToken)
+				healthHandle.Deregister()
 				return
-			case <-healthTicker.C:
-				health.Ping(healthToken)
+			case <-healthHandle.C:
 			case err := <-errs:
 				if err == io.EOF {
 					// Silently ignore io.EOF that happens on http connection reset

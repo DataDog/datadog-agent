@@ -14,7 +14,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
@@ -31,14 +30,13 @@ import (
 // It also holds a cache of services that the ConfigResolver can query to
 // match templates against.
 type DockerListener struct {
-	dockerUtil   *docker.DockerUtil
-	services     map[ID]Service
-	newService   chan<- Service
-	delService   chan<- Service
-	stop         chan bool
-	healthTicker *time.Ticker
-	healthToken  health.ID
-	m            sync.RWMutex
+	dockerUtil *docker.DockerUtil
+	services   map[ID]Service
+	newService chan<- Service
+	delService chan<- Service
+	stop       chan bool
+	health     *health.Handle
+	m          sync.RWMutex
 }
 
 // DockerService implements and store results from the Service interface for the Docker listener
@@ -62,11 +60,10 @@ func NewDockerListener() (ServiceListener, error) {
 		return nil, fmt.Errorf("failed to connect to Docker, auto discovery will not work: %s", err)
 	}
 	return &DockerListener{
-		dockerUtil:   d,
-		services:     make(map[ID]Service),
-		stop:         make(chan bool),
-		healthTicker: time.NewTicker(health.DefaultPingFreq),
-		healthToken:  health.Register("ad-dockerlistener"),
+		dockerUtil: d,
+		services:   make(map[ID]Service),
+		stop:       make(chan bool),
+		health:     health.Register("ad-dockerlistener"),
 	}, nil
 }
 
@@ -91,11 +88,9 @@ func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 			select {
 			case <-l.stop:
 				l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener")
-				l.healthTicker.Stop()
-				health.Deregister(l.healthToken)
+				l.health.Deregister()
 				return
-			case <-l.healthTicker.C:
-				health.Ping(l.healthToken)
+			case <-l.health.C:
 			case msg := <-messages:
 				l.processEvent(msg)
 			case err := <-errs:

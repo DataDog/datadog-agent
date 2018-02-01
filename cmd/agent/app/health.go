@@ -19,9 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-var (
-	healthVerbose bool
-)
+var healthVerbose bool
 
 func init() {
 	AgentCmd.AddCommand(healthCmd)
@@ -77,7 +75,6 @@ func requestHealth() error {
 			fmt.Printf("\tUnhealthy: %s\n", strings.Join(s.Unhealthy, ", "))
 		} else {
 			fmt.Printf("Agent health: OK\n")
-
 		}
 		if len(s.Healthy) > 0 {
 			sort.Strings(s.Healthy)

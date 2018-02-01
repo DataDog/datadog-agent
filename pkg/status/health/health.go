@@ -6,23 +6,22 @@
 package health
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 	"time"
-
-	log "github.com/cihub/seelog"
 )
 
-// DefaultPingFreq holds the preferred time between two pings
-const DefaultPingFreq = 15 * time.Second
+// Handle holds the token and the channel for components to use
+type Handle struct {
+	C <-chan struct{}
+}
 
-// DefaultTimeout holds the duration used for default (twice DefaultPingFreq)
-const DefaultTimeout = 30 * time.Second
-
-// ID objects are returned when registering and are to be used when pinging
-type ID string
+func (h *Handle) Deregister() error {
+	return Deregister(h)
+}
 
 // Status represents the current status of registered components
+// it is built and returned by GetStatus()
 type Status struct {
 	Healthy   []string
 	Unhealthy []string
@@ -30,112 +29,93 @@ type Status struct {
 
 type component struct {
 	name       string
-	timeout    time.Duration
-	latestPing time.Time
+	healthChan chan struct{}
+	healthy    bool
 }
 
-type componentCatalog struct {
+type catalog struct {
 	sync.RWMutex
-	components map[ID]*component
+	components map[*Handle]*component
 }
 
-var catalog = componentCatalog{
-	components: make(map[ID]*component),
+func newCatalog() *catalog {
+	return &catalog{
+		components: make(map[*Handle]*component),
+	}
 }
 
-// Register a component with the default 30 seconds timeout, returns a token
-func Register(name string) ID {
-	return RegisterWithCustomTimeout(name, DefaultTimeout)
-}
+// register a component with the default 30 seconds timeout, returns a token
+func (c *catalog) register(name string) *Handle {
+	c.Lock()
+	defer c.Unlock()
 
-// RegisterWithCustomTimeout allows to register with a custom timeout duration
-func RegisterWithCustomTimeout(name string, timeout time.Duration) ID {
-	catalog.Lock()
-	defer catalog.Unlock()
-
-	id := ID(name)
-	_, taken := catalog.components[id]
-	if taken {
-		for n := 2; n < 100; n++ {
-			// Loop to 99 to avoid introducing an infinite loop.
-			newid := ID(fmt.Sprintf("%s-%d", name, n))
-			_, taken = catalog.components[newid]
-			if !taken {
-				id = newid
-				break
-			}
-		}
-		// The case is improbable though, so we errorf and continue
-		if taken {
-			log.Errorf("Failed to find a unique token for component %s", name)
-		}
+	if len(c.components) == 0 {
+		go c.run()
 	}
 
-	catalog.components[id] = &component{
+	component := &component{
 		name:       name,
-		timeout:    timeout,
-		latestPing: time.Now().Add(-2 * timeout), // Register as unhealthy by default
+		healthChan: make(chan struct{}, 2),
+		healthy:    false,
+	}
+	h := &Handle{
+		C: component.healthChan,
 	}
 
-	return id
+	c.components[h] = component
+	return h
 }
 
-// Deregister a component from the healthcheck
-func Deregister(token ID) error {
-	catalog.Lock()
-	defer catalog.Unlock()
-	if _, found := catalog.components[token]; !found {
-		return fmt.Errorf("component %s not registered", token)
+// deregister a component from the healthcheck
+func (c *catalog) deregister(handle *Handle) error {
+	c.Lock()
+	defer c.Unlock()
+	if _, found := c.components[handle]; !found {
+		return errors.New("component not registered")
 	}
-	delete(catalog.components, token)
+	close(c.components[handle].healthChan)
+	delete(c.components, handle)
 	return nil
 }
 
-// Ping is to be called regularly by component to signal they are still healthy
-func Ping(token ID) error {
-	return registerPing(token, time.Now())
-}
+func (c *catalog) run() {
+	pingTicker := time.NewTicker(15 * time.Second)
 
-// registerPing is private and used for unit testing
-func registerPing(token ID, timestamp time.Time) error {
-	catalog.Lock()
-	defer catalog.Unlock()
-	c, found := catalog.components[token]
-	if !found {
-		return fmt.Errorf("component %s not registered", token)
-	}
-	c.latestPing = timestamp
-	return nil
-}
-
-// GetStatus allows to query the health status of the agent
-func GetStatus() Status {
-	status := Status{}
-	now := time.Now()
-
-	catalog.RLock()
-	defer catalog.RUnlock()
-
-	for _, c := range catalog.components {
-		if c.latestPing.IsZero() {
-			log.Warnf("Error processing component %q, considering it unhealthy", c.name)
-			status.Unhealthy = append(status.Unhealthy, c.name)
-			continue
+	for {
+		<-pingTicker.C
+		c.Lock()
+		if len(c.components) == 0 {
+			break
 		}
-		if now.After(c.latestPing.Add(c.timeout)) {
-			status.Unhealthy = append(status.Unhealthy, c.name)
+		c.pingComponents()
+		c.Unlock()
+	}
+	pingTicker.Stop()
+}
+
+func (c *catalog) pingComponents() {
+	for _, component := range c.components {
+		select {
+		case component.healthChan <- struct{}{}:
+			component.healthy = true
+		default:
+			component.healthy = false
+		}
+	}
+}
+
+// getStatus allows to query the health status of the agent
+func (c *catalog) getStatus() Status {
+	status := Status{}
+	c.RLock()
+	defer c.RUnlock()
+
+	for _, component := range c.components {
+		if component.healthy {
+			status.Healthy = append(status.Healthy, component.name)
 		} else {
-			status.Healthy = append(status.Healthy, c.name)
+			status.Unhealthy = append(status.Unhealthy, component.name)
 		}
 	}
 	return status
-}
-
-// reset is used for unit testing
-func reset() {
-	catalog.Lock()
-	for token := range catalog.components {
-		delete(catalog.components, token)
-	}
-	catalog.Unlock()
 }

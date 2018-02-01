@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
-	"time"
 	"unicode"
 
 	log "github.com/cihub/seelog"
@@ -46,8 +45,7 @@ type ConfigResolver struct {
 	newService      chan listeners.Service
 	delService      chan listeners.Service
 	stop            chan bool
-	healthTicker    *time.Ticker
-	healthToken     health.ID
+	health          *health.Handle
 	m               sync.Mutex
 }
 
@@ -63,8 +61,7 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 		newService:      make(chan listeners.Service),
 		delService:      make(chan listeners.Service),
 		stop:            make(chan bool),
-		healthTicker:    time.NewTicker(health.DefaultPingFreq),
-		healthToken:     health.Register("ad-configresolver"),
+		health:          health.Register("ad-configresolver"),
 	}
 
 	// start listening
@@ -80,11 +77,9 @@ func (cr *ConfigResolver) listen() {
 		for {
 			select {
 			case <-cr.stop:
-				cr.healthTicker.Stop()
-				health.Deregister(cr.healthToken)
+				cr.health.Deregister()
 				return
-			case <-cr.healthTicker.C:
-				health.Ping(cr.healthToken)
+			case <-cr.health.C:
 			case svc := <-cr.newService:
 				cr.processNewService(svc)
 			case svc := <-cr.delService:

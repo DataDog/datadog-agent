@@ -23,15 +23,14 @@ import (
 // It pulls its tasks container list periodically and checks for
 // new containers to monitor, and old containers to stop monitoring
 type ECSListener struct {
-	task         ecs.TaskMetadata
-	services     map[string]Service // maps container IDs to services
-	newService   chan<- Service
-	delService   chan<- Service
-	stop         chan bool
-	t            *time.Ticker
-	healthTicker *time.Ticker
-	healthToken  health.ID
-	m            sync.RWMutex
+	task       ecs.TaskMetadata
+	services   map[string]Service // maps container IDs to services
+	newService chan<- Service
+	delService chan<- Service
+	stop       chan bool
+	t          *time.Ticker
+	health     *health.Handle
+	m          sync.RWMutex
 }
 
 // ECSService implements and store results from the Service interface for the ECS listener
@@ -54,11 +53,10 @@ func init() {
 // NewECSListener creates an ECSListener
 func NewECSListener() (ServiceListener, error) {
 	return &ECSListener{
-		services:     make(map[string]Service),
-		stop:         make(chan bool),
-		t:            time.NewTicker(2 * time.Second),
-		healthTicker: time.NewTicker(health.DefaultPingFreq),
-		healthToken:  health.Register("ad-ecslistener"),
+		services: make(map[string]Service),
+		stop:     make(chan bool),
+		t:        time.NewTicker(2 * time.Second),
+		health:   health.Register("ad-ecslistener"),
 	}, nil
 }
 
@@ -72,11 +70,9 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 		for {
 			select {
 			case <-l.stop:
-				l.healthTicker.Stop()
-				health.Deregister(l.healthToken)
+				l.health.Deregister()
 				return
-			case <-l.healthTicker.C:
-				health.Ping(l.healthToken)
+			case <-l.health.C:
 			case <-l.t.C:
 				l.refreshServices()
 			}

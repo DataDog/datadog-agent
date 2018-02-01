@@ -10,7 +10,6 @@ package collectors
 import (
 	"io"
 	"strings"
-	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -32,8 +31,6 @@ type DockerCollector struct {
 	infoOut      chan<- []*TagInfo
 	labelsAsTags map[string]string
 	envAsTags    map[string]string
-	healthTicker *time.Ticker
-	healthToken  health.ID
 }
 
 // Detect tries to connect to the docker socket and returns success
@@ -59,8 +56,7 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 // Stream runs the continuous event watching loop and sends new info
 // to the channel. But be called in a goroutine.
 func (c *DockerCollector) Stream() error {
-	c.healthTicker = time.NewTicker(health.DefaultPingFreq)
-	c.healthToken = health.Register("tagger-docker")
+	healthHandle := health.Register("tagger-docker")
 
 	messages, errs, err := c.dockerUtil.SubscribeToContainerEvents("DockerCollector")
 	if err != nil {
@@ -70,11 +66,9 @@ func (c *DockerCollector) Stream() error {
 	for {
 		select {
 		case <-c.stop:
-			c.healthTicker.Stop()
-			health.Deregister(c.healthToken)
+			healthHandle.Deregister()
 			return c.dockerUtil.UnsubscribeFromContainerEvents("DockerCollector")
-		case <-c.healthTicker.C:
-			health.Ping(c.healthToken)
+		case <-healthHandle.C:
 		case msg := <-messages:
 			c.processEvent(msg)
 		case err := <-errs:

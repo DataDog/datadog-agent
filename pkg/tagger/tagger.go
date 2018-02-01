@@ -23,18 +23,17 @@ import (
 // tagger instead of instanciating one.
 type Tagger struct {
 	sync.RWMutex
-	tagStore     *tagStore
-	candidates   map[string]collectors.CollectorFactory
-	pullers      map[string]collectors.Puller
-	streamers    map[string]collectors.Streamer
-	fetchers     map[string]collectors.Fetcher
-	infoIn       chan []*collectors.TagInfo
-	pullTicker   *time.Ticker
-	pruneTicker  *time.Ticker
-	retryTicker  *time.Ticker
-	stop         chan bool
-	healthTicker *time.Ticker
-	healthToken  health.ID
+	tagStore    *tagStore
+	candidates  map[string]collectors.CollectorFactory
+	pullers     map[string]collectors.Puller
+	streamers   map[string]collectors.Streamer
+	fetchers    map[string]collectors.Fetcher
+	infoIn      chan []*collectors.TagInfo
+	pullTicker  *time.Ticker
+	pruneTicker *time.Ticker
+	retryTicker *time.Ticker
+	stop        chan bool
+	health      *health.Handle
 }
 
 type collectorReply struct {
@@ -53,18 +52,17 @@ func newTagger() (*Tagger, error) {
 		return nil, err
 	}
 	t := &Tagger{
-		tagStore:     store,
-		candidates:   make(map[string]collectors.CollectorFactory),
-		pullers:      make(map[string]collectors.Puller),
-		streamers:    make(map[string]collectors.Streamer),
-		fetchers:     make(map[string]collectors.Fetcher),
-		infoIn:       make(chan []*collectors.TagInfo, 5),
-		pullTicker:   time.NewTicker(5 * time.Second),
-		pruneTicker:  time.NewTicker(5 * time.Minute),
-		retryTicker:  time.NewTicker(30 * time.Second),
-		stop:         make(chan bool),
-		healthTicker: time.NewTicker(health.DefaultPingFreq),
-		healthToken:  health.Register("tagger"),
+		tagStore:    store,
+		candidates:  make(map[string]collectors.CollectorFactory),
+		pullers:     make(map[string]collectors.Puller),
+		streamers:   make(map[string]collectors.Streamer),
+		fetchers:    make(map[string]collectors.Fetcher),
+		infoIn:      make(chan []*collectors.TagInfo, 5),
+		pullTicker:  time.NewTicker(5 * time.Second),
+		pruneTicker: time.NewTicker(5 * time.Minute),
+		retryTicker: time.NewTicker(30 * time.Second),
+		stop:        make(chan bool),
+		health:      health.Register("tagger"),
 	}
 
 	return t, nil
@@ -106,11 +104,9 @@ func (t *Tagger) run() error {
 			t.pullTicker.Stop()
 			t.pruneTicker.Stop()
 			t.retryTicker.Stop()
-			t.healthTicker.Stop()
-			health.Deregister(t.healthToken)
+			t.health.Deregister()
 			return nil
-		case <-t.healthTicker.C:
-			health.Ping(t.healthToken)
+		case <-t.health.C:
 		case msg := <-t.infoIn:
 			for _, info := range msg {
 				t.tagStore.processTagInfo(info)

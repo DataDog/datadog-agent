@@ -19,27 +19,26 @@ import (
 // jobQueue contains a list of checks (called jobs) that need to be
 // scheduled at a certain interval.
 type jobQueue struct {
-	interval     time.Duration
-	stop         chan bool // to stop this queue
-	stopped      chan bool // signals that this queue has stopped
-	ticker       *time.Ticker
-	jobs         []check.Check
-	running      bool
-	healthTicker *time.Ticker
-	healthToken  health.ID
-	mu           sync.RWMutex // to protect critical sections in struct's fields
+	interval time.Duration
+	stop     chan bool // to stop this queue
+	stopped  chan bool // signals that this queue has stopped
+	ticker   *time.Ticker
+	jobs     []check.Check
+	running  bool
+	health   *health.Handle
+	mu       sync.RWMutex // to protect critical sections in struct's fields
 }
 
 // newJobQueue creates a new jobQueue instance
 func newJobQueue(interval time.Duration) *jobQueue {
 	return &jobQueue{
-		interval:     interval,
-		ticker:       time.NewTicker(time.Duration(interval)),
-		stop:         make(chan bool),
-		stopped:      make(chan bool),
-		healthTicker: time.NewTicker(health.DefaultPingFreq),
-		healthToken:  health.Register("collector-queue"),
+		interval: interval,
+		ticker:   time.NewTicker(time.Duration(interval)),
+		stop:     make(chan bool),
+		stopped:  make(chan bool),
+		health:   health.Register("collector-queue"),
 	}
+
 }
 
 // addJob is a convenience method to add a check to a queue
@@ -82,11 +81,9 @@ func (jq *jobQueue) waitForTick(out chan<- check.Check) bool {
 	case <-jq.stop:
 		// someone asked to stop this queue
 		jq.ticker.Stop()
-		jq.healthTicker.Stop()
-		health.Deregister(jq.healthToken)
+		jq.health.Deregister()
 		return false
-	case <-jq.healthTicker.C:
-		health.Ping(jq.healthToken)
+	case <-jq.health.C:
 	case <-jq.ticker.C:
 		// normal case, (re)schedule the queue
 		jq.mu.RLock()

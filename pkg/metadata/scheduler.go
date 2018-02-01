@@ -22,10 +22,10 @@ var catalog = make(map[string]Collector)
 // Scheduler takes care of sending metadata at specific
 // time intervals
 type Scheduler struct {
-	srl          *serializer.Serializer
-	hostname     string
-	tickers      []*time.Ticker
-	healthTokens []health.ID
+	srl           *serializer.Serializer
+	hostname      string
+	tickers       []*time.Ticker
+	healthHandles []*health.Handle
 }
 
 // NewScheduler builds and returns a new Metadata Scheduler
@@ -48,8 +48,8 @@ func (c *Scheduler) Stop() {
 	for _, t := range c.tickers {
 		t.Stop()
 	}
-	for _, t := range c.healthTokens {
-		health.Deregister(t)
+	for _, h := range c.healthHandles {
+		h.Deregister()
 	}
 }
 
@@ -61,22 +61,19 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 	}
 
 	sendTicker := time.NewTicker(interval)
-	healthTicker := time.NewTicker(health.DefaultPingFreq)
-	healthToken := health.Register("metadata-" + name)
+	health := health.Register("metadata-" + name)
 
 	go func() {
 		for {
 			select {
-			case <-healthTicker.C:
-				health.Ping(healthToken)
+			case <-health.C:
 			case <-sendTicker.C:
 				p.Send(c.srl)
 			}
 		}
 	}()
 	c.tickers = append(c.tickers, sendTicker)
-	c.tickers = append(c.tickers, healthTicker)
-	c.healthTokens = append(c.healthTokens, healthToken)
+	c.healthHandles = append(c.healthHandles, health)
 
 	return nil
 }

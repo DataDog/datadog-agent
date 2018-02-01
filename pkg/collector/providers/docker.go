@@ -9,7 +9,6 @@ package providers
 
 import (
 	"sync"
-	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -26,11 +25,10 @@ const (
 // DockerConfigProvider implements the ConfigProvider interface for the docker labels.
 type DockerConfigProvider struct {
 	sync.RWMutex
-	dockerUtil   *docker.DockerUtil
-	upToDate     bool
-	streaming    bool
-	healthTicker *time.Ticker
-	healthToken  health.ID
+	dockerUtil *docker.DockerUtil
+	upToDate   bool
+	streaming  bool
+	health     *health.Handle
 }
 
 // NewDockerConfigProvider returns a new ConfigProvider connected to docker.
@@ -71,8 +69,7 @@ func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
 func (d *DockerConfigProvider) listen() {
 	d.Lock()
 	d.streaming = true
-	d.healthTicker = time.NewTicker(health.DefaultPingFreq)
-	d.healthToken = health.Register("ad-dockerprovider")
+	d.health = health.Register("ad-dockerprovider")
 	d.Unlock()
 
 CONNECT:
@@ -85,8 +82,7 @@ CONNECT:
 
 		for {
 			select {
-			case <-d.healthTicker.C:
-				health.Ping(d.healthToken)
+			case <-d.health.C:
 			case ev := <-eventChan:
 				// As our input is the docker `client.ContainerList`, which lists running containers,
 				// only these two event types will change what containers appear.
@@ -109,8 +105,7 @@ CONNECT:
 
 	d.Lock()
 	d.streaming = false
-	d.healthTicker.Stop()
-	health.Deregister(d.healthToken)
+	d.health.Deregister()
 	d.Unlock()
 }
 

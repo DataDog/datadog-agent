@@ -7,133 +7,98 @@ package health
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
-type HealthTestSuite struct {
-	suite.Suite
+func TestRegisterAndUnhealthy(t *testing.T) {
+	cat := newCatalog()
+	token := cat.register("test1")
+
+	_, found := cat.components[token]
+	require.True(t, found)
+
+	status := cat.getStatus()
+	assert.Len(t, status.Healthy, 0)
+	assert.Len(t, status.Unhealthy, 1)
+	assert.Contains(t, status.Unhealthy, "test1")
 }
 
-// put configuration back in a known state before each test
-func (s *HealthTestSuite) SetupTest() {
-	reset()
+func TestRegisterTriplets(t *testing.T) {
+	cat := newCatalog()
+	cat.register("triplet")
+	cat.register("triplet")
+	cat.register("triplet")
+	assert.Len(t, cat.components, 3)
+
 }
 
-func (s *HealthTestSuite) TestRegisterAndUnhealthy() {
-	token := Register("test1")
+func TestDeregister(t *testing.T) {
+	cat := newCatalog()
+	token1 := cat.register("test1")
+	token2 := cat.register("test2")
 
-	c, found := catalog.components[token]
-	require.True(s.T(), found)
+	assert.Len(t, cat.components, 2)
 
-	assert.Equal(s.T(), "test1", c.name)
-	assert.EqualValues(s.T(), 30, c.timeout.Seconds())
-	assert.True(s.T(), time.Now().After(c.latestPing))
-
-	status := GetStatus()
-	assert.Len(s.T(), status.Healthy, 0)
-	assert.Len(s.T(), status.Unhealthy, 1)
-	assert.Contains(s.T(), status.Unhealthy, "test1")
+	err := cat.deregister(token1)
+	assert.NoError(t, err)
+	assert.Len(t, cat.components, 1)
+	assert.Contains(t, cat.components, token2)
 }
 
-func (s *HealthTestSuite) TestRegisterCustomTimeout() {
-	token := RegisterWithCustomTimeout("test1", 90*time.Second)
+func TestDeregisterBadToken(t *testing.T) {
+	cat := newCatalog()
+	token1 := cat.register("test1")
 
-	c, found := catalog.components[token]
-	require.True(s.T(), found)
+	assert.Len(t, cat.components, 1)
 
-	assert.Equal(s.T(), "test1", c.name)
-	assert.EqualValues(s.T(), 90, c.timeout.Seconds())
+	err := cat.deregister(nil)
+	assert.NotNil(t, err)
+	assert.Len(t, cat.components, 1)
+	assert.Contains(t, cat.components, token1)
 }
 
-func (s *HealthTestSuite) TestRegisterTriplets() {
-	token1 := Register("triplet")
-	assert.EqualValues(s.T(), "triplet", token1)
-	token2 := Register("triplet")
-	assert.EqualValues(s.T(), "triplet-2", token2)
-	token3 := Register("triplet")
-	assert.EqualValues(s.T(), "triplet-3", token3)
+func TestGetHealthy(t *testing.T) {
+	cat := newCatalog()
+	token := cat.register("test1")
+
+	status := cat.getStatus()
+	assert.Len(t, status.Healthy, 0)
+	assert.Len(t, status.Unhealthy, 1)
+
+	for i := 1; i < 10; i++ {
+		cat.pingComponents()
+		<-token.C
+	}
+
+	status = cat.getStatus()
+	assert.Len(t, status.Healthy, 1)
+	assert.Len(t, status.Unhealthy, 0)
 }
 
-func (s *HealthTestSuite) TestRegisterReuseNumbers() {
-	token1 := Register("triplet")
-	assert.EqualValues(s.T(), "triplet", token1)
-	token2 := Register("triplet")
-	assert.EqualValues(s.T(), "triplet-2", token2)
-	token3 := Register("triplet")
-	assert.EqualValues(s.T(), "triplet-3", token3)
+func TestUnhealthyAndBack(t *testing.T) {
+	cat := newCatalog()
+	token := cat.register("test1")
 
-	Deregister(token2)
-	token4 := Register("triplet")
-	assert.EqualValues(s.T(), "triplet-2", token4)
-}
+	status := cat.getStatus()
+	assert.Len(t, status.Healthy, 0)
+	assert.Len(t, status.Unhealthy, 1)
 
-func (s *HealthTestSuite) TestDeregister() {
-	token1 := Register("test1")
-	token2 := Register("test2")
+	for i := 1; i < 10; i++ {
+		cat.pingComponents()
+	}
 
-	assert.Len(s.T(), catalog.components, 2)
+	status = cat.getStatus()
+	assert.Len(t, status.Healthy, 0)
+	assert.Len(t, status.Unhealthy, 1)
 
-	err := Deregister(token1)
-	assert.NoError(s.T(), err)
-	assert.Len(s.T(), catalog.components, 1)
-	assert.Contains(s.T(), catalog.components, token2)
-}
+	for i := 1; i < 10; i++ {
+		cat.pingComponents()
+		<-token.C
+	}
 
-func (s *HealthTestSuite) TestDeregisterBadToken() {
-	token1 := Register("test1")
-
-	assert.Len(s.T(), catalog.components, 1)
-
-	err := Deregister("invalid")
-	assert.NotNil(s.T(), err)
-	assert.Len(s.T(), catalog.components, 1)
-	assert.Contains(s.T(), catalog.components, token1)
-}
-
-func (s *HealthTestSuite) TestPing() {
-	token := Register("test")
-	c := catalog.components[token]
-	assert.True(s.T(), time.Now().After(c.latestPing.Add(c.timeout)))
-
-	err := Ping(token)
-	assert.NoError(s.T(), err)
-	assert.False(s.T(), time.Now().After(c.latestPing.Add(c.timeout)))
-}
-
-func (s *HealthTestSuite) TestPingNotRegistered() {
-	err := Ping("invalid")
-	assert.Error(s.T(), err)
-}
-
-func (s *HealthTestSuite) TestUnhealthyAndBack() {
-	token := Register("test")
-	status := GetStatus()
-	assert.NotContains(s.T(), status.Healthy, "test")
-	assert.Contains(s.T(), status.Unhealthy, "test")
-
-	// Become healthy
-	Ping(token)
-	status = GetStatus()
-	assert.NotContains(s.T(), status.Unhealthy, "test")
-	assert.Contains(s.T(), status.Healthy, "test")
-
-	// Become unhealthy
-	registerPing(token, time.Now().Add(-10*time.Minute))
-	status = GetStatus()
-	assert.NotContains(s.T(), status.Healthy, "test")
-	assert.Contains(s.T(), status.Unhealthy, "test")
-
-	// Become healthy again
-	Ping(token)
-	status = GetStatus()
-	assert.NotContains(s.T(), status.Unhealthy, "test")
-	assert.Contains(s.T(), status.Healthy, "test")
-}
-
-func TestHealthSuite(t *testing.T) {
-	suite.Run(t, &HealthTestSuite{})
+	status = cat.getStatus()
+	assert.Len(t, status.Healthy, 1)
+	assert.Len(t, status.Unhealthy, 0)
 }
