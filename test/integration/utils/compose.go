@@ -65,7 +65,10 @@ func (c *ComposeConf) Start() ([]byte, error) {
 			ERROR: Get https://quay.io/v2/: net/http: request canceled (Client.Timeout exceeded while awaiting headers)
 		*/
 		log.Infof("retrying pull...")
-		output, err = pullCmd.CombinedOutput()
+		// We need to rebuild a new command because the file-descriptors of stdout/err are already set
+		retryPull := exec.Command("docker-compose", append(args, "pull", "--parallel")...)
+		retryPull.Env = customEnv
+		output, err = retryPull.CombinedOutput()
 		if err != nil {
 			return output, err
 		}
