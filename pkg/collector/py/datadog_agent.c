@@ -137,7 +137,8 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    for (int i=0; i<input_len; i++) {
+    int i;
+    for (i=0; i<input_len; i++) {
         tuple = PyList_GetItem(input_list, i);
 
         // list must contain only tuples in form ('hostname', {'source_type': ['tag1', 'tag2']},)
@@ -181,8 +182,8 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
         }
 
         // copy the list of tags into an array of char*
-        int actual_size = 0;
-        for (int j=0; j<tags_len; j++) {
+        int j, actual_size = 0;
+        for (j=0; j<tags_len; j++) {
             PyObject *s = PyList_GetItem(value, j);
             if (s == NULL) {
                 continue;
@@ -202,7 +203,7 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
         AddExternalTags(hostname, source_type, tags, actual_size);
 
         // cleanup
-        for (int j=0; j<actual_size; j++) {
+        for (j=0; j<actual_size; j++) {
             free(tags[j]);
         }
         free(tags);
