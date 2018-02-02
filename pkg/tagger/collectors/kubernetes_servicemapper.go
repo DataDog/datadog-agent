@@ -8,25 +8,76 @@
 package collectors
 
 import (
+	"strings"
+
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/ericchiang/k8s/api/v1"
 	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// doServiceMapping TODO refactor when we have the DCA
-func doServiceMapping(kubeletPodList []*kubelet.Pod) {
+/*
+TODO refactor this file when we have the DCA
+*/
+
+func getTagInfos(pods []*kubelet.Pod) []*TagInfo {
+	var tagInfo []*TagInfo
+
+	for _, po := range pods {
+		if kubelet.IsPodReady(po) == false {
+			log.Debugf("pod %q is not ready, skipping", po.Metadata.Name)
+			continue
+		}
+
+		// We cannot define if a hostNetwork Pod is a member of a service
+		if po.Spec.HostNetwork == true {
+			for _, container := range po.Status.Containers {
+				info := &TagInfo{
+					Source:       kubernetesCollectorName,
+					Entity:       container.ID,
+					HighCardTags: []string{},
+					LowCardTags:  []string{},
+				}
+				tagInfo = append(tagInfo, info)
+			}
+			continue
+		}
+
+		tagList := utils.NewTagList()
+
+		serviceNames := apiserver.GetPodServiceNames(po.Spec.NodeName, po.Metadata.Name)
+		log.Debugf("nodeName: %s, podName: %s, services: %q", po.Spec.NodeName, po.Metadata.Name, strings.Join(serviceNames, ","))
+		for _, serviceName := range serviceNames {
+			log.Tracef("tagging %s kube_service:%s", po.Metadata.Name, serviceName)
+			tagList.AddLow("kube_service", serviceName)
+		}
+
+		low, high := tagList.Compute()
+		for _, container := range po.Status.Containers {
+			info := &TagInfo{
+				Source:       kubernetesCollectorName,
+				Entity:       container.ID,
+				HighCardTags: high,
+				LowCardTags:  low,
+			}
+			tagInfo = append(tagInfo, info)
+		}
+	}
+	return tagInfo
+}
+
+// addToCacheServiceMapping TODO remove this when we have the DCA, we are currently acting like the
+// DCA but only on a node level
+func (c *KubernetesCollector) addToCacheServiceMapping(kubeletPodList []*kubelet.Pod) error {
 	if len(kubeletPodList) == 0 {
 		log.Debugf("empty kubelet pod list")
-		return
+		return nil
 	}
 
-	apiC, err := apiserver.GetAPIClient()
-	if err != nil {
-		return
-	}
 	log.Debugf("refreshing the service mapping...")
 	podList := &v1.PodList{}
 	nodeName := ""
@@ -48,11 +99,5 @@ func doServiceMapping(kubeletPodList []*kubelet.Pod) {
 		}
 		podList.Items = append(podList.Items, pod)
 	}
-	apiC.NodeServiceMapping(nodeName, podList)
-}
-
-// doServiceMapping TODO refactor when we have the DCA
-func getPodServiceNames(nodeName, podName string) []string {
-	log.Debugf("getting %s/%s", nodeName, podName)
-	return apiserver.GetPodServiceNames(nodeName, podName)
+	return c.apiClient.NodeServiceMapping(nodeName, podList)
 }

@@ -335,3 +335,16 @@ func (ku *KubeUtil) init() error {
 	}
 	return ku.setupKubeletApiEndpoint()
 }
+
+// IsPodReady return a bool if the Pod is ready
+func IsPodReady(pod *Pod) bool {
+	if pod.Status.Phase != "Running" {
+		return false
+	}
+	for _, status := range pod.Status.Conditions {
+		if status.Type == "Ready" && status.Status == "True" {
+			return true
+		}
+	}
+	return false
+}

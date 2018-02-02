@@ -85,15 +85,6 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				}
 			}
 
-			// TODO waiting for DCA
-			// Services
-			serviceNames := getPodServiceNames(pod.Spec.NodeName, pod.Metadata.Name)
-			log.Debugf("nodeName: %s, podName: %s, services: %q", pod.Spec.NodeName, pod.Metadata.Name, strings.Join(serviceNames, ","))
-			for _, serviceName := range serviceNames {
-				log.Tracef("tagging %s kube_service:%s", pod.Metadata.Name, serviceName)
-				tags.AddLow("kube_service", serviceName)
-			}
-
 			low, high := tags.Compute()
 			info := &TagInfo{
 				Source:       kubeletCollectorName,

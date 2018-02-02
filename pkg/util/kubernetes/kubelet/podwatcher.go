@@ -57,18 +57,6 @@ func (w *PodWatcher) ForceGetLocalPodList() ([]*Pod, error) {
 	return w.kubeUtil.GetLocalPodList()
 }
 
-func isPodReady(pod *Pod) bool {
-	if pod.Status.Phase != "Running" {
-		return false
-	}
-	for _, status := range pod.Status.Conditions {
-		if status.Type == "Ready" && status.Status == "True" {
-			return true
-		}
-	}
-	return false
-}
-
 // computeChanges is used by PullChanges, split for testing
 func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 	now := time.Now()
@@ -78,7 +66,7 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 	defer w.Unlock()
 	for _, pod := range podList {
 		// Only process a ready pod
-		if isPodReady(pod) == false {
+		if IsPodReady(pod) == false {
 			continue
 		}
 		// Detect new containers

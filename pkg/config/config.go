@@ -156,6 +156,9 @@ func init() {
 	Datadog.SetDefault("kubelet_client_crt", "")
 	Datadog.SetDefault("kubelet_client_key", "")
 
+	Datadog.SetDefault("kubernetes_collect_service_tags", true)
+	Datadog.SetDefault("kubernetes_service_tag_update_freq", 60*5) // 5 min
+
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
 

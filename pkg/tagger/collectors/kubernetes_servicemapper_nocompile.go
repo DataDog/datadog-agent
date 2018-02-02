@@ -11,12 +11,12 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// doServiceMapping TODO waiting for the DCA
+// addToCacheServiceMapping TODO waiting for the DCA
 func doServiceMapping(interfaces ...interface{}) {
 	log.Error("nocompile package")
 }
 
-// doServiceMapping TODO waiting for the DCA
+// addToCacheServiceMapping TODO waiting for the DCA
 func getPodServiceNames(interfaces ...interface{}) []string {
 	log.Error("nocompile package")
 	return nil

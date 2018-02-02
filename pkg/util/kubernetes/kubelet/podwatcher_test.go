@@ -98,6 +98,9 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	changes, err := watcher.computeChanges(podList.Items)
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 4, fmt.Sprintf("%d", len(changes)))
+	for _, po := range changes {
+		require.True(suite.T(), IsPodReady(po))
+	}
 
 	// Same list should detect no change
 	changes, err = watcher.computeChanges(podList.Items)
@@ -115,6 +118,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 1)
 	assert.Equal(suite.T(), "nginx", changes[0].Spec.Containers[0].Name)
+	require.True(suite.T(), IsPodReady(changes[0]))
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherExpireContainers() {
