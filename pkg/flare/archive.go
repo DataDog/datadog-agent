@@ -276,7 +276,7 @@ func zipDiagnose(tempDir, hostname string) error {
 
 	f := filepath.Join(tempDir, hostname, "diagnose.log")
 
-	err = ensureParentDirsExist(f)
+	err := ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
@@ -336,7 +336,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths) 
 }
 
 func ensureParentDirsExist(p string) error {
-	err = os.MkdirAll(filepath.Dir(p), 0644)
+	err := os.MkdirAll(filepath.Dir(p), 0644)
 	if err != nil {
 		return err
 	}
