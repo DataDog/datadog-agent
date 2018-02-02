@@ -157,13 +157,9 @@ func buildProxySettings(agentConfig Config) (map[string]string, error) {
 			u.User = url.User(user)
 		}
 	}
-	// check if url starts with http/https
 
-	if strings.HasPrefix(u.String(), "https") {
-		proxyMap["https"] = u.String()
-	} else {
-		proxyMap["http"] = u.String()
-	}
+	proxyMap["http"] = u.String()
+	proxyMap["https"] = u.String()
 
 	return proxyMap, nil
 
