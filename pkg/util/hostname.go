@@ -101,6 +101,7 @@ func GetHostname() (string, error) {
 	name := config.Datadog.GetString("hostname")
 	err = ValidHostname(name)
 	if err == nil {
+		cache.Cache.Set(cacheHostnameKey, name, cache.NoExpiration)
 		return name, err
 	}
 
@@ -109,6 +110,7 @@ func GetHostname() (string, error) {
 
 	// if fargate we strip the hostname
 	if ecs.IsFargateInstance() {
+		cache.Cache.Set(cacheHostnameKey, "", cache.NoExpiration)
 		return "", nil
 	}
 
@@ -117,6 +119,7 @@ func GetHostname() (string, error) {
 	if getGCEHostname, found := hostname.ProviderCatalog["gce"]; found {
 		name, err = getGCEHostname(name)
 		if err == nil {
+			cache.Cache.Set(cacheHostnameKey, name, cache.NoExpiration)
 			return name, err
 		}
 		log.Debug("Unable to get hostname from GCE: ", err)
@@ -165,6 +168,7 @@ func GetHostname() (string, error) {
 		err = nil
 	}
 
+	// fix caching
 	cache.Cache.Set(cacheHostnameKey, hostName, cache.NoExpiration)
 	return hostName, err
 }
