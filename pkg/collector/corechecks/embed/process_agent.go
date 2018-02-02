@@ -76,14 +76,6 @@ func (c *ProcessAgentCheck) run() error {
 
 	cmd := exec.Command(c.binPath, c.commandOpts...)
 
-	env := os.Environ()
-	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.Datadog.GetString("api_key")))
-	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", getHostname()))
-	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
-	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
-	env = append(env, fmt.Sprintf("DD_PROCESS_AGENT_ENABLED=%t", config.Datadog.GetBool("process_agent_enabled")))
-	cmd.Env = env
-
 	// forward the standard output to the Agent logger
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
