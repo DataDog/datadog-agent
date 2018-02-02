@@ -2,6 +2,14 @@
 
 #include "datadog_agent.h"
 
+/*
+    NOTE: some primitives like `PyArg_ParseTuple` are not available through the
+    `go-python` library, so we can map Go functions directly within a `PyMethodDef`
+    only if (for example) the function doesn't need to access function args.
+
+    That's why functions like `log_message` and `get_config` exist.
+*/
+
 // Functions
 PyObject* GetVersion(PyObject *self, PyObject *args);
 PyObject* Headers(PyObject *self, PyObject *args);
@@ -9,6 +17,7 @@ PyObject* GetHostname(PyObject *self, PyObject *args);
 PyObject* LogMessage(char *message, int logLevel);
 PyObject* GetConfig(char *key);
 PyObject* GetSubprocessOutput(char **args, int argc, int raise);
+PyObject* AddExternalTags(char *hostname, char *source_type, char **tags, int tags_s);
 
 // Exceptions
 PyObject* SubprocessOutputEmptyError;
@@ -101,12 +110,115 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
     return py_result;
 }
 
+static PyObject *add_external_tags(PyObject *self, PyObject *args) {
+    char *hostname, *source_type;
+    int input_len;
+    PyObject *input_list, *tuple, *dict, *key, *value;
+    Py_ssize_t pos;
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    // function expects only one positional arg containing a list
+    if (!PyArg_ParseTuple(args, "O", &input_list)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    // if not a list, set an error
+    if (!PyList_Check(input_list)) {
+        PyErr_SetString(PyExc_TypeError, "function arg must be a list");
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    // if the list is empty do nothing
+    input_len = PyList_Size(input_list);
+    if (input_len == 0) {
+        return NULL;
+    }
+
+    for (int i=0; i<input_len; i++) {
+        tuple = PyList_GetItem(input_list, i);
+
+        // list must contain only tuples in form ('hostname', {'source_type': ['tag1', 'tag2']},)
+        if (!PyTuple_Check(tuple)) {
+            PyErr_SetString(PyExc_TypeError, "external host tags list must contain only tuples");
+            PyGILState_Release(gstate);
+            return NULL;
+        }
+
+        // first elem is the hostname
+        hostname = PyString_AsString(PyTuple_GetItem(tuple, 0));
+        // second is a dictionary
+        dict = PyTuple_GetItem(tuple, 1);
+        if (!PyDict_Check(dict)) {
+            PyErr_SetString(PyExc_TypeError, "second elem of the host tags tuple must be a dict");
+            PyGILState_Release(gstate);
+            return NULL;
+        }
+
+        // dict contains only 1 key, if dict is empty don't do anything
+        pos = 0;
+        if (!PyDict_Next(dict, &pos, &key, &value)) {
+            continue;
+        }
+
+        // key is the source type (e.g. 'vsphere') value is the list of tags
+        source_type = PyString_AsString(key);
+        if (!PyList_Check(value)) {
+            PyErr_SetString(PyExc_TypeError, "dict value must be a list of tags ");
+            PyGILState_Release(gstate);
+            return NULL;
+        }
+
+        // allocate an array of char* to store the tags we'll send to the Go function
+        char **tags;
+        int tags_len = PyList_Size(value);
+        if(!(tags = (char **)malloc(sizeof(char *)*tags_len))) {
+            PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
+            PyGILState_Release(gstate);
+            return NULL;
+        }
+
+        // copy the list of tags into an array of char*
+        int actual_size = 0;
+        for (int j=0; j<tags_len; j++) {
+            PyObject *s = PyList_GetItem(value, j);
+            if (s == NULL) {
+                continue;
+            }
+
+            char *tag = PyString_AsString(s);
+            if (tag == NULL) {
+                continue;
+            }
+
+            tags[j] = (char*)malloc(sizeof(char*)*PyString_Size(s));
+            strcpy(tags[j], tag);
+            actual_size++;
+        }
+
+        // finally, invoke the Go function
+        AddExternalTags(hostname, source_type, tags, actual_size);
+
+        // cleanup
+        for (int j=0; j<actual_size; j++) {
+            free(tags[j]);
+        }
+        free(tags);
+    }
+
+    PyGILState_Release(gstate);
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef datadogAgentMethods[] = {
   {"get_version", GetVersion, METH_VARARGS, "Get the Agent version."},
   {"get_config", get_config, METH_VARARGS, "Get value from the agent configuration."},
   {"headers", Headers, METH_VARARGS | METH_KEYWORDS, "Get basic HTTP headers with the right UserAgent."},
   {"get_hostname", GetHostname, METH_VARARGS, "Get the agent hostname."},
   {"log", log_message, METH_VARARGS, "Log a message through the agent logger."},
+  {"add_external_tags", add_external_tags, METH_VARARGS, "Send external host tags."},
   {NULL, NULL}
 };
 
