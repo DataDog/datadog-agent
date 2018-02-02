@@ -164,7 +164,7 @@ func zipLogFiles(tempDir, hostname, logFilePath string) error {
 
 		if filepath.Ext(f.Name()) == ".log" || getFirstSuffix(f.Name()) == ".log" {
 			dst := filepath.Join(tempDir, hostname, "logs", f.Name())
-			return CopyFileAll(src, dst)
+			return util.CopyFileAll(src, dst)
 		}
 		return nil
 	})
