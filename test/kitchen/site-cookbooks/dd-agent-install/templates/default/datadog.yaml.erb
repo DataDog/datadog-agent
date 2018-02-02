@@ -80,7 +80,7 @@ agent_config = @extra_config.merge({
   log_level: node['dd-agent-install']['log_level'],  # TODO: make sure it's a seelog-compatible log level
 
   # log agent options
-  log_enabled: node['dd-agent-install']['enable_logs_agent']
+  logs_enabled: node['dd-agent-install']['enable_logs_agent']
 })
 
 if node['dd-agent-install']['log_file_directory']

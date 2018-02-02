@@ -22,38 +22,40 @@ type Provider interface {
 
 // provider implements providing logic
 type provider struct {
-	numberOfPipelines int32
-	chanSizes         int
 	pipelinesChans    [](chan message.Message)
-
-	currentChanIdx int32
+	chanSize          int
+	numberOfPipelines int32
+	currentChanIdx    int32
+	apiKey            string
+	logset            string
 }
 
 // NewProvider returns a new Provider
-func NewProvider() Provider {
+func NewProvider(config *config.Config) Provider {
 	return &provider{
-		numberOfPipelines: config.NumberOfPipelines,
-		chanSizes:         config.ChanSizes,
 		pipelinesChans:    [](chan message.Message){},
+		chanSize:          config.GetChanSize(),
+		numberOfPipelines: int32(config.GetNumberOfPipelines()),
 		currentChanIdx:    0,
+		apiKey:            config.GetAPIKey(),
+		logset:            config.GetLogset(),
 	}
 }
 
 // Start initializes the pipelines
 func (p *provider) Start(cm *sender.ConnectionManager, auditorChan chan message.Message) {
-
 	for i := int32(0); i < p.numberOfPipelines; i++ {
 
-		senderChan := make(chan message.Message, p.chanSizes)
+		senderChan := make(chan message.Message, p.chanSize)
 		f := sender.New(senderChan, auditorChan, cm)
 		f.Start()
 
-		processorChan := make(chan message.Message, p.chanSizes)
+		processorChan := make(chan message.Message, p.chanSize)
 		pr := processor.New(
 			processorChan,
 			senderChan,
-			config.LogsAgent.GetString("api_key"),
-			config.LogsAgent.GetString("logset"),
+			p.apiKey,
+			p.logset,
 		)
 		pr.Start()
 

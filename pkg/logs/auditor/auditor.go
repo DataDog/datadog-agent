@@ -16,7 +16,6 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -47,10 +46,10 @@ type Auditor struct {
 }
 
 // New returns an initialized Auditor
-func New(inputChan chan message.Message) *Auditor {
+func New(inputChan chan message.Message, runPath string) *Auditor {
 	return &Auditor{
 		inputChan:     inputChan,
-		registryPath:  filepath.Join(config.LogsAgent.GetString("run_path"), "registry.json"),
+		registryPath:  filepath.Join(runPath, "registry.json"),
 		registryMutex: &sync.Mutex{},
 
 		flushPeriod:   defaultFlushPeriod,

@@ -6,6 +6,8 @@
 package logs
 
 import (
+	"github.com/spf13/viper"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
@@ -21,30 +23,30 @@ import (
 var isRunning bool
 
 // Start starts logs-agent
-func Start() error {
-	err := config.Build()
+func Start(ddConfig *viper.Viper) error {
+	config, err := config.Build(ddConfig)
 	if err != nil {
 		return err
 	}
-	go run()
+	go run(config)
 	return nil
 }
 
 // run sets up the pipeline to process logs and them to Datadog back-end
-func run() {
+func run(config *config.Config) {
 	isRunning = true
 
 	cm := sender.NewConnectionManager(
-		config.LogsAgent.GetString("log_dd_url"),
-		config.LogsAgent.GetInt("log_dd_port"),
-		config.LogsAgent.GetBool("dev_mode_no_ssl"),
+		config.GetDDURL(),
+		config.GetDDPort(),
+		config.ShouldSkipSSLValidation(),
 	)
 
-	auditorChan := make(chan message.Message, config.ChanSizes)
-	a := auditor.New(auditorChan)
+	auditorChan := make(chan message.Message, config.GetChanSize())
+	a := auditor.New(auditorChan, config.GetRunPath())
 	a.Start()
 
-	pp := pipeline.NewProvider()
+	pp := pipeline.NewProvider(config)
 	pp.Start(cm, auditorChan)
 
 	sources := config.GetLogsSources()
@@ -52,8 +54,7 @@ func run() {
 	l := listener.New(sources.GetValidSources(), pp)
 	l.Start()
 
-	tailingLimit := config.LogsAgent.GetInt("log_open_files_limit")
-	s := tailer.New(sources.GetValidSources(), tailingLimit, pp, a)
+	s := tailer.New(sources.GetValidSources(), config.GetOpenFilesLimit(), pp, a)
 	s.Start()
 
 	c := container.New(sources.GetValidSources(), pp, a)

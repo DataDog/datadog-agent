@@ -148,7 +148,7 @@ metadata_collectors:
 # Logs agent
 #
 # Logs agent is disabled by default
-# log_enabled: false
+# logs_enabled: false
 {{ end -}}
 {{- if .JMX }}
 # JMX

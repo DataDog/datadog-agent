@@ -40,7 +40,7 @@ func (suite *AuditorTestSuite) SetupTest() {
 	suite.Nil(err)
 
 	suite.inputChan = make(chan message.Message)
-	suite.a = New(suite.inputChan)
+	suite.a = New(suite.inputChan, "")
 	suite.a.registryPath = suite.testPath
 	suite.source = config.NewLogSource("", &config.LogsConfig{Path: testpath})
 }

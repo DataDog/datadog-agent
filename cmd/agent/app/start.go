@@ -207,13 +207,15 @@ func StartAgent() error {
 	log.Debugf("statsd started")
 
 	// start logs-agent
-	if config.Datadog.GetBool("log_enabled") {
+	// "log_enabled" is deprecated, use "logs_enabled" instead
+	if config.Datadog.GetBool("logs_enabled") || config.Datadog.GetBool("log_enabled") {
 		// logs-agent does not provide any Stop method yet
 		// data loss may happen when stopping the agent
-		err := logs.Start()
+		err := logs.Start(config.Datadog)
 		if err != nil {
 			log.Error("Could not start logs-agent: ", err)
 		} else {
+
 			log.Info("Starting logs-agent")
 		}
 	} else {

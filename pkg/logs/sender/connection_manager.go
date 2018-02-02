@@ -24,9 +24,9 @@ const (
 
 // A ConnectionManager manages connections
 type ConnectionManager struct {
-	connectionString string
-	serverName       string
-	devModeNoSSL     bool
+	connectionString  string
+	serverName        string
+	skipSSLValidation bool
 
 	mutex   sync.Mutex
 	retries int
@@ -35,11 +35,11 @@ type ConnectionManager struct {
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(ddURL string, ddPort int, devModeNoSSL bool) *ConnectionManager {
+func NewConnectionManager(ddURL string, ddPort int, skipSSLValidation bool) *ConnectionManager {
 	return &ConnectionManager{
-		connectionString: fmt.Sprintf("%s:%d", ddURL, ddPort),
-		serverName:       ddURL,
-		devModeNoSSL:     devModeNoSSL,
+		connectionString:  fmt.Sprintf("%s:%d", ddURL, ddPort),
+		serverName:        ddURL,
+		skipSSLValidation: skipSSLValidation,
 
 		mutex: sync.Mutex{},
 
@@ -67,7 +67,7 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 			continue
 		}
 
-		if !cm.devModeNoSSL {
+		if !cm.skipSSLValidation {
 			config := &tls.Config{
 				ServerName: cm.serverName,
 			}
