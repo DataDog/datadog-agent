@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Change the payload sent by the agent from raw text formatted using the syslog protocol to a protocol buffer payload.
