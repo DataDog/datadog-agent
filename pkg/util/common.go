@@ -8,9 +8,12 @@ package util
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 
 	log "github.com/cihub/seelog"
 
@@ -18,6 +21,64 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// CopyFile atomically copies file path `src`` to file path `dst`.
+func CopyFile(src, dst string) error {
+	fi, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	perm := fi.Mode()
+
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	tmp, err := ioutil.TempFile(filepath.Dir(dst), "")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+
+	_, err = io.Copy(tmp, in)
+	if err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return err
+	}
+
+	err = tmp.Close()
+	if err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+
+	err = os.Chmod(tmpName, perm)
+	if err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+
+	err = os.Rename(tmpName, dst)
+	if err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+
+	return nil
+}
+
+// CopyFileAll calls CopyFile, but will create necessary directories for  `dst`.
+func CopyFileAll(src, dst string) error {
+	err := os.MkdirAll(filepath.Dir(dst), 0644)
+	if err != nil {
+		return err
+	}
+
+	return CopyFile(src, dst)
+}
 
 // HTTPHeaders returns a http headers including various basic information (User-Agent, Content-Type...).
 func HTTPHeaders() map[string]string {
