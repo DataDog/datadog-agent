@@ -15,7 +15,7 @@ void initkubeutil()
   PyGILState_STATE gstate;
   gstate = PyGILState_Ensure();
 
-  PyObject *da = Py_InitModule("kubeutil", kubeutilMethods);
+  PyObject *ku = Py_InitModule("kubeutil", kubeutilMethods);
 
   PyGILState_Release(gstate);
 }

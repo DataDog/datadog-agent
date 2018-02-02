@@ -42,11 +42,13 @@ func GetKubeletConnectionInfo() *C.PyObject {
 		}
 	}
 
-	if creds == nil { // cache miss
+	if creds == nil { // Cache miss
 		kubeutil, err := kubelet.GetKubeUtil()
 		if err != nil {
+			// Connection to the kubelet fail, return empty dict
 			return dict
 		}
+		// At this point, we have valid credentials to get
 		creds = kubeutil.GetRawConnectionInfo()
 		cache.Cache.Set(kubeletCacheKey, creds, 5*time.Minute)
 	}
