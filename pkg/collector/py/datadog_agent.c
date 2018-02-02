@@ -193,8 +193,8 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
             }
 
             int len = PyString_Size(s) + 1;
-            tags[j] = (char*)malloc(sizeof(char)*len);
-            if (!tags[j]) {
+            tags[actual_size] = (char*)malloc(sizeof(char)*len);
+            if (!tags[actual_size]) {
                 // cleanup
                 int k;
                 for (k=0; k<actual_size; k++) {
@@ -206,7 +206,7 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
                 PyGILState_Release(gstate);
                 return NULL;
             }
-            strncpy(tags[j], tag, len);
+            strncpy(tags[actual_size], tag, len);
             actual_size++;
         }
 
