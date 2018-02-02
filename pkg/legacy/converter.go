@@ -126,9 +126,8 @@ func isAffirmative(value string) (bool, error) {
 
 func buildProxySettings(agentConfig Config) (map[string]string, error) {
 	proxyHost := agentConfig["proxy_host"]
-	
-	proxy_map := make(map[string]string)
-	scheme := true
+
+	proxyMap := make(map[string]string)
 
 	if proxyHost == "" {
 		// this is expected, not an error
@@ -144,7 +143,6 @@ func buildProxySettings(agentConfig Config) (map[string]string, error) {
 
 	// set scheme if missing
 	if u.Scheme == "" {
-		scheme = false
 		u, _ = url.Parse("http://" + proxyHost)
 	}
 
@@ -159,14 +157,15 @@ func buildProxySettings(agentConfig Config) (map[string]string, error) {
 			u.User = url.User(user)
 		}
 	}
+	// check if url starts with http/https
 
-	if scheme {
-		proxy_map["https"] = u.String()		
+	if strings.HasPrefix(u.String(), "https") {
+		proxyMap["https"] = u.String()
 	} else {
-		proxy_map["http"] = u.String()
+		proxyMap["http"] = u.String()
 	}
 
-	return proxy_map, nil
+	return proxyMap, nil
 
 }
 
