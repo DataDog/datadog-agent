@@ -51,9 +51,10 @@ func (p *Processor) run() {
 	for msg := range p.inputChan {
 		shouldProcess, redactedMessage := p.applyRedactingRules(msg)
 		if shouldProcess {
-			content, err := p.toBytePayload(p.toProtoPayload(msg, redactedMessage))
+			payload := p.toProtoPayload(msg, redactedMessage)
+			content, err := p.toBytePayload(payload)
 			if err != nil {
-				log.Error("unable to serialize msg", err)
+				log.Error("unable to serialize msg ", err)
 				continue
 			}
 			msg.SetContent(content)
