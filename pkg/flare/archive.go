@@ -29,7 +29,7 @@ type SearchPaths map[string]string
 
 // CreateArchive packages up the files
 func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (string, error) {
-	zipFilePath := mkFilePath()
+	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
@@ -257,7 +257,7 @@ func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }
 
-func mkFilePath() string {
+func getArchivePath() string {
 	dir := os.TempDir()
 	t := time.Now()
 	timeString := t.Format("2006-01-02-15-04-05")
