@@ -17,7 +17,7 @@ PyObject* GetHostname(PyObject *self, PyObject *args);
 PyObject* LogMessage(char *message, int logLevel);
 PyObject* GetConfig(char *key);
 PyObject* GetSubprocessOutput(char **args, int argc, int raise);
-PyObject* AddExternalTags(char *hostname, char *source_type, char **tags, int tags_s);
+PyObject* AddExternalTags(const char *hostname, const char *source_type, char **tags, int tags_s);
 
 // Exceptions
 PyObject* SubprocessOutputEmptyError;
@@ -146,7 +146,7 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
         }
 
         // first elem is the hostname
-        char *hostname = PyString_AsString(PyTuple_GetItem(tuple, 0));
+        const char *hostname = PyString_AsString(PyTuple_GetItem(tuple, 0));
         // second is a dictionary
         PyObject *dict = PyTuple_GetItem(tuple, 1);
         if (!PyDict_Check(dict)) {
@@ -163,7 +163,7 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
         }
 
         // key is the source type (e.g. 'vsphere') value is the list of tags
-        char * source_type = PyString_AsString(key);
+        const char *source_type = PyString_AsString(key);
         if (!PyList_Check(value)) {
             PyErr_SetString(PyExc_TypeError, "dict value must be a list of tags ");
             PyGILState_Release(gstate);
