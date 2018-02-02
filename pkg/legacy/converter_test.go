@@ -48,32 +48,42 @@ func TestBuildProxySettings(t *testing.T) {
 
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://foobar.baz", value)
+	proxyOnlyHost := make(map[string]string)
+	proxyOnlyHost["http"] = "http://foobar.baz"
+	assert.Equal(t, proxyOnlyHost, value)
 
 	agentConfig["proxy_port"] = "8080"
 
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://foobar.baz:8080", value)
+	proxyNoUser := make(map[string]string)
+	proxyNoUser["http"] = "http://foobar.baz:8080"
+	assert.Equal(t, proxyNoUser, value)
 
 	// the password alone should not be considered without an user
 	agentConfig["proxy_password"] = "mypass"
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://foobar.baz:8080", value)
+	proxyOnlyPass := make(map[string]string)
+	proxyOnlyPass["http"] = "http://foobar.baz:8080"
+	assert.Equal(t, proxyOnlyPass, value)
 
 	// the user alone is ok
 	agentConfig["proxy_password"] = ""
 	agentConfig["proxy_user"] = "myuser"
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://myuser@foobar.baz:8080", value)
+	proxyOnlyUser := make(map[string]string)
+	proxyOnlyUser["http"] = "http://myuser@foobar.baz:8080"
+	assert.Equal(t, proxyOnlyUser, value)
 
 	agentConfig["proxy_password"] = "mypass"
 	agentConfig["proxy_user"] = "myuser"
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://myuser:mypass@foobar.baz:8080", value)
+	proxyWithUser := make(map[string]string)
+	proxyWithUser["http"] = "http://myuser:mypass@foobar.baz:8080"
+	assert.Equal(t, proxyWithUser, value)
 }
 
 func TestBuildSyslogURI(t *testing.T) {
