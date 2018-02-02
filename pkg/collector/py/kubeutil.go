@@ -69,6 +69,6 @@ func GetKubeletConnectionInfo() *C.PyObject {
 	return dict
 }
 
-func initkubeutil() {
+func initKubeutil() {
 	C.initkubeutil()
 }

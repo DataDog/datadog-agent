@@ -8,5 +8,5 @@
 package py
 
 // Stub
-func initkubeutil() {
+func initKubeutil() {
 }
