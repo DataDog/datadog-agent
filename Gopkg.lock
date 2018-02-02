@@ -492,7 +492,7 @@
 [[projects]]
   name = "github.com/ugorji/go"
   packages = ["codec"]
-  revision = "9831f2c3ac1068a78f50999a30db84270f647af6"
+  revision = "8c0409fcbb70099c748d71f714529204975f6c3f"
   version = "v1.1"
 
 [[projects]]
