@@ -111,11 +111,7 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
 }
 
 static PyObject *add_external_tags(PyObject *self, PyObject *args) {
-    char *hostname, *source_type;
-    int input_len;
-    PyObject *input_list, *tuple, *dict, *key, *value;
-    Py_ssize_t pos;
-
+    PyObject *input_list = NULL;
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     // function expects only one positional arg containing a list
@@ -132,14 +128,15 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
     }
 
     // if the list is empty do nothing
-    input_len = PyList_Size(input_list);
+    int input_len = PyList_Size(input_list);
     if (input_len == 0) {
-        return NULL;
+        PyGILState_Release(gstate);
+        Py_RETURN_NONE;
     }
 
     int i;
     for (i=0; i<input_len; i++) {
-        tuple = PyList_GetItem(input_list, i);
+        PyObject *tuple = PyList_GetItem(input_list, i);
 
         // list must contain only tuples in form ('hostname', {'source_type': ['tag1', 'tag2']},)
         if (!PyTuple_Check(tuple)) {
@@ -149,9 +146,9 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
         }
 
         // first elem is the hostname
-        hostname = PyString_AsString(PyTuple_GetItem(tuple, 0));
+        char *hostname = PyString_AsString(PyTuple_GetItem(tuple, 0));
         // second is a dictionary
-        dict = PyTuple_GetItem(tuple, 1);
+        PyObject *dict = PyTuple_GetItem(tuple, 1);
         if (!PyDict_Check(dict)) {
             PyErr_SetString(PyExc_TypeError, "second elem of the host tags tuple must be a dict");
             PyGILState_Release(gstate);
@@ -159,13 +156,14 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
         }
 
         // dict contains only 1 key, if dict is empty don't do anything
-        pos = 0;
+        Py_ssize_t pos = 0;
+        PyObject *key = NULL, *value = NULL;
         if (!PyDict_Next(dict, &pos, &key, &value)) {
             continue;
         }
 
         // key is the source type (e.g. 'vsphere') value is the list of tags
-        source_type = PyString_AsString(key);
+        char * source_type = PyString_AsString(key);
         if (!PyList_Check(value)) {
             PyErr_SetString(PyExc_TypeError, "dict value must be a list of tags ");
             PyGILState_Release(gstate);
@@ -194,8 +192,9 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
                 continue;
             }
 
-            tags[j] = (char*)malloc(sizeof(char*)*PyString_Size(s));
-            strcpy(tags[j], tag);
+            int len = PyString_Size(s) + 1;
+            tags[j] = (char*)malloc(sizeof(char)*len);
+            strcpy(tags[j], tag, len);
             actual_size++;
         }
 
