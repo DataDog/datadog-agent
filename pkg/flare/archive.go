@@ -8,8 +8,11 @@ package flare
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"expvar"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 
 	"github.com/jhoonb/archivex"
+	// "github.com/mholt/archiver"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -39,8 +43,19 @@ func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (stri
 }
 
 func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
-	zipFile := new(archivex.ZipFile)
-	zipFile.Create(zipFilePath)
+	b := make([]byte, 10)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+
+	dirName := base64.StdEncoding.EncodeToString([]byte(b))
+	tempDir, err := ioutil.TempDir("", dirName)
+	if err != nil {
+		return "", err
+	}
+
+	defer os.RemoveAll(tempDir)
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
@@ -49,10 +64,18 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		hostname = "unknown"
 	}
 
-	defer zipFile.Close()
-
 	if local {
-		zipFile.Add(filepath.Join(hostname, "local"), []byte{})
+		f := filepath.Join(tempDir, hostname, "local")
+
+		err = os.MkdirAll(filepath.Dir(f), 0644)
+		if err != nil {
+			return "", err
+		}
+
+		err = ioutil.WriteFile(f, []byte{}, 0644)
+		if err != nil {
+			return "", err
+		}
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
