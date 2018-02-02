@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
-	// "github.com/mholt/archiver"
+	"github.com/mholt/archiver"
 	yaml "gopkg.in/yaml.v2"
 )
 
