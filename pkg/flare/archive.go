@@ -141,12 +141,12 @@ func zipStatusFile(tempDir, hostname string) error {
 
 	err = ensureParentDirsExist(f)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	err = ioutil.WriteFile(f, cleaned, 0644)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	return err
