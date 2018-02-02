@@ -194,6 +194,18 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
 
             int len = PyString_Size(s) + 1;
             tags[j] = (char*)malloc(sizeof(char)*len);
+            if (!tags[j]) {
+                // cleanup
+                int k;
+                for (k=0; k<actual_size; k++) {
+                    free(tags[k]);
+                }
+                free(tags);
+                // raise an exception
+                PyErr_SetString(PyExc_MemoryError, "unable to allocate memory, bailing out");
+                PyGILState_Release(gstate);
+                return NULL;
+            }
             strncpy(tags[j], tag, len);
             actual_size++;
         }
