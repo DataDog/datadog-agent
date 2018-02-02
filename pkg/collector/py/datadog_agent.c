@@ -194,7 +194,7 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
 
             int len = PyString_Size(s) + 1;
             tags[j] = (char*)malloc(sizeof(char)*len);
-            strcpy(tags[j], tag, len);
+            strncpy(tags[j], tag, len);
             actual_size++;
         }
 
