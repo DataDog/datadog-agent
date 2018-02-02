@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build kubeapiserver
+// +build kubeapiserver,kubelet
 
 package collectors
 
 import (
+	"fmt"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -18,10 +19,10 @@ import (
 )
 
 const (
-	kubernetesCollectorName = "kubernetes"
+	kubeServiceCollectorName = "kube-service-collector"
 )
 
-type KubernetesCollector struct {
+type KubeServiceCollector struct {
 	kubeUtil  *kubelet.KubeUtil
 	apiClient *apiserver.APIClient
 	infoOut   chan<- []*TagInfo
@@ -32,9 +33,10 @@ type KubernetesCollector struct {
 }
 
 // Detect tries to connect to the kubelet
-func (c *KubernetesCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+// TODO refactor when we have the DCA
+func (c *KubeServiceCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	if config.Datadog.GetBool("kubernetes_collect_service_tags") == false {
-		return NoCollection, nil
+		return NoCollection, fmt.Errorf("collection disabled by the configuration")
 	}
 
 	var err error
@@ -53,7 +55,8 @@ func (c *KubernetesCollector) Detect(out chan<- []*TagInfo) (CollectionMode, err
 }
 
 // Pull implements an additional time constraints to avoid exhausting the kube-apiserver
-func (c *KubernetesCollector) Pull() error {
+// TODO refactor when we have the DCA
+func (c *KubeServiceCollector) Pull() error {
 	// Time constraints, get the delta in seconds to display it in the logs:
 	timeDelta := c.lastUpdate.Add(c.updateFreq).Unix() - time.Now().Unix()
 	if timeDelta > 0 {
@@ -79,18 +82,12 @@ func (c *KubernetesCollector) Pull() error {
 
 // Fetch fetches tags for a given container by iterating on the whole podlist and
 // the serviceMapper, TODO refactor when we have the DCA
-func (c *KubernetesCollector) Fetch(containerID string) ([]string, []string, error) {
+func (c *KubeServiceCollector) Fetch(containerID string) ([]string, []string, error) {
 	var lowCards, highCards []string
 
 	pod, err := c.kubeUtil.GetPodForContainerID(containerID)
 	if err != nil {
-		// bypass the cache
-		log.Debugf("cannot get the containerID %q, retrying without cache...", containerID)
-		kubelet.ResetCache()
-		pod, err = c.kubeUtil.GetPodForContainerID(containerID)
-		if err != nil {
-			return lowCards, highCards, err
-		}
+		return lowCards, highCards, err
 	}
 
 	if kubelet.IsPodReady(pod) == false {
@@ -111,9 +108,9 @@ func (c *KubernetesCollector) Fetch(containerID string) ([]string, []string, err
 }
 
 func kubernetesFactory() Collector {
-	return &KubernetesCollector{}
+	return &KubeServiceCollector{}
 }
 
 func init() {
-	registerCollector(kubernetesCollectorName, kubernetesFactory)
+	registerCollector(kubeServiceCollectorName, kubernetesFactory)
 }

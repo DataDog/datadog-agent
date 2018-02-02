@@ -50,13 +50,6 @@ func (w *PodWatcher) PullChanges() ([]*Pod, error) {
 	return w.computeChanges(podList)
 }
 
-// ForceGetLocalPodList directly call the kubeutil ForceGetLocalPodList
-// Refresh the cache
-func (w *PodWatcher) ForceGetLocalPodList() ([]*Pod, error) {
-	ResetCache()
-	return w.kubeUtil.GetLocalPodList()
-}
-
 // computeChanges is used by PullChanges, split for testing
 func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 	now := time.Now()

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build kubeapiserver
+// +build kubeapiserver,kubelet
 
 package collectors
 
@@ -21,7 +21,7 @@ import (
 )
 
 /*
-TODO refactor this file when we have the DCA
+TODO remove this file when we have the DCA
 */
 
 func getTagInfos(pods []*kubelet.Pod) []*TagInfo {
@@ -37,7 +37,7 @@ func getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		if po.Spec.HostNetwork == true {
 			for _, container := range po.Status.Containers {
 				info := &TagInfo{
-					Source:       kubernetesCollectorName,
+					Source:       kubeServiceCollectorName,
 					Entity:       container.ID,
 					HighCardTags: []string{},
 					LowCardTags:  []string{},
@@ -59,7 +59,7 @@ func getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		low, high := tagList.Compute()
 		for _, container := range po.Status.Containers {
 			info := &TagInfo{
-				Source:       kubernetesCollectorName,
+				Source:       kubeServiceCollectorName,
 				Entity:       container.ID,
 				HighCardTags: high,
 				LowCardTags:  low,
@@ -72,7 +72,7 @@ func getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 
 // addToCacheServiceMapping TODO remove this when we have the DCA, we are currently acting like the
 // DCA but only on a node level
-func (c *KubernetesCollector) addToCacheServiceMapping(kubeletPodList []*kubelet.Pod) error {
+func (c *KubeServiceCollector) addToCacheServiceMapping(kubeletPodList []*kubelet.Pod) error {
 	if len(kubeletPodList) == 0 {
 		log.Debugf("empty kubelet pod list")
 		return nil
