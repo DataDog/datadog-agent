@@ -7,11 +7,10 @@ package flare
 
 import (
 	"bytes"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/jhoonb/archivex"
 )
 
 var envvarPrefixWhitelist = []string{
@@ -47,7 +46,7 @@ func getWhitelistedEnvvars() []string {
 
 // zipEnvvars collects whitelisted envvars that can affect the agent's
 // behaviour while not being handled by viper
-func zipEnvvars(zipFile *archivex.ZipFile, hostname string) error {
+func zipEnvvars(tempDir, hostname string) error {
 	envvars := getWhitelistedEnvvars()
 	if len(envvars) == 0 {
 		// Don't create the file if we have nothing
@@ -66,9 +65,17 @@ func zipEnvvars(zipFile *archivex.ZipFile, hostname string) error {
 		return err
 	}
 
-	err = zipFile.Add(filepath.Join(hostname, "envvars.log"), cleaned)
+	f := filepath.Join(tempDir, hostname, "envvars.log")
+
+	err = os.MkdirAll(filepath.Dir(f), 0644)
 	if err != nil {
 		return err
 	}
+
+	err = ioutil.WriteFile(f, cleaned, 0644)
+	if err != nil {
+		return err
+	}
+
 	return err
 }
