@@ -53,12 +53,12 @@ func zipDockerSelfInspect(tempDir, hostname string) error {
 
 	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
 
-	err = os.MkdirAll(filepath.Dir(f), 0644)
+	err = os.MkdirAll(filepath.Dir(f), os.ModePerm)
 	if err != nil {
 		return err
 	}
 
-	err = ioutil.WriteFile(f, cleaned, 0644)
+	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
 	if err != nil {
 		return err
 	}

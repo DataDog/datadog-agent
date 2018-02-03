@@ -71,7 +71,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 			return "", err
 		}
 
-		err = ioutil.WriteFile(f, []byte{}, 0644)
+		err = ioutil.WriteFile(f, []byte{}, os.ModePerm)
 		if err != nil {
 			return "", err
 		}
@@ -144,7 +144,7 @@ func zipStatusFile(tempDir, hostname string) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(f, cleaned, 0644)
+	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -201,7 +201,7 @@ func zipExpVar(tempDir, hostname string) error {
 			return err
 		}
 
-		err = ioutil.WriteFile(f, cleanedYAML, 0644)
+		err = ioutil.WriteFile(f, cleanedYAML, os.ModePerm)
 		if err != nil {
 			return err
 		}
@@ -228,7 +228,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths) error
 		return err
 	}
 
-	err = ioutil.WriteFile(f, cleaned, 0644)
+	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths) error
 				return err
 			}
 
-			err = ioutil.WriteFile(f, cleaned, 0644)
+			err = ioutil.WriteFile(f, cleaned, os.ModePerm)
 			if err != nil {
 				return err
 			}
@@ -281,7 +281,7 @@ func zipDiagnose(tempDir, hostname string) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(f, b.Bytes(), 0644)
+	err = ioutil.WriteFile(f, b.Bytes(), os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -317,7 +317,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths) 
 					return err
 				}
 
-				err = ioutil.WriteFile(f, cleaned, 0644)
+				err = ioutil.WriteFile(f, cleaned, os.ModePerm)
 				if err != nil {
 					return err
 				}
@@ -336,7 +336,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths) 
 }
 
 func ensureParentDirsExist(p string) error {
-	err := os.MkdirAll(filepath.Dir(p), 0644)
+	err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
 	if err != nil {
 		return err
 	}
