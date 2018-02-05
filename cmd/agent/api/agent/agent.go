@@ -15,10 +15,12 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
@@ -40,6 +42,7 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
+	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -199,4 +202,19 @@ func getCSRFToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write([]byte(gui.CsrfToken))
+}
+
+func getConfigCheck(w http.ResponseWriter, r *http.Request) {
+	var response response.ConfigCheckResponse
+
+	response.Configs = common.AC.GetProviderLoadedConfigs()
+	response.Warnings = autodiscovery.GetResolveWarnings()
+	response.Unresolved = common.AC.GetUnresolvedTemplates()
+
+	json, err := json.Marshal(response)
+	if err != nil {
+		log.Errorf("Unable to marshal config check response: %s", err)
+	}
+
+	w.Write(json)
 }

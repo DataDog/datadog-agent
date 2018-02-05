@@ -9,13 +9,13 @@ package providers
 
 import (
 	"fmt"
-	"golang.org/x/net/context"
 	"math"
 	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/coreos/etcd/client"
+	"golang.org/x/net/context"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -185,6 +185,7 @@ func (p *EtcdConfigProvider) IsUpToDate() (bool, error) {
 	return true, nil
 }
 
+// String returns a string representation of the EtcdConfigProvider
 func (p *EtcdConfigProvider) String() string {
 	return "etcd Configuration Provider"
 }
