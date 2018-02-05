@@ -72,7 +72,7 @@ func CopyFile(src, dst string) error {
 
 // CopyFileAll calls CopyFile, but will create necessary directories for  `dst`.
 func CopyFileAll(src, dst string) error {
-	err := os.MkdirAll(filepath.Dir(dst), 0644)
+	err := os.MkdirAll(filepath.Dir(dst), os.ModePerm)
 	if err != nil {
 		return err
 	}

@@ -35,6 +35,7 @@ func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 	return &DockerConfigProvider{}, nil
 }
 
+// String returns a string representation of the DockerConfigProvider
 func (d *DockerConfigProvider) String() string {
 	return "Docker container labels"
 }

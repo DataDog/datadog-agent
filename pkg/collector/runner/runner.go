@@ -66,7 +66,7 @@ type Runner struct {
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
 func NewRunner() *Runner {
-	numWorkers := config.Datadog.GetInt("check_runners") // = 0 if no value is specified by the user
+	numWorkers := config.Datadog.GetInt("check_runners")
 	if numWorkers > maxNumWorkers {
 		numWorkers = maxNumWorkers
 		log.Warnf("Configured number of checks workers (%v) is too high: %v will be used", numWorkers, maxNumWorkers)
@@ -86,13 +86,18 @@ func NewRunner() *Runner {
 
 	// start the workers
 	for i := 0; i < numWorkers; i++ {
-		TestWg.Add(1)
-		go r.work()
+		r.AddWorker()
 	}
 
 	log.Infof("Runner started with %d workers.", numWorkers)
-	runnerStats.Add("Workers", int64(numWorkers))
 	return r
+}
+
+// AddWorker adds a new worker to the worker pull
+func (r *Runner) AddWorker() {
+	runnerStats.Add("Workers", 1)
+	TestWg.Add(1)
+	go r.work()
 }
 
 // UpdateNumWorkers checks if the current number of workers is reasonable, and adds more if needed
@@ -124,9 +129,7 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 		if numWorkers >= desiredNumWorkers {
 			break
 		}
-		runnerStats.Add("Workers", 1)
-		TestWg.Add(1)
-		go r.work()
+		r.AddWorker()
 		numWorkers++
 		added++
 	}
@@ -222,6 +225,7 @@ func (r *Runner) StopCheck(id check.ID) error {
 func (r *Runner) work() {
 	log.Debug("Ready to process checks...")
 	defer TestWg.Done()
+	defer runnerStats.Add("Workers", -1)
 
 	for check := range r.pending {
 		// see if the check is already running
@@ -298,6 +302,11 @@ func (r *Runner) work() {
 			log.Infof(l, check)
 		} else {
 			log.Debugf(l, check)
+		}
+
+		if check.Interval() == 0 {
+			log.Infof("Check %v one-time's execution has finished", check)
+			return
 		}
 	}
 

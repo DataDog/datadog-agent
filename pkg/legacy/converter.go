@@ -37,7 +37,7 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	if enabled, err := isAffirmative(agentConfig["process_agent_enabled"]); err == nil && !enabled {
-		// process agent is enabled by default through the check config file `process_agent.yaml.default`
+		// process agent is enabled in datadog.yaml
 		config.Datadog.Set("process_agent_enabled", false)
 	}
 
@@ -124,19 +124,21 @@ func isAffirmative(value string) (bool, error) {
 	return v == "true" || v == "yes" || v == "1", nil
 }
 
-func buildProxySettings(agentConfig Config) (string, error) {
+func buildProxySettings(agentConfig Config) (map[string]string, error) {
 	proxyHost := agentConfig["proxy_host"]
+
+	proxyMap := make(map[string]string)
 
 	if proxyHost == "" {
 		// this is expected, not an error
-		return "", nil
+		return nil, nil
 	}
 
 	var err error
 	var u *url.URL
 
 	if u, err = url.Parse(proxyHost); err != nil {
-		return "", fmt.Errorf("unable to import value of settings 'proxy_host': %v", err)
+		return nil, fmt.Errorf("unable to import value of settings 'proxy_host': %v", err)
 	}
 
 	// set scheme if missing
@@ -156,7 +158,11 @@ func buildProxySettings(agentConfig Config) (string, error) {
 		}
 	}
 
-	return u.String(), nil
+	proxyMap["http"] = u.String()
+	proxyMap["https"] = u.String()
+
+	return proxyMap, nil
+
 }
 
 func buildSyslogURI(agentConfig Config) string {

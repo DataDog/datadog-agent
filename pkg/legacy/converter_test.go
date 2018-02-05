@@ -35,6 +35,27 @@ func TestIsAffirmative(t *testing.T) {
 func TestBuildProxySettings(t *testing.T) {
 	agentConfig := make(Config)
 
+	proxyOnlyHost := map[string]string{
+		"http":  "http://foobar.baz",
+		"https": "http://foobar.baz",
+	}
+	proxyNoUser := map[string]string{
+		"http":  "http://foobar.baz:8080",
+		"https": "http://foobar.baz:8080",
+	}
+	proxyOnlyPass := map[string]string{
+		"http":  "http://foobar.baz:8080",
+		"https": "http://foobar.baz:8080",
+	}
+	proxyOnlyUser := map[string]string{
+		"http":  "http://myuser@foobar.baz:8080",
+		"https": "http://myuser@foobar.baz:8080",
+	}
+	proxyWithUser := map[string]string{
+		"http":  "http://myuser:mypass@foobar.baz:8080",
+		"https": "http://myuser:mypass@foobar.baz:8080",
+	}
+
 	value, err := buildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Empty(t, value)
@@ -48,32 +69,32 @@ func TestBuildProxySettings(t *testing.T) {
 
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://foobar.baz", value)
+	assert.Equal(t, proxyOnlyHost, value)
 
 	agentConfig["proxy_port"] = "8080"
 
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://foobar.baz:8080", value)
+	assert.Equal(t, proxyNoUser, value)
 
 	// the password alone should not be considered without an user
 	agentConfig["proxy_password"] = "mypass"
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://foobar.baz:8080", value)
+	assert.Equal(t, proxyOnlyPass, value)
 
 	// the user alone is ok
 	agentConfig["proxy_password"] = ""
 	agentConfig["proxy_user"] = "myuser"
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://myuser@foobar.baz:8080", value)
+	assert.Equal(t, proxyOnlyUser, value)
 
 	agentConfig["proxy_password"] = "mypass"
 	agentConfig["proxy_user"] = "myuser"
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://myuser:mypass@foobar.baz:8080", value)
+	assert.Equal(t, proxyWithUser, value)
 }
 
 func TestBuildSyslogURI(t *testing.T) {

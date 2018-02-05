@@ -36,7 +36,7 @@ func TestResolveTemplate(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 	}
 	// add the template to the cache
-	tc.Set(tpl)
+	tc.Set(tpl, "test provider")
 
 	// no services
 	res := cr.ResolveTemplate(tpl)
@@ -72,7 +72,10 @@ func TestParseTemplateVar(t *testing.T) {
 }
 
 func TestResolve(t *testing.T) {
-	cr := newConfigResolver(nil, nil, NewTemplateCache())
+	ac := &AutoConfig{
+		providerLoadedConfigs: make(map[string][]check.Config),
+	}
+	cr := newConfigResolver(nil, ac, NewTemplateCache())
 	service := listeners.DockerService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
@@ -97,6 +100,9 @@ func TestResolve(t *testing.T) {
 	config, err = cr.resolve(tpl, &service)
 	assert.Nil(t, err)
 	assert.Equal(t, "pid: 1337\ntags:\n- foo\n", string(config.Instances[0]))
+
+	// Assert we have the two configs in the AC
+	assert.Equal(t, 2, len(ac.providerLoadedConfigs[UnknownProvider]))
 
 	// template variable doesn't exist
 	tpl.Instances = []check.ConfigData{check.ConfigData("host: %%FOO%%")}

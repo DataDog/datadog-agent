@@ -31,7 +31,7 @@ func GetBearerToken(authTokenPath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not read token from %s: %s", authTokenPath, err)
 	}
-	return fmt.Sprintf("bearer %s", token), nil
+	return string(token), nil
 }
 
 // GetCertificates loads the certificate and the private key

@@ -87,7 +87,7 @@ func init() {
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("enable_gohai", true)
-	Datadog.SetDefault("check_runners", int64(0))
+	Datadog.SetDefault("check_runners", int64(1))
 	Datadog.SetDefault("expvar_port", "5000")
 
 	// Use to output logs in JSON format
@@ -138,6 +138,8 @@ func init() {
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
 	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
+	Datadog.SetDefault("statsd_forward_host", "")
+	Datadog.SetDefault("statsd_forward_port", 0)
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
 	Datadog.SetDefault("exclude_pause_container", true)

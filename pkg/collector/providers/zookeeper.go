@@ -9,6 +9,7 @@ package providers
 
 import (
 	"fmt"
+	"math"
 	"path"
 	"strings"
 	"time"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"math"
 )
 
 const sessionTimeout = 1 * time.Second
@@ -52,6 +52,7 @@ func NewZookeeperConfigProvider(cfg config.ConfigurationProviders) (ConfigProvid
 	}, nil
 }
 
+// String returns a string representation of the ZookeeperConfigProvider
 func (z *ZookeeperConfigProvider) String() string {
 	return "zookeeper Configuration Provider"
 }

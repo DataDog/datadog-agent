@@ -10,7 +10,6 @@ package kubernetes
 import (
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,21 +44,28 @@ func (suite *SecureTestSuite) TestWithTLSCA() {
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
 	b, code, err := ku.QueryKubelet("/healthz")
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), "ok", string(b))
 
 	b, code, err = ku.QueryKubelet("/pods")
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 0, len(podList))
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url":        "https://127.0.0.1:10250",
+			"verify_tls": "true",
+			"ca_cert":    suite.certsConfig.CertFilePath,
+		}, ku.GetRawConnectionInfo())
 }
 
 // TestSecureUnknownAuthHTTPSKubelet with:
@@ -70,14 +76,16 @@ func (suite *SecureTestSuite) TestTLSWithoutCA() {
 	config.Datadog.Set("kubernetes_https_kubelet_port", 10250)
 	config.Datadog.Set("kubernetes_http_kubelet_port", 10255)
 	config.Datadog.Set("kubelet_auth_token_path", "")
+	config.Datadog.Set("kubelet_client_crt", "")
+	config.Datadog.Set("kubelet_client_key", "")
 	config.Datadog.Set("kubelet_tls_verify", true)
 	config.Datadog.Set("kubelet_client_ca", "")
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	_, err := kubelet.GetKubeUtil()
 	require.NotNil(suite.T(), err)
-	assert.True(suite.T(), strings.Contains(err.Error(), "Get https://127.0.0.1:10250/pods: x509: "), err.Error())
-	assert.True(suite.T(), strings.Contains(err.Error(), "Get http://127.0.0.1:10255/pods: dial tcp 127.0.0.1:10255: getsockopt: connection refused"), err.Error())
+	assert.Contains(suite.T(), err.Error(), "Get https://127.0.0.1:10250/pods: x509: ")
+	assert.Contains(suite.T(), err.Error(), "Get http://127.0.0.1:10255/pods: dial tcp 127.0.0.1:10255: getsockopt: connection refused")
 }
 
 // TestTLSWithCACertificate with:
@@ -91,25 +99,35 @@ func (suite *SecureTestSuite) TestTLSWithCACertificate() {
 	config.Datadog.Set("kubelet_auth_token_path", "")
 	config.Datadog.Set("kubelet_tls_verify", true)
 	config.Datadog.Set("kubelet_client_crt", suite.certsConfig.CertFilePath)
+	config.Datadog.Set("kubelet_client_key", suite.certsConfig.KeyFilePath)
 	config.Datadog.Set("kubelet_client_ca", suite.certsConfig.CertFilePath)
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
 	b, code, err := ku.QueryKubelet("/healthz")
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), "ok", string(b))
 
 	b, code, err = ku.QueryKubelet("/pods")
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 0, len(podList))
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url":        "https://127.0.0.1:10250",
+			"verify_tls": "true",
+			"client_crt": suite.certsConfig.CertFilePath,
+			"client_key": suite.certsConfig.KeyFilePath,
+			"ca_cert":    suite.certsConfig.CertFilePath,
+		}, ku.GetRawConnectionInfo())
 }
 
 func TestSecureKubeletSuite(t *testing.T) {

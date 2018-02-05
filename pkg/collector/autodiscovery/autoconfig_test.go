@@ -26,6 +26,7 @@ func (p *MockProvider) Collect() ([]check.Config, error) {
 func (p *MockProvider) String() string {
 	return "mocked"
 }
+
 func (p *MockProvider) IsUpToDate() (bool, error) {
 	return true, nil
 }
