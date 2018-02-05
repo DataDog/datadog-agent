@@ -8,7 +8,6 @@ package listener
 import (
 	"fmt"
 	"net"
-	"sync"
 
 	log "github.com/cihub/seelog"
 
@@ -21,7 +20,6 @@ type UDPListener struct {
 	port        int
 	conn        *net.UDPConn
 	connHandler *ConnectionHandler
-	mu          *sync.Mutex
 }
 
 // NewUDPListener returns an initialized UDPListener
@@ -42,27 +40,24 @@ func NewUDPListener(pp pipeline.Provider, source *config.LogSource) (*UDPListene
 		port:        source.Config.Port,
 		conn:        conn,
 		connHandler: connHandler,
-		mu:          &sync.Mutex{},
 	}, nil
 }
 
 // Start listens to UDP connections on another routine
 func (l *UDPListener) Start() {
 	log.Info("Starting UDP forwarder on port ", l.port)
+	l.connHandler.Start()
 	go l.run()
 }
 
 // Stop closes the UDP connection
+// it blocks until connHandler is flushed
 func (l *UDPListener) Stop() {
 	log.Info("Stopping UDP forwarder on port ", l.port)
-	l.mu.Lock()
 	l.connHandler.Stop()
-	l.mu.Unlock()
 }
 
 // run lets connHandler handle new UDP connections
 func (l *UDPListener) run() {
-	l.mu.Lock()
 	l.connHandler.HandleConnection(l.conn)
-	l.mu.Unlock()
 }

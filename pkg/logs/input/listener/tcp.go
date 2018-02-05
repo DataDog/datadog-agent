@@ -8,7 +8,6 @@ package listener
 import (
 	"fmt"
 	"net"
-	"sync"
 
 	log "github.com/cihub/seelog"
 
@@ -22,7 +21,7 @@ type TCPListener struct {
 	listener    net.Listener
 	connHandler *ConnectionHandler
 	shouldStop  bool
-	mu          *sync.Mutex
+	isFlushed   chan struct{}
 }
 
 // NewTCPListener returns an initialized TCPListener
@@ -38,46 +37,46 @@ func NewTCPListener(pp pipeline.Provider, source *config.LogSource) (*TCPListene
 		port:        source.Config.Port,
 		listener:    listener,
 		connHandler: connHandler,
-		mu:          &sync.Mutex{},
+		isFlushed:   make(chan struct{}, 1),
 	}, nil
 }
 
 // Start listens to TCP connections on another routine
 func (l *TCPListener) Start() {
 	log.Info("Starting TCP forwarder on port ", l.port)
+	l.connHandler.Start()
 	go l.run()
 }
 
-// Stop prevents listener to accept new incoming connections and close all open connections
+// Stop prevents the listener to accept new incoming connections
+// it blocks until connHandler is flushed
 func (l *TCPListener) Stop() {
 	log.Info("Stopping TCP forwarder on port ", l.port)
-	l.mu.Lock()
 	l.shouldStop = true
-	err := l.listener.Close()
-	if err != nil {
-		log.Warn(err)
-	}
-	l.connHandler.Stop()
-	l.mu.Unlock()
+	l.listener.Close()
+	<-l.isFlushed
 }
 
 // run accepts new TCP connections and lets connHandler handle them
 func (l *TCPListener) run() {
+	defer func() {
+		l.listener.Close()
+		l.connHandler.Stop()
+		l.isFlushed <- struct{}{}
+	}()
 	for {
 		conn, err := l.listener.Accept()
-		l.mu.Lock()
 		if l.shouldStop {
-			l.mu.Unlock()
+			// stop from accepting new connections
 			return
 		}
 		if err != nil {
+			// an error occurred, stop from accepting new connections
 			l.connHandler.source.Status.Error(err)
 			log.Error("Can't listen: ", err)
-			l.mu.Unlock()
 			return
 		}
 		l.connHandler.source.Status.Success()
 		go l.connHandler.HandleConnection(conn)
-		l.mu.Unlock()
 	}
 }

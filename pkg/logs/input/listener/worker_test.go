@@ -13,57 +13,50 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	pipeline "github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 )
 
 const port = 10493
 
-type ConnectionHandlerTestSuite struct {
+type WorkerTestSuite struct {
 	suite.Suite
 
-	h       *ConnectionHandler
+	w       *Worker
+	conn    net.Conn
 	msgChan chan message.Message
 }
 
-func (suite *ConnectionHandlerTestSuite) SetupTest() {
-	pp := pipeline.NewMockProvider()
+func (suite *WorkerTestSuite) SetupTest() {
 	source := config.NewLogSource("", &config.LogsConfig{Type: config.TCPType, Port: port})
-	suite.h = NewConnectionHandler(pp, source)
-	suite.msgChan = pp.NextPipelineChan()
+	msgChan := make(chan message.Message)
+	r, w := net.Pipe()
+
+	suite.w = NewWorker(source, r, msgChan)
+	suite.conn = w
+	suite.msgChan = msgChan
+
+	suite.w.Start()
 }
 
-func (suite *ConnectionHandlerTestSuite) TestHandleConnection() {
-	r, w := net.Pipe()
-	suite.h.HandleConnection(r)
+func (suite *WorkerTestSuite) TearDownTest() {
+	suite.w.Stop()
+}
 
+func (suite *WorkerTestSuite) TestReadAndForward() {
 	var msg message.Message
 
 	// should receive and decode one message
-	w.Write([]byte("foo\n"))
+	suite.conn.Write([]byte("foo\n"))
 	msg = <-suite.msgChan
 	suite.Equal("foo", string(msg.Content()))
 
 	// should receive and decode two messages
-	w.Write([]byte("bar\nboo\n"))
+	suite.conn.Write([]byte("bar\nboo\n"))
 	msg = <-suite.msgChan
 	suite.Equal("bar", string(msg.Content()))
 	msg = <-suite.msgChan
 	suite.Equal("boo", string(msg.Content()))
 }
 
-func (suite *ConnectionHandlerTestSuite) TestLifeCyle() {
-	r1, w1 := net.Pipe()
-	suite.h.HandleConnection(r1)
-
-	r2, w2 := net.Pipe()
-	suite.h.HandleConnection(r2)
-
-	// stop should not be blocking
-	go w1.Close()
-	w2.Close()
-	suite.h.Stop()
-}
-
-func TestConnectionHandlerTestSuite(t *testing.T) {
-	suite.Run(t, new(ConnectionHandlerTestSuite))
+func TestWorkerTestSuite(t *testing.T) {
+	suite.Run(t, new(WorkerTestSuite))
 }
