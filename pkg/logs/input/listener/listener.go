@@ -6,38 +6,31 @@
 package listener
 
 import (
-	"sync"
-
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
-// Listener represents a component that can open and read data from a connections
-type Listener interface {
-	Start()
-	Stop()
-}
-
-// Listeners summons different protocol specific listeners based on configuration
-type Listeners struct {
+// Listener summons different protocol specific listeners based on configuration
+type Listener struct {
 	pp        pipeline.Provider
 	sources   []*config.LogSource
-	listeners []Listener
+	listeners []restart.Stopper
 }
 
 // New returns an initialized Listener
-func New(sources []*config.LogSource, pp pipeline.Provider) *Listeners {
-	return &Listeners{
+func New(sources []*config.LogSource, pp pipeline.Provider) *Listener {
+	return &Listener{
 		pp:        pp,
 		sources:   sources,
-		listeners: []Listener{},
+		listeners: []restart.Stopper{},
 	}
 }
 
 // Start starts the Listener
-func (l *Listeners) Start() {
+func (l *Listener) Start() {
 	for _, source := range l.sources {
 		switch source.Config.Type {
 		case config.TCPType:
@@ -61,15 +54,8 @@ func (l *Listeners) Start() {
 }
 
 // Stop stops all the listeners
-func (l *Listeners) Stop() {
-	wg := &sync.WaitGroup{}
-	for _, listener := range l.listeners {
-		wg.Add(1)
-		go func(l Listener) {
-			l.Stop()
-			wg.Done()
-		}(listener)
-	}
-	wg.Wait()
+func (l *Listener) Stop() {
+	stopper := restart.NewParallelGroup(l.listeners...)
+	stopper.Stop()
 	l.listeners = l.listeners[:0]
 }
