@@ -78,7 +78,6 @@ func GetDistPath() string {
 			return ""
 		}
 		distPath = filepath.Join(s, `bin/agent/dist`)
-		log.Debug("DistPath is now %s", distPath)
 	}
 	return distPath
 }
