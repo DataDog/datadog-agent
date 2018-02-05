@@ -7,6 +7,10 @@ package leaderelection
 
 import (
 	"flag"
+	"os"
+	"sync"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 
@@ -18,14 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/leaderelection"
-	"os"
-	"sync"
-	"time"
 )
 
 const (
 	defaultLeaderLeaseDuration = 60 * time.Second
 	defaultLeaseName           = "datadog-leader-election"
+	clientTimeout              = 2 * time.Second
 )
 
 // LeaderData represents information about the current leader
@@ -46,24 +48,33 @@ type LeaderEngine struct {
 }
 
 var (
-	clientTimeout = 20 * time.Second
+	globalLeaderEngine   *LeaderEngine
+	globalHolderIdentity string
 )
 
-var globalLeaderEngine *LeaderEngine
-
-func newLeaderEngine(holderIdentity string) *LeaderEngine {
+func newLeaderEngine() *LeaderEngine {
 	return &LeaderEngine{
-		HolderIdentity: holderIdentity,
-		LeaderData:     &LeaderData{},
-		LeaseDuration:  defaultLeaderLeaseDuration,
-		LeaseName:      defaultLeaseName,
+		LeaderData:    &LeaderData{},
+		LeaseDuration: defaultLeaderLeaseDuration,
+		LeaseName:     defaultLeaseName,
 	}
+}
+
+// ResetGlobalLeaderEngine is a helper to remove the current LeaderEngine global
+// It is ONLY to be used for tests
+func ResetGlobalLeaderEngine() {
+	globalLeaderEngine = nil
+}
+
+// SetHolderIdentify is a helper to set the current holderIdentify global
+// It is ONLY to be used for tests
+func SetHolderIdentify(holderIdentity string) {
+	globalHolderIdentity = holderIdentity
 }
 
 func GetLeaderEngine() (*LeaderEngine, error) {
 	if globalLeaderEngine == nil {
-		holderIdentity, _ := os.Hostname() // TODO get hostname from DD
-		globalLeaderEngine = newLeaderEngine(holderIdentity)
+		globalLeaderEngine = newLeaderEngine()
 		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{
 			Name:          "leaderElection",
 			AttemptMethod: globalLeaderEngine.init,
@@ -82,6 +93,17 @@ func GetLeaderEngine() (*LeaderEngine, error) {
 
 func (le *LeaderEngine) init() error {
 	var err error
+
+	if globalHolderIdentity == "" {
+		globalHolderIdentity, err = os.Hostname()
+		if err != nil {
+			log.Debugf("cannot get hostname: %s", err)
+			return err
+		}
+	}
+	log.Debugf("HolderIdentity is %q", globalHolderIdentity)
+	le.HolderIdentity = globalHolderIdentity
+
 	le.coreClient, err = GetClient()
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err)
@@ -89,10 +111,10 @@ func (le *LeaderEngine) init() error {
 	}
 
 	// check if we can get endpoints.
-	_, resourceErr := le.coreClient.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{Limit: 1})
-	if resourceErr != nil {
+	_, err = le.coreClient.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{Limit: 1})
+	if err != nil {
 		log.Errorf("Cannot retrieve endpoints from the %s namespace", metav1.NamespaceDefault)
-		return resourceErr
+		return err
 	}
 
 	le.leaderElector, err = NewElection(le.LeaseName, le.HolderIdentity, metav1.NamespaceDefault, le.LeaseDuration, le.LeaderData.callbackFunc, le.coreClient)
@@ -113,7 +135,7 @@ func (ld *LeaderData) callbackFunc(str string) {
 // RunElection runs an election given an leader elector. Doesn't return.
 // The passed LeaderElector embeds callback functions that are triggered to handle the different states of the process.
 func (le *LeaderEngine) StartLeaderElection() {
-	log.Info("Starting Leader Election process...")
+	log.Info("Starting Leader Election process for %q...", le.HolderIdentity)
 	go wait.Forever(le.leaderElector.Run, 0)
 }
 
@@ -151,37 +173,8 @@ func (le *LeaderEngine) GetLeader() string {
 	return le.LeaderData.Name
 }
 
-// StartLeaderElection is the main method that triggers the Leader Election process.
-// It is a go routine that runs asynchronously with the agent and leverages the official Leader Election
-// See the doc https://godoc.org/k8s.io/client-go/tools/leaderelection
-//func StartLeaderElection(leaseDuration time.Duration) error {
-//	kubeClient, err := GetClient()
-//
-//	if err != nil {
-//		log.Errorf("Not Able to set up a client for the Leader Election: %s", err.Error())
-//		return err
-//	}
-//
-//	id, errHostname := os.Hostname()
-//
-//	if errHostname != nil {
-//		log.Errorf("Cannot get OS hostname. Not setting up the Leader Election: %s", errHostname.Error())
-//		return errHostname
-//	}
-//
-//	var leaderLeaseDuration time.Duration
-//	if leaseDuration.Seconds() > 0 {
-//		leaderLeaseDuration = leaseDuration
-//	} else {
-//		log.Debugf("Leader Lease duration not properly set, defaulting to 60 seconds")
-//		leaderLeaseDuration = defaultLeaderLeaseDuration
-//	}
-//	return nil
-//
-//}
-
 func init() {
-	// Avoid logging glog from the API Server.
+	// Avoid logging glog from the k8s.io package
 	flag.Lookup("stderrthreshold").Value.Set("FATAL")
 	flag.Parse()
 }

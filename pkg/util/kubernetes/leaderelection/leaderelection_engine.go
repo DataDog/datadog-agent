@@ -7,7 +7,6 @@ package leaderelection
 
 import (
 	"encoding/json"
-	"os"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -21,8 +20,6 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 func getCurrentLeader(electionId, namespace string, c *corev1.CoreV1Client) (string, *v1.Endpoints, error) {
@@ -46,24 +43,23 @@ func getCurrentLeader(electionId, namespace string, c *corev1.CoreV1Client) (str
 // NewElection creates an election.
 // If `namespace`/`election` does not exist, it is created.
 // `id` is the id if this leader, should be unique.
-func NewElection(electionId, id, namespace string, ttl time.Duration, callback func(leader string), c *corev1.CoreV1Client) (*ld.LeaderElector, error) {
+func NewElection(electionId, holderIdentity, namespace string, ttl time.Duration, callback func(leader string), c *corev1.CoreV1Client) (*ld.LeaderElector, error) {
 	// We first want to check if the Endpoint the Leader Election is based on exists.
 	_, err := c.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
 
 	if err != nil {
-		if errors.IsNotFound(err) {
-			_, err = c.Endpoints(namespace).Create(&v1.Endpoints{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: electionId,
-				},
-				TypeMeta: metav1.TypeMeta{
-					Kind: "Endpoints",
-				},
-			})
-			if err != nil && !errors.IsConflict(err) {
-				return nil, err
-			}
-		} else {
+		if errors.IsNotFound(err) == false {
+			return nil, err
+		}
+		_, err = c.Endpoints(namespace).Create(&v1.Endpoints{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: electionId,
+			},
+			TypeMeta: metav1.TypeMeta{
+				Kind: "Endpoints",
+			},
+		})
+		if err != nil && !errors.IsConflict(err) {
 			return nil, err
 		}
 	}
@@ -75,27 +71,22 @@ func NewElection(electionId, id, namespace string, ttl time.Duration, callback f
 	// Set a local record of the Leader's name. Can be empty if the Endpoint is created.
 	callback(leader)
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, err
-	}
-
 	eventSource := v1.EventSource{
 		Component: "leader-elector",
-		Host:      hostname,
+		Host:      holderIdentity,
 	}
 	broadcaster := record.NewBroadcaster()
 
 	evRec := broadcaster.NewRecorder(runtime.NewScheme(), eventSource)
 
 	resourceLockConfig := rl.ResourceLockConfig{
-		Identity:      hostname,
+		Identity:      holderIdentity,
 		EventRecorder: evRec,
 	}
 
 	callbacks := ld.LeaderCallbacks{
 		OnStartedLeading: func(stop <-chan struct{}) {
-			callback(id)
+			callback(holderIdentity)
 		},
 		OnStoppedLeading: func() {
 			leader, _, err := getCurrentLeader(electionId, namespace, c)
@@ -126,10 +117,4 @@ func NewElection(electionId, id, namespace string, ttl time.Duration, callback f
 	}
 
 	return ld.NewLeaderElector(config)
-}
-
-// RunElection runs an election given an leader elector. Doesn't return.
-// The passed LeaderElector embeds callback functions that are triggered to handle the different states of the process.
-func RunElection(e *ld.LeaderElector) {
-	wait.Forever(e.Run, 0)
 }

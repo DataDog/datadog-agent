@@ -31,7 +31,6 @@ import (
 
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,6 +62,8 @@ func TestSuiteAPIServer(t *testing.T) {
 }
 
 func (suite *apiserverSuite) SetupTest() {
+	leaderelection.ResetGlobalLeaderEngine()
+	leaderelection.SetHolderIdentify("")
 
 	tick := time.NewTicker(time.Millisecond * 500)
 	timeout := time.NewTicker(setupTimeout)
@@ -109,6 +110,9 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 }
 
 func (suite *apiserverSuite) TestLeaderElection() {
+	const testName = "test-solo"
+
+	leaderelection.SetHolderIdentify(testName)
 	le, err := leaderelection.GetLeaderEngine()
 	require.Nil(suite.T(), err)
 	le.StartLeaderElection()
@@ -124,15 +128,15 @@ func (suite *apiserverSuite) TestLeaderElection() {
 
 	epList, err = client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
 	require.Nil(suite.T(), err)
+
 	var leaderAnnotation string
 	for _, ep := range epList.Items {
-		spew.Dump(ep)
 		if ep.Name == "datadog-leader-election" {
 			leaderAnnotation = ep.Annotations[rl.LeaderElectionRecordAnnotationKey]
 		}
 	}
 	require.Nil(suite.T(), err)
-	expectedMessage := fmt.Sprintf("\"holderIdentity\":\"%s\"", le.HolderIdentity)
+	expectedMessage := fmt.Sprintf("\"holderIdentity\":\"%s\"", testName)
 
 	assert.Contains(suite.T(), leaderAnnotation, expectedMessage)
 }
