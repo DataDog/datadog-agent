@@ -72,12 +72,23 @@ func CopyFile(src, dst string) error {
 
 // CopyFileAll calls CopyFile, but will create necessary directories for  `dst`.
 func CopyFileAll(src, dst string) error {
-	err := os.MkdirAll(filepath.Dir(dst), os.ModePerm)
+	err := EnsureParentDirsExist(dst)
 	if err != nil {
 		return err
 	}
 
 	return CopyFile(src, dst)
+}
+
+// EnsureParentDirsExist makes a path immediately available for
+// writing by creating the necessary parent directories.
+func EnsureParentDirsExist(p string) error {
+	err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // HTTPHeaders returns a http headers including various basic information (User-Agent, Content-Type...).
