@@ -68,7 +68,8 @@ func (p *provider) NextPipelineChan() chan message.Message {
 	if pipelinesLen == 0 {
 		return nil
 	}
-	index := atomic.AddInt32(&p.currentPipelineIndex, 1)
-	nextPipeline := p.pipelines[int(index)%pipelinesLen]
+	index := int(p.currentPipelineIndex+1) % pipelinesLen
+	defer atomic.StoreInt32(&p.currentPipelineIndex, int32(index))
+	nextPipeline := p.pipelines[index]
 	return nextPipeline.InputChan
 }

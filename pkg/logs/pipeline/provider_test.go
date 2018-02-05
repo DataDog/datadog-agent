@@ -27,6 +27,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 func (suite *ProviderTestSuite) TestProvider() {
 	suite.p.Start()
+	suite.Equal(int32(0), suite.p.currentPipelineIndex)
 	suite.Equal(3, len(suite.p.pipelines))
 
 	c := suite.p.NextPipelineChan()
@@ -36,7 +37,9 @@ func (suite *ProviderTestSuite) TestProvider() {
 	suite.Equal(int32(2), suite.p.currentPipelineIndex)
 
 	suite.p.NextPipelineChan()
+	suite.Equal(int32(0), suite.p.currentPipelineIndex)
 	suite.Equal(c, suite.p.NextPipelineChan())
+	suite.Equal(int32(1), suite.p.currentPipelineIndex)
 
 	suite.p.Stop()
 	suite.Nil(suite.p.NextPipelineChan())
