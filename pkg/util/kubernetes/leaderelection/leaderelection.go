@@ -8,7 +8,6 @@ package leaderelection
 import (
 	"flag"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -20,7 +19,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/leaderelection"
 )
 
@@ -30,33 +28,27 @@ const (
 	clientTimeout              = 2 * time.Second
 )
 
-// LeaderData represents information about the current leader
-type LeaderData struct {
-	Name string `json:"name"`
-	sync.RWMutex
-}
+var (
+	globalLeaderEngine        *LeaderEngine
+	globalHolderIdentity      string
+	globalLeaderLeaseDuration = 0 * time.Second
+)
 
 type LeaderEngine struct {
 	initRetry retry.Retrier
 
 	HolderIdentity string
-	LeaderData     *LeaderData
 	LeaseDuration  time.Duration
 	LeaseName      string
 	coreClient     *corev1.CoreV1Client
 	leaderElector  *leaderelection.LeaderElector
+	stopCh         chan struct{}
 }
-
-var (
-	globalLeaderEngine   *LeaderEngine
-	globalHolderIdentity string
-)
 
 func newLeaderEngine() *LeaderEngine {
 	return &LeaderEngine{
-		LeaderData:    &LeaderData{},
-		LeaseDuration: defaultLeaderLeaseDuration,
-		LeaseName:     defaultLeaseName,
+		LeaseName: defaultLeaseName,
+		stopCh:    make(chan struct{}),
 	}
 }
 
@@ -64,6 +56,12 @@ func newLeaderEngine() *LeaderEngine {
 // It is ONLY to be used for tests
 func ResetGlobalLeaderEngine() {
 	globalLeaderEngine = nil
+}
+
+// SetLeaderLeaseDuration is a helper to set the current LeaderLeaseDuration global
+// It is ONLY to be used for tests
+func SetLeaderLeaseDuration(ttl time.Duration) {
+	globalLeaderLeaseDuration = ttl
 }
 
 // SetHolderIdentify is a helper to set the current holderIdentify global
@@ -101,8 +99,14 @@ func (le *LeaderEngine) init() error {
 			return err
 		}
 	}
-	log.Debugf("HolderIdentity is %q", globalHolderIdentity)
 	le.HolderIdentity = globalHolderIdentity
+	log.Debugf("HolderIdentity is %q", globalHolderIdentity)
+
+	if globalLeaderLeaseDuration == 0 {
+		globalLeaderLeaseDuration = defaultLeaderLeaseDuration
+	}
+	le.LeaseDuration = globalLeaderLeaseDuration
+	log.Debugf("LeaderLeaseDuration is %s", globalLeaderLeaseDuration.String())
 
 	le.coreClient, err = GetClient()
 	if err != nil {
@@ -117,7 +121,7 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
-	le.leaderElector, err = NewElection(le.LeaseName, le.HolderIdentity, metav1.NamespaceDefault, le.LeaseDuration, le.LeaderData.callbackFunc, le.coreClient)
+	le.leaderElector, err = NewElection(le.LeaseName, le.HolderIdentity, metav1.NamespaceDefault, le.LeaseDuration, le.coreClient)
 	if err != nil {
 		log.Errorf("Could not initialize the Leader Election process: %s", err.Error())
 		return err
@@ -126,17 +130,22 @@ func (le *LeaderEngine) init() error {
 	return nil
 }
 
-func (ld *LeaderData) callbackFunc(str string) {
-	ld.Lock()
-	ld.Name = str
-	ld.Unlock()
-}
-
 // RunElection runs an election given an leader elector. Doesn't return.
 // The passed LeaderElector embeds callback functions that are triggered to handle the different states of the process.
 func (le *LeaderEngine) StartLeaderElection() {
-	log.Info("Starting Leader Election process for %q...", le.HolderIdentity)
-	go wait.Forever(le.leaderElector.Run, 0)
+	log.Infof("Starting Leader Election process for %q ...", le.HolderIdentity)
+	go func() {
+		for {
+			select {
+			case <-le.stopCh:
+				log.Warnf("Stop the Leader Election process for %q", le.HolderIdentity)
+				return
+			default:
+				log.Infof("Leader Election running...")
+				le.leaderElector.Run()
+			}
+		}
+	}()
 }
 
 // GetClient returns an official client
@@ -168,9 +177,12 @@ func GetClient() (*corev1.CoreV1Client, error) {
 
 // GetLeader is the main interface that can be called to fetch the name of the current leader.
 func (le *LeaderEngine) GetLeader() string {
-	le.LeaderData.RLock()
-	defer le.LeaderData.RUnlock()
-	return le.LeaderData.Name
+	return le.leaderElector.GetLeader()
+}
+
+// GetLeader is the main interface that can be called to fetch the name of the current leader.
+func (le *LeaderEngine) IsLeader() bool {
+	return le.leaderElector.IsLeader()
 }
 
 func init() {

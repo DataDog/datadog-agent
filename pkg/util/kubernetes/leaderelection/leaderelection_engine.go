@@ -24,10 +24,10 @@ import (
 
 func getCurrentLeader(electionId, namespace string, c *corev1.CoreV1Client) (string, *v1.Endpoints, error) {
 	endpoints, err := c.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
-
 	if err != nil {
 		return "", nil, err
 	}
+
 	val, found := endpoints.Annotations[rl.LeaderElectionRecordAnnotationKey]
 	if !found {
 		return "", endpoints, nil
@@ -43,7 +43,7 @@ func getCurrentLeader(electionId, namespace string, c *corev1.CoreV1Client) (str
 // NewElection creates an election.
 // If `namespace`/`election` does not exist, it is created.
 // `id` is the id if this leader, should be unique.
-func NewElection(electionId, holderIdentity, namespace string, ttl time.Duration, callback func(leader string), c *corev1.CoreV1Client) (*ld.LeaderElector, error) {
+func NewElection(electionId, holderIdentity, namespace string, ttl time.Duration, c *corev1.CoreV1Client) (*ld.LeaderElector, error) {
 	// We first want to check if the Endpoint the Leader Election is based on exists.
 	_, err := c.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
 
@@ -64,12 +64,12 @@ func NewElection(electionId, holderIdentity, namespace string, ttl time.Duration
 		}
 	}
 
-	leader, endpoints, err := getCurrentLeader(electionId, namespace, c)
+	_, endpoints, err := getCurrentLeader(electionId, namespace, c)
 	if err != nil {
 		return nil, err
 	}
 	// Set a local record of the Leader's name. Can be empty if the Endpoint is created.
-	callback(leader)
+	//callback(leader)
 
 	eventSource := v1.EventSource{
 		Component: "leader-elector",
@@ -86,30 +86,29 @@ func NewElection(electionId, holderIdentity, namespace string, ttl time.Duration
 
 	callbacks := ld.LeaderCallbacks{
 		OnStartedLeading: func(stop <-chan struct{}) {
-			callback(holderIdentity)
+			log.Infof("Continue to lead...")
 		},
 		OnStoppedLeading: func() {
-			leader, _, err := getCurrentLeader(electionId, namespace, c)
-			if err != nil {
-				log.Errorf("failed to get leader: %v", err)
-				// empty string means leader is unknown
-				callback("")
-				return
-			}
-			callback(leader)
+			log.Infof("Stop leading")
 		},
 		OnNewLeader: func(identity string) {
-			callback(identity)
+			log.Infof("Currently new leader %q", identity)
 		},
 	}
 
-	leaderElectorinterface, err := rl.New(rl.EndpointsResourceLock, endpoints.ObjectMeta.Namespace, endpoints.ObjectMeta.Name, c, resourceLockConfig)
+	leaderElectorInterface, err := rl.New(
+		rl.EndpointsResourceLock,
+		endpoints.ObjectMeta.Namespace,
+		endpoints.ObjectMeta.Name,
+		c,
+		resourceLockConfig,
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	config := ld.LeaderElectionConfig{
-		Lock:          leaderElectorinterface,
+		Lock:          leaderElectorInterface,
 		LeaseDuration: ttl,
 		RenewDeadline: ttl / 2,
 		RetryPeriod:   ttl / 4,

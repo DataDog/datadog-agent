@@ -17,6 +17,7 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+	"k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -109,22 +110,37 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 	}
 }
 
-func (suite *apiserverSuite) TestLeaderElection() {
-	const testName = "test-solo"
+func (suite *apiserverSuite) destroyLeaderEndpoint() {
+	client, err := leaderelection.GetClient()
+	require.Nil(suite.T(), err)
 
+	ep := &v1.Endpoints{}
+	ep.Name = "datadog-leader-election"
+	ep.Namespace = "default"
+	ep.Annotations = map[string]string{rl.LeaderElectionRecordAnnotationKey: ""}
+	log.Infof("Reset annotations of %s...", ep.Name)
+	_, err = client.Endpoints(ep.Namespace).Update(ep)
+	require.Nil(suite.T(), err)
+}
+
+func (suite *apiserverSuite) TestLeaderElectionSolo() {
+	const testName = "test-solo"
 	leaderelection.SetHolderIdentify(testName)
+	leaderelection.SetLeaderLeaseDuration(5 * time.Second)
+
 	le, err := leaderelection.GetLeaderEngine()
 	require.Nil(suite.T(), err)
+
 	le.StartLeaderElection()
 
 	client, err := leaderelection.GetClient()
-
+	require.Nil(suite.T(), err)
 	epList, err := client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
 	require.Nil(suite.T(), err)
-	// Kubernetes service and the created endpoint for the LE
 	require.Len(suite.T(), epList.Items, 2)
 
 	suite.waitForLeaderName(le)
+	require.True(suite.T(), le.IsLeader())
 
 	epList, err = client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
 	require.Nil(suite.T(), err)
@@ -137,6 +153,5 @@ func (suite *apiserverSuite) TestLeaderElection() {
 	}
 	require.Nil(suite.T(), err)
 	expectedMessage := fmt.Sprintf("\"holderIdentity\":\"%s\"", testName)
-
 	assert.Contains(suite.T(), leaderAnnotation, expectedMessage)
 }
