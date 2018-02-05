@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
+
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -28,7 +30,9 @@ import (
 // #include "datadog_agent.h"
 import "C"
 
-// GetVersion expose the version of the agent to python check (used as a PyCFunction in the datadog_agent python module)
+// GetVersion exposes the version of the agent to Python checks.
+// Used as a PyCFunction of type METH_VARARGS mapped to `datadog_agent.get_version`.
+// `self` is the module object.
 //export GetVersion
 func GetVersion(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	av, _ := version.New(version.AgentVersion)
@@ -39,7 +43,9 @@ func GetVersion(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	return pyStr
 }
 
-// GetHostname expose the current hostname of the agent to python check (used as a PyCFunction in the datadog_agent python module)
+// GetHostname exposes the current hostname of the agent to Python checks.
+// Used as a PyCFunction of type METH_VARARGS mapped to `datadog_agent.get_hostname`.
+// `self` is the module object.
 //export GetHostname
 func GetHostname(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	hostname, err := util.GetHostname()
@@ -54,7 +60,9 @@ func GetHostname(self *C.PyObject, args *C.PyObject) *C.PyObject {
 	return pyStr
 }
 
-// Headers return HTTP headers with basic information like UserAgent already set (used as a PyCFunction in the datadog_agent python module)
+// Headers returns a basic set of HTTP headers that can be used by clients in Python checks.
+// Used as a PyCFunction of type METH_KEYWORDS mapped to `datadog_agent.headers`.
+// `self` is the module object.
 //export Headers
 func Headers(self *C.PyObject, args, kwargs *C.PyObject) *C.PyObject {
 	h := util.HTTPHeaders()
@@ -93,6 +101,7 @@ func Headers(self *C.PyObject, args, kwargs *C.PyObject) *C.PyObject {
 }
 
 // GetConfig returns a value from the agent configuration.
+// Indirectly used by the C function `get_config` that's mapped to `datadog_agent.get_config`.
 //export GetConfig
 func GetConfig(key *C.char) *C.PyObject {
 	goKey := C.GoString(key)
@@ -112,6 +121,7 @@ func GetConfig(key *C.char) *C.PyObject {
 
 // LogMessage logs a message from python through the agent logger (see
 // https://docs.python.org/2.7/library/logging.html#logging-levels)
+// Indirectly used by the C function `log_message` that's mapped to `datadog_agent.log`.
 //export LogMessage
 func LogMessage(message *C.char, logLevel C.int) *C.PyObject {
 	goMsg := C.GoString(message)
@@ -135,6 +145,7 @@ func LogMessage(message *C.char, logLevel C.int) *C.PyObject {
 }
 
 // GetSubprocessOutput runs the subprocess and returns the output
+// Indirectly used by the C function `get_subprocess_output` that's mapped to `_util.get_subprocess_output`.
 //export GetSubprocessOutput
 func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 
@@ -239,6 +250,27 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	C.PyTuple_SetItem(pyResult, 2, pyRetCode)
 
 	return pyResult
+}
+
+// AddExternalTags adds a set of tags for a given hostnane to the External Host
+// Tags metadata provider cache.
+// Indirectly used by the C function `add_external_tags` that's mapped to `datadog_agent.add_external_tags`.
+//export AddExternalTags
+func AddExternalTags(hostname, sourceType *C.char, tags **C.char, tagsLen C.int) *C.PyObject {
+	hname := C.GoString(hostname)
+	tlen := int(tagsLen)
+	tagsSlice := (*[1 << 30]*C.char)(unsafe.Pointer(tags))[:tlen:tlen]
+	tagsStrings := []string{}
+
+	for i := 0; i < tlen; i++ {
+		tag := C.GoString(tagsSlice[i])
+		tagsStrings = append(tagsStrings, tag)
+	}
+
+	externalTags := externalhost.ExternalTags{C.GoString(sourceType): tagsStrings}
+
+	externalhost.AddExternalTags(hname, externalTags)
+	return C._none()
 }
 
 func initDatadogAgent() {
