@@ -52,6 +52,7 @@ func (suite *TailerTestSuite) SetupTest() {
 }
 
 func (suite *TailerTestSuite) TearDownTest() {
+	suite.tl.Stop()
 	suite.testFile.Close()
 	os.Remove(suite.testDir)
 }
@@ -121,6 +122,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 }
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
+	suite.tl.tailFromBeginning()
 	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
 }
 

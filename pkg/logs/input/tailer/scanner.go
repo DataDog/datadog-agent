@@ -69,7 +69,8 @@ func (s *Scanner) setup() {
 }
 
 // setupTailer sets one tailer, making it tail from the beginning or the end
-func (s *Scanner) setupTailer(file *File, tailFromBeginning bool, outputChan chan message.Message) {
+// returns true if the setup succeeded, false otherwise
+func (s *Scanner) setupTailer(file *File, tailFromBeginning bool, outputChan chan message.Message) bool {
 	t := NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
 	var err error
 	if tailFromBeginning {
@@ -80,8 +81,10 @@ func (s *Scanner) setupTailer(file *File, tailFromBeginning bool, outputChan cha
 	}
 	if err != nil {
 		log.Warn(err)
+		return false
 	}
 	s.tailers[file.Path] = t
+	return true
 }
 
 // Start starts the Scanner
@@ -143,7 +146,11 @@ func (s *Scanner) scan() {
 
 		if !isTailed && tailersLen < s.tailingLimit {
 			// create new tailer for file
-			s.setupTailer(file, false, s.pp.NextPipelineChan())
+			succeeded := s.setupTailer(file, false, s.pp.NextPipelineChan())
+			if !succeeded {
+				// the setup failed, let's try to tail this file in the next scan
+				continue
+			}
 			tailersLen++
 			filesTailed[file.Path] = true
 			continue
@@ -155,7 +162,11 @@ func (s *Scanner) scan() {
 		}
 		if didRotate {
 			// update tailer because of file-rotation on file
-			s.onFileRotation(tailer, file)
+			succeeded := s.onFileRotation(tailer, file)
+			if !succeeded {
+				// the setup failed, let's try to tail this file in the next scan
+				continue
+			}
 		}
 
 		filesTailed[file.Path] = true
@@ -177,10 +188,11 @@ func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
 }
 
 // onFileRotation safely stops tailer and setup a new one
-func (s *Scanner) onFileRotation(tailer *Tailer, file *File) {
+// returns true if the setup succeeded, false otherwise
+func (s *Scanner) onFileRotation(tailer *Tailer, file *File) bool {
 	log.Info("Log rotation happened to ", tailer.path)
 	tailer.StopAfterFileRotation()
-	s.setupTailer(file, true, tailer.outputChan)
+	return s.setupTailer(file, true, tailer.outputChan)
 }
 
 // stopTailer stops the tailer
