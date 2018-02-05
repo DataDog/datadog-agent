@@ -65,7 +65,6 @@ func (suite *ScannerTestSuite) SetupTest() {
 }
 
 func (suite *ScannerTestSuite) TearDownTest() {
-	suite.s.Stop()
 	suite.testFile.Close()
 	suite.testRotatedFile.Close()
 	os.Remove(suite.testDir)
@@ -178,25 +177,6 @@ func (suite *ScannerTestSuite) TestScannerScanWithFileRemovedAndCreated() {
 	suite.Nil(err)
 	s.scan()
 	suite.Equal(tailerLen, len(s.tailers))
-}
-
-func (suite *ScannerTestSuite) TestScannerLifeCycle() {
-	s := suite.s
-
-	tailersLen := len(s.tailers)
-	suite.True(tailersLen > 0)
-
-	// all tailers should be stopped
-	s.Stop()
-	suite.Equal(0, len(s.tailers))
-
-	// no tailer should be created
-	s.scan()
-	suite.Equal(0, len(s.tailers))
-
-	// new tailers should be created
-	s.Start()
-	suite.Equal(tailersLen, len(s.tailers))
 }
 
 func TestScannerTestSuite(t *testing.T) {

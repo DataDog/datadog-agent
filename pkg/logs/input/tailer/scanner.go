@@ -6,7 +6,6 @@
 package tailer
 
 import (
-	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -15,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
 // scanPeriod represents the period of scanning
@@ -29,9 +29,7 @@ type Scanner struct {
 	tailers             map[string]*Tailer
 	auditor             *auditor.Auditor
 	tailerSleepDuration time.Duration
-	ticker              *time.Ticker
-	mu                  *sync.Mutex
-	shouldStop          bool
+	done                chan struct{}
 }
 
 // New returns an initialized Scanner
@@ -51,8 +49,7 @@ func New(sources []*config.LogSource, tailingLimit int, pp pipeline.Provider, au
 		tailers:             make(map[string]*Tailer),
 		auditor:             auditor,
 		tailerSleepDuration: tailerSleepDuration,
-		ticker:              time.NewTicker(scanPeriod),
-		mu:                  &sync.Mutex{},
+		done:                make(chan struct{}),
 	}
 }
 
@@ -93,29 +90,31 @@ func (s *Scanner) Start() {
 	go s.run()
 }
 
-// Stop stops the Scanner and its tailers
+// Stop stops the Scanner and its tailers in parallel,
+// this call returns only when all the tailers are stopped
 func (s *Scanner) Stop() {
-	s.mu.Lock()
-	s.shouldStop = true
-	s.ticker.Stop()
-	wg := &sync.WaitGroup{}
+	s.done <- struct{}{}
+	stopper := restart.NewParallelGroup()
 	for _, tailer := range s.tailers {
-		// stop the tailers in parallel
-		wg.Add(1)
-		go func(t *Tailer) {
-			t.Stop(false, true)
-			wg.Done()
-		}(tailer)
+		stopper.Add(tailer)
 		delete(s.tailers, tailer.path)
 	}
-	wg.Wait()
-	s.mu.Unlock()
+	stopper.Stop()
 }
 
-// run lets the Scanner tail its file
+// run checks periodically if there are new files to tail and the state of its tailers until done
 func (s *Scanner) run() {
-	for range s.ticker.C {
-		s.scan()
+	scanTicker := time.NewTicker(scanPeriod)
+	defer scanTicker.Stop()
+	for {
+		select {
+		case <-scanTicker.C:
+			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
+			s.scan()
+		case <-s.done:
+			// no more file should be tailed
+			return
+		}
 	}
 }
 
@@ -127,25 +126,22 @@ func (s *Scanner) run() {
 // The Scanner needs to stop that previous tailer,
 // and start a new one for the new file.
 func (s *Scanner) scan() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.shouldStop {
-		// prevent the scanner to create new tailers if stopped
-		return
-	}
-
 	files := s.fileProvider.FilesToTail()
 	filesTailed := make(map[string]bool)
 	tailersLen := len(s.tailers)
 
 	for _, file := range files {
-		tailer, exists := s.tailers[file.Path]
-		if !exists && tailersLen >= s.tailingLimit {
+		tailer, isTailed := s.tailers[file.Path]
+		if isTailed && tailer.shouldStop {
+			// skip this tailer as it must be stopped
+			continue
+		}
+		if !isTailed && tailersLen >= s.tailingLimit {
 			// can't create new tailer because tailingLimit is reached
 			continue
 		}
 
-		if !exists && tailersLen < s.tailingLimit {
+		if !isTailed && tailersLen < s.tailingLimit {
 			// create new tailer for file
 			s.setupTailer(file, false, s.pp.NextPipelineChan())
 			tailersLen++
@@ -157,7 +153,6 @@ func (s *Scanner) scan() {
 		if err != nil {
 			continue
 		}
-
 		if didRotate {
 			// update tailer because of file-rotation on file
 			s.onFileRotation(tailer, file)
@@ -184,12 +179,12 @@ func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
 // onFileRotation safely stops tailer and setup a new one
 func (s *Scanner) onFileRotation(tailer *Tailer, file *File) {
 	log.Info("Log rotation happened to ", tailer.path)
-	tailer.Stop(true, false)
+	tailer.StopAfterFileRotation()
 	s.setupTailer(file, true, tailer.outputChan)
 }
 
 // stopTailer stops the tailer
 func (s *Scanner) stopTailer(tailer *Tailer) {
-	tailer.Stop(false, false)
+	go tailer.Stop()
 	delete(s.tailers, tailer.path)
 }
