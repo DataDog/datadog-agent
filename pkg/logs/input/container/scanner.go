@@ -11,7 +11,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -21,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
@@ -36,19 +36,17 @@ const (
 
 // A Scanner listens for stdout and stderr of containers
 type Scanner struct {
-	pp         pipeline.Provider
-	sources    []*config.LogSource
-	tailers    map[string]*DockerTailer
-	cli        *client.Client
-	auditor    *auditor.Auditor
-	ticker     *time.Ticker
-	mu         *sync.Mutex
-	shouldStop bool
+	pp        pipeline.Provider
+	sources   []*config.LogSource
+	tailers   map[string]*DockerTailer
+	cli       *client.Client
+	auditor   *auditor.Auditor
+	isRunning bool
+	done      chan struct{}
 }
 
 // New returns an initialized Scanner
 func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) *Scanner {
-
 	containerSources := []*config.LogSource{}
 	for _, source := range sources {
 		switch source.Config.Type {
@@ -57,14 +55,12 @@ func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) 
 		default:
 		}
 	}
-
 	return &Scanner{
 		pp:      pp,
 		sources: containerSources,
 		tailers: make(map[string]*DockerTailer),
 		auditor: a,
-		ticker:  time.NewTicker(scanPeriod),
-		mu:      &sync.Mutex{},
+		done:    make(chan struct{}),
 	}
 }
 
@@ -76,6 +72,7 @@ func (s *Scanner) Start() {
 		return
 	}
 	go s.run()
+	s.isRunning = true
 }
 
 // reportErrorToAllSources changes the status of all sources to Error with err
@@ -85,29 +82,35 @@ func (s *Scanner) reportErrorToAllSources(err error) {
 	}
 }
 
-// Stop stops the Scanner and its tailers
+// Stop stops the Scanner and its tailers in parallel,
+// this call returns only when all the tailers are stopped
 func (s *Scanner) Stop() {
-	s.mu.Lock()
-	s.ticker.Stop()
-	s.shouldStop = true
-	wg := &sync.WaitGroup{}
+	if !s.isRunning {
+		// the scanner could not be start, no need to stop anything
+		return
+	}
+	s.done <- struct{}{}
+	stopper := restart.NewParallelGroup()
 	for _, tailer := range s.tailers {
-		// stop all tailers in parallel
-		wg.Add(1)
-		go func(t *DockerTailer) {
-			t.Stop(true)
-			wg.Done()
-		}(tailer)
+		stopper.Add(tailer)
 		delete(s.tailers, tailer.ContainerID)
 	}
-	wg.Wait()
-	s.mu.Unlock()
+	stopper.Stop()
 }
 
-// run lets the Scanner tail docker stdouts
+// run checks periodically which docker containers are running until done
 func (s *Scanner) run() {
-	for range s.ticker.C {
-		s.scan(true)
+	scanTicker := time.NewTicker(scanPeriod)
+	defer scanTicker.Stop()
+	for {
+		select {
+		case <-scanTicker.C:
+			// check all the containers running on the host and start new tailers if needed
+			s.scan(true)
+		case <-s.done:
+			// no docker container should be tailed anymore
+			return
+		}
 	}
 }
 
@@ -115,13 +118,6 @@ func (s *Scanner) run() {
 // tail, as well as stopped containers or containers that
 // restarted
 func (s *Scanner) scan(tailFromBeginning bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.shouldStop {
-		// no docker container should be tailed if stopped
-		return
-	}
-
 	runningContainers := s.listContainers()
 	containersToMonitor := make(map[string]bool)
 
@@ -129,16 +125,14 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 	for _, container := range runningContainers {
 		for _, source := range s.sources {
 			if s.sourceShouldMonitorContainer(source, container) {
-				containersToMonitor[container.ID] = true
-
 				tailer, isTailed := s.tailers[container.ID]
 				if isTailed && tailer.shouldStop {
-					s.stopTailer(tailer)
-					isTailed = false
+					continue
 				}
 				if !isTailed {
 					s.setupTailer(s.cli, container, source, tailFromBeginning, s.pp.NextPipelineChan())
 				}
+				containersToMonitor[container.ID] = true
 			}
 		}
 	}
@@ -147,13 +141,15 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 	for containerID, tailer := range s.tailers {
 		_, shouldMonitor := containersToMonitor[containerID]
 		if !shouldMonitor {
-			s.stopTailer(tailer)
+			s.dismissTailer(tailer)
 		}
 	}
 }
 
-func (s *Scanner) stopTailer(tailer *DockerTailer) {
-	tailer.Stop(false)
+// dismissTailer stops the tailer and removes it from the list of active tailers
+func (s *Scanner) dismissTailer(tailer *DockerTailer) {
+	// stop the tailer in another routine as we don't want to block here
+	go tailer.Stop()
 	delete(s.tailers, tailer.ContainerID)
 }
 

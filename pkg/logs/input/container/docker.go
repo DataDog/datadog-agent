@@ -13,7 +13,6 @@ import (
 	"io"
 	"reflect"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -39,7 +38,7 @@ const tagsUpdatePeriod = 10 * time.Second
 type DockerTailer struct {
 	ContainerID   string
 	outputChan    chan message.Message
-	d             *decoder.Decoder
+	decoder       *decoder.Decoder
 	reader        io.ReadCloser
 	cli           *client.Client
 	source        *config.LogSource
@@ -48,7 +47,6 @@ type DockerTailer struct {
 
 	sleepDuration time.Duration
 	shouldStop    bool
-	mu            *sync.Mutex
 	isFlushed     chan struct{}
 }
 
@@ -57,12 +55,11 @@ func NewDockerTailer(cli *client.Client, container types.Container, source *conf
 	return &DockerTailer{
 		ContainerID: container.ID,
 		outputChan:  outputChan,
-		d:           decoder.InitializeDecoder(source),
+		decoder:     decoder.InitializeDecoder(source),
 		source:      source,
 		cli:         cli,
 
 		sleepDuration: defaultSleepDuration,
-		mu:            &sync.Mutex{},
 		isFlushed:     make(chan struct{}, 1),
 	}
 }
@@ -72,18 +69,14 @@ func (dt *DockerTailer) Identifier() string {
 	return fmt.Sprintf("docker:%s", dt.ContainerID)
 }
 
-// Stop stops the DockerTailer
-func (dt *DockerTailer) Stop(mustWaitFlush bool) {
+// Stop stops the tailer from reading new container logs,
+// this call blocks until the decoder is completely flushed
+func (dt *DockerTailer) Stop() {
 	log.Info("Stop tailing container ", dt.ContainerID[:12])
-	dt.mu.Lock()
 	dt.shouldStop = true
 	dt.source.RemoveInput(dt.ContainerID)
-	dt.d.Stop()
-	if mustWaitFlush {
-		// blocks until flush
-		<-dt.isFlushed
-	}
-	dt.mu.Unlock()
+	// wait for the decoder to be flushed
+	<-dt.isFlushed
 }
 
 // tailFromBeginning starts the tailing from the beginning
@@ -123,7 +116,7 @@ func (dt *DockerTailer) nextLogSinceDate(lastTs string) string {
 // tailFrom starts the tailing from the specified time
 func (dt *DockerTailer) tailFrom(from string) error {
 	go dt.keepDockerTagsUpdated()
-	dt.d.Start()
+	dt.decoder.Start()
 	go dt.forwardMessages()
 	return dt.startReading(from)
 }
@@ -154,35 +147,28 @@ func (dt *DockerTailer) startReading(from string) error {
 // readForever reads from the reader as fast as it can,
 // and sleeps when there is nothing to read
 func (dt *DockerTailer) readForever() {
+	defer dt.decoder.Stop()
 	for {
-		dt.mu.Lock()
 		if dt.shouldStop {
-			// this means that we stop reading as soon as we get the stop message,
-			// but on the other hand we get it when the container is stopped so it should be fine
-			dt.mu.Unlock()
+			// stop from reading new logs
 			return
 		}
-
 		inBuf := make([]byte, 4096)
 		n, err := dt.reader.Read(inBuf)
 		if err != nil {
-			// stops tailing the docker container when error
+			// an error occurred, stop from reading new logs
 			if err != io.EOF {
 				dt.source.Status.Error(err)
 				log.Error("Err: ", err)
 			}
-			dt.shouldStop = true
-			dt.mu.Unlock()
 			return
 		}
 		if n == 0 {
 			// wait for new data to come
 			dt.wait()
-			dt.mu.Unlock()
 			continue
 		}
-		dt.d.InputChan <- decoder.NewInput(inBuf[:n])
-		dt.mu.Unlock()
+		dt.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 	}
 }
 
@@ -193,18 +179,21 @@ func (dt *DockerTailer) readForever() {
 // As a result, we need to remove this timestamp from the log
 // message before forwarding it
 func (dt *DockerTailer) forwardMessages() {
-	for output := range dt.d.OutputChan {
+	defer func() {
+		// the decoder has successfully been flushed
+		dt.shouldStop = true
+		dt.isFlushed <- struct{}{}
+	}()
+	for output := range dt.decoder.OutputChan {
 		if output.ShouldStop {
-			dt.isFlushed <- struct{}{}
+			// the decoder has been stopped, there is no more message to forward
 			return
 		}
-
 		ts, sev, updatedMsg, err := parser.ParseMessage(output.Content)
 		if err != nil {
 			log.Warn(err)
 			continue
 		}
-
 		containerMsg := message.NewContainerMessage(updatedMsg)
 		msgOrigin := message.NewOrigin()
 		msgOrigin.LogSource = dt.source
