@@ -104,18 +104,6 @@ func NewOrigin() *Origin {
 	return &Origin{}
 }
 
-// StopMessage is used to let a component stop gracefully
-type StopMessage struct {
-	*message
-}
-
-// NewStopMessage returns a new StopMessage
-func NewStopMessage() *StopMessage {
-	return &StopMessage{
-		message: newMessage(nil),
-	}
-}
-
 // FileMessage is a message coming from a File
 type FileMessage struct {
 	*message

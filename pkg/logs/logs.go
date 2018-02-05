@@ -9,14 +9,14 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/spf13/viper"
 
-	aud "github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/input"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/tailer"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
@@ -24,15 +24,8 @@ import (
 var (
 	// isRunning indicates whether logs-agent is running or not
 	isRunning bool
-
-	// input components
-	inputs *input.Inputs
-
-	// pipeline provider
-	pipelineProvider pipeline.Provider
-
-	// auditor
-	auditor *aud.Auditor
+	// logs-agent data pipeline
+	agentPipeline restart.Group
 )
 
 // Start starts logs-agent
@@ -53,41 +46,29 @@ func run(config *config.Config) {
 
 	messageChan := make(chan message.Message, config.GetChanSize())
 	auditor := auditor.New(messageChan, config.GetRunPath())
-	auditor.Start()
 
 	pipelineProvider := pipeline.NewProvider(config, connectionManager, messageChan)
-	pipelineProvider.Start()
 
 	sources := config.GetLogsSources()
 
 	networkListeners := listener.New(sources.GetValidSources(), pipelineProvider)
 	containersScanner := container.New(sources.GetValidSources(), pipelineProvider, auditor)
-	filesScanner = tailer.New(sources.GetValidSources(), config.GetOpenFilesLimit(), pipelineProvider, auditor, tailer.DefaultSleepDuration)
+	filesScanner := tailer.New(sources.GetValidSources(), config.GetOpenFilesLimit(), pipelineProvider, auditor, tailer.DefaultSleepDuration)
 
-	inputs = input.NewInputs([]input.Input{
-		networkListeners,
-		filesScanner,
-		containersScanner,
-	})
-	inputs.Start()
-
+	restart.Start(auditor, pipelineProvider, networkListeners, containersScanner, filesScanner)
 	status.Initialize(sources.GetSources())
+
+	inputs := restart.NewParallelGroup(filesScanner, containersScanner, networkListeners)
+	agentPipeline = restart.NewSerialGroup(inputs, pipelineProvider, auditor)
 }
 
 // Stop stops properly the logs-agent to prevent data loss
 // All Stop methods are blocking which means that Stop only returns
 // when the whole pipeline is flushed
 func Stop() {
-	log.Info("Stopping logs-agent")
 	if isRunning {
-		// stop all input components
-		inputs.Stop()
-
-		// stop all the different pipelines
-		pipelineProvider.Stop()
-
-		// stop the auditor
-		auditor.Stop()
+		log.Info("Stopping logs-agent")
+		agentPipeline.Stop()
 	}
 }
 
