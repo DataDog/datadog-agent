@@ -17,7 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 )
 
-// GetTags XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+// GetTags queries the agent6 tagger and returns a string array containing
+// tags for the entity. If entity not found, or tagging error, the returned
+// array is empty but valid.
 //export GetTags
 func GetTags(id *C.char, highCard int) *C.PyObject {
 	goID := C.GoString(id)
