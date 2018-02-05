@@ -36,7 +36,8 @@ func (s *Sender) Start() {
 	go s.run()
 }
 
-// Stop stops the Sender
+// Stop stops the Sender,
+// this call blocks until inputChan is flushed
 func (s *Sender) Stop() {
 	close(s.inputChan)
 	<-s.isFlushed
@@ -44,10 +45,12 @@ func (s *Sender) Stop() {
 
 // run lets the sender wire messages
 func (s *Sender) run() {
+	defer func() {
+		s.isFlushed <- struct{}{}
+	}()
 	for payload := range s.inputChan {
 		s.wireMessage(payload)
 	}
-	s.isFlushed <- struct{}{}
 }
 
 // wireMessage lets the Sender send a message to datadog's intake

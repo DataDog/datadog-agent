@@ -52,17 +52,17 @@ func run(config *config.Config) {
 	connectionManager := sender.NewConnectionManager(config)
 
 	messageChan := make(chan message.Message, config.GetChanSize())
-	auditor := auditor.New(messageChan, config.GetRunPath())
+	auditor := aud.New(messageChan, config.GetRunPath())
 	auditor.Start()
 
-	pipelineProvider := pipeline.NewProvider(config)
-	pipelineProvider.Start(connectionManager, messageChan)
+	pipelineProvider := pipeline.NewProvider(config, connectionManager, messageChan)
+	pipelineProvider.Start()
 
 	sources := config.GetLogsSources()
 
 	networkListeners := listener.New(sources.GetValidSources(), pipelineProvider)
 	containersScanner := container.New(sources.GetValidSources(), pipelineProvider, auditor)
-	filesScanner = tailer.New(sources.GetValidSources(), config.GetOpenFilesLimit(), pipelineProvider, auditor, tailer.DefaultSleepDuration)
+	filesScanner := tailer.New(sources.GetValidSources(), config.GetOpenFilesLimit(), pipelineProvider, auditor, tailer.DefaultSleepDuration)
 
 	inputs = input.NewInputs([]input.Input{
 		networkListeners,

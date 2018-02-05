@@ -45,7 +45,8 @@ func (p *Processor) Start() {
 	go p.run()
 }
 
-// Stop stops the Processor
+// Stop stops the Processor,
+// this call blocks until inputChan is flushed
 func (p *Processor) Stop() {
 	close(p.inputChan)
 	<-p.isFlushed
@@ -53,6 +54,9 @@ func (p *Processor) Stop() {
 
 // run starts the processing of the inputChan
 func (p *Processor) run() {
+	defer func() {
+		p.isFlushed <- struct{}{}
+	}()
 	for msg := range p.inputChan {
 		shouldProcess, redactedMessage := p.applyRedactingRules(msg)
 		if shouldProcess {
@@ -63,7 +67,6 @@ func (p *Processor) run() {
 			p.outputChan <- msg
 		}
 	}
-	p.isFlushed <- struct{}{}
 }
 
 // computeExtraContent returns additional content to add to a log line.
