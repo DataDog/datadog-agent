@@ -3,14 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build cpython
+// +build cpython,!kubelet
 
-#ifndef DATADOG_HEADER
-#define DATADOG_HEADER
+package py
 
-#include <Python.h>
-
-
-void initdatadogagent();
-
-#endif /* DATADOG_HEADER */
+// Stub
+func initkubeutil() {
+}

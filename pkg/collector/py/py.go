@@ -110,7 +110,7 @@ func Initialize(paths ...string) *python.PyThreadState {
 	// (all these calls will take care of the GIL)
 	initAPI()          // `aggregator` module
 	initDatadogAgent() // `datadog_agent` module
-
+	initkubeutil()     // `kubeutil` module if compiled in
 	// return the state so the caller can resume
 	return state
 }
