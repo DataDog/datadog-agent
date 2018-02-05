@@ -55,8 +55,8 @@ func run(config *config.Config) {
 	auditor := auditor.New(messageChan, config.GetRunPath())
 	auditor.Start()
 
-	pipelineProvider := pipeline.NewProvider(config)
-	pipelineProvider.Start(connectionManager, messageChan)
+	pipelineProvider := pipeline.NewProvider(config, connectionManager, messageChan)
+	pipelineProvider.Start()
 
 	sources := config.GetLogsSources()
 

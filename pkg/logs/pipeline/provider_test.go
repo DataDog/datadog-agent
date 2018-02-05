@@ -26,7 +26,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 }
 
 func (suite *ProviderTestSuite) TestProvider() {
-	suite.p.Start(nil, nil)
+	suite.p.Start()
 	suite.Equal(3, len(suite.p.pipelines))
 
 	c := suite.p.NextPipelineChan()

@@ -6,23 +6,25 @@
 package pipeline
 
 import (
-	"sync"
 	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 )
 
 // Provider provides message channels
 type Provider interface {
-	Start(cm *sender.ConnectionManager, auditorChan chan message.Message)
+	Start()
 	Stop()
 	NextPipelineChan() chan message.Message
 }
 
 // provider implements providing logic
 type provider struct {
+	connManager          *sender.ConnectionManager
+	outputChan           chan message.Message
 	chanSize             int
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
@@ -30,36 +32,34 @@ type provider struct {
 }
 
 // NewProvider returns a new Provider
-func NewProvider(config *config.Config) Provider {
+func NewProvider(config *config.Config, connManager *sender.ConnectionManager, outputChan chan message.Message) Provider {
 	return &provider{
-		chanSize:  config.GetChanSize(),
-		pipelines: []*Pipeline{},
-		config:    config,
+		connManager: connManager,
+		outputChan:  outputChan,
+		chanSize:    config.GetChanSize(),
+		pipelines:   []*Pipeline{},
+		config:      config,
 	}
 }
 
 // Start initializes the pipelines
-func (p *provider) Start(connManager *sender.ConnectionManager, outputChan chan message.Message) {
+func (p *provider) Start() {
 	for i := 0; i < p.config.GetNumberOfPipelines(); i++ {
-		pipeline := NewPipeline(p.config, connManager, outputChan)
+		pipeline := NewPipeline(p.config, p.connManager, p.outputChan)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}
 }
 
-// Stop stops all the pipelines
+// Stop stops all pipelines in parallel,
+// this call blocks until all pipelines are stopped
 func (p *provider) Stop() {
-	wg := &sync.WaitGroup{}
+	stopper := restart.NewParallelGroup()
 	for _, pipeline := range p.pipelines {
-		// stop all pipelines in parallel
-		wg.Add(1)
-		go func(p *Pipeline) {
-			p.Stop()
-			wg.Done()
-		}(pipeline)
+		stopper.Add(pipeline)
 	}
+	stopper.Stop()
 	p.pipelines = p.pipelines[:0]
-	wg.Wait()
 }
 
 // NextPipelineChan returns the next pipeline input channel
