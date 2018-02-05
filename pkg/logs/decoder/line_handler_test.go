@@ -37,6 +37,7 @@ func (u MockUnwrapper) Unwrap(line []byte) []byte {
 func TestSingleLineHandler(t *testing.T) {
 	outputChan := make(chan *Output, 10)
 	h := NewSingleLineHandler(outputChan)
+	h.Start()
 
 	var output *Output
 	var line string
@@ -70,19 +71,16 @@ func TestSingleLineHandler(t *testing.T) {
 	output = <-outputChan
 	assert.Equal(t, string(TRUNCATED)+line, string(output.Content))
 	assert.Equal(t, len(line)+1, output.RawDataLen)
-}
 
-func TestSingleLineHandlerLifeCyle(t *testing.T) {
-	outputChan := make(chan *Output, 10)
-	h := NewSingleLineHandler(outputChan)
 	h.Stop()
-	output := <-outputChan
+	output = <-outputChan
 	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
 }
 
 func TestTrimSingleLine(t *testing.T) {
 	outputChan := make(chan *Output, 10)
 	h := NewSingleLineHandler(outputChan)
+	h.Start()
 
 	var output *Output
 	var line string
@@ -93,12 +91,17 @@ func TestTrimSingleLine(t *testing.T) {
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"bar", string(output.Content))
 	assert.Equal(t, len(line)+1, output.RawDataLen)
+
+	h.Stop()
+	output = <-outputChan
+	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
 }
 
 func TestMultiLineHandler(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *Output, 10)
 	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewUnwrapper())
+	h.Start()
 
 	var output *Output
 
@@ -143,12 +146,17 @@ func TestMultiLineHandler(t *testing.T) {
 	output = <-outputChan
 	assert.Equal(t, string(TRUNCATED)+strings.Repeat("a", 10), string(output.Content))
 	assert.Equal(t, 10+1, output.RawDataLen)
+
+	h.Stop()
+	output = <-outputChan
+	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
 }
 
 func TestTrimMultiLine(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *Output, 10)
 	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewUnwrapper())
+	h.Start()
 
 	var output *Output
 
@@ -164,6 +172,10 @@ func TestTrimMultiLine(t *testing.T) {
 	output = <-outputChan
 	assert.Equal(t, "foo"+whitespace+"\\n"+"bar", string(output.Content))
 	assert.Equal(t, len(whitespace+"foo"+whitespace)+1+len("bar"+whitespace)+1, output.RawDataLen)
+
+	h.Stop()
+	output = <-outputChan
+	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
 }
 
 func TestUnwrapMultiLine(t *testing.T) {
@@ -172,6 +184,7 @@ func TestUnwrapMultiLine(t *testing.T) {
 	re := regexp.MustCompile("[0-9]+\\.")
 	outputChan := make(chan *Output, 10)
 	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewMockUnwrapper(header))
+	h.Start()
 
 	var output *Output
 
@@ -197,13 +210,8 @@ func TestUnwrapMultiLine(t *testing.T) {
 	assert.Equal(t, header+"malformed first line\\nsecond line", string(output.Content))
 	output = <-outputChan
 	assert.Equal(t, header+"4. first line", string(output.Content))
-}
 
-func TestMultiLineHandlerLifeCyle(t *testing.T) {
-	re := regexp.MustCompile("[0-9]+\\.")
-	outputChan := make(chan *Output, 10)
-	h := NewMultiLineHandler(outputChan, re, 10*time.Millisecond, NewUnwrapper())
 	h.Stop()
-	output := <-outputChan
+	output = <-outputChan
 	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
 }
