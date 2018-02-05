@@ -24,7 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/leaderelection"
+	//"github.com/DataDog/datadog-agent/pkg/util/kubernetes/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -119,16 +119,16 @@ func (c *APIClient) connect() error {
 	}
 	log.Debug("Could successfully collect Pods, Nodes, Services and Events.")
 
-	if config.Datadog.GetBool("leader_election") || config.Datadog.GetBool("collect_kubernetes_events") {
-		// Initiate the Leader election before starting the Service Mapper.
-		leaseDuration := config.Datadog.GetDuration("leader_lease_duration")
-		errLeaderElection := leaderelection.StartLeaderElection(leaseDuration)
-
-		if errLeaderElection != nil {
-			log.Debug("Can't create official client %s", errLeaderElection.Error())
-			return errLeaderElection
-		}
-	}
+	//if config.Datadog.GetBool("leader_election") || config.Datadog.GetBool("collect_kubernetes_events") {
+	//	// Initiate the Leader election before starting the Service Mapper.
+	//	leaseDuration := config.Datadog.GetDuration("leader_lease_duration")
+	//	errLeaderElection := leaderelection.StartLeaderElection(leaseDuration)
+	//
+	//	if errLeaderElection != nil {
+	//		log.Debug("Can't create official client %s", errLeaderElection.Error())
+	//		return errLeaderElection
+	//	}
+	//}
 
 	useServiceMapper := config.Datadog.GetBool("use_service_mapper")
 	if !useServiceMapper {

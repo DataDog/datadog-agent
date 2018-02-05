@@ -49,6 +49,7 @@ func getCurrentLeader(electionId, namespace string, c *corev1.CoreV1Client) (str
 func NewElection(electionId, id, namespace string, ttl time.Duration, callback func(leader string), c *corev1.CoreV1Client) (*ld.LeaderElector, error) {
 	// We first want to check if the Endpoint the Leader Election is based on exists.
 	_, err := c.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
+
 	if err != nil {
 		if errors.IsNotFound(err) {
 			_, err = c.Endpoints(namespace).Create(&v1.Endpoints{

@@ -28,6 +28,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
+
+	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/stretchr/testify/assert"
 )
 
 type apiserverSuite struct {
@@ -84,14 +89,53 @@ func (suite *apiserverSuite) SetupTest() {
 	}
 }
 
+func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) {
+	var leaderName string
+	tick :=  time.NewTicker(time.Millisecond * 500)
+	timeout :=  time.NewTicker(time.Second * 20)
+
+	for{
+		select {
+		case <- tick.C:
+			leaderName = le.GetLeader()
+			if leaderName != ""{
+				log.Infof("leader is %s", leaderName)
+				return
+			}
+		case <- timeout.C:
+			require.FailNow(suite.T(), "timeout after %s", setupTimeout.String())
+		}
+	}
+}
+
+
 func (suite *apiserverSuite) TestLeaderElection() {
+	le, err := leaderelection.GetLeaderEngine()
+	require.Nil(suite.T(), err)
+	le.HolderIdentity = "testsolo"
+	le.StartLeaderElection()
 
-	lease := time.Duration(20) * time.Second
+	client, err := leaderelection.GetClient()
 
-	//	endpt, err := client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
-	// endpt is nil
-	//require.Len(suite.T(), endpt)
-	err := leaderelection.StartLeaderElection(lease)
+	epList, err := client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
 	require.Nil(suite.T(), err)
 
+	// Kubernetes service and the created endpoint for the LE
+	require.Len(suite.T(), epList.Items, 2)
+
+	suite.waitForLeaderName(le)
+
+	epList, err = client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
+	require.Nil(suite.T(), err)
+	var leaderAnnotation string
+	for _, ep := range epList.Items{
+		spew.Dump(ep)
+		if ep.Name == "datadog-leader-election"{
+			leaderAnnotation = ep.Annotations[rl.LeaderElectionRecordAnnotationKey]
+		}
+	}
+	require.Nil(suite.T(), err)
+	expectedMessage := fmt.Sprintf( "\"holderIdentity\":\"testsolo\"")
+
+	assert.Contains(suite.T(),leaderAnnotation, expectedMessage)
 }
