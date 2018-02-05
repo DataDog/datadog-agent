@@ -130,7 +130,12 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 					continue
 				}
 				if !isTailed {
-					s.setupTailer(s.cli, container, source, tailFromBeginning, s.pp.NextPipelineChan())
+					// setup a new tailer
+					succeeded := s.setupTailer(s.cli, container, source, tailFromBeginning, s.pp.NextPipelineChan())
+					if !succeeded {
+						// the setup failed, let's try to tail this container in the next scan
+						continue
+					}
 				}
 				containersToMonitor[container.ID] = true
 			}
@@ -244,8 +249,9 @@ func (s *Scanner) computeClientAPIVersion(apiVersion string) (string, error) {
 	return maxVersion, nil
 }
 
-// setupTailer sets one tailer, making it tail from the beginning or the end
-func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) {
+// setupTailer sets one tailer, making it tail from the beginning or the end,
+// returns true if the setup succeeded, false otherwise
+func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
 	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
 	t := NewDockerTailer(cli, container, source, outputChan)
 	var err error
@@ -256,8 +262,10 @@ func (s *Scanner) setupTailer(cli *client.Client, container types.Container, sou
 	}
 	if err != nil {
 		log.Warn(err)
+		return false
 	}
 	s.tailers[container.ID] = t
+	return true
 }
 
 func (s *Scanner) humanReadableContainerID(containerID string) string {
