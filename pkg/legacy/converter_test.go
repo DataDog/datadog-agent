@@ -143,3 +143,31 @@ func TestBuildConfigProviders(t *testing.T) {
 	assert.Equal(t, "consul", p.Name)
 	assert.Equal(t, "123456", p.Token)
 }
+
+func TestBuildHistogramAggregates(t *testing.T) {
+	agentConfig := make(Config)
+
+	// empty list
+	agentConfig["histogram_aggregates"] = ""
+	valueEmpty := buildHistogramAggregates(agentConfig)
+	assert.Nil(t, valueEmpty)
+
+	// list with invalid values
+	agentConfig["histogram_aggregates"] = "test1, test2, test3"
+	var expectedInvalids []string // empty []
+	valueInvalids := buildHistogramAggregates(agentConfig)
+	assert.Equal(t, expectedInvalids, valueInvalids)
+
+	// list with valid and invalid values
+	agentConfig["histogram_aggregates"] = "max, test1, count, min, test2"
+	expectedBoth := []string{"max", "count", "min"}
+	valueBoth := buildHistogramAggregates(agentConfig)
+	assert.Equal(t, expectedBoth, valueBoth)
+
+	// list with valid values
+	agentConfig["histogram_aggregates"] = "max, min, count, sum"
+	expectedValid := []string{"max", "min", "count", "sum"}
+	valueValid := buildHistogramAggregates(agentConfig)
+	assert.Equal(t, expectedValid, valueValid)
+
+}
