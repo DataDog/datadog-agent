@@ -293,7 +293,7 @@ func (c *APIClient) checkResourcesAuth() error {
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("service collection: %q", err.Error()))
 	}
-	_, err = c.client.CoreV1().ListPods(ctx, "")
+	_, err = c.client.CoreV1().ListPods(ctx, "", metav1.ListOptions{})
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("pod collection: %q", err.Error()))
 	}

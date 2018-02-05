@@ -7,11 +7,13 @@ package leaderelection
 
 import (
 	"flag"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"os"
 	"time"
@@ -29,15 +31,30 @@ var (
 	clientTimeout              = 20 * time.Second
 )
 
+// GetClient returns an official client
 func getClient() (*corev1.CoreV1Client, error) {
+	var k8sconfig *rest.Config
+	var err error
 
-	config, err := rest.InClusterConfig()
-	config.Timeout = clientTimeout
-	if err != nil {
-		log.Debug("Can't create official client")
-		return nil, err
+	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
+	if cfgPath == "" {
+		k8sconfig, err = rest.InClusterConfig()
+		if err != nil {
+			log.Debug("Can't create a config for the official client from the service account's token")
+			return nil, err
+		}
+	} else {
+		// use the current context in kubeconfig
+		k8sconfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
+		if err != nil {
+			log.Debug("Can't create a config for the official client from the configured path to the kubeconfig")
+			return nil, err
+		}
 	}
-	coreClient, err := corev1.NewForConfig(config)
+
+	k8sconfig.Timeout = clientTimeout
+	coreClient, err := corev1.NewForConfig(k8sconfig)
+
 	return coreClient, err
 }
 
@@ -55,11 +72,17 @@ func StartLeaderElection(leaseDuration time.Duration) error {
 	flag.Parse()
 
 	kubeClient, err := getClient()
+
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err.Error())
 		return err
 	}
 
+	_, resourceErr := kubeClient.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{Limit: 1})
+	if resourceErr != nil {
+		log.Errorf("cannot retrieve endpoints from the %s namespace", metav1.NamespaceDefault)
+		return resourceErr
+	}
 	callbackFunc := func(str string) {
 		leader.Name = str
 	}

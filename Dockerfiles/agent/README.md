@@ -149,7 +149,7 @@ You will need to allow the agent to be allowed to perform a few actions:
 
 - `get` and `update` of the `Configmaps` named `datadogtoken` to update and query the most up to date version token corresponding to the latest event stored in ETCD.
 - `list` and `watch` of the `Events` to pull the events from the API Server, format and submit them.
-- `get`, `update` and `create` for the `Endpoint` named `datadog-leader-election` for the [Leader election](#leader-election) feature.
+- `get`, `update` and `create` for the `Endpoint`. The Endpoint used by the agent for the [Leader election](#leader-election) feature is named `datadog-leader-election`.
 - `list` the `componentstatuses` resource, in order to submit service checks for the Controle Plane's components status.
 
 You can find the templates in manifests/rbac.
