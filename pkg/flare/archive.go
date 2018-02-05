@@ -9,7 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/rand"
-	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"expvar"
 	"io/ioutil"
@@ -48,7 +48,7 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		return "", err
 	}
 
-	dirName := base64.StdEncoding.EncodeToString([]byte(b))
+	dirName := hex.EncodeToString([]byte(b))
 	tempDir, err := ioutil.TempDir("", dirName)
 	if err != nil {
 		return "", err
