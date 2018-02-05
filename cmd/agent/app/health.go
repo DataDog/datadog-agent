@@ -78,15 +78,15 @@ func requestHealth() error {
 		sort.Strings(s.Healthy)
 
 		if len(s.Unhealthy) > 0 {
-			fmt.Println(color.RedString("Agent health: FAIL"))
-			fmt.Println("=== Unhealthy components ===")
-			fmt.Println(strings.Join(s.Unhealthy, ", "))
+			fmt.Fprintln(color.Output, color.RedString("Agent health: FAIL"))
+			fmt.Fprintln(color.Output, "=== Unhealthy components ===")
+			fmt.Fprintln(color.Output, strings.Join(s.Unhealthy, ", "))
 		} else {
-			fmt.Println(color.GreenString("Agent health: PASS"))
+			fmt.Fprintln(color.Output, color.GreenString("Agent health: PASS"))
 		}
 		if len(s.Healthy) > 0 {
-			fmt.Println("=== Healthy components ===")
-			fmt.Println(strings.Join(s.Healthy, ", "))
+			fmt.Fprintln(color.Output, "=== Healthy components ===")
+			fmt.Fprintln(color.Output, strings.Join(s.Healthy, ", "))
 		}
 	}
 

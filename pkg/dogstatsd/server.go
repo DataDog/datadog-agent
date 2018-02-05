@@ -46,7 +46,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
 		s, err := util.NewStats(uint32(buff))
 		if err != nil {
-			log.Errorf("dogstatsd: unable to start statistics facilities")
+			log.Errorf("Dogstatsd: unable to start statistics facilities")
 		}
 		stats = s
 	}
@@ -97,7 +97,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		con, err := net.Dial("udp", forwardAddress)
 
 		if err != nil {
-			log.Warnf("could not connect to statsd forward host : %s", err)
+			log.Warnf("Could not connect to statsd forward host : %s", err)
 		} else {
 			s.packetIn = make(chan *listeners.Packet, 100)
 			go s.forwarder(con, packetChannel)
@@ -143,7 +143,7 @@ func (s *Server) forwarder(fcon net.Conn, packetChannel chan *listeners.Packet) 
 		_, err := fcon.Write(packet.Contents)
 
 		if err != nil {
-			log.Warnf("forwarding packet failed : %s", err)
+			log.Warnf("Forwarding packet failed : %s", err)
 		}
 
 		s.packetIn <- packet
@@ -161,14 +161,14 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 
 			if packet.Origin != listeners.NoOrigin {
 				var err error
-				log.Tracef("dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
+				log.Tracef("Dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
 				originTags, err = tagger.Tag(packet.Origin, false)
 				if err != nil {
 					log.Errorf(err.Error())
 				}
-				log.Tracef("tags for %s: %s", packet.Origin, originTags)
+				log.Tracef("Tags for %s: %s", packet.Origin, originTags)
 			} else {
-				log.Tracef("dogstatsd receive: %s", packet.Contents)
+				log.Tracef("Dogstatsd receive: %s", packet.Contents)
 			}
 
 			for {
@@ -184,7 +184,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 				if bytes.HasPrefix(message, []byte("_sc")) {
 					serviceCheck, err := parseServiceCheckMessage(message)
 					if err != nil {
-						log.Errorf("dogstatsd: error parsing service check: %s", err)
+						log.Errorf("Dogstatsd: error parsing service check: %s", err)
 						dogstatsdExpvar.Add("ServiceCheckParseErrors", 1)
 						continue
 					}
@@ -196,7 +196,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 				} else if bytes.HasPrefix(message, []byte("_e")) {
 					event, err := parseEventMessage(message)
 					if err != nil {
-						log.Errorf("dogstatsd: error parsing event: %s", err)
+						log.Errorf("Dogstatsd: error parsing event: %s", err)
 						dogstatsdExpvar.Add("EventParseErrors", 1)
 						continue
 					}
@@ -208,7 +208,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 				} else {
 					sample, err := parseMetricMessage(message)
 					if err != nil {
-						log.Errorf("dogstatsd: error parsing metrics: %s", err)
+						log.Errorf("Dogstatsd: error parsing metrics: %s", err)
 						dogstatsdExpvar.Add("MetricParseErrors", 1)
 						continue
 					}

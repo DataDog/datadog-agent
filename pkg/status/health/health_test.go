@@ -56,7 +56,6 @@ func TestRegisterTriplets(t *testing.T) {
 	cat.register("triplet")
 	cat.register("triplet")
 	assert.Len(t, cat.components, 3)
-
 }
 
 func TestDeregister(t *testing.T) {
