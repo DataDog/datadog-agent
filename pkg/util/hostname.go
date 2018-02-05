@@ -168,7 +168,6 @@ func GetHostname() (string, error) {
 		err = nil
 	}
 
-	// fix caching
 	cache.Cache.Set(cacheHostnameKey, hostName, cache.NoExpiration)
 	return hostName, err
 }

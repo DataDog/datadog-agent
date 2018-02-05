@@ -40,6 +40,7 @@ if [[ "${KUBERNETES}" ]]; then
     mv /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml.example /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml.default
 elif [ $ECS ]; then
     ln -s /etc/datadog-agent/datadog-ecs.yaml /etc/datadog-agent/datadog.yaml
+    find /etc/datadog-agent/conf.d/ -iname "*.yaml.default" -delete # remove all default checks (no host)
 else
     ln -s /etc/datadog-agent/datadog-docker.yaml /etc/datadog-agent/datadog.yaml
 fi
