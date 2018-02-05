@@ -26,8 +26,7 @@ type provider struct {
 	chanSize          int
 	numberOfPipelines int32
 	currentChanIdx    int32
-	apiKey            string
-	logset            string
+	config            config.Config
 }
 
 // NewProvider returns a new Provider
@@ -37,8 +36,6 @@ func NewProvider(config *config.Config) Provider {
 		chanSize:          config.GetChanSize(),
 		numberOfPipelines: int32(config.GetNumberOfPipelines()),
 		currentChanIdx:    0,
-		apiKey:            config.GetAPIKey(),
-		logset:            config.GetLogset(),
 	}
 }
 
@@ -54,8 +51,8 @@ func (p *provider) Start(cm *sender.ConnectionManager, auditorChan chan message.
 		pr := processor.New(
 			processorChan,
 			senderChan,
-			p.apiKey,
-			p.logset,
+			p.config.GetAPIKey(),
+			p.config.GetLogset(),
 		)
 		pr.Start()
 

@@ -14,6 +14,8 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 const (
@@ -24,9 +26,9 @@ const (
 
 // A ConnectionManager manages connections
 type ConnectionManager struct {
-	connectionString  string
-	serverName        string
-	skipSSLValidation bool
+	connectionString string
+	serverName       string
+	devModeNoSSL     bool
 
 	mutex   sync.Mutex
 	retries int
@@ -35,11 +37,11 @@ type ConnectionManager struct {
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(ddURL string, ddPort int, skipSSLValidation bool) *ConnectionManager {
+func NewConnectionManager(config *config.Config) *ConnectionManager {
 	return &ConnectionManager{
-		connectionString:  fmt.Sprintf("%s:%d", ddURL, ddPort),
-		serverName:        ddURL,
-		skipSSLValidation: skipSSLValidation,
+		connectionString: fmt.Sprintf("%s:%d", config.GetDDURL(), config.GetDDPort()),
+		serverName:       config.GetDDURL(),
+		devModeNoSSL:     config.GetDevModeNoSSL(),
 
 		mutex: sync.Mutex{},
 
@@ -67,7 +69,7 @@ func (cm *ConnectionManager) NewConnection() net.Conn {
 			continue
 		}
 
-		if !cm.skipSSLValidation {
+		if !cm.devModeNoSSL {
 			config := &tls.Config{
 				ServerName: cm.serverName,
 			}

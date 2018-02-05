@@ -47,7 +47,7 @@ func (c *Config) GetDDPort() int {
 	return c.ddPort
 }
 
-// GetRunPath returns the run path of logs-agent
+// GetRunPath returns the run path where are stored logs-agent context files
 func (c *Config) GetRunPath() string {
 	return c.runPath
 }
@@ -57,8 +57,8 @@ func (c *Config) GetOpenFilesLimit() int {
 	return c.openFilesLimit
 }
 
-// ShouldSkipSSLValidation returns whether the agent should skip SSL validation while sending logs to the backend (only used for debug purpose)
-func (c *Config) ShouldSkipSSLValidation() bool {
+// GetDevModeNoSSL returns whether the agent should skip SSL validation while sending logs to the backend (only used for debug purpose)
+func (c *Config) GetDevModeNoSSL() bool {
 	return c.devModeNoSSL
 }
 
@@ -72,12 +72,12 @@ func (c *Config) GetNumberOfPipelines() int {
 	return c.numberOfPipelines
 }
 
-// GetChanSize returns the maximum size of a channel
+// GetChanSize returns the sise of the channels of the pipelines
 func (c *Config) GetChanSize() int {
 	return c.chanSize
 }
 
-// Build returns the logs-agent configuration object parsing config
+// Build returns the logs-agent Config
 func Build(config *viper.Viper) (*Config, error) {
 	sources, err := buildLogSources(config.GetString("confd_path"))
 	if err != nil {

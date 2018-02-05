@@ -15,17 +15,20 @@ import (
 )
 
 func TestDefaultDatadogConfig(t *testing.T) {
-	assert.Equal(t, false, config.Datadog.GetBool("log_enabled"))
-	assert.Equal(t, false, config.Datadog.GetBool("logs_enabled"))
-	assert.Equal(t, "", config.Datadog.GetString("logset"))
-	assert.Equal(t, "intake.logs.datadoghq.com", config.Datadog.GetString("logs_config.dd_url"))
-	assert.Equal(t, 10516, config.Datadog.GetInt("logs_config.dd_port"))
-	assert.Equal(t, false, config.Datadog.GetBool("logs_config.dev_mode_no_ssl"))
-	assert.Equal(t, 100, config.Datadog.GetInt("logs_config.open_files_limit"))
+	ddConfig := config.Datadog
+	config := build(ddConfig, nil)
+
+	assert.Equal(t, false, ddConfig.GetBool("log_enabled"))
+	assert.Equal(t, false, ddConfig.GetBool("logs_enabled"))
+	assert.Equal(t, "", config.GetLogset())
+	assert.Equal(t, "intake.logs.datadoghq.com", config.GetDDURL())
+	assert.Equal(t, 10516, config.GetDDPort())
+	assert.Equal(t, false, config.GetDevModeNoSSL())
+	assert.Equal(t, 100, config.GetOpenFilesLimit())
 }
 
 func TestBuildConfig(t *testing.T) {
-	testPath := filepath.Join("tests", "complete", "datadog.yaml")
+	testPath := filepath.Join("tests", "config.yaml")
 	testConfig := viper.New()
 	testConfig.SetConfigFile(testPath)
 
@@ -40,5 +43,5 @@ func TestBuildConfig(t *testing.T) {
 	assert.Equal(t, "/boo", config.GetRunPath())
 	assert.Equal(t, 50, config.GetOpenFilesLimit())
 	assert.Nil(t, config.GetLogsSources())
-	assert.True(t, config.ShouldSkipSSLValidation())
+	assert.True(t, config.GetDevModeNoSSL())
 }

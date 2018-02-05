@@ -36,11 +36,7 @@ func Start(ddConfig *viper.Viper) error {
 func run(config *config.Config) {
 	isRunning = true
 
-	cm := sender.NewConnectionManager(
-		config.GetDDURL(),
-		config.GetDDPort(),
-		config.ShouldSkipSSLValidation(),
-	)
+	cm := sender.NewConnectionManager(config)
 
 	auditorChan := make(chan message.Message, config.GetChanSize())
 	a := auditor.New(auditorChan, config.GetRunPath())
