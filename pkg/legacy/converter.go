@@ -47,7 +47,10 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("forwarder_timeout", value)
 	}
 
-	// TODO: default_integration_http_timeout
+	if value, err := strconv.Atoi(agentConfig["default_integration_http_timeout"]); err == nil {
+		config.Datadog.Set("default_integration_http_timeout", value)
+	}
+
 	// TODO: collect_ec2_tags
 
 	// config.Datadog has a default value for this, do nothing if the value is empty
