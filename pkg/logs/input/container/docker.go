@@ -113,17 +113,9 @@ func (dt *DockerTailer) nextLogSinceDate(lastTs string) string {
 	return ts.Format(config.DateFormat)
 }
 
-// tailFrom starts the tailing from the specified time
-func (dt *DockerTailer) tailFrom(from string) error {
-	go dt.keepDockerTagsUpdated()
-	dt.decoder.Start()
-	go dt.forwardMessages()
-	return dt.startReading(from)
-}
-
-// startReading starts the reader that reads the container's stdout,
-// with proper configuration
-func (dt *DockerTailer) startReading(from string) error {
+// setupReader sets up the reader that reads the container's logs
+// with the proper configuration
+func (dt *DockerTailer) setupReader(from string) (io.ReadCloser, error) {
 	options := types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -132,15 +124,26 @@ func (dt *DockerTailer) startReading(from string) error {
 		Details:    false,
 		Since:      from,
 	}
-	reader, err := dt.cli.ContainerLogs(context.Background(), dt.ContainerID, options)
+	return dt.cli.ContainerLogs(context.Background(), dt.ContainerID, options)
+}
+
+// tailFrom sets up and starts the tailer
+func (dt *DockerTailer) tailFrom(from string) error {
+	reader, err := dt.setupReader(from)
 	if err != nil {
+		// could not start the tailer
 		dt.source.Status.Error(err)
 		return err
 	}
 	dt.source.Status.Success()
 	dt.source.AddInput(dt.ContainerID)
+
 	dt.reader = reader
+	dt.decoder.Start()
+	go dt.keepDockerTagsUpdated()
+	go dt.forwardMessages()
 	go dt.readForever()
+
 	return nil
 }
 
