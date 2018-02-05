@@ -20,6 +20,8 @@ type UDPListener struct {
 	port        int
 	conn        *net.UDPConn
 	connHandler *ConnectionHandler
+	done        chan struct{}
+	isFlushed   chan struct{}
 }
 
 // NewUDPListener returns an initialized UDPListener
@@ -40,6 +42,8 @@ func NewUDPListener(pp pipeline.Provider, source *config.LogSource) (*UDPListene
 		port:        source.Config.Port,
 		conn:        conn,
 		connHandler: connHandler,
+		done:        make(chan struct{}),
+		isFlushed:   make(chan struct{}),
 	}, nil
 }
 
@@ -54,10 +58,14 @@ func (l *UDPListener) Start() {
 // it blocks until connHandler is flushed
 func (l *UDPListener) Stop() {
 	log.Info("Stopping UDP forwarder on port ", l.port)
-	l.connHandler.Stop()
+	l.done <- struct{}{}
+	<-l.isFlushed
 }
 
 // run lets connHandler handle new UDP connections
 func (l *UDPListener) run() {
 	l.connHandler.HandleConnection(l.conn)
+	<-l.done
+	l.connHandler.Stop()
+	l.isFlushed <- struct{}{}
 }

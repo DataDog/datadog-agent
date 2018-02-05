@@ -86,7 +86,7 @@ func (s *Scanner) reportErrorToAllSources(err error) {
 // this call returns only when all the tailers are stopped
 func (s *Scanner) Stop() {
 	if !s.isRunning {
-		// the scanner could not be start, no need to stop anything
+		// the scanner was not start, no need to stop anything
 		return
 	}
 	s.done <- struct{}{}

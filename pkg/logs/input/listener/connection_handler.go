@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 )
 
+// checkPeriod defines the repeated period of time after which we check the state of the workers to stop them if needed
 const checkPeriod = 60 * time.Second
 
 // ConnectionHandler creates a worker for each new connection and releases the ones that must be stopped
