@@ -17,20 +17,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 )
 
-func (t *Tailer) startReading(offset int64, whence int) error {
-	var err error
-	t.fullpath, err = filepath.Abs(t.path)
+// setup sets up the file tailer
+func (t *Tailer) setup(offset int64, whence int) error {
+	path, err := filepath.Abs(t.path)
 	if err != nil {
-		t.source.Status.Error(err)
 		return err
 	}
 	log.Info("Opening ", t.fullpath)
+
+	t.fullpath = path
 	t.readOffset = offset
 	t.decodedOffset = offset
-	t.source.Status.Success()
-	t.source.AddInput(t.path)
 
-	go t.readForever()
 	return nil
 }
 

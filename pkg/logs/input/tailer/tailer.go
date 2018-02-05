@@ -102,12 +102,19 @@ func (t *Tailer) onStop() {
 
 // tailFrom let's the tailer open a file and tail from whence
 func (t *Tailer) tailFrom(offset int64, whence int) error {
-	t.decoder.Start()
-	err := t.startReading(offset, whence)
-	if err == nil {
-		go t.forwardMessages()
+	err := t.setup(offset, whence)
+	if err != nil {
+		t.source.Status.Error(err)
+		return err
 	}
-	return err
+	t.source.Status.Success()
+	t.source.AddInput(t.path)
+
+	t.decoder.Start()
+	go t.forwardMessages()
+	go t.readForever()
+
+	return nil
 }
 
 // tailFromBeginning lets the tailer start tailing its file

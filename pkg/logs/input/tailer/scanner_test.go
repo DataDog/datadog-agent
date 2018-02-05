@@ -179,6 +179,16 @@ func (suite *ScannerTestSuite) TestScannerScanWithFileRemovedAndCreated() {
 	suite.Equal(tailerLen, len(s.tailers))
 }
 
+func (suite *ScannerTestSuite) TestLifeCycle() {
+	s := suite.s
+	suite.Equal(1, len(s.tailers))
+	s.Start()
+
+	// all tailers should be stopped
+	s.Stop()
+	suite.Equal(0, len(s.tailers))
+}
+
 func TestScannerTestSuite(t *testing.T) {
 	suite.Run(t, new(ScannerTestSuite))
 }
