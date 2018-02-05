@@ -226,26 +226,27 @@ func buildHistogramAggregates(agentConfig Config) []string {
 	configValue := agentConfig["histogram_aggregates"]
 
 	var histogramBuild []string
-	var result []string
-	validValues := [6]string{"min", "max", "median", "avg", "sum", "count"}
+	// The valid values for histogram_aggregates as defined in agent5
+	validValues := []string{"min", "max", "median", "avg", "sum", "count"}
 
 	if configValue == "" {
-		// this is expected, not an error
 		return nil
 	}
+	configValue = strings.Replace(configValue, " ", "", -1)
+	result := strings.Split(configValue, ",")
 
-	result = strings.Split(configValue, ", ")
-	for i := 0; i < len(result); i++ {
+	for _, res := range result {
 		found := false
-		for j := 0; j < len(validValues); j++ {
-			if result[i] == validValues[j] {
-				histogramBuild = append(histogramBuild, result[i])
+		for _, val := range validValues {
+			if res == val {
+				histogramBuild = append(histogramBuild, res)
 				found = true
+				break
 			}
 		}
 		if !found {
 			// print the value skipped because invalid value
-			fmt.Println("warning: ignored histogram aggregate", result[i], "is invalid")
+			fmt.Println("warning: ignored histogram aggregate", res, "is invalid")
 		}
 	}
 
