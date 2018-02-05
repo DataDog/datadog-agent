@@ -69,7 +69,7 @@ func (t *Tailer) readAvailable() (err error) {
 			return err
 		}
 		log.Debugf("Sending %d bytes to input channel", n)
-		t.d.InputChan <- decoder.NewInput(inBuf[:n])
+		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		t.incrementReadOffset(n)
 	}
 }
@@ -79,21 +79,17 @@ func (t *Tailer) readAvailable() (err error) {
 func (t *Tailer) readForever() {
 	defer t.onStop()
 	for {
-		t.rwMu.RLock()
 		if t.shouldStop {
-			t.rwMu.RUnlock()
 			return
 		}
 		err := t.readAvailable()
 		if err == io.EOF || os.IsNotExist(err) {
 			t.wait()
-			t.rwMu.RUnlock()
 			continue
 		}
 		if err != nil {
 			t.source.Status.Error(err)
 			log.Error("Err: ", err)
-			t.rwMu.RUnlock()
 			return
 		}
 	}

@@ -47,9 +47,7 @@ func (t *Tailer) startReading(offset int64, whence int) error {
 func (t *Tailer) readForever() {
 	defer t.onStop()
 	for {
-		t.rwMu.RLock()
 		if t.shouldStop {
-			t.rwMu.RUnlock()
 			return
 		}
 
@@ -59,18 +57,15 @@ func (t *Tailer) readForever() {
 			// an unexpected error occurred, stop the tailor
 			t.source.Status.Error(err)
 			log.Error("Err: ", err)
-			t.rwMu.RUnlock()
 			return
 		}
 		if n == 0 {
 			// wait for new data to come
 			t.wait()
-			t.rwMu.RUnlock()
 			continue
 		}
-		t.d.InputChan <- decoder.NewInput(inBuf[:n])
+		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		t.incrementReadOffset(n)
-		t.rwMu.RUnlock()
 	}
 }
 

@@ -52,7 +52,6 @@ func (suite *TailerTestSuite) SetupTest() {
 }
 
 func (suite *TailerTestSuite) TearDownTest() {
-	suite.tl.Stop(false, false)
 	suite.testFile.Close()
 	os.Remove(suite.testDir)
 }

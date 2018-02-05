@@ -8,7 +8,6 @@ package tailer
 import (
 	"fmt"
 	"os"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -34,7 +33,7 @@ type Tailer struct {
 	decodedOffset int64
 
 	outputChan chan message.Message
-	d          *decoder.Decoder
+	decoder    *decoder.Decoder
 	source     *config.LogSource
 
 	sleepDuration time.Duration
@@ -42,8 +41,6 @@ type Tailer struct {
 	closeTimeout  time.Duration
 	shouldStop    bool
 	didFileRotate bool
-	stopTimer     *time.Timer
-	rwMu          *sync.RWMutex
 	isFlushed     chan struct{}
 }
 
@@ -52,12 +49,11 @@ func NewTailer(outputChan chan message.Message, source *config.LogSource, path s
 	return &Tailer{
 		path:          path,
 		outputChan:    outputChan,
-		d:             decoder.InitializeDecoder(source),
+		decoder:       decoder.InitializeDecoder(source),
 		source:        source,
 		readOffset:    0,
 		sleepDuration: sleepDuration,
 		closeTimeout:  defaultCloseTimeout,
-		rwMu:          &sync.RWMutex{},
 		isFlushed:     make(chan struct{}, 1),
 	}
 }
@@ -73,43 +69,40 @@ func (t *Tailer) recoverTailing(offset int64, whence int) error {
 	return t.tailFrom(offset, whence)
 }
 
-// Stop lets the tailer stop
-func (t *Tailer) Stop(didFileRotate bool, mustWaitFlush bool) {
-	t.rwMu.Lock()
+// Stop stops the tailer and returns only when the decoder is flushed
+func (t *Tailer) Stop() {
+	t.didFileRotate = false
+	t.shouldStop = true
 	t.source.RemoveInput(t.path)
-	t.didFileRotate = didFileRotate
-	if didFileRotate {
-		// delay the stop operation to keep reading some data left in the logrotated file
-		go t.startStopTimer()
-	} else {
-		t.shouldStop = true
-	}
-	t.rwMu.Unlock()
-	if mustWaitFlush {
-		// blocks the operation until flush
-		<-t.isFlushed
-	}
+	// wait for the decoder to be flushed
+	<-t.isFlushed
+}
+
+// StopAfterFileRotation prepares the tailer to stop after a timeout
+// to finish reading its file that has been log-rotated
+func (t *Tailer) StopAfterFileRotation() {
+	t.didFileRotate = true
+	go t.startStopTimer()
+	t.source.RemoveInput(t.path)
+}
+
+// startStopTimer initialises and starts a timer to stop the tailor after the timeout
+func (t *Tailer) startStopTimer() {
+	stopTimer := time.NewTimer(t.closeTimeout)
+	<-stopTimer.C
+	t.shouldStop = true
 }
 
 // onStop finishes to stop the tailer
 func (t *Tailer) onStop() {
 	log.Info("Closing ", t.path)
 	t.file.Close()
-	t.d.Stop()
-}
-
-// startStopTimer initialises and starts a timer to stop the tailor
-func (t *Tailer) startStopTimer() {
-	stopTimer := time.NewTimer(t.closeTimeout)
-	<-stopTimer.C
-	t.rwMu.Lock()
-	t.shouldStop = true
-	t.rwMu.Unlock()
+	t.decoder.Stop()
 }
 
 // tailFrom let's the tailer open a file and tail from whence
 func (t *Tailer) tailFrom(offset int64, whence int) error {
-	t.d.Start()
+	t.decoder.Start()
 	err := t.startReading(offset, whence)
 	if err == nil {
 		go t.forwardMessages()
@@ -125,12 +118,16 @@ func (t *Tailer) tailFromBeginning() error {
 
 // forwardMessages lets the Tailer forward log messages to the output channel
 func (t *Tailer) forwardMessages() {
-	for output := range t.d.OutputChan {
+	defer func() {
+		// the decoder has successfully been flushed
+		t.shouldStop = true
+		t.isFlushed <- struct{}{}
+	}()
+	for output := range t.decoder.OutputChan {
 		if output.ShouldStop {
-			t.isFlushed <- struct{}{}
+			// the decoder has been stopped, there is no more message to forward
 			return
 		}
-
 		fileMsg := message.NewFileMessage(output.Content)
 		msgOffset := t.decodedOffset + int64(output.RawDataLen)
 		identifier := t.Identifier()
@@ -171,8 +168,6 @@ func (t *Tailer) SetDecodedOffset(off int64) {
 
 // shouldTrackOffset returns whether the tailer should track the file offset or not
 func (t *Tailer) shouldTrackOffset() bool {
-	t.rwMu.RLock()
-	defer t.rwMu.RUnlock()
 	if t.shouldStop && t.didFileRotate {
 		return false
 	}
