@@ -15,20 +15,19 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"os"
-	"time"
-	"sync"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/leaderelection"
+	"os"
+	"sync"
+	"time"
 )
 
-const(
+const (
 	defaultLeaderLeaseDuration = 60 * time.Second
-	defaultLeaseName      = "datadog-leader-election"
-
-
+	defaultLeaseName           = "datadog-leader-election"
 )
+
 // LeaderData represents information about the current leader
 type LeaderData struct {
 	Name string `json:"name"`
@@ -39,38 +38,38 @@ type LeaderEngine struct {
 	initRetry retry.Retrier
 
 	HolderIdentity string
-	LeaderData *LeaderData
-	LeaseDuration time.Duration
-	LeaseName string
-	coreClient *corev1.CoreV1Client
-	leaderElector *leaderelection.LeaderElector
+	LeaderData     *LeaderData
+	LeaseDuration  time.Duration
+	LeaseName      string
+	coreClient     *corev1.CoreV1Client
+	leaderElector  *leaderelection.LeaderElector
 }
 
 var (
-	clientTimeout              = 20 * time.Second
+	clientTimeout = 20 * time.Second
 )
 
 var globalLeaderEngine *LeaderEngine
 
-func newLeaderEngine(holderIdentity string) *LeaderEngine{
+func newLeaderEngine(holderIdentity string) *LeaderEngine {
 	return &LeaderEngine{
 		HolderIdentity: holderIdentity,
-		LeaderData: &LeaderData{},
-		LeaseDuration:defaultLeaderLeaseDuration,
-		LeaseName: defaultLeaseName,
+		LeaderData:     &LeaderData{},
+		LeaseDuration:  defaultLeaderLeaseDuration,
+		LeaseName:      defaultLeaseName,
 	}
 }
 
-func GetLeaderEngine() (*LeaderEngine, error){
+func GetLeaderEngine() (*LeaderEngine, error) {
 	if globalLeaderEngine == nil {
 		holderIdentity, _ := os.Hostname() // TODO get hostname from DD
 		globalLeaderEngine = newLeaderEngine(holderIdentity)
 		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{
-			Name:"leaderElection",
+			Name:          "leaderElection",
 			AttemptMethod: globalLeaderEngine.init,
-			Strategy: retry.RetryCount,
-			RetryCount: 10,
-			RetryDelay: 30 * time.Second,
+			Strategy:      retry.RetryCount,
+			RetryCount:    10,
+			RetryDelay:    30 * time.Second,
 		})
 	}
 	err := globalLeaderEngine.initRetry.TriggerRetry()
@@ -105,7 +104,7 @@ func (le *LeaderEngine) init() error {
 	return nil
 }
 
-func (ld *LeaderData) callbackFunc(str string){
+func (ld *LeaderData) callbackFunc(str string) {
 	ld.Lock()
 	ld.Name = str
 	ld.Unlock()
@@ -117,7 +116,6 @@ func (le *LeaderEngine) StartLeaderElection() {
 	log.Info("Starting Leader Election process...")
 	go wait.Forever(le.leaderElector.Run, 0)
 }
-
 
 // GetClient returns an official client
 func GetClient() (*corev1.CoreV1Client, error) {
@@ -182,7 +180,7 @@ func (le *LeaderEngine) GetLeader() string {
 //
 //}
 
-func init(){
+func init() {
 	// Avoid logging glog from the API Server.
 	flag.Lookup("stderrthreshold").Value.Set("FATAL")
 	flag.Parse()
