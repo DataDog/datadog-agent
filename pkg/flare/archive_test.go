@@ -19,7 +19,7 @@ func TestCreateArchive(t *testing.T) {
 	common.SetupConfig("./test")
 	config.Datadog.Set("confd_path", "./test/confd")
 	config.Datadog.Set("log_file", "./test/logs/agent.log")
-	zipFilePath := mkFilePath()
+	zipFilePath := getArchivePath()
 	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
 
 	assert.Nil(t, err)
@@ -40,7 +40,7 @@ func TestCreateArchiveBadConfig(t *testing.T) {
 	**/
 
 	common.SetupConfig("")
-	zipFilePath := mkFilePath()
+	zipFilePath := getArchivePath()
 	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
 
 	assert.Nil(t, err)
