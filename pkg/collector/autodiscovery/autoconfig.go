@@ -12,11 +12,13 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
 	"github.com/DataDog/datadog-agent/pkg/collector/providers"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 var (
@@ -74,6 +76,7 @@ type AutoConfig struct {
 	providerLoadedConfigs map[string][]check.Config   // holds the resolved config per provider
 	stop                  chan bool
 	pollerActive          bool
+	health                *health.Handle
 	m                     sync.RWMutex
 }
 
@@ -87,7 +90,8 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		config2checks:         make(map[string][]check.ID),
 		name2jmxmetrics:       make(map[string]check.ConfigData),
 		providerLoadedConfigs: make(map[string][]check.Config),
-		stop: make(chan bool),
+		stop:   make(chan bool),
+		health: health.Register("ad-autoconfig"),
 	}
 	ac.configResolver = newConfigResolver(collector, ac, ac.templateCache)
 	return ac
@@ -347,7 +351,9 @@ func (ac *AutoConfig) pollConfigs() {
 				if ac.configsPollTicker != nil {
 					ac.configsPollTicker.Stop()
 				}
+				ac.health.Deregister()
 				return
+			case <-ac.health.C:
 			case <-ac.configsPollTicker.C:
 				ac.m.RLock()
 				// invoke Collect on the known providers

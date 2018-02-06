@@ -13,10 +13,12 @@ import (
 	"sync"
 	"unicode"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
@@ -43,6 +45,7 @@ type ConfigResolver struct {
 	newService      chan listeners.Service
 	delService      chan listeners.Service
 	stop            chan bool
+	health          *health.Handle
 	m               sync.Mutex
 }
 
@@ -58,6 +61,7 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 		newService:      make(chan listeners.Service),
 		delService:      make(chan listeners.Service),
 		stop:            make(chan bool),
+		health:          health.Register("ad-configresolver"),
 	}
 
 	// start listening
@@ -73,7 +77,9 @@ func (cr *ConfigResolver) listen() {
 		for {
 			select {
 			case <-cr.stop:
+				cr.health.Deregister()
 				return
+			case <-cr.health.C:
 			case svc := <-cr.newService:
 				cr.processNewService(svc)
 			case svc := <-cr.delService:
