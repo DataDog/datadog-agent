@@ -90,7 +90,7 @@ func (s *Scanner) Stop() {
 		return
 	}
 	s.done <- struct{}{}
-	stopper := restart.NewParallelGroup()
+	stopper := restart.NewParallelStopper()
 	for _, tailer := range s.tailers {
 		stopper.Add(tailer)
 		delete(s.tailers, tailer.ContainerID)

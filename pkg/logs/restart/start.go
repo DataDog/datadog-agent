@@ -5,14 +5,14 @@
 
 package restart
 
-// Starter represents a startable object
-type Starter interface {
+// Startable represents a startable object
+type Startable interface {
 	Start()
 }
 
-// Start starts all starters in series
-func Start(starters ...Starter) {
-	for _, starter := range starters {
-		starter.Start()
+// Start starts all components in series
+func Start(components ...Startable) {
+	for _, component := range components {
+		component.Start()
 	}
 }

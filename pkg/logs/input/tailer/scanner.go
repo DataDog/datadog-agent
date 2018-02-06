@@ -97,7 +97,7 @@ func (s *Scanner) Start() {
 // this call returns only when all the tailers are stopped
 func (s *Scanner) Stop() {
 	s.done <- struct{}{}
-	stopper := restart.NewParallelGroup()
+	stopper := restart.NewParallelStopper()
 	for _, tailer := range s.tailers {
 		stopper.Add(tailer)
 		delete(s.tailers, tailer.path)

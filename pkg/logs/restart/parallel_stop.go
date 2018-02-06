@@ -9,32 +9,32 @@ import (
 	"sync"
 )
 
-// parallelGroup implements the logic to stop different components from a data pipeline in parallel
-type parallelGroup struct {
-	stoppers []Stopper
+// parallelStopper implements the logic to stop different components from a data pipeline in parallel
+type parallelStopper struct {
+	components []Stoppable
 }
 
-// NewParallelGroup returns a new parallelGroup
-func NewParallelGroup(stoppers ...Stopper) Group {
-	return &parallelGroup{
-		stoppers: stoppers,
+// NewParallelStopper returns a new parallelStopper
+func NewParallelStopper(components ...Stoppable) Stopper {
+	return &parallelStopper{
+		components: components,
 	}
 }
 
 // Add appends new elements to the array of components to stop
-func (g *parallelGroup) Add(stoppers ...Stopper) {
-	g.stoppers = append(g.stoppers, stoppers...)
+func (g *parallelStopper) Add(components ...Stoppable) {
+	g.components = append(g.components, components...)
 }
 
 // Stop stops all components in parallel and returns when they are all stopped
-func (g *parallelGroup) Stop() {
+func (g *parallelStopper) Stop() {
 	wg := &sync.WaitGroup{}
-	for _, stopper := range g.stoppers {
+	for _, component := range g.components {
 		wg.Add(1)
-		go func(s Stopper) {
+		go func(s Stoppable) {
 			s.Stop()
 			wg.Done()
-		}(stopper)
+		}(component)
 	}
 	wg.Wait()
 }
