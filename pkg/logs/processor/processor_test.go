@@ -185,6 +185,9 @@ func TestComputeExtraContent(t *testing.T) {
 	assert.True(t, math.Abs(time.Now().UTC().Sub(timestamp).Minutes()) < 1)
 
 	extraContent = p.computeExtraContent(newNetworkMessage([]byte("<message"), source))
+	assert.NotNil(t, extraContent)
+
+	extraContent = p.computeExtraContent(newNetworkMessage([]byte("<46>0 message"), source))
 	assert.Nil(t, extraContent)
 
 	// message with additional information
@@ -198,4 +201,12 @@ func TestComputeExtraContent(t *testing.T) {
 	assert.Equal(t, "sev0", extraContentParts[0])
 	assert.Equal(t, "ts", extraContentParts[1])
 	assert.Equal(t, "tags", extraContentParts[6])
+}
+
+func TestIsRFC5424Formatted(t *testing.T) {
+	p := NewTestProcessor()
+	assert.False(t, p.isRFC5424Formatted([]byte("<- test message ->")))
+	assert.False(t, p.isRFC5424Formatted([]byte("- test message ->")))
+	assert.False(t, p.isRFC5424Formatted([]byte("<46> the rest of the message")))
+	assert.True(t, p.isRFC5424Formatted([]byte("<46>0 the rest of the message")))
 }
