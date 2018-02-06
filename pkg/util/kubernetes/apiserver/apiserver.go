@@ -121,7 +121,7 @@ func (c *APIClient) connect() error {
 	//if config.Datadog.GetBool("leader_election") || config.Datadog.GetBool("collect_kubernetes_events") {
 	//	// Initiate the Leader election before starting the Service Mapper.
 	//	leaseDuration := config.Datadog.GetDuration("leader_lease_duration")
-	//	errLeaderElection := leaderelection.StartLeaderElection(leaseDuration)
+	//	errLeaderElection := leaderelection.startLeaderElection(leaseDuration)
 	//
 	//	if errLeaderElection != nil {
 	//		log.Debug("Can't create official client %s", errLeaderElection.Error())

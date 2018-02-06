@@ -15,8 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/leaderelection"
 
-	"os"
-
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -83,27 +81,24 @@ func (k *KubeASCheck) Run() error {
 
 	asclient, err := apiserver.GetAPIClient()
 	if err != nil {
-		log.Errorf("could not connect to apiserver: %s", err)
+		log.Errorf("Could not connect to apiserver: %s", err)
 		return err
 	}
 
-	hostname, err := os.Hostname()
+	leaderEngine, err := leaderelection.GetLeaderEngine()
 	if err != nil {
-		log.Error("Can't fetch OS hostname, Kubernetes API Server check will fail")
+		log.Error("TODO")
 		return err
 	}
 
-	leaderName := leaderelection.GetLeader()
-	if leaderName == "" {
-		log.Error("Leader not elected yet. Skipping Kubernetes API Server check at this run ...")
-		return nil
+	err = leaderEngine.EnsureLeaderElectionRuns()
+	if err != nil {
+		log.Debugf("TODO")
+		return err
 	}
+	//TODO isLeader
 
-	if leaderName != hostname {
-		log.Debugf("%s is not the leader. Leader is: %s , not running Kubernetes API Server check and not collecting Kubernetes events", hostname, leaderName)
-		return nil
-	}
-	log.Tracef("%s is the Leader, running Kubernetes cluster related checks and collecting events", leaderName)
+	log.Tracef("%s is the Leader, running Kubernetes cluster related checks and collecting events", leaderEngine)
 
 	componentsStatus, err := asclient.ComponentStatuses()
 	if err != nil {

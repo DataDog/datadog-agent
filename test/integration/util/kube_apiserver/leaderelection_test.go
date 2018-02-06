@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/leaderelection"
 
-	//"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -131,7 +130,8 @@ func (suite *apiserverSuite) TestLeaderElectionSolo() {
 	le, err := leaderelection.GetLeaderEngine()
 	require.Nil(suite.T(), err)
 
-	le.StartLeaderElection()
+	err = le.EnsureLeaderElectionRuns()
+	require.Nil(suite.T(), err)
 
 	client, err := leaderelection.GetClient()
 	require.Nil(suite.T(), err)

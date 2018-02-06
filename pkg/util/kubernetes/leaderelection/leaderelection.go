@@ -7,11 +7,14 @@ package leaderelection
 
 import (
 	"flag"
+	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -36,6 +39,8 @@ var (
 
 type LeaderEngine struct {
 	initRetry retry.Retrier
+
+	once sync.Once
 
 	HolderIdentity string
 	LeaseDuration  time.Duration
@@ -121,7 +126,7 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
-	le.leaderElector, err = NewElection(le.LeaseName, le.HolderIdentity, metav1.NamespaceDefault, le.LeaseDuration, le.coreClient)
+	le.leaderElector, err = le.newElection(le.LeaseName, metav1.NamespaceDefault, le.LeaseDuration)
 	if err != nil {
 		log.Errorf("Could not initialize the Leader Election process: %s", err.Error())
 		return err
@@ -132,20 +137,30 @@ func (le *LeaderEngine) init() error {
 
 // RunElection runs an election given an leader elector. Doesn't return.
 // The passed LeaderElector embeds callback functions that are triggered to handle the different states of the process.
-func (le *LeaderEngine) StartLeaderElection() {
+func (le *LeaderEngine) startLeaderElection() {
 	log.Infof("Starting Leader Election process for %q ...", le.HolderIdentity)
-	go func() {
-		for {
-			select {
-			case <-le.stopCh:
-				log.Warnf("Stop the Leader Election process for %q", le.HolderIdentity)
-				return
-			default:
-				log.Infof("Leader Election running...")
-				le.leaderElector.Run()
+	go wait.Forever(le.leaderElector.Run, 0)
+}
+
+// EnsureLeaderElectionRuns
+func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
+	var leaderIdentity string
+
+	le.once.Do(le.startLeaderElection)
+	timeout := time.After(time.Second * 5)
+	tick := time.NewTicker(time.Millisecond * 100)
+	for {
+		select {
+		case <-tick.C:
+			leaderIdentity = le.leaderElector.GetLeader()
+			if leaderIdentity != "" {
+				log.Infof("Leader Election run, currently lead by %q", leaderIdentity)
+				return nil
 			}
+		case <-timeout:
+			return fmt.Errorf("timeout")
 		}
-	}()
+	}
 }
 
 // GetClient returns an official client
@@ -180,7 +195,7 @@ func (le *LeaderEngine) GetLeader() string {
 	return le.leaderElector.GetLeader()
 }
 
-// GetLeader is the main interface that can be called to fetch the name of the current leader.
+// IsLeader
 func (le *LeaderEngine) IsLeader() bool {
 	return le.leaderElector.IsLeader()
 }

@@ -14,7 +14,6 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	ld "k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
@@ -22,8 +21,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 )
 
-func getCurrentLeader(electionId, namespace string, c *corev1.CoreV1Client) (string, *v1.Endpoints, error) {
-	endpoints, err := c.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
+func (le *LeaderEngine) getCurrentLeader(electionId, namespace string) (string, *v1.Endpoints, error) {
+	endpoints, err := le.coreClient.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
 	if err != nil {
 		return "", nil, err
 	}
@@ -40,18 +39,18 @@ func getCurrentLeader(electionId, namespace string, c *corev1.CoreV1Client) (str
 	return electionRecord.HolderIdentity, endpoints, err
 }
 
-// NewElection creates an election.
+// newElection creates an election.
 // If `namespace`/`election` does not exist, it is created.
 // `id` is the id if this leader, should be unique.
-func NewElection(electionId, holderIdentity, namespace string, ttl time.Duration, c *corev1.CoreV1Client) (*ld.LeaderElector, error) {
+func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Duration) (*ld.LeaderElector, error) {
 	// We first want to check if the Endpoint the Leader Election is based on exists.
-	_, err := c.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
+	_, err := le.coreClient.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
 
 	if err != nil {
 		if errors.IsNotFound(err) == false {
 			return nil, err
 		}
-		_, err = c.Endpoints(namespace).Create(&v1.Endpoints{
+		_, err = le.coreClient.Endpoints(namespace).Create(&v1.Endpoints{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: electionId,
 			},
@@ -64,7 +63,7 @@ func NewElection(electionId, holderIdentity, namespace string, ttl time.Duration
 		}
 	}
 
-	_, endpoints, err := getCurrentLeader(electionId, namespace, c)
+	_, endpoints, err := le.getCurrentLeader(electionId, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -73,14 +72,14 @@ func NewElection(electionId, holderIdentity, namespace string, ttl time.Duration
 
 	eventSource := v1.EventSource{
 		Component: "leader-elector",
-		Host:      holderIdentity,
+		Host:      le.HolderIdentity,
 	}
 	broadcaster := record.NewBroadcaster()
 
 	evRec := broadcaster.NewRecorder(runtime.NewScheme(), eventSource)
 
 	resourceLockConfig := rl.ResourceLockConfig{
-		Identity:      holderIdentity,
+		Identity:      le.HolderIdentity,
 		EventRecorder: evRec,
 	}
 
@@ -100,7 +99,7 @@ func NewElection(electionId, holderIdentity, namespace string, ttl time.Duration
 		rl.EndpointsResourceLock,
 		endpoints.ObjectMeta.Namespace,
 		endpoints.ObjectMeta.Name,
-		c,
+		le.coreClient,
 		resourceLockConfig,
 	)
 	if err != nil {
