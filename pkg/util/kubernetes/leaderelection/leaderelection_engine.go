@@ -83,7 +83,7 @@ func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Durat
 
 	callbacks := ld.LeaderCallbacks{
 		OnStartedLeading: func(stop <-chan struct{}) {
-			log.Infof("Continue to lead %q ...", le.HolderIdentity)
+			log.Infof("Leading as %q ...", le.HolderIdentity)
 		},
 		OnStoppedLeading: func() {
 			le.currentHolderMutex.Lock()

@@ -159,9 +159,10 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 		case <-tick.C:
 			leaderIdentity = le.GetLeader()
 			if leaderIdentity != "" {
-				log.Infof("Leader Election run, currently led by %q", leaderIdentity)
+				log.Infof("Leader Election run, current leader is %q", leaderIdentity)
 				return nil
 			}
+			log.Tracef("Leader identity is unset")
 		case <-timeout:
 			return fmt.Errorf("timeout")
 		}
