@@ -10,15 +10,13 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ld "k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
-
-	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 func (le *LeaderEngine) getCurrentLeader(electionId, namespace string) (string, *v1.Endpoints, error) {
@@ -85,10 +83,10 @@ func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Durat
 
 	callbacks := ld.LeaderCallbacks{
 		OnStartedLeading: func(stop <-chan struct{}) {
-			log.Infof("Continue to lead...")
+			log.Infof("Continue to lead %q ...", le.HolderIdentity)
 		},
 		OnStoppedLeading: func() {
-			log.Infof("Stop leading")
+			log.Warnf("Stop leading %q", le.HolderIdentity)
 		},
 		OnNewLeader: func(identity string) {
 			log.Infof("Currently new leader %q", identity)

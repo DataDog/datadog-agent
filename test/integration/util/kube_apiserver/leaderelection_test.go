@@ -9,7 +9,6 @@
 package kubernetes
 
 import (
-	//"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,21 +16,17 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"k8s.io/api/core/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/leaderelection"
-
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
-
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/leaderelection"
 )
 
 type apiserverSuite struct {
@@ -68,12 +63,12 @@ func (suite *apiserverSuite) SetupTest() {
 	tick := time.NewTicker(time.Millisecond * 500)
 	timeout := time.NewTicker(setupTimeout)
 
-	k8sconfig, err := clientcmd.BuildConfigFromFlags("", suite.kubeConfigPath)
+	k8sConfig, err := clientcmd.BuildConfigFromFlags("", suite.kubeConfigPath)
 	require.Nil(suite.T(), err)
 
-	k8sconfig.Timeout = 400 * time.Millisecond
+	k8sConfig.Timeout = 400 * time.Millisecond
 
-	coreClient, err := corev1.NewForConfig(k8sconfig)
+	coreClient, err := corev1.NewForConfig(k8sConfig)
 
 	for {
 		select {
@@ -92,17 +87,18 @@ func (suite *apiserverSuite) SetupTest() {
 
 func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) {
 	var leaderName string
-	tick := time.NewTicker(time.Millisecond * 500)
-	timeout := time.NewTicker(time.Second * 20)
+	tick := time.NewTicker(time.Second * 1)
+	timeout := time.NewTicker(time.Second * 60)
 
 	for {
 		select {
 		case <-tick.C:
 			leaderName = le.GetLeader()
-			if leaderName != "" {
+			if leaderName == le.HolderIdentity {
 				log.Infof("leader is %s", leaderName)
 				return
 			}
+			log.Infof("leader is %q", leaderName)
 		case <-timeout.C:
 			require.FailNow(suite.T(), "timeout after %s", setupTimeout.String())
 		}
@@ -113,16 +109,14 @@ func (suite *apiserverSuite) destroyLeaderEndpoint() {
 	client, err := leaderelection.GetClient()
 	require.Nil(suite.T(), err)
 
-	ep := &v1.Endpoints{}
-	ep.Name = "datadog-leader-election"
-	ep.Namespace = "default"
-	ep.Annotations = map[string]string{rl.LeaderElectionRecordAnnotationKey: ""}
-	log.Infof("Reset annotations of %s...", ep.Name)
-	_, err = client.Endpoints(ep.Namespace).Update(ep)
+	log.Infof("Deleting endpoint...")
+	err = client.Endpoints("default").Delete("datadog-leader-election", &metav1.DeleteOptions{})
 	require.Nil(suite.T(), err)
+	_, err = client.Endpoints("default").Get("datadog-leader-election", metav1.GetOptions{})
+	require.NotNil(suite.T(), err)
 }
 
-func (suite *apiserverSuite) testLeaderElectionSolo() {
+func (suite *apiserverSuite) TestLeaderElectionSolo() {
 	const testName = "test-solo"
 	leaderelection.SetHolderIdentify(testName)
 	leaderelection.SetLeaderLeaseDuration(5 * time.Second)
@@ -159,6 +153,7 @@ func (suite *apiserverSuite) testLeaderElectionSolo() {
 func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderelection.LeaderEngine {
 	leaderelection.ResetGlobalLeaderEngine()
 
+	leaderelection.SetLeaderLeaseDuration(time.Second * 30)
 	leaderelection.SetHolderIdentify(holderIdentity)
 
 	leader, err := leaderelection.GetLeaderEngine()
@@ -167,7 +162,6 @@ func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderel
 }
 
 func (suite *apiserverSuite) TestLeaderElectionMulti() {
-
 	const baseIdentityName = "test-multi-"
 	testCases := []struct {
 		leaderEngine *leaderelection.LeaderEngine
@@ -179,10 +173,9 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 		},
 		{
 			leaderEngine: suite.getNewLeaderEngine(fmt.Sprintf("%s%d", baseIdentityName, 1)),
-			initDelay:    time.Millisecond * 500,
+			initDelay:    time.Second * 1,
 		},
 	}
-
 	for i, testCase := range testCases {
 		suite.T().Run(
 			fmt.Sprintf("%s%d", testCase.leaderEngine.HolderIdentity, i),
@@ -209,13 +202,4 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 		assert.Equal(suite.T(), fmt.Sprintf("%s%d", baseIdentityName, i), testCase.leaderEngine.HolderIdentity)
 		assert.Equal(suite.T(), actualLeader.HolderIdentity, testCase.leaderEngine.GetLeader())
 	}
-
-	suite.destroyLeaderEndpoint()
-
-	actualLeader.StopLease()
-	suite.waitForLeaderName(actualFollower)
-
-	assert.True(suite.T(), actualFollower.IsLeader())
-	assert.Equal(suite.T(), fmt.Sprintf("%s%d", baseIdentityName, 1), actualFollower.GetLeader())
-
 }

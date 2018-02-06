@@ -12,16 +12,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"k8s.io/client-go/tools/leaderelection"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -46,13 +46,11 @@ type LeaderEngine struct {
 	LeaseName      string
 	coreClient     *corev1.CoreV1Client
 	leaderElector  *leaderelection.LeaderElector
-	stopCh         chan struct{}
 }
 
 func newLeaderEngine() *LeaderEngine {
 	return &LeaderEngine{
 		LeaseName: defaultLeaseName,
-		stopCh:    make(chan struct{}),
 	}
 }
 
@@ -138,18 +136,7 @@ func (le *LeaderEngine) init() error {
 // The passed LeaderElector embeds callback functions that are triggered to handle the different states of the process.
 func (le *LeaderEngine) startLeaderElection() {
 	log.Infof("Starting Leader Election process for %q ...", le.HolderIdentity)
-	go func() {
-		for {
-			select {
-			case <-le.stopCh:
-				log.Warnf("Stop the Leader Election process for %q", le.HolderIdentity)
-				return
-			default:
-				log.Infof("Leader Election running...")
-				le.leaderElector.Run()
-			}
-		}
-	}()
+	go wait.Forever(le.leaderElector.Run, 0)
 }
 
 // EnsureLeaderElectionRuns
@@ -164,7 +151,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 		case <-tick.C:
 			leaderIdentity = le.leaderElector.GetLeader()
 			if leaderIdentity != "" {
-				log.Infof("Leader Election run, currently lead by %q", leaderIdentity)
+				log.Infof("Leader Election run, currently led by %q", leaderIdentity)
 				return nil
 			}
 		case <-timeout:
@@ -173,35 +160,29 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 	}
 }
 
-// StopLease is only meant to be used for testing purposes.
-func (le *LeaderEngine) StopLease() {
-	log.Warnf("Stopping Leader Election for %s", le.HolderIdentity)
-	le.stopCh <- struct{}{}
-}
-
 // GetClient returns an official client
 func GetClient() (*corev1.CoreV1Client, error) {
-	var k8sconfig *rest.Config
+	var k8sConfig *rest.Config
 	var err error
 
 	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
 	if cfgPath == "" {
-		k8sconfig, err = rest.InClusterConfig()
+		k8sConfig, err = rest.InClusterConfig()
 		if err != nil {
 			log.Debug("Can't create a config for the official client from the service account's token")
 			return nil, err
 		}
 	} else {
 		// use the current context in kubeconfig
-		k8sconfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
+		k8sConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
 		if err != nil {
 			log.Debug("Can't create a config for the official client from the configured path to the kubeconfig")
 			return nil, err
 		}
 	}
 
-	k8sconfig.Timeout = clientTimeout
-	coreClient, err := corev1.NewForConfig(k8sconfig)
+	k8sConfig.Timeout = clientTimeout
+	coreClient, err := corev1.NewForConfig(k8sConfig)
 
 	return coreClient, err
 }
