@@ -102,7 +102,7 @@ Your Agent is running properly. It will continue to run in the
 background and submit metrics to Datadog.
 
 You can check the agent status using the \"datadog-agent status\" command
-or by openning the webui using the \"datadog-agent launch-gui\" command.
+or by opening the webui using the \"datadog-agent launch-gui\" command.
 
 If you ever want to stop the Agent, please use the Datadog Agent App or
 the launchctl command. It will start automatically at login.
