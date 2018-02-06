@@ -104,6 +104,11 @@ func (le *LeaderEngine) init() error {
 	le.HolderIdentity = globalHolderIdentity
 	log.Debugf("HolderIdentity is %q", globalHolderIdentity)
 
+	leaseDuration := config.Datadog.GetInt("leader_lease_duration")
+	if leaseDuration != 0 {
+		globalLeaderLeaseDuration = time.Duration(leaseDuration) * time.Second
+	}
+
 	if globalLeaderLeaseDuration == 0 {
 		globalLeaderLeaseDuration = defaultLeaderLeaseDuration
 	}

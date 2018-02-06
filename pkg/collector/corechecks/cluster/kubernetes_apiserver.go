@@ -79,26 +79,29 @@ func (k *KubeASCheck) Run() error {
 		return nil
 	}
 
-	asclient, err := apiserver.GetAPIClient()
-	if err != nil {
-		log.Errorf("Could not connect to apiserver: %s", err)
-		return err
-	}
-
 	leaderEngine, err := leaderelection.GetLeaderEngine()
 	if err != nil {
-		log.Error("TODO")
+		log.Error("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.")
 		return err
 	}
 
 	err = leaderEngine.EnsureLeaderElectionRuns()
 	if err != nil {
-		log.Debugf("TODO")
+		log.Debug("Leader Election process failed to start")
 		return err
 	}
-	//TODO isLeader
 
-	log.Tracef("%s is the Leader, running Kubernetes cluster related checks and collecting events", leaderEngine)
+	if !leaderEngine.IsLeader() {
+		log.Debugf("Leader is %s. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader(), leaderEngine.HolderIdentity)
+		return nil
+	}
+	log.Tracef("%s is the Leader, running Kubernetes cluster related checks and collecting events", leaderEngine.GetLeader())
+
+	asclient, err := apiserver.GetAPIClient()
+	if err != nil {
+		log.Errorf("Could not connect to apiserver: %s", err)
+		return err
+	}
 
 	componentsStatus, err := asclient.ComponentStatuses()
 	if err != nil {

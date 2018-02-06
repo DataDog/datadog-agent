@@ -116,40 +116,6 @@ func (suite *apiserverSuite) destroyLeaderEndpoint() {
 	require.NotNil(suite.T(), err)
 }
 
-func (suite *apiserverSuite) TestLeaderElectionSolo() {
-	const testName = "test-solo"
-	leaderelection.SetHolderIdentify(testName)
-	leaderelection.SetLeaderLeaseDuration(5 * time.Second)
-
-	le, err := leaderelection.GetLeaderEngine()
-	require.Nil(suite.T(), err)
-
-	err = le.EnsureLeaderElectionRuns()
-	require.Nil(suite.T(), err)
-
-	client, err := leaderelection.GetClient()
-	require.Nil(suite.T(), err)
-	epList, err := client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
-	require.Nil(suite.T(), err)
-	require.Len(suite.T(), epList.Items, 2)
-
-	suite.waitForLeaderName(le)
-	require.True(suite.T(), le.IsLeader())
-
-	epList, err = client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
-	require.Nil(suite.T(), err)
-
-	var leaderAnnotation string
-	for _, ep := range epList.Items {
-		if ep.Name == "datadog-leader-election" {
-			leaderAnnotation = ep.Annotations[rl.LeaderElectionRecordAnnotationKey]
-		}
-	}
-	require.Nil(suite.T(), err)
-	expectedMessage := fmt.Sprintf("\"holderIdentity\":\"%s\"", testName)
-	assert.Contains(suite.T(), leaderAnnotation, expectedMessage)
-}
-
 func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderelection.LeaderEngine {
 	leaderelection.ResetGlobalLeaderEngine()
 
@@ -178,7 +144,7 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 	}
 	for i, testCase := range testCases {
 		suite.T().Run(
-			fmt.Sprintf("%s%d", testCase.leaderEngine.HolderIdentity, i),
+			fmt.Sprintf("%s-%d", testCase.leaderEngine.HolderIdentity, i),
 			func(t *testing.T) {
 				time.Sleep(testCase.initDelay)
 				err := testCase.leaderEngine.EnsureLeaderElectionRuns()

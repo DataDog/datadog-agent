@@ -165,7 +165,7 @@ func init() {
 
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
-	Datadog.SetDefault("leader_lease_duration", "60s")
+	Datadog.SetDefault("leader_lease_duration", "60")
 
 	// Datadog cluster agent
 	Datadog.SetDefault("cluster_agent.auth_token", "")
