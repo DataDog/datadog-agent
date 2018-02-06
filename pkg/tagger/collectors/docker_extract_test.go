@@ -201,7 +201,7 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 					Env: []string{
 						"NOMAD_TASK_NAME=test-task",
 						"NOMAD_JOB_NAME=test-job",
-						"NOMAD_ALLOC_NAME=test-task.test-group[0]",
+						"NOMAD_GROUP_NAME=test-group",
 					},
 					Labels: map[string]string{},
 				},
@@ -212,26 +212,6 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 				"nomad_task:test-task",
 				"nomad_job:test-job",
 				"nomad_group:test-group",
-			},
-			expectedHigh: []string{},
-		},
-		{
-			testName: "extractNomadInvalidGroup",
-			co: &types.ContainerJSON{
-				Config: &container.Config{
-					Env: []string{
-						"NOMAD_TASK_NAME=test-task",
-						"NOMAD_JOB_NAME=test-job",
-						"NOMAD_ALLOC_NAME=test-group[0]",
-					},
-					Labels: map[string]string{},
-				},
-			},
-			toRecordEnvAsTags:    map[string]string{},
-			toRecordLabelsAsTags: map[string]string{},
-			expectedLow: []string{
-				"nomad_task:test-task",
-				"nomad_job:test-job",
 			},
 			expectedHigh: []string{},
 		},
