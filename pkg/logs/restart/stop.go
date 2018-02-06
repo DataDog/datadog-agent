@@ -5,13 +5,13 @@
 
 package restart
 
-// Stopper represents a stoppable object
-type Stopper interface {
+// Stoppable represents a stoppable object
+type Stoppable interface {
 	Stop()
 }
 
-// Group represents a group of stoppable objects from a data pipeline
-type Group interface {
-	Stopper
-	Add(stoppers ...Stopper)
+// Stopper stops a group of stoppable objects from a data pipeline
+type Stopper interface {
+	Stoppable
+	Add(components ...Stoppable)
 }

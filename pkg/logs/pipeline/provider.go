@@ -54,7 +54,7 @@ func (p *provider) Start() {
 // Stop stops all pipelines in parallel,
 // this call blocks until all pipelines are stopped
 func (p *provider) Stop() {
-	stopper := restart.NewParallelGroup()
+	stopper := restart.NewParallelStopper()
 	for _, pipeline := range p.pipelines {
 		stopper.Add(pipeline)
 	}

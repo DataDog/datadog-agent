@@ -17,7 +17,7 @@ import (
 type Listener struct {
 	pp        pipeline.Provider
 	sources   []*config.LogSource
-	listeners []restart.Stopper
+	listeners []restart.Stoppable
 }
 
 // New returns an initialized Listener
@@ -25,7 +25,7 @@ func New(sources []*config.LogSource, pp pipeline.Provider) *Listener {
 	return &Listener{
 		pp:        pp,
 		sources:   sources,
-		listeners: []restart.Stopper{},
+		listeners: []restart.Stoppable{},
 	}
 }
 
@@ -55,7 +55,7 @@ func (l *Listener) Start() {
 
 // Stop stops all the listeners
 func (l *Listener) Stop() {
-	stopper := restart.NewParallelGroup(l.listeners...)
+	stopper := restart.NewParallelStopper(l.listeners...)
 	stopper.Stop()
 	l.listeners = l.listeners[:0]
 }

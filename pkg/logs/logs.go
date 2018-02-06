@@ -25,7 +25,7 @@ var (
 	// isRunning indicates whether logs-agent is running or not
 	isRunning bool
 	// logs-agent data pipeline
-	agentPipeline restart.Group
+	agentPipeline restart.Stopper
 )
 
 // Start starts logs-agent
@@ -58,8 +58,8 @@ func run(config *config.Config) {
 	restart.Start(auditor, pipelineProvider, networkListeners, containersScanner, filesScanner)
 	status.Initialize(sources.GetSources())
 
-	inputs := restart.NewParallelGroup(filesScanner, containersScanner, networkListeners)
-	agentPipeline = restart.NewSerialGroup(inputs, pipelineProvider, auditor)
+	inputs := restart.NewParallelStopper(filesScanner, containersScanner, networkListeners)
+	agentPipeline = restart.NewSerialStopper(inputs, pipelineProvider, auditor)
 }
 
 // Stop stops properly the logs-agent to prevent data loss

@@ -47,7 +47,7 @@ func (h *ConnectionHandler) Start() {
 func (h *ConnectionHandler) Stop() {
 	close(h.connChan)
 	<-h.isFlushed
-	stopper := restart.NewParallelGroup()
+	stopper := restart.NewParallelStopper()
 	for _, worker := range h.workers {
 		stopper.Add(worker)
 	}
