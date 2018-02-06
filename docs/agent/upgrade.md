@@ -152,7 +152,7 @@ In case you have an Agent version 5.17 or later and you want to import the
 existing configuration:
 
 ```shell
- bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_mac_os.sh)"
+  DD_UPGRADE=true bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_mac_os.sh)"
 ```
 
 **Note:** the import process won't automatically move custom checks, this is by

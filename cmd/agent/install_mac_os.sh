@@ -9,11 +9,35 @@ logfile=ddagent-install.log
 dmg_file=/tmp/datadog-agent.dmg
 dmg_url="https://s3.amazonaws.com/dd-agent/datadog-agent-6.0.0-beta.9-1-with-install-script-fix.dmg"
 
+dd_upgrade=
+if [ -n "$DD_UPGRADE" ]; then
+  dd_upgrade=$DD_UPGRADE
+fi
+
 # Root user detection
 if [ $(echo "$UID") = "0" ]; then
     sudo_cmd=''
 else
     sudo_cmd='sudo'
+fi
+
+if [ -n "$DD_API_KEY" ]; then
+    apikey=$DD_API_KEY
+fi
+
+if [ $dd_upgrade ]; then
+    if [ ! -f /opt/datadog-agent/etc/datadog.conf ]; then
+        printf "\033[31mDD_UPGRADE set but no config was found at /opt/datadog-agent/etc/datadog.conf.\033[0m\n"
+        exit 1;
+    fi
+fi
+
+if [ ! $apikey ]; then
+  # if it's an upgrade, then we will use the transition script
+  if [ ! $dd_upgrade ]; then
+    printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
+    exit 1;
+  fi
 fi
 
 # get real user (in case of sudo)
@@ -44,14 +68,6 @@ cmd_agent="$cmd_real_user /opt/datadog-agent/bin/agent/agent"
 cmd_launchctl="$cmd_real_user launchctl"
 
 function new_config() {
-    if [ -n "$DD_API_KEY" ]; then
-        apikey=$DD_API_KEY
-    fi
-
-    if [ ! $apikey ]; then
-        printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
-        exit 1;
-    fi
     # Check for vanilla OS X sed or GNU sed
     i_cmd="-i ''"
     if [ $(sed --version 2>/dev/null | grep -c "GNU") -ne 0 ]; then i_cmd="-i"; fi
@@ -80,16 +96,16 @@ $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
 
 # Set the configuration
 if egrep 'api_key:( APIKEY)?$' "/opt/datadog-agent/etc/datadog.yaml" > /dev/null 2>&1; then
-    if [ ! -f /opt/datadog-agent/etc/datadog.conf ]; then
-        new_config
-    else
+    if [ $dd_upgrade ]; then
         import_config
+    else
+        new_config
     fi
     printf "\n\033[34m* Restarting the Agent...\n\033[0m\n"
     $cmd_launchctl stop com.datadoghq.agent
     $cmd_launchctl start com.datadoghq.agent
 else
-    printf "\033[34m\n* Keeping old datadog.yaml configuration file\n\033[0m\n"
+    printf "\033[34m\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n\033[0m\n"
 fi
 
 # Starting the app
