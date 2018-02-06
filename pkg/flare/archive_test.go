@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,6 +29,8 @@ func TestCreateArchive(t *testing.T) {
 		assert.Fail(t, "The Zip File was not created")
 	} else {
 		os.Remove(zipFilePath)
+		err := security.DeleteAuthToken()
+		assert.Nil(t, err)
 	}
 }
 
