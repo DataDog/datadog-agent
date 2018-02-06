@@ -67,7 +67,6 @@ func FromAgentConfig(agentConfig Config) error {
 	// TODO: exclude_process_args
 	config.Datadog.Set("histogram_aggregates", buildHistogramAggregates(agentConfig))
 
-	// TODO: histogram_percentiles
 	config.Datadog.Set("histogram_percentiles", buildHistogramPercentiles(agentConfig))
 
 	if agentConfig["service_discovery_backend"] == "docker" {
