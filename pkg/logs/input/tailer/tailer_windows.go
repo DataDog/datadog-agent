@@ -77,18 +77,22 @@ func (t *Tailer) readAvailable() (err error) {
 func (t *Tailer) readForever() {
 	defer t.onStop()
 	for {
-		if t.shouldStop {
+		select {
+		case <-t.done:
+			// Stop has been called
 			return
-		}
-		err := t.readAvailable()
-		if err == io.EOF || os.IsNotExist(err) {
-			t.wait()
-			continue
-		}
-		if err != nil {
-			t.source.Status.Error(err)
-			log.Error("Err: ", err)
-			return
+		default:
+			// keep reading data from file
+			err := t.readAvailable()
+			if err == io.EOF || os.IsNotExist(err) {
+				t.wait()
+				continue
+			}
+			if err != nil {
+				t.source.Status.Error(err)
+				log.Error("Err: ", err)
+				return
+			}
 		}
 	}
 }

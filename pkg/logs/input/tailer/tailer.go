@@ -41,6 +41,7 @@ type Tailer struct {
 	closeTimeout  time.Duration
 	shouldStop    bool
 	didFileRotate bool
+	done          chan struct{}
 	isFlushed     chan struct{}
 }
 
@@ -54,6 +55,7 @@ func NewTailer(outputChan chan message.Message, source *config.LogSource, path s
 		readOffset:    0,
 		sleepDuration: sleepDuration,
 		closeTimeout:  defaultCloseTimeout,
+		done:          make(chan struct{}, 1),
 		isFlushed:     make(chan struct{}, 1),
 	}
 }
@@ -72,7 +74,7 @@ func (t *Tailer) recoverTailing(offset int64, whence int) error {
 // Stop stops the tailer and returns only when the decoder is flushed
 func (t *Tailer) Stop() {
 	t.didFileRotate = false
-	t.shouldStop = true
+	t.done <- struct{}{}
 	t.source.RemoveInput(t.path)
 	// wait for the decoder to be flushed
 	<-t.isFlushed
@@ -90,7 +92,7 @@ func (t *Tailer) StopAfterFileRotation() {
 func (t *Tailer) startStopTimer() {
 	stopTimer := time.NewTimer(t.closeTimeout)
 	<-stopTimer.C
-	t.shouldStop = true
+	t.done <- struct{}{}
 }
 
 // onStop finishes to stop the tailer
@@ -175,7 +177,7 @@ func (t *Tailer) SetDecodedOffset(off int64) {
 
 // shouldTrackOffset returns whether the tailer should track the file offset or not
 func (t *Tailer) shouldTrackOffset() bool {
-	if t.shouldStop && t.didFileRotate {
+	if t.didFileRotate {
 		return false
 	}
 	return true
