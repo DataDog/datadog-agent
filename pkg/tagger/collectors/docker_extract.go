@@ -99,6 +99,21 @@ func dockerExtractEnvironmentVariables(tags *utils.TagList, containerEnvVariable
 		case "MESOS_TASK_ID":
 			tags.AddHigh("mesos_task", envValue)
 
+		// Nomad
+		case "NOMAD_TASK_NAME":
+			tags.AddLow("nomad_task", envValue)
+		case "NOMAD_JOB_NAME":
+			tags.AddLow("nomad_job", envValue)
+		case "NOMAD_ALLOC_NAME":
+			// Known format is test-task.test-group[0]
+			start := strings.Index(envValue, ".")
+			end := strings.LastIndex(envValue, "[")
+			if end > start && start > -1 {
+				tags.AddLow("nomad_group", envValue[start+1:end])
+			} else {
+				log.Debugf("Cannot extract nomad_group tag from the NOMAD_ALLOC_NAME envvar: %s", envValue)
+			}
+
 		default:
 			if tagName, found := envAsTags[strings.ToLower(envSplit[0])]; found {
 				tags.AddAuto(tagName, envValue)
