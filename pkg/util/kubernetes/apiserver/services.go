@@ -8,7 +8,7 @@
 package apiserver
 
 import (
-	"errors"
+	"fmt"
 
 	log "github.com/cihub/seelog"
 
@@ -25,8 +25,7 @@ func (smb *ServiceMapperBundle) mapServices(nodeName string, pods v1.PodList, en
 	podToIp := make(map[string]string)         // maps the pods of the currently evaluated node to their IP.
 
 	if pods.Items == nil {
-		err := errors.New("empty podlist received")
-		return err
+		return fmt.Errorf("empty podlist received for nodeName %q", nodeName)
 	}
 	if nodeName == "" {
 		log.Debugf("Service mapper was given an empty node name. Mapping might be incorrect.")
@@ -63,18 +62,29 @@ func (smb *ServiceMapperBundle) mapServices(nodeName string, pods v1.PodList, en
 	return nil
 }
 
-// GetPodSvcs is used when the API endpoint of the DCA to get the services of a pod is hit.
-func GetPodSvcs(nodeName string, podName string) []string {
-	smb, found := cache.Cache.Get(nodeName)
+// GetPodServiceNames is used when the API endpoint of the DCA to get the services of a pod is hit.
+func GetPodServiceNames(nodeName string, podName string) []string {
+	var serviceList []string
+	cacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
+
+	smbInterface, found := cache.Cache.Get(cacheKey)
 	if !found {
-		log.Debugf("No metadata was found for the pod %s on node %s", podName, nodeName)
-		return nil
+		log.Debugf("No metadata was found for the pod %s on node %s at the cache key %q", podName, nodeName, cacheKey)
+		return serviceList
 	}
 
-	serviceList, found := smb.(*ServiceMapperBundle).PodNameToServices[podName]
+	smb, ok := smbInterface.(*ServiceMapperBundle)
+	if !ok {
+		log.Warnf("Invalid cache format at cacheKey: %s", cacheKey)
+		return serviceList
+	}
+
+	serviceList, found = smb.PodNameToServices[podName]
 	if !found {
 		log.Debugf("No cached metadata found for the pod %s on the node %s", podName, nodeName)
-		return nil
+		return serviceList
 	}
+
+	log.Debugf("cacheKey: %s, with %d services", cacheKey, len(serviceList))
 	return serviceList
 }

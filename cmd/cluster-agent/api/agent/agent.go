@@ -128,7 +128,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
-	svcList := as.GetPodSvcs(nodeName, podName)
+	svcList := as.GetPodServiceNames(nodeName, podName)
 
 	slcB, err := json.Marshal(svcList)
 	if err != nil {

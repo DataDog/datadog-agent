@@ -55,6 +55,7 @@ func (c *KubeletCollector) Pull() error {
 	if err != nil {
 		return err
 	}
+
 	updates, err := c.parsePods(updatedPods)
 	if err != nil {
 		return err
@@ -87,7 +88,9 @@ func (c *KubeletCollector) Fetch(container string) ([]string, []string, error) {
 	if err != nil {
 		return []string{}, []string{}, err
 	}
-	updates, err := c.parsePods([]*kubelet.Pod{pod})
+
+	pods := []*kubelet.Pod{pod}
+	updates, err := c.parsePods(pods)
 	if err != nil {
 		return []string{}, []string{}, err
 	}

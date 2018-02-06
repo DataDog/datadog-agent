@@ -28,6 +28,7 @@ DEFAULT_BUILD_TAGS = [
     "etcd",
     "gce",
     "jmx",
+    "kubeapiserver",
     "kubelet",
     "log",
     "process",

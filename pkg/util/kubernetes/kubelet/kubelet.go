@@ -104,9 +104,10 @@ func (ku *KubeUtil) GetNodeInfo() (string, string, error) {
 	}
 
 	for _, pod := range pods {
-		if !pod.Spec.HostNetwork {
-			return pod.Status.HostIP, pod.Spec.NodeName, nil
+		if pod.Status.HostIP == "" || pod.Spec.NodeName == "" {
+			continue
 		}
+		return pod.Status.HostIP, pod.Spec.NodeName, nil
 	}
 
 	return "", "", fmt.Errorf("failed to get node info, pod list length: %d", len(pods))
@@ -156,7 +157,7 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 		return nil, err
 	}
 
-	// cache the podlist for 10 seconds to reduce pressure on the kubelet
+	// cache the podList for 10 seconds to reduce pressure on the kubelet
 	cacheDuration := 10 * time.Second
 	if config.Datadog.GetBool("process_agent_enabled") {
 		cacheDuration = 2 * time.Second
@@ -166,29 +167,47 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 	return pods.Items, nil
 }
 
-// GetPodForContainerID fetches the podlist and returns the pod running
-// a given container on the node. Returns a nil pointer if not found.
+// ForceGetLocalPodList reset podList cache and call GetLocalPodList
+func (ku *KubeUtil) ForceGetLocalPodList() ([]*Pod, error) {
+	ResetCache()
+	return ku.GetLocalPodList()
+}
+
+// GetPodForContainerID fetches the podList and returns the pod running
+// a given container on the node. Reset the cache if needed.
+// Returns a nil pointer if not found.
 func (ku *KubeUtil) GetPodForContainerID(containerID string) (*Pod, error) {
 	pods, err := ku.GetLocalPodList()
 	if err != nil {
 		return nil, err
 	}
-
-	return ku.searchPodForContainerID(pods, containerID)
+	pod, err := ku.searchPodForContainerID(pods, containerID)
+	if err != nil {
+		log.Debugf("cannot get the containerID %q: %s, retrying without cache...", containerID, err)
+		pods, err = ku.ForceGetLocalPodList()
+		if err != nil {
+			return nil, err
+		}
+		pod, err = ku.searchPodForContainerID(pods, containerID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return pod, nil
 }
 
-func (ku *KubeUtil) searchPodForContainerID(podlist []*Pod, containerID string) (*Pod, error) {
+func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) (*Pod, error) {
 	if containerID == "" {
 		return nil, errors.New("containerID is empty")
 	}
-	for _, pod := range podlist {
+	for _, pod := range podList {
 		for _, container := range pod.Status.Containers {
 			if container.ID == containerID {
 				return pod, nil
 			}
 		}
 	}
-	return nil, fmt.Errorf("container %s not found in podlist", containerID)
+	return nil, fmt.Errorf("container %s not found in podList", containerID)
 }
 
 // setupKubeletApiClient will try to setup the http(s) client to query the kubelet
@@ -393,4 +412,17 @@ func (ku *KubeUtil) init() error {
 		return err
 	}
 	return ku.setupKubeletApiEndpoint()
+}
+
+// IsPodReady return a bool if the Pod is ready
+func IsPodReady(pod *Pod) bool {
+	if pod.Status.Phase != "Running" {
+		return false
+	}
+	for _, status := range pod.Status.Conditions {
+		if status.Type == "Ready" && status.Status == "True" {
+			return true
+		}
+	}
+	return false
 }
