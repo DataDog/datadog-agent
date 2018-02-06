@@ -45,6 +45,7 @@ type KubeUtil struct {
 	kubeletApiClient         *http.Client
 	kubeletApiRequestHeaders *http.Header
 	rawConnectionInfo        map[string]string // kept to pass to the python kubelet check
+	podListCacheDuration     time.Duration
 }
 
 // ResetGlobalKubeUtil is a helper to remove the current KubeUtil global
@@ -63,6 +64,7 @@ func newKubeUtil() *KubeUtil {
 		kubeletApiClient:         &http.Client{Timeout: time.Second},
 		kubeletApiRequestHeaders: &http.Header{},
 		rawConnectionInfo:        make(map[string]string),
+		podListCacheDuration:     10 * time.Second,
 	}
 	return ku
 }
@@ -157,14 +159,15 @@ func (ku *KubeUtil) GetLocalPodList() ([]*Pod, error) {
 		return nil, err
 	}
 
-	// cache the podList for 10 seconds to reduce pressure on the kubelet
-	cacheDuration := 10 * time.Second
-	if config.Datadog.GetBool("process_agent_enabled") {
-		cacheDuration = 2 * time.Second
-	}
-	cache.Cache.Set(podListCacheKey, pods, cacheDuration)
+	// cache the podList to reduce pressure on the kubelet
+	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
 
 	return pods.Items, nil
+}
+
+// SetPodListCacheDuration sets the podlist cache duration
+func (ku *KubeUtil) SetPodListCacheDuration(duration time.Duration) {
+	ku.podListCacheDuration = duration
 }
 
 // ForceGetLocalPodList reset podList cache and call GetLocalPodList
