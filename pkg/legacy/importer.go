@@ -108,7 +108,6 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 	config["use_web_info_page"] = "True"
 
 	// these values are postprocessed in config.py, manually overwrite them
-	config["histogram_percentiles"] = "['0.95']"
 	config["endpoints"] = "{}"
 	config["version"] = "5.18.0"
 	config["proxy_settings"] = "{'host': 'my-proxy.com', 'password': 'password', 'port': 3128, 'user': 'user'}"

@@ -62,6 +62,7 @@ func FromAgentConfig(agentConfig Config) error {
 	config.Datadog.Set("histogram_aggregates", buildHistogramAggregates(agentConfig))
 
 	// TODO: histogram_percentiles
+	config.Datadog.Set("histogram_percentiles", buildHistogramPercentiles(agentConfig))
 
 	if agentConfig["service_discovery_backend"] == "docker" {
 		// `docker` is the only possible value also on the Agent v5
@@ -251,4 +252,29 @@ func buildHistogramAggregates(agentConfig Config) []string {
 	}
 
 	return histogramBuild
+}
+
+func buildHistogramPercentiles(agentConfig Config) []string {
+	configList := agentConfig["histogram_percentiles"]
+	var histogramPercentile []string
+
+	if configList == "" {
+		// return an empty list, not an error
+		return nil
+	}
+
+	// percentiles are rounded down to 2 digits and (0:1)
+	configList = strings.Replace(configList, " ", "", -1)
+	result := strings.Split(configList, ",")
+	for _, res := range result {
+		num, err := strconv.ParseFloat(res, 64)
+		if num < 1 && num > 0 && err == nil {
+			fixed := strconv.FormatFloat(num, 'f', 2, 64)
+			histogramPercentile = append(histogramPercentile, fixed)
+		} else {
+			fmt.Println("warning: ignoring invalid histogram percentile", res)
+		}
+	}
+
+	return histogramPercentile
 }

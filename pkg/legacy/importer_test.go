@@ -42,20 +42,19 @@ func TestGetAgentConfig(t *testing.T) {
 
 		valueStr := python.PyString_AS_STRING(value.Str())
 
+		goValue, found := agentConfigGo[keyStr]
+		// histogram_aggregates value was converted from string to list
+		// of strings in Agent6.
+		if keyStr == "histogram_aggregates" {
+			goValue = "['max', 'median', 'avg', 'count']"
+		}
 		// histogram_percentiles were converted from string to float
 		// by the config module in agent5. In agent6 this is now the
 		// responsibility of the histogram class.
 		// The value is overwritten anyway: we're just testing the
 		// default value.
 		if keyStr == "histogram_percentiles" {
-			valueStr = "['0.95']"
-		}
-
-		goValue, found := agentConfigGo[keyStr]
-		// histogram_aggregates value was converted from string to list
-		// of strings in Agent6.
-		if keyStr == "histogram_aggregates" {
-			goValue = "['max', 'median', 'avg', 'count']"
+			goValue = "[0.95]"
 		}
 
 		if valueStr != goValue {
