@@ -90,6 +90,10 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	}
 
 	err = zipConfigCheck(zipFile, hostname)
+	if err != nil {
+		return "", err
+	}
+
 	err = zipHealth(zipFile, hostname)
 	if err != nil {
 		return "", err
