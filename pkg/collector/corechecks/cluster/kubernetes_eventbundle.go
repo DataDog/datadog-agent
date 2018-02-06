@@ -19,6 +19,7 @@ import (
 
 type kubernetesEventBundle struct {
 	objUid        string         // Unique object Identifier used as the Aggregation key
+	namespace     string         // namespace of the bundle
 	readableKey   string         // Formated key used in the Title in the events
 	component     string         // Used to identify the Kubernetes component which generated the event
 	events        []*v1.Event    // List of events in the bundle
@@ -48,6 +49,7 @@ func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	}
 
 	k.events = append(k.events, event)
+	k.namespace = *event.InvolvedObject.Namespace
 	k.timeStamp = math.Max(k.timeStamp, float64(*event.Metadata.CreationTimestamp.Seconds))
 	k.lastTimestamp = math.Max(k.timeStamp, float64(*event.LastTimestamp.Seconds))
 
@@ -67,9 +69,12 @@ func (k *kubernetesEventBundle) formatEvents(hostname string, modified bool) (me
 		SourceTypeName: "kubernetes",
 		EventType:      kubernetesAPIServerCheckName,
 		Ts:             int64(k.timeStamp),
+		Tags:           []string{fmt.Sprintf("source_component:%s", k.component)},
 		AggregationKey: fmt.Sprintf("kubernetes_apiserver:%s", k.objUid),
 	}
-
+	if k.namespace != "" {
+		output.Tags = append(output.Tags, fmt.Sprintf("namespace:%s", k.namespace))
+	}
 	if modified {
 		output.Text = "%%% \n" + fmt.Sprintf("%s \n _Events emitted by the %s seen at %s_ \n", formatStringIntMap(k.countByAction), k.component, time.Unix(int64(k.lastTimestamp), 0)) + "\n %%%"
 		output.Ts = int64(k.lastTimestamp)
