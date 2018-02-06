@@ -46,6 +46,9 @@ type LeaderEngine struct {
 	LeaseName      string
 	coreClient     *corev1.CoreV1Client
 	leaderElector  *leaderelection.LeaderElector
+
+	currentHolderIdentity string
+	currentHolderMutex    sync.RWMutex
 }
 
 func newLeaderEngine() *LeaderEngine {
@@ -154,7 +157,7 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 	for {
 		select {
 		case <-tick.C:
-			leaderIdentity = le.leaderElector.GetLeader()
+			leaderIdentity = le.GetLeader()
 			if leaderIdentity != "" {
 				log.Infof("Leader Election run, currently led by %q", leaderIdentity)
 				return nil
@@ -194,12 +197,15 @@ func GetClient() (*corev1.CoreV1Client, error) {
 
 // GetLeader is the main interface that can be called to fetch the name of the current leader.
 func (le *LeaderEngine) GetLeader() string {
-	return le.leaderElector.GetLeader()
+	le.currentHolderMutex.RLock()
+	defer le.currentHolderMutex.RUnlock()
+
+	return le.currentHolderIdentity
 }
 
 // IsLeader
 func (le *LeaderEngine) IsLeader() bool {
-	return le.leaderElector.IsLeader()
+	return le.GetLeader() == le.HolderIdentity
 }
 
 func init() {

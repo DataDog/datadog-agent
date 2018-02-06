@@ -88,7 +88,8 @@ func (suite *apiserverSuite) SetupTest() {
 func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) {
 	var leaderName string
 	tick := time.NewTicker(time.Second * 1)
-	timeout := time.NewTicker(time.Second * 60)
+	t := time.Second * 60
+	timeout := time.NewTicker(t)
 
 	for {
 		select {
@@ -100,43 +101,9 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 			}
 			log.Infof("leader is %q", leaderName)
 		case <-timeout.C:
-			require.FailNow(suite.T(), "timeout after %s", setupTimeout.String())
+			require.FailNow(suite.T(), "timeout after %s", t.String())
 		}
 	}
-}
-
-func (suite *apiserverSuite) TestLeaderElectionSolo() {
-	const testName = "test-solo"
-	leaderelection.SetHolderIdentify(testName)
-	leaderelection.SetLeaderLeaseDuration(5 * time.Second)
-
-	le, err := leaderelection.GetLeaderEngine()
-	require.Nil(suite.T(), err)
-
-	err = le.EnsureLeaderElectionRuns()
-	require.Nil(suite.T(), err)
-
-	client, err := leaderelection.GetClient()
-	require.Nil(suite.T(), err)
-	epList, err := client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
-	require.Nil(suite.T(), err)
-	require.Len(suite.T(), epList.Items, 2)
-
-	suite.waitForLeaderName(le)
-	require.True(suite.T(), le.IsLeader())
-
-	epList, err = client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
-	require.Nil(suite.T(), err)
-
-	var leaderAnnotation string
-	for _, ep := range epList.Items {
-		if ep.Name == "datadog-leader-election" {
-			leaderAnnotation = ep.Annotations[rl.LeaderElectionRecordAnnotationKey]
-		}
-	}
-	require.Nil(suite.T(), err)
-	expectedMessage := fmt.Sprintf("\"holderIdentity\":\"%s\"", testName)
-	assert.Contains(suite.T(), leaderAnnotation, expectedMessage)
 }
 
 func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderelection.LeaderEngine {
@@ -148,4 +115,67 @@ func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderel
 	leader, err := leaderelection.GetLeaderEngine()
 	require.Nil(suite.T(), err)
 	return leader
+}
+
+func (suite *apiserverSuite) TestLeaderElectionMulti() {
+	const baseIdentityName = "test-multi-"
+	testCases := []struct {
+		leaderEngine *leaderelection.LeaderEngine
+		initDelay    time.Duration
+	}{
+		{
+			leaderEngine: suite.getNewLeaderEngine(fmt.Sprintf("%s%d", baseIdentityName, 0)),
+			initDelay:    time.Millisecond * 0,
+		},
+		{
+			leaderEngine: suite.getNewLeaderEngine(fmt.Sprintf("%s%d", baseIdentityName, 1)),
+			initDelay:    time.Second * 1,
+		},
+	}
+	for i, testCase := range testCases {
+		suite.T().Run(
+			fmt.Sprintf("%s-%d", testCase.leaderEngine.HolderIdentity, i),
+			func(t *testing.T) {
+				time.Sleep(testCase.initDelay)
+				err := testCase.leaderEngine.EnsureLeaderElectionRuns()
+				require.Nil(t, err)
+			},
+		)
+	}
+	// We sleep here to make sure that all instances in testCases are properly running.
+	time.Sleep(time.Second * 1)
+
+	// Leader
+	actualLeader := testCases[0].leaderEngine
+	suite.waitForLeaderName(actualLeader)
+	require.True(suite.T(), actualLeader.IsLeader())
+
+	// Follower
+	actualFollower := testCases[1].leaderEngine
+	require.False(suite.T(), actualFollower.IsLeader())
+
+	for i, testCase := range testCases {
+		assert.Equal(suite.T(), fmt.Sprintf("%s%d", baseIdentityName, i), testCase.leaderEngine.HolderIdentity)
+		assert.Equal(suite.T(), actualLeader.HolderIdentity, testCase.leaderEngine.GetLeader())
+	}
+
+	client, err := leaderelection.GetClient()
+	require.Nil(suite.T(), err)
+	epList, err := client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), epList.Items, 2)
+
+	epList, err = client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
+	require.Nil(suite.T(), err)
+
+	var leaderAnnotation string
+	for _, ep := range epList.Items {
+		if ep.Name == "datadog-leader-election" {
+			leaderAnnotation = ep.Annotations[rl.LeaderElectionRecordAnnotationKey]
+		}
+	}
+	require.Nil(suite.T(), err)
+	expectedMessage := fmt.Sprintf("\"holderIdentity\":\"%s\"", fmt.Sprintf("%s%d", baseIdentityName, 0))
+	assert.Contains(suite.T(), leaderAnnotation, expectedMessage)
+
 }

@@ -86,9 +86,15 @@ func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Durat
 			log.Infof("Continue to lead %q ...", le.HolderIdentity)
 		},
 		OnStoppedLeading: func() {
+			le.currentHolderMutex.Lock()
+			le.currentHolderIdentity = ""
+			le.currentHolderMutex.Unlock()
 			log.Warnf("Stop leading %q", le.HolderIdentity)
 		},
 		OnNewLeader: func(identity string) {
+			le.currentHolderMutex.Lock()
+			le.currentHolderIdentity = identity
+			le.currentHolderMutex.Unlock()
 			log.Infof("Currently new leader %q", identity)
 		},
 	}
