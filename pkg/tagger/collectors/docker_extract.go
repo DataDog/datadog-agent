@@ -99,6 +99,14 @@ func dockerExtractEnvironmentVariables(tags *utils.TagList, containerEnvVariable
 		case "MESOS_TASK_ID":
 			tags.AddHigh("mesos_task", envValue)
 
+		// Nomad
+		case "NOMAD_TASK_NAME":
+			tags.AddLow("nomad_task", envValue)
+		case "NOMAD_JOB_NAME":
+			tags.AddLow("nomad_job", envValue)
+		case "NOMAD_GROUP_NAME":
+			tags.AddLow("nomad_group", envValue)
+
 		default:
 			if tagName, found := envAsTags[strings.ToLower(envSplit[0])]; found {
 				tags.AddAuto(tagName, envValue)
