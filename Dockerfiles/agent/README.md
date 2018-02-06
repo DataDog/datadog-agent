@@ -21,7 +21,6 @@ The following environment variables are supported:
 - `DD_LEADER_ELECTION`: Activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true.
 - `DD_LEADER_LEASE_DURATION`: Only used if the leader election is activated. See the details [here](#leader-election-lease).
 
->>>>>>> updating doc, fixing check, improving logic
 Example usage: `docker run -e DD_API_KEY=your-api-key-here -it <image-name>`
 
 For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/agent/)
