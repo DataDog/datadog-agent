@@ -193,6 +193,8 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 			},
 		)
 	}
+	// We sleep here to make sure that all instances in testCases are properly running.
+	time.Sleep(time.Second * 1)
 
 	// Leader
 	actualLeader := testCases[0].leaderEngine
@@ -207,5 +209,13 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 		assert.Equal(suite.T(), fmt.Sprintf("%s%d", baseIdentityName, i), testCase.leaderEngine.HolderIdentity)
 		assert.Equal(suite.T(), actualLeader.HolderIdentity, testCase.leaderEngine.GetLeader())
 	}
+
+	suite.destroyLeaderEndpoint()
+
+	actualLeader.StopLease()
+	suite.waitForLeaderName(actualFollower)
+
+	assert.True(suite.T(), actualFollower.IsLeader())
+	assert.Equal(suite.T(), fmt.Sprintf("%s%d", baseIdentityName, 1), actualFollower.GetLeader())
 
 }

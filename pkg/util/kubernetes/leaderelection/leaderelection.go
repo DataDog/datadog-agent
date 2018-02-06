@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -139,7 +138,18 @@ func (le *LeaderEngine) init() error {
 // The passed LeaderElector embeds callback functions that are triggered to handle the different states of the process.
 func (le *LeaderEngine) startLeaderElection() {
 	log.Infof("Starting Leader Election process for %q ...", le.HolderIdentity)
-	go wait.Forever(le.leaderElector.Run, 0)
+	go func() {
+		for {
+			select {
+			case <-le.stopCh:
+				log.Warnf("Stop the Leader Election process for %q", le.HolderIdentity)
+				return
+			default:
+				log.Infof("Leader Election running...")
+				le.leaderElector.Run()
+			}
+		}
+	}()
 }
 
 // EnsureLeaderElectionRuns
@@ -161,6 +171,12 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 			return fmt.Errorf("timeout")
 		}
 	}
+}
+
+// StopLease is only meant to be used for testing purposes.
+func (le *LeaderEngine) StopLease() {
+	log.Warnf("Stopping Leader Election for %s", le.HolderIdentity)
+	le.stopCh <- struct{}{}
 }
 
 // GetClient returns an official client
