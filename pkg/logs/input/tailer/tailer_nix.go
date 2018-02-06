@@ -43,25 +43,28 @@ func (t *Tailer) setup(offset int64, whence int) error {
 func (t *Tailer) readForever() {
 	defer t.onStop()
 	for {
-		if t.shouldStop {
+		select {
+		case <-t.done:
+			// Stop has been called
 			return
+		default:
+			// keep reading data from file
+			inBuf := make([]byte, 4096)
+			n, err := t.file.Read(inBuf)
+			if err != nil && err != io.EOF {
+				// an unexpected error occurred, stop the tailor
+				t.source.Status.Error(err)
+				log.Error("Err: ", err)
+				return
+			}
+			if n == 0 {
+				// wait for new data to come
+				t.wait()
+				continue
+			}
+			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+			t.incrementReadOffset(n)
 		}
-
-		inBuf := make([]byte, 4096)
-		n, err := t.file.Read(inBuf)
-		if err != nil && err != io.EOF {
-			// an unexpected error occurred, stop the tailor
-			t.source.Status.Error(err)
-			log.Error("Err: ", err)
-			return
-		}
-		if n == 0 {
-			// wait for new data to come
-			t.wait()
-			continue
-		}
-		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
-		t.incrementReadOffset(n)
 	}
 }
 
