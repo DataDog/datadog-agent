@@ -299,31 +299,6 @@ metadata_collectors:
 # kubernetes_pod_labels_as_tags:
 #   app:               kube_app
 #   pod-template-hash: +kube_pod-template-hash
-#
-#
-# Datadog Cluster Agent - DCA
-# The Datadog Cluster Agent is a remote metadata provider to enrich Pod's tags.
-# One of the DCA's feature is to get the service names as tag of an associated Kubernetes Pod.
-# More in datadog-agent/Dockerfiles/cluster-agent/README.md
-#
-# cluster_agent:
-#   The Authentication Token used to query the Datadog cluster agent from the node agent.
-#   This token length must be greater than 32 characters.
-#   If the value of cluster_agent_auth_token is left unset, the agent will fetch the content of
-#   the 'dca_auth_token' file. This file must be present in the same directory as datadog.yaml.
-#   cluster_agent_auth_token: ""
-#
-#   Cluster agent connectivity
-#   The cluster agent is a remote service, you need to provide an endpoint to query it.
-#   The only supported scheme to reach the Datadog cluster agent is https,
-#   example: "https://host:port"
-#   cluster_agent_url: ""
-#
-#   If the node-agent runs inside a Kubernetes Pod, you can use a Kubernetes Service to discover the
-#   cluster agent.
-#   To select this configuration, you need to leave the cluster_agent_url unset ("") and provide the
-#   name of the Kubernetes service.
-#   cluster_agent_kubernetes_service_name: "dca"
 {{ end -}}
 {{- if .ECS }}
 # ECS integration
@@ -342,10 +317,12 @@ metadata_collectors:
 #
 # kubernetes_kubeconfig_path: /path/to/file
 #
-# By default use_service_mapper is set to true, as it allows the DCA to fetch services and map them to pods.
-# Uncomment if you don't want the DCA to perform this action.
-#
-# use_service_mapper: false
+# In order to collect service names, the agent needs certain rights (see RBAC documentation in
+# [docker readme](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
+# You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of services to
+# ContainerIDs with the following options:
+# kubernetes_collect_service_tags: true
+# kubernetes_service_tag_update_freq: 300
 {{ end -}}
 
 {{- if .ProcessAgent }}

@@ -11,10 +11,12 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
-	log "github.com/cihub/seelog"
 )
 
 // ECSListener implements the ServiceListener interface for fargate-backed ECS cluster.
@@ -26,8 +28,9 @@ type ECSListener struct {
 	newService chan<- Service
 	delService chan<- Service
 	stop       chan bool
-	m          sync.RWMutex
 	t          *time.Ticker
+	health     *health.Handle
+	m          sync.RWMutex
 }
 
 // ECSService implements and store results from the Service interface for the ECS listener
@@ -53,6 +56,7 @@ func NewECSListener() (ServiceListener, error) {
 		services: make(map[string]Service),
 		stop:     make(chan bool),
 		t:        time.NewTicker(2 * time.Second),
+		health:   health.Register("ad-ecslistener"),
 	}, nil
 }
 
@@ -65,10 +69,12 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	go func() {
 		for {
 			select {
+			case <-l.stop:
+				l.health.Deregister()
+				return
+			case <-l.health.C:
 			case <-l.t.C:
 				l.refreshServices()
-			case <-l.stop:
-				return
 			}
 		}
 	}()

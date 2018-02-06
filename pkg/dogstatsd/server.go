@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 )
@@ -34,6 +35,8 @@ type Server struct {
 	Statistics *util.Stats
 	Started    bool
 	packetPool *listeners.PacketPool
+	stopChan   chan bool
+	health     *health.Handle
 }
 
 // NewServer returns a running Dogstatsd server
@@ -43,7 +46,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
 		s, err := util.NewStats(uint32(buff))
 		if err != nil {
-			log.Errorf("dogstatsd: unable to start statistics facilities")
+			log.Errorf("Dogstatsd: unable to start statistics facilities")
 		}
 		stats = s
 	}
@@ -80,6 +83,8 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		packetIn:   packetChannel,
 		listeners:  tmpListeners,
 		packetPool: packetPool,
+		stopChan:   make(chan bool),
+		health:     health.Register("dogstatsd-main"),
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -92,7 +97,7 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		con, err := net.Dial("udp", forwardAddress)
 
 		if err != nil {
-			log.Warnf("could not connect to statsd forward host : %s", err)
+			log.Warnf("Could not connect to statsd forward host : %s", err)
 		} else {
 			s.packetIn = make(chan *listeners.Packet, 100)
 			go s.forwarder(con, packetChannel)
@@ -138,7 +143,7 @@ func (s *Server) forwarder(fcon net.Conn, packetChannel chan *listeners.Packet) 
 		_, err := fcon.Write(packet.Contents)
 
 		if err != nil {
-			log.Warnf("forwarding packet failed : %s", err)
+			log.Warnf("Forwarding packet failed : %s", err)
 		}
 
 		s.packetIn <- packet
@@ -147,78 +152,76 @@ func (s *Server) forwarder(fcon net.Conn, packetChannel chan *listeners.Packet) 
 
 func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.Event, serviceCheckOut chan<- metrics.ServiceCheck) {
 	for {
-		s.RLock()
-		if s.Started == false {
-			s.RUnlock()
+		select {
+		case <-s.stopChan:
 			return
-		}
-		s.RUnlock()
+		case <-s.health.C:
+		case packet := <-s.packetIn:
+			var originTags []string
 
-		packet := <-s.packetIn
-		var originTags []string
-
-		if packet.Origin != listeners.NoOrigin {
-			var err error
-			log.Tracef("dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
-			originTags, err = tagger.Tag(packet.Origin, false)
-			if err != nil {
-				log.Errorf(err.Error())
-			}
-			log.Tracef("tags for %s: %s", packet.Origin, originTags)
-		} else {
-			log.Tracef("dogstatsd receive: %s", packet.Contents)
-		}
-
-		for {
-			message := nextMessage(&packet.Contents)
-			if message == nil {
-				break
-			}
-
-			if s.Statistics != nil {
-				s.Statistics.StatEvent(1)
-			}
-
-			if bytes.HasPrefix(message, []byte("_sc")) {
-				serviceCheck, err := parseServiceCheckMessage(message)
+			if packet.Origin != listeners.NoOrigin {
+				var err error
+				log.Tracef("Dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
+				originTags, err = tagger.Tag(packet.Origin, false)
 				if err != nil {
-					log.Errorf("dogstatsd: error parsing service check: %s", err)
-					dogstatsdExpvar.Add("ServiceCheckParseErrors", 1)
-					continue
+					log.Errorf(err.Error())
 				}
-				if len(originTags) > 0 {
-					serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
-				}
-				dogstatsdExpvar.Add("ServiceCheckPackets", 1)
-				serviceCheckOut <- *serviceCheck
-			} else if bytes.HasPrefix(message, []byte("_e")) {
-				event, err := parseEventMessage(message)
-				if err != nil {
-					log.Errorf("dogstatsd: error parsing event: %s", err)
-					dogstatsdExpvar.Add("EventParseErrors", 1)
-					continue
-				}
-				if len(originTags) > 0 {
-					event.Tags = append(event.Tags, originTags...)
-				}
-				dogstatsdExpvar.Add("EventPackets", 1)
-				eventOut <- *event
+				log.Tracef("Tags for %s: %s", packet.Origin, originTags)
 			} else {
-				sample, err := parseMetricMessage(message)
-				if err != nil {
-					log.Errorf("dogstatsd: error parsing metrics: %s", err)
-					dogstatsdExpvar.Add("MetricParseErrors", 1)
-					continue
-				}
-				if len(originTags) > 0 {
-					sample.Tags = append(sample.Tags, originTags...)
-				}
-				dogstatsdExpvar.Add("MetricPackets", 1)
-				metricOut <- sample
+				log.Tracef("Dogstatsd receive: %s", packet.Contents)
 			}
+
+			for {
+				message := nextMessage(&packet.Contents)
+				if message == nil {
+					break
+				}
+
+				if s.Statistics != nil {
+					s.Statistics.StatEvent(1)
+				}
+
+				if bytes.HasPrefix(message, []byte("_sc")) {
+					serviceCheck, err := parseServiceCheckMessage(message)
+					if err != nil {
+						log.Errorf("Dogstatsd: error parsing service check: %s", err)
+						dogstatsdExpvar.Add("ServiceCheckParseErrors", 1)
+						continue
+					}
+					if len(originTags) > 0 {
+						serviceCheck.Tags = append(serviceCheck.Tags, originTags...)
+					}
+					dogstatsdExpvar.Add("ServiceCheckPackets", 1)
+					serviceCheckOut <- *serviceCheck
+				} else if bytes.HasPrefix(message, []byte("_e")) {
+					event, err := parseEventMessage(message)
+					if err != nil {
+						log.Errorf("Dogstatsd: error parsing event: %s", err)
+						dogstatsdExpvar.Add("EventParseErrors", 1)
+						continue
+					}
+					if len(originTags) > 0 {
+						event.Tags = append(event.Tags, originTags...)
+					}
+					dogstatsdExpvar.Add("EventPackets", 1)
+					eventOut <- *event
+				} else {
+					sample, err := parseMetricMessage(message)
+					if err != nil {
+						log.Errorf("Dogstatsd: error parsing metrics: %s", err)
+						dogstatsdExpvar.Add("MetricParseErrors", 1)
+						continue
+					}
+					if len(originTags) > 0 {
+						sample.Tags = append(sample.Tags, originTags...)
+					}
+					dogstatsdExpvar.Add("MetricPackets", 1)
+					metricOut <- sample
+				}
+			}
+			// Return the packet object back to the object pool for reuse
+			s.packetPool.Put(packet)
 		}
-		// Return the packet object back to the object pool for reuse
-		s.packetPool.Put(packet)
 	}
 }
 
@@ -230,6 +233,7 @@ func (s *Server) Stop() {
 	if s.Statistics != nil {
 		s.Statistics.Stop()
 	}
+	s.health.Deregister()
 	s.Lock()
 	s.Started = false
 	s.Unlock()

@@ -14,6 +14,8 @@ The following environment variables are supported:
 - `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
 - `DD_LOG_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
 - `DD_COLLECT_KUBERNETES_EVENTS`: Configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
+- `DD_KUBERNETES_COLLECT_SERVICE_TAGS`: Configures the agent to collect Kubernetes service names as tags.
+- `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: Set the collection frequency in seconds for the Kubernetes service names. 
 Example usage: `docker run -e DD_API_KEY=your-api-key-here -it <image-name>`
 
 For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/agent/)
@@ -98,6 +100,7 @@ To deploy the Agent in your Kubernetes cluster, you can use the manifest in mani
 Make sure you have the correct RBAC in place. You can use the files in manifest/rbac that contain the minimal requirements to collect events and perform the leader election.
 `kubectl create -f manifest/rbac`
 
+The manifests has the `KUBERNETES` environment variable enabled, which will enable the event collection and the API server check described here.
 If you want the event collection to be resilient, you can create a ConfigMap `datadogtoken` that agents will use to save and share a state reflecting which events where pulled last.
 To create such a ConfigMap, you can use the following command:
 `kubectl create -f manifest/datadog_configmap.yaml`

@@ -48,8 +48,15 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 		return err
 	}
 
+	if len(cr.ConfigErrors) > 0 {
+		fmt.Fprintln(w, fmt.Sprintf("=== Configuration %s ===", color.RedString("errors")))
+		for check, error := range cr.ConfigErrors {
+			fmt.Fprintln(w, fmt.Sprintf("\n%s: %s", color.RedString(check), error))
+		}
+	}
+
 	for provider, configs := range cr.Configs {
-		fmt.Fprintln(w, fmt.Sprintf("=== Provider: %s ===", color.BlueString(provider)))
+		fmt.Fprintln(w, fmt.Sprintf("\n=== Provider: %s ===", color.BlueString(provider)))
 		for _, c := range configs {
 			fmt.Fprintln(w, fmt.Sprintf("\n--- %s check ---", color.GreenString(c.Name)))
 			for i, inst := range c.Instances {
@@ -81,9 +88,9 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	}
 
 	if withDebug {
-		if len(cr.Warnings) > 0 {
+		if len(cr.ResolveWarnings) > 0 {
 			fmt.Fprintln(w, fmt.Sprintf("\n=== Resolve %s ===", color.YellowString("warnings")))
-			for check, warnings := range cr.Warnings {
+			for check, warnings := range cr.ResolveWarnings {
 				fmt.Fprintln(w, fmt.Sprintf("\n%s", color.YellowString(check)))
 				for _, warning := range warnings {
 					fmt.Fprintln(w, fmt.Sprintf("* %s", warning))

@@ -15,12 +15,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
 	"github.com/mholt/archiver"
@@ -110,6 +112,11 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	}
 
 	err = zipConfigCheck(tempDir, hostname)
+	if err != nil {
+		return "", err
+	}
+
+	err = zipHealth(tempDir, hostname)
 	if err != nil {
 		return "", err
 	}
@@ -309,6 +316,31 @@ func zipConfigCheck(tempDir, hostname string) error {
 	}
 
 	err = ioutil.WriteFile(f, b.Bytes(), os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func zipHealth(tempDir, hostname string) error {
+	s := health.GetStatus()
+	sort.Strings(s.Healthy)
+	sort.Strings(s.Unhealthy)
+
+	yamlValue, err := yaml.Marshal(s)
+	if err != nil {
+		return err
+	}
+
+	f := filepath.Join(tempDir, hostname, "health.yaml")
+
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(f, yamlValue, os.ModePerm)
 	if err != nil {
 		return err
 	}

@@ -20,3 +20,5 @@ spec:
             value: <YOUR_API_KEY>
           - name: DD_COLLECT_KUBERNETES_EVENTS
             value: true
+          - name: KUBERNETES
+            value: "yes"

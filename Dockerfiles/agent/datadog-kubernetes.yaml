@@ -2,9 +2,8 @@
 ## please see datadog.yaml.example for all supported options
 
 # Autodiscovery
-# TODO: Switch to kubelet listener
 listeners:
-  - name: docker
+  - name: kubelet
 
 config_providers:
 # The kubelet provider handles templates embedded in pod annotations, see

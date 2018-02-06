@@ -12,6 +12,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -32,6 +33,7 @@ type Tagger struct {
 	pruneTicker *time.Ticker
 	retryTicker *time.Ticker
 	stop        chan bool
+	health      *health.Handle
 }
 
 type collectorReply struct {
@@ -60,6 +62,7 @@ func newTagger() (*Tagger, error) {
 		pruneTicker: time.NewTicker(5 * time.Minute),
 		retryTicker: time.NewTicker(30 * time.Second),
 		stop:        make(chan bool),
+		health:      health.Register("tagger"),
 	}
 
 	return t, nil
@@ -101,7 +104,9 @@ func (t *Tagger) run() error {
 			t.pullTicker.Stop()
 			t.pruneTicker.Stop()
 			t.retryTicker.Stop()
+			t.health.Deregister()
 			return nil
+		case <-t.health.C:
 		case msg := <-t.infoIn:
 			for _, info := range msg {
 				t.tagStore.processTagInfo(info)

@@ -20,6 +20,7 @@ import (
 	"github.com/docker/go-connections/nat"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
@@ -34,6 +35,7 @@ type DockerListener struct {
 	newService chan<- Service
 	delService chan<- Service
 	stop       chan bool
+	health     *health.Handle
 	m          sync.RWMutex
 }
 
@@ -61,6 +63,7 @@ func NewDockerListener() (ServiceListener, error) {
 		dockerUtil: d,
 		services:   make(map[ID]Service),
 		stop:       make(chan bool),
+		health:     health.Register("ad-dockerlistener"),
 	}, nil
 }
 
@@ -85,7 +88,9 @@ func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 			select {
 			case <-l.stop:
 				l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener")
+				l.health.Deregister()
 				return
+			case <-l.health.C:
 			case msg := <-messages:
 				l.processEvent(msg)
 			case err := <-errs:
