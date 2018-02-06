@@ -31,6 +31,7 @@ build do
 
   # we assume the go deps are already installed before running omnibus
   command "invoke agent.build --rebuild --use-embedded-libs --no-development", env: env
+  command "invoke systray.build --rebuild --use-embedded-libs --no-development", env: env
 
   if osx?
     conf_dir = "#{install_dir}/etc"
