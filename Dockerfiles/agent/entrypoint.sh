@@ -37,7 +37,7 @@ fi
 # Install default datadog.yaml
 if [[ "${KUBERNETES}" ]]; then
     ln -s /etc/datadog-agent/datadog-kubernetes.yaml /etc/datadog-agent/datadog.yaml
-    ln -s /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml.example /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml.default
+    mv /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml.example /etc/datadog-agent/conf.d/kubernetes_apiserver.d/conf.yaml.default
 elif [ $ECS ]; then
     ln -s /etc/datadog-agent/datadog-ecs.yaml /etc/datadog-agent/datadog.yaml
 else
