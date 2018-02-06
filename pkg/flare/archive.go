@@ -335,7 +335,7 @@ func zipHealth(tempDir, hostname string) error {
 
 	f := filepath.Join(tempDir, hostname, "health.yaml")
 
-	err := ensureParentDirsExist(f)
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
