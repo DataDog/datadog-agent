@@ -21,4 +21,4 @@ spec:
           - name: DD_COLLECT_KUBERNETES_EVENTS
             value: true
           - name: KUBERNETES
-            value: true
+            value: "yes"
