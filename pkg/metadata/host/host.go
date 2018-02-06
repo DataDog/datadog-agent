@@ -104,7 +104,7 @@ func getEC2Tags() ([]string, error) {
 	}
 
 	if !config.Datadog.GetBool("collect_security_groups") {
-		// remove the `security_group_name` tag if it is present
+		// remove the `security_group_name` tag if present
 		for i, s := range ec2Tags {
 			if strings.HasPrefix(s, "security_group_name:") {
 				ec2Tags = append(ec2Tags[:i], ec2Tags[i+1:]...)

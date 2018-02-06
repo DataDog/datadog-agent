@@ -310,10 +310,6 @@ metadata_collectors:
 #
 # URL where the ECS agent can be found. Standard cases will be autodetected.
 # ecs_agent_url: http://localhost:51678
-# Collect AWS EC2 custom tags as agent tags
-# collect_ec2_tags: false
-# Incorporate security-groups into tags collected from AWS EC2
-# collect_security_groups: false
 #
 {{ end -}}
 {{- if .KubeApiServer }}
