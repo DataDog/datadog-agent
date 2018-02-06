@@ -40,8 +40,6 @@ func Start(ddConfig *viper.Viper) error {
 
 // run sets up the pipeline to process logs and send them to Datadog back-end
 func run(config *config.Config) {
-	isRunning = true
-
 	connectionManager := sender.NewConnectionManager(config)
 
 	messageChan := make(chan message.Message, config.GetChanSize())
@@ -60,6 +58,8 @@ func run(config *config.Config) {
 
 	inputs := restart.NewParallelStopper(filesScanner, containersScanner, networkListeners)
 	agentPipeline = restart.NewSerialStopper(inputs, pipelineProvider, auditor)
+
+	isRunning = true
 }
 
 // Stop stops properly the logs-agent to prevent data loss
