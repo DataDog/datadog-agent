@@ -11,7 +11,7 @@ dmg_url="https://s3.amazonaws.com/dd-agent/datadog-agent-6.0.0-beta.9-1-with-ins
 
 dd_upgrade=
 if [ -n "$DD_UPGRADE" ]; then
-  dd_upgrade=$DD_UPGRADE
+    dd_upgrade=$DD_UPGRADE
 fi
 
 # Root user detection
@@ -33,11 +33,11 @@ if [ $dd_upgrade ]; then
 fi
 
 if [ ! $apikey ]; then
-  # if it's an upgrade, then we will use the transition script
-  if [ ! $dd_upgrade ]; then
-    printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
-    exit 1;
-  fi
+    # if it's an upgrade, then we will use the transition script
+    if [ ! $dd_upgrade ]; then
+        printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
+        exit 1;
+    fi
 fi
 
 # get real user (in case of sudo)
