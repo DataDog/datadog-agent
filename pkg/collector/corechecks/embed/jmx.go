@@ -211,13 +211,7 @@ func (c *JMXCheck) Parse(data, initConfig check.ConfigData) error {
 
 // Configure the JMXCheck
 func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
-
-	err := c.Parse(data, initConfig)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return c.Parse(data, initConfig)
 }
 
 // Interval returns the scheduling time for the check, this will be scheduled only once
