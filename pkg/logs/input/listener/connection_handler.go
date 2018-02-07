@@ -19,21 +19,21 @@ const checkPeriod = 60 * time.Second
 
 // ConnectionHandler creates a worker for each new connection and releases the ones that must be stopped
 type ConnectionHandler struct {
-	pp        pipeline.Provider
-	source    *config.LogSource
-	connChan  chan net.Conn
-	workers   []*Worker
-	isFlushed chan struct{}
+	pp       pipeline.Provider
+	source   *config.LogSource
+	connChan chan net.Conn
+	workers  []*Worker
+	done     chan struct{}
 }
 
 // NewConnectionHandler returns a new ConnectionHandler
 func NewConnectionHandler(pp pipeline.Provider, source *config.LogSource) *ConnectionHandler {
 	return &ConnectionHandler{
-		pp:        pp,
-		source:    source,
-		connChan:  make(chan net.Conn),
-		workers:   []*Worker{},
-		isFlushed: make(chan struct{}),
+		pp:       pp,
+		source:   source,
+		connChan: make(chan net.Conn),
+		workers:  []*Worker{},
+		done:     make(chan struct{}),
 	}
 }
 
@@ -46,7 +46,7 @@ func (h *ConnectionHandler) Start() {
 // this call returns only when connChan is flushed and all workers are stopped
 func (h *ConnectionHandler) Stop() {
 	close(h.connChan)
-	<-h.isFlushed
+	<-h.done
 	stopper := restart.NewParallelStopper()
 	for _, worker := range h.workers {
 		stopper.Add(worker)
@@ -66,7 +66,7 @@ func (h *ConnectionHandler) run() {
 	defer func() {
 		// the connChan has successfully been flushed
 		checkTicker.Stop()
-		h.isFlushed <- struct{}{}
+		h.done <- struct{}{}
 	}()
 	for {
 		select {

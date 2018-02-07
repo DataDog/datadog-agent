@@ -29,7 +29,7 @@ type Scanner struct {
 	tailers             map[string]*Tailer
 	auditor             *auditor.Auditor
 	tailerSleepDuration time.Duration
-	done                chan struct{}
+	stop                chan struct{}
 }
 
 // New returns an initialized Scanner
@@ -49,7 +49,7 @@ func New(sources []*config.LogSource, tailingLimit int, pp pipeline.Provider, au
 		tailers:             make(map[string]*Tailer),
 		auditor:             auditor,
 		tailerSleepDuration: tailerSleepDuration,
-		done:                make(chan struct{}),
+		stop:                make(chan struct{}),
 	}
 }
 
@@ -96,7 +96,7 @@ func (s *Scanner) Start() {
 // Stop stops the Scanner and its tailers in parallel,
 // this call returns only when all the tailers are stopped
 func (s *Scanner) Stop() {
-	s.done <- struct{}{}
+	s.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range s.tailers {
 		stopper.Add(tailer)
@@ -105,7 +105,7 @@ func (s *Scanner) Stop() {
 	stopper.Stop()
 }
 
-// run checks periodically if there are new files to tail and the state of its tailers until done
+// run checks periodically if there are new files to tail and the state of its tailers until stop
 func (s *Scanner) run() {
 	scanTicker := time.NewTicker(scanPeriod)
 	defer scanTicker.Stop()
@@ -114,7 +114,7 @@ func (s *Scanner) run() {
 		case <-scanTicker.C:
 			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
 			s.scan()
-		case <-s.done:
+		case <-s.stop:
 			// no more file should be tailed
 			return
 		}

@@ -42,7 +42,7 @@ type Scanner struct {
 	cli       *client.Client
 	auditor   *auditor.Auditor
 	isRunning bool
-	done      chan struct{}
+	stop      chan struct{}
 }
 
 // New returns an initialized Scanner
@@ -60,7 +60,7 @@ func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) 
 		sources: containerSources,
 		tailers: make(map[string]*DockerTailer),
 		auditor: a,
-		done:    make(chan struct{}),
+		stop:    make(chan struct{}),
 	}
 }
 
@@ -89,7 +89,7 @@ func (s *Scanner) Stop() {
 		// the scanner was not start, no need to stop anything
 		return
 	}
-	s.done <- struct{}{}
+	s.stop <- struct{}{}
 	stopper := restart.NewParallelStopper()
 	for _, tailer := range s.tailers {
 		stopper.Add(tailer)
@@ -98,7 +98,7 @@ func (s *Scanner) Stop() {
 	stopper.Stop()
 }
 
-// run checks periodically which docker containers are running until done
+// run checks periodically which docker containers are running until stop
 func (s *Scanner) run() {
 	scanTicker := time.NewTicker(scanPeriod)
 	defer scanTicker.Stop()
@@ -107,7 +107,7 @@ func (s *Scanner) run() {
 		case <-scanTicker.C:
 			// check all the containers running on the host and start new tailers if needed
 			s.scan(true)
-		case <-s.done:
+		case <-s.stop:
 			// no docker container should be tailed anymore
 			return
 		}

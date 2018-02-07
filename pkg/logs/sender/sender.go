@@ -18,7 +18,7 @@ type Sender struct {
 	outputChan  chan message.Message
 	connManager *ConnectionManager
 	conn        net.Conn
-	isFlushed   chan struct{}
+	done        chan struct{}
 }
 
 // New returns an initialized Sender
@@ -27,7 +27,7 @@ func New(inputChan, outputChan chan message.Message, connManager *ConnectionMana
 		inputChan:   inputChan,
 		outputChan:  outputChan,
 		connManager: connManager,
-		isFlushed:   make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 }
 
@@ -40,13 +40,13 @@ func (s *Sender) Start() {
 // this call blocks until inputChan is flushed
 func (s *Sender) Stop() {
 	close(s.inputChan)
-	<-s.isFlushed
+	<-s.done
 }
 
 // run lets the sender wire messages
 func (s *Sender) run() {
 	defer func() {
-		s.isFlushed <- struct{}{}
+		s.done <- struct{}{}
 	}()
 	for payload := range s.inputChan {
 		s.wireMessage(payload)

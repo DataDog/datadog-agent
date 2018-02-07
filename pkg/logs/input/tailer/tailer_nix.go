@@ -44,8 +44,8 @@ func (t *Tailer) readForever() {
 	defer t.onStop()
 	for {
 		select {
-		case <-t.done:
-			// Stop has been called
+		case <-t.stop:
+			// stop reading data from file
 			return
 		default:
 			// keep reading data from file

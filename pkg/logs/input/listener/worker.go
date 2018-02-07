@@ -27,7 +27,8 @@ type Worker struct {
 	outputChan chan message.Message
 	decoder    *decoder.Decoder
 	shouldStop bool
-	isFlushed  chan struct{}
+	stop       chan struct{}
+	done       chan struct{}
 }
 
 // NewWorker returns a new Worker
@@ -37,7 +38,8 @@ func NewWorker(source *config.LogSource, conn net.Conn, outputChan chan message.
 		conn:       conn,
 		outputChan: outputChan,
 		decoder:    decoder.InitializeDecoder(source),
-		isFlushed:  make(chan struct{}, 1),
+		stop:       make(chan struct{}, 1),
+		done:       make(chan struct{}, 1),
 	}
 }
 
@@ -50,9 +52,9 @@ func (w *Worker) Start() {
 
 // Stop stops the worker and wait the decoder to be flushed
 func (w *Worker) Stop() {
-	w.shouldStop = true
+	w.stop <- struct{}{}
 	w.conn.Close()
-	<-w.isFlushed
+	<-w.done
 }
 
 // forwardMessages forwards messages to output channel
@@ -60,7 +62,7 @@ func (w *Worker) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
 		w.shouldStop = true
-		w.isFlushed <- struct{}{}
+		w.done <- struct{}{}
 	}()
 	for output := range w.decoder.OutputChan {
 		if output.ShouldStop {
@@ -82,23 +84,28 @@ func (w *Worker) readForever() {
 		w.decoder.Stop()
 	}()
 	for {
-		w.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
-		inBuf := make([]byte, 4096)
-		n, err := w.conn.Read(inBuf)
-		if w.shouldStop || err == io.EOF {
-			// stop from reading new data
+		select {
+		case <-w.stop:
+			// stop reading data from the connection
 			return
+		default:
+			w.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
+			inBuf := make([]byte, 4096)
+			n, err := w.conn.Read(inBuf)
+			if err == io.EOF {
+				return
+			}
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				// timeout expired, stop from reading new data
+				return
+			}
+			if err != nil {
+				// an error occurred, stop from reading new data
+				w.source.Status.Error(err)
+				log.Warn("Couldn't read message from connection: ", err)
+				return
+			}
+			w.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		}
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			// timeout expired, stop from reading new data
-			return
-		}
-		if err != nil {
-			// an error occurred, stop from reading new data
-			w.source.Status.Error(err)
-			log.Warn("Couldn't read message from connection: ", err)
-			return
-		}
-		w.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 	}
 }
