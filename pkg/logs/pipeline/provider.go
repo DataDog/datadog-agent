@@ -26,7 +26,7 @@ type provider struct {
 	chanSize          int
 	numberOfPipelines int32
 	currentChanIdx    int32
-	config            config.Config
+	config            *config.Config
 }
 
 // NewProvider returns a new Provider
@@ -36,6 +36,7 @@ func NewProvider(config *config.Config) Provider {
 		chanSize:          config.GetChanSize(),
 		numberOfPipelines: int32(config.GetNumberOfPipelines()),
 		currentChanIdx:    0,
+		config:            config,
 	}
 }
 
