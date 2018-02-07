@@ -212,10 +212,7 @@ func StartAgent() error {
 			log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
 		err := logs.Start()
-		if err == nil {
-			log.Info("Starting logs-agent")
-
-		} else {
+		if err != nil {
 			log.Error("Could not start logs-agent: ", err)
 		}
 	} else {
