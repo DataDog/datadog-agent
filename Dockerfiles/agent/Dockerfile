@@ -37,7 +37,7 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
 COPY datadog*.yaml etc/datadog-agent/
 RUN mv etc/datadog-agent/conf.d/docker.d/conf.yaml.example etc/datadog-agent/conf.d/docker.d/conf.yaml.default
 
-COPY entrypoint.sh probe.sh /
+COPY entrypoint.sh probe.sh /output/
 
 
 
