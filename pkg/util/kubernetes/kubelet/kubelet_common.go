@@ -13,4 +13,7 @@ var (
 	// ErrNotCompiled is returned if kubelet support is not compiled in.
 	// User classes should handle that case as gracefully as possible.
 	ErrNotCompiled = errors.New("kubelet support not compiled in")
+
+	// KubePodPrefix is the entity prefix for Kubernetes pods
+	KubePodPrefix = "kubernetes_pod://"
 )
