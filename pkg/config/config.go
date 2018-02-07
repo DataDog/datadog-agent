@@ -187,8 +187,12 @@ func init() {
 	BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
 	BindEnvAndSetDefault("logset", "")
 
-	BindEnvAndSetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")
-	BindEnvAndSetDefault("logs_config.dd_port", 10516)
+	Datadog.SetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")
+	Datadog.BindEnv("logs_config.dd_url", "DD_LOGS_CONFIG_DD_URL")
+
+	Datadog.SetDefault("logs_config.dd_port", 10516)
+	Datadog.BindEnv("logs_config.dd_port", "DD_LOGS_CONFIG_DD_PORT")
+
 	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 
