@@ -7,7 +7,6 @@ package logs
 
 import (
 	log "github.com/cihub/seelog"
-	"github.com/spf13/viper"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -29,29 +28,31 @@ var (
 )
 
 // Start starts logs-agent
-func Start(ddConfig *viper.Viper) error {
-	config, err := config.Build(ddConfig)
+func Start() error {
+	sources, err := config.Build()
 	if err != nil {
 		return err
 	}
-	go run(config)
+	go run(sources)
 	return nil
 }
 
 // run sets up the pipeline to process logs and send them to Datadog back-end
-func run(config *config.Config) {
-	connectionManager := sender.NewConnectionManager(config)
+func run(sources *config.LogSources) {
+	connectionManager := sender.NewConnectionManager(
+		config.LogsAgent.GetString("logs_config.dd_url"),
+		config.LogsAgent.GetInt("logs_config.dd_port"),
+		config.LogsAgent.GetBool("logs_config.dev_mode_no_ssl"),
+	)
 
-	messageChan := make(chan message.Message, config.GetChanSize())
-	auditor := auditor.New(messageChan, config.GetRunPath())
+	messageChan := make(chan message.Message, config.ChanSize)
+	auditor := auditor.New(messageChan, config.LogsAgent.GetString("logs_config.run_path"))
 
-	pipelineProvider := pipeline.NewProvider(config, connectionManager, messageChan)
-
-	sources := config.GetLogsSources()
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, connectionManager, messageChan)
 
 	networkListeners := listener.New(sources.GetValidSources(), pipelineProvider)
 	containersScanner := container.New(sources.GetValidSources(), pipelineProvider, auditor)
-	filesScanner := tailer.New(sources.GetValidSources(), config.GetOpenFilesLimit(), pipelineProvider, auditor, tailer.DefaultSleepDuration)
+	filesScanner := tailer.New(sources.GetValidSources(), config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, tailer.DefaultSleepDuration)
 
 	restart.Start(auditor, pipelineProvider, networkListeners, containersScanner, filesScanner)
 	status.Initialize(sources.GetSources())
