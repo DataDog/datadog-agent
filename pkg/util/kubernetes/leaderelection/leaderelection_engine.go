@@ -20,26 +20,25 @@ import (
 )
 
 func (le *LeaderEngine) getCurrentLeader(electionId, namespace string) (string, *v1.Endpoints, error) {
-	endpoints, err := le.coreClient.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
+	endpoint, err := le.coreClient.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
 	if err != nil {
 		return "", nil, err
 	}
 
-	val, found := endpoints.Annotations[rl.LeaderElectionRecordAnnotationKey]
+	val, found := endpoint.Annotations[rl.LeaderElectionRecordAnnotationKey]
 	if !found {
-		return "", endpoints, nil
+		return "", endpoint, nil
 	}
 
 	electionRecord := rl.LeaderElectionRecord{}
 	if err := json.Unmarshal([]byte(val), &electionRecord); err != nil {
 		return "", nil, err
 	}
-	return electionRecord.HolderIdentity, endpoints, err
+	return electionRecord.HolderIdentity, endpoint, err
 }
 
 // newElection creates an election.
 // If `namespace`/`election` does not exist, it is created.
-// `id` is the id if this leader, should be unique.
 func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Duration) (*ld.LeaderElector, error) {
 	// We first want to check if the Endpoint the Leader Election is based on exists.
 	_, err := le.coreClient.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
@@ -61,48 +60,45 @@ func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Durat
 		}
 	}
 
-	_, endpoints, err := le.getCurrentLeader(electionId, namespace)
+	currentLeader, endpoint, err := le.getCurrentLeader(electionId, namespace)
 	if err != nil {
 		return nil, err
 	}
-	// Set a local record of the Leader's name. Can be empty if the Endpoint is created.
-	//callback(leader)
-
-	eventSource := v1.EventSource{
-		Component: "leader-elector",
-		Host:      le.HolderIdentity,
-	}
-	broadcaster := record.NewBroadcaster()
-
-	evRec := broadcaster.NewRecorder(runtime.NewScheme(), eventSource)
-
-	resourceLockConfig := rl.ResourceLockConfig{
-		Identity:      le.HolderIdentity,
-		EventRecorder: evRec,
-	}
+	log.Debugf("Current registered leader is %q", currentLeader)
 
 	callbacks := ld.LeaderCallbacks{
-		OnStartedLeading: func(stop <-chan struct{}) {
-			log.Infof("Leading as %q ...", le.HolderIdentity)
-		},
-		OnStoppedLeading: func() {
-			le.currentHolderMutex.Lock()
-			le.currentHolderIdentity = ""
-			le.currentHolderMutex.Unlock()
-			log.Warnf("Stop leading %q", le.HolderIdentity)
-		},
 		OnNewLeader: func(identity string) {
 			le.currentHolderMutex.Lock()
 			le.currentHolderIdentity = identity
 			le.currentHolderMutex.Unlock()
 			log.Infof("Currently new leader %q", identity)
 		},
+		OnStartedLeading: func(stop <-chan struct{}) {
+			log.Infof("Leading as %q ...", le.HolderIdentity)
+		},
+		// OnStoppedLeading shouldn't be called unless the election is lost
+		OnStoppedLeading: func() {
+			le.currentHolderMutex.Lock()
+			le.currentHolderIdentity = ""
+			le.currentHolderMutex.Unlock()
+			log.Warnf("Stop leading %q", le.HolderIdentity)
+		},
 	}
 
+	eventSource := v1.EventSource{
+		Component: "leader-elector",
+		Host:      le.HolderIdentity,
+	}
+	broadcaster := record.NewBroadcaster()
+	evRec := broadcaster.NewRecorder(runtime.NewScheme(), eventSource)
+	resourceLockConfig := rl.ResourceLockConfig{
+		Identity:      le.HolderIdentity,
+		EventRecorder: evRec,
+	}
 	leaderElectorInterface, err := rl.New(
 		rl.EndpointsResourceLock,
-		endpoints.ObjectMeta.Namespace,
-		endpoints.ObjectMeta.Name,
+		endpoint.ObjectMeta.Namespace,
+		endpoint.ObjectMeta.Name,
 		le.coreClient,
 		resourceLockConfig,
 	)
@@ -110,13 +106,12 @@ func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Durat
 		return nil, err
 	}
 
-	config := ld.LeaderElectionConfig{
+	electionConfig := ld.LeaderElectionConfig{
 		Lock:          leaderElectorInterface,
 		LeaseDuration: ttl,
 		RenewDeadline: ttl / 2,
 		RetryPeriod:   ttl / 4,
 		Callbacks:     callbacks,
 	}
-
-	return ld.NewLeaderElector(config)
+	return ld.NewLeaderElector(electionConfig)
 }

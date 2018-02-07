@@ -31,11 +31,13 @@ const (
 )
 
 var (
-	globalLeaderEngine        *LeaderEngine
 	globalHolderIdentity      string
+	globalLeaderEngine        *LeaderEngine
 	globalLeaderLeaseDuration = 0 * time.Second
 )
 
+// LeaderEngine is a structure for the LeaderEngine client to run leader election
+// on Kubernetes clusters
 type LeaderEngine struct {
 	initRetry retry.Retrier
 
@@ -75,6 +77,7 @@ func SetHolderIdentify(holderIdentity string) {
 	globalHolderIdentity = holderIdentity
 }
 
+// GetLeaderEngine returns the leader engine client
 func GetLeaderEngine() (*LeaderEngine, error) {
 	if globalLeaderEngine == nil {
 		globalLeaderEngine = newLeaderEngine()
@@ -133,27 +136,27 @@ func (le *LeaderEngine) init() error {
 
 	le.leaderElector, err = le.newElection(le.LeaseName, metav1.NamespaceDefault, le.LeaseDuration)
 	if err != nil {
-		log.Errorf("Could not initialize the Leader Election process: %s", err.Error())
+		log.Errorf("Could not initialize the Leader Election process: %s", err)
 		return err
 	}
-	log.Debug("Kubernetes official client successfully initialized")
+	log.Debug("Leader Engine successfully initialized")
 	return nil
 }
 
-// RunElection runs an election given an leader elector. Doesn't return.
-// The passed LeaderElector embeds callback functions that are triggered to handle the different states of the process.
 func (le *LeaderEngine) startLeaderElection() {
 	log.Infof("Starting Leader Election process for %q ...", le.HolderIdentity)
 	go wait.Forever(le.leaderElector.Run, 0)
 }
 
-// EnsureLeaderElectionRuns
+// EnsureLeaderElectionRuns start the Leader election process if not already started,
+// return nil if the process is effectively running
 func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 	var leaderIdentity string
 
 	le.once.Do(le.startLeaderElection)
-	timeout := time.After(time.Second * 5)
-	tick := time.NewTicker(time.Millisecond * 100)
+	timeoutDuration := time.Second * 5
+	timeout := time.After(timeoutDuration)
+	tick := time.NewTicker(time.Millisecond * 500)
 	for {
 		select {
 		case <-tick.C:
@@ -163,13 +166,14 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 				return nil
 			}
 			log.Tracef("Leader identity is unset")
+
 		case <-timeout:
-			return fmt.Errorf("timeout")
+			return fmt.Errorf("leader election still not running, timeout after %s", timeoutDuration.String())
 		}
 	}
 }
 
-// GetClient returns an official client
+// GetClient returns an official Kubernetes core v1 client
 func GetClient() (*corev1.CoreV1Client, error) {
 	var k8sConfig *rest.Config
 	var err error
@@ -178,14 +182,14 @@ func GetClient() (*corev1.CoreV1Client, error) {
 	if cfgPath == "" {
 		k8sConfig, err = rest.InClusterConfig()
 		if err != nil {
-			log.Debug("Can't create a config for the official client from the service account's token")
+			log.Debug("Can't create a config for the official client from the service account's token: %s", err)
 			return nil, err
 		}
 	} else {
 		// use the current context in kubeconfig
 		k8sConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
 		if err != nil {
-			log.Debug("Can't create a config for the official client from the configured path to the kubeconfig")
+			log.Debug("Can't create a config for the official client from the configured path to the kubeconfig: %s, ", cfgPath, err)
 			return nil, err
 		}
 	}
@@ -204,7 +208,7 @@ func (le *LeaderEngine) GetLeader() string {
 	return le.currentHolderIdentity
 }
 
-// IsLeader
+// IsLeader return bool if the current LeaderEngine is the leader
 func (le *LeaderEngine) IsLeader() bool {
 	return le.GetLeader() == le.HolderIdentity
 }
