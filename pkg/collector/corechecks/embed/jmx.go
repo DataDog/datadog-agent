@@ -53,7 +53,7 @@ var jmxLauncher = JMXCheck{
 	checks:   make(map[string]struct{}),
 	stop:     make(chan struct{}),
 	stopDone: make(chan struct{}),
-	runner:   jmxfetch.New(jmxExitFile),
+	runner:   jmxfetch.New(),
 }
 
 func (c *JMXCheck) String() string {
@@ -86,6 +86,7 @@ func (c *JMXCheck) run() error {
 	}
 
 	c.runner.LogLevel = config.Datadog.GetString("log_level")
+	c.runner.JmxExitFile = jmxExitFile
 
 	err := c.runner.Run()
 	if err != nil {

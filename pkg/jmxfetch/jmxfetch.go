@@ -57,12 +57,11 @@ type JMXFetch struct {
 	exitFilePath       string
 }
 
-func New(exitFile string) *JMXFetch {
+func New() *JMXFetch {
 	return &JMXFetch{
 		JavaBinPath:        defaultJavaBinPath,
 		JavaCustomJarPaths: []string{},
 		LogLevel:           defaultLogLevel,
-		JmxExitFile:        exitFile,
 		Command:            defaultJmxCommand,
 		ReportOnConsole:    false,
 		Checks:             []string{},

@@ -67,10 +67,10 @@ func init() {
 	//attach list commands to list root
 	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd)
 
-	jmxListCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{}, "JMX checks (required)")
+	jmxListCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{}, "JMX checks (required) (ex: jmx,tomcat)")
 	jmxListCmd.MarkPersistentFlagRequired("checks")
 
-	jmxListCmd.Flags().StringVarP(&checkDir, "confdir", "d", checkDir, "check configuration directory")
+	jmxListCmd.PersistentFlags().StringVarP(&checkDir, "confdir", "d", checkDir, "check configuration directory")
 
 	// attach the command to the root
 	AgentCmd.AddCommand(jmxCmd)
@@ -97,7 +97,7 @@ func doJmxListNotCollected(cmd *cobra.Command, args []string) {
 }
 
 func runJmxCommand(command string) {
-	runner := jmxfetch.New("")
+	runner := jmxfetch.New()
 
 	runner.ReportOnConsole = true
 	runner.Command = command
@@ -117,4 +117,6 @@ func runJmxCommand(command string) {
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	fmt.Println("JMXFetch exited sucessfully. If nothing was outputed please verify your \"checks\" and \"confdir\" flags or check JMXFetch log file.")
 }
