@@ -123,5 +123,5 @@ func runJmxCommand(command string) {
 		log.Fatalln(err)
 	}
 
-	fmt.Println("JMXFetch exited sucessfully. If nothing was outputed please verify your \"checks\" and \"confdir\" flags or check JMXFetch log file.")
+	fmt.Println("JMXFetch exited successfully. If nothing was outputted please verify your \"checks\" and \"confdir\" flags or check JMXFetch log file.")
 }
