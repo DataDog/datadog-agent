@@ -8,7 +8,6 @@ package pipeline
 import (
 	"sync/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
@@ -28,24 +27,22 @@ type provider struct {
 	outputChan           chan message.Message
 	pipelines            []*Pipeline
 	currentPipelineIndex int32
-	config               *config.Config
 }
 
 // NewProvider returns a new Provider
-func NewProvider(config *config.Config, connManager *sender.ConnectionManager, outputChan chan message.Message) Provider {
+func NewProvider(numberOfPipelines int, connManager *sender.ConnectionManager, outputChan chan message.Message) Provider {
 	return &provider{
-		numberOfPipelines: config.GetNumberOfPipelines(),
+		numberOfPipelines: numberOfPipelines,
 		connManager:       connManager,
 		outputChan:        outputChan,
 		pipelines:         []*Pipeline{},
-		config:            config,
 	}
 }
 
 // Start initializes the pipelines
 func (p *provider) Start() {
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.config, p.connManager, p.outputChan)
+		pipeline := NewPipeline(p.connManager, p.outputChan)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}

@@ -20,20 +20,20 @@ type Pipeline struct {
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(config *config.Config, connManager *sender.ConnectionManager, outputChan chan message.Message) *Pipeline {
+func NewPipeline(connManager *sender.ConnectionManager, outputChan chan message.Message) *Pipeline {
 	// initialize the sender
-	senderChan := make(chan message.Message, config.GetChanSize())
+	senderChan := make(chan message.Message, config.ChanSize)
 	sender := sender.New(senderChan, outputChan, connManager)
 
 	// initialize the input chan
-	inputChan := make(chan message.Message, config.GetChanSize())
+	inputChan := make(chan message.Message, config.ChanSize)
 
 	// initialize the processor
 	processor := processor.New(
 		inputChan,
 		senderChan,
-		config.GetAPIKey(),
-		config.GetLogset(),
+		config.LogsAgent.GetString("api_key"),
+		config.LogsAgent.GetString("logset"),
 	)
 
 	return &Pipeline{
