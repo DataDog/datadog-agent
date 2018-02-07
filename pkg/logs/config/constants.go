@@ -7,13 +7,8 @@ package config
 
 // Pipeline constraints
 const (
-	ChanSizes         = 100
-	NumberOfPipelines = int32(4)
-)
-
-// Default open files limit
-const (
-	DefaultTailingLimit = 100
+	defaultChanSize          = 100
+	defaultNumberOfPipelines = 4
 )
 
 // Date and time format

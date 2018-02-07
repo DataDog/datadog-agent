@@ -48,12 +48,17 @@ func (suite *InsecureTestSuite) TestHTTP() {
 
 	b, code, err = ku.QueryKubelet("/pods")
 	assert.Equal(suite.T(), 200, code)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 0, len(podList))
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url": "http://127.0.0.1:10255",
+		}, ku.GetRawConnectionInfo())
 }
 
 func (suite *InsecureTestSuite) TestInsecureHTTPS() {
@@ -64,21 +69,27 @@ func (suite *InsecureTestSuite) TestInsecureHTTPS() {
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	ku, err := kubelet.GetKubeUtil()
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "https://127.0.0.1:10250", ku.GetKubeletApiEndpoint())
 	b, code, err := ku.QueryKubelet("/healthz")
 	assert.Equal(suite.T(), 200, code)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "ok", string(b))
 
 	b, code, err = ku.QueryKubelet("/pods")
 	assert.Equal(suite.T(), 200, code)
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), emptyPodList, string(b))
 
 	podList, err := ku.GetLocalPodList()
-	require.Nil(suite.T(), err)
+	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), 0, len(podList))
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url":        "https://127.0.0.1:10250",
+			"verify_tls": "false",
+		}, ku.GetRawConnectionInfo())
 }
 
 func TestInsecureKubeletSuite(t *testing.T) {

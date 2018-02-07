@@ -5,7 +5,7 @@
 version: '2'
 services:
   recordingevent0: &event_base
-    image: "busybox:latest"
+    image: "datadog/docker-library:busybox_1_28_0"
     entrypoint: /bin/true
     labels:
         low.card.label: "eventlow"
@@ -17,5 +17,5 @@ services:
     <<: *event_base
   recordingevent2:
     <<: *event_base
-    image: "redis:latest"
-  
+    image: "datadog/docker-library:redis_3_2_11-alpine"
+

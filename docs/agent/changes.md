@@ -208,25 +208,18 @@ We're working on merging these configuration options into the main `datadog.yaml
 
 The process agent is shipped by default with the Agent 6 in the Linux packages only.
 
-The process agent is not enabled by default. To enable it, copy `/etc/datadog-agent/conf.d/process_agent.yaml.default`
-to `/etc/datadog-agent/conf.d/process_agent.yaml` and edit `/etc/datadog-agent/conf.d/process_agent.yaml`
-as following:
+The process agent is not enabled by default. To enable the check you can update your `datadog.yaml` file to add the following:
 
-```yaml
-init_config:
-  enabled: true  # this enables the process agent
-
-instances:
-  - {}
+```
+process_config:
+  enabled: "true"
 ```
 
-_Optional_: If you need to use process-specific configuration options (i.e. options
-that would be specified under the `[process.config]` section in the former `datadog.conf`
-file), specify them in a `/etc/datadog-agent/process-agent.conf`. This file should
-be INI-formatted, similar to the former `datadog.conf` file. See the `process-agent.conf.example`
-file for an example configuration file.
+The `enabled` value is a string with the following options:
 
-We're working on merging these configuration options into the main `datadog.yaml` file.
+* `"true"`: Enable the process-agent to collect processes and containers.
+* `"false"`: Only collect containers if available (the default)
+* `"disabled"`: Don't run the process-agent at all.
 
 ## Docker check
 

@@ -31,6 +31,7 @@ core,github.com/jquery/jquery,MIT
 core,github.com/k-sone/snmpgo,MIT
 core,github.com/kardianos/osext,BSD-3-Clause
 core,github.com/magiconair/properties,BSD-2-Clause
+core,github.com/mholt/archiver,MIT
 core,github.com/Microsoft/go-winio,MIT
 core,github.com/mitchellh/mapstructure,MIT
 core,github.com/mitchellh/reflectwalk,MIT

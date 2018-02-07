@@ -77,6 +77,7 @@ func init() {
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("log_to_syslog", false)
 	Datadog.SetDefault("log_to_console", true)
+	Datadog.SetDefault("logging_frequency", int64(20))
 	Datadog.SetDefault("disable_file_logging", false)
 	Datadog.SetDefault("syslog_uri", "")
 	Datadog.SetDefault("syslog_rfc", false)
@@ -87,8 +88,14 @@ func init() {
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("enable_gohai", true)
-	Datadog.SetDefault("check_runners", int64(0))
+	Datadog.SetDefault("check_runners", int64(1))
 	Datadog.SetDefault("expvar_port", "5000")
+
+	// Use to output logs in JSON format
+	BindEnvAndSetDefault("log_format_json", false)
+
+	// IPC API server timeout
+	BindEnvAndSetDefault("server_timeout", 15)
 
 	// Use to force client side TLS version to 1.2
 	BindEnvAndSetDefault("force_tls_12", false)
@@ -120,6 +127,7 @@ func init() {
 	// Forwarder
 	Datadog.SetDefault("forwarder_timeout", 20)
 	Datadog.SetDefault("forwarder_retry_queue_max_size", 30)
+	BindEnvAndSetDefault("forwarder_num_workers", 1)
 	// Dogstatsd
 	Datadog.SetDefault("use_dogstatsd", true)
 	Datadog.SetDefault("dogstatsd_port", 8125)          // Notice: 0 means UDP port closed
@@ -131,6 +139,8 @@ func init() {
 	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
 	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
 	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
+	Datadog.SetDefault("statsd_forward_host", "")
+	Datadog.SetDefault("statsd_forward_port", 0)
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
 	Datadog.SetDefault("exclude_pause_container", true)
@@ -149,6 +159,9 @@ func init() {
 	Datadog.SetDefault("kubelet_auth_token_path", "")
 	Datadog.SetDefault("kubelet_client_crt", "")
 	Datadog.SetDefault("kubelet_client_key", "")
+
+	Datadog.SetDefault("kubernetes_collect_service_tags", true)
+	Datadog.SetDefault("kubernetes_service_tag_update_freq", 60*5) // 5 min
 
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
@@ -175,14 +188,19 @@ func init() {
 	// Process Agent
 	BindEnvAndSetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
 
-	// Log Agent
-	Datadog.SetDefault("log_open_files_limit", 100)
-	Datadog.SetDefault("logging_frequency", int64(20))
-	BindEnvAndSetDefault("log_enabled", false)
+	// Logs Agent
+	BindEnvAndSetDefault("logs_enabled", false)
+	BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
 	BindEnvAndSetDefault("logset", "")
-	BindEnvAndSetDefault("log_dd_url", "intake.logs.datadoghq.com")
-	BindEnvAndSetDefault("log_dd_port", 10516)
-	BindEnvAndSetDefault("run_path", defaultRunPath)
+
+	Datadog.SetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")
+	Datadog.BindEnv("logs_config.dd_url", "DD_LOGS_CONFIG_DD_URL")
+
+	Datadog.SetDefault("logs_config.dd_port", 10516)
+	Datadog.BindEnv("logs_config.dd_port", "DD_LOGS_CONFIG_DD_PORT")
+
+	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
+	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
@@ -213,6 +231,8 @@ func init() {
 	Datadog.BindEnv("kubelet_client_crt")
 	Datadog.BindEnv("kubelet_client_key")
 	Datadog.BindEnv("collect_kubernetes_events")
+	Datadog.BindEnv("kubernetes_collect_service_tags")
+	Datadog.BindEnv("kubernetes_service_tag_update_freq")
 
 	Datadog.BindEnv("cluster_agent.auth_token")
 

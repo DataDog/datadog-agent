@@ -153,7 +153,9 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		if strings.Contains(inspect.Name, "redis-with-id") {
 			expectedIDs[container] = []string{"custom-id"}
 		} else {
-			expectedIDs[container] = []string{"docker://" + container, "redis"}
+			expectedIDs[container] = []string{"docker://" + container,
+				"datadog/docker-library",
+				"docker-library"}
 		}
 	}
 
@@ -170,9 +172,9 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		tags, err := service.GetTags()
 		assert.Nil(suite.T(), err)
 
-		assert.Contains(suite.T(), tags, "docker_image:redis:latest")
-		assert.Contains(suite.T(), tags, "image_name:redis")
-		assert.Contains(suite.T(), tags, "image_tag:latest")
+		assert.Contains(suite.T(), tags, "docker_image:datadog/docker-library:redis_3_2_11-alpine")
+		assert.Contains(suite.T(), tags, "image_name:datadog/docker-library")
+		assert.Contains(suite.T(), tags, "image_tag:redis_3_2_11-alpine")
 
 		adIDs, err := service.GetADIdentifiers()
 		assert.Nil(suite.T(), err)

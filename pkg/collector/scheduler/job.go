@@ -10,8 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 // jobQueue contains a list of checks (called jobs) that need to be
@@ -23,6 +25,7 @@ type jobQueue struct {
 	ticker   *time.Ticker
 	jobs     []check.Check
 	running  bool
+	health   *health.Handle
 	mu       sync.RWMutex // to protect critical sections in struct's fields
 }
 
@@ -33,7 +36,9 @@ func newJobQueue(interval time.Duration) *jobQueue {
 		ticker:   time.NewTicker(time.Duration(interval)),
 		stop:     make(chan bool),
 		stopped:  make(chan bool),
+		health:   health.Register("collector-queue"),
 	}
+
 }
 
 // addJob is a convenience method to add a check to a queue
@@ -76,7 +81,9 @@ func (jq *jobQueue) waitForTick(out chan<- check.Check) bool {
 	case <-jq.stop:
 		// someone asked to stop this queue
 		jq.ticker.Stop()
+		jq.health.Deregister()
 		return false
+	case <-jq.health.C:
 	case <-jq.ticker.C:
 		// normal case, (re)schedule the queue
 		jq.mu.RLock()

@@ -34,12 +34,11 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
 # Configuration:
 #   - empty config file to remove logline
 #   - enable docker check by default
-#   - enable process agent
 COPY datadog*.yaml etc/datadog-agent/
-RUN mv etc/datadog-agent/conf.d/docker.d/conf.yaml.example etc/datadog-agent/conf.d/docker.d/conf.yaml.default \
- && sed -i "s/enabled: false/enabled: true/" etc/datadog-agent/conf.d/process_agent.yaml.default
+RUN mv etc/datadog-agent/conf.d/docker.d/conf.yaml.example etc/datadog-agent/conf.d/docker.d/conf.yaml.default
 
-COPY entrypoint.sh .
+COPY entrypoint.sh probe.sh /output/
+
 
 
 FROM debian:stretch-slim
@@ -72,9 +71,8 @@ EXPOSE 8125/udp 8126/tcp
 # Extra conf.d and checks.d
 VOLUME ["/conf.d", "/checks.d"]
 
-# Placeholder healthcheck, to be improved
-HEALTHCHECK --interval=5m --timeout=20s --retries=1 \
-  CMD ["/opt/datadog-agent/bin/agent/agent", "status"]
+HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
+  CMD ["/probe.sh"]
 
 ENTRYPOINT ["/tini", "--", "/entrypoint.sh"]
 CMD ["/opt/datadog-agent/bin/agent/agent", "start"]

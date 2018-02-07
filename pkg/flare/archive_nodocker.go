@@ -7,10 +7,6 @@
 
 package flare
 
-import (
-	"github.com/jhoonb/archivex"
-)
-
-func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
+func zipDockerSelfInspect(tempDir, hostname string) error {
 	return nil
 }

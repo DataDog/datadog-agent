@@ -12,8 +12,10 @@ The following environment variables are supported:
 
 - `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
 - `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
-- `DD_LOG_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
+- `DD_LOGS_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
 - `DD_COLLECT_KUBERNETES_EVENTS`: Configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
+- `DD_KUBERNETES_COLLECT_SERVICE_TAGS`: Configures the agent to collect Kubernetes service names as tags.
+- `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: Set the collection frequency in seconds for the Kubernetes service names. 
 - `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
 
 Example usage: `docker run -e DD_API_KEY=your-api-key-here -it <image-name>`
@@ -55,7 +57,7 @@ First let’s create two directories on the host that we will later mount on the
 To  run a Docker container which embeds the Datadog Agent to monitor your host use the following command:
 
 ```
-docker run -d --name dd-agent -h `hostname` -e DD_API_KEY=<YOUR_API_KEY> -e DD_LOG_ENABLED=true -v /var/run/docker.sock:/var/run/docker.sock:ro -v /proc/:/host/proc/:ro -v /opt/datadog-agent/run:/opt/datadog-agent/run:rw -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro -v /opt/datadog-agent/conf.d:/conf.d:ro datadog/agent:latest
+docker run -d --name dd-agent -h `hostname` -e DD_API_KEY=<YOUR_API_KEY> -e DD_LOGS_ENABLED=true -v /var/run/docker.sock:/var/run/docker.sock:ro -v /proc/:/host/proc/:ro -v /opt/datadog-agent/run:/opt/datadog-agent/run:rw -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro -v /opt/datadog-agent/conf.d:/conf.d:ro datadog/agent:latest
 ```
 
 *Important notes*:
@@ -66,7 +68,7 @@ docker run -d --name dd-agent -h `hostname` -e DD_API_KEY=<YOUR_API_KEY> -e DD_L
 
 The parameters specific to log collection are the following:
 
-- `-e DD_LOG_ENABLED=true`: this parameter enables the log collection when set to true. The agent now looks for log instructions in configuration files.
+- `-e DD_LOGS_ENABLED=true`: this parameter enables the log collection when set to true. The agent now looks for log instructions in configuration files.
 - `-v /opt/datadog-agent/run:/opt/datadog-agent/run:rw` : mount the directory we created to store pointer on each container logs to make sure we do not lose any.
 - `-v /opt/datadog-agent/conf.d:/conf.d:ro` : mount the configuration directory we previously created to the container
 
@@ -100,6 +102,7 @@ To deploy the Agent in your Kubernetes cluster, you can use the manifest in mani
 Make sure you have the correct RBAC in place. You can use the files in manifest/rbac that contain the minimal requirements to collect events and perform the leader election.
 `kubectl create -f manifest/rbac`
 
+The manifests has the `KUBERNETES` environment variable enabled, which will enable the event collection and the API server check described here.
 If you want the event collection to be resilient, you can create a ConfigMap `datadogtoken` that agents will use to save and share a state reflecting which events where pulled last.
 To create such a ConfigMap, you can use the following command:
 `kubectl create -f manifest/datadog_configmap.yaml`

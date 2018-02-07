@@ -159,7 +159,7 @@ func (suite *KubeletTestSuite) SetupTest() {
 }
 
 func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
@@ -183,10 +183,15 @@ func (suite *KubeletTestSuite) TestLocateKubeletHTTP() {
 	case <-time.After(2 * time.Second):
 		require.FailNow(suite.T(), "Timeout on receive channel")
 	}
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url": fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+		}, ku.GetRawConnectionInfo())
 }
 
 func (suite *KubeletTestSuite) TestGetLocalPodList() {
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
@@ -200,12 +205,12 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 	kubeutil, err := GetKubeUtil()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), kubeutil)
-	<-kubelet.Requests // Throwing away first / GET
+	<-kubelet.Requests // Throwing away first GET
 
 	pods, err := kubeutil.GetLocalPodList()
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pods)
-	require.Len(suite.T(), pods, 4)
+	require.Len(suite.T(), pods, 6)
 
 	select {
 	case r := <-kubelet.Requests:
@@ -217,7 +222,7 @@ func (suite *KubeletTestSuite) TestGetLocalPodList() {
 }
 
 func (suite *KubeletTestSuite) TestGetNodeInfo() {
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
@@ -235,8 +240,8 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 
 	ip, name, err := kubeutil.GetNodeInfo()
 	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), ip, "10.132.0.9")
-	require.Equal(suite.T(), name, "hostname")
+	require.Equal(suite.T(), "192.168.128.141", ip)
+	require.Equal(suite.T(), "my-node-name", name)
 
 	select {
 	case r := <-kubelet.Requests:
@@ -248,7 +253,7 @@ func (suite *KubeletTestSuite) TestGetNodeInfo() {
 }
 
 func (suite *KubeletTestSuite) TestGetHostname() {
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
@@ -266,7 +271,7 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 
 	hostname, err := kubeutil.GetHostname()
 	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), "hostname", hostname)
+	require.Equal(suite.T(), "my-node-name", hostname)
 
 	select {
 	case r := <-kubelet.Requests:
@@ -278,7 +283,7 @@ func (suite *KubeletTestSuite) TestGetHostname() {
 }
 
 func (suite *KubeletTestSuite) TestHostnameProvider() {
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
@@ -291,7 +296,7 @@ func (suite *KubeletTestSuite) TestHostnameProvider() {
 
 	hostname, err := HostnameProvider("")
 	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), "hostname", hostname)
+	require.Equal(suite.T(), "my-node-name", hostname)
 	<-kubelet.Requests // Throwing away first GET
 
 	select {
@@ -303,8 +308,46 @@ func (suite *KubeletTestSuite) TestHostnameProvider() {
 	}
 }
 
+func (suite *KubeletTestSuite) TestPodlistCache() {
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	defer ts.Close()
+	require.Nil(suite.T(), err)
+
+	config.Datadog.Set("kubernetes_kubelet_host", "localhost")
+	config.Datadog.Set("kubernetes_http_kubelet_port", kubeletPort)
+
+	kubeutil, err := GetKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	<-kubelet.Requests // Throwing away first GET
+
+	kubeutil.GetLocalPodList()
+	r := <-kubelet.Requests
+	require.Equal(suite.T(), "/pods", r.URL.Path)
+
+	// The request should be cached now
+	_, err = kubeutil.GetLocalPodList()
+	require.Nil(suite.T(), err)
+
+	select {
+	case <-kubelet.Requests:
+		assert.FailNow(suite.T(), "podlist request should have been cached")
+	default:
+		// Cache working as expected
+	}
+
+	// test successful cache wipe
+	ResetCache()
+	_, err = kubeutil.GetLocalPodList()
+	require.Nil(suite.T(), err)
+	r = <-kubelet.Requests
+	require.Equal(suite.T(), "/pods", r.URL.Path)
+}
+
 func (suite *KubeletTestSuite) TestGetPodForContainerID() {
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	ts, kubeletPort, err := kubelet.Start()
 	defer ts.Close()
@@ -320,29 +363,29 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 
 	// Empty container ID
 	pod, err := kubeutil.GetPodForContainerID("")
-	<-kubelet.Requests // Throwing away /pods GET
+	<-kubelet.Requests // cache the first /pods request
 	require.Nil(suite.T(), pod)
 	require.NotNil(suite.T(), err)
 	require.Contains(suite.T(), err.Error(), "containerID is empty")
 
 	// Invalid container ID
 	pod, err = kubeutil.GetPodForContainerID("invalid")
-	<-kubelet.Requests // Throwing away /pods GET
+	// The /pods request is still cached
 	require.Nil(suite.T(), pod)
 	require.NotNil(suite.T(), err)
-	require.Contains(suite.T(), err.Error(), "container invalid not found in podlist")
+	require.Contains(suite.T(), err.Error(), "container invalid not found in podList")
 
 	// Valid container ID
-	pod, err = kubeutil.GetPodForContainerID("docker://1ce04128b3cccd7de0ae383516c28e0fe35cbb093195a72661723bdc06934840")
-	<-kubelet.Requests // Throwing away /pods GET
+	pod, err = kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")
+	// The /pods request is still cached
 	require.Nil(suite.T(), err)
 	require.NotNil(suite.T(), pod)
-	require.Equal(suite.T(), pod.Metadata.Name, "kube-dns-1829567597-2xtct")
+	require.Equal(suite.T(), "kube-proxy-rnd5q", pod.Metadata.Name)
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 	// without token, with certs on HTTPS insecure
-	k, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 
 	s, kubeletPort, err := k.StartTLS()
@@ -365,7 +408,7 @@ func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
 
 func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	// with a token, without certs on HTTPS insecure
-	k, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 
 	s, kubeletPort, err := k.StartTLS()
@@ -394,11 +437,18 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttps() {
 	r := <-k.Requests
 	assert.Equal(suite.T(), "bearer fakeBearerToken", r.Header.Get(authorizationHeaderKey))
 	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url":        fmt.Sprintf("https://127.0.0.1:%d", kubeletPort),
+			"verify_tls": "false",
+			"token":      "fakeBearerToken",
+		}, ku.GetRawConnectionInfo())
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 	// with a token, without certs on HTTPS insecure
-	k, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 
 	s, kubeletPort, err := k.StartTLS()
@@ -431,11 +481,20 @@ func (suite *KubeletTestSuite) TestKubeletInitHttpsCerts() {
 	clientCerts := ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates
 	require.Equal(suite.T(), 1, len(clientCerts))
 	assert.Equal(suite.T(), clientCerts, s.TLS.Certificates)
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url":        fmt.Sprintf("https://127.0.0.1:%d", kubeletPort),
+			"verify_tls": "true",
+			"client_crt": k.testingCertificate,
+			"client_key": k.testingPrivateKey,
+			"ca_cert":    k.testingCertificate,
+		}, ku.GetRawConnectionInfo())
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	// with an unused token, without certs on HTTP
-	k, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 
 	s, kubeletPort, err := k.Start()
@@ -458,11 +517,17 @@ func (suite *KubeletTestSuite) TestKubeletInitTokenHttp() {
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url": fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+			// token must be unset
+		}, ku.GetRawConnectionInfo())
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 	// without token, without certs on HTTP
-	k, err := newDummyKubelet("./testdata/podlist_1.6.json")
+	k, err := newDummyKubelet("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 
 	s, kubeletPort, err := k.Start()
@@ -485,6 +550,11 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 	assert.Equal(suite.T(), "ok", string(b))
 	assert.Equal(suite.T(), 200, code)
 	assert.Equal(suite.T(), 0, len(ku.kubeletApiClient.Transport.(*http.Transport).TLSClientConfig.Certificates))
+
+	require.EqualValues(suite.T(),
+		map[string]string{
+			"url": fmt.Sprintf("http://127.0.0.1:%d", kubeletPort),
+		}, ku.GetRawConnectionInfo())
 }
 
 func TestKubeletTestSuite(t *testing.T) {

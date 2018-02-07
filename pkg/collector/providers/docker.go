@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -27,6 +28,7 @@ type DockerConfigProvider struct {
 	dockerUtil *docker.DockerUtil
 	upToDate   bool
 	streaming  bool
+	health     *health.Handle
 }
 
 // NewDockerConfigProvider returns a new ConfigProvider connected to docker.
@@ -35,6 +37,7 @@ func NewDockerConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 	return &DockerConfigProvider{}, nil
 }
 
+// String returns a string representation of the DockerConfigProvider
 func (d *DockerConfigProvider) String() string {
 	return "Docker container labels"
 }
@@ -66,6 +69,7 @@ func (d *DockerConfigProvider) Collect() ([]check.Config, error) {
 func (d *DockerConfigProvider) listen() {
 	d.Lock()
 	d.streaming = true
+	d.health = health.Register("ad-dockerprovider")
 	d.Unlock()
 
 CONNECT:
@@ -78,6 +82,7 @@ CONNECT:
 
 		for {
 			select {
+			case <-d.health.C:
 			case ev := <-eventChan:
 				// As our input is the docker `client.ContainerList`, which lists running containers,
 				// only these two event types will change what containers appear.
@@ -100,6 +105,7 @@ CONNECT:
 
 	d.Lock()
 	d.streaming = false
+	d.health.Deregister()
 	d.Unlock()
 }
 

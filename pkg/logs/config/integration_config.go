@@ -64,7 +64,6 @@ type LogsConfig struct {
 	Label string // Docker
 
 	Service        string
-	Logset         string
 	Source         string
 	SourceCategory string
 	Tags           string

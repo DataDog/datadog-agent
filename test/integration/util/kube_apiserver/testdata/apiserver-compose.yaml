@@ -1,7 +1,7 @@
 version: '2.3'
 services:
   etcd:
-    image: "quay.io/coreos/etcd:latest"
+    image: "datadog/docker-library:etcd_3_2_6"
     network_mode: ${network_mode}
     environment:
       - ETCDCTL_API=3
@@ -12,7 +12,7 @@ services:
       retries: 30
 
   apiserver:
-    image: "gcr.io/google_containers/hyperkube:v1.8.3"
+    image: "datadog/docker-library:hyperkube_1_8_3"
     command: "/hyperkube
         apiserver
         --apiserver-count=1
@@ -37,7 +37,7 @@ services:
     # This pause container is here to wait until the apiserver
     # is healthy before returning.
     #
-    image: "gcr.io/google_containers/pause"
+    image: "datadog/docker-library:pause_3_1"
     depends_on:
       etcd:
         condition: service_healthy

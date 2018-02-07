@@ -1,0 +1,9 @@
+api_key: foo
+logset: bar 
+
+logs_config:
+  dd_url: foo.bar.url
+  dd_port: 1234
+  run_path: /boo
+  open_files_limit: 50
+  dev_mode_no_ssl: true

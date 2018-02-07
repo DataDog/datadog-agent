@@ -13,6 +13,8 @@ import (
 	"os/exec"
 	"strings"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -42,21 +44,41 @@ func (c *ComposeConf) Start() ([]byte, error) {
 	}
 
 	c.Variables["network_mode"] = c.NetworkMode
-	args := []string{
-		"--project-name", c.ProjectName,
-		"--file", c.FilePath,
-		"up",
-		"-d",
-	}
-	if c.RemoveRebuildImages {
-		args = append(args, "--build")
-	}
-	runCmd := exec.Command("docker-compose", args...)
 
 	customEnv := os.Environ()
 	for k, v := range c.Variables {
 		customEnv = append(customEnv, fmt.Sprintf("%s=%s", k, v))
 	}
+
+	args := []string{
+		"--project-name", c.ProjectName,
+		"--file", c.FilePath,
+	}
+	pullCmd := exec.Command("docker-compose", append(args, "pull", "--parallel")...)
+	pullCmd.Env = customEnv
+	output, err := pullCmd.CombinedOutput()
+	if err != nil {
+		log.Errorf("fail to pull: %s %s", err, string(output))
+		/*
+			We retry once if we cannot pull the images, example:
+			Pulling etcd (quay.io/coreos/etcd:latest)...
+			ERROR: Get https://quay.io/v2/: net/http: request canceled (Client.Timeout exceeded while awaiting headers)
+		*/
+		log.Infof("retrying pull...")
+		// We need to rebuild a new command because the file-descriptors of stdout/err are already set
+		retryPull := exec.Command("docker-compose", append(args, "pull", "--parallel")...)
+		retryPull.Env = customEnv
+		output, err = retryPull.CombinedOutput()
+		if err != nil {
+			return output, err
+		}
+	}
+	args = append(args, "up", "-d")
+
+	if c.RemoveRebuildImages {
+		args = append(args, "--build")
+	}
+	runCmd := exec.Command("docker-compose", args...)
 	runCmd.Env = customEnv
 
 	return runCmd.CombinedOutput()

@@ -9,8 +9,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	python "github.com/sbinet/go-python"
@@ -35,16 +33,23 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestExternalHostTags(t *testing.T) {
-	host := "localhost"
-	eTags := externalhost.ExternalTags{"vsphere": []string{"foo", "bar"}}
-	externalhost.AddExternalTags(host, eTags)
-	externalhost.AddExternalTags(host+"2", eTags)
+	host1 := "localhost"
+	host2 := "127.0.0.1"
+	eTags1 := externalhost.ExternalTags{"vsphere": []string{"foo", "bar"}}
+	eTags2 := externalhost.ExternalTags{"vsphere": []string{"baz"}}
+	externalhost.AddExternalTags(host1, eTags1)
+	externalhost.AddExternalTags(host2, eTags2)
 
-	pl := GetPayload(host)
+	pl := GetPayload("")
 	hpl := pl.ExternalHostPayload.Payload
 	assert.Len(t, hpl, 2)
-	assert.Equal(t, host, hpl[0][0])
-	tags, ok := hpl[0][1].(externalhost.ExternalTags)
-	require.True(t, ok)
-	assert.Len(t, tags["vsphere"], 2)
+	for _, elem := range hpl {
+		if elem[0] == host1 {
+			assert.Equal(t, eTags1, elem[1])
+		} else if elem[0] == host2 {
+			assert.Equal(t, eTags2, elem[1])
+		} else {
+			assert.Fail(t, "Unexpected value for hostname: %s", elem[0])
+		}
+	}
 }

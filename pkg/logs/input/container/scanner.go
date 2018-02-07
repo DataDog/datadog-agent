@@ -21,11 +21,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
 )
 
 const scanPeriod = 10 * time.Second
-const dockerAPIVersion = "1.25"
+
+// Supported versions of the Docker API
+const (
+	minVersion = "1.18"
+	maxVersion = "1.25"
+)
 
 // A Scanner listens for stdout and stderr of containers
 type Scanner struct {
@@ -59,8 +65,17 @@ func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) 
 // Start starts the Scanner
 func (s *Scanner) Start() {
 	err := s.setup()
-	if err == nil {
-		go s.run()
+	if err != nil {
+		s.reportErrorToAllSources(err)
+		return
+	}
+	go s.run()
+}
+
+// reportErrorToAllSources changes the status of all sources to Error with err
+func (s *Scanner) reportErrorToAllSources(err error) {
+	for _, source := range s.sources {
+		source.Status.Error(err)
 	}
 }
 
@@ -117,6 +132,7 @@ func (s *Scanner) listContainers() []types.Container {
 	if err != nil {
 		log.Error("Can't tail containers, ", err)
 		log.Error("Is datadog-agent part of docker user group?")
+		s.reportErrorToAllSources(err)
 		return []types.Container{}
 	}
 	return containers
@@ -155,16 +171,12 @@ func (s *Scanner) setup() error {
 		return fmt.Errorf("No container source defined")
 	}
 
-	// List available containers
-
-	cli, err := client.NewEnvClient()
-	// Docker's api updates quickly and is pretty unstable, best pinpoint it
-	cli.UpdateClientVersion(dockerAPIVersion)
-	s.cli = cli
+	cli, err := s.newDockerClient()
 	if err != nil {
-		log.Error("Can't tail containers,", err)
+		log.Error("Can't tail containers, ", err)
 		return fmt.Errorf("Can't initialize client")
 	}
+	s.cli = cli
 
 	// Initialize docker utils
 	err = tagger.Init()
@@ -175,6 +187,35 @@ func (s *Scanner) setup() error {
 	// Start tailing monitored containers
 	s.scan(false)
 	return nil
+}
+
+// newDockerClient returns a new Docker client with the right API version
+func (s *Scanner) newDockerClient() (*client.Client, error) {
+	client, err := client.NewEnvClient()
+	if err != nil {
+		return nil, err
+	}
+	v, err := client.ServerVersion(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	apiVersion, err := s.computeClientAPIVersion(v.APIVersion)
+	if err != nil {
+		return nil, err
+	}
+	client.UpdateClientVersion(apiVersion)
+	return client, nil
+}
+
+// computeAPIVersion returns the version of the API that the docker client should use to be able to communicate with server
+func (s *Scanner) computeClientAPIVersion(apiVersion string) (string, error) {
+	if versions.LessThan(apiVersion, minVersion) {
+		return "", fmt.Errorf("Docker API versions prior to %s are not supported by logs-agent, the current version is %s", minVersion, apiVersion)
+	}
+	if versions.LessThan(apiVersion, maxVersion) {
+		return apiVersion, nil
+	}
+	return maxVersion, nil
 }
 
 // setupTailer sets one tailer, making it tail from the beginning or the end

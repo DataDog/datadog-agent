@@ -25,5 +25,6 @@ relative_path "jmxfetch"
 build do
   ship_license "https://raw.githubusercontent.com/DataDog/jmxfetch/master/LICENSE"
   mkdir jar_dir
-  copy "jmxfetch-*-jar-with-dependencies.jar", jar_dir
+  copy "jmxfetch-#{jmxfetch_version}-jar-with-dependencies.jar", jar_dir
+  block { File.chmod(0644, "#{jar_dir}/jmxfetch-#{jmxfetch_version}-jar-with-dependencies.jar") }
 end

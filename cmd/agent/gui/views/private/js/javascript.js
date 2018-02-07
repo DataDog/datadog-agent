@@ -646,11 +646,7 @@ function restartAgent() {
       if (data != "Success") {
         $("#general_status").css("display", "block");
         $('#general_status').html("<span class='center'>Error restarting agent: " + data + "</span>");
-      } else {
-        alert("The agent has restarted. You must restart the GUI using the launch-gui command.\n(Beta only)")
-        window.close();
-      }
-
+      } else loadStatus("general");
     }, 2000);
   }, function() {
     $(".loading_spinner").remove();

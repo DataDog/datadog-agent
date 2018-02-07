@@ -59,7 +59,7 @@ func (suite *ScannerTestSuite) SetupTest() {
 
 	suite.openFilesLimit = 100
 	suite.sources = []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testPath})}
-	suite.s = New(suite.sources, suite.openFilesLimit, suite.pp, auditor.New(nil))
+	suite.s = New(suite.sources, suite.openFilesLimit, suite.pp, auditor.New(nil, ""))
 	suite.s.setup()
 	for _, tl := range suite.s.tailers {
 		tl.sleepMutex.Lock()
@@ -213,7 +213,7 @@ func TestScannerScanWithTooManyFiles(t *testing.T) {
 	path = fmt.Sprintf("%s/*.log", testDir)
 	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
 	openFilesLimit := 2
-	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil))
+	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil, ""))
 
 	// test at setup
 	scanner.setup()

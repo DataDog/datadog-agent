@@ -10,14 +10,15 @@ package flare
 import (
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/jhoonb/archivex"
 )
 
-func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
+func zipDockerSelfInspect(tempDir, hostname string) error {
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		return err
@@ -50,9 +51,17 @@ func zipDockerSelfInspect(zipFile *archivex.ZipFile, hostname string) error {
 		return []byte(shaResolvedInspect)
 	})
 
-	err = zipFile.Add(filepath.Join(hostname, "docker_inspect.log"), cleaned)
+	f := filepath.Join(tempDir, hostname, "docker_inspect.log")
+
+	err = os.MkdirAll(filepath.Dir(f), os.ModePerm)
 	if err != nil {
 		return err
 	}
+
+	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
 	return err
 }

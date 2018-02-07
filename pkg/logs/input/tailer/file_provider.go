@@ -7,7 +7,9 @@ package tailer
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	log "github.com/cihub/seelog"
 
@@ -46,11 +48,18 @@ func NewFileProvider(sources []*config.LogSource, filesLimit int) *FileProvider 
 // it cannot return more than filesLimit Files.
 // For now, there is no way to prioritize specific Files over others,
 // they are just returned in alphabetical order
-func (r *FileProvider) FilesToTail() []*File {
+func (p *FileProvider) FilesToTail() []*File {
 	filesToTail := []*File{}
-	for _, source := range r.sources {
+	for i := 0; i < len(p.sources) && len(filesToTail) < p.filesLimit; i++ {
+		source := p.sources[i]
+		sourcePath := source.Config.Path
+		if p.exists(sourcePath) {
+			// no need to traverse the file system here as we found a file
+			filesToTail = append(filesToTail, NewFile(sourcePath, source))
+			continue
+		}
 		// search all files matching pattern and append them all until filesLimit is reached
-		pattern := source.Config.Path
+		pattern := sourcePath
 		paths, err := filepath.Glob(pattern)
 		if err != nil {
 			err := fmt.Errorf("Malformed pattern, could not find any file: %s", pattern)
@@ -59,18 +68,36 @@ func (r *FileProvider) FilesToTail() []*File {
 			continue
 		}
 		if len(paths) == 0 {
-			err := fmt.Errorf("No file are matching pattern: %s", pattern)
-			source.Status.Error(err)
-			log.Error(err)
+			// no file was found, its parent directories might have wrong permissions or it just does not exist
+			if p.containsWildcard(pattern) {
+				log.Warnf("Could not find any file matching pattern %s, check that all its subdirectories are exectutable", pattern)
+			} else {
+				log.Warn("File %s does not exist", sourcePath)
+			}
 			continue
 		}
-		for _, path := range paths {
-			if len(filesToTail) == r.filesLimit {
-				log.Warn("Reached the limit on the maximum number of files in use: ", r.filesLimit)
-				return filesToTail
-			}
+		for j := 0; j < len(paths) && len(filesToTail) < p.filesLimit; j++ {
+			path := paths[j]
 			filesToTail = append(filesToTail, NewFile(path, source))
 		}
 	}
+	if len(filesToTail) == p.filesLimit {
+		log.Warn("Reached the limit on the maximum number of files in use: ", p.filesLimit)
+		return filesToTail
+	}
+
 	return filesToTail
+}
+
+// exists returns true if the file at path filePath exists
+func (p *FileProvider) exists(filePath string) bool {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
+// containsWildcard returns true if the path contains any wildcard character
+func (p *FileProvider) containsWildcard(path string) bool {
+	return strings.ContainsAny(path, "*?[")
 }

@@ -16,18 +16,20 @@ type LoaderErrors map[string]string
 
 // loaderErrorStats holds the error objects
 type acErrorStats struct {
-	config map[string]string       // config file name -> error
-	loader map[string]LoaderErrors // check name -> LoaderErrors
-	run    map[check.ID]string     // check ID -> error
-	m      sync.RWMutex
+	config  map[string]string       // config file name -> error
+	loader  map[string]LoaderErrors // check name -> LoaderErrors
+	run     map[check.ID]string     // check ID -> error
+	resolve map[string][]string     // config file name -> errors
+	m       sync.RWMutex
 }
 
 // newAcErrorStats returns an instance holding autoconfig errors stats
 func newAcErrorStats() *acErrorStats {
 	return &acErrorStats{
-		config: make(map[string]string),
-		loader: make(map[string]LoaderErrors),
-		run:    make(map[check.ID]string),
+		config:  make(map[string]string),
+		loader:  make(map[string]LoaderErrors),
+		run:     make(map[check.ID]string),
+		resolve: make(map[string][]string),
 	}
 }
 
@@ -122,4 +124,33 @@ func (es *acErrorStats) getRunErrors() map[check.ID]string {
 	}
 
 	return runCopy
+}
+
+// setResolveWarning will safely set the error for a check configuration file
+func (es *acErrorStats) setResolveWarning(checkName string, err string) {
+	es.m.Lock()
+	defer es.m.Unlock()
+
+	es.resolve[checkName] = append(es.resolve[checkName], err)
+}
+
+// removeResolveWarnings removes the errors for a check config file
+func (es *acErrorStats) removeResolveWarnings(checkName string) {
+	es.m.Lock()
+	defer es.m.Unlock()
+
+	delete(es.resolve, checkName)
+}
+
+// getResolveWarnings will safely get the errors a check config file
+func (es *acErrorStats) getResolveWarnings() map[string][]string {
+	es.m.RLock()
+	defer es.m.RUnlock()
+
+	resolveCopy := make(map[string][]string)
+	for k, v := range es.resolve {
+		resolveCopy[k] = v
+	}
+
+	return resolveCopy
 }

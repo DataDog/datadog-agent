@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -27,6 +28,7 @@ type KubeletListener struct {
 	delService chan<- Service
 	ticker     *time.Ticker
 	stop       chan bool
+	health     *health.Handle
 	m          sync.RWMutex
 }
 
@@ -52,6 +54,7 @@ func NewKubeletListener() (ServiceListener, error) {
 		services: make(map[ID]Service),
 		ticker:   time.NewTicker(15 * time.Second),
 		stop:     make(chan bool),
+		health:   health.Register("ad-kubeletlistener"),
 	}, nil
 }
 
@@ -64,7 +67,9 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 		for {
 			select {
 			case <-l.stop:
+				l.health.Deregister()
 				return
+			case <-l.health.C:
 			case <-l.ticker.C:
 				// Compute new/updated pods
 				updatedPods, err := l.watcher.PullChanges()

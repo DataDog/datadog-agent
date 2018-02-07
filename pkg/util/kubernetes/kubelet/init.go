@@ -28,20 +28,19 @@ func isConfiguredTLSVerify() bool {
 	return config.Datadog.GetBool("kubelet_tls_verify")
 }
 
-func getTLSConfig() (*tls.Config, error) {
+func buildTLSConfig(verifyTLS bool, caPath string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{}
-	if isConfiguredTLSVerify() == false {
+	if verifyTLS == false {
 		tlsConfig.InsecureSkipVerify = true
 		return tlsConfig, nil
 	}
 
-	certPath := config.Datadog.GetString("kubelet_client_ca")
-	if certPath == "" {
+	if caPath == "" {
 		log.Debugf("kubelet_client_ca isn't configured: certificate authority must be trusted")
 		return nil, nil
 	}
 
-	caPool, err := kubernetes.GetCertificateAuthority(certPath)
+	caPool, err := kubernetes.GetCertificateAuthority(caPath)
 	if err != nil {
 		return tlsConfig, err
 	}

@@ -12,6 +12,8 @@ from .build_tags import get_default_build_tags
 # List of modules to ignore when running lint on Windows platform
 WIN_MODULE_WHITELIST = [
     "iostats_wmi_windows.go",
+    "iostats_pdh_windows.go",
+    "pdhhelper.go",
 ]
 
 # List of paths to ignore in misspell's output

@@ -8,19 +8,24 @@ package flare
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"expvar"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
-	"github.com/jhoonb/archivex"
+	"github.com/mholt/archiver"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -29,7 +34,7 @@ type SearchPaths map[string]string
 
 // CreateArchive packages up the files
 func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (string, error) {
-	zipFilePath := mkFilePath()
+	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
 		"":        config.Datadog.GetString("confd_path"),
 		"dist":    filepath.Join(distPath, "conf.d"),
@@ -39,8 +44,19 @@ func CreateArchive(local bool, distPath, pyChecksPath, logFilePath string) (stri
 }
 
 func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
-	zipFile := new(archivex.ZipFile)
-	zipFile.Create(zipFilePath)
+	b := make([]byte, 10)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+
+	dirName := hex.EncodeToString([]byte(b))
+	tempDir, err := ioutil.TempDir("", dirName)
+	if err != nil {
+		return "", err
+	}
+
+	defer os.RemoveAll(tempDir)
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
@@ -49,72 +65,108 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		hostname = "unknown"
 	}
 
-	defer zipFile.Close()
-
 	if local {
-		zipFile.Add(filepath.Join(hostname, "local"), []byte{})
+		f := filepath.Join(tempDir, hostname, "local")
+
+		err = ensureParentDirsExist(f)
+		if err != nil {
+			return "", err
+		}
+
+		err = ioutil.WriteFile(f, []byte{}, os.ModePerm)
+		if err != nil {
+			return "", err
+		}
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
-		err = zipStatusFile(zipFile, hostname)
+		err = zipStatusFile(tempDir, hostname)
 		if err != nil {
 			return "", err
 		}
 	}
 
-	err = zipLogFiles(zipFile, hostname, logFilePath)
+	err = zipLogFiles(tempDir, hostname, logFilePath)
 	if err != nil {
 		return "", err
 	}
 
-	err = zipConfigFiles(zipFile, hostname, confSearchPaths)
+	err = zipConfigFiles(tempDir, hostname, confSearchPaths)
 	if err != nil {
 		return "", err
 	}
 
-	err = zipExpVar(zipFile, hostname)
+	err = zipExpVar(tempDir, hostname)
 	if err != nil {
 		return "", err
 	}
 
-	err = zipDiagnose(zipFile, hostname)
+	err = zipDiagnose(tempDir, hostname)
 	if err != nil {
 		return "", err
 	}
 
-	err = zipEnvvars(zipFile, hostname)
+	err = zipEnvvars(tempDir, hostname)
+	if err != nil {
+		return "", err
+	}
+
+	err = zipConfigCheck(tempDir, hostname)
+	if err != nil {
+		return "", err
+	}
+
+	err = zipHealth(tempDir, hostname)
 	if err != nil {
 		return "", err
 	}
 
 	if config.IsContainerized() {
-		err = zipDockerSelfInspect(zipFile, hostname)
+		err = zipDockerSelfInspect(tempDir, hostname)
 		if err != nil {
 			return "", err
 		}
 	}
+
+	err = archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)})
+	if err != nil {
+		return "", err
+	}
+
 	return zipFilePath, nil
 }
 
-func zipStatusFile(zipFile *archivex.ZipFile, hostname string) error {
+func zipStatusFile(tempDir, hostname string) error {
 	// Grab the status
 	s, err := status.GetAndFormatStatus()
 	if err != nil {
 		return err
 	}
+
 	// Clean it up
 	cleaned, err := credentialsCleanerBytes(s)
 	if err != nil {
 		return err
 	}
-	// Add it to the zipfile
-	zipFile.Add(filepath.Join(hostname, "status.log"), cleaned)
+
+	f := filepath.Join(tempDir, hostname, "status.log")
+
+	err = ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
 	return err
 }
 
-func zipLogFiles(zipFile *archivex.ZipFile, hostname, logFilePath string) error {
+func zipLogFiles(tempDir, hostname, logFilePath string) error {
 	logFileDir := filepath.Dir(logFilePath)
-	err := filepath.Walk(logFileDir, func(path string, f os.FileInfo, err error) error {
+	err := filepath.Walk(logFileDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
 			return nil
 		}
@@ -123,8 +175,8 @@ func zipLogFiles(zipFile *archivex.ZipFile, hostname, logFilePath string) error 
 		}
 
 		if filepath.Ext(f.Name()) == ".log" || getFirstSuffix(f.Name()) == ".log" {
-			fileName := filepath.Join(hostname, "logs", f.Name())
-			return zipFile.AddFileWithName(fileName, path)
+			dst := filepath.Join(tempDir, hostname, "logs", f.Name())
+			return util.CopyFileAll(src, dst)
 		}
 		return nil
 	})
@@ -132,7 +184,7 @@ func zipLogFiles(zipFile *archivex.ZipFile, hostname, logFilePath string) error 
 	return err
 }
 
-func zipExpVar(zipFile *archivex.ZipFile, hostname string) error {
+func zipExpVar(tempDir, hostname string) error {
 	var variables = make(map[string]interface{})
 	expvar.Do(func(kv expvar.KeyValue) {
 		var variable = make(map[string]interface{})
@@ -148,11 +200,20 @@ func zipExpVar(zipFile *archivex.ZipFile, hostname string) error {
 		if err != nil {
 			return err
 		}
+
 		cleanedYAML, err := credentialsCleanerBytes(yamlValue)
 		if err != nil {
 			return err
 		}
-		err = zipFile.Add(filepath.Join(hostname, "expvar", key), cleanedYAML)
+
+		f := filepath.Join(tempDir, hostname, "expvar", key)
+
+		err = ensureParentDirsExist(f)
+		if err != nil {
+			return err
+		}
+
+		err = ioutil.WriteFile(f, cleanedYAML, os.ModePerm)
 		if err != nil {
 			return err
 		}
@@ -161,7 +222,7 @@ func zipExpVar(zipFile *archivex.ZipFile, hostname string) error {
 	return nil
 }
 
-func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths SearchPaths) error {
+func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths) error {
 	c, err := yaml.Marshal(config.Datadog.AllSettings())
 	if err != nil {
 		return err
@@ -171,12 +232,20 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths 
 	if err != nil {
 		return err
 	}
-	err = zipFile.Add(filepath.Join(hostname, "runtime_config_dump.yaml"), cleaned)
+
+	f := filepath.Join(tempDir, hostname, "runtime_config_dump.yaml")
+
+	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err
 	}
 
-	err = walkConfigFilePaths(zipFile, hostname, confSearchPaths)
+	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	err = walkConfigFilePaths(tempDir, hostname, confSearchPaths)
 	if err != nil {
 		return err
 	}
@@ -184,17 +253,25 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths 
 	if config.Datadog.ConfigFileUsed() != "" {
 		// zip up the config file that was actually used, if one exists
 		filePath := config.Datadog.ConfigFileUsed()
+
 		// Check if the file exists
-		_, e := os.Stat(filePath)
-		if e == nil {
-			file, e := credentialsCleanerFile(filePath)
+		_, err := os.Stat(filePath)
+		if err == nil {
+			cleaned, err = credentialsCleanerFile(filePath)
 			if err != nil {
-				return e
+				return err
 			}
-			fileName := filepath.Join(hostname, "etc", "datadog.yaml")
-			e = zipFile.Add(fileName, file)
-			if e != nil {
-				return e
+
+			f = filepath.Join(tempDir, hostname, "etc", "datadog.yaml")
+
+			err = ensureParentDirsExist(f)
+			if err != nil {
+				return err
+			}
+
+			err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -202,14 +279,21 @@ func zipConfigFiles(zipFile *archivex.ZipFile, hostname string, confSearchPaths 
 	return err
 }
 
-func zipDiagnose(zipFile *archivex.ZipFile, hostname string) error {
+func zipDiagnose(tempDir, hostname string) error {
 	var b bytes.Buffer
 
 	writer := bufio.NewWriter(&b)
 	diagnose.RunAll(writer)
 	writer.Flush()
 
-	err := zipFile.Add(filepath.Join(hostname, "diagnose.log"), b.Bytes())
+	f := filepath.Join(tempDir, hostname, "diagnose.log")
+
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(f, b.Bytes(), os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -217,9 +301,56 @@ func zipDiagnose(zipFile *archivex.ZipFile, hostname string) error {
 	return nil
 }
 
-func walkConfigFilePaths(zipFile *archivex.ZipFile, hostname string, confSearchPaths SearchPaths) error {
+func zipConfigCheck(tempDir, hostname string) error {
+	var b bytes.Buffer
+
+	writer := bufio.NewWriter(&b)
+	GetConfigCheck(writer, true)
+	writer.Flush()
+
+	f := filepath.Join(tempDir, hostname, "config-check.log")
+
+	err := ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(f, b.Bytes(), os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func zipHealth(tempDir, hostname string) error {
+	s := health.GetStatus()
+	sort.Strings(s.Healthy)
+	sort.Strings(s.Unhealthy)
+
+	yamlValue, err := yaml.Marshal(s)
+	if err != nil {
+		return err
+	}
+
+	f := filepath.Join(tempDir, hostname, "health.yaml")
+
+	err = ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(f, yamlValue, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths) error {
 	for prefix, filePath := range confSearchPaths {
-		err := filepath.Walk(filePath, func(path string, f os.FileInfo, err error) error {
+		err := filepath.Walk(filePath, func(src string, f os.FileInfo, err error) error {
 			if f == nil {
 				return nil
 			}
@@ -232,13 +363,23 @@ func walkConfigFilePaths(zipFile *archivex.ZipFile, hostname string, confSearchP
 			}
 
 			if getFirstSuffix(f.Name()) == ".yaml" || filepath.Ext(f.Name()) == ".yaml" {
-				baseName := strings.Replace(path, filePath, "", 1)
-				fileName := filepath.Join(hostname, "etc", "confd", prefix, baseName)
-				file, err := credentialsCleanerFile(path)
+				cleaned, err := credentialsCleanerFile(src)
 				if err != nil {
 					return err
 				}
-				return zipFile.Add(fileName, file)
+
+				baseName := strings.Replace(src, filePath, "", 1)
+				f := filepath.Join(tempDir, hostname, "etc", "confd", prefix, baseName)
+
+				err = ensureParentDirsExist(f)
+				if err != nil {
+					return err
+				}
+
+				err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+				if err != nil {
+					return err
+				}
 			}
 
 			return nil
@@ -253,11 +394,20 @@ func walkConfigFilePaths(zipFile *archivex.ZipFile, hostname string, confSearchP
 	return nil
 }
 
+func ensureParentDirsExist(p string) error {
+	err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }
 
-func mkFilePath() string {
+func getArchivePath() string {
 	dir := os.TempDir()
 	t := time.Now()
 	timeString := t.Format("2006-01-02-15-04-05")

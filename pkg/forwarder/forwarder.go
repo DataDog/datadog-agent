@@ -49,8 +49,7 @@ func init() {
 }
 
 const (
-	defaultNumberOfWorkers = 4
-	chanBufferSize         = 100
+	chanBufferSize = 100
 
 	v1SeriesEndpoint       = "/api/v1/series"
 	v1CheckRunsEndpoint    = "/api/v1/check_run"
@@ -123,7 +122,7 @@ type DefaultForwarder struct {
 // NewDefaultForwarder returns a new DefaultForwarder.
 func NewDefaultForwarder(KeysPerDomains map[string][]string) *DefaultForwarder {
 	return &DefaultForwarder{
-		NumberOfWorkers: defaultNumberOfWorkers,
+		NumberOfWorkers: config.Datadog.GetInt("forwarder_num_workers"),
 		KeysPerDomains:  KeysPerDomains,
 		internalState:   Stopped,
 		retryQueueLimit: config.Datadog.GetInt("forwarder_retry_queue_max_size"),
@@ -302,7 +301,13 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 	}
 
 	for _, t := range transactions {
-		f.highPrio <- t
+		// We don't want to block the collector if the highPrio queue is full
+		select {
+		case f.highPrio <- t:
+		default:
+			log.Errorf("the input queue of the forwarder is full: dropping transaction")
+			transactionsExpvar.Add("Dropped", 1)
+		}
 	}
 
 	return nil

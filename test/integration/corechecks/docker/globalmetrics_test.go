@@ -21,10 +21,10 @@ func TestGlobalMetrics(t *testing.T) {
 	sender.AssertCalled(t, "Gauge", "docker.images.available", mocksender.IsGreaterOrEqual(2), "", mocksender.MatchTagsContains(expectedTags))
 	sender.AssertCalled(t, "Gauge", "docker.images.intermediate", mocksender.IsGreaterOrEqual(0), "", mocksender.MatchTagsContains(expectedTags))
 
-	redisTags := append(expectedTags, []string{"docker_image:redis:latest", "image_name:redis", "image_tag:latest"}...)
+	redisTags := append(expectedTags, []string{"docker_image:datadog/docker-library:redis_3_2_11-alpine", "image_name:datadog/docker-library", "image_tag:redis_3_2_11-alpine"}...)
 	sender.AssertCalled(t, "Gauge", "docker.containers.running", mocksender.IsGreaterOrEqual(1), "", mocksender.MatchTagsContains(redisTags))
 
-	buxyboxTags := append(expectedTags, []string{"docker_image:busybox:latest", "image_name:busybox", "image_tag:latest"}...)
+	buxyboxTags := append(expectedTags, []string{"docker_image:datadog/docker-library:busybox_1_28_0", "image_name:datadog/docker-library", "image_tag:busybox_1_28_0"}...)
 	sender.AssertCalled(t, "Gauge", "docker.containers.stopped", mocksender.IsGreaterOrEqual(1), "", mocksender.MatchTagsContains(buxyboxTags))
 
 	sender.AssertCalled(t, "Gauge", "docker.containers.running.total", mocksender.IsGreaterOrEqual(1), "", mocksender.MatchTagsContains(expectedTags))

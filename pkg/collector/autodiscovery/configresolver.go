@@ -13,10 +13,12 @@ import (
 	"sync"
 	"unicode"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
-	log "github.com/cihub/seelog"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
@@ -43,6 +45,7 @@ type ConfigResolver struct {
 	newService      chan listeners.Service
 	delService      chan listeners.Service
 	stop            chan bool
+	health          *health.Handle
 	m               sync.Mutex
 }
 
@@ -58,6 +61,7 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 		newService:      make(chan listeners.Service),
 		delService:      make(chan listeners.Service),
 		stop:            make(chan bool),
+		health:          health.Register("ad-configresolver"),
 	}
 
 	// start listening
@@ -73,7 +77,9 @@ func (cr *ConfigResolver) listen() {
 		for {
 			select {
 			case <-cr.stop:
+				cr.health.Deregister()
 				return
+			case <-cr.health.C:
 			case svc := <-cr.newService:
 				cr.processNewService(svc)
 			case svc := <-cr.delService:
@@ -108,7 +114,9 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 		// check out whether any service we know has this identifier
 		serviceIds, found := cr.adIDToServices[id]
 		if !found {
-			log.Debugf("No service found with this AD identifier: %s", id)
+			s := fmt.Sprintf("No service found with this AD identifier: %s", id)
+			errorStats.setResolveWarning(tpl.Name, s)
+			log.Debugf(s)
 			continue
 		}
 
@@ -117,8 +125,10 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 			if err == nil {
 				resolvedSet[config.Digest()] = config
 			} else {
-				log.Warnf("Error resolving template %s for service %s: %v",
+				err := fmt.Errorf("Error resolving template %s for service %s: %v",
 					config.Name, serviceID, err)
+				errorStats.setResolveWarning(tpl.Name, err.Error())
+				log.Warn(err)
 			}
 		}
 	}
@@ -146,6 +156,9 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
 
+	// Get provider to map configs with it
+	provider := cr.templates.GetProviderFromDigest(tpl.Digest())
+
 	tags, err := svc.GetTags()
 	if err != nil {
 		return resolvedConfig, err
@@ -170,6 +183,9 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 			return resolvedConfig, err
 		}
 	}
+
+	// store resolved configs in the AC
+	cr.ac.providerLoadedConfigs[provider] = append(cr.ac.providerLoadedConfigs[provider], resolvedConfig)
 
 	return resolvedConfig, nil
 }
@@ -205,9 +221,12 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 		// resolve the template
 		config, err := cr.resolve(template, svc)
 		if err != nil {
-			log.Errorf("Unable to resolve configuration template: %v", err)
+			s := fmt.Sprintf("Unable to resolve configuration template: %v", err)
+			errorStats.setResolveWarning(template.Name, s)
+			log.Errorf(s)
 			continue
 		}
+		errorStats.removeResolveWarnings(config.Name)
 
 		// load the checks for this config using Autoconfig
 		checks, err := cr.ac.GetChecks(config)

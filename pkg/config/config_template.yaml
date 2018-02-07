@@ -57,6 +57,15 @@ api_key:
 # maximum length of the forwarder's retry queue (each request in the queue
 # takes no more than 2MB in memory)
 # forwarder_retry_queue_max_size: 30
+
+# The number of workers used by the forwarder. Please note each worker will
+# open an outbound HTTP connection towards Datadog's metrics intake at every
+# flush.
+# forwarder_num_workers: 1
+
+# Set this option to "yes" to output logs in JSON format
+# log_format_json: no
+
 {{ end }}
 {{- if .Agent }}
 # The path containing check configuration files
@@ -78,9 +87,11 @@ api_key:
 # Default is '5002' on Windows and macOS ; turned off on Linux
 # GUI_port: -1
 
-# How many workers will be used to run the check (if not specified, is automatically
-# determined based on number of checks running)
-# check_runners: 4
+# The Agent runs workers in parallel to execute checks. By default the number
+# of workers is set to 1. If set to 0 the agent will automatically determine
+# the best number of runners needed based on the number of checks running. This
+# would optimize the check collection time but may produce CPU spikes.
+# check_runners: 1
 
 # Metadata collection should always be enabled, except if you are running several
 # agents/dsd instances per host. In that case, only one agent should have it on.
@@ -89,6 +100,9 @@ api_key:
 
 # Enable the gohai collection of systems data
 # enable_gohai: true
+
+# IPC api server timeout in seconds
+# server_timeout: 15
 {{ end -}}
 {{- if .Metadata }}
 # Metadata collectors, add or remove from the list to enable or disable collection.
@@ -136,7 +150,7 @@ metadata_collectors:
 # Logs agent
 #
 # Logs agent is disabled by default
-# log_enabled: false
+# logs_enabled: false
 {{ end -}}
 {{- if .JMX }}
 # JMX
@@ -290,31 +304,6 @@ metadata_collectors:
 # kubernetes_pod_labels_as_tags:
 #   app:               kube_app
 #   pod-template-hash: +kube_pod-template-hash
-#
-#
-# Datadog Cluster Agent - DCA
-# The Datadog Cluster Agent is a remote metadata provider to enrich Pod's tags.
-# One of the DCA's feature is to get the service names as tag of an associated Kubernetes Pod.
-# More in datadog-agent/Dockerfiles/cluster-agent/README.md
-#
-# cluster_agent:
-#   The Authentication Token used to query the Datadog cluster agent from the node agent.
-#   This token length must be greater than 32 characters.
-#   If the value of cluster_agent_auth_token is left unset, the agent will fetch the content of
-#   the 'dca_auth_token' file. This file must be present in the same directory as datadog.yaml.
-#   cluster_agent_auth_token: ""
-#
-#   Cluster agent connectivity
-#   The cluster agent is a remote service, you need to provide an endpoint to query it.
-#   The only supported scheme to reach the Datadog cluster agent is https,
-#   example: "https://host:port"
-#   cluster_agent_url: ""
-#
-#   If the node-agent runs inside a Kubernetes Pod, you can use a Kubernetes Service to discover the
-#   cluster agent.
-#   To select this configuration, you need to leave the cluster_agent_url unset ("") and provide the
-#   name of the Kubernetes service.
-#   cluster_agent_kubernetes_service_name: "dca"
 {{ end -}}
 {{- if .ECS }}
 # ECS integration
@@ -333,10 +322,12 @@ metadata_collectors:
 #
 # kubernetes_kubeconfig_path: /path/to/file
 #
-# By default use_service_mapper is set to true, as it allows the DCA to fetch services and map them to pods.
-# Uncomment if you don't want the DCA to perform this action.
-#
-# use_service_mapper: false
+# In order to collect service names, the agent needs certain rights (see RBAC documentation in
+# [docker readme](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
+# You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of services to
+# ContainerIDs with the following options:
+# kubernetes_collect_service_tags: true
+# kubernetes_service_tag_update_freq: 300
 {{ end -}}
 
 {{- if .ProcessAgent }}

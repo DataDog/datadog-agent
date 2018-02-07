@@ -9,6 +9,7 @@ package providers
 
 import (
 	"fmt"
+	"math"
 	"net/url"
 	"sort"
 	"strings"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"math"
 )
 
 // Abstractions for testing
@@ -97,6 +97,7 @@ func NewConsulConfigProvider(config config.ConfigurationProviders) (ConfigProvid
 
 }
 
+// String returns a string representation of the ConsulConfigProvider
 func (p *ConsulConfigProvider) String() string {
 	return "consul Configuration Provider"
 }

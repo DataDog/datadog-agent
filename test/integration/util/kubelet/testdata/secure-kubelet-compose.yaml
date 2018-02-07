@@ -10,11 +10,13 @@ services:
         --make-iptables-util-chains=false
         --hairpin-mode=none
         --read-only-port 0
-        --client-ca-file=/etc/secrets/cert.pem
+        --anonymous-auth=true
         --tls-cert-file=/etc/secrets/cert.pem
         --tls-private-key-file=/etc/secrets/key.pem
         --pod-manifest-path=/opt
         "
+        # Removed --client-ca-file=/etc/secrets/cert.pem as it
+        # depends on an apiserver running to verify the username
     network_mode: ${network_mode}
     healthcheck:
       test: ["CMD", "/bin/ls", "/var/lib/kubelet"]
@@ -29,7 +31,7 @@ services:
     # This pause container is here to wait until the apiserver
     # is healthy before returning.
     #
-    image: "gcr.io/google_containers/pause"
+    image: "datadog/docker-library:pause_3_1"
     depends_on:
       kubelet:
         condition: service_healthy

@@ -140,3 +140,9 @@ func FetchAuthToken() (string, error) {
 
 	return authToken, nil
 }
+
+// DeleteAuthToken removes auth_token file (test clean up)
+func DeleteAuthToken() error {
+	authTokenFile := filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), authTokenName)
+	return os.Remove(authTokenFile)
+}
