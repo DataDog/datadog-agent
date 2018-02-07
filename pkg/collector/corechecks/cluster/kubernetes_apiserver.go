@@ -16,7 +16,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s/api/v1"
@@ -95,16 +94,22 @@ func (k *KubeASCheck) Run() error {
 	}
 	if k.latestEventToken == "" {
 		// Initialization: Checking if we previously stored the latestEventToken in a configMap
-		token, found, err := asclient.GetTokenFromConfigmap(eventTokenKey, 60)
+		tokenValue, found, err := asclient.GetTokenFromConfigmap(eventTokenKey, 60)
 		switch {
-		case err == collectors.ErrOutdated:
+		case err == apiserver.ErrOutdated:
 			k.configMapAvailable = found
-			k.latestEventToken = token
-		case err == collectors.ErrNotFound:
+			k.latestEventToken = tokenValue
+
+		case err == apiserver.ErrNotFound:
 			k.latestEventToken = "0"
+
 		case err == nil:
 			k.configMapAvailable = found
-			k.latestEventToken = token
+			k.latestEventToken = tokenValue
+
+		default:
+			log.Warnf("Cannot handle the tokenValue: %q, querying the kube-apiserver cache for events", tokenValue)
+			k.latestEventToken = "0"
 		}
 	}
 
