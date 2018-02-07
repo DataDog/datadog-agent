@@ -12,7 +12,7 @@ The following environment variables are supported:
 
 - `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
 - `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
-- `DD_LOG_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
+- `DD_LOGS_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
 - `DD_COLLECT_KUBERNETES_EVENTS`: Configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
 - `DD_KUBERNETES_COLLECT_SERVICE_TAGS`: Configures the agent to collect Kubernetes service names as tags.
 - `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: Set the collection frequency in seconds for the Kubernetes service names. 
@@ -55,7 +55,7 @@ First let’s create two directories on the host that we will later mount on the
 To  run a Docker container which embeds the Datadog Agent to monitor your host use the following command:
 
 ```
-docker run -d --name dd-agent -h `hostname` -e DD_API_KEY=<YOUR_API_KEY> -e DD_LOG_ENABLED=true -v /var/run/docker.sock:/var/run/docker.sock:ro -v /proc/:/host/proc/:ro -v /opt/datadog-agent/run:/opt/datadog-agent/run:rw -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro -v /opt/datadog-agent/conf.d:/conf.d:ro datadog/agent:latest
+docker run -d --name dd-agent -h `hostname` -e DD_API_KEY=<YOUR_API_KEY> -e DD_LOGS_ENABLED=true -v /var/run/docker.sock:/var/run/docker.sock:ro -v /proc/:/host/proc/:ro -v /opt/datadog-agent/run:/opt/datadog-agent/run:rw -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro -v /opt/datadog-agent/conf.d:/conf.d:ro datadog/agent:latest
 ```
 
 *Important notes*:
@@ -66,7 +66,7 @@ docker run -d --name dd-agent -h `hostname` -e DD_API_KEY=<YOUR_API_KEY> -e DD_L
 
 The parameters specific to log collection are the following:
 
-- `-e DD_LOG_ENABLED=true`: this parameter enables the log collection when set to true. The agent now looks for log instructions in configuration files.
+- `-e DD_LOGS_ENABLED=true`: this parameter enables the log collection when set to true. The agent now looks for log instructions in configuration files.
 - `-v /opt/datadog-agent/run:/opt/datadog-agent/run:rw` : mount the directory we created to store pointer on each container logs to make sure we do not lose any.
 - `-v /opt/datadog-agent/conf.d:/conf.d:ro` : mount the configuration directory we previously created to the container
 

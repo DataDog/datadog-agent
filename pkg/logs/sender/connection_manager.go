@@ -14,6 +14,8 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 const (
@@ -35,11 +37,11 @@ type ConnectionManager struct {
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(ddURL string, ddPort int, devModeNoSSL bool) *ConnectionManager {
+func NewConnectionManager(config *config.Config) *ConnectionManager {
 	return &ConnectionManager{
-		connectionString: fmt.Sprintf("%s:%d", ddURL, ddPort),
-		serverName:       ddURL,
-		devModeNoSSL:     devModeNoSSL,
+		connectionString: fmt.Sprintf("%s:%d", config.GetDDURL(), config.GetDDPort()),
+		serverName:       config.GetDDURL(),
+		devModeNoSSL:     config.GetDevModeNoSSL(),
 
 		mutex: sync.Mutex{},
 
