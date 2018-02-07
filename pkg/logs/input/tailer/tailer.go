@@ -41,8 +41,8 @@ type Tailer struct {
 	closeTimeout  time.Duration
 	shouldStop    bool
 	didFileRotate bool
+	stop          chan struct{}
 	done          chan struct{}
-	isFlushed     chan struct{}
 }
 
 // NewTailer returns an initialized Tailer
@@ -55,8 +55,8 @@ func NewTailer(outputChan chan message.Message, source *config.LogSource, path s
 		readOffset:    0,
 		sleepDuration: sleepDuration,
 		closeTimeout:  defaultCloseTimeout,
+		stop:          make(chan struct{}, 1),
 		done:          make(chan struct{}, 1),
-		isFlushed:     make(chan struct{}, 1),
 	}
 }
 
@@ -74,10 +74,10 @@ func (t *Tailer) recoverTailing(offset int64, whence int) error {
 // Stop stops the tailer and returns only when the decoder is flushed
 func (t *Tailer) Stop() {
 	t.didFileRotate = false
-	t.done <- struct{}{}
+	t.stop <- struct{}{}
 	t.source.RemoveInput(t.path)
 	// wait for the decoder to be flushed
-	<-t.isFlushed
+	<-t.done
 }
 
 // StopAfterFileRotation prepares the tailer to stop after a timeout
@@ -92,7 +92,7 @@ func (t *Tailer) StopAfterFileRotation() {
 func (t *Tailer) startStopTimer() {
 	stopTimer := time.NewTimer(t.closeTimeout)
 	<-stopTimer.C
-	t.done <- struct{}{}
+	t.stop <- struct{}{}
 }
 
 // onStop finishes to stop the tailer
@@ -130,7 +130,7 @@ func (t *Tailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
 		t.shouldStop = true
-		t.isFlushed <- struct{}{}
+		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
 		if output.ShouldStop {

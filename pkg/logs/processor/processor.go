@@ -24,7 +24,7 @@ type Processor struct {
 	inputChan  chan message.Message
 	outputChan chan message.Message
 	apiKey     []byte
-	isFlushed  chan struct{}
+	done       chan struct{}
 }
 
 // New returns an initialized Processor
@@ -36,7 +36,7 @@ func New(inputChan, outputChan chan message.Message, apiKey, logset string) *Pro
 		inputChan:  inputChan,
 		outputChan: outputChan,
 		apiKey:     []byte(apiKey),
-		isFlushed:  make(chan struct{}),
+		done:       make(chan struct{}),
 	}
 }
 
@@ -49,13 +49,13 @@ func (p *Processor) Start() {
 // this call blocks until inputChan is flushed
 func (p *Processor) Stop() {
 	close(p.inputChan)
-	<-p.isFlushed
+	<-p.done
 }
 
 // run starts the processing of the inputChan
 func (p *Processor) run() {
 	defer func() {
-		p.isFlushed <- struct{}{}
+		p.done <- struct{}{}
 	}()
 	for msg := range p.inputChan {
 		shouldProcess, redactedMessage := p.applyRedactingRules(msg)

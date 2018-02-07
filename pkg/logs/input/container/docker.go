@@ -47,7 +47,8 @@ type DockerTailer struct {
 
 	sleepDuration time.Duration
 	shouldStop    bool
-	isFlushed     chan struct{}
+	stop          chan struct{}
+	done          chan struct{}
 }
 
 // NewDockerTailer returns a new DockerTailer
@@ -60,7 +61,8 @@ func NewDockerTailer(cli *client.Client, container types.Container, source *conf
 		cli:         cli,
 
 		sleepDuration: defaultSleepDuration,
-		isFlushed:     make(chan struct{}, 1),
+		stop:          make(chan struct{}, 1),
+		done:          make(chan struct{}, 1),
 	}
 }
 
@@ -73,10 +75,10 @@ func (dt *DockerTailer) Identifier() string {
 // this call blocks until the decoder is completely flushed
 func (dt *DockerTailer) Stop() {
 	log.Info("Stop tailing container ", dt.ContainerID[:12])
-	dt.shouldStop = true
+	dt.stop <- struct{}{}
 	dt.source.RemoveInput(dt.ContainerID)
 	// wait for the decoder to be flushed
-	<-dt.isFlushed
+	<-dt.done
 }
 
 // tailFromBeginning starts the tailing from the beginning
@@ -152,26 +154,28 @@ func (dt *DockerTailer) tailFrom(from string) error {
 func (dt *DockerTailer) readForever() {
 	defer dt.decoder.Stop()
 	for {
-		if dt.shouldStop {
-			// stop from reading new logs
+		select {
+		case <-dt.stop:
+			// stop reading new logs from container
 			return
-		}
-		inBuf := make([]byte, 4096)
-		n, err := dt.reader.Read(inBuf)
-		if err != nil {
-			// an error occurred, stop from reading new logs
-			if err != io.EOF {
-				dt.source.Status.Error(err)
-				log.Error("Err: ", err)
+		default:
+			inBuf := make([]byte, 4096)
+			n, err := dt.reader.Read(inBuf)
+			if err != nil {
+				// an error occurred, stop from reading new logs
+				if err != io.EOF {
+					dt.source.Status.Error(err)
+					log.Error("Err: ", err)
+				}
+				return
 			}
-			return
+			if n == 0 {
+				// wait for new data to come
+				dt.wait()
+				continue
+			}
+			dt.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		}
-		if n == 0 {
-			// wait for new data to come
-			dt.wait()
-			continue
-		}
-		dt.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 	}
 }
 
@@ -185,7 +189,7 @@ func (dt *DockerTailer) forwardMessages() {
 	defer func() {
 		// the decoder has successfully been flushed
 		dt.shouldStop = true
-		dt.isFlushed <- struct{}{}
+		dt.done <- struct{}{}
 	}()
 	for output := range dt.decoder.OutputChan {
 		if output.ShouldStop {

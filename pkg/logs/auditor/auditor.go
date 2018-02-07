@@ -38,7 +38,7 @@ type Auditor struct {
 
 	entryTTL time.Duration
 
-	isFlushed chan struct{}
+	done chan struct{}
 }
 
 // New returns an initialized Auditor
@@ -47,7 +47,7 @@ func New(inputChan chan message.Message, runPath string) *Auditor {
 		inputChan:    inputChan,
 		registryPath: filepath.Join(runPath, "registry.json"),
 		entryTTL:     defaultTTL,
-		isFlushed:    make(chan struct{}),
+		done:         make(chan struct{}),
 	}
 }
 
@@ -61,7 +61,7 @@ func (a *Auditor) Start() {
 // Stop stops the Auditor
 func (a *Auditor) Stop() {
 	close(a.inputChan)
-	<-a.isFlushed
+	<-a.done
 	a.cleanupRegistry(a.registry)
 	err := a.flushRegistry(a.registry, a.registryPath)
 	if err != nil {
@@ -77,7 +77,7 @@ func (a *Auditor) run() {
 		// clean the context
 		cleanUpTicker.Stop()
 		flushTicker.Stop()
-		a.isFlushed <- struct{}{}
+		a.done <- struct{}{}
 	}()
 
 	for {

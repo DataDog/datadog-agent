@@ -20,8 +20,8 @@ type TCPListener struct {
 	port        int
 	listener    net.Listener
 	connHandler *ConnectionHandler
-	shouldStop  bool
-	isFlushed   chan struct{}
+	stop        chan struct{}
+	done        chan struct{}
 }
 
 // NewTCPListener returns an initialized TCPListener
@@ -37,7 +37,8 @@ func NewTCPListener(pp pipeline.Provider, source *config.LogSource) (*TCPListene
 		port:        source.Config.Port,
 		listener:    listener,
 		connHandler: connHandler,
-		isFlushed:   make(chan struct{}, 1),
+		stop:        make(chan struct{}, 1),
+		done:        make(chan struct{}, 1),
 	}, nil
 }
 
@@ -52,9 +53,9 @@ func (l *TCPListener) Start() {
 // it blocks until connHandler is flushed
 func (l *TCPListener) Stop() {
 	log.Info("Stopping TCP forwarder on port ", l.port)
-	l.shouldStop = true
+	l.stop <- struct{}{}
 	l.listener.Close()
-	<-l.isFlushed
+	<-l.done
 }
 
 // run accepts new TCP connections and lets connHandler handle them
@@ -62,21 +63,23 @@ func (l *TCPListener) run() {
 	defer func() {
 		l.listener.Close()
 		l.connHandler.Stop()
-		l.isFlushed <- struct{}{}
+		l.done <- struct{}{}
 	}()
 	for {
-		conn, err := l.listener.Accept()
-		if l.shouldStop {
-			// stop from accepting new connections
+		select {
+		case <-l.stop:
+			// stop accepting new connections
 			return
+		default:
+			conn, err := l.listener.Accept()
+			if err != nil {
+				// an error occurred, stop from accepting new connections
+				l.connHandler.source.Status.Error(err)
+				log.Error("Can't listen: ", err)
+				return
+			}
+			l.connHandler.source.Status.Success()
+			go l.connHandler.HandleConnection(conn)
 		}
-		if err != nil {
-			// an error occurred, stop from accepting new connections
-			l.connHandler.source.Status.Error(err)
-			log.Error("Can't listen: ", err)
-			return
-		}
-		l.connHandler.source.Status.Success()
-		go l.connHandler.HandleConnection(conn)
 	}
 }
