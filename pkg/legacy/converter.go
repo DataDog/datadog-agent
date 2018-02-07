@@ -121,20 +121,20 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("trace_config.env", agentConfig["env"])
 	}
 
-	if agentConfig["max_traces_per_second"] != "" {
-		config.Datadog.Set("trace_config.max_traces_per_second", agentConfig["max_traces_per_second"])
+	if value, err := strconv.Atoi(agentConfig["max_traces_per_second"]); err == nil {
+		config.Datadog.Set("trace_config.max_traces_per_second", value)
 	}
 
-	if agentConfig["extra_sample_rate"] != "" {
-		config.Datadog.Set("trace_config.extra_sample_rate", agentConfig["extra_sample_rate"])
+	if value, err := strconv.Atoi(agentConfig["extra_sample_rate"]); err == nil {
+		config.Datadog.Set("trace_config.extra_sample_rate", value)
 	}
 
-	if agentConfig["connection_limit"] != "" {
-		config.Datadog.Set("trace_config.connection_limit", agentConfig["connection_limit"])
+	if value, err := strconv.Atoi(agentConfig["connection_limit"]); err == nil {
+		config.Datadog.Set("trace_config.connection_limit", value)
 	}
 
-	if agentConfig["receiver_port"] != "" {
-		config.Datadog.Set("trace_config.receiver_port", agentConfig["receiver_port"])
+	if value, err := strconv.Atoi(agentConfig["receiver_port"]); err == nil {
+		config.Datadog.Set("trace_config.receiver_port", value)
 	}
 
 	if agentConfig["resource"] != "" {
