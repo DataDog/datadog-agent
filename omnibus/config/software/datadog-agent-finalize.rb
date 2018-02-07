@@ -54,6 +54,11 @@ build do
             move "#{install_dir}/etc/datadog-agent/trace-agent.conf.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
 
+            # Create empty directories so that they're owned by the package
+            # (also requires `extra_package_file` directive in project def)
+            mkdir "/etc/datadog-agent/checks.d"
+            mkdir "/var/log/datadog"
+
             # cleanup clutter
             delete "#{install_dir}/etc"
         elsif osx?
