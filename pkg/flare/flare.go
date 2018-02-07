@@ -14,6 +14,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -33,7 +34,7 @@ func SendFlareWithHostname(archivePath string, caseID string, email string, host
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	p, err := writer.CreateFormFile("flare_file", archivePath)
+	p, err := writer.CreateFormFile("flare_file", filepath.Base(archivePath))
 	if err != nil {
 		return "", err
 	}
