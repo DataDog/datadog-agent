@@ -295,7 +295,7 @@ func (ac *AutoConfig) resolve(config check.Config, provider string) []check.Conf
 		if len(resolvedConfigs) == 0 {
 			e := fmt.Sprintf("Can't resolve the template for %s at this moment.", config.Name)
 			errorStats.setResolveWarning(config.Name, e)
-			log.Infof(e)
+			log.Debugf(e)
 			return configs
 		}
 		errorStats.removeResolveWarnings(config.Name)
