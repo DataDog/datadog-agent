@@ -96,7 +96,6 @@ func (c *APIClient) connect() error {
 			c.client, err = k8s.NewClient(k8sConfig)
 		}
 		if err != nil {
-			log.Debugf("failure here: %s", err.Error())
 			return err
 		}
 	}
@@ -117,17 +116,6 @@ func (c *APIClient) connect() error {
 		return err
 	}
 	log.Debug("Could successfully collect Pods, Nodes, Services and Events.")
-
-	//if config.Datadog.GetBool("leader_election") || config.Datadog.GetBool("collect_kubernetes_events") {
-	//	// Initiate the Leader election before starting the Service Mapper.
-	//	leaseDuration := config.Datadog.GetDuration("leader_lease_duration")
-	//	errLeaderElection := leaderelection.startLeaderElection(leaseDuration)
-	//
-	//	if errLeaderElection != nil {
-	//		log.Debug("Can't create official client %s", errLeaderElection.Error())
-	//		return errLeaderElection
-	//	}
-	//}
 
 	useServiceMapper := config.Datadog.GetBool("use_service_mapper")
 	if !useServiceMapper {

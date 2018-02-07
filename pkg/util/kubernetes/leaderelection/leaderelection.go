@@ -130,7 +130,7 @@ func (le *LeaderEngine) init() error {
 	// check if we can get endpoints.
 	_, err = le.coreClient.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{Limit: 1})
 	if err != nil {
-		log.Errorf("Cannot retrieve endpoints from the %s namespace", metav1.NamespaceDefault)
+		log.Errorf("Cannot retrieve endpoints from the %s namespace: %s", metav1.NamespaceDefault, err)
 		return err
 	}
 
@@ -154,13 +154,13 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 	var leaderIdentity string
 
 	le.once.Do(le.startLeaderElection)
-	timeoutDuration := time.Second * 5
+	timeoutDuration := clientTimeout * 2
 	timeout := time.After(timeoutDuration)
 	tick := time.NewTicker(time.Millisecond * 500)
 	for {
 		select {
 		case <-tick.C:
-			leaderIdentity = le.GetLeader()
+			leaderIdentity = le.CurrentLeaderName()
 			if leaderIdentity != "" {
 				log.Infof("Leader Election run, current leader is %q", leaderIdentity)
 				return nil
@@ -200,8 +200,8 @@ func GetClient() (*corev1.CoreV1Client, error) {
 	return coreClient, err
 }
 
-// GetLeader is the main interface that can be called to fetch the name of the current leader.
-func (le *LeaderEngine) GetLeader() string {
+// CurrentLeaderName is the main interface that can be called to fetch the name of the current leader.
+func (le *LeaderEngine) CurrentLeaderName() string {
 	le.currentHolderMutex.RLock()
 	defer le.currentHolderMutex.RUnlock()
 
@@ -210,7 +210,7 @@ func (le *LeaderEngine) GetLeader() string {
 
 // IsLeader return bool if the current LeaderEngine is the leader
 func (le *LeaderEngine) IsLeader() bool {
-	return le.GetLeader() == le.HolderIdentity
+	return le.CurrentLeaderName() == le.HolderIdentity
 }
 
 func init() {

@@ -94,7 +94,7 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 	for {
 		select {
 		case <-tick.C:
-			leaderName = le.GetLeader()
+			leaderName = le.CurrentLeaderName()
 			if leaderName == le.HolderIdentity {
 				log.Infof("leader is %s", leaderName)
 				return
@@ -156,7 +156,7 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 
 	for i, testCase := range testCases {
 		assert.Equal(suite.T(), fmt.Sprintf("%s%d", baseIdentityName, i), testCase.leaderEngine.HolderIdentity)
-		assert.Equal(suite.T(), actualLeader.HolderIdentity, testCase.leaderEngine.GetLeader())
+		assert.Equal(suite.T(), actualLeader.HolderIdentity, testCase.leaderEngine.CurrentLeaderName())
 	}
 
 	client, err := leaderelection.GetClient()
