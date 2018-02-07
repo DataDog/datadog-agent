@@ -372,11 +372,11 @@ metadata_collectors:
 #   The port that the Receiver should listen on
 #   receiver_port: 8126
 #   How many unique client connections to allow during one 30 second lease period
-#   connection_limit: "2000"
+#   connection_limit: 2000
 #   Extra global sample rate to apply on all the traces
 #   This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces
 #   From 1 (no extra rate) to 0 (don't sample at all)
-#   extra_sample_rate: "1"
+#   extra_sample_rate: 1
 #   A blacklist of regular expressions can be provided to disable certain traces based on their resource name
 #   all entries must be surrounded by double quotes and separated by commas
 #   Example: "(GET|POST) /healthcheck","GET /V1"
@@ -384,5 +384,5 @@ metadata_collectors:
 #   Maximum number of traces per second to sample.
 #   The limit is applied over an average over a few minutes ; much bigger spikes are possible.
 #   Set to 0 to disable the limit.
-#   max_traces_per_second: "10" 
+#   max_traces_per_second: 10
 {{ end -}}
