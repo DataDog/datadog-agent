@@ -43,11 +43,6 @@ func FromAgentConfig(agentConfig Config) error {
 
 	config.Datadog.Set("tags", strings.Split(agentConfig["tags"], ","))
 
-	// jmx_custom_jars is now a proper array in agent6
-	if agentConfig["jmx_custom_jars"] != "" {
-		config.Datadog.Set("jmx_custom_jars", strings.Split(agentConfig["jmx_custom_jars"], ":"))
-	}
-
 	if value, err := strconv.Atoi(agentConfig["forwarder_timeout"]); err == nil {
 		config.Datadog.Set("forwarder_timeout", value)
 	}
