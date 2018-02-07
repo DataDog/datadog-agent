@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -43,7 +42,6 @@ type DockerTailer struct {
 	cli           *client.Client
 	source        *config.LogSource
 	containerTags []string
-	tagsPayload   []byte
 
 	sleepDuration time.Duration
 	shouldStop    bool
@@ -194,8 +192,8 @@ func (dt *DockerTailer) forwardMessages() {
 		msgOrigin.LogSource = dt.source
 		msgOrigin.Timestamp = ts
 		msgOrigin.Identifier = dt.Identifier()
+		msgOrigin.SetTags(dt.containerTags, dt.source.Config)
 		containerMsg.SetSeverity(sev)
-		containerMsg.SetTagsPayload(dt.tagsPayload)
 		containerMsg.SetOrigin(msgOrigin)
 		dt.outputChan <- containerMsg
 	}
@@ -219,13 +217,8 @@ func (dt *DockerTailer) checkForNewDockerTags() {
 	} else {
 		if !reflect.DeepEqual(tags, dt.containerTags) {
 			dt.containerTags = tags
-			dt.tagsPayload = dt.buildTagsPayload()
 		}
 	}
-}
-
-func (dt *DockerTailer) buildTagsPayload() []byte {
-	return []byte(fmt.Sprintf("%s,%s", strings.Join(dt.containerTags, ","), dt.source.Config.Tags))
 }
 
 // wait lets the reader sleep for a bit

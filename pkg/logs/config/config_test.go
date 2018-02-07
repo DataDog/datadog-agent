@@ -14,7 +14,7 @@ import (
 func TestLogsAgentDefaultValues(t *testing.T) {
 	assert.Equal(t, "", LogsAgent.GetString("logset"))
 	assert.Equal(t, "intake.logs.datadoghq.com", LogsAgent.GetString("log_dd_url"))
-	assert.Equal(t, 10526, LogsAgent.GetInt("log_dd_port"))
+	assert.Equal(t, 10516, LogsAgent.GetInt("log_dd_port"))
 	assert.Equal(t, false, LogsAgent.GetBool("skip_ssl_validation"))
 	assert.Equal(t, false, LogsAgent.GetBool("dev_mode_no_ssl"))
 	assert.Equal(t, false, LogsAgent.GetBool("log_enabled"))

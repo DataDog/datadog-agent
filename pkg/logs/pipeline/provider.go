@@ -42,19 +42,24 @@ func NewProvider() Provider {
 // Start initializes the pipelines
 func (p *provider) Start(cm *sender.ConnectionManager, auditorChan chan message.Message) {
 
+	var encoder processor.Encoder
+	var delimiter sender.Delimiter
+	if config.LogsAgent.GetBool("dev_mode_use_proto") {
+		encoder = &processor.Proto
+		delimiter = &sender.LengthPrefix
+	} else {
+		encoder = &processor.Raw
+		delimiter = &sender.LineBreak
+	}
+
 	for i := int32(0); i < p.numberOfPipelines; i++ {
 
 		senderChan := make(chan message.Message, p.chanSizes)
-		f := sender.New(senderChan, auditorChan, cm)
+		f := sender.New(senderChan, auditorChan, cm, delimiter)
 		f.Start()
 
 		processorChan := make(chan message.Message, p.chanSizes)
-		pr := processor.New(
-			processorChan,
-			senderChan,
-			config.LogsAgent.GetString("api_key"),
-			config.LogsAgent.GetString("logset"),
-		)
+		pr := processor.New(processorChan, senderChan, encoder)
 		pr.Start()
 
 		p.pipelinesChans = append(p.pipelinesChans, processorChan)

@@ -11,7 +11,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
 	"github.com/stretchr/testify/suite"
 )
@@ -67,15 +66,6 @@ func (suite *DockerTailerTestSuite) TestDockerTailerNextLogSinceDate() {
 func (suite *DockerTailerTestSuite) TestDockerTailerIdentifier() {
 	suite.tailer.ContainerID = "test"
 	suite.Equal("docker:test", suite.tailer.Identifier())
-}
-
-func (suite *DockerTailerTestSuite) TestBuildTagsPayload() {
-	suite.tailer.containerTags = []string{"test", "hello:world"}
-	suite.tailer.source = config.NewLogSource("", &config.LogsConfig{Source: "mysource", Tags: "sourceTags"})
-	suite.Equal("test,hello:world,sourceTags", string(suite.tailer.buildTagsPayload()))
-
-	suite.tailer.source = config.NewLogSource("", &config.LogsConfig{})
-	suite.Equal("test,hello:world,", string(suite.tailer.buildTagsPayload()))
 }
 
 func (suite *DockerTailerTestSuite) TestParseMessage() {

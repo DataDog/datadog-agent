@@ -8,7 +8,6 @@ package message
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,11 +24,5 @@ func TestMessage(t *testing.T) {
 	assert.Equal(t, "", message.GetTimestamp())
 	o.Timestamp = "ts"
 	assert.Equal(t, "ts", message.GetTimestamp())
-
-	o.LogSource = config.NewLogSource("", &config.LogsConfig{Tags: "sourceTags"})
-	assert.Equal(t, "sourceTags", string(message.GetTagsPayload()))
-
-	message.SetTagsPayload([]byte("messageTags"))
-	assert.Equal(t, "messageTags", string(message.GetTagsPayload()))
 
 }
