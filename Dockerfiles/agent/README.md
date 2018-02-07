@@ -16,6 +16,8 @@ The following environment variables are supported:
 - `DD_COLLECT_KUBERNETES_EVENTS`: Configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
 - `DD_KUBERNETES_COLLECT_SERVICE_TAGS`: Configures the agent to collect Kubernetes service names as tags.
 - `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: Set the collection frequency in seconds for the Kubernetes service names. 
+- `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
+
 Example usage: `docker run -e DD_API_KEY=your-api-key-here -it <image-name>`
 
 For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/agent/)

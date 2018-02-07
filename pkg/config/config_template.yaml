@@ -157,6 +157,11 @@ metadata_collectors:
 #
 # jmx_pipe_path:
 # jmx_pipe_name: dd-auto_discovery
+#
+# If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
+# set in the check templates. If that is the case, you can force custom jars here.
+# jmx_custom_jars:
+#   - /jmx-jars/jboss-cli-client.jar
 {{ end -}}
 {{- if .Autoconfig }}
 # Autoconfig

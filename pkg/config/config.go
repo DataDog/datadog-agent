@@ -180,6 +180,9 @@ func init() {
 	// APM
 	BindEnvAndSetDefault("apm_enabled", true) // this is to support the transition to the new config file
 
+	// JMXFetch
+	Datadog.SetDefault("jmx_custom_jars", []string{})
+
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
 	// Process Agent
@@ -216,9 +219,12 @@ func init() {
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
 	Datadog.BindEnv("dogstatsd_origin_detection")
+	Datadog.BindEnv("jmx_custom_jars")
+
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
 	Datadog.BindEnv("log_to_console")
+
 	Datadog.BindEnv("kubernetes_kubelet_host")
 	Datadog.BindEnv("kubernetes_http_kubelet_port")
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
