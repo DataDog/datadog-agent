@@ -14,3 +14,6 @@ class TestCheck(AgentCheck):
 
         alltags = get_tags("test_entity", True)
         self.gauge("metric.high_card", 1, tags=alltags)
+
+        notags = get_tags("404", True)
+        self.gauge("metric.unknown", 1, tags=notags)

@@ -25,7 +25,11 @@ func (c *DummyCollector) Detect(out chan<- []*collectors.TagInfo) (collectors.Co
 	return collectors.FetchOnlyCollection, nil
 }
 func (c *DummyCollector) Fetch(entity string) ([]string, []string, error) {
-	return []string{entity + ":low"}, []string{entity + ":high", "other_tag:high"}, nil
+	if entity == "404" {
+		return nil, nil, collectors.ErrNotFound
+	} else {
+		return []string{entity + ":low"}, []string{entity + ":high", "other_tag:high"}, nil
+	}
 }
 
 func TestGetTags(t *testing.T) {
@@ -53,4 +57,5 @@ func TestGetTags(t *testing.T) {
 
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "metric.low_card", []string{"test_entity:low"})
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "metric.high_card", []string{"test_entity:low", "test_entity:high", "other_tag:high"})
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "metric.unknown", []string{})
 }
