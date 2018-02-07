@@ -14,105 +14,118 @@ import "github.com/go-ini/ini"
 type Config map[string]string
 
 var (
-	// Note: we'll only import a subset of these values.
-	supportedValues = []string{
-		"dd_url",
-		"proxy_host",
-		"proxy_port",
-		"proxy_user",
-		"proxy_password",
-		"skip_ssl_validation",
-		"api_key",
-		"hostname",
-		"apm_enabled",
-		"tags",
-		"forwarder_timeout",
-		"default_integration_http_timeout",
-		"collect_ec2_tags",
-		"additional_checksd",
-		"exclude_process_args",
-		"histogram_aggregates",
-		"histogram_percentiles",
-		"service_discovery_backend",
-		"sd_config_backend",
-		"sd_backend_host",
-		"sd_backend_port",
-		"sd_backend_username",
-		"sd_backend_password",
-		"sd_template_dir",
-		"consul_token",
-		"use_dogstatsd",
-		"dogstatsd_port",
-		"statsd_metric_namespace",
-		"log_level",
-		"collector_log_file",
-		"log_to_syslog",
-		"log_to_event_viewer", // maybe deprecated, ignore for now
-		"syslog_host",
-		"syslog_port",
-		"collect_instance_metadata",
-		"listen_port",                // not for 6.0, ignore for now
-		"non_local_traffic",          // not for 6.0, ignore for now
-		"create_dd_check_tags",       // not for 6.0, ignore for now
-		"bind_host",                  // not for 6.0, ignore for now
-		"proxy_forbid_method_switch", // deprecated
-		"collect_orchestrator_tags",  // deprecated
-		"use_curl_http_client",       // deprecated
-		"dogstatsd_target",           // deprecated
-		"gce_updated_hostname",       // deprecated
-		"process_agent_enabled",
-		// trace-agent specific
-		"extra_sample_rate",
-		"max_traces_per_second",
-		"receiver_port",
-		"connection_limit",
-		"resource",
-		"disable_file_logging",
-		"enable_gohai",
-	}
+    // Note: we'll only import a subset of these values.
+    supportedValues = []string{
+        "dd_url",
+        "proxy_host",
+        "proxy_port",
+        "proxy_user",
+        "proxy_password",
+        "skip_ssl_validation",
+        "api_key",
+        "hostname",
+        "apm_enabled",
+        "tags",
+        "forwarder_timeout",
+        "default_integration_http_timeout",
+        "collect_ec2_tags",
+        "additional_checksd",
+        "exclude_process_args",
+        "histogram_aggregates",
+        "histogram_percentiles",
+        "service_discovery_backend",
+        "sd_config_backend",
+        "sd_backend_host",
+        "sd_backend_port",
+        "sd_backend_username",
+        "sd_backend_password",
+        "sd_template_dir",
+        "consul_token",
+        "use_dogstatsd",
+        "dogstatsd_port",
+        "statsd_metric_namespace",
+        "log_level",
+        "collector_log_file",
+        "log_to_syslog",
+        "log_to_event_viewer", // maybe deprecated, ignore for now
+        "syslog_host",
+        "syslog_port",
+        "collect_instance_metadata",
+        "listen_port",                // not for 6.0, ignore for now
+        "non_local_traffic",          // not for 6.0, ignore for now
+        "create_dd_check_tags",       // not for 6.0, ignore for now
+        "bind_host",                  // not for 6.0, ignore for now
+        "proxy_forbid_method_switch", // deprecated
+        "collect_orchestrator_tags",  // deprecated
+        "use_curl_http_client",       // deprecated
+        "dogstatsd_target",           // deprecated
+        "gce_updated_hostname",       // deprecated
+        "process_agent_enabled",
+        "disable_file_logging",
+        "enable_gohai",
+        // trace-agent specific
+        "extra_sample_rate",
+        "max_traces_per_second",
+        "receiver_port",
+        "connection_limit",
+        "resource",
+    }
 )
 
 // GetAgentConfig reads `datadog.conf` and returns a map that contains the same
 // values as the agentConfig dictionary returned by `get_config()` in config.py
 func GetAgentConfig(datadogConfPath string) (Config, error) {
-	config := make(map[string]string)
-	iniFile, err := ini.Load(datadogConfPath)
-	if err != nil {
-		return config, err
-	}
+    config := make(map[string]string)
+    iniFile, err := ini.Load(datadogConfPath)
+    if err != nil {
+        return config, err
+    }
 
-	// get the Main section
-	main, err := iniFile.GetSection("Main")
-	if err != nil {
-		return config, err
-	}
+    // get the Main section
+    main, err := iniFile.GetSection("Main")
+    if err != nil {
+        return config, err
+    }
 
-	// Grab the values needed to do a comparison of the Go vs Python algorithm.
-	for _, supportedValue := range supportedValues {
-		if value, err := main.GetKey(supportedValue); err == nil {
-			config[supportedValue] = value.String()
-		} else {
-			// provide an empty default value so we don't need to check for
-			// key existence when browsing the old configuration
-			config[supportedValue] = ""
-		}
-	}
+    // get the Trace Agent sections
+    // Its likely that most of these sections won't exist
+    traceSampler := iniFile.Section("trace.sampler")
+    traceReceiver := iniFile.Section("trace.receiver")
+    traceIgnore := iniFile.Section("trace.ignore")
 
-	// these are hardcoded in config.py
-	config["graphite_listen_port"] = "None"
-	config["watchdog"] = "True"
-	config["use_forwarder"] = "False" // this doesn't come from the config file
-	config["check_freq"] = "15"
-	config["utf8_decoding"] = "False"
-	config["ssl_certificate"] = "datadog-cert.pem"
-	config["use_web_info_page"] = "True"
+    // Grab the values needed to do a comparison of the Go vs Python algorithm.
+    for _, supportedValue := range supportedValues {
+        if value, err := main.GetKey(supportedValue); err == nil {
+            config[supportedValue] = value.String()
+        } else if value, err := traceSampler.GetKey(supportedValue); err == nil {
+            config[supportedValue] = value.String()
+        } else if value, err := traceReceiver.GetKey(supportedValue); err == nil {
+            config[supportedValue] = value.String()
+        } else if value, err := traceIgnore.GetKey(supportedValue); err == nil {
+            config[supportedValue] = value.String()
+        } else {
+            // provide an empty default value so we don't need to check for
+            // key existence when browsing the old configuration
+            config[supportedValue] = ""
+        }
+    }
 
-	// these values are postprocessed in config.py, manually overwrite them
-	config["histogram_percentiles"] = "['0.95']"
-	config["endpoints"] = "{}"
-	config["version"] = "5.18.0"
-	config["proxy_settings"] = "{'host': 'my-proxy.com', 'password': 'password', 'port': 3128, 'user': 'user'}"
-	config["service_discovery"] = "True"
+    // these are hardcoded in config.py
+    config["graphite_listen_port"] = "None"
+    config["watchdog"] = "True"
+    config["use_forwarder"] = "False" // this doesn't come from the config file
+    config["check_freq"] = "15"
+    config["utf8_decoding"] = "False"
+    config["ssl_certificate"] = "datadog-cert.pem"
+    config["use_web_info_page"] = "True"
 
-	return config, nil
+    // these values are postprocessed in config.py, manually overwrite them
+    config["histogram_percentiles"] = "['0.95']"
+    config["endpoints"] = "{}"
+    config["version"] = "5.18.0"
+    config["proxy_settings"] = "{'host': 'my-proxy.com', 'password': 'password', 'port': 3128, 'user': 'user'}"
+    config["service_discovery"] = "True"
+
+    return config, nil
 }
+
