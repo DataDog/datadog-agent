@@ -16,9 +16,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -111,6 +113,7 @@ type DefaultForwarder struct {
 	retryQueue          []Transaction
 	internalState       uint32
 	m                   sync.Mutex // To control Start/Stop races
+	health              *health.Handle
 	retryQueueLimit     int
 
 	// NumberOfWorkers Number of concurrent HTTP request made by the DefaultForwarder (default 4).
@@ -228,6 +231,9 @@ func (f *DefaultForwarder) Start() error {
 	}
 	log.Infof("DefaultForwarder started (%v workers), sending to %v endpoint(s): %s", f.NumberOfWorkers, len(endpointLogs), strings.Join(endpointLogs, " ; "))
 
+	f.health = health.Register("forwarder")
+	go f.healthCheckLoop()
+
 	return nil
 }
 
@@ -250,6 +256,7 @@ func (f *DefaultForwarder) Stop() {
 		return
 	}
 
+	f.health.Deregister()
 	f.internalState = Stopped
 
 	f.stopRetry <- true
@@ -262,6 +269,18 @@ func (f *DefaultForwarder) Stop() {
 	close(f.lowPrio)
 	close(f.requeuedTransaction)
 	log.Info("DefaultForwarder stopped")
+}
+
+func (f *DefaultForwarder) healthCheckLoop() {
+	for _ = range f.health.C {
+		// By ranging, we will exit the goroutine when the channel closes.
+		// If we dropped a transaction (full queue or invalid APIkey),
+		// we exit the loop and let the forwarder become unhealthy.
+		if transactionsExpvar.Get("Dropped") != nil {
+			log.Errorf("Detected dropped transations, reporting the forwarder as unhealthy.")
+			return
+		}
+	}
 }
 
 func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
