@@ -16,7 +16,7 @@ func NewTestSender() Sender {
 	return Sender{nil, nil, nil, nil, nil, &LengthPrefix}
 }
 
-func TestLengthPrefixDelimiter(t *testing.T) {
+func TestToFrame(t *testing.T) {
 
 	s := NewTestSender()
 
