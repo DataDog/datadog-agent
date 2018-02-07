@@ -61,14 +61,14 @@ var (
 		"dogstatsd_target",           // deprecated
 		"gce_updated_hostname",       // deprecated
 		"process_agent_enabled",
+		"disable_file_logging",
+		"enable_gohai",
 		// trace-agent specific
 		"extra_sample_rate",
 		"max_traces_per_second",
 		"receiver_port",
 		"connection_limit",
 		"resource",
-		"disable_file_logging",
-		"enable_gohai",
 	}
 )
 
@@ -87,9 +87,21 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 		return config, err
 	}
 
+	// get the Trace Agent sections
+	// Its likely that most of these sections won't exist
+	traceSampler := iniFile.Section("trace.sampler")
+	traceReceiver := iniFile.Section("trace.receiver")
+	traceIgnore := iniFile.Section("trace.ignore")
+
 	// Grab the values needed to do a comparison of the Go vs Python algorithm.
 	for _, supportedValue := range supportedValues {
 		if value, err := main.GetKey(supportedValue); err == nil {
+			config[supportedValue] = value.String()
+		} else if value, err := traceSampler.GetKey(supportedValue); err == nil {
+			config[supportedValue] = value.String()
+		} else if value, err := traceReceiver.GetKey(supportedValue); err == nil {
+			config[supportedValue] = value.String()
+		} else if value, err := traceIgnore.GetKey(supportedValue); err == nil {
 			config[supportedValue] = value.String()
 		} else {
 			// provide an empty default value so we don't need to check for

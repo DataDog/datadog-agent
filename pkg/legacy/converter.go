@@ -112,6 +112,13 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("enable_gohai", enabled)
 	}
 
+	//Set the Trace based configs
+	config.Datadog.Set("trace_config.env", agentConfig["env"])
+	config.Datadog.Set("trace_config.max_traces_per_second", agentConfig["max_traces_per_second"])
+	config.Datadog.Set("trace_config.extra_sample_rate", agentConfig["extra_sample_rate"])
+	config.Datadog.Set("trace_config.connection_limit", agentConfig["connection_limit"])
+	config.Datadog.Set("trace_config.receiver_port", agentConfig["receiver_port"])
+	config.Datadog.Set("trace_config.ignore_resource", agentConfig["resource"])
 	return nil
 }
 
