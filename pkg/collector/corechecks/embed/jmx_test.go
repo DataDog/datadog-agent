@@ -11,11 +11,15 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestReadJMXConf(t *testing.T) {
-	check := new(JMXCheck)
+	check := &JMXCheck{
+		runner: &jmxfetch.JMXFetch{},
+	}
 
 	// Test for no instances in jmx check conf file
 	initConfYaml := []byte("")
@@ -29,15 +33,15 @@ func TestReadJMXConf(t *testing.T) {
 	initConfYaml = []byte(" tools_jar_path: some/path")
 	err = check.Configure(instanceConfYaml, initConfYaml)
 	assert.Nil(t, err)
-	assert.Equal(t, check.javaToolsJarPath, "some/path")
+	assert.Equal(t, check.runner.JavaToolsJarPath, "some/path")
 
 	// Test options precedence
-	check.javaToolsJarPath = ""
+	check.runner.JavaToolsJarPath = ""
 	instanceConfYaml = []byte("jmx_url: foo\n" +
 		"tools_jar_path: some/other/path")
 	err = check.Configure(instanceConfYaml, initConfYaml)
 	assert.Nil(t, err)
-	assert.Equal(t, check.javaToolsJarPath, "some/other/path")
+	assert.Equal(t, check.runner.JavaToolsJarPath, "some/other/path")
 
 	// Test jar paths
 	initConfYaml = []byte("custom_jar_paths:\n" +
@@ -45,30 +49,30 @@ func TestReadJMXConf(t *testing.T) {
 		"  - bar/\n")
 	err = check.Configure(instanceConfYaml, initConfYaml)
 	assert.Nil(t, err)
-	assert.Equal(t, len(check.javaCustomJarPaths), 2)
-	assert.Contains(t, check.javaCustomJarPaths, "foo/")
-	assert.Contains(t, check.javaCustomJarPaths, "bar/")
+	assert.Equal(t, len(check.runner.JavaCustomJarPaths), 2)
+	assert.Contains(t, check.runner.JavaCustomJarPaths, "foo/")
+	assert.Contains(t, check.runner.JavaCustomJarPaths, "bar/")
 
 	// Test java options
 	instanceConfYaml = []byte("java_options: -Xmx200 -Xms40\n")
 	err = check.Configure(instanceConfYaml, initConfYaml)
 	assert.Nil(t, err)
-	assert.Equal(t, check.javaOptions, "-Xmx200 -Xms40")
+	assert.Equal(t, check.runner.JavaOptions, "-Xmx200 -Xms40")
 
 	// Test java bin options
 	instanceConfYaml = []byte("java_bin_path: /usr/local/java8/bin/java\n")
 	err = check.Configure(instanceConfYaml, initConfYaml)
 	assert.Nil(t, err)
-	assert.Equal(t, check.javaBinPath, "/usr/local/java8/bin/java")
+	assert.Equal(t, check.runner.JavaBinPath, "/usr/local/java8/bin/java")
 
 	// Once an option is set, it's set - further changes will not be enforced
 	instanceConfYaml = []byte("java_bin_path: /opt/java/bin/java\n")
 	err = check.Configure(instanceConfYaml, initConfYaml)
 	assert.Nil(t, err)
-	assert.Equal(t, check.javaBinPath, "/usr/local/java8/bin/java")
+	assert.Equal(t, check.runner.JavaBinPath, "/usr/local/java8/bin/java")
 
 	// Test process regex with no tools - should fail
-	check.javaToolsJarPath = ""
+	check.runner.JavaToolsJarPath = ""
 	instanceConfYaml = []byte("process_name_regex: regex\n")
 	err = check.Configure(instanceConfYaml, initConfYaml)
 	assert.EqualError(t, err, fmt.Sprintf("You must specify the path to tools.jar. %s", linkToDoc))
@@ -80,11 +84,11 @@ func TestReadJMXConf(t *testing.T) {
 	assert.True(t, check.isAttachAPI)
 
 	// Configurations "pile" up
-	assert.Equal(t, check.javaToolsJarPath, "some/other/path")
-	assert.Equal(t, check.javaBinPath, "/usr/local/java8/bin/java")
-	assert.Equal(t, check.javaOptions, "-Xmx200 -Xms40")
-	assert.Equal(t, len(check.javaCustomJarPaths), 2)
-	assert.Contains(t, check.javaCustomJarPaths, "foo/")
-	assert.Contains(t, check.javaCustomJarPaths, "bar/")
+	assert.Equal(t, check.runner.JavaToolsJarPath, "some/other/path")
+	assert.Equal(t, check.runner.JavaBinPath, "/usr/local/java8/bin/java")
+	assert.Equal(t, check.runner.JavaOptions, "-Xmx200 -Xms40")
+	assert.Equal(t, len(check.runner.JavaCustomJarPaths), 2)
+	assert.Contains(t, check.runner.JavaCustomJarPaths, "foo/")
+	assert.Contains(t, check.runner.JavaCustomJarPaths, "bar/")
 	assert.True(t, check.isAttachAPI)
 }
