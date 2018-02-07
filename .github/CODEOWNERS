@@ -24,6 +24,7 @@
 /Dockerfiles/                           @DataDog/kenafeh
 /pkg/collector/autodiscovery/           @DataDog/kenafeh @DataDog/croissant
 /pkg/collector/corechecks/containers/   @DataDog/kenafeh
+/pkg/collector/corechecks/cluster/      @DataDog/kenafeh
 /pkg/collector/listeners/docker*        @DataDog/kenafeh
 /pkg/tagger/                            @DataDog/kenafeh
 /pkg/util/docker/                       @DataDog/kenafeh @DataDog/burrito

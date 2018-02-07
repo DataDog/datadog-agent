@@ -52,6 +52,12 @@ func TestGetAgentConfig(t *testing.T) {
 		}
 
 		goValue, found := agentConfigGo[keyStr]
+		// histogram_aggregates value was converted from string to list
+		// of strings in Agent6.
+		if keyStr == "histogram_aggregates" {
+			goValue = "['max', 'median', 'avg', 'count']"
+		}
+
 		if valueStr != goValue {
 			t.Log(keyStr)
 		}

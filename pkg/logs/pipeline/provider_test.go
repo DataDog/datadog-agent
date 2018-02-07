@@ -20,7 +20,7 @@ type ProviderTestSuite struct {
 func (suite *ProviderTestSuite) SetupTest() {
 	suite.p = &provider{
 		numberOfPipelines: 3,
-		chanSizes:         10,
+		chanSize:          10,
 		pipelinesChans:    [](chan message.Message){},
 		currentChanIdx:    0,
 	}

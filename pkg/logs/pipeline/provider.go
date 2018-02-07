@@ -22,19 +22,19 @@ type Provider interface {
 
 // provider implements providing logic
 type provider struct {
-	numberOfPipelines int32
-	chanSizes         int
 	pipelinesChans    [](chan message.Message)
-
-	currentChanIdx int32
+	chanSize          int
+	numberOfPipelines int32
+	currentChanIdx    int32
+	config            config.Config
 }
 
 // NewProvider returns a new Provider
-func NewProvider() Provider {
+func NewProvider(config *config.Config) Provider {
 	return &provider{
-		numberOfPipelines: config.NumberOfPipelines,
-		chanSizes:         config.ChanSizes,
 		pipelinesChans:    [](chan message.Message){},
+		chanSize:          config.GetChanSize(),
+		numberOfPipelines: int32(config.GetNumberOfPipelines()),
 		currentChanIdx:    0,
 	}
 }
@@ -44,7 +44,7 @@ func (p *provider) Start(cm *sender.ConnectionManager, auditorChan chan message.
 
 	var encoder processor.Encoder
 	var delimiter sender.Delimiter
-	if config.LogsAgent.GetBool("dev_mode_use_proto") {
+	if p.config.GetDevModeNoSSL() {
 		encoder = &processor.Proto
 		delimiter = &sender.LengthPrefix
 	} else {
@@ -54,11 +54,11 @@ func (p *provider) Start(cm *sender.ConnectionManager, auditorChan chan message.
 
 	for i := int32(0); i < p.numberOfPipelines; i++ {
 
-		senderChan := make(chan message.Message, p.chanSizes)
+		senderChan := make(chan message.Message, p.chanSize)
 		f := sender.New(senderChan, auditorChan, cm, delimiter)
 		f.Start()
 
-		processorChan := make(chan message.Message, p.chanSizes)
+		processorChan := make(chan message.Message, p.chanSize)
 		pr := processor.New(processorChan, senderChan, encoder)
 		pr.Start()
 

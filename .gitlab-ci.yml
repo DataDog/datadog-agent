@@ -428,6 +428,7 @@ deploy_suse_rpm_testing:
 # run dd-agent-testing
 testkitchen_testing:
   stage: testkitchen_testing
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/dd-agent-testing:pipeline-189121
   only:
     - master

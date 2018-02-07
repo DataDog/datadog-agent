@@ -77,6 +77,7 @@ func init() {
 	Datadog.SetDefault("log_level", "info")
 	Datadog.SetDefault("log_to_syslog", false)
 	Datadog.SetDefault("log_to_console", true)
+	Datadog.SetDefault("logging_frequency", int64(20))
 	Datadog.SetDefault("disable_file_logging", false)
 	Datadog.SetDefault("syslog_uri", "")
 	Datadog.SetDefault("syslog_rfc", false)
@@ -179,19 +180,27 @@ func init() {
 	// APM
 	BindEnvAndSetDefault("apm_enabled", true) // this is to support the transition to the new config file
 
+	// JMXFetch
+	Datadog.SetDefault("jmx_custom_jars", []string{})
+
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
 	// Process Agent
 	BindEnvAndSetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
 
-	// Log Agent
-	Datadog.SetDefault("log_open_files_limit", 100)
-	Datadog.SetDefault("logging_frequency", int64(20))
-	BindEnvAndSetDefault("log_enabled", false)
+	// Logs Agent
+	BindEnvAndSetDefault("logs_enabled", false)
+	BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
 	BindEnvAndSetDefault("logset", "")
-	BindEnvAndSetDefault("log_dd_url", "intake.logs.datadoghq.com")
-	BindEnvAndSetDefault("log_dd_port", 10516)
-	BindEnvAndSetDefault("run_path", defaultRunPath)
+
+	Datadog.SetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")
+	Datadog.BindEnv("logs_config.dd_url", "DD_LOGS_CONFIG_DD_URL")
+
+	Datadog.SetDefault("logs_config.dd_port", 10516)
+	Datadog.BindEnv("logs_config.dd_port", "DD_LOGS_CONFIG_DD_PORT")
+
+	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
+	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
@@ -210,9 +219,12 @@ func init() {
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
 	Datadog.BindEnv("dogstatsd_origin_detection")
+	Datadog.BindEnv("jmx_custom_jars")
+
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
 	Datadog.BindEnv("log_to_console")
+
 	Datadog.BindEnv("kubernetes_kubelet_host")
 	Datadog.BindEnv("kubernetes_http_kubelet_port")
 	Datadog.BindEnv("kubernetes_https_kubelet_port")

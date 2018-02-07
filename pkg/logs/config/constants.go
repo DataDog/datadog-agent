@@ -5,12 +5,8 @@
 
 package config
 
+// Date and time format
 const (
-	// ChanSizes is the default size for channels.
-	ChanSizes = 100
-	// NumberOfPipelines is the number of message processing pipelines.
-	NumberOfPipelines = int32(4)
-	// DateFormat is the default date format.
 	DateFormat = "2006-01-02T15:04:05.000000000Z"
 	// StatusInfo is the default status for info messages.
 	StatusInfo = "info"
