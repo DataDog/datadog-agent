@@ -57,7 +57,7 @@ var (
 	}
 
 	checks   = []string{}
-	checkDir = "/opt/datadog-agent/etc/conf.d"
+	checkDir = "/etc/datadog-agent/conf.d"
 )
 
 func init() {
