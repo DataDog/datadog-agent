@@ -18,8 +18,8 @@ The following environment variables are supported:
 - `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: Set the collection frequency in seconds for the Kubernetes service names. 
 - `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
 - `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: Set the collection frequency in seconds for the Kubernetes service names.
-- `DD_LEADER_ELECTION`: Activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true.
-- `DD_LEADER_LEASE_DURATION`: Only used if the leader election is activated. See the details [here](#leader-election-lease).
+- `DD_LEADER_ELECTION`: Activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true. The expected value is a bool: true/false.
+- `DD_LEADER_LEASE_DURATION`: Only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
 
 Example usage: `docker run -e DD_API_KEY=your-api-key-here -it <image-name>`
 

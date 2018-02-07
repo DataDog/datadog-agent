@@ -105,7 +105,7 @@ func (c *APIClient) connect() error {
 	defer cancel()
 	version, err := c.client.Discovery().Version(ctx)
 	if err != nil {
-		log.Debugf("err for version is: %s ", err.Error())
+		log.Debugf("Cannot get the version: %s ", err)
 		return err
 	}
 

@@ -92,10 +92,10 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	if !leaderEngine.IsLeader() {
-		log.Debugf("Leader is %s. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName(), leaderEngine.HolderIdentity)
+		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName(), leaderEngine.HolderIdentity)
 		return nil
 	}
-	log.Tracef("%s is the Leader, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
+	log.Tracef("Currently Leader %q, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
 
 	asclient, err := apiserver.GetAPIClient()
 	if err != nil {
