@@ -26,6 +26,10 @@ func (h *MockLineHandler) Handle(content []byte) {
 	h.lineChan <- content
 }
 
+func (h *MockLineHandler) Start() {
+
+}
+
 func (h *MockLineHandler) Stop() {
 	close(h.lineChan)
 }

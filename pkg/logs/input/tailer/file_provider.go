@@ -72,7 +72,7 @@ func (p *FileProvider) FilesToTail() []*File {
 			if p.containsWildcard(pattern) {
 				log.Warnf("Could not find any file matching pattern %s, check that all its subdirectories are exectutable", pattern)
 			} else {
-				log.Warn("File %s does not exist", sourcePath)
+				log.Warnf("File %s does not exist", sourcePath)
 			}
 			continue
 		}
