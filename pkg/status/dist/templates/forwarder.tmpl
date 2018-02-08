@@ -6,6 +6,14 @@ Forwarder
   {{$key}}: {{$value}}
   {{- end }}
 {{- end}}
+{{- if .Transactions.DroppedOnInput }}
+
+  Dropped {{ .Transactions.DroppedOnInput }} transactions because of busy workers.
+{{- end}}
+{{- if .Transactions.Dropped }}
+
+  Dropped {{ .Transactions.Dropped }} transactions because of network errors.
+{{- end}}
 {{- if .APIKeyStatus }}
 
   API Keys status
