@@ -51,7 +51,13 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("default_integration_http_timeout", value)
 	}
 
-	// TODO: collect_ec2_tags
+	if enabled, err := isAffirmative(agentConfig["collect_ec2_tags"]); err == nil {
+		config.Datadog.Set("collect_ec2_tags", enabled)
+	}
+
+	if enabled, err := isAffirmative(agentConfig["collect_security_groups"]); err == nil {
+		config.Datadog.Set("collect_security_groups", enabled)
+	}
 
 	// config.Datadog has a default value for this, do nothing if the value is empty
 	if agentConfig["additional_checksd"] != "" {
