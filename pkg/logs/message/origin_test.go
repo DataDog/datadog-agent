@@ -13,20 +13,21 @@ import (
 )
 
 func TestSetTagsEmpty(t *testing.T) {
-	config := &config.LogsConfig{}
+	cfg := &config.LogsConfig{}
 	origin := NewOrigin()
-	origin.SetTags([]string{}, config)
+	origin.SetTags([]string{}, cfg)
 	assert.Equal(t, []string{}, origin.Tags())
 	assert.Equal(t, "-", string(origin.TagsPayload()))
 }
+
 func TestSetTags(t *testing.T) {
-	config := &config.LogsConfig{
+	cfg := &config.LogsConfig{
 		Source:         "a",
 		SourceCategory: "b",
 		Tags:           "c:d,e",
 	}
 	origin := NewOrigin()
-	origin.SetTags([]string{"foo:bar", "baz"}, config)
+	origin.SetTags([]string{"foo:bar", "baz"}, cfg)
 	assert.Equal(t, []string{"foo:bar", "baz", "source:a", "sourcecategory:b", "c:d", "e"}, origin.Tags())
 	assert.Equal(t, "[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"c:d,e,foo:bar,baz\"]", string(origin.TagsPayload()))
 }

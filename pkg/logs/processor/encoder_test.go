@@ -10,6 +10,8 @@ import (
 
 	"strings"
 
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/pb"
 	"github.com/stretchr/testify/assert"
@@ -38,8 +40,8 @@ func TestRawEncoder(t *testing.T) {
 	assert.Nil(t, err)
 
 	msg := string(raw)
-	parts := strings.Split(msg, " ")
-	assert.Equal(t, "<43>0", parts[0])
+	parts := strings.Fields(msg)
+	assert.Equal(t, string(config.SevError)+"0", parts[0])
 	assert.Equal(t, "Timestamp", parts[1])
 	assert.NotEmpty(t, parts[2])
 	assert.Equal(t, "Service", parts[3])
@@ -48,6 +50,52 @@ func TestRawEncoder(t *testing.T) {
 	extra := msg[strings.Index(msg, "[") : strings.LastIndex(msg, "]")+1]
 	assert.Equal(t, "[dd ddsource=\"Source\"][dd ddsourcecategory=\"SourceCategory\"][dd ddtags=\"foo:bar,baz,a,b:c\"]", extra)
 	assert.Equal(t, "redacted", msg[strings.LastIndex(msg, " ")+1:])
+
+}
+
+func TestRawEncoderDefaults(t *testing.T) {
+
+	logsConfig := &config.LogsConfig{}
+
+	source := config.NewLogSource("", logsConfig)
+
+	rawMessage := "a"
+	message := newNetworkMessage([]byte(rawMessage), source)
+
+	redactedMessage := "a"
+
+	raw, err := Raw.encode(message, []byte(redactedMessage))
+	assert.Nil(t, err)
+
+	day := time.Now().UTC().Format("2006-01-02")
+
+	msg := string(raw)
+	parts := strings.Fields(msg)
+	assert.Equal(t, 7, len(parts))
+	assert.Equal(t, string(config.SevInfo)+"0", parts[0])
+	assert.Equal(t, day, parts[1][:len(day)])
+	assert.NotEmpty(t, parts[2])
+	assert.Equal(t, "-", parts[3])
+	assert.Equal(t, "-", parts[4])
+	assert.Equal(t, "-", parts[5])
+	assert.Equal(t, "a", parts[6])
+
+}
+
+func TestRawEncoderEmpty(t *testing.T) {
+
+	logsConfig := &config.LogsConfig{}
+
+	source := config.NewLogSource("", logsConfig)
+
+	rawMessage := ""
+	message := newNetworkMessage([]byte(rawMessage), source)
+
+	redactedMessage := "foo"
+
+	raw, err := Raw.encode(message, []byte(redactedMessage))
+	assert.Nil(t, err)
+	assert.Equal(t, redactedMessage, string(raw))
 
 }
 
