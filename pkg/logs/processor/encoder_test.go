@@ -17,6 +17,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNewEncoder(t *testing.T) {
+	assert.Equal(t, &protoEncoder, NewEncoder(true))
+	assert.Equal(t, &rawEncoder, NewEncoder(false))
+}
+
 func TestRawEncoder(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{
@@ -36,7 +41,7 @@ func TestRawEncoder(t *testing.T) {
 
 	redactedMessage := "redacted"
 
-	raw, err := Raw.encode(message, []byte(redactedMessage))
+	raw, err := rawEncoder.encode(message, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	msg := string(raw)
@@ -64,7 +69,7 @@ func TestRawEncoderDefaults(t *testing.T) {
 
 	redactedMessage := "a"
 
-	raw, err := Raw.encode(message, []byte(redactedMessage))
+	raw, err := rawEncoder.encode(message, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	day := time.Now().UTC().Format("2006-01-02")
@@ -93,17 +98,17 @@ func TestRawEncoderEmpty(t *testing.T) {
 
 	redactedMessage := "foo"
 
-	raw, err := Raw.encode(message, []byte(redactedMessage))
+	raw, err := rawEncoder.encode(message, []byte(redactedMessage))
 	assert.Nil(t, err)
 	assert.Equal(t, redactedMessage, string(raw))
 
 }
 
 func TestIsRFC5424Formatted(t *testing.T) {
-	assert.False(t, Raw.isRFC5424Formatted([]byte("<- test message ->")))
-	assert.False(t, Raw.isRFC5424Formatted([]byte("- test message ->")))
-	assert.False(t, Raw.isRFC5424Formatted([]byte("<46> the rest of the message")))
-	assert.True(t, Raw.isRFC5424Formatted([]byte("<46>0 the rest of the message")))
+	assert.False(t, rawEncoder.isRFC5424Formatted([]byte("<- test message ->")))
+	assert.False(t, rawEncoder.isRFC5424Formatted([]byte("- test message ->")))
+	assert.False(t, rawEncoder.isRFC5424Formatted([]byte("<46> the rest of the message")))
+	assert.True(t, rawEncoder.isRFC5424Formatted([]byte("<46>0 the rest of the message")))
 }
 
 func TestProtoEncoder(t *testing.T) {
@@ -125,7 +130,7 @@ func TestProtoEncoder(t *testing.T) {
 
 	redactedMessage := "redacted"
 
-	proto, err := Proto.encode(message, []byte(redactedMessage))
+	proto, err := protoEncoder.encode(message, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	log := &pb.Log{}
@@ -155,7 +160,7 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 	redactedMessage := ""
 
-	raw, err := Proto.encode(message, []byte(redactedMessage))
+	raw, err := protoEncoder.encode(message, []byte(redactedMessage))
 	assert.Nil(t, err)
 
 	log := &pb.Log{}

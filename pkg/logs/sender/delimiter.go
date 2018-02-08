@@ -15,6 +15,14 @@ type Delimiter interface {
 	delimit(content []byte) ([]byte, error)
 }
 
+// NewDelimiter returns a delimiter.
+func NewDelimiter(useProto bool) Delimiter {
+	if useProto {
+		return &lengthPrefix
+	}
+	return &lineBreak
+}
+
 // LengthPrefix is a delimiter that prepends the length of each message as an unsigned 32-bit integer, encoded in
 // binary (big-endian).
 //
@@ -24,11 +32,13 @@ type Delimiter interface {
 // | Raw Data      |-------------->| Length | Raw Data      |
 // |  (300 bytes)  |               | 0xAC02 |  (300 bytes)  |
 // +---------------+               +--------+---------------+
-var LengthPrefix lengthPrefix
+var lengthPrefix lengthPrefixDelimiter
 
-type lengthPrefix struct{}
+type lengthPrefixDelimiter struct {
+	Delimiter
+}
 
-func (l *lengthPrefix) delimit(content []byte) ([]byte, error) {
+func (l *lengthPrefixDelimiter) delimit(content []byte) ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, 32))
 	length := uint32(len(content))
 	// Use big-endian to respect network byte order
@@ -48,10 +58,12 @@ func (l *lengthPrefix) delimit(content []byte) ([]byte, error) {
 // | Raw Data      |-------------->| Raw Data      | Line Break |
 // |  (300 bytes)  |               |  (300 bytes)  | 0x0A       |
 // +---------------+               +---------------+------------+
-var LineBreak lineBreak
+var lineBreak lineBreakDelimiter
 
-type lineBreak struct{}
+type lineBreakDelimiter struct {
+	Delimiter
+}
 
-func (l *lineBreak) delimit(content []byte) ([]byte, error) {
+func (l *lineBreakDelimiter) delimit(content []byte) ([]byte, error) {
 	return append(content, '\n'), nil
 }

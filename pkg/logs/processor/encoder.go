@@ -7,8 +7,9 @@ package processor
 
 import (
 	"bytes"
-	"regexp"
 	"time"
+
+	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -22,10 +23,18 @@ type Encoder interface {
 }
 
 // Raw is an encoder implementation that writes messages as raw strings.
-var Raw raw
+var rawEncoder raw
 
 // Proto is an encoder implementation that writes messages as protocol buffers.
-var Proto proto
+var protoEncoder proto
+
+// NewEncoder returns an encoder.
+func NewEncoder(useProto bool) Encoder {
+	if useProto {
+		return &protoEncoder
+	}
+	return &rawEncoder
+}
 
 var rfc5424Pattern, _ = regexp.Compile("<[0-9]{1,3}>[0-9] ")
 

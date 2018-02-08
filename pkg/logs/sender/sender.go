@@ -6,10 +6,8 @@
 package sender
 
 import (
-	"fmt"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	log "github.com/cihub/seelog"
 )
@@ -17,24 +15,22 @@ import (
 // A Sender sends messages from an inputChan to datadog's intake,
 // handling connections and retries.
 type Sender struct {
-	inputChan      chan message.Message
-	outputChan     chan message.Message
-	connManager    *ConnectionManager
-	conn           net.Conn
-	framePrefix    []byte
-	frameDelimiter Delimiter
-	done           chan struct{}
+	inputChan   chan message.Message
+	outputChan  chan message.Message
+	connManager *ConnectionManager
+	conn        net.Conn
+	delimiter   Delimiter
+	done        chan struct{}
 }
 
 // New returns an initialized Sender
-func New(inputChan, outputChan chan message.Message, connManager *ConnectionManager, frameDelimiter Delimiter) *Sender {
+func New(inputChan, outputChan chan message.Message, connManager *ConnectionManager, delimiter Delimiter) *Sender {
 	return &Sender{
-		inputChan:      inputChan,
-		outputChan:     outputChan,
-		connManager:    connManager,
-		framePrefix:    getFramePrefix(),
-		frameDelimiter: frameDelimiter,
-		done:           make(chan struct{}),
+		inputChan:   inputChan,
+		outputChan:  outputChan,
+		connManager: connManager,
+		delimiter:   delimiter,
+		done:        make(chan struct{}),
 	}
 }
 
@@ -66,7 +62,7 @@ func (s *Sender) wireMessage(payload message.Message) {
 		if s.conn == nil {
 			s.conn = s.connManager.NewConnection() // blocks until a new conn is ready
 		}
-		frame, err := s.toFrame(payload.Content())
+		frame, err := s.delimiter.delimit(payload.Content())
 		if err != nil {
 			log.Error("can't send payload: ", payload, err)
 			continue
@@ -80,21 +76,4 @@ func (s *Sender) wireMessage(payload message.Message) {
 		s.outputChan <- payload
 		return
 	}
-}
-
-func (s *Sender) toFrame(content []byte) ([]byte, error) {
-	// Prefix the content with the API key
-	payload := append(s.framePrefix, content...)
-	// As we write into a raw socket, add a delimiter to mark subsequent frames
-	return s.frameDelimiter.delimit(payload)
-}
-
-// getFramePrefix returns an API key that is prepended to each message sent to check is authenticity.
-func getFramePrefix() []byte {
-	apikey := config.LogsAgent.GetString("api_key")
-	logset := config.LogsAgent.GetString("logset") // TODO Logset is deprecated and should be removed eventually.
-	if logset != "" {
-		apikey = fmt.Sprintf("%s/%s", apikey, logset)
-	}
-	return append([]byte(apikey), ' ')
 }

@@ -12,7 +12,7 @@ const (
 )
 
 const (
-	// Date and time format
+	// DateFormat is the default date format.
 	DateFormat = "2006-01-02T15:04:05.000000000Z"
 	// StatusInfo is the default status for info messages.
 	StatusInfo = "info"
