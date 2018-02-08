@@ -11,7 +11,6 @@ WORKDIR /output
 ENV S6_VERSION v1.21.2.2
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz /output/s6.tgz
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz.sig /tmp/s6.tgz.sig
-ADD s6-overlay-key.asc /tmp/s6-overlay-key.asc
 RUN apt-get update \
  && apt-get install --no-install-recommends -y gpg curl ca-certificates \
  && curl https://keybase.io/justcontainers/key.asc | gpg --import \
