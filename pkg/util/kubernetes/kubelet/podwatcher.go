@@ -59,10 +59,14 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 	w.Lock()
 	defer w.Unlock()
 	for _, pod := range podList {
-		// Only process a ready pod
+		// Only process ready pods
 		if IsPodReady(pod) == false {
 			continue
 		}
+
+		// Refresh last pod seen time
+		w.lastSeen[PodUIDToEntityName(pod.Metadata.UID)] = now
+
 		// Detect new containers
 		newContainer := false
 		for _, container := range pod.Status.Containers {
@@ -79,10 +83,12 @@ func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 	return updatedPods, nil
 }
 
-// ExpireContainers returns a list of container id for containers
+// Expire returns a list of entities (containers and pods)
 // that are not listed in the podlist anymore. It must be called
 // immediately after a PullChanges.
-func (w *PodWatcher) ExpireContainers() ([]string, error) {
+// For containers, string is kubernetes container ID (with runtime name)
+// For pods, string is "kubernetes_pod://uid" format
+func (w *PodWatcher) Expire() ([]string, error) {
 	now := time.Now()
 	w.Lock()
 	defer w.Unlock()

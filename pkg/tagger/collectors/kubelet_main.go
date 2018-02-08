@@ -68,7 +68,7 @@ func (c *KubeletCollector) Pull() error {
 	}
 
 	// Compute deleted pods
-	expireList, err := c.watcher.ExpireContainers()
+	expireList, err := c.watcher.Expire()
 	if err != nil {
 		return err
 	}

@@ -7,6 +7,7 @@ package kubelet
 
 import (
 	"errors"
+	"fmt"
 )
 
 var (
@@ -17,3 +18,11 @@ var (
 	// KubePodPrefix is the entity prefix for Kubernetes pods
 	KubePodPrefix = "kubernetes_pod://"
 )
+
+// PodUIDToEntityName returns a prefixed entity name from a pod UID
+func PodUIDToEntityName(uid string) string {
+	if uid == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s%s", KubePodPrefix, uid)
+}
