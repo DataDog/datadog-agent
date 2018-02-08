@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/integration/utils"
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +30,9 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/leaderelection"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
 const setupTimeout = time.Second * 10
@@ -168,7 +169,7 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 		assert.Equal(suite.T(), actualLeader.HolderIdentity, testCase.leaderEngine.CurrentLeaderName())
 	}
 
-	client, err := leaderelection.GetClient()
+	client, err := apiserver.GetCoreV1Client()
 	require.Nil(suite.T(), err)
 	epList, err := client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
 	require.Nil(suite.T(), err)

@@ -12,12 +12,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	log "github.com/cihub/seelog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/leaderelection"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -121,7 +120,7 @@ func (le *LeaderEngine) init() error {
 	le.LeaseDuration = globalLeaderLeaseDuration
 	log.Debugf("LeaderLeaseDuration is %s", globalLeaderLeaseDuration.String())
 
-	le.coreClient, err = GetClient()
+	le.coreClient, err = apiserver.GetCoreV1Client()
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err)
 		return err
@@ -171,33 +170,6 @@ func (le *LeaderEngine) EnsureLeaderElectionRuns() error {
 			return fmt.Errorf("leader election still not running, timeout after %s", timeoutDuration.String())
 		}
 	}
-}
-
-// GetClient returns an official Kubernetes core v1 client
-func GetClient() (*corev1.CoreV1Client, error) {
-	var k8sConfig *rest.Config
-	var err error
-
-	cfgPath := config.Datadog.GetString("kubernetes_kubeconfig_path")
-	if cfgPath == "" {
-		k8sConfig, err = rest.InClusterConfig()
-		if err != nil {
-			log.Debug("Can't create a config for the official client from the service account's token: %s", err)
-			return nil, err
-		}
-	} else {
-		// use the current context in kubeconfig
-		k8sConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
-		if err != nil {
-			log.Debug("Can't create a config for the official client from the configured path to the kubeconfig: %s, ", cfgPath, err)
-			return nil, err
-		}
-	}
-
-	k8sConfig.Timeout = clientTimeout
-	coreClient, err := corev1.NewForConfig(k8sConfig)
-
-	return coreClient, err
 }
 
 // CurrentLeaderName is the main interface that can be called to fetch the name of the current leader.
