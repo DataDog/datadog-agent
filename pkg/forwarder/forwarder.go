@@ -272,12 +272,31 @@ func (f *DefaultForwarder) Stop() {
 }
 
 func (f *DefaultForwarder) healthCheckLoop() {
-	for _ = range f.health.C {
+	log.Debug("Waiting for APIkey validity to be confirmed.")
+	// Wait until we confirmed we have one valid APIkey to become healthy
+	waitTicker := time.NewTicker(time.Second)
+	validKey := false
+	for range waitTicker.C {
+		apiKeyStatus.Do(func(entry expvar.KeyValue) {
+			if entry.Value == &apiKeyValid {
+				validKey = true
+			}
+		})
+		if validKey {
+			break
+		}
+	}
+	waitTicker.Stop()
+
+	log.Debug("APIkey is valid, forwarder is healthy.")
+
+	// Once we're healthy, make sure we don't drop packets
+	for range f.health.C {
 		// By ranging, we will exit the goroutine when the channel closes.
 		// If we dropped a transaction (full queue or invalid APIkey),
 		// we exit the loop and let the forwarder become unhealthy.
 		if transactionsExpvar.Get("Dropped") != nil {
-			log.Errorf("Detected dropped transations, reporting the forwarder as unhealthy.")
+			log.Errorf("Detected dropped transaction, reporting the forwarder as unhealthy.")
 			return
 		}
 	}
