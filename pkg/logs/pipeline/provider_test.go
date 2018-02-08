@@ -8,6 +8,7 @@ package pipeline
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/suite"
 )
@@ -23,6 +24,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		chanSize:          10,
 		pipelinesChans:    [](chan message.Message){},
 		currentChanIdx:    0,
+		config:            &config.Config{},
 	}
 }
 
