@@ -97,7 +97,7 @@ func build(config *viper.Viper, logSources *LogSources) *Config {
 		openFilesLimit:    config.GetInt("logs_config.open_files_limit"),
 		devModeNoSSL:      config.GetBool("logs_config.dev_mode_no_ssl"),
 		logsSources:       logSources,
-		numberOfPipelines: defaultNumberOfPipelines,
-		chanSize:          defaultChanSize,
+		numberOfPipelines: 4,
+		chanSize:          4,
 	}
 }
