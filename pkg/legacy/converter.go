@@ -83,7 +83,7 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("dogstatsd_port", value)
 	}
 
-	// TODO: statsd_metric_namespace
+	config.Datadog.Set("statsd_metric_namespace", agentConfig["statsd_metric_namespace"])
 
 	// config.Datadog has a default value for this, do nothing if the value is empty
 	if agentConfig["log_level"] != "" {

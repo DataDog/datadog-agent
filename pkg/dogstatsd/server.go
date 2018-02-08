@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"strings"
 	"sync"
 
 	log "github.com/cihub/seelog"
@@ -30,13 +31,14 @@ var (
 // Server represent a Dogstatsd server
 type Server struct {
 	sync.RWMutex
-	listeners  []listeners.StatsdListener
-	packetIn   chan *listeners.Packet
-	Statistics *util.Stats
-	Started    bool
-	packetPool *listeners.PacketPool
-	stopChan   chan bool
-	health     *health.Handle
+	listeners    []listeners.StatsdListener
+	packetIn     chan *listeners.Packet
+	Statistics   *util.Stats
+	Started      bool
+	packetPool   *listeners.PacketPool
+	stopChan     chan bool
+	health       *health.Handle
+	metricPrefix string
 }
 
 // NewServer returns a running Dogstatsd server
@@ -77,14 +79,21 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		return nil, fmt.Errorf("listening on neither udp nor socket, please check your configuration")
 	}
 
+	// check configuration for custom namespace
+	metricPrefix := config.Datadog.GetString("statsd_metric_namespace")
+	if metricPrefix != "" && !strings.HasSuffix(metricPrefix, ".") {
+		metricPrefix = metricPrefix + "."
+	}
+
 	s := &Server{
-		Started:    true,
-		Statistics: stats,
-		packetIn:   packetChannel,
-		listeners:  tmpListeners,
-		packetPool: packetPool,
-		stopChan:   make(chan bool),
-		health:     health.Register("dogstatsd-main"),
+		Started:      true,
+		Statistics:   stats,
+		packetIn:     packetChannel,
+		listeners:    tmpListeners,
+		packetPool:   packetPool,
+		stopChan:     make(chan bool),
+		health:       health.Register("dogstatsd-main"),
+		metricPrefix: metricPrefix,
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -206,7 +215,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 					dogstatsdExpvar.Add("EventPackets", 1)
 					eventOut <- *event
 				} else {
-					sample, err := parseMetricMessage(message)
+					sample, err := parseMetricMessage(message, s.metricPrefix)
 					if err != nil {
 						log.Errorf("Dogstatsd: error parsing metrics: %s", err)
 						dogstatsdExpvar.Add("MetricParseErrors", 1)

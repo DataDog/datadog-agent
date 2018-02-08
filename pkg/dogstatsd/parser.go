@@ -231,7 +231,7 @@ func parseEventMessage(message []byte) (*metrics.Event, error) {
 	return &event, nil
 }
 
-func parseMetricMessage(message []byte) (*metrics.MetricSample, error) {
+func parseMetricMessage(message []byte, namespace string) (*metrics.MetricSample, error) {
 	// daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2
 	// daemon:666|g|@0.1|#sometag:somevalue"
 
@@ -243,7 +243,6 @@ func parseMetricMessage(message []byte) (*metrics.MetricSample, error) {
 	// Extract name, value and type
 	rawNameAndValue, remainder := nextField(message, fieldSeparator)
 	rawName, rawValue := nextField(rawNameAndValue, valueSeparator)
-
 	if rawValue == nil {
 		return nil, fmt.Errorf("invalid field format for %q", message)
 	}
@@ -278,7 +277,7 @@ func parseMetricMessage(message []byte) (*metrics.MetricSample, error) {
 		}
 	}
 
-	metricName := string(rawName)
+	metricName := namespace + string(rawName)
 
 	metricType, ok := metricTypes[string(rawType)]
 	if !ok {
