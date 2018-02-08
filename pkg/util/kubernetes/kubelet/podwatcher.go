@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -100,9 +101,13 @@ func (w *PodWatcher) ExpireContainers() ([]string, error) {
 	return expiredContainers, nil
 }
 
-// GetPodForContainerID fetches the podlist and returns the pod running
-// a given container on the node. Returns a nil pointer if not found.
-// It just proxies the call to its kubeutil.
-func (w *PodWatcher) GetPodForContainerID(containerID string) (*Pod, error) {
-	return w.kubeUtil.GetPodForContainerID(containerID)
+// GetPodForEntityID finds the pod corresponding to an entity.
+// EntityIDs can be Docker container IDs or pod UIDs (prefixed).
+// Returns a nil pointer if not found.
+func (w *PodWatcher) GetPodForEntityID(entityID string) (*Pod, error) {
+	if strings.HasPrefix(entityID, KubePodPrefix) {
+		uid := strings.TrimPrefix(entityID, KubePodPrefix)
+		return w.kubeUtil.GetPodFromUID(uid)
+	}
+	return w.kubeUtil.GetPodForContainerID(entityID)
 }

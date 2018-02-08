@@ -213,6 +213,33 @@ func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) 
 	return nil, fmt.Errorf("container %s not found in podList", containerID)
 }
 
+func (ku *KubeUtil) GetPodFromUID(podUID string) (*Pod, error) {
+	if podUID == "" {
+		return nil, errors.New("pod UID is empty")
+	}
+	pods, err := ku.GetLocalPodList()
+	if err != nil {
+		return nil, err
+	}
+	for _, pod := range pods {
+		if pod.Metadata.UID == podUID {
+			return pod, nil
+		}
+	}
+	log.Debugf("cannot get the pod uid %q: %s, retrying without cache...", podUID, err)
+
+	pods, err = ku.ForceGetLocalPodList()
+	if err != nil {
+		return nil, err
+	}
+	for _, pod := range pods {
+		if pod.Metadata.UID == podUID {
+			return pod, nil
+		}
+	}
+	return nil, fmt.Errorf("uid %s not found in pod list", podUID)
+}
+
 // setupKubeletApiClient will try to setup the http(s) client to query the kubelet
 // with the following settings, in order:
 //  - Load Certificate Authority if needed
