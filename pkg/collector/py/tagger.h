@@ -3,10 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build cpython,!kubelet
+// +build cpython
 
-package py
+#ifndef TAGGER_HEADER
+#define TAGGER_HEADER
 
-// Stub
-func initKubeutil() {
-}
+#include <Python.h>
+
+void inittagger();
+
+#endif /* TAGGER_HEADER */
