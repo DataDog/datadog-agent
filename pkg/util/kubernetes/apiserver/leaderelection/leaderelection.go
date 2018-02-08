@@ -30,9 +30,7 @@ const (
 )
 
 var (
-	globalHolderIdentity      string
-	globalLeaderEngine        *LeaderEngine
-	globalLeaderLeaseDuration = 0 * time.Second
+	globalLeaderEngine *LeaderEngine
 )
 
 // LeaderEngine is a structure for the LeaderEngine client to run leader election
@@ -64,22 +62,17 @@ func ResetGlobalLeaderEngine() {
 	globalLeaderEngine = nil
 }
 
-// SetLeaderLeaseDuration is a helper to set the current LeaderLeaseDuration global
-// It is ONLY to be used for tests
-func SetLeaderLeaseDuration(ttl time.Duration) {
-	globalLeaderLeaseDuration = ttl
-}
-
-// SetHolderIdentify is a helper to set the current holderIdentify global
-// It is ONLY to be used for tests
-func SetHolderIdentify(holderIdentity string) {
-	globalHolderIdentity = holderIdentity
-}
-
-// GetLeaderEngine returns the leader engine client
+// GetLeaderEngine returns a leader engine client with default parameters.
 func GetLeaderEngine() (*LeaderEngine, error) {
+	return GetCustomLeaderEngine("", defaultLeaderLeaseDuration)
+}
+
+// GetCustomLeaderEngine wraps GetLeaderEngine for testing purposes.
+func GetCustomLeaderEngine(holderIdentity string, ttl time.Duration) (*LeaderEngine, error) {
 	if globalLeaderEngine == nil {
 		globalLeaderEngine = newLeaderEngine()
+		globalLeaderEngine.HolderIdentity = holderIdentity
+		globalLeaderEngine.LeaseDuration = ttl
 		globalLeaderEngine.initRetry.SetupRetrier(&retry.Config{
 			Name:          "leaderElection",
 			AttemptMethod: globalLeaderEngine.init,
@@ -99,26 +92,24 @@ func GetLeaderEngine() (*LeaderEngine, error) {
 func (le *LeaderEngine) init() error {
 	var err error
 
-	if globalHolderIdentity == "" {
-		globalHolderIdentity, err = os.Hostname()
+	if le.HolderIdentity == "" {
+		le.HolderIdentity, err = os.Hostname()
 		if err != nil {
 			log.Debugf("cannot get hostname: %s", err)
 			return err
 		}
 	}
-	le.HolderIdentity = globalHolderIdentity
-	log.Debugf("HolderIdentity is %q", globalHolderIdentity)
+	log.Debugf("HolderIdentity is %q", le.HolderIdentity)
 
 	leaseDuration := config.Datadog.GetInt("leader_lease_duration")
 	if leaseDuration != 0 {
-		globalLeaderLeaseDuration = time.Duration(leaseDuration) * time.Second
+		le.LeaseDuration = time.Duration(leaseDuration) * time.Second
 	}
 
-	if globalLeaderLeaseDuration == 0 {
-		globalLeaderLeaseDuration = defaultLeaderLeaseDuration
+	if le.LeaseDuration == 0 {
+		le.LeaseDuration = defaultLeaderLeaseDuration
 	}
-	le.LeaseDuration = globalLeaderLeaseDuration
-	log.Debugf("LeaderLeaseDuration is %s", globalLeaderLeaseDuration.String())
+	log.Debugf("LeaderLeaseDuration is %s", le.LeaseDuration.String())
 
 	le.coreClient, err = apiserver.GetCoreV1Client()
 	if err != nil {

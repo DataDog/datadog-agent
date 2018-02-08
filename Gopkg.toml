@@ -42,16 +42,16 @@
   name = "github.com/google/gofuzz"
 
 [[override]]
-  branch = "master"
   name = "github.com/kubernetes/apimachinery"
+  branch = "release-1.9"
 
 [[override]]
-  branch = "master"
+  version = "v6.0.0"
   name = "github.com/kubernetes/client-go"
 
 [[override]]
-  branch = "master"
   name = "github.com/kubernetes/api"
+  branch = "release-1.9"
 
 [[constraint]]
   name = "github.com/gorilla/mux"

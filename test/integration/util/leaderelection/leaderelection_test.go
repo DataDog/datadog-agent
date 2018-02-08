@@ -68,7 +68,6 @@ func TestSuiteAPIServer(t *testing.T) {
 
 func (suite *apiserverSuite) SetupTest() {
 	leaderelection.ResetGlobalLeaderEngine()
-	leaderelection.SetHolderIdentify("")
 
 	tick := time.NewTicker(time.Millisecond * 500)
 	timeout := time.NewTicker(setupTimeout)
@@ -119,10 +118,7 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderelection.LeaderEngine {
 	leaderelection.ResetGlobalLeaderEngine()
 
-	leaderelection.SetLeaderLeaseDuration(time.Second * 30)
-	leaderelection.SetHolderIdentify(holderIdentity)
-
-	leader, err := leaderelection.GetLeaderEngine()
+	leader, err := leaderelection.GetCustomLeaderEngine(holderIdentity, time.Second*30)
 	require.Nil(suite.T(), err)
 	return leader
 }
