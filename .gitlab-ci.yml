@@ -640,9 +640,12 @@ deploy_deb:
     # Check if each artifact is already in the shared APT pool. If it is, re-release the one in the pool instead of the new artifact.
     - cd $OMNIBUS_PACKAGE_DIR && /deploy_scripts/check_apt_pool.sh && cd -
 
-    # Release the artifacts
-    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
-    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+    # Release the artifacts, to both the "6" component and the "main" component (deprecated, and only if not releasing to the stable branch)
+    # TODO: remove release to "main" component once our install methods for agent 6 beta/RC are changed to pull from "6"
+    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - echo "$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m 6 -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options="--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb
+    - "[ \"$DEB_RPM_BUCKET_BRANCH\" = \"stable\" ] || echo \"$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE\" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m main -b $DEB_S3_BUCKET -a amd64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options=\"--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512\" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb"
+    - "[ \"$DEB_RPM_BUCKET_BRANCH\" = \"stable\" ] || echo \"$APT_SIGNING_KEY_DEPRECATED_PASSPHRASE\" | deb-s3 upload -c $DEB_RPM_BUCKET_BRANCH -m main -b $DEB_S3_BUCKET -a x86_64 --sign=$APT_SIGNING_KEY_DEPRECATED_ID --gpg_options=\"--passphrase-fd 0 --pinentry-mode loopback --batch --digest-algo SHA512\" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/*amd64.deb"
 
 
 # deploy rpm packages to yum staging repo
@@ -659,9 +662,19 @@ deploy_rpm:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
     - mkdir -p ./rpmrepo/x86_64/
+    - mkdir -p ./rpmrepo/6/x86_64/
     - aws s3 sync s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ ./rpmrepo/
-    - cp $OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/x86_64/
-    - createrepo --update -v --checksum sha ./rpmrepo/x86_64
+
+    # add RPMs to deprecated "main" root branch, unless we're releasing to stable
+    # TODO: remove release to "main" root branch once our install methods for agent 6 beta/RC are changed to pull from "6"
+    - "[ \"$DEB_RPM_BUCKET_BRANCH\" = \"stable\" ] || cp $OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/x86_64/"
+    - "[ \"$DEB_RPM_BUCKET_BRANCH\" = \"stable\" ] || createrepo --update -v --checksum sha ./rpmrepo/x86_64"
+
+    # add RPMs to new "6" branch
+    - cp $OMNIBUS_PACKAGE_DIR/*x86_64.rpm ./rpmrepo/6/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
+
+    # sync to S3
     - aws s3 sync ./rpmrepo/ s3://$RPM_S3_BUCKET/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy rpm packages to yum staging repo
@@ -677,10 +690,19 @@ deploy_suse_rpm:
   script:
     - source /usr/local/rvm/scripts/rvm
     - rvm use 2.4
-    - mkdir -p ./rpmrepo/suse/x86_64/
+    - mkdir -p ./rpmrepo/x86_64/
+    - mkdir -p ./rpmrepo/6/x86_64/
     - aws s3 sync s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/ ./rpmrepo/
-    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*x86_64.rpm ./rpmrepo/x86_64/
-    - createrepo --update -v --checksum sha ./rpmrepo/x86_64
+
+    # add RPMs to deprecated "main" root branch, unless we're releasing to stable
+    # TODO: remove release to "main" root branch once our install methods for agent 6 beta/RC are changed to pull from "6"
+    - "[ \"$DEB_RPM_BUCKET_BRANCH\" = \"stable\" ] || cp $OMNIBUS_PACKAGE_DIR_SUSE/*x86_64.rpm ./rpmrepo/x86_64/"
+    - "[ \"$DEB_RPM_BUCKET_BRANCH\" = \"stable\" ] || createrepo --update -v --checksum sha ./rpmrepo/x86_64"
+
+    # add RPMs to new "6" branch
+    - cp $OMNIBUS_PACKAGE_DIR_SUSE/*x86_64.rpm ./rpmrepo/6/x86_64/
+    - createrepo --update -v --checksum sha ./rpmrepo/6/x86_64
+
     - aws s3 sync ./rpmrepo/ s3://$RPM_S3_BUCKET/suse/$DEB_RPM_BUCKET_BRANCH/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy dsd binary to staging bucket
