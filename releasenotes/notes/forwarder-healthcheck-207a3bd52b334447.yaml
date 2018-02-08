@@ -2,4 +2,4 @@
 features:
   - |
     Add healthcheck to the forwarder. The agent will be unhealthy if the apikey
-    is invalid or if transations are dropped
+    is invalid or if transactions are dropped because all workers are busy.

@@ -344,7 +344,6 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 		case f.highPrio <- t:
 		default:
 			log.Errorf("the input queue of the forwarder is full: dropping transaction")
-			transactionsExpvar.Add("Dropped", 1)
 			transactionsExpvar.Add("DroppedOnInput", 1)
 		}
 	}

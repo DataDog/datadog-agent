@@ -5,15 +5,14 @@ Forwarder
   {{- range $key, $value := .Transactions }}
   {{$key}}: {{$value}}
   {{- end }}
-{{- end}}
-{{- if .Transactions.DroppedOnInput }}
+  {{- if .Transactions.DroppedOnInput }}
 
-  Dropped {{ .Transactions.DroppedOnInput }} transactions because of busy workers.
+  Warning: the forwarder dropped transactions because all workers were busy.
+  You should review your network performance, and tune the forwarder_num_workers
+  and forwarder_timeout options.
+  {{- end}}
 {{- end}}
-{{- if .Transactions.Dropped }}
 
-  Dropped {{ .Transactions.Dropped }} transactions because of network errors.
-{{- end}}
 {{- if .APIKeyStatus }}
 
   API Keys status
