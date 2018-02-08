@@ -33,11 +33,7 @@ blacklist = [
 ]
 
 build do
-  # The checks
-  checks_dir = "#{install_dir}/checks.d"
-  mkdir checks_dir
-
-  # The confs
+  # The dir for the confs
   if osx?
     conf_dir = "#{install_dir}/etc/conf.d"
   else
@@ -45,7 +41,7 @@ build do
   end
   mkdir conf_dir
 
-  # Copy the checks and generate the global requirements file
+  # Install the checks and generate the global requirements file
   block do
     all_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
     # Manually add "core" dependencies that are not listed in the checks requirements
