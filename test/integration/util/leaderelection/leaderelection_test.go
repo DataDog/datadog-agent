@@ -6,7 +6,12 @@
 // +build docker
 // +build kubeapiserver
 
-package kubernetes
+package leaderelection
+
+/*
+The leader Election package shouldn't be used for something else than leader election.
+The leader election spawn an endless go routine to acquire the lead.
+*/
 
 import (
 	"fmt"
@@ -15,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,13 +31,13 @@ import (
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/leaderelection"
 )
 
+const setupTimeout = time.Second * 10
+
 type apiserverSuite struct {
 	suite.Suite
-	apiClient      *apiserver.APIClient
 	kubeConfigPath string
 }
 
@@ -39,8 +45,11 @@ func TestSuiteAPIServer(t *testing.T) {
 	s := &apiserverSuite{}
 
 	// Start compose stack
-	compose, err := initAPIServerCompose()
-	require.Nil(t, err)
+	compose := &utils.ComposeConf{
+		ProjectName: "kube_events",
+		FilePath:    "testdata/apiserver-compose.yaml",
+		Variables:   map[string]string{},
+	}
 	output, err := compose.Start()
 	defer compose.Stop()
 	require.Nil(t, err, string(output))

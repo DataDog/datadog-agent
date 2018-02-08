@@ -142,6 +142,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
     prefixes = [
         "./test/integration/util/kube_apiserver",
+        "./test/integration/util/leaderelection",
     ]
 
     for prefix in prefixes:
