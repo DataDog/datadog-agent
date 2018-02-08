@@ -25,3 +25,11 @@ rules:
   verbs:
   - get
   - update
+- apiGroups:
+  - ""
+  resources:
+  - endpoints
+  verbs:
+  - get
+  - update
+  - create

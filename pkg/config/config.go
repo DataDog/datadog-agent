@@ -165,6 +165,8 @@ func init() {
 
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
+	Datadog.SetDefault("leader_lease_duration", "60")
+	Datadog.SetDefault("leader_election", false)
 
 	// Datadog cluster agent
 	Datadog.SetDefault("cluster_agent.auth_token", "")
@@ -245,6 +247,8 @@ func init() {
 	Datadog.BindEnv("histogram_aggregates")
 	Datadog.BindEnv("histogram_percentiles")
 	Datadog.BindEnv("kubernetes_kubeconfig_path")
+	Datadog.BindEnv("leader_election")
+	Datadog.BindEnv("leader_lease_duration")
 }
 
 // BindEnvAndSetDefault sets the default value for a config parameter, and adds an env binding
