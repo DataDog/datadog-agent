@@ -293,9 +293,9 @@ func (f *DefaultForwarder) healthCheckLoop() {
 	// Once we're healthy, make sure we don't drop packets
 	for range f.health.C {
 		// By ranging, we will exit the goroutine when the channel closes.
-		// If we dropped a transaction (full queue or invalid APIkey),
+		// If we dropped a transaction in input from the aggregator (full intake queue),
 		// we exit the loop and let the forwarder become unhealthy.
-		if transactionsExpvar.Get("Dropped") != nil {
+		if transactionsExpvar.Get("DroppedOnInput") != nil {
 			log.Errorf("Detected dropped transaction, reporting the forwarder as unhealthy.")
 			return
 		}
@@ -345,6 +345,7 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 		default:
 			log.Errorf("the input queue of the forwarder is full: dropping transaction")
 			transactionsExpvar.Add("Dropped", 1)
+			transactionsExpvar.Add("DroppedOnInput", 1)
 		}
 	}
 
