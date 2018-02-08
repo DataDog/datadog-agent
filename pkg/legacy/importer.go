@@ -52,7 +52,7 @@ var (
 		"syslog_port",
 		"collect_instance_metadata",
 		"listen_port",                // not for 6.0, ignore for now
-		"non_local_traffic",          // not for 6.0, ignore for now
+		"non_local_traffic",          // Use for Trace Agent
 		"create_dd_check_tags",       // not for 6.0, ignore for now
 		"bind_host",                  // not for 6.0, ignore for now
 		"proxy_forbid_method_switch", // deprecated

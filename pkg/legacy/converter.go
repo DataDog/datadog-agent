@@ -117,6 +117,15 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	//Set the Trace based configs. These should all have default values in the Trace Agent
+
+	if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil {
+		config.Datadog.Set("trace_config.enabled", enabled)
+	}
+
+	if enabled, err := isAffirmative(agentConfig["non_local_traffic"]); err == nil {
+		config.Datadog.Set("trace_config.trace_non_local_traffic", enabled)
+	}
+
 	if agentConfig["env"] != "" {
 		config.Datadog.Set("trace_config.env", agentConfig["env"])
 	}
