@@ -5,8 +5,14 @@
 
 package config
 
-// Date and time format
+// Pipeline constraints
 const (
+	ChanSize          = 100
+	NumberOfPipelines = 4
+)
+
+const (
+	// Date and time format
 	DateFormat = "2006-01-02T15:04:05.000000000Z"
 	// StatusInfo is the default status for info messages.
 	StatusInfo = "info"

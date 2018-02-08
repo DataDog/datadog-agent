@@ -139,8 +139,7 @@ func ConnectToDocker() (*client.Client, error) {
 	// TODO: remove this logic when "client.NegotiateAPIVersion" function is released by moby/docker
 	serverVersion, err := detectServerAPIVersion()
 	if err != nil || serverVersion == "" {
-		log.Errorf("Could not determine docker server API version (using the client version): %s", err)
-		return cli, nil
+		return nil, fmt.Errorf("Could not determine docker server API version: %s", err)
 	}
 
 	clientVersion := cli.ClientVersion()

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/restart"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/client"
@@ -35,16 +36,17 @@ const (
 
 // A Scanner listens for stdout and stderr of containers
 type Scanner struct {
-	pp      pipeline.Provider
-	sources []*config.LogSource
-	tailers map[string]*DockerTailer
-	cli     *client.Client
-	auditor *auditor.Auditor
+	pp        pipeline.Provider
+	sources   []*config.LogSource
+	tailers   map[string]*DockerTailer
+	cli       *client.Client
+	auditor   *auditor.Auditor
+	isRunning bool
+	stop      chan struct{}
 }
 
 // New returns an initialized Scanner
 func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) *Scanner {
-
 	containerSources := []*config.LogSource{}
 	for _, source := range sources {
 		switch source.Config.Type {
@@ -53,12 +55,12 @@ func New(sources []*config.LogSource, pp pipeline.Provider, a *auditor.Auditor) 
 		default:
 		}
 	}
-
 	return &Scanner{
 		pp:      pp,
 		sources: containerSources,
 		tailers: make(map[string]*DockerTailer),
 		auditor: a,
+		stop:    make(chan struct{}),
 	}
 }
 
@@ -70,6 +72,7 @@ func (s *Scanner) Start() {
 		return
 	}
 	go s.run()
+	s.isRunning = true
 }
 
 // reportErrorToAllSources changes the status of all sources to Error with err
@@ -79,11 +82,35 @@ func (s *Scanner) reportErrorToAllSources(err error) {
 	}
 }
 
-// run lets the Scanner tail docker stdouts
+// Stop stops the Scanner and its tailers in parallel,
+// this call returns only when all the tailers are stopped
+func (s *Scanner) Stop() {
+	if !s.isRunning {
+		// the scanner was not start, no need to stop anything
+		return
+	}
+	s.stop <- struct{}{}
+	stopper := restart.NewParallelStopper()
+	for _, tailer := range s.tailers {
+		stopper.Add(tailer)
+		delete(s.tailers, tailer.ContainerID)
+	}
+	stopper.Stop()
+}
+
+// run checks periodically which docker containers are running until stop
 func (s *Scanner) run() {
-	ticker := time.NewTicker(scanPeriod)
-	for range ticker.C {
-		s.scan(true)
+	scanTicker := time.NewTicker(scanPeriod)
+	defer scanTicker.Stop()
+	for {
+		select {
+		case <-scanTicker.C:
+			// check all the containers running on the host and start new tailers if needed
+			s.scan(true)
+		case <-s.stop:
+			// no docker container should be tailed anymore
+			return
+		}
 	}
 }
 
@@ -98,16 +125,19 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 	for _, container := range runningContainers {
 		for _, source := range s.sources {
 			if s.sourceShouldMonitorContainer(source, container) {
-				containersToMonitor[container.ID] = true
-
 				tailer, isTailed := s.tailers[container.ID]
 				if isTailed && tailer.shouldStop {
-					s.stopTailer(tailer)
-					isTailed = false
+					continue
 				}
 				if !isTailed {
-					s.setupTailer(s.cli, container, source, tailFromBeginning, s.pp.NextPipelineChan())
+					// setup a new tailer
+					succeeded := s.setupTailer(s.cli, container, source, tailFromBeginning, s.pp.NextPipelineChan())
+					if !succeeded {
+						// the setup failed, let's try to tail this container in the next scan
+						continue
+					}
 				}
+				containersToMonitor[container.ID] = true
 			}
 		}
 	}
@@ -116,14 +146,15 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 	for containerID, tailer := range s.tailers {
 		_, shouldMonitor := containersToMonitor[containerID]
 		if !shouldMonitor {
-			s.stopTailer(tailer)
+			s.dismissTailer(tailer)
 		}
 	}
 }
 
-func (s *Scanner) stopTailer(tailer *DockerTailer) {
-	log.Info("Stop tailing container ", s.humanReadableContainerID(tailer.ContainerID))
-	tailer.Stop()
+// dismissTailer stops the tailer and removes it from the list of active tailers
+func (s *Scanner) dismissTailer(tailer *DockerTailer) {
+	// stop the tailer in another routine as we don't want to block here
+	go tailer.Stop()
 	delete(s.tailers, tailer.ContainerID)
 }
 
@@ -218,8 +249,9 @@ func (s *Scanner) computeClientAPIVersion(apiVersion string) (string, error) {
 	return maxVersion, nil
 }
 
-// setupTailer sets one tailer, making it tail from the beginning or the end
-func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) {
+// setupTailer sets one tailer, making it tail from the beginning or the end,
+// returns true if the setup succeeded, false otherwise
+func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
 	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
 	t := NewDockerTailer(cli, container, source, outputChan)
 	var err error
@@ -230,15 +262,10 @@ func (s *Scanner) setupTailer(cli *client.Client, container types.Container, sou
 	}
 	if err != nil {
 		log.Warn(err)
+		return false
 	}
 	s.tailers[container.ID] = t
-}
-
-// Stop stops the Scanner and its tailers
-func (s *Scanner) Stop() {
-	for _, t := range s.tailers {
-		t.Stop()
-	}
+	return true
 }
 
 func (s *Scanner) humanReadableContainerID(containerID string) string {

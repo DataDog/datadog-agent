@@ -18,6 +18,7 @@ type Processor struct {
 	inputChan  chan message.Message
 	outputChan chan message.Message
 	encoder    Encoder
+	done       chan struct{}
 }
 
 // New returns an initialized Processor.
@@ -26,6 +27,7 @@ func New(inputChan, outputChan chan message.Message, encoder Encoder) *Processor
 		inputChan:  inputChan,
 		outputChan: outputChan,
 		encoder:    encoder,
+		done:       make(chan struct{}),
 	}
 }
 
@@ -34,8 +36,18 @@ func (p *Processor) Start() {
 	go p.run()
 }
 
-// run starts processing the messages in inputChan.
+// Stop stops the Processor,
+// this call blocks until inputChan is flushed
+func (p *Processor) Stop() {
+	close(p.inputChan)
+	<-p.done
+}
+
+// run starts the processing of the inputChan
 func (p *Processor) run() {
+	defer func() {
+		p.done <- struct{}{}
+	}()
 	for msg := range p.inputChan {
 		if shouldProcess, redactedMsg := applyRedactingRules(msg); shouldProcess {
 			content, err := p.encoder.encode(msg, redactedMsg)

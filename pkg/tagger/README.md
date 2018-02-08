@@ -13,6 +13,10 @@ The package will implement an IPC mechanism (a server and a client) to allow
 other agents to query the **DefaultTagger** and avoid duplicating the information
 in their process. Switch between local and client mode will be done via a build flag.
 
+The tagger is also available to python checks via the `tagger` module exporting
+the `get_tags()` function. This function accepts the same arguments as the Go `Tag()`
+function, and returns an empty list on errors.
+
 ### Collector
 A **Collector** connects to a single information source and pushes **TagInfo**
 structs to a channel, towards the **Tagger**. It can either run in streaming

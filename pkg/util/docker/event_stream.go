@@ -109,7 +109,7 @@ func (e *eventStreamState) unsubscribe(name string) (error, bool) {
 	return nil, shouldStop
 }
 
-func (d *DockerUtil) dispatchEvents(cancelChan <-chan struct{}) {
+func (d *DockerUtil) dispatchEvents(cancelChan chan struct{}) {
 	fltrs := filters.NewArgs()
 	fltrs.Add("type", "container")
 	fltrs.Add("event", "start")
@@ -141,7 +141,9 @@ CONNECT:
 					// Silently ignore io.EOF that happens on http connection reset
 					log.Debug("Got EOF, re-connecting")
 				} else {
-					log.Warnf("error getting docker events: %s", err)
+					// Else, let's wait 10 seconds and try reconnecting
+					log.Errorf("Error getting docker events: %s", err)
+					time.Sleep(10 * time.Second)
 				}
 				cancel()
 				continue CONNECT // Re-connect to docker

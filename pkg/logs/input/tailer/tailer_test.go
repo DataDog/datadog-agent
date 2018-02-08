@@ -47,12 +47,12 @@ func (suite *TailerTestSuite) SetupTest() {
 		Type: config.FileType,
 		Path: suite.testPath,
 	})
-	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath)
-	suite.tl.sleepDuration = 10 * time.Millisecond
+	sleepDuration := 10 * time.Millisecond
+	suite.tl = NewTailer(suite.outputChan, suite.source, suite.testPath, sleepDuration)
 }
 
 func (suite *TailerTestSuite) TearDownTest() {
-	suite.tl.Stop(false)
+	suite.tl.Stop()
 	suite.testFile.Close()
 	os.Remove(suite.testDir)
 }
@@ -122,6 +122,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 }
 
 func (suite *TailerTestSuite) TestTailerIdentifier() {
+	suite.tl.tailFromBeginning()
 	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
 }
 

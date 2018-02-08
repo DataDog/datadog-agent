@@ -3,10 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build cpython,!kubelet
+package restart
 
-package py
+// Stoppable represents a stoppable object
+type Stoppable interface {
+	Stop()
+}
 
-// Stub
-func initKubeutil() {
+// Stopper stops a group of stoppable objects from a data pipeline
+type Stopper interface {
+	Stoppable
+	Add(components ...Stoppable)
 }

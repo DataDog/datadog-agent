@@ -3,10 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build cpython,!kubelet
+package restart
 
-package py
+// Startable represents a startable object
+type Startable interface {
+	Start()
+}
 
-// Stub
-func initKubeutil() {
+// Start starts all components in series
+func Start(components ...Startable) {
+	for _, component := range components {
+		component.Start()
+	}
 }

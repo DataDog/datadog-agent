@@ -66,11 +66,6 @@ func (m *message) SetSeverity(severity []byte) {
 	m.severity = severity
 }
 
-// StopMessage is used to let a component stop gracefully
-type StopMessage struct {
-	*message
-}
-
 // FileMessage is a message coming from a File
 type FileMessage struct {
 	*message

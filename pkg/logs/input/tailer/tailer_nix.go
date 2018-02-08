@@ -18,83 +18,75 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 )
 
-func (t *Tailer) startReading(offset int64, whence int) error {
+// setup sets up the file tailer
+func (t *Tailer) setup(offset int64, whence int) error {
 	fullpath, err := filepath.Abs(t.path)
 	if err != nil {
-		t.source.Status.Error(err)
 		return err
 	}
 	log.Info("Opening ", t.path)
 	f, err := os.Open(fullpath)
 	if err != nil {
-		t.source.Status.Error(err)
 		return err
 	}
-	t.source.Status.Success()
-	t.source.AddInput(t.path)
 
-	ret, _ := f.Seek(offset, whence)
 	t.file = f
+	ret, _ := f.Seek(offset, whence)
 	t.readOffset = ret
 	t.decodedOffset = ret
 
-	go t.readForever()
 	return nil
 }
 
+// readForever lets the tailer tail the content of a file
+// until it is closed or the tailer is stopped.
 func (t *Tailer) readForever() {
+	defer t.onStop()
 	for {
-		if t.shouldHardStop() {
-			t.onStop()
+		select {
+		case <-t.stop:
+			// stop reading data from file
 			return
-		}
-
-		inBuf := make([]byte, 4096)
-		n, err := t.file.Read(inBuf)
-		if err == io.EOF {
-			if t.shouldSoftStop() {
-				t.onStop()
+		default:
+			// keep reading data from file
+			inBuf := make([]byte, 4096)
+			n, err := t.file.Read(inBuf)
+			if err != nil && err != io.EOF {
+				// an unexpected error occurred, stop the tailor
+				t.source.Status.Error(err)
+				log.Error("Err: ", err)
 				return
 			}
-			t.wait()
-			continue
+			if n == 0 {
+				// wait for new data to come
+				t.wait()
+				continue
+			}
+			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+			t.incrementReadOffset(n)
 		}
-		if err != nil {
-			t.source.Status.Error(err)
-			log.Error("Err: ", err)
-			return
-		}
-		if n == 0 {
-			t.wait()
-			continue
-		}
-		t.d.InputChan <- decoder.NewInput(inBuf[:n])
-		t.incrementReadOffset(n)
 	}
 }
+
 func (t *Tailer) checkForRotation() (bool, error) {
 	f, err := os.Open(t.path)
 	if err != nil {
 		t.source.Status.Error(err)
 		return false, err
 	}
+
 	stat1, err := f.Stat()
 	if err != nil {
 		t.source.Status.Error(err)
 		return false, err
 	}
+
 	stat2, err := t.file.Stat()
 	if err != nil {
 		return true, nil
 	}
-	if inode(stat1) != inode(stat2) {
-		return true, nil
-	}
 
-	if stat1.Size() < t.GetReadOffset() {
-		return true, nil
-	}
-	return false, nil
+	return inode(stat1) != inode(stat2) || stat1.Size() < t.GetReadOffset(), nil
 }
 
 // inode uniquely identifies a file on a filesystem

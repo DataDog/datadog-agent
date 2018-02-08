@@ -132,11 +132,13 @@ func (d *DockerCheck) Run() error {
 	du, err := docker.GetDockerUtil()
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
+		d.Warnf("Error initialising check: %s", err)
 		return err
 	}
 	containers, err := du.Containers(&docker.ContainerListConfig{IncludeExited: true, FlagExcluded: true})
 	if err != nil {
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
+		d.Warnf("Error collecting containers: %s", err)
 		return err
 	}
 
@@ -219,6 +221,7 @@ func (d *DockerCheck) Run() error {
 	if err := d.countAndWeightImages(sender, du); err != nil {
 		log.Error(err.Error())
 		sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckCritical, "", d.instance.Tags, err.Error())
+		d.Warnf("Error collecting images: %s", err)
 		return err
 	}
 	sender.ServiceCheck(DockerServiceUp, metrics.ServiceCheckOK, "", d.instance.Tags, "")
@@ -226,7 +229,7 @@ func (d *DockerCheck) Run() error {
 	if d.instance.CollectEvent || d.instance.CollectExitCodes {
 		events, err := d.retrieveEvents(du)
 		if err != nil {
-			log.Warn(err.Error())
+			d.Warnf("Error collecting events: %s", err)
 		} else {
 			if d.instance.CollectEvent {
 				err = d.reportEvents(events, sender)
@@ -246,7 +249,7 @@ func (d *DockerCheck) Run() error {
 	if d.instance.CollectDiskStats {
 		stats, err := du.GetStorageStats()
 		if err != nil {
-			log.Errorf("Failed to get disk stats: %s", err)
+			d.Warnf("Error collecting disk stats: %s", err)
 		} else {
 			for _, stat := range stats {
 				if stat.Name != docker.DataStorageName && stat.Name != docker.MetadataStorageName {
@@ -273,7 +276,7 @@ func (d *DockerCheck) Run() error {
 	if d.instance.CollectVolumeCount {
 		attached, dangling, err := du.CountVolumes()
 		if err != nil {
-			log.Errorf("failed to get volume stats: %s", err)
+			d.Warnf("Error collecting volume stats: %s", err)
 		} else {
 			sender.Gauge("docker.volume.count", float64(attached), "", append(d.instance.Tags, "volume_state:attached"))
 			sender.Gauge("docker.volume.count", float64(dangling), "", append(d.instance.Tags, "volume_state:dangling"))
@@ -295,7 +298,7 @@ func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 	var err error
 	d.dockerHostname, err = docker.HostnameProvider("")
 	if err != nil {
-		log.Warnf("can't get hostname from docker, events will not have it: %s", err)
+		log.Warnf("Can't get hostname from docker, events will not have it: %s", err)
 	}
 	return nil
 }

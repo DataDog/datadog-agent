@@ -17,22 +17,24 @@ import (
 // A Sender sends messages from an inputChan to datadog's intake,
 // handling connections and retries.
 type Sender struct {
-	inputChan    chan message.Message
-	outputChan   chan message.Message
-	connManager  *ConnectionManager
-	conn         net.Conn
-	apiKeyPrefix []byte
-	delimiter    Delimiter
+	inputChan      chan message.Message
+	outputChan     chan message.Message
+	connManager    *ConnectionManager
+	conn           net.Conn
+	framePrefix    []byte
+	frameDelimiter Delimiter
+	done           chan struct{}
 }
 
 // New returns an initialized Sender
-func New(inputChan, outputChan chan message.Message, connManager *ConnectionManager, delimiter Delimiter) *Sender {
+func New(inputChan, outputChan chan message.Message, connManager *ConnectionManager, frameDelimiter Delimiter) *Sender {
 	return &Sender{
-		inputChan:    inputChan,
-		outputChan:   outputChan,
-		connManager:  connManager,
-		apiKeyPrefix: getAPIKeyPrefix(),
-		delimiter:    delimiter,
+		inputChan:      inputChan,
+		outputChan:     outputChan,
+		connManager:    connManager,
+		framePrefix:    getFramePrefix(),
+		frameDelimiter: frameDelimiter,
+		done:           make(chan struct{}),
 	}
 }
 
@@ -41,8 +43,18 @@ func (s *Sender) Start() {
 	go s.run()
 }
 
+// Stop stops the Sender,
+// this call blocks until inputChan is flushed
+func (s *Sender) Stop() {
+	close(s.inputChan)
+	<-s.done
+}
+
 // run lets the sender wire messages
 func (s *Sender) run() {
+	defer func() {
+		s.done <- struct{}{}
+	}()
 	for payload := range s.inputChan {
 		s.wireMessage(payload)
 	}
@@ -72,13 +84,13 @@ func (s *Sender) wireMessage(payload message.Message) {
 
 func (s *Sender) toFrame(content []byte) ([]byte, error) {
 	// Prefix the content with the API key
-	payload := append(s.apiKeyPrefix, content...)
+	payload := append(s.framePrefix, content...)
 	// As we write into a raw socket, add a delimiter to mark subsequent frames
-	return s.delimiter.delimit(payload)
+	return s.frameDelimiter.delimit(payload)
 }
 
-// getAPIKeyPrefix returns the API key that is prepended to each message sent to check is authenticity.
-func getAPIKeyPrefix() []byte {
+// getFramePrefix returns an API key that is prepended to each message sent to check is authenticity.
+func getFramePrefix() []byte {
 	apikey := config.LogsAgent.GetString("api_key")
 	logset := config.LogsAgent.GetString("logset") // TODO Logset is deprecated and should be removed eventually.
 	if logset != "" {
