@@ -1,4 +1,4 @@
-FROM golang:1.9.1
+FROM golang:1.9.4
 
 RUN sed -i 's/^#\s*\(deb.*universe\)$/\1/g' /etc/apt/sources.list \
     && sed -i 's/^#\s*\(deb.*multiverse\)$/\1/g' /etc/apt/sources.list \
