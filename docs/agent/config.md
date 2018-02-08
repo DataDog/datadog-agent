@@ -8,6 +8,37 @@ might mean:
  * The option refers to a feature that's currently under development
  * The option refers to a feature that's scheduled but will come later
 
+## Orchestration + Agent Management
+
+Orchestration has now been deferred to OS facilities wherever possible. To this purpose
+we now rely on upstart/systemd on linux environments and windows services on Windows.
+Enabling the APM and Process agents bundled with the agent can now be achieved via 
+configuration flags defined in the main configuration file: `datadog.yaml`. 
+
+### Process Agent
+To enable the process agent add the following to `datadog.yaml`:
+```
+...
+process_config:
+  enabled: true
+...
+```
+
+### Trace Agent
+To enable the trace agent add the following to `datadog.yaml`:
+```
+...
+trace_config:
+  enabled: true
+...
+```
+
+The OS-level services will be enabled by default for all agents. The agents will process 
+the configuration and decide whether to stay up or gracefully shut down. You may decide
+to disable the OS-level service units, but that will require your manual intervention if
+you ever wish to re-enable any of the agents.
+
+
 ## New options in version 6
 
 This is the list of configuration options that are either new, renamed or changed
