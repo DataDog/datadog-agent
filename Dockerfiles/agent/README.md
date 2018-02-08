@@ -10,13 +10,14 @@ The following environment variables are supported:
 - `DD_HOSTNAME`: hostname to use for metrics
 - `DD_TAGS`: host tags, separated by spaces. For example: `simple-tag-0 tag-key-1:tag-value-1`
 
+- `DD_DOGSTATSD_NON_LOCAL_TRAFFIC`: listen to dogstatsd packets from other containers, required to send custom metrics
 - `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
 - `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
 - `DD_LOGS_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
 - `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
 
 - `DD_KUBERNETES_COLLECT_SERVICE_TAGS`: Configures the agent to collect Kubernetes service names as tags.
-- `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: Set the collection frequency in seconds for the Kubernetes service names. 
+- `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: Set the collection frequency in seconds for the Kubernetes service names.
 - `DD_COLLECT_KUBERNETES_EVENTS`: Configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
 - `DD_LEADER_ELECTION`: Activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true. The expected value is a bool: true/false.
 - `DD_LEADER_LEASE_DURATION`: Only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
