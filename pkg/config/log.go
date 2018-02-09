@@ -40,6 +40,11 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 		logCertPool.AppendCertsFromPEM([]byte(pem))
 	}
 
+	seelogLogLevel := strings.ToLower(logLevel)
+	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
+		seelogLogLevel = "warn"
+	}
+
 	configTemplate := `<seelog minlevel="%s">`
 
 	formatID := ""
@@ -81,7 +86,7 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 
 	configTemplate += `</formats>
 	</seelog>`
-	config := fmt.Sprintf(configTemplate, strings.ToLower(logLevel), logFile, logFileMaxSize, logDateFormat, logDateFormat)
+	config := fmt.Sprintf(configTemplate, seelogLogLevel, logFile, logFileMaxSize, logDateFormat, logDateFormat)
 
 	logger, err := log.LoggerFromConfigAsString(config)
 	if err != nil {
