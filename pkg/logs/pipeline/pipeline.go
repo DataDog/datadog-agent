@@ -22,7 +22,7 @@ type Pipeline struct {
 // NewPipeline returns a new Pipeline
 func NewPipeline(connManager *sender.ConnectionManager, outputChan chan message.Message) *Pipeline {
 
-	useProto := config.LogsAgent.GetBool("dev_mode_use_proto")
+	useProto := config.LogsAgent.GetBool("logs_config.dev_mode_use_proto")
 
 	// initialize the sender
 	senderChan := make(chan message.Message, config.ChanSize)
