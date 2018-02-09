@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    Add support for collect_ec2_tags and collect_security_groups configuration options.
+    Add support for collect_ec2_tags configuration option.

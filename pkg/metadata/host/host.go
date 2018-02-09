@@ -78,7 +78,7 @@ func getHostTags() *tags {
 	hostTags := config.Datadog.GetStringSlice("tags")
 
 	if config.Datadog.GetBool("collect_ec2_tags") {
-		ec2Tags, err := getEC2Tags()
+		ec2Tags, err := ec2.GetTags()
 		if err != nil {
 			log.Debugf("No EC2 host tags %v", err)
 		} else {
@@ -95,24 +95,6 @@ func getHostTags() *tags {
 		System:              hostTags,
 		GoogleCloudPlatform: gceTags,
 	}
-}
-
-func getEC2Tags() ([]string, error) {
-	ec2Tags, err := ec2.GetTags()
-	if err != nil {
-		return ec2Tags, err
-	}
-
-	if !config.Datadog.GetBool("collect_security_groups") {
-		// remove the `security_group_name` tag if present
-		for i, s := range ec2Tags {
-			if strings.HasPrefix(s, "security_group_name:") {
-				ec2Tags = append(ec2Tags[:i], ec2Tags[i+1:]...)
-			}
-		}
-	}
-
-	return ec2Tags, nil
 }
 
 func getSystemStats() *systemStats {

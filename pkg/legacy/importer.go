@@ -29,7 +29,6 @@ var (
 		"forwarder_timeout",
 		"default_integration_http_timeout",
 		"collect_ec2_tags",
-		"collect_security_groups",
 		"additional_checksd",
 		"exclude_process_args",
 		"histogram_aggregates",

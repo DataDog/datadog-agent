@@ -52,6 +52,7 @@ differently from Agent version 5.
 | `dogstream_log` | |
 | `use_curl_http_client` | |
 | `gce_updated_hostname` | |
+| `collect_security_groups` | feature still available with the aws integration  |
 
 
 
