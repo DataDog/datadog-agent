@@ -148,15 +148,12 @@ Unlike on Linux, the configuration path hasn't changed and remains in `~/.datado
 
 #### To Upgrade
 
-In case you have an Agent version 5.17 or later and you want to import the
-existing configuration:
+In case you have an Agent version 5 and you want to import the existing
+configuration:
 
 ```shell
   DD_UPGRADE=true bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_mac_os.sh)"
 ```
-
-**Note:** the import process won't automatically move custom checks, this is by
-design since we cannot guarantee full backwards compatibility out of the box.
 
 #### To Install Fresh
 
