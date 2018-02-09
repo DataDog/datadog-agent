@@ -548,8 +548,8 @@ build_dogstatsd:
   script:
     - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__devtools__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
-    - DOCKER_HUB_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.dd_dind_docker_hub_login --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.dd_dind_docker_hub_pwd --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_HUB_LOGIN" --password-stdin
+    - DOCKER_HUB_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.docker_hub_login --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.docker_hub_pwd --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_HUB_LOGIN" --password-stdin
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - LATEST_TAG=${LATEST_TAG:-latest}
     - docker pull $SOURCE_IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
