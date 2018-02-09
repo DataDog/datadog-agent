@@ -56,7 +56,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
     commit = ctx.run("git rev-parse --short HEAD", hide=True).stdout.strip()
 
     gcflags = ""
-    ldflags = "-X {}/pkg/version.commit={} ".format(REPO_PATH, commit)
+    ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
     ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
     env = {

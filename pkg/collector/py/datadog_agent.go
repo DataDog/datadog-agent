@@ -35,7 +35,7 @@ import "C"
 // `self` is the module object.
 //export GetVersion
 func GetVersion(self *C.PyObject, args *C.PyObject) *C.PyObject {
-	av, _ := version.New(version.AgentVersion)
+	av, _ := version.New(version.AgentVersion, version.Commit)
 
 	cStr := C.CString(av.GetNumber())
 	pyStr := C.PyString_FromString(cStr)

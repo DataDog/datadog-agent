@@ -27,7 +27,7 @@ var versionCmd = &cobra.Command{
 		if flagNoColor {
 			color.NoColor = true
 		}
-		av, _ := version.New(version.AgentVersion)
+		av, _ := version.New(version.AgentVersion, version.Commit)
 		meta := ""
 		if av.Meta != "" {
 			meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
