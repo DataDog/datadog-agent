@@ -33,7 +33,10 @@ func init() {
 
 func stop(*cobra.Command, []string) error {
 	// Global Agent configuration
-	common.SetupConfig("")
+	err := common.SetupConfig(confFilePath)
+	if err != nil {
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
+	}
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
@@ -49,5 +52,6 @@ func stop(*cobra.Command, []string) error {
 		return fmt.Errorf("Error stopping the agent: %v", e)
 	}
 
+	fmt.Println("Agent successfully stopped")
 	return nil
 }
