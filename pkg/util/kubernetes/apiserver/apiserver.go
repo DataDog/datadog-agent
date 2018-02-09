@@ -105,6 +105,7 @@ func (c *APIClient) connect() error {
 	defer cancel()
 	version, err := c.client.Discovery().Version(ctx)
 	if err != nil {
+		log.Debugf("Cannot get the version: %s ", err)
 		return err
 	}
 
@@ -121,6 +122,7 @@ func (c *APIClient) connect() error {
 		return nil
 	}
 	c.startServiceMapping()
+
 	return nil
 }
 

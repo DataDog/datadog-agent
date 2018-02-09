@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
+
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -71,11 +73,33 @@ func (k *KubeASCheck) Run() error {
 	if err != nil {
 		return err
 	}
+	// Only run if Leader Election is enabled.
+	if !config.Datadog.GetBool("leader_election") {
+		k.Warn("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
+		return nil
+	}
+
+	leaderEngine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		k.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.")
+		return err
+	}
+
+	err = leaderEngine.EnsureLeaderElectionRuns()
+	if err != nil {
+		k.Warn("Leader Election process failed to start")
+		return err
+	}
+
+	if !leaderEngine.IsLeader() {
+		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName(), leaderEngine.HolderIdentity)
+		return nil
+	}
+	log.Tracef("Currently Leader %q, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
 
 	asclient, err := apiserver.GetAPIClient()
-
 	if err != nil {
-		log.Errorf("could not connect to apiserver: %s", err)
+		k.Warn("Could not connect to apiserver: %s", err)
 		return err
 	}
 

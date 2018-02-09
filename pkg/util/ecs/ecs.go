@@ -15,9 +15,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
+	log "github.com/cihub/seelog"
 	"github.com/docker/docker/client"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
 const (
@@ -25,6 +28,8 @@ const (
 	DefaultAgentPort = 51678
 	// DefaultECSContainer is the default container used by ECS.
 	DefaultECSContainer = "ecs-agent"
+	// Cache the fact we're running on ECS Fargate
+	isFargateInstanceCacheKey = "IsFargateInstanceCacheKey"
 )
 
 // DetectedAgentURL stores the URL of the ECS agent. After the first call to
@@ -77,20 +82,44 @@ func IsInstance() bool {
 // IsFargateInstance returns whether the agent is in an ECS fargate task.
 // It detects it by getting and unmarshalling the metadata API response.
 func IsFargateInstance() bool {
+	var ok, isFargate bool
+
+	if cached, hit := cache.Cache.Get(isFargateInstanceCacheKey); hit {
+		isFargate, ok = cached.(bool)
+		if !ok {
+			log.Errorf("Invalid fargate instance cache format, forcing a cache miss")
+		} else {
+			return isFargate
+		}
+	}
+
 	client := &http.Client{Timeout: timeout}
 	r, err := client.Get(metadataURL)
 	if err != nil {
+		cacheIsFargateInstance(false)
 		return false
 	}
 	if r.StatusCode != http.StatusOK {
+		cacheIsFargateInstance(false)
 		return false
 	}
 	var resp TaskMetadata
 	if err := json.NewDecoder(r.Body).Decode(&resp); err != nil {
 		fmt.Printf("decode err: %s\n", err)
+		cacheIsFargateInstance(false)
 		return false
 	}
+
+	cacheIsFargateInstance(true)
 	return true
+}
+
+func cacheIsFargateInstance(isFargate bool) {
+	cacheDuration := 5 * time.Minute
+	if isFargate {
+		cacheDuration = cache.NoExpiration
+	}
+	cache.Cache.Set(isFargateInstanceCacheKey, isFargate, cacheDuration)
 }
 
 // IsAgentNotDetected indicates if an error from GetTasks was about no

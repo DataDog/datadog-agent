@@ -41,6 +41,18 @@
 [[constraint]]
   name = "github.com/google/gofuzz"
 
+[[override]]
+  name = "github.com/kubernetes/apimachinery"
+  branch = "release-1.9"
+
+[[override]]
+  version = "v6.0.0"
+  name = "github.com/kubernetes/client-go"
+
+[[override]]
+  name = "github.com/kubernetes/api"
+  branch = "release-1.9"
+
 [[constraint]]
   name = "github.com/gorilla/mux"
   version = "1.1.0"
