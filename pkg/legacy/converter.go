@@ -119,35 +119,35 @@ func FromAgentConfig(agentConfig Config) error {
 	//Set the Trace based configs. These should all have default values in the Trace Agent
 
 	if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil {
-		config.Datadog.Set("trace_config.enabled", enabled)
+		config.Datadog.Set("apm_config.enabled", enabled)
 	}
 
 	if enabled, err := isAffirmative(agentConfig["non_local_traffic"]); err == nil {
-		config.Datadog.Set("trace_config.trace_non_local_traffic", enabled)
+		config.Datadog.Set("apm_config.apm_non_local_traffic", enabled)
 	}
 
 	if agentConfig["env"] != "" {
-		config.Datadog.Set("trace_config.env", agentConfig["env"])
+		config.Datadog.Set("apm_config.env", agentConfig["env"])
 	}
 
 	if value, err := strconv.Atoi(agentConfig["max_traces_per_second"]); err == nil {
-		config.Datadog.Set("trace_config.max_traces_per_second", value)
+		config.Datadog.Set("apm_config.max_traces_per_second", value)
 	}
 
 	if value, err := strconv.Atoi(agentConfig["extra_sample_rate"]); err == nil {
-		config.Datadog.Set("trace_config.extra_sample_rate", value)
+		config.Datadog.Set("apm_config.extra_sample_rate", value)
 	}
 
 	if value, err := strconv.Atoi(agentConfig["connection_limit"]); err == nil {
-		config.Datadog.Set("trace_config.connection_limit", value)
+		config.Datadog.Set("apm_config.connection_limit", value)
 	}
 
 	if value, err := strconv.Atoi(agentConfig["receiver_port"]); err == nil {
-		config.Datadog.Set("trace_config.receiver_port", value)
+		config.Datadog.Set("apm_config.receiver_port", value)
 	}
 
 	if agentConfig["resource"] != "" {
-		config.Datadog.Set("trace_config.ignore_resource", agentConfig["resource"])
+		config.Datadog.Set("apm_config.ignore_resource", agentConfig["resource"])
 	}
 
 	return nil
