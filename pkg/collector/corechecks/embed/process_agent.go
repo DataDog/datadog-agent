@@ -4,7 +4,7 @@
 // Copyright 2018 Datadog, Inc.
 
 // +build process
-// +build darwin
+// +build darwin freebsd
 
 package embed
 
