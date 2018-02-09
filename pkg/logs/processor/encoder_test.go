@@ -36,7 +36,8 @@ func TestRawEncoder(t *testing.T) {
 	rawMessage := "message"
 	message := newNetworkMessage([]byte(rawMessage), source)
 	message.SetSeverity(config.SevError)
-	message.GetOrigin().SetTags([]string{"a", "b:c"}, logsConfig)
+	message.GetOrigin().LogSource = source
+	message.GetOrigin().SetTags([]string{"a", "b:c"})
 
 	redactedMessage := "redacted"
 
@@ -126,7 +127,8 @@ func TestProtoEncoder(t *testing.T) {
 	rawMessage := "message"
 	message := newNetworkMessage([]byte(rawMessage), source)
 	message.SetSeverity(config.SevError)
-	message.GetOrigin().SetTags([]string{"a", "b:c"}, logsConfig)
+	message.GetOrigin().LogSource = source
+	message.GetOrigin().SetTags([]string{"a", "b:c"})
 
 	redactedMessage := "redacted"
 

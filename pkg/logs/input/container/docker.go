@@ -204,7 +204,7 @@ func (dt *DockerTailer) forwardMessages() {
 		msgOrigin.LogSource = dt.source
 		msgOrigin.Timestamp = time.Now().UTC().Format(config.DateFormat)
 		msgOrigin.Identifier = dt.Identifier()
-		msgOrigin.SetTags(dt.containerTags, dt.source.Config)
+		msgOrigin.SetTags(dt.containerTags)
 		containerMsg.SetSeverity(sev)
 		containerMsg.SetOrigin(msgOrigin)
 		dt.outputChan <- containerMsg
