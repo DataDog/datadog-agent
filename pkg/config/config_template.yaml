@@ -330,7 +330,7 @@ metadata_collectors:
 # kubernetes_service_tag_update_freq: 300
 #
 #
-# To collect Kubernetes events, leader election must be enabled and set the collect_kubernetes_events to true.
+# To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
 # Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#event-collection).
 # collect_kubernetes_events: false
 #
