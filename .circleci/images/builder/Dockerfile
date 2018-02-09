@@ -72,7 +72,7 @@ RUN gem install bundler --version "$BUNDLER_VERSION"
 
 RUN apt-get update && apt-get install -y python-pip  \
 	&& pip install invoke \
-	&& pip install docker \
+	&& pip install docker==3.0.1 \
 	&& pip install reno   \
 	&& pip install requests
 
