@@ -104,6 +104,14 @@ var checkCmd = &cobra.Command{
 					}
 				}
 			}
+			for check, warnings := range autodiscovery.GetResolveWarnings() {
+				if checkName == check {
+					fmt.Fprintln(color.Output, fmt.Sprintf("\n%s: could not resolve %s config:", color.YellowString("Warning"), color.YellowString(check)))
+					for _, warning := range warnings {
+						fmt.Fprintln(color.Output, fmt.Sprintf("* %s", warning))
+					}
+				}
+			}
 			return fmt.Errorf("no valid check found")
 		}
 
