@@ -119,7 +119,7 @@ and `<check list>` corresponds to a list of valid `yaml` configurations in
 
 Example:
 ```
-/usr/bin/java -Xmx200m -Xms50m -classpath /usr/lib/jvm/java-8-oracle/lib/tools.jar:/opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch-0.17.0-jar-with-dependencies.jar org.datadog.jmxfetch.App --check cassandra.yaml jmx.yaml --conf_directory /etc/datadog-agent/conf.d --log_level INFO --log_location /opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch.log --reporter console list_everything
+/usr/bin/java -Xmx200m -Xms50m -classpath /usr/lib/jvm/java-8-oracle/lib/tools.jar:/opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch-0.17.0-jar-with-dependencies.jar org.datadog.jmxfetch.App --check cassandra.d/conf.yaml jmx.d/conf.yaml --conf_directory /etc/datadog-agent/conf.d --log_level INFO --log_location /opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch.log --reporter console list_everything
 ```
 
 Note: the location to the JRE tools.jar (`/usr/lib/jvm/java-8-oracle/lib/tools.jar`
