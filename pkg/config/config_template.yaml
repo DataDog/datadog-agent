@@ -275,6 +275,17 @@ metadata_collectors:
 # about the docker daemon load.
 #
 # exclude_pause_container: true
+
+# Exclude default containers from DockerCloud:
+# The following configuration will instruct the agent to ignore the containers from Docker Cloud.
+# You can remove the ones you want to collect.
+# ac_exclude: ["image:dockercloud/network-daemon","image:dockercloud/cleanup","image:dockercloud/logrotate","image:dockercloud/events","image:dockercloud/ntpd"]
+# ac_include: []
+#
+# You can also use the regex to ignore them all:
+# ac_exclude: ["image:dockercloud/*"]
+# ac_include: []
+
 {{ end -}}
 {{- if .DockerTagging }}
 # Docker tag extraction
