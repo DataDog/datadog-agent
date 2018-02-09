@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -238,6 +239,14 @@ func (ku *KubeUtil) GetPodFromUID(podUID string) (*Pod, error) {
 		}
 	}
 	return nil, fmt.Errorf("uid %s not found in pod list", podUID)
+}
+
+func (ku *KubeUtil) GetPodForEntityID(entityID string) (*Pod, error) {
+	if strings.HasPrefix(entityID, KubePodPrefix) {
+			uid := strings.TrimPrefix(entityID, KubePodPrefix)
+			return ku.GetPodFromUID(uid)
+	}
+	return ku.GetPodForContainerID(entityID)
 }
 
 // setupKubeletApiClient will try to setup the http(s) client to query the kubelet

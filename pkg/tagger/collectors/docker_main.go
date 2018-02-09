@@ -89,11 +89,11 @@ func (c *DockerCollector) Stop() error {
 
 // Fetch inspect a given container to get its tags on-demand (cache miss)
 func (c *DockerCollector) Fetch(container string) ([]string, []string, error) {
-	cid := strings.TrimPrefix(container, docker.DockerEntityPrefix)
-	if cid == container || len(cid) == 0 {
+	cID := strings.TrimPrefix(container, docker.DockerEntityPrefix)
+	if cID == container || len(cID) == 0 {
 		return nil, nil, ErrNotFound
 	}
-	return c.fetchForDockerID(cid)
+	return c.fetchForDockerID(cID)
 }
 
 func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
@@ -113,7 +113,7 @@ func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, erro
 	co, err := c.dockerUtil.Inspect(cID, false)
 	if err != nil {
 		// TODO separate "not found" and inspect error
-		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
+		log.Errorf("Failed to inspect container %s - %s", cID, err)
 		return nil, nil, err
 	}
 	return c.extractFromInspect(co)

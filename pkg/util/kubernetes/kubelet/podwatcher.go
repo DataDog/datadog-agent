@@ -8,7 +8,6 @@
 package kubelet
 
 import (
-	"strings"
 	"sync"
 	"time"
 
@@ -111,9 +110,5 @@ func (w *PodWatcher) Expire() ([]string, error) {
 // EntityIDs can be Docker container IDs or pod UIDs (prefixed).
 // Returns a nil pointer if not found.
 func (w *PodWatcher) GetPodForEntityID(entityID string) (*Pod, error) {
-	if strings.HasPrefix(entityID, KubePodPrefix) {
-		uid := strings.TrimPrefix(entityID, KubePodPrefix)
-		return w.kubeUtil.GetPodFromUID(uid)
-	}
-	return w.kubeUtil.GetPodForContainerID(entityID)
+	return w.kubeUtil.GetPodForEntityID(entityID)
 }
