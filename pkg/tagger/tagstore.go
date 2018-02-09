@@ -30,12 +30,11 @@ type tagStore struct {
 	toDelete      map[string]struct{} // set emulation
 }
 
-func newTagStore() (*tagStore, error) {
-	t := &tagStore{
+func newTagStore() *tagStore {
+	return &tagStore{
 		store:    make(map[string]*entityTags),
 		toDelete: make(map[string]struct{}),
 	}
-	return t, nil
 }
 
 func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
