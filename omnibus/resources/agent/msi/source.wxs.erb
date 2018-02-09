@@ -148,7 +148,13 @@
                           Vital="yes"
                           Interactive="no"
                           Account="LocalSystem">
-              <ServiceDependency Id="winmgmt" />
+            <util:ServiceConfig
+              FirstFailureActionType='restart'
+              SecondFailureActionType='restart'
+              ThirdFailureActionType='restart'            
+              RestartServiceDelayInSeconds='30'
+              ResetPeriodInDays='1'/>
+            <ServiceDependency Id="winmgmt" />
           </ServiceInstall>
           <ServiceControl Id="DatadogStartService"
                           Name="DatadogAgent"
@@ -178,18 +184,25 @@
             <ServiceInstall Id="DatadogAPMServiceInstaller"
                             DisplayName="!(loc.ServiceApmDisplayName)"
                             Description="!(loc.ServiceApmDescription)"
-              Name="datadog-trace-agent"
+                            Name="datadog-trace-agent"
                             ErrorControl="ignore"
-                            Start="demand"
+                            Start="auto"
                             Type="ownProcess"
                             Vital="yes"
                             Interactive="no"
                             Account="LocalSystem"
                             Arguments="-ddconfig=c:\programdata\datadog\trace-agent.conf" >
-                <ServiceDependency Id="datadogagent" />
+              <util:ServiceConfig
+                FirstFailureActionType='restart'
+                SecondFailureActionType='restart'
+                ThirdFailureActionType='restart'            
+                RestartServiceDelayInSeconds='30'
+                ResetPeriodInDays='1'/>
+              <ServiceDependency Id="datadogagent" />
             </ServiceInstall>
             <ServiceControl Id="DatadogAPMStartService"
                             Name="datadog-trace-agent"
+                            Start="install"
                             Stop="both"
                             Remove="uninstall"
                             Wait="no" />
@@ -200,7 +213,7 @@
                     SupportsInformationals="yes"
                     SupportsWarnings="yes"/>
           </Component>
-          <!-- Windows service declaration for APM agent -->
+          <!-- Windows service declaration for Process agent -->
           <Component Id="DATADOGPROCESSSERVICE" Guid="3b119795-ddf8-44eb-9d53-301f7186e2f3">
             <File Id="process_agent.exe"
                 Name="process-agent.exe"
@@ -211,17 +224,24 @@
             <ServiceInstall Id="DatadogProcessServiceInstaller"
                             DisplayName="!(loc.ServiceProcessDisplayName)"
                             Description="!(loc.ServiceProcessDescription)"
-              Name="datadog-process-agent"
+                            Name="datadog-process-agent"
                             ErrorControl="ignore"
-                            Start="demand"
+                            Start="auto"
                             Type="ownProcess"
                             Vital="yes"
                             Interactive="no"
                             Account="LocalSystem">
+              <util:ServiceConfig
+                FirstFailureActionType='restart'
+                SecondFailureActionType='restart'
+                ThirdFailureActionType='restart'            
+                RestartServiceDelayInSeconds='30'
+                ResetPeriodInDays='1'/>
                 <ServiceDependency Id="datadogagent" />
             </ServiceInstall>
             <ServiceControl Id="DatadogProcessStartService"
                             Name="datadog-process-agent"
+                            Start="install"
                             Stop="both"
                             Remove="uninstall"
                             Wait="no" />
