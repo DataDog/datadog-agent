@@ -169,7 +169,7 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkNa
 	entry.name = checkName
 
 	if ext != ".yaml" && ext != ".yml" {
-		log.Debugf("Skipping file: %s", absPath)
+		log.Tracef("Skipping file: %s", absPath)
 		entry.err = errors.New("Invalid config file extension")
 		return entry
 	}

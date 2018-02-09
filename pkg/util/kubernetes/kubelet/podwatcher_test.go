@@ -14,10 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 /*
@@ -121,7 +122,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	require.True(suite.T(), IsPodReady(changes[0]))
 }
 
-func (suite *PodwatcherTestSuite) TestPodWatcherExpireContainers() {
+func (suite *PodwatcherTestSuite) TestPodWatcherExpireDelay() {
 	raw, err := ioutil.ReadFile("./testdata/podlist_1.8-2.json")
 	require.Nil(suite.T(), err)
 	var podList PodList
@@ -136,27 +137,72 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireContainers() {
 
 	_, err = watcher.computeChanges(sourcePods)
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), watcher.lastSeen, 5)
+	require.Len(suite.T(), watcher.lastSeen, 10)
 
-	expire, err := watcher.ExpireContainers()
+	expire, err := watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
 
+	// Try
 	testContainerID := "docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6"
 
 	// 4 minutes should NOT be enough to expire
 	watcher.lastSeen[testContainerID] = watcher.lastSeen[testContainerID].Add(-4 * time.Minute)
-	expire, err = watcher.ExpireContainers()
+	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 0)
 
 	// 6 minutes should be enough to expire
 	watcher.lastSeen[testContainerID] = watcher.lastSeen[testContainerID].Add(-6 * time.Minute)
-	expire, err = watcher.ExpireContainers()
+	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), expire, 1)
 	require.Equal(suite.T(), testContainerID, expire[0])
-	require.Len(suite.T(), watcher.lastSeen, 4)
+	require.Len(suite.T(), watcher.lastSeen, 9)
+}
+
+func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
+	raw, err := ioutil.ReadFile("./testdata/podlist_1.8-2.json")
+	require.Nil(suite.T(), err)
+	var podList PodList
+	json.Unmarshal(raw, &podList)
+	sourcePods := podList.Items
+	require.Len(suite.T(), sourcePods, 6)
+
+	watcher := &PodWatcher{
+		lastSeen:       make(map[string]time.Time),
+		expiryDuration: 5 * time.Minute,
+	}
+
+	_, err = watcher.computeChanges(sourcePods)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), watcher.lastSeen, 10)
+
+	expire, err := watcher.Expire()
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), expire, 0)
+
+	// Make everything old
+	for k := range watcher.lastSeen {
+		watcher.lastSeen[k] = watcher.lastSeen[k].Add(-10 * time.Minute)
+	}
+
+	// Remove one pod from the list, make sure we take the good one
+	oldPod := podList.Items[5]
+	require.Contains(suite.T(), oldPod.Metadata.UID, "d91aa43c-0769-11e8-afcc-000c29dea4f6")
+
+	_, err = watcher.computeChanges(sourcePods[0:5])
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), watcher.lastSeen, 10)
+
+	// That one should expire, we'll have 8 entities left
+	expire, err = watcher.Expire()
+	require.Nil(suite.T(), err)
+	require.EqualValues(suite.T(), expire, []string{
+		"kubernetes_pod://d91aa43c-0769-11e8-afcc-000c29dea4f6",
+		"docker://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a",
+	})
+	require.Len(suite.T(), watcher.lastSeen, 8)
 }
 
 func (suite *PodwatcherTestSuite) TestPullChanges() {
