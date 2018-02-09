@@ -198,10 +198,14 @@ func (suite *PodwatcherTestSuite) TestPodWatcherExpireWholePod() {
 	// That one should expire, we'll have 8 entities left
 	expire, err = watcher.Expire()
 	require.Nil(suite.T(), err)
-	require.EqualValues(suite.T(), expire, []string{
+	expectedExpire := []string{
 		"kubernetes_pod://d91aa43c-0769-11e8-afcc-000c29dea4f6",
 		"docker://3e13513f94b41d23429804243820438fb9a214238bf2d4f384741a48b575670a",
-	})
+	}
+	require.Equal(suite.T(), len(expectedExpire), len(expire))
+	for _, expectedEntity := range expectedExpire {
+		assert.Contains(suite.T(), expire, expectedEntity)
+	}
 	require.Len(suite.T(), watcher.lastSeen, 8)
 }
 
