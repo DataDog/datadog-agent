@@ -78,7 +78,7 @@ func (suite *apiserverSuite) SetupTest() {
 	k8sConfig.Timeout = 400 * time.Millisecond
 
 	coreClient, err := corev1.NewForConfig(k8sConfig)
-
+	require.Nil(suite.T(), err)
 	for {
 		select {
 		case <-timeout.C:

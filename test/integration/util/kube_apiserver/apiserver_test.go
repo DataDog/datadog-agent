@@ -156,7 +156,7 @@ func (suite *testSuite) TestKubeEvents() {
 
 	// We should get 2+0 events from initresversion
 	// apiserver does not send updates to objects if the add is in the same bucket
-	added, modified, resversion, err = suite.apiClient.LatestEvents(initresversion)
+	added, modified, _, err = suite.apiClient.LatestEvents(initresversion)
 	require.Nil(suite.T(), err)
 	assert.Len(suite.T(), added, 2)
 	assert.Len(suite.T(), modified, 0)
