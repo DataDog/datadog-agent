@@ -28,7 +28,7 @@ process_config:
 To enable the trace agent add the following to `datadog.yaml`:
 ```
 ...
-trace_config:
+apm_config:
   enabled: true
 ...
 ```
