@@ -91,7 +91,7 @@ func (c *DockerCollector) Stop() error {
 func (c *DockerCollector) Fetch(container string) ([]string, []string, error) {
 	cID := strings.TrimPrefix(container, docker.DockerEntityPrefix)
 	if cID == container || len(cID) == 0 {
-		return nil, nil, ErrNotFound
+		return nil, nil, nil
 	}
 	return c.fetchForDockerID(cID)
 }

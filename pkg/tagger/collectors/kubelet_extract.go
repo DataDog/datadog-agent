@@ -89,7 +89,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		if pod.Metadata.UID != "" {
 			podInfo := &TagInfo{
 				Source:       kubeletCollectorName,
-				Entity:       fmt.Sprintf("%s%s", kubelet.KubePodPrefix, pod.Metadata.UID),
+				Entity:       kubelet.PodUIDToEntityName(pod.Metadata.UID),
 				HighCardTags: high,
 				LowCardTags:  low,
 			}
@@ -98,12 +98,11 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 
 		// container tags
 		for _, container := range pod.Status.Containers {
-			lowC, highC := tags.Compute()
-			lowC = append(lowC, fmt.Sprintf("kube_container_name:%s", container.Name))
+			lowC := append(low, fmt.Sprintf("kube_container_name:%s", container.Name))
 			info := &TagInfo{
 				Source:       kubeletCollectorName,
 				Entity:       container.ID,
-				HighCardTags: highC,
+				HighCardTags: high,
 				LowCardTags:  lowC,
 			}
 			output = append(output, info)
