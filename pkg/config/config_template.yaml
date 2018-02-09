@@ -375,7 +375,7 @@ metadata_collectors:
 #   receiver_port: 8126
 #   Whether the Trace Agent should listen for non local traffic
 #   Only enable if Traces are being sent to this Agent from another host/container
-#   trace_non_local_traffic: true
+#   apm_non_local_traffic: true
 #   How many unique client connections to allow during one 30 second lease period
 #   connection_limit: 2000
 #   Extra global sample rate to apply on all the traces
