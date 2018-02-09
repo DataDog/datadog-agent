@@ -6,8 +6,6 @@
 package tagger
 
 import (
-	log "github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
 
@@ -19,20 +17,16 @@ func Init() error {
 	return defaultTagger.Init(collectors.DefaultCatalog)
 }
 
-// Tag queries the defaulttagger to get entity tags from cache or sources
+// Tag queries the defaultTagger to get entity tags from cache or sources
 func Tag(entity string, highCard bool) ([]string, error) {
 	return defaultTagger.Tag(entity, highCard)
 }
 
-// Stop queues a stop signal to the defaulttagger
+// Stop queues a stop signal to the defaultTagger
 func Stop() error {
 	return defaultTagger.Stop()
 }
 
 func init() {
-	tagger, err := newTagger()
-	if err != nil {
-		log.Errorf("tagger initialisation failed: %s", err)
-	}
-	defaultTagger = tagger
+	defaultTagger = newTagger()
 }
