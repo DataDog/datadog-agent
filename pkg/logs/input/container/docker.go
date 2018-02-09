@@ -194,7 +194,7 @@ func (dt *DockerTailer) forwardMessages() {
 			// the decoder has been stopped, there is no more message to forward
 			return
 		}
-		_, sev, updatedMsg, err := parser.ParseMessage(output.Content)
+		ts, sev, updatedMsg, err := parser.ParseMessage(output.Content)
 		if err != nil {
 			log.Warn(err)
 			continue
@@ -202,9 +202,7 @@ func (dt *DockerTailer) forwardMessages() {
 		containerMsg := message.NewContainerMessage(updatedMsg)
 		msgOrigin := message.NewOrigin()
 		msgOrigin.LogSource = dt.source
-		// We need a timestamp in the auditor to be able to resume tailing from where we stopped (eg. after a restart).
-		// Here, we chose to use the current time instead of Docker's, which is slightly inaccurate but easier.
-		msgOrigin.Timestamp = time.Now().UTC().Format(config.DateFormat)
+		msgOrigin.Timestamp = ts
 		msgOrigin.Identifier = dt.Identifier()
 		msgOrigin.SetTags(dt.containerTags)
 		containerMsg.SetSeverity(sev)
