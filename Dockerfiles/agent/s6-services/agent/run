@@ -1,3 +1,5 @@
 #!/usr/bin/execlineb -P
 
+if { /initlog.sh "starting agent" }
+fdmove -c 2 1
 agent start

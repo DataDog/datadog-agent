@@ -74,14 +74,14 @@ RUN tar xfz s6.tgz && rm s6.tgz
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
 COPY entrypoint /etc/cont-init.d/
-COPY probe.sh /
+COPY probe.sh initlog.sh /
 
 # Prepare for running without root
 RUN adduser --group dd-agent \
  && adduser --system --no-create-home --disabled-password --ingroup dd-agent dd-agent \
  && chown -R dd-agent:dd-agent /etc/datadog-agent/ \
  && chown dd-agent:dd-agent /var/log/datadog/ \
- && chmod 755 /probe.sh
+ && chmod 755 /probe.sh /initlog.sh
 
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp
