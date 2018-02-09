@@ -202,6 +202,8 @@ func (dt *DockerTailer) forwardMessages() {
 		containerMsg := message.NewContainerMessage(updatedMsg)
 		msgOrigin := message.NewOrigin()
 		msgOrigin.LogSource = dt.source
+		// We need a timestamp in the auditor to be able to resume tailing from where we stopped (eg. after a restart).
+		// Here, we chose to use the current time instead of Docker's, which is slightly inaccurate but easier.
 		msgOrigin.Timestamp = time.Now().UTC().Format(config.DateFormat)
 		msgOrigin.Identifier = dt.Identifier()
 		msgOrigin.SetTags(dt.containerTags)
