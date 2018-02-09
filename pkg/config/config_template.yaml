@@ -365,7 +365,7 @@ metadata_collectors:
 {{- if .TraceAgent }}
 # Trace Agent Specific Settings
 #
-# trace_config:
+# apm_config:
 #   Whether or not the APM Agent should run
 #   enabled: true
 #   The environment tag that Traces should be tagged with
