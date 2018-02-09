@@ -47,7 +47,7 @@ def pkg_config_path(use_embedded_libs):
 
 def get_build_flags(ctx, static=False, use_embedded_libs=False):
     """
-    Build the common value for both ldflags and gcflags.
+    Build the common value for both ldflags and gcflags, and return an env accordingly.
 
     We need to invoke external processes here so this function need the
     Context object.
@@ -59,12 +59,13 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
     ldflags = "-X {}/pkg/version.commit={} ".format(REPO_PATH, commit)
     ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
+    env = {
+        "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
+        "CGO_CFLAGS_ALLOW": "-static-libgcc"  # whitelist additional flags, here a flag used for net-snmp
+    }
     if static:
         ldflags += "-s -w -linkmode external -extldflags '-static' "
     elif use_embedded_libs:
-        env = {
-            "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
-        }
         embedded_lib_path = ctx.run("pkg-config --variable=libdir python-2.7",
                                     env=env, hide=True).stdout.strip()
         embedded_prefix = ctx.run("pkg-config --variable=prefix python-2.7",
@@ -79,7 +80,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
             # if you want to be able to use the delve debugger.
             ldflags += "-linkmode internal "
 
-    return ldflags, gcflags
+    return ldflags, gcflags, env
 
 
 def get_payload_version():

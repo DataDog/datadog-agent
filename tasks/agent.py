@@ -52,9 +52,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     """
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    env = {
-        "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
-    }
+
+    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
     if invoke.platform.WINDOWS:
         # Don't build Docker support
@@ -83,7 +82,6 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         build_tags = get_default_build_tags(puppy=True)
     else:
         build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
     cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
