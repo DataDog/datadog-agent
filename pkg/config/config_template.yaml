@@ -322,12 +322,24 @@ metadata_collectors:
 #
 # kubernetes_kubeconfig_path: /path/to/file
 #
-# In order to collect service names, the agent needs certain rights (see RBAC documentation in
+# In order to collect Kubernetes service names, the agent needs certain rights (see RBAC documentation in
 # [docker readme](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
 # You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of services to
 # ContainerIDs with the following options:
 # kubernetes_collect_service_tags: true
 # kubernetes_service_tag_update_freq: 300
+#
+#
+# To collect Kubernetes events, leader election must be enabled and set the collect_kubernetes_events to true.
+# Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#event-collection).
+# collect_kubernetes_events: false
+#
+#
+# Leader Election settings, more details about leader election [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#leader-election)
+# To enable the leader election on this node, set the leader_election variable to true.
+# leader_election: false
+# The leader election lease is an integer in seconds.
+# leader_lease_duration: 60
 {{ end -}}
 
 {{- if .ProcessAgent }}
