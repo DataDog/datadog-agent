@@ -31,6 +31,11 @@ func (o *Origin) Tags() []string {
 	return o.tags
 }
 
+// TagsPayload returns the raw tag payload of the origin.
+func (o *Origin) TagsPayload() []byte {
+	return o.tagsPayload
+}
+
 // SetTags sets the tags of the origin.
 func (o *Origin) SetTags(tags []string, config *config.LogsConfig) {
 
@@ -60,14 +65,4 @@ func (o *Origin) SetTags(tags []string, config *config.LogsConfig) {
 		o.tagsPayload = []byte{'-'}
 	}
 
-}
-
-// TagsPayload returns the raw tag payload of the origin.
-func (o *Origin) TagsPayload() []byte {
-	return o.tagsPayload
-}
-
-// SetTagsPayload sets the raw tag payload of the origin.
-func (o *Origin) SetTagsPayload(tagsPayload []byte) {
-	o.tagsPayload = tagsPayload
 }

@@ -61,12 +61,7 @@ func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent = append(extraContent, ' ')
 
 		// Timestamp
-		if msg.GetTimestamp() != "" {
-			extraContent = append(extraContent, []byte(msg.GetTimestamp())...)
-		} else {
-			timestamp := time.Now().UTC().Format(config.DateFormat)
-			extraContent = append(extraContent, []byte(timestamp)...)
-		}
+		extraContent = time.Now().UTC().AppendFormat(extraContent, config.DateFormat)
 		extraContent = append(extraContent, ' ')
 
 		extraContent = append(extraContent, []byte(getHostname())...)
@@ -121,7 +116,7 @@ func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) 
 	return (&pb.Log{
 		Message:   string(redactedMsg),
 		Status:    status,
-		Timestamp: msg.GetTimestamp(),
+		Timestamp: time.Now().UTC().UnixNano(),
 		Hostname:  getHostname(),
 		Service:   msg.GetOrigin().LogSource.Config.Service,
 		Source:    msg.GetOrigin().LogSource.Config.Source,
@@ -129,6 +124,7 @@ func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) 
 	}).Marshal()
 }
 
+// getHostname returns the hostname for the agent.
 func getHostname() string {
 	// Compute the hostname
 	hostname, err := util.GetHostname()

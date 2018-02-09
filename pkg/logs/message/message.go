@@ -11,7 +11,6 @@ type Message interface {
 	SetContent([]byte)
 	GetOrigin() *Origin
 	SetOrigin(*Origin)
-	GetTimestamp() string // No need for SetTimestamp as we use Origin under the hood
 	GetSeverity() []byte
 	SetSeverity([]byte)
 }
@@ -46,14 +45,6 @@ func (m *message) GetOrigin() *Origin {
 // SetOrigin sets the integration from which the message comes
 func (m *message) SetOrigin(Origin *Origin) {
 	m.origin = Origin
-}
-
-// GetTimestamp returns the timestamp of the message, or "" if no timestamp is relevant
-func (m *message) GetTimestamp() string {
-	if m.origin != nil {
-		return m.origin.Timestamp
-	}
-	return ""
 }
 
 // GetSeverity returns the severity of the message when set

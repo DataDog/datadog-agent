@@ -194,7 +194,7 @@ func (dt *DockerTailer) forwardMessages() {
 			// the decoder has been stopped, there is no more message to forward
 			return
 		}
-		ts, sev, updatedMsg, err := parser.ParseMessage(output.Content)
+		_, sev, updatedMsg, err := parser.ParseMessage(output.Content)
 		if err != nil {
 			log.Warn(err)
 			continue
@@ -202,7 +202,7 @@ func (dt *DockerTailer) forwardMessages() {
 		containerMsg := message.NewContainerMessage(updatedMsg)
 		msgOrigin := message.NewOrigin()
 		msgOrigin.LogSource = dt.source
-		msgOrigin.Timestamp = ts
+		msgOrigin.Timestamp = time.Now().UTC().Format(config.DateFormat)
 		msgOrigin.Identifier = dt.Identifier()
 		msgOrigin.SetTags(dt.containerTags, dt.source.Config)
 		containerMsg.SetSeverity(sev)

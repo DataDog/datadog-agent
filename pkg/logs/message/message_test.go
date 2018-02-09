@@ -12,17 +12,12 @@ import (
 )
 
 func TestMessage(t *testing.T) {
+
 	message := newMessage([]byte("hello"))
 	assert.Equal(t, "hello", string(message.Content()))
 
 	message.SetContent([]byte("world"))
 	assert.Equal(t, "world", string(message.Content()))
 	assert.Nil(t, message.GetSeverity())
-
-	o := NewOrigin()
-	message.SetOrigin(o)
-	assert.Equal(t, "", message.GetTimestamp())
-	o.Timestamp = "ts"
-	assert.Equal(t, "ts", message.GetTimestamp())
 
 }

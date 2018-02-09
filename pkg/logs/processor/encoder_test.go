@@ -36,7 +36,6 @@ func TestRawEncoder(t *testing.T) {
 	rawMessage := "message"
 	message := newNetworkMessage([]byte(rawMessage), source)
 	message.SetSeverity(config.SevError)
-	message.GetOrigin().Timestamp = "Timestamp"
 	message.GetOrigin().SetTags([]string{"a", "b:c"}, logsConfig)
 
 	redactedMessage := "redacted"
@@ -44,10 +43,12 @@ func TestRawEncoder(t *testing.T) {
 	raw, err := rawEncoder.encode(message, []byte(redactedMessage))
 	assert.Nil(t, err)
 
+	day := time.Now().UTC().Format("2006-01-02")
+
 	msg := string(raw)
 	parts := strings.Fields(msg)
 	assert.Equal(t, string(config.SevError)+"0", parts[0])
-	assert.Equal(t, "Timestamp", parts[1])
+	assert.Equal(t, day, parts[1][:len(day)])
 	assert.NotEmpty(t, parts[2])
 	assert.Equal(t, "Service", parts[3])
 	assert.Equal(t, "-", parts[4])
@@ -125,7 +126,6 @@ func TestProtoEncoder(t *testing.T) {
 	rawMessage := "message"
 	message := newNetworkMessage([]byte(rawMessage), source)
 	message.SetSeverity(config.SevError)
-	message.GetOrigin().Timestamp = "Timestamp"
 	message.GetOrigin().SetTags([]string{"a", "b:c"}, logsConfig)
 
 	redactedMessage := "redacted"
@@ -145,7 +145,7 @@ func TestProtoEncoder(t *testing.T) {
 
 	assert.Equal(t, redactedMessage, log.Message)
 	assert.Equal(t, config.StatusError, log.Status)
-	assert.Equal(t, message.GetOrigin().Timestamp, log.Timestamp)
+	assert.NotEmpty(t, log.Timestamp)
 
 }
 
@@ -175,6 +175,6 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 	assert.Empty(t, log.Message)
 	assert.Equal(t, log.Status, config.StatusInfo)
-	assert.Empty(t, log.Timestamp, message.GetOrigin().Timestamp)
+	assert.NotEmpty(t, log.Timestamp)
 
 }
