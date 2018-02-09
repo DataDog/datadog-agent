@@ -4,5 +4,8 @@
 
 ifthenelse
   { s6-test ${1} -eq 0 }
-  { /bin/s6-svc -d /var/run/s6/services/trace/ }
+  {
+      foreground { /bin/s6-svc -d /var/run/s6/services/trace/ }
+      foreground { /bin/s6-svc -d /var/run/s6/services/trace/log }
+  }
   { s6-sleep 2 }
