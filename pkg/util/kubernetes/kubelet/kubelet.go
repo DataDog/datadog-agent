@@ -243,8 +243,8 @@ func (ku *KubeUtil) GetPodFromUID(podUID string) (*Pod, error) {
 
 func (ku *KubeUtil) GetPodForEntityID(entityID string) (*Pod, error) {
 	if strings.HasPrefix(entityID, KubePodPrefix) {
-			uid := strings.TrimPrefix(entityID, KubePodPrefix)
-			return ku.GetPodFromUID(uid)
+		uid := strings.TrimPrefix(entityID, KubePodPrefix)
+		return ku.GetPodFromUID(uid)
 	}
 	return ku.GetPodForContainerID(entityID)
 }
