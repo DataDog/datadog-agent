@@ -25,7 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
-const dockerCheckName = "docker"
+const (
+	dockerCheckName = "docker"
+	DockerServiceUp = "docker.service_up"
+	DockerExit      = "docker.exit"
+)
 
 type DockerConfig struct {
 	CollectContainerSize bool               `yaml:"collect_container_size"`
@@ -39,11 +43,6 @@ type DockerConfig struct {
 	FilteredEventType    []string           `yaml:"filtered_event_types"`
 	CappedMetrics        map[string]float64 `yaml:"capped_metrics"`
 }
-
-const (
-	DockerServiceUp string = "docker.service_up"
-	DockerExit      string = "docker.exit"
-)
 
 type containerPerImage struct {
 	tags    []string
@@ -108,7 +107,7 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, du *docker.
 		for _, i := range availableImages {
 			name, _, tag, err := docker.SplitImageName(i.RepoTags[0])
 			if err != nil {
-				log.Errorf("could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
+				log.Errorf("Could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
 				continue
 			}
 			tags := append(d.instance.Tags, fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag))
@@ -144,8 +143,11 @@ func (d *DockerCheck) Run() error {
 
 	images := map[string]*containerPerImage{}
 	for _, c := range containers {
+		if c.Excluded {
+			continue
+		}
 		updateContainerRunningCount(images, c)
-		if c.State != docker.ContainerRunningState || c.Excluded {
+		if c.State != docker.ContainerRunningState {
 			continue
 		}
 		tags, err := tagger.Tag(c.EntityID, true)
@@ -186,7 +188,7 @@ func (d *DockerCheck) Run() error {
 		if c.Network != nil {
 			for _, netStat := range c.Network {
 				if netStat.NetworkName == "" {
-					log.Debugf("ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
+					log.Debugf("Ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
 					continue
 				}
 				ifaceTags := append(tags, fmt.Sprintf("docker_network:%s", netStat.NetworkName))
@@ -253,7 +255,7 @@ func (d *DockerCheck) Run() error {
 		} else {
 			for _, stat := range stats {
 				if stat.Name != docker.DataStorageName && stat.Name != docker.MetadataStorageName {
-					log.Debugf("ignoring unknown disk stats: %s", stat)
+					log.Debugf("Ignoring unknown disk stats: %s", stat)
 					continue
 				}
 				if stat.Free != nil {

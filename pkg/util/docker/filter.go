@@ -77,32 +77,28 @@ func (cf containerFilter) computeIsExcluded(containerName, containerImage string
 		return false
 	}
 
-	var excluded bool
+	// Any whitelisted take precedence on excluded
+	for _, r := range cf.ImageWhitelist {
+		if r.MatchString(containerImage) {
+			return false
+		}
+	}
+	for _, r := range cf.NameWhitelist {
+		if r.MatchString(containerName) {
+			return false
+		}
+	}
+
+	// Check if blacklisted
 	for _, r := range cf.ImageBlacklist {
 		if r.MatchString(containerImage) {
-			excluded = true
-			break
+			return true
 		}
 	}
 	for _, r := range cf.NameBlacklist {
 		if r.MatchString(containerName) {
-			excluded = true
-			break
+			return true
 		}
 	}
-
-	// Any excluded container could be whitelisted.
-	if excluded {
-		for _, r := range cf.ImageWhitelist {
-			if r.MatchString(containerImage) {
-				return false
-			}
-		}
-		for _, r := range cf.NameWhitelist {
-			if r.MatchString(containerName) {
-				return false
-			}
-		}
-	}
-	return excluded
+	return false
 }

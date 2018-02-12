@@ -24,7 +24,7 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 	//TODO: remove when Inspect returns resolved image names
 	dockerImage, err := c.dockerUtil.ResolveImageName(co.Image)
 	if err != nil {
-		log.Debugf("error resolving image %s: %s", co.Image, err)
+		log.Debugf("Error resolving image %s: %s", co.Image, err)
 	} else {
 		dockerExtractImage(tags, dockerImage)
 	}
@@ -42,7 +42,7 @@ func dockerExtractImage(tags *utils.TagList, dockerImage string) {
 	tags.AddLow("docker_image", dockerImage)
 	imageName, shortImage, imageTag, err := docker.SplitImageName(dockerImage)
 	if err != nil {
-		log.Debugf("error splitting %s: %s", dockerImage, err)
+		log.Debugf("Error splitting %s: %s", dockerImage, err)
 		return
 	}
 	tags.AddLow("image_name", imageName)

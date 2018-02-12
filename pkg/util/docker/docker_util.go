@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	pauseContainerGCR       string = "image:gcr.io/google_containers/pause.*"
-	pauseContainerOpenshift string = "image:openshift/origin-pod"
+	pauseContainerGCR       = "image:.*gcr.io/.*pause.*"
+	pauseContainerOpenshift = "image:openshift/origin-pod"
 )
 
 // FIXME: remove once DockerListener is moved to .Containers
@@ -107,7 +107,7 @@ func ConnectToDocker() (*client.Client, error) {
 	// TODO: remove this logic when "client.NegotiateAPIVersion" function is released by moby/docker
 	v, err := cli.ServerVersion(context.Background())
 	if err != nil || v.APIVersion == "" {
-		return nil, fmt.Errorf("Could not determine docker server API version: %s", err)
+		return nil, fmt.Errorf("could not determine docker server API version: %s", err)
 	}
 	serverVersion := v.APIVersion
 
