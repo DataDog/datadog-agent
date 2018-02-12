@@ -1,5 +1,5 @@
 #!/usr/bin/execlineb -P
 
-if { /initlog.sh "starting trace-agent" }
+foreground { /initlog.sh "starting trace-agent" }
 fdmove -c 2 1
 trace-agent --ddconfig=/etc/datadog-agent/datadog.yaml
