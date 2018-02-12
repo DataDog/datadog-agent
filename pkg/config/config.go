@@ -165,6 +165,8 @@ func init() {
 
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
+	Datadog.SetDefault("leader_lease_duration", "60")
+	Datadog.SetDefault("leader_election", false)
 
 	// Datadog cluster agent
 	Datadog.SetDefault("cluster_agent.auth_token", "")
@@ -173,6 +175,8 @@ func init() {
 
 	// ECS
 	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
+	Datadog.SetDefault("collect_ec2_tags", false)
+	Datadog.SetDefault("collect_security_groups", false)
 
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)
@@ -243,6 +247,8 @@ func init() {
 	Datadog.BindEnv("histogram_aggregates")
 	Datadog.BindEnv("histogram_percentiles")
 	Datadog.BindEnv("kubernetes_kubeconfig_path")
+	Datadog.BindEnv("leader_election")
+	Datadog.BindEnv("leader_lease_duration")
 }
 
 // BindEnvAndSetDefault sets the default value for a config parameter, and adds an env binding
@@ -275,7 +281,7 @@ func addAgentVersionToDomain(domain string, app string) (string, error) {
 		return domain, nil
 	}
 
-	v, _ := version.New(version.AgentVersion)
+	v, _ := version.New(version.AgentVersion, version.Commit)
 	subdomain := strings.Split(u.Host, ".")[0]
 	newSubdomain := fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
 

@@ -53,19 +53,19 @@ def tearDownModule():
 
 def waitUntilListening(container, retries=20):
     for x in range(0, retries):
-        out = container.exec_run(cmd="netstat -a")
+        out = container.exec_run(cmd="netstat -a").output
         if ":8125" in out or SOCKET_PATH in out:
             return True
     return False
 
 
 def isUDPListening(container):
-    out = container.exec_run(cmd="netstat -a")
+    out = container.exec_run(cmd="netstat -a").output
     return ":8125" in out
 
 
 def isUDSListening(container, retries=10):
-    out = container.exec_run(cmd="netstat -a")
+    out = container.exec_run(cmd="netstat -a").output
     return SOCKET_PATH in out
 
 
@@ -74,17 +74,17 @@ class DSDTest(unittest.TestCase):
         self.assertIsNotNone(os.environ.get('DOCKER_IMAGE'), "DOCKER_IMAGE envvar needed")
 
     def test_udp(self):
-        waitUntilListening(containers["udp"])
+        self.assertTrue(waitUntilListening(containers["udp"]))
         self.assertTrue(isUDPListening(containers["udp"]))
         self.assertFalse(isUDSListening(containers["udp"]))
 
     def test_uds(self):
-        waitUntilListening(containers["uds"])
+        self.assertTrue(waitUntilListening(containers["uds"]))
         self.assertFalse(isUDPListening(containers["uds"]))
         self.assertTrue(isUDSListening(containers["uds"]))
 
     def test_both(self):
-        waitUntilListening(containers["both"])
+        self.assertTrue(waitUntilListening(containers["both"]))
         self.assertTrue(isUDPListening(containers["both"]))
         self.assertTrue(isUDSListening(containers["both"]))
 

@@ -21,3 +21,6 @@ func New(sources []*config.LogSource, pp pipeline.Provider, auditor *auditor.Aud
 
 // Start does nothing
 func (s *Scanner) Start() {}
+
+// Stop does nothing
+func (s *Scanner) Stop() {}

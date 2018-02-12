@@ -20,6 +20,7 @@ func TestContainerExit(t *testing.T) {
 		instanceTag,
 		"docker_image:datadog/docker-library:busybox_1_28_0",
 		"image_name:datadog/docker-library",
+		"short_image:docker-library",
 		"image_tag:busybox_1_28_0",
 		"highcardlabeltag:exithigh",
 		"lowcardlabeltag:exitlow",

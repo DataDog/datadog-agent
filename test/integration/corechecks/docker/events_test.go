@@ -32,6 +32,7 @@ func TestEvents(t *testing.T) {
 		Tags: append(expectedTags, []string{
 			"docker_image:datadog/docker-library:busybox_1_28_0",
 			"image_name:datadog/docker-library",
+			"short_image:docker-library",
 			"image_tag:busybox_1_28_0",
 			"container_name:events_recordingevent0_1",
 			"container_name:events_recordingevent1_1",
@@ -48,6 +49,7 @@ func TestEvents(t *testing.T) {
 		Tags: append(expectedTags, []string{
 			"docker_image:datadog/docker-library:redis_3_2_11-alpine",
 			"image_name:datadog/docker-library",
+			"short_image:docker-library",
 			"image_tag:redis_3_2_11-alpine",
 			"container_name:events_recordingevent2_1",
 		}...),

@@ -8,12 +8,6 @@
 INSTALL_DIR=/opt/datadog-agent
 LOG_DIR=/var/log/datadog
 SERVICE_NAME=datadog-agent
-CONFIG_DIR=/etc/datadog-agent
-
-# create all the paths needed to complete the installation
-mkdir -p $LOG_DIR
-mkdir -p $CONFIG_DIR/conf.d
-mkdir -p $CONFIG_DIR/checks.d
 
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|openSUSE|Amazon|Arista|SUSE)"
 DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || uname -s)
@@ -64,6 +58,7 @@ if [ "$DISTRIBUTION" != "Darwin" ]; then
     fi
 else
     # macOS
+    mkdir -p $LOG_DIR
 
     CONF_DIR="$INSTALL_DIR/etc"
     APP_DIR="/Applications/Datadog Agent.app"

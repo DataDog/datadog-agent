@@ -93,7 +93,7 @@ func EnsureParentDirsExist(p string) error {
 
 // HTTPHeaders returns a http headers including various basic information (User-Agent, Content-Type...).
 func HTTPHeaders() map[string]string {
-	av, _ := version.New(version.AgentVersion)
+	av, _ := version.New(version.AgentVersion, version.Commit)
 	return map[string]string{
 		"User-Agent":   fmt.Sprintf("Datadog Agent/%s", av.GetNumber()),
 		"Content-Type": "application/x-www-form-urlencoded",

@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"fmt"
 	"strings"
 
 	log "github.com/cihub/seelog"
@@ -42,55 +43,67 @@ const Digits = "1234567890"
 func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 	var output []*TagInfo
 	for _, pod := range pods {
+		// pod tags
+		tags := utils.NewTagList()
+
+		// Pod name
+		tags.AddHigh("pod_name", pod.Metadata.Name)
+		tags.AddLow("kube_namespace", pod.Metadata.Namespace)
+
+		// Pod labels
+		for labelName, labelValue := range pod.Metadata.Labels {
+			if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
+				tags.AddAuto(tagName, labelValue)
+			}
+		}
+
+		// Creator
+		for _, owner := range pod.Metadata.Owners {
+			switch owner.Kind {
+			case "":
+				continue
+			case "Deployment":
+				tags.AddLow("kube_deployment", owner.Name)
+			case "DaemonSet":
+				tags.AddLow("kube_daemon_set", owner.Name)
+			case "ReplicationController":
+				tags.AddLow("kube_replication_controller", owner.Name)
+			case "StatefulSet":
+				tags.AddLow("kube_stateful_set", owner.Name)
+			case "Job":
+				tags.AddHigh("kube_job", owner.Name) // TODO detect if no from cronjob, then low card
+			case "ReplicaSet":
+				deployment := c.parseDeploymentForReplicaset(owner.Name)
+				if len(deployment) > 0 {
+					tags.AddHigh("kube_replica_set", owner.Name)
+					tags.AddLow("kube_deployment", deployment)
+				} else {
+					tags.AddLow("kube_replica_set", owner.Name)
+				}
+			default:
+				log.Debugf("unknown owner kind %s for pod %s", owner.Kind, pod.Metadata.Name)
+			}
+		}
+
+		low, high := tags.Compute()
+		if pod.Metadata.UID != "" {
+			podInfo := &TagInfo{
+				Source:       kubeletCollectorName,
+				Entity:       kubelet.PodUIDToEntityName(pod.Metadata.UID),
+				HighCardTags: high,
+				LowCardTags:  low,
+			}
+			output = append(output, podInfo)
+		}
+
+		// container tags
 		for _, container := range pod.Status.Containers {
-			tags := utils.NewTagList()
-
-			// Pod name
-			tags.AddHigh("pod_name", pod.Metadata.Name)
-			tags.AddLow("kube_namespace", pod.Metadata.Namespace)
-			tags.AddLow("kube_container_name", container.Name)
-
-			// Pod labels
-			for labelName, labelValue := range pod.Metadata.Labels {
-				if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
-					tags.AddAuto(tagName, labelValue)
-				}
-			}
-
-			// Creator
-			for _, owner := range pod.Metadata.Owners {
-				switch owner.Kind {
-				case "":
-					continue
-				case "Deployment":
-					tags.AddLow("kube_deployment", owner.Name)
-				case "DaemonSet":
-					tags.AddLow("kube_daemon_set", owner.Name)
-				case "ReplicationController":
-					tags.AddLow("kube_replication_controller", owner.Name)
-				case "StatefulSet":
-					tags.AddLow("kube_stateful_set", owner.Name)
-				case "Job":
-					tags.AddHigh("kube_job", owner.Name) // TODO detect if no from cronjob, then low card
-				case "ReplicaSet":
-					deployment := c.parseDeploymentForReplicaset(owner.Name)
-					if len(deployment) > 0 {
-						tags.AddHigh("kube_replica_set", owner.Name)
-						tags.AddLow("kube_deployment", deployment)
-					} else {
-						tags.AddLow("kube_replica_set", owner.Name)
-					}
-				default:
-					log.Debugf("unknown owner kind %s for pod %s", owner.Kind, pod.Metadata.Name)
-				}
-			}
-
-			low, high := tags.Compute()
+			lowC := append(low, fmt.Sprintf("kube_container_name:%s", container.Name))
 			info := &TagInfo{
 				Source:       kubeletCollectorName,
 				Entity:       container.ID,
 				HighCardTags: high,
-				LowCardTags:  low,
+				LowCardTags:  lowC,
 			}
 			output = append(output, info)
 		}

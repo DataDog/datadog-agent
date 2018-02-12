@@ -20,9 +20,7 @@ type StoreTestSuite struct {
 }
 
 func (s *StoreTestSuite) SetupTest() {
-	var err error
-	s.store, err = newTagStore()
-	assert.Nil(s.T(), err)
+	s.store = newTagStore()
 }
 
 func (s *StoreTestSuite) TestIngest() {

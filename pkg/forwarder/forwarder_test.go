@@ -155,6 +155,9 @@ func TestRetryTransactions(t *testing.T) {
 	forwarder.init()
 	forwarder.retryQueueLimit = 1
 
+	// Default value should be nil
+	assert.Nil(t, transactionsExpvar.Get("Dropped"))
+
 	t1 := NewHTTPTransaction()
 	t1.nextFlush = time.Now().Add(-1 * time.Hour)
 	t2 := NewHTTPTransaction()
@@ -165,6 +168,7 @@ func TestRetryTransactions(t *testing.T) {
 	forwarder.retryTransactions(time.Now())
 	assert.Len(t, forwarder.retryQueue, 1)
 	assert.Len(t, forwarder.lowPrio, 1)
+	require.NotNil(t, transactionsExpvar.Get("Dropped"))
 	dropped, _ := strconv.ParseInt(transactionsExpvar.Get("Dropped").String(), 10, 64)
 	assert.Equal(t, int64(1), dropped)
 }

@@ -11,7 +11,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -23,7 +22,7 @@ const defaultFlushPeriod = 1 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 const defaultTTL = 23 * time.Hour
 
-// A RegistryEntry represends an entry in the registry where we keep track
+// A RegistryEntry represents an entry in the registry where we keep track
 // of current offsets
 type RegistryEntry struct {
 	Timestamp   string
@@ -33,28 +32,22 @@ type RegistryEntry struct {
 
 // An Auditor handles messages successfully submitted to the intake
 type Auditor struct {
-	inputChan     chan message.Message
-	registry      map[string]*RegistryEntry
-	registryMutex *sync.Mutex
-	registryPath  string
+	inputChan    chan message.Message
+	registry     map[string]*RegistryEntry
+	registryPath string
 
-	flushTicker   *time.Ticker
-	flushPeriod   time.Duration
-	cleanupTicker *time.Ticker
-	cleanupPeriod time.Duration
-	entryTTL      time.Duration
+	entryTTL time.Duration
+
+	done chan struct{}
 }
 
 // New returns an initialized Auditor
 func New(inputChan chan message.Message, runPath string) *Auditor {
 	return &Auditor{
-		inputChan:     inputChan,
-		registryPath:  filepath.Join(runPath, "registry.json"),
-		registryMutex: &sync.Mutex{},
-
-		flushPeriod:   defaultFlushPeriod,
-		cleanupPeriod: defaultCleanupPeriod,
-		entryTTL:      defaultTTL,
+		inputChan:    inputChan,
+		registryPath: filepath.Join(runPath, "registry.json"),
+		entryTTL:     defaultTTL,
+		done:         make(chan struct{}),
 	}
 }
 
@@ -63,16 +56,44 @@ func (a *Auditor) Start() {
 	a.registry = a.recoverRegistry(a.registryPath)
 	a.cleanupRegistry(a.registry)
 	go a.run()
-	go a.flushRegistryPediodically()
-	go a.cleanupRegistryPeriodically()
 }
 
-// flushRegistryPediodically periodically saves the registry in its current state
-func (a *Auditor) flushRegistryPediodically() {
-	a.flushTicker = time.NewTicker(a.flushPeriod)
+// Stop stops the Auditor
+func (a *Auditor) Stop() {
+	close(a.inputChan)
+	<-a.done
+	a.cleanupRegistry(a.registry)
+	err := a.flushRegistry(a.registry, a.registryPath)
+	if err != nil {
+		log.Warn(err)
+	}
+}
+
+// run keeps up to date the registry depending on different events
+func (a *Auditor) run() {
+	cleanUpTicker := time.NewTicker(defaultCleanupPeriod)
+	flushTicker := time.NewTicker(defaultFlushPeriod)
+	defer func() {
+		// clean the context
+		cleanUpTicker.Stop()
+		flushTicker.Stop()
+		a.done <- struct{}{}
+	}()
+
 	for {
 		select {
-		case <-a.flushTicker.C:
+		case msg, isOpen := <-a.inputChan:
+			if !isOpen {
+				// inputChan has been closed, no need to update the registry anymore
+				return
+			}
+			// update the registry with new entry
+			a.updateRegistry(msg.GetOrigin().Identifier, msg.GetOrigin().Offset, msg.GetOrigin().Timestamp)
+		case <-cleanUpTicker.C:
+			// remove expired offsets from registry
+			a.cleanupRegistry(a.registry)
+		case <-flushTicker.C:
+			// saves current registry into disk
 			err := a.flushRegistry(a.registry, a.registryPath)
 			if err != nil {
 				log.Warn(err)
@@ -81,33 +102,14 @@ func (a *Auditor) flushRegistryPediodically() {
 	}
 }
 
-// cleanupRegistryPeriodically periodically removes from the registry expired offsets
-func (a *Auditor) cleanupRegistryPeriodically() {
-	a.cleanupTicker = time.NewTicker(a.cleanupPeriod)
-	for {
-		select {
-		case <-a.cleanupTicker.C:
-			a.cleanupRegistry(a.registry)
-		}
-	}
-}
-
-// run lets the auditor update the registry
-func (a *Auditor) run() {
-	for msg := range a.inputChan {
+// updateRegistry updates the registry entry matching identifier with new the offset and timestamp
+func (a *Auditor) updateRegistry(identifier string, offset int64, timestamp string) {
+	if identifier == "" {
 		// An empty Identifier means that we don't want to track down the offset
 		// This is useful for origins that don't have offsets (networks), or when we
 		// specially want to avoid storing the offset
-		if msg.GetOrigin().Identifier != "" {
-			a.updateRegistry(msg.GetOrigin().Identifier, msg.GetOrigin().Offset, msg.GetOrigin().Timestamp)
-		}
+		return
 	}
-}
-
-// updateRegistry updates the offset of identifier in the auditor's registry
-func (a *Auditor) updateRegistry(identifier string, offset int64, timestamp string) {
-	a.registryMutex.Lock()
-	defer a.registryMutex.Unlock()
 	a.registry[identifier] = &RegistryEntry{
 		LastUpdated: time.Now().UTC(),
 		Offset:      offset,
@@ -132,8 +134,6 @@ func (a *Auditor) recoverRegistry(path string) map[string]*RegistryEntry {
 
 // readOnlyRegistryCopy returns a read only copy of the registry
 func (a *Auditor) readOnlyRegistryCopy(registry map[string]*RegistryEntry) map[string]RegistryEntry {
-	a.registryMutex.Lock()
-	defer a.registryMutex.Unlock()
 	r := make(map[string]RegistryEntry)
 	for path, entry := range registry {
 		r[path] = *entry
@@ -174,8 +174,6 @@ func (a *Auditor) GetLastCommittedTimestamp(identifier string) string {
 // cleanupRegistry removes expired entries from the registry
 func (a *Auditor) cleanupRegistry(registry map[string]*RegistryEntry) {
 	expireBefore := time.Now().UTC().Add(-a.entryTTL)
-	a.registryMutex.Lock()
-	defer a.registryMutex.Unlock()
 	for path, entry := range registry {
 		if entry.LastUpdated.Before(expireBefore) {
 			delete(registry, path)

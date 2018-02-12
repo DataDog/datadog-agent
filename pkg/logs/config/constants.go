@@ -7,8 +7,8 @@ package config
 
 // Pipeline constraints
 const (
-	defaultChanSize          = 100
-	defaultNumberOfPipelines = 4
+	ChanSize          = 100
+	NumberOfPipelines = 4
 )
 
 // Date and time format
