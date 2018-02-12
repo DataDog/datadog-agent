@@ -33,6 +33,12 @@ var subservices = []Servicedef{
 		configKey:   "apm_enabled",
 		serviceName: "datadog-trace-agent",
 		serviceInit: apmInit,
+	},
+	{
+		name:        "process",
+		configKey:   "process_agent_enabled",
+		serviceName: "datadog-process-agent",
+		serviceInit: processInit,
 	}}
 
 func apmInit() error {
@@ -56,6 +62,10 @@ func apmInit() error {
 	}
 	return err
 
+}
+
+func processInit() error {
+	return nil
 }
 
 // Start starts the service
