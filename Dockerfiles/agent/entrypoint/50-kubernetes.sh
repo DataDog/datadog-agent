@@ -17,5 +17,12 @@ fi
 
 cd /etc/datadog-agent/conf.d
 
-mv kubernetes_apiserver.d/conf.yaml.example kubernetes_apiserver.d/conf.yaml.default || true
 mv kubelet.d/conf.yaml.example kubelet.d/conf.yaml.default || true
+
+# The apiserver check requires leader election to be enabled
+if [[ "$DD_LEADER_ELECTION" ]]; then
+    mv kubernetes_apiserver.d/conf.yaml.example kubernetes_apiserver.d/conf.yaml.default || true
+else
+    echo "Disabling the apiserver check as leader election is disabled"
+fi
+
