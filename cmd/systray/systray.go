@@ -38,37 +38,12 @@ func init() {
 	menuitems = make([]menuItem, 0)
 	menuitems = append(menuitems, menuItem{label: verstring, enabled: false})
 	menuitems = append(menuitems, menuItem{label: separator})
+	menuitems = append(menuitems, menuItem{label: "&Stop", handler: onStart, enabled: true})
+	menuitems = append(menuitems, menuItem{label: "S&top", handler: onStop, enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Restart", handler: onRestart, enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Flare", handler: onFlare, enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Configure", handler: onConfigure, enabled: canConfigure()})
 	menuitems = append(menuitems, menuItem{label: separator})
 	menuitems = append(menuitems, menuItem{label: "E&xit", handler: onExit, enabled: true})
-}
-
-func (m *menuItem) Satisfied() bool {
-	return m.enabled
-}
-
-func (m menuItem) Changed() *walk.Event {
-	return nil
-}
-func onStart() {
-	if err := ni.ShowCustom(
-		"Datadog Agent",
-		"Start."); err != nil {
-
-		log.Errorf("Failed to display message %v", err)
-	}
-}
-
-func onStop() {
-	if err := ni.ShowCustom(
-		"Datadog Agent",
-		"Stop."); err != nil {
-
-		log.Errorf("Failed to display message %v", err)
-	}
-
 }
 
 func onExit() {

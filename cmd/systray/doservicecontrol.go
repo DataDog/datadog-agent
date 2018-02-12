@@ -8,12 +8,26 @@ package main
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/app"
+	log "github.com/cihub/seelog"
 	"golang.org/x/sys/windows/svc"
 )
 
 func onRestart() {
 	if err := app.ControlService(svc.Stop, svc.Stopped); err == nil {
 		err = app.StartService(nil, nil)
+	}
+
+}
+func onStart() {
+	if err := app.StartService(nil, nil); err != nil {
+		log.Warnf("Failed to start datadog service %v", err)
+	}
+
+}
+
+func onStop() {
+	if err := app.ControlService(svc.Stop, svc.Stopped); err != nil {
+		log.Warnf("Failed to stop datadog service %v", err)
 	}
 
 }

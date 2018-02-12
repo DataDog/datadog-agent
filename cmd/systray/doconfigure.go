@@ -66,7 +66,7 @@ func doConfigure() error {
 		if e, found := errMap["error"]; found {
 			err = fmt.Errorf(e)
 		}
-		return fmt.Errorf("Could not reach agent: %v \nMake sure the agent is running before attempting to open the GUI.\n", err)
+		return fmt.Errorf("Could not reach agent: %v \nMake sure the agent is running before attempting to open the GUI", err)
 	}
 
 	// Open the GUI in a browser, passing the authorization tokens as parameters
