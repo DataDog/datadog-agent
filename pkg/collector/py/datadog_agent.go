@@ -258,6 +258,7 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 //export SetExternalTags
 func SetExternalTags(hostname, sourceType *C.char, tags **C.char, tagsLen C.int) *C.PyObject {
 	hname := C.GoString(hostname)
+	stype := C.GoString(sourceType)
 	tlen := int(tagsLen)
 	tagsSlice := (*[1 << 30]*C.char)(unsafe.Pointer(tags))[:tlen:tlen]
 	tagsStrings := []string{}
@@ -267,9 +268,7 @@ func SetExternalTags(hostname, sourceType *C.char, tags **C.char, tagsLen C.int)
 		tagsStrings = append(tagsStrings, tag)
 	}
 
-	externalTags := externalhost.ExternalTags{C.GoString(sourceType): tagsStrings}
-
-	externalhost.SetExternalTags(hname, externalTags)
+	externalhost.SetExternalTags(hname, stype, tagsStrings)
 	return C._none()
 }
 
