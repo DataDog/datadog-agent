@@ -103,6 +103,8 @@ func ConnectToDocker() (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	clientVersion := cli.ClientVersion()
+	cli.UpdateClientVersion("") // Hit unversionned endpoint first
 
 	// TODO: remove this logic when "client.NegotiateAPIVersion" function is released by moby/docker
 	v, err := cli.ServerVersion(context.Background())
@@ -111,11 +113,12 @@ func ConnectToDocker() (*client.Client, error) {
 	}
 	serverVersion := v.APIVersion
 
-	clientVersion := cli.ClientVersion()
 	if versions.LessThan(serverVersion, clientVersion) {
 		log.Debugf("Docker server APIVersion ('%s') is lower than the client ('%s'): using version from the server",
 			serverVersion, clientVersion)
 		cli.UpdateClientVersion(serverVersion)
+	} else {
+		cli.UpdateClientVersion(clientVersion)
 	}
 
 	log.Debugf("Successfully connected to Docker server version %s", v.Version)
