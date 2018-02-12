@@ -15,7 +15,7 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -70,16 +70,35 @@ type DockerCheck struct {
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *docker.Container) {
-	imageTags, err := tagger.Tag(c.EntityID, false)
-	if err != nil {
-		log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
-		return
+	var containerTags []string
+	var err error
+
+	if c.Excluded {
+		// TODO we can do SplitImageName because we are in the docker corecheck and the image name is not a sha[...]
+		// We should resolve the image tags in the tagger as a real entity.
+		long, short, tag, err := docker.SplitImageName(c.Image)
+		if err != nil {
+			log.Errorf("Cannot split the image name %s: %v", c.Image, err)
+			return
+		}
+		containerTags = []string{
+			fmt.Sprintf("docker_image:%s", c.Image),
+			fmt.Sprintf("image_name:%s", long),
+			fmt.Sprintf("image_tag:%s", tag),
+			fmt.Sprintf("short_image:%s", short),
+		}
+	} else {
+		containerTags, err = tagger.Tag(c.EntityID, false)
+		if err != nil {
+			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
+			return
+		}
+		sort.Strings(containerTags)
 	}
 
-	sort.Strings(imageTags)
-	key := strings.Join(imageTags, "|")
+	key := strings.Join(containerTags, "|")
 	if _, found := images[key]; !found {
-		images[key] = &containerPerImage{tags: imageTags, running: 0, stopped: 0}
+		images[key] = &containerPerImage{tags: containerTags, running: 0, stopped: 0}
 	}
 
 	if c.State == docker.ContainerRunningState {
@@ -143,17 +162,13 @@ func (d *DockerCheck) Run() error {
 
 	images := map[string]*containerPerImage{}
 	for _, c := range containers {
-		if c.Excluded {
-			continue
-		}
 		updateContainerRunningCount(images, c)
-		if c.State != docker.ContainerRunningState {
+		if c.State != docker.ContainerRunningState || c.Excluded {
 			continue
 		}
 		tags, err := tagger.Tag(c.EntityID, true)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
-			tags = []string{}
 		}
 		tags = append(tags, d.instance.Tags...)
 
