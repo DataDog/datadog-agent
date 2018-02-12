@@ -122,6 +122,35 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("enable_gohai", enabled)
 	}
 
+	//Trace APM based configurations
+	if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil {
+		config.Datadog.Set("apm_config.enabled", enabled)
+	}
+
+	if receiverPort, err := strconv.Atoi(agentConfig["receiver_port"]); err == nil {
+		config.Datadog.Set("apm_config.receiver_port", receiverPort)
+	}
+
+	if sampleRate, err := strconv.ParseFloat(agentConfig["extra_sample_rate"], 64); err == nil {
+		config.Datadog.Set("apm_config.extra_sample_rate", sampleRate)
+	}
+
+	if maxTraces, err := strconv.ParseFloat(agentConfig["max_traces_per_second"], 64); err == nil {
+		config.Datadog.Set("apm_config.max_traces_per_second", maxTraces)
+	}
+
+	if connectionLimit, err := strconv.Atoi(agentConfig["connection_limit"]); err == nil {
+		config.Datadog.Set("apm_config.max_connections", connectionLimit)
+	}
+
+	if agentConfig["resource"] != "" {
+		config.Datadog.Set("apm_config.ignore_resource", agentConfig["resource"])
+	}
+
+	if enabled, err := isAffirmative(agentConfig["non_local_traffic"]); err == nil {
+		config.Datadog.Set("apm_config.apm_non_local_traffic", enabled)
+	}
+
 	return nil
 }
 
