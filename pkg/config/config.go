@@ -194,7 +194,6 @@ func init() {
 
 	// Logs Agent
 	BindEnvAndSetDefault("logs_enabled", false)
-	BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
 	BindEnvAndSetDefault("logset", "")
 
 	Datadog.SetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")

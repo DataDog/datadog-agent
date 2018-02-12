@@ -4,6 +4,9 @@ Logs-agent
 {{ if (not .is_running) }}
   logs-agent is not running
 {{ else }}
+{{- range .deprecated_attributes }}
+  {{ .name }} is deprecated, use {{ .replacement }} instead
+{{ end }}
 {{- range .integrations }}
   {{ .name }}
   {{printDashes .name "-"}}

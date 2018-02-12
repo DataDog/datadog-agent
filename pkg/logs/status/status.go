@@ -33,21 +33,37 @@ type Integration struct {
 	Sources []Source `json:"sources"`
 }
 
+// DeprecatedAttribute provides some information about the deprecated attributes that the user is still using in its configuration
+type DeprecatedAttribute struct {
+	Name        string `json:"name"`
+	Replacement string `json:"replacement"`
+}
+
 // Status provides some information about logs-agent.
 type Status struct {
-	IsRunning    bool          `json:"is_running"`
-	Integrations []Integration `json:"integrations"`
+	IsRunning            bool                  `json:"is_running"`
+	DeprecatedAttributes []DeprecatedAttribute `json:"deprecated_attributes"`
+	Integrations         []Integration         `json:"integrations"`
 }
 
 // Builder is used to build the status.
 type Builder struct {
-	sources []*config.LogSource
+	sources              []*config.LogSource
+	deprecatedAttributes []DeprecatedAttribute
 }
 
-// Initialize instantiates a builder that holds the sources required to build the current status later on.
-func Initialize(sources []*config.LogSource) {
+// Initialize instantiates a builder that holds the deprecated attributes
+// and the sources required to build the current status later on.
+func Initialize(sources []*config.LogSource, attributes []config.DeprecatedAttribute) {
+	// Convert attributes to JSON
+	deprecatedAttributes := make([]DeprecatedAttribute, len(attributes))
+	for i, attribute := range attributes {
+		deprecatedAttributes[i] = DeprecatedAttribute{Name: attribute.Name, Replacement: attribute.Replacement}
+	}
+	// Instantiate the builder
 	builder = &Builder{
-		sources: sources,
+		sources:              sources,
+		deprecatedAttributes: deprecatedAttributes,
 	}
 }
 
@@ -61,7 +77,7 @@ func Get() Status {
 		}
 		sources[source.Name] = append(sources[source.Name], source)
 	}
-	// Convert to json
+	// Convert to JSON
 	var integrations []Integration
 	for name, sourceList := range sources {
 		var sources []Source
@@ -87,7 +103,8 @@ func Get() Status {
 		integrations = append(integrations, Integration{Name: name, Sources: sources})
 	}
 	return Status{
-		IsRunning:    true,
-		Integrations: integrations,
+		IsRunning:            true,
+		DeprecatedAttributes: builder.deprecatedAttributes,
+		Integrations:         integrations,
 	}
 }
