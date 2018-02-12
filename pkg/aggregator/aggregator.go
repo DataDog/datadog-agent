@@ -293,9 +293,10 @@ func (agg *BufferedAggregator) GetSeries() metrics.Series {
 func (agg *BufferedAggregator) flushSeries() {
 	start := time.Now()
 
+	// Send along a metric that showcases that this Agent is running
+	// This will also allow us to identify this as an Agent host and see the dogbone icon in the Infrastructure List
 	var Point = metrics.Point{Value: 1, Ts: float64(time.Now().Unix())}
 	var Points = []metrics.Point{Point}
-
 	series := agg.addSerie(metrics.Serie{Name: "datadog.agent.running", Points: Points})
 
 	addFlushCount("Series", int64(len(series)))
