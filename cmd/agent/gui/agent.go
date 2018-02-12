@@ -60,7 +60,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 
 // Sends the current agent version
 func getVersion(w http.ResponseWriter, r *http.Request) {
-	version, e := version.New(version.AgentVersion)
+	version, e := version.New(version.AgentVersion, version.Commit)
 	if e != nil {
 		log.Errorf("Error getting version: " + e.Error())
 		w.Write([]byte("Error: " + e.Error()))
@@ -131,8 +131,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		logFile = common.DefaultLogFile
 	}
 
-	// Initiate the flare locally
-	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFile)
+	filePath, e := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
 	if e != nil {
 		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
 		log.Errorf("Error creating flare zipfile: " + e.Error())

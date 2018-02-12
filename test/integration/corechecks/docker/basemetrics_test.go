@@ -16,9 +16,12 @@ func init() {
 
 func TestContainerMetricsTagging(t *testing.T) {
 	expectedTags := []string{
-		instanceTag,                                                         // Instance tags
-		"container_name:basemetrics_redis_1",                                // Container name
-		"docker_image:redis:latest", "image_name:redis", "image_tag:latest", // Image tags
+		instanceTag,                          // Instance tags
+		"container_name:basemetrics_redis_1", // Container name
+		"docker_image:datadog/docker-library:redis_3_2_11-alpine",
+		"image_name:datadog/docker-library",
+		"short_image:docker-library",
+		"image_tag:redis_3_2_11-alpine",                          // Image tags
 		"highcardlabeltag:redishigh", "lowcardlabeltag:redislow", // Labels as tags
 		"highcardenvtag:redishighenv", "lowcardenvtag:redislowenv", // Env as tags
 	}

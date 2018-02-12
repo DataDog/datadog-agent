@@ -200,9 +200,8 @@ func benchmarkMemory(agg *aggregator.BufferedAggregator, sender aggregator.Sende
 						results = append(results, createMetric(float64(sent/dur), tags, "benchmark.aggregator.mem.rate", t))
 						quitGenerator <- true
 						return
-					} else {
-						secs += 1
 					}
+					secs += 1
 				}
 			}()
 

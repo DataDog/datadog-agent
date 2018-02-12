@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/mock"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -25,14 +24,14 @@ type TCPTestSuite struct {
 
 	outputChan chan message.Message
 	pp         pipeline.Provider
-	source     *config.IntegrationConfigLogSource
+	source     *config.LogSource
 	tcpl       *TCPListener
 }
 
 func (suite *TCPTestSuite) SetupTest() {
 	suite.pp = mock.NewMockProvider()
 	suite.outputChan = suite.pp.NextPipelineChan()
-	suite.source = &config.IntegrationConfigLogSource{Type: config.TCPType, Port: tcpTestPort, Tracker: status.NewTracker()}
+	suite.source = config.NewLogSource("", &config.LogsConfig{Type: config.TCPType, Port: tcpTestPort})
 	tcpl, err := NewTCPListener(suite.pp, suite.source)
 	suite.Nil(err)
 	suite.tcpl = tcpl
@@ -42,6 +41,8 @@ func (suite *TCPTestSuite) SetupTest() {
 func (suite *TCPTestSuite) TestTCPReceivesMessages() {
 	conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", tcpTestPort))
 	suite.Nil(err)
+
+	// should receive and decode message
 	fmt.Fprintf(conn, "hello world\n")
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.Content()))

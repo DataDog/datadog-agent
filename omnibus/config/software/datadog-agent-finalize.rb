@@ -24,7 +24,6 @@ build do
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
             move "#{install_dir}/etc/datadog-agent/trace-agent.conf.example", conf_dir_root, :force=>true
-            #move "#{install_dir}/etc/datadog-agent/process-agent.conf.example", conf_dir
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
             delete "#{install_dir}/bin/agent/agent.exe"
             # TODO why does this get generated at all
@@ -33,7 +32,8 @@ build do
             # remove the config files for the subservices; they'll be started
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
-            delete "#{conf_dir}/process_agent.yaml.default"
+            # load isn't supported by windows
+            delete "#{conf_dir}/load.d"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
@@ -52,12 +52,19 @@ build do
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/trace-agent.conf.example", "/etc/datadog-agent"
-            move "#{install_dir}/etc/datadog-agent/process-agent.conf.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
+
+            # Create empty directories so that they're owned by the package
+            # (also requires `extra_package_file` directive in project def)
+            mkdir "/etc/datadog-agent/checks.d"
+            mkdir "/var/log/datadog"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
         elsif osx?
+            # Remove linux specific configs
+            delete "#{install_dir}/etc/conf.d/file_handle.d"
+
             # Nothing to move on osx, the confs already live in /opt/datadog-agent/etc/
         end
     end

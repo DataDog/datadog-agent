@@ -23,55 +23,54 @@ func TestAvailableIntegrationConfigs(t *testing.T) {
 
 func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
-	sources, sourcesToTrack, err := buildLogsSources(ddconfdPath)
+	allSources, err := buildLogSources(ddconfdPath)
 
 	assert.Nil(t, err)
-	assert.Equal(t, 3, len(sources))
-	assert.Equal(t, 4, len(sourcesToTrack))
+	assert.Equal(t, 3, len(allSources.GetValidSources()))
+	assert.Equal(t, 4, len(allSources.GetSources()))
 
-	assert.Equal(t, "file", sources[0].Type)
-	assert.Equal(t, "/var/log/access.log", sources[0].Path)
-	assert.Equal(t, "nginx", sources[0].Service)
-	assert.Equal(t, "nginx", sources[0].Source)
-	assert.Equal(t, "http_access", sources[0].SourceCategory)
-	assert.Equal(t, "", sources[0].Logset)
-	assert.Equal(t, "env:prod", sources[0].Tags)
-	assert.Equal(t, "[dd ddsource=\"nginx\"][dd ddsourcecategory=\"http_access\"][dd ddtags=\"env:prod\"]", string(sources[0].TagsPayload))
+	sources := allSources.GetValidSources()
 
-	assert.Equal(t, "tcp", sources[1].Type)
-	assert.Equal(t, 10514, sources[1].Port)
-	assert.Equal(t, "devteam", sources[1].Logset)
-	assert.Equal(t, "", sources[1].Service)
-	assert.Equal(t, "", sources[1].Source)
-	assert.Equal(t, 0, len(sources[1].Tags))
+	assert.Equal(t, "file", sources[0].Config.Type)
+	assert.Equal(t, "/var/log/access.log", sources[0].Config.Path)
+	assert.Equal(t, "nginx", sources[0].Config.Service)
+	assert.Equal(t, "nginx", sources[0].Config.Source)
+	assert.Equal(t, "http_access", sources[0].Config.SourceCategory)
+	assert.Equal(t, "env:prod", sources[0].Config.Tags)
 
-	assert.Equal(t, "docker", sources[2].Type)
-	assert.Equal(t, "test", sources[2].Image)
+	assert.Equal(t, "tcp", sources[1].Config.Type)
+	assert.Equal(t, 10514, sources[1].Config.Port)
+	assert.Equal(t, "", sources[1].Config.Service)
+	assert.Equal(t, "", sources[1].Config.Source)
+	assert.Equal(t, 0, len(sources[1].Config.Tags))
+
+	assert.Equal(t, "docker", sources[2].Config.Type)
+	assert.Equal(t, "test", sources[2].Config.Image)
 
 	// processing
-	assert.Equal(t, 0, len(sources[0].ProcessingRules))
-	assert.Equal(t, 4, len(sources[1].ProcessingRules))
+	assert.Equal(t, 0, len(sources[0].Config.ProcessingRules))
+	assert.Equal(t, 4, len(sources[1].Config.ProcessingRules))
 
-	pRule := sources[1].ProcessingRules[0]
+	pRule := sources[1].Config.ProcessingRules[0]
 	assert.Equal(t, "mask_sequences", pRule.Type)
 	assert.Equal(t, "mocked_mask_rule", pRule.Name)
 	assert.Equal(t, "[mocked]", pRule.ReplacePlaceholder)
 	assert.Equal(t, []byte("[mocked]"), pRule.ReplacePlaceholderBytes)
 	assert.Equal(t, ".*", pRule.Pattern)
 
-	mRule := sources[1].ProcessingRules[1]
+	mRule := sources[1].Config.ProcessingRules[1]
 	assert.Equal(t, "multi_line", mRule.Type)
 	assert.Equal(t, "numbers", mRule.Name)
 	re := mRule.Reg
 	assert.True(t, re.MatchString("123"))
 	assert.False(t, re.MatchString("a123"))
 
-	eRule := sources[1].ProcessingRules[2]
+	eRule := sources[1].Config.ProcessingRules[2]
 	assert.Equal(t, "exclude_at_match", eRule.Type)
 	assert.Equal(t, "exclude_bob", eRule.Name)
 	assert.Equal(t, "^bob", eRule.Pattern)
 
-	iRule := sources[1].ProcessingRules[3]
+	iRule := sources[1].Config.ProcessingRules[3]
 	assert.Equal(t, "include_at_match", iRule.Type)
 	assert.Equal(t, "include_datadoghq", iRule.Name)
 	assert.Equal(t, ".*@datadoghq.com$", iRule.Pattern)
@@ -81,30 +80,24 @@ func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
 	var ddconfdPath string
 	var err error
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_1")
-	_, _, err = buildLogsSources(ddconfdPath)
+	_, err = buildLogSources(ddconfdPath)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_2", "conf.d")
-	_, _, err = buildLogsSources(ddconfdPath)
+	_, err = buildLogSources(ddconfdPath)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_3", "conf.d")
-	_, _, err = buildLogsSources(ddconfdPath)
+	_, err = buildLogSources(ddconfdPath)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_4", "conf.d")
-	_, _, err = buildLogsSources(ddconfdPath)
+	_, err = buildLogSources(ddconfdPath)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_5", "conf.d")
-	_, _, err = buildLogsSources(ddconfdPath)
+	_, err = buildLogSources(ddconfdPath)
 	assert.NotNil(t, err)
-}
-
-func TestBuildTagsPayload(t *testing.T) {
-	assert.Equal(t, "-", string(BuildTagsPayload("", "", "")))
-	assert.Equal(t, "[dd ddtags=\"hello:world\"]", string(BuildTagsPayload("hello:world", "", "")))
-	assert.Equal(t, "[dd ddsource=\"nginx\"][dd ddsourcecategory=\"http_access\"][dd ddtags=\"hello:world, hi\"]", string(BuildTagsPayload("hello:world, hi", "nginx", "http_access")))
 }
 
 func TestIntegrationName(t *testing.T) {

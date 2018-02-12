@@ -33,6 +33,7 @@ func NewKubeletConfigProvider(config config.ConfigurationProviders) (ConfigProvi
 	return &KubeletConfigProvider{}, nil
 }
 
+// String returns a string representation of the KubeletConfigProvider
 func (k *KubeletConfigProvider) String() string {
 	return "Kubernetes pod annotation"
 }

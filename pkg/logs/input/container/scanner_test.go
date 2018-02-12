@@ -26,13 +26,13 @@ func (suite *ContainerScannerTestSuite) SetupTest() {
 }
 
 func (suite *ContainerScannerTestSuite) TestContainerScannerFilter() {
-	cfg := &config.IntegrationConfigLogSource{Type: config.DockerType, Image: "myapp"}
+	cfg := config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp"})
 	container := types.Container{Image: "myapp"}
 	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
 	container = types.Container{Image: "myapp2"}
 	suite.False(suite.c.sourceShouldMonitorContainer(cfg, container))
 
-	cfg = &config.IntegrationConfigLogSource{Type: config.DockerType, Label: "mylabel"}
+	cfg = config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"})
 	l1 := make(map[string]string)
 	l2 := make(map[string]string)
 	l2["mylabel"] = "anything"
@@ -41,8 +41,58 @@ func (suite *ContainerScannerTestSuite) TestContainerScannerFilter() {
 	container = types.Container{Image: "myapp", Labels: l2}
 	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
 
-	cfg = &config.IntegrationConfigLogSource{Type: config.DockerType}
+	cfg = config.NewLogSource("", &config.LogsConfig{Type: config.DockerType})
 	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
+}
+
+func (suite *ContainerScannerTestSuite) TestContainerLabelFilter() {
+
+	suite.False(suite.shouldMonitor("foo", map[string]string{"bar": ""}))
+	suite.True(suite.shouldMonitor("foo", map[string]string{"foo": ""}))
+	suite.True(suite.shouldMonitor("foo", map[string]string{"foo": "bar"}))
+
+	suite.False(suite.shouldMonitor("foo:bar", map[string]string{"bar": ""}))
+	suite.False(suite.shouldMonitor("foo:bar", map[string]string{"foo": ""}))
+	suite.True(suite.shouldMonitor("foo:bar", map[string]string{"foo": "bar"}))
+	suite.True(suite.shouldMonitor("foo:bar", map[string]string{"foo:bar": ""}))
+
+	suite.False(suite.shouldMonitor("foo:bar:baz", map[string]string{"foo": ""}))
+	suite.False(suite.shouldMonitor("foo:bar:baz", map[string]string{"foo": "bar"}))
+	suite.False(suite.shouldMonitor("foo:bar:baz", map[string]string{"foo": "bar:baz"}))
+	suite.False(suite.shouldMonitor("foo:bar:baz", map[string]string{"foo:bar": "baz"}))
+	suite.True(suite.shouldMonitor("foo:bar:baz", map[string]string{"foo:bar:baz": ""}))
+
+	suite.False(suite.shouldMonitor("foo=bar", map[string]string{"bar": ""}))
+	suite.False(suite.shouldMonitor("foo=bar", map[string]string{"foo": ""}))
+	suite.True(suite.shouldMonitor("foo=bar", map[string]string{"foo": "bar"}))
+
+	suite.True(suite.shouldMonitor(" a , b:c , foo:bar , d=e ", map[string]string{"foo": "bar"}))
+
+}
+
+func (suite *ContainerScannerTestSuite) TestComputeClientAPIVersion() {
+	var version string
+	var err error
+
+	// should raise an error
+	_, err = suite.c.computeClientAPIVersion("1.12")
+	suite.NotNil(err)
+
+	// should return a version lower than the max
+	version, err = suite.c.computeClientAPIVersion("1.24")
+	suite.Nil(err)
+	suite.Equal("1.24", version)
+
+	// should return the max version
+	version, err = suite.c.computeClientAPIVersion("1.35")
+	suite.Nil(err)
+	suite.Equal(maxVersion, version)
+}
+
+func (suite *ContainerScannerTestSuite) shouldMonitor(configLabel string, containerLabels map[string]string) bool {
+	cfg := config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: configLabel})
+	container := types.Container{Labels: containerLabels}
+	return suite.c.sourceShouldMonitorContainer(cfg, container)
 }
 
 func TestContainerScannerTestSuite(t *testing.T) {

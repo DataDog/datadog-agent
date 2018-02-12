@@ -117,70 +117,55 @@ func (series Series) MarshalJSON() ([]byte, error) {
 	return reqBody.Bytes(), err
 }
 
-// SplitPayload breaks the payload into times number of pieces
+// SplitPayload breaks the payload into, at least, "times" number of pieces
 func (series Series) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	seriesExpvar.Add("TimesSplit", 1)
-	var splitPayloads []marshaler.Marshaler
-	// Only split points if there isn't any other choice
-	if len(series) == 1 {
-		seriesExpvar.Add("SplitPoints", 1)
-		s := series[0]
-		points := s.Points
-		if len(points) < times {
-			seriesExpvar.Add("PointsShorter", 1)
-			times = len(points)
-		}
-		splitPayloads = make([]marshaler.Marshaler, times)
-		batchSize := len(points) / times
-		var n = 0
-		for i := 0; i < times; i++ {
-			// make "times" new series
-			var newS = &Serie{
-				Name:           s.Name,
-				Tags:           s.Tags,
-				Host:           s.Host,
-				Device:         s.Device,
-				MType:          s.MType,
-				Interval:       s.Interval,
-				SourceTypeName: s.SourceTypeName,
-			}
-			var end int
-			if i < times-1 {
-				end = n + batchSize
-			} else {
-				end = len(points)
-			}
-			newPoints := []Point(points[n:end])
-			newS.Points = newPoints
-			// create the new series
-			splitPayloads[i] = Series{newS}
-			n += batchSize
-		}
-	} else {
-		seriesExpvar.Add("SplitSeries", 1)
-		// Only split the series as much as is possible
-		if len(series) < times {
-			seriesExpvar.Add("SeriesShorter", 1)
-			times = len(series)
-		}
-		splitPayloads = make([]marshaler.Marshaler, times)
-		batchSize := len(series) / times
-		var n = 0
-		// loop through the splits
-		for i := 0; i < times; i++ {
-			var end int
-			if i < times-1 {
-				end = n + batchSize
-			} else {
-				end = len(series)
-			}
-			newSeries := Series(series[n:end])
-			// assign the new series to its place in the series
-			splitPayloads[i] = newSeries
-			n += batchSize
+
+	// We need to split series without splitting metrics across multiple
+	// payload. So we first group series by metric name.
+	metricsPerName := map[string]Series{}
+	for _, s := range series {
+		if _, ok := metricsPerName[s.Name]; ok {
+			metricsPerName[s.Name] = append(metricsPerName[s.Name], s)
+		} else {
+			metricsPerName[s.Name] = Series{s}
 		}
 	}
-	return splitPayloads, nil
+
+	// if we only have one metric name we cannot split further
+	if len(metricsPerName) == 1 {
+		seriesExpvar.Add("SplitMetricsTooBig", 1)
+		return nil, fmt.Errorf("Cannot split metric '%s' into %d payload (it contains %d series)", series[0].Name, times, len(series))
+	}
+
+	nbSeriesPerPayload := len(series) / times
+
+	payloads := []marshaler.Marshaler{}
+	current := Series{}
+	for _, m := range metricsPerName {
+		// If on metric is bigger than the targeted size we directly
+		// add it as a payload.
+		if len(m) >= nbSeriesPerPayload {
+			payloads = append(payloads, m)
+			continue
+		}
+
+		// Then either append to the current payload if "m" is small
+		// enough or flush the current payload and start a new one.
+		// This may result in more than twice the number of payloads
+		// asked for but is "good enough" and will loop only once
+		// through metricsPerName
+		if len(current)+len(m) < nbSeriesPerPayload {
+			current = append(current, m...)
+		} else {
+			payloads = append(payloads, current)
+			current = m
+		}
+	}
+	if len(current) != 0 {
+		payloads = append(payloads, current)
+	}
+	return payloads, nil
 }
 
 // UnmarshalJSON is a custom unmarshaller for Point (used for testing)

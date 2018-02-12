@@ -26,7 +26,7 @@ const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format sy
 var logCertPool *x509.CertPool
 
 // SetupLogger sets up the default logger
-func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logToConsole bool) error {
+func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logToConsole bool, jsonFormat bool) error {
 	var syslog bool
 
 	if uri != "" { // non-blank uri enables syslog
@@ -40,8 +40,22 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 		logCertPool.AppendCertsFromPEM([]byte(pem))
 	}
 
-	configTemplate := `<seelog minlevel="%s">
-    <outputs formatid="common">`
+	seelogLogLevel := strings.ToLower(logLevel)
+	if seelogLogLevel == "warning" { // Common gotcha when used to agent5
+		seelogLogLevel = "warn"
+	}
+
+	configTemplate := `<seelog minlevel="%s">`
+
+	formatID := ""
+	if jsonFormat {
+		formatID = "json"
+	} else {
+		formatID = "common"
+	}
+
+	configTemplate += fmt.Sprintf(`<outputs formatid="%s">`, formatID)
+
 	if logToConsole {
 		configTemplate += `<console />`
 	}
@@ -52,29 +66,27 @@ func SetupLogger(logLevel, logFile, uri string, rfc, tls bool, pem string, logTo
 		var syslogTemplate string
 		if uri != "" {
 			syslogTemplate = fmt.Sprintf(
-				`<custom name="syslog" formatid="syslog" data-uri="%s" data-tls="%v" />`,
+				`<custom name="syslog" formatid="syslog-%s" data-uri="%s" data-tls="%v" />`,
+				formatID,
 				uri,
 				tls,
 			)
 		} else {
-			syslogTemplate = `<custom name="syslog" formatid="syslog" />`
+			syslogTemplate = fmt.Sprintf(`<custom name="syslog" formatid="syslog-%s" />`, formatID)
 		}
 		configTemplate += syslogTemplate
 	}
+
 	configTemplate += `</outputs>
-    <formats>
-        <format id="common" format="%%Date(%s) | %%LEVEL | (%%File:%%Line in %%FuncShort) | %%Msg%%n"/>`
-	if syslog {
-		if rfc {
-			configTemplate += `<format id="syslog" format="%%CustomSyslogHeader(20,true) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`
-		} else {
-			configTemplate += `<format id="syslog" format="%%CustomSyslogHeader(20,false) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`
-		}
-	}
+	<formats>
+		<format id="json" format="{&quot;time&quot;:&quot;%%Date(%s)&quot;,&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;file&quot;:&quot;%%File&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;func&quot;:&quot;%%FuncShort&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
+		<format id="common" format="%%Date(%s) | %%LEVEL | (%%File:%%Line in %%FuncShort) | %%Msg%%n"/>
+		<format id="syslog-json" format="%%CustomSyslogHeader(20,` + strconv.FormatBool(rfc) + `){&quot;level&quot;:&quot;%%LEVEL&quot;,&quot;relfile&quot;:&quot;%%RelFile&quot;,&quot;line&quot;:&quot;%%Line&quot;,&quot;msg&quot;:&quot;%%Msg&quot;}%%n"/>
+		<format id="syslog-common" format="%%CustomSyslogHeader(20,` + strconv.FormatBool(rfc) + `) %%LEVEL | (%%RelFile:%%Line) | %%Msg%%n" />`
 
 	configTemplate += `</formats>
-</seelog>`
-	config := fmt.Sprintf(configTemplate, strings.ToLower(logLevel), logFile, logFileMaxSize, logDateFormat)
+	</seelog>`
+	config := fmt.Sprintf(configTemplate, seelogLogLevel, logFile, logFileMaxSize, logDateFormat, logDateFormat)
 
 	logger, err := log.LoggerFromConfigAsString(config)
 	if err != nil {

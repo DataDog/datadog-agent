@@ -97,7 +97,15 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 
 	// Track the total number of checks running in order to have an appropriate number of workers
 	c.checkInstances++
-	c.runner.UpdateNumWorkers(c.checkInstances)
+	if ch.Interval() == 0 {
+		// Adding a temporary runner for long running check in case the
+		// number of runners is lower than the number of long running
+		// checks.
+		log.Infof("Adding an extra runner for the '%s' long running check", ch)
+		c.runner.AddWorker()
+	} else {
+		c.runner.UpdateNumWorkers(c.checkInstances)
+	}
 
 	c.checks[ch.ID()] = ch
 	return ch.ID(), nil

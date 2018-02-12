@@ -7,21 +7,18 @@ package etcd
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/providers"
-	"github.com/DataDog/datadog-agent/test/integration/utils"
-
 	etcd_client "github.com/coreos/etcd/client"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
 const (
@@ -36,6 +33,7 @@ type EtcdTestSuite struct {
 	containerName string
 	etcdVersion   string
 	etcdURL       string
+	compose       *utils.ComposeConf
 }
 
 // use a constructor to make the suite parametric
@@ -47,20 +45,16 @@ func NewEtcdTestSuite(etcdVersion, containerName string) *EtcdTestSuite {
 }
 
 func (suite *EtcdTestSuite) SetupSuite() {
-	// pull the latest etcd image, create a standalone etcd container
-	etcdImg := "quay.io/coreos/etcd:" + suite.etcdVersion
-	containerID, err := utils.StartEtcdContainer(etcdImg, suite.containerName)
-	if err != nil {
-		// failing in SetupSuite won't call TearDownSuite, do it manually
-		suite.TearDownSuite()
-		suite.FailNow(err.Error())
+	suite.compose = &utils.ComposeConf{
+		ProjectName: "etcd",
+		FilePath:    "testdata/etcd.compose",
+		Variables: map[string]string{
+			"version": suite.etcdVersion,
+		},
 	}
 
-	etcdIP, err := utils.GetContainerIP(containerID)
-	if err != nil {
-		suite.TearDownSuite()
-		suite.FailNow(err.Error())
-	}
+	output, err := suite.compose.Start()
+	require.Nil(suite.T(), err, string(output))
 
 	suite.templates = map[string]string{
 		"/foo/nginx/check_names":  `["http_check", "nginx"]`,
@@ -68,7 +62,7 @@ func (suite *EtcdTestSuite) SetupSuite() {
 		"/foo/nginx/instances":    `[{"name": "test", "url": "http://%25%25host%25%25/", "timeout": 5}, {"foo": "bar"}]`,
 	}
 
-	suite.etcdURL = fmt.Sprintf("http://%s:2379/", etcdIP)
+	suite.etcdURL = "http://localhost:2379/"
 
 	suite.clientCfg = etcd_client.Config{
 		Endpoints:               []string{suite.etcdURL},
@@ -82,14 +76,7 @@ func (suite *EtcdTestSuite) SetupSuite() {
 }
 
 func (suite *EtcdTestSuite) TearDownSuite() {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-
-	ctx := context.Background()
-
-	cli.ContainerRemove(ctx, suite.containerName, types.ContainerRemoveOptions{Force: true})
+	suite.compose.Stop()
 }
 
 // put configuration back in a known state before each test
@@ -217,5 +204,5 @@ func (suite *EtcdTestSuite) TestBadAuth() {
 }
 
 func TestEtcdSuite(t *testing.T) {
-	suite.Run(t, NewEtcdTestSuite("v3.2.6", "datadog-agent-test-etcd"))
+	suite.Run(t, NewEtcdTestSuite("3_2_6", "datadog-agent-test-etcd"))
 }

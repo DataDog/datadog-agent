@@ -55,6 +55,7 @@ func (c *KubeletCollector) Pull() error {
 	if err != nil {
 		return err
 	}
+
 	updates, err := c.parsePods(updatedPods)
 	if err != nil {
 		return err
@@ -67,7 +68,7 @@ func (c *KubeletCollector) Pull() error {
 	}
 
 	// Compute deleted pods
-	expireList, err := c.watcher.ExpireContainers()
+	expireList, err := c.watcher.Expire()
 	if err != nil {
 		return err
 	}
@@ -80,25 +81,27 @@ func (c *KubeletCollector) Pull() error {
 	return nil
 }
 
-// Fetch fetches tags for a given container by iterating on the whole podlist
+// Fetch fetches tags for a given entity by iterating on the whole podlist
 // TODO: optimize if called too often on production
-func (c *KubeletCollector) Fetch(container string) ([]string, []string, error) {
-	pod, err := c.watcher.GetPodForContainerID(container)
+func (c *KubeletCollector) Fetch(entity string) ([]string, []string, error) {
+	pod, err := c.watcher.GetPodForEntityID(entity)
 	if err != nil {
 		return []string{}, []string{}, err
 	}
-	updates, err := c.parsePods([]*kubelet.Pod{pod})
+
+	pods := []*kubelet.Pod{pod}
+	updates, err := c.parsePods(pods)
 	if err != nil {
 		return []string{}, []string{}, err
 	}
 	c.infoOut <- updates
 
 	for _, info := range updates {
-		if info.Entity == container {
+		if info.Entity == entity {
 			return info.LowCardTags, info.HighCardTags, nil
 		}
 	}
-	// container not found in updates
+	// entity not found in updates
 	return []string{}, []string{}, ErrNotFound
 }
 

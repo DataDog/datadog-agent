@@ -11,3 +11,15 @@ package ecs
 func IsInstance() bool {
 	return false
 }
+
+// IsFargateInstance returns whether the agent is in an ECS fargate task.
+// It detects it by getting and unmarshalling the metadata API response.
+func IsFargateInstance() bool {
+	return false
+}
+
+// GetTaskMetadata extracts the metadata payload for the task the agent is in.
+func GetTaskMetadata() (TaskMetadata, error) {
+	var meta TaskMetadata
+	return meta, nil
+}

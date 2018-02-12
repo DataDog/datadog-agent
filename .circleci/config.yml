@@ -50,7 +50,7 @@ jobs:
           command: invoke deps
       - run:
           name: pre-compile go deps
-          command: inv agent.build --race --precompile-only
+          command: inv -e agent.build --race --precompile-only
       - save_cache:
           key: v2-godeps-{{ .Branch }}-{{ .Revision }}
           paths:
@@ -65,7 +65,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: run unit tests
-          command: inv -e test --coverage --race --fail-on-fmt
+          command: inv -e test --coverage --race --profile --fail-on-fmt
 
   integration_tests:
     <<: *job_template
@@ -95,7 +95,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: run docker image integration tests
-          command: inv  -e docker.integration-tests
+          command: inv -e docker.integration-tests
 
   build_binaries:
     <<: *job_template
@@ -116,7 +116,7 @@ jobs:
       - restore_cache: *restore_deps
       - run:
           name: build puppy
-          command: inv agent.build --puppy
+          command: inv -e agent.build --puppy
       - run:
           name: test puppy
           command: ./bin/agent/agent -c ./bin/agent/dist check cpu

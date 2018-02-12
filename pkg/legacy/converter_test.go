@@ -35,6 +35,27 @@ func TestIsAffirmative(t *testing.T) {
 func TestBuildProxySettings(t *testing.T) {
 	agentConfig := make(Config)
 
+	proxyOnlyHost := map[string]string{
+		"http":  "http://foobar.baz",
+		"https": "http://foobar.baz",
+	}
+	proxyNoUser := map[string]string{
+		"http":  "http://foobar.baz:8080",
+		"https": "http://foobar.baz:8080",
+	}
+	proxyOnlyPass := map[string]string{
+		"http":  "http://foobar.baz:8080",
+		"https": "http://foobar.baz:8080",
+	}
+	proxyOnlyUser := map[string]string{
+		"http":  "http://myuser@foobar.baz:8080",
+		"https": "http://myuser@foobar.baz:8080",
+	}
+	proxyWithUser := map[string]string{
+		"http":  "http://myuser:mypass@foobar.baz:8080",
+		"https": "http://myuser:mypass@foobar.baz:8080",
+	}
+
 	value, err := buildProxySettings(agentConfig)
 	assert.Nil(t, err)
 	assert.Empty(t, value)
@@ -48,32 +69,32 @@ func TestBuildProxySettings(t *testing.T) {
 
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://foobar.baz", value)
+	assert.Equal(t, proxyOnlyHost, value)
 
 	agentConfig["proxy_port"] = "8080"
 
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://foobar.baz:8080", value)
+	assert.Equal(t, proxyNoUser, value)
 
 	// the password alone should not be considered without an user
 	agentConfig["proxy_password"] = "mypass"
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://foobar.baz:8080", value)
+	assert.Equal(t, proxyOnlyPass, value)
 
 	// the user alone is ok
 	agentConfig["proxy_password"] = ""
 	agentConfig["proxy_user"] = "myuser"
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://myuser@foobar.baz:8080", value)
+	assert.Equal(t, proxyOnlyUser, value)
 
 	agentConfig["proxy_password"] = "mypass"
 	agentConfig["proxy_user"] = "myuser"
 	value, err = buildProxySettings(agentConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, "http://myuser:mypass@foobar.baz:8080", value)
+	assert.Equal(t, proxyWithUser, value)
 }
 
 func TestBuildSyslogURI(t *testing.T) {
@@ -121,4 +142,57 @@ func TestBuildConfigProviders(t *testing.T) {
 	p = providers[0]
 	assert.Equal(t, "consul", p.Name)
 	assert.Equal(t, "123456", p.Token)
+}
+
+func TestBuildHistogramAggregates(t *testing.T) {
+	agentConfig := make(Config)
+
+	// empty list
+	agentConfig["histogram_aggregates"] = ""
+	valueEmpty := buildHistogramAggregates(agentConfig)
+	assert.Nil(t, valueEmpty)
+
+	// list with invalid values
+	agentConfig["histogram_aggregates"] = "test1, test2, test3"
+	valueInvalids := buildHistogramAggregates(agentConfig)
+	assert.Empty(t, valueInvalids)
+
+	// list with valid and invalid values
+	agentConfig["histogram_aggregates"] = "max, test1, count, min, test2"
+	expectedBoth := []string{"max", "count", "min"}
+	valueBoth := buildHistogramAggregates(agentConfig)
+	assert.Equal(t, expectedBoth, valueBoth)
+
+	// list with valid values
+	agentConfig["histogram_aggregates"] = "max, min, count, sum"
+	expectedValid := []string{"max", "min", "count", "sum"}
+	valueValid := buildHistogramAggregates(agentConfig)
+	assert.Equal(t, expectedValid, valueValid)
+}
+
+func TestBuildHistogramPercentiles(t *testing.T) {
+	agentConfig := make(Config)
+
+	// empty list
+	agentConfig["histogram_percentiles"] = ""
+	empty := buildHistogramPercentiles(agentConfig)
+	assert.Nil(t, empty)
+
+	// list with invalid values
+	agentConfig["histogram_percentiles"] = "1, 2, -1, 0"
+	actualInvalids := buildHistogramPercentiles(agentConfig)
+	assert.Empty(t, actualInvalids)
+
+	// list with valid values
+	agentConfig["histogram_percentiles"] = "0.95, 0.511, 0.01"
+	expectedValids := []string{"0.95", "0.51", "0.01"}
+	actualValids := buildHistogramPercentiles(agentConfig)
+	assert.Equal(t, expectedValids, actualValids)
+
+	// list with both values
+	agentConfig["histogram_percentiles"] = "0.25, 0, 0.677, 1"
+	expectedBoth := []string{"0.25", "0.68"}
+	actualBoth := buildHistogramPercentiles(agentConfig)
+	assert.Equal(t, expectedBoth, actualBoth)
+
 }

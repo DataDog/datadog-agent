@@ -9,6 +9,7 @@ package v5
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
 )
@@ -18,9 +19,12 @@ func GetPayload(hostname string) *Payload {
 	cp := common.GetPayload(hostname)
 	hp := host.GetPayload(hostname)
 	rp := resources.GetPayload(hostname)
+	ehp := externalhost.GetPayload()
+
 	return &Payload{
 		CommonPayload:    CommonPayload{*cp},
 		HostPayload:      HostPayload{*hp},
 		ResourcesPayload: ResourcesPayload{*rp},
+		ExternalHostTags: ExternalHostTags{*ehp},
 	}
 }

@@ -1,0 +1,26 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+<% @instances.each do |i| -%>
+  - host: <%= i['host'] %>
+    username: <%= i['username'] %>
+    <%
+    keys = %w(password port sftp_check private_key_file add_missing_keys tags)
+    keys.each do |key|
+      if i.key?(key)
+    -%>
+    <%= key %>: <%= i[key] %>
+    <%
+      end
+    end
+    -%>
+    <% if i.key?('tags') -%>
+    tags:
+      <% i['tags'].each do |t| -%>
+      - <%= t %>
+      <% end -%>
+    <% end -%>
+<% end -%>
+
+# Nothing to configure here
+init_config:

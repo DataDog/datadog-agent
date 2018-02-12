@@ -17,44 +17,69 @@ import (
 
 // A TCPListener listens and accepts TCP connections and delegates the work to connHandler
 type TCPListener struct {
+	port        int
 	listener    net.Listener
 	connHandler *ConnectionHandler
+	stop        chan struct{}
+	done        chan struct{}
 }
 
 // NewTCPListener returns an initialized TCPListener
-func NewTCPListener(pp pipeline.Provider, source *config.IntegrationConfigLogSource) (*TCPListener, error) {
-	log.Info("Starting TCP forwarder on port ", source.Port)
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", source.Port))
+func NewTCPListener(pp pipeline.Provider, source *config.LogSource) (*TCPListener, error) {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", source.Config.Port))
 	if err != nil {
-		source.Tracker.TrackError(err)
+		source.Status.Error(err)
 		return nil, err
 	}
-	source.Tracker.TrackSuccess()
-	connHandler := &ConnectionHandler{
-		pp:     pp,
-		source: source,
-	}
+	source.Status.Success()
+	connHandler := NewConnectionHandler(pp, source)
 	return &TCPListener{
+		port:        source.Config.Port,
 		listener:    listener,
 		connHandler: connHandler,
+		stop:        make(chan struct{}, 1),
+		done:        make(chan struct{}, 1),
 	}, nil
 }
 
 // Start listens to TCP connections on another routine
-func (tcpListener *TCPListener) Start() {
-	go tcpListener.run()
+func (l *TCPListener) Start() {
+	log.Info("Starting TCP forwarder on port ", l.port)
+	l.connHandler.Start()
+	go l.run()
+}
+
+// Stop prevents the listener to accept new incoming connections
+// it blocks until connHandler is flushed
+func (l *TCPListener) Stop() {
+	log.Info("Stopping TCP forwarder on port ", l.port)
+	l.stop <- struct{}{}
+	l.listener.Close()
+	<-l.done
 }
 
 // run accepts new TCP connections and lets connHandler handle them
-func (tcpListener *TCPListener) run() {
+func (l *TCPListener) run() {
+	defer func() {
+		l.listener.Close()
+		l.connHandler.Stop()
+		l.done <- struct{}{}
+	}()
 	for {
-		conn, err := tcpListener.listener.Accept()
-		if err != nil {
-			tcpListener.connHandler.source.Tracker.TrackError(err)
-			log.Error("Can't listen: ", err)
+		select {
+		case <-l.stop:
+			// stop accepting new connections
 			return
+		default:
+			conn, err := l.listener.Accept()
+			if err != nil {
+				// an error occurred, stop from accepting new connections
+				l.connHandler.source.Status.Error(err)
+				log.Error("Can't listen: ", err)
+				return
+			}
+			l.connHandler.source.Status.Success()
+			go l.connHandler.HandleConnection(conn)
 		}
-		tcpListener.connHandler.source.Tracker.TrackSuccess()
-		go tcpListener.connHandler.handleConnection(conn)
 	}
 }

@@ -34,12 +34,11 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
 # Configuration:
 #   - empty config file to remove logline
 #   - enable docker check by default
-#   - enable process agent
 COPY datadog*.yaml etc/datadog-agent/
-RUN mv etc/datadog-agent/conf.d/docker.d/conf.yaml.example etc/datadog-agent/conf.d/docker.d/conf.yaml.default \
- && sed -i "s/enabled: false/enabled: true/" etc/datadog-agent/conf.d/process_agent.yaml.default
+RUN mv etc/datadog-agent/conf.d/docker.d/conf.yaml.example etc/datadog-agent/conf.d/docker.d/conf.yaml.default
 
-COPY entrypoint.sh .
+COPY entrypoint.sh probe.sh /output/
+
 
 
 FROM debian:stretch-slim
@@ -59,15 +58,20 @@ RUN if [ -n "$WITH_JMX" ]; then apt-get update \
 # Copy agent from extract stage
 COPY --from=extract /output/ /
 
+# Prepare for running without root
+RUN adduser --group dd-agent \
+ && adduser --system --no-create-home --disabled-password --ingroup dd-agent dd-agent \
+ && chown -R dd-agent:dd-agent /etc/datadog-agent/ \
+ && chown dd-agent:dd-agent /var/log/datadog/
+
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp
 
 # Extra conf.d and checks.d
 VOLUME ["/conf.d", "/checks.d"]
 
-# Placeholder healthcheck, to be improved
-HEALTHCHECK --interval=5m --timeout=20s --retries=1 \
-  CMD ["/opt/datadog-agent/bin/agent/agent", "status"]
+HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
+  CMD ["/probe.sh"]
 
 ENTRYPOINT ["/tini", "--", "/entrypoint.sh"]
 CMD ["/opt/datadog-agent/bin/agent/agent", "start"]

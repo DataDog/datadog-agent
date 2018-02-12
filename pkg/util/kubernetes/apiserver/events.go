@@ -34,9 +34,10 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 	// If `since` is "" strconv.Atoi(*latestResVersion) below will panic as we evaluate the error.
 	// One could chose to use "" instead of 0 to not query the API Server cache.
 	// We decide to only rely on the cache as it avoids crawling everything from the API Server at once.
-	resVersionCached, cachedResErr := strconv.Atoi(since)
-	if cachedResErr != nil {
-		log.Errorf("The cached event token could not be parsed: %s, pulling events from the API server's cache", cachedResErr.Error())
+	log.Debugf("since value is %q", since)
+	resVersionCached, err := strconv.Atoi(since)
+	if err != nil {
+		log.Errorf("The cached event token could not be parsed: %s, pulling events from the API server's cache", err)
 	}
 	var sinceOption k8s.Option
 
@@ -69,14 +70,14 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 			break
 		}
 		timeout.Reset(eventReadTimeout)
-		if event == nil || event.Metadata == nil || event.Metadata.ResourceVersion == nil {
+		if event == nil || event.Metadata == nil || event.Metadata.ResourceVersion == nil || event.Metadata.Uid == nil {
 			log.Tracef("Skipping invalid event: %v", event)
 			continue
 		}
 
 		resVersionMetadata, kubeEventErr := strconv.Atoi(*event.Metadata.ResourceVersion)
 		if kubeEventErr != nil {
-			log.Errorf("The Resource version associated with the event %s is not supported: %s", event.Metadata.Uid, err.Error())
+			log.Errorf("The Resource version associated with the event %s is not supported: %s", *event.Metadata.Uid, err.Error())
 			continue
 		}
 

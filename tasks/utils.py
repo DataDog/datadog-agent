@@ -6,6 +6,7 @@ from __future__ import print_function
 import os
 import platform
 import re
+import json
 from subprocess import check_output
 
 import invoke
@@ -46,7 +47,7 @@ def pkg_config_path(use_embedded_libs):
 
 def get_build_flags(ctx, static=False, use_embedded_libs=False):
     """
-    Build the common value for both ldflags and gcflags.
+    Build the common value for both ldflags and gcflags, and return an env accordingly.
 
     We need to invoke external processes here so this function need the
     Context object.
@@ -55,15 +56,16 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
     commit = ctx.run("git rev-parse --short HEAD", hide=True).stdout.strip()
 
     gcflags = ""
-    ldflags = "-X {}/pkg/version.commit={} ".format(REPO_PATH, commit)
+    ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
     ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True))
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
+    env = {
+        "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
+        "CGO_CFLAGS_ALLOW": "-static-libgcc"  # whitelist additional flags, here a flag used for net-snmp
+    }
     if static:
         ldflags += "-s -w -linkmode external -extldflags '-static' "
     elif use_embedded_libs:
-        env = {
-            "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
-        }
         embedded_lib_path = ctx.run("pkg-config --variable=libdir python-2.7",
                                     env=env, hide=True).stdout.strip()
         embedded_prefix = ctx.run("pkg-config --variable=prefix python-2.7",
@@ -78,7 +80,7 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
             # if you want to be able to use the delve debugger.
             ldflags += "-linkmode internal "
 
-    return ldflags, gcflags
+    return ldflags, gcflags, env
 
 
 def get_payload_version():
@@ -130,7 +132,7 @@ def get_git_branch_name():
     return check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip()
 
 
-def query_version(ctx):
+def query_version(ctx, git_sha_length=7):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     described_version = ctx.run("git describe --tags", hide=True).stdout.strip()
@@ -168,21 +170,34 @@ def query_version(ctx):
     # for the output, 6.0.0-beta.0-1-g4f19118, this will match g4f19118
     git_sha = ""
     if git_sha_match and git_sha_match[0]:
-        git_sha = git_sha_match[0]
+        git_sha_long = ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
+        git_sha = git_sha_long[:git_sha_length]
 
     return version, pre, commits_since_version, git_sha
 
 
-def get_version(ctx, include_git=False):
+def get_version(ctx, include_git=False, url_safe=False, git_sha_length=7):
     # we only need the git info for the non omnibus builds, omnibus includes all this information by default
     version = ""
-    version, pre, commits_since_version, git_sha = query_version(ctx)
+    version, pre, commits_since_version, git_sha = query_version(ctx, git_sha_length)
     if pre:
         version = "{0}-{1}".format(version, pre)
     if commits_since_version and include_git:
-        version = "{0}+git.{1}.{2}".format(version, commits_since_version,git_sha)
+        if url_safe:
+            version = "{0}.git.{1}.{2}".format(version, commits_since_version,git_sha)
+        else:
+            version = "{0}+git.{1}.{2}".format(version, commits_since_version,git_sha)
     return version
 
 def get_version_numeric_only(ctx):
     version, _, _, _ = query_version(ctx)
     return version
+
+def load_release_versions(ctx, target_version):
+    with open("release.json", "r") as f:
+        versions = json.load(f)
+        if target_version in versions:
+            # windows runners don't accepts anything else than strings in the
+            # environment when running a subprocess.
+            return {str(k):str(v) for k, v in versions[target_version].iteritems()}
+    raise Exception("Could not find '{}' version in release.json".format(target_version))

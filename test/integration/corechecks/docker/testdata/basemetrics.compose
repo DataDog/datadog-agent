@@ -1,7 +1,7 @@
 version: '2'
 services:
   redis:
-    image: "redis:latest"
+    image: "datadog/docker-library:redis_3_2_11-alpine"
     labels:
         low.card.label: "redislow"
         high.card.label: "redishigh"

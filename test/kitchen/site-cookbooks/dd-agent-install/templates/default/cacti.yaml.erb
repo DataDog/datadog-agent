@@ -1,0 +1,22 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+<% @instances.each do |i| -%>
+  - mysql_host: <%= i['mysql_host'] %>
+    mysql_user: <%= i['mysql_user'] %>
+    mysql_password: <%= i['mysql_password'] %>
+    rrd_path: <%= i['rrd_path'] %>
+  <% if i['rrd_whitelist'] -%>
+    rrd_whitelist: <%= i['rrd_whitelist'] %>
+  <% end -%>
+
+  <% if i.key?('field_names') -%>
+    field_names:
+    <% i['field_names'].each do |fn| -%>
+      - <%= fn %>
+    <% end -%>
+  <% end -%>
+<% end -%>
+
+# Nothing to configure here
+init_config:

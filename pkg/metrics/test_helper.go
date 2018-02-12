@@ -63,7 +63,6 @@ func AssertSketchSeriesEqual(t *testing.T, expected, actual *percentile.SketchSe
 	}
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.Interval, actual.Interval)
-	assert.Equal(t, expected.SketchType, actual.SketchType)
 	if !expected.ContextKey.IsZero() {
 		assert.Equal(t, expected.ContextKey, actual.ContextKey)
 	}

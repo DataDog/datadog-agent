@@ -1,0 +1,13 @@
+init_configs:
+instances:
+  - ## Tagging
+    ##
+
+    # You can add extra tags to your Kubernetes API Server metrics, events and Service Checks with the tags list option.
+    #
+    # tags: ["foo:bar"]
+    #
+    #
+    # You can specify a filter over the event types you want the check to ignore.
+    # See https://github.com/kubernetes/kubernetes/blob/638822fd0f30d9c78e78b91e918cb7364f86b8ab/pkg/kubelet/events/event.go#L20
+    # filtered_event_types: ["MissingClusterDNS"]

@@ -1,0 +1,34 @@
+<%= JSON.parse(({ 'logs' => @logs }).to_json).to_yaml %>
+
+instances:
+  <% @instances.each do |i| -%>
+  - server: mongodb://<%= i['host']%>:<%= i['port'] %>
+    <% if i.key?('tags') -%>
+    tags:
+      <% i['tags'].each do |t| -%>
+    - <%= t %>
+      <% end -%>
+    <% end -%>
+    <% if i.key?('ssl') -%>
+    ssl: <%= i['ssl'] %>
+    ssl_ca_certs: <%= i['ssl_ca_certs'] %>
+    ssl_cert_reqs: <%= i['ssl_cert_reqs'] %>
+    ssl_certfile: <%= i['ssl_certfile'] %>
+    ssl_keyfile: <%= i['ssl_keyfile'] %>
+    <% end %>
+    <% if i.key?('additional_metrics') -%>
+    additional_metrics:
+      <% i['additional_metrics'].each do |t| %>
+    - <%= t %>
+      <%end -%>
+    <% end %>
+    <% if i.key?('collections') -%>
+    collections:
+      <% i['collections'].each do |t| %>
+    - <%= t %>
+      <%end -%>
+    <% end %>
+  <% end -%>
+
+init_config:
+# No init_config details needed

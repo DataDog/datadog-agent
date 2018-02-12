@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: datadogtoken
+  namespace: default
+data:
+  event.tokenKey: "0"

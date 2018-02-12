@@ -16,8 +16,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -48,8 +51,7 @@ func init() {
 }
 
 const (
-	defaultNumberOfWorkers = 4
-	chanBufferSize         = 100
+	chanBufferSize = 100
 
 	v1SeriesEndpoint       = "/api/v1/series"
 	v1CheckRunsEndpoint    = "/api/v1/check_run"
@@ -63,7 +65,8 @@ const (
 	hostMetadataEndpoint  = "/api/v2/host_metadata"
 	metadataEndpoint      = "/api/v2/metadata"
 
-	apiHTTPHeaderKey = "DD-Api-Key"
+	apiHTTPHeaderKey     = "DD-Api-Key"
+	versionHTTPHeaderKey = "DD-Agent-Version"
 )
 
 const (
@@ -110,6 +113,7 @@ type DefaultForwarder struct {
 	retryQueue          []Transaction
 	internalState       uint32
 	m                   sync.Mutex // To control Start/Stop races
+	health              *health.Handle
 	retryQueueLimit     int
 
 	// NumberOfWorkers Number of concurrent HTTP request made by the DefaultForwarder (default 4).
@@ -121,7 +125,7 @@ type DefaultForwarder struct {
 // NewDefaultForwarder returns a new DefaultForwarder.
 func NewDefaultForwarder(KeysPerDomains map[string][]string) *DefaultForwarder {
 	return &DefaultForwarder{
-		NumberOfWorkers: defaultNumberOfWorkers,
+		NumberOfWorkers: config.Datadog.GetInt("forwarder_num_workers"),
 		KeysPerDomains:  KeysPerDomains,
 		internalState:   Stopped,
 		retryQueueLimit: config.Datadog.GetInt("forwarder_retry_queue_max_size"),
@@ -227,6 +231,9 @@ func (f *DefaultForwarder) Start() error {
 	}
 	log.Infof("DefaultForwarder started (%v workers), sending to %v endpoint(s): %s", f.NumberOfWorkers, len(endpointLogs), strings.Join(endpointLogs, " ; "))
 
+	f.health = health.Register("forwarder")
+	go f.healthCheckLoop()
+
 	return nil
 }
 
@@ -249,6 +256,7 @@ func (f *DefaultForwarder) Stop() {
 		return
 	}
 
+	f.health.Deregister()
 	f.internalState = Stopped
 
 	f.stopRetry <- true
@@ -261,6 +269,37 @@ func (f *DefaultForwarder) Stop() {
 	close(f.lowPrio)
 	close(f.requeuedTransaction)
 	log.Info("DefaultForwarder stopped")
+}
+
+func (f *DefaultForwarder) healthCheckLoop() {
+	log.Debug("Waiting for APIkey validity to be confirmed.")
+	// Wait until we confirmed we have one valid APIkey to become healthy
+	waitTicker := time.NewTicker(time.Second)
+	validKey := false
+	for range waitTicker.C {
+		apiKeyStatus.Do(func(entry expvar.KeyValue) {
+			if entry.Value == &apiKeyValid {
+				validKey = true
+			}
+		})
+		if validKey {
+			break
+		}
+	}
+	waitTicker.Stop()
+
+	log.Debug("APIkey is valid, forwarder is healthy.")
+
+	// Once we're healthy, make sure we don't drop packets
+	for range f.health.C {
+		// By ranging, we will exit the goroutine when the channel closes.
+		// If we dropped a transaction in input from the aggregator (full intake queue),
+		// we exit the loop and let the forwarder become unhealthy.
+		if transactionsExpvar.Get("DroppedOnInput") != nil {
+			log.Errorf("Detected dropped transaction, reporting the forwarder as unhealthy.")
+			return
+		}
+	}
 }
 
 func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
@@ -277,6 +316,7 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payl
 				t.Endpoint = transactionEndpoint
 				t.Payload = payload
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
+				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 
 				t.apiKeyStatusKey = fmt.Sprintf("%s,*************************", domain)
 				if len(apiKey) > 5 {
@@ -299,7 +339,13 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 	}
 
 	for _, t := range transactions {
-		f.highPrio <- t
+		// We don't want to block the collector if the highPrio queue is full
+		select {
+		case f.highPrio <- t:
+		default:
+			log.Errorf("the input queue of the forwarder is full: dropping transaction")
+			transactionsExpvar.Add("DroppedOnInput", 1)
+		}
 	}
 
 	return nil

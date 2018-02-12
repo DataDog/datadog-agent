@@ -30,16 +30,11 @@ ready yet. This is the list of checks that are expected to fail if run within th
 beta Agent:
 
 * agent_metrics
-* docker_daemon
-* kubernetes
-* kubernetes_state
+* docker_daemon [replaced by a new `docker` check](agent/changes.md#docker-check)
+* kubernetes [to be replaced by new checks](agent/changes.md#kubernetes-support)
 * vsphere
 
-The Docker and Kubernetes checks are being rewritten in Go to take advantage of
-the new internal architecture of the Agent, mainly bringing a consistent
-behaviour across every container related component. Therefore the Python
-versions will never work within Agent 6. The rewrite is not yet finished, but
-the new `docker` check offers [basic functionalities](changes.md#docker-check) .
+### Check API
 
 Some methods in the `AgentCheck` class are not yet implemented. These include:
 
@@ -104,7 +99,7 @@ have to run some commands manually to debug the list of beans collected, JVMs,
 etc. A typical manual call will take the following form:
 
 ```shell
-/usr/bin/java -Xmx200m -Xms50m -classpath /usr/lib/jvm/java-8-oracle/lib/tools.jar:/opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch-0.17.0-jar-with-dependencies.jar org.datadog.jmxfetch.App --check <check list> --conf_directory /etc/datadog-agent/conf.d --log_level INFO --log_location /opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch.log --reporter console <command>
+/usr/bin/java -Xmx200m -Xms50m -classpath /usr/lib/jvm/java-8-oracle/lib/tools.jar:/opt/datadog-agent/bin/agent/dist/jmx/jmxfetch-0.18.1-jar-with-dependencies.jar org.datadog.jmxfetch.App --check <check list> --conf_directory /etc/datadog-agent/conf.d --log_level INFO --log_location /opt/datadog-agent/bin/agent/dist/jmx/jmxfetch.log --reporter console <command>
 ```
 
 where `<command>` can be any of:
@@ -124,7 +119,7 @@ and `<check list>` corresponds to a list of valid `yaml` configurations in
 
 Example:
 ```
-/usr/bin/java -Xmx200m -Xms50m -classpath /usr/lib/jvm/java-8-oracle/lib/tools.jar:/opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch-0.17.0-jar-with-dependencies.jar org.datadog.jmxfetch.App --check cassandra.yaml jmx.yaml --conf_directory /etc/datadog-agent/conf.d --log_level INFO --log_location /opt/datadog-agent6/bin/agent/dist/jmx/jmxfetch.log --reporter console list_everything
+/usr/bin/java -Xmx200m -Xms50m -classpath /usr/lib/jvm/java-8-oracle/lib/tools.jar:/opt/datadog-agent/bin/agent/dist/jmx/jmxfetch-0.18.1-jar-with-dependencies.jar org.datadog.jmxfetch.App --check cassandra.d/conf.yaml jmx.d/conf.yaml --conf_directory /etc/datadog-agent/conf.d --log_level INFO --log_location /opt/datadog-agent/bin/agent/dist/jmx/jmxfetch.log --reporter console list_everything
 ```
 
 Note: the location to the JRE tools.jar (`/usr/lib/jvm/java-8-oracle/lib/tools.jar`
@@ -147,6 +142,12 @@ Beta is currently available on these platforms:
 * MacOS 10.10 and above
 * Windows Server 64-bit 2008 R2 and above
 
+## Dogstatsd unix socket rights
+
+The default rights for the unix socket from
+[Dogstatsd](https://github.com/DataDog/datadog-agent/blob/e0acb0f803ec2f340e72bbb303c33a87cb21d4ce/pkg/config/config_template.yaml#L111)
+don't allow external users to send metrics to Dogstatsd. The fix will be
+available in beta10.
 
 [changes]: agent/changes.md
 [upgrade]: agent/upgrade.md

@@ -15,28 +15,61 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"sync"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
+type requestRecorder struct {
+	lastRequest    *http.Request
+	requestCounter int
+	mutex          sync.RWMutex
+}
+
+func (l *requestRecorder) recordRequest(r *http.Request) {
+	l.mutex.Lock()
+	l.lastRequest = r
+	l.requestCounter++
+	l.mutex.Unlock()
+}
+
+func (l *requestRecorder) getRequestCounter() int {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
+	return l.requestCounter
+}
+
+func (l *requestRecorder) getRequestPath() string {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
+	if l.lastRequest == nil {
+		return ""
+	}
+	return l.lastRequest.URL.Path
+}
+
 func TestGetIAMRole(t *testing.T) {
-	expected := "test-role"
-	var lastRequest *http.Request
+	const expected = "test-role"
+	rr := &requestRecorder{}
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		io.WriteString(w, expected)
-		lastRequest = r
+		rr.recordRequest(r)
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
 
 	val, err := getIAMRole()
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	assert.Equal(t, expected, val)
-	assert.Equal(t, lastRequest.URL.Path, "/iam/security-credentials/")
+	assert.Equal(t, rr.getRequestPath(), "/iam/security-credentials/")
 }
 
 func TestGetSecurityCreds(t *testing.T) {
-	expected1 := "test-role"
+	const expected1 = "test-role"
+	expected2Lock := sync.RWMutex{}
 	expected2 := map[string]string{
 		"Code":            "Success",
 		"LastUpdated":     "2017-09-06T19:18:06Z",
@@ -46,33 +79,34 @@ func TestGetSecurityCreds(t *testing.T) {
 		"Token":           "asdfasdf",
 		"Expiration":      "2017-09-07T01:45:43Z",
 	}
-	var lastRequest *http.Request
-	var requestNumber = 0
+	rr := &requestRecorder{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if requestNumber == 0 {
+		if rr.getRequestCounter() == 0 {
 			w.Header().Set("Content-Type", "text/plain")
 			io.WriteString(w, expected1)
 		} else {
 			w.Header().Set("Content-Type", "text/plain")
+			expected2Lock.Lock()
 			b, err := json.Marshal(expected2)
-			if err != nil {
-				assert.Fail(t, fmt.Sprintf("failed to marshall the map into json: %v", err))
-			}
+			expected2Lock.Unlock()
+			require.Nil(t, err, fmt.Sprintf("failed to marshall the map into json: %v", err))
 			io.WriteString(w, string(b))
 		}
-		requestNumber++
-		lastRequest = r
+		rr.recordRequest(r)
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL
 
 	val, err := getSecurityCreds()
-	assert.Nil(t, err)
+	require.Nil(t, err)
+	expected2Lock.Lock()
 	assert.Equal(t, expected2, val)
-	assert.Equal(t, lastRequest.URL.Path, "/iam/security-credentials/test-role/")
+	expected2Lock.Unlock()
+	assert.Equal(t, rr.getRequestPath(), "/iam/security-credentials/test-role/")
 }
 
 func TestGetInstanceIdentity(t *testing.T) {
+	expectedLock := sync.RWMutex{}
 	expected := map[string]string{
 		"privateIp":          "172.21.21.184",
 		"devpayProductCodes": "",
@@ -89,20 +123,22 @@ func TestGetInstanceIdentity(t *testing.T) {
 		"imageId":            "ami-ca5003dd",
 		"pendingTime":        "2017-05-22T15:15:20Z",
 	}
-	var lastRequest *http.Request
+	rr := &requestRecorder{}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
+		expectedLock.Lock()
 		b, err := json.Marshal(expected)
-		if err != nil {
-			assert.Fail(t, fmt.Sprintf("failed to marshall the map into json: %v", err))
-		}
+		expectedLock.Unlock()
+		require.Nil(t, err, fmt.Sprintf("failed to marshall the map into json: %v", err))
 		io.WriteString(w, string(b))
-		lastRequest = r
+		rr.recordRequest(r)
 	}))
 	defer ts.Close()
 	instanceIdentityURL = ts.URL
 
 	val, err := getInstanceIdentity()
-	assert.Nil(t, err)
+	require.Nil(t, err)
+	expectedLock.RLock()
 	assert.Equal(t, expected, val)
+	expectedLock.RUnlock()
 }

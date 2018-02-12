@@ -14,6 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -27,7 +29,7 @@ func TestNewDefaultForwarder(t *testing.T) {
 	forwarder := NewDefaultForwarder(keysPerDomains)
 
 	assert.NotNil(t, forwarder)
-	assert.Equal(t, forwarder.NumberOfWorkers, 4)
+	assert.Equal(t, forwarder.NumberOfWorkers, 1)
 	assert.Equal(t, forwarder.KeysPerDomains, keysPerDomains)
 
 	assert.Nil(t, forwarder.highPrio)
@@ -106,9 +108,10 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, endpoint, transactions[1].Endpoint)
 	assert.Equal(t, endpoint, transactions[2].Endpoint)
 	assert.Equal(t, endpoint, transactions[3].Endpoint)
-	assert.Len(t, transactions[0].Headers, 2)
+	assert.Len(t, transactions[0].Headers, 3)
 	assert.NotEmpty(t, transactions[0].Headers.Get("DD-Api-Key"))
 	assert.NotEmpty(t, transactions[0].Headers.Get("HTTP-MAGIC"))
+	assert.Equal(t, version.AgentVersion, transactions[0].Headers.Get("DD-Agent-Version"))
 	assert.Equal(t, p1, *(transactions[0].Payload))
 	assert.Equal(t, p1, *(transactions[1].Payload))
 	assert.Equal(t, p2, *(transactions[2].Payload))
@@ -152,6 +155,9 @@ func TestRetryTransactions(t *testing.T) {
 	forwarder.init()
 	forwarder.retryQueueLimit = 1
 
+	// Default value should be nil
+	assert.Nil(t, transactionsExpvar.Get("Dropped"))
+
 	t1 := NewHTTPTransaction()
 	t1.nextFlush = time.Now().Add(-1 * time.Hour)
 	t2 := NewHTTPTransaction()
@@ -162,6 +168,7 @@ func TestRetryTransactions(t *testing.T) {
 	forwarder.retryTransactions(time.Now())
 	assert.Len(t, forwarder.retryQueue, 1)
 	assert.Len(t, forwarder.lowPrio, 1)
+	require.NotNil(t, transactionsExpvar.Get("Dropped"))
 	dropped, _ := strconv.ParseInt(transactionsExpvar.Get("Dropped").String(), 10, 64)
 	assert.Equal(t, int64(1), dropped)
 }

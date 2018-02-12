@@ -1,0 +1,24 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: datadog-agent
+spec:
+  template:
+    metadata:
+      labels:
+        app: datadog-agent
+      name: datadog-agent
+      namespace: default
+    spec:
+      serviceAccountName: datadog-agent
+      containers:
+      - image: datadog/agent:latest
+        imagePullPolicy: Always
+        name: datadog-agent
+        env:
+          - name: DD_API_KEY
+            value: <YOUR_API_KEY>
+          - name: DD_COLLECT_KUBERNETES_EVENTS
+            value: true
+          - name: KUBERNETES
+            value: "yes"

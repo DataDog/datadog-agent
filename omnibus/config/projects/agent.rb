@@ -157,6 +157,7 @@ if linux?
   extra_package_file '/lib/systemd/system/datadog-agent.service'
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/usr/bin/dd-agent'
+  extra_package_file '/var/log/datadog/'
 end
 
 exclude '\.git*'

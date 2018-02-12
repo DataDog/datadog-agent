@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/url"
 	"os"
+	"strings"
 
 	"path/filepath"
 
@@ -23,9 +24,7 @@ import (
 var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "checks.d")
-	// PySitePackages holds the path to the python checks from integrations-core installed via wheels
-	PySitePackages = filepath.Join(_here, "lib", "python2.7", "site-packages")
-	distPath       string
+	distPath     string
 	// ViewsPath holds the path to the folder containing the GUI support files
 	viewsPath string
 )
@@ -79,7 +78,6 @@ func GetDistPath() string {
 			return ""
 		}
 		distPath = filepath.Join(s, `bin/agent/dist`)
-		log.Debug("DistPath is now %s", distPath)
 	}
 	return distPath
 }
@@ -156,7 +154,7 @@ func ImportRegistryConfig() error {
 		log.Debug("API key not found, not setting")
 	}
 	if val, _, err = k.GetStringValue("tags"); err == nil {
-		config.Datadog.Set("tags", val)
+		config.Datadog.Set("tags", strings.Split(val, ","))
 		log.Debugf("Setting tags %s", val)
 	} else {
 		log.Debug("Tags not found, not setting")

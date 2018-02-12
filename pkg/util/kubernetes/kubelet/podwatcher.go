@@ -38,25 +38,34 @@ func NewPodWatcher(expiryDuration time.Duration) (*PodWatcher, error) {
 	return watcher, nil
 }
 
-// PullChanges pulls a new podlist from the kubelet and returns Pod objects for
+// PullChanges pulls a new podList from the kubelet and returns Pod objects for
 // new / updated pods. Updated pods will be sent entirely, user must replace
 // previous info for these pods.
 func (w *PodWatcher) PullChanges() ([]*Pod, error) {
-	podlist, err := w.kubeUtil.GetLocalPodList()
+	var podList []*Pod
+	podList, err := w.kubeUtil.GetLocalPodList()
 	if err != nil {
-		return []*Pod{}, err
+		return podList, err
 	}
-	return w.computechanges(podlist)
+	return w.computeChanges(podList)
 }
 
-// computechanges is used by PullChanges, split for testing
-func (w *PodWatcher) computechanges(podlist []*Pod) ([]*Pod, error) {
+// computeChanges is used by PullChanges, split for testing
+func (w *PodWatcher) computeChanges(podList []*Pod) ([]*Pod, error) {
 	now := time.Now()
 	var updatedPods []*Pod
 
 	w.Lock()
 	defer w.Unlock()
-	for _, pod := range podlist {
+	for _, pod := range podList {
+		// Only process ready pods
+		if IsPodReady(pod) == false {
+			continue
+		}
+
+		// Refresh last pod seen time
+		w.lastSeen[PodUIDToEntityName(pod.Metadata.UID)] = now
+
 		// Detect new containers
 		newContainer := false
 		for _, container := range pod.Status.Containers {
@@ -69,15 +78,16 @@ func (w *PodWatcher) computechanges(podlist []*Pod) ([]*Pod, error) {
 			updatedPods = append(updatedPods, pod)
 		}
 	}
-	log.Debugf("found %d changed pods out of %d",
-		len(updatedPods), len(podlist))
+	log.Debugf("Found %d changed pods out of %d", len(updatedPods), len(podList))
 	return updatedPods, nil
 }
 
-// ExpireContainers returns a list of container id for containers
+// Expire returns a list of entities (containers and pods)
 // that are not listed in the podlist anymore. It must be called
 // immediately after a PullChanges.
-func (w *PodWatcher) ExpireContainers() ([]string, error) {
+// For containers, string is kubernetes container ID (with runtime name)
+// For pods, string is "kubernetes_pod://uid" format
+func (w *PodWatcher) Expire() ([]string, error) {
 	now := time.Now()
 	w.Lock()
 	defer w.Unlock()
@@ -96,9 +106,9 @@ func (w *PodWatcher) ExpireContainers() ([]string, error) {
 	return expiredContainers, nil
 }
 
-// GetPodForContainerID fetches the podlist and returns the pod running
-// a given container on the node. Returns a nil pointer if not found.
-// It just proxies the call to its kubeutil.
-func (w *PodWatcher) GetPodForContainerID(containerID string) (*Pod, error) {
-	return w.kubeUtil.GetPodForContainerID(containerID)
+// GetPodForEntityID finds the pod corresponding to an entity.
+// EntityIDs can be Docker container IDs or pod UIDs (prefixed).
+// Returns a nil pointer if not found.
+func (w *PodWatcher) GetPodForEntityID(entityID string) (*Pod, error) {
+	return w.kubeUtil.GetPodForEntityID(entityID)
 }

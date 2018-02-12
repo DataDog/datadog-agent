@@ -8,7 +8,6 @@ package decoder
 import (
 	"bytes"
 	"regexp"
-	"sync"
 	"time"
 )
 
@@ -18,6 +17,7 @@ var TRUNCATED = []byte("...TRUNCATED...")
 // LineHandler handles byte slices to form line output
 type LineHandler interface {
 	Handle(content []byte)
+	Start()
 	Stop()
 }
 
@@ -30,47 +30,50 @@ type SingleLineHandler struct {
 
 // NewSingleLineHandler returns a new SingleLineHandler
 func NewSingleLineHandler(outputChan chan *Output) *SingleLineHandler {
-	lineChan := make(chan []byte)
-	lineHandler := SingleLineHandler{
-		lineChan:   lineChan,
+	return &SingleLineHandler{
+		lineChan:   make(chan []byte),
 		outputChan: outputChan,
 	}
-	go lineHandler.start()
-	return &lineHandler
 }
 
 // Handle trims leading and trailing whitespaces from content,
 // and sends it as a new Line to lineChan.
-func (lh *SingleLineHandler) Handle(content []byte) {
-	lh.lineChan <- bytes.TrimSpace(content)
+func (h *SingleLineHandler) Handle(content []byte) {
+	h.lineChan <- content
 }
 
 // Stop stops the handler from processing new lines
-func (lh *SingleLineHandler) Stop() {
-	close(lh.lineChan)
+func (h *SingleLineHandler) Stop() {
+	close(h.lineChan)
 }
 
-// start consumes lines from lineChan to process them
-func (lh *SingleLineHandler) start() {
-	for line := range lh.lineChan {
-		lh.process(line)
+// Start starts the handler
+func (h *SingleLineHandler) Start() {
+	go h.run()
+}
+
+// run consumes lines from lineChan to process them
+func (h *SingleLineHandler) run() {
+	for line := range h.lineChan {
+		h.process(line)
 	}
-	lh.outputChan <- newStopOutput()
+	h.outputChan <- newStopOutput()
 }
 
 // process creates outputs from lines and forwards them to outputChan
 // When lines are too long, they are truncated
-func (lh *SingleLineHandler) process(line []byte) {
+func (h *SingleLineHandler) process(line []byte) {
 	lineLen := len(line)
-	if lineLen == 0 {
+	line = bytes.TrimSpace(line)
+	if len(line) == 0 {
 		return
 	}
 
 	var content []byte
-	if lh.shouldTruncate {
+	if h.shouldTruncate {
 		// add TRUNCATED at the beginning of content
 		content = append(TRUNCATED, line...)
-		lh.shouldTruncate = false
+		h.shouldTruncate = false
 	} else {
 		// keep content the same
 		content = line
@@ -78,20 +81,21 @@ func (lh *SingleLineHandler) process(line []byte) {
 
 	if lineLen < contentLenLimit {
 		// send content
-		output := NewOutput(content, lineLen+1) // add 1 to take into account '\n'
-		lh.outputChan <- output
+		// add 1 to take into account '\n' that we didn't include in content
+		output := NewOutput(content, lineLen+1)
+		h.outputChan <- output
 	} else {
 		// add TRUNCATED at the end of content and send it
 		content := append(content, TRUNCATED...)
 		output := NewOutput(content, lineLen)
-		lh.outputChan <- output
-		lh.shouldTruncate = true
+		h.outputChan <- output
+		h.shouldTruncate = true
 	}
 }
 
-// flushTimeout represents the time we want to wait before flushing lineBuffer
+// defaultFlushTimeout represents the time we want to wait before flushing lineBuffer
 // when no more line is received
-const flushTimeout = 1 * time.Second
+const defaultFlushTimeout = 1000 * time.Millisecond
 
 // MultiLineHandler reads lines from lineChan and uses lineBuffer to send them
 // when a new line matches with re or flushTimer is fired
@@ -101,111 +105,96 @@ type MultiLineHandler struct {
 	lineBuffer    *LineBuffer
 	lineUnwrapper LineUnwrapper
 	newContentRe  *regexp.Regexp
-	flushTimer    *time.Timer
-	mu            sync.Mutex
-	shouldStop    bool
+	flushTimeout  time.Duration
 }
 
 // NewMultiLineHandler returns a new MultiLineHandler
-func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, lineUnwrapper LineUnwrapper) *MultiLineHandler {
-	lineChan := make(chan []byte)
-	lineBuffer := NewLineBuffer()
-	flushTimer := time.NewTimer(flushTimeout)
-	lineHandler := MultiLineHandler{
-		lineChan:      lineChan,
+func NewMultiLineHandler(outputChan chan *Output, newContentRe *regexp.Regexp, flushTimeout time.Duration, lineUnwrapper LineUnwrapper) *MultiLineHandler {
+	return &MultiLineHandler{
+		lineChan:      make(chan []byte),
 		outputChan:    outputChan,
-		lineBuffer:    lineBuffer,
+		lineBuffer:    NewLineBuffer(),
 		lineUnwrapper: lineUnwrapper,
 		newContentRe:  newContentRe,
-		flushTimer:    flushTimer,
+		flushTimeout:  flushTimeout,
 	}
-	go lineHandler.start()
-	return &lineHandler
 }
 
 // Handle forward lines to lineChan to process them
-func (lh *MultiLineHandler) Handle(content []byte) {
-	lh.lineChan <- content
+func (h *MultiLineHandler) Handle(content []byte) {
+	h.lineChan <- content
 }
 
 // Stop stops the lineHandler from processing lines
-func (lh *MultiLineHandler) Stop() {
-	lh.mu.Lock()
-	close(lh.lineChan)
-	lh.shouldStop = true
-	// assure to stop timer goroutine
-	lh.flushTimer.Reset(flushTimeout)
-	lh.mu.Unlock()
+func (h *MultiLineHandler) Stop() {
+	close(h.lineChan)
 }
 
-// start starts the delimiter
-func (lh *MultiLineHandler) start() {
-	go lh.handleExpiration()
-	go lh.run()
+// Start starts the handler
+func (h *MultiLineHandler) Start() {
+	go h.run()
 }
 
-// run reads lines from lineChan to process them
-func (lh *MultiLineHandler) run() {
-	// read and process lines safely
-	for line := range lh.lineChan {
-		lh.mu.Lock()
-		// prevent timer from firing
-		lh.flushTimer.Stop()
-		lh.process(line)
-		// restart timer if no more lines are received
-		lh.flushTimer.Reset(flushTimeout)
-		lh.mu.Unlock()
-	}
-}
-
-// handleExpiration flushes content in lineBuffer when flushTimer expires
-func (lh *MultiLineHandler) handleExpiration() {
-	for range lh.flushTimer.C {
-		lh.mu.Lock()
-		lh.sendContent()
-		lh.mu.Unlock()
-		if lh.shouldStop {
-			break
+// run processes new lines from lineChan and flushes the buffer when the timeout expires
+func (h *MultiLineHandler) run() {
+	flushTimer := time.NewTimer(h.flushTimeout)
+	defer func() {
+		flushTimer.Stop()
+		h.outputChan <- newStopOutput()
+	}()
+	for {
+		select {
+		case line, isOpen := <-h.lineChan:
+			if !isOpen {
+				// lineChan has been closed, no more lines are expected
+				return
+			}
+			// process the new line and restart the timeout
+			flushTimer.Stop()
+			h.process(line)
+			flushTimer.Reset(h.flushTimeout)
+		case <-flushTimer.C:
+			// the timout expired, the content is ready to be sent
+			h.sendContent()
 		}
 	}
-	lh.outputChan <- newStopOutput()
 }
 
 // process accumulates lines in lineBuffer and flushes lineBuffer when a new line matches with newContentRe
 // When lines are too long, they are truncated
-func (lh *MultiLineHandler) process(line []byte) {
-	unwrappedLine := lh.lineUnwrapper.Unwrap(line)
-	if lh.newContentRe.Match(unwrappedLine) {
+func (h *MultiLineHandler) process(line []byte) {
+	unwrappedLine := h.lineUnwrapper.Unwrap(line)
+	if h.newContentRe.Match(unwrappedLine) {
 		// send content from lineBuffer
-		lh.sendContent()
+		h.sendContent()
 	}
-	if !lh.lineBuffer.IsEmpty() {
+	if !h.lineBuffer.IsEmpty() {
 		// unwrap all the following lines
 		line = unwrappedLine
 		// add '\n' to content in lineBuffer
-		lh.lineBuffer.AddEndOfLine()
+		h.lineBuffer.AddEndOfLine()
 	}
-	if len(line)+lh.lineBuffer.Length() < contentLenLimit {
+	if len(line)+h.lineBuffer.Length() < contentLenLimit {
 		// add line to content in lineBuffer
-		lh.lineBuffer.Add(line)
+		h.lineBuffer.Add(line)
 	} else {
 		// add line and truncate and flush content in lineBuffer
-		lh.lineBuffer.AddIncompleteLine(line)
-		lh.lineBuffer.AddTruncate(line)
+		h.lineBuffer.AddIncompleteLine(line)
+		h.lineBuffer.AddTruncate(line)
 		// send content from lineBuffer
-		lh.sendContent()
+		h.sendContent()
 		// truncate next content
-		lh.lineBuffer.AddTruncate(line)
+		h.lineBuffer.AddTruncate(line)
 	}
 }
 
 // sendContent forwards the content from lineBuffer to outputChan
-func (lh *MultiLineHandler) sendContent() {
-	defer lh.lineBuffer.Reset()
-	content, rawDataLen := lh.lineBuffer.Content()
+func (h *MultiLineHandler) sendContent() {
+	defer h.lineBuffer.Reset()
+	content, rawDataLen := h.lineBuffer.Content()
 	content = bytes.TrimSpace(content)
 	if len(content) > 0 {
 		output := NewOutput(content, rawDataLen)
-		lh.outputChan <- output
+		h.outputChan <- output
 	}
 }

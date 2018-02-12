@@ -21,7 +21,6 @@ install:
 
 cache:
   - '%GOPATH%\bin'
-  - '%GOPATH%\pkg'
   - '%GOPATH%\src\github.com\DataDog\datadog-agent\vendor'
 
 build: off
@@ -29,5 +28,4 @@ build: off
 test_script:
   - cd
   - inv -e deps
-  - inv -e agent.build --race --precompile-only
-  - inv -e test --race --fail-on-fmt
+  - inv -e test --race --profile --fail-on-fmt

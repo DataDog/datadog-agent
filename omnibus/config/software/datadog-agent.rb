@@ -51,7 +51,6 @@ build do
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
   move 'bin/agent/dist/trace-agent.conf', "#{conf_dir}/trace-agent.conf.example"
-  move 'bin/agent/dist/process-agent.conf', "#{conf_dir}/process-agent.conf.example"
 
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
 

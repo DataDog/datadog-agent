@@ -132,6 +132,7 @@ func (c *FileConfigProvider) IsUpToDate() (bool, error) {
 	return false, nil
 }
 
+// String returns a string representation of the FileConfigProvider
 func (c *FileConfigProvider) String() string {
 	return "File Configuration Provider"
 }
@@ -168,7 +169,7 @@ func (c *FileConfigProvider) collectEntry(file os.FileInfo, path string, checkNa
 	entry.name = checkName
 
 	if ext != ".yaml" && ext != ".yml" {
-		log.Debugf("Skipping file: %s", absPath)
+		log.Tracef("Skipping file: %s", absPath)
 		entry.err = errors.New("Invalid config file extension")
 		return entry
 	}
@@ -267,8 +268,10 @@ func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 	}
 
 	// at this point the Yaml was already parsed, no need to check the error
-	rawInitConfig, _ := yaml.Marshal(cf.InitConfig)
-	config.InitConfig = rawInitConfig
+	if cf.InitConfig != nil {
+		rawInitConfig, _ := yaml.Marshal(cf.InitConfig)
+		config.InitConfig = rawInitConfig
+	}
 
 	// Go through instances and return corresponding []byte
 	for _, instance := range cf.Instances {

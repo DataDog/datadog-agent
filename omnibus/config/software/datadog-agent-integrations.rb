@@ -15,11 +15,11 @@ whitelist_file "embedded/lib/python2.7"
 
 source git: 'https://github.com/DataDog/integrations-core.git'
 
-integrations_core_branch = ENV['INTEGRATIONS_CORE_BRANCH']
-if integrations_core_branch.nil? || integrations_core_branch.empty?
-  integrations_core_branch = 'master'
+integrations_core_version = ENV['INTEGRATIONS_CORE_VERSION']
+if integrations_core_version.nil? || integrations_core_version.empty?
+  integrations_core_version = 'master'
 end
-default_version integrations_core_branch
+default_version integrations_core_version
 
 
 blacklist = [
@@ -33,11 +33,7 @@ blacklist = [
 ]
 
 build do
-  # The checks
-  checks_dir = "#{install_dir}/checks.d"
-  mkdir checks_dir
-
-  # The confs
+  # The dir for the confs
   if osx?
     conf_dir = "#{install_dir}/etc/conf.d"
   else
@@ -45,7 +41,7 @@ build do
   end
   mkdir conf_dir
 
-  # Copy the checks and generate the global requirements file
+  # Install the checks and generate the global requirements file
   block do
     all_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
     # Manually add "core" dependencies that are not listed in the checks requirements

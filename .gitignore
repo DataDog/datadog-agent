@@ -30,3 +30,6 @@ dogstatsd.yaml
 
 # Ignore debs from the root of the project.
 datadog-agent*_amd64.deb
+
+# Ignore pem created during the tests
+*.pem

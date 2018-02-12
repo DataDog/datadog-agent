@@ -7,6 +7,7 @@ package split
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -31,7 +32,7 @@ func TestSplitPayloadsSeries(t *testing.T) {
 				{Ts: 9090.0, Value: float64(13.12)},
 			},
 			MType:    metrics.APIGaugeType,
-			Name:     "test.metrics",
+			Name:     fmt.Sprintf("test.metrics%d", i),
 			Interval: 1,
 			Host:     "localHost",
 			Tags:     []string{"tag1", "tag2:yes"},

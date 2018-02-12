@@ -46,6 +46,7 @@ func GetTaskMetadata() (TaskMetadata, error) {
 func GetECSContainers() ([]Container, error) {
 	meta, err := GetTaskMetadata()
 	if err != nil || len(meta.Containers) == 0 {
+		log.Errorf("unable to retrieve task metadata")
 		return nil, err
 	}
 	return meta.Containers, nil
@@ -59,6 +60,7 @@ func GetContainers() ([]*docker.Container, error) {
 
 	ecsContainers, err := GetECSContainers()
 	if err != nil {
+		log.Error("unable to get the container list from ecs")
 		return containers, err
 	}
 	for _, c := range ecsContainers {

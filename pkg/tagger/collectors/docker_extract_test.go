@@ -194,6 +194,27 @@ func TestDockerRecordsFromInspect(t *testing.T) {
 				"rancher_container:testAD-redis-1",
 			},
 		},
+		{
+			testName: "extractNomad",
+			co: &types.ContainerJSON{
+				Config: &container.Config{
+					Env: []string{
+						"NOMAD_TASK_NAME=test-task",
+						"NOMAD_JOB_NAME=test-job",
+						"NOMAD_GROUP_NAME=test-group",
+					},
+					Labels: map[string]string{},
+				},
+			},
+			toRecordEnvAsTags:    map[string]string{},
+			toRecordLabelsAsTags: map[string]string{},
+			expectedLow: []string{
+				"nomad_task:test-task",
+				"nomad_job:test-job",
+				"nomad_group:test-group",
+			},
+			expectedHigh: []string{},
+		},
 	}
 
 	dc := &DockerCollector{}

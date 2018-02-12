@@ -1,8 +1,8 @@
 version: '2'
 services:
   redis-no-id:
-    image: "redis:latest"
+    image: "datadog/docker-library:redis_3_2_11-alpine"
   redis-with-id:
-    image: "redis:latest"
+    image: "datadog/docker-library:redis_3_2_11-alpine"
     labels:
       io.datadog.check.id: "custom-id"

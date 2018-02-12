@@ -42,11 +42,11 @@ var (
 // GetPythonPaths returns the paths (in order of precedence) from where the agent
 // should load python modules and checks
 func GetPythonPaths() []string {
+	// wheels install in default site - already in sys.path; takes precedence over any additional location
 	return []string{
 		GetDistPath(),                                  // common modules are shipped in the dist path directly or under the "checks/" sub-dir
+		PyChecksPath,                                   // integrations-core legacy checks
 		filepath.Join(GetDistPath(), "checks.d"),       // custom checks in the "checks.d/" sub-dir of the dist path
-		config.Datadog.GetString("additional_checksd"), // custom checks, have precedence over integrations-core checks
-		PySitePackages,                                 // integrations-core, wheels have precedence over old-school SDK
-		PyChecksPath,                                   // integrations-core checks
+		config.Datadog.GetString("additional_checksd"), // custom checks, least precedent check location
 	}
 }

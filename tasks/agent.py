@@ -11,7 +11,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only
+from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
 from .build_tags import get_build_tags, get_default_build_tags, ALL_TAGS
 from .go import deps
@@ -28,12 +28,14 @@ DEFAULT_BUILD_TAGS = [
     "etcd",
     "gce",
     "jmx",
+    "kubeapiserver",
     "kubelet",
     "log",
     "process",
     "snmp",
     "zk",
     "zlib",
+    "kubeapiserver",
 ]
 
 
@@ -50,9 +52,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     """
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    env = {
-        "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
-    }
+
+    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
     if invoke.platform.WINDOWS:
         # Don't build Docker support
@@ -81,7 +82,6 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         build_tags = get_default_build_tags(puppy=True)
     else:
         build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
     cmd = "go build {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/agent"
@@ -96,6 +96,14 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     }
     ctx.run(cmd.format(**args), env=env)
 
+    # Render the configuration file template
+    #
+    # We need to remove cross compiling bits if any because go generate must
+    # build and execute in the native platform
+    env.update({
+        "GOOS": "",
+        "GOARCH": "",
+    })
     cmd = "go generate {}/cmd/agent"
     ctx.run(cmd.format(REPO_PATH), env=env)
 
@@ -190,6 +198,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
         "./test/integration/config_providers/...",
         "./test/integration/corechecks/...",
         "./test/integration/listeners/...",
+        "./test/integration/util/kubelet/...",
     ]
 
     for prefix in prefixes:
@@ -198,7 +207,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 @task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
 def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False, skip_sign=False):
+                  skip_deps=False, skip_sign=False, release_version="nightly"):
     """
     Build the Agent packages with Omnibus Installer.
     """
@@ -231,7 +240,7 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             "log_level": log_level,
             "overrides": overrides_cmd
         }
-        env = {}
+        env = load_release_versions(ctx, release_version)
         if skip_sign:
             env['SKIP_SIGN_MAC'] = 'true'
         ctx.run(cmd.format(**args), env=env)

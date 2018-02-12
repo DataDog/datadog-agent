@@ -6,7 +6,6 @@
 package common
 
 import (
-	"fmt"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -26,7 +25,7 @@ func SetupAutoConfig(confdPath string) {
 	// start tagging system
 	err := tagger.Init()
 	if err != nil {
-		fmt.Printf("Unable to start tagging system: %s", err)
+		log.Errorf("Unable to start tagging system: %s", err)
 	}
 
 	// create the Collector instance and start all the components

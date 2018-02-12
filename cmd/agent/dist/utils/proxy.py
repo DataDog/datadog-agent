@@ -15,6 +15,10 @@ import datadog_agent
 log = logging.getLogger(__name__)
 
 
+def get_no_proxy_from_env():
+    return os.environ.get('no_proxy', os.environ.get('NO_PROXY', None))
+
+
 def get_requests_proxy(agentConfig):
     no_proxy_settings = {
         "http": None,
@@ -49,22 +53,20 @@ def config_proxy_skip(proxies, uri, skip_proxy=False):
     parsed_uri = urlparse(uri)
 
     # disable proxy if necessary
+    # keep keys so `requests` doesn't use env var proxies either
     if skip_proxy:
-        if 'http' in proxies:
-            proxies.pop('http')
-        if 'https' in proxies:
-            proxies.pop('https')
+        proxies['http'] = None
+        proxies['https'] = None
     elif proxies.get('no'):
         urls = []
         if isinstance(proxies['no'], basestring):
             urls = proxies['no'].replace(';', ',').split(",")
-        elif isinstance(proxies['no'], list):
+        elif hasattr(proxies['no'], '__iter__'):
             urls = proxies['no']
+
         for url in urls:
             if url in parsed_uri.netloc:
-                if 'http' in proxies:
-                    proxies.pop('http')
-                if 'https' in proxies:
-                    proxies.pop('https')
+                proxies['http'] = None
+                proxies['https'] = None
 
     return proxies

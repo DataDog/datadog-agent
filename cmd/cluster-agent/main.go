@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -50,7 +51,7 @@ metadata for their metrics.`,
 		Short: "Print the version number",
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
-			av, _ := version.New(version.AgentVersion)
+			av, _ := version.New(version.AgentVersion, version.Commit)
 			fmt.Println(fmt.Sprintf("Cluster Agent from Agent %s - Codename: %s - Commit: %s - Serialization version: %s", av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion))
 		},
 	}
@@ -88,6 +89,7 @@ func start(cmd *cobra.Command, args []string) error {
 		config.Datadog.GetBool("syslog_tls"),
 		config.Datadog.GetString("syslog_pem"),
 		config.Datadog.GetBool("log_to_console"),
+		config.Datadog.GetBool("log_format_json"),
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)

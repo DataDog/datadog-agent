@@ -54,22 +54,22 @@ type Decoder struct {
 }
 
 // InitializeDecoder returns a properly initialized Decoder
-func InitializeDecoder(source *config.IntegrationConfigLogSource) *Decoder {
+func InitializeDecoder(source *config.LogSource) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Output)
 
 	var lineHandler LineHandler
-	for _, rule := range source.ProcessingRules {
+	for _, rule := range source.Config.ProcessingRules {
 		switch rule.Type {
 		case config.MultiLine:
 			var lineUnwrapper LineUnwrapper
-			switch source.Type {
+			switch source.Config.Type {
 			case config.DockerType:
 				lineUnwrapper = NewDockerUnwrapper()
 			default:
 				lineUnwrapper = NewUnwrapper()
 			}
-			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, lineUnwrapper)
+			lineHandler = NewMultiLineHandler(outputChan, rule.Reg, defaultFlushTimeout, lineUnwrapper)
 			break
 		}
 	}
@@ -93,6 +93,7 @@ func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler
 
 // Start starts the Decoder
 func (d *Decoder) Start() {
+	d.lineHandler.Start()
 	go d.run()
 }
 

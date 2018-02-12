@@ -40,12 +40,13 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 
 func dockerExtractImage(tags *utils.TagList, dockerImage string) {
 	tags.AddLow("docker_image", dockerImage)
-	imageName, _, imageTag, err := docker.SplitImageName(dockerImage)
+	imageName, shortImage, imageTag, err := docker.SplitImageName(dockerImage)
 	if err != nil {
 		log.Debugf("error splitting %s: %s", dockerImage, err)
 		return
 	}
 	tags.AddLow("image_name", imageName)
+	tags.AddLow("short_image", shortImage)
 	tags.AddLow("image_tag", imageTag)
 }
 
@@ -98,6 +99,14 @@ func dockerExtractEnvironmentVariables(tags *utils.TagList, containerEnvVariable
 			tags.AddLow("chronos_job_owner", envValue)
 		case "MESOS_TASK_ID":
 			tags.AddHigh("mesos_task", envValue)
+
+		// Nomad
+		case "NOMAD_TASK_NAME":
+			tags.AddLow("nomad_task", envValue)
+		case "NOMAD_JOB_NAME":
+			tags.AddLow("nomad_job", envValue)
+		case "NOMAD_GROUP_NAME":
+			tags.AddLow("nomad_group", envValue)
 
 		default:
 			if tagName, found := envAsTags[strings.ToLower(envSplit[0])]; found {

@@ -21,6 +21,7 @@ AGENT_TAG = "datadog/cluster_agent:master"
 DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
 ]
+
 @task
 def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False):
     """
@@ -32,7 +33,7 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False)
 
     build_tags = get_build_tags(DEFAULT_BUILD_TAGS, [])
 
-    ldflags, gcflags = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
 
     cmd = "go build {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent/"
@@ -45,7 +46,7 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False)
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
-    ctx.run(cmd.format(**args))
+    ctx.run(cmd.format(**args), env=env)
 
 @task
 def run(ctx, rebuild=False, race=False, skip_build=False, development=True):
@@ -142,6 +143,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
     prefixes = [
         "./test/integration/util/kube_apiserver",
+        "./test/integration/util/leaderelection",
     ]
 
     for prefix in prefixes:

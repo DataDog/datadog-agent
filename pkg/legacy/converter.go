@@ -37,7 +37,7 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	if enabled, err := isAffirmative(agentConfig["process_agent_enabled"]); err == nil && !enabled {
-		// process agent is enabled by default through the check config file `process_agent.yaml.default`
+		// process agent is enabled in datadog.yaml
 		config.Datadog.Set("process_agent_enabled", false)
 	}
 
@@ -47,8 +47,17 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("forwarder_timeout", value)
 	}
 
-	// TODO: default_integration_http_timeout
-	// TODO: collect_ec2_tags
+	if value, err := strconv.Atoi(agentConfig["default_integration_http_timeout"]); err == nil {
+		config.Datadog.Set("default_integration_http_timeout", value)
+	}
+
+	if enabled, err := isAffirmative(agentConfig["collect_ec2_tags"]); err == nil {
+		config.Datadog.Set("collect_ec2_tags", enabled)
+	}
+
+	if enabled, err := isAffirmative(agentConfig["collect_security_groups"]); err == nil {
+		config.Datadog.Set("collect_security_groups", enabled)
+	}
 
 	// config.Datadog has a default value for this, do nothing if the value is empty
 	if agentConfig["additional_checksd"] != "" {
@@ -56,8 +65,9 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	// TODO: exclude_process_args
-	// TODO: histogram_aggregates
-	// TODO: histogram_percentiles
+	config.Datadog.Set("histogram_aggregates", buildHistogramAggregates(agentConfig))
+
+	config.Datadog.Set("histogram_percentiles", buildHistogramPercentiles(agentConfig))
 
 	if agentConfig["service_discovery_backend"] == "docker" {
 		// `docker` is the only possible value also on the Agent v5
@@ -124,19 +134,21 @@ func isAffirmative(value string) (bool, error) {
 	return v == "true" || v == "yes" || v == "1", nil
 }
 
-func buildProxySettings(agentConfig Config) (string, error) {
+func buildProxySettings(agentConfig Config) (map[string]string, error) {
 	proxyHost := agentConfig["proxy_host"]
+
+	proxyMap := make(map[string]string)
 
 	if proxyHost == "" {
 		// this is expected, not an error
-		return "", nil
+		return nil, nil
 	}
 
 	var err error
 	var u *url.URL
 
 	if u, err = url.Parse(proxyHost); err != nil {
-		return "", fmt.Errorf("unable to import value of settings 'proxy_host': %v", err)
+		return nil, fmt.Errorf("unable to import value of settings 'proxy_host': %v", err)
 	}
 
 	// set scheme if missing
@@ -156,7 +168,11 @@ func buildProxySettings(agentConfig Config) (string, error) {
 		}
 	}
 
-	return u.String(), nil
+	proxyMap["http"] = u.String()
+	proxyMap["https"] = u.String()
+
+	return proxyMap, nil
+
 }
 
 func buildSyslogURI(agentConfig Config) string {
@@ -210,4 +226,60 @@ func buildConfigProviders(agentConfig Config) ([]config.ConfigurationProviders, 
 	}
 
 	return []config.ConfigurationProviders{cp}, nil
+}
+
+func buildHistogramAggregates(agentConfig Config) []string {
+	configValue := agentConfig["histogram_aggregates"]
+
+	var histogramBuild []string
+	// The valid values for histogram_aggregates as defined in agent5
+	validValues := []string{"min", "max", "median", "avg", "sum", "count"}
+
+	if configValue == "" {
+		return nil
+	}
+	configValue = strings.Replace(configValue, " ", "", -1)
+	result := strings.Split(configValue, ",")
+
+	for _, res := range result {
+		found := false
+		for _, val := range validValues {
+			if res == val {
+				histogramBuild = append(histogramBuild, res)
+				found = true
+				break
+			}
+		}
+		if !found {
+			// print the value skipped because invalid value
+			fmt.Println("warning: ignored histogram aggregate", res, "is invalid")
+		}
+	}
+
+	return histogramBuild
+}
+
+func buildHistogramPercentiles(agentConfig Config) []string {
+	configList := agentConfig["histogram_percentiles"]
+	var histogramPercentile []string
+
+	if configList == "" {
+		// return an empty list, not an error
+		return nil
+	}
+
+	// percentiles are rounded down to 2 digits and (0:1)
+	configList = strings.Replace(configList, " ", "", -1)
+	result := strings.Split(configList, ",")
+	for _, res := range result {
+		num, err := strconv.ParseFloat(res, 64)
+		if num < 1 && num > 0 && err == nil {
+			fixed := strconv.FormatFloat(num, 'f', 2, 64)
+			histogramPercentile = append(histogramPercentile, fixed)
+		} else {
+			fmt.Println("warning: ignoring invalid histogram percentile", res)
+		}
+	}
+
+	return histogramPercentile
 }

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Don't block the aggregator if the forwarder input queue is full (we now
+    drop transaction).

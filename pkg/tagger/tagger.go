@@ -12,6 +12,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -32,6 +33,7 @@ type Tagger struct {
 	pruneTicker *time.Ticker
 	retryTicker *time.Ticker
 	stop        chan bool
+	health      *health.Handle
 }
 
 type collectorReply struct {
@@ -44,13 +46,9 @@ type collectorReply struct {
 // once the config package is ready.
 // You are probably looking for tagger.Tag() using the global instance
 // instead of creating your own.
-func newTagger() (*Tagger, error) {
-	store, err := newTagStore()
-	if err != nil {
-		return nil, err
-	}
-	t := &Tagger{
-		tagStore:    store,
+func newTagger() *Tagger {
+	return &Tagger{
+		tagStore:    newTagStore(),
 		candidates:  make(map[string]collectors.CollectorFactory),
 		pullers:     make(map[string]collectors.Puller),
 		streamers:   make(map[string]collectors.Streamer),
@@ -60,9 +58,8 @@ func newTagger() (*Tagger, error) {
 		pruneTicker: time.NewTicker(5 * time.Minute),
 		retryTicker: time.NewTicker(30 * time.Second),
 		stop:        make(chan bool),
+		health:      health.Register("tagger"),
 	}
-
-	return t, nil
 }
 
 // Init goes through a catalog and tries to detect which are relevant
@@ -101,7 +98,9 @@ func (t *Tagger) run() error {
 			t.pullTicker.Stop()
 			t.pruneTicker.Stop()
 			t.retryTicker.Stop()
+			t.health.Deregister()
 			return nil
+		case <-t.health.C:
 		case msg := <-t.infoIn:
 			for _, info := range msg {
 				t.tagStore.processTagInfo(info)

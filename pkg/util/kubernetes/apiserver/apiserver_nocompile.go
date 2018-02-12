@@ -9,6 +9,8 @@ package apiserver
 
 import (
 	"errors"
+
+	log "github.com/cihub/seelog"
 )
 
 var (
@@ -16,3 +18,9 @@ var (
 	// User classes should handle that case as gracefully as possible.
 	ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
 )
+
+// GetPodServiceNames is used when the API endpoint of the DCA to get the services of a pod is hit.
+func GetPodServiceNames(nodeName string, podName string) []string {
+	log.Errorf("GetPodServiceNames not implemented %s", ErrNotCompiled.Error())
+	return nil
+}

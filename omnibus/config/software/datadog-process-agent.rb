@@ -7,11 +7,11 @@ name "datadog-process-agent"
 always_build true
 require "./lib/ostools.rb"
 
-process_agent_branch = ENV['PROCESS_AGENT_BRANCH']
-if process_agent_branch.nil? || process_agent_branch.empty?
-    process_agent_branch = "master"
+process_agent_version = ENV['PROCESS_AGENT_VERSION']
+if process_agent_version.nil? || process_agent_version.empty?
+  process_agent_version = 'master'
 end
-default_version process_agent_branch
+default_version process_agent_version
 
 build do
   if windows?

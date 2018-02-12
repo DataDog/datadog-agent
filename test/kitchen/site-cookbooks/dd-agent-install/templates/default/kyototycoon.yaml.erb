@@ -1,0 +1,19 @@
+<%= JSON.parse(({'logs' => @logs }).to_json).to_yaml %>
+
+#  Add one or more instances, which accept report_url,
+#  name, and optionally tags keys. The report URL should
+#  be a URL to the Kyoto Tycoon "report" RPC endpoint.
+instances:
+  <% @instances.each do |i| -%>
+  - name: <%= i['name'] %>
+    report_url: <%= i['report_url'] %> # e.g. http://localhost:1978/rpc/report
+    <% if i.key?('tags') -%>
+    tags:
+      <% @tags.each do |k, v| -%>
+      <%= k %>: <%= v %>
+      <% end -%>
+    <% end -%>
+  <% end -%>
+
+init_config:
+# The Kyoto Tycoon check does not require any init_config

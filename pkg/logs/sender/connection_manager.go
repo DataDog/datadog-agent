@@ -35,10 +35,10 @@ type ConnectionManager struct {
 }
 
 // NewConnectionManager returns an initialized ConnectionManager
-func NewConnectionManager(ddURL string, ddPort int, devModeNoSSL bool) *ConnectionManager {
+func NewConnectionManager(serverName string, serverPort int, devModeNoSSL bool) *ConnectionManager {
 	return &ConnectionManager{
-		connectionString: fmt.Sprintf("%s:%d", ddURL, ddPort),
-		serverName:       ddURL,
+		connectionString: fmt.Sprintf("%s:%d", serverName, serverPort),
+		serverName:       serverName,
 		devModeNoSSL:     devModeNoSSL,
 
 		mutex: sync.Mutex{},

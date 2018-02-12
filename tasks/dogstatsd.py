@@ -29,7 +29,6 @@ DEFAULT_BUILD_TAGS = [
 ]
 
 
-
 @task
 def build(ctx, rebuild=False, race=False, static=False, build_include=None,
           build_exclude=None, use_embedded_libs=False):
@@ -39,7 +38,7 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
     bin_path = DOGSTATSD_BIN_PATH
 
     if static:
@@ -56,10 +55,18 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
-    ctx.run(cmd.format(**args))
+    ctx.run(cmd.format(**args), env=env)
 
+    # Render the configuration file template
+    #
+    # We need to remove cross compiling bits if any because go generate must
+    # build and execute in the native platform
+    env = {
+        "GOOS": "",
+        "GOARCH": "",
+    }
     cmd = "go generate {}/cmd/dogstatsd"
-    ctx.run(cmd.format(REPO_PATH))
+    ctx.run(cmd.format(REPO_PATH), env=env)
 
     refresh_assets(ctx)
 
@@ -207,15 +214,19 @@ def image_build(ctx, skip_build=False):
     import docker
     client = docker.from_env()
 
-    target = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
+    src = os.path.join(STATIC_BIN_PATH, bin_name("dogstatsd"))
+    dst = os.path.join("Dockerfiles", "dogstatsd", "alpine", "static")
+
     if not skip_build:
         build(ctx, rebuild=True, static=True)
-    if not os.path.exists(target):
+    if not os.path.exists(src):
         raise Exit(1)
+    if not os.path.exists(dst):
+        os.makedirs(dst)
 
-    shutil.copy2(target, "Dockerfiles/dogstatsd/alpine/dogstatsd")
+    shutil.copy(src, dst)
     client.images.build(path="Dockerfiles/dogstatsd/alpine/", rm=True, tag=DOGSTATSD_TAG)
-    ctx.run("rm Dockerfiles/dogstatsd/alpine/dogstatsd")
+    ctx.run("rm -rf Dockerfiles/dogstatsd/alpine/static")
 
 
 @task
