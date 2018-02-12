@@ -205,7 +205,7 @@ func (s *Scanner) setup() error {
 	cli, err := s.newDockerClient()
 	if err != nil {
 		log.Error("Can't tail containers, ", err)
-		return fmt.Errorf("Can't initialize client")
+		return err
 	}
 	s.cli = cli
 
