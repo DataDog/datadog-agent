@@ -1,0 +1,5 @@
+#!/usr/bin/execlineb -P
+
+foreground { /initlog.sh "starting agent" }
+fdmove -c 2 1
+agent start

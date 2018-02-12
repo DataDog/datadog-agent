@@ -1,0 +1,6 @@
+#!/usr/bin/execlineb -S1
+
+# Kill the container if the main agent were to exit
+
+foreground { /initlog.sh "AGENT EXITED WITH CODE ${1}, SIGNAL ${2}, KILLING CONTAINER" }
+s6-svscanctl -t /var/run/s6/services
