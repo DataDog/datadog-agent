@@ -294,7 +294,6 @@
   revision = "e89373fe6b4a7413d7acd6da1725b83ef713e6e4"
 
 [[projects]]
-  branch = "master"
   name = "github.com/google/gofuzz"
   packages = ["."]
   revision = "24818f796faf91cd76ec7bddd72458fbced7a6c1"
@@ -421,7 +420,6 @@
   version = "v3.2.0"
 
 [[projects]]
-  branch = "master"
   name = "github.com/kardianos/osext"
   packages = ["."]
   revision = "ae77be60afb1dcacde03767a8c37337fad28ac14"
@@ -468,7 +466,6 @@
   revision = "a4e142e9c047c904fa2f1e144d9a84e6133024bc"
 
 [[projects]]
-  branch = "master"
   name = "github.com/mitchellh/reflectwalk"
   packages = ["."]
   revision = "63d60e9d0dbc60cf9164e6510889b0db6683d98c"
@@ -710,7 +707,6 @@
   version = "v0.9.0"
 
 [[projects]]
-  branch = "v2"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
@@ -837,6 +833,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e395343e15f84eba4a778f75802174bbe25699be784dc4824183f404d246c89d"
+  inputs-digest = "f5ae0313a92b1cf98ae07c5eb9a633275141b3d3c8f960caf3e8fbd6becfe38e"
   solver-name = "gps-cdcl"
   solver-version = 1

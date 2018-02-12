@@ -8,7 +8,7 @@
 
 [[constraint]]
   name = "github.com/DataDog/zstd"
-  version = "v1.3.0"
+  version = "~v1.3.0"
 
 [[constraint]]
   name = "github.com/Microsoft/go-winio"
@@ -40,19 +40,23 @@
 
 [[constraint]]
   name = "github.com/google/gofuzz"
-  branch = "master"
+  revision = "24818f796faf91cd76ec7bddd72458fbced7a6c1"
 
 [[override]]
   name = "github.com/kubernetes/apimachinery"
-  branch = "release-1.9"
+  # branch = "release-1.9"
+  #        + pinning to commit in branch above
+  revision = "616b23029fa3dc3e0ccefd47963f5651a6543d94"
 
 [[override]]
-  version = "v6.0.0"
   name = "github.com/kubernetes/client-go"
+  version = "~v6.0.0"
 
 [[override]]
   name = "github.com/kubernetes/api"
-  branch = "release-1.9"
+  # branch = "release-1.9"
+  #        + pinning to commit in branch above
+  revision = "2694da5be9c4ab4f3fd826112d4c3f71b8bf4b23"
 
 [[constraint]]
   name = "github.com/gorilla/mux"
@@ -68,11 +72,11 @@
 
 [[constraint]]
   name = "github.com/kardianos/osext"
-  branch = "master"
+  revision = "ae77be60afb1dcacde03767a8c37337fad28ac14"
 
 [[constraint]]
   name = "github.com/mitchellh/reflectwalk"
-  branch = "master"
+  revision = "63d60e9d0dbc60cf9164e6510889b0db6683d98c"
 
 [[constraint]]
   name = "github.com/patrickmn/go-cache"
@@ -100,11 +104,12 @@
 
 [[constraint]]
   name = "gopkg.in/yaml.v2"
-  branch = "v2"
+  # branch = "v2"
+  revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
 
 [[constraint]]
   name = "gopkg.in/zorkian/go-datadog-api.v2"
-  version = "v2.8"
+  version = "~v2.8"
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
@@ -125,7 +130,3 @@
 [[override]]
   name = "github.com/ugorji/go"
   revision = "8c0409fcbb70099c748d71f714529204975f6c3f"
-
-[[override]]
-  name = "github.com/dgrijalva/jwt-go"
-  version = "v3.1.0"
