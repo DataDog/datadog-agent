@@ -1,0 +1,4 @@
+---
+features:
+  - |
+     Imports the APM configuration options from datadog.conf to datadog.yaml when using import command
