@@ -203,6 +203,9 @@ func init() {
 	Datadog.SetDefault("logs_config.dd_port", 10516)
 	Datadog.BindEnv("logs_config.dd_port", "DD_LOGS_CONFIG_DD_PORT")
 
+	Datadog.SetDefault("logs_config.dev_mode_use_proto", false)
+	Datadog.BindEnv("logs_config.dev_mode_use_proto", "DD_LOGS_CONFIG_DEV_MODE_USE_PROTO")
+
 	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 
