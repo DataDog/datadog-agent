@@ -88,7 +88,7 @@ build_puppy_agent-deb_x64:
     - inv -e agent.build --puppy
 
 # build puppy agent for ARM, to make sure the build is not broken because of build targets
-build_puppy_agent-deb_x64:
+build_puppy_agent-deb_x64_arm:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
