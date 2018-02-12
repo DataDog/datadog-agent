@@ -27,8 +27,12 @@ import (
 )
 
 const (
-	pauseContainerGCR       = `image:(k8s.|^)gcr\.io(/google_containers/|/)pause(.*)`
-	pauseContainerOpenshift = "image:openshift/origin-pod"
+	// pauseContainerGCR regex matches:
+	// - k8s.gcr.io/pause-amd64:3.1
+	// - gcr.io/google_containers/pause-amd64:3.0
+	pauseContainerGCR        = `image:(k8s.|^)gcr\.io(/google_containers/|/)pause(.*)`
+	pauseContainerOpenshift  = "image:openshift/origin-pod"
+	pauseContainerKubernetes = "image:kubernetes/pause"
 )
 
 // FIXME: remove once DockerListener is moved to .Containers
@@ -73,7 +77,7 @@ func (d *DockerUtil) init() error {
 	blacklist := config.Datadog.GetStringSlice("ac_exclude")
 
 	if config.Datadog.GetBool("exclude_pause_container") {
-		blacklist = append(blacklist, pauseContainerGCR, pauseContainerOpenshift)
+		blacklist = append(blacklist, pauseContainerGCR, pauseContainerOpenshift, pauseContainerKubernetes)
 	}
 
 	// Pre-parse the filter and use that internally.
