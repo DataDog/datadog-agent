@@ -1,0 +1,9 @@
+---
+prelude: >
+    Defer process orchestration to the operating system where supported.
+features:
+  - |
+    Adds support for OS-level process orchestration of the agents on linux.
+    Specifically, this adds support for upstart on systemd which should cover
+    most modern debian/rhel based distros. Changes enable a more resilient 
+    process management for the infrastructure, process and trace agents.

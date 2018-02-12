@@ -44,8 +44,12 @@ build do
             # Move system service files
             mkdir "/etc/init"
             move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
+            move "#{install_dir}/scripts/datadog-agent-trace.conf", "/etc/init"
+            move "#{install_dir}/scripts/datadog-agent-process.conf", "/etc/init"
             mkdir "/lib/systemd/system"
             move "#{install_dir}/scripts/datadog-agent.service", "/lib/systemd/system"
+            move "#{install_dir}/scripts/datadog-agent-trace.service", "/lib/systemd/system"
+            move "#{install_dir}/scripts/datadog-agent-process.service", "/lib/systemd/system"
 
             # Move checks and configuration files
             mkdir "/etc/datadog-agent"
