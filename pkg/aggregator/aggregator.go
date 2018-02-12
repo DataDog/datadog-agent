@@ -239,7 +239,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 		sc.Host = agg.hostname
 	}
 	if sc.Ts == 0 {
-		sc.Ts = int64(time.Now().Unix())
+		sc.Ts = time.Now().Unix()
 	}
 	sc.Tags = deduplicateTags(sc.Tags)
 
