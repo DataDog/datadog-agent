@@ -20,7 +20,7 @@ func TestGetPayload(t *testing.T) {
 	eTags := ExternalTags{"vsphere": []string{"foo", "bar"}}
 
 	// add one tag to the cache
-	AddExternalTags(host, eTags)
+	SetExternalTags(host, eTags)
 	p = *GetPayload()
 	assert.Len(t, p, 1)
 	hTags := p[0]

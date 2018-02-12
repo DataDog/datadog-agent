@@ -11,7 +11,7 @@ import (
 	python "github.com/sbinet/go-python"
 )
 
-func TestAddExternalTagsBindings(t *testing.T) {
+func TestSetExternalTagsBindings(t *testing.T) {
 	gstate := newStickyLock()
 	defer gstate.unlock()
 

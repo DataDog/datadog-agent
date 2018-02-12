@@ -252,11 +252,11 @@ func GetSubprocessOutput(argv **C.char, argc, raise int) *C.PyObject {
 	return pyResult
 }
 
-// AddExternalTags adds a set of tags for a given hostnane to the External Host
+// SetExternalTags adds a set of tags for a given hostnane to the External Host
 // Tags metadata provider cache.
-// Indirectly used by the C function `add_external_tags` that's mapped to `datadog_agent.add_external_tags`.
-//export AddExternalTags
-func AddExternalTags(hostname, sourceType *C.char, tags **C.char, tagsLen C.int) *C.PyObject {
+// Indirectly used by the C function `set_external_tags` that's mapped to `datadog_agent.set_external_tags`.
+//export SetExternalTags
+func SetExternalTags(hostname, sourceType *C.char, tags **C.char, tagsLen C.int) *C.PyObject {
 	hname := C.GoString(hostname)
 	tlen := int(tagsLen)
 	tagsSlice := (*[1 << 30]*C.char)(unsafe.Pointer(tags))[:tlen:tlen]
@@ -269,7 +269,7 @@ func AddExternalTags(hostname, sourceType *C.char, tags **C.char, tagsLen C.int)
 
 	externalTags := externalhost.ExternalTags{C.GoString(sourceType): tagsStrings}
 
-	externalhost.AddExternalTags(hname, externalTags)
+	externalhost.SetExternalTags(hname, externalTags)
 	return C._none()
 }
 

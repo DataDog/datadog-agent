@@ -5,11 +5,13 @@
 
 package externalhost
 
-// externalHostCache maps hostname -> externalTags
+type host2externalTags map[string]ExternalTags
+
+// externalHostCache maps hostname -> ExternalTags
 var externalHostCache = make(map[string]ExternalTags)
 
-// AddExternalTags adds external tags for a specific host to the cache
-func AddExternalTags(hostname string, tags ExternalTags) {
+// SetExternalTags adds external tags for a specific host to the cache
+func SetExternalTags(hostname string, tags ExternalTags) {
 	externalHostCache[hostname] = tags
 }
 
