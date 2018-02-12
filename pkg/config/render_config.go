@@ -31,6 +31,7 @@ type context struct {
 	ECS               bool
 	ProcessAgent      bool
 	KubeApiServer     bool
+	TraceAgent        bool
 }
 
 func mkContext(buildType string) context {
@@ -52,6 +53,7 @@ func mkContext(buildType string) context {
 			KubernetesTagging: true,
 			ECS:               true,
 			ProcessAgent:      true,
+			TraceAgent:        true,
 		}
 	case "dogstatsd":
 		return context{
@@ -61,6 +63,7 @@ func mkContext(buildType string) context {
 			Logging:           true,
 			KubernetesTagging: true,
 			ECS:               true,
+			TraceAgent:        true,
 		}
 	case "dca":
 		return context{
