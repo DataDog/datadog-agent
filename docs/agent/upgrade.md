@@ -28,7 +28,9 @@ design since we cannot guarantee full backwards compatibility out of the box.
 
 #### To Install Fresh
 
-In case you want to install on a clean box you have to provide an api key:
+In case you want to install on a clean box (or have an existing agent 5 install
+from which you do not wish to import the configuration) you have to provide an
+api key:
 
 ```shell
  DD_API_KEY=YOUR_API_KEY bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_script.sh)"
@@ -146,7 +148,24 @@ Unlike on Linux, the configuration path hasn't changed and remains in `~/.datado
 
 ### Install script
 
-Coming soon.
+#### To Upgrade
+
+In case you have an Agent version 5 and you want to import the existing
+configuration:
+
+```shell
+  DD_UPGRADE=true bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_mac_os.sh)"
+```
+
+#### To Install Fresh
+
+In case you want to install on a clean box (or have an existing agent 5 install
+from which you do not wish to import the configuration) you have to provide an
+api key:
+
+```shell
+ DD_API_KEY=YOUR_API_KEY bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/datadog-agent/master/cmd/agent/install_mac_os.sh)"
+```
 
 [changes]: changes.md
 [integrations-core]: https://github.com/DataDog/integrations-core
