@@ -46,13 +46,9 @@ type collectorReply struct {
 // once the config package is ready.
 // You are probably looking for tagger.Tag() using the global instance
 // instead of creating your own.
-func newTagger() (*Tagger, error) {
-	store, err := newTagStore()
-	if err != nil {
-		return nil, err
-	}
-	t := &Tagger{
-		tagStore:    store,
+func newTagger() *Tagger {
+	return &Tagger{
+		tagStore:    newTagStore(),
 		candidates:  make(map[string]collectors.CollectorFactory),
 		pullers:     make(map[string]collectors.Puller),
 		streamers:   make(map[string]collectors.Streamer),
@@ -64,8 +60,6 @@ func newTagger() (*Tagger, error) {
 		stop:        make(chan bool),
 		health:      health.Register("tagger"),
 	}
-
-	return t, nil
 }
 
 // Init goes through a catalog and tries to detect which are relevant

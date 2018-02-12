@@ -37,7 +37,7 @@ func TestInitExtraHeadersNoopCompression(t *testing.T) {
 	assert.Equal(t, expected, jsonExtraHeaders)
 
 	expected = make(http.Header)
-	expected.Set(payloadVersionHTTPHeader, "")
+	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
 	expected.Set("Content-Type", protobufContentType)
 	assert.Equal(t, expected, protobufExtraHeaders)
 
@@ -48,7 +48,7 @@ func TestInitExtraHeadersNoopCompression(t *testing.T) {
 
 	expected = make(http.Header)
 	expected.Set("Content-Type", protobufContentType)
-	expected.Set(payloadVersionHTTPHeader, "")
+	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
 	assert.Equal(t, expected, protobufExtraHeadersWithCompression)
 }
 
@@ -64,7 +64,7 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 
 	expected = make(http.Header)
 	expected.Set("Content-Type", protobufContentType)
-	expected.Set(payloadVersionHTTPHeader, "")
+	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
 	assert.Equal(t, expected, protobufExtraHeaders)
 
 	// "Content-Encoding" header present with correct value
@@ -76,8 +76,12 @@ func TestInitExtraHeadersWithCompression(t *testing.T) {
 	expected = make(http.Header)
 	expected.Set("Content-Type", protobufContentType)
 	expected.Set("Content-Encoding", compression.ContentEncoding)
-	expected.Set(payloadVersionHTTPHeader, "")
+	expected.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
 	assert.Equal(t, expected, protobufExtraHeadersWithCompression)
+}
+
+func TestAgentPayloadVersion(t *testing.T) {
+	assert.NotEmpty(t, AgentPayloadVersion, "AgentPayloadVersion is empty, indicates that the package was not built correctly")
 }
 
 var (

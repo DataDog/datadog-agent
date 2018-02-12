@@ -13,7 +13,7 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import pkg_config_path, get_version
+from .utils import get_build_flags, get_version, pkg_config_path
 from .go import fmt, lint, vet, misspell, ineffassign
 from .build_tags import get_default_build_tags
 from .agent import integration_tests as agent_integration_tests
@@ -76,9 +76,7 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
     with open(PROFILE_COV, "w") as f_cov:
         f_cov.write("mode: count")
 
-    env = {
-        "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs)
-    }
+    ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
     if profile:
         test_profiler = TestProfiler()
@@ -121,9 +119,12 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
         if coverage:
             profile_tmp = "{}/profile.tmp".format(match)
             coverprofile = "-coverprofile={}".format(profile_tmp)
-        cmd = 'go test -tags "{go_build_tags}" {race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
+        cmd = 'go test -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" '
+        cmd += '{race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
         args = {
             "go_build_tags": " ".join(build_tags),
+            "gcflags": gcflags,
+            "ldflags": ldflags,
             "race_opt": race_opt,
             "covermode_opt": covermode_opt,
             "coverprofile": coverprofile,

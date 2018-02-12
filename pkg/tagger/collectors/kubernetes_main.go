@@ -80,12 +80,12 @@ func (c *KubeServiceCollector) Pull() error {
 	return nil
 }
 
-// Fetch fetches tags for a given container by iterating on the whole podlist and
+// Fetch fetches tags for a given entity by iterating on the whole podlist and
 // the serviceMapper, TODO refactor when we have the DCA
-func (c *KubeServiceCollector) Fetch(containerID string) ([]string, []string, error) {
+func (c *KubeServiceCollector) Fetch(entity string) ([]string, []string, error) {
 	var lowCards, highCards []string
 
-	pod, err := c.kubeUtil.GetPodForContainerID(containerID)
+	pod, err := c.kubeUtil.GetPodForEntityID(entity)
 	if err != nil {
 		return lowCards, highCards, err
 	}
@@ -100,7 +100,7 @@ func (c *KubeServiceCollector) Fetch(containerID string) ([]string, []string, er
 	tagInfos := getTagInfos(pods)
 	c.infoOut <- tagInfos
 	for _, info := range tagInfos {
-		if info.Entity == containerID {
+		if info.Entity == entity {
 			return info.LowCardTags, info.HighCardTags, nil
 		}
 	}
