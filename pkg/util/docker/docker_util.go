@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	pauseContainerGCR       = "image:.*gcr.io/.*pause.*"
+	pauseContainerGCR       = `image:(k8s.|^)gcr\.io(/google_containers/|/)pause(.*)`
 	pauseContainerOpenshift = "image:openshift/origin-pod"
 )
 

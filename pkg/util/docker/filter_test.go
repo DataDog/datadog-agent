@@ -16,12 +16,46 @@ import (
 
 func TestContainerFilter(t *testing.T) {
 	containers := []*Container{
-		{ID: "1", Name: "secret-container-dd", Image: "docker-dd-agent"},
-		{ID: "2", Name: "webapp1-dd", Image: "apache:2.2"},
-		{ID: "3", Name: "mysql-dd", Image: "mysql:5.3"},
-		{ID: "4", Name: "linux-dd", Image: "alpine:latest"},
-		{ID: "5", Name: "k8s_POD.f8120f_kube-proxy-gke-pool-1-2890-pv0", Image: "gcr.io/google_containers/pause-amd64:3.0"},
-		{ID: "6", Name: "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0", Image: "k8s.gcr.io/pause-amd64:3.1"},
+		{
+			ID:    "1",
+			Name:  "secret-container-dd",
+			Image: "docker-dd-agent",
+		},
+		{
+			ID:    "2",
+			Name:  "webapp1-dd",
+			Image: "apache:2.2",
+		},
+		{
+			ID:    "3",
+			Name:  "mysql-dd",
+			Image: "mysql:5.3",
+		},
+		{
+			ID:    "4",
+			Name:  "linux-dd",
+			Image: "alpine:latest",
+		},
+		{
+			ID:    "5",
+			Name:  "k8s_superpause_kube-apiserver-mega-node_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
+			Image: "gcr.io/random-project/superpause:1.0",
+		},
+		{
+			ID:    "6",
+			Name:  "k8s_superpause_kube-apiserver-mega-node_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
+			Image: "gcr.io/random-project/pause:1.0",
+		},
+		{
+			ID:    "7",
+			Name:  "k8s_POD.f8120f_kube-proxy-gke-pool-1-2890-pv0",
+			Image: "gcr.io/google_containers/pause-amd64:3.0",
+		},
+		{
+			ID:    "8",
+			Name:  "k8s_POD_kube-apiserver-node-name_kube-system_1ffeada3879805c883bb6d9ba7beca44_0",
+			Image: "k8s.gcr.io/pause-amd64:3.1",
+		},
 	}
 
 	for i, tc := range []struct {
@@ -30,25 +64,25 @@ func TestContainerFilter(t *testing.T) {
 		expectedIDs []string
 	}{
 		{
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8"},
 		},
 		{
 			blacklist:   []string{"name:secret"},
-			expectedIDs: []string{"2", "3", "4", "5", "6"},
+			expectedIDs: []string{"2", "3", "4", "5", "6", "7", "8"},
 		},
 		{
 			blacklist:   []string{"image:secret"},
-			expectedIDs: []string{"1", "2", "3", "4", "5", "6"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6", "7", "8"},
 		},
 		{
 			whitelist:   []string{},
 			blacklist:   []string{"image:apache", "image:alpine"},
-			expectedIDs: []string{"1", "3", "5", "6"},
+			expectedIDs: []string{"1", "3", "5", "6", "7", "8"},
 		},
 		{
 			whitelist:   []string{"name:mysql"},
 			blacklist:   []string{"name:dd"},
-			expectedIDs: []string{"3", "5", "6"},
+			expectedIDs: []string{"3", "5", "6", "7", "8"},
 		},
 		// Test kubernetes defaults
 		{
@@ -56,7 +90,7 @@ func TestContainerFilter(t *testing.T) {
 				pauseContainerGCR,
 				pauseContainerOpenshift,
 			},
-			expectedIDs: []string{"1", "2", "3", "4"},
+			expectedIDs: []string{"1", "2", "3", "4", "5", "6"},
 		},
 	} {
 		t.Run("", func(t *testing.T) {
