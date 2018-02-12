@@ -63,12 +63,10 @@ type LogsConfig struct {
 	Image string // Docker
 	Label string // Docker
 
-	Service        string
-	Source         string
-	SourceCategory string
-	Tags           string
-	// TODO: should be moved out
-	TagsPayload     []byte
+	Service         string
+	Source          string
+	SourceCategory  string
+	Tags            string
 	ProcessingRules []LogsProcessingRule `mapstructure:"log_processing_rules"`
 }
 
@@ -119,7 +117,6 @@ func buildLogSources(ddconfdPath string) (*LogSources, error) {
 				continue
 			}
 			config.ProcessingRules = rules
-			config.TagsPayload = BuildTagsPayload(config.Tags, config.Source, config.SourceCategory)
 		}
 	}
 
@@ -232,34 +229,4 @@ func validateProcessingRules(rules []LogsProcessingRule) ([]LogsProcessingRule, 
 		}
 	}
 	return rules, nil
-}
-
-// BuildTagsPayload generates the bytes array that will be inserted
-// into messages given a list of tags
-func BuildTagsPayload(configTags, source, sourceCategory string) []byte {
-
-	tagsPayload := []byte{}
-	if source != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddsource=\"")...)
-		tagsPayload = append(tagsPayload, []byte(source)...)
-		tagsPayload = append(tagsPayload, []byte("\"]")...)
-	}
-
-	if sourceCategory != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\"")...)
-		tagsPayload = append(tagsPayload, []byte(sourceCategory)...)
-		tagsPayload = append(tagsPayload, []byte("\"]")...)
-	}
-
-	if configTags != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\"")...)
-		tagsPayload = append(tagsPayload, []byte(configTags)...)
-		tagsPayload = append(tagsPayload, []byte("\"]")...)
-	}
-
-	if len(tagsPayload) == 0 {
-		return []byte{'-'}
-	}
-
-	return tagsPayload
 }

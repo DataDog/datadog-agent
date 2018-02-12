@@ -21,20 +21,23 @@ type Pipeline struct {
 
 // NewPipeline returns a new Pipeline
 func NewPipeline(connManager *sender.ConnectionManager, outputChan chan message.Message) *Pipeline {
+
+	useProto := config.LogsAgent.GetBool("logs_config.dev_mode_use_proto")
+
 	// initialize the sender
 	senderChan := make(chan message.Message, config.ChanSize)
-	sender := sender.New(senderChan, outputChan, connManager)
+	delimiter := sender.NewDelimiter(useProto)
+	sender := sender.New(senderChan, outputChan, connManager, delimiter)
 
 	// initialize the input chan
 	inputChan := make(chan message.Message, config.ChanSize)
 
 	// initialize the processor
-	processor := processor.New(
-		inputChan,
-		senderChan,
-		config.LogsAgent.GetString("api_key"),
-		config.LogsAgent.GetString("logset"),
-	)
+	encoder := processor.NewEncoder(useProto)
+	apikey := config.LogsAgent.GetString("api_key")
+	logset := config.LogsAgent.GetString("logset") // TODO Logset is deprecated and should be removed eventually.
+	prefixer := processor.NewAPIKeyPrefixer(apikey, logset)
+	processor := processor.New(inputChan, senderChan, encoder, prefixer)
 
 	return &Pipeline{
 		InputChan: inputChan,
