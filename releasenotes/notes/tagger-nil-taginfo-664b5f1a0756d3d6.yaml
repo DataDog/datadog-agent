@@ -1,0 +1,3 @@
+---
+fixes:
+  - make tagger more resilient to malformed docker events

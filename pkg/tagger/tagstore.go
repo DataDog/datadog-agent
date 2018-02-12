@@ -38,6 +38,9 @@ func newTagStore() *tagStore {
 }
 
 func (s *tagStore) processTagInfo(info *collectors.TagInfo) error {
+	if info == nil {
+		return fmt.Errorf("skipping nil message")
+	}
 	if info.Entity == "" {
 		return fmt.Errorf("empty entity name, skipping message")
 	}
