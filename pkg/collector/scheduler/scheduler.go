@@ -12,8 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 var (
@@ -93,6 +94,8 @@ func (s *Scheduler) Enter(check check.Check) error {
 func (s *Scheduler) Cancel(id check.ID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	log.Infof("Uncheduling check %v ", check.IDToCheckName(id))
 
 	if _, ok := s.checkToQueue[id]; !ok {
 		return nil
