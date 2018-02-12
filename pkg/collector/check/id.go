@@ -29,6 +29,7 @@ func BuildID(checkName string, instance, initConfig ConfigData) ID {
 	return ID(id)
 }
 
+// IDToCheckName returns the check name from a check ID
 func IDToCheckName(id ID) string {
 	return strings.SplitN(string(id), ":", 2)[0]
 }
