@@ -19,10 +19,11 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 		config.NewLogSource("bar", &config.LogsConfig{}),
 		config.NewLogSource("foo", &config.LogsConfig{}),
 	}
-	Initialize(sources)
+	Initialize(sources, nil)
 	status := Get()
 	assert.Equal(t, true, status.IsRunning)
 	assert.Equal(t, 2, len(status.Integrations))
+	assert.Equal(t, 0, len(status.DeprecatedAttributes))
 
 	for _, integration := range status.Integrations {
 		switch integration.Name {
@@ -32,6 +33,35 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 			assert.Equal(t, 1, len(integration.Sources))
 		default:
 			assert.Fail(t, fmt.Sprintf("Expected foo or bar, got %s", integration.Name))
+		}
+	}
+}
+
+func TestSourceAreGroupedByIntegrations(t *testing.T) {
+	deprecatedAttributes := []config.DeprecatedAttribute{
+		{
+			Name:        "foo",
+			Replacement: "boo",
+		},
+		{
+			Name:        "bar",
+			Replacement: "baz",
+		},
+	}
+	Initialize(nil, deprecatedAttributes)
+	status := Get()
+	assert.Equal(t, true, status.IsRunning)
+	assert.Equal(t, 0, len(status.Integrations))
+	assert.Equal(t, 2, len(status.DeprecatedAttributes))
+
+	for _, attribute := range status.DeprecatedAttributes {
+		switch attribute.Name {
+		case "foo":
+			assert.Equal(t, "boo", attribute.Replacement)
+		case "bar":
+			assert.Equal(t, "baz", attribute.Replacement)
+		default:
+			assert.Fail(t, fmt.Sprintf("Expected foo or bar, got %s", attribute.Name))
 		}
 	}
 }
