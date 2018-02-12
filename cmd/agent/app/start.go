@@ -67,6 +67,9 @@ const hostMetadataCollectorInterval = 14400
 // run the agent checks metadata collector every 600 seconds (10 minutes)
 const agentChecksMetadataCollectorInterval = 600
 
+// run the resources metadata collector every 300 seconds (5 minutes) by default, configurable
+const defaultResourcesMetadataCollectorInterval = 300
+
 func init() {
 	// attach the command to the root
 	AgentCmd.AddCommand(startCmd)
@@ -226,6 +229,7 @@ func StartAgent() error {
 
 	// setup the metadata collector, this needs a working Python env to function
 	if config.Datadog.GetBool("enable_metadata_collection") {
+		addDefaultResourcesCollector := true
 		common.MetadataScheduler = metadata.NewScheduler(s, hostname)
 		var C []config.MetadataProviders
 		err = config.Datadog.UnmarshalKey("metadata_providers", &C)
@@ -233,6 +237,13 @@ func StartAgent() error {
 			log.Debugf("Adding configured providers to the metadata collector")
 			for _, c := range C {
 				if c.Name == "host" || c.Name == "agent_checks" {
+					continue
+				}
+				if c.Name == "resources" {
+					addDefaultResourcesCollector = false
+				}
+				if c.Interval == 0 {
+					log.Infof("Interval of metadata provider '%v' set to 0, skipping provider", c.Name)
 					continue
 				}
 				intl := c.Interval * time.Second
@@ -254,6 +265,12 @@ func StartAgent() error {
 		err = common.MetadataScheduler.AddCollector("agent_checks", agentChecksMetadataCollectorInterval*time.Second)
 		if err != nil {
 			return log.Error("Agent Checks metadata is supposed to be always available in the catalog!")
+		}
+		if addDefaultResourcesCollector {
+			err = common.MetadataScheduler.AddCollector("resources", defaultResourcesMetadataCollectorInterval*time.Second)
+			if err != nil {
+				log.Warn("Could not add resources metadata provider: ", err)
+			}
 		}
 	} else {
 		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
