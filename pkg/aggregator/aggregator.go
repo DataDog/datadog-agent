@@ -239,11 +239,21 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 		sc.Host = agg.hostname
 	}
 	if sc.Ts == 0 {
-		sc.Ts = time.Now().Unix()
+		sc.Ts = int64(time.Now().Unix())
 	}
 	sc.Tags = deduplicateTags(sc.Tags)
 
 	agg.serviceChecks = append(agg.serviceChecks, &sc)
+}
+
+func (agg *BufferedAggregator) addSerie(serie metrics.Serie) metrics.Series {
+	if serie.Host == "" {
+		serie.Host = agg.hostname
+	}
+
+	series := agg.GetSeries()
+	series = append(series, &serie)
+	return series
 }
 
 // addEvent adds the event to the slice of current events
@@ -282,12 +292,13 @@ func (agg *BufferedAggregator) GetSeries() metrics.Series {
 
 func (agg *BufferedAggregator) flushSeries() {
 	start := time.Now()
-	series := agg.GetSeries()
-	addFlushCount("Series", int64(len(series)))
 
-	if len(series) == 0 {
-		return
-	}
+	var Point = metrics.Point{Value: 1, Ts: float64(time.Now().Unix())}
+	var Points = []metrics.Point{Point}
+
+	series := agg.addSerie(metrics.Serie{Name: "datadog.agent.running", Points: Points})
+
+	addFlushCount("Series", int64(len(series)))
 
 	// Serialize and forward in a separate goroutine
 	go func() {
