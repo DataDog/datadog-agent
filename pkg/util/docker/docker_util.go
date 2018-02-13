@@ -29,8 +29,9 @@ import (
 const (
 	// pauseContainerGCR regex matches:
 	// - k8s.gcr.io/pause-amd64:3.1
+	// - asia.gcr.io/google_containers/pause-amd64:3.0
 	// - gcr.io/google_containers/pause-amd64:3.0
-	pauseContainerGCR        = `image:(k8s.|^)gcr\.io(/google_containers/|/)pause(.*)`
+	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/)pause(.*)`
 	pauseContainerOpenshift  = "image:openshift/origin-pod"
 	pauseContainerKubernetes = "image:kubernetes/pause"
 )
