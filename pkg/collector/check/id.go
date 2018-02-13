@@ -8,6 +8,7 @@ package check
 import (
 	"fmt"
 	"hash/fnv"
+	"strings"
 )
 
 // ID is the representation of the unique ID of a Check instance
@@ -26,4 +27,9 @@ func BuildID(checkName string, instance, initConfig ConfigData) ID {
 
 	id := fmt.Sprintf("%s:%x", checkName, h.Sum64())
 	return ID(id)
+}
+
+// IDToCheckName returns the check name from a check ID
+func IDToCheckName(id ID) string {
+	return strings.SplitN(string(id), ":", 2)[0]
 }

@@ -6,6 +6,7 @@
 package check
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -36,4 +37,38 @@ func TestIdentify(t *testing.T) {
 	instance3 := ConfigData("key1:value1\nkey2:value3")
 	initConfig3 := ConfigData("key:value")
 	assert.NotEqual(t, Identify(testCheck, instance1, initConfig1), Identify(testCheck, instance3, initConfig3))
+}
+
+func TestIDToCheckName(t *testing.T) {
+	testCases := []struct {
+		in  string
+		out string
+	}{
+		{
+			in:  "valid:9505c316b4e4a028",
+			out: "valid",
+		},
+		{
+			in:  "",
+			out: "",
+		},
+		{
+			in:  "nocolon",
+			out: "nocolon",
+		},
+		{
+			in:  "nohash:",
+			out: "nohash",
+		},
+		{
+			in:  "multiple:colon:9505c316b4e4a028",
+			out: "multiple",
+		},
+	}
+
+	for i, tc := range testCases {
+		t.Run(fmt.Sprintf("case %d: %s", i, tc.in), func(t *testing.T) {
+			assert.Equal(t, tc.out, IDToCheckName(ID(tc.in)))
+		})
+	}
 }
