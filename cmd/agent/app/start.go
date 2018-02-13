@@ -67,6 +67,9 @@ const hostMetadataCollectorInterval = 14400
 // run the agent checks metadata collector every 600 seconds (10 minutes)
 const agentChecksMetadataCollectorInterval = 600
 
+// run the resources metadata collector every 300 seconds (5 minutes) by default, configurable
+const defaultResourcesMetadataCollectorInterval = 300
+
 func init() {
 	// attach the command to the root
 	AgentCmd.AddCommand(startCmd)
@@ -226,34 +229,9 @@ func StartAgent() error {
 
 	// setup the metadata collector, this needs a working Python env to function
 	if config.Datadog.GetBool("enable_metadata_collection") {
-		common.MetadataScheduler = metadata.NewScheduler(s, hostname)
-		var C []config.MetadataProviders
-		err = config.Datadog.UnmarshalKey("metadata_providers", &C)
-		if err == nil {
-			log.Debugf("Adding configured providers to the metadata collector")
-			for _, c := range C {
-				if c.Name == "host" || c.Name == "agent_checks" {
-					continue
-				}
-				intl := c.Interval * time.Second
-				err = common.MetadataScheduler.AddCollector(c.Name, intl)
-				if err != nil {
-					log.Errorf("Unable to add '%s' metadata provider: %v", c.Name, err)
-				} else {
-					log.Infof("Scheduled metadata provider '%v' to run every %v", c.Name, intl)
-				}
-			}
-		} else {
-			log.Errorf("Unable to parse metadata_providers config: %v", err)
-		}
-		// Should be always true, except in some edge cases (multiple agents per host)
-		err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
+		err = setupMetadataCollection(s, hostname)
 		if err != nil {
-			return log.Error("Host metadata is supposed to be always available in the catalog!")
-		}
-		err = common.MetadataScheduler.AddCollector("agent_checks", agentChecksMetadataCollectorInterval*time.Second)
-		if err != nil {
-			return log.Error("Agent Checks metadata is supposed to be always available in the catalog!")
+			return err
 		}
 	} else {
 		log.Warnf("Metadata collection disabled, only do that if another agent/dogstatsd is running on this host")
@@ -261,6 +239,55 @@ func StartAgent() error {
 
 	// start dependent services
 	startDependentServices()
+	return nil
+}
+
+// setupMetadataCollection initializes the metadata scheduler and its collectors based on the config
+func setupMetadataCollection(s *serializer.Serializer, hostname string) error {
+	addDefaultResourcesCollector := true
+	common.MetadataScheduler = metadata.NewScheduler(s, hostname)
+	var C []config.MetadataProviders
+	err := config.Datadog.UnmarshalKey("metadata_providers", &C)
+	if err == nil {
+		log.Debugf("Adding configured providers to the metadata collector")
+		for _, c := range C {
+			if c.Name == "host" || c.Name == "agent_checks" {
+				continue
+			}
+			if c.Name == "resources" {
+				addDefaultResourcesCollector = false
+			}
+			if c.Interval == 0 {
+				log.Infof("Interval of metadata provider '%v' set to 0, skipping provider", c.Name)
+				continue
+			}
+			intl := c.Interval * time.Second
+			err = common.MetadataScheduler.AddCollector(c.Name, intl)
+			if err != nil {
+				log.Errorf("Unable to add '%s' metadata provider: %v", c.Name, err)
+			} else {
+				log.Infof("Scheduled metadata provider '%v' to run every %v", c.Name, intl)
+			}
+		}
+	} else {
+		log.Errorf("Unable to parse metadata_providers config: %v", err)
+	}
+	// Should be always true, except in some edge cases (multiple agents per host)
+	err = common.MetadataScheduler.AddCollector("host", hostMetadataCollectorInterval*time.Second)
+	if err != nil {
+		return log.Error("Host metadata is supposed to be always available in the catalog!")
+	}
+	err = common.MetadataScheduler.AddCollector("agent_checks", agentChecksMetadataCollectorInterval*time.Second)
+	if err != nil {
+		return log.Error("Agent Checks metadata is supposed to be always available in the catalog!")
+	}
+	if addDefaultResourcesCollector {
+		err = common.MetadataScheduler.AddCollector("resources", defaultResourcesMetadataCollectorInterval*time.Second)
+		if err != nil {
+			log.Warn("Could not add resources metadata provider: ", err)
+		}
+	}
+
 	return nil
 }
 

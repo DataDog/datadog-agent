@@ -107,11 +107,10 @@ api_key:
 # server_timeout: 15
 {{ end -}}
 {{- if .Metadata }}
-# Metadata collectors, add or remove from the list to enable or disable collection.
-# Intervals are expressed in seconds.
-metadata_collectors:
-  - name: 'resources'
-    interval: 60
+# Metadata providers, add or remove from the list to enable or disable collection.
+# Intervals are expressed in seconds. You can also set a provider's interval to 0
+# to disable it.
+# metadata_providers:
 #  - name: k8s
 #    interval: 60
 {{ end -}}
