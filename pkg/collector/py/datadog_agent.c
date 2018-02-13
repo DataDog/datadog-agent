@@ -22,7 +22,7 @@ PyObject* GetHostname(PyObject *self, PyObject *args);
 PyObject* LogMessage(char *message, int logLevel);
 PyObject* GetConfig(char *key);
 PyObject* GetSubprocessOutput(char **args, int argc, int raise);
-PyObject* AddExternalTags(const char *hostname, const char *source_type, char **tags, int tags_s);
+PyObject* SetExternalTags(const char *hostname, const char *source_type, char **tags, int tags_s);
 
 // Exceptions
 PyObject* SubprocessOutputEmptyError;
@@ -115,7 +115,7 @@ static PyObject *get_subprocess_output(PyObject *self, PyObject *args) {
     return py_result;
 }
 
-static PyObject *add_external_tags(PyObject *self, PyObject *args) {
+static PyObject *set_external_tags(PyObject *self, PyObject *args) {
     PyObject *input_list = NULL;
     PyGILState_STATE gstate = PyGILState_Ensure();
 
@@ -216,7 +216,7 @@ static PyObject *add_external_tags(PyObject *self, PyObject *args) {
         }
 
         // finally, invoke the Go function
-        AddExternalTags(hostname, source_type, tags, actual_size);
+        SetExternalTags(hostname, source_type, tags, actual_size);
 
         // cleanup
         for (j=0; j<actual_size; j++) {
@@ -235,7 +235,7 @@ static PyMethodDef datadogAgentMethods[] = {
   {"headers", Headers, METH_VARARGS | METH_KEYWORDS, "Get basic HTTP headers with the right UserAgent."},
   {"get_hostname", GetHostname, METH_VARARGS, "Get the agent hostname."},
   {"log", log_message, METH_VARARGS, "Log a message through the agent logger."},
-  {"add_external_tags", add_external_tags, METH_VARARGS, "Send external host tags."},
+  {"set_external_tags", set_external_tags, METH_VARARGS, "Send external host tags."},
   {NULL, NULL}
 };
 

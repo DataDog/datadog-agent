@@ -14,4 +14,4 @@ tags = [
 ]
 
 def test():
-    datadog_agent.add_external_tags(tags)
+    datadog_agent.set_external_tags(tags)

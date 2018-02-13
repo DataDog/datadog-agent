@@ -35,10 +35,13 @@ func TestGetPayload(t *testing.T) {
 func TestExternalHostTags(t *testing.T) {
 	host1 := "localhost"
 	host2 := "127.0.0.1"
-	eTags1 := externalhost.ExternalTags{"vsphere": []string{"foo", "bar"}}
-	eTags2 := externalhost.ExternalTags{"vsphere": []string{"baz"}}
-	externalhost.AddExternalTags(host1, eTags1)
-	externalhost.AddExternalTags(host2, eTags2)
+	sourceType := "vsphere"
+	tags1 := []string{"foo", "bar"}
+	tags2 := []string{"baz"}
+	eTags1 := externalhost.ExternalTags{sourceType: tags1}
+	eTags2 := externalhost.ExternalTags{sourceType: tags2}
+	externalhost.SetExternalTags(host1, sourceType, tags1)
+	externalhost.SetExternalTags(host2, sourceType, tags2)
 
 	pl := GetPayload("")
 	hpl := pl.ExternalHostPayload.Payload
