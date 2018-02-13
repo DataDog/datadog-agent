@@ -7,8 +7,15 @@ package app
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/spf13/cobra"
 )
@@ -61,8 +68,7 @@ var (
 		Run:   doJmxListNotCollected,
 	}
 
-	checks   = []string{}
-	checkDir = "/etc/datadog-agent/conf.d"
+	checks = []string{}
 )
 
 func init() {
@@ -72,10 +78,7 @@ func init() {
 	//attach list commands to list root
 	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd)
 
-	jmxListCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{}, "JMX checks (required) (ex: jmx,tomcat)")
-	jmxListCmd.MarkPersistentFlagRequired("checks")
-
-	jmxListCmd.PersistentFlags().StringVarP(&checkDir, "confdir", "d", checkDir, "check configuration directory")
+	jmxListCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{"jmx"}, "JMX checks (ex: jmx,tomcat)")
 
 	// attach the command to the root
 	AgentCmd.AddCommand(jmxCmd)
@@ -102,18 +105,48 @@ func doJmxListNotCollected(cmd *cobra.Command, args []string) {
 }
 
 func runJmxCommand(command string) {
+	err := common.SetupConfig(confFilePath)
+	if err != nil {
+		log.Fatalln("unable to set up global agent configuration: %v", err)
+	}
+
+	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+
 	runner := jmxfetch.New()
 
 	runner.ReportOnConsole = true
 	runner.Command = command
-	runner.ConfDirectory = checkDir
+
+	dir, err := ioutil.TempDir(os.TempDir(), "jmxconfd")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer os.RemoveAll(dir)
+	runner.ConfDirectory = dir
+
+	configs := common.AC.GetAllConfigs()
 
 	for _, c := range checks {
-		checkFile := fmt.Sprintf("%v.d/conf.yaml", c)
-		runner.Checks = append(runner.Checks, checkFile)
+		config, err := findConfigByCheckName(configs, c)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		file, err := ioutil.TempFile(dir, fmt.Sprintf("conf_%v", c))
+		if err != nil {
+			log.Fatalln(err)
+		}
+		defer file.Close()
+
+		_, err = file.WriteString(config.String())
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		runner.Checks = append(runner.Checks, filepath.Base(file.Name()))
 	}
 
-	err := runner.Run()
+	err = runner.Run()
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -123,5 +156,14 @@ func runJmxCommand(command string) {
 		log.Fatalln(err)
 	}
 
-	fmt.Println("JMXFetch exited successfully. If nothing was outputted please verify your \"checks\" and \"confdir\" flags or check JMXFetch log file.")
+	fmt.Println("JMXFetch exited successfully. If nothing was displayed please check your configuration, flags and the JMXFetch log file.")
+}
+
+func findConfigByCheckName(configs []check.Config, checkName string) (*check.Config, error) {
+	for _, c := range configs {
+		if strings.EqualFold(c.Name, checkName) {
+			return &c, nil
+		}
+	}
+	return nil, fmt.Errorf("Unable to find config named %v", checkName)
 }
