@@ -496,6 +496,7 @@ testkitchen_cleanup_azure:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
   services:
     - 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
+  before_script: [ "# noop" ] # Override top level entry
   script:
     - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__devtools__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
@@ -545,6 +546,7 @@ build_dogstatsd:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
   services:
     - 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
+  before_script: [ "# noop" ] # Override top level entry
   script:
     - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__devtools__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
