@@ -72,6 +72,7 @@ type AutoConfig struct {
 	configResolver        *ConfigResolver
 	configsPollTicker     *time.Ticker
 	config2checks         map[string][]check.ID       // cache the ID of checks we load for each config
+	check2config          map[check.ID]string         // cache the config digest corresponding to a check
 	name2jmxmetrics       map[string]check.ConfigData // holds the metrics to collect for JMX checks
 	providerLoadedConfigs map[string][]check.Config   // holds the resolved config per provider
 	stop                  chan bool
@@ -88,6 +89,7 @@ func NewAutoConfig(collector *collector.Collector) *AutoConfig {
 		loaders:               make([]check.Loader, 0, 5),
 		templateCache:         NewTemplateCache(),
 		config2checks:         make(map[string][]check.ID),
+		check2config:          make(map[check.ID]string),
 		name2jmxmetrics:       make(map[string]check.ConfigData),
 		providerLoadedConfigs: make(map[string][]check.Config),
 		stop:   make(chan bool),
@@ -241,8 +243,9 @@ func (ac *AutoConfig) getChecksFromConfigs(configs []check.Config, populateCache
 	allChecks := []check.Check{}
 	for _, config := range configs {
 		configDigest := config.Digest()
-		checks, err := ac.GetChecks(config)
+		checks, err := ac.getChecks(config)
 		if err != nil {
+			log.Errorf("Unable to load the check: %v", err)
 			continue
 		}
 		for _, check := range checks {
@@ -250,6 +253,7 @@ func (ac *AutoConfig) getChecksFromConfigs(configs []check.Config, populateCache
 			if populateCache {
 				// store the checks we schedule for this config locally
 				ac.config2checks[configDigest] = append(ac.config2checks[configDigest], check.ID())
+				ac.check2config[check.ID()] = configDigest
 			}
 		}
 	}
@@ -261,12 +265,16 @@ func (ac *AutoConfig) getChecksFromConfigs(configs []check.Config, populateCache
 func (ac *AutoConfig) schedule(checks []check.Check) {
 	for _, check := range checks {
 		log.Infof("Scheduling check %s", check)
-		_, err := ac.collector.RunCheck(check)
+		id, err := ac.collector.RunCheck(check)
 		if err != nil {
 			log.Errorf("Unable to run Check %s: %v", check, err)
 			errorStats.setRunError(check.ID(), err.Error())
 			continue
 		}
+		configDigest := ac.check2config[check.ID()]
+		serviceID := ac.configResolver.config2Service[configDigest]
+
+		ac.configResolver.serviceToChecks[serviceID] = append(ac.configResolver.serviceToChecks[serviceID], id)
 	}
 }
 
@@ -377,7 +385,6 @@ func (ac *AutoConfig) pollConfigs() {
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
-						// store the checks we schedule for this config locally
 						resolvedConfigs := ac.resolve(config, pd.provider.String())
 						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
 						ac.schedule(checks)
@@ -404,6 +411,7 @@ func (ac *AutoConfig) pollConfigs() {
 						if len(stopped) == len(ac.config2checks[digest]) {
 							// we managed to stop all the checks for this config
 							delete(ac.config2checks, digest)
+							delete(ac.configResolver.config2Service, digest)
 						} else {
 							// keep the checks we failed to stop in `config2checks`
 							dangling := []check.ID{}
@@ -459,9 +467,9 @@ func (ac *AutoConfig) collect(pd *providerDescriptor) (new, removed []check.Conf
 	return
 }
 
-// GetChecks takes a check configuration and returns a slice of Check instances
+// getChecks takes a check configuration and returns a slice of Check instances
 // along with any error it might happen during the process
-func (ac *AutoConfig) GetChecks(config check.Config) ([]check.Check, error) {
+func (ac *AutoConfig) getChecks(config check.Config) ([]check.Check, error) {
 	for _, loader := range ac.loaders {
 		res, err := loader.Load(config)
 		if err == nil {
