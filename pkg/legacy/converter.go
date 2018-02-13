@@ -31,11 +31,6 @@ func FromAgentConfig(agentConfig Config) error {
 	config.Datadog.Set("api_key", agentConfig["api_key"])
 	config.Datadog.Set("hostname", agentConfig["hostname"])
 
-	if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil && !enabled {
-		// apm is enabled by default through the check config file `apm.yaml.default`
-		config.Datadog.Set("apm_enabled", false)
-	}
-
 	if enabled, err := isAffirmative(agentConfig["process_agent_enabled"]); err == nil && !enabled {
 		// process agent is enabled in datadog.yaml
 		config.Datadog.Set("process_agent_enabled", false)
@@ -116,6 +111,42 @@ func FromAgentConfig(agentConfig Config) error {
 
 	if enabled, err := isAffirmative(agentConfig["enable_gohai"]); err == nil {
 		config.Datadog.Set("enable_gohai", enabled)
+	}
+
+	//Trace APM based configurations
+
+	if agentConfig["apm_enabled"] != "" {
+		if enabled, err := isAffirmative(agentConfig["apm_enabled"]); err == nil && !enabled {
+			// apm is enabled by default, convert the config only if it was disabled
+			config.Datadog.Set("apm_config.enabled", enabled)
+		}
+	}
+
+	if agentConfig["env"] != "" {
+		config.Datadog.Set("apm_config.env", agentConfig["env"])
+	}
+
+	if receiverPort, err := strconv.Atoi(agentConfig["receiver_port"]); err == nil {
+		config.Datadog.Set("apm_config.receiver_port", receiverPort)
+	}
+
+	if agentConfig["non_local_traffic"] != "" {
+		if enabled, err := isAffirmative(agentConfig["non_local_traffic"]); err == nil && enabled {
+			// trace-agent listen locally by default, convert the config only if configured to listen to more
+			config.Datadog.Set("apm_config.apm_non_local_traffic", enabled)
+		}
+	}
+
+	if sampleRate, err := strconv.ParseFloat(agentConfig["extra_sample_rate"], 64); err == nil {
+		config.Datadog.Set("apm_config.extra_sample_rate", sampleRate)
+	}
+
+	if maxTraces, err := strconv.ParseFloat(agentConfig["max_traces_per_second"], 64); err == nil {
+		config.Datadog.Set("apm_config.max_traces_per_second", maxTraces)
+	}
+
+	if agentConfig["resource"] != "" {
+		config.Datadog.Set("apm_config.ignore_resources", strings.Split(agentConfig["resource"], ","))
 	}
 
 	return nil

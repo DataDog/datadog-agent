@@ -410,6 +410,6 @@ api_key:
 #   max_traces_per_second: 10
 #   A blacklist of regular expressions can be provided to disable certain traces based on their resource name
 #   all entries must be surrounded by double quotes and separated by commas
-#   Example: "(GET|POST) /healthcheck","GET /V1"
-#   ignore_resource: ""
+#   Example: ["(GET|POST) /healthcheck", "GET /V1"]
+#   ignore_resources: []
 {{ end -}}
