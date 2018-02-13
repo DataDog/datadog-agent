@@ -40,7 +40,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
         ver = get_version_numeric_only(ctx)
         build_maj, build_min, build_patch = ver.split(".")
 
-        command = "windres --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
+        command = "windres -v --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
             build_maj=build_maj,
             build_min=build_min,
             build_patch=build_patch

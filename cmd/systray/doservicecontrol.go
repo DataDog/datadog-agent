@@ -14,7 +14,7 @@ import (
 
 func onRestart() {
 	if err := app.ControlService(svc.Stop, svc.Stopped); err == nil {
-		err = app.StartService(nil, nil)
+		app.StartService(nil, nil)
 	}
 
 }

@@ -355,6 +355,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/lxn/walk"
+  packages = ["."]
+  revision = "b6ff93ae632a4fc602e8dfad6836bce78c59d2bd"
+
+[[projects]]
+  branch = "master"
   name = "github.com/lxn/win"
   packages = ["."]
   revision = "aaf8f59e531a7f484381fbc5453def0cffe9c526"
@@ -613,6 +619,12 @@
   revision = "66487607e2081c7c2af2281c62c14ee000d5024b"
 
 [[projects]]
+  name = "gopkg.in/Knetic/govaluate.v3"
+  packages = ["."]
+  revision = "d216395917cc49052c7c7094cf57f09657ca08a8"
+  version = "v3.0.0"
+
+[[projects]]
   branch = "v2"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -627,6 +639,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e35db1c219179b3e276941f11a2ec419965647e4668b56aed2eccf6a67aae55a"
+  inputs-digest = "56467a35efd12f6427bf13cfd246308de0c53c715cd3f21f88c3572b5c326e9e"
   solver-name = "gps-cdcl"
   solver-version = 1

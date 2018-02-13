@@ -42,6 +42,7 @@ func init() {
 	menuitems = append(menuitems, menuItem{label: "S&top", handler: onStop, enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Restart", handler: onRestart, enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Configure", handler: onConfigure, enabled: canConfigure()})
+	menuitems = append(menuitems, menuItem{label: "&Flare", handler: onFlare, enabled: true})
 	menuitems = append(menuitems, menuItem{label: separator})
 	menuitems = append(menuitems, menuItem{label: "E&xit", handler: onExit, enabled: true})
 }
