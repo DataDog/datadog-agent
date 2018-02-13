@@ -44,7 +44,8 @@ DEFAULT_TEST_TARGETS = [
 
 
 @task()
-def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False):
+def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embedded_libs=False, fail_on_fmt=False,
+         timeout=60):
     """
     Run all the tools and tests on the given targets. If targets are not specified,
     the value from `invoke.yaml` will be used.
@@ -63,6 +64,7 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
         tool_targets = test_targets = targets
 
     build_tags = get_default_build_tags()
+    timeout = int(timeout)
 
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
@@ -119,7 +121,7 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
         if coverage:
             profile_tmp = "{}/profile.tmp".format(match)
             coverprofile = "-coverprofile={}".format(profile_tmp)
-        cmd = 'go test -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" '
+        cmd = 'go test -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" '
         cmd += '{race_opt} -short {covermode_opt} {coverprofile} {pkg_folder}'
         args = {
             "go_build_tags": " ".join(build_tags),
@@ -129,6 +131,7 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
             "covermode_opt": covermode_opt,
             "coverprofile": coverprofile,
             "pkg_folder": match,
+            "timeout": timeout,
         }
         ctx.run(cmd.format(**args), env=env, out_stream=test_profiler)
 
