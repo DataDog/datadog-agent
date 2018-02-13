@@ -25,7 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
-const dockerCheckName = "docker"
+const (
+	dockerCheckName = "docker"
+	DockerServiceUp = "docker.service_up"
+	DockerExit      = "docker.exit"
+)
 
 type DockerConfig struct {
 	CollectContainerSize bool               `yaml:"collect_container_size"`
@@ -39,11 +43,6 @@ type DockerConfig struct {
 	FilteredEventType    []string           `yaml:"filtered_event_types"`
 	CappedMetrics        map[string]float64 `yaml:"capped_metrics"`
 }
-
-const (
-	DockerServiceUp string = "docker.service_up"
-	DockerExit      string = "docker.exit"
-)
 
 type containerPerImage struct {
 	tags    []string
@@ -71,16 +70,35 @@ type DockerCheck struct {
 }
 
 func updateContainerRunningCount(images map[string]*containerPerImage, c *docker.Container) {
-	imageTags, err := tagger.Tag(c.EntityID, false)
-	if err != nil {
-		log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
-		return
+	var containerTags []string
+	var err error
+
+	if c.Excluded {
+		// TODO we can do SplitImageName because we are in the docker corecheck and the image name is not a sha[...]
+		// We should resolve the image tags in the tagger as a real entity.
+		long, short, tag, err := docker.SplitImageName(c.Image)
+		if err != nil {
+			log.Errorf("Cannot split the image name %s: %v", c.Image, err)
+			return
+		}
+		containerTags = []string{
+			fmt.Sprintf("docker_image:%s", c.Image),
+			fmt.Sprintf("image_name:%s", long),
+			fmt.Sprintf("image_tag:%s", tag),
+			fmt.Sprintf("short_image:%s", short),
+		}
+	} else {
+		containerTags, err = tagger.Tag(c.EntityID, false)
+		if err != nil {
+			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
+			return
+		}
+		sort.Strings(containerTags)
 	}
 
-	sort.Strings(imageTags)
-	key := strings.Join(imageTags, "|")
+	key := strings.Join(containerTags, "|")
 	if _, found := images[key]; !found {
-		images[key] = &containerPerImage{tags: imageTags, running: 0, stopped: 0}
+		images[key] = &containerPerImage{tags: containerTags, running: 0, stopped: 0}
 	}
 
 	if c.State == docker.ContainerRunningState {
@@ -108,7 +126,7 @@ func (d *DockerCheck) countAndWeightImages(sender aggregator.Sender, du *docker.
 		for _, i := range availableImages {
 			name, _, tag, err := docker.SplitImageName(i.RepoTags[0])
 			if err != nil {
-				log.Errorf("could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
+				log.Errorf("Could not parse image name and tag, RepoTag is: %s", i.RepoTags[0])
 				continue
 			}
 			tags := append(d.instance.Tags, fmt.Sprintf("image_name:%s", name), fmt.Sprintf("image_tag:%s", tag))
@@ -151,7 +169,6 @@ func (d *DockerCheck) Run() error {
 		tags, err := tagger.Tag(c.EntityID, true)
 		if err != nil {
 			log.Errorf("Could not collect tags for container %s: %s", c.ID[:12], err)
-			tags = []string{}
 		}
 		tags = append(tags, d.instance.Tags...)
 
@@ -186,7 +203,7 @@ func (d *DockerCheck) Run() error {
 		if c.Network != nil {
 			for _, netStat := range c.Network {
 				if netStat.NetworkName == "" {
-					log.Debugf("ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
+					log.Debugf("Ignore network stat with empty name for container %s: %s", c.ID[:12], netStat)
 					continue
 				}
 				ifaceTags := append(tags, fmt.Sprintf("docker_network:%s", netStat.NetworkName))
@@ -253,7 +270,7 @@ func (d *DockerCheck) Run() error {
 		} else {
 			for _, stat := range stats {
 				if stat.Name != docker.DataStorageName && stat.Name != docker.MetadataStorageName {
-					log.Debugf("ignoring unknown disk stats: %s", stat)
+					log.Debugf("Ignoring unknown disk stats: %s", stat)
 					continue
 				}
 				if stat.Free != nil {

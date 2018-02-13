@@ -27,8 +27,12 @@ import (
 )
 
 const (
-	pauseContainerGCR       string = "image:gcr.io/google_containers/pause.*"
-	pauseContainerOpenshift string = "image:openshift/origin-pod"
+	// pauseContainerGCR regex matches:
+	// - k8s.gcr.io/pause-amd64:3.1
+	// - gcr.io/google_containers/pause-amd64:3.0
+	pauseContainerGCR        = `image:(k8s.|^)gcr\.io(/google_containers/|/)pause(.*)`
+	pauseContainerOpenshift  = "image:openshift/origin-pod"
+	pauseContainerKubernetes = "image:kubernetes/pause"
 )
 
 // FIXME: remove once DockerListener is moved to .Containers
@@ -73,7 +77,7 @@ func (d *DockerUtil) init() error {
 	blacklist := config.Datadog.GetStringSlice("ac_exclude")
 
 	if config.Datadog.GetBool("exclude_pause_container") {
-		blacklist = append(blacklist, pauseContainerGCR, pauseContainerOpenshift)
+		blacklist = append(blacklist, pauseContainerGCR, pauseContainerOpenshift, pauseContainerKubernetes)
 	}
 
 	// Pre-parse the filter and use that internally.
@@ -109,7 +113,7 @@ func ConnectToDocker() (*client.Client, error) {
 	// TODO: remove this logic when "client.NegotiateAPIVersion" function is released by moby/docker
 	v, err := cli.ServerVersion(context.Background())
 	if err != nil || v.APIVersion == "" {
-		return nil, fmt.Errorf("Could not determine docker server API version: %s", err)
+		return nil, fmt.Errorf("could not determine docker server API version: %s", err)
 	}
 	serverVersion := v.APIVersion
 
