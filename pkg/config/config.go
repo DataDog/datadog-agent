@@ -181,8 +181,6 @@ func init() {
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)
 	Datadog.SetDefault("bosh_id", "")
-	// APM
-	BindEnvAndSetDefault("apm_enabled", true) // this is to support the transition to the new config file
 
 	// JMXFetch
 	Datadog.SetDefault("jmx_custom_jars", []string{})
