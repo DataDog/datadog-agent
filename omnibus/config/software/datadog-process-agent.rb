@@ -28,6 +28,6 @@ build do
     curl_cmd = "curl -f #{url} -o #{binary}"
     command curl_cmd
     command "chmod +x #{binary}"
-    command "mv #{binary} #{install_dir}/bin/#{target_binary}"
+    command "mv #{binary} #{install_dir}/embedded/bin/#{target_binary}"
   end
 end
