@@ -1,5 +1,5 @@
 Component,Origin,License
-core,https://github.com/aws/aws-sdk-go,Apache-2.0
+core,github.com/aws/aws-sdk-go,Apache-2.0
 core,github.com/beevik/ntp,BSD-2-Clause
 core,github.com/cihub/seelog,BSD-3-Clause
 core,github.com/codemirror/CodeMirror,MIT
