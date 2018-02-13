@@ -21,6 +21,7 @@ import (
 	"time"
 )
 
+// CertificatesConfig holds certificate configuration
 type CertificatesConfig struct {
 	Hosts        string
 	ValidFor     time.Duration

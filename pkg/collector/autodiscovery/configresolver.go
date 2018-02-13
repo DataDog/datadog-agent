@@ -126,7 +126,7 @@ func (cr *ConfigResolver) ResolveTemplate(tpl check.Config) []check.Config {
 				resolvedSet[config.Digest()] = config
 			} else {
 				err := fmt.Errorf("Error resolving template %s for service %s: %v",
-					config.Name, serviceID, err)
+					tpl.Name, serviceID, err)
 				errorStats.setResolveWarning(tpl.Name, err.Error())
 				log.Warn(err)
 			}

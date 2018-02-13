@@ -17,6 +17,8 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -154,8 +156,149 @@ func (suite *testSuite) TestKubeEvents() {
 
 	// We should get 2+0 events from initresversion
 	// apiserver does not send updates to objects if the add is in the same bucket
-	added, modified, resversion, err = suite.apiClient.LatestEvents(initresversion)
+	added, modified, _, err = suite.apiClient.LatestEvents(initresversion)
 	require.Nil(suite.T(), err)
 	assert.Len(suite.T(), added, 2)
 	assert.Len(suite.T(), modified, 0)
+}
+
+func (suite *testSuite) TestServiceMapper() {
+	c, err := apiserver.GetCoreV1Client()
+	require.Nil(suite.T(), err)
+
+	// Create a Ready Schedulable node
+	// As we don't have a controller they don't need to have some heartbeat mechanism
+	node := &v1.Node{
+		Spec: v1.NodeSpec{
+			PodCIDR:       "192.168.1.0/24",
+			Unschedulable: false,
+		},
+		Status: v1.NodeStatus{
+			Addresses: []v1.NodeAddress{
+				{
+					Address: "172.31.119.125",
+					Type:    "InternalIP",
+				},
+				{
+					Address: "ip-172-31-119-125.eu-west-1.compute.internal",
+					Type:    "InternalDNS",
+				},
+				{
+					Address: "ip-172-31-119-125.eu-west-1.compute.internal",
+					Type:    "Hostname",
+				},
+			},
+			Conditions: []v1.NodeCondition{
+				{
+					Type:    "Ready",
+					Status:  "True",
+					Reason:  "KubeletReady",
+					Message: "kubelet is posting ready status",
+				},
+			},
+		},
+	}
+	node.Name = "ip-172-31-119-125"
+	_, err = c.Nodes().Create(node)
+	require.Nil(suite.T(), err)
+
+	pod := &v1.Pod{
+		Spec: v1.PodSpec{
+			NodeName: node.Name,
+			Containers: []v1.Container{
+				{
+					Name:  "nginx",
+					Image: "nginx:latest",
+				},
+			},
+		},
+	}
+	pod.Name = "nginx"
+	pod.Labels = map[string]string{"app": "nginx"}
+	pendingPod, err := c.Pods("default").Create(pod)
+	require.Nil(suite.T(), err)
+
+	pendingPod.Status = v1.PodStatus{
+		Phase:  "Running",
+		PodIP:  "172.17.0.1",
+		HostIP: "172.31.119.125",
+		Conditions: []v1.PodCondition{
+			{
+				Type:   "Ready",
+				Status: "True",
+			},
+		},
+		// mark it ready
+		ContainerStatuses: []v1.ContainerStatus{
+			{
+				Name:  "nginx",
+				Ready: true,
+				Image: "nginx:latest",
+				State: v1.ContainerState{Running: &v1.ContainerStateRunning{StartedAt: metav1.Now()}},
+			},
+		},
+	}
+	_, err = c.Pods("default").UpdateStatus(pendingPod)
+	require.Nil(suite.T(), err)
+
+	svc := &v1.Service{
+		Spec: v1.ServiceSpec{
+			Selector: map[string]string{
+				"app": "nginx",
+			},
+			Ports: []v1.ServicePort{{Port: 443}},
+		},
+	}
+	svc.Name = "nginx-1"
+	_, err = c.Services("default").Create(svc)
+	require.Nil(suite.T(), err)
+
+	ep := &v1.Endpoints{
+		Subsets: []v1.EndpointSubset{
+			{
+				Addresses: []v1.EndpointAddress{
+					{
+						IP:       pendingPod.Status.PodIP,
+						NodeName: &node.Name,
+					},
+				},
+				Ports: []v1.EndpointPort{
+					{
+						Name:     "https",
+						Port:     443,
+						Protocol: "TCP",
+					},
+				},
+			},
+		},
+	}
+	ep.Name = "nginx-1"
+	_, err = c.Endpoints("default").Create(ep)
+	require.Nil(suite.T(), err)
+
+	apiClient, err := apiserver.GetAPIClient()
+	require.Nil(suite.T(), err)
+	err = apiClient.ClusterServiceMapping()
+	require.Nil(suite.T(), err)
+
+	serviceNames := apiserver.GetPodServiceNames(node.Name, pod.Name)
+	assert.Len(suite.T(), serviceNames, 1)
+	assert.Contains(suite.T(), serviceNames, "nginx-1")
+
+	// Add a new service/endpoint on the nginx Pod
+	svc.Name = "nginx-2"
+	_, err = c.Services("default").Create(svc)
+	require.Nil(suite.T(), err)
+
+	ep.Name = "nginx-2"
+	_, err = c.Endpoints("default").Create(ep)
+	require.Nil(suite.T(), err)
+
+	err = apiClient.ClusterServiceMapping()
+	require.Nil(suite.T(), err)
+
+	serviceNames = apiserver.GetPodServiceNames(node.Name, pod.Name)
+	assert.Len(suite.T(), serviceNames, 2)
+	assert.Contains(suite.T(), serviceNames, "nginx-1")
+	assert.Contains(suite.T(), serviceNames, "nginx-2")
 }

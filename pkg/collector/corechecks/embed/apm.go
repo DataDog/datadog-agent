@@ -4,6 +4,8 @@
 // Copyright 2018 Datadog, Inc.
 
 // +build apm
+// +build !windows
+// +build !linux
 
 package embed
 
@@ -12,7 +14,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 	"sync/atomic"
 	"time"
 
@@ -25,8 +26,7 @@ import (
 )
 
 type apmCheckConf struct {
-	BinPath  string `yaml:"bin_path,omitempty"`
-	ConfPath string `yaml:"conf_path,omitempty"`
+	BinPath string `yaml:"bin_path,omitempty"`
 }
 
 // APMCheck keeps track of the running command
@@ -151,18 +151,13 @@ func (c *APMCheck) Configure(data check.ConfigData, initConfig check.ConfigData)
 		c.binPath = defaultBinPath
 	}
 
-	// let the trace-agent use its own config file provided by the Agent package
-	// if we haven't found one in the apm.yaml check config
-	configFile := checkConf.ConfPath
-	if configFile == "" {
-		configFile = path.Join(config.FileUsedDir(), "trace-agent.conf")
-	}
+	configFile := config.Datadog.ConfigFileUsed()
 
 	c.commandOpts = []string{}
 
-	// if the trace-agent.conf file is available, use it
+	// explicitly provide to the trace-agent the agent configuration file
 	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
-		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-ddconfig=%s", configFile))
+		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-config=%s", configFile))
 	}
 
 	return nil

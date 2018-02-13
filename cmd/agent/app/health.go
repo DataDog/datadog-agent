@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
@@ -20,11 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-var healthVerbose bool
-
 func init() {
 	AgentCmd.AddCommand(healthCmd)
-	healthCmd.Flags().BoolVarP(&healthVerbose, "verbose", "v", false, "verbose output")
 }
 
 var healthCmd = &cobra.Command{
@@ -73,24 +71,22 @@ func requestHealth() error {
 		return fmt.Errorf("Error unmarshalling json: %s", err)
 	}
 
-	if healthVerbose || len(s.Unhealthy) > 0 {
-		sort.Strings(s.Unhealthy)
-		sort.Strings(s.Healthy)
+	sort.Strings(s.Unhealthy)
+	sort.Strings(s.Healthy)
 
-		if len(s.Unhealthy) > 0 {
-			fmt.Fprintln(color.Output, color.RedString("Agent health: FAIL"))
-			fmt.Fprintln(color.Output, "=== Unhealthy components ===")
-			fmt.Fprintln(color.Output, strings.Join(s.Unhealthy, ", "))
-		} else {
-			fmt.Fprintln(color.Output, color.GreenString("Agent health: PASS"))
-		}
-		if len(s.Healthy) > 0 {
-			fmt.Fprintln(color.Output, "=== Healthy components ===")
-			fmt.Fprintln(color.Output, strings.Join(s.Healthy, ", "))
-		}
-	}
-
+	statusString := color.GreenString("PASS")
 	if len(s.Unhealthy) > 0 {
+		statusString = color.RedString("FAIL")
+	}
+	fmt.Fprintln(color.Output, fmt.Sprintf("Agent health: %s", statusString))
+
+	if len(s.Healthy) > 0 {
+		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s healthy components ===", color.GreenString(strconv.Itoa(len(s.Healthy)))))
+		fmt.Fprintln(color.Output, strings.Join(s.Healthy, ", "))
+	}
+	if len(s.Unhealthy) > 0 {
+		fmt.Fprintln(color.Output, fmt.Sprintf("=== %s unhealthy components ===", color.RedString(strconv.Itoa(len(s.Unhealthy)))))
+		fmt.Fprintln(color.Output, strings.Join(s.Unhealthy, ", "))
 		return fmt.Errorf("found %d unhealthy components", len(s.Unhealthy))
 	}
 

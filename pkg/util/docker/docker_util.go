@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -53,24 +52,6 @@ type DockerUtil struct {
 	imageNameBySha map[string]string
 	// event subscribers and state
 	eventState *eventStreamState
-}
-
-func detectServerAPIVersion() (string, error) {
-	host := os.Getenv("DOCKER_HOST")
-	if host == "" {
-		host = client.DefaultDockerHost
-	}
-	cli, err := client.NewClient(host, "", nil, nil)
-	if err != nil {
-		return "", err
-	}
-
-	// Create the client using the server's API version
-	v, err := cli.ServerVersion(context.Background())
-	if err != nil {
-		return "", err
-	}
-	return v.APIVersion, nil
 }
 
 // init makes an empty DockerUtil bootstrap itself.
@@ -118,37 +99,30 @@ func (d *DockerUtil) init() error {
 // TODO: REMOVE USES AND MOVE TO PRIVATE
 //
 func ConnectToDocker() (*client.Client, error) {
-	// If we don't have a docker.sock then return a known error.
-	sockPath := getEnv("DOCKER_SOCKET_PATH", "/var/run/docker.sock")
-	if !pathExists(sockPath) {
-		return nil, ErrDockerNotAvailable
-	}
-	// The /proc/mounts file won't be available on non-Linux systems
-	// and we only support Linux for now.
-	mountsFile := "/proc/mounts"
-	if !pathExists(mountsFile) {
-		return nil, ErrDockerNotAvailable
-	}
-
-	// Connect again using the known server version.
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		return nil, err
 	}
+	clientVersion := cli.ClientVersion()
+	cli.UpdateClientVersion("") // Hit unversionned endpoint first
 
 	// TODO: remove this logic when "client.NegotiateAPIVersion" function is released by moby/docker
-	serverVersion, err := detectServerAPIVersion()
-	if err != nil || serverVersion == "" {
-		log.Errorf("Could not determine docker server API version (using the client version): %s", err)
-		return cli, nil
+	v, err := cli.ServerVersion(context.Background())
+	if err != nil || v.APIVersion == "" {
+		return nil, fmt.Errorf("Could not determine docker server API version: %s", err)
 	}
+	serverVersion := v.APIVersion
 
-	clientVersion := cli.ClientVersion()
 	if versions.LessThan(serverVersion, clientVersion) {
 		log.Debugf("Docker server APIVersion ('%s') is lower than the client ('%s'): using version from the server",
 			serverVersion, clientVersion)
 		cli.UpdateClientVersion(serverVersion)
+	} else {
+		cli.UpdateClientVersion(clientVersion)
 	}
+
+	log.Debugf("Successfully connected to Docker server version %s", v.Version)
+
 	return cli, nil
 }
 

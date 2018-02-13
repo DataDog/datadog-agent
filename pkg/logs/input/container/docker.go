@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -38,15 +37,16 @@ const tagsUpdatePeriod = 10 * time.Second
 type DockerTailer struct {
 	ContainerID   string
 	outputChan    chan message.Message
-	d             *decoder.Decoder
+	decoder       *decoder.Decoder
 	reader        io.ReadCloser
 	cli           *client.Client
 	source        *config.LogSource
 	containerTags []string
-	tagsPayload   []byte
 
 	sleepDuration time.Duration
 	shouldStop    bool
+	stop          chan struct{}
+	done          chan struct{}
 }
 
 // NewDockerTailer returns a new DockerTailer
@@ -54,11 +54,13 @@ func NewDockerTailer(cli *client.Client, container types.Container, source *conf
 	return &DockerTailer{
 		ContainerID: container.ID,
 		outputChan:  outputChan,
-		d:           decoder.InitializeDecoder(source),
+		decoder:     decoder.InitializeDecoder(source),
 		source:      source,
 		cli:         cli,
 
 		sleepDuration: defaultSleepDuration,
+		stop:          make(chan struct{}, 1),
+		done:          make(chan struct{}, 1),
 	}
 }
 
@@ -67,11 +69,14 @@ func (dt *DockerTailer) Identifier() string {
 	return fmt.Sprintf("docker:%s", dt.ContainerID)
 }
 
-// Stop stops the DockerTailer
+// Stop stops the tailer from reading new container logs,
+// this call blocks until the decoder is completely flushed
 func (dt *DockerTailer) Stop() {
-	dt.shouldStop = true
+	log.Info("Stop tailing container ", dt.ContainerID[:12])
+	dt.stop <- struct{}{}
 	dt.source.RemoveInput(dt.ContainerID)
-	dt.d.Stop()
+	// wait for the decoder to be flushed
+	<-dt.done
 }
 
 // tailFromBeginning starts the tailing from the beginning
@@ -108,17 +113,9 @@ func (dt *DockerTailer) nextLogSinceDate(lastTs string) string {
 	return ts.Format(config.DateFormat)
 }
 
-// tailFrom starts the tailing from the specified time
-func (dt *DockerTailer) tailFrom(from string) error {
-	go dt.keepDockerTagsUpdated()
-	dt.d.Start()
-	go dt.forwardMessages()
-	return dt.startReading(from)
-}
-
-// startReading starts the reader that reads the container's stdout,
-// with proper configuration
-func (dt *DockerTailer) startReading(from string) error {
+// setupReader sets up the reader that reads the container's logs
+// with the proper configuration
+func (dt *DockerTailer) setupReader(from string) (io.ReadCloser, error) {
 	options := types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -127,47 +124,56 @@ func (dt *DockerTailer) startReading(from string) error {
 		Details:    false,
 		Since:      from,
 	}
-	reader, err := dt.cli.ContainerLogs(context.Background(), dt.ContainerID, options)
+	return dt.cli.ContainerLogs(context.Background(), dt.ContainerID, options)
+}
+
+// tailFrom sets up and starts the tailer
+func (dt *DockerTailer) tailFrom(from string) error {
+	reader, err := dt.setupReader(from)
 	if err != nil {
+		// could not start the tailer
 		dt.source.Status.Error(err)
 		return err
 	}
 	dt.source.Status.Success()
 	dt.source.AddInput(dt.ContainerID)
+
 	dt.reader = reader
+	dt.decoder.Start()
+	go dt.keepDockerTagsUpdated()
+	go dt.forwardMessages()
 	go dt.readForever()
+
 	return nil
 }
 
 // readForever reads from the reader as fast as it can,
 // and sleeps when there is nothing to read
 func (dt *DockerTailer) readForever() {
+	defer dt.decoder.Stop()
 	for {
-
-		if dt.shouldStop {
-			// this means that we stop reading as soon as we get the stop message,
-			// but on the other hand we get it when the container is stopped so it should be fine
+		select {
+		case <-dt.stop:
+			// stop reading new logs from container
 			return
+		default:
+			inBuf := make([]byte, 4096)
+			n, err := dt.reader.Read(inBuf)
+			if err != nil {
+				// an error occurred, stop from reading new logs
+				if err != io.EOF {
+					dt.source.Status.Error(err)
+					log.Error("Err: ", err)
+				}
+				return
+			}
+			if n == 0 {
+				// wait for new data to come
+				dt.wait()
+				continue
+			}
+			dt.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		}
-
-		inBuf := make([]byte, 4096)
-		n, err := dt.reader.Read(inBuf)
-		if err == io.EOF {
-			// reader is closed, maybe container stopped running
-			// let's close tailer. Scanner will reopen if needed
-			dt.shouldStop = true
-			continue
-		}
-		if err != nil {
-			dt.source.Status.Error(err)
-			log.Error("Err: ", err)
-			return
-		}
-		if n == 0 {
-			dt.wait()
-			continue
-		}
-		dt.d.InputChan <- decoder.NewInput(inBuf[:n])
 	}
 }
 
@@ -178,24 +184,28 @@ func (dt *DockerTailer) readForever() {
 // As a result, we need to remove this timestamp from the log
 // message before forwarding it
 func (dt *DockerTailer) forwardMessages() {
-	for output := range dt.d.OutputChan {
+	defer func() {
+		// the decoder has successfully been flushed
+		dt.shouldStop = true
+		dt.done <- struct{}{}
+	}()
+	for output := range dt.decoder.OutputChan {
 		if output.ShouldStop {
+			// the decoder has been stopped, there is no more message to forward
 			return
 		}
-
 		ts, sev, updatedMsg, err := parser.ParseMessage(output.Content)
 		if err != nil {
 			log.Warn(err)
 			continue
 		}
-
 		containerMsg := message.NewContainerMessage(updatedMsg)
 		msgOrigin := message.NewOrigin()
 		msgOrigin.LogSource = dt.source
 		msgOrigin.Timestamp = ts
 		msgOrigin.Identifier = dt.Identifier()
+		msgOrigin.SetTags(dt.containerTags)
 		containerMsg.SetSeverity(sev)
-		containerMsg.SetTagsPayload(dt.tagsPayload)
 		containerMsg.SetOrigin(msgOrigin)
 		dt.outputChan <- containerMsg
 	}
@@ -219,14 +229,8 @@ func (dt *DockerTailer) checkForNewDockerTags() {
 	} else {
 		if !reflect.DeepEqual(tags, dt.containerTags) {
 			dt.containerTags = tags
-			dt.tagsPayload = dt.buildTagsPayload()
 		}
 	}
-}
-
-func (dt *DockerTailer) buildTagsPayload() []byte {
-	tagsString := fmt.Sprintf("%s,%s", strings.Join(dt.containerTags, ","), dt.source.Config.Tags)
-	return config.BuildTagsPayload(tagsString, dt.source.Config.Source, dt.source.Config.SourceCategory)
 }
 
 // wait lets the reader sleep for a bit

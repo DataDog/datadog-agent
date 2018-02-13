@@ -12,11 +12,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/sbinet/go-python"
+	python "github.com/sbinet/go-python"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 // Setup the test module
@@ -34,8 +36,8 @@ func TestMain(m *testing.M) {
 	state := Initialize(rootDir, testsDir, distDir)
 
 	// testing this package needs an inited aggregator
-	// to work properly
-	aggregator.InitAggregator(nil, "")
+	// to work properly.
+	aggregator.InitAggregatorWithFlushInterval(nil, "", time.Hour)
 
 	ret := m.Run()
 

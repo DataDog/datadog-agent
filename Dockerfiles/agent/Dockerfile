@@ -1,18 +1,20 @@
+##########################################
+# Preparation stage: extract and cleanup #
+##########################################
+
 FROM debian:stretch-slim as extract
 ARG WITH_JMX
 COPY datadog-agent*_amd64.deb /
 WORKDIR /output
 
-# Get tini and check gpg signature
-ENV TINI_VERSION v0.16.1
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-amd64 tini
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-amd64.asc tini.asc
+# Get s6-overlay and check gpg signature
+ENV S6_VERSION v1.21.2.2
+ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz /output/s6.tgz
+ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz.sig /tmp/s6.tgz.sig
 RUN apt-get update \
- && apt-get install --no-install-recommends -y dirmngr gpg \
- && gpg --keyserver ipv4.pool.sks-keyservers.net --recv-keys 595E85A6B1B4779EA4DAAEC70B588DFF0527A9B7 \
- && gpg --verify tini.asc \
- && rm tini.asc \
- && chmod +x tini
+ && apt-get install --no-install-recommends -y gpg curl ca-certificates \
+ && curl https://keybase.io/justcontainers/key.asc | gpg --import \
+ && gpg --verify /tmp/s6.tgz.sig /output/s6.tgz
 
 # Extract and cleanup:
 #   - unused systemd unit
@@ -21,32 +23,39 @@ RUN apt-get update \
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
 RUN dpkg -x /datadog-agent*_amd64.deb . \
- && echo "Cleanup and trimming" \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
     opt/datadog-agent/embedded/share/man \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
- && echo "Linking embedded ssl certificates" \
- && ln -s /opt/datadog-agent/embedded/ssl etc/ssl
+ && ln -s /opt/datadog-agent/embedded/ssl etc/ssl \
+ && mkdir conf.d checks.d
 
 # Configuration:
-#   - empty config file to remove logline
+#   - copy default config files
 #   - enable docker check by default
 COPY datadog*.yaml etc/datadog-agent/
 RUN mv etc/datadog-agent/conf.d/docker.d/conf.yaml.example etc/datadog-agent/conf.d/docker.d/conf.yaml.default
 
-COPY entrypoint.sh probe.sh /
 
-
+####################################
+# Actual docker image construction #
+####################################
 
 FROM debian:stretch-slim
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ENV DOCKER_DD_AGENT=yes \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
-    CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem
+    CURL_CA_BUNDLE=/opt/datadog-agent/embedded/ssl/certs/cacert.pem \
+    TERM=xterm \
+    # Pass envvar variables to agents
+    S6_KEEP_ENV=1 \
+    # Direct all agent logs to stdout
+    S6_LOGGING=0 \
+    # Exit container if entrypoint fails
+    S6_BEHAVIOUR_IF_STAGE2_FAILS=2
 
 # Install openjdk-8-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then apt-get update \
@@ -58,21 +67,26 @@ RUN if [ -n "$WITH_JMX" ]; then apt-get update \
 # Copy agent from extract stage
 COPY --from=extract /output/ /
 
+# Extract s6-overlay
+# FIXME: copying it from the extract stage does not work
+RUN tar xfz s6.tgz && rm s6.tgz
+
+# S6 entrypoint, service definitions, healthcheck probe
+COPY s6-services /etc/services.d/
+COPY entrypoint /etc/cont-init.d/
+COPY probe.sh initlog.sh /
+
 # Prepare for running without root
 RUN adduser --group dd-agent \
  && adduser --system --no-create-home --disabled-password --ingroup dd-agent dd-agent \
  && chown -R dd-agent:dd-agent /etc/datadog-agent/ \
- && mkdir /var/log/datadog \
- && chown dd-agent:dd-agent /var/log/datadog/
+ && chown dd-agent:dd-agent /var/log/datadog/ \
+ && chmod 755 /probe.sh /initlog.sh
 
 # Expose DogStatsD and trace-agent ports
 EXPOSE 8125/udp 8126/tcp
 
-# Extra conf.d and checks.d
-VOLUME ["/conf.d", "/checks.d"]
-
 HEALTHCHECK --interval=2m --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
-ENTRYPOINT ["/tini", "--", "/entrypoint.sh"]
-CMD ["/opt/datadog-agent/bin/agent/agent", "start"]
+CMD ["/init"]

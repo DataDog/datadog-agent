@@ -17,13 +17,15 @@ import (
 
 // A UDPListener listens for UDP connections and delegates the work to connHandler
 type UDPListener struct {
+	port        int
 	conn        *net.UDPConn
 	connHandler *ConnectionHandler
+	stop        chan struct{}
+	done        chan struct{}
 }
 
 // NewUDPListener returns an initialized UDPListener
 func NewUDPListener(pp pipeline.Provider, source *config.LogSource) (*UDPListener, error) {
-	log.Info("Starting UDP forwarder on port ", source.Config.Port)
 	udpAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", source.Config.Port))
 	if err != nil {
 		source.Status.Error(err)
@@ -35,22 +37,35 @@ func NewUDPListener(pp pipeline.Provider, source *config.LogSource) (*UDPListene
 		return nil, err
 	}
 	source.Status.Success()
-	connHandler := &ConnectionHandler{
-		pp:     pp,
-		source: source,
-	}
+	connHandler := NewConnectionHandler(pp, source)
 	return &UDPListener{
+		port:        source.Config.Port,
 		conn:        conn,
 		connHandler: connHandler,
+		stop:        make(chan struct{}, 1),
+		done:        make(chan struct{}, 1),
 	}, nil
 }
 
 // Start listens to UDP connections on another routine
-func (udpListener *UDPListener) Start() {
-	go udpListener.run()
+func (l *UDPListener) Start() {
+	log.Info("Starting UDP forwarder on port ", l.port)
+	l.connHandler.Start()
+	go l.run()
+}
+
+// Stop closes the UDP connection
+// it blocks until connHandler is flushed
+func (l *UDPListener) Stop() {
+	log.Info("Stopping UDP forwarder on port ", l.port)
+	l.stop <- struct{}{}
+	<-l.done
 }
 
 // run lets connHandler handle new UDP connections
-func (udpListener *UDPListener) run() {
-	go udpListener.connHandler.handleConnection(udpListener.conn)
+func (l *UDPListener) run() {
+	l.connHandler.HandleConnection(l.conn)
+	<-l.stop
+	l.connHandler.Stop()
+	l.done <- struct{}{}
 }

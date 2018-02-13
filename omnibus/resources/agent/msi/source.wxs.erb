@@ -148,7 +148,13 @@
                           Vital="yes"
                           Interactive="no"
                           Account="LocalSystem">
-              <ServiceDependency Id="winmgmt" />
+            <util:ServiceConfig
+              FirstFailureActionType='restart'
+              SecondFailureActionType='restart'
+              ThirdFailureActionType='restart'            
+              RestartServiceDelayInSeconds='30'
+              ResetPeriodInDays='1'/>
+            <ServiceDependency Id="winmgmt" />
           </ServiceInstall>
           <ServiceControl Id="DatadogStartService"
                           Name="DatadogAgent"
@@ -178,24 +184,70 @@
             <ServiceInstall Id="DatadogAPMServiceInstaller"
                             DisplayName="!(loc.ServiceApmDisplayName)"
                             Description="!(loc.ServiceApmDescription)"
-              Name="datadog-trace-agent"
+                            Name="datadog-trace-agent"
                             ErrorControl="ignore"
-                            Start="demand"
+                            Start="auto"
                             Type="ownProcess"
                             Vital="yes"
                             Interactive="no"
                             Account="LocalSystem"
                             Arguments="-ddconfig=c:\programdata\datadog\trace-agent.conf" >
-                <ServiceDependency Id="datadogagent" />
+              <util:ServiceConfig
+                FirstFailureActionType='restart'
+                SecondFailureActionType='restart'
+                ThirdFailureActionType='restart'            
+                RestartServiceDelayInSeconds='30'
+                ResetPeriodInDays='1'/>
+              <ServiceDependency Id="datadogagent" />
             </ServiceInstall>
             <ServiceControl Id="DatadogAPMStartService"
                             Name="datadog-trace-agent"
+                            Start="install"
                             Stop="both"
                             Remove="uninstall"
                             Wait="no" />
             <!-- The "Name" field must match the argument to eventlog.Open() -->
             <util:EventSource Log="Application" Name="datadog-trace-agent"
                     EventMessageFile="[AGENT]trace-agent.exe"
+                    SupportsErrors="yes"
+                    SupportsInformationals="yes"
+                    SupportsWarnings="yes"/>
+          </Component>
+          <!-- Windows service declaration for Process agent -->
+          <Component Id="DATADOGPROCESSSERVICE" Guid="3b119795-ddf8-44eb-9d53-301f7186e2f3">
+            <File Id="process_agent.exe"
+                Name="process-agent.exe"
+                Vital="yes"
+                KeyPath="yes"
+                DiskId="1"
+                Source="$(var.InstallDir)/bin/agent/process-agent.exe"/>
+            <ServiceInstall Id="DatadogProcessServiceInstaller"
+                            DisplayName="!(loc.ServiceProcessDisplayName)"
+                            Description="!(loc.ServiceProcessDescription)"
+                            Name="datadog-process-agent"
+                            ErrorControl="ignore"
+                            Start="auto"
+                            Type="ownProcess"
+                            Vital="yes"
+                            Interactive="no"
+                            Account="LocalSystem">
+              <util:ServiceConfig
+                FirstFailureActionType='restart'
+                SecondFailureActionType='restart'
+                ThirdFailureActionType='restart'            
+                RestartServiceDelayInSeconds='30'
+                ResetPeriodInDays='1'/>
+                <ServiceDependency Id="datadogagent" />
+            </ServiceInstall>
+            <ServiceControl Id="DatadogProcessStartService"
+                            Name="datadog-process-agent"
+                            Start="install"
+                            Stop="both"
+                            Remove="uninstall"
+                            Wait="no" />
+            <!-- The "Name" field must match the argument to eventlog.Open() -->
+            <util:EventSource Log="Application" Name="datadog-process-agent"
+                    EventMessageFile="[AGENT]process-agent.exe"
                     SupportsErrors="yes"
                     SupportsInformationals="yes"
                     SupportsWarnings="yes"/>
@@ -288,6 +340,7 @@
       <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="DATADOGAGENTSERVICE" />
       <ComponentRef Id="DATADOGAPMSERVICE" />
+      <ComponentRef Id="DATADOGPROCESSSERVICE" />
       <ComponentGroupRef Id="ExtraEXAMPLECONFSLOCATION" />
       <ComponentRef Id="CleanupMainApplicationFolder" />
       <ComponentRef Id="RegisterConfVariables" />

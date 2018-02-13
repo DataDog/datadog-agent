@@ -40,12 +40,13 @@ func (c *DockerCollector) extractFromInspect(co types.ContainerJSON) ([]string, 
 
 func dockerExtractImage(tags *utils.TagList, dockerImage string) {
 	tags.AddLow("docker_image", dockerImage)
-	imageName, _, imageTag, err := docker.SplitImageName(dockerImage)
+	imageName, shortImage, imageTag, err := docker.SplitImageName(dockerImage)
 	if err != nil {
 		log.Debugf("error splitting %s: %s", dockerImage, err)
 		return
 	}
 	tags.AddLow("image_name", imageName)
+	tags.AddLow("short_image", shortImage)
 	tags.AddLow("image_tag", imageTag)
 }
 

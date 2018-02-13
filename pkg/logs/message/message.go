@@ -5,36 +5,20 @@
 
 package message
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-)
-
 // Message represents a log line sent to datadog, with its metadata
 type Message interface {
 	Content() []byte
 	SetContent([]byte)
 	GetOrigin() *Origin
 	SetOrigin(*Origin)
-	GetTimestamp() string // No need for SetTimestamp as we use Origin under the hood
 	GetSeverity() []byte
 	SetSeverity([]byte)
-	GetTagsPayload() []byte
-	SetTagsPayload([]byte)
-}
-
-// Origin represents the Origin of a message
-type Origin struct {
-	Identifier string
-	LogSource  *config.LogSource
-	Offset     int64
-	Timestamp  string
 }
 
 type message struct {
-	content     []byte
-	Origin      *Origin
-	severity    []byte
-	tagsPayload []byte
+	content  []byte
+	origin   *Origin
+	severity []byte
 }
 
 func newMessage(content []byte) *message {
@@ -55,20 +39,12 @@ func (m *message) SetContent(content []byte) {
 
 // GetOrigin returns the Origin from which the message comes
 func (m *message) GetOrigin() *Origin {
-	return m.Origin
+	return m.origin
 }
 
 // SetOrigin sets the integration from which the message comes
 func (m *message) SetOrigin(Origin *Origin) {
-	m.Origin = Origin
-}
-
-// GetTimestamp returns the timestamp of the message, or "" if no timestamp is relevant
-func (m *message) GetTimestamp() string {
-	if m.Origin != nil {
-		return m.Origin.Timestamp
-	}
-	return ""
+	m.origin = Origin
 }
 
 // GetSeverity returns the severity of the message when set
@@ -79,41 +55,6 @@ func (m *message) GetSeverity() []byte {
 // SetSeverity sets the severity of the message
 func (m *message) SetSeverity(severity []byte) {
 	m.severity = severity
-}
-
-// GetSeverity returns the tags and sources of the message
-// It will default on the LogSource tags payload, but can
-// be overridden in the message itself with tagsPayload
-func (m *message) GetTagsPayload() []byte {
-	if m.tagsPayload != nil {
-		return m.tagsPayload
-	}
-	if m.Origin != nil && m.Origin.LogSource != nil {
-		return m.Origin.LogSource.Config.TagsPayload
-	}
-	return nil
-}
-
-// SetSeverity sets the tags and sources of the message
-func (m *message) SetTagsPayload(tagsPayload []byte) {
-	m.tagsPayload = tagsPayload
-}
-
-// NewOrigin returns a new Origin
-func NewOrigin() *Origin {
-	return &Origin{}
-}
-
-// StopMessage is used to let a component stop gracefully
-type StopMessage struct {
-	*message
-}
-
-// NewStopMessage returns a new StopMessage
-func NewStopMessage() *StopMessage {
-	return &StopMessage{
-		message: newMessage(nil),
-	}
 }
 
 // FileMessage is a message coming from a File

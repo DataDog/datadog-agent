@@ -44,8 +44,12 @@ build do
             # Move system service files
             mkdir "/etc/init"
             move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
+            move "#{install_dir}/scripts/datadog-agent-trace.conf", "/etc/init"
+            move "#{install_dir}/scripts/datadog-agent-process.conf", "/etc/init"
             mkdir "/lib/systemd/system"
             move "#{install_dir}/scripts/datadog-agent.service", "/lib/systemd/system"
+            move "#{install_dir}/scripts/datadog-agent-trace.service", "/lib/systemd/system"
+            move "#{install_dir}/scripts/datadog-agent-process.service", "/lib/systemd/system"
 
             # Move checks and configuration files
             mkdir "/etc/datadog-agent"
@@ -53,6 +57,11 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/trace-agent.conf.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
+
+            # Create empty directories so that they're owned by the package
+            # (also requires `extra_package_file` directive in project def)
+            mkdir "/etc/datadog-agent/checks.d"
+            mkdir "/var/log/datadog"
 
             # cleanup clutter
             delete "#{install_dir}/etc"

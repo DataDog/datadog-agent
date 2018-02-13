@@ -143,3 +143,56 @@ func TestBuildConfigProviders(t *testing.T) {
 	assert.Equal(t, "consul", p.Name)
 	assert.Equal(t, "123456", p.Token)
 }
+
+func TestBuildHistogramAggregates(t *testing.T) {
+	agentConfig := make(Config)
+
+	// empty list
+	agentConfig["histogram_aggregates"] = ""
+	valueEmpty := buildHistogramAggregates(agentConfig)
+	assert.Nil(t, valueEmpty)
+
+	// list with invalid values
+	agentConfig["histogram_aggregates"] = "test1, test2, test3"
+	valueInvalids := buildHistogramAggregates(agentConfig)
+	assert.Empty(t, valueInvalids)
+
+	// list with valid and invalid values
+	agentConfig["histogram_aggregates"] = "max, test1, count, min, test2"
+	expectedBoth := []string{"max", "count", "min"}
+	valueBoth := buildHistogramAggregates(agentConfig)
+	assert.Equal(t, expectedBoth, valueBoth)
+
+	// list with valid values
+	agentConfig["histogram_aggregates"] = "max, min, count, sum"
+	expectedValid := []string{"max", "min", "count", "sum"}
+	valueValid := buildHistogramAggregates(agentConfig)
+	assert.Equal(t, expectedValid, valueValid)
+}
+
+func TestBuildHistogramPercentiles(t *testing.T) {
+	agentConfig := make(Config)
+
+	// empty list
+	agentConfig["histogram_percentiles"] = ""
+	empty := buildHistogramPercentiles(agentConfig)
+	assert.Nil(t, empty)
+
+	// list with invalid values
+	agentConfig["histogram_percentiles"] = "1, 2, -1, 0"
+	actualInvalids := buildHistogramPercentiles(agentConfig)
+	assert.Empty(t, actualInvalids)
+
+	// list with valid values
+	agentConfig["histogram_percentiles"] = "0.95, 0.511, 0.01"
+	expectedValids := []string{"0.95", "0.51", "0.01"}
+	actualValids := buildHistogramPercentiles(agentConfig)
+	assert.Equal(t, expectedValids, actualValids)
+
+	// list with both values
+	agentConfig["histogram_percentiles"] = "0.25, 0, 0.677, 1"
+	expectedBoth := []string{"0.25", "0.68"}
+	actualBoth := buildHistogramPercentiles(agentConfig)
+	assert.Equal(t, expectedBoth, actualBoth)
+
+}

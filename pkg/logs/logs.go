@@ -6,61 +6,47 @@
 package logs
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
-	"github.com/DataDog/datadog-agent/pkg/logs/input/tailer"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 )
 
-// isRunning indicates whether logs-agent is running or not
-var isRunning bool
+var (
+	// isRunning indicates whether logs-agent is running or not
+	isRunning bool
+	// logs-agent
+	agent *Agent
+)
 
 // Start starts logs-agent
 func Start() error {
-	err := config.Build()
+	sources, err := config.Build()
 	if err != nil {
+		// could not parse the configuration
 		return err
 	}
-	go run()
+	log.Info("Starting logs-agent")
+
+	// setup and start the agent
+	agent = NewAgent(sources)
+	agent.Start()
+
+	// setup the status
+	status.Initialize(sources.GetSources())
+
+	isRunning = true
+
 	return nil
 }
 
-// run sets up the pipeline to process logs and them to Datadog back-end
-func run() {
-	isRunning = true
-
-	cm := sender.NewConnectionManager(
-		config.LogsAgent.GetString("log_dd_url"),
-		config.LogsAgent.GetInt("log_dd_port"),
-		config.LogsAgent.GetBool("dev_mode_no_ssl"),
-	)
-
-	auditorChan := make(chan message.Message, config.ChanSizes)
-	a := auditor.New(auditorChan)
-	a.Start()
-
-	pp := pipeline.NewProvider()
-	pp.Start(cm, auditorChan)
-
-	sources := config.GetLogsSources()
-
-	l := listener.New(sources.GetValidSources(), pp)
-	l.Start()
-
-	tailingLimit := config.LogsAgent.GetInt("log_open_files_limit")
-	s := tailer.New(sources.GetValidSources(), tailingLimit, pp, a)
-	s.Start()
-
-	c := container.New(sources.GetValidSources(), pp, a)
-	c.Start()
-
-	status.Initialize(sources.GetSources())
-
+// Stop stops properly the logs-agent to prevent data loss,
+// it only returns when the whole pipeline is flushed.
+func Stop() {
+	if isRunning {
+		log.Info("Stopping logs-agent")
+		agent.Stop()
+	}
 }
 
 // GetStatus returns logs-agent status

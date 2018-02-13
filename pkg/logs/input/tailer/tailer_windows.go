@@ -17,20 +17,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 )
 
-func (t *Tailer) startReading(offset int64, whence int) error {
-	var err error
-	t.fullpath, err = filepath.Abs(t.path)
+// setup sets up the file tailer
+func (t *Tailer) setup(offset int64, whence int) error {
+	path, err := filepath.Abs(t.path)
 	if err != nil {
-		t.source.Status.Error(err)
 		return err
 	}
 	log.Info("Opening ", t.fullpath)
+
+	t.fullpath = path
 	t.readOffset = offset
 	t.decodedOffset = offset
-	t.source.Status.Success()
-	t.source.AddInput(t.path)
 
-	go t.readForever()
 	return nil
 }
 
@@ -69,7 +67,7 @@ func (t *Tailer) readAvailable() (err error) {
 			return err
 		}
 		log.Debugf("Sending %d bytes to input channel", n)
-		t.d.InputChan <- decoder.NewInput(inBuf[:n])
+		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		t.incrementReadOffset(n)
 	}
 }
@@ -77,26 +75,23 @@ func (t *Tailer) readAvailable() (err error) {
 // readForever lets the tailer tail the content of a file
 // until it is closed.
 func (t *Tailer) readForever() {
-
+	defer t.onStop()
 	for {
-		if t.shouldHardStop() {
-			t.onStop()
+		select {
+		case <-t.stop:
+			// stop reading data from file
 			return
-		}
-		t.wait()
-		err := t.readAvailable()
-
-		if err == io.EOF || os.IsNotExist(err) {
-			if t.shouldSoftStop() {
-				t.onStop()
+		default:
+			err := t.readAvailable()
+			if err == io.EOF || os.IsNotExist(err) {
+				t.wait()
+				continue
+			}
+			if err != nil {
+				t.source.Status.Error(err)
+				log.Error("Err: ", err)
 				return
 			}
-			continue
-		}
-		if err != nil {
-			t.source.Status.Error(err)
-			log.Error("Err: ", err)
-			return
 		}
 	}
 }

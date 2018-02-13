@@ -17,7 +17,7 @@ import (
 // GetHostAlias returns the host alias from Cloud Foundry
 func GetHostAlias() (string, error) {
 	if !config.Datadog.GetBool("cloud_foundry") {
-		log.Info("cloud_foundry is not enable in the conf: not cloudfoudry host alias")
+		log.Debugf("cloud_foundry is not enabled in the conf: no cloudfoudry host alias")
 		return "", nil
 	}
 

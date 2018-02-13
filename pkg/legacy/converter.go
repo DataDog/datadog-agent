@@ -51,7 +51,13 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("default_integration_http_timeout", value)
 	}
 
-	// TODO: collect_ec2_tags
+	if enabled, err := isAffirmative(agentConfig["collect_ec2_tags"]); err == nil {
+		config.Datadog.Set("collect_ec2_tags", enabled)
+	}
+
+	if enabled, err := isAffirmative(agentConfig["collect_security_groups"]); err == nil {
+		config.Datadog.Set("collect_security_groups", enabled)
+	}
 
 	// config.Datadog has a default value for this, do nothing if the value is empty
 	if agentConfig["additional_checksd"] != "" {
@@ -59,8 +65,9 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	// TODO: exclude_process_args
-	// TODO: histogram_aggregates
-	// TODO: histogram_percentiles
+	config.Datadog.Set("histogram_aggregates", buildHistogramAggregates(agentConfig))
+
+	config.Datadog.Set("histogram_percentiles", buildHistogramPercentiles(agentConfig))
 
 	if agentConfig["service_discovery_backend"] == "docker" {
 		// `docker` is the only possible value also on the Agent v5
@@ -219,4 +226,60 @@ func buildConfigProviders(agentConfig Config) ([]config.ConfigurationProviders, 
 	}
 
 	return []config.ConfigurationProviders{cp}, nil
+}
+
+func buildHistogramAggregates(agentConfig Config) []string {
+	configValue := agentConfig["histogram_aggregates"]
+
+	var histogramBuild []string
+	// The valid values for histogram_aggregates as defined in agent5
+	validValues := []string{"min", "max", "median", "avg", "sum", "count"}
+
+	if configValue == "" {
+		return nil
+	}
+	configValue = strings.Replace(configValue, " ", "", -1)
+	result := strings.Split(configValue, ",")
+
+	for _, res := range result {
+		found := false
+		for _, val := range validValues {
+			if res == val {
+				histogramBuild = append(histogramBuild, res)
+				found = true
+				break
+			}
+		}
+		if !found {
+			// print the value skipped because invalid value
+			fmt.Println("warning: ignored histogram aggregate", res, "is invalid")
+		}
+	}
+
+	return histogramBuild
+}
+
+func buildHistogramPercentiles(agentConfig Config) []string {
+	configList := agentConfig["histogram_percentiles"]
+	var histogramPercentile []string
+
+	if configList == "" {
+		// return an empty list, not an error
+		return nil
+	}
+
+	// percentiles are rounded down to 2 digits and (0:1)
+	configList = strings.Replace(configList, " ", "", -1)
+	result := strings.Split(configList, ",")
+	for _, res := range result {
+		num, err := strconv.ParseFloat(res, 64)
+		if num < 1 && num > 0 && err == nil {
+			fixed := strconv.FormatFloat(num, 'f', 2, 64)
+			histogramPercentile = append(histogramPercentile, fixed)
+		} else {
+			fmt.Println("warning: ignoring invalid histogram percentile", res)
+		}
+	}
+
+	return histogramPercentile
 }

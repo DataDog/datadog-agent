@@ -93,6 +93,7 @@ func New(InputChan chan *Input, OutputChan chan *Output, lineHandler LineHandler
 
 // Start starts the Decoder
 func (d *Decoder) Start() {
+	d.lineHandler.Start()
 	go d.run()
 }
 

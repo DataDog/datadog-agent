@@ -37,7 +37,6 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	assert.Equal(t, "nginx", sources[0].Config.Source)
 	assert.Equal(t, "http_access", sources[0].Config.SourceCategory)
 	assert.Equal(t, "env:prod", sources[0].Config.Tags)
-	assert.Equal(t, "[dd ddsource=\"nginx\"][dd ddsourcecategory=\"http_access\"][dd ddtags=\"env:prod\"]", string(sources[0].Config.TagsPayload))
 
 	assert.Equal(t, "tcp", sources[1].Config.Type)
 	assert.Equal(t, 10514, sources[1].Config.Port)
@@ -99,12 +98,6 @@ func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_5", "conf.d")
 	_, err = buildLogSources(ddconfdPath)
 	assert.NotNil(t, err)
-}
-
-func TestBuildTagsPayload(t *testing.T) {
-	assert.Equal(t, "-", string(BuildTagsPayload("", "", "")))
-	assert.Equal(t, "[dd ddtags=\"hello:world\"]", string(BuildTagsPayload("hello:world", "", "")))
-	assert.Equal(t, "[dd ddsource=\"nginx\"][dd ddsourcecategory=\"http_access\"][dd ddtags=\"hello:world, hi\"]", string(BuildTagsPayload("hello:world, hi", "nginx", "http_access")))
 }
 
 func TestIntegrationName(t *testing.T) {

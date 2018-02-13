@@ -12,22 +12,11 @@ import (
 // LogsAgent is the global configuration object
 var LogsAgent = config.Datadog
 
-// private configuration properties
-var (
-	logsSources *LogSources
-)
-
-// GetLogsSources returns the list of logs sources
-func GetLogsSources() *LogSources {
-	return logsSources
-}
-
-// Build initializes logs-agent configuration
-func Build() error {
+// Build returns logs-agent sources
+func Build() (*LogSources, error) {
 	sources, err := buildLogSources(LogsAgent.GetString("confd_path"))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	logsSources = sources
-	return nil
+	return sources, nil
 }

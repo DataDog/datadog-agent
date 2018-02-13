@@ -8,7 +8,6 @@ package mock
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 )
 
 // mockProvider mocks pipeline providing logic
@@ -24,7 +23,10 @@ func NewMockProvider() pipeline.Provider {
 }
 
 // Start does nothing
-func (p *mockProvider) Start(cm *sender.ConnectionManager, auditorChan chan message.Message) {}
+func (p *mockProvider) Start() {}
+
+// Stop does nothing
+func (p *mockProvider) Stop() {}
 
 // NextPipelineChan returns the next pipeline
 func (p *mockProvider) NextPipelineChan() chan message.Message {

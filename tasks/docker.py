@@ -59,7 +59,7 @@ COPY test.bin /test.bin
             ctx.run("cp -R testdata %s" % temp_folder)
             stream.write("COPY testdata /testdata")
 
-    test_image = client.images.build(path=temp_folder, rm=True)
+    test_image, _ = client.images.build(path=temp_folder, rm=True)
 
     scratch_volume = client.volumes.create()
 
@@ -76,7 +76,7 @@ COPY test.bin /test.bin
                  '/sys/fs/cgroup': {'bind': '/host/sys/fs/cgroup', 'mode': 'ro'},
                  scratch_volume.name: {'bind': '/tmp/scratch', 'mode': 'rw'}})
 
-    exit_code = test_container.wait()
+    exit_code = test_container.wait()['StatusCode']
 
     print(test_container.logs(
         stdout=True,

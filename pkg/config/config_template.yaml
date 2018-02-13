@@ -150,13 +150,18 @@ metadata_collectors:
 # Logs agent
 #
 # Logs agent is disabled by default
-# log_enabled: false
+# logs_enabled: false
 {{ end -}}
 {{- if .JMX }}
 # JMX
 #
 # jmx_pipe_path:
 # jmx_pipe_name: dd-auto_discovery
+#
+# If you only run Autodiscovery tests, jmxfetch might fail to pick up custom_jar_paths
+# set in the check templates. If that is the case, you can force custom jars here.
+# jmx_custom_jars:
+#   - /jmx-jars/jboss-cli-client.jar
 {{ end -}}
 {{- if .Autoconfig }}
 # Autoconfig
@@ -270,6 +275,17 @@ metadata_collectors:
 # about the docker daemon load.
 #
 # exclude_pause_container: true
+
+# Exclude default containers from DockerCloud:
+# The following configuration will instruct the agent to ignore the containers from Docker Cloud.
+# You can remove the ones you want to collect.
+# ac_exclude: ["image:dockercloud/network-daemon","image:dockercloud/cleanup","image:dockercloud/logrotate","image:dockercloud/events","image:dockercloud/ntpd"]
+# ac_include: []
+#
+# You can also use the regex to ignore them all:
+# ac_exclude: ["image:dockercloud/*"]
+# ac_include: []
+
 {{ end -}}
 {{- if .DockerTagging }}
 # Docker tag extraction
@@ -317,12 +333,24 @@ metadata_collectors:
 #
 # kubernetes_kubeconfig_path: /path/to/file
 #
-# In order to collect service names, the agent needs certain rights (see RBAC documentation in
+# In order to collect Kubernetes service names, the agent needs certain rights (see RBAC documentation in
 # [docker readme](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
 # You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of services to
 # ContainerIDs with the following options:
 # kubernetes_collect_service_tags: true
 # kubernetes_service_tag_update_freq: 300
+#
+#
+# To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
+# Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#event-collection).
+# collect_kubernetes_events: false
+#
+#
+# Leader Election settings, more details about leader election [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#leader-election)
+# To enable the leader election on this node, set the leader_election variable to true.
+# leader_election: false
+# The leader election lease is an integer in seconds.
+# leader_lease_duration: 60
 {{ end -}}
 
 {{- if .ProcessAgent }}
@@ -355,4 +383,32 @@ metadata_collectors:
 #   dd_agent_bin:
 #   Overrides of the environment we pass to fetch the hostname. The default is usually fine.
 #   dd_agent_env:
+{{ end -}}
+
+{{- if .TraceAgent }}
+# Trace Agent Specific Settings
+#
+# apm_config:
+#   Whether or not the APM Agent should run
+#   enabled: true
+#   The environment tag that Traces should be tagged with
+#   Will inherit from "env" tag if none is applied here
+#   env: none
+#   The port that the Receiver should listen on
+#   receiver_port: 8126
+#   Whether the Trace Agent should listen for non local traffic
+#   Only enable if Traces are being sent to this Agent from another host/container
+#   apm_non_local_traffic: false
+#   Extra global sample rate to apply on all the traces
+#   This sample rate is combined to the sample rate from the sampler logic, still promoting interesting traces
+#   From 1 (no extra rate) to 0 (don't sample at all)
+#   extra_sample_rate: 1.0
+#   Maximum number of traces per second to sample.
+#   The limit is applied over an average over a few minutes ; much bigger spikes are possible.
+#   Set to 0 to disable the limit.
+#   max_traces_per_second: 10
+#   A blacklist of regular expressions can be provided to disable certain traces based on their resource name
+#   all entries must be surrounded by double quotes and separated by commas
+#   Example: "(GET|POST) /healthcheck","GET /V1"
+#   ignore_resource: ""
 {{ end -}}

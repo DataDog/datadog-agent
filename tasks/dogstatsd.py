@@ -29,7 +29,6 @@ DEFAULT_BUILD_TAGS = [
 ]
 
 
-
 @task
 def build(ctx, rebuild=False, race=False, static=False, build_include=None,
           build_exclude=None, use_embedded_libs=False):
@@ -39,7 +38,7 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, use_embedded_libs=use_embedded_libs)
     bin_path = DOGSTATSD_BIN_PATH
 
     if static:
@@ -56,7 +55,7 @@ def build(ctx, rebuild=False, race=False, static=False, build_include=None,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
-    ctx.run(cmd.format(**args))
+    ctx.run(cmd.format(**args), env=env)
 
     # Render the configuration file template
     #

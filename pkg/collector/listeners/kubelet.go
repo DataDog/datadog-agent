@@ -9,6 +9,7 @@ package listeners
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -84,7 +85,7 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 					}
 				}
 				// Compute deleted pods
-				expiredContainerList, err := l.watcher.ExpireContainers()
+				expiredContainerList, err := l.watcher.Expire()
 				if err != nil {
 					log.Error(err)
 					continue
@@ -162,6 +163,11 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 }
 
 func (l *KubeletListener) removeService(cID ID) {
+	if strings.HasPrefix(string(cID), kubelet.KubePodPrefix) {
+		// Ignoring expired pods
+		return
+	}
+
 	l.m.RLock()
 	svc, ok := l.services[cID]
 	l.m.RUnlock()

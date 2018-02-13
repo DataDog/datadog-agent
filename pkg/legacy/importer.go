@@ -29,6 +29,7 @@ var (
 		"forwarder_timeout",
 		"default_integration_http_timeout",
 		"collect_ec2_tags",
+		"collect_security_groups",
 		"additional_checksd",
 		"exclude_process_args",
 		"histogram_aggregates",
@@ -108,8 +109,6 @@ func GetAgentConfig(datadogConfPath string) (Config, error) {
 	config["use_web_info_page"] = "True"
 
 	// these values are postprocessed in config.py, manually overwrite them
-	config["histogram_aggregates"] = "['max', 'median', 'avg', 'count']"
-	config["histogram_percentiles"] = "['0.95']"
 	config["endpoints"] = "{}"
 	config["version"] = "5.18.0"
 	config["proxy_settings"] = "{'host': 'my-proxy.com', 'password': 'password', 'port': 3128, 'user': 'user'}"
