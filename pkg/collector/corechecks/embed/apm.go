@@ -67,6 +67,7 @@ func (c *APMCheck) run() error {
 
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("DD_API_KEY=%s", config.Datadog.GetString("api_key")))
+	env = append(env, fmt.Sprintf("DD_BIND_HOST=%s", config.Datadog.GetString("bind_host")))
 	env = append(env, fmt.Sprintf("DD_HOSTNAME=%s", getHostname()))
 	env = append(env, fmt.Sprintf("DD_DOGSTATSD_PORT=%s", config.Datadog.GetString("dogstatsd_port")))
 	env = append(env, fmt.Sprintf("DD_LOG_LEVEL=%s", config.Datadog.GetString("log_level")))
