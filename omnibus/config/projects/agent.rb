@@ -72,7 +72,7 @@ package :pkg do
   end
 end
 compress :dmg do
-  window_bounds '200, 200, 924, 1200'
+  window_bounds '200, 200, 500, 620'
 
   pkg_position '10, 10'
 end
