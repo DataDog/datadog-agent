@@ -55,10 +55,6 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("collect_ec2_tags", enabled)
 	}
 
-	if enabled, err := isAffirmative(agentConfig["collect_security_groups"]); err == nil {
-		config.Datadog.Set("collect_security_groups", enabled)
-	}
-
 	// config.Datadog has a default value for this, do nothing if the value is empty
 	if agentConfig["additional_checksd"] != "" {
 		config.Datadog.Set("additional_checksd", agentConfig["additional_checksd"])

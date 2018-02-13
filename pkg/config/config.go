@@ -176,7 +176,6 @@ func init() {
 	// ECS
 	Datadog.SetDefault("ecs_agent_url", "") // Will be autodetected
 	Datadog.SetDefault("collect_ec2_tags", false)
-	Datadog.SetDefault("collect_security_groups", false)
 
 	// Cloud Foundry
 	Datadog.SetDefault("cloud_foundry", false)

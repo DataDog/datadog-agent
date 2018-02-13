@@ -66,6 +66,8 @@ api_key:
 # Set this option to "yes" to output logs in JSON format
 # log_format_json: no
 
+# Collect AWS EC2 custom tags as agent tags
+# collect_ec2_tags: false
 {{ end }}
 {{- if .Agent }}
 # The path containing check configuration files
