@@ -246,16 +246,6 @@ func (agg *BufferedAggregator) addServiceCheck(sc metrics.ServiceCheck) {
 	agg.serviceChecks = append(agg.serviceChecks, &sc)
 }
 
-func (agg *BufferedAggregator) addSerie(serie metrics.Serie) metrics.Series {
-	if serie.Host == "" {
-		serie.Host = agg.hostname
-	}
-
-	series := agg.GetSeries()
-	series = append(series, &serie)
-	return series
-}
-
 // addEvent adds the event to the slice of current events
 func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	if e.Host == "" {
@@ -292,12 +282,17 @@ func (agg *BufferedAggregator) GetSeries() metrics.Series {
 
 func (agg *BufferedAggregator) flushSeries() {
 	start := time.Now()
+	series := agg.GetSeries()
 
-	// Send along a metric that showcases that this Agent is running
-	// This will also allow us to identify this as an Agent host and see the dogbone icon in the Infrastructure List
-	var Point = metrics.Point{Value: 1, Ts: float64(time.Now().Unix())}
-	var Points = []metrics.Point{Point}
-	series := agg.addSerie(metrics.Serie{Name: "datadog.agent.running", Points: Points})
+	// Send along a metric that showcases that this Agent is running (internally, in backend,
+	// a `datadog.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
+	series = append(series, &metrics.Serie{
+		Name:           "datadog.agent.running",
+		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	})
 
 	addFlushCount("Series", int64(len(series)))
 
