@@ -283,11 +283,18 @@ func (agg *BufferedAggregator) GetSeries() metrics.Series {
 func (agg *BufferedAggregator) flushSeries() {
 	start := time.Now()
 	series := agg.GetSeries()
-	addFlushCount("Series", int64(len(series)))
 
-	if len(series) == 0 {
-		return
-	}
+	// Send along a metric that showcases that this Agent is running (internally, in backend,
+	// a `datadog.`-prefixed metric allows identifying this host as an Agent host, used for dogbone icon)
+	series = append(series, &metrics.Serie{
+		Name:           "datadog.agent.running",
+		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
+		Host:           agg.hostname,
+		MType:          metrics.APIGaugeType,
+		SourceTypeName: "System",
+	})
+
+	addFlushCount("Series", int64(len(series)))
 
 	// Serialize and forward in a separate goroutine
 	go func() {
