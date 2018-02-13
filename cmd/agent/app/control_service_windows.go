@@ -24,7 +24,7 @@ var startsvcCommand = &cobra.Command{
 	Use:   "start-service",
 	Short: "starts the agent within the service control manager",
 	Long:  ``,
-	RunE:  startService,
+	RunE:  StartService,
 }
 
 var stopsvcCommand = &cobra.Command{
@@ -41,7 +41,8 @@ var restartsvcCommand = &cobra.Command{
 	RunE:  restartService,
 }
 
-func startService(cmd *cobra.Command, args []string) error {
+// StartService starts the agent service via the Service Control Manager
+func StartService(cmd *cobra.Command, args []string) error {
 	m, err := mgr.Connect()
 	if err != nil {
 		return err
@@ -60,18 +61,19 @@ func startService(cmd *cobra.Command, args []string) error {
 }
 
 func stopService(cmd *cobra.Command, args []string) error {
-	return controlService(svc.Stop, svc.Stopped)
+	return ControlService(svc.Stop, svc.Stopped)
 }
 
 func restartService(cmd *cobra.Command, args []string) error {
 	var err error
 	if err = stopService(cmd, args); err == nil {
-		err = startService(cmd, args)
+		err = StartService(cmd, args)
 	}
 	return err
 }
 
-func controlService(c svc.Cmd, to svc.State) error {
+// ControlService sets the service state via the Service Control Manager
+func ControlService(c svc.Cmd, to svc.State) error {
 	m, err := mgr.Connect()
 	if err != nil {
 		return err

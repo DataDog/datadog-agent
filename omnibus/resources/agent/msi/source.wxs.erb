@@ -78,10 +78,10 @@
 
     <CustomAction
         Id="LaunchApp"
-        Directory="DIST"
+        Directory="AGENT"
         Execute="immediate"
         Return="check"
-        ExeCommand="[SystemFolder]cmd.exe /C start &quot;&quot; &quot;[DIST]agent.exe&quot; &quot;launch-gui&quot;" />
+        ExeCommand="&quot;[AGENT]ddtray.exe&quot; &quot;-launch-gui&quot;" />
 
 
     <!-- Delete application when uninstalling -->
@@ -263,9 +263,9 @@
         <Shortcut Id="ApplicationStartMenuShortcut"
                   Name="Datadog Agent Manager"
                   Description="Manage your Datadog Agent"
-                  Target="[SystemFolder]cmd.exe"
-                  Arguments= "/C start &quot;&quot; &quot;[DIST]agent.exe&quot; &quot;launch-gui&quot;"
-                  WorkingDirectory="DIST"/>
+                  Target="[AGENT]ddtray.exe"
+                  Arguments= "&quot;launch-gui&quot;"
+                  WorkingDirectory="AGENT"/>
 
         <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
         <RegistryValue Root="HKCU"

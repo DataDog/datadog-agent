@@ -4,7 +4,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 import os
 from invoke import Collection
 
-from . import agent, benchmarks, docker, dogstatsd, pylauncher, cluster_agent
+from . import agent, benchmarks, docker, dogstatsd, pylauncher, cluster_agent, systray
 
 from .go import fmt, lint, vet, cyclo, ineffassign, misspell, deps, reset
 from .test import test, integration_tests, version, lint_releasenote
@@ -35,6 +35,7 @@ ns.add_collection(benchmarks, name="bench")
 ns.add_collection(docker)
 ns.add_collection(dogstatsd)
 ns.add_collection(pylauncher)
+ns.add_collection(systray)
 
 ns.configure({
     'run': {
