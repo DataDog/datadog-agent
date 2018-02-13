@@ -324,6 +324,11 @@ func (c *Config) Digest() string {
 	return strconv.FormatUint(h.Sum64(), 16)
 }
 
+// IsJMX checks if the config is a JMX config
+func (c *Config) IsJMX() bool {
+	return IsConfigJMX(c.Name, c.InitConfig)
+}
+
 // IsConfigJMX checks if a certain YAML config is a JMX config
 func IsConfigJMX(name string, initConf ConfigData) bool {
 

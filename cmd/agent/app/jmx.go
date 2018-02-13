@@ -127,7 +127,7 @@ func runJmxCommand(command string) {
 	configs := common.AC.GetAllConfigs()
 
 	for _, c := range checks {
-		config, err := findConfigByCheckName(configs, c)
+		config, err := findJMXConfigByCheckName(configs, c)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -159,10 +159,12 @@ func runJmxCommand(command string) {
 	fmt.Println("JMXFetch exited successfully. If nothing was displayed please check your configuration, flags and the JMXFetch log file.")
 }
 
-func findConfigByCheckName(configs []check.Config, checkName string) (*check.Config, error) {
+func findJMXConfigByCheckName(configs []check.Config, checkName string) (*check.Config, error) {
 	for _, c := range configs {
 		if strings.EqualFold(c.Name, checkName) {
-			return &c, nil
+			if c.IsJMX() {
+				return &c, nil
+			}
 		}
 	}
 	return nil, fmt.Errorf("Unable to find config named %v", checkName)
