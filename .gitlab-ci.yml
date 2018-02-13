@@ -497,6 +497,7 @@ testkitchen_cleanup_azure:
   services:
     - 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
   before_script: [ "# noop" ] # Override top level entry
+  dependencies: [] # Don't download Gitlab artefacts
   script:
     - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__devtools__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
@@ -547,6 +548,7 @@ build_dogstatsd:
   services:
     - 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
   before_script: [ "# noop" ] # Override top level entry
+  dependencies: [] # Don't download Gitlab artefacts
   script:
     - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__devtools__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
