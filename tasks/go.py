@@ -14,6 +14,7 @@ WIN_MODULE_WHITELIST = [
     "iostats_wmi_windows.go",
     "iostats_pdh_windows.go",
     "pdhhelper.go",
+    "doflare.go"
 ]
 
 # List of paths to ignore in misspell's output
