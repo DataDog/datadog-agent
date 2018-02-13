@@ -501,7 +501,7 @@ testkitchen_cleanup_azure:
   script:
     - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__devtools__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
-    - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" .
+    - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
     - docker build $BUILD_ARG --pull --tag $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX $BUILD_CONTEXT
