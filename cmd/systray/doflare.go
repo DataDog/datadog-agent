@@ -74,7 +74,7 @@ func dialogProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (result uintp
 		var wndrect win.RECT
 		var dlgrect win.RECT
 		// get the screen client area
-		dt, _, err := procGetDesktopWindow.Call()
+		dt, _, _ := procGetDesktopWindow.Call()
 		if dt != uintptr(0) {
 			r, _, err := procGetWindowRect.Call(dt, uintptr(unsafe.Pointer(&wndrect)))
 			if r != 0 {
