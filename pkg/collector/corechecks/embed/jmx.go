@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	jmxJarName                        = "jmxfetch-0.18.1-jar-with-dependencies.jar"
+	jmxJarName                        = "jmxfetch-0.18.2-jar-with-dependencies.jar"
 	jmxMainClass                      = "org.datadog.jmxfetch.App"
 	jmxCollectCommand                 = "collect"
 	jvmDefaultMaxMemoryAllocation     = " -Xmx200m"
@@ -288,7 +288,6 @@ func (c *JMXCheck) start() error {
 		"--ipc_port", fmt.Sprintf("%v", config.Datadog.GetInt("cmd_port")),
 		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
 		"--log_level", jmxLogLevel,
-		"--log_location", path.Join(here, "dist", "jmx", "jmxfetch.log"), // FIXME : Path of the log file. At some point we should have a `run` folder
 		"--reporter", reporter, // Reporter to use
 		jmxCollectCommand, // Name of the command
 	)
