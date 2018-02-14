@@ -182,16 +182,6 @@ func (p *Point) UnmarshalJSON(buf []byte) error {
 }
 
 func (e Serie) String() string {
-	// s := fmt.Sprintf("Name: %s, Device: %s, Host: %s ", serie.Name, serie.Device, serie.Host)
-	// s += fmt.Sprintf(" Tags: ")
-	// for _, tags := range serie.Tags {
-	// 	s += fmt.Sprintf("%s", tags)
-	// }
-	// for _, points := range serie.Points {
-	// 	s += fmt.Sprintf("Value/Timestamp: %f, %f", points.Value, points.Ts)
-	// }
-	// return s
-
 	s, err := json.Marshal(e)
 	if err != nil {
 		return ""
