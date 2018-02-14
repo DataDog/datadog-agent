@@ -735,7 +735,7 @@ deploy_puppy:
   script:
     - $S3_CP_CMD $S3_ARTEFACTS_URI/puppy/agent ./agent
     - export VERSION=$(inv version --url-safe)
-    - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/puppy/agent-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+    - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 tag_push_agent:
   <<: *dind_tag_job_definition
