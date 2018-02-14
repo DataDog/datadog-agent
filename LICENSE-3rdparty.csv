@@ -6,6 +6,7 @@ core,github.com/codemirror/CodeMirror,MIT
 core,github.com/coreos/etcd,Apache-2.0
 core,github.com/DataDog/agent-payload,BSD-3-Clause
 core,github.com/DataDog/gohai,MIT
+core,github.com/DataDog/mmh3,
 core,github.com/DataDog/zstd,BSD-3-Clause
 core,github.com/davecgh/go-spew,ISC
 core,github.com/docker/distribution,Apache-2.0
@@ -20,14 +21,20 @@ core,github.com/FortAwesome/Font-Awesome,SIL OFL 1.1
 core,github.com/fsnotify/fsnotify,BSD-3-Clause
 core,github.com/geoffgarside/ber,BSD-3-Clause
 core,github.com/go-ole/go-ole,MIT
+core,github.com/golang/groupcache,Apache-2.0
 core,github.com/gogo/protobuf,BSD-3-Clause
+core,github.com/go-ini/ini,Apache-2.0
 core,github.com/golang/protobuf,BSD-3-Clause
+core,github.com/google/gofuzz,Apache-2.0
 core,github.com/gorilla/context,BSD-3-Clause
 core,github.com/gorilla/mux,BSD-3-Clause
+core,github.com/hashicorp/consul,MPL-2.0
 core,github.com/hashicorp/hcl,MPL-2.0
+core,github.com/hectane/go-acl,MIT
 core,github.com/inconshreveable/mousetrap,Apache-2.0
 core,github.com/jquery/jquery,MIT
 core,github.com/k-sone/snmpgo,MIT
+core,github.com/lxn/win,BSD-3-Clause
 core,github.com/kardianos/osext,BSD-3-Clause
 core,github.com/magiconair/properties,BSD-2-Clause
 core,github.com/mholt/archiver,MIT
@@ -57,3 +64,4 @@ core,golang.org/x/net,BSD-3-Clause
 core,golang.org/x/sys,BSD-3-Clause
 core,golang.org/x/text,BSD-3-Clause
 core,gopkg.in/yaml.v2,Apache-2.0
+core,gopkg.in/zorkian/go-datadog-api.v2,"BSD-3-Clause"
