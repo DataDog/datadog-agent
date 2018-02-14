@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"time"
 
+	"strings"
+
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s"
 	"github.com/ericchiang/k8s/api/v1"
@@ -64,7 +66,12 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 	for {
 		meta, event, err := watcher.Next()
 		if err != nil {
-			if err != context.Canceled && err != io.EOF {
+			*latestResVersion = "0"
+			if strings.Contains(err.Error(), "illegal wireType") {
+				log.Debugf("Protobuf error, no recent events to collect: %s", err) // To move to Tracef
+				// break or continue ?
+			}
+			if err != context.Canceled && err != io.EOF && !strings.Contains(err.Error(), "illegal wireType") {
 				log.Debugf("Stopping event collection, got error: %s", err)
 			} // else silently stop
 			break

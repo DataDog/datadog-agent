@@ -118,12 +118,15 @@ func (k *KubeASCheck) Run() error {
 	}
 	if k.latestEventToken == "" {
 		// Initialization: Checking if we previously stored the latestEventToken in a configMap
-		tokenValue, found, err := asclient.GetTokenFromConfigmap(eventTokenKey, 60)
+		tokenValue, found, err := asclient.GetTokenFromConfigmap(eventTokenKey, 3600)
 		switch {
 		case err == apiserver.ErrOutdated:
 			k.configMapAvailable = found
-			k.latestEventToken = tokenValue
-
+			_, _, k.latestEventToken, err = asclient.LatestEvents("0")
+			if err != nil {
+				log.Warnf("Could not refresh the state")
+				k.latestEventToken = "0" // verify that if there are no new events, "0" is passed does not fail and if an event shows up it works.
+			}
 		case err == apiserver.ErrNotFound:
 			k.latestEventToken = "0"
 
@@ -141,6 +144,15 @@ func (k *KubeASCheck) Run() error {
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error())
 		return err
+	}
+
+	if versionToken == "0" {
+		// API server cache expired or no recent events to process. Resetting the Resversion token.
+		newEvents, modifiedEvents, versionToken, err = asclient.LatestEvents("0")
+		if err != nil {
+			k.Warnf("Could not collect cached events from the api server: %s", err.Error())
+			return err
+		}
 	}
 
 	// We check that the resversion gotten from the API Server is more recent than the one cached in the util.
