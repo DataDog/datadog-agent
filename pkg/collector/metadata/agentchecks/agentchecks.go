@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
@@ -60,10 +61,12 @@ func GetPayload() *Payload {
 	metaPayload := host.GetMeta()
 	metaPayload.Hostname = hostname
 	cp := common.GetPayload(hostname)
+	ehp := externalhost.GetPayload()
 	payload := &Payload{
 		CommonPayload{*cp},
 		MetaPayload{*metaPayload},
 		agentChecksPayload,
+		ExternalHostPayload{*ehp},
 	}
 
 	return payload

@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
@@ -19,6 +20,7 @@ type Payload struct {
 	CommonPayload
 	MetaPayload
 	ACPayload
+	ExternalHostPayload
 }
 
 // MetaPayload wraps Meta from the host package (this is cached)
@@ -34,6 +36,11 @@ type CommonPayload struct {
 // ACPayload wraps the Agent Checks payload
 type ACPayload struct {
 	AgentChecks []interface{} `json:"agent_checks"`
+}
+
+// ExternalHostPayload wraps Payload from the `externalhost` package
+type ExternalHostPayload struct {
+	externalhost.Payload `json:"external_host_tags"`
 }
 
 // MarshalJSON serialization a Payload to JSON
