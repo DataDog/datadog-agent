@@ -14,6 +14,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/percentile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -296,6 +297,14 @@ func (agg *BufferedAggregator) flushSeries() {
 
 	addFlushCount("Series", int64(len(series)))
 
+	//For debug purposes print out all metrics/tag combinations
+	if config.Datadog.GetBool("print_payloads") {
+		log.Info("Flushing the following metrics:")
+		for _, serie := range series {
+			log.Info("%s", serie)
+		}
+	}
+
 	// Serialize and forward in a separate goroutine
 	go func() {
 		log.Debug("Flushing ", len(series), " series to the forwarder")
@@ -329,6 +338,14 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 
 	serviceChecks := agg.GetServiceChecks()
 	addFlushCount("ServiceChecks", int64(len(serviceChecks)))
+
+	//For debug purposes print out all serviceCheck/tag combinations
+	if config.Datadog.GetBool("print_payloads") {
+		log.Info("Flushing the following Service Checks:")
+		for _, sc := range serviceChecks {
+			log.Info("%s", sc)
+		}
+	}
 
 	// Serialize and forward in a separate goroutine
 	go func() {
@@ -389,6 +406,14 @@ func (agg *BufferedAggregator) flushEvents() {
 		return
 	}
 	addFlushCount("Events", int64(len(events)))
+
+	//For debug purposes print out all serviceCheck/tag combinations
+	if config.Datadog.GetBool("print_payloads") {
+		log.Info("Flushing the following Events:")
+		for _, event := range events {
+			log.Info("%s", event)
+		}
+	}
 
 	go func() {
 		log.Debug("Flushing ", len(events), " events to the forwarder")
