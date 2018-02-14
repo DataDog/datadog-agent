@@ -6,7 +6,7 @@ core,github.com/codemirror/CodeMirror,MIT
 core,github.com/coreos/etcd,Apache-2.0
 core,github.com/DataDog/agent-payload,BSD-3-Clause
 core,github.com/DataDog/gohai,MIT
-core,github.com/DataDog/mmh3,
+core,github.com/DataDog/mmh3,MIT
 core,github.com/DataDog/zstd,BSD-3-Clause
 core,github.com/davecgh/go-spew,ISC
 core,github.com/docker/distribution,Apache-2.0
@@ -21,7 +21,6 @@ core,github.com/FortAwesome/Font-Awesome,SIL OFL 1.1
 core,github.com/fsnotify/fsnotify,BSD-3-Clause
 core,github.com/geoffgarside/ber,BSD-3-Clause
 core,github.com/go-ole/go-ole,MIT
-core,github.com/golang/groupcache,Apache-2.0
 core,github.com/gogo/protobuf,BSD-3-Clause
 core,github.com/go-ini/ini,Apache-2.0
 core,github.com/golang/protobuf,BSD-3-Clause
