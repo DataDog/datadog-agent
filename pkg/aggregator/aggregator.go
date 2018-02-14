@@ -299,9 +299,9 @@ func (agg *BufferedAggregator) flushSeries() {
 
 	//For debug purposes print out all metrics/tag combinations
 	if config.Datadog.GetBool("log_payload") {
-		log.Info("Flushing the following metrics:")
+		log.Infof("Flushing the following metrics:")
 		for _, serie := range series {
-			log.Info("%s", serie)
+			log.Infof("%s", serie)
 		}
 	}
 
@@ -341,9 +341,9 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 
 	//For debug purposes print out all serviceCheck/tag combinations
 	if config.Datadog.GetBool("log_payload") {
-		log.Info("Flushing the following Service Checks:")
+		log.Infof("Flushing the following Service Checks:")
 		for _, sc := range serviceChecks {
-			log.Info("%s", sc)
+			log.Infof("%s", sc)
 		}
 	}
 
@@ -409,9 +409,9 @@ func (agg *BufferedAggregator) flushEvents() {
 
 	//For debug purposes print out all Event/tag combinations
 	if config.Datadog.GetBool("log_payload") {
-		log.Info("Flushing the following Events:")
+		log.Infof("Flushing the following Events:")
 		for _, event := range events {
-			log.Info("%s", event)
+			log.Infof("%s", event)
 		}
 	}
 
