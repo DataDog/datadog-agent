@@ -407,7 +407,7 @@ func (agg *BufferedAggregator) flushEvents() {
 	}
 	addFlushCount("Events", int64(len(events)))
 
-	//For debug purposes print out all serviceCheck/tag combinations
+	//For debug purposes print out all Event/tag combinations
 	if config.Datadog.GetBool("print_payloads") {
 		log.Info("Flushing the following Events:")
 		for _, event := range events {
