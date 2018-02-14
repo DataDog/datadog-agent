@@ -153,6 +153,10 @@ func (k *KubeASCheck) Run() error {
 			k.Warnf("Could not collect cached events from the api server: %s", err.Error())
 			return err
 		}
+		if k.latestEventToken == versionToken {
+			// No new events but protobuf error was caught.
+			return nil
+		}
 	}
 
 	// We check that the resversion gotten from the API Server is more recent than the one cached in the util.

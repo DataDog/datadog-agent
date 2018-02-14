@@ -69,6 +69,7 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 			if strings.Contains(err.Error(), "illegal wireType") {
 				log.Debugf("Protobuf error, no recent events to collect: %s", err) // To move to Tracef
 				*latestResVersion = "0"
+				continue
 				// break or continue ?
 			}
 			if err != context.Canceled && err != io.EOF && !strings.Contains(err.Error(), "illegal wireType") {
