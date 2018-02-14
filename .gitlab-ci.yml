@@ -20,6 +20,7 @@ variables:
   DD_AGENT_TESTING_DIR: $CI_PROJECT_DIR/test/kitchen
   STATIC_BINARIES_DIR: bin/static
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
+  AGENT_BINARIES_DIR: bin/agent
   DEB_S3_BUCKET: apt.datad0g.com
   RPM_S3_BUCKET: yum.datad0g.com
   DEB_RPM_BUCKET_BRANCH: nightly  # branch of the DEB_S3_BUCKET and RPM_S3_BUCKET repos to release to, 'nightly' or 'beta'
@@ -86,6 +87,7 @@ build_puppy_agent-deb_x64:
   tags: [ "runner:main", "size:large" ]
   script:
     - inv -e agent.build --puppy
+    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTEFACTS_URI/puppy/agent
 
 # build dogstatsd for deb-x64
 build_dogstatsd-deb_x64:
@@ -719,6 +721,21 @@ deploy_dsd:
     - $S3_CP_CMD $S3_ARTEFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
     - export VERSION=$(inv version --url-safe)
     - aws s3 cp --region us-east-1 ./dogstatsd $S3_DSD6_URI/dogstatsd-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# deploy dsd binary to staging bucket
+deploy_puppy:
+  stage: deploy
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  only:
+    - master
+    - tags
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - $S3_CP_CMD $S3_ARTEFACTS_URI/puppy/agent ./agent
+    - export VERSION=$(inv version --url-safe)
+    - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 tag_push_agent:
   <<: *dind_tag_job_definition
