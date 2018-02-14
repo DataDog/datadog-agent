@@ -66,6 +66,10 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 	for {
 		meta, event, err := watcher.Next()
 		if err != nil {
+			// We sometimes face a protobuf unmarshal issue, it will happen if there is no event to collect.
+			// Or if the resVersion is not available in the API Server's cache.
+			// We need to reset the resVersion to seamlessly continue watching.
+			// The resVersion forced to "0" is dealt with in the check to avoid collecting duplicates.
 			if strings.Contains(err.Error(), "illegal wireType") {
 				log.Debugf("Protobuf error, no recent events to collect: %s", err) // To move to Tracef
 				*latestResVersion = "0"

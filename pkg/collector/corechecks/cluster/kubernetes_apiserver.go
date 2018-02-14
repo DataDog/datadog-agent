@@ -154,9 +154,11 @@ func (k *KubeASCheck) Run() error {
 			return err
 		}
 		if k.latestEventToken == versionToken {
-			// No new events but protobuf error was caught.
+			// No new events but protobuf error was caught. Will retry at next run.
 			return nil
 		}
+		// There was a protobuf error and new events were submitted. Processing them and updating the resVersion.
+		k.latestEventToken = versionToken
 	}
 
 	// We check that the resversion gotten from the API Server is more recent than the one cached in the util.
