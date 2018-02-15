@@ -292,13 +292,11 @@ func getHost(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	}
 
 	// a network was specified
-	if bytes.Contains(tplVar, []byte("_")) {
-		network := bytes.SplitN(tplVar, []byte("_"), 2)[1]
-		if ip, ok := hosts[string(network)]; ok {
-			return []byte(ip), nil
-		}
-		log.Warnf("network %s not found, trying bridge IP instead", string(network))
+	if ip, ok := hosts[string(tplVar)]; ok {
+		return []byte(ip), nil
 	}
+	log.Warnf("network %s not found, trying bridge IP instead", string(tplVar))
+
 	// otherwise use fallback policy
 	ip, err := getFallbackHost(hosts)
 	if err != nil {
@@ -327,7 +325,6 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 	return "", errors.New("not able to determine which network is reachable")
 }
 
-// TODO support orchestrators
 func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	ports, err := svc.GetPorts()
 	if err != nil {
@@ -336,19 +333,18 @@ func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		return nil, fmt.Errorf("no port found for container %s - ignoring it", svc.GetID())
 	}
 
-	if bytes.Contains(tplVar, []byte("_")) {
-		idxStr := string(bytes.SplitN(tplVar, []byte("_"), 2)[1])
-		idx, err := strconv.Atoi((string(idxStr)))
-		if err != nil {
-			return nil, fmt.Errorf("index given for the port template var is not an int, skipping container %s", svc.GetID())
-		}
-		if len(ports) <= idx {
-			return nil, fmt.Errorf("idenx given for the port template var is too big, skipping container %s", svc.GetID())
-		}
-		return []byte(strconv.Itoa(ports[idx])), nil
+	if len(tplVar) == 0 {
+		return []byte(strconv.Itoa(ports[len(ports)-1])), nil
 	}
 
-	return []byte(strconv.Itoa(ports[len(ports)-1])), nil
+	idx, err := strconv.Atoi((string(tplVar)))
+	if err != nil {
+		return nil, fmt.Errorf("index given for the port template var is not an int, skipping container %s", svc.GetID())
+	}
+	if len(ports) <= idx {
+		return nil, fmt.Errorf("index given for the port template var is too big, skipping container %s", svc.GetID())
+	}
+	return []byte(strconv.Itoa(ports[idx])), nil
 }
 
 // getPid returns the process identifier of the service
@@ -374,7 +370,7 @@ func parseTemplateVar(v []byte) (name, key []byte) {
 		}
 		return r
 	}, v)
-	split := bytes.Split(stripped, []byte("_"))
+	split := bytes.SplitN(stripped, []byte("_"), 2)
 	name = split[0]
 	if len(split) == 2 {
 		key = split[1]
