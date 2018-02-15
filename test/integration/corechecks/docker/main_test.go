@@ -7,11 +7,12 @@ package docker
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -22,7 +23,7 @@ import (
 )
 
 var retryDelay = flag.Int("retry-delay", 1, "time to wait between retries (default 1 second)")
-var retryTimeout = flag.Int("retry-timeout", 10, "maximum time before failure (default 10 seconds)")
+var retryTimeout = flag.Int("retry-timeout", 30, "maximum time before failure (default 30 seconds)")
 var skipCleanup = flag.Bool("skip-cleanup", false, "skip cleanup of the docker containers (for debugging)")
 
 // Must be repeated in the following dockerCfgString
@@ -59,7 +60,7 @@ func TestMain(m *testing.M) {
 
 	err := setup()
 	if err != nil {
-		fmt.Printf("Test setup failed:\n%s\n", err.Error())
+		log.Infof("Test setup failed: %v", err)
 		tearOffAndExit(1)
 	}
 
@@ -67,18 +68,14 @@ func TestMain(m *testing.M) {
 		select {
 		case <-retryTicker.C:
 			retryCount++
-			if retryCount > 1 {
-				fmt.Print("\n\n")
-			}
-			fmt.Printf("===== Starting run %d =====\n", retryCount)
+			log.Infof("Starting run %d", retryCount)
 			lastRunResult = doRun(m)
 			if lastRunResult == 0 {
-				tearOffAndExit(lastRunResult)
+				tearOffAndExit(0)
 			}
 		case <-timeoutTicker.C:
-			fmt.Printf("\n\n===== FAILED after %d retries\n", retryCount)
-			//fmt.Printf("Latest state:\n%s", sender.Mock.Calls)
-			tearOffAndExit(lastRunResult)
+			log.Errorf("Timeout after %d seconds and %d retries", retryTimeout, retryCount)
+			tearOffAndExit(1)
 		}
 	}
 }
@@ -106,7 +103,7 @@ func setup() error {
 		}
 		output, err := compose.Start()
 		if err != nil {
-			fmt.Println(string(output))
+			log.Errorf("Compose didn't start properly: %s", string(output))
 			return err
 		}
 	}
@@ -143,7 +140,7 @@ func tearOffAndExit(exitcode int) {
 		}
 		output, err := compose.Stop()
 		if err != nil {
-			fmt.Println(string(output))
+			log.Warnf("Compose didn't stop properly: %s", string(output))
 		}
 	}
 	os.Exit(exitcode)

@@ -1,5 +1,7 @@
 version: '2'
 services:
+  pause:
+    image: "kubernetes/pause:latest"
   redis:
     image: "datadog/docker-library:redis_3_2_11-alpine"
     labels:

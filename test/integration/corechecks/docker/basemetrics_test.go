@@ -6,8 +6,9 @@
 package docker
 
 import (
-	"fmt"
 	"testing"
+
+	log "github.com/cihub/seelog"
 )
 
 func init() {
@@ -27,18 +28,47 @@ func TestContainerMetricsTagging(t *testing.T) {
 	}
 
 	expectedMetrics := map[string][]string{
-		"Gauge": {"docker.mem.cache", "docker.mem.rss",
-			"docker.container.size_rw", "docker.container.size_rootfs"},
-		"Rate": {"docker.cpu.system", "docker.cpu.user", "docker.cpu.usage", "docker.cpu.throttled",
-			"docker.io.read_bytes", "docker.io.write_bytes",
-			"docker.net.bytes_sent", "docker.net.bytes_rcvd"},
+		"Gauge": {
+			"docker.mem.cache",
+			"docker.mem.rss",
+			"docker.container.size_rw",
+			"docker.container.size_rootfs",
+		},
+		"Rate": {
+			"docker.cpu.system",
+			"docker.cpu.user",
+			"docker.cpu.usage",
+			"docker.cpu.throttled",
+			"docker.io.read_bytes",
+			"docker.io.write_bytes",
+			"docker.net.bytes_sent",
+			"docker.net.bytes_rcvd",
+		},
+	}
+	pauseTags := []string{
+		"instanceTag:MustBeHere",
+		"docker_image:kubernetes/pause:latest",
+		"image_name:kubernetes/pause",
+		"image_tag:latest",
+		"short_image:pause",
+	}
+
+	ok := sender.AssertMetricTaggedWith(t, "Gauge", "docker.containers.running", pauseTags)
+	if !ok {
+		log.Warnf("Missing Gauge docker.containers.running with tags %s", pauseTags)
 	}
 
 	for method, metricList := range expectedMetrics {
 		for _, metric := range metricList {
-			found := sender.AssertMetricTaggedWith(t, method, metric, expectedTags)
-			if !found {
-				fmt.Printf("Missing %s %s with tags %s\n", method, metric, expectedTags)
+			ok := sender.AssertMetricTaggedWith(t, method, metric, expectedTags)
+			if !ok {
+				log.Warnf("Missing %s %s with tags %s", method, metric, expectedTags)
+			}
+
+			// Excluded pause container
+			ok = sender.AssertMetricNotTaggedWith(t, method, metric, pauseTags)
+			if !ok {
+				log.Warnf("Shouldn't call %s %s with tags %s", method, metric, pauseTags)
 			}
 		}
 	}

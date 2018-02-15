@@ -44,7 +44,7 @@ func (m *MockSender) AssertMetricTaggedWith(t *testing.T, method string, metric 
 
 // AssertMetricNotTaggedWith allows to assert tags were never emitted for a metric.
 func (m *MockSender) AssertMetricNotTaggedWith(t *testing.T, method string, metric string, tags []string) bool {
-	return m.Mock.AssertCalled(t, method, metric, mock.AnythingOfType("float64"), mock.AnythingOfType("string"), AssertTagsNotContains(tags))
+	return m.Mock.AssertNotCalled(t, method, metric, mock.AnythingOfType("float64"), mock.AnythingOfType("string"), MatchTagsContains(tags))
 }
 
 // AssertEvent assert the expectedEvent was emitted with the following values:
@@ -80,14 +80,6 @@ func MatchTagsContains(expected []string) interface{} {
 func IsGreaterOrEqual(expectedMin float64) interface{} {
 	return mock.MatchedBy(func(actual float64) bool {
 		return expectedMin <= actual
-	})
-}
-
-// AssertTagsNotContains is a mock.argumentMatcher builder to be used in asserts.
-// It allows to check if tags are NOT emitted.
-func AssertTagsNotContains(expected []string) interface{} {
-	return mock.MatchedBy(func(actual []string) bool {
-		return !expectedInActual(expected, actual)
 	})
 }
 
