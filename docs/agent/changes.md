@@ -197,7 +197,7 @@ Similar to the Agent 5, the APM agent is enabled by default. To disable it, set
 listens to localhost by default. You can set `apm_config.apm_non_local_traffic = true`
 to enable listening on the network.
 
-In the Docker image, the APM agent is enabled by default. You can enable it by setting
+In the Docker image, the APM agent is disabled by default. You can enable it by setting
 the `DD_APM_ENABLED` envvar to `true`. It will listen to all interfaces by default.
 
 _Optional_: If you need to use apm-specific configuration options (i.e. options that would be
