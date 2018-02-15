@@ -195,24 +195,6 @@ func TestResolve(t *testing.T) {
 			},
 		},
 		{
-			testName: "%%host_custom%% with invalid name, default to fallbackHost",
-			svc: &listeners.DockerService{
-				ID:            "a5901276aed1",
-				ADIdentifiers: []string{"redis"},
-				Hosts:         map[string]string{"other": "127.0.0.3"},
-			},
-			tpl: check.Config{
-				Name:          "cpu",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []check.ConfigData{check.ConfigData("host: %%host_custom%%")},
-			},
-			out: check.Config{
-				Name:          "cpu",
-				ADIdentifiers: []string{"redis"},
-				Instances:     []check.ConfigData{check.ConfigData("host: 127.0.0.3")},
-			},
-		},
-		{
 			testName: "%%host%% with no host in service, error",
 			svc: &listeners.DockerService{
 				ID:            "a5901276aed1",
