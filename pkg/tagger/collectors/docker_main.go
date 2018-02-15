@@ -97,16 +97,18 @@ func (c *DockerCollector) Fetch(container string) ([]string, []string, error) {
 }
 
 func (c *DockerCollector) processEvent(e *docker.ContainerEvent) {
-	out := make([]*TagInfo, 1)
+	var info *TagInfo
 
 	switch e.Action {
 	case "die":
-		out[0] = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, DeleteEntity: true}
+		info = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, DeleteEntity: true}
 	case "start":
 		low, high, _ := c.fetchForDockerID(e.ContainerID)
-		out[0] = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, LowCardTags: low, HighCardTags: high}
+		info = &TagInfo{Entity: e.ContainerEntityName(), Source: dockerCollectorName, LowCardTags: low, HighCardTags: high}
+	default:
+		return // Nothing to see here
 	}
-	c.infoOut <- out
+	c.infoOut <- []*TagInfo{info}
 }
 
 func (c *DockerCollector) fetchForDockerID(cID string) ([]string, []string, error) {
