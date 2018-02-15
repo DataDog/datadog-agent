@@ -492,121 +492,144 @@ testkitchen_cleanup_azure:
 # image_build
 #
 
-.dind_job_template: &dind_job_definition
+.docker_job_definition: &docker_job_definition
   stage: image_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/dind/build:latest
-  tags: [ "runner:dind", "size:large" ]
-  script: [ "# noop" ]
+  tags: [ "runner:main", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
+  services:
+    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
+  before_script: [ "# noop" ] # Override top level entry
+  dependencies: [] # Don't download Gitlab artefacts
+  script:
+    - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__devtools__docker-machine:2375
+    - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
+    - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
+    - TAG_SUFFIX=${TAG_SUFFIX:-}
+    - BUILD_ARG=${BUILD_ARG:-}
+    - docker build $BUILD_ARG --pull --tag $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX $BUILD_CONTEXT
+    - docker push $IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
 
 # build the agent6 image
 build_agent6:
-  <<: *dind_job_definition
+  <<: *docker_job_definition
   variables:
-    DD_DIND_BUILD_CONTEXT: Dockerfiles/agent
-    DD_DIND_IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent:pipeline-$CI_PIPELINE_ID
-    DD_DIND_ARTEFACTS: "true"
+    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
 
 # build the agent6 jmx image
 build_agent6_jmx:
-  <<: *dind_job_definition
+  <<: *docker_job_definition
   variables:
-    DD_DIND_BUILD_CONTEXT: Dockerfiles/agent
-    DD_DIND_IMAGE: &agent_jmx_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent:pipeline-${CI_PIPELINE_ID}-jmx
-    DD_DIND_BUILD_ARG: "WITH_JMX=true"
-    DD_DIND_ARTEFACTS: "true"
+    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -jmx
+    BUILD_ARG: --build-arg WITH_JMX=true
 
 # build the cluster-agent image
 build_cluster_agent:
-  <<: *dind_job_definition
+  <<: *docker_job_definition
   variables:
-    DD_DIND_BUILD_CONTEXT: Dockerfiles/cluster-agent
-    DD_DIND_IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/cluster-agent:pipeline-$CI_PIPELINE_ID
-    DD_DIND_ARTEFACTS: "true"
+    IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/cluster-agent
+    BUILD_CONTEXT: Dockerfiles/cluster-agent
 
 # build the dogstatsd image
 build_dogstatsd:
-  <<: *dind_job_definition
+  <<: *docker_job_definition
   variables:
-    DD_DIND_BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
-    DD_DIND_IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/dogstatsd:pipeline-$CI_PIPELINE_ID
-    DD_DIND_ARTEFACTS: "true"
+    IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/dogstatsd
+    BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
 
 #
 # image_deploy
 #
 
-.dind_tag_job_template: &dind_tag_job_definition
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/dind/tag:latest
-  tags: [ "runner:dind", "size:large" ]
+.docker_tag_job_definition: &docker_tag_job_definition
   stage: image_deploy
-  script: [ "# noop" ]
+  tags: [ "runner:main", "size:large" ]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
+  services:
+    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
+  before_script: [ "# noop" ] # Override top level entry
+  dependencies: [] # Don't download Gitlab artefacts
+  script:
+    - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__devtools__docker-machine:2375
+    - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
+    - DOCKER_HUB_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.docker_hub_login --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.docker_hub_pwd --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_HUB_LOGIN" --password-stdin
+    - TAG_SUFFIX=${TAG_SUFFIX:-}
+    - LATEST_TAG=${LATEST_TAG:-latest}
+    - docker pull $SOURCE_IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
+    - docker tag $SOURCE_IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX $DEST_IMAGE:$LATEST_TAG$TAG_SUFFIX
+    - docker push $DEST_IMAGE:$LATEST_TAG$TAG_SUFFIX
 
 agent6_dev_docker_hub:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   when: manual
   except:
     - master
   variables:
-    DD_DIND_TAG_SOURCE: *agent_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/agent-dev:$CI_COMMIT_REF_SLUG
+    SOURCE_IMAGE: *agent_ecr
+    DEST_IMAGE: datadog/agent-dev
+    LATEST_TAG: $CI_COMMIT_REF_SLUG
 
 agent6_jmx_dev_docker_hub:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   when: manual
   except:
     - master
   variables:
-    DD_DIND_TAG_SOURCE: *agent_jmx_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
+    SOURCE_IMAGE: *agent_ecr
+    DEST_IMAGE: datadog/agent-dev
+    LATEST_TAG: $CI_COMMIT_REF_SLUG
+    TAG_SUFFIX: -jmx
 
 agent6_dev_docker_hub_master:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   only:
     - master
   variables:
-    DD_DIND_TAG_SOURCE: *agent_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/agent-dev:$CI_COMMIT_REF_SLUG
+    SOURCE_IMAGE: *agent_ecr
+    DEST_IMAGE: datadog/agent-dev
+    LATEST_TAG: $CI_COMMIT_REF_SLUG
 
 agent6_jmx_dev_docker_hub_master:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   only:
     - master
   variables:
-    DD_DIND_TAG_SOURCE: *agent_jmx_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/agent-dev:${CI_COMMIT_REF_SLUG}-jmx
+    SOURCE_IMAGE: *agent_ecr
+    DEST_IMAGE: datadog/agent-dev
+    LATEST_TAG: $CI_COMMIT_REF_SLUG
+    TAG_SUFFIX: -jmx
 
 cluster_agent_dev_docker_hub:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   when: manual
   except:
     - master
   variables:
-    DD_DIND_TAG_SOURCE: *cluster-agent_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/cluster-agent-dev:$CI_COMMIT_REF_SLUG
+    SOURCE_IMAGE: *cluster-agent_ecr
+    DEST_IMAGE: datadog/cluster-agent-dev
+    LATEST_TAG: $CI_COMMIT_REF_SLUG
 
 dogstatsd_dev_docker_hub:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   when: manual
   except:
     - master
   variables:
-    DD_DIND_TAG_SOURCE: *dogstatsd_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/dogstatsd-dev:$CI_COMMIT_REF_SLUG
+    SOURCE_IMAGE: *dogstatsd_ecr
+    DEST_IMAGE: datadog/dogstatsd-dev
+    LATEST_TAG: $CI_COMMIT_REF_SLUG
 
 dogstatsd_dev_docker_hub_master:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   only:
     - master
   variables:
-    DD_DIND_TAG_SOURCE: *dogstatsd_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/dogstatsd-dev:$CI_COMMIT_REF_SLUG
+    SOURCE_IMAGE: *dogstatsd_ecr
+    DEST_IMAGE: datadog/dogstatsd-dev
+    LATEST_TAG: $CI_COMMIT_REF_SLUG
 
 #
 # deploy
@@ -738,97 +761,95 @@ deploy_puppy:
     - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 tag_push_agent:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   stage: deploy
   when: manual
   only:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
-    DD_DIND_TAG_SOURCE: *agent_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/agent:$CI_COMMIT_TAG
+    SOURCE_IMAGE: *agent_ecr
+    DEST_IMAGE: datadog/agent
+    LATEST_TAG: $CI_COMMIT_TAG
 
 tag_jmx_push_agent:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   stage: deploy
   when: manual
   only:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
-    DD_DIND_TAG_SOURCE: *agent_jmx_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/agent:${CI_COMMIT_TAG}-jmx
+    SOURCE_IMAGE: *agent_ecr
+    DEST_IMAGE: datadog/agent
+    LATEST_TAG: $CI_COMMIT_TAG
+    TAG_SUFFIX: -jmx
 
 latest_push_agent:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   stage: deploy
   when: manual
   only:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
-    DD_DIND_TAG_SOURCE: *agent_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/agent:latest
+    SOURCE_IMAGE: *agent_ecr
+    DEST_IMAGE: datadog/agent
 
 latest_jmx_push_agent:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   stage: deploy
   when: manual
   only:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
-    DD_DIND_TAG_SOURCE: *agent_jmx_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/agent:latest-jmx
+    SOURCE_IMAGE: *agent_ecr
+    DEST_IMAGE: datadog/agent
+    TAG_SUFFIX: -jmx
 
 tag_push_cluster_agent:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   stage: deploy
   when: manual
   only:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
-    DD_DIND_TAG_SOURCE: *cluster-agent_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/cluster-agent:$CI_COMMIT_TAG
+    SOURCE_IMAGE: *cluster-agent_ecr
+    DEST_IMAGE: datadog/cluster-agent
+    LATEST_TAG: $CI_COMMIT_TAG
 
 latest_push_cluster_agent:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   stage: deploy
   when: manual
   only:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
-    DD_DIND_TAG_SOURCE: *cluster-agent_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/cluster-agent:latest
+    SOURCE_IMAGE: *cluster-agent_ecr
+    DEST_IMAGE: datadog/cluster-agent
 
 tag_dsd_push:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   stage: deploy
   when: manual
   only:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
-    DD_DIND_TAG_SOURCE: *dogstatsd_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/dogstatsd:$CI_COMMIT_TAG
+    SOURCE_IMAGE: *dogstatsd_ecr
+    DEST_IMAGE: datadog/dogstatsd
+    LATEST_TAG: $CI_COMMIT_TAG
 
 latest_dsd_push:
-  <<: *dind_tag_job_definition
+  <<: *docker_tag_job_definition
   stage: deploy
   when: manual
   only:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
-    DD_DIND_TAG_SOURCE: *dogstatsd_ecr
-    DD_DIND_DEST_REGISTRY_TYPE: DOCKER_HUB
-    DD_DIND_TAG_DEST: datadog/dogstatsd:latest
+    SOURCE_IMAGE: *dogstatsd_ecr
+    DEST_IMAGE: datadog/dogstatsd
