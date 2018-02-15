@@ -7,6 +7,7 @@
 # All rights reserved
 
 import logging
+import os
 from urlparse import urlparse
 
 import datadog_agent
