@@ -5,15 +5,23 @@
 
 package externalhost
 
+import "sync"
+
 // hostname -> ExternalTags
 type externalHost map[string]ExternalTags
 
-// externalHostCache maps source_type -> externalHost
-var externalHostCache = make(map[string]externalHost)
+var (
+	// externalHostCache maps source_type -> externalHost
+	externalHostCache = make(map[string]externalHost)
+	cacheMutex        = &sync.Mutex{}
+)
 
 // SetExternalTags adds external tags for a specific host and source type
 // to the cache.
 func SetExternalTags(hostname, sourceType string, tags []string) {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+
 	_, found := externalHostCache[sourceType]
 	if !found {
 		externalHostCache[sourceType] = make(externalHost)
@@ -24,6 +32,9 @@ func SetExternalTags(hostname, sourceType string, tags []string) {
 
 // GetPayload fills and return the external host tags metadata payload
 func GetPayload() *Payload {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+
 	payload := Payload{}
 	for _, extHost := range externalHostCache {
 		for hostname, tags := range extHost {
