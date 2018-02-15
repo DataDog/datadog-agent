@@ -10,7 +10,6 @@ package v5
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/gohai"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
@@ -21,13 +20,11 @@ func GetPayload(hostname string) *Payload {
 	cp := common.GetPayload(hostname)
 	hp := host.GetPayload(hostname)
 	rp := resources.GetPayload(hostname)
-	ehp := externalhost.GetPayload()
 
 	p := &Payload{
-		CommonPayload:       CommonPayload{*cp},
-		HostPayload:         HostPayload{*hp},
-		ResourcesPayload:    ResourcesPayload{*rp},
-		ExternalHostPayload: ExternalHostPayload{*ehp},
+		CommonPayload:    CommonPayload{*cp},
+		HostPayload:      HostPayload{*hp},
+		ResourcesPayload: ResourcesPayload{*rp},
 	}
 
 	if config.Datadog.GetBool("enable_gohai") {
