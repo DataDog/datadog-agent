@@ -237,6 +237,9 @@ func init() {
 	Datadog.BindEnv("collect_kubernetes_events")
 	Datadog.BindEnv("kubernetes_collect_service_tags")
 	Datadog.BindEnv("kubernetes_service_tag_update_freq")
+	Datadog.BindEnv("docker_labels_as_tags")
+	Datadog.BindEnv("docker_env_as_tags")
+	Datadog.BindEnv("kubernetes_pod_labels_as_tags")
 
 	Datadog.BindEnv("cluster_agent.auth_token")
 
