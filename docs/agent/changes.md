@@ -193,7 +193,12 @@ The APM agent (also known as _trace agent_) is shipped by default with the
 Agent 6 in the Linux, MacOS and Windows packages.
 
 Similar to the Agent 5, the APM agent is enabled by default. To disable it, set
-`apm_enabled` to `false` in the main agent configuration (`datadog.yaml`).
+`apm_enabled` to `false` in the main agent configuration (`datadog.yaml`). It only
+listens to localhost by default. You can set `apm_config.apm_non_local_traffic = true`
+to enable listening on the network.
+
+In the Docker image, the APM agent is enabled by default. You can enable it by setting
+the `DD_APM_ENABLED` envvar to `true`. It will listen to all interfaces by default.
 
 _Optional_: If you need to use apm-specific configuration options (i.e. options that would be
 specified under the `[trace.config]`, `[trace.sampler]` and `[trace.receiver]` in
