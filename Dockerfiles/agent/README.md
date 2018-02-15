@@ -26,9 +26,11 @@ The agent is highly customizable, here are the most used environment variables:
 
 #### Optional collection agents
 
+These features are disabled by default, you can choose to enable them:
+
 - `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
-- `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
 - `DD_LOGS_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
+- `DD_PROCESS_AGENT_ENABLED`: enable live process collection in the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/). The Live Container View is already enabled by default if the Docker socket is available
 
 #### Dogstatsd (custom metrics)
 
