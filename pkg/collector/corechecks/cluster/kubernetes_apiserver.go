@@ -45,6 +45,7 @@ type KubeASCheck struct {
 	KubeAPIServerHostname string
 	latestEventToken      string
 	configMapAvailable    bool
+	ac                    *apiserver.APIClient
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -73,11 +74,76 @@ func (k *KubeASCheck) Run() error {
 	if err != nil {
 		return err
 	}
+
 	// Only run if Leader Election is enabled.
 	if !config.Datadog.GetBool("leader_election") {
 		k.Warn("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
+	err = k.startLeaderElection()
+	if err != nil {
+		return err
+	}
+
+	// We start the API Server Client.
+	k.ac, err = apiserver.GetAPIClient()
+	if err != nil {
+		k.Warn("Could not connect to apiserver: %s", err)
+		return err
+	}
+
+	// Running the Control Plane status check.
+	componentsStatus, err := k.ac.ComponentStatuses()
+	if err != nil {
+		k.Warnf("Could not retrieve the status from the control plane's components %s", err.Error())
+	} else {
+		err = k.parseComponentStatus(sender, componentsStatus)
+		if err != nil {
+			k.Warnf("Could not collect API Server component status: %s", err.Error())
+		}
+	}
+	defer sender.Commit()
+
+	// Running the event collection.
+	if !k.instance.CollectEvent {
+		return nil
+	}
+
+	// Init of the resVersion token.
+	k.eventCollectionInit()
+
+	// Get the events from the API server
+	newEvents, modifiedEvents, err := k.eventCollectionCheck()
+	if err != nil {
+		return err
+	}
+
+	// Process the events to have a Datadog format.
+	err = k.processEvents(sender, newEvents, false)
+	if err != nil {
+		k.Warnf("Could not submit new event %s", err.Error())
+	}
+	// We send the events in 2 steps to make sure the new events are initializing the aggregation keys and as modified events have a different payload.
+	if len(modifiedEvents) == 0 {
+		return nil
+	}
+	err = k.processEvents(sender, modifiedEvents, true)
+	if err != nil {
+		k.Warnf("Could not submit modified event %s", err.Error())
+	}
+	return nil
+}
+
+// KubernetesASFactory is exported for integration testing.
+func KubernetesASFactory() check.Check {
+	return &KubeASCheck{
+		CheckBase: core.NewCheckBase(kubernetesAPIServerCheckName),
+		instance:  &KubeASConfig{},
+		ac:        &apiserver.APIClient{},
+	}
+}
+
+func (k *KubeASCheck) startLeaderElection() error {
 
 	leaderEngine, err := leaderelection.GetLeaderEngine()
 	if err != nil {
@@ -96,33 +162,16 @@ func (k *KubeASCheck) Run() error {
 		return nil
 	}
 	log.Tracef("Currently Leader %q, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
-
-	asclient, err := apiserver.GetAPIClient()
-	if err != nil {
-		k.Warn("Could not connect to apiserver: %s", err)
-		return err
-	}
-
-	componentsStatus, err := asclient.ComponentStatuses()
-	if err != nil {
-		k.Warnf("Could not retrieve the status from the control plane's components %s", err.Error())
-	} else {
-		err = k.parseComponentStatus(sender, componentsStatus)
-		if err != nil {
-			k.Warnf("Could not collect API Server component status: %s", err.Error())
-		}
-	}
-	defer sender.Commit()
-	if !k.instance.CollectEvent {
-		return nil
-	}
+	return nil
+}
+func (k *KubeASCheck) eventCollectionInit() {
 	if k.latestEventToken == "" {
 		// Initialization: Checking if we previously stored the latestEventToken in a configMap
-		tokenValue, found, err := asclient.GetTokenFromConfigmap(eventTokenKey, 3600)
+		tokenValue, found, err := k.ac.GetTokenFromConfigmap(eventTokenKey, 3600)
 		switch {
 		case err == apiserver.ErrOutdated:
 			k.configMapAvailable = found
-			_, _, k.latestEventToken, err = asclient.LatestEvents("0")
+			_, _, k.latestEventToken, err = k.ac.LatestEvents("0")
 			if err != nil {
 				log.Warnf("Could not refresh the state")
 				k.latestEventToken = "0" // verify that if there are no new events, "0" is passed does not fail and if an event shows up it works.
@@ -139,23 +188,25 @@ func (k *KubeASCheck) Run() error {
 			k.latestEventToken = "0"
 		}
 	}
+}
 
-	newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(k.latestEventToken)
+func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
+	newEvents, modifiedEvents, versionToken, err := k.ac.LatestEvents(k.latestEventToken)
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error())
-		return err
+		return nil, nil, err
 	}
 
 	if versionToken == "0" {
 		// API server cache expired or no recent events to process. Resetting the Resversion token.
-		newEvents, modifiedEvents, versionToken, err = asclient.LatestEvents("0")
+		newEvents, modifiedEvents, versionToken, err = k.ac.LatestEvents("0")
 		if err != nil {
 			k.Warnf("Could not collect cached events from the api server: %s", err.Error())
-			return err
+			return nil, nil, err
 		}
 		if k.latestEventToken == versionToken {
 			// No new events but protobuf error was caught. Will retry at next run.
-			return nil
+			return nil, nil, nil
 		}
 		// There was a protobuf error and new events were submitted. Processing them and updating the resVersion.
 		k.latestEventToken = versionToken
@@ -163,38 +214,17 @@ func (k *KubeASCheck) Run() error {
 
 	// We check that the resversion gotten from the API Server is more recent than the one cached in the util.
 	if len(newEvents)+len(modifiedEvents) == 0 {
-		return nil
+		return nil, nil, nil
 	}
 	k.latestEventToken = versionToken
 	if k.configMapAvailable {
-		configMapErr := asclient.UpdateTokenInConfigmap(eventTokenKey, versionToken)
+		configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, versionToken)
 		if configMapErr != nil {
 			k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
 		}
 	}
 
-	err = k.processEvents(sender, newEvents, false)
-	if err != nil {
-		k.Warnf("Could not submit new event %s", err.Error())
-	}
-
-	// We send the events in 2 steps to make sure the new events are initializing the aggregation keys and as modified events have a different payload.
-	if len(modifiedEvents) == 0 {
-		return nil
-	}
-	err = k.processEvents(sender, modifiedEvents, true)
-	if err != nil {
-		k.Warnf("Could not submit modified event %s", err.Error())
-	}
-	return nil
-}
-
-// KubernetesASFactory is exported for integration testing.
-func KubernetesASFactory() check.Check {
-	return &KubeASCheck{
-		CheckBase: core.NewCheckBase(kubernetesAPIServerCheckName),
-		instance:  &KubeASConfig{},
-	}
+	return nil, nil, nil
 }
 
 func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
