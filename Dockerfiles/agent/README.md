@@ -4,17 +4,54 @@ This is how the official agent 6 image available [here](https://hub.docker.com/r
 
 ## How to run it
 
-The following environment variables are supported:
+Head over to [datadoghq.com](https://app.datadoghq.com/account/settings#agent/docker) to get the official installation guide.
+
+For a simple docker run, you can quickly get started with:
+
+```
+docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro \
+              -v /proc/:/host/proc/:ro \
+              -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro \
+              -e DD_API_KEY=<YOUR_API_KEY> \
+              datadog/agent:latest
+```
+
+The agent is highly customizable, here are the most used environment variables:
+
+#### Global options
 
 - `DD_API_KEY`: your API key (**required**)
-- `DD_HOSTNAME`: hostname to use for metrics
+- `DD_HOSTNAME`: hostname to use for metrics (if autodetection fails)
 - `DD_TAGS`: host tags, separated by spaces. For example: `simple-tag-0 tag-key-1:tag-value-1`
 
-- `DD_DOGSTATSD_NON_LOCAL_TRAFFIC`: listen to dogstatsd packets from other containers, required to send custom metrics
+#### Optional collection agents
+
 - `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
 - `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
 - `DD_LOGS_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
-- `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
+
+#### Dogstatsd (custom metrics)
+
+You can send custom metrics via [the statsd protocol](https://docs.datadoghq.com/developers/dogstatsd/):
+
+- `DD_DOGSTATSD_NON_LOCAL_TRAFFIC`: listen to dogstatsd packets from other containers, required to send custom metrics
+
+#### Tagging
+
+We automatically collect common tags from [Docker](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/docker_extract.go), [Kubernetes](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/kubelet_extract.go), [ECS](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/ecs_extract.go), [Swarm, Mesos, Nomad and Rancher](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/docker_extract.go), and allow you to extract even more tags with the following options:
+
+- `DD_DOCKER_LABELS_AS_TAGS` : extract docker container labels
+- `DD_DOCKER_ENV_AS_TAGS` : extract docker container environment variables
+- `DD_KUBERNETES_POD_LABELS_AS_TAGS` : extract pod labels
+
+You can either define them in your custom `datadog.yaml`, or set them as JSON maps in these envvars. The map key is the source (label/envvar) name, and the map value the datadog tag name.
+
+```
+DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app":"kube_app","release":"helm_release"}'
+DD_DOCKER_LABELS_AS_TAGS='{"com.docker.compose.service":"service_name","com.docker.compose.project":"project_name"}'
+```
+
+#### Kubernetes integration
 
 - `DD_KUBERNETES_COLLECT_SERVICE_TAGS`: Configures the agent to collect Kubernetes service names as tags.
 - `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: Set the collection frequency in seconds for the Kubernetes service names.
@@ -22,7 +59,10 @@ The following environment variables are supported:
 - `DD_LEADER_ELECTION`: Activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true. The expected value is a bool: true/false.
 - `DD_LEADER_LEASE_DURATION`: Only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
 
-Example usage: `docker run -e DD_API_KEY=your-api-key-here -it <image-name>`
+#### Others
+
+- `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
+
 
 For more information about the container's lifecycle, see [SUPERVISION.md](SUPERVISION.md).
 
