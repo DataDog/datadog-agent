@@ -65,21 +65,23 @@ build do
       pip "install -r #{project_dir}/check_requirements.txt", :env => build_env
     end
 
+    # Set frozen requirements
+    pip "freeze > #{install_dir}/agent_requirements.txt"
+
+    # Windows pip workaround to support globs
+    python_bin = "\"#{windows_safe_path(install_dir)}\\embedded\\python.exe\""
+    python_pip = "\"import pip, glob; pip.main(['install', '-c', '#{install_dir}/agent_requirements.txt'] + glob.glob('*.whl'))\""
+
     if windows?
-      build_args = "wheel --no-deps ."
-      command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{build_args}", :cwd => "#{project_dir}\\datadog-checks-base"
-      Dir.glob("#{project_dir}\\datadog-base\\*.whl").each do |wheel_path|
-        whl_file = wheel_path.split('/').last
-        install_args = "install #{whl_file}"
-        command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{install_args}", :cwd => "#{project_dir}\\datadog-checks-base"
-      end
+      pip "wheel --no-deps .", :cwd => "#{project_dir}/datadog-checks-base"
+      command("#{python_bin} -c #{python_pip}", cwd: "#{project_dir}/datadog-checks-base")
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
       }
       pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog-checks-base"
-      pip "install *.whl", :env => build_env, :cwd => "#{project_dir}/datadog-checks-base"
+      pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/datadog-checks-base"
     end
 
     Dir.glob("#{project_dir}/*").each do |check_dir|
@@ -131,20 +133,15 @@ build do
 
       File.file?("#{check_dir}/setup.py") || next
       if windows?
-        build_args = "wheel --no-deps ."
-        command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{build_args}", :cwd => "#{project_dir}\\#{check}"
-        Dir.glob("#{project_dir}\\#{check}\\*.whl").each do |wheel_path|
-          whl_file = wheel_path.split('/').last
-          install_args = "install #{whl_file}"
-          command "#{windows_safe_path(install_dir)}\\embedded\\scripts\\pip.exe #{install_args}", :cwd => "#{project_dir}\\#{check}"
-        end
+        pip "wheel --no-deps .", :cwd => "#{project_dir}/#{check}"
+        command("#{python_bin} -c #{python_pip}", cwd: "#{project_dir}/#{check}")
       else
         build_env = {
           "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
           "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
         }
         pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/#{check}"
-        pip "install *.whl", :env => build_env, :cwd => "#{project_dir}/#{check}"
+        pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/#{check}"
       end
     end
   end
