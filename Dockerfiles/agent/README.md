@@ -16,27 +16,29 @@ docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro \
               datadog/agent:latest
 ```
 
+### Environment variables
+
 The agent is highly customizable, here are the most used environment variables:
 
-#### Global options
+##### Global options
 
 - `DD_API_KEY`: your API key (**required**)
 - `DD_HOSTNAME`: hostname to use for metrics (if autodetection fails)
 - `DD_TAGS`: host tags, separated by spaces. For example: `simple-tag-0 tag-key-1:tag-value-1`
 
-#### Optional collection agents
+##### Optional collection agents
 
 - `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
 - `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
 - `DD_LOGS_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
 
-#### Dogstatsd (custom metrics)
+##### Dogstatsd (custom metrics)
 
 You can send custom metrics via [the statsd protocol](https://docs.datadoghq.com/developers/dogstatsd/):
 
 - `DD_DOGSTATSD_NON_LOCAL_TRAFFIC`: listen to dogstatsd packets from other containers, required to send custom metrics
 
-#### Tagging
+##### Tagging
 
 We automatically collect common tags from [Docker](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/docker_extract.go), [Kubernetes](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/kubelet_extract.go), [ECS](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/ecs_extract.go), [Swarm, Mesos, Nomad and Rancher](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/docker_extract.go), and allow you to extract even more tags with the following options:
 
@@ -48,10 +50,10 @@ You can either define them in your custom `datadog.yaml`, or set them as JSON ma
 
 ```
 DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app":"kube_app","release":"helm_release"}'
-DD_DOCKER_LABELS_AS_TAGS='{"com.docker.compose.service":"service_name","com.docker.compose.project":"project_name"}'
+DD_DOCKER_LABELS_AS_TAGS='{"com.docker.compose.service":"service_name"}'
 ```
 
-#### Kubernetes integration
+##### Kubernetes integration
 
 - `DD_KUBERNETES_COLLECT_SERVICE_TAGS`: Configures the agent to collect Kubernetes service names as tags.
 - `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: Set the collection frequency in seconds for the Kubernetes service names.
@@ -59,32 +61,22 @@ DD_DOCKER_LABELS_AS_TAGS='{"com.docker.compose.service":"service_name","com.dock
 - `DD_LEADER_ELECTION`: Activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true. The expected value is a bool: true/false.
 - `DD_LEADER_LEASE_DURATION`: Only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
 
-#### Others
+##### Others
 
 - `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
 
+### Optional volumes
+
+To run custom checks and configurations without buidling your own image, you can mount additional files in these folders:
+
+- `/checks.d/` : custom checks in this folder will be copied over and used, if a corresponding configuration is found
+- `/conf.d/` : check configurations and Autodiscovery templates in this folder will be copied over in the agent's configuration folder. You can mount a host folder, kubernetes configmaps, or other volumes. **Note:** autodiscovery templates now are directly stored in the main `conf.d` folder, not in an `auto_conf` subfolder.
+
+### Going further
 
 For more information about the container's lifecycle, see [SUPERVISION.md](SUPERVISION.md).
 
-## How to build it
-
-### On debian-based systems
-
-You can build your own debian package using `inv agent.omnibus-build`
-
-Then you can call `inv agent.image-build` that will take the debian package generated above and use it to build the image
-
-### On other systems
-
-To build the image you'll need the agent debian package that can be found on this APT listing [here](https://s3.amazonaws.com/apt-agent6.datad0g.com).
-
-You'll need to download one of the `datadog-agent*_amd64.deb` package in this directory, it will then be used by the `Dockerfile` and installed within the image.
-
-You can then build the image using `docker build -t datadog/agent:master .`
-
-To build the jmx variant, add `--build-arg WITH_JMX=true` to the build command
-
-## How to activate log collection
+## Log collection
 
 The Datadog Agent can collect logs from containers starting at the version 6. Two installations are possible:
 
@@ -139,7 +131,7 @@ logs:
 ```
 For more examples of configuration files or agent capabilities (such as filtering, redacting, multiline, …) read [this documentation](https://docs.datadoghq.com/logs/#filter-logs).
 
-### Kubernetes
+## Kubernetes
 
 To deploy the Agent in your Kubernetes cluster, you can use the manifest in `manifests`.
 Firstly, make sure you have the correct [RBAC](#rbac) in place. You can use the files in manifests/rbac that contain the minimal requirements to run the Kubernetes Cluster level checks and perform the leader election.
@@ -194,3 +186,21 @@ You will need to allow the agent to be allowed to perform a few actions:
 
 You can find the templates in manifests/rbac.
 This will create the Service Account in the default namespace, a Cluster Role with the above rights and the Cluster Role Binding.
+
+## How to build this image
+
+### On debian-based systems
+
+You can build your own debian package using `inv agent.omnibus-build`
+
+Then you can call `inv agent.image-build` that will take the debian package generated above and use it to build the image
+
+### On other systems
+
+To build the image you'll need the agent debian package that can be found on this APT listing [here](https://s3.amazonaws.com/apt-agent6.datad0g.com).
+
+You'll need to download one of the `datadog-agent*_amd64.deb` package in this directory, it will then be used by the `Dockerfile` and installed within the image.
+
+You can then build the image using `docker build -t datadog/agent:master .`
+
+To build the jmx variant, add `--build-arg WITH_JMX=true` to the build command
