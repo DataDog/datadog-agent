@@ -30,8 +30,9 @@ import (
 var (
 	globalApiClient *APIClient
 
-	ErrNotFound = errors.New("entity not found")
-	ErrOutdated = errors.New("entity is outdated")
+	ErrNotFound  = errors.New("entity not found")
+	ErrOutdated  = errors.New("entity is outdated")
+	ErrNotLeader = errors.New("not Leader")
 )
 
 const (

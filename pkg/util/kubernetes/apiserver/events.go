@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"time"
 
+	"strings"
+
 	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s"
 	"github.com/ericchiang/k8s/api/v1"
@@ -34,7 +36,7 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 	// If `since` is "" strconv.Atoi(*latestResVersion) below will panic as we evaluate the error.
 	// One could chose to use "" instead of 0 to not query the API Server cache.
 	// We decide to only rely on the cache as it avoids crawling everything from the API Server at once.
-	log.Debugf("since value is %q", since)
+	log.Tracef("since value is %q", since)
 	resVersionCached, err := strconv.Atoi(since)
 	if err != nil {
 		log.Errorf("The cached event token could not be parsed: %s, pulling events from the API server's cache", err)
@@ -64,7 +66,15 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 	for {
 		meta, event, err := watcher.Next()
 		if err != nil {
-			if err != context.Canceled && err != io.EOF {
+			// We sometimes face a protobuf unmarshal issue, it will happen if there is no recent events to collect.
+			// Or if the resVersion is not available in the API Server's cache.
+			// We need to reset the resVersion to seamlessly continue watching.
+			if strings.Contains(err.Error(), "illegal wireType") {
+				log.Tracef("Protobuf error, no recent events to collect: %s", err)
+				*latestResVersion = "0"
+				continue
+			}
+			if err != context.Canceled && err != io.EOF && !strings.Contains(err.Error(), "illegal wireType") {
 				log.Debugf("Stopping event collection, got error: %s", err)
 			} // else silently stop
 			break

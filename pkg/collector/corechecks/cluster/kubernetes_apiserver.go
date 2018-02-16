@@ -45,6 +45,7 @@ type KubeASCheck struct {
 	KubeAPIServerHostname string
 	latestEventToken      string
 	configMapAvailable    bool
+	ac                    *apiserver.APIClient
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -73,37 +74,26 @@ func (k *KubeASCheck) Run() error {
 	if err != nil {
 		return err
 	}
+
 	// Only run if Leader Election is enabled.
 	if !config.Datadog.GetBool("leader_election") {
 		k.Warn("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
-
-	leaderEngine, err := leaderelection.GetLeaderEngine()
+	err = k.runLeaderElection()
 	if err != nil {
-		k.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.")
 		return err
 	}
 
-	err = leaderEngine.EnsureLeaderElectionRuns()
-	if err != nil {
-		k.Warn("Leader Election process failed to start")
-		return err
-	}
-
-	if !leaderEngine.IsLeader() {
-		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName(), leaderEngine.HolderIdentity)
-		return nil
-	}
-	log.Tracef("Currently Leader %q, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
-
-	asclient, err := apiserver.GetAPIClient()
+	// We start the API Server Client.
+	k.ac, err = apiserver.GetAPIClient()
 	if err != nil {
 		k.Warn("Could not connect to apiserver: %s", err)
 		return err
 	}
 
-	componentsStatus, err := asclient.ComponentStatuses()
+	// Running the Control Plane status check.
+	componentsStatus, err := k.ac.ComponentStatuses()
 	if err != nil {
 		k.Warnf("Could not retrieve the status from the control plane's components %s", err.Error())
 	} else {
@@ -113,53 +103,26 @@ func (k *KubeASCheck) Run() error {
 		}
 	}
 	defer sender.Commit()
+
+	// Running the event collection.
 	if !k.instance.CollectEvent {
 		return nil
 	}
-	if k.latestEventToken == "" {
-		// Initialization: Checking if we previously stored the latestEventToken in a configMap
-		tokenValue, found, err := asclient.GetTokenFromConfigmap(eventTokenKey, 60)
-		switch {
-		case err == apiserver.ErrOutdated:
-			k.configMapAvailable = found
-			k.latestEventToken = tokenValue
 
-		case err == apiserver.ErrNotFound:
-			k.latestEventToken = "0"
+	// Init of the resVersion token.
+	k.eventCollectionInit()
 
-		case err == nil:
-			k.configMapAvailable = found
-			k.latestEventToken = tokenValue
-
-		default:
-			log.Warnf("Cannot handle the tokenValue: %q, querying the kube-apiserver cache for events", tokenValue)
-			k.latestEventToken = "0"
-		}
-	}
-
-	newEvents, modifiedEvents, versionToken, err := asclient.LatestEvents(k.latestEventToken)
+	// Get the events from the API server
+	newEvents, modifiedEvents, err := k.eventCollectionCheck()
 	if err != nil {
-		k.Warnf("Could not collect events from the api server: %s", err.Error())
 		return err
 	}
 
-	// We check that the resversion gotten from the API Server is more recent than the one cached in the util.
-	if len(newEvents)+len(modifiedEvents) == 0 {
-		return nil
-	}
-	k.latestEventToken = versionToken
-	if k.configMapAvailable {
-		configMapErr := asclient.UpdateTokenInConfigmap(eventTokenKey, versionToken)
-		if configMapErr != nil {
-			k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
-		}
-	}
-
+	// Process the events to have a Datadog format.
 	err = k.processEvents(sender, newEvents, false)
 	if err != nil {
 		k.Warnf("Could not submit new event %s", err.Error())
 	}
-
 	// We send the events in 2 steps to make sure the new events are initializing the aggregation keys and as modified events have a different payload.
 	if len(modifiedEvents) == 0 {
 		return nil
@@ -176,7 +139,91 @@ func KubernetesASFactory() check.Check {
 	return &KubeASCheck{
 		CheckBase: core.NewCheckBase(kubernetesAPIServerCheckName),
 		instance:  &KubeASConfig{},
+		ac:        &apiserver.APIClient{},
 	}
+}
+
+func (k *KubeASCheck) runLeaderElection() error {
+
+	leaderEngine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		k.Warn("Failed to instantiate the Leader Elector. Not running the Kubernetes API Server check or collecting Kubernetes Events.")
+		return err
+	}
+
+	err = leaderEngine.EnsureLeaderElectionRuns()
+	if err != nil {
+		k.Warn("Leader Election process failed to start")
+		return err
+	}
+
+	if !leaderEngine.IsLeader() {
+		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName(), leaderEngine.HolderIdentity)
+		return apiserver.ErrNotLeader
+	}
+	log.Tracef("Currently Leader %q, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
+	return nil
+}
+func (k *KubeASCheck) eventCollectionInit() {
+	if k.latestEventToken == "" {
+		// Initialization: Checking if we previously stored the latestEventToken in a configMap
+		tokenValue, found, err := k.ac.GetTokenFromConfigmap(eventTokenKey, 3600)
+		switch {
+		case err == apiserver.ErrOutdated:
+			k.configMapAvailable = found
+			k.latestEventToken = "0"
+
+		case err == apiserver.ErrNotFound:
+			k.latestEventToken = "0"
+
+		case err == nil:
+			k.configMapAvailable = found
+			k.latestEventToken = tokenValue
+
+		default:
+			log.Warnf("Cannot handle the tokenValue: %q, querying the kube-apiserver cache for events", tokenValue)
+			k.latestEventToken = "0"
+		}
+	}
+}
+
+func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
+	newEvents, modifiedEvents, versionToken, err := k.ac.LatestEvents(k.latestEventToken)
+	if err != nil {
+		k.Warnf("Could not collect events from the api server: %s", err.Error())
+		return nil, nil, err
+	}
+
+	if versionToken == "0" {
+		// API server cache expired or no recent events to process. Resetting the Resversion token.
+		_, _, versionToken, err = k.ac.LatestEvents("0")
+		if err != nil {
+			k.Warnf("Could not collect cached events from the api server: %s", err.Error())
+			return nil, nil, err
+		}
+
+		if k.latestEventToken == versionToken {
+			// No new events but protobuf error was caught. Will retry at next run.
+			return nil, nil, nil
+		}
+		// There was a protobuf error and new events were submitted. Processing them and updating the resVersion.
+		k.latestEventToken = versionToken
+	}
+
+	// We check that the resversion gotten from the API Server is more recent than the one cached in the util.
+	if len(newEvents)+len(modifiedEvents) == 0 {
+		return nil, nil, nil
+	}
+
+	k.latestEventToken = versionToken
+	if k.configMapAvailable {
+		configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, versionToken)
+		if configMapErr != nil {
+			k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
+		}
+	}
+
+	return newEvents, modifiedEvents, nil
 }
 
 func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsStatus *v1.ComponentStatusList) error {
