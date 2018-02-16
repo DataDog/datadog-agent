@@ -2,6 +2,215 @@
 Release Notes
 =============
 
+6.0.0-rc.1
+==========
+
+Prelude
+-------
+
+The execution of the main agent, trace-agent (APM), and process-agent processes is now orchestrated
+using systemd/upstart facilities on Linux.
+
+On Linux and macOS, the trace-agent and process-agent now read their configuration from the main
+``datadog.yaml`` file (located, by default on Linux, at ``/etc/datadog-agent/datadog.yaml``).
+
+Changes implementation of IOStats in Windows to use the Performance Data  Helper API, rather than WMI.
+
+
+New Features
+------------
+
+- Introducing the Datadog Process Agent for Windows
+
+- Make the trace-agent read its configuration from datadog.yaml.
+
+- Add a HTTP header containing the agent version to every transaction sent by
+  the agent.
+
+- Add a configcheck command to the agent API and CLI, it prints current loaded & resolved
+  configurations for each provider. The output of the command is also added to a new config-check.log
+  into the flare.
+
+- Add option to output logs in JSON format
+
+- Add a pod entity to the tagger.
+
+- Introducing the service mapper strategy for the DCA. We periodically hit the API server,
+  to get the list of pods, nodes and services. Then we proceed to match which endpoint (i.e. pod)
+  is covered by which service.
+  We create a map of pod name to service names, cache it and expose a public method.
+  This method is called when the Service Mapper endpoint of the DCA API is hit.
+  We also query the cache instead of the API Server if a cache miss happens, to separate the concerns.
+
+- The kubelet request /pods is now cached to avoid stressing the kubelet API and
+  for better performances
+
+- Create a cluster agent util to query the Datadog Cluster Agent (DCA) API.
+
+- Convert the format of histogram_aggregate when importing agent5 configs to agent6
+
+- Add support for histogram_percentile when importing config options from agent5 to agent6
+
+- Adds in a `datadog.agent.running` metric that showcases a value of 1 if the Agent is currently reporting to Datadog.
+
+- Use the S6 light init in the docker image to start the process-agent and the
+  trace-agent. This allows to remove the process orchestration logic from the
+  infra-agent
+
+- Add `short_image` tag to docker tagger collector
+
+- Try to connect to Docker even `/var/run/docker.sock` is absent, to honor the
+  $DOCKER_HOST environment variable.
+
+- Get the docker server version in the debug logs for troubleshooting
+
+- Add ECS & ECS Fargate metadata API connectivity diagnose
+
+- Add optional forwarding of dogstatsd packets to another UDP server.
+
+- Don't block the aggregator if the forwarder input queue is full (we now
+  drop transaction).
+
+- Add healthcheck to the forwarder. The agent will be unhealthy if the apikey
+  is invalid or if transactions are dropped because all workers are busy.
+
+- Make the number of workers used by the forwarder configurable and set default to 1.
+
+- The agent has internal healthchecks on all subsystems. The result is exposed
+  via the `agent health` command and used in the docker image as a healthcheck.
+  The `/probe.sh` wrapper is provided for compatibility with agent5 and future-proofing.
+
+- Adds the ability to import the Trace configuration options from datadog.conf to their respective datadog.yaml fields with the `import` command.
+
+- Add jmx_custom_jars option to make sure they are loaded by jmxfetch
+
+- Added ability to retrieve the hostname from the Kubernetes kubelet API.
+
+- Support the new `kubelet` integration by providing the kubelet url and credentials to it
+
+- Add source_component and namespace tags to Kubernetes events.
+
+- Support the Kubernetes service name tags on containers.
+  The tag used is kube_service.
+  The default listener for kubernetes is now the kubelet instead of docker.
+
+- Implementation of the Leader Election for the node agent.
+
+- Add more details to the information displayed by the logs agent status.
+
+- Log lines starting with the special character `<` were considered rfc5424
+  formatted, and any further formatting was skipped. This commit updates the
+  detection rule to match logs starting with `<pri>version `, to reduce
+  false positives
+
+- Support tagging on Nomad 0.6.0+ clusters
+
+- adds a core check and the core logic to query the kubernetes API server and format the events into Datadog events. Also adds the Control Plane status check.
+
+- The process-agent uses the datadog.yaml file for activation and additional config.
+
+- Support the new `kubelet` integration by providing the container tags to it
+
+- Set configurable timeout for IPC api server
+
+- Add support for collect_ec2_tags configuration option.
+
+- Support the legacy default_integration_http_timeout configuration option.
+
+- handle the "warning" value to log_level, translating it to "warn"
+
+- Use systemd/upstart facilities on linux to orchestrate the agents execution.
+  Rate limit process restarts such that 5 failures in a 10 second span will
+  result in no further restart attempts.
+
+
+Upgrade Notes
+-------------
+
+- Increased the number of versions of Docker API that logs-agent support from 1.25 to 1.18
+
+- If you run a Nomad agent older than 0.6.0, the `nomad_group`
+  tag will be absent until you upgrade your orchestrator.
+
+
+Deprecation Notes
+-----------------
+
+- Changed the attribute name to enable log collection from YAML configuration file from "log_enabled" to "logs_enabled", "log_enabled" is still supported.
+
+
+Bug Fixes
+---------
+
+- Properly listen for events emitted on OSes like CentOS 6 so the Agent starts on reboot
+
+- Relieves CPU consumption of the WMI service by using PDH rather than WMI
+
+- Updating custom error used to insure the collection of the token in the configmap datadogtoken.
+
+- Fix docker event reconnection logic to gracefully wait if docker daemon is unresponsive
+
+- The checks packaged with the new wheels method are in the default python
+  package site, already included in ``sys.path``. We therefore removed this
+  path them from the locations that are appended to the default python ``sys.path``
+
+- Strip hostname if running inside ECS Fargate and disable core checks (not relevant
+  without host infos)
+  Fix hostname caching consistency
+
+- The agent/dogstatsd docker image now ships the appropriate binary
+
+- Fix the uploaded file name of the flare archive.
+
+- Fixed the structure of the Flare archive on all platforms.
+
+- Fix the import proxy build conversion
+
+- Fix the agent stop command
+
+- Fixes a bug that caused the GUI to create a flare without a status file
+
+- Fix https://github.com/DataDog/datadog-agent/issues/1159 where error was not
+  explicit when the check had invalid configuration or code
+
+- Fix to evaluate whether the DCA can query resources (events, services, nodes, pods) before running core component or checks.
+  Logic allows for the DCA to run components independently if they are configured and we can query the associated resources.
+
+- Only load and log the kube_apiserver check if `KUBERNETES=yes` is used.
+
+- The collector will no longer block when the number of runners is lower than
+  the number of long running check. We now start a new runner for those
+  checks.
+
+- Modify JMXFetch jar permissions to allow the agent to read it on osx.
+
+- Deleted linux-specific configuration files on macosx to avoid polluting the logs and the web ui.
+
+- Fix dogstatsd unix socket rights so every user could write to it.
+
+
+Other Notes
+-----------
+
+- The ``resources`` metadata provider is now enabled by default in order to
+  populate the "process treemap" visualization continuously (on host dashboards)
+
+- Decrease verbosity of ``urllib3``'s logger (used by python checks through the ``requests`` module)
+
+- Document the exclusion of dockercloud containers.
+
+- The flare now includes a dump of whitelisted environment variables
+  that can have an impact on agent behaviour. If no whitelisted envvar
+  is found, the envvars.log file is not created in the flare.
+
+- Upgraded Go runtime to `1.9.4` on Linux builds
+
+- The linux packages now own the custom check directory (``/etc/datadog-agent/checks.d/``)
+  and the log directory (``/var/log/datadog/``)
+
+- Add an automated install script for osx.
+
+
 6.0.0-beta.9
 ============
 
