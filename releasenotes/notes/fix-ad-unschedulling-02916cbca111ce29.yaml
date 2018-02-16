@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix an issue unscheduling checks discovered through auto-discovery

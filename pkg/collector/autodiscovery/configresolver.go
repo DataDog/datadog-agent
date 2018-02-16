@@ -25,10 +25,9 @@ type variableGetter func(key []byte, svc listeners.Service) ([]byte, error)
 
 var (
 	templateVariables = map[string]variableGetter{
-		"host":           getHost,
-		"pid":            getPid,
-		"port":           getPort,
-		"container-name": getContainerName,
+		"host": getHost,
+		"pid":  getPid,
+		"port": getPort,
 	}
 )
 
@@ -42,6 +41,7 @@ type ConfigResolver struct {
 	services        map[listeners.ID]listeners.Service // Service.ID --> []Service
 	serviceToChecks map[listeners.ID][]check.ID        // Service.ID --> []CheckID
 	adIDToServices  map[string][]listeners.ID          // AD id --> services that have it
+	config2Service  map[string]listeners.ID            // config digest --> service ID
 	newService      chan listeners.Service
 	delService      chan listeners.Service
 	stop            chan bool
@@ -58,6 +58,7 @@ func newConfigResolver(coll *collector.Collector, ac *AutoConfig, tc *TemplateCa
 		services:        make(map[listeners.ID]listeners.Service),
 		serviceToChecks: make(map[listeners.ID][]check.ID, 0),
 		adIDToServices:  make(map[string][]listeners.ID),
+		config2Service:  make(map[string]listeners.ID),
 		newService:      make(chan listeners.Service),
 		delService:      make(chan listeners.Service),
 		stop:            make(chan bool),
@@ -186,6 +187,7 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 
 	// store resolved configs in the AC
 	cr.ac.providerLoadedConfigs[provider] = append(cr.ac.providerLoadedConfigs[provider], resolvedConfig)
+	cr.config2Service[resolvedConfig.Digest()] = svc.GetID()
 
 	return resolvedConfig, nil
 }
@@ -229,24 +231,10 @@ func (cr *ConfigResolver) processNewService(svc listeners.Service) {
 		errorStats.removeResolveWarnings(config.Name)
 
 		// load the checks for this config using Autoconfig
-		checks, err := cr.ac.GetChecks(config)
-		if err != nil {
-			log.Errorf("Unable to load the check: %v", err)
-			continue
-		}
+		checks := cr.ac.getChecksFromConfigs([]check.Config{config}, true)
 
 		// ask the Collector to schedule the checks
-		for _, check := range checks {
-			id, err := cr.collector.RunCheck(check)
-			if err != nil {
-				log.Errorf("Unable to schedule the check: %v", err)
-				continue
-			}
-			// add the check to the list of checks running against the service
-			// this is used when a template or a service is removed
-			// and we want to stop their related checks
-			cr.serviceToChecks[svc.GetID()] = append(cr.serviceToChecks[svc.GetID()], id)
-		}
+		cr.ac.schedule(checks)
 	}
 }
 
@@ -262,6 +250,8 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 			if err != nil {
 				log.Errorf("Failed to stop check '%s': %s", id, err)
 			}
+			// cleaning up the cache map
+			cr.ac.unschedule(id)
 			stopped[id] = struct{}{}
 		}
 
@@ -325,6 +315,7 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 	return "", errors.New("not able to determine which network is reachable")
 }
 
+// getPort returns ports of the service
 func getPort(tplVar []byte, svc listeners.Service) ([]byte, error) {
 	ports, err := svc.GetPorts()
 	if err != nil {
@@ -354,11 +345,6 @@ func getPid(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		return nil, fmt.Errorf("Failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
 	}
 	return []byte(strconv.Itoa(pid)), nil
-}
-
-// TODO
-func getContainerName(tplVar []byte, svc listeners.Service) ([]byte, error) {
-	return []byte("test-container-name"), nil
 }
 
 // parseTemplateVar extracts the name of the var
