@@ -173,7 +173,7 @@ Bug Fixes
 - Fix https://github.com/DataDog/datadog-agent/issues/1159 where error was not
   explicit when the check had invalid configuration or code
 
-- Fix to evaluate whether the DCA can query resources (events, ervices, nodes, pods) before running core component or checks.
+- Fix to evaluate whether the DCA can query resources (events, services, nodes, pods) before running core component or checks.
   Logic allows for the DCA to run components independently if they are configured and we can query the associated resources.
 
 - Only load and log the kube_apiserver check if `KUBERNETES=yes` is used.
