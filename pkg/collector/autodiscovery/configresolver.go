@@ -251,7 +251,7 @@ func (cr *ConfigResolver) processDelService(svc listeners.Service) {
 				log.Errorf("Failed to stop check '%s': %s", id, err)
 			}
 			// cleaning up the cache map
-			delete(cr.ac.check2config, id)
+			cr.ac.unschedule(id)
 			stopped[id] = struct{}{}
 		}
 

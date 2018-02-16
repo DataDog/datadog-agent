@@ -500,6 +500,11 @@ func (ac *AutoConfig) GetUnresolvedTemplates() map[string]check.Config {
 	return ac.templateCache.GetUnresolvedTemplates()
 }
 
+// unschedule removes the check to config cache mapping
+func (ac *AutoConfig) unschedule(id check.ID) {
+	delete(ac.check2config, id)
+}
+
 // check if the descriptor contains the Config passed
 func (pd *providerDescriptor) contains(c *check.Config) bool {
 	for _, config := range pd.configs {
