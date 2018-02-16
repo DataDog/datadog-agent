@@ -53,10 +53,30 @@ func TestGetConfigIDFromPs(t *testing.T) {
 	labeledCo := types.Container{
 		ID:     "deadbeef",
 		Image:  "test",
-		Labels: map[string]string{"io.datadog.check.id": "w00tw00t"},
+		Labels: map[string]string{"com.datadoghq.ad.check.id": "w00tw00t"},
 	}
 	ids = dl.getConfigIDFromPs(labeledCo)
 	assert.Equal(t, []string{"w00tw00t"}, ids)
+
+	legacyCo := types.Container{
+		ID:     "deadbeef",
+		Image:  "test",
+		Labels: map[string]string{"com.datadoghq.sd.check.id": "w00tw00t"},
+	}
+	ids = dl.getConfigIDFromPs(legacyCo)
+	assert.Equal(t, []string{"w00tw00t"}, ids)
+
+	doubleCo := types.Container{
+		ID:    "deadbeef",
+		Image: "test",
+		Labels: map[string]string{
+			// Both labels, new one takes over
+			"com.datadoghq.ad.check.id": "new",
+			"com.datadoghq.sd.check.id": "old",
+		},
+	}
+	ids = dl.getConfigIDFromPs(doubleCo)
+	assert.Equal(t, []string{"new"}, ids)
 }
 
 func TestGetHostsFromPs(t *testing.T) {
@@ -160,7 +180,7 @@ func TestGetADIdentifiers(t *testing.T) {
 	labeledCo := types.ContainerJSON{
 		ContainerJSONBase: &types.ContainerJSONBase{ID: "deadbeef", Image: "test"},
 		Mounts:            make([]types.MountPoint, 0),
-		Config:            &container.Config{Labels: map[string]string{"io.datadog.check.id": "w00tw00t"}},
+		Config:            &container.Config{Labels: map[string]string{"com.datadoghq.ad.check.id": "w00tw00t"}},
 		NetworkSettings:   &types.NetworkSettings{},
 	}
 	cache.Cache.Set(cacheKey, labeledCo, 10*time.Second)
@@ -179,7 +199,7 @@ func TestGetHosts(t *testing.T) {
 	cj := types.ContainerJSON{
 		ContainerJSONBase: &cBase,
 		Mounts:            make([]types.MountPoint, 0),
-		Config:            &container.Config{Labels: map[string]string{"io.datadog.check.id": "w00tw00t"}},
+		Config:            &container.Config{Labels: map[string]string{"com.datadoghq.ad.check.id": "w00tw00t"}},
 		NetworkSettings:   &types.NetworkSettings{},
 	}
 	// add cj to the cache to avoir having to query docker in the test
@@ -250,8 +270,8 @@ func TestGetRancherIP(t *testing.T) {
 		ContainerJSONBase: &cBase,
 		Mounts:            make([]types.MountPoint, 0),
 		Config: &container.Config{Labels: map[string]string{
-			"io.datadog.check.id":     "w00tw00t",
-			"io.rancher.container.ip": "10.42.90.224/16",
+			"com.datadoghq.ad.check.id": "w00tw00t",
+			"io.rancher.container.ip":   "10.42.90.224/16",
 		}},
 		NetworkSettings: &networkSettings,
 	}

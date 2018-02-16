@@ -19,7 +19,10 @@ import (
 )
 
 const (
-	podAnnotationFormat = "service-discovery.datadoghq.com/%s."
+	newPodAnnotationPrefix    = "ad.datadoghq.com/"
+	newPodAnnotationFormat    = newPodAnnotationPrefix + "%s."
+	legacyPodAnnotationPrefix = "service-discovery.datadoghq.com/"
+	legacyPodAnnotationFormat = legacyPodAnnotationPrefix + "%s."
 )
 
 // KubeletConfigProvider implements the ConfigProvider interface for the kubelet.
@@ -66,20 +69,29 @@ func parseKubeletPodlist(podlist []*kubelet.Pod) ([]check.Config, error) {
 	var configs []check.Config
 	for _, pod := range podlist {
 		// Filter out pods with no AD annotation
-		var hasAD bool
+		var adExtractFormat string
 		for name := range pod.Metadata.Annotations {
-			if strings.HasPrefix(name, "service-discovery.datadoghq.com/") {
-				hasAD = true
+			if strings.HasPrefix(name, newPodAnnotationPrefix) {
+				adExtractFormat = newPodAnnotationFormat
 				break
 			}
+			if strings.HasPrefix(name, legacyPodAnnotationPrefix) {
+				adExtractFormat = legacyPodAnnotationFormat
+				// Don't break so we try to look for the new prefix
+				// which will take precedence
+			}
 		}
-		if !hasAD {
+		if adExtractFormat == "" {
 			continue
+		}
+		if adExtractFormat == legacyPodAnnotationFormat {
+			log.Warnf("found legacy annotations %s for %s, please use the new prefix %s",
+				legacyPodAnnotationPrefix, pod.Metadata.Name, newPodAnnotationPrefix)
 		}
 
 		for _, container := range pod.Status.Containers {
 			c, err := extractTemplatesFromMap(container.ID, pod.Metadata.Annotations,
-				fmt.Sprintf(podAnnotationFormat, container.Name))
+				fmt.Sprintf(adExtractFormat, container.Name))
 			switch {
 			case err != nil:
 				log.Errorf("Can't parse template for pod %s: %s", pod.Metadata.Name, err)

@@ -17,6 +17,7 @@ open an issue or submit a Pull Request.
 * [Python Modules](#python-modules)
 * [Docker](#docker-check)
 * [Kubernetes](#kubernetes-support)
+* [Autodiscovery](#autodiscovery)
 * [JMX](#jmx)
 * [GUI](#gui)
 
@@ -283,6 +284,29 @@ The following options and tags are deprecated:
 
 The `kube_service` tagging depends on the `Datadog Cluster Agent`, which is not released yet.
 
+## Autodiscovery
+
+We reworked the [Autodiscovery](https://docs.datadoghq.com/agent/autodiscovery/) system from the ground up to be faster and more reliable.
+We also worked on decoupling container runtimes and orchestrators, to be more flexible in the future.
+
+All documented use cases are supported, please contact our support team if you run into issues.
+
+### Kubernetes
+
+When using Kubernetes, the Autodiscovery system now sources information from the kubelet, instead of the Docker daemon. This will allow AD
+to work without access to the Docker socket, and enable a more consistent experience accross all parts of the agent. The side effect of that
+is that templates in Docker labels are not supported when using the kubelet AD listener. Templates in pod annotations still work as intended.
+
+When specifying AD templates in pod annotations, the new annotation name prefix is `ad.datadoghq.com/`. the previous annotation prefix
+`service-discovery.datadoghq.com/` is still supported for Agent6 but support will be removed in Agent7.
+
+### Other orchestrators
+
+Autodiscovery templates in Docker labels still work, with the same `com.datadoghq.ad.` name prefix.
+
+The identifier override label has been renamed from `com.datadoghq.sd.check.id` to `com.datadoghq.ad.check.id` for consistency. The previous
+name is still supported for Agent6 but support will be removed in Agent7.
+
 ## Python Modules
 
 While we are continuing to ship the python libraries that ship with Agent 5,
@@ -309,8 +333,6 @@ The Agent 6 does not ship the `jmxterm` JAR. If you wish to download and use `jm
 ## GUI
 
 Agent 6 deprecated Agent5's Windows Agent Manager GUI, replacing it with a browser-based, cross-platform one. See the [specific docs](gui.md) for more details.
-
-
 
 
 [known-issues]: known_issues.md

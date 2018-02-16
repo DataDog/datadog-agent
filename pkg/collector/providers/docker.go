@@ -129,7 +129,6 @@ func parseDockerLabels(containers map[string]map[string]string) ([]check.Config,
 			continue
 		default:
 			configs = append(configs, c...)
-
 		}
 	}
 	return configs, nil
