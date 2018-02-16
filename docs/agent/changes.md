@@ -201,13 +201,6 @@ to enable listening on the network.
 In the Docker image, the APM agent is disabled by default. You can enable it by setting
 the `DD_APM_ENABLED` envvar to `true`. It will listen to all interfaces by default.
 
-_Optional_: If you need to use apm-specific configuration options (i.e. options that would be
-specified under the `[trace.config]`, `[trace.sampler]` and `[trace.receiver]` in
-the former `datadog.conf` file), specify them in `trace-agent.conf` under the agent's
-configuration directory (`/etc/datadog-agent/` on Linux). This file should be
-INI-formatted, similar to the former `datadog.conf` file. See the `trace-agent.conf.example`
-file for an example configuration file.
-
 We're working on merging these configuration options into the main `datadog.yaml` file.
 
 ## Process agent

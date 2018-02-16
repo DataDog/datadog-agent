@@ -35,6 +35,10 @@ build do
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
 
+            # remove unused configs
+            delete "#{conf_dir}/process.d"
+            delete "#{conf_dir}/apm.yaml.default"
+
             # cleanup clutter
             delete "#{install_dir}/etc"
             delete "#{install_dir}/bin/agent/dist/conf.d"
@@ -55,13 +59,16 @@ build do
             mkdir "/etc/datadog-agent"
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
-            move "#{install_dir}/etc/datadog-agent/trace-agent.conf.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
             mkdir "/etc/datadog-agent/checks.d"
             mkdir "/var/log/datadog"
+
+            # remove unused configs
+            delete "#{conf_dir}/process.d"
+            delete "#{conf_dir}/apm.yaml.default"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
