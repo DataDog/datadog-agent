@@ -29,24 +29,26 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     the values from `invoke.yaml` will be used.
 
     Example invokation:
-        inv agent.build --build-exclude=snmp
+        inv systray.build 
     """
+    
+    if not invoke.platform.WINDOWS:
+        print("Systray only available on Windows")
+        return
 
-    if invoke.platform.WINDOWS:
+    # This generates the manifest resource. The manifest resource is necessary for
+    # being able to load the ancient C-runtime that comes along with Python 2.7
+    #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
+    ver = get_version_numeric_only(ctx)
+    build_maj, build_min, build_patch = ver.split(".")
 
-        # This generates the manifest resource. The manifest resource is necessary for
-        # being able to load the ancient C-runtime that comes along with Python 2.7
-        #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
-        ver = get_version_numeric_only(ctx)
-        build_maj, build_min, build_patch = ver.split(".")
-
-        command = "windres -v --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
-            build_maj=build_maj,
-            build_min=build_min,
-            build_patch=build_patch
-        )
-        command += "-i cmd/systray/systray.rc --target=pe-x86-64 -O coff -o cmd/systray/rsrc.syso"
-        ctx.run(command)
+    command = "windres -v --define MAJ_VER={build_maj} --define MIN_VER={build_min} --define PATCH_VER={build_patch} ".format(
+        build_maj=build_maj,
+        build_min=build_min,
+        build_patch=build_patch
+    )
+    command += "-i cmd/systray/systray.rc --target=pe-x86-64 -O coff -o cmd/systray/rsrc.syso"
+    ctx.run(command)
 
     ldflags = "-s -w -linkmode external -extldflags '-Wl,--subsystem,windows' "
     cmd = "go build {race_opt} {build_type} -o {agent_bin} -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/systray"
@@ -65,7 +67,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
         puppy=False, skip_build=False):
     """
-    Execute the agent binary.
+    Execute the systray binary.
 
     By default it builds the agent before executing it, unless --skip-build was
     passed. It accepts the same set of options as agent.build.
@@ -73,15 +75,8 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
     if not skip_build:
         build(ctx, rebuild, race, build_include, build_exclude, puppy)
 
-    ctx.run(os.path.join(BIN_PATH, bin_name("agent")))
+    ctx.run(os.path.join(BIN_PATH, bin_name("ddtray.exe")))
 
-
-@task
-def system_tests(ctx):
-    """
-    Run the system testsuite.
-    """
-    pass
 
 @task
 def clean(ctx):
@@ -93,5 +88,5 @@ def clean(ctx):
     ctx.run("go clean")
 
     # remove the bin/agent folder
-    print("Remove agent binary folder")
-    ctx.run("rm -rf ./bin/agent")
+    print("Remove systray executable")
+    ctx.run("rm -rf ./bin/agent/ddtray.exe")
