@@ -32,7 +32,7 @@ var (
 
 func init() {
 	enableLoggingToFile()
-	av, _ := version.New(version.AgentVersion)
+	av, _ := version.New(version.AgentVersion, version.Commit)
 	verstring := av.GetNumberAndPre()
 
 	menuitems = make([]menuItem, 0)
