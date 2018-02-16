@@ -18,7 +18,7 @@ from .go import deps
 
 #constants
 BIN_PATH = os.path.join(".", "bin", "agent")
-AGENT_TAG = "datadog/agent:master"
+AGENT_TAG = "datadog/agent-dev:master"
 DEFAULT_BUILD_TAGS = [
     "apm",
     "consul",
