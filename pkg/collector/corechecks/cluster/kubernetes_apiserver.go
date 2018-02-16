@@ -167,7 +167,7 @@ func (k *KubeASCheck) runLeaderElection() error {
 func (k *KubeASCheck) eventCollectionInit() {
 	if k.latestEventToken == "" {
 		// Initialization: Checking if we previously stored the latestEventToken in a configMap
-		tokenValue, found, err := k.ac.GetTokenFromConfigmap(eventTokenKey, 120)
+		tokenValue, found, err := k.ac.GetTokenFromConfigmap(eventTokenKey, 600)
 		switch {
 		case err == apiserver.ErrOutdated:
 			k.configMapAvailable = found
