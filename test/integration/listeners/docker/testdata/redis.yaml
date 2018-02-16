@@ -5,4 +5,4 @@ services:
   redis-with-id:
     image: "datadog/docker-library:redis_3_2_11-alpine"
     labels:
-      io.datadog.check.id: "custom-id"
+      com.datadoghq.ad.check.id: "custom-id"

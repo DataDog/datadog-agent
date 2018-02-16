@@ -6,27 +6,30 @@
 package listeners
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
 const (
-	identifierLabel string = "io.datadog.check.id"
+	newIdentifierLabel    = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel = "com.datadoghq.sd.check.id"
 )
 
 // ComputeContainerServiceIDs takes a container ID, an image (resolved to an actual name) and labels
 // and computes the service IDs for this container service.
 func ComputeContainerServiceIDs(cid string, image string, labels map[string]string) []string {
-	ids := []string{}
-
 	// check for an identifier label
-	for l, v := range labels {
-		if l == identifierLabel {
-			ids = append(ids, v)
-			// Let's not return the image name if we find the label
-			return ids
-		}
+	if l, found := labels[newIdentifierLabel]; found {
+		return []string{l}
 	}
+	if l, found := labels[legacyIdentifierLabel]; found {
+		log.Warnf("found legacy %s label for %s, please use the new name %s",
+			legacyIdentifierLabel, cid, newIdentifierLabel)
+		return []string{l}
+	}
+
+	var ids []string
 
 	// add the container ID for templates in labels/annotations
 	ids = append(ids, docker.ContainerIDToEntityName(cid))
