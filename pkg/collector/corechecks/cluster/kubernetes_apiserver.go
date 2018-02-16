@@ -207,7 +207,7 @@ func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 			return nil, nil, nil
 		}
 		// There was a protobuf error and new events were submitted. Processing them and updating the resVersion.
-		k.latestEventToken = versionToken
+		//k.latestEventToken = versionToken
 	}
 
 	// We check that the resversion gotten from the API Server is more recent than the one cached in the util.
