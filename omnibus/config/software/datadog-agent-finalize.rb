@@ -36,7 +36,6 @@ build do
             delete "#{conf_dir}/load.d"
 
             # remove unused configs
-            delete "#{conf_dir}/process.d"
             delete "#{conf_dir}/apm.yaml.default"
 
             # cleanup clutter
@@ -67,7 +66,6 @@ build do
             mkdir "/var/log/datadog"
 
             # remove unused configs
-            delete "#{conf_dir}/process.d"
             delete "#{conf_dir}/apm.yaml.default"
 
             # cleanup clutter

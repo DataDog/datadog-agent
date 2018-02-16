@@ -193,15 +193,18 @@ gauge(self, name, value, tags=None, hostname=None, device_name=None)
 The APM agent (also known as _trace agent_) is shipped by default with the
 Agent 6 in the Linux, MacOS and Windows packages.
 
-Similar to the Agent 5, the APM agent is enabled by default. To disable it, set
-`apm_enabled` to `false` in the main agent configuration (`datadog.yaml`). It only
-listens to localhost by default. You can set `apm_config.apm_non_local_traffic = true`
+The process agent is not enabled by default. To enable the check you can update your `datadog.yaml` file to add the following:
+
+```
+apm_config:
+  enabled: true
+```
+
+It only listens to localhost by default. You can set `apm_config.apm_non_local_traffic = true`
 to enable listening on the network.
 
 In the Docker image, the APM agent is disabled by default. You can enable it by setting
 the `DD_APM_ENABLED` envvar to `true`. It will listen to all interfaces by default.
-
-We're working on merging these configuration options into the main `datadog.yaml` file.
 
 ## Process agent
 
