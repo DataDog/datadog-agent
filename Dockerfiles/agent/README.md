@@ -26,7 +26,7 @@ The agent is highly customizable, here are the most used environment variables:
 
 #### Optional collection agents
 
-These features are disabled by default, you can choose to enable them:
+These features are disabled by default for security or performance reasons, you need to explicitly enable them:
 
 - `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
 - `DD_LOGS_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
