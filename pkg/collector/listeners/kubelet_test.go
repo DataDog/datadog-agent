@@ -10,8 +10,9 @@ package listeners
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 func getMockedPod() *kubelet.Pod {
@@ -46,6 +47,18 @@ func getMockedPod() *kubelet.Pod {
 				},
 			},
 		},
+		{
+			Name:  "baz",
+			Image: "datadoghq.com/baz:latest",
+			Ports: []kubelet.ContainerPortSpec{
+				{
+					ContainerPort: 1122,
+					HostPort:      1133,
+					Name:          "barport",
+					Protocol:      "TCP",
+				},
+			},
+		},
 	}
 	kubeletSpec := kubelet.Spec{
 		HostNetwork: false,
@@ -63,6 +76,11 @@ func getMockedPod() *kubelet.Pod {
 			Image: "datadoghq.com/bar:latest",
 			ID:    "rkt://bar-random-hash",
 		},
+		{
+			Name:  "baz",
+			Image: "datadoghq.com/baz:latest",
+			ID:    "docker://containerid",
+		},
 	}
 	kubeletStatus := kubelet.Status{
 		Phase:      "Running",
@@ -75,12 +93,15 @@ func getMockedPod() *kubelet.Pod {
 		Status: kubeletStatus,
 		Metadata: kubelet.PodMetadata{
 			Name: "mock-pod",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/baz.instances": "[]",
+			},
 		},
 	}
 }
 
 func TestProcessNewPod(t *testing.T) {
-	services := make(chan Service, 2)
+	services := make(chan Service, 3)
 	listener := KubeletListener{
 		newService: services,
 		services:   make(map[ID]Service),
@@ -111,6 +132,24 @@ func TestProcessNewPod(t *testing.T) {
 		adIdentifiers, err := service.GetADIdentifiers()
 		assert.Nil(t, err)
 		assert.Equal(t, []string{"rkt://bar-random-hash", "datadoghq.com/bar:latest", "bar"}, adIdentifiers)
+		hosts, err := service.GetHosts()
+		assert.Nil(t, err)
+		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)
+		ports, err := service.GetPorts()
+		assert.Nil(t, err)
+		assert.Equal(t, []int{1122}, ports)
+		_, err = service.GetPid()
+		assert.Equal(t, ErrNotSupported, err)
+	default:
+		t.FailNow()
+	}
+
+	select {
+	case service := <-services:
+		assert.Equal(t, "docker://containerid", string(service.GetID()))
+		adIdentifiers, err := service.GetADIdentifiers()
+		assert.Nil(t, err)
+		assert.Equal(t, []string{"docker://containerid"}, adIdentifiers)
 		hosts, err := service.GetHosts()
 		assert.Nil(t, err)
 		assert.Equal(t, map[string]string{"pod": "127.0.0.1"}, hosts)

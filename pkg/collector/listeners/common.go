@@ -12,14 +12,15 @@ import (
 )
 
 const (
-	newIdentifierLabel    = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel = "com.datadoghq.sd.check.id"
+	newIdentifierLabel        = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel     = "com.datadoghq.sd.check.id"
+	dockerADTemplateLabelName = "com.datadoghq.ad.instances"
 )
 
 // ComputeContainerServiceIDs takes a container ID, an image (resolved to an actual name) and labels
 // and computes the service IDs for this container service.
 func ComputeContainerServiceIDs(cid string, image string, labels map[string]string) []string {
-	// check for an identifier label
+	// ID override label
 	if l, found := labels[newIdentifierLabel]; found {
 		return []string{l}
 	}
@@ -29,12 +30,14 @@ func ComputeContainerServiceIDs(cid string, image string, labels map[string]stri
 		return []string{l}
 	}
 
-	var ids []string
+	ids := []string{docker.ContainerIDToEntityName(cid)}
 
-	// add the container ID for templates in labels/annotations
-	ids = append(ids, docker.ContainerIDToEntityName(cid))
+	// AD template in labels, don't add image names
+	if _, found := labels[dockerADTemplateLabelName]; found {
+		return ids
+	}
 
-	// add the image names (long then short if different)
+	// Add Image names (long then short if different)
 	long, short, _, err := docker.SplitImageName(image)
 	if err != nil {
 		log.Warnf("error while spliting image name: %s", err)
@@ -45,6 +48,5 @@ func ComputeContainerServiceIDs(cid string, image string, labels map[string]stri
 	if len(short) > 0 && short != long {
 		ids = append(ids, short)
 	}
-
 	return ids
 }
