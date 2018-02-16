@@ -167,7 +167,7 @@ func (k *KubeASCheck) startLeaderElection() error {
 func (k *KubeASCheck) eventCollectionInit() {
 	if k.latestEventToken == "" {
 		// Initialization: Checking if we previously stored the latestEventToken in a configMap
-		tokenValue, found, err := k.ac.GetTokenFromConfigmap(eventTokenKey, 60)
+		tokenValue, found, err := k.ac.GetTokenFromConfigmap(eventTokenKey, 120)
 		switch {
 		case err == apiserver.ErrOutdated:
 			k.configMapAvailable = found
@@ -201,7 +201,7 @@ func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 			k.Warnf("Could not collect cached events from the api server: %s", err.Error())
 			return nil, nil, err
 		}
-		log.Tracef("versionToken %s, nevents %q and mevents %q", versionToken, newEvents, modifiedEvents)
+
 		if k.latestEventToken == versionToken {
 			// No new events but protobuf error was caught. Will retry at next run.
 			return nil, nil, nil
@@ -214,7 +214,7 @@ func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 	if len(newEvents)+len(modifiedEvents) == 0 {
 		return nil, nil, nil
 	}
-	log.Tracef("processed versionToken %s, nevents %q and mevents %q", versionToken, newEvents, modifiedEvents)
+
 	k.latestEventToken = versionToken
 	if k.configMapAvailable {
 		configMapErr := k.ac.UpdateTokenInConfigmap(eventTokenKey, versionToken)
@@ -222,7 +222,6 @@ func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 			k.Warnf("Could not store the LastEventToken in the ConfigMap: %s", configMapErr.Error())
 		}
 	}
-	log.Tracef("Token %s", k.latestEventToken)
 
 	return newEvents, modifiedEvents, nil
 }
