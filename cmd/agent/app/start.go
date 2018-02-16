@@ -7,6 +7,7 @@ package app
 
 import (
 	"fmt"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -281,7 +282,7 @@ func setupMetadataCollection(s *serializer.Serializer, hostname string) error {
 	if err != nil {
 		return log.Error("Agent Checks metadata is supposed to be always available in the catalog!")
 	}
-	if addDefaultResourcesCollector {
+	if addDefaultResourcesCollector && runtime.GOOS == "linux" {
 		err = common.MetadataScheduler.AddCollector("resources", defaultResourcesMetadataCollectorInterval*time.Second)
 		if err != nil {
 			log.Warn("Could not add resources metadata provider: ", err)
