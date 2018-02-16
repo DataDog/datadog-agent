@@ -80,7 +80,7 @@ func (k *KubeASCheck) Run() error {
 		k.Warn("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
-	err = k.startLeaderElection()
+	err = k.runLeaderElection()
 	if err != nil {
 		return err
 	}
@@ -143,7 +143,7 @@ func KubernetesASFactory() check.Check {
 	}
 }
 
-func (k *KubeASCheck) startLeaderElection() error {
+func (k *KubeASCheck) runLeaderElection() error {
 
 	leaderEngine, err := leaderelection.GetLeaderEngine()
 	if err != nil {
@@ -159,7 +159,7 @@ func (k *KubeASCheck) startLeaderElection() error {
 
 	if !leaderEngine.IsLeader() {
 		log.Debugf("Leader is %q. %s will not run Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName(), leaderEngine.HolderIdentity)
-		return nil
+		return apiserver.ErrNotLeader
 	}
 	log.Tracef("Currently Leader %q, running Kubernetes cluster related checks and collecting events", leaderEngine.CurrentLeaderName())
 	return nil
