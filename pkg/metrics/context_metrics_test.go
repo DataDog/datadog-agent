@@ -59,11 +59,13 @@ func TestContextMetricsGaugeSamplingNoSample(t *testing.T) {
 	assert.Equal(t, 0, len(series))
 }
 
-// No series should be flushed when the samples have values of +Inf/-Inf
-func TestContextMetricsGaugeSamplingInfinity(t *testing.T) {
+// Samples with values of +Inf/-Inf/NaN should be ignored
+func TestContextMetricsGaugeSamplingInvalidSamples(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey1, _ := ckey.Parse("aaffffffffffffffffffffffffffffff")
 	contextKey2, _ := ckey.Parse("bbffffffffffffffffffffffffffffff")
+
+	// +/-Inf
 	mSample1 := MetricSample{
 		Value: math.Inf(1),
 		Mtype: GaugeType,
@@ -75,9 +77,33 @@ func TestContextMetricsGaugeSamplingInfinity(t *testing.T) {
 
 	metrics.AddSample(contextKey1, &mSample1, 1, 10)
 	metrics.AddSample(contextKey2, &mSample2, 1, 10)
-	series := metrics.Flush(12345)
-
+	series := metrics.Flush(20)
 	assert.Equal(t, 0, len(series))
+
+	// NaN
+	mSample3 := MetricSample{
+		Value: math.NaN(),
+		Mtype: GaugeType,
+	}
+	metrics.AddSample(contextKey1, &mSample3, 1, 30)
+	series = metrics.Flush(40)
+	assert.Equal(t, 0, len(series))
+
+	// Regular value, should flush a series
+	mSample4 := MetricSample{
+		Value: 1,
+		Mtype: GaugeType,
+	}
+	metrics.AddSample(contextKey1, &mSample4, 1, 50)
+	series = metrics.Flush(60)
+	expectedSerie := &Serie{
+		ContextKey: contextKey1,
+		Points:     []Point{{60., 1.}},
+		MType:      APIGaugeType,
+		NameSuffix: "",
+	}
+	require.Equal(t, 1, len(series))
+	AssertSerieEqual(t, expectedSerie, series[0])
 }
 
 // No series should be flushed when the rate has been sampled only once overall

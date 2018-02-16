@@ -39,13 +39,14 @@ func TestContextSketchSampling(t *testing.T) {
 	assert.Equal(t, 0, len(resultSeries))
 }
 
-// The sketches ignore sample values of +Inf/-Inf
+// The sketches ignore sample values of +Inf/-Inf/NaN
 func TestContextSketchSamplingInfinity(t *testing.T) {
 	ctxSketch := MakeContextSketch()
 	contextKey, _ := ckey.Parse("ffffffffffffffffffffffffffffffff")
 
 	ctxSketch.AddSample(contextKey, &MetricSample{Value: math.Inf(1), Mtype: DistributionType}, 1, 10)
 	ctxSketch.AddSample(contextKey, &MetricSample{Value: math.Inf(-1), Mtype: DistributionType}, 2, 10)
+	ctxSketch.AddSample(contextKey, &MetricSample{Value: math.NaN(), Mtype: DistributionType}, 3, 10)
 	resultSeries := ctxSketch.Flush(12345.0)
 
 	assert.Equal(t, 0, len(resultSeries))
