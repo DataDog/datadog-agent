@@ -95,7 +95,7 @@ func (s *Scheduler) Cancel(id check.ID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	log.Infof("Uncheduling check %v ", check.IDToCheckName(id))
+	log.Infof("Unscheduling check %v ", check.IDToCheckName(id))
 
 	if _, ok := s.checkToQueue[id]; !ok {
 		return nil
