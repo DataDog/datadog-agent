@@ -27,7 +27,7 @@ func MakeContextMetrics() ContextMetrics {
 // TODO: Pass a reference to *MetricSample instead
 func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSample, timestamp float64, interval int64) {
 	if math.IsInf(sample.Value, 0) || math.IsNaN(sample.Value) {
-		log.Warn("Ignoring sample with ", sample.Value, " value on context key:", contextKey)
+		log.Debug("Ignoring sample with ", sample.Value, " value on context key:", contextKey)
 		return
 	}
 	if _, ok := m[contextKey]; !ok {

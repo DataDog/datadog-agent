@@ -30,7 +30,7 @@ func MakeContextSketch() ContextSketch {
 // AddSample adds a sample to the ContextSketch
 func (c ContextSketch) AddSample(contextKey ckey.ContextKey, sample *MetricSample, timestamp float64, interval int64) {
 	if math.IsInf(sample.Value, 0) || math.IsNaN(sample.Value) {
-		log.Warn("Ignoring sample with ", sample.Value, " value on context key:", contextKey)
+		log.Debug("Ignoring sample with ", sample.Value, " value on context key:", contextKey)
 		return
 	}
 	if _, ok := c[contextKey]; !ok {
