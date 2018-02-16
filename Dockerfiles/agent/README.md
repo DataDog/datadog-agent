@@ -30,7 +30,7 @@ The agent is highly customizable, here are the most used environment variables:
 
 - `DD_APM_ENABLED`: run the trace-agent along with the infrastructure agent, allowing the container to accept traces on 8126/tcp
 - `DD_PROCESS_AGENT_ENABLED`: run the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/) along with the infrastructure agent, feeding data to the Live Process View and Live Containers View
-- `DD_LOGS_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. See below for details
+- `DD_LOGS_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. [See below for details](#log-collection)
 
 ##### Dogstatsd (custom metrics)
 
