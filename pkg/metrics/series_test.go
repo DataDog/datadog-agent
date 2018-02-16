@@ -51,18 +51,47 @@ func TestMarshalSeries(t *testing.T) {
 }
 
 func TestPopulateDeviceField(t *testing.T) {
+	tags := [][]string{
+		{},
+		{"some:tag", "device:/dev/sda1"},
+		{"some:tag", "device:/dev/sda2", "some_other:tag"},
+		{"yet_another:value", "one_last:tag_value"},
+	}
 	series := Series{
 		&Serie{},
 		&Serie{
-			Tags: []string{"some:tag", "device:/dev/sda1"},
+			Tags: tags[1],
 		},
 		&Serie{
-			Tags: []string{"some:tag", "device:/dev/sda2", "some_other:tag"},
+			Tags: tags[2],
 		},
 		&Serie{
-			Tags: []string{"yet_another:value", "one_last:tag_value"},
+			Tags: tags[3],
 		}}
 
+	populateDeviceField(series)
+
+	require.Len(t, series, 4)
+	assert.Empty(t, series[0].Tags)
+	assert.Empty(t, series[0].Device)
+	assert.Equal(t, series[1].Tags, []string{"some:tag"})
+	assert.Equal(t, series[1].Device, "/dev/sda1")
+	assert.Equal(t, series[2].Tags, []string{"some:tag", "some_other:tag"})
+	assert.Equal(t, series[2].Device, "/dev/sda2")
+	assert.Equal(t, series[3].Tags, []string{"yet_another:value", "one_last:tag_value"})
+	assert.Empty(t, series[3].Device)
+
+	series = Series{
+		&Serie{},
+		&Serie{
+			Tags: tags[1],
+		},
+		&Serie{
+			Tags: tags[2],
+		},
+		&Serie{
+			Tags: tags[3],
+		}}
 	populateDeviceField(series)
 
 	require.Len(t, series, 4)
