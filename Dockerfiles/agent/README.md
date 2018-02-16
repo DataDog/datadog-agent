@@ -132,7 +132,7 @@ You will need to allow the agent to be allowed to perform a few actions:
 - `get`, `update` and `create` for the `Endpoint`. The Endpoint used by the agent for the [Leader election](#leader-election) feature is named `datadog-leader-election`.
 - `list` the `componentstatuses` resource, in order to submit service checks for the Controle Plane's components status.
 
-You can find the templates in manifests/rbac.
+You can find the templates in manifests/rbac [here](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests/rbac).
 This will create the Service Account in the default namespace, a Cluster Role with the above rights and the Cluster Role Binding.
 
 ## Log collection
