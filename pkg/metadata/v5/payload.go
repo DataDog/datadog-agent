@@ -14,19 +14,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
 )
 
-// CommonPayload wraps Payload from the `common` package
+// CommonPayload wraps Payload from the common package
 type CommonPayload struct {
 	common.Payload
 }
 
-// HostPayload wraps Payload from the `host` package
+// HostPayload wraps Payload from the host package
 type HostPayload struct {
 	host.Payload
 }
 
-// ResourcesPayload wraps Payload from the `resources` package
+// ResourcesPayload wraps Payload from the resources package
 type ResourcesPayload struct {
-	resources.Payload `json:"resources"`
+	resources.Payload `json:"resources,omitempty"`
 }
 
 // MarshalJSON serialization a Payload to JSON
