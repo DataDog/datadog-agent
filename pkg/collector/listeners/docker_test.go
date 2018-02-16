@@ -77,6 +77,14 @@ func TestGetConfigIDFromPs(t *testing.T) {
 	}
 	ids = dl.getConfigIDFromPs(doubleCo)
 	assert.Equal(t, []string{"new"}, ids)
+
+	templatedCo := types.Container{
+		ID:     "deadbeef",
+		Image:  "org/test",
+		Labels: map[string]string{"com.datadoghq.ad.instances": "[]]"},
+	}
+	ids = dl.getConfigIDFromPs(templatedCo)
+	assert.Equal(t, []string{"docker://deadbeef"}, ids)
 }
 
 func TestGetHostsFromPs(t *testing.T) {

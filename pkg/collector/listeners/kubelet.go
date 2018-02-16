@@ -21,6 +21,11 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+const (
+	newPodAnnotationFormat    = "ad.datadoghq.com/%s.instances"
+	legacyPodAnnotationFormat = "service-discovery.datadoghq.com/%s.instances"
+)
+
 // KubeletListener listen to kubelet pod creation
 type KubeletListener struct {
 	watcher    *kubelet.PodWatcher
@@ -119,7 +124,18 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 	var containerName string
 	for _, container := range pod.Status.Containers {
 		if container.ID == string(svc.ID) {
-			svc.ADIdentifiers = append(svc.ADIdentifiers, container.ID, container.Image)
+			containerName = container.Name
+
+			// Add container uid as ID
+			svc.ADIdentifiers = append(svc.ADIdentifiers, container.ID)
+
+			// Stop here if we find an AD template annotation
+			if podHasADTemplate(pod.Metadata.Annotations, containerName) {
+				break
+			}
+
+			// Add other identifiers if no template found
+			svc.ADIdentifiers = append(svc.ADIdentifiers, container.Image)
 			_, short, _, err := docker.SplitImageName(container.Image)
 			if err != nil {
 				log.Warnf("Error while spliting image name: %s", err)
@@ -127,7 +143,6 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 			if len(short) > 0 && short != container.Image {
 				svc.ADIdentifiers = append(svc.ADIdentifiers, short)
 			}
-			containerName = container.Name
 			break
 		}
 	}
@@ -160,6 +175,19 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 	l.m.Unlock()
 
 	l.newService <- &svc
+}
+
+// podHasADTemplate looks in pod annotations and looks for annotations containing an
+// AD template. It does not try to validate it, just having the `instance` fields is
+// OK to return true.
+func podHasADTemplate(annotations map[string]string, containerName string) bool {
+	if _, found := annotations[fmt.Sprintf(newPodAnnotationFormat, containerName)]; found {
+		return true
+	}
+	if _, found := annotations[fmt.Sprintf(legacyPodAnnotationFormat, containerName)]; found {
+		return true
+	}
+	return false
 }
 
 func (l *KubeletListener) removeService(cID ID) {
