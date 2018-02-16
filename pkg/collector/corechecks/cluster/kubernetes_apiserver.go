@@ -196,7 +196,7 @@ func (k *KubeASCheck) eventCollectionCheck() ([]*v1.Event, []*v1.Event, error) {
 
 	if versionToken == "0" {
 		// API server cache expired or no recent events to process. Resetting the Resversion token.
-		newEvents, modifiedEvents, versionToken, err = k.ac.LatestEvents("0")
+		_, _, versionToken, err = k.ac.LatestEvents("0")
 		if err != nil {
 			k.Warnf("Could not collect cached events from the api server: %s", err.Error())
 			return nil, nil, err
