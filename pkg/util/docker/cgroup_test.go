@@ -272,8 +272,12 @@ func TestParseCgroupPaths(t *testing.T) {
 				"11:net_cls:/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/47fc31db38b4fa0f4db44b99d0cad10e3cd4d5f142135a7721c1c95c1aadfb2e",
 				"9:cpu,cpuacct:/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/47fc31db38b4fa0f4db44b99d0cad10e3cd4d5f142135a7721c1c95c1aadfb2e",
 			},
-			expectedContainer: "",
-			expectedPaths:     nil,
+			expectedContainer: "47fc31db38b4fa0f4db44b99d0cad10e3cd4d5f142135a7721c1c95c1aadfb2e",
+			expectedPaths: map[string]string{
+				"net_cls": "/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/47fc31db38b4fa0f4db44b99d0cad10e3cd4d5f142135a7721c1c95c1aadfb2e",
+				"cpu":     "/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/47fc31db38b4fa0f4db44b99d0cad10e3cd4d5f142135a7721c1c95c1aadfb2e",
+				"cpuacct": "/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/47fc31db38b4fa0f4db44b99d0cad10e3cd4d5f142135a7721c1c95c1aadfb2e",
+			},
 		},
 		{
 			contents: []string{
@@ -314,6 +318,25 @@ func TestParseCgroupPaths(t *testing.T) {
 				"kube1.7":    "/kubepods/besteffort/pod2baa3444-4d37-11e7-bd2f-080027d2bf10/a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419",
 				"coreos_7xx": "/system.slice/docker-a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
 				"legacy":     "a27f1331f6ddf72629811aac65207949fc858ea90100c438768b531a4c540419.scope",
+			},
+		},
+		{
+			// Make sure parsing works even if we have some invalid cases
+			contents: []string{
+				"12:rdma:/",
+				"11:devices:/docker/9d76460be0e91bb0dd495e2ddcfa10db40c1ef0c1dbdb6a447a4974a9b58576e",
+				"10:cpu,cpuacct:/docker/9d76460be0e91bb0dd495e2ddcfa10db40c1ef0c1dbdb6a447a4974a9b58576e",
+				"9:freezer:/docker/9d76460be0e91bb0dd495e2ddcfa10db40c1ef0c1dbdb6a447a4974a9b58576e",
+				"8:foo:/",
+				"7:cpuset:/docker/9d76460be0e91bb0dd495e2ddcfa10db40c1ef0c1dbdb6a447a4974a9b58576e",
+			},
+			expectedContainer: "9d76460be0e91bb0dd495e2ddcfa10db40c1ef0c1dbdb6a447a4974a9b58576e",
+			expectedPaths: map[string]string{
+				"devices": "/docker/9d76460be0e91bb0dd495e2ddcfa10db40c1ef0c1dbdb6a447a4974a9b58576e",
+				"cpu":     "/docker/9d76460be0e91bb0dd495e2ddcfa10db40c1ef0c1dbdb6a447a4974a9b58576e",
+				"cpuacct": "/docker/9d76460be0e91bb0dd495e2ddcfa10db40c1ef0c1dbdb6a447a4974a9b58576e",
+				"freezer": "/docker/9d76460be0e91bb0dd495e2ddcfa10db40c1ef0c1dbdb6a447a4974a9b58576e",
+				"cpuset":  "/docker/9d76460be0e91bb0dd495e2ddcfa10db40c1ef0c1dbdb6a447a4974a9b58576e",
 			},
 		},
 	} {

@@ -577,13 +577,11 @@ func parseCgroupPaths(r io.Reader) (string, map[string]string, error) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		l := scanner.Text()
-		if containerID == "" {
-			// Check if this process running inside a container.
-			containerID, ok = containerIDFromCgroup(l)
-			if !ok {
-				log.Debugf("could not parse container id from path '%s'", l)
-				return "", nil, nil
-			}
+		// Check if this process running inside a container.
+		containerID, ok = containerIDFromCgroup(l)
+		if !ok {
+			log.Debugf("could not parse container id from path '%s'", l)
+			continue
 		}
 
 		sp := strings.SplitN(l, ":", 3)
