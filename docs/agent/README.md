@@ -31,6 +31,19 @@ way you can configure the Agent changed too, please read [this document][config]
 where all the new options are detailed. The latest Agent won't have feature parity
 with the previous one at first, you can see the list of what's missing [here][missing-features].
 
+## Systems
+
+We do not yet build packages for the full gamut of systems that Agent 5 targets.
+While some will be dropped as unsupported, others are simply not yet supported.
+Agent 6 is currently available on these platforms:
+
+* Debian x86_64 version 7 (wheezy) and above (we do not support SysVinit)
+* Ubuntu x86_64 version 12.04 and above
+* RedHat/CentOS x86_64 version 6 and above
+* SUSE Enterprise Linux x86_64 version 11 SP4 and above (we do not support SysVinit)
+* MacOS 10.10 and above
+* Windows Server 64-bit 2008 R2 and above
+
 
 [changes]: changes.md
 [config]: config.md

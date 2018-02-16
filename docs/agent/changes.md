@@ -26,8 +26,10 @@ Prior releases of Datadog Agent stored configuration files in `/etc/dd-agent`.
 Starting with the 6.0 release configuration files will now be stored in
 `/etc/datadog-agent`.
 
+### Agent configuration file
+
 In addition to the location change, the primary agent configuration file has been
-transitioned from INI format to YAML to better support complex configurations and
+transitioned from **INI** format to **YAML** to better support complex configurations and
 for a more consistent experience across the Agent and the Checks; as such `datadog.conf`
 is now retired in favor of `datadog.yaml`.
 
@@ -37,9 +39,34 @@ The command will parse an existing `datadog.conf` and convert all the bits that
 the new Agent still supports to the new format, in the new file. It also copies
 configuration files for checks that are currently enabled.
 
-Please refer to [this section][config] of the Beta documentation for a detailed
-list of the configuration options that were either changed or deprecated in the
-new Agent.
+Please refer to [this section][config] of the documentation for a detailed list
+of the configuration options that were either changed or deprecated in the new Agent.
+
+### Checks configuration files
+
+In order to provide a more flexible way to define the configuration for a check,
+from version 6.0.0 the Agent will load any valid YAML file contained in the folder
+`/etc/datadog-agent/conf.d/<check_name>.d/`.
+
+This way, complex configurations can be broken down into multiple files: for example,
+a configuration for the `http_check` might look like this:
+```
+/etc/datadog-agent/conf.d/http_check.d/
+├── backend.yaml
+└── frontend.yaml
+```
+
+Autodiscovery template files will be stored in the configuration folder as well,
+for example this is how the `redisdb` check configuration folder looks like:
+```
+/etc/datadog-agent/conf.d/redisdb.d/
+├── auto_conf.yaml
+└── conf.yaml.example
+```
+
+To keep backwards compatibility, the Agent will still pick up configuration files
+in the form `/etc/datadog-agent/conf.d/<check_name>.yaml` but migrating to the
+new layout is strongly recommended.
 
 ## CLI
 
@@ -99,7 +126,7 @@ The agent has a new set of command-line options:
 | version         | Print the version info |
 
 #### Gui
-* The browser session must be restarted each time the Agent service is restarted.  This will be fixed in an upcoming beta.
+* The browser session must be restarted each time the Agent service is restarted. This will be fixed in an upcoming release.
 
 ### MacOS
 
@@ -131,7 +158,7 @@ Prior releases were logging to multiple files in that directory (`collector.log`
 
 ### Custom check precedence
 
-Starting from beta version `6.0.0-beta.9` and going forward, the order of precedence between custom
+Starting from version `6.0.0-beta.9` and going forward, the order of precedence between custom
 checks (i.e. checks in the `/etc/datadog-agent/checks.d/` folder by default on Linux) and the checks shipped
 with the Agent by default (i.e. checks from [`integrations-core`][integrations-core]) has changed: the
 `integrations-core` checks now have precedence over custom checks.
