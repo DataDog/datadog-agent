@@ -35,9 +35,6 @@ build do
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
 
-            # remove unused configs
-            delete "#{conf_dir}/apm.yaml.default"
-
             # cleanup clutter
             delete "#{install_dir}/etc"
             delete "#{install_dir}/bin/agent/dist/conf.d"
@@ -66,7 +63,7 @@ build do
             mkdir "/var/log/datadog"
 
             # remove unused configs
-            delete "/etc/datadog-agent/apm.yaml.default"
+            delete "/etc/datadog-agent/conf.d/apm.yaml.default"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
