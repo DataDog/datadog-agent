@@ -66,7 +66,7 @@ build do
             mkdir "/var/log/datadog"
 
             # remove unused configs
-            delete "#{conf_dir}/apm.yaml.default"
+            delete "/etc/datadog-agent/apm.yaml.default"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
