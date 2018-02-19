@@ -8,12 +8,9 @@ package app
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
+
 	log "github.com/cihub/seelog"
-	"github.com/go-ini/ini"
 	"golang.org/x/sys/windows/svc/mgr"
-	"path/filepath"
 )
 
 type serviceInitFunc func() (err error)
@@ -30,7 +27,7 @@ type Servicedef struct {
 var subservices = []Servicedef{
 	{
 		name:        "apm",
-		configKey:   "apm_enabled",
+		configKey:   "apm_config.enabled",
 		serviceName: "datadog-trace-agent",
 		serviceInit: apmInit,
 	},
@@ -42,25 +39,8 @@ var subservices = []Servicedef{
 	}}
 
 func apmInit() error {
-	traceAgentConfPath := filepath.Join(common.DefaultConfPath, "trace-agent.conf")
-	iniFile, err := ini.Load(traceAgentConfPath)
-	if err != nil {
-		log.Warnf("Failed to load APM config file, creating")
-		iniFile = ini.Empty()
-	}
-	// this will create the section if it's not there
-	main := iniFile.Section("Main")
-	k, err := main.GetKey("api_key")
-	if err != nil {
-		log.Warnf("API key not found in trace-agent.conf, adding")
-		main.NewKey("api_key", config.Datadog.GetString("api_key"))
-		err = iniFile.SaveTo(traceAgentConfPath)
-	} else if k.Value() == "" {
-		log.Warnf("API key not found in trace-agent.conf, adding")
-		main.NewKey("api_key", config.Datadog.GetString("api_key"))
-		err = iniFile.SaveTo(traceAgentConfPath)
-	}
-	return err
+
+	return nil
 
 }
 
