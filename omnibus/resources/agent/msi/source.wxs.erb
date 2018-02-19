@@ -151,7 +151,7 @@
             <util:ServiceConfig
               FirstFailureActionType='restart'
               SecondFailureActionType='restart'
-              ThirdFailureActionType='restart'            
+              ThirdFailureActionType='restart'
               RestartServiceDelayInSeconds='30'
               ResetPeriodInDays='1'/>
             <ServiceDependency Id="winmgmt" />
@@ -195,7 +195,7 @@
               <util:ServiceConfig
                 FirstFailureActionType='restart'
                 SecondFailureActionType='restart'
-                ThirdFailureActionType='restart'            
+                ThirdFailureActionType='restart'
                 RestartServiceDelayInSeconds='30'
                 ResetPeriodInDays='1'/>
               <ServiceDependency Id="datadogagent" />
@@ -234,7 +234,7 @@
               <util:ServiceConfig
                 FirstFailureActionType='restart'
                 SecondFailureActionType='restart'
-                ThirdFailureActionType='restart'            
+                ThirdFailureActionType='restart'
                 RestartServiceDelayInSeconds='30'
                 ResetPeriodInDays='1'/>
                 <ServiceDependency Id="datadogagent" />
@@ -286,14 +286,6 @@
               Name="datadog.yaml"
               Source="$(var.EtcFiles)\datadog.yaml.example"/>
       </Component>
-      <Component Id="trace_agent.conf.example"
-        Guid="CE6515EE-3103-417E-8810-0B465545EB0B"
-        NeverOverwrite="yes"
-        Permanent="yes">
-        <File Id="trace_agent.conf.example"
-          Name="trace-agent.conf"
-          Source="$(var.EtcFiles)\trace-agent.conf.example"/>
-      </Component>
 
       <Directory Id="checks.d" Name="checks.d">
         <Component Id="checks.d"
@@ -333,7 +325,6 @@
       <ComponentRef Id="conffolder" />
       <ComponentGroupRef Id="ProjectDir" />
       <ComponentRef Id="datadog.yaml.example" />
-      <ComponentRef Id="trace_agent.conf.example" />
       <ComponentRef Id="logs" />
       <ComponentRef Id="conf.d" />
       <ComponentRef Id="checks.d" />
@@ -363,7 +354,7 @@
 
       <TextStyle Id="TahomaHeader" FaceName="Tahoma" Size="18" Bold="yes" />
       <TextStyle Id="TahomaNormal" FaceName="Tahoma" Size="8" />
-      
+
       <TextStyle Id="DlgFont8" FaceName="Tahoma" Size="8" />
       <TextStyle Id="DlgFontBold8" FaceName="Tahoma" Size="8" Bold="yes" />
       <TextStyle Id="Verdana13Bold" FaceName="Verdana" Size="13" Bold="yes" />
@@ -397,9 +388,9 @@
       <DialogRef Id="ResumeDlg"/>
 
 
-     
+
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT Installed</Publish>
-      
+
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="ApiKeyDlg">NOT PREVIOUSFOUND</Publish>
       <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">PREVIOUSFOUND</Publish>
 
@@ -429,11 +420,11 @@
         <Show Dialog="FatalError" OnExit="error" />
         <Show Dialog="UserExit" OnExit="cancel" />
         <Show Dialog="ExitDialog" OnExit="success" />
-        
+
         <Show Dialog="WelcomeDlg" After="MigrateFeatureStates"><![CDATA[NOT Installed]]></Show>
         <Show Dialog="MaintenanceWelcomeDlg" Before="ProgressDlg" >Installed AND NOT RESUME AND NOT Preselected AND NOT PATCH</Show>
 
-        <!-- 
+        <!--
         <Show Dialog="ResumeDlg" After="WelcomeDlg"><![CDATA[Installed AND (RESUME OR Preselected)]]></Show>
         -->
         <!--
