@@ -193,12 +193,13 @@ gauge(self, name, value, tags=None, hostname=None, device_name=None)
 The APM agent (also known as _trace agent_) is shipped by default with the
 Agent 6 in the Linux, MacOS and Windows packages.
 
-The APM agent (also known as _trace agent_) is enabled by default.
-To disable the check you can update your `datadog.yaml` with the following:
+The APM agent (also known as _trace agent_) is enabled by default on linux.
+To enable the check on other platforms or disable it on linux,
+you can update the `apm_config` key in your `datadog.yaml`:
 
 ```
 apm_config:
-  enabled: false
+  enabled: true
 ```
 
 It only listens to localhost by default. You can set `apm_config.apm_non_local_traffic = true`

@@ -72,7 +72,7 @@ build do
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
 
-            delete "#{install_dir}/etc/trace-agent.example"
+            delete "#{install_dir}/etc/trace-agent.conf.example"
 
             # Nothing to move on osx, the confs already live in /opt/datadog-agent/etc/
         end
