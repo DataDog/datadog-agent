@@ -9,6 +9,7 @@ Note: If you see anything that's incorrect about this document, do not hesitate 
 open an issue or submit a Pull Request.
 
 * [Configuration Files](#configuration-files)
+* [GUI](#gui)
 * [CLI](#cli)
 * [Logs](#logs)
 * [Checks](#checks)
@@ -18,7 +19,6 @@ open an issue or submit a Pull Request.
 * [Docker](#docker-check)
 * [Kubernetes](#kubernetes-support)
 * [JMX](#jmx)
-* [GUI](#gui)
 
 ## Configuration Files
 
@@ -68,43 +68,13 @@ To keep backwards compatibility, the Agent will still pick up configuration file
 in the form `/etc/datadog-agent/conf.d/<check_name>.yaml` but migrating to the
 new layout is strongly recommended.
 
+## GUI
+
+Agent 6 deprecated Agent5's Windows Agent Manager GUI, replacing it with a browser-based, cross-platform one. See the [specific docs](gui.md) for more details.
+
 ## CLI
 
-### Linux
-
-There are a few major changes:
-
-* only the _lifecycle commands_ (i.e. `start`/`stop`/`restart`/`status` on the Agent service) should be run with `sudo service`/`sudo initctl`/`sudo systemctl`
-* all the other commands need to be run with the `datadog-agent` command, located in the `PATH` (`/usr/bin`) by default
-* the `info` command has been renamed `status`
-* the Agent 6 does not ship a SysV-init script (previously located at `/etc/init.d/datadog-agent`)
-
-For example, for an Agent installed on Ubuntu, the differences are as follows:
-
-| Agent5 Command                                  |  Agent6 Command                         | Notes
-| ----------------------------------------------- | --------------------------------------- | ----------------------------- |
-| `sudo service datadog-agent start`              | `sudo service datadog-agent start`      | Start Agent as a service |
-| `sudo service datadog-agent stop`               | `sudo service datadog-agent stop`       | Stop Agent running as a service |
-| `sudo service datadog-agent restart`            | `sudo service datadog-agent restart`    | Restart Agent running as a service |
-| `sudo service datadog-agent status`             | `sudo service datadog-agent status`     | Status of Agent service |
-| `sudo service datadog-agent info`               | `sudo datadog-agent status`             | Status page of running Agent |
-| `sudo service datadog-agent flare`              | `sudo datadog-agent flare`              | Send flare |
-| `sudo service datadog-agent`                    | `sudo datadog-agent --help`             | Display command usage |
-| `sudo -u dd-agent -- dd-agent check <check_name>` | `sudo -u dd-agent -- datadog-agent check <check_name>` | Run a check |
-
-**NB**: If `service` is not available on your system, use:
-
-* on `upstart`-based systems: `sudo start/stop/restart datadog-agent`
-* on `systemd`-based systems: `sudo systemctl start/stop/restart datadog-agent`
-
-### Windows
-
-There are a few major changes
-* the main executable name is now `agent.exe` (it was `ddagent.exe` previously)
-* Commands should be run with the command line `c:\program files\datadog\datadog-agent\embedded\agent.exe <command>`
-* The configuration GUI is now a browser based configuration application.
-
-The agent has a new set of command-line options:
+The new command line interface for the Agent is sub-command based:
 
 | Command         | Notes
 | --------------- | -------------------------------------------------------------------------- |
@@ -125,27 +95,80 @@ The agent has a new set of command-line options:
 | stopservice     | stops the agent within the service control manager |
 | version         | Print the version info |
 
-#### Gui
-* The browser session must be restarted each time the Agent service is restarted. This will be fixed in an upcoming release.
+To run a sub-command, the Agent binary must be invoked like this:
+```
+<path_to_agent_bin> <sub_command> <options>
+```
+
+Some options have their own set of flags and options detailed in a help message.
+For example, to see how to use the `check` sub-command, run:
+```
+<agent_binary> check --help
+```
+
+### Linux
+
+There are a few major changes:
+
+* only the _lifecycle commands_ (i.e. `start`/`stop`/`restart`/`status` on the Agent service) should be run with `sudo service`/`sudo initctl`/`sudo systemctl`
+* all the other commands need to be run with the `datadog-agent` command, located in the `PATH` (`/usr/bin`) by default. The binary `dd-agent` is not available anymore.
+* the `info` command has been renamed `status`
+* the Agent 6 does not ship a SysV-init script (previously located at `/etc/init.d/datadog-agent`)
+* The configuration GUI is disabled by default on Linux-based systems.
+
+Most of the commands didn't change, for example this is the list of the _lifecycle commands_
+on Ubuntu:
+
+| Command  | Notes |
+| -------- | ----- |
+| `sudo service datadog-agent start` | Start the Agent as a service |
+| `sudo service datadog-agent stop` | Stop the Agent service |
+| `sudo service datadog-agent restart` | Restart the Agent service |
+| `sudo service datadog-agent status` | Print the status of the Agent service |
+
+Some functionalities are now provided by the Agent binary itself as sub-commands and there's
+no need anymore to invoke them through `service` (or `systemctl`). For example, for an Agent installed on Ubuntu, the differences are as follows:
+
+| Agent5 Command | Agent6 Command | Notes |
+| -------------- | -------------- | ----- |
+| `sudo service datadog-agent info` | `sudo datadog-agent status` | Status page of a running Agent |
+| `sudo service datadog-agent flare` | `sudo datadog-agent flare` | Send flare |
+| `sudo service datadog-agent` | `sudo datadog-agent --help` | Display Agent usage |
+| `sudo -u dd-agent -- dd-agent check <check_name>` | `sudo -u dd-agent -- datadog-agent check <check_name>` | Run a check |
+
+**NB**: If `service` is not available on your system, use:
+
+* on `upstart`-based systems: `sudo start/stop/restart datadog-agent`
+* on `systemd`-based systems: `sudo systemctl start/stop/restart datadog-agent`
+
+### Windows
+
+There are a few major changes
+* the main executable name is now `agent.exe` (it was `ddagent.exe` previously)
+* Commands should be run with the command line `c:\program files\datadog\datadog-agent\embedded\agent.exe <command>`
+* The configuration GUI is now a web-based configuration application, point a
+web browser to `http://localhost:5002` to access it.
 
 ### MacOS
 
 * the _lifecycle commands_ (former `datadog-agent start`/`stop`/`restart`/`status` on the Agent 5) are replaced by `launchctl` commands on the `com.datadoghq.agent` service, and should be run under the logged-in user. For these commands, you can also use the Datadog Agent systray app
 * all the other commands can still be run with the `datadog-agent` command (located in the `PATH` (`/usr/local/bin/`) by default)
 * the `info` command has been renamed `status`
+* The configuration GUI is now a web-based configuration application, point a
+web browser to `http://localhost:5002` to access it.
 
 A few examples:
 
-| Agent5 Command                     |  Agent6 Command                                      | Notes                              |
-| ---------------------------------- | ---------------------------------------------------- | ---------------------------------- |
-| `datadog-agent start`              | `launchctl start com.datadoghq.agent` or systray app | Start Agent as a service           |
-| `datadog-agent stop`               | `launchctl stop com.datadoghq.agent` or systray app  | Stop Agent running as a service    |
-| `datadog-agent restart`            | _run `stop` then `start`_ or systray app             | Restart Agent running as a service |
-| `datadog-agent status`             | `launchctl list com.datadoghq.agent` or systray app  | Status of Agent service            |
-| `datadog-agent info`               | `datadog-agent status` or web GUI                    | Status page of running Agent       |
-| `datadog-agent flare`              | `datadog-agent flare` or web GUI                     | Send flare                         |
-| _not implemented_                  | `datadog-agent --help`                               | Display command usage              |
-| `datadog-agent check <check_name>` | `datadog-agent check <check_name>`                   | Run a check (unchanged)            |
+| Agent5 Command |  Agent6 Command | Notes |
+| -------------- | --------------- | ----- |
+| `datadog-agent start` | `launchctl start com.datadoghq.agent` or systray app | Start the Agent as a service |
+| `datadog-agent stop` | `launchctl stop com.datadoghq.agent` or systray app | Stop the Agent service |
+| `datadog-agent restart` | _run `stop` then `start`_ or systray app | Restart the Agent service |
+| `datadog-agent status` | `launchctl list com.datadoghq.agent` or systray app | Print the Agent service status |
+| `datadog-agent info` | `datadog-agent status` or web GUI | Status page of a running Agent |
+| `datadog-agent flare` | `datadog-agent flare` or web GUI | Send flare |
+| _not implemented_ | `datadog-agent --help` | Display command usage |
+| `datadog-agent check <check_name>` | `datadog-agent check <check_name>` | Run a check (unchanged) |
 
 ## Logs
 
@@ -333,9 +356,6 @@ are listed in the _Known Issues_ section of the [beta docs](../beta.md).
 
 The Agent 6 does not ship the `jmxterm` JAR. If you wish to download and use `jmxterm`, please refer to the [upstream project](https://github.com/jiaqi/jmxterm).
 
-## GUI
-
-Agent 6 deprecated Agent5's Windows Agent Manager GUI, replacing it with a browser-based, cross-platform one. See the [specific docs](gui.md) for more details.
 
 
 
