@@ -55,6 +55,7 @@ build do
             mkdir "/etc/datadog-agent"
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
+            delete "#{install_dir}/etc/datadog-agent/trace-agent.conf.example"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
 
             # Create empty directories so that they're owned by the package
@@ -70,6 +71,8 @@ build do
         elsif osx?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
+
+            delete "#{install_dir}/etc/trace-agent.example"
 
             # Nothing to move on osx, the confs already live in /opt/datadog-agent/etc/
         end
