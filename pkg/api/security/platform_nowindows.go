@@ -9,16 +9,9 @@ package security
 
 import (
 	"io/ioutil"
-	"os"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// writes auth token(s) to a file with the same permissions as datadog.yaml
+// writes auth token(s) to a file that is only readable by the user running the agent
 func saveAuthToken(token, tokenPath string) error {
-	confFile, err := os.Stat(config.Datadog.ConfigFileUsed())
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(tokenPath, []byte(token), confFile.Mode())
+	return ioutil.WriteFile(tokenPath, []byte(token), 0600)
 }
