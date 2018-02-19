@@ -110,7 +110,7 @@ func GenerateRootCert(hosts []string, bits int) (
 func FetchAuthToken() (string, error) {
 	var authTokenFile string
 	if config.Datadog.GetString("auth_token_file_path") != "" {
-		authTokenFile = config.Datadog.GetString("auth_token_file")
+		authTokenFile = config.Datadog.GetString("auth_token_file_path")
 	} else {
 		authTokenFile = filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), authTokenName)
 	}
