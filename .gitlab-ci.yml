@@ -503,13 +503,13 @@ testkitchen_cleanup_azure:
 .docker_job_definition: &docker_job_definition
   stage: image_build
   tags: [ "runner:main", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/images/docker-machine:latest
   services:
-    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
+    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/images/docker-machine:latest
   before_script: [ "# noop" ] # Override top level entry
   dependencies: [] # Don't download Gitlab artefacts
   script:
-    - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__devtools__docker-machine:2375
+    - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__images__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
     - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
@@ -554,13 +554,13 @@ build_dogstatsd:
 .docker_tag_job_definition: &docker_tag_job_definition
   stage: image_deploy
   tags: [ "runner:main", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/images/docker-machine:latest
   services:
-    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/devtools/docker-machine:latest
+    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/images/docker-machine:latest
   before_script: [ "# noop" ] # Override top level entry
   dependencies: [] # Don't download Gitlab artefacts
   script:
-    - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__devtools__docker-machine:2375
+    - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__images__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
     - DOCKER_HUB_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.docker_hub_login --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.docker_hub_pwd --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_HUB_LOGIN" --password-stdin
