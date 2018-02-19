@@ -277,7 +277,10 @@ func parseMetricMessage(message []byte, namespace string) (*metrics.MetricSample
 		}
 	}
 
-	metricName := namespace + string(rawName)
+	metricName := string(rawName)
+	if namespace != "" {
+		metricName = namespace + metricName
+	}
 
 	metricType, ok := metricTypes[string(rawType)]
 	if !ok {
