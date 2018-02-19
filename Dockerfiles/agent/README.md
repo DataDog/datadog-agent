@@ -8,7 +8,7 @@ Head over to [datadoghq.com](https://app.datadoghq.com/account/settings#agent/do
 
 For a simple docker run, you can quickly get started with:
 
-```
+```shell
 docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro \
               -v /proc/:/host/proc/:ro \
               -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro \
@@ -20,13 +20,13 @@ docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro \
 
 The agent is highly customizable, here are the most used environment variables:
 
-##### Global options
+#### Global options
 
 - `DD_API_KEY`: your API key (**required**)
 - `DD_HOSTNAME`: hostname to use for metrics (if autodetection fails)
 - `DD_TAGS`: host tags, separated by spaces. For example: `simple-tag-0 tag-key-1:tag-value-1`
 
-##### Optional collection agents
+#### Optional collection agents
 
 These features are disabled by default for security or performance reasons, you need to explicitly enable them:
 
@@ -34,13 +34,13 @@ These features are disabled by default for security or performance reasons, you 
 - `DD_LOGS_ENABLED`: run the [log-agent](https://docs.datadoghq.com/logs/) along with the infrastructure agent. [See below for details](#log-collection)
 - `DD_PROCESS_AGENT_ENABLED`: enable live process collection in the [process-agent](https://docs.datadoghq.com/graphing/infrastructure/process/). The Live Container View is already enabled by default if the Docker socket is available
 
-##### Dogstatsd (custom metrics)
+#### Dogstatsd (custom metrics)
 
 You can send custom metrics via [the statsd protocol](https://docs.datadoghq.com/developers/dogstatsd/):
 
 - `DD_DOGSTATSD_NON_LOCAL_TRAFFIC`: listen to dogstatsd packets from other containers, required to send custom metrics
 
-##### Tagging
+#### Tagging
 
 We automatically collect common tags from [Docker](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/docker_extract.go), [Kubernetes](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/kubelet_extract.go), [ECS](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/ecs_extract.go), [Swarm, Mesos, Nomad and Rancher](https://github.com/DataDog/datadog-agent/blob/master/pkg/tagger/collectors/docker_extract.go), and allow you to extract even more tags with the following options:
 
@@ -50,12 +50,12 @@ We automatically collect common tags from [Docker](https://github.com/DataDog/da
 
 You can either define them in your custom `datadog.yaml`, or set them as JSON maps in these envvars. The map key is the source (label/envvar) name, and the map value the datadog tag name.
 
-```
+```shell
 DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app":"kube_app","release":"helm_release"}'
 DD_DOCKER_LABELS_AS_TAGS='{"com.docker.compose.service":"service_name"}'
 ```
 
-##### Kubernetes integration
+#### Kubernetes integration
 
 Please refer to the dedicated section about the [Kubernetes integration](#kubernetes) for more details.
 
@@ -65,7 +65,7 @@ Please refer to the dedicated section about the [Kubernetes integration](#kubern
 - `DD_LEADER_ELECTION`: Activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true. The expected value is a bool: true/false.
 - `DD_LEADER_LEASE_DURATION`: Only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
 
-##### Others
+#### Others
 
 - `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
 
@@ -79,23 +79,26 @@ To run custom checks and configurations without buidling your own image, you can
 ### Going further
 
 For more information about the container's lifecycle, see [SUPERVISION.md](SUPERVISION.md).
+
 ## Kubernetes
+
 <a name="kubernetes"></a>
 To deploy the Agent in your Kubernetes cluster, you can use the manifest in `manifests`.
 Firstly, make sure you have the correct [RBAC](#rbac) in place. You can use the files in manifests/rbac that contain the minimal requirements to run the Kubernetes Cluster level checks and perform the leader election.
-`kubectl create -f manifest/rbac`
+`kubectl create -f manifests/rbac`
 
 Then, you can then create the agents with:
-`kubectl create -f manifest/agent.yaml`
+`kubectl create -f manifests/agent.yaml`
 
 The manifest for the agent has the `KUBERNETES` environment variable enabled, which will enable the event collection and the API server check described here.
 If you want the event collection to be resilient, you can create a ConfigMap `datadogtoken` that agents will use to save and share a state reflecting which events where pulled last.
 
 To create such a ConfigMap, you can use the following command:
-`kubectl create -f manifest/datadog_configmap.yaml`
+`kubectl create -f manifests/datadog_configmap.yaml`
 See details in [Event Collection](#event-collection).
 
 ### Event Collection
+
 <a name="event-collection"></a>
 Similarly to the Agent 5, the Agent 6 can collect events from the Kubernetes API server.
 First and foremost, you need to set the `collect_kubernetes_events` variable to `true` in the datadog.yaml, this can be achieved via the environment variable `DD_COLLECT_KUBERNETES_EVENTS` that is resolved at start time.
@@ -108,6 +111,7 @@ When the ConfigMap is used, if the agent in charge (via the [Leader election](#l
 This is in order to avoid duplicate the events collected, as well as putting less stress on the API Server.
 
 #### Leader Election
+
 <a name="leader-election"></a>
 The Datadog Agent6 supports built in leader election option for the Kubernetes event collector and the Kubernetes cluster related checks (i.e. Controle Plane service check).
 
@@ -122,6 +126,7 @@ The leaderLeaseDuration is the duration for which a leader stays elected. It sho
 It can be configured with the environment variable `DD_LEADER_LEASE_DURATION`.
 
 #### RBAC
+
 <a name="rbac"></a>
 In the context of using the Kubernetes integration, and when deploying agents in a Kubernetes cluster, a set of rights are required for the agent to integrate seamlessly.
 
@@ -151,7 +156,7 @@ First let’s create two directories on the host that we will later mount on the
 
 To  run a Docker container which embeds the Datadog Agent to monitor your host use the following command:
 
-```
+```shell
 docker run -d --name dd-agent -h `hostname` -e DD_API_KEY=<YOUR_API_KEY> -e DD_LOGS_ENABLED=true -v /var/run/docker.sock:/var/run/docker.sock:ro -v /proc/:/host/proc/:ro -v /opt/datadog-agent/run:/opt/datadog-agent/run:rw -v /sys/fs/cgroup/:/host/sys/fs/cgroup:ro -v /opt/datadog-agent/conf.d:/conf.d:ro datadog/agent:latest
 ```
 
@@ -173,7 +178,7 @@ Now that the agent is ready to collect logs, you need to define which containers
 To start collecting logs for a given container filtered by image or label, you need to update the log section in an integration or custom .yaml file.
 Add a new yaml file in the conf.d directory with the following parameters:
 
-```
+```yaml
 init_config:
 
 instances:
@@ -188,6 +193,7 @@ logs:
      source: java #tells Datadog what integration it is
      sourcecategory: sourcecode
 ```
+
 For more examples of configuration files or agent capabilities (such as filtering, redacting, multiline, …) read [this documentation](https://docs.datadoghq.com/logs/#filter-logs).
 
 ## How to build this image
