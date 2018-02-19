@@ -6,6 +6,7 @@
 package metadata
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/resources"
@@ -21,6 +22,10 @@ type ResourcesCollector struct{}
 func (rp *ResourcesCollector) Send(s *serializer.Serializer) error {
 	hostname, _ := util.GetHostname()
 
+	res := resources.GetPayload(hostname)
+	if res == nil {
+		return errors.New("empty processes metadata")
+	}
 	payload := map[string]interface{}{
 		"resources": resources.GetPayload(hostname),
 	}

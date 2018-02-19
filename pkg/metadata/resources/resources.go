@@ -18,8 +18,8 @@ func GetPayload(hostname string) *Payload {
 	// Get processes metadata from gohai
 	proc, err := new(processes.Processes).Collect()
 	if err != nil {
-		log.Errorf("Failed to retrieve processes metadata: %s", err)
-		return &Payload{}
+		log.Warn("Failed to retrieve processes metadata: ", err)
+		return nil
 	}
 
 	processesPayload := map[string]interface{}{
