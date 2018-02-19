@@ -142,6 +142,7 @@ func init() {
 	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
 	Datadog.SetDefault("statsd_forward_host", "")
 	Datadog.SetDefault("statsd_forward_port", 0)
+	BindEnvAndSetDefault("statsd_metric_namespace", "")
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
 	Datadog.SetDefault("exclude_pause_container", true)
