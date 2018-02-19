@@ -133,3 +133,11 @@ func (sc ServiceChecks) SplitPayload(times int) ([]marshaler.Marshaler, error) {
 	}
 	return splitPayloads, nil
 }
+
+func (sc ServiceCheck) String() string {
+	s, err := json.Marshal(sc)
+	if err != nil {
+		return ""
+	}
+	return string(s)
+}

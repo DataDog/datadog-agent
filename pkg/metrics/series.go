@@ -180,3 +180,11 @@ func (p *Point) UnmarshalJSON(buf []byte) error {
 	}
 	return nil
 }
+
+func (e Serie) String() string {
+	s, err := json.Marshal(e)
+	if err != nil {
+		return ""
+	}
+	return string(s)
+}
