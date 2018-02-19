@@ -23,7 +23,7 @@ build do
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
-            move "#{install_dir}/etc/datadog-agent/trace-agent.conf.example", conf_dir_root, :force=>true
+            delete "#{install_dir}/etc/datadog-agent/trace-agent.conf.example"
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
             delete "#{install_dir}/bin/agent/agent.exe"
             # TODO why does this get generated at all
@@ -55,7 +55,7 @@ build do
             mkdir "/etc/datadog-agent"
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
-            move "#{install_dir}/etc/datadog-agent/trace-agent.conf.example", "/etc/datadog-agent"
+            delete "#{install_dir}/etc/datadog-agent/trace-agent.conf.example"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
 
             # Create empty directories so that they're owned by the package
@@ -63,11 +63,16 @@ build do
             mkdir "/etc/datadog-agent/checks.d"
             mkdir "/var/log/datadog"
 
+            # remove unused configs
+            delete "/etc/datadog-agent/conf.d/apm.yaml.default"
+
             # cleanup clutter
             delete "#{install_dir}/etc"
         elsif osx?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
+
+            delete "#{install_dir}/etc/trace-agent.conf.example"
 
             # Nothing to move on osx, the confs already live in /opt/datadog-agent/etc/
         end
