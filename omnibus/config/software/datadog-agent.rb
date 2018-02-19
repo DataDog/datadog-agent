@@ -44,12 +44,14 @@ build do
     mkdir "#{install_dir}/scripts/"
   end
 
-  if windows?
-    move 'bin/agent/dist/trace-agent.conf', "#{conf_dir}/trace-agent.conf.example"
-  end
+  # if windows?
+  #   mkdir "../../extra_package_files/EXAMPLECONFSLOCATION"
+  #   copy "pkg/collector/dist/conf.d/*", "../../extra_package_files/EXAMPLECONFSLOCATION"
+  # end
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
+  move 'bin/agent/dist/trace-agent.conf', "#{conf_dir}/trace-agent.conf.example"
 
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
 
