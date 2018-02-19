@@ -297,11 +297,11 @@ func (agg *BufferedAggregator) flushSeries() {
 
 	addFlushCount("Series", int64(len(series)))
 
-	//For debug purposes print out all metrics/tag combinations
+	// For debug purposes print out all metrics/tag combinations
 	if config.Datadog.GetBool("log_payloads") {
-		log.Infof("Flushing the following metrics:")
+		log.Debug("Flushing the following metrics:")
 		for _, serie := range series {
-			log.Infof("%s", serie)
+			log.Debugf("%s", serie)
 		}
 	}
 
@@ -339,11 +339,11 @@ func (agg *BufferedAggregator) flushServiceChecks() {
 	serviceChecks := agg.GetServiceChecks()
 	addFlushCount("ServiceChecks", int64(len(serviceChecks)))
 
-	//For debug purposes print out all serviceCheck/tag combinations
+	// For debug purposes print out all serviceCheck/tag combinations
 	if config.Datadog.GetBool("log_payloads") {
-		log.Infof("Flushing the following Service Checks:")
+		log.Debug("Flushing the following Service Checks:")
 		for _, sc := range serviceChecks {
-			log.Infof("%s", sc)
+			log.Debugf("%s", sc)
 		}
 	}
 
