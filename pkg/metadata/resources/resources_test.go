@@ -6,9 +6,10 @@
 package resources
 
 import (
-	"github.com/stretchr/testify/assert"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetPayload(t *testing.T) {
@@ -18,8 +19,7 @@ func TestGetPayload(t *testing.T) {
 
 	if runtime.GOOS == "windows" {
 		// re-enable expected output, below when windows implements process metadata
-		assert.Nil(t, processesPayload.Processes["snaps"])
-		assert.Equal(t, "", processesPayload.Meta["host"])
+		assert.Nil(t, processesPayload)
 	} else {
 		assert.NotNil(t, processesPayload.Processes["snaps"])
 		assert.Equal(t, hostname, processesPayload.Meta["host"])
