@@ -11,7 +11,7 @@ import (
 	"io/ioutil"
 )
 
-// writes auth token(s) to a file that is only readable by the user running the agent
+// writes auth token(s) to a file that is only readable/writable by the user running the agent
 func saveAuthToken(token, tokenPath string) error {
 	return ioutil.WriteFile(tokenPath, []byte(token), 0600)
 }
