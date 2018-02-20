@@ -245,19 +245,16 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 	// Get wheels
 	pyIntegrations, err := getPythonChecks()
 	if err != nil {
-		log.Warnf("Unable to compile list of installed integrations: %v", err)
+		log.Errorf("Unable to compile list of installed integrations: %v", err)
 		w.Write([]byte("Unable to compile list of installed integrations."))
 		return
 	}
-	for _, integration := range pyIntegrations {
-		integrations = append(integrations, integration)
-	}
+
+	integrations = append(integrations, pyIntegrations...)
 
 	// Get go-checks
 	goIntegrations := core.GetRegisteredFactoryKeys()
-	for _, integration := range goIntegrations {
-		integrations = append(integrations, integration)
-	}
+	integrations = append(integrations, goIntegrations...)
 
 	if len(integrations) == 0 {
 		w.Write([]byte("No check (.py) files found."))
