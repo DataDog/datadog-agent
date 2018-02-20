@@ -118,7 +118,7 @@ func (le *LeaderEngine) init() error {
 	}
 	log.Debugf("LeaderLeaseDuration: %s", le.LeaseDuration.String())
 
-	le.coreClient, err = apiserver.GetCoreV1Client()
+	le.coreClient, err = apiserver.GetClient()
 	if err != nil {
 		log.Errorf("Not Able to set up a client for the Leader Election: %s", err)
 		return err

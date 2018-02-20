@@ -88,7 +88,7 @@ func (suite *testSuite) SetupTest() {
 func (suite *testSuite) TestKubeEvents() {
 	// Init own client to write the events
 	config.Datadog.Set("kubernetes_kubeconfig_path", suite.kubeConfigPath)
-	core, err := apiserver.GetCoreV1Client()
+	core, err := apiserver.GetClient()
 	require.Nil(suite.T(), err)
 
 	require.NotNil(suite.T(), core)
@@ -160,8 +160,8 @@ func (suite *testSuite) TestKubeEvents() {
 	assert.Len(suite.T(), modified, 0)
 }
 
-func (suite *testSuite) TestMetadataMapper() {
-	c, err := apiserver.GetCoreV1Client()
+func (suite *testSuite) TestServiceMapper() {
+	c, err := apiserver.GetClient()
 	require.Nil(suite.T(), err)
 
 	// Create a Ready Schedulable node

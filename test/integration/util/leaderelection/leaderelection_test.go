@@ -165,7 +165,7 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 		assert.Equal(suite.T(), actualLeader.HolderIdentity, testCase.leaderEngine.CurrentLeaderName())
 	}
 
-	client, err := apiserver.GetCoreV1Client()
+	client, err := apiserver.GetClient()
 	require.Nil(suite.T(), err)
 	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{})
 	require.Nil(suite.T(), err)
