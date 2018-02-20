@@ -2,6 +2,79 @@
 Release Notes
 =============
 
+6.0.0-rc.2
+==========
+
+New Features
+------------
+
+- Add namespace configuration for metric names for dogstatsd
+
+- Rework autodiscovery label names to be consistent, still support the
+  previous names
+
+- Ships updated integrations from `integrations-core 6.0.0-rc.2`_, including new ``kubelet`` check
+
+  .. _integrations-core 6.0.0-rc.2: https://github.com/DataDog/integrations-core/releases/tag/6.0.0-rc.2
+
+- Add envvar bindings for docker/kubernetes custom tag extraction features
+
+
+Upgrade Notes
+-------------
+
+- Normal installations: APM now listens to localhost only by default, you need to set
+  `apm_config.apm_non_local_traffic = true` to enable listening on the network
+
+- Docker image: APM is now disabled by default, you need to set `DD_APM_ENABLED=true`
+  to run the trace agent. It listens on all interfaces by default when running, you can
+  set `DD_APM_NON_LOCAL_TRAFFIC=false` to only listen on localhost
+
+
+Bug Fixes
+---------
+
+- Don't try to match containers by image name if they provide an AD template
+  via docker labels or pod annotations. This avoid scheduling double checks.
+
+- Fix handling of the %%host%% and %%port%% autodiscovery tags
+
+- The aggregator now discards metric samples with ``NaN`` values. Also solves a serializing error
+  on metric payloads.
+
+- Fixes bug whereby device tag was (correctly) removed from tags list, but
+  device field was only added to the metric on the first run.
+
+- Fix an issue unscheduling checks discovered through auto-discovery
+
+- Upstart would indefinitely respawn trace and process agents even when exiting
+  with a zero status code. We now explicitly define exit code 0 as a valid exit
+  code to prevent respawn when the agents are disabled.
+
+- Fix cases where empty host tags in the Agent ``datadog.yaml`` configuration caused
+  the host metadata payload parsing to fail in the backend.
+
+- Fix ``resources`` metadata collector so that its payload is correctly parsed in the
+  backend even when empty.
+
+- Make sure we don't get stuck if the API server does not return events.
+
+- make tagger more resilient to malformed docker events
+
+- Removing `vsphere` and `sqlserver` from the blacklist. The former is
+  available on all platforms, `sqlserver` is currently windows-only.
+
+
+Other Notes
+-----------
+
+- The `apm.yaml.default` config file was removed on linux and the
+  `trace-agent.conf.example` was removed on every other platform.
+
+- Only enable the ``resources`` metadata collector on Linux by default, to match
+  Agent 5's behavior.
+
+
 6.0.0-rc.1
 ==========
 
