@@ -12,9 +12,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ericchiang/k8s/api/v1"
-	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type podTest struct {
@@ -27,26 +27,22 @@ type serviceTest struct {
 	podIps  []string
 }
 
-func toPtr(str string) *string {
-	return &str
-}
-
 func createSvcList(nodeName string, svcs []serviceTest) v1.EndpointsList {
 	var list v1.EndpointsList
+
 	for _, svc := range svcs {
-		var endpoints v1.Endpoints
-		var endpointsSubset v1.EndpointSubset
-		endpoints.Metadata = &metav1.ObjectMeta{}
-		endpoints.Subsets = append(endpoints.Subsets, &endpointsSubset)
-		endpoints.Metadata.Name = toPtr(svc.svcName)
+		endpoints := v1.Endpoints{}
+		endpointsSubset := v1.EndpointSubset{}
+		ep := v1.EndpointAddress{}
+		endpoints.Name = svc.svcName
 
 		for _, e := range svc.podIps {
-			var ep v1.EndpointAddress
 			ep.NodeName = &nodeName
-			ep.Ip = toPtr(e)
-			endpointsSubset.Addresses = append(endpointsSubset.Addresses, &ep)
+			ep.IP = e
+			endpointsSubset.Addresses = append(endpointsSubset.Addresses, ep)
 		}
-		list.Items = append(list.Items, &endpoints)
+		endpoints.Subsets = append(endpoints.Subsets, endpointsSubset)
+		list.Items = append(list.Items, endpoints)
 	}
 	return list
 }
@@ -55,11 +51,11 @@ func createPodList(listPodStructs []podTest) v1.PodList {
 	var podlist v1.PodList
 	for _, ps := range listPodStructs {
 		var pod v1.Pod
-		pod.Status = &v1.PodStatus{}
-		pod.Metadata = &metav1.ObjectMeta{}
-		pod.Status.PodIP = toPtr(ps.ip)
-		pod.Metadata.Name = toPtr(ps.name)
-		podlist.Items = append(podlist.Items, &pod)
+		pod.Status = v1.PodStatus{}
+		pod.ObjectMeta = metav1.ObjectMeta{}
+		pod.Status.PodIP = ps.ip
+		pod.Name = ps.name
+		podlist.Items = append(podlist.Items, pod)
 	}
 
 	return podlist
@@ -67,8 +63,8 @@ func createPodList(listPodStructs []podTest) v1.PodList {
 func createNode(nodeName string) v1.Node {
 	var node v1.Node
 
-	node.Metadata = &metav1.ObjectMeta{}
-	node.Metadata.Name = &nodeName
+	node.ObjectMeta = metav1.ObjectMeta{}
+	node.Name = nodeName
 	return node
 }
 
@@ -160,7 +156,7 @@ func TestMapServices(t *testing.T) {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			testCaseBundle := newMetadataMapperBundle()
 			podList := createPodList(testCase.pods)
-			nodeName := *testCase.node.Metadata.Name
+			nodeName := testCase.node.Name
 			epList := createSvcList(nodeName, testCase.services)
 			testCaseBundle.mapServices(nodeName, podList, epList)
 			assert.Equal(t, testCase.expectedMapping, testCaseBundle.PodNameToService)
