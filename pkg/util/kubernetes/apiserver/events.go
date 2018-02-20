@@ -60,6 +60,9 @@ func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string
 					log.Tracef("Resversion expired: %s", errEvent.Message)
 					resVersionCached = 0
 				}
+				// We continue here to avoid casting into a *v1.Event.
+				// In this case, the event is of type *metav1.Status.
+				continue
 			}
 
 			currEvent, ok := rcvdEv.Object.(*v1.Event)
