@@ -91,6 +91,7 @@ func init() {
 	Datadog.SetDefault("enable_gohai", true)
 	Datadog.SetDefault("check_runners", int64(1))
 	Datadog.SetDefault("expvar_port", "5000")
+	Datadog.SetDefault("auth_token_file_path", "")
 
 	// Use to output logs in JSON format
 	BindEnvAndSetDefault("log_format_json", false)
