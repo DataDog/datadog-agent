@@ -226,6 +226,8 @@ func (s *Scanner) newDockerClient() (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	// assure the client can communicate with the server
+	client.UpdateClientVersion("")
 	v, err := client.ServerVersion(context.Background())
 	if err != nil {
 		return nil, err
