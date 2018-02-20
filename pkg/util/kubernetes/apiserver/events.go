@@ -26,7 +26,7 @@ var eventReadTimeout = 100 * time.Millisecond
 // If the `since` parameter is empty, we query the apiserver's cache to avoid
 // overloading it.
 // https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.9/#watch-list-289
-func (c *APIClient) LatestEvents1(since string) ([]*v1.Event, []*v1.Event, string, error) {
+func (c *APIClient) LatestEvents(since string) ([]*v1.Event, []*v1.Event, string, error) {
 	var addedEvents, modifiedEvents []*v1.Event
 
 	// If `since` is "" strconv.Atoi(*latestResVersion) below will panic as we evaluate the error.
