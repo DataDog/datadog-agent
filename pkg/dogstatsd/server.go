@@ -12,7 +12,6 @@ import (
 	"net"
 	"runtime"
 	"strings"
-	"sync"
 
 	log "github.com/cihub/seelog"
 
@@ -30,7 +29,6 @@ var (
 
 // Server represent a Dogstatsd server
 type Server struct {
-	sync.RWMutex
 	listeners    []listeners.StatsdListener
 	packetIn     chan *listeners.Packet
 	Statistics   *util.Stats
@@ -141,21 +139,18 @@ func (s *Server) handleMessages(metricOut chan<- *metrics.MetricSample, eventOut
 
 func (s *Server) forwarder(fcon net.Conn, packetChannel chan *listeners.Packet) {
 	for {
-		s.RLock()
-		if s.Started == false {
-			s.RUnlock()
+		select {
+		case <-s.stopChan:
 			return
+		case packet := <-packetChannel:
+			_, err := fcon.Write(packet.Contents)
+
+			if err != nil {
+				log.Warnf("Forwarding packet failed : %s", err)
+			}
+
+			s.packetIn <- packet
 		}
-		s.RUnlock()
-
-		packet := <-packetChannel
-		_, err := fcon.Write(packet.Contents)
-
-		if err != nil {
-			log.Warnf("Forwarding packet failed : %s", err)
-		}
-
-		s.packetIn <- packet
 	}
 }
 
@@ -244,7 +239,5 @@ func (s *Server) Stop() {
 		s.Statistics.Stop()
 	}
 	s.health.Deregister()
-	s.Lock()
 	s.Started = false
-	s.Unlock()
 }
