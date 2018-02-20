@@ -1,7 +1,7 @@
 """
 Utilities to manage build tags
 """
-import invoke
+import sys
 from invoke import task
 
 # ALL_TAGS lists any available build tag
@@ -28,16 +28,25 @@ PUPPY_TAGS = set([
     "zlib",
 ])
 
+LINUX_ONLY = [
+    "docker",
+    "kubelet",
+    "kubeapiserver"
+]
+
 
 def get_default_build_tags(puppy=False):
     """
     Build the default list of tags based on the current platform.
+
+    The container integrations are currently only supported on Linux, disabling on
+    the Windows and Darwin builds.
     """
     if puppy:
         return PUPPY_TAGS
 
     include = ["all"]
-    exclude = ["docker", "kubelet", "kubeapiserver"] if invoke.platform.WINDOWS else []
+    exclude = [] if sys.platform.startswith('linux') else LINUX_ONLY
     return get_build_tags(include, exclude)
 
 

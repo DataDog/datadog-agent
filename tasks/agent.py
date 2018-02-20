@@ -5,6 +5,7 @@ from __future__ import print_function
 import glob
 import os
 import shutil
+import sys
 from distutils.dir_util import copy_tree
 
 import invoke
@@ -13,7 +14,7 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, ALL_TAGS
+from .build_tags import get_build_tags, get_default_build_tags, ALL_TAGS, LINUX_ONLY
 from .go import deps
 
 #constants
@@ -55,11 +56,12 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
 
     ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
-    if invoke.platform.WINDOWS:
-        # Don't build Docker support
-        if "docker" not in build_exclude:
-            build_exclude.append("docker")
+    if not sys.platform.startswith('linux'):
+        for ex in LINUX_ONLY:
+            if ex not in build_exclude:
+                build_exclude.append(ex)
 
+    if invoke.platform.WINDOWS:
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
         #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
