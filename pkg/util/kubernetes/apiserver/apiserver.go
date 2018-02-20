@@ -32,7 +32,7 @@ var (
 	globalTimeoutSeconds = int64(5)
 	ErrNotFound          = errors.New("entity not found")
 	ErrOutdated          = errors.New("entity is outdated")
-	ErrNotLeader = errors.New("not Leader")
+	ErrNotLeader         = errors.New("not Leader")
 )
 
 const (
