@@ -16,11 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-
 )
 
 type kubernetesEventBundle struct {
-	objUid        types.UID         // Unique object Identifier used as the Aggregation key
+	objUid        types.UID      // Unique object Identifier used as the Aggregation key
 	namespace     string         // namespace of the bundle
 	readableKey   string         // Formated key used in the Title in the events
 	component     string         // Used to identify the Kubernetes component which generated the event
@@ -52,8 +51,8 @@ func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
 
 	k.events = append(k.events, event)
 	k.namespace = event.InvolvedObject.Namespace
-	k.timeStamp = math.Max(k.timeStamp, float64(event.CreationTimestamp.Second()))
-	k.lastTimestamp = math.Max(k.timeStamp, float64(event.LastTimestamp.Second()))
+	k.timeStamp = math.Max(k.timeStamp, float64(event.FirstTimestamp.Unix()))
+	k.lastTimestamp = math.Max(k.timeStamp, float64(event.LastTimestamp.Unix()))
 
 	k.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
 	k.readableKey = fmt.Sprintf("%s %s", event.InvolvedObject.Name, event.InvolvedObject.Kind)
