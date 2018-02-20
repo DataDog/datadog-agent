@@ -231,7 +231,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 
 // Stop stops a running Dogstatsd server
 func (s *Server) Stop() {
-	s.stopChan <- true
+	close(s.stopChan)
 	for _, l := range s.listeners {
 		l.Stop()
 	}
