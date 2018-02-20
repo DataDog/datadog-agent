@@ -14,11 +14,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/ericchiang/k8s/api/v1"
+	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+
 )
 
 type kubernetesEventBundle struct {
-	objUid        string         // Unique object Identifier used as the Aggregation key
+	objUid        types.UID         // Unique object Identifier used as the Aggregation key
 	namespace     string         // namespace of the bundle
 	readableKey   string         // Formated key used in the Title in the events
 	component     string         // Used to identify the Kubernetes component which generated the event
@@ -28,7 +30,7 @@ type kubernetesEventBundle struct {
 	countByAction map[string]int // Map of count per action to aggregate several events from the same ObjUid in one event
 }
 
-func newKubernetesEventBundler(objUid string, compName string) *kubernetesEventBundle {
+func newKubernetesEventBundler(objUid types.UID, compName string) *kubernetesEventBundle {
 	return &kubernetesEventBundle{
 		objUid:        objUid,
 		component:     compName,
@@ -37,24 +39,24 @@ func newKubernetesEventBundler(objUid string, compName string) *kubernetesEventB
 }
 
 func (k *kubernetesEventBundle) addEvent(event *v1.Event) error {
-	// As some fields are optional, we want to avoid evaluating nil pointers
-	if event == nil || event.InvolvedObject == nil {
+	// As some fields are optional, we want to avoid evaluating empty values.
+	if event == nil || event.InvolvedObject.Kind == "" {
 		return errors.New("could not retrieve some parent attributes of the event")
 	}
-	if event.Reason == nil || event.Message == nil || event.InvolvedObject.Name == nil || event.InvolvedObject.Kind == nil {
+	if event.Reason == "" || event.Message == "" || event.InvolvedObject.Name == "" {
 		return errors.New("could not retrieve some attributes of the event")
 	}
-	if *event.InvolvedObject.Uid != k.objUid {
-		return fmt.Errorf("mismatching Object UIDs: %s != %s", *event.InvolvedObject.Uid, k.objUid)
+	if event.InvolvedObject.UID != k.objUid {
+		return fmt.Errorf("mismatching Object UIDs: %s != %s", event.InvolvedObject.UID, k.objUid)
 	}
 
 	k.events = append(k.events, event)
-	k.namespace = *event.InvolvedObject.Namespace
-	k.timeStamp = math.Max(k.timeStamp, float64(*event.Metadata.CreationTimestamp.Seconds))
-	k.lastTimestamp = math.Max(k.timeStamp, float64(*event.LastTimestamp.Seconds))
+	k.namespace = event.InvolvedObject.Namespace
+	k.timeStamp = math.Max(k.timeStamp, float64(event.CreationTimestamp.Second()))
+	k.lastTimestamp = math.Max(k.timeStamp, float64(event.LastTimestamp.Second()))
 
-	k.countByAction[fmt.Sprintf("**%s**: %s\n", *event.Reason, *event.Message)] += int(*event.Count)
-	k.readableKey = fmt.Sprintf("%s %s", *event.InvolvedObject.Name, *event.InvolvedObject.Kind)
+	k.countByAction[fmt.Sprintf("**%s**: %s\n", event.Reason, event.Message)] += int(event.Count)
+	k.readableKey = fmt.Sprintf("%s %s", event.InvolvedObject.Name, event.InvolvedObject.Kind)
 	return nil
 }
 
