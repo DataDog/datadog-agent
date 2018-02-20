@@ -26,30 +26,28 @@ build do
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
-  if windows?
-    env = {
-        'GOPATH' => gopath.to_path,
-        'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-        'WINDRES' => 'true',
-    }
-  else
-    env = {
-        'GOPATH' => gopath.to_path,
-        'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-    }
-  end
+  env = {
+   'GOPATH' => gopath.to_path,
+   'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+  }
 
   command "go get github.com/Masterminds/glide", :env => env
   command "glide install", :env => env
+  command "go generate ./info", :env => env
 
   block do
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
-    env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
-    command "rake build", :env => env
+    agent_version = project.build_version.gsub(/[^0-9\.]/, '') # used by "go generate ./info" in the trace-agent, only keep digits and dots
+    ver_array = agent_version.split(".")
+    env['TRACE_AGENT_VERSION'] = agent_version
     if windows?
+      command "windmc --target pe-x86-64 -r cmd/trace-agent/windows_resources cmd/trace-agent/windows_resources/trace-agent-msg.mc", :env => env
+      command "windres --define MAJ_VER=#{ver_array[0]} --define MIN_VER=#{ver_array[1]} --define PATCH_VER=#{ver_array[2]} -i cmd/trace-agent/windows_resources/trace-agent.rc --target=pe-x86-64 -O coff -o cmd/trace-agent/rsrc.syso", :env => env
+      command "go build -a ./cmd/...", :env => env
       copy trace_agent_binary, "#{install_dir}/bin/agent"
     else
+      command "go build -a ./cmd/...", :env => env
       copy trace_agent_binary, "#{install_dir}/embedded/bin"
     end
   end
