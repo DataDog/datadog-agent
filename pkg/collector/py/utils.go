@@ -47,7 +47,7 @@ const (
 	pyMemModule           = "utils.py_mem"
 	pyMemSummaryFunc      = "get_mem_stats"
 	pyPkgModule           = "utils.py_packages"
-	pyIntegrationListFunc = "utils.get_datadog_wheels"
+	pyIntegrationListFunc = "get_datadog_wheels"
 )
 
 // newStickyLock register the current thread with the interpreter and locks

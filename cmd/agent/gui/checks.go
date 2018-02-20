@@ -244,6 +244,7 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 	// Get wheels
 	integrations, err := getPythonChecks()
 	if err != nil {
+		log.Warnf("Unable to compile list of installed integrations: %v", err)
 		w.Write([]byte("Unable to compile list of installed integrations."))
 		return
 	}
