@@ -22,6 +22,8 @@ import (
 	"github.com/ericchiang/k8s/api/v1"
 	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
 
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -50,7 +52,7 @@ type APIClient struct {
 	// used to setup the APIClient
 	initRetry retry.Retrier
 
-	client  *k8s.Client
+	client  *corev1.CoreV1Client
 	timeout time.Duration
 }
 
