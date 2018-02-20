@@ -220,24 +220,32 @@ func (s *Scanner) setup() error {
 	return nil
 }
 
-// newDockerClient returns a new Docker client with the right API version
+// newDockerClient returns a new Docker client with the right API version to communicate with the docker server
 func (s *Scanner) newDockerClient() (*client.Client, error) {
 	client, err := client.NewEnvClient()
 	if err != nil {
 		return nil, err
 	}
-	// assure the client can communicate with the server
+	serverVersion, err := s.getServerAPIVersion(client)
+	if err != nil {
+		return nil, err
+	}
+	clientVersion, err := s.computeClientAPIVersion(serverVersion)
+	if err != nil {
+		return nil, err
+	}
+	client.UpdateClientVersion(clientVersion)
+	return client, nil
+}
+
+// serverAPIVersion returns the latest version of the docker API supported by the docker server
+func (s *Scanner) getServerAPIVersion(client *client.Client) (string, error) {
 	client.UpdateClientVersion("")
 	v, err := client.ServerVersion(context.Background())
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	apiVersion, err := s.computeClientAPIVersion(v.APIVersion)
-	if err != nil {
-		return nil, err
-	}
-	client.UpdateClientVersion(apiVersion)
-	return client, nil
+	return v.APIVersion, nil
 }
 
 // computeAPIVersion returns the version of the API that the docker client should use to be able to communicate with server
