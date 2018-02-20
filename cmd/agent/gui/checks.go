@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
@@ -227,7 +228,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 
 // Sends a list containing the names of all the checks
 func listChecks(w http.ResponseWriter, r *http.Request) {
-	filenames := []string{}
+	integrations := []string{}
 	for _, path := range checkPaths {
 		files, err := ioutil.ReadDir(path)
 		if err != nil {
@@ -236,17 +237,31 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 
 		for _, file := range files {
 			if ext := filepath.Ext(file.Name()); ext == ".py" && file.Mode().IsRegular() {
-				filenames = append(filenames, file.Name())
+				integrations = append(integrations, file.Name())
 			}
 		}
 	}
 
-	if len(filenames) == 0 {
+	// Get wheels
+	pyIntegrations, err := getPythonChecks()
+	if err != nil {
+		log.Errorf("Unable to compile list of installed integrations: %v", err)
+		w.Write([]byte("Unable to compile list of installed integrations."))
+		return
+	}
+
+	integrations = append(integrations, pyIntegrations...)
+
+	// Get go-checks
+	goIntegrations := core.GetRegisteredFactoryKeys()
+	integrations = append(integrations, goIntegrations...)
+
+	if len(integrations) == 0 {
 		w.Write([]byte("No check (.py) files found."))
 		return
 	}
 
-	res, _ := json.Marshal(filenames)
+	res, _ := json.Marshal(integrations)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(res))
 }
