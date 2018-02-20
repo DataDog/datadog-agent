@@ -326,8 +326,14 @@ function loadNewChecks() {
       $("#checks_description").html("Select a check to add.");
       data.sort();
       data.forEach(function(item){
+        var checkName;
+
         // Remove the '.py' ending
-        var checkName = item.substr(0, item.length - 3)
+        if (item.substr(fileName.length - 3) == ".py") {
+            checkName = item.substr(0, item.length - 3);
+        } else {
+            checkName = item;
+        }
 
         // Only display checks that aren't already enabled
         if (enabledChecks.indexOf(checkName) != -1) return;
@@ -354,8 +360,11 @@ function checkDropdown() {
   var val = $("#checks_dropdown").val();
   $(".right").html("");
 
-  if (val == "enabled") loadCheckConfigFiles();
-  else if (val == "add") loadNewChecks();
+  if (val == "enabled") {
+    loadCheckConfigFiles();
+  } else if (val == "add") {
+    loadNewChecks();
+  }
 }
 
 

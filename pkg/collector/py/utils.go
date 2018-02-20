@@ -44,8 +44,10 @@ type stickyLock struct {
 }
 
 const (
-	pyMemModule      = "utils.py_mem"
-	pyMemSummaryFunc = "get_mem_stats"
+	pyMemModule           = "utils.py_mem"
+	pyMemSummaryFunc      = "get_mem_stats"
+	pyPkgModule           = "utils.py_packages"
+	pyIntegrationListFunc = "utils.get_datadog_wheels"
 )
 
 // newStickyLock register the current thread with the interpreter and locks
@@ -399,4 +401,54 @@ func GetPythonInterpreterMemoryUsage() ([]*PythonStats, error) {
 	}
 
 	return myPythonStats, nil
+}
+
+// GetPythonIntegrationList collects python datadog installed integrations list
+func GetPythonIntegrationList() ([]string, error) {
+	glock := newStickyLock()
+	defer glock.unlock()
+
+	pkgModule := python.PyImport_ImportModule(pyPkgModule)
+	if pkgModule == nil {
+		return nil, fmt.Errorf("Unable to import Python module: %s", pyPkgModule)
+	}
+	defer pkgModule.DecRef()
+
+	pkgLister := pkgModule.GetAttrString(pyIntegrationListFunc)
+	if pkgLister == nil {
+		pyErr, err := glock.getPythonError()
+
+		if err != nil {
+			return nil, fmt.Errorf("An error occurred while grabbing the python datadog integration list: %v", err)
+		}
+		return nil, errors.New(pyErr)
+	}
+	defer pkgLister.DecRef()
+
+	args := python.PyTuple_New(0)
+	kwargs := python.PyDict_New()
+	defer args.DecRef()
+	defer kwargs.DecRef()
+
+	packages := pkgLister.Call(args, kwargs)
+	if packages == nil {
+		pyErr, err := glock.getPythonError()
+
+		if err != nil {
+			return nil, fmt.Errorf("An error occurred compiling the list of python integrations: %v", err)
+		}
+		return nil, errors.New(pyErr)
+	}
+	defer packages.DecRef()
+
+	ddPythonPackages := []string{}
+	for i := 0; i < python.PyList_Size(packages); i++ {
+		pkgName := python.PyString_AsString(python.PyList_GetItem(packages, i))
+		if pkgName == "checks-base" {
+			continue
+		}
+		ddPythonPackages = append(ddPythonPackages, pkgName)
+	}
+
+	return ddPythonPackages, nil
 }

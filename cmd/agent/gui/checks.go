@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/py"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
 	"github.com/gorilla/mux"
@@ -239,6 +240,16 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 				filenames = append(filenames, file.Name())
 			}
 		}
+	}
+
+	// Get wheels
+	integrations, err := py.GetPythonIntegrationList()
+	if err != nil {
+		w.Write([]byte("Unable to compile list of installed integrations."))
+		return
+	}
+	for _, integration := range integrations {
+		filenames = append(filenames, integration)
 	}
 
 	if len(filenames) == 0 {
