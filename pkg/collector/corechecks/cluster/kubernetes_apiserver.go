@@ -243,7 +243,7 @@ func (k *KubeASCheck) parseComponentStatus(sender aggregator.Sender, componentsS
 			log.Debug("API Server component's structure is not expected")
 			continue
 		}
-		tagComp := append(k.instance.Tags, fmt.Sprintf("component:%s", *component.Metadata.Name))
+		tagComp := append(k.instance.Tags, fmt.Sprintf("component:%s", component.Name))
 		for _, condition := range component.Conditions {
 			status_check := metrics.ServiceCheckUnknown
 
