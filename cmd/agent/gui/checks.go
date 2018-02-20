@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -42,6 +43,8 @@ func checkHandler(r *mux.Router) {
 	r.HandleFunc("/getConfig/{checkFolder}/{fileName}", http.HandlerFunc(getCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/setConfig/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")
 	r.HandleFunc("/setConfig/{checkFolder}/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("POST")
+	r.HandleFunc("/setConfig/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("DELETE")
+	r.HandleFunc("/setConfig/{checkFolder}/{fileName}", http.HandlerFunc(setCheckConfigFile)).Methods("DELETE")
 	r.HandleFunc("/listChecks", http.HandlerFunc(listChecks)).Methods("POST")
 	r.HandleFunc("/listConfigs", http.HandlerFunc(listConfigs)).Methods("POST")
 }
@@ -188,42 +191,63 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		fileName = filepath.Join(checkFolder, fileName)
 	}
 
-	payload, e := parseBody(r)
-	if e != nil {
-		w.Write([]byte(e.Error()))
-	}
-	data := []byte(payload.Config)
+	if r.Method == "POST" {
+		payload, e := parseBody(r)
+		if e != nil {
+			w.Write([]byte(e.Error()))
+		}
+		data := []byte(payload.Config)
 
-	// Check that the data is actually a valid yaml file
-	cf := configFormat{}
-	e = yaml.Unmarshal(data, &cf)
-	if e != nil {
-		w.Write([]byte("Error: " + e.Error()))
-		return
-	}
-	if len(cf.Instances) < 1 && cf.MetricConfig == nil {
-		w.Write([]byte("Configuration file contains no valid instances"))
-		return
-	}
+		// Check that the data is actually a valid yaml file
+		cf := configFormat{}
+		e = yaml.Unmarshal(data, &cf)
+		if e != nil {
+			w.Write([]byte("Error: " + e.Error()))
+			return
+		}
+		if len(cf.Instances) < 1 && cf.MetricConfig == nil {
+			w.Write([]byte("Configuration file contains no valid instances"))
+			return
+		}
 
-	// Attempt to write new configs to custom checks directory
-	path := filepath.Join(config.Datadog.GetString("confd_path"), fileName)
-	e = ioutil.WriteFile(path, data, 0600)
-
-	// If the write didn't work, try writing to the default checks directory
-	if e != nil && strings.Contains(e.Error(), "no such file or directory") {
-		path = filepath.Join(common.GetDistPath(), "conf.d", fileName)
+		// Attempt to write new configs to custom checks directory
+		path := filepath.Join(config.Datadog.GetString("confd_path"), fileName)
 		e = ioutil.WriteFile(path, data, 0600)
-	}
 
-	if e != nil {
-		w.Write([]byte("Error saving config file: " + e.Error()))
-		log.Debug("Error saving config file: " + e.Error())
-		return
-	}
+		// If the write didn't work, try writing to the default checks directory
+		if e != nil && strings.Contains(e.Error(), "no such file or directory") {
+			path = filepath.Join(common.GetDistPath(), "conf.d", fileName)
+			e = ioutil.WriteFile(path, data, 0600)
+		}
 
-	log.Infof("Successfully wrote new " + fileName + " config file.")
-	w.Write([]byte("Success"))
+		if e != nil {
+			w.Write([]byte("Error saving config file: " + e.Error()))
+			log.Debug("Error saving config file: " + e.Error())
+			return
+		}
+
+		log.Infof("Successfully wrote new " + fileName + " config file.")
+		w.Write([]byte("Success"))
+	} else if r.Method == "DELETE" {
+		// Attempt to write new configs to custom checks directory
+		path := filepath.Join(config.Datadog.GetString("confd_path"), fileName)
+		e := os.Rename(path, path+".disabled")
+
+		// If the move didn't work, try writing to the dev checks directory
+		if e != nil {
+			path = filepath.Join(common.GetDistPath(), "conf.d", fileName)
+			e = os.Rename(path, path+".disabled")
+		}
+
+		if e != nil {
+			w.Write([]byte("Error disabling config file: " + e.Error()))
+			log.Errorf("Error disabling config file (%v): %v ", path, e)
+			return
+		}
+
+		log.Infof("Successfully disabled integration " + fileName + " config file.")
+		w.Write([]byte("Success"))
+	}
 }
 
 // Sends a list containing the names of all the checks
@@ -341,11 +365,14 @@ func hasRightEnding(filename string) bool {
 	// Only accept files of the format
 	//	{name}.yaml, {name}.yml
 	//	{name}.yaml.default, {name}.yml.default
+	//	{name}.yaml.disabled, {name}.yml.disabled
 	//	{name}.yaml.example, {name}.yml.example
 
 	ext := filepath.Ext(filename)
 	if ext == ".default" {
 		ext = filepath.Ext(strings.TrimSuffix(filename, ".default"))
+	} else if ext == ".disabled" {
+		ext = filepath.Ext(strings.TrimSuffix(filename, ".disabled"))
 	} else if ext == ".example" {
 		ext = filepath.Ext(strings.TrimSuffix(filename, ".example"))
 	}

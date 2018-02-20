@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -25,6 +26,9 @@ var (
 
 	// CsrfToken is a session-specific token passed to the GUI's authentication endpoint by app.launchGui
 	CsrfToken string
+
+	// To compute uptime
+	startTimestamp int64
 )
 
 // Payload struct is for the JSON messages received from a client POST request
@@ -43,6 +47,9 @@ func StopGUIServer() {
 
 // StartGUIServer creates the router, starts the HTTP server & generates the authentication token for access
 func StartGUIServer(port string) error {
+	// Set start time...
+	startTimestamp = time.Now().Unix()
+
 	// Instantiate the gorilla/mux router
 	router := mux.NewRouter()
 
