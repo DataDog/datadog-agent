@@ -444,7 +444,7 @@ func GetPythonIntegrationList() ([]string, error) {
 	ddPythonPackages := []string{}
 	for i := 0; i < python.PyList_Size(packages); i++ {
 		pkgName := python.PyString_AsString(python.PyList_GetItem(packages, i))
-		if pkgName == "checks_base" || pkgName == "checks-base" {
+		if pkgName == "checks_base" {
 			continue
 		}
 		ddPythonPackages = append(ddPythonPackages, pkgName)
