@@ -329,7 +329,7 @@ function loadNewChecks() {
         var checkName;
 
         // Remove the '.py' ending
-        if (item.substr(fileName.length - 3) == ".py") {
+        if (item.substr(item.length - 3) == ".py") {
             checkName = item.substr(0, item.length - 3);
         } else {
             checkName = item;

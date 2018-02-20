@@ -25,6 +25,16 @@ func RegisterCheck(name string, c CheckFactory) {
 	catalog[name] = c
 }
 
+// GetRegisteredFactoryKeys get the keys for all registered factories
+func GetRegisteredFactoryKeys() []string {
+	factoryKeys := []string{}
+	for name := range catalog {
+		factoryKeys = append(factoryKeys, name)
+	}
+
+	return factoryKeys
+}
+
 // GetCheckFactory grabs factory for specific check
 func GetCheckFactory(name string) CheckFactory {
 	f, ok := catalog[name]
