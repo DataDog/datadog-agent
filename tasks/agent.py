@@ -14,7 +14,7 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, ALL_TAGS, LINUX_ONLY
+from .build_tags import get_build_tags, get_default_build_tags, ALL_TAGS, LINUX_ONLY_TAGS
 from .go import deps
 
 #constants
@@ -57,7 +57,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     ldflags, gcflags, env = get_build_flags(ctx, use_embedded_libs=use_embedded_libs)
 
     if not sys.platform.startswith('linux'):
-        for ex in LINUX_ONLY:
+        for ex in LINUX_ONLY_TAGS:
             if ex not in build_exclude:
                 build_exclude.append(ex)
 

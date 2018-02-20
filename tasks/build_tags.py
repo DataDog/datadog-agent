@@ -28,7 +28,7 @@ PUPPY_TAGS = set([
     "zlib",
 ])
 
-LINUX_ONLY = [
+LINUX_ONLY_TAGS = [
     "docker",
     "kubelet",
     "kubeapiserver"
@@ -46,7 +46,7 @@ def get_default_build_tags(puppy=False):
         return PUPPY_TAGS
 
     include = ["all"]
-    exclude = [] if sys.platform.startswith('linux') else LINUX_ONLY
+    exclude = [] if sys.platform.startswith('linux') else LINUX_ONLY_TAGS
     return get_build_tags(include, exclude)
 
 
