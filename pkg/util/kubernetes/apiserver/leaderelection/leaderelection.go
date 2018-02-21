@@ -179,5 +179,7 @@ func (le *LeaderEngine) IsLeader() bool {
 func init() {
 	// Avoid logging glog from the k8s.io package
 	flag.Lookup("stderrthreshold").Value.Set("FATAL")
-	flag.Parse()
+	//Convinces goflags that we have called Parse() to avoid noisy logs.
+	//OSS Issue: kubernetes/kubernetes#17162.
+	flag.CommandLine.Parse([]string{})
 }
