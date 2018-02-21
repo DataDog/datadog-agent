@@ -148,6 +148,7 @@
                           Vital="yes"
                           Interactive="no"
                           Account="LocalSystem">
+            <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
             <util:ServiceConfig
               FirstFailureActionType='restart'
               SecondFailureActionType='restart'
@@ -192,6 +193,7 @@
                             Interactive="no"
                             Account="LocalSystem"
                             Arguments="--config=c:\programdata\datadog\datadog.yaml" >
+              <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
               <util:ServiceConfig
                 FirstFailureActionType='restart'
                 SecondFailureActionType='restart'
@@ -231,6 +233,7 @@
                             Vital="yes"
                             Interactive="no"
                             Account="LocalSystem">
+              <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
               <util:ServiceConfig
                 FirstFailureActionType='restart'
                 SecondFailureActionType='restart'
