@@ -6,6 +6,7 @@
 package leaderelection
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"sync"
@@ -173,4 +174,12 @@ func (le *LeaderEngine) CurrentLeaderName() string {
 // IsLeader return bool if the current LeaderEngine is the leader
 func (le *LeaderEngine) IsLeader() bool {
 	return le.CurrentLeaderName() == le.HolderIdentity
+}
+
+func init() {
+	// Avoid logging glog from the k8s.io package
+	flag.Lookup("stderrthreshold").Value.Set("FATAL")
+	//Convinces goflags that we have called Parse() to avoid noisy logs.
+	//OSS Issue: kubernetes/kubernetes#17162.
+	flag.CommandLine.Parse([]string{})
 }
