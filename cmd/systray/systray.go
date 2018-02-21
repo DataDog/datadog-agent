@@ -96,8 +96,8 @@ func main() {
 		}
 
 		if err := ni.ShowCustom(
-			"Walk NotifyIcon Example",
-			"There are multiple ShowX methods sporting different icons."); err != nil {
+			"Datadog Agent Manager",
+			"Please right click to display available options."); err != nil {
 
 			log.Warnf("Failed to show custom message %v", err)
 		}
