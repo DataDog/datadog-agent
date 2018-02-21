@@ -32,7 +32,6 @@ beta Agent:
 * agent_metrics
 * docker_daemon [replaced by a new `docker` check](agent/changes.md#docker-check)
 * kubernetes [to be replaced by new checks](agent/changes.md#kubernetes-support)
-* vsphere
 
 ### Check API
 
@@ -129,25 +128,6 @@ find it with `sudo find / -type f -name 'tools.jar'`.
 Note: you may wish to specify alternative JVM heap parameters `-Xmx`, `-Xms`, the
 values used in the example correspond to the JMXFetch defaults.
 
-## Systems
-
-We do not yet build packages for the full gamut of systems that Agent 5 targets.
-While some will be dropped as unsupported, others are simply not yet supported.
-Beta is currently available on these platforms:
-
-* Debian x86_64 version 7 (wheezy) and above (we do not support SysVinit)
-* Ubuntu x86_64 version 12.04 and above
-* RedHat/CentOS x86_64 version 6 and above
-* SUSE Enterprise Linux x86_64 version 11 SP4 and above (we do not support SysVinit)
-* MacOS 10.10 and above
-* Windows Server 64-bit 2008 R2 and above
-
-## Dogstatsd unix socket rights
-
-The default rights for the unix socket from
-[Dogstatsd](https://github.com/DataDog/datadog-agent/blob/e0acb0f803ec2f340e72bbb303c33a87cb21d4ce/pkg/config/config_template.yaml#L111)
-don't allow external users to send metrics to Dogstatsd. The fix will be
-available in beta10.
 
 [changes]: agent/changes.md
 [upgrade]: agent/upgrade.md

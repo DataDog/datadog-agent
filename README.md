@@ -13,10 +13,15 @@ the latest version of the Agent.
 **Note:** the source code of the **stable** Datadog Agent 5 is located in the
 [dd-agent](https://github.com/DataDog/dd-agent) repository.
 
+## Documentation
+
+The general documentation of the project, including instructions for installation
+and development, is located under [the docs directory](docs) of the present repo.
+
 ## Getting started
 
 To build the Agent you need:
- * [Go](https://golang.org/doc/install) 1.9.2 or later.
+ * [Go](https://golang.org/doc/install) 1.9.4 or later.
  * Python 2.7 along with development libraries.
  * [Invoke](http://www.pyinvoke.org/installing.html), you can install it via
    `pip install invoke` or via [Homebrew](https://brew.sh) on OSX/macOS with
@@ -45,12 +50,6 @@ overwrite it with the environment variable like:
 ```
 DD_API_KEY=12345678990 ./bin/agent/agent -c bin/agent/dist/datadog.yaml
 ```
-
-## Documentation
-
-The general documentation of the project (including instructions on the Beta builds,
-Agent installation, development, etc) is located under the [docs](docs) directory
-of the present repo.
 
 ## Contributing code
 
