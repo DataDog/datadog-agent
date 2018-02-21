@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix line miss [issue](https://github.com/DataDog/datadog-agent/issues/1302) that could happen when tailing new files found when scanning
