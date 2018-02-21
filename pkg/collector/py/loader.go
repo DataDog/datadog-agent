@@ -23,6 +23,8 @@ import (
 const agentCheckClassName = "AgentCheck"
 const agentCheckModuleName = "checks"
 
+const S_FALSE = 0x00000001
+
 // PythonCheckLoader is a specific loader for checks living in Python modules
 type PythonCheckLoader struct {
 	agentCheckClass *python.PyObject
@@ -64,16 +66,16 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	glock := newStickyLock()
 
 	// Initialize COM to multithreaded model
-	err := ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED)
+	var err error
+	err = ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED)
 	if err != nil {
 		oleCode := err.(*ole.OleError).Code()
 		if oleCode != ole.S_OK && oleCode != S_FALSE {
-			return err
+			return nil, err
 		}
 	}
 	defer ole.CoUninitialize()
 
-	var err error
 	var pyErr string
 	var checkModule *python.PyObject
 	for _, name := range modules {
