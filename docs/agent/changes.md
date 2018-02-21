@@ -114,7 +114,6 @@ There are a few major changes:
 * all the other commands need to be run with the `datadog-agent` command, located in the `PATH` (`/usr/bin`) by default. The binary `dd-agent` is not available anymore.
 * the `info` command has been renamed `status`
 * the Agent 6 does not ship a SysV-init script (previously located at `/etc/init.d/datadog-agent`)
-* The configuration GUI is disabled by default on Linux-based systems.
 
 Most of the commands didn't change, for example this is the list of the _lifecycle commands_
 on Ubuntu:
@@ -146,16 +145,16 @@ no need anymore to invoke them through `service` (or `systemctl`). For example, 
 There are a few major changes
 * the main executable name is now `agent.exe` (it was `ddagent.exe` previously)
 * Commands should be run with the command line `c:\program files\datadog\datadog-agent\embedded\agent.exe <command>`
-* The configuration GUI is now a web-based configuration application, point a
-web browser to `http://localhost:5002` to access it.
+* The configuration GUI is now a web-based configuration application, it can be easily accessed by running
+  the command `datadog-agent launch-gui` or using the systray app.
 
 ### MacOS
 
 * the _lifecycle commands_ (former `datadog-agent start`/`stop`/`restart`/`status` on the Agent 5) are replaced by `launchctl` commands on the `com.datadoghq.agent` service, and should be run under the logged-in user. For these commands, you can also use the Datadog Agent systray app
 * all the other commands can still be run with the `datadog-agent` command (located in the `PATH` (`/usr/local/bin/`) by default)
 * the `info` command has been renamed `status`
-* The configuration GUI is now a web-based configuration application, point a
-web browser to `http://localhost:5002` to access it.
+* The configuration GUI is now a web-based configuration application, it can be easily accessed by running
+  the command `datadog-agent launch-gui` or using the systray app.
 
 A few examples:
 
