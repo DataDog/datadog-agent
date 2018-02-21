@@ -193,6 +193,48 @@ func TestScannerTestSuite(t *testing.T) {
 	suite.Run(t, new(ScannerTestSuite))
 }
 
+func TestScannerScanStartNewTailer(t *testing.T) {
+	var err error
+	var path string
+	var file *os.File
+	var tailer *Tailer
+	var msg message.Message
+
+	testDir, err := ioutil.TempDir("", "log-scanner-test-")
+	assert.Nil(t, err)
+
+	// create scanner
+	path = fmt.Sprintf("%s/*.log", testDir)
+	sources := []*config.LogSource{config.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})}
+	openFilesLimit := 2
+	sleepDuration := 20 * time.Millisecond
+	scanner := New(sources, openFilesLimit, mock.NewMockProvider(), auditor.New(nil, ""), sleepDuration)
+
+	// setup scanner
+	scanner.setup()
+	assert.Equal(t, 0, len(scanner.tailers))
+
+	// create file
+	path = fmt.Sprintf("%s/test.log", testDir)
+	file, err = os.Create(path)
+	assert.Nil(t, err)
+
+	// add content
+	_, err = file.WriteString("hello\n")
+	assert.Nil(t, err)
+	_, err = file.WriteString("world\n")
+	assert.Nil(t, err)
+
+	// test scan from beginning
+	scanner.scan()
+	assert.Equal(t, 1, len(scanner.tailers))
+	tailer = scanner.tailers[path]
+	msg = <-tailer.outputChan
+	assert.Equal(t, "hello", string(msg.Content()))
+	msg = <-tailer.outputChan
+	assert.Equal(t, "world", string(msg.Content()))
+}
+
 func TestScannerScanWithTooManyFiles(t *testing.T) {
 	var err error
 	var path string

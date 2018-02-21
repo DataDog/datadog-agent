@@ -63,27 +63,37 @@ func (s *Scanner) setup() {
 		if _, ok := s.tailers[file.Path]; ok {
 			log.Warn("Can't tail file twice: ", file.Path)
 		} else {
-			s.setupTailer(file, false, s.pp.NextPipelineChan())
+			// resume tailing from last committed offset if exists or start tailing from the end of file otherwise
+			// to prevent from reading a file over and over again at agent restart
+			tailFromBeginning := false
+			s.startNewTailer(file, tailFromBeginning)
 		}
 	}
 }
 
-// setupTailer sets one tailer, making it tail from the beginning or the end
-// returns true if the setup succeeded, false otherwise
-func (s *Scanner) setupTailer(file *File, tailFromBeginning bool, outputChan chan message.Message) bool {
-	t := NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
+// createTailer returns a new initialized tailer
+func (s *Scanner) createTailer(file *File, outputChan chan message.Message) *Tailer {
+	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
+}
+
+// startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
+// returns true if the operation succeeded, false otherwise
+func (s *Scanner) startNewTailer(file *File, tailFromBeginning bool) bool {
+	tailer := s.createTailer(file, s.pp.NextPipelineChan())
+	offset := s.auditor.GetLastCommittedOffset(tailer.Identifier())
 	var err error
-	if tailFromBeginning {
-		err = t.tailFromBeginning()
+	if offset > 0 {
+		err = tailer.recoverTailing(offset)
+	} else if tailFromBeginning {
+		err = tailer.tailFromBeginning()
 	} else {
-		// resume tailing from last committed offset
-		err = t.recoverTailing(s.auditor.GetLastCommittedOffset(t.Identifier()))
+		err = tailer.tailFromEnd()
 	}
 	if err != nil {
 		log.Warn(err)
 		return false
 	}
-	s.tailers[file.Path] = t
+	s.tailers[file.Path] = tailer
 	return true
 }
 
@@ -145,8 +155,9 @@ func (s *Scanner) scan() {
 		}
 
 		if !isTailed && tailersLen < s.tailingLimit {
-			// create new tailer for file
-			succeeded := s.setupTailer(file, false, s.pp.NextPipelineChan())
+			// create a new tailer tailing from the beginning of the file if no offset has been recorded
+			tailFromBeginning := true
+			succeeded := s.startNewTailer(file, tailFromBeginning)
 			if !succeeded {
 				// the setup failed, let's try to tail this file in the next scan
 				continue
@@ -161,8 +172,8 @@ func (s *Scanner) scan() {
 			continue
 		}
 		if didRotate {
-			// update tailer because of file-rotation on file
-			succeeded := s.onFileRotation(tailer, file)
+			// restart tailer because of file-rotation on file
+			succeeded := s.restartTailerAfterFileRotation(tailer, file)
 			if !succeeded {
 				// the setup failed, let's try to tail this file in the next scan
 				continue
@@ -187,12 +198,20 @@ func (s *Scanner) didFileRotate(file *File, tailer *Tailer) (bool, error) {
 	return tailer.checkForRotation()
 }
 
-// onFileRotation safely stops tailer and setup a new one
-// returns true if the setup succeeded, false otherwise
-func (s *Scanner) onFileRotation(tailer *Tailer, file *File) bool {
+// restartTailer safely stops tailer and starts a new one
+// returns true if the new tailer is up and running, false if an error occurred
+func (s *Scanner) restartTailerAfterFileRotation(tailer *Tailer, file *File) bool {
 	log.Info("Log rotation happened to ", tailer.path)
 	tailer.StopAfterFileRotation()
-	return s.setupTailer(file, true, tailer.outputChan)
+	tailer = s.createTailer(file, tailer.outputChan)
+	// force reading file from beginning since it has been log-rotated
+	err := tailer.tailFromBeginning()
+	if err != nil {
+		log.Warn(err)
+		return false
+	}
+	s.tailers[file.Path] = tailer
+	return true
 }
 
 // stopTailer stops the tailer
