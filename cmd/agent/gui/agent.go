@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -33,7 +34,8 @@ func agentHandler(r *mux.Router) {
 
 // Sends a simple reply (for checking connection to server)
 func ping(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Pong"))
+	elapsed := time.Now().Unix() - startTimestamp
+	w.Write([]byte(strconv.FormatInt(elapsed, 10)))
 }
 
 // Sends the current agent status
