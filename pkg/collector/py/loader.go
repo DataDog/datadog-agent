@@ -16,14 +16,11 @@ import (
 	"github.com/sbinet/go-python"
 
 	log "github.com/cihub/seelog"
-	"github.com/go-ole/go-ole"
 )
 
 // const things
 const agentCheckClassName = "AgentCheck"
 const agentCheckModuleName = "checks"
-
-const S_FALSE = 0x00000001
 
 // PythonCheckLoader is a specific loader for checks living in Python modules
 type PythonCheckLoader struct {
@@ -65,16 +62,13 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	// Lock the GIL while working with go-python directly
 	glock := newStickyLock()
 
-	// Initialize COM to multithreaded model
+	// Platform-specific preparation
 	var err error
-	err = ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED)
+	err = platformLoaderPrep()
 	if err != nil {
-		oleCode := err.(*ole.OleError).Code()
-		if oleCode != ole.S_OK && oleCode != S_FALSE {
-			return nil, err
-		}
+		return nil, err
 	}
-	defer ole.CoUninitialize()
+	defer platformLoaderDone()
 
 	var pyErr string
 	var checkModule *python.PyObject
