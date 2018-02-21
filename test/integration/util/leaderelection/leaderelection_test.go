@@ -169,10 +169,8 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 	require.Nil(suite.T(), err)
 	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{})
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), cmList.Items, 2)
-
-	cmList, err = client.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{})
-	require.Nil(suite.T(), err)
+	// 1 ConfigMap or 2 Enpoints
+	require.Len(suite.T(), cmList.Items, 1)
 
 	var leaderAnnotation string
 	for _, cm := range cmList.Items {
