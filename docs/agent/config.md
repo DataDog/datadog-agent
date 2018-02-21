@@ -66,6 +66,7 @@ differently from Agent version 5.
 | `proxy_forbid_method_switch` | obsolete |
 | `use_mount` | deprecated in v5 |
 | `use_curl_http_client` | obsolete |
+| `exclude_process_args` | deprecated feature |
 | `check_timings` | superseded by internal stats |
 | `dogstatsd_target` | |
 | `dogstreams` | |
