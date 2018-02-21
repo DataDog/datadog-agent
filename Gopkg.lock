@@ -426,6 +426,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/lxn/walk"
+  packages = ["."]
+  revision = "b6ff93ae632a4fc602e8dfad6836bce78c59d2bd"
+
+[[projects]]
+  branch = "master"
   name = "github.com/lxn/win"
   packages = ["."]
   revision = "aaf8f59e531a7f484381fbc5453def0cffe9c526"
