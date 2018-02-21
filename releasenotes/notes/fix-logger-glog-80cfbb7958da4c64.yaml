@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Remove the flag.Parse() to use a fix avoiding to overide the logger.
