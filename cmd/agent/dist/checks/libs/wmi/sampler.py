@@ -345,7 +345,7 @@ class WMISampler(object):
         # without a deep knowledge of COM's threading model). Because of this and given
         # that we run each query in its own thread, we don't cache connections
         additional_args = []
-        pythoncom.CoInitialize()
+        pythoncom.CoInitializeEx(0)
 
         if self.provider != ProviderArchitecture.DEFAULT:
             context = Dispatch("WbemScripting.SWbemNamedValueSet")
