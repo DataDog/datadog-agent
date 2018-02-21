@@ -167,17 +167,17 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 
 	client, err := apiserver.GetCoreV1Client()
 	require.Nil(suite.T(), err)
-	epList, err := client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
+	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{})
 	require.Nil(suite.T(), err)
-	require.Len(suite.T(), epList.Items, 2)
+	require.Len(suite.T(), cmList.Items, 2)
 
-	epList, err = client.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{})
+	cmList, err = client.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{})
 	require.Nil(suite.T(), err)
 
 	var leaderAnnotation string
-	for _, ep := range epList.Items {
-		if ep.Name == "datadog-leader-election" {
-			leaderAnnotation = ep.Annotations[rl.LeaderElectionRecordAnnotationKey]
+	for _, cm := range cmList.Items {
+		if cm.Name == "datadog-leader-election" {
+			leaderAnnotation = cm.Annotations[rl.LeaderElectionRecordAnnotationKey]
 		}
 	}
 	require.Nil(suite.T(), err)

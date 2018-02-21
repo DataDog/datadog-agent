@@ -117,10 +117,10 @@ func (le *LeaderEngine) init() error {
 		return err
 	}
 
-	// check if we can get endpoints.
-	_, err = le.coreClient.Endpoints(metav1.NamespaceDefault).List(metav1.ListOptions{Limit: 1})
+	// check if we can get ConfigMap.
+	_, err = le.coreClient.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{Limit: 1})
 	if err != nil {
-		log.Errorf("Cannot retrieve endpoints from the %s namespace: %s", metav1.NamespaceDefault, err)
+		log.Errorf("Cannot retrieve ConfigMap from the %s namespace: %s", metav1.NamespaceDefault, err)
 		return err
 	}
 
