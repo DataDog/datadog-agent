@@ -1,4 +1,5 @@
 ---
 fixes:
   - |
-    Remove the flag.Parse() to use a fix avoiding to overide the logger.
+    Fix the command-line flag parsing regression caused by a transitive dependency importing the
+    glog library. `agent` flags should now behave as in RC1.
