@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -151,14 +150,15 @@ func (a *Auditor) flushRegistry(registry map[string]*RegistryEntry, path string)
 	return ioutil.WriteFile(path, mr, 0644)
 }
 
-// GetLastCommittedOffset returns the last committed offset for a given identifier
-func (a *Auditor) GetLastCommittedOffset(identifier string) (int64, int) {
+// GetLastCommittedOffset returns the last committed offset for a given identifier,
+// returns 0 if it does not exist.
+func (a *Auditor) GetLastCommittedOffset(identifier string) int64 {
 	r := a.readOnlyRegistryCopy(a.registry)
-	entry, ok := r[identifier]
-	if !ok {
-		return 0, os.SEEK_END
+	entry, exists := r[identifier]
+	if !exists {
+		return 0
 	}
-	return entry.Offset, os.SEEK_CUR
+	return entry.Offset
 }
 
 // GetLastCommittedTimestamp returns the last committed offset for a given identifier

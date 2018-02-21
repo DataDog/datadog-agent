@@ -65,10 +65,21 @@ func (t *Tailer) Identifier() string {
 	return fmt.Sprintf("file:%s", t.path)
 }
 
-// recoverTailing starts the tailing from the last log line processed, or now
-// if we tail this file for the first time
-func (t *Tailer) recoverTailing(offset int64, whence int) error {
-	return t.tailFrom(offset, whence)
+// tailFromBeginning lets the tailer start tailing its file
+// from the beginning
+func (t *Tailer) tailFromBeginning() error {
+	return t.tailFrom(0, os.SEEK_SET)
+}
+
+// tailFromEnd lets the tailer start tailing its file
+// from the end
+func (t *Tailer) tailFromEnd() error {
+	return t.tailFrom(0, os.SEEK_END)
+}
+
+// recoverTailingFrom starts the tailing from the last log line processed
+func (t *Tailer) recoverTailing(offset int64) error {
+	return t.tailFrom(offset, os.SEEK_SET)
 }
 
 // Stop stops the tailer and returns only when the decoder is flushed
@@ -117,12 +128,6 @@ func (t *Tailer) tailFrom(offset int64, whence int) error {
 	go t.readForever()
 
 	return nil
-}
-
-// tailFromBeginning lets the tailer start tailing its file
-// from the beginning
-func (t *Tailer) tailFromBeginning() error {
-	return t.tailFrom(0, os.SEEK_SET)
 }
 
 // forwardMessages lets the Tailer forward log messages to the output channel

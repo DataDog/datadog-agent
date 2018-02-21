@@ -90,6 +90,35 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetReadOffset()))
 }
 
+func (suite *TailerTestSuite) TestTailFromEnd() {
+	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
+
+	var msg message.Message
+	var err error
+
+	// this line should be tailed
+	_, err = suite.testFile.WriteString(lines[0])
+	suite.Nil(err)
+
+	suite.tl.tailFromEnd()
+
+	// those lines should be tailed
+	_, err = suite.testFile.WriteString(lines[1])
+	suite.Nil(err)
+	_, err = suite.testFile.WriteString(lines[2])
+	suite.Nil(err)
+
+	msg = <-suite.outputChan
+	suite.Equal("hello again", string(msg.Content()))
+	suite.Equal(len(lines[0])+len(lines[1]), int(msg.GetOrigin().Offset))
+
+	msg = <-suite.outputChan
+	suite.Equal("good bye", string(msg.Content()))
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(msg.GetOrigin().Offset))
+
+	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tl.GetReadOffset()))
+}
+
 func (suite *TailerTestSuite) TestRecoverTailing() {
 	lines := []string{"hello world\n", "hello again\n", "good bye\n"}
 
@@ -104,7 +133,7 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	_, err = suite.testFile.WriteString(lines[1])
 	suite.Nil(err)
 
-	suite.tl.recoverTailing(int64(len(lines[0])), os.SEEK_CUR)
+	suite.tl.recoverTailing(int64(len(lines[0])))
 
 	// this line should be tailed
 	_, err = suite.testFile.WriteString(lines[2])

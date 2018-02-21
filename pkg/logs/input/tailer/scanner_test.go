@@ -193,7 +193,7 @@ func TestScannerTestSuite(t *testing.T) {
 	suite.Run(t, new(ScannerTestSuite))
 }
 
-func TestScannerScanWithTheNewFile(t *testing.T) {
+func TestScannerScanStartNewTailer(t *testing.T) {
 	var err error
 	var path string
 	var file *os.File
