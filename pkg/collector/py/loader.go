@@ -16,6 +16,7 @@ import (
 	"github.com/sbinet/go-python"
 
 	log "github.com/cihub/seelog"
+	"github.com/go-ole/go-ole"
 )
 
 // const things
@@ -61,6 +62,16 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 
 	// Lock the GIL while working with go-python directly
 	glock := newStickyLock()
+
+	// Initialize COM to multithreaded model
+	err := ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED)
+	if err != nil {
+		oleCode := err.(*ole.OleError).Code()
+		if oleCode != ole.S_OK && oleCode != S_FALSE {
+			return err
+		}
+	}
+	defer ole.CoUninitialize()
 
 	var err error
 	var pyErr string
