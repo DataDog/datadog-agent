@@ -20,7 +20,7 @@ services:
         --insecure-port=8080
         --service-cluster-ip-range=192.168.1.1/24
         --admission-control=NamespaceLifecycle,LimitRanger,DefaultStorageClass,ResourceQuota
-        --authorization-mode=AlwaysAllow
+        --authorization-mode=RBAC
         --etcd-servers=http://127.0.0.1:2379"
     network_mode: ${network_mode}
     depends_on:

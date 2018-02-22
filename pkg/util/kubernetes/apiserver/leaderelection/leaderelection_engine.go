@@ -27,7 +27,7 @@ func (le *LeaderEngine) getCurrentLeader(electionId, namespace string) (string, 
 
 	val, found := configMap.Annotations[rl.LeaderElectionRecordAnnotationKey]
 	if !found {
-		log.Infof("The configmap/%s in the namespace %s doesn't have the annotation %q: no-one is leading yet", electionId, namespace, rl.LeaderElectionRecordAnnotationKey)
+		log.Debugf("The configmap/%s in the namespace %s doesn't have the annotation %q: no one is leading yet", electionId, namespace, rl.LeaderElectionRecordAnnotationKey)
 		return "", configMap, nil
 	}
 

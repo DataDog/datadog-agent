@@ -105,10 +105,10 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 		case <-tick.C:
 			leaderName = le.CurrentLeaderName()
 			if leaderName == le.HolderIdentity {
-				log.Infof("waiting for leader: Leader is %q", leaderName)
+				log.Infof("Waiting for leader: leader is %q", leaderName)
 				return
 			}
-			log.Infof("waiting for leader: Leader is %q", leaderName)
+			log.Infof("Waiting for leader: leader is %q", leaderName)
 		case <-timeout.C:
 			require.FailNow(suite.T(), "timeout after %s", t.String())
 		}

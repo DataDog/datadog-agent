@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	log "github.com/cihub/seelog"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -99,7 +100,7 @@ func (le *LeaderEngine) init() error {
 			return err
 		}
 	}
-	log.Debugf("HolderIdentity is %q", le.HolderIdentity)
+	log.Debugf("Init LeaderEngine with HolderIdentity: %q", le.HolderIdentity)
 
 	leaseDuration := config.Datadog.GetInt("leader_lease_duration")
 	if leaseDuration != 0 {
@@ -109,7 +110,7 @@ func (le *LeaderEngine) init() error {
 	if le.LeaseDuration == 0 {
 		le.LeaseDuration = defaultLeaderLeaseDuration
 	}
-	log.Debugf("LeaderLeaseDuration is %s", le.LeaseDuration.String())
+	log.Debugf("LeaderLeaseDuration: %s", le.LeaseDuration.String())
 
 	le.coreClient, err = apiserver.GetCoreV1Client()
 	if err != nil {
@@ -118,8 +119,8 @@ func (le *LeaderEngine) init() error {
 	}
 
 	// check if we can get ConfigMap.
-	_, err = le.coreClient.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{Limit: 1})
-	if err != nil {
+	_, err = le.coreClient.ConfigMaps(metav1.NamespaceDefault).Get(defaultLeaseName, metav1.GetOptions{})
+	if err != nil && errors.IsNotFound(err) == false {
 		log.Errorf("Cannot retrieve ConfigMap from the %s namespace: %s", metav1.NamespaceDefault, err)
 		return err
 	}
