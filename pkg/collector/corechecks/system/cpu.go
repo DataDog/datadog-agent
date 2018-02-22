@@ -78,6 +78,11 @@ func (c *CPUCheck) Run() error {
 // Configure the CPU check doesn't need configuration
 func (c *CPUCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	// do nothing
+	// NOTE: This runs before the python checks, so we should be good, but cpuInfo()
+	//       on windows initializes COM to the multithreaded model. Therefore,
+	//       if a python check has run on this native windows thread prior and
+	//       CoInitialized() the thread to a different model (ie. single-threaded)
+	//       This will cause cpuInfo() to fail.
 	info, err := cpuInfo()
 	if err != nil {
 		return fmt.Errorf("system.CPUCheck: could not query CPU info")

@@ -54,9 +54,17 @@ func (c *LoadCheck) Run() error {
 // Configure the CPU check doesn't need configuration
 func (c *LoadCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	// do nothing
+	// NOTE: This check is disabled on windows - so the following doesn't apply
+	//       currently:
+	//
+	//       This runs before the python checks, so we should be good, but cpuInfo()
+	//       on windows initializes COM to the multithreaded model. Therefore,
+	//       if a python check has run on this native windows thread prior and
+	//       CoInitialized() the thread to a different model (ie. single-threaded)
+	//       This will cause cpuInfo() to fail.
 	info, err := cpuInfo()
 	if err != nil {
-		return fmt.Errorf("system.LoadCheck: could not query CPU info")
+		return fmt.Errorf("system.LoadCheck: could not query CPU info - %v", err)
 	}
 	for _, i := range info {
 		c.nbCPU += i.Cores
