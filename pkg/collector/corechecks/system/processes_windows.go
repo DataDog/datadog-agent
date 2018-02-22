@@ -7,11 +7,10 @@
 package system
 
 import (
-	"errors"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/cpu"
-
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
@@ -34,8 +33,8 @@ func (c *processChk) Run() error {
 		return err
 	}
 
-	procQueueLength := processesValues.ProcessorQueueLength
-	procCount := processesValues.Processes
+	procQueueLength := processesValuesp[0].ProcessorQueueLength
+	procCount := processesValues[0].Processes
 
 	sender.Gauge("system.proc.queue_length", procQueueLength, "", nil)
 	sender.Gauge("system.proc.count", procCount, "", nil)
