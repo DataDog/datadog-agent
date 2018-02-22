@@ -67,8 +67,8 @@ func (t *Tailer) readAvailable() (err error) {
 			return err
 		}
 		log.Debugf("Sending %d bytes to input channel", n)
-		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		t.incrementReadOffset(n)
+		t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 	}
 }
 

@@ -148,10 +148,9 @@ func (suite *ScannerTestSuite) TestScannerScanWithLogRotationCopyTruncate() {
 
 	suite.testFile.Truncate(0)
 	suite.testFile.Seek(0, 0)
-	f, err := os.OpenFile(suite.testPath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
+	_, err = suite.testFile.WriteString("third\n")
 	suite.Nil(err)
-	_, err = f.WriteString("third\n")
-	suite.Nil(err)
+
 	s.scan()
 	newTailer = s.tailers[sources[0].Config.Path]
 	suite.True(tailer != newTailer)
