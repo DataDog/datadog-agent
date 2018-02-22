@@ -473,9 +473,6 @@ class WMISampler(object):
 
             results = self._parse_results(raw_results, includes_qualifiers=includes_qualifiers)
 
-            # uninitialize COM for Agent6 consistency
-            pythoncom.CoUninitialize()
-
         except pywintypes.com_error:
             self.logger.warning(u"Failed to execute WMI query (%s)", wql, exc_info=True)
             results = []
