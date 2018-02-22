@@ -147,6 +147,9 @@ func init() {
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
 	Datadog.SetDefault("exclude_pause_container", true)
+	Datadog.SetDefault("ac_include", []string{})
+	Datadog.SetDefault("ac_exclude", []string{})
+
 	// Docker
 	Datadog.SetDefault("docker_labels_as_tags", map[string]string{})
 	Datadog.SetDefault("docker_env_as_tags", map[string]string{})
@@ -243,6 +246,8 @@ func init() {
 	Datadog.BindEnv("docker_labels_as_tags")
 	Datadog.BindEnv("docker_env_as_tags")
 	Datadog.BindEnv("kubernetes_pod_labels_as_tags")
+	Datadog.BindEnv("ac_include")
+	Datadog.BindEnv("ac_exclude")
 
 	Datadog.BindEnv("cluster_agent.auth_token")
 

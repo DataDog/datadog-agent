@@ -39,6 +39,10 @@ These features are disabled by default for security or performance reasons, you 
 You can send custom metrics via [the statsd protocol](https://docs.datadoghq.com/developers/dogstatsd/):
 
 - `DD_DOGSTATSD_NON_LOCAL_TRAFFIC`: listen to dogstatsd packets from other containers, required to send custom metrics
+- `DD_HISTOGRAM_PERCENTILES`: histogram percentiles to compute, separated by spaces. The default is "0.95"
+- `DD_HISTOGRAM_AGGREGATES`: histogram aggregates to compute, separated by spaces. The default is "max median avg count"
+- `DD_DOGSTATSD_SOCKET`: path to the unix socket to listen to. Must be in a `rw` mounted volume.
+- `DD_DOGSTATSD_ORIGIN_DETECTION`: enable container detection and tagging for unix socket metrics.
 
 #### Tagging
 
@@ -49,6 +53,14 @@ We automatically collect common tags from [Docker](https://github.com/DataDog/da
 - `DD_KUBERNETES_POD_LABELS_AS_TAGS` : extract pod labels
 
 You can either define them in your custom `datadog.yaml`, or set them as JSON maps in these envvars. The map key is the source (label/envvar) name, and the map value the datadog tag name.
+
+#### Ignore containers
+
+You can exclude containers from the metrics collection and autodiscovery, if these are not useful for you. We already exclude Kubernetes and OpenShift `pause` containers by default. See the `datadog.yaml.example` file for more documentation, and examples.
+- `DD_AC_INCLUDE`: whitelist of containers to always include
+- `DD_AC_EXCLUDE`: blacklist of containers to exclude
+
+Please note that the `docker.containers.running`, `.stopped`, `.running.total` and `.stopped.total` metrics are not affected by these settings and always count all containers. This does not affect your per-container billing.
 
 ```shell
 DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app":"kube_app","release":"helm_release"}'
