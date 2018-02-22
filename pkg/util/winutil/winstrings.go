@@ -31,3 +31,19 @@ func ConvertWindowsStringList(winput []uint16) []string {
 	}
 	return retstrings
 }
+
+// ConvertWindowsString converts a windows c-string
+// into a go string.  Even though the input is array
+// of uint8, the underlying data is expected to be
+// uint16 (unicode)
+func ConvertWindowsString(winput []uint8) string {
+	var retstring string
+	for i := 0; i < len(winput); i += 2 {
+		dbyte := (winput[i+1] << 8) + winput[i]
+		if dbyte == 0 {
+			break
+		}
+		retstring += string(rune(dbyte))
+	}
+	return retstring
+}

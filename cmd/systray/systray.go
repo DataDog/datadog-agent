@@ -10,11 +10,14 @@ import (
 	"flag"
 	"os"
 	"os/exec"
+	"syscall"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/lxn/walk"
+
+	"golang.org/x/sys/windows"
 )
 
 type menuItem struct {
@@ -28,6 +31,7 @@ var (
 	menuitems []menuItem
 	ni        *walk.NotifyIcon
 	launchgui bool
+	eventname = syscall.StringToUTF16Ptr("ddtray-event")
 )
 
 func init() {
@@ -50,6 +54,7 @@ func init() {
 func onExit() {
 	walk.App().Exit(0)
 }
+
 func main() {
 	flag.BoolVar(&launchgui, "launch-gui", false, "Launch browser configuration and exit")
 	flag.Parse()
@@ -60,6 +65,22 @@ func main() {
 		log.Debug("Preparing to launch configuration interface...")
 		onConfigure()
 		return
+	}
+	// check to see if the process is already running.  If so, just exit
+	h, _ := windows.OpenEvent(0x1F0003, // EVENT_ALL_ACCESS
+		false,
+		eventname)
+
+	if h != windows.Handle(0) {
+		// was already there.  Process already running. We're done
+		windows.CloseHandle(h)
+		return
+	}
+	// otherwise, create the handle so that nobody else will
+	h, _ = windows.CreateEvent(nil, 0, 0, eventname)
+	// should never fail; test just to make sure we don't close unopened handle
+	if h != windows.Handle(0) {
+		defer windows.CloseHandle(h)
 	}
 	// We need either a walk.MainWindow or a walk.Dialog for their message loop.
 	// We will not make it visible in this example, though.

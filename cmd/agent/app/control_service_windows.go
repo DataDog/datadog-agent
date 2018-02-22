@@ -6,12 +6,20 @@
 package app
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
+	"syscall"
 	"time"
+	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/spf13/cobra"
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
+
+	log "github.com/cihub/seelog"
 )
 
 func init() {
@@ -41,6 +49,21 @@ var restartsvcCommand = &cobra.Command{
 	RunE:  restartService,
 }
 
+var (
+	modadvapi32 = syscall.NewLazyDLL("advapi32.dll")
+
+	procEnumDependentServices = modadvapi32.NewProc("EnumDependentServicesW")
+)
+
+type enumServiceState uint32
+
+const (
+	enumServiceActive = enumServiceState(0x1) // START_PENDING, STOP_PENDING, RUNNING
+	// continue_pending, pause_pending, paused
+	enumServiceInactive = enumServiceState(0x02) // STOPPED
+	enumServiceAll      = enumServiceState(0x03) // all of the above
+)
+
 // StartService starts the agent service via the Service Control Manager
 func StartService(cmd *cobra.Command, args []string) error {
 	m, err := mgr.Connect()
@@ -61,25 +84,65 @@ func StartService(cmd *cobra.Command, args []string) error {
 }
 
 func stopService(cmd *cobra.Command, args []string) error {
-	return ControlService(svc.Stop, svc.Stopped)
+	return StopService(ServiceName, true)
 }
 
 func restartService(cmd *cobra.Command, args []string) error {
 	var err error
-	if err = stopService(cmd, args); err == nil {
+	if err = StopService(ServiceName, true); err == nil {
 		err = StartService(cmd, args)
 	}
 	return err
 }
 
-// ControlService sets the service state via the Service Control Manager
-func ControlService(c svc.Cmd, to svc.State) error {
+func StopService(serviceName string, withDeps bool) error {
 	m, err := mgr.Connect()
 	if err != nil {
 		return err
 	}
 	defer m.Disconnect()
-	s, err := m.OpenService(ServiceName)
+	s, err := m.OpenService(serviceName)
+	if err != nil {
+		return fmt.Errorf("could not access service: %v", err)
+	}
+	defer s.Close()
+	if withDeps {
+		deps, err := enumDependentServices(s.Handle, enumServiceActive)
+		if err != nil {
+			log.Warnf("Failed to enumerate dependencies; skipping %v", err)
+		} else {
+			for _, dep := range deps {
+				log.Debugf("Stopping service %s", dep.serviceName)
+				StopService(dep.serviceName, false)
+			}
+		}
+	}
+	status, err := s.Control(svc.Stop)
+	if err != nil {
+		return fmt.Errorf("could not send control=%d: %v", svc.Stop, err)
+	}
+	timeout := time.Now().Add(10 * time.Second)
+	for status.State != svc.Stopped {
+		if timeout.Before(time.Now()) {
+			return fmt.Errorf("timeout waiting for service to go to state=%d", svc.Stopped)
+		}
+		time.Sleep(300 * time.Millisecond)
+		status, err = s.Query()
+		if err != nil {
+			return fmt.Errorf("could not retrieve service status: %v", err)
+		}
+	}
+	return nil
+}
+
+// ControlService sets the service state via the Service Control Manager
+func ControlService(serviceName string, c svc.Cmd, to svc.State) error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+	s, err := m.OpenService(serviceName)
 	if err != nil {
 		return fmt.Errorf("could not access service: %v", err)
 	}
@@ -100,4 +163,79 @@ func ControlService(c svc.Cmd, to svc.State) error {
 		}
 	}
 	return nil
+}
+
+// ServiceStatus reports information pertaining to enumerated services
+// only exported so binary.Read works
+type ServiceStatus struct {
+	DwServiceType             uint32
+	DwCurrentState            uint32
+	DwControlsAccepted        uint32
+	DwWin32ExitCode           uint32
+	DwServiceSpecificExitCode uint32
+	DwCheckPoint              uint32
+	DwWaitHint                uint32
+}
+
+// EnumServiceStatus complete enumerated service information
+// only exported so binary.Read works
+type EnumServiceStatus struct {
+	serviceName string
+	displayName string
+	status      ServiceStatus
+}
+
+type internalEnumServiceStatus struct {
+	ServiceName uint64 // offset from beginning of buffer
+	DisplayName uint64 // offset from beginning of buffer.
+	Status      ServiceStatus
+	Padding     uint32 // structure is qword aligned.
+
+}
+
+func enumDependentServices(h windows.Handle, state enumServiceState) (services []EnumServiceStatus, err error) {
+	services = make([]EnumServiceStatus, 0)
+	var bufsz uint32
+	var count uint32
+	ret, _, err := procEnumDependentServices.Call(uintptr(h),
+		uintptr(state),
+		uintptr(0),
+		uintptr(0), // current buffer size is zero
+		uintptr(unsafe.Pointer(&bufsz)),
+		uintptr(unsafe.Pointer(&count)))
+
+	if err != error(syscall.ERROR_MORE_DATA) {
+		log.Warnf("Error getting buffer %v", err)
+		return
+	}
+	servicearray := make([]uint8, bufsz)
+	ret, _, err = procEnumDependentServices.Call(uintptr(h),
+		uintptr(state),
+		uintptr(unsafe.Pointer(&servicearray[0])),
+		uintptr(bufsz),
+		uintptr(unsafe.Pointer(&bufsz)),
+		uintptr(unsafe.Pointer(&count)))
+	if ret == 0 {
+		log.Warnf("Error getting deps %d %v", int(ret), err)
+		return
+	}
+	// now get to parse out the C structure into go.
+	var ess internalEnumServiceStatus
+	baseptr := uintptr(unsafe.Pointer(&servicearray[0]))
+	buf := bytes.NewReader(servicearray)
+	for i := uint32(0); i < count; i++ {
+
+		err = binary.Read(buf, binary.LittleEndian, &ess)
+		if err != nil {
+			break
+		}
+
+		ess.ServiceName = ess.ServiceName - uint64(baseptr)
+		ess.DisplayName = ess.DisplayName - uint64(baseptr)
+		ss := EnumServiceStatus{serviceName: winutil.ConvertWindowsString(servicearray[ess.ServiceName:]),
+			displayName: winutil.ConvertWindowsString(servicearray[ess.DisplayName:]),
+			status:      ess.Status}
+		services = append(services, ss)
+	}
+	return
 }
