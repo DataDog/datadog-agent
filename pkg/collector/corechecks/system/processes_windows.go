@@ -7,11 +7,11 @@
 package system
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/cpu"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 const processesCheckName = "processes"
