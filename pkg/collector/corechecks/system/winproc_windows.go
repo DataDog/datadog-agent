@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
-const processesCheckName = "processes"
+const winprocCheckName = "winproc"
 
 type processChk struct {
 	core.CheckBase
@@ -51,10 +51,10 @@ func (c *processChk) Configure(data check.ConfigData, initConfig check.ConfigDat
 
 func processCheckFactory() check.Check {
 	return &processChk{
-		CheckBase: core.NewCheckBase(processesCheckName),
+		CheckBase: core.NewCheckBase(winprocCheckName),
 	}
 }
 
 func init() {
-	core.RegisterCheck(processesCheckName, processCheckFactory)
+	core.RegisterCheck(winprocCheckName, processCheckFactory)
 }

@@ -67,7 +67,7 @@ build do
             delete "/etc/datadog-agent/conf.d/apm.yaml.default"
 
             # remove windows specific configs
-            delete "#{install_dir}/etc/conf.d/processes.d"
+            delete "#{install_dir}/etc/conf.d/winproc.d"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
@@ -76,7 +76,7 @@ build do
             delete "#{install_dir}/etc/conf.d/file_handle.d"
 
             # remove windows specific configs
-            delete "#{install_dir}/etc/conf.d/processes.d"
+            delete "#{install_dir}/etc/conf.d/winproc.d"
 
             delete "#{install_dir}/etc/trace-agent.conf.example"
 
