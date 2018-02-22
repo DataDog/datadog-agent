@@ -31,9 +31,14 @@ const packageCachePrefix = "host"
 // Collect at init time
 var cpuInfo []cpu.InfoStat
 
-func init() {
-	// Collect at init to avoid COM model mayhem on windows
-	cpuInfo, _ = cpu.Info()
+// InitHostMetadata initializes necessary CPU info
+func InitHostMetadata() error {
+	// Collect before even loading any python check to avoid
+	// COM model mayhem on windows
+	var err error
+	cpuInfo, err = cpu.Info()
+
+	return err
 }
 
 // GetPayload builds a metadata payload every time is called.
