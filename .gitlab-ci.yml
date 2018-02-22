@@ -52,7 +52,7 @@ before_script:
 # run tests for deb-x64
 run_tests_deb-x64:
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     - inv -e test --race --profile
@@ -60,7 +60,7 @@ run_tests_deb-x64:
 # run tests for rpm-x64
 run_test_rpm-x64:
   stage: source_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     - inv -e test --race --profile
@@ -74,7 +74,7 @@ run_test_rpm-x64:
 # build dogstatsd static for deb-x64
 build_dogstatsd_static-deb_x64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     - inv -e dogstatsd.build --static
@@ -83,7 +83,7 @@ build_dogstatsd_static-deb_x64:
 # build puppy agent for deb-x64, to make sure the build is not broken because of build flags
 build_puppy_agent-deb_x64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     - inv -e agent.build --puppy
@@ -92,7 +92,7 @@ build_puppy_agent-deb_x64:
 # build puppy agent for ARM, to make sure the build is not broken because of build targets
 build_puppy_agent-deb_x64_arm:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     - GOOS=linux GOARCH=arm inv -e agent.build --puppy
@@ -100,7 +100,7 @@ build_puppy_agent-deb_x64_arm:
 # build dogstatsd for deb-x64
 build_dogstatsd-deb_x64:
   stage: binary_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     - inv -e dogstatsd.build
@@ -113,7 +113,7 @@ build_dogstatsd-deb_x64:
 # run benchmarks on deb
 # run_benchmarks-deb_x64:
 #   stage: integration_test
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
 #   allow_failure: true  # FIXME: this was set to true to temporarily unblock the pipeline
 #   tags: [ "runner:main", "size:large" ]
 #   script:
@@ -136,7 +136,7 @@ build_dogstatsd-deb_x64:
 # check the size of the static dogstatsd binary
 run_dogstatsd_size_test:
   stage: integration_test
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   before_script:
     # Disable global before_script
@@ -153,7 +153,7 @@ run_dogstatsd_size_test:
 # build Agent package for deb-x64
 agent_deb-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -177,7 +177,7 @@ agent_deb-x64:
 # build Agent package for rpm-x64
 agent_rpm-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -205,7 +205,7 @@ agent_rpm-x64:
 # build Agent package for rpm-x64
 agent_suse-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/suse_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -255,7 +255,7 @@ build_windows_msi_x64:
 # build Cluster Agent package for deb-x64
 cluster-agent_deb-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -279,7 +279,7 @@ cluster-agent_deb-x64:
 # build Cluster Agent package for rpm-x64
 cluster-agent_rpm-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -307,7 +307,7 @@ cluster-agent_rpm-x64:
 # build Dogstastd package for deb-x64
 dogstatsd_deb-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deb_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -331,7 +331,7 @@ dogstatsd_deb-x64:
 # build Dogstastd package for rpm-x64
 dogstatsd_rpm-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/rpm_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -360,7 +360,7 @@ dogstatsd_rpm-x64:
 # build Dogstastd package for rpm-x64
 dogstatsd_suse-x64:
   stage: package_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/suse_x64:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
   tags: [ "runner:main", "size:large" ]
   script:
     # remove artifacts from previous pipelines that may come from the cache
@@ -388,7 +388,7 @@ dogstatsd_suse-x64:
 # deploy debian packages to apt staging repo
 deploy_deb_testing:
   stage: testkitchen_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   only:
@@ -418,7 +418,7 @@ deploy_deb_testing:
 # deploy rpm packages to yum staging repo
 deploy_rpm_testing:
   stage: testkitchen_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   only:
@@ -437,7 +437,7 @@ deploy_rpm_testing:
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm_testing:
   stage: testkitchen_deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   only:
@@ -457,7 +457,7 @@ deploy_suse_rpm_testing:
 testkitchen_testing:
   stage: testkitchen_testing
   allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/dd-agent-testing:pipeline-189121
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:pipeline-189121
   only:
     - master
     - tags
@@ -479,7 +479,7 @@ testkitchen_testing:
 # run dd-agent-testing
 testkitchen_cleanup_s3:
   stage: testkitchen_cleanup
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   only:
     - master
     - tags
@@ -500,7 +500,7 @@ testkitchen_cleanup_s3:
 # run dd-agent-testing
 testkitchen_cleanup_azure:
   stage: testkitchen_cleanup
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/dd-agent-testing:pipeline-189121
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:pipeline-189121
   only:
     - master
     - tags
@@ -521,13 +521,13 @@ testkitchen_cleanup_azure:
 .docker_job_definition: &docker_job_definition
   stage: image_build
   tags: [ "runner:main", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/images/docker-machine:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-machine:latest
   services:
-    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/images/docker-machine:latest
+    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-machine:latest
   before_script: [ "# noop" ] # Override top level entry
   dependencies: [] # Don't download Gitlab artefacts
   script:
-    - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__images__docker-machine:2375
+    - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
     - aws s3 sync --only-show-errors "s3://dd-ci-artefacts-build-stable/datadog-agent/$CI_PIPELINE_ID" $BUILD_CONTEXT
     - TAG_SUFFIX=${TAG_SUFFIX:-}
@@ -539,14 +539,14 @@ testkitchen_cleanup_azure:
 build_agent6:
   <<: *docker_job_definition
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent
+    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
 
 # build the agent6 jmx image
 build_agent6_jmx:
   <<: *docker_job_definition
   variables:
-    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/agent
+    IMAGE: &agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -jmx
     BUILD_ARG: --build-arg WITH_JMX=true
@@ -555,14 +555,14 @@ build_agent6_jmx:
 build_cluster_agent:
   <<: *docker_job_definition
   variables:
-    IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/cluster-agent
+    IMAGE: &cluster-agent_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
 
 # build the dogstatsd image
 build_dogstatsd:
   <<: *docker_job_definition
   variables:
-    IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent/dogstatsd
+    IMAGE: &dogstatsd_ecr 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
     BUILD_CONTEXT: Dockerfiles/dogstatsd/alpine
 
 #
@@ -572,13 +572,13 @@ build_dogstatsd:
 .docker_tag_job_definition: &docker_tag_job_definition
   stage: image_deploy
   tags: [ "runner:main", "size:large" ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/images/docker-machine:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-machine:latest
   services:
-    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/images/docker-machine:latest
+    - 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker-machine:latest
   before_script: [ "# noop" ] # Override top level entry
   dependencies: [] # Don't download Gitlab artefacts
   script:
-    - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__images__docker-machine:2375
+    - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
     - DOCKER_HUB_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.docker_hub_login --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.docker_hub_pwd --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_HUB_LOGIN" --password-stdin
@@ -665,7 +665,7 @@ dogstatsd_dev_docker_hub_master:
 # deploy debian packages to apt staging repo
 deploy_deb:
   stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   only:
@@ -702,7 +702,7 @@ deploy_deb:
 # deploy rpm packages to yum staging repo
 deploy_rpm:
   stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   only:
@@ -731,7 +731,7 @@ deploy_rpm:
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm:
   stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   only:
@@ -759,7 +759,7 @@ deploy_suse_rpm:
 # deploy dsd binary to staging bucket
 deploy_dsd:
   stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   only:
@@ -774,7 +774,7 @@ deploy_dsd:
 # deploy dsd binary to staging bucket
 deploy_puppy:
   stage: deploy
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/datadog-agent-builders/deploy:latest
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   only:
