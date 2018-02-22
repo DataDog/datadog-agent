@@ -95,6 +95,7 @@ func restartService(cmd *cobra.Command, args []string) error {
 	return err
 }
 
+// StopService stops the agent service via the Service Control Manager
 func StopService(serviceName string, withDeps bool) error {
 	m, err := mgr.Connect()
 	if err != nil {
