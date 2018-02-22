@@ -39,7 +39,7 @@ func ConvertWindowsStringList(winput []uint16) []string {
 func ConvertWindowsString(winput []uint8) string {
 	var retstring string
 	for i := 0; i < len(winput); i += 2 {
-		dbyte := (winput[i+1] << 8) + winput[i]
+		dbyte := (uint16(winput[i+1]) << 8) + uint16(winput[i])
 		if dbyte == 0 {
 			break
 		}
