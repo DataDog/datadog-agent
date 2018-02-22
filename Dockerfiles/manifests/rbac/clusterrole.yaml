@@ -33,3 +33,12 @@ rules:
   - get
   - update
   - create
+# Kubelet connectivity
+- apiGroups:
+  - ""
+  resources:
+  - nodes/metrics
+  - nodes/spec
+  - nodes/proxy
+  verbs:
+  - get
