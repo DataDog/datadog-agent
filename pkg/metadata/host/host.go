@@ -28,6 +28,14 @@ import (
 
 const packageCachePrefix = "host"
 
+// Collect at init time
+var cpuInfo []cpu.InfoStat
+
+func init() {
+	// Collect at init to avoid COM model mayhem on windows
+	cpuInfo, _ = cpu.Info()
+}
+
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
 func GetPayload(hostname string) *Payload {
@@ -142,13 +150,12 @@ func getCPUInfo() *cpu.InfoStat {
 		return x.(*cpu.InfoStat)
 	}
 
-	i, err := cpu.Info()
-	if err != nil {
+	if cpuInfo == nil {
 		// don't cache and return zero value
-		log.Errorf("failed to retrieve cpu info: %s", err)
+		log.Errorf("failed to retrieve cpu info at init time")
 		return &cpu.InfoStat{}
 	}
-	info := &i[0]
+	info := &cpuInfo[0]
 	cache.Cache.Set(key, info, cache.NoExpiration)
 	return info
 }
