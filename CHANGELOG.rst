@@ -2,6 +2,59 @@
 Release Notes
 =============
 
+6.0.0-rc.3
+==========
+
+Enhancements
+------------
+
+- Adds windows systray icon.  System tray icon includes menu options for
+  starting/stopping/restarting services, creating a flare, and launching the
+  browser-based GUI.
+
+- allow auth token path to be set in the config file
+
+- Implementation for disabling checks from the web UI
+
+- Agent restart message on UI, clears after restart.
+
+- Add SSL support & label joins for the prometheus check
+
+
+Bug Fixes
+---------
+
+- Fix the command-line flag parsing regression caused by a transitive dependency importing the
+  glog library. ``agent`` flags should now behave as in beta9.
+
+- GUI had broken after the introduction of integrations as wheels this PR
+  ensures we collect the full list of available integrations so we can
+  enable the corresponding configurations from the UI.
+
+- Fix an issue preventing logs-agent to tail container logs when docker API version is prior to 1.25
+
+- Fix line miss issue_ that could happen when tailing new files found when scanning
+
+  .. _issue: https://github.com/DataDog/datadog-agent/issues/1302
+
+- On windows ``Automatic`` services would fail to start across reboots due to
+  a known go issue on 1.9.2: https://github.com/golang/go/issues/23479
+  We now start windows services as delayed start automatic services (ie. they
+  now start automatically after all other automatic services).
+
+
+Other Notes
+-----------
+
+- The OSX build of the agent does not include the containers integrations
+  as they are only supported on Linux for now. The Windows build already
+  excluded them since beta1
+
+- The ``auth_token`` file, used to store the api authentication token, is now
+  only readable/writable by the user running the agent instead of inheriting
+  datadog.yaml permissions.
+
+
 6.0.0-rc.2
 ==========
 
