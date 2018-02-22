@@ -9,6 +9,8 @@ import "github.com/shirou/gopsutil/host"
 
 type osVersion [2]string
 
+const osName = "win32"
+
 func fillOsVersion(stats *systemStats, info *host.InfoStat) {
 	// TODO
 	stats.Winver = osVersion{info.PlatformFamily, info.PlatformVersion}
