@@ -33,8 +33,8 @@ func (c *processChk) Run() error {
 		return err
 	}
 
-	procQueueLength := processesValuesp[0].ProcessorQueueLength
-	procCount := processesValues[0].Processes
+	procQueueLength := float64(processesValues[0].ProcessorQueueLength)
+	procCount := float64(processesValues[0].Processes)
 
 	sender.Gauge("system.proc.queue_length", procQueueLength, "", nil)
 	sender.Gauge("system.proc.count", procCount, "", nil)
