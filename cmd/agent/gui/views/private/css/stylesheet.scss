@@ -250,7 +250,7 @@ a {
     font-size: $font_size;
     padding: 1px;
 
-    #submit_settings, #save_check, #disable_check, #add_check, #reload_check {
+    #submit_settings, #save_check, #disable_check, #add_check {
       box-shadow:inset 0px 1px 0px 0px #3dc21b;
       background:linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
       background-color:#44c767;
@@ -306,18 +306,12 @@ a {
     }
 
     #save_check  {
-      right: 90px;
+      right: 10px;
       top: 10px;
     }
 
     #disable_check  {
-      right: 170px;
-      top: 10px;
-    }
-
-    #reload_check {
-      width: 50px;
-      right: 10px;
+      right: 70px;
       top: 10px;
     }
 
@@ -327,12 +321,12 @@ a {
       top: 10px;
     }
 
-    #submit_settings:hover, #save_check:hover, , #disable_check:hover, #reload_check:hover {
+    #submit_settings:hover, #save_check:hover, , #disable_check:hover {
       background:linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
       background-color:#5cbf2a;
     }
 
-    #submit_settings:active, #save_check:active, #disable_check:active, #reload_check:active, #add_check:active {
+    #submit_settings:active, #save_check:active, #disable_check:active, #add_check:active {
       margin-top: 1px;
     }
 
@@ -432,7 +426,7 @@ a {
       display: block;
       text-align: center;
       line-height: 50px;
-      font-size: $font_size * 1.1;
+      font-size: $font_size;
       font-weight: bold;
     }
 
