@@ -10,31 +10,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/cpu"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
 const processesCheckName = "processes"
 
 type processChk struct {
 	core.CheckBase
+	numprocs *pdhutil.PdhCounterSet
+	pql      *pdhutil.PdhCounterSet
 }
 
 // Run executes the check
 func (c *processChk) Run() error {
-	processesValues, err := cpu.ProcInfo()
-	if err != nil {
-		log.Errorf("Could not gather Process values from psutil")
-		return err
-	}
 
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
 	}
 
-	procQueueLength := float64(processesValues[0].ProcessorQueueLength)
-	procCount := float64(processesValues[0].Processes)
+	procQueueLength, _ := c.pql.GetSingleValue()
+	procCount, _ := c.pql.GetSingleValue()
 
 	sender.Gauge("system.proc.queue_length", procQueueLength, "", nil)
 	sender.Gauge("system.proc.count", procCount, "", nil)
@@ -43,10 +39,14 @@ func (c *processChk) Run() error {
 	return nil
 }
 
-// The check doesn't need configuration
-func (c *processChk) Configure(data check.ConfigData, initConfig check.ConfigData) error {
-	// do nothing
-	return nil
+func (c *processChk) Configure(data check.ConfigData, initConfig check.ConfigData) (err error) {
+	c.numprocs, err = pdhutil.GetCounterSet("System", "Processes", "", nil)
+	if err != nil {
+		return err
+	}
+	c.pql, err = pdhutil.GetCounterSet("System", "Processor Queue Length", "", nil)
+
+	return err
 }
 
 func processCheckFactory() check.Check {
