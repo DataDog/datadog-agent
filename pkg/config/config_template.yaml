@@ -246,13 +246,14 @@ api_key:
 #   - name: auto
 #   - name: docker
 #
-# Exclude containers based on their name or image
+# Exclude containers from metrics and AD based on their name or image:
 # An excluded container will not get any individual container metric reported for it.
-# However it will still appear in the container count since ignoring it here would give
-# a wrong impression about the docker daemon load.
+# Please note that the `docker.containers.running`, `.stopped`, `.running.total` and
+# `.stopped.total` metrics are not affected by these settings and always count all
+# containers. This does not affect your per-container billing.
 #
-# How it works: exclude first.
-# If a container matches an exclude rule, it won't be included unless it also matches an include rule.
+# How it works: include first.
+# If a container matches an exclude rule, it won't be included unless it first matches an include rule.
 #
 # Rules are regexp.
 #
@@ -327,6 +328,28 @@ api_key:
 #
 # URL where the ECS agent can be found. Standard cases will be autodetected.
 # ecs_agent_url: http://localhost:51678
+#
+{{ end -}}
+{{- if .Kubelet }}
+# Kubernetes kubelet connectivity
+#
+# The kubelet host and port should be autodetected when running inside a pod.
+# If you run into connectivity issues, you can set these options according to
+# your cluster setup:
+# kubernetes_kubelet_host: autodetected
+# kubernetes_http_kubelet_port: 10255
+# kubernetes_https_kubelet_port: 10250
+#
+# When using HTTPS, we verify the kubelet's certificate, you can tune this:
+# kubelet_tls_verify: true
+# kubelet_client_ca: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+#
+# If authentication is needed, the agent will use the pod's serviceaccount's
+# credentials. If you want to use a different account, or are running the agent
+# on the host, you can set the credentials to use here:
+# kubelet_auth_token_path: /path/to/file
+# kubelet_client_crt: /path/to/key
+# kubelet_client_key: /path/to/key
 #
 {{ end -}}
 {{- if .KubeApiServer }}

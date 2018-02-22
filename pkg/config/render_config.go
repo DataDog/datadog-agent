@@ -27,6 +27,7 @@ type context struct {
 	Logging           bool
 	Autodiscovery     bool
 	DockerTagging     bool
+	Kubelet           bool
 	KubernetesTagging bool
 	ECS               bool
 	ProcessAgent      bool
@@ -54,6 +55,8 @@ func mkContext(buildType string) context {
 			ECS:               true,
 			ProcessAgent:      true,
 			TraceAgent:        true,
+			Kubelet:           true,
+			KubeApiServer:     true, // TODO: remove when phasing out from node-agent
 		}
 	case "dogstatsd":
 		return context{
@@ -64,6 +67,7 @@ func mkContext(buildType string) context {
 			KubernetesTagging: true,
 			ECS:               true,
 			TraceAgent:        true,
+			Kubelet:           true,
 		}
 	case "dca":
 		return context{
