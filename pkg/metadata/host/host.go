@@ -108,7 +108,7 @@ func getSystemStats() *systemStats {
 
 		stats = &systemStats{
 			Machine:   runtime.GOARCH,
-			Platform:  runtime.GOOS,
+			Platform:  osName,
 			Processor: cpuInfo.ModelName,
 			CPUCores:  cpuInfo.Cores,
 			Pythonv:   strings.Split(getPythonVersion(), " ")[0],
