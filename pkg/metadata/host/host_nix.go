@@ -8,8 +8,9 @@
 package host
 
 import (
-	"github.com/shirou/gopsutil/host"
 	"runtime"
+
+	"github.com/shirou/gopsutil/host"
 )
 
 type osVersion [3]string
