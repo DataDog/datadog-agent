@@ -105,10 +105,10 @@ func (suite *apiserverSuite) waitForLeaderName(le *leaderelection.LeaderEngine) 
 		case <-tick.C:
 			leaderName = le.CurrentLeaderName()
 			if leaderName == le.HolderIdentity {
-				log.Infof("leader is %s", leaderName)
+				log.Infof("waiting for leader: Leader is %q", leaderName)
 				return
 			}
-			log.Infof("leader is %q", leaderName)
+			log.Infof("waiting for leader: Leader is %q", leaderName)
 		case <-timeout.C:
 			require.FailNow(suite.T(), "timeout after %s", t.String())
 		}
@@ -169,17 +169,19 @@ func (suite *apiserverSuite) TestLeaderElectionMulti() {
 	require.Nil(suite.T(), err)
 	cmList, err := client.ConfigMaps(metav1.NamespaceDefault).List(metav1.ListOptions{})
 	require.Nil(suite.T(), err)
-	// 1 ConfigMap or 2 Enpoints
+	// 1 ConfigMap
 	require.Len(suite.T(), cmList.Items, 1)
 
 	var leaderAnnotation string
+	var found bool
 	for _, cm := range cmList.Items {
 		if cm.Name == "datadog-leader-election" {
-			leaderAnnotation = cm.Annotations[rl.LeaderElectionRecordAnnotationKey]
+			require.False(suite.T(), found, "only one configmap match")
+			leaderAnnotation, found = cm.Annotations[rl.LeaderElectionRecordAnnotationKey]
+			require.True(suite.T(), found)
 		}
 	}
 	require.Nil(suite.T(), err)
-	expectedMessage := fmt.Sprintf("\"holderIdentity\":\"%s\"", fmt.Sprintf("%s%d", baseIdentityName, 0))
+	expectedMessage := fmt.Sprintf(`"holderIdentity":"%s"`, testCases[0].leaderEngine.HolderIdentity)
 	assert.Contains(suite.T(), leaderAnnotation, expectedMessage)
-
 }

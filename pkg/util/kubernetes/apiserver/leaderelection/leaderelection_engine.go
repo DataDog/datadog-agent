@@ -27,6 +27,7 @@ func (le *LeaderEngine) getCurrentLeader(electionId, namespace string) (string, 
 
 	val, found := configMap.Annotations[rl.LeaderElectionRecordAnnotationKey]
 	if !found {
+		log.Infof("The configmap/%s in the namespace %s doesn't have the annotation %q: no-one is leading yet", electionId, namespace, rl.LeaderElectionRecordAnnotationKey)
 		return "", configMap, nil
 	}
 
@@ -61,11 +62,11 @@ func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Durat
 		}
 	}
 
-	currentLeader, configmap, err := le.getCurrentLeader(electionId, namespace)
+	currentLeader, configMap, err := le.getCurrentLeader(electionId, namespace)
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Current registered leader is %q", currentLeader)
+	log.Debugf("Current registered leader is %q, building leader elector %q as candidate", currentLeader, le.HolderIdentity)
 
 	callbacks := ld.LeaderCallbacks{
 		OnNewLeader: func(identity string) {
@@ -98,8 +99,8 @@ func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Durat
 	}
 	leaderElectorInterface, err := rl.New(
 		rl.ConfigMapsResourceLock,
-		configmap.ObjectMeta.Namespace,
-		configmap.ObjectMeta.Name,
+		configMap.ObjectMeta.Namespace,
+		configMap.ObjectMeta.Name,
 		le.coreClient,
 		resourceLockConfig,
 	)

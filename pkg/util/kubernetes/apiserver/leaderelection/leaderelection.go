@@ -129,7 +129,7 @@ func (le *LeaderEngine) init() error {
 		log.Errorf("Could not initialize the Leader Election process: %s", err)
 		return err
 	}
-	log.Debug("Leader Engine successfully initialized")
+	log.Debugf("Leader Engine for %q successfully initialized", le.HolderIdentity)
 	return nil
 }
 
