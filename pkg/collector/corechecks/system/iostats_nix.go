@@ -20,6 +20,9 @@ import (
 	"github.com/shirou/gopsutil/disk"
 )
 
+// For testing purpose
+var ioCounters = disk.IOCounters
+
 // kernel ticks / sec
 var hz int64
 

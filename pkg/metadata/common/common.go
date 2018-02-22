@@ -6,15 +6,10 @@
 package common
 
 import (
-	"path"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	log "github.com/cihub/seelog"
-	gopsutilhost "github.com/shirou/gopsutil/host"
 )
 
 var (
@@ -43,20 +38,4 @@ func getAPIKey() string {
 	}
 
 	return apiKey
-}
-
-func getUUID() string {
-	key := path.Join(CachePrefix, "uuid")
-	if x, found := cache.Cache.Get(key); found {
-		return x.(string)
-	}
-
-	info, err := gopsutilhost.Info()
-	if err != nil {
-		// don't cache and return zero value
-		log.Errorf("failed to retrieve host info: %s", err)
-		return ""
-	}
-	cache.Cache.Set(key, info.HostID, cache.NoExpiration)
-	return info.HostID
 }

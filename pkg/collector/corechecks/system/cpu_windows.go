@@ -2,33 +2,58 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
-// +build !windows
+
+// +build windows
 
 package system
 
 import (
 	"fmt"
+	"strconv"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/gohai/cpu"
 	log "github.com/cihub/seelog"
-	"github.com/shirou/gopsutil/cpu"
+	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+)
+
+var (
+	modkernel32 = windows.NewLazyDLL("kernel32.dll")
+
+	procGetSystemTimes = modkernel32.NewProc("GetSystemTimes")
 )
 
 const cpuCheckName = "cpu"
 
 // For testing purpose
-var times = cpu.Times
-var cpuInfo = cpu.Info
+var times = Times
+
+// TimesStat contains the amounts of time the CPU has spent performing different
+// kinds of work. Time units are in USER_HZ or Jiffies (typically hundredths of
+// a second). It is based on linux /proc/stat file.
+type TimesStat struct {
+	CPU    string
+	User   float64
+	System float64
+	Idle   float64
+}
 
 // CPUCheck doesn't need additional fields
 type CPUCheck struct {
 	core.CheckBase
 	nbCPU       float64
 	lastNbCycle float64
-	lastTimes   cpu.TimesStat
+	lastTimes   TimesStat
+}
+
+// Total returns the total number of seconds in a CPUTimesStat
+func (c TimesStat) Total() float64 {
+	total := c.User + c.System + c.Idle
+	return total
 }
 
 // Run executes the check
@@ -38,7 +63,7 @@ func (c *CPUCheck) Run() error {
 		return err
 	}
 
-	cpuTimes, err := times(false)
+	cpuTimes, err := times()
 	if err != nil {
 		log.Errorf("system.CPUCheck: could not retrieve cpu stats: %s", err)
 		return err
@@ -55,12 +80,12 @@ func (c *CPUCheck) Run() error {
 		// gopsutil return the sum of every CPU
 		toPercent := 100 / (nbCycle - c.lastNbCycle)
 
-		user := ((t.User + t.Nice) - (c.lastTimes.User + c.lastTimes.Nice)) / c.nbCPU
-		system := ((t.System + t.Irq + t.Softirq) - (c.lastTimes.System + c.lastTimes.Irq + c.lastTimes.Softirq)) / c.nbCPU
-		iowait := (t.Iowait - c.lastTimes.Iowait) / c.nbCPU
+		user := ((t.User) - (c.lastTimes.User)) / c.nbCPU
+		system := ((t.System) - (c.lastTimes.System)) / c.nbCPU
+		iowait := float64(0)
 		idle := (t.Idle - c.lastTimes.Idle) / c.nbCPU
-		stolen := (t.Steal - c.lastTimes.Steal) / c.nbCPU
-		guest := (t.Guest - c.lastTimes.Guest) / c.nbCPU
+		stolen := float64(0)
+		guest := float64(0)
 
 		sender.Gauge("system.cpu.user", user*toPercent, "", nil)
 		sender.Gauge("system.cpu.system", system*toPercent, "", nil)
@@ -79,18 +104,12 @@ func (c *CPUCheck) Run() error {
 // Configure the CPU check doesn't need configuration
 func (c *CPUCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
 	// do nothing
-	// NOTE: This runs before the python checks, so we should be good, but cpuInfo()
-	//       on windows initializes COM to the multithreaded model. Therefore,
-	//       if a python check has run on this native windows thread prior and
-	//       CoInitialized() the thread to a different model (ie. single-threaded)
-	//       This will cause cpuInfo() to fail.
-	info, err := cpuInfo()
+	info, err := cpu.GetCpuInfo()
 	if err != nil {
 		return fmt.Errorf("system.CPUCheck: could not query CPU info")
 	}
-	for _, i := range info {
-		c.nbCPU += float64(i.Cores)
-	}
+	cpucount, _ := strconv.ParseFloat(info["cpu_logical_processors"], 64)
+	c.nbCPU = cpucount
 	return nil
 }
 
@@ -102,4 +121,38 @@ func cpuFactory() check.Check {
 
 func init() {
 	core.RegisterCheck(cpuCheckName, cpuFactory)
+}
+
+// FILETIME is a copy of the Windows FILETIME structure
+type FILETIME struct {
+	DwLowDateTime  uint32
+	DwHighDateTime uint32
+}
+
+// Times returns times stat per cpu and combined for all CPUs
+func Times() ([]TimesStat, error) {
+	var ret []TimesStat
+	var lpIdleTime FILETIME
+	var lpKernelTime FILETIME
+	var lpUserTime FILETIME
+	r, _, _ := procGetSystemTimes.Call(
+		uintptr(unsafe.Pointer(&lpIdleTime)),
+		uintptr(unsafe.Pointer(&lpKernelTime)),
+		uintptr(unsafe.Pointer(&lpUserTime)))
+	if r == 0 {
+		return ret, windows.GetLastError()
+	}
+
+	idle := uint64(lpIdleTime.DwHighDateTime)<<32 + uint64(lpIdleTime.DwLowDateTime)
+	user := uint64(lpUserTime.DwHighDateTime)<<32 + uint64(lpUserTime.DwLowDateTime)
+	kernel := uint64(lpKernelTime.DwHighDateTime)<<32 + uint64(lpKernelTime.DwLowDateTime)
+	system := (kernel - idle)
+
+	ret = append(ret, TimesStat{
+		CPU:    "cpu-total",
+		Idle:   float64(idle),
+		User:   float64(user),
+		System: float64(system),
+	})
+	return ret, nil
 }
