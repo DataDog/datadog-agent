@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"sync"
 	"unicode"
@@ -28,6 +29,7 @@ var (
 		"host": getHost,
 		"pid":  getPid,
 		"port": getPort,
+		"env":  getEnvvar,
 	}
 )
 
@@ -345,6 +347,18 @@ func getPid(tplVar []byte, svc listeners.Service) ([]byte, error) {
 		return nil, fmt.Errorf("Failed to get pid for service %s, skipping config - %s", svc.GetID(), err)
 	}
 	return []byte(strconv.Itoa(pid)), nil
+}
+
+// getEnvvar returns a system environment variable if found
+func getEnvvar(tplVar []byte, svc listeners.Service) ([]byte, error) {
+	if len(tplVar) == 0 {
+		return nil, fmt.Errorf("envvar name is missing, skipping service %s", svc.GetID())
+	}
+	value, found := os.LookupEnv(string(tplVar))
+	if !found {
+		return nil, fmt.Errorf("failed to retrieve envvar %s, skipping service %s", tplVar, svc.GetID())
+	}
+	return []byte(value), nil
 }
 
 // parseTemplateVar extracts the name of the var
