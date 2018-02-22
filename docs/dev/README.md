@@ -11,6 +11,7 @@ This guide will help you to develop and contribute code to the project.
  * [Agent development environment][dev-env]
  * [Omnibus build guide][agent-omnibus]
  * [Testing guide][testing]
+ * [Caveats][caveats]
  * [Contributing][contributing]
  * [Legal][legal]
  * [Tools](tools.md) to troubleshoot a running Agent
@@ -27,6 +28,7 @@ This guide will help you to develop and contribute code to the project.
 [legal]: legal.md
 [dev-env]: agent_dev_env.md
 [testing]: agent_tests.md
+[caveats]: caveats.md
 [contributing]: contributing.md
 [agent-omnibus]: agent_omnibus.md
 [tools]: tools.md
