@@ -33,7 +33,7 @@ var subservices = []Servicedef{
 	},
 	{
 		name:        "process",
-		configKey:   "process_agent_enabled",
+		configKey:   "process_config.enabled",
 		serviceName: "datadog-process-agent",
 		serviceInit: processInit,
 	}}

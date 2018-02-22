@@ -39,6 +39,16 @@
                         Maximum="99.99.99.99" IncludeMaximum='no'/>
     </Upgrade>
 
+    <!-- Close application when uninstalling -->
+    <util:CloseApplication Id="CloseTrayApp" 
+                          CloseMessage="yes" 
+                          EndSessionMessage="yes"
+                          Target="ddtray.exe" 
+                          ElevatedCloseMessage="yes"
+                          TerminateProcess="1"
+                          Timeout="1"
+                          RebootPrompt="no"/>
+
     <!-- No need to restart Windows after the installation -->
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
 
@@ -267,7 +277,7 @@
                   Name="Datadog Agent Manager"
                   Description="Manage your Datadog Agent"
                   Target="[AGENT]ddtray.exe"
-                  Arguments= "&quot;launch-gui&quot;"
+                  Arguments= "&quot;-launch-gui&quot;"
                   WorkingDirectory="AGENT"/>
 
         <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
