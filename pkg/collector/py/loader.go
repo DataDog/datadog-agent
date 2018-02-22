@@ -62,7 +62,14 @@ func (cl *PythonCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	// Lock the GIL while working with go-python directly
 	glock := newStickyLock()
 
+	// Platform-specific preparation
 	var err error
+	err = platformLoaderPrep()
+	if err != nil {
+		return nil, err
+	}
+	defer platformLoaderDone()
+
 	var pyErr string
 	var checkModule *python.PyObject
 	for _, name := range modules {

@@ -176,7 +176,7 @@ a {
     height: calc(100% - 2px);
     font-size: 15px;
     padding: 1px; }
-    #main #settings_input #submit_settings, #main #settings_input #save_check, #main #settings_input #disable_check, #main #settings_input #add_check, #main #settings_input #reload_check, #main #check_input #submit_settings, #main #check_input #save_check, #main #check_input #disable_check, #main #check_input #add_check, #main #check_input #reload_check, #main #new_config_input #submit_settings, #main #new_config_input #save_check, #main #new_config_input #disable_check, #main #new_config_input #add_check, #main #new_config_input #reload_check {
+    #main #settings_input #submit_settings, #main #settings_input #save_check, #main #settings_input #disable_check, #main #settings_input #add_check, #main #check_input #submit_settings, #main #check_input #save_check, #main #check_input #disable_check, #main #check_input #add_check, #main #new_config_input #submit_settings, #main #new_config_input #save_check, #main #new_config_input #disable_check, #main #new_config_input #add_check {
       box-shadow: inset 0px 1px 0px 0px #3dc21b;
       background: linear-gradient(to bottom, #44c767 5%, #5cbf2a 100%);
       background-color: #44c767;
@@ -221,23 +221,19 @@ a {
       right: 15px;
       top: 15px; }
     #main #settings_input #disable_check, #main #check_input #disable_check, #main #new_config_input #disable_check {
-      right: 150px;
+      right: 70px;
       top: 10px; }
     #main #settings_input #save_check, #main #check_input #save_check, #main #new_config_input #save_check {
-      right: 90px;
-      top: 10px; }
-    #main #settings_input #reload_check, #main #check_input #reload_check, #main #new_config_input #reload_check {
-      width: 50px;
       right: 10px;
       top: 10px; }
     #main #settings_input #add_check, #main #check_input #add_check, #main #new_config_input #add_check {
       width: 80px;
       right: 10px;
       top: 10px; }
-    #main #settings_input #submit_settings:hover, #main #settings_input #save_check:hover, #main #settings_input #disable_check:hover, #main #settings_input #reload_check:hover, #main #check_input #submit_settings:hover, #main #check_input #save_check:hover, #main #check_input #disable_check:hover, #main #check_input #reload_check:hover, #main #new_config_input #submit_settings:hover, #main #new_config_input #save_check:hover, #main #new_config_input #disable_check:hover, #main #new_config_input #reload_check:hover {
+    #main #settings_input #submit_settings:hover, #main #settings_input #save_check:hover, #main #settings_input #disable_check:hover, #main #check_input #submit_settings:hover, #main #check_input #save_check:hover, #main #check_input #disable_check:hover, #main #new_config_input #submit_settings:hover, #main #new_config_input #save_check:hover, #main #new_config_input #disable_check:hover {
       background: linear-gradient(to bottom, #5cbf2a 5%, #44c767 100%);
       background-color: #5cbf2a; }
-    #main #settings_input #submit_settings:active, #main #settings_input #save_check:active, #main #settings_input #disable_check:active, #main #settings_input #reload_check:active, #main #settings_input #add_check:active, #main #check_input #submit_settings:active, #main #check_input #save_check:active, #main #check_input #disable_check:active, #main #check_input #reload_check:active, #main #check_input #add_check:active, #main #new_config_input #submit_settings:active, #main #new_config_input #save_check:active, #main #new_config_input #disable_check:active, #main #new_config_input #reload_check:active, #main #new_config_input #add_check:active {
+    #main #settings_input #submit_settings:active, #main #settings_input #save_check:active, #main #settings_input #disable_check:active, #main #settings_input #add_check:active, #main #check_input #submit_settings:active, #main #check_input #save_check:active, #main #check_input #disable_check:active, #main #check_input #add_check:active, #main #new_config_input #submit_settings:active, #main #new_config_input #save_check:active, #main #new_config_input #disable_check:active, #main #new_config_input #add_check:active {
       margin-top: 1px; }
     #main #settings_input .inactive, #main #check_input .inactive, #main #new_config_input .inactive {
       pointer-events: none;
@@ -301,7 +297,7 @@ a {
       display: block;
       text-align: center;
       line-height: 50px;
-      font-size: 16.5px;
+      font-size: 13px;
       font-weight: bold; }
     #main #manage_checks .interface {
       position: absolute;
