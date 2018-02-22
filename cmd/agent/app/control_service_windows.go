@@ -197,7 +197,7 @@ func enumDependentServices(h windows.Handle, state enumServiceState) (services [
 	services = make([]EnumServiceStatus, 0)
 	var bufsz uint32
 	var count uint32
-	ret, _, err := procEnumDependentServices.Call(uintptr(h),
+	_, _, err = procEnumDependentServices.Call(uintptr(h),
 		uintptr(state),
 		uintptr(0),
 		uintptr(0), // current buffer size is zero
@@ -209,7 +209,7 @@ func enumDependentServices(h windows.Handle, state enumServiceState) (services [
 		return
 	}
 	servicearray := make([]uint8, bufsz)
-	ret, _, err = procEnumDependentServices.Call(uintptr(h),
+	ret, _, err := procEnumDependentServices.Call(uintptr(h),
 		uintptr(state),
 		uintptr(unsafe.Pointer(&servicearray[0])),
 		uintptr(bufsz),
