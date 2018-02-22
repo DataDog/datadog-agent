@@ -8,12 +8,13 @@ package pdhutil
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/lxn/win"
-	"golang.org/x/sys/windows"
 	"strconv"
 	"syscall"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/lxn/win"
+	"golang.org/x/sys/windows"
 )
 
 var (
@@ -164,6 +165,18 @@ func (p *PdhCounterSet) GetAllValues() (values map[string]float64, err error) {
 		}
 	}
 	return
+}
+
+// GetSingleValue returns the data associated with a single-value counter
+func (p *PdhCounterSet) GetSingleValue() (val float64, err error) {
+	if p.singleCounter == win.PDH_HCOUNTER(0) {
+		return 0, fmt.Errorf("Not a single-value counter")
+	}
+	vals, err := p.GetAllValues()
+	if err != nil {
+		return 0, err
+	}
+	return vals[singleInstanceKey], nil
 }
 
 // Close closes the query handle, freeing the underlying windows resources.
