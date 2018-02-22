@@ -33,9 +33,15 @@ const packageCachePrefix = "host"
 func GetPayload(hostname string) *Payload {
 	meta := getMeta()
 	meta.Hostname = hostname
+	osName := runtime.GOOS
+
+	//We expect this to be win32 on the backend
+	if osName == "windows" {
+		osName = "win32"
+	}
 
 	p := &Payload{
-		Os:            runtime.GOOS,
+		Os:            osName,
 		PythonVersion: getPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
