@@ -138,10 +138,6 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		if output.ShouldStop {
-			// the decoder has been stopped, there is no more message to forward
-			return
-		}
 		fileMsg := message.NewFileMessage(output.Content)
 		msgOffset := t.decodedOffset + int64(output.RawDataLen)
 		identifier := t.Identifier()

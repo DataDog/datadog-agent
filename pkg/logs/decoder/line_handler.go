@@ -57,7 +57,7 @@ func (h *SingleLineHandler) run() {
 	for line := range h.lineChan {
 		h.process(line)
 	}
-	h.outputChan <- newStopOutput()
+	close(h.outputChan)
 }
 
 // process creates outputs from lines and forwards them to outputChan
@@ -140,7 +140,7 @@ func (h *MultiLineHandler) run() {
 	flushTimer := time.NewTimer(h.flushTimeout)
 	defer func() {
 		flushTimer.Stop()
-		h.outputChan <- newStopOutput()
+		close(h.outputChan)
 	}()
 	for {
 		select {
