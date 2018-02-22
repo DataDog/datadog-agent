@@ -28,7 +28,7 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - endpoints
+  - configmaps
   verbs:
   - get
   - update

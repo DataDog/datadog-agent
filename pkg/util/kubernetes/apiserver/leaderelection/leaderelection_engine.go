@@ -19,40 +19,42 @@ import (
 	"k8s.io/client-go/tools/record"
 )
 
-func (le *LeaderEngine) getCurrentLeader(electionId, namespace string) (string, *v1.Endpoints, error) {
-	endpoint, err := le.coreClient.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
+func (le *LeaderEngine) getCurrentLeader(electionId, namespace string) (string, *v1.ConfigMap, error) {
+	configMap, err := le.coreClient.ConfigMaps(namespace).Get(electionId, metav1.GetOptions{})
 	if err != nil {
 		return "", nil, err
 	}
 
-	val, found := endpoint.Annotations[rl.LeaderElectionRecordAnnotationKey]
+	val, found := configMap.Annotations[rl.LeaderElectionRecordAnnotationKey]
 	if !found {
-		return "", endpoint, nil
+		log.Debugf("The configmap/%s in the namespace %s doesn't have the annotation %q: no one is leading yet", electionId, namespace, rl.LeaderElectionRecordAnnotationKey)
+		return "", configMap, nil
 	}
 
 	electionRecord := rl.LeaderElectionRecord{}
 	if err := json.Unmarshal([]byte(val), &electionRecord); err != nil {
 		return "", nil, err
 	}
-	return electionRecord.HolderIdentity, endpoint, err
+	return electionRecord.HolderIdentity, configMap, err
 }
 
 // newElection creates an election.
 // If `namespace`/`election` does not exist, it is created.
 func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Duration) (*ld.LeaderElector, error) {
-	// We first want to check if the Endpoint the Leader Election is based on exists.
-	_, err := le.coreClient.Endpoints(namespace).Get(electionId, metav1.GetOptions{})
+	// We first want to check if the ConfigMap the Leader Election is based on exists.
+	_, err := le.coreClient.ConfigMaps(namespace).Get(electionId, metav1.GetOptions{})
 
 	if err != nil {
 		if errors.IsNotFound(err) == false {
 			return nil, err
 		}
-		_, err = le.coreClient.Endpoints(namespace).Create(&v1.Endpoints{
+
+		_, err = le.coreClient.ConfigMaps(namespace).Create(&v1.ConfigMap{
+			TypeMeta: metav1.TypeMeta{
+				Kind: "ConfigMap",
+			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name: electionId,
-			},
-			TypeMeta: metav1.TypeMeta{
-				Kind: "Endpoints",
 			},
 		})
 		if err != nil && !errors.IsConflict(err) {
@@ -60,11 +62,11 @@ func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Durat
 		}
 	}
 
-	currentLeader, endpoint, err := le.getCurrentLeader(electionId, namespace)
+	currentLeader, configMap, err := le.getCurrentLeader(electionId, namespace)
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Current registered leader is %q", currentLeader)
+	log.Debugf("Current registered leader is %q, building leader elector %q as candidate", currentLeader, le.HolderIdentity)
 
 	callbacks := ld.LeaderCallbacks{
 		OnNewLeader: func(identity string) {
@@ -96,9 +98,9 @@ func (le *LeaderEngine) newElection(electionId, namespace string, ttl time.Durat
 		EventRecorder: evRec,
 	}
 	leaderElectorInterface, err := rl.New(
-		rl.EndpointsResourceLock,
-		endpoint.ObjectMeta.Namespace,
-		endpoint.ObjectMeta.Name,
+		rl.ConfigMapsResourceLock,
+		configMap.ObjectMeta.Namespace,
+		configMap.ObjectMeta.Name,
 		le.coreClient,
 		resourceLockConfig,
 	)
