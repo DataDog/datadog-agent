@@ -67,7 +67,7 @@ build do
             delete "/etc/datadog-agent/conf.d/apm.yaml.default"
 
             # remove windows specific configs
-            delete "#{install_dir}/etc/conf.d/winproc.d"
+            delete "/etc/datadog-agent/conf.d/winproc.d"
 
             # cleanup clutter
             delete "#{install_dir}/etc"
