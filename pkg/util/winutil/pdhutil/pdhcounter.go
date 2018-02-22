@@ -167,7 +167,7 @@ func (p *PdhCounterSet) GetAllValues() (values map[string]float64, err error) {
 	return
 }
 
-// GetSingleValues returns the data associated with a single-value counter
+// GetSingleValue returns the data associated with a single-value counter
 func (p *PdhCounterSet) GetSingleValue() (val float64, err error) {
 	if p.singleCounter == win.PDH_HCOUNTER(0) {
 		return 0, fmt.Errorf("Not a single-value counter")
