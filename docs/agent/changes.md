@@ -80,8 +80,10 @@ The new command line interface for the Agent is sub-command based:
 | Command         | Notes
 | --------------- | -------------------------------------------------------------------------- |
 | check           | Run the specified check |
+| configcheck     | Print all configurations loaded & resolved of a running agent |
 | diagnose        | Execute some connectivity diagnosis on your system |
 | flare           | Collect a flare and send it to Datadog |
+| health          | Print the current agent health |
 | help            | Help about any command |
 | hostname        | Print the hostname used by the Agent |
 | import          | Import and convert configuration files from previous versions of the Agent |
@@ -313,13 +315,10 @@ needed settings from `docker_daemon.yaml` to `datadog.yaml`.
 
 ### Kubernetes metrics and events
 
-We are still working on kubernetes integration, feature parity for the `kubernetes`
-check will be provided by combining:
-  * The (work-in-progress) `kubelet` check retrieving metrics from the kubelet
-  * The (work-in-progress) `kubernetes_apiserver` check retrieving events and
-  service checks from the apiserver
-
-Both are around the corner, but unfortunately are not yet ready for prime-time.
+The `kubernetes` integration insights are provided combining:
+  * The [`kubelet`](https://github.com/DataDog/integrations-core/tree/master/kubelet) check
+  retrieving metrics from the kubelet
+  * The `kubernetes_apiserver` check retrieving events and service checks from the apiserver
 
 ### Tagging
 
@@ -339,7 +338,7 @@ The `kube_service` tagging depends on the `Datadog Cluster Agent`, which is not 
 ## Autodiscovery
 
 We reworked the [Autodiscovery](https://docs.datadoghq.com/agent/autodiscovery/) system from the ground up to be faster and more reliable.
-We also worked on decoupling container runtimes and orchestrators, to be more flexible in the future.
+We also worked on decoupling container runtimes and orchestrators, to be more flexible in the future. This includes the move from `docker_images` to `ad_identifiers` in templates.
 
 All documented use cases are supported, please contact our support team if you run into issues.
 
