@@ -123,8 +123,8 @@ func (t *Tailer) tailFrom(offset int64, whence int) error {
 	t.source.Status.Success()
 	t.source.AddInput(t.path)
 
-	t.decoder.Start()
 	go t.forwardMessages()
+	t.decoder.Start()
 	go t.readForever()
 
 	return nil

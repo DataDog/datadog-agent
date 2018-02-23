@@ -45,8 +45,8 @@ func NewWorker(source *config.LogSource, conn net.Conn, outputChan chan message.
 
 // Start prepares the worker to read and decode data from the connection
 func (w *Worker) Start() {
-	w.decoder.Start()
 	go w.forwardMessages()
+	w.decoder.Start()
 	go w.readForever()
 }
 

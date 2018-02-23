@@ -139,9 +139,9 @@ func (dt *DockerTailer) tailFrom(from string) error {
 	dt.source.AddInput(dt.ContainerID)
 
 	dt.reader = reader
-	dt.decoder.Start()
 	go dt.keepDockerTagsUpdated()
 	go dt.forwardMessages()
+	dt.decoder.Start()
 	go dt.readForever()
 
 	return nil
