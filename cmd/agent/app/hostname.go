@@ -8,6 +8,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/spf13/cobra"
@@ -27,6 +28,10 @@ var getHostnameCommand = &cobra.Command{
 // query for the version
 func doGetHostname(cmd *cobra.Command, args []string) error {
 	config.SetupLogger("off", "", "", false, false, "", true, false)
+	err := common.SetupConfig(confFilePath)
+	if err != nil {
+		return fmt.Errorf("Error setting up the cnofig: %v", err)
+	}
 	hname, err := util.GetHostname()
 	if err != nil {
 		return fmt.Errorf("Error getting the hostname: %v", err)
