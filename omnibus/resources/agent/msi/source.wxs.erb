@@ -242,7 +242,8 @@
                             Type="ownProcess"
                             Vital="yes"
                             Interactive="no"
-                            Account="LocalSystem">
+                            Account="LocalSystem"
+                            Arguments="--config=c:\programdata\datadog\datadog.yaml" >
               <ServiceConfig DelayedAutoStart="yes" OnInstall="yes" OnReinstall ="yes" />
               <util:ServiceConfig
                 FirstFailureActionType='restart'
