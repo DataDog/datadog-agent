@@ -2,6 +2,63 @@
 Release Notes
 =============
 
+6.0.0-rc.4
+==========
+
+Enhancements
+------------
+
+- Change the kubernetes leader election system to use configmaps instead of endpoints. This
+  allows a simpler migration from Agent5, as Agent6 will not require additional permissions.
+
+- Adds in the proc.queue_length and proc.count metrics with the windows version of the Agent.
+
+
+Bug Fixes
+---------
+
+- Add the windows icon to the Infrastructure List for Agents installed on Windows machines.
+
+- Fix Docker container `--pid=host` operations. Previous RCs can cause host system
+  instabilities and should not be run in pid host mode.
+
+- Windows: set correct default value for apm config to enabled, so that the trace agent is
+  started by default
+
+- Removes deprecated process_agent_enabled flag
+
+- metrics.yaml is not a "configurable" file - it provides default metrics for
+  checks and shouldn't be altered. Removed from the GUI configuration file
+  list.
+
+- Windows: gopsutil calls to the CPU module require COM threading model to be
+  in multi-threaded mode, to guarantee it's safe to make those calls we load
+  the python checks setting the right COM concurrency mode first. Once loaded
+  we clear the concurrency mode and python checks that might use COM will set
+  it as they need.
+
+- Windows: make stop/restart of DatadogAgent service stop/restart dependent
+  services accordingly
+
+- Windows: Prevent system tray icon from being displayed more than once
+
+- Windows: Make default start behavior of process-agent consistent with Linux Agent
+
+- Windows: Fix the item launching the web-based GUI in the systray icon menu
+
+- Windows: Process agent service now passes the configuration file argument to the
+  executable when launching - otherwise service will always come up on
+  reboots.
+
+
+Other Notes
+-----------
+
+- Windows: Added developer documentation regarding the caveats of the COM
+  concurrency model and its implications moving forward. The current state affects
+  auto-discovery and dynamic scheduling of checks.
+
+
 6.0.0-rc.3
 ==========
 
