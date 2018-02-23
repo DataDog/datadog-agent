@@ -64,7 +64,6 @@ func main() {
 		defer log.Flush()
 		log.Debug("Preparing to launch configuration interface...")
 		onConfigure()
-		return
 	}
 	// check to see if the process is already running.  If so, just exit
 	h, _ := windows.OpenEvent(0x1F0003, // EVENT_ALL_ACCESS
