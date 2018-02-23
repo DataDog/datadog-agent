@@ -10,7 +10,6 @@ package kubelet
 import (
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -21,6 +20,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -202,7 +202,7 @@ func (ku *KubeUtil) GetPodForContainerID(containerID string) (*Pod, error) {
 
 func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) (*Pod, error) {
 	if containerID == "" {
-		return nil, errors.New("containerID is empty")
+		return nil, fmt.Errorf("containerID is empty")
 	}
 	for _, pod := range podList {
 		for _, container := range pod.Status.Containers {
@@ -211,12 +211,12 @@ func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) 
 			}
 		}
 	}
-	return nil, fmt.Errorf("container %s not found in podList", containerID)
+	return nil, errors.NewNotFound(fmt.Sprintf("container %s in PodList", containerID))
 }
 
 func (ku *KubeUtil) GetPodFromUID(podUID string) (*Pod, error) {
 	if podUID == "" {
-		return nil, errors.New("pod UID is empty")
+		return nil, fmt.Errorf("pod UID is empty")
 	}
 	pods, err := ku.GetLocalPodList()
 	if err != nil {
@@ -289,7 +289,7 @@ func (ku *KubeUtil) setupKubeletApiClient() error {
 
 func (ku *KubeUtil) setupTLS(verifyTLS bool, caPath string, transport *http.Transport) error {
 	if transport == nil {
-		return errors.New("uninitialized http transport")
+		return fmt.Errorf("uninitialized http transport")
 	}
 
 	tlsConf, err := buildTLSConfig(verifyTLS, caPath)
@@ -307,7 +307,7 @@ func (ku *KubeUtil) setupTLS(verifyTLS bool, caPath string, transport *http.Tran
 
 func (ku *KubeUtil) setCertificates(crt, key string, tlsConfig *tls.Config) error {
 	if tlsConfig == nil {
-		return errors.New("uninitialized TLS config")
+		return fmt.Errorf("uninitialized TLS config")
 	}
 	certs, err := kubernetes.GetCertificates(crt, key)
 	if err != nil {

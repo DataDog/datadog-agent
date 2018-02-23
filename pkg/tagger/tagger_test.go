@@ -6,13 +6,14 @@
 package tagger
 
 import (
-	"errors"
+	"fmt"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -214,7 +215,7 @@ func TestEmptyEntity(t *testing.T) {
 func TestRetryCollector(t *testing.T) {
 	c := &DummyCollector{}
 	retryError := &retry.Error{
-		LogicError:    errors.New("testing"),
+		LogicError:    fmt.Errorf("testing"),
 		RessourceName: "testing",
 		RetryStatus:   retry.FailWillRetry,
 	}
@@ -255,7 +256,7 @@ func TestErrNotFound(t *testing.T) {
 	c := &DummyCollector{}
 	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
 
-	badErr := errors.New("test failure")
+	badErr := fmt.Errorf("test failure")
 	catalog := collectors.Catalog{
 		"fetcher": func() collectors.Collector { return c },
 	}
@@ -269,13 +270,13 @@ func TestErrNotFound(t *testing.T) {
 	c.AssertNumberOfCalls(t, "Fetch", 1)
 
 	// Nil result should be cached now
-	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, collectors.ErrNotFound).Once()
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, errors.NewNotFound("")).Once()
 	_, err = tagger.Tag("invalid", true)
 	assert.Nil(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 2)
 
 	// Fetch will not be called again
-	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, collectors.ErrNotFound).Once()
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, errors.NewNotFound("")).Once()
 	_, err = tagger.Tag("invalid", true)
 	assert.Nil(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 2)

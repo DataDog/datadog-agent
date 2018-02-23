@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -102,7 +103,7 @@ func (c *KubeletCollector) Fetch(entity string) ([]string, []string, error) {
 		}
 	}
 	// entity not found in updates
-	return []string{}, []string{}, ErrNotFound
+	return []string{}, []string{}, errors.NewNotFound(entity)
 }
 
 // parseExpires transforms event from the PodWatcher to TagInfo objects

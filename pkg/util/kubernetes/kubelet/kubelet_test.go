@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 )
 
 const (
@@ -373,7 +374,7 @@ func (suite *KubeletTestSuite) TestGetPodForContainerID() {
 	// The /pods request is still cached
 	require.Nil(suite.T(), pod)
 	require.NotNil(suite.T(), err)
-	require.Contains(suite.T(), err.Error(), "container invalid not found in podList")
+	require.True(suite.T(), errors.IsNotFound(err))
 
 	// Valid container ID
 	pod, err = kubeutil.GetPodForContainerID("docker://b3e4cd65204e04d1a2d4b7683cae2f59b2075700f033a6b09890bd0d3fecf6b6")

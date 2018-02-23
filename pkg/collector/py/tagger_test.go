@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
@@ -26,7 +27,7 @@ func (c *DummyCollector) Detect(out chan<- []*collectors.TagInfo) (collectors.Co
 }
 func (c *DummyCollector) Fetch(entity string) ([]string, []string, error) {
 	if entity == "404" {
-		return nil, nil, collectors.ErrNotFound
+		return nil, nil, errors.NewNotFound(entity)
 	} else {
 		return []string{entity + ":low"}, []string{entity + ":high", "other_tag:high"}, nil
 	}
