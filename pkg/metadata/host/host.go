@@ -48,7 +48,7 @@ func GetPayload(hostname string) *Payload {
 	meta.Hostname = hostname
 
 	p := &Payload{
-		Os:            runtime.GOOS,
+		Os:            osName,
 		PythonVersion: getPythonVersion(),
 		SystemStats:   getSystemStats(),
 		Meta:          meta,
@@ -121,7 +121,7 @@ func getSystemStats() *systemStats {
 
 		stats = &systemStats{
 			Machine:   runtime.GOARCH,
-			Platform:  runtime.GOOS,
+			Platform:  osName,
 			Processor: cpuInfo.ModelName,
 			CPUCores:  cpuInfo.Cores,
 			Pythonv:   strings.Split(getPythonVersion(), " ")[0],

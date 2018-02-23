@@ -13,6 +13,8 @@ import (
 
 type osVersion [3]interface{}
 
+const osName = runtime.GOOS
+
 func fillOsVersion(stats *systemStats, info *host.InfoStat) {
 	stats.Macver = osVersion{info.PlatformVersion, [3]string{"", "", ""}, runtime.GOARCH}
 }
