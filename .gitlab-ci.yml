@@ -204,6 +204,7 @@ agent_rpm-x64:
 
 # build Agent package for rpm-x64
 agent_suse-x64:
+  allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
   tags: [ "runner:main", "size:large" ]
@@ -248,9 +249,10 @@ build_windows_msi_x64:
     - rm -rf .omnibus/pkg/
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv agent.omnibus-build --release-version %RELEASE_VERSION%
-  after_script:
-    - '"C:\Program Files\Amazon\AWSCLI\aws.exe" s3 cp --profile ci-datadog-agent %S3_CP_OPTIONS% --recursive --exclude "*" --include "*.msi" .omnibus/pkg/ %S3_ARTEFACTS_URI%/'
-    - '"C:\Program Files\Amazon\AWSCLI\aws.exe" s3 cp --profile ci-datadog-agent %S3_CP_OPTIONS% --recursive --exclude "*" --include "*.msi" .omnibus/pkg/ s3://%WINDOWS_TESTING_S3_BUCKET%/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732'
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - .omnibus/pkg
 
 # build Cluster Agent package for deb-x64
 cluster-agent_deb-x64:
@@ -359,6 +361,7 @@ dogstatsd_rpm-x64:
 
 # build Dogstastd package for rpm-x64
 dogstatsd_suse-x64:
+  allow_failure: true
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:latest
   tags: [ "runner:main", "size:large" ]
