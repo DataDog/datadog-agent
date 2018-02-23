@@ -7,6 +7,7 @@ package config
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -157,4 +158,12 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	newURL, err = addAgentVersionToDomain("https://app.myproxy.com", "app")
 	require.Nil(t, err)
 	assert.Equal(t, "https://app.myproxy.com", newURL)
+}
+
+func TestEnvNestedConfig(t *testing.T) {
+	Datadog.BindEnv("foo.bar.nested")
+	os.Setenv("DD_FOO_BAR_NESTED", "baz")
+
+	assert.Equal(t, "baz", Datadog.GetString("foo.bar.nested"))
+	os.Unsetenv("DD_FOO_BAR_NESTED")
 }

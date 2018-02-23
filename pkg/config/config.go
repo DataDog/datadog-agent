@@ -61,6 +61,8 @@ func init() {
 	Datadog.SetEnvPrefix("DD")
 	Datadog.SetTypeByDefaultValue(true)
 
+	Datadog.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
 	// Configuration defaults
 	// Agent
 	Datadog.SetDefault("dd_url", "https://app.datadoghq.com")
@@ -198,13 +200,13 @@ func init() {
 	BindEnvAndSetDefault("logset", "")
 
 	Datadog.SetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")
-	Datadog.BindEnv("logs_config.dd_url", "DD_LOGS_CONFIG_DD_URL")
+	Datadog.BindEnv("logs_config.dd_url")
 
 	Datadog.SetDefault("logs_config.dd_port", 10516)
-	Datadog.BindEnv("logs_config.dd_port", "DD_LOGS_CONFIG_DD_PORT")
+	Datadog.BindEnv("logs_config.dd_port")
 
 	Datadog.SetDefault("logs_config.dev_mode_use_proto", false)
-	Datadog.BindEnv("logs_config.dev_mode_use_proto", "DD_LOGS_CONFIG_DEV_MODE_USE_PROTO")
+	Datadog.BindEnv("logs_config.dev_mode_use_proto")
 
 	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
