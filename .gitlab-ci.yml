@@ -439,6 +439,7 @@ deploy_rpm_testing:
 
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm_testing:
+  allow_failure: true
   stage: testkitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
@@ -733,6 +734,7 @@ deploy_rpm:
 
 # deploy rpm packages to yum staging repo
 deploy_suse_rpm:
+  allow_failure: true
   stage: deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   before_script:
