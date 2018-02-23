@@ -42,7 +42,7 @@ func init() {
 	menuitems = make([]menuItem, 0)
 	menuitems = append(menuitems, menuItem{label: verstring, enabled: false})
 	menuitems = append(menuitems, menuItem{label: separator})
-	menuitems = append(menuitems, menuItem{label: "&Stop", handler: onStart, enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Start", handler: onStart, enabled: true})
 	menuitems = append(menuitems, menuItem{label: "S&top", handler: onStop, enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Restart", handler: onRestart, enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Configure", handler: onConfigure, enabled: canConfigure()})
