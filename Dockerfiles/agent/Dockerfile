@@ -80,6 +80,9 @@ COPY s6-services /etc/services.d/
 COPY entrypoint /etc/cont-init.d/
 COPY probe.sh initlog.sh /
 
+# Override the exit script by ours to fix --pid=host operations
+COPY init-stage3 /etc/s6/init/init-stage3
+
 # Prepare for running without root
 RUN adduser --group dd-agent \
  && adduser --system --no-create-home --disabled-password --ingroup dd-agent dd-agent \
