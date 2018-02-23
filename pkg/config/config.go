@@ -192,8 +192,9 @@ func init() {
 
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
-	// Process Agent
-	BindEnvAndSetDefault("process_agent_enabled", true) // this is to support the transition to the new config file
+
+	// Trace agent
+	Datadog.SetDefault("apm_config.enabled", true)
 
 	// Logs Agent
 	BindEnvAndSetDefault("logs_enabled", false)
