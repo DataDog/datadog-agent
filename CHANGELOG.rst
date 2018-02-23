@@ -19,7 +19,7 @@ Bug Fixes
 
 - Add the windows icon to the Infrastructure List for Agents installed on Windows machines.
 
-- Fix Docker container `--pid=host` operations. Previous RCs can cause host system
+- Fix Docker container ``--pid=host`` operations. Previous RCs can cause host system
   instabilities and should not be run in pid host mode.
 
 - Windows: set correct default value for apm config to enabled, so that the trace agent is
