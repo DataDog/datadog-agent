@@ -26,7 +26,12 @@ var (
 	PyChecksPath = filepath.Join(_here, "..", "checks.d")
 	distPath     string
 	// ViewsPath holds the path to the folder containing the GUI support files
-	viewsPath string
+	viewsPath    string
+	enabled_vals = map[string]bool{"yes": true, "true": true, "1": true,
+		"no": false, "false": false, "0": false}
+	sub_services = map[string]string{"logs_enabled": "logs_enabled",
+		"apm_enabled":     "apm_config.enabled",
+		"process_enabled": "process_config.enabled"}
 )
 
 const (
@@ -165,6 +170,38 @@ func ImportRegistryConfig() error {
 	} else {
 		log.Debug("hostname not found, not setting")
 	}
+	for key, cfg := range sub_services {
+		if val, _, err = k.GetStringValue(key); err == nil {
+			val = strings.ToLower(val)
+			if enabled, ok := enabled_vals[val]; ok {
+				// some of the entries require booleans, some
+				// of the entries require strings.
+				if enabled {
+					switch cfg {
+					case "logs_enabled":
+						config.Datadog.Set(cfg, true)
+					case "apm_config.enabled":
+						config.Datadog.Set(cfg, true)
+					case "process_config.enabled":
+						config.Datadog.Set(cfg, "true")
+					}
+					log.Debugf("Setting %s to true", cfg)
+				} else {
+					switch cfg {
+					case "logs_enabled":
+						config.Datadog.Set(cfg, false)
+					case "apm_config.enabled":
+						config.Datadog.Set(cfg, false)
+					case "process_config.enabled":
+						config.Datadog.Set(cfg, "false")
+					}
+					log.Debugf("Setting %s to false", cfg)
+				}
+			} else {
+				log.Warnf("Unknown setting %s = %s", key, val)
+			}
+		}
+	}
 	if val, _, err = k.GetStringValue("proxy_host"); err == nil {
 		var u *url.URL
 		if u, err = url.Parse(val); err != nil {
@@ -205,6 +242,9 @@ func ImportRegistryConfig() error {
 	valuenames := []string{"api_key", "tags", "hostname",
 		"proxy_host", "proxy_port", "proxy_user", "proxy_password"}
 	for _, valuename := range valuenames {
+		k.DeleteValue(valuename)
+	}
+	for valuename, _ := range sub_services {
 		k.DeleteValue(valuename)
 	}
 	log.Debugf("Successfully wrote the config into %s\n", datadogYamlPath)
