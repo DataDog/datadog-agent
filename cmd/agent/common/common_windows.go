@@ -26,10 +26,10 @@ var (
 	PyChecksPath = filepath.Join(_here, "..", "checks.d")
 	distPath     string
 	// ViewsPath holds the path to the folder containing the GUI support files
-	viewsPath    string
-	enabled_vals = map[string]bool{"yes": true, "true": true, "1": true,
+	viewsPath   string
+	enabledVals = map[string]bool{"yes": true, "true": true, "1": true,
 		"no": false, "false": false, "0": false}
-	sub_services = map[string]string{"logs_enabled": "logs_enabled",
+	subServices = map[string]string{"logs_enabled": "logs_enabled",
 		"apm_enabled":     "apm_config.enabled",
 		"process_enabled": "process_config.enabled"}
 )
@@ -170,10 +170,10 @@ func ImportRegistryConfig() error {
 	} else {
 		log.Debug("hostname not found, not setting")
 	}
-	for key, cfg := range sub_services {
+	for key, cfg := range subServices {
 		if val, _, err = k.GetStringValue(key); err == nil {
 			val = strings.ToLower(val)
-			if enabled, ok := enabled_vals[val]; ok {
+			if enabled, ok := enabledVals[val]; ok {
 				// some of the entries require booleans, some
 				// of the entries require strings.
 				if enabled {
@@ -244,7 +244,7 @@ func ImportRegistryConfig() error {
 	for _, valuename := range valuenames {
 		k.DeleteValue(valuename)
 	}
-	for valuename, _ := range sub_services {
+	for valuename := range subServices {
 		k.DeleteValue(valuename)
 	}
 	log.Debugf("Successfully wrote the config into %s\n", datadogYamlPath)
