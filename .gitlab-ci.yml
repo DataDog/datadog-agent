@@ -1,8 +1,8 @@
 stages:
+  - suse
   # - source_test
   # - binary_build
   # - integration_test
-  - suse
   # - package_build
   # - testkitchen_deploy
   # - testkitchen_testing
