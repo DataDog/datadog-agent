@@ -1,14 +1,15 @@
 stages:
-  - source_test
-  - binary_build
-  - integration_test
-  - package_build
-  - testkitchen_deploy
-  - testkitchen_testing
-  - testkitchen_cleanup
-  - image_build
-  - image_deploy
-  - deploy
+  # - source_test
+  # - binary_build
+  # - integration_test
+  - suse
+  # - package_build
+  # - testkitchen_deploy
+  # - testkitchen_testing
+  # - testkitchen_cleanup
+  # - image_build
+  # - image_deploy
+  # - deploy
 
 variables:
   SRC_PATH: /src/github.com/DataDog/datadog-agent
@@ -204,7 +205,7 @@ agent_rpm-x64:
 
 # build Agent package for rpm-x64
 agent_suse-x64:
-  stage: package_build
+  stage: suse
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/suse_x64:v224404-5e029c9
   tags: [ "runner:main", "size:large" ]
   script:
