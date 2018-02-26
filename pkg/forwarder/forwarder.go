@@ -57,6 +57,7 @@ const (
 	v1CheckRunsEndpoint    = "/api/v1/check_run"
 	v1IntakeEndpoint       = "/intake/"
 	v1SketchSeriesEndpoint = "/api/v1/sketches"
+	v1ValidateEndpoint     = "/api/v1/validate"
 
 	seriesEndpoint        = "/api/v2/series"
 	eventsEndpoint        = "/api/v2/events"
@@ -274,9 +275,11 @@ func (f *DefaultForwarder) Stop() {
 func (f *DefaultForwarder) healthCheckLoop() {
 	log.Debug("Waiting for APIkey validity to be confirmed.")
 	// Wait until we confirmed we have one valid APIkey to become healthy
-	waitTicker := time.NewTicker(time.Second)
+	waitTicker := time.Tick(time.Minute * 5)
 	validKey := false
-	for range waitTicker.C {
+
+	for c := waitTicker; ; <-c {
+		f.validateAPIKeys()
 		apiKeyStatus.Do(func(entry expvar.KeyValue) {
 			if entry.Value == &apiKeyValid {
 				validKey = true
@@ -286,7 +289,6 @@ func (f *DefaultForwarder) healthCheckLoop() {
 			break
 		}
 	}
-	waitTicker.Stop()
 
 	log.Debug("APIkey is valid, forwarder is healthy.")
 
@@ -318,11 +320,6 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payl
 				t.Headers.Set(apiHTTPHeaderKey, apiKey)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
 
-				t.apiKeyStatusKey = fmt.Sprintf("%s,*************************", domain)
-				if len(apiKey) > 5 {
-					t.apiKeyStatusKey += apiKey[len(apiKey)-5:]
-				}
-
 				for key := range extra {
 					t.Headers.Set(key, extra.Get(key))
 				}
@@ -348,6 +345,38 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 		}
 	}
 
+	return nil
+}
+
+func (f *DefaultForwarder) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {
+	obfuscatedKey := fmt.Sprintf("%s,*************************", domain)
+	if len(apiKey) > 5 {
+		obfuscatedKey += apiKey[len(apiKey)-5:]
+	}
+	apiKeyStatus.Set(obfuscatedKey, status)
+}
+
+func (f *DefaultForwarder) validateAPIKeys() error {
+	for domain, apiKeys := range f.KeysPerDomains {
+		for _, apiKey := range apiKeys {
+			url := fmt.Sprintf("%s%s?api_key=%s", config.Datadog.GetString("dd_url"), v1ValidateEndpoint, apiKey)
+
+			resp, err := http.Get(url)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			// Server will respond 200 if the key is valid or 403 if invalid
+			if resp.StatusCode == 200 {
+				f.setAPIKeyStatus(apiKey, domain, &apiKeyValid)
+			} else if resp.StatusCode == 403 {
+				f.setAPIKeyStatus(apiKey, domain, &apiKeyInvalid)
+			} else {
+				f.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+			}
+		}
+	}
 	return nil
 }
 
