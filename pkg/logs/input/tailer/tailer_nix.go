@@ -62,8 +62,8 @@ func (t *Tailer) readForever() {
 				t.wait()
 				continue
 			}
-			t.incrementReadOffset(n)
 			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+			t.incrementReadOffset(n)
 		}
 	}
 }
