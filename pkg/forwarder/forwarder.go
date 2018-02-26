@@ -275,10 +275,10 @@ func (f *DefaultForwarder) Stop() {
 func (f *DefaultForwarder) healthCheckLoop() {
 	log.Debug("Waiting for APIkey validity to be confirmed.")
 	// Wait until we confirmed we have one valid APIkey to become healthy
-	waitTicker := time.Tick(time.Minute * 5)
+	waitTick := time.Tick(time.Minute * 5)
 	validKey := false
 
-	for c := waitTicker; ; <-c {
+	for c := waitTick; ; <-c {
 		f.validateAPIKeys()
 		apiKeyStatus.Do(func(entry expvar.KeyValue) {
 			if entry.Value == &apiKeyValid {
@@ -363,6 +363,7 @@ func (f *DefaultForwarder) validateAPIKeys() error {
 
 			resp, err := http.Get(url)
 			if err != nil {
+				f.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
 				return err
 			}
 			defer resp.Body.Close()
