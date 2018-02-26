@@ -30,7 +30,7 @@ func doGetHostname(cmd *cobra.Command, args []string) error {
 	config.SetupLogger("off", "", "", false, false, "", true, false)
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
-		return fmt.Errorf("Error setting up the cnofig: %v", err)
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 	hname, err := util.GetHostname()
 	if err != nil {
