@@ -278,6 +278,7 @@ func (f *DefaultForwarder) healthCheckLoop() {
 	waitTick := time.Tick(time.Minute * 5)
 	validKey := false
 
+	// Try one time to validate without waiting then try every 5 minutes.
 	for c := waitTick; ; <-c {
 		f.validateAPIKeys()
 		apiKeyStatus.Do(func(entry expvar.KeyValue) {
