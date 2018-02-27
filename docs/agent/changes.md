@@ -404,9 +404,6 @@ that was bundled with agent5 that may not longer be available in the with the ne
 agent 6 package. This is a list of packages no longer bundled with the agent:
 
 - backports.ssl-match-hostname
-- boto
-- certifi
-- chardet
 - datadog
 - decorator
 - future
@@ -419,13 +416,10 @@ agent 6 package. This is a list of packages no longer bundled with the agent:
 - python-etcd
 - python-gflags
 - pytz
-- pyvmomi
 - PyYAML
 - rancher-metadata
 - tornado
 - uptime
-- urllib3
-- uuid
 - websocket-client
 
 If your code depends on any of those packages, it'll break. You can fix that
