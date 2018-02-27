@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -171,6 +172,13 @@ func StartAgent() error {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}
 	log.Infof("Hostname is: %s", hostname)
+
+	// HACK: init host metadata module (CPU) early to avoid any
+	//       COM threading model conflict with the python checks
+	err = host.InitHostMetadata()
+	if err != nil {
+		log.Errorf("Unable to initialize host metadata: %v", err)
+	}
 
 	// start the cmd HTTP server
 	if err = api.StartServer(); err != nil {

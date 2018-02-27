@@ -298,8 +298,9 @@ function loadCheckConfigFiles() {
     data.sort();
     data.forEach(function(item){
       // filter out the example / disabled files
-      if (item.substr(item.length - 8) == ".example" || 
-          item.substr(item.length - 9) == ".disabled" ) return;
+      if (item.endsWith(".example") ||
+          item.endsWith(".disabled") ||
+          item.endsWith("metrics.yaml")) return;
 
       $(".list").append('<a href="javascript:void(0)" onclick="showCheckConfig(\''
                         + item  + '\')" class="check">' +  item + '</a>');
@@ -327,8 +328,9 @@ function loadNewChecks() {
     if (typeof(data) == "string") return;
     data.sort();
     data.forEach(function(fileName){
-      if (fileName.substr(fileName.length - 8) == ".example" || 
-          fileName.substr(fileName.length - 9) == ".disabled") return;
+      if (fileName.endsWith(".example") ||
+          fileName.endsWith(".disabled") ||
+          fileName.endsWith("metrics.yaml")) return;
       var checkName = fileName.substr(0, fileName.indexOf("."));
       enabledChecks.push(checkName);
     });
@@ -399,14 +401,12 @@ function showCheckConfig(fileName) {
     $(".right").html('<div id="check_input">' +
                        '<div id="save_check">Save</div>' +
                        '<div id="disable_check">Disable</div>' +
-                       '<div id="reload_check" class="inactive">Reload</div>' +
                      '</div>');
     $('#check_input').data('file_name', fileName);
 
     var editor = attachEditor("check_input", data);
     $("#save_check").click(function() { saveCheckSettings(editor); });
     $("#disable_check").click(function() { disableCheckSettings(editor); });
-    $("#reload_check").click(reloadCheck);
   }, function() {
     $("#checks_description").html("An error occurred.");
     $(".right").html("");
@@ -429,13 +429,13 @@ function saveCheckSettings(editor) {
     if (data == "Success") {
       $("#save_check").append('<i class="fa fa-check fa-lg success"></i>');
       $(".success").delay(3000).fadeOut("slow");
-      $("#checks_description").html("Reload check to see changes.");
-      $("#reload_check").removeClass("inactive");
+      $("#checks_description").html("Restart agent to apply changes.");
 
       // If this was a default file, we just saved it under a new (non-default) name,
       // so we need to change the displayed name & update the associated file name
       $('#check_input').data('file_name', fileName);
       $(".active_check").html(fileName);
+      $("#restart_status").show()
     } else {
       $("#save_check").append('<i class="fa fa-times fa-lg unsuccessful"></i>');
       $(".unsuccessful").delay(3000).fadeOut("slow");
@@ -484,7 +484,6 @@ function disableCheckSettings(editor) {
 // Handler for the reload button, tells the server to run the check once as a test, if it's
 // a success it reloads the check (also displays the tests results as a popup)
 function reloadCheck() {
-  $("#reload_check").addClass("inactive");
   var fileName = $('#check_input').data('file_name');
   var checkName = fileName.substr(0, fileName.indexOf("."))
 
@@ -569,7 +568,29 @@ function createNewConfigFile(checkName, data) {
     // Disable the button after it's been clicked because if it's successful it will load a popup,
     // so we don't want the user to be able to click the button again until the popup is closed
     $("#add_check").css("pointer-events", "none");
-    addNewCheck(editor, checkName);
+
+    // Save the new configuration file
+    var settings = editor.getValue();
+    sendMessage("checks/setConfig/" + checkName + ".d/conf.yaml", JSON.stringify({config: settings}), "post",
+    function(data, status, xhr) {
+      if (data != "Success") {
+        $("#checks_description").html(data);
+        $("#add_check").append('<i class="fa fa-times fa-lg unsuccessful"></i>');
+        $(".unsuccessful").delay(3000).fadeOut("slow");
+        $("#add_check").css("pointer-events", "auto");
+        return
+      }
+
+      // Run the check once (as a test) & print the result as a popup
+      $("#restart_status").show()
+
+      // Reload the display (once the config file is saved this check is now enabled,
+      // so it gets moved to the 'Edit Running Checks' section)
+      checkDropdown();
+    }, function() {
+      $("#checks_description").html("An error occurred.");
+      $(".right").html("");
+    });
   });
 }
 

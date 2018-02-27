@@ -2,6 +2,116 @@
 Release Notes
 =============
 
+6.0.0-rc.4
+==========
+
+Enhancements
+------------
+
+- Change the kubernetes leader election system to use configmaps instead of endpoints. This
+  allows a simpler migration from Agent5, as Agent6 will not require additional permissions.
+
+- Adds in the proc.queue_length and proc.count metrics with the windows version of the Agent.
+
+
+Bug Fixes
+---------
+
+- Add the windows icon to the Infrastructure List for Agents installed on Windows machines.
+
+- Fix Docker container ``--pid=host`` operations. Previous RCs can cause host system
+  instabilities and should not be run in pid host mode.
+
+- Windows: set correct default value for apm config to enabled, so that the trace agent is
+  started by default
+
+- Removes deprecated process_agent_enabled flag
+
+- metrics.yaml is not a "configurable" file - it provides default metrics for
+  checks and shouldn't be altered. Removed from the GUI configuration file
+  list.
+
+- Windows: gopsutil calls to the CPU module require COM threading model to be
+  in multi-threaded mode, to guarantee it's safe to make those calls we load
+  the python checks setting the right COM concurrency mode first. Once loaded
+  we clear the concurrency mode and python checks that might use COM will set
+  it as they need.
+
+- Windows: make stop/restart of DatadogAgent service stop/restart dependent
+  services accordingly
+
+- Windows: Prevent system tray icon from being displayed more than once
+
+- Windows: Make default start behavior of process-agent consistent with Linux Agent
+
+- Windows: Fix the item launching the web-based GUI in the systray icon menu
+
+- Windows: Process agent service now passes the configuration file argument to the
+  executable when launching - otherwise service will always come up on
+  reboots.
+
+
+Other Notes
+-----------
+
+- Windows: Added developer documentation regarding the caveats of the COM
+  concurrency model and its implications moving forward. The current state affects
+  auto-discovery and dynamic scheduling of checks.
+
+
+6.0.0-rc.3
+==========
+
+Enhancements
+------------
+
+- Adds windows systray icon.  System tray icon includes menu options for
+  starting/stopping/restarting services, creating a flare, and launching the
+  browser-based GUI.
+
+- allow auth token path to be set in the config file
+
+- Implementation for disabling checks from the web UI
+
+- Agent restart message on UI, clears after restart.
+
+- Add SSL support & label joins for the prometheus check
+
+
+Bug Fixes
+---------
+
+- Fix the command-line flag parsing regression caused by a transitive dependency importing the
+  glog library. ``agent`` flags should now behave as in beta9.
+
+- GUI had broken after the introduction of integrations as wheels this PR
+  ensures we collect the full list of available integrations so we can
+  enable the corresponding configurations from the UI.
+
+- Fix an issue preventing logs-agent to tail container logs when docker API version is prior to 1.25
+
+- Fix line miss issue_ that could happen when tailing new files found when scanning
+
+  .. _issue: https://github.com/DataDog/datadog-agent/issues/1302
+
+- On windows ``Automatic`` services would fail to start across reboots due to
+  a known go issue on 1.9.2: https://github.com/golang/go/issues/23479
+  We now start windows services as delayed start automatic services (ie. they
+  now start automatically after all other automatic services).
+
+
+Other Notes
+-----------
+
+- The OSX build of the agent does not include the containers integrations
+  as they are only supported on Linux for now. The Windows build already
+  excluded them since beta1
+
+- The ``auth_token`` file, used to store the api authentication token, is now
+  only readable/writable by the user running the agent instead of inheriting
+  datadog.yaml permissions.
+
+
 6.0.0-rc.2
 ==========
 

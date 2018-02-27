@@ -8,10 +8,11 @@ package pdhutil
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/lxn/win"
 	"syscall"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/lxn/win"
 )
 
 var (
@@ -72,14 +73,20 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 		return nil, nil, fmt.Errorf("Failed to get buffer size %v", r)
 	}
 	counterbuf := make([]uint16, counterlen)
-	instancebuf := make([]uint16, instancelen)
+	var instanceptr uintptr
+	var instancebuf []uint16
+
+	if instancelen != 0 {
+		instancebuf = make([]uint16, instancelen)
+		instanceptr = uintptr(unsafe.Pointer(&instancebuf[0]))
+	}
 	r, _, _ = procPdhEnumObjectItems.Call(
 		uintptr(0), // NULL data source, use computer in computername parameter
 		uintptr(0), // local computer
 		uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(className))),
 		uintptr(unsafe.Pointer(&counterbuf[0])),
 		uintptr(unsafe.Pointer(&counterlen)),
-		uintptr(unsafe.Pointer(&instancebuf[0])),
+		instanceptr,
 		uintptr(unsafe.Pointer(&instancelen)),
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(0))

@@ -31,9 +31,12 @@ func FromAgentConfig(agentConfig Config) error {
 	config.Datadog.Set("api_key", agentConfig["api_key"])
 	config.Datadog.Set("hostname", agentConfig["hostname"])
 
-	if enabled, err := isAffirmative(agentConfig["process_agent_enabled"]); err == nil && !enabled {
-		// process agent is enabled in datadog.yaml
-		config.Datadog.Set("process_agent_enabled", false)
+	if enabled, err := isAffirmative(agentConfig["process_agent_enabled"]); enabled {
+		// process agent is explicitly enabled
+		config.Datadog.Set("process_config.enabled", "true")
+	} else if err == nil && !enabled {
+		// process agent is explicitly disabled
+		config.Datadog.Set("process_config.enabled", "disabled")
 	}
 
 	config.Datadog.Set("tags", strings.Split(agentConfig["tags"], ","))

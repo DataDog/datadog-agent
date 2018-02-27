@@ -7,9 +7,15 @@
 
 package host
 
-import "github.com/shirou/gopsutil/host"
+import (
+	"runtime"
+
+	"github.com/shirou/gopsutil/host"
+)
 
 type osVersion [3]string
+
+const osName = runtime.GOOS
 
 func fillOsVersion(stats *systemStats, info *host.InfoStat) {
 	stats.Nixver = osVersion{info.PlatformFamily, info.PlatformVersion, ""}
