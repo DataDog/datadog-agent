@@ -8,17 +8,58 @@ spec:
       labels:
         app: datadog-agent
       name: datadog-agent
-      namespace: default
     spec:
       serviceAccountName: datadog-agent
       containers:
       - image: datadog/agent:latest
         imagePullPolicy: Always
         name: datadog-agent
+        ports:
+          - containerPort: 8125
+            name: dogstatsdport
+            protocol: UDP
         env:
           - name: DD_API_KEY
             value: <YOUR_API_KEY>
           - name: DD_COLLECT_KUBERNETES_EVENTS
-            value: true
+            value: "true"
+          - name: DD_LEADER_ELECTION
+            value: "true"
           - name: KUBERNETES
             value: "yes"
+          - name: DD_KUBERNETES_KUBELET_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+        volumeMounts:
+          - name: dockersocket
+            mountPath: /var/run/docker.sock
+          - name: procdir
+            mountPath: /host/proc
+            readOnly: true
+          - name: cgroups
+            mountPath: /host/sys/fs/cgroup
+            readOnly: true
+        livenessProbe:
+          exec:
+            command:
+            - ./probe.sh
+          initialDelaySeconds: 15
+          periodSeconds: 5
+      volumes:
+        - hostPath:
+            path: /var/run/docker.sock
+          name: dockersocket
+        - hostPath:
+            path: /proc
+          name: procdir
+        - hostPath:
+            path: /sys/fs/cgroup
+          name: cgroups
