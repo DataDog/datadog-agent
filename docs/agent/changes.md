@@ -384,8 +384,8 @@ by [integrations-core](https://github.com/DataDog/integrations-core) are expecte
 Agent as they are not currently implemented:
 
 * agent_metrics
-* docker_daemon [replaced by a new `docker` check](agent/changes.md#docker-check)
-* kubernetes [to be replaced by new checks](agent/changes.md#kubernetes-support)
+* docker_daemon [replaced by a new `docker` check](#docker-check)
+* kubernetes [replaced by new checks](#kubernetes-support)
 
 ### Check API
 
