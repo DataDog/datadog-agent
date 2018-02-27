@@ -122,11 +122,11 @@ if [ $OS = "RedHat" ]; then
         ARCHI="x86_64"
     fi
 
-    $sudo_cmd sh -c "echo -e '[datadog-beta]\nname = Beta repo, Datadog, Inc.\nbaseurl = https://yum.${dd_url}/beta/6/$ARCHI/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.${dd_url}/DATADOG_RPM_KEY.public\n       https://yum.${dd_url}/DATADOG_RPM_KEY_E09422B3.public' > /etc/yum.repos.d/datadog-beta.repo"
+    $sudo_cmd sh -c "echo -e '[datadog]\nname = Datadog, Inc.\nbaseurl = https://yum.${dd_url}/stable/6/$ARCHI/\nenabled=1\ngpgcheck=1\npriority=1\ngpgkey=https://yum.${dd_url}/DATADOG_RPM_KEY.public\n       https://yum.${dd_url}/DATADOG_RPM_KEY_E09422B3.public' > /etc/yum.repos.d/datadog.repo"
 
     printf "\033[34m* Installing the Datadog Agent package\n\033[0m\n"
     $sudo_cmd yum -y clean expire-cache
-    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog-beta' install datadog-agent || $sudo_cmd yum -y install datadog-agent
+    $sudo_cmd yum -y --disablerepo='*' --enablerepo='datadog' install datadog-agent || $sudo_cmd yum -y install datadog-agent
 elif [ $OS = "Debian" ]; then
     printf "\033[34m\n* Installing apt-transport-https\n\033[0m\n"
     $sudo_cmd apt-get update || printf "\033[31m'apt-get update' failed, the script will not install the latest version of apt-transport-https.\033[0m\n"
@@ -138,7 +138,7 @@ elif [ $OS = "Debian" ]; then
       $sudo_cmd apt-get install -y dirmngr
     fi
     printf "\033[34m\n* Installing APT package sources for Datadog\n\033[0m\n"
-    $sudo_cmd sh -c "echo 'deb https://apt.${dd_url}/ beta 6' > /etc/apt/sources.list.d/datadog-beta.list"
+    $sudo_cmd sh -c "echo 'deb https://apt.${dd_url}/ stable 6' > /etc/apt/sources.list.d/datadog.list"
     $sudo_cmd apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 C7A7DA52
     $sudo_cmd apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 382E94DE
 
@@ -150,7 +150,7 @@ see the logs above to determine the cause.
 If the failing repository is Datadog, please contact Datadog support.
 *****
 "
-    $sudo_cmd apt-get update -o Dir::Etc::sourcelist="sources.list.d/datadog-beta.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
+    $sudo_cmd apt-get update -o Dir::Etc::sourcelist="sources.list.d/datadog.list" -o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0"
     ERROR_MESSAGE="ERROR
 Failed to install the Datadog package, sometimes it may be
 due to another APT source failing. See the logs above to
@@ -169,13 +169,13 @@ elif [ $OS = "SUSE" ]; then
   fi
 
   echo -e "\033[34m\n* Installing YUM Repository for Datadog\n\033[0m"
-  $sudo_cmd sh -c "echo -e '[datadog-beta]\nname=datadog beta\nenabled=1\nbaseurl=https://yum.${dd_url}/suse/beta/6/x86_64\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=https://yum.${dd_url}/DATADOG_RPM_KEY.public' > /etc/zypp/repos.d/datadog-beta.repo"
+  $sudo_cmd sh -c "echo -e '[datadog]\nname=datadog\nenabled=1\nbaseurl=https://yum.${dd_url}/suse/stable/6/x86_64\ntype=rpm-md\ngpgcheck=1\nrepo_gpgcheck=0\ngpgkey=https://yum.${dd_url}/DATADOG_RPM_KEY.public' > /etc/zypp/repos.d/datadog.repo"
 
   echo -e "\033[34m\n* Importing the Datadog GPG Key\n\033[0m"
   $sudo_cmd rpm --import https://yum.${dd_url}/DATADOG_RPM_KEY.public
 
   echo -e "\033[34m\n* Refreshing repositories\n\033[0m"
-  $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog-beta
+  $sudo_cmd zypper --non-interactive --no-gpg-check refresh datadog
 
   echo -e "\033[34m\n* Installing Datadog Agent\n\033[0m"
   $sudo_cmd zypper --non-interactive install datadog-agent
