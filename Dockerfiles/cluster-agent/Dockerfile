@@ -5,7 +5,8 @@ LABEL maintainer "Datadog <package@datadoghq.com>"
 
 ENV DOCKER_DD_AGENT=yes \
     AGENT_VERSION=1:7.0-1 \
-    DD_AGENT_HOME=/opt/datadog-cluster-agent/
+    DD_AGENT_HOME=/opt/datadog-cluster-agent \
+    PATH=/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/embedded/bin/:$PATH
 
 # Install the Agent
 

@@ -84,7 +84,7 @@ end
 # ------------------------------------
 
 # creates required build directories
-dependency 'datadog-agent-prepare'
+dependency 'datadog-cluster-agent-prepare'
 
 # version manifest file
 dependency 'version-manifest'

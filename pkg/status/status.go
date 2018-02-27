@@ -61,6 +61,32 @@ func GetStatus() (map[string]interface{}, error) {
 	return stats, nil
 }
 
+// GetDCAStatus grabs the status from expvar and puts it into a map
+func GetDCAStatus() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+	stats, err := expvarStats(stats)
+	if err != nil {
+		log.Errorf("Error Getting ExpVar Stats: %v", err)
+	}
+
+	stats["version"] = version.AgentVersion
+	hostname, err := util.GetHostname()
+	if err != nil {
+		log.Errorf("Error grabbing hostname for status: %v", err)
+		stats["metadata"] = host.GetPayloadFromCache("unknown")
+	} else {
+		stats["metadata"] = host.GetPayloadFromCache(hostname)
+	}
+	now := time.Now()
+	stats["time"] = now.Format(timeFormat)
+	//s["LeaderElection"], err = leaderelection.GetLeaderDetails()
+	//if err != nil {
+	//	s["LeaderElection"] = fmt.Sprintf("not found: %s", err)
+	//}
+	log.Infof("GETDCASTATUS returns: %q", stats)
+	return stats, nil
+}
+
 // GetAndFormatStatus gets and formats the status all in one go
 func GetAndFormatStatus() ([]byte, error) {
 	s, err := GetStatus()
@@ -138,6 +164,6 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	if expvar.Get("ntpOffset").String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}
-
+	log.Infof("stat from expvarStats is %q", stats)
 	return stats, err
 }

@@ -5,6 +5,7 @@ Cluster Agent tasks
 import os
 import glob
 import shutil
+from distutils.dir_util import copy_tree
 
 from invoke import task
 import invoke
@@ -23,7 +24,7 @@ DEFAULT_BUILD_TAGS = [
 ]
 
 @task
-def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False):
+def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False, skip_assets=False):
     """
     Build Cluster Agent
 
@@ -47,6 +48,41 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False)
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)
+    # Render the configuration file template
+    #
+    # We need to remove cross compiling bits if any because go generate must
+    # build and execute in the native platform
+    env.update({
+        "GOOS": "",
+        "GOARCH": "",
+    })
+    cmd = "go generate {}/cmd/cluster-agent"
+    ctx.run(cmd.format(REPO_PATH), env=env)
+
+    print("finished running")
+    if not skip_assets:
+        refresh_assets(ctx)#, development=development)
+
+@task
+def refresh_assets(ctx):
+    #, development=True):
+    """
+    Clean up and refresh Collector's assets and config files
+    """
+    # ensure BIN_PATH exists
+    print("refreshing assets")
+    if not os.path.exists(BIN_PATH):
+        os.mkdir(BIN_PATH)
+
+    dist_folder = os.path.join(BIN_PATH, "dist")
+    if os.path.exists(dist_folder):
+        shutil.rmtree(dist_folder)
+    copy_tree("./cmd/cluster-agent/dist/", dist_folder)
+    #copy_tree("./pkg/status/dist/", dist_folder)
+
+    #if development:
+    #    copy_tree("./dev/dist/", dist_folder)
+
 
 @task
 def run(ctx, rebuild=False, race=False, skip_build=False, development=True):

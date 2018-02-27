@@ -86,6 +86,7 @@ func init() {
 	Datadog.SetDefault("syslog_pem", "")
 	Datadog.SetDefault("cmd_host", "localhost")
 	Datadog.SetDefault("cmd_port", 5001)
+	Datadog.SetDefault("clusteragent_cmd_port", 5005)
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("enable_gohai", true)
@@ -251,6 +252,7 @@ func init() {
 	Datadog.BindEnv("ac_exclude")
 
 	Datadog.BindEnv("cluster_agent.auth_token")
+	Datadog.BindEnv("clusteragent_cmd_port")
 
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
