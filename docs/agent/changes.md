@@ -19,8 +19,9 @@ open an issue or submit a Pull Request.
 * [Docker](#docker-check)
 * [Kubernetes](#kubernetes-support)
 * [Autodiscovery](#autodiscovery)
-* [Check API](#Check API)
-* [Custom Checks](#Custom Checks)
+* [Agent Integrations](#Agent-Integrations)
+* [Check API](#Check-API)
+* [Custom Checks](#Custom-Checks)
 * [JMX](#jmx)
 
 ## Configuration Files
@@ -379,9 +380,8 @@ To learn more, you can read about the details in the [development documentation]
 ### Agent Integrations 
 
 Even if the new Agent fully supports Python checks, a number of those provided
-by [integrations-core](https://github.com/DataDog/integrations-core) are not quite
-ready yet. This is the list of checks that are expected to fail if run within the
-Agent:
+by [integrations-core](https://github.com/DataDog/integrations-core) are expected to fail if run within the
+Agent as they are not currently implemented:
 
 * agent_metrics
 * docker_daemon [replaced by a new `docker` check](agent/changes.md#docker-check)
