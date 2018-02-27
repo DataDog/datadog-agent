@@ -40,7 +40,7 @@ build do
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
     env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
     if windows?
-      command "make windows", :env => env
+      command "echo %CD% && which make && make windows", :env => env
     end
     command "make install", :env => env
     if windows?
