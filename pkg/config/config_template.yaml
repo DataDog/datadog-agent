@@ -147,6 +147,13 @@ api_key:
 # The port for the go_expvar server
 # dogstatsd_stats_port: 5000
 #
+# If you want to forward every packet received by the dogstatsd server
+# to another statsd server, uncomment these lines.
+# WARNING: Make sure that forwarded packets are regular statsd packets and not "dogstatsd" packets,
+# as your other statsd server might not be able to handle them.
+# statsd_forward_host: address_of_own_statsd_server
+# statsd_forward_port: 8125
+#
 # If you want all statsd metrics coming from this host to be namespaced
 # you can configure the namspace below. Each metric received will be prefixed
 # with the namespace before it's sent to Datadog.
