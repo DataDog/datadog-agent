@@ -281,7 +281,7 @@ func (f *DefaultForwarder) hasValidAPIKey() (bool, error) {
 
 	for domain, apiKeys := range f.KeysPerDomains {
 		for _, apiKey := range apiKeys {
-			v, err := f.ValidateAPIKey(apiKey, domain)
+			v, err := f.validateAPIKey(apiKey, domain)
 			if err != nil {
 				log.Debug(err)
 				apiError = true
@@ -383,7 +383,7 @@ func (f *DefaultForwarder) setAPIKeyStatus(apiKey string, domain string, status 
 	apiKeyStatus.Set(obfuscatedKey, status)
 }
 
-func (f *DefaultForwarder) ValidateAPIKey(apiKey, domain string) (bool, error) {
+func (f *DefaultForwarder) validateAPIKey(apiKey, domain string) (bool, error) {
 	url := fmt.Sprintf("%s%s?api_key=%s", config.Datadog.GetString("dd_url"), v1ValidateEndpoint, apiKey)
 
 	resp, err := http.Get(url)
