@@ -150,9 +150,9 @@ no need anymore to invoke them through `service` (or `systemctl`). For example, 
 
 There are a few major changes
 * the main executable name is now `agent.exe` (it was `ddagent.exe` previously)
-* Commands should be run with the command line `c:\program files\datadog\datadog-agent\embedded\agent.exe <command>`
+* Commands should be run with the command line `"c:\program files\datadog\datadog agent\embedded\agent.exe" <command>` from an "As Administrator" command prompt.
 * The configuration GUI is now a web-based configuration application, it can be easily accessed by running
-  the command `datadog-agent launch-gui` or using the systray app.
+  the command `"c:\program files\datadog\datadog agent\embedded\agent.exe" launch-gui` or using the systray app.
 
 ### MacOS
 
