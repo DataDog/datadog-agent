@@ -106,6 +106,7 @@ type Forwarder interface {
 
 // DefaultForwarder is in charge of receiving transaction payloads and sending them to Datadog backend over HTTP.
 type DefaultForwarder struct {
+	stop                chan struct{}
 	highPrio            chan Transaction // use to receive new transactions
 	lowPrio             chan Transaction // use to retry transactions
 	requeuedTransaction chan Transaction
@@ -195,6 +196,7 @@ func (f *DefaultForwarder) handleFailedTransactions() {
 }
 
 func (f *DefaultForwarder) init() {
+	f.stop = make(chan struct{})
 	f.highPrio = make(chan Transaction, chanBufferSize)
 	f.lowPrio = make(chan Transaction, chanBufferSize)
 	f.requeuedTransaction = make(chan Transaction, chanBufferSize)
@@ -269,6 +271,7 @@ func (f *DefaultForwarder) Stop() {
 	close(f.highPrio)
 	close(f.lowPrio)
 	close(f.requeuedTransaction)
+	close(f.stop)
 	log.Info("DefaultForwarder stopped")
 }
 
@@ -311,6 +314,8 @@ func (f *DefaultForwarder) healthCheckLoop() {
 
 	for {
 		select {
+		case <-f.stop:
+			return
 		case <-validateTicker.C:
 			valid, err := f.hasValidAPIKey()
 			if err == nil && !valid {
