@@ -38,7 +38,7 @@ It looks like you hit an issue when trying to install the Agent.
 
 Troubleshooting and basic usage information for the Agent are available at:
 
-    http://docs.datadoghq.com/guides/basic_agent_usage/
+    https://docs.datadoghq.com/agent/basic_agent_usage/
 
 If you're still having problems, please send an email to support@datadoghq.com
 with the contents of ddagent-install.log and we'll do our very best to help you
