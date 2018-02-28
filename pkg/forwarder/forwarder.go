@@ -300,9 +300,11 @@ func (f *DefaultForwarder) healthCheckLoop() {
 	validateTicker := time.NewTicker(time.Hour * 1)
 	defer validateTicker.Stop()
 
-	// If no key is valid, no need to keep checking, they won't magicaly become valid
 	valid, err := f.hasValidAPIKey()
+	// If there is an error during the api call, we assume that there is a valid
+	// key to avoid killing lots of agent on an outage.
 	if err == nil && !valid {
+		// If no key is valid, no need to keep checking, they won't magicaly become valid
 		log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
 		return
 	}
