@@ -16,7 +16,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cenkalti/backoff"
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -273,33 +272,26 @@ func (f *DefaultForwarder) Stop() {
 	log.Info("DefaultForwarder stopped")
 }
 
-func (f *DefaultForwarder) healthCheck() (bool, error) {
-	err := f.validateAPIKeys()
-	if err != nil {
-		return false, err
-	}
-
+func (f *DefaultForwarder) hasValidAPIKey() (bool, error) {
 	validKey := false
-	apiKeyStatus.Do(func(entry expvar.KeyValue) {
-		if entry.Value == &apiKeyValid {
-			validKey = true
+	apiError := false
+
+	for domain, apiKeys := range f.KeysPerDomains {
+		for _, apiKey := range apiKeys {
+			v, err := f.ValidateAPIKey(apiKey, domain)
+			if err != nil {
+				log.Debug(err)
+				apiError = true
+			} else if v {
+				validKey = true
+			}
 		}
-	})
-	return validKey, nil
-}
-
-func (f *DefaultForwarder) hasValidAPIKey() bool {
-	backoffTicker := backoff.NewTicker(backoff.NewExponentialBackOff())
-	defer backoffTicker.Stop()
-
-	valid, err := f.healthCheck()
-
-	for err != nil {
-		valid, err = f.healthCheck()
-		<-backoffTicker.C
 	}
 
-	return valid
+	if apiError {
+		return validKey, fmt.Errorf("Error while validating api keys")
+	}
+	return validKey, nil
 }
 
 func (f *DefaultForwarder) healthCheckLoop() {
@@ -309,16 +301,19 @@ func (f *DefaultForwarder) healthCheckLoop() {
 	defer validateTicker.Stop()
 
 	// If no key is valid, no need to keep checking, they won't magicaly become valid
-	valid := f.hasValidAPIKey()
-	if !valid {
+	valid, err := f.hasValidAPIKey()
+	if err == nil && !valid {
+		log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
 		return
 	}
 
 	for {
 		select {
 		case <-validateTicker.C:
-			if !f.hasValidAPIKey() {
+			valid, err := f.hasValidAPIKey()
+			if err == nil && !valid {
 				log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
+				return
 			}
 		case <-f.health.C:
 			if transactionsExpvar.Get("DroppedOnInput") != nil {
@@ -381,29 +376,27 @@ func (f *DefaultForwarder) setAPIKeyStatus(apiKey string, domain string, status 
 	apiKeyStatus.Set(obfuscatedKey, status)
 }
 
-func (f *DefaultForwarder) validateAPIKeys() error {
-	for domain, apiKeys := range f.KeysPerDomains {
-		for _, apiKey := range apiKeys {
-			url := fmt.Sprintf("%s%s?api_key=%s", config.Datadog.GetString("dd_url"), v1ValidateEndpoint, apiKey)
+func (f *DefaultForwarder) ValidateAPIKey(apiKey, domain string) (bool, error) {
+	url := fmt.Sprintf("%s%s?api_key=%s", config.Datadog.GetString("dd_url"), v1ValidateEndpoint, apiKey)
 
-			resp, err := http.Get(url)
-			if err != nil {
-				f.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
-				return err
-			}
-			defer resp.Body.Close()
-
-			// Server will respond 200 if the key is valid or 403 if invalid
-			if resp.StatusCode == 200 {
-				f.setAPIKeyStatus(apiKey, domain, &apiKeyValid)
-			} else if resp.StatusCode == 403 {
-				f.setAPIKeyStatus(apiKey, domain, &apiKeyInvalid)
-			} else {
-				f.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
-			}
-		}
+	resp, err := http.Get(url)
+	if err != nil {
+		f.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+		return false, err
 	}
-	return nil
+	defer resp.Body.Close()
+
+	// Server will respond 200 if the key is valid or 403 if invalid
+	if resp.StatusCode == 200 {
+		f.setAPIKeyStatus(apiKey, domain, &apiKeyValid)
+		return true, nil
+	} else if resp.StatusCode == 403 {
+		f.setAPIKeyStatus(apiKey, domain, &apiKeyInvalid)
+		return false, nil
+	}
+
+	f.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
+	return false, fmt.Errorf("Unexpected response code from the apikey validation endpoint: %v", resp.StatusCode)
 }
 
 // SubmitSeries will send a series type payload to Datadog backend.
