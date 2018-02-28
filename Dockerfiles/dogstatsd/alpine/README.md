@@ -26,7 +26,7 @@ spec:
       name: dogstatsd
     spec:
       containers:
-      - image: datadog/dogstatsd:beta
+      - image: datadog/dogstatsd:latest
         imagePullPolicy: Always
         name: dogstatsd
         env:
@@ -35,7 +35,7 @@ spec:
           - name: DD_DOGSTATSD_SOCKET
             value: "/socket/statsd.socket"
           - name: DD_SEND_HOST_METADATA
-            # Legacy option name, to keep during beta phase
+            # Legacy option name, keep as `false` when running alongside another Agent 
             value: "false"
           - name: DD_ENABLE_METADATA_COLLECTION
             value: "false"
@@ -67,7 +67,7 @@ spec:
       name: dogstatsd
     spec:
       containers:
-      - image: datadog/dogstatsd:beta
+      - image: datadog/dogstatsd:latest
         imagePullPolicy: Always
         name: dogstatsd
         ports:
@@ -78,7 +78,7 @@ spec:
           - name: DD_API_KEY
             value: ___value___
           - name: DD_SEND_HOST_METADATA
-            # Legacy option name, to keep during beta phase
+            # Legacy option name, keep as `false` when running alongside another Agent 
             value: "false"
           - name: DD_ENABLE_METADATA_COLLECTION
             value: "false"
