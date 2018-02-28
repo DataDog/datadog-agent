@@ -61,8 +61,12 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
     ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
-        "CGO_CFLAGS_ALLOW": "-static-libgcc"  # whitelist additional flags, here a flag used for net-snmp
+        "CGO_CFLAGS_ALLOW": "-static-libgcc",  # whitelist additional flags, here a flag used for net-snmp
     }
+
+    if invoke.platform.WINDOWS:
+        env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
+    
     if static:
         ldflags += "-s -w -linkmode external -extldflags '-static' "
     elif use_embedded_libs:
