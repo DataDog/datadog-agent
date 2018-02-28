@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Add administrator requirement to the systray manifest.  Doing so will prevent
+    systray from being launched by non-admin user (will prompt for admin level
+    user/password)
