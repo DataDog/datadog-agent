@@ -30,22 +30,38 @@ build do
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
-  env = {
-     'GOPATH' => gopath.to_path,
-     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
-  }
+  if windows?
+    env = {
+      # Trace agent uses GNU make to build.  Some of the input to gnu make 
+      # needs the path with `\` as separators, some needs `/`.  Provide both,
+      # and let the makefile sort it out (ugh)
 
+      # also on windows don't modify the path.  Modifying the path here mixes
+      # `/` with `\` in the PATH variable, which confuses the make (and sub-processes)
+      # below.  When properly configured the path on the windows box is sufficient.
+      'GOPATH' => "#{windows_safe_path(gopath.to_path)}",
+      'GOPATHNIX' => gopath.to_path,
+    }
+  else
+    env = {
+        'GOPATH' => gopath.to_path,
+        'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+    }
+  end
   block do
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
     env['TRACE_AGENT_VERSION'] = project.build_version.gsub(/[^0-9\.]/, '') # used by gorake.rb in the trace-agent, only keep digits and dots
     if windows?
-      command "echo %CD% && which make && make windows", :env => env
+      command "make windows", :env => env
     end
     command "make install", :env => env
     if windows?
-      copy trace_agent_binary, "#{install_dir}/bin/agent"
+      # make install places the resulting executable in $(GOPATH)/bin, so we need
+      # to copy it from there 
+      copy "#{gopath.to_path}/bin/#{trace_agent_binary}", "#{install_dir}/bin/agent"
     else
+      # Same here?
       copy trace_agent_binary, "#{install_dir}/embedded/bin"
     end
   end
