@@ -297,7 +297,7 @@ func (f *DefaultForwarder) hasValidAPIKey() (bool, error) {
 func (f *DefaultForwarder) healthCheckLoop() {
 	log.Debug("Waiting for APIkey validity to be confirmed.")
 
-	validateTicker := time.NewTicker(time.Minute * 10)
+	validateTicker := time.NewTicker(time.Hour * 1)
 	defer validateTicker.Stop()
 
 	// If no key is valid, no need to keep checking, they won't magicaly become valid
