@@ -566,13 +566,17 @@ build_dogstatsd:
   script:
     - export DOCKER_HOST=tcp://486234852809.dkr.ecr.us-east-1.amazonaws.com__docker-machine:2375
     - eval "$(aws ecr get-login --region us-east-1 --no-include-email --registry-ids 486234852809)"
-    - DOCKER_HUB_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.docker_hub_login --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.docker_hub_pwd --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_HUB_LOGIN" --password-stdin
+    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - LATEST_TAG=${LATEST_TAG:-latest}
     - docker pull $SOURCE_IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX
     - docker tag $SOURCE_IMAGE:v$CI_PIPELINE_ID-${CI_COMMIT_SHA:0:7}$TAG_SUFFIX $DEST_IMAGE:$LATEST_TAG$TAG_SUFFIX
     - docker push $DEST_IMAGE:$LATEST_TAG$TAG_SUFFIX
+
+.docker_hub_variables: &docker_hub_variables
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
+  DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
 
 agent6_dev_docker_hub:
   <<: *docker_tag_job_definition
@@ -580,6 +584,7 @@ agent6_dev_docker_hub:
   except:
     - master
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
     DEST_IMAGE: datadog/agent-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
@@ -590,6 +595,7 @@ agent6_jmx_dev_docker_hub:
   except:
     - master
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
     DEST_IMAGE: datadog/agent-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
@@ -600,6 +606,7 @@ agent6_dev_docker_hub_master:
   only:
     - master
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
     DEST_IMAGE: datadog/agent-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
@@ -609,6 +616,7 @@ agent6_jmx_dev_docker_hub_master:
   only:
     - master
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
     DEST_IMAGE: datadog/agent-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
@@ -620,6 +628,7 @@ cluster_agent_dev_docker_hub:
   except:
     - master
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *cluster-agent_ecr
     DEST_IMAGE: datadog/cluster-agent-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
@@ -630,6 +639,7 @@ dogstatsd_dev_docker_hub:
   except:
     - master
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *dogstatsd_ecr
     DEST_IMAGE: datadog/dogstatsd-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
@@ -779,6 +789,7 @@ tag_push_agent:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
     DEST_IMAGE: datadog/agent
     LATEST_TAG: $CI_COMMIT_TAG
@@ -791,6 +802,7 @@ tag_jmx_push_agent:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
     DEST_IMAGE: datadog/agent
     LATEST_TAG: $CI_COMMIT_TAG
@@ -804,6 +816,7 @@ latest_push_agent:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
     DEST_IMAGE: datadog/agent
 
@@ -815,6 +828,7 @@ latest_jmx_push_agent:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *agent_ecr
     DEST_IMAGE: datadog/agent
     TAG_SUFFIX: -jmx
@@ -827,6 +841,7 @@ tag_push_cluster_agent:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *cluster-agent_ecr
     DEST_IMAGE: datadog/cluster-agent
     LATEST_TAG: $CI_COMMIT_TAG
@@ -839,6 +854,7 @@ latest_push_cluster_agent:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *cluster-agent_ecr
     DEST_IMAGE: datadog/cluster-agent
 
@@ -850,6 +866,7 @@ tag_dsd_push:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *dogstatsd_ecr
     DEST_IMAGE: datadog/dogstatsd
     LATEST_TAG: $CI_COMMIT_TAG
@@ -862,5 +879,6 @@ latest_dsd_push:
     - master
     - tags # FIXME see https://gitlab.com/gitlab-org/gitlab-ce/issues/37397
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *dogstatsd_ecr
     DEST_IMAGE: datadog/dogstatsd
