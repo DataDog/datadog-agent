@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -272,35 +273,58 @@ func (f *DefaultForwarder) Stop() {
 	log.Info("DefaultForwarder stopped")
 }
 
-func (f *DefaultForwarder) healthCheckLoop() {
-	log.Debug("Waiting for APIkey validity to be confirmed.")
-	// Wait until we confirmed we have one valid APIkey to become healthy
-	waitTick := time.Tick(time.Minute * 5)
-	validKey := false
-
-	// Try one time to validate without waiting then try every 5 minutes.
-	for c := waitTick; ; <-c {
-		f.validateAPIKeys()
-		apiKeyStatus.Do(func(entry expvar.KeyValue) {
-			if entry.Value == &apiKeyValid {
-				validKey = true
-			}
-		})
-		if validKey {
-			break
-		}
+func (f *DefaultForwarder) healthCheck() (bool, error) {
+	err := f.validateAPIKeys()
+	if err != nil {
+		return false, err
 	}
 
-	log.Debug("APIkey is valid, forwarder is healthy.")
+	validKey := false
+	apiKeyStatus.Do(func(entry expvar.KeyValue) {
+		if entry.Value == &apiKeyValid {
+			validKey = true
+		}
+	})
+	return validKey, nil
+}
 
-	// Once we're healthy, make sure we don't drop packets
-	for range f.health.C {
-		// By ranging, we will exit the goroutine when the channel closes.
-		// If we dropped a transaction in input from the aggregator (full intake queue),
-		// we exit the loop and let the forwarder become unhealthy.
-		if transactionsExpvar.Get("DroppedOnInput") != nil {
-			log.Errorf("Detected dropped transaction, reporting the forwarder as unhealthy.")
-			return
+func (f *DefaultForwarder) hasValidAPIKey() bool {
+	backoffTicker := backoff.NewTicker(backoff.NewExponentialBackOff())
+	defer backoffTicker.Stop()
+
+	valid, err := f.healthCheck()
+
+	for err != nil {
+		valid, err = f.healthCheck()
+		<-backoffTicker.C
+	}
+
+	return valid
+}
+
+func (f *DefaultForwarder) healthCheckLoop() {
+	log.Debug("Waiting for APIkey validity to be confirmed.")
+
+	validateTicker := time.NewTicker(time.Minute * 10)
+	defer validateTicker.Stop()
+
+	// If no key is valid, no need to keep checking, they won't magicaly become valid
+	valid := f.hasValidAPIKey()
+	if !valid {
+		return
+	}
+
+	for {
+		select {
+		case <-validateTicker.C:
+			if !f.hasValidAPIKey() {
+				log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
+			}
+		case <-f.health.C:
+			if transactionsExpvar.Get("DroppedOnInput") != nil {
+				log.Errorf("Detected dropped transaction, reporting the forwarder as unhealthy.")
+				return
+			}
 		}
 	}
 }
