@@ -28,7 +28,6 @@ func NewInput(content []byte) *Input {
 type Output struct {
 	Content    []byte
 	RawDataLen int
-	ShouldStop bool
 }
 
 // NewOutput returns a new decoder output
@@ -37,11 +36,6 @@ func NewOutput(content []byte, rawDataLen int) *Output {
 		Content:    content,
 		RawDataLen: rawDataLen,
 	}
-}
-
-// newOutputStop returns a new decoder output stop
-func newStopOutput() *Output {
-	return &Output{ShouldStop: true}
 }
 
 // Decoder splits raw data into lines and passes them to a lineHandler that emits outputs
