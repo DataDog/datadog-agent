@@ -578,6 +578,10 @@ build_dogstatsd:
   DOCKER_REGISTRY_LOGIN_SSM_KEY: docker_hub_login
   DOCKER_REGISTRY_PWD_SSM_KEY: docker_hub_pwd
 
+.quay_variables: &quay_variables
+  DOCKER_REGISTRY_LOGIN_SSM_KEY: quay_login
+  DOCKER_REGISTRY_PWD_SSM_KEY: quay_pwd
+
 agent6_dev_docker_hub:
   <<: *docker_tag_job_definition
   when: manual
@@ -649,8 +653,43 @@ dogstatsd_dev_docker_hub_master:
   only:
     - master
   variables:
+    <<: *docker_hub_variables
     SOURCE_IMAGE: *dogstatsd_ecr
     DEST_IMAGE: datadog/dogstatsd-dev
+    LATEST_TAG: $CI_COMMIT_REF_SLUG
+
+# deploys to quay
+# docker images are mirrored on quay.io
+# to run security scans on them
+agent6_dev_quay_master:
+  <<: *docker_tag_job_definition
+  only:
+    - master
+  variables:
+    <<: *quay_variables
+    SOURCE_IMAGE: *agent_ecr
+    DEST_IMAGE: quay.io/datadog/agent-dev
+    LATEST_TAG: $CI_COMMIT_REF_SLUG
+
+agent6_jmx_dev_quay_master:
+  <<: *docker_tag_job_definition
+  only:
+    - master
+  variables:
+    <<: *quay_variables
+    SOURCE_IMAGE: *agent_ecr
+    DEST_IMAGE: quay.io/datadog/agent-dev
+    LATEST_TAG: $CI_COMMIT_REF_SLUG
+    TAG_SUFFIX: -jmx
+
+dogstatsd_dev_quay_master:
+  <<: *docker_tag_job_definition
+  only:
+    - master
+  variables:
+    <<: *quay_variables
+    SOURCE_IMAGE: *dogstatsd_ecr
+    DEST_IMAGE: quay.io/datadog/dogstatsd-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
 
 #
