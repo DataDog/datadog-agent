@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,7 +30,7 @@ func TestFetchAuthTokenValidGen(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	config.Datadog.SetConfigFile(f.Name())
-	expectTokenPath := path.Join(testDir, "auth_token")
+	expectTokenPath := filepath.Join(testDir, "auth_token")
 	defer os.Remove(expectTokenPath)
 
 	config.Datadog.Set("auth_token", "")

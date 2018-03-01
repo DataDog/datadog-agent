@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -86,7 +86,7 @@ func GetClusterAgentAuthToken() (string, error) {
 	}
 
 	// load the cluster agent auth token from filesystem
-	tokenAbsPath := path.Join(config.FileUsedDir(), clusterAgentAuthTokenFilename)
+	tokenAbsPath := filepath.Join(config.FileUsedDir(), clusterAgentAuthTokenFilename)
 	log.Debugf("empty cluster_agent_auth_token, loading from %s", tokenAbsPath)
 	_, err := os.Stat(tokenAbsPath)
 	if err != nil {

@@ -13,7 +13,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -242,7 +242,7 @@ func (c *JMXCheck) Stop() {
 
 func (c *JMXCheck) start() error {
 	here, _ := executable.Folder()
-	classpath := path.Join(common.GetDistPath(), "jmx", jmxJarName)
+	classpath := filepath.Join(common.GetDistPath(), "jmx", jmxJarName)
 	if c.javaToolsJarPath != "" {
 		classpath = fmt.Sprintf("%s:%s", c.javaToolsJarPath, classpath)
 	}
@@ -294,7 +294,7 @@ func (c *JMXCheck) start() error {
 	)
 
 	if jmxExitFile != "" {
-		c.ExitFilePath = path.Join(here, "dist", "jmx", jmxExitFile) // FIXME : At some point we should have a `run` folder
+		c.ExitFilePath = filepath.Join(here, "dist", "jmx", jmxExitFile) // FIXME : At some point we should have a `run` folder
 		// Signal handlers are not supported on Windows:
 		// use a file to trigger JMXFetch exit instead
 		subprocessArgs = append(subprocessArgs, "--exit_file_location", c.ExitFilePath)
