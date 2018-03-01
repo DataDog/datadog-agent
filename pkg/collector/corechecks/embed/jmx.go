@@ -21,6 +21,7 @@ import (
 	log "github.com/cihub/seelog"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -241,7 +242,7 @@ func (c *JMXCheck) Stop() {
 
 func (c *JMXCheck) start() error {
 	here, _ := executable.Folder()
-	classpath := path.Join(here, "dist", "jmx", jmxJarName)
+	classpath := path.Join(common.GetDistPath(), "jmx", jmxJarName)
 	if c.javaToolsJarPath != "" {
 		classpath = fmt.Sprintf("%s:%s", c.javaToolsJarPath, classpath)
 	}
