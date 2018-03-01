@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers"
@@ -81,8 +81,8 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 		}
 
 		if initConf.DockerRoot != "" {
-			config.Datadog.Set("container_cgroup_root", path.Join(initConf.DockerRoot, "sys", "fs", "cgroup"))
-			config.Datadog.Set("container_proc_root", path.Join(initConf.DockerRoot, "proc"))
+			config.Datadog.Set("container_cgroup_root", filepath.Join(initConf.DockerRoot, "sys", "fs", "cgroup"))
+			config.Datadog.Set("container_proc_root", filepath.Join(initConf.DockerRoot, "proc"))
 		}
 	}
 

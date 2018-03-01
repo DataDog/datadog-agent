@@ -14,7 +14,7 @@ package embed
 import (
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
@@ -23,7 +23,7 @@ const apm_binary_name = "trace-agent"
 
 func getAPMAgentDefaultBinPath() (string, error) {
 	here, _ := executable.Folder()
-	binPath := path.Join(here, "..", "..", "embedded", "bin", apm_binary_name)
+	binPath := filepath.Join(here, "..", "..", "embedded", "bin", apm_binary_name)
 	if _, err := os.Stat(binPath); err == nil {
 		return binPath, nil
 	}
