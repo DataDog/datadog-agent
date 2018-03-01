@@ -160,6 +160,26 @@ func TestParsePods(t *testing.T) {
 				HighCardTags: []string{"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb"},
 			},
 		},
+		{
+			desc: "openshift deploymentconfig",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Annotations: map[string]string{
+						"openshift.io/deployment-config.latest-version": "1",
+						"openshift.io/deployment-config.name":           "gitlab-ce",
+						"openshift.io/deployment.name":                  "gitlab-ce-1",
+					},
+				},
+				Status: oneContainer,
+			},
+			labelsAsTags: map[string]string{},
+			expectedInfo: &TagInfo{
+				Source:       "kubelet",
+				Entity:       entityID,
+				LowCardTags:  []string{"kube_container_name:dd-agent", "oshift_deployment_config:gitlab-ce"},
+				HighCardTags: []string{"oshift_deployment:gitlab-ce-1"},
+			},
+		},
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
 			collector := &KubeletCollector{
