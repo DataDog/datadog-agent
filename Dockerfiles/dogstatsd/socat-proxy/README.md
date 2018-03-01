@@ -24,7 +24,7 @@ spec:
       containers:
         - **[insert producer container specs]**
         - name: socat
-          image: datadog/dogstatsd-socat-proxy:latest
+          image: datadog/dogstatsd-socat-proxy:beta
           ports:
             - containerPort: 8125
               name: dogstatsdport
