@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The kubelet will now collect image tags from the pod list

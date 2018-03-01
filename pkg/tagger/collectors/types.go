@@ -34,7 +34,6 @@ const (
 	PullCollection                            // Call regularly via the Pull method
 	StreamCollection                          // Will continuously feed updates on the channel from Steam() to Stop()
 	FetchOnlyCollection                       // Only call Fetch() on cache misses
-
 )
 
 // Collector retrieve entity tags from a given source and feeds
