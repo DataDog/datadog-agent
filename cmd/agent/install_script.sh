@@ -215,7 +215,7 @@ else
     # If the import script failed for any reason, we might end here also in case
     # of upgrade, let's not start the agent or it would fail because the api key
     # is missing
-    if ! $sudo_cmd -u dd-agent -- grep -q -E '^api_key: .+' $CONF; then
+    if ! $sudo_cmd grep -q -E '^api_key: .+' $CONF; then
       printf "\033[31mThe Agent won't start automatically at the end of the script because the Api key is missing, please add one in datadog.yaml and start the agent manually.\n\033[0m\n"
       no_start=true
     fi
