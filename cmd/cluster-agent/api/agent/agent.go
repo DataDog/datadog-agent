@@ -105,18 +105,17 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-// TODO: make a special flare for DCA
 func makeFlare(w http.ResponseWriter, r *http.Request) {
 	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 
-	log.Infof("Making a flare")
+	log.Infof("Making a flare for the DCA")
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultLogFile
 	}
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
+	filePath, err := flare.CreateDCAArchive(false, common.GetDistPath(), logFile)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -151,11 +150,21 @@ func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 
 func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
+	var err error
+	var slcB, svcList []byte
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
-	svcList := as.GetPodServiceNames(nodeName, podName)
-
-	slcB, err := json.Marshal(svcList)
+	if podName == "*" {
+		log.Info("Computing the whole list of pods, this can take some time")
+		fullList := as.GetSMBOnNode(nodeName)
+		slcB, err = json.Marshal(fullList)
+		fmt.Println("slcB is %q", slcB)
+		log.Infof("list is %q", slcB)
+	} else {
+		svcList := as.GetPodServiceNames(nodeName, podName)
+		slcB, err = json.Marshal(svcList)
+		log.Infof("small list is %q", slcB)
+	}
 	if err != nil {
 		log.Errorf("Could not process the list of services of: %s", podName)
 	}

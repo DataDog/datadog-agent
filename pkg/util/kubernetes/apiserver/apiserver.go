@@ -379,3 +379,12 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	log.Debugf("Updated %s to %s in the ConfigMap %s", eventTokenKey, tokenValue, configMapDCAToken)
 	return nil
 }
+
+func GetSMBOnNode(nodeName string) map[string][]string {
+	nodeNameCacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
+	smb, found := cache.Cache.Get(nodeNameCacheKey)
+	if !found {
+		return nil
+	}
+	return smb.(*ServiceMapperBundle).PodNameToServices
+}

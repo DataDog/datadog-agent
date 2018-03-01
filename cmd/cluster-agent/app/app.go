@@ -24,7 +24,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
 var (
 	ClusterAgentCmd = &cobra.Command{
@@ -53,8 +52,8 @@ metadata for their metrics.`,
 		},
 	}
 
-	confPath string
-	flagNoColor  bool
+	confPath    string
+	flagNoColor bool
 )
 
 func init() {
@@ -80,7 +79,6 @@ func start(cmd *cobra.Command, args []string) error {
 		// this will prevent any logging on file
 		logFile = ""
 	}
-	log.Infof("LOG PATH: \n\n\n\n",logFile)
 
 	err := config.SetupLogger(
 		config.Datadog.GetString("log_level"),

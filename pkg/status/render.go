@@ -51,6 +51,16 @@ func FormatStatus(data []byte) (string, error) {
 	return b.String(), nil
 }
 
+// FormatServiceMap
+func FormatServiceMap(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats)
+	fmt.Println("The stats are:", stats)
+	return b.String(), nil
+}
+
 // FormatStatus takes a json bytestring and prints out the formatted statuspage
 func FormatDCAStatus(data []byte) (string, error) {
 	var b = new(bytes.Buffer)

@@ -92,6 +92,7 @@ func init() {
 	Datadog.SetDefault("enable_gohai", true)
 	Datadog.SetDefault("check_runners", int64(1))
 	Datadog.SetDefault("expvar_port", "5000")
+	Datadog.SetDefault("clusteragent_expvar_port", "5006")
 	Datadog.SetDefault("auth_token_file_path", "")
 
 	// Use to output logs in JSON format
@@ -193,6 +194,7 @@ func init() {
 
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
+	Datadog.SetDefault("clusteragent_expvar_port", "5006")
 
 	// Trace agent
 	Datadog.SetDefault("apm_config.enabled", true)

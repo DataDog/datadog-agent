@@ -11,9 +11,10 @@ ENV DOCKER_DD_AGENT=yes \
 # Install the Agent
 
 RUN dpkg -x /datadog-cluster-agent*_amd64.deb .
+RUN rm datadog-cluster-agent*_amd64.deb
 
 RUN apt-get update \
- && apt-get install --no-install-recommends -y apt-transport-https ca-certificates\
+ && apt-get install --no-install-recommends -y apt-transport-https ca-certificates curl net-tools vim\
  && apt-get clean
 
 COPY entrypoint.sh .

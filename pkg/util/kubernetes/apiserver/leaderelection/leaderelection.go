@@ -19,9 +19,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/leaderelection"
-	//rl "k8s.io/client-go/tools/leaderelection/resourcelock"
+	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
-
+	"encoding/json"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -179,19 +179,29 @@ func (le *LeaderEngine) IsLeader() bool {
 	return le.CurrentLeaderName() == le.HolderIdentity
 }
 
-//func GetLeaderDetails() (leaderDetails string, err error){
-//	c, err := apiserver.GetCoreV1Client()
-//	if err != nil {
-//		return "", err
-//	}
-//	leaderElectionCM, err := c.ConfigMaps("").Get(defaultLeaseName,metav1.GetOptions{})
-//	val, found := leaderElectionCM.Annotations[rl.LeaderElectionRecordAnnotationKey]
-//	if !found {
-//		return "", apiserver.ErrNotFound
-//	}
-//	leaderDetails = fmt.Sprintf("Leader Data: %s", val)
-//	return leaderDetails, nil
-//}
+func GetLeaderDetails() (leaderDetails rl.LeaderElectionRecord, err error) {
+	var led rl.LeaderElectionRecord
+	c, err := apiserver.GetCoreV1Client()
+	if err != nil {
+		return led, err
+	}
+	leaderElectionCM, err := c.ConfigMaps(metav1.NamespaceDefault).Get(defaultLeaseName, metav1.GetOptions{})
+	if err != nil {
+		return led, err
+	}
+	log.Infof("LeaderElection cm is %q", leaderElectionCM)
+	annotation, found := leaderElectionCM.Annotations[rl.LeaderElectionRecordAnnotationKey]
+	if !found {
+		return led, apiserver.ErrNotFound
+	}
+	bytes := []byte(annotation)
+	err = json.Unmarshal(bytes, &led)
+	if err != nil {
+		return led, err
+	}
+	return led, nil
+}
+
 func init() {
 	// Avoid logging glog from the k8s.io package
 	flag.Lookup("stderrthreshold").Value.Set("FATAL")

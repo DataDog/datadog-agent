@@ -12,11 +12,13 @@ import (
 	"strconv"
 	"time"
 
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/gohai/platform"
 	log "github.com/cihub/seelog"
@@ -68,8 +70,10 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	if err != nil {
 		log.Errorf("Error Getting ExpVar Stats: %v", err)
 	}
+	stats["config"] = getPartialConfig()
 
 	stats["version"] = version.AgentVersion
+	stats["pid"] = os.Getpid()
 	hostname, err := util.GetHostname()
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
@@ -79,12 +83,32 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	}
 	now := time.Now()
 	stats["time"] = now.Format(timeFormat)
-	//s["LeaderElection"], err = leaderelection.GetLeaderDetails()
-	//if err != nil {
-	//	s["LeaderElection"] = fmt.Sprintf("not found: %s", err)
-	//}
-	log.Infof("GETDCASTATUS returns: %q", stats)
+	stats["leaderelection"] = getLeaderElectionDetails()
+
 	return stats, nil
+}
+
+// GetAndFormatStatus gets and formats the status all in one go
+func GetAndFormatDCAStatus() ([]byte, error) {
+	s, err := GetDCAStatus()
+	if err != nil {
+		log.Infof("err getting status %q", err)
+		return nil, err
+	}
+
+	statusJSON, err := json.Marshal(s)
+	if err != nil {
+		log.Infof("err marshalling %q", err)
+		return nil, err
+	}
+
+	st, err := FormatDCAStatus(statusJSON)
+	if err != nil {
+		log.Infof("err formatting status %q", err)
+		return nil, err
+	}
+	log.Infof("Status is %q", st)
+	return []byte(st), nil
 }
 
 // GetAndFormatStatus gets and formats the status all in one go
@@ -129,6 +153,23 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 	return []byte(st), nil
 }
 
+func getLeaderElectionDetails() map[string]string {
+	leaderElectionStats := make(map[string]string)
+
+	leaderElectionDetails, err := leaderelection.GetLeaderDetails()
+	if err != nil {
+		leaderElectionStats["status"] = "Failing"
+		leaderElectionStats["error"] = err.Error()
+		return leaderElectionStats
+	}
+	leaderElectionStats["leaderName"] = leaderElectionDetails.HolderIdentity
+	leaderElectionStats["acquiredTime"] = leaderElectionDetails.AcquireTime.Format(time.RFC1123)
+	leaderElectionStats["renewedTime"] = leaderElectionDetails.RenewTime.Format(time.RFC1123)
+	leaderElectionStats["transitions"] = fmt.Sprintf("%d transitions", leaderElectionDetails.LeaderTransitions)
+	leaderElectionStats["status"] = "Running"
+	return leaderElectionStats
+}
+
 // getPartialConfig returns config parameters of interest for the status page
 func getPartialConfig() map[string]string {
 	conf := make(map[string]string)
@@ -164,6 +205,5 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	if expvar.Get("ntpOffset").String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}
-	log.Infof("stat from expvarStats is %q", stats)
 	return stats, err
 }

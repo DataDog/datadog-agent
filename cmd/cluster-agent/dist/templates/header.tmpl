@@ -4,8 +4,6 @@
 
   Status date: {{.time}}
   Pid: {{.pid}}
-  Python Version: {{.platform.pythonV}}
-  Logs: {{.config.log_file}}
   {{- if .runnerStats.Workers}}
   Check Runners: {{.runnerStats.Workers}}
   {{end -}}
@@ -24,14 +22,6 @@
     {{- end }}
     System UTC time: {{.time}}
 
-  Host Info
-  =========
-  {{- range $name, $value := .hostinfo -}}
-    {{- if and (ne $name "hostname") (ne $name "hostid") ($value) }}
-    {{$name}}: {{if eq $name "bootTime" }}{{ formatUnixTime $value }}{{ else }}{{ $value }}{{ end }}
-    {{- end }}
-  {{- end }}
-
   Hostnames
   =========
   {{- range $name, $value := .metadata.meta -}}
@@ -39,4 +29,18 @@
     {{$name}}: {{$value}}
     {{- end }}
   {{- end }}
+
+  Leader Election
+  ===============
+    {{- if .leaderelection}}
+    Leader Election Status:  {{.leaderelection.status}}
+    {{- if eq .leaderelection.status "Failing"}}
+    Error: {{.leaderelection.error}}
+    {{else}}
+    Leader Name is: {{.leaderelection.leaderName}}
+    Last Acquisition of the lease: {{.leaderelection.acquiredTime}}
+    Renewed leadership: {{.leaderelection.renewedTime}}
+    Number of leader transitions: {{.leaderelection.transitions}}
+    {{- end}}
+    {{- end}}
 {{/* this line intentionally left blank */}}
