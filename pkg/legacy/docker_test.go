@@ -10,7 +10,7 @@ package legacy
 import (
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,8 +78,8 @@ func TestConvertDocker(t *testing.T) {
 	require.Nil(t, err)
 	defer os.RemoveAll(dir)
 
-	src := path.Join(dir, "docker_daemon.yaml")
-	dst := path.Join(dir, "docker.yaml")
+	src := filepath.Join(dir, "docker_daemon.yaml")
+	dst := filepath.Join(dir, "docker.yaml")
 
 	err = ioutil.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
 	require.Nil(t, err)
@@ -87,7 +87,7 @@ func TestConvertDocker(t *testing.T) {
 	err = ImportDockerConf(src, dst, true)
 	require.Nil(t, err)
 
-	newConf, err := ioutil.ReadFile(path.Join(dir, "docker.yaml"))
+	newConf, err := ioutil.ReadFile(filepath.Join(dir, "docker.yaml"))
 	require.Nil(t, err)
 
 	assert.Equal(t, dockerNewConf, string(newConf))
@@ -105,11 +105,11 @@ func TestConvertDocker(t *testing.T) {
 	// test overwrite
 	err = ImportDockerConf(src, dst, false)
 	require.NotNil(t, err)
-	_, err = os.Stat(path.Join(dir, "docker.yaml.bak"))
+	_, err = os.Stat(filepath.Join(dir, "docker.yaml.bak"))
 	assert.True(t, os.IsNotExist(err))
 
 	err = ImportDockerConf(src, dst, true)
 	require.Nil(t, err)
-	_, err = os.Stat(path.Join(dir, "docker.yaml.bak"))
+	_, err = os.Stat(filepath.Join(dir, "docker.yaml.bak"))
 	assert.False(t, os.IsNotExist(err))
 }

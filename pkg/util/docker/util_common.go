@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -81,7 +80,7 @@ func getEnv(key string, dfault string, combineWith ...string) string {
 // overridden when running inside a container.
 func hostProc(combineWith ...string) string {
 	parts := append([]string{config.Datadog.GetString("container_proc_root")}, combineWith...)
-	return path.Join(parts...)
+	return filepath.Join(parts...)
 }
 
 // pathExists returns a boolean indicating if the given path exists on the file system.
