@@ -234,13 +234,15 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         ctx.run(cmd)
 
         omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
-        cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
+        cmd = "{omnibus} build {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {
             "omnibus": omnibus,
             "project_name": "puppy" if puppy else "agent",
             "log_level": log_level,
-            "overrides": overrides_cmd
+            "overrides": overrides_cmd,
+            "populate_s3_cache": ""
         }
+        args['populate_s3_cache'] = " --populate-s3-cache "
         env = load_release_versions(ctx, release_version)
         if skip_sign:
             env['SKIP_SIGN_MAC'] = 'true'
