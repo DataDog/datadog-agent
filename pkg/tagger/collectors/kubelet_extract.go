@@ -103,6 +103,10 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 					}
 					lowC = append(lowC, fmt.Sprintf("image_name:%s", imageName))
 					lowC = append(lowC, fmt.Sprintf("short_image:%s", shortImage))
+					if imageTag == "" {
+						// k8s default to latest if tag is omitted
+						imageTag = "latest"
+					}
 					lowC = append(lowC, fmt.Sprintf("image_tag:%s", imageTag))
 					break
 				}
