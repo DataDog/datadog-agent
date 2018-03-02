@@ -36,7 +36,8 @@ var (
 	}
 )
 
-var jmxChecks = [...]string{
+// JMXChecks list of JMXFetch checks supported
+var JMXChecks = []string{
 	"activemq",
 	"activemq_58",
 	"cassandra",
@@ -353,7 +354,7 @@ func (c *Config) Digest() string {
 // IsConfigJMX checks if a certain YAML config is a JMX config
 func IsConfigJMX(name string, initConf ConfigData) bool {
 
-	for _, check := range jmxChecks {
+	for _, check := range JMXChecks {
 		if check == name {
 			return true
 		}

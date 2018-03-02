@@ -280,6 +280,9 @@ func listChecks(w http.ResponseWriter, r *http.Request) {
 	goIntegrations := core.GetRegisteredFactoryKeys()
 	integrations = append(integrations, goIntegrations...)
 
+	// Get jmx-checks
+	integrations = append(integrations, check.JMXChecks...)
+
 	if len(integrations) == 0 {
 		w.Write([]byte("No check (.py) files found."))
 		return
