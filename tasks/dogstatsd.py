@@ -171,12 +171,14 @@ def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
             cmd += " --path {}".format(gem_path)
         ctx.run(cmd)
         omnibus = "bundle exec omnibus.bat" if sys.platform == 'win32' else "bundle exec omnibus"
-        cmd = "{omnibus} build dogstatsd --log-level={log_level} {overrides}"
+        cmd = "{omnibus} build dogstatsd --log-level={log_level} {populate_s3_cache} {overrides}"
         args = {
             "omnibus": omnibus,
             "log_level": log_level,
-            "overrides": overrides_cmd
+            "overrides": overrides_cmd,
+            "populate_s3_cache": ""
         }
+        args['populate_s3_cache'] = " --populate-s3-cache "
         ctx.run(cmd.format(**args))
 
 
