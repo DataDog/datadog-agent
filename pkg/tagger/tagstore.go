@@ -2,12 +2,12 @@ package tagger
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 )
 
 // entityTags holds the tag information for a given entity
@@ -118,6 +118,13 @@ func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string) {
 	return storedTags.get(highCard)
 }
 
+type tagSort struct {
+	tag         string // full tag
+	tagName     string // first part of the tag (before ":")
+	source      string // collector
+	cardinality bool   // true is high card
+}
+
 func (e *entityTags) get(highCard bool) ([]string, []string) {
 	e.RLock()
 
@@ -131,19 +138,53 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 	}
 
 	// Cache miss
-	var arrays [][]string
 	var sources []string
-	lowCardCount := 0
+	var tagSortList []tagSort
 
 	for source, tags := range e.lowCardTags {
-		arrays = append(arrays, tags)
-		lowCardCount += len(tags)
 		sources = append(sources, source)
+		for _, t := range tags {
+			tagSortList = append(tagSortList, tagSort{
+				tag:         t,
+				tagName:     strings.Split(t, ":")[0],
+				source:      source,
+				cardinality: false,
+			})
+		}
 	}
-	for _, tags := range e.highCardTags {
-		arrays = append(arrays, tags)
+
+	for source, tags := range e.highCardTags {
+		for _, t := range tags {
+			tagSortList = append(tagSortList, tagSort{
+				tag:         t,
+				tagName:     strings.Split(t, ":")[0],
+				source:      source,
+				cardinality: true,
+			})
+		}
 	}
-	tags := utils.ConcatenateTags(arrays)
+
+	lowCardTags := []string{}
+	highCardTags := []string{}
+	for i := 0; i < len(tagSortList); i++ {
+		insert := true
+		for j := 0; j < len(tagSortList); j++ {
+			// if we find a duplicate tag with higher priority we do not insert the tag
+			if i != j && tagSortList[i].tagName == tagSortList[j].tagName &&
+				collectors.CollectorPriorities[tagSortList[i].source] < collectors.CollectorPriorities[tagSortList[j].source] {
+				insert = false
+			}
+		}
+		if insert {
+			if tagSortList[i].cardinality {
+				highCardTags = append(highCardTags, tagSortList[i].tag)
+			} else {
+				lowCardTags = append(lowCardTags, tagSortList[i].tag)
+			}
+		}
+	}
+
+	tags := append(lowCardTags, highCardTags...)
 
 	// Write cache
 	e.RUnlock()
@@ -151,11 +192,11 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 	e.cacheValid = true
 	e.cachedSource = sources
 	e.cachedAll = tags
-	e.cachedLow = e.cachedAll[:lowCardCount]
+	e.cachedLow = lowCardTags
 	e.Unlock()
 
 	if highCard {
 		return tags, sources
 	}
-	return tags[:lowCardCount], sources
+	return lowCardTags, sources
 }

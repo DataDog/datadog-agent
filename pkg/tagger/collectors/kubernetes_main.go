@@ -112,5 +112,5 @@ func kubernetesFactory() Collector {
 }
 
 func init() {
-	registerCollector(kubeServiceCollectorName, kubernetesFactory)
+	registerCollector(kubeServiceCollectorName, kubernetesFactory, HighPriority)
 }

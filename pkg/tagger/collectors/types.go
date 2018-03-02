@@ -42,6 +42,15 @@ type Collector interface {
 	Detect(chan<- []*TagInfo) (CollectionMode, error)
 }
 
+// CollectorPriority helps resolving dupe tags from collectors
+type CollectorPriority int
+
+// List of collector priorities
+const (
+	LowPriority CollectorPriority = iota
+	HighPriority
+)
+
 // Fetcher allows to fetch tags on-demand in case of cache miss
 type Fetcher interface {
 	Fetch(string) ([]string, []string, error)

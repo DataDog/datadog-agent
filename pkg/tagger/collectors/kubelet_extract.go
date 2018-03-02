@@ -98,7 +98,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 				if containerSpec.Name == container.Name {
 					imageName, shortImage, imageTag, err := docker.SplitImageName(containerSpec.Image)
 					if err != nil {
-						log.Debugf("Error splitting %s: %s", containerSpec.Image, err)
+						log.Debugf("Cannot split %s: %s", containerSpec.Image, err)
 						break
 					}
 					lowC = append(lowC, fmt.Sprintf("image_name:%s", imageName))
