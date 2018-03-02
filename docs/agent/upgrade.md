@@ -1,5 +1,7 @@
 # Upgrade to Agent 6
 
+** Important ** Datadog Agent 6.0.0 has officially been released. Please utilize the in-application [install instructions](https://app.datadoghq.com/account/settings#agent) for our pre packaged binaries. 
+
 * [Linux](#linux)
 * [Windows](#windows)
 * [MacOS](#macos)
