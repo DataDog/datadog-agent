@@ -72,7 +72,7 @@ func getServiceMap(nodeName string) error {
 	} else if jsonStatus {
 		s = string(r)
 	} else {
-		formatterServiceMap, err := status.FormatServiceMapCLI(r) // +add nodename to the signature
+		formatterServiceMap, err := status.FormatServiceMapCLI(r)
 		if err != nil {
 			return err
 		}
@@ -87,5 +87,3 @@ func getServiceMap(nodeName string) error {
 
 	return nil
 }
-
-// getServiceMapall()

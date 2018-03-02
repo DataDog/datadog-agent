@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
+	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/mholt/archiver"
 	"github.com/prometheus/common/log"
 )
@@ -24,10 +26,9 @@ import (
 func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) {
 	zipFilePath := getArchivePath()
 	confSearchPaths := SearchPaths{
-		"":        config.Datadog.GetString("confd_dca_path"),
-		"dist":    filepath.Join(distPath, "conf.d"),
+		"":     config.Datadog.GetString("confd_dca_path"),
+		"dist": filepath.Join(distPath, "conf.d"),
 	}
-	log.Infof("zfp %s, local %q, csp %q, lfp %s",zipFilePath, local, confSearchPaths, logFilePath)
 	return createDCAArchive(zipFilePath, local, confSearchPaths, logFilePath)
 }
 
@@ -112,7 +113,10 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	if err != nil {
 		return "", err
 	}
-
+	err = zipServiceMap(tempDir, hostname)
+	if err != nil {
+		return "", err
+	}
 	//err = zipHealth(tempDir, hostname)
 	//if err != nil {
 	//	return "", err
@@ -157,6 +161,34 @@ func zipDCAStatusFile(tempDir, hostname string) error {
 	}
 
 	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
+func zipServiceMap(tempDir, hostname string) error {
+	// Grab the service map for all nodes.
+	log.Infof("zipping status at %s for %s", tempDir, hostname)
+	s, err := apiserver.GetServiceMapBundleOnNode("*")
+	if err != nil {
+		log.Infof("err zipping %q", err)
+		return err
+	}
+	sByte, err := json.Marshal(s)
+	if err != nil {
+		log.Infof("err marshalling %q", err)
+		return err
+	}
+	f := filepath.Join(tempDir, hostname, "cluster-agent-servicemapper.log")
+	log.Infof("Flare service mapper made at %s", tempDir)
+	err = ensureParentDirsExist(f)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(f, sByte, os.ModePerm)
 	if err != nil {
 		return err
 	}
