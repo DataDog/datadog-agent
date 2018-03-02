@@ -151,13 +151,14 @@ func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	var err error
-	var slcB, svcList []byte
+	var slcB []byte
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
+	fmt.Printf("podname %s", podName)
 	if podName == "*" {
 		log.Info("Computing the whole list of pods, this can take some time")
-		fullList := as.GetSMBOnNode(nodeName)
-		slcB, err = json.Marshal(fullList)
+		svcList := as.GetSMBOnNode(nodeName)
+		slcB, err = json.Marshal(svcList)
 		fmt.Println("slcB is %q", slcB)
 		log.Infof("list is %q", slcB)
 	} else {
@@ -168,7 +169,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Errorf("Could not process the list of services of: %s", podName)
 	}
-	if len(svcList) != 0 {
+	if len(slcB) != 0 {
 		w.WriteHeader(200)
 		w.Write(slcB)
 		return

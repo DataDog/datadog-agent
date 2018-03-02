@@ -1,23 +1,24 @@
 package app
 
 import (
-	"github.com/spf13/cobra"
+	"encoding/json"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"encoding/json"
+	"github.com/spf13/cobra"
 	"io/ioutil"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 
-	"fmt"
 	"bytes"
+	"fmt"
 )
 
 func init() {
 	ClusterAgentCmd.AddCommand(svcMapperCmd)
 }
 
+// TODO add all registered nodes command
 var svcMapperCmd = &cobra.Command{
 	Use:   "svcmap",
 	Short: "Print the map between the services and the pods behind them",
@@ -27,7 +28,7 @@ var svcMapperCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
-		err = getServiceMap(args[0])
+		err = getServiceMap(args[0]) // if arg[0] empty, call all.
 		if err != nil {
 			return err
 		}
@@ -42,7 +43,7 @@ func getServiceMap(nodeName string) error {
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	// TODO use https
-	urlstr := fmt.Sprintf("http://localhost:%v/api/v1/metadata/%s/*", config.Datadog.GetInt("clusteragent_cmd_port"),nodeName)
+	urlstr := fmt.Sprintf("http://localhost:%v/api/v1/metadata/%s/*", config.Datadog.GetInt("clusteragent_cmd_port"), nodeName)
 
 	// Set session token
 	e = util.SetAuthToken()
@@ -71,7 +72,7 @@ func getServiceMap(nodeName string) error {
 	} else if jsonStatus {
 		s = string(r)
 	} else {
-		formatterServiceMap, err := status.FormatServiceMap(r)
+		formatterServiceMap, err := status.FormatServiceMapCLI(r) // +add nodename to the signature
 		if err != nil {
 			return err
 		}
@@ -86,3 +87,5 @@ func getServiceMap(nodeName string) error {
 
 	return nil
 }
+
+// getServiceMapall()

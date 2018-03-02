@@ -51,13 +51,15 @@ func FormatStatus(data []byte) (string, error) {
 	return b.String(), nil
 }
 
-// FormatServiceMap
-func FormatServiceMap(data []byte) (string, error) {
+// FormatServiceMapCLI
+func FormatServiceMapCLI(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
 
 	stats := make(map[string]interface{})
 	json.Unmarshal(data, &stats)
+	renderServiceMapper(b, stats)
 	fmt.Println("The stats are:", stats)
+
 	return b.String(), nil
 }
 
@@ -142,6 +144,14 @@ func renderJMXFetchStatus(w io.Writer, jmxStats interface{}) {
 func renderLogsStatus(w io.Writer, logsStats interface{}) {
 	t := template.Must(template.New("logsagent.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "logsagent.tmpl")))
 	err := t.Execute(w, logsStats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderServiceMapper(w io.Writer, serviceMapperStats interface{}) {
+	t := template.Must(template.New("servicemapper.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "servicemapper.tmpl")))
+	err := t.Execute(w, serviceMapperStats)
 	if err != nil {
 		fmt.Println(err)
 	}
