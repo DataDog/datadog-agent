@@ -15,7 +15,7 @@ if node['dd-agent-upgrade']['add_new_repo']
 
     apt_repository 'datadog-update' do
       keyserver 'keyserver.ubuntu.com'
-      key 'c7a7da52'
+      key '382E94DE'
       uri node['dd-agent-upgrade']['aptrepo']
       distribution node['dd-agent-upgrade']['aptrepo_dist']
       components ['main']
