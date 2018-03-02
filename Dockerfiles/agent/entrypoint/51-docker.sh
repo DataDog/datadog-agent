@@ -10,14 +10,14 @@ if [[ -z "${DOCKER_HOST}" && ! -e /var/run/docker.sock ]]; then
 fi
 
 
-cd /etc/datadog-agent/
-
 # Set a config for vanilla Docker if no orchestrator was detected
 # by the 50-* scripts
 # Don't override /etc/datadog-agent/datadog.yaml if it exists
-if [[ ! -e datadog.yaml ]]; then
-    ln -s datadog-docker.yaml datadog.yaml
+if [[ ! -e /etc/datadog-agent/datadog.yaml ]]; then
+    ln -s  /etc/datadog-agent/datadog-docker.yaml \
+           /etc/datadog-agent/datadog.yaml
 fi
 
 # Enable the docker corecheck
-mv conf.d/docker.d/conf.yaml.example conf.d/docker.d/conf.yaml.default
+mv /etc/datadog-agent/conf.d/docker.d/conf.yaml.example \
+   /etc/datadog-agent/conf.d/docker.d/conf.yaml.default

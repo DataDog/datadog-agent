@@ -4,5 +4,5 @@
 # Don't override /etc/datadog-agent/datadog.yaml if it exists
 
 if [[ ! -e /etc/datadog-agent/datadog.yaml ]]; then
-    touch /etc/datadog-agent/datadog.yaml
+    touch  /etc/datadog-agent/datadog.yaml
 fi
