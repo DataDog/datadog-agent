@@ -120,6 +120,45 @@
   </div>
 
   <div class="stat">
+    <span class="stat_title">Logs-agent</span>
+    <span class="stat_data">
+    {{- with .logsStats -}}
+      {{ if (not .is_running) }}
+        logs-agent is not running </br>
+      {{ else }}
+      {{- range .integrations }}
+        <span class="stat_subtitle">{{.name}}</span>
+        <span class="stat_subdata">
+          {{- range .sources }}
+            Type: {{ .type }}</br>
+            {{- if .path }}
+            Path: {{ .path }}</br>
+            {{- end }}
+            {{- if .port }}
+            Port: {{ .port }}</br>
+            {{- end }}
+            {{- if .image }}
+            Image: {{ .image }}</br>
+            {{- end }}
+            {{- if .label }}
+            Label: {{ .label }}</br>
+            {{- end }}
+            {{- if .status }}
+            Status: {{ .status }}</br>
+            {{- end }}
+            {{- if .inputs }}
+            Inputs: {{ range $input := .inputs }}{{$input}} {{ end }}
+            {{- end }}
+          {{- end }}
+        </span>
+        </span>
+        {{ end }}
+      {{- end }}
+    {{- end -}}
+    </span>
+  </div>
+
+  <div class="stat">
     <span class="stat_title">DogStatsD</span>
     <span class="stat_data">
       {{- with .aggregatorStats -}}
@@ -154,6 +193,6 @@
           Dogstatsd Metric Sample: {{.DogstatsdMetricSample}}<br>
         {{- end}}
       {{- end -}}
-    <span>
+    </span>
   </div>
 {{- end -}}
