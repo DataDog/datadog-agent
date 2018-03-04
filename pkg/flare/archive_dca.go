@@ -99,11 +99,6 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		return "", err
 	}
 
-	//err = zipDiagnose(tempDir, hostname)
-	//if err != nil {
-	//	return "", err
-	//}
-
 	err = zipEnvvars(tempDir, hostname)
 	if err != nil {
 		return "", err
@@ -117,10 +112,6 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	if err != nil {
 		return "", err
 	}
-	//err = zipHealth(tempDir, hostname)
-	//if err != nil {
-	//	return "", err
-	//}
 
 	if config.IsContainerized() {
 		err = zipDockerSelfInspect(tempDir, hostname)

@@ -1,11 +1,11 @@
-{{- with .NodeServiceMapper }}
-    {{- if (not .Nodes)}}
-        The service mapper encountered an error.
-    {{ end -}}
+==============
+Service Mapper
+=============
+{{- range $index, $element := .Nodes }}
 
-    {{- range .Nodes}}
-            {{- range $serviceMap := .NodeName }}
-            {{$serviceMap}}
-            {{printDashes $serciceMap "-"}}
-            {{- end}}
-    {{- end}}
+Node name: {{ $index -}}
+   {{ range $pod, $svc := $element }}
+ -  Pod name: {{ $pod }}
+    Service list: {{ $svc -}}
+   {{ end -}}
+{{- end }}

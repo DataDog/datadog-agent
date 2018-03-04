@@ -382,17 +382,17 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 
 // GetServiceMapBundleOnNode is used for the CLI svcmap command to output given a
 func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
+	nodePodServiceMap := make(map[string]map[string][]string)
 	stats := make(map[string]interface{})
-	npsMapping := map[string]map[string][]string{}
-
 	if nodeName != "*" {
-		npsMapping[nodeName] = getSMBOnNodes(nodeName)
-		stats["Nodes"] = npsMapping
+		nodePodServiceMap[nodeName] = getSMBOnNodes(nodeName)
+		stats["Nodes"] = nodePodServiceMap
 	} else {
 		nodes := getNodeList()
 		for _, node := range nodes {
-			npsMapping[*node.Metadata.Name] = getSMBOnNodes(*node.Metadata.Name)
+			nodePodServiceMap[*node.Metadata.Name] = getSMBOnNodes(*node.Metadata.Name)
 		}
+		stats["Nodes"] = nodePodServiceMap
 	}
 	return stats, nil
 }
