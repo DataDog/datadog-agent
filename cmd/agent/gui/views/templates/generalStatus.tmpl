@@ -126,8 +126,8 @@
       {{ if (not .is_running) }}
         logs-agent is not running </br>
       {{ else }}
-      {{- range .integrations }}
-        <span class="stat_subtitle">{{.name}}</span>
+      {{- range .integrations -}}
+        <span class="stat_subtitle">{{- .name }}</span>
         <span class="stat_subdata">
           {{- range .sources }}
             Type: {{ .type }}</br>
