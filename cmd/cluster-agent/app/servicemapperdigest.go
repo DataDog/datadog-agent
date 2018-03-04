@@ -28,7 +28,7 @@ var svcMapperCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("unable to set up global agent configuration: %v", err)
 		}
-		err = getServiceMap(args[0]) // if arg[0] empty, call all.
+		err = getServiceMap(args[0]) // if arg[0] == "*", call all.
 		if err != nil {
 			return err
 		}
@@ -37,10 +37,8 @@ var svcMapperCmd = &cobra.Command{
 }
 
 func getServiceMap(nodeName string) error {
-	fmt.Printf("Getting the map of services <=> pods")
 	var e error
 	var s string
-
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	// TODO use https
 	urlstr := fmt.Sprintf("http://localhost:%v/api/v1/metadata/%s/*", config.Datadog.GetInt("clusteragent_cmd_port"), nodeName)
@@ -84,6 +82,5 @@ func getServiceMap(nodeName string) error {
 	} else {
 		fmt.Println(s)
 	}
-
 	return nil
 }

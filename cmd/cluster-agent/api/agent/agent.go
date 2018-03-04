@@ -110,6 +110,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	log.Infof("Making a flare for the DCA")
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
@@ -154,7 +155,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	var slcB []byte
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
-	fmt.Printf("podname %s", podName)
+
 	if podName == "*" {
 		log.Info("Computing service map on all nodes ...")
 		svcList, errNodes := as.GetServiceMapBundleOnNode(nodeName)

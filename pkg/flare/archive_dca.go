@@ -12,7 +12,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	//"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
@@ -25,14 +25,14 @@ import (
 // CreateArchive packages up the files
 func CreateDCAArchive(local bool, distPath, logFilePath string) (string, error) {
 	zipFilePath := getArchivePath()
-	confSearchPaths := SearchPaths{
-		"":     config.Datadog.GetString("confd_dca_path"),
-		"dist": filepath.Join(distPath, "conf.d"),
-	}
-	return createDCAArchive(zipFilePath, local, confSearchPaths, logFilePath)
+	//confSearchPaths := SearchPaths{
+	//	"":     config.Datadog.GetString("confd_dca_path"),
+	//	"dist": filepath.Join(distPath, "conf.d"),
+	//}
+	return createDCAArchive(zipFilePath, local, logFilePath)
 }
 
-func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, logFilePath string) (string, error) {
+func createDCAArchive(zipFilePath string, local bool, logFilePath string) (string, error) {
 	b := make([]byte, 10)
 	_, err := rand.Read(b)
 	if err != nil {
@@ -77,22 +77,17 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 			return "", err
 		}
 	}
-	err = zipDCAStatusFile(tempDir, hostname)
-	log.Infof("Flare status")
-	if err != nil {
-		log.Infof("err status, %q", err)
-		return "", err
-	}
-	log.Infof("Flare after status")
+
 	err = zipLogFiles(tempDir, hostname, logFilePath)
 	if err != nil {
 		return "", err
 	}
 
-	err = zipConfigFiles(tempDir, hostname, confSearchPaths)
-	if err != nil {
-		return "", err
-	}
+	//err = zipConfigFiles(tempDir, hostname, confSearchPaths)
+	//
+	//if err != nil {
+	//	return "", err
+	//}
 
 	err = zipExpVar(tempDir, hostname)
 	if err != nil {
@@ -111,13 +106,6 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 	err = zipServiceMap(tempDir, hostname)
 	if err != nil {
 		return "", err
-	}
-
-	if config.IsContainerized() {
-		err = zipDockerSelfInspect(tempDir, hostname)
-		if err != nil {
-			return "", err
-		}
 	}
 
 	err = archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)})
@@ -161,17 +149,25 @@ func zipDCAStatusFile(tempDir, hostname string) error {
 
 func zipServiceMap(tempDir, hostname string) error {
 	// Grab the service map for all nodes.
-	log.Infof("zipping status at %s for %s", tempDir, hostname)
-	s, err := apiserver.GetServiceMapBundleOnNode("*")
+	svcList, err := apiserver.GetServiceMapBundleOnNode("*")
 	if err != nil {
 		log.Infof("err zipping %q", err)
 		return err
 	}
-	sByte, err := json.Marshal(s)
+
+	slcB, err := json.Marshal(svcList)
 	if err != nil {
 		log.Infof("err marshalling %q", err)
 		return err
 	}
+	str, err := status.FormatServiceMapCLI(slcB)
+
+	if err != nil {
+		log.Infof("err marshalling %q", err)
+		return err
+	}
+	sByte := []byte(str)
+
 	f := filepath.Join(tempDir, hostname, "cluster-agent-servicemapper.log")
 	log.Infof("Flare service mapper made at %s", tempDir)
 	err = ensureParentDirsExist(f)

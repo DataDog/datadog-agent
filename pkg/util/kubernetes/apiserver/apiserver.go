@@ -401,6 +401,7 @@ func getSMBOnNodes(nodeName string) map[string][]string {
 	nodeNameCacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
 	smb, found := cache.Cache.Get(nodeNameCacheKey)
 	if !found {
+		log.Debugf("The key %s was not found in the cache", nodeNameCacheKey)
 		return nil
 	}
 	return smb.(*ServiceMapperBundle).PodNameToServices
