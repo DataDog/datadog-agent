@@ -80,7 +80,7 @@ func buildTemplates(key string, checkNames []string, initConfigs, instances []ch
 
 	// sanity check
 	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
-		log.Error("Template entries don't all have the same length, not using them.")
+		log.Warnf("Template entries don't all have the same length, not using them.")
 		return templates
 	}
 
