@@ -17,21 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-/* Deltas from agent5:
-   Changes:
-     - labels are collected when whitelisted, like docker ones, see
-     kubernetes_pod_labels_as_tags option
-   Moved to cluster agent:
-     - kube_service
-	 - node tags
-   To deprecate:
-     - kube_replicate_controller added everytime, just keep if real owner
-     - pod_name does not include the namespace anymore, redundant with kube_namespace
-     - removing the no_pod tags
-     - container_alias tags
-     - label_to_tag_prefix (superseeded by kubernetes_pod_labels_as_tags)
-*/
-
 // KubeAllowedEncodeStringAlphaNums holds the charactes allowed in replicaset names from as parent deployment
 // Taken from https://github.com/kow3ns/kubernetes/blob/96067e6d7b24a05a6a68a0d94db622957448b5ab/staging/src/k8s.io/apimachinery/pkg/util/rand/rand.go#L76
 const KubeAllowedEncodeStringAlphaNums = "bcdfghjklmnpqrstvwxz2456789"
@@ -55,6 +40,14 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
 				tags.AddAuto(tagName, labelValue)
 			}
+		}
+
+		// OpenShift pod annotations
+		if dc_name, found := pod.Metadata.Annotations["openshift.io/deployment-config.name"]; found {
+			tags.AddLow("oshift_deployment_config", dc_name)
+		}
+		if deploy_name, found := pod.Metadata.Annotations["openshift.io/deployment.name"]; found {
+			tags.AddHigh("oshift_deployment", deploy_name)
 		}
 
 		// Creator
