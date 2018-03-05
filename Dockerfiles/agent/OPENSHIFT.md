@@ -57,3 +57,15 @@ If SELinux is in permissive mode or disabled, you can simply enable the `hostacc
 - `allowHostPID: true`: to enable Origin Detection for Dogstatsd metrics submitted by Unix Socket
 - `volumes: hostPath`: to access the Docker socket and the host's `proc` and `cgroup` folders, for metric collection
 - `SELinux type: spc_t`: to access the Docker socket and all processes' `proc` and `cgroup` folders, for metric collection. You can read more about this type [in this Red Hat article](https://developers.redhat.com/blog/2014/11/06/introducing-a-super-privileged-container-concept/).
+
+# Kubernetes-state metrics
+
+[Kube-state-metrics](https://github.com/kubernetes/kube-state-metrics) does not collect metrics for OpenShift's DeploymentConfig objects. Although, you can get pod and container metrics tagging by deploying your kube-state-metrics pod with the following [Autodiscovery template in the pod annotations](https://docs.datadoghq.com/agent/autodiscovery/#template-source-kubernetes-pod-annotations).
+
+```yaml
+ad.datadoghq.com/kube-state-metrics.check_names: '["kubernetes_state"]'
+ad.datadoghq.com/kube-state-metrics.init_configs: '[{}]'
+ad.datadoghq.com/kube-state-metrics.instances: '[{"kube_state_url":"http://%%host%%:%%port%%/metrics","labels_mapper":{"namespace":"kube_namespace","label_deploymentconfig":"oshift_deployment_config","label_deployment":"oshift_deployment"},"label_joins":{"kube_pod_labels":{"label_to_match":"pod","labels_to_get":["label_deployment","label_deploymentconfig"]}}}]'
+```
+
+As OpenShift deployments create a Kubernetes replication controller with the same name, you can track you deployment's state via the `kubernetes_state.replicationcontroller.*` metrics.
