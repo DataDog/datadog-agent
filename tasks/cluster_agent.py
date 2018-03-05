@@ -78,47 +78,6 @@ def clean(ctx):
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/datadog-cluster-agent")
 
-
-@task(help={'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys."})
-def omnibus_build(ctx, log_level="info", base_dir=None, gem_path=None,
-                  skip_deps=False, skip_sign=False):
-    """
-    Build the Cluster Agent packages with Omnibus Installer.
-    """
-    if not skip_deps:
-        deps(ctx)
-
-    # omnibus config overrides
-    overrides = []
-
-    # base dir (can be overridden through env vars, command line takes precedence)
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
-    if base_dir:
-        overrides.append("base_dir:{}".format(base_dir))
-
-    overrides_cmd = ""
-    if overrides:
-        overrides_cmd = "--override=" + " ".join(overrides)
-
-    with ctx.cd("omnibus"):
-        cmd = "bundle install"
-        if gem_path:
-            cmd += " --path {}".format(gem_path)
-        ctx.run(cmd)
-        omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
-        cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
-        args = {
-            "omnibus": omnibus,
-            "project_name": "datadog-cluster-agent",
-            "log_level": log_level,
-            "overrides": overrides_cmd
-        }
-        env = {}
-        if skip_sign:
-            env['SKIP_SIGN_MAC'] = 'true'
-        ctx.run(cmd.format(**args), env=env)
-
-
 @task
 def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
     """
@@ -151,19 +110,20 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
 
 
 @task
-def image_build(ctx, base_dir="omnibus"):
+def image_build(ctx):
     """
     Build the docker image
     """
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
-    pkg_dir = os.path.join(base_dir, 'pkg')
-    list_of_files = glob.glob(os.path.join(pkg_dir, 'datadog-cluster-agent*_amd64.deb'))
+    dca_bin_path = BIN_PATH
+
+    dca_binary = glob.glob(os.path.join(dca_bin_path, "datadog-cluster-agent"))
     # get the last debian package built
-    if not list_of_files:
-        print("No debian package build found in {}".format(pkg_dir))
-        print("See agent.omnibus-build")
+    if not dca_binary:
+        print("No bin found in {}".format(dca_bin_path))
+        print("See cluster-agent.build")
         raise Exit(1)
-    latest_file = max(list_of_files, key=os.path.getctime)
+    latest_file = max(dca_binary, key=os.path.getctime)
+
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
     ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
-    ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent*_amd64.deb")
+    ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")

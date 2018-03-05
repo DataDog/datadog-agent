@@ -23,6 +23,6 @@ fi
 
 ##### Starting up #####
 
-export PATH="/opt/datadog-agent/bin/datadog-cluster-agent/:/opt/datadog-agent/bin/:$PATH"
+export PATH="/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/bin/:$PATH"
 
 exec "$@"
