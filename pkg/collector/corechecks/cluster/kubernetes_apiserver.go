@@ -80,16 +80,23 @@ func (k *KubeASCheck) Run() error {
 		k.Warn("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
-	err = k.runLeaderElection()
-	if err != nil {
+
+	errLeader := k.runLeaderElection()
+	if errLeader != nil {
+		if errLeader == apiserver.ErrNotLeader {
+			// Only the leader can instantiate the apiserver client.
+			return nil
+		}
 		return err
 	}
 
-	// We start the API Server Client.
-	k.ac, err = apiserver.GetAPIClient()
-	if err != nil {
-		k.Warn("Could not connect to apiserver: %s", err)
-		return err
+	if k.ac == nil {
+		// We start the API Server Client.
+		k.ac, err = apiserver.GetAPIClient()
+		if err != nil {
+			k.Warn("Could not connect to apiserver: %s", err)
+			return err
+		}
 	}
 
 	// Running the Control Plane status check.
@@ -139,7 +146,6 @@ func KubernetesASFactory() check.Check {
 	return &KubeASCheck{
 		CheckBase: core.NewCheckBase(kubernetesAPIServerCheckName),
 		instance:  &KubeASConfig{},
-		ac:        &apiserver.APIClient{},
 	}
 }
 

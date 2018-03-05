@@ -221,7 +221,7 @@ func processKubeResources(nodeList *v1.NodeList, podList *v1.PodList, endpointLi
 	if nodeList.Items == nil || podList.Items == nil || endpointList.Items == nil {
 		return
 	}
-	log.Debugf("%d node, %d pod, %d endpoints", len(nodeList.Items), len(podList.Items), len(endpointList.Items))
+	log.Debugf("Identified: %d node, %d pod, %d endpoints", len(nodeList.Items), len(podList.Items), len(endpointList.Items))
 	for _, node := range nodeList.Items {
 		nodeName := *node.Metadata.Name
 		nodeNameCacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
