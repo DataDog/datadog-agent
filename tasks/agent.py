@@ -36,7 +36,6 @@ DEFAULT_BUILD_TAGS = [
     "snmp",
     "zk",
     "zlib",
-    "kubeapiserver",
 ]
 
 

@@ -82,7 +82,11 @@ func (k *KubeASCheck) Run() error {
 	}
 
 	errLeader := k.runLeaderElection()
-	if errLeader != nil && errLeader != apiserver.ErrNotLeader {
+	if errLeader != nil {
+		if errLeader == apiserver.ErrNotLeader {
+			// Only the leader can instantiate the apiserver client.
+			return nil
+		}
 		return err
 	}
 
@@ -93,10 +97,6 @@ func (k *KubeASCheck) Run() error {
 			k.Warn("Could not connect to apiserver: %s", err)
 			return err
 		}
-	}
-
-	if errLeader == apiserver.ErrNotLeader {
-		return nil
 	}
 
 	// Running the Control Plane status check.
