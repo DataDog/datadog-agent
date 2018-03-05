@@ -90,11 +90,11 @@ func (c *IOCheck) Configure(data check.ConfigData, initConfig check.ConfigData) 
 	}
 
 	c.counternames = map[string]string{
-		"Disk Write Bytes/sec":      "system.io.wkb_s.pdh",
-		"Disk Writes/sec":           "system.io.w_s.pdh",
-		"Disk Read Bytes/sec":       "system.io.rkb_s.pdh",
-		"Disk Reads/sec":            "system.io.r_s.pdh",
-		"Current Disk Queue Length": "system.io.avg_q_sz.pdh"}
+		"Disk Write Bytes/sec":      "system.io.wkb_s",
+		"Disk Writes/sec":           "system.io.w_s",
+		"Disk Read Bytes/sec":       "system.io.rkb_s",
+		"Disk Reads/sec":            "system.io.r_s",
+		"Current Disk Queue Length": "system.io.avg_q_sz"}
 
 	c.counters = make(map[string]*pdhutil.PdhCounterSet)
 
