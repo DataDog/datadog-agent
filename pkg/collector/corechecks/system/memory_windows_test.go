@@ -8,12 +8,10 @@
 package system
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/shirou/gopsutil/mem"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
