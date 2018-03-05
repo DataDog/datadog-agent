@@ -14,8 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const targetDomain string = "6-0-0-app.agent"
-
 func TestDefaults(t *testing.T) {
 	assert.Equal(t, Datadog.GetString("dd_url"), "https://app.datadoghq.com")
 }
@@ -48,7 +46,7 @@ additional_endpoints:
 		"https://foo.datadoghq.com": {
 			"someapikey",
 		},
-		"https://" + targetDomain + ".datadoghq.com": {
+		"https://" + getDomainPrefix("app") + ".datadoghq.com": {
 			"fakeapikey",
 			"fakeapikey2",
 			"fakeapikey3",
@@ -70,7 +68,7 @@ api_key: fakeapikey
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://" + targetDomain + ".datadoghq.com": {
+		"https://" + getDomainPrefix("app") + ".datadoghq.com": {
 			"fakeapikey",
 		},
 	}
@@ -98,7 +96,7 @@ additional_endpoints:
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://" + targetDomain + ".datadoghq.com": {
+		"https://" + getDomainPrefix("app") + ".datadoghq.com": {
 			"fakeapikey",
 			"fakeapikey2",
 		},
@@ -131,7 +129,7 @@ additional_endpoints:
 	multipleEndpoints, err := getMultipleEndpoints(testConfig)
 
 	expectedMultipleEndpoints := map[string][]string{
-		"https://" + targetDomain + ".datadoghq.com": {
+		"https://" + getDomainPrefix("app") + ".datadoghq.com": {
 			"fakeapikey",
 			"fakeapikey2",
 		},
@@ -148,11 +146,11 @@ additional_endpoints:
 func TestAddAgentVersionToDomain(t *testing.T) {
 	newURL, err := addAgentVersionToDomain("https://app.datadoghq.com", "app")
 	require.Nil(t, err)
-	assert.Equal(t, "https://6-0-0-app.agent.datadoghq.com", newURL)
+	assert.Equal(t, "https://"+getDomainPrefix("app")+".datadoghq.com", newURL)
 
 	newURL, err = addAgentVersionToDomain("https://app.datadoghq.com", "flare")
 	require.Nil(t, err)
-	assert.Equal(t, "https://6-0-0-flare.agent.datadoghq.com", newURL)
+	assert.Equal(t, "https://"+getDomainPrefix("flare")+".datadoghq.com", newURL)
 
 	newURL, err = addAgentVersionToDomain("https://app.myproxy.com", "app")
 	require.Nil(t, err)
