@@ -67,7 +67,7 @@ func findDockerNetworks(containerID string, pid int, container types.Container) 
 	}
 
 	var err error
-	dockerGateways := make(map[string]int64)
+	dockerGateways := make(map[string]uint64)
 	for netName, netConf := range netSettings.Networks {
 		gw := netConf.Gateway
 		if netName == "host" || gw == "" {
@@ -91,8 +91,8 @@ func findDockerNetworks(containerID string, pid int, container types.Container) 
 			}
 		}
 
-		// Convert IP to little endian int64 for comparison to network routes.
-		dockerGateways[netName] = int64(binary.LittleEndian.Uint32(ip.To4()))
+		// Convert IP to little endian uint64 for comparison to network routes.
+		dockerGateways[netName] = uint64(binary.LittleEndian.Uint32(ip.To4()))
 	}
 
 	// Read contents of file. Handle missing or unreadable file in case container was stopped.
@@ -120,11 +120,19 @@ func findDockerNetworks(containerID string, pid int, container types.Container) 
 		if fields[1] == "00000000" {
 			continue
 		}
-		dest, _ := strconv.ParseInt(fields[1], 16, 32)
-		mask, _ := strconv.ParseInt(fields[7], 16, 32)
-		for net, gw := range dockerGateways {
+		dest, err := strconv.ParseUint(fields[1], 16, 32)
+		if err != nil {
+			log.Debugf("Cannot parse destination %q: %v", fields[1], err)
+			continue
+		}
+		mask, err := strconv.ParseUint(fields[7], 16, 32)
+		if err != nil {
+			log.Debugf("Cannot parse mask %q: %v", fields[7], err)
+			continue
+		}
+		for n, gw := range dockerGateways {
 			if gw&mask == dest {
-				networks = append(networks, dockerNetwork{iface: fields[0], dockerName: net})
+				networks = append(networks, dockerNetwork{iface: fields[0], dockerName: n})
 			}
 		}
 	}
@@ -158,10 +166,11 @@ func DefaultGateway() (net.IP, error) {
 	procRoot := config.Datadog.GetString("proc_root")
 	netRouteFile := filepath.Join(procRoot, "net", "route")
 	f, err := os.Open(netRouteFile)
-	if os.IsNotExist(err) || os.IsPermission(err) {
-		log.Errorf("unable to open %s: %s", netRouteFile, err)
-		return nil, nil
-	} else if err != nil {
+	if err != nil {
+		if os.IsNotExist(err) || os.IsPermission(err) {
+			log.Errorf("unable to open %s: %s", netRouteFile, err)
+			return nil, nil
+		}
 		// Unknown error types will bubble up for handling.
 		return nil, err
 	}
@@ -172,7 +181,7 @@ func DefaultGateway() (net.IP, error) {
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
 		if len(fields) >= 3 && fields[1] == "00000000" {
-			ipInt, err := strconv.ParseInt(fields[2], 16, 32)
+			ipInt, err := strconv.ParseUint(fields[2], 16, 32)
 			if err != nil {
 				return nil, fmt.Errorf("unable to parse ip %s, from %s: %s", fields[2], netRouteFile, err)
 			}
