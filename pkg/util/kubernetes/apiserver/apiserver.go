@@ -379,3 +379,46 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	log.Debugf("Updated %s to %s in the ConfigMap %s", eventTokenKey, tokenValue, configMapDCAToken)
 	return nil
 }
+
+// GetServiceMapBundleOnNode is used for the CLI svcmap command to output given a
+func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
+	nodePodServiceMap := make(map[string]map[string][]string)
+	stats := make(map[string]interface{})
+	if nodeName != "*" {
+		nodePodServiceMap[nodeName] = getSMBOnNodes(nodeName)
+		stats["Nodes"] = nodePodServiceMap
+	} else {
+		nodes := getNodeList()
+		for _, node := range nodes {
+			nodePodServiceMap[*node.Metadata.Name] = getSMBOnNodes(*node.Metadata.Name)
+		}
+		stats["Nodes"] = nodePodServiceMap
+	}
+	return stats, nil
+}
+
+func getSMBOnNodes(nodeName string) map[string][]string {
+	nodeNameCacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
+	smb, found := cache.Cache.Get(nodeNameCacheKey)
+	if !found {
+		log.Debugf("The key %s was not found in the cache", nodeNameCacheKey)
+		return nil
+	}
+	return smb.(*ServiceMapperBundle).PodNameToServices
+}
+
+func getNodeList() []*v1.Node {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5) // In case there are thousands of nodes.
+	defer cancel()
+	cl, err := GetAPIClient()
+	if err != nil {
+		log.Error("Can't create client to query the API Server: %s", err.Error())
+		return nil
+	}
+	nodes, err := cl.client.CoreV1().ListNodes(ctx)
+	if err != nil {
+		log.Error("Can't list nodes from the API server: %s", err.Error())
+		return nil
+	}
+	return nodes.Items
+}

@@ -19,7 +19,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/leaderelection"
+	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"encoding/json"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -175,6 +177,29 @@ func (le *LeaderEngine) CurrentLeaderName() string {
 // IsLeader return bool if the current LeaderEngine is the leader
 func (le *LeaderEngine) IsLeader() bool {
 	return le.CurrentLeaderName() == le.HolderIdentity
+}
+
+func GetLeaderDetails() (leaderDetails rl.LeaderElectionRecord, err error) {
+	var led rl.LeaderElectionRecord
+	c, err := apiserver.GetCoreV1Client()
+	if err != nil {
+		return led, err
+	}
+	leaderElectionCM, err := c.ConfigMaps(metav1.NamespaceDefault).Get(defaultLeaseName, metav1.GetOptions{})
+	if err != nil {
+		return led, err
+	}
+	log.Infof("LeaderElection cm is %q", leaderElectionCM)
+	annotation, found := leaderElectionCM.Annotations[rl.LeaderElectionRecordAnnotationKey]
+	if !found {
+		return led, apiserver.ErrNotFound
+	}
+	bytes := []byte(annotation)
+	err = json.Unmarshal(bytes, &led)
+	if err != nil {
+		return led, err
+	}
+	return led, nil
 }
 
 func init() {

@@ -35,6 +35,8 @@ build do
 
         # cleanup clutter
         delete "#{install_dir}/etc" if !osx?
-        delete "#{install_dir}/bin/datadog-cluster-agent/dist"
+        delete "#{install_dir}/bin/datadog-cluster-agent/dist/conf.d"
+        delete "#{install_dir}/bin/datadog-cluster-agent/dist/*.conf*"
+        delete "#{install_dir}/bin/datadog-cluster-agent/dist/*.yaml"
     end
 end

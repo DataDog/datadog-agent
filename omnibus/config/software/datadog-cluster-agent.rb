@@ -39,7 +39,7 @@ build do
   end
 
   # move around bin and config files
-  move 'bin/datadog-cluster-agent/dist/datadog-cluster.yaml', "#{conf_dir}/datadog-cluster.yaml.example"
+  move 'bin/datadog-cluster-agent/dist/datadog-cluster.yaml', "#{conf_dir}/datadog-cluster.yaml"
   move 'bin/datadog-cluster-agent/dist/conf.d', "#{conf_dir}/"
   copy 'bin', install_dir
 

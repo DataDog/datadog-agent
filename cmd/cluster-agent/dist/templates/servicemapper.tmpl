@@ -1,0 +1,12 @@
+
+==============
+Service Mapper
+=============
+{{- range $index, $element := .Nodes }}
+
+Node name: {{ $index -}}
+   {{ range $pod, $svc := $element }}
+ -  Pod name: {{ $pod }}
+    Service list: {{ $svc -}}
+   {{ end -}}
+{{- end }}

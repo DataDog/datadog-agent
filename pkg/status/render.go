@@ -51,6 +51,35 @@ func FormatStatus(data []byte) (string, error) {
 	return b.String(), nil
 }
 
+// FormatServiceMapCLI
+func FormatServiceMapCLI(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats)
+	renderServiceMapper(b, stats)
+
+	return b.String(), nil
+}
+
+// FormatStatus takes a json bytestring and prints out the formatted statuspage
+func FormatDCAStatus(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats)
+	forwarderStats := stats["forwarderStats"]
+	runnerStats := stats["runnerStats"]
+	autoConfigStats := stats["autoConfigStats"]
+	title := fmt.Sprintf("Agent (v%s)", stats["version"])
+	stats["title"] = title
+	renderHeader(b, stats)
+	renderChecksStats(b, runnerStats, autoConfigStats, "")
+	renderForwarderStatus(b, forwarderStats)
+
+	return b.String(), nil
+}
+
 func renderHeader(w io.Writer, stats map[string]interface{}) {
 	t := template.Must(template.New("header.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "header.tmpl")))
 	err := t.Execute(w, stats)
@@ -114,6 +143,14 @@ func renderJMXFetchStatus(w io.Writer, jmxStats interface{}) {
 func renderLogsStatus(w io.Writer, logsStats interface{}) {
 	t := template.Must(template.New("logsagent.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "logsagent.tmpl")))
 	err := t.Execute(w, logsStats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderServiceMapper(w io.Writer, serviceMapperStats interface{}) {
+	t := template.Must(template.New("servicemapper.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "servicemapper.tmpl")))
+	err := t.Execute(w, serviceMapperStats)
 	if err != nil {
 		fmt.Println(err)
 	}
