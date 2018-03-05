@@ -19,8 +19,13 @@ Starting with version 6.1, the Datadog Agent supports monitoring OpenShift Origi
 
 - You should first refer to the [common installation instructions](README.md), and its [Kubernetes section](README.md#Kubernetes)
 - We only support full operations on OpenShift 3.7.0 and later, as we rely on new monitoring endpoints introduced in this version
-- On OpenShift 3.7, you will need to change the provided RBAC files to refer to the `rbac.authorization.k8s.io/v1beta` apiVersion instead of `rbac.authorization.k8s.io/v1`
+- On OpenShift 3.7, you will need to change the provided RBAC files to refer to the `rbac.authorization.k8s.io/v1beta1` apiVersion instead of `rbac.authorization.k8s.io/v1`. You can pipe them through sed like below:
 
+```
+sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrole.yaml | oc apply -f -
+sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrolebinding.yaml | oc apply -f -
+
+```
 
 ## Restricted SCC operations
 
