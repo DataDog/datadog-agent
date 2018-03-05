@@ -57,10 +57,11 @@ func TestMemoryCheckLinux(t *testing.T) {
 
 	runtimeOS = "linux"
 
-	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.free", 11554304000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.used", 791363890/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.usable", 234567890.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.used", 791363890/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.pct_usable", 0.19, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.cached", 2596446142464.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.shared", 327680000000.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -72,6 +73,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 	mock.On("Gauge", "system.swap.pct_free", 0.6, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.cached", 25000000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
+
 	err := memCheck.Run()
 	require.Nil(t, err)
 
