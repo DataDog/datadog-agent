@@ -46,7 +46,6 @@ type KubeASCheck struct {
 	latestEventToken      string
 	configMapAvailable    bool
 	ac                    *apiserver.APIClient
-	init                  bool
 }
 
 func (c *KubeASConfig) parse(data []byte) error {
@@ -87,14 +86,13 @@ func (k *KubeASCheck) Run() error {
 		return err
 	}
 
-	if k.init == true {
+	if k.ac == nil {
 		// We start the API Server Client.
 		k.ac, err = apiserver.GetAPIClient()
 		if err != nil {
 			k.Warn("Could not connect to apiserver: %s", err)
 			return err
 		}
-		k.init = false
 	}
 
 	if errLeader == apiserver.ErrNotLeader {
@@ -148,8 +146,6 @@ func KubernetesASFactory() check.Check {
 	return &KubeASCheck{
 		CheckBase: core.NewCheckBase(kubernetesAPIServerCheckName),
 		instance:  &KubeASConfig{},
-		ac:        &apiserver.APIClient{},
-		init:      true,
 	}
 }
 
