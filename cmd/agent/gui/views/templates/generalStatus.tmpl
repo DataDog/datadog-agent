@@ -120,11 +120,11 @@
   </div>
 
   <div class="stat">
-    <span class="stat_title">Logs-agent</span>
+    <span class="stat_title">Logs Agent</span>
     <span class="stat_data">
     {{- with .logsStats -}}
       {{ if (not .is_running) }}
-        logs-agent is not running </br>
+        Logs Agent is not running </br>
       {{ else }}
       {{- range .integrations -}}
         <span class="stat_subtitle">{{- .name }}</span>
