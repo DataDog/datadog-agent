@@ -281,6 +281,12 @@ func GetMultipleEndpoints() (map[string][]string, error) {
 	return getMultipleEndpoints(Datadog)
 }
 
+// getDomainPrefix provides the right prefix for agent X.Y.Z
+func getDomainPrefix(app string) string {
+	v, _ := version.New(version.AgentVersion, version.Commit)
+	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
+}
+
 // addAgentVersionToDomain prefix the domain with the agent version: X-Y-Z.domain
 func addAgentVersionToDomain(domain string, app string) (string, error) {
 	u, err := url.Parse(domain)
@@ -293,9 +299,8 @@ func addAgentVersionToDomain(domain string, app string) (string, error) {
 		return domain, nil
 	}
 
-	v, _ := version.New(version.AgentVersion, version.Commit)
 	subdomain := strings.Split(u.Host, ".")[0]
-	newSubdomain := fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
+	newSubdomain := getDomainPrefix(app)
 
 	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
 	return u.String(), nil
