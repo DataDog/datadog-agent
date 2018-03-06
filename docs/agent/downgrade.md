@@ -23,7 +23,7 @@ sudo apt-get install apt-transport-https
 ```shell
 sudo rm /etc/apt/sources.list.d/datadog-beta.list
 [ ! -f /etc/apt/sources.list.d/datadog.list ] &&  echo 'deb https://apt.datadoghq.com/ stable main' | sudo tee /etc/apt/sources.list.d/datadog.list
-sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 C7A7DA52
+sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 382E94DE
 ```
 
 ##### Update apt and downgrade the agent
