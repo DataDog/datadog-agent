@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-//go:generate go run ../../pkg/config/render_config.go dca ../../pkg/config/config_template.yaml ../../bin/datadog-cluster-agent/datadog-cluster.yaml
-
 package main
 
 import (

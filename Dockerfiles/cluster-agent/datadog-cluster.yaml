@@ -1,0 +1,103 @@
+
+# The host of the Datadog intake server to send Agent data to
+dd_url: https://app.datadoghq.com
+
+# The Datadog api key to associate your Agent's data with your organization.
+# Can be found here:
+# https://app.datadoghq.com/account/settings
+api_key:
+
+# If you need a proxy to connect to the Internet, provide it here (default:
+# disabled). You can use the 'no_proxy' list to specify hosts that should bypass the
+# proxy. These settings might impact your checks requests, please refer to the
+# specific check documentation for more details.
+#
+# proxy:
+#   http: http(s)://user:password@proxy_for_http:port
+#   https: http(s)://user:password@proxy_for_https:port
+#   no_proxy:
+#     - host1
+#     - host2
+
+# Setting this option to "yes" will tell the agent to skip validation of SSL/TLS certificates.
+# This may be necessary if the agent is running behind a proxy. See this page for details:
+# https://github.com/DataDog/dd-agent/wiki/Proxy-Configuration#using-haproxy-as-a-proxy
+# skip_ssl_validation: no
+
+# Setting this option to "yes" will force the agent to only use TLS 1.2 when
+# pushing data to the url specified in "dd_url".
+# force_tls_12: no
+
+# Force the hostname to whatever you want. (default: auto-detected)
+# hostname: mymachine.mydomain
+
+# Set the host's tags (optional)
+# tags:
+#   - mytag
+#   - env:prod
+#   - role:database
+
+# Histogram and Historate configuration
+#
+# Configure which aggregated value to compute. Possible values are: min, max,
+# median, avg, sum and count.
+#
+# histogram_aggregates: ["max", "median", "avg", "count"]
+#
+# Configure which percentiles will be computed. Must be a list of float
+# between 0 and 1.
+# Warning: percentiles must be specified as yaml strings
+#
+# histogram_percentiles: ["0.95"]
+
+# Forwarder timeout in seconds
+# forwarder_timeout: 20
+
+# The forwarder retries failed requests. Use this setting to change the
+# maximum length of the forwarder's retry queue (each request in the queue
+# takes no more than 2MB in memory)
+# forwarder_retry_queue_max_size: 30
+
+# The number of workers used by the forwarder. Please note each worker will
+# open an outbound HTTP connection towards Datadog's metrics intake at every
+# flush.
+# forwarder_num_workers: 1
+
+# Set this option to "yes" to output logs in JSON format
+# log_format_json: no
+
+# Collect AWS EC2 custom tags as agent tags
+# collect_ec2_tags: false
+
+# Logging
+#
+# log_level: info
+# log_file: /var/log/datadog/agent.log
+
+# Kubernetes apiserver integration
+#
+# When running in a pod, the agent will automatically use the pod's serviceaccount
+# to authenticate with the apiserver. If you wish to install the agent out of a pod
+# or customise connection parameters, you can provide the path to a KubeConfig file
+# see https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
+#
+# kubernetes_kubeconfig_path: /path/to/file
+#
+# In order to collect Kubernetes service names, the agent needs certain rights (see RBAC documentation in
+# [docker readme](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
+# You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of services to
+# ContainerIDs with the following options:
+# kubernetes_collect_service_tags: true
+# kubernetes_service_tag_update_freq: 300
+#
+#
+# To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.
+# Only the leader will collect events. More details about events [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#event-collection).
+# collect_kubernetes_events: false
+#
+#
+# Leader Election settings, more details about leader election [here](https://github.com/DataDog/datadog-agent/blob/master/Dockerfilesagent/README.md#leader-election)
+# To enable the leader election on this node, set the leader_election variable to true.
+# leader_election: false
+# The leader election lease is an integer in seconds.
+# leader_lease_duration: 60

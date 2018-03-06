@@ -48,35 +48,6 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False,
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)
-    # Render the configuration file template
-    #
-    # We need to remove cross compiling bits if any because go generate must
-    # build and execute in the native platform
-    env.update({
-        "GOOS": "",
-        "GOARCH": "",
-    })
-    cmd = "go generate {}/cmd/cluster-agent"
-    ctx.run(cmd.format(REPO_PATH), env=env)
-    if not skip_assets:
-        refresh_assets(ctx)
-
-@task
-def refresh_assets(ctx,  development=True):
-    """
-    Clean up and refresh Collector's assets and config files
-    """
-    # ensure BIN_PATH exists
-    if not os.path.exists(BIN_PATH):
-        os.mkdir(BIN_PATH)
-
-    dist_folder = os.path.join(BIN_PATH, "dist")
-    if os.path.exists(dist_folder):
-        shutil.rmtree(dist_folder)
-    copy_tree("./cmd/cluster-agent/dist/", dist_folder)
-    if development:
-        print("copying to {}".format(dist_folder))
-        copy_tree("./dev/dist/", dist_folder)
 
 @task
 def run(ctx, rebuild=False, race=False, skip_build=False, development=True):
@@ -144,15 +115,11 @@ def image_build(ctx):
     """
     Build the docker image
     """
-    dca_bin_path = BIN_PATH
 
-    cmd = "mv {}/dist Dockerfiles/cluster-agent/"
-    ctx.run(cmd.format(dca_bin_path))
-
-    dca_binary = glob.glob(os.path.join(dca_bin_path, "datadog-cluster-agent"))
+    dca_binary = glob.glob(os.path.join(BIN_PATH, "datadog-cluster-agent"))
     # get the last debian package built
     if not dca_binary:
-        print("No bin found in {}".format(dca_bin_path))
+        print("No bin found in {}".format(BIN_PATH))
         print("See cluster-agent.build")
         raise Exit(1)
     latest_file = max(dca_binary, key=os.path.getctime)
@@ -160,4 +127,3 @@ def image_build(ctx):
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
     ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
     ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
-    ctx.run("rm -rf Dockerfiles/cluster-agent/dist")
