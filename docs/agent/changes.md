@@ -12,16 +12,15 @@ open an issue or submit a Pull Request.
 * [GUI](#gui)
 * [CLI](#cli)
 * [Logs](#logs)
-* [Checks](#checks)
 * [APM agent](#apm-agent)
 * [Process agent](#process-agent)
-* [Python Modules](#python-modules)
 * [Docker](#docker-check)
 * [Kubernetes](#kubernetes-support)
 * [Autodiscovery](#autodiscovery)
-* [Agent Integrations](#Agent-Integrations)
-* [Check API](#Check-API)
-* [Custom Checks](#Custom-Checks)
+* [Python Modules](#python-modules)
+  * [Agent Integrations](#agent-integrations)
+  * [Check API](#check-api)
+  * [Custom Checks](#custom-checks)
 * [JMX](#jmx)
 
 ## Configuration Files
@@ -182,66 +181,6 @@ The Agent logs are still located in the `/var/log/datadog/` directory.  On Windo
 Prior releases were logging to multiple files in that directory (`collector.log`,
 `forwarder.log`, `dogstatsd.log`, etc). Starting with 6.0 the Agent logs to a single log file, `agent.log`.
 
-## Checks
-
-### Custom check precedence
-
-With Agent 6, the order of precedence between custom
-checks (i.e. checks in the `/etc/datadog-agent/checks.d/` folder by default on Linux) and the checks shipped
-with the Agent by default (i.e. checks from [`integrations-core`][integrations-core]) has changed: the
-`integrations-core` checks now have precedence over custom checks.
-
-This affects your setup if you have custom checks that have the same name as existing `integrations-core`
-checks: these custom checks will now be ignored, and the `integrations-core` checks loaded instead.
-
-To fix your custom check setup with Agent 6, rename your affected custom checks to a new and unused name,
-and rename the related `.yaml` configuration files accordingly.
-
-### `AgentCheck` interface
-
-The base class for python checks remains `AgentCheck`, and you will import it in
-the same way. However, there are a number of things that have been removed or
-changed in the new implementation of the check. In addition, each check instance
-is now its own instance of the class. So you cannot share state between them.
-
-All the official integrations have had these methods removed from them, so these
-will only affect custom checks.
-
-The following methods have been removed from `AgentCheck`:
-
-* `_roll_up_instance_metadata`
-* `instance_count`
-* `is_check_enabled`
-* `read_config`
-* `set_check_version`
-* `set_manifest_path`
-* `_get_statistic_name_from_method`
-* `_collect_internal_stats`
-* `_get_internal_profiling_stats`
-* `_set_internal_profiling_stats`
-* `get_library_versions`
-* `get_library_info`
-* `from_yaml`
-* `get_service_checks`
-* `has_warnings`
-* `get_metrics`
-* `has_events`
-* `get_events`
-
-The following things have been changed:
-
-The function signature of the metric senders changed from:
-
-```python
-gauge(self, metric, value, tags=None, hostname=None, device_name=None, timestamp=None)
-```
-
-to:
-
-```python
-gauge(self, name, value, tags=None, hostname=None, device_name=None)
-```
-
 ## APM agent
 
 The APM agent (also known as _trace agent_) is shipped by default with the
@@ -377,9 +316,9 @@ in almost anyone's checks. The flare module, for example, was removed and
 reimplemented in Go, but is unlikely to have been used by anyone in a custom check.
 To learn more, you can read about the details in the [development documentation][python-dev].
 
-### Agent Integrations 
+### Agent Integrations
 
-Even if the new Agent fully supports Python checks, a number of those provided
+Even if the new Agent fully supports Python checks, a few of those provided
 by [integrations-core](https://github.com/DataDog/integrations-core) are expected to fail if run within the
 Agent as they are not currently implemented:
 
@@ -389,6 +328,11 @@ Agent as they are not currently implemented:
 
 ### Check API
 
+The base class for python checks remains `AgentCheck`, and you will import it in
+the same way. However, there are a number of things that have been removed or
+changed in the class API. In addition, each check instance is now its own instance
+of the class. So you cannot share state between them.
+
 Some methods in the `AgentCheck` class are not currently implemented. These include:
 
 * `service_metadata`
@@ -397,11 +341,62 @@ Some methods in the `AgentCheck` class are not currently implemented. These incl
 * `generate_histogram_func`
 * `stop`
 
+The function signature of the metric senders changed from:
+
+```python
+gauge(self, metric, value, tags=None, hostname=None, device_name=None, timestamp=None)
+```
+
+to:
+
+```python
+gauge(self, name, value, tags=None, hostname=None, device_name=None)
+```
+
+The following methods have been permanently removed from `AgentCheck`:
+
+* `_roll_up_instance_metadata`
+* `instance_count`
+* `is_check_enabled`
+* `read_config`
+* `set_check_version`
+* `set_manifest_path`
+* `_get_statistic_name_from_method`
+* `_collect_internal_stats`
+* `_get_internal_profiling_stats`
+* `_set_internal_profiling_stats`
+* `get_library_versions`
+* `get_library_info`
+* `from_yaml`
+* `get_service_checks`
+* `has_warnings`
+* `get_metrics`
+* `has_events`
+* `get_events`
+
+All the official integrations have had these methods removed from them, so these
+will only affect custom checks.
+
 ### Custom Checks
+
+#### Precedence
+
+With Agent 6, the order of precedence between custom
+checks (i.e. checks in the `/etc/datadog-agent/checks.d/` folder by default on Linux) and the checks shipped
+with the Agent by default (i.e. checks from [`integrations-core`][integrations-core]) has changed: the
+`integrations-core` checks now have precedence over custom checks.
+
+This affects your setup if you have custom checks that have the same name as existing `integrations-core`
+checks: these custom checks will now be ignored, and the `integrations-core` checks loaded instead.
+
+To fix your custom check setup with Agent 6, rename your affected custom checks to a new and unused name,
+and rename the related `.yaml` configuration files accordingly.
+
+#### Dependencies
 
 If you happen to use custom checks, there's a chance your code depends on py code
 that was bundled with agent5 that may not longer be available in the with the new
-agent 6 package. This is a list of packages no longer bundled with the agent:
+Agent 6 package. This is a list of packages no longer bundled with the Agent:
 
 - backports.ssl-match-hostname
 - datadog
@@ -430,9 +425,9 @@ sudo -u dd-agent -- /opt/datadog-agent/embedded/bin/pip install <dependency>
 ```
 
 Similarly, you may have added a pip package to meet a requirement for a custom
-check while on agent 5. If the added pip package had inner dependencies with
-packages already bundled with agent5 (see list above), those dependencies will
-be missing after the upgrade to agent6 and your custom checks will break.
+check while on Agent 5. If the added pip package had inner dependencies with
+packages already bundled with Agent 5 (see list above), those dependencies will
+be missing after the upgrade to Agent 6 and your custom checks will break.
 You will have to install the missing dependencies manually as described above.
 
 ## JMX
