@@ -387,6 +387,14 @@ api_key:
 # leader_election: false
 # The leader election lease is an integer in seconds.
 # leader_lease_duration: 60
+#
+# Node labels that should be collected and their name in host tags. Off by default.
+# Some of these labels are redundant with metadata collected by
+# cloud provider crawlers (AWS, GCE, Azure)
+#
+# kubernetes_node_labels_as_tags:
+#   kubernetes.io/hostname: nodename
+#   beta.kubernetes.io/os: os
 {{ end -}}
 
 {{- if .ProcessAgent }}

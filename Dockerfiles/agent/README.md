@@ -152,6 +152,10 @@ You will need to allow the agent to be allowed to perform a few actions:
 You can find the templates in manifests/rbac [here](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests/rbac).
 This will create the Service Account in the default namespace, a Cluster Role with the above rights and the Cluster Role Binding.
 
+### Node label collection
+
+The agent can collect node labels from the APIserver and report them as host tags. This feature is disabled by default, as it is usually redundant with cloud provider host tags. If you need to do so, you can provide a node label -> host tag mapping in the `DD_KUBERNETES_NODE_LABELS_AS_TAGS` environment variable. The format is the inline JSON described in the [tagging section](#Tagging).
+
 ## Log collection
 
 The Datadog Agent can collect logs from containers starting at the version 6. Two installations are possible:
