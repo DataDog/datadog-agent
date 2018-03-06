@@ -8,16 +8,19 @@ ENV DOCKER_DD_AGENT=yes \
     DD_AGENT_HOME=/opt/datadog-cluster-agent/
 
 # Install the Agent
-RUN mkdir -p /opt/datadog-cluster-agent/bin/datadog-cluster-agent/
+RUN mkdir -p /opt/datadog-cluster-agent/bin/datadog-cluster-agent/ \
+ && mkdir -p /etc/datadog-cluster-agent/etc/conf.d
+
 COPY datadog-cluster-agent /opt/datadog-cluster-agent/bin/datadog-cluster-agent/datadog-cluster-agent
+
+COPY ./dist/ /etc/datadog-cluster-agent/
 
 RUN apt-get update \
  && apt-get install --no-install-recommends -y apt-transport-https ca-certificates\
  && apt-get clean
 
-VOLUME ["/conf.d", "/checks.d"]
-
 COPY entrypoint.sh .
+
 
 EXPOSE 8125/udp
 

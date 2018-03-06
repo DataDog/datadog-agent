@@ -21,6 +21,7 @@ if [[ -z $DD_CMD_PORT ]]; then
     export DD_CMD_PORT=$DD_CMD_PORT
 fi
 
+
 ##### Starting up #####
 
 export PATH="/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/bin/:$PATH"
