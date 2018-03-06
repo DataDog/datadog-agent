@@ -63,7 +63,7 @@ build do
     if windows?
       copy "#{gopath.to_path}/bin/#{trace_agent_binary}", "#{install_dir}/bin/agent"
     else
-      copy trace_agent_binary, "#{install_dir}/embedded/bin"
+      copy "#{gopath.to_path}/bin/#{trace_agent_binary}", "#{install_dir}/embedded/bin"
     end
   end
 end
