@@ -47,20 +47,8 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False,
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)
-    # Render the configuration file template
-    #
-    # We need to remove cross compiling bits if any because go generate must
-    # build and execute in the native platform
-    env.update({
-        "GOOS": "",
-        "GOARCH": "",
-    })
-    cmd = "go generate {}/cmd/cluster-agent"
-    ctx.run(cmd.format(REPO_PATH), env=env)
-
-    print("finished running")
     if not skip_assets:
-        refresh_assets(ctx)#, development=development)
+        refresh_assets(ctx)
 
 @task
 def refresh_assets(ctx):

@@ -20,6 +20,7 @@ import (
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	log "github.com/cihub/seelog"
@@ -37,10 +38,35 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	// r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/status", getStatus).Methods("GET")
 	// r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/api/v1/metadata/{nodeName}/{podName}", getPodMetadata).Methods("GET")
 	r.HandleFunc("/api/v1/{check}/events", getCheckLatestEvents).Methods("GET")
+}
+
+func getStatus(w http.ResponseWriter, r *http.Request) {
+	if err := apiutil.Validate(w, r); err != nil {
+		return
+	}
+
+	log.Info("Got a request for the status. Making status.")
+	s, err := status.GetDCAStatus()
+	w.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+	jsonStats, err := json.Marshal(s)
+	if err != nil {
+		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonStats)
 }
 
 // TODO: make sure it works for DCA
@@ -54,7 +80,6 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-// TODO: make sure it works for DCA
 func getVersion(w http.ResponseWriter, r *http.Request) {
 	if err := apiutil.Validate(w, r); err != nil {
 		return
@@ -65,7 +90,6 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-// TODO: make sure it works for DCA
 func getHostname(w http.ResponseWriter, r *http.Request) {
 	if err := apiutil.Validate(w, r); err != nil {
 		return

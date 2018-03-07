@@ -51,6 +51,24 @@ func FormatStatus(data []byte) (string, error) {
 	return b.String(), nil
 }
 
+// FormatStatus takes a json bytestring and prints out the formatted statuspage
+func FormatDCAStatus(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats)
+	forwarderStats := stats["forwarderStats"]
+	runnerStats := stats["runnerStats"]
+	autoConfigStats := stats["autoConfigStats"]
+	title := fmt.Sprintf("Agent (v%s)", stats["version"])
+	stats["title"] = title
+	renderHeader(b, stats)
+	renderChecksStats(b, runnerStats, autoConfigStats, "")
+	renderForwarderStatus(b, forwarderStats)
+
+	return b.String(), nil
+}
+
 func renderHeader(w io.Writer, stats map[string]interface{}) {
 	t := template.Must(template.New("header.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "header.tmpl")))
 	err := t.Execute(w, stats)
