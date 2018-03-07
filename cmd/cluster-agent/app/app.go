@@ -66,8 +66,23 @@ func init() {
 }
 
 func start(cmd *cobra.Command, args []string) error {
-	config.Datadog.SetConfigFile(config.Datadog.GetString("conf_path"))
-	confErr := config.Datadog.ReadInConfig()
+	configFound := false
+
+	// a path to the folder containing the config file was passed
+	if len(confPath) != 0 {
+		// we'll search for a config file named `datadog-cluster.yaml`
+		config.Datadog.AddConfigPath(confPath)
+		confErr := config.Datadog.ReadInConfig()
+		if confErr != nil {
+			log.Error(confErr)
+		} else {
+			configFound = true
+		}
+	}
+
+	if !configFound {
+		log.Infof("Config read from env variables")
+	}
 
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
@@ -93,10 +108,6 @@ func start(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)
 		return nil
-	}
-
-	if confErr != nil {
-		log.Infof("unable to parse Datadog config file, running with env variables: %s", confErr)
 	}
 
 	if !config.Datadog.IsSet("api_key") {

@@ -18,7 +18,6 @@ if [ -z $DD_DD_URL ]; then
 fi
 
 ##### Starting up #####
-
-export PATH=/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/embedded/bin/:$PATH
+export PATH="/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/embedded/bin/":$PATH
 
 exec "$@"

@@ -2,6 +2,8 @@ FROM debian:stretch-slim
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
+ENV PATH="/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/embedded/bin/":$PATH
+
 # Install the Agent
 RUN mkdir -p /opt/datadog-cluster-agent/bin/datadog-cluster-agent/
 
@@ -9,6 +11,7 @@ COPY datadog-cluster-agent /opt/datadog-cluster-agent/bin/datadog-cluster-agent/
 
 COPY ./conf.d /etc/datadog-cluster-agent/etc/conf.d
 COPY ./datadog-cluster.yaml /etc/datadog-cluster-agent/etc/datadog-cluster.yaml
+COPY ./dist /opt/datadog-cluster-agent/bin/datadog-cluster-agent/dist
 
 RUN apt-get update \
  && apt-get install --no-install-recommends -y apt-transport-https ca-certificates curl\
@@ -18,4 +21,4 @@ COPY entrypoint.sh .
 
 ENTRYPOINT ["/entrypoint.sh"]
 
-CMD ["/opt/datadog-cluster-agent/bin/datadog-cluster-agent/datadog-cluster-agent", "start"]
+CMD ["datadog-cluster-agent", "start"]
