@@ -379,3 +379,13 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	log.Debugf("Updated %s to %s in the ConfigMap %s", eventTokenKey, tokenValue, configMapDCAToken)
 	return nil
 }
+
+func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	node, err := c.client.CoreV1().GetNode(ctx, nodeName)
+	if err != nil {
+		return nil, err
+	}
+	return node.GetMetadata().GetLabels(), nil
+}
