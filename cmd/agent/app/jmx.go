@@ -33,6 +33,13 @@ var (
 		Long:  ``,
 	}
 
+	jmxCollectCmd = &cobra.Command{
+		Use:   "collect",
+		Short: "Start the collection of metrics based on your current configuration and display them in the console.",
+		Long:  ``,
+		Run:   doJmxCollect,
+	}
+
 	jmxListEverythingCmd = &cobra.Command{
 		Use:   "everything",
 		Short: "List every attributes available that has a type supported by JMXFetch.",
@@ -72,16 +79,22 @@ var (
 )
 
 func init() {
-	// attach list command to jmx command
+	// attach list and collect commands to jmx command
 	jmxCmd.AddCommand(jmxListCmd)
+	jmxCmd.AddCommand(jmxCollectCmd)
 
 	//attach list commands to list root
 	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd)
 
 	jmxListCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{"jmx"}, "JMX checks (ex: jmx,tomcat)")
+	jmxCollectCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{"jmx"}, "JMX checks (ex: jmx,tomcat)")
 
 	// attach the command to the root
 	AgentCmd.AddCommand(jmxCmd)
+}
+
+func doJmxCollect(cmd *cobra.Command, args []string) {
+	runJmxCommand("collect")
 }
 
 func doJmxListEverything(cmd *cobra.Command, args []string) {
