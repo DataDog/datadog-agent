@@ -99,6 +99,7 @@ The new command line interface for the Agent is sub-command based:
 | start-service   | starts the agent within the service control manager |
 | status          | Print the current status |
 | stopservice     | stops the agent within the service control manager |
+| jmx             | JMX troubleshooting |
 | version         | Print the version info |
 
 To see the list of available sub-commands on your platform, run:
@@ -471,17 +472,17 @@ The Agent 6 does not ship the `jmxterm` JAR. If you wish to download and use `jm
 
 Troubleshooting commands syntax have changed :
 
-List attributes that match at least one of your instances configuration: `sudo datadog-agent jmx list matching`
+`sudo datadog-agent jmx list matching`: List attributes that match at least one of your instances configuration.
 
-List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected: `sudo datadog-agent jmx list limited`
+`sudo datadog-agent jmx list limited`: List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected.
 
-List attributes that will actually be collected by your current instances configuration: `sudo datadog-agent jmx list collected`
+`sudo datadog-agent jmx list collected`: List attributes that will actually be collected by your current instances configuration.
 
-List attributes that don’t match any of your instances configuration: `sudo datadog-agent jmx list not-matching`
+`sudo datadog-agent jmx list not-matching`: List attributes that don’t match any of your instances configuration.
 
-List every attributes available that has a type supported by JMXFetch: `sudo datadog-agent jmx list everything`
+`sudo datadog-agent jmx list everything`: List every attributes available that has a type supported by JMXFetch.
 
-Start the collection of metrics based on your current configuration and display them in the console: `sudo datadog-agent jmx collect`
+`sudo datadog-agent jmx collect`: Start the collection of metrics based on your current configuration and display them in the console.
 
 By default theses command will run on the check called `jmx`. If you want to
 use them for other checks, you can specify them using the `--checks` flag :
