@@ -5,6 +5,7 @@ Cluster Agent tasks
 import os
 import glob
 import shutil
+from distutils.dir_util import copy_tree
 
 from invoke import task
 import invoke
@@ -52,7 +53,6 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False,
 
 @task
 def refresh_assets(ctx):
-    #, development=True):
     """
     Clean up and refresh Collector's assets and config files
     """
@@ -142,5 +142,7 @@ def image_build(ctx):
     latest_file = max(dca_binary, key=os.path.getctime)
 
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
+    ctx.run("mv {}/dist Dockerfiles/cluster-agent/".format(BIN_PATH))
     ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
     ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
+    ctx.run("rm -rf Dockerfiles/cluster-agent/dist")
