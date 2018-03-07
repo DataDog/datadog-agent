@@ -186,8 +186,8 @@ func (ku *KubeUtil) GetPodForContainerID(containerID string) (*Pod, error) {
 		return nil, err
 	}
 	pod, err := ku.searchPodForContainerID(pods, containerID)
-	if err != nil {
-		log.Debugf("cannot get the containerID %q: %s, retrying without cache...", containerID, err)
+	if err != nil && errors.IsNotFound(err) {
+		log.Debugf("Cannot get the containerID %q: %s, retrying without cache...", containerID, err)
 		pods, err = ku.ForceGetLocalPodList()
 		if err != nil {
 			return nil, err
@@ -197,7 +197,7 @@ func (ku *KubeUtil) GetPodForContainerID(containerID string) (*Pod, error) {
 			return nil, err
 		}
 	}
-	return pod, nil
+	return pod, err
 }
 
 func (ku *KubeUtil) searchPodForContainerID(podList []*Pod, containerID string) (*Pod, error) {
