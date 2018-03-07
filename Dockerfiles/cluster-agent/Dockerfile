@@ -13,7 +13,7 @@ COPY ./conf.d /etc/datadog-cluster-agent/etc/conf.d
 COPY ./datadog-cluster.yaml /etc/datadog-cluster-agent/etc/datadog-cluster.yaml
 
 RUN apt-get update \
- && apt-get install --no-install-recommends -y apt-transport-https ca-certificates\
+ && apt-get install --no-install-recommends -y apt-transport-https ca-certificates curl\
  && apt-get clean
 
 COPY entrypoint.sh .
