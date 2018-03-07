@@ -7,10 +7,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	log "github.com/cihub/seelog"
 	"net/http"
 	"os"
+
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/app"
 )
