@@ -466,7 +466,7 @@ You will have to install the missing dependencies manually as described above.
 
 ## JMX
 
-The Agent 6 ships JMXFetch and supports all of its features, except those listed below.
+The Agent 6 ships JMXFetch and include a few changes :
 
 The Agent 6 does not ship the `jmxterm` JAR. If you wish to download and use `jmxterm`, please refer to the [upstream project](https://github.com/jiaqi/jmxterm).
 
