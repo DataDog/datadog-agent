@@ -9,40 +9,10 @@ package status
 
 import (
 	"fmt"
-	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
-	"github.com/DataDog/datadog-agent/pkg/version"
-	log "github.com/cihub/seelog"
 )
-
-// GetDCAStatus grabs the status from expvar and puts it into a map
-func GetDCAStatus() (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-	stats, err := expvarStats(stats)
-	if err != nil {
-		log.Errorf("Error Getting ExpVar Stats: %v", err)
-	}
-	stats["config"] = getPartialConfig()
-
-	stats["version"] = version.AgentVersion
-	stats["pid"] = os.Getpid()
-	hostname, err := util.GetHostname()
-	if err != nil {
-		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache("unknown")
-	} else {
-		stats["metadata"] = host.GetPayloadFromCache(hostname)
-	}
-	now := time.Now()
-	stats["time"] = now.Format(timeFormat)
-	stats["leaderelection"] = getLeaderElectionDetails()
-
-	return stats, nil
-}
 
 func getLeaderElectionDetails() map[string]string {
 	leaderElectionStats := make(map[string]string)

@@ -50,7 +50,7 @@ var statusCmd = &cobra.Command{
 			}
 		}
 		if !configFound {
-			log.Debug("Config read from env variables")
+			log.Debugf("Config read from env variables")
 		}
 
 		err := requestStatus()
