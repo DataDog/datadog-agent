@@ -472,10 +472,15 @@ The Agent 6 does not ship the `jmxterm` JAR. If you wish to download and use `jm
 Troubleshooting commands syntax have changed :
 
 List attributes that match at least one of your instances configuration: `sudo datadog-agent jmx list matching`
+
 List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected: `sudo datadog-agent jmx list limited`
+
 List attributes that will actually be collected by your current instances configuration: `sudo datadog-agent jmx list collected`
+
 List attributes that don’t match any of your instances configuration: `sudo datadog-agent jmx list not-matching`
+
 List every attributes available that has a type supported by JMXFetch: `sudo datadog-agent jmx list everything`
+
 Start the collection of metrics based on your current configuration and display them in the console: `sudo datadog-agent jmx collect`
 
 By default theses command will run on the check called `jmx`. If you want to
