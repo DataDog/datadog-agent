@@ -2,6 +2,8 @@ FROM debian:stretch-slim
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
+ENV PATH="/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/embedded/bin/":$PATH
+
 # Install the Agent
 RUN mkdir -p /opt/datadog-cluster-agent/bin/datadog-cluster-agent/
 
@@ -18,4 +20,4 @@ COPY entrypoint.sh .
 
 ENTRYPOINT ["/entrypoint.sh"]
 
-CMD ["/opt/datadog-cluster-agent/bin/datadog-cluster-agent/datadog-cluster-agent", "start"]
+CMD ["datadog-cluster-agent", "start"]
