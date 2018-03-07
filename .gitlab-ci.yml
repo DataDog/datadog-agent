@@ -65,6 +65,24 @@ run_test_rpm-x64:
   script:
     - inv -e test --race --profile
 
+# scan the dependencies for security vulnerabilities with snyk
+run_security_scan_test:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:latest
+  tags: ["runner:main", "size:large"]
+  before_script:
+    # this image isn't built in the datadog-agent-builders repo
+    # it doesn't have invoke so we install the dependencies without invoke
+    - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
+    - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
+    - cd $GOPATH/src/github.com/DataDog/datadog-agent
+    - dep ensure
+  script:
+    - set +x     # don't print the api key to the logs
+    - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
+      snyk monitor # send the list of the dependencies to snyk
+  only:
+    - master
 
 #
 # binary_build
