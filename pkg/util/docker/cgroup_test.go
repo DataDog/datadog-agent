@@ -339,12 +339,46 @@ func TestParseCgroupPaths(t *testing.T) {
 				"cpuset":  "/docker/9d76460be0e91bb0dd495e2ddcfa10db40c1ef0c1dbdb6a447a4974a9b58576e",
 			},
 		},
+		{
+			contents: []string{
+				"14:name=systemd:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"13:pids:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"12:hugetlb:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"11:net_prio:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"10:perf_event:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"9:net_cls:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"8:freezer:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"7:devices:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"6:memory:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"5:blkio:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"4:cpuacct:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"3:cpu:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"2:cpuset:/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"1:name=openrc:/docker",
+			},
+			expectedContainer: "af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+			expectedPaths: map[string]string{
+				"name=systemd": "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"pids":         "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"hugetlb":      "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"net_prio":     "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"perf_event":   "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"net_cls":      "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"freezer":      "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"devices":      "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"memory":       "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"blkio":        "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"cpuacct":      "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"cpu":          "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+				"cpuset":       "/docker/af1c1c0b02c6e45e0b6cb6151cd68fd02c7a6d91ad70d9bd72ccec8e83607841",
+			},
+		},
 	} {
 		contents := strings.NewReader(strings.Join(tc.contents, "\n"))
 		c, p, err := parseCgroupPaths(contents)
 		assert.NoError(t, err)
-		assert.Equal(t, c, tc.expectedContainer)
-		assert.Equal(t, p, tc.expectedPaths)
+		assert.Equal(t, tc.expectedContainer, c)
+		assert.Equal(t, tc.expectedPaths, p)
 	}
 }
 
