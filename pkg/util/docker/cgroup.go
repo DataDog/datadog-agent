@@ -571,19 +571,20 @@ func readCgroupPaths(pidCgroupPath string) (string, map[string]string, error) {
 // Returns the common containerID and a mapping of target => path
 // If the first line doesn't have a valid container ID we will return an empty string
 func parseCgroupPaths(r io.Reader) (string, map[string]string, error) {
-	var ok bool
 	var containerID string
 	paths := make(map[string]string)
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		l := scanner.Text()
-		// Check if this process running inside a container.
-		containerID, ok = containerIDFromCgroup(l)
+		cID, ok := containerIDFromCgroup(l)
 		if !ok {
 			log.Debugf("could not parse container id from path '%s'", l)
 			continue
 		}
-
+		if containerID == "" {
+			// Take the first valid containerID
+			containerID = cID
+		}
 		sp := strings.SplitN(l, ":", 3)
 		if len(sp) < 3 {
 			continue
