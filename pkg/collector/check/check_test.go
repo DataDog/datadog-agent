@@ -49,11 +49,11 @@ func TestString(t *testing.T) {
 	assert.False(t, config.Equal(nil))
 
 	config.Name = "foo"
-	config.InitConfig = ConfigData("fooBarBaz")
+	config.InitConfig = ConfigData("fooBarBaz: test")
 	config.Instances = []ConfigData{ConfigData("justFoo")}
 
 	expected := `init_config:
-- fooBarBaz
+  fooBarBaz: test
 instances:
 - justFoo
 `
