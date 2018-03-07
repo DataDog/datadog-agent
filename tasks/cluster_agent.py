@@ -5,7 +5,6 @@ Cluster Agent tasks
 import os
 import glob
 import shutil
-from distutils.dir_util import copy_tree
 
 from invoke import task
 import invoke

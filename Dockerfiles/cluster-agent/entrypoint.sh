@@ -19,6 +19,6 @@ fi
 
 ##### Starting up #####
 
-export PATH="PATH=/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/embedded/bin/:$PATH"
+export PATH=/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/embedded/bin/:$PATH
 
 exec "$@"

@@ -2,8 +2,6 @@ FROM debian:stretch-slim
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
-ENV DD_AGENT_HOME=/opt/datadog-cluster-agent/
-
 # Install the Agent
 RUN mkdir -p /opt/datadog-cluster-agent/bin/datadog-cluster-agent/
 
