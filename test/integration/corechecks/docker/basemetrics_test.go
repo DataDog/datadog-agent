@@ -31,6 +31,8 @@ func TestContainerMetricsTagging(t *testing.T) {
 		"Gauge": {
 			"docker.mem.cache",
 			"docker.mem.rss",
+                        "docker.mem.in_use",
+                        "docker.mem.limit",
 			"docker.container.size_rw",
 			"docker.container.size_rootfs",
 		},

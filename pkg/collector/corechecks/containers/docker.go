@@ -185,7 +185,7 @@ func (d *DockerCheck) Run() error {
 		if c.Memory.HierarchicalMemoryLimit > 0 && c.Memory.HierarchicalMemoryLimit < uint64(math.Pow(2, 60)) {
 			sender.Gauge("docker.mem.limit", float64(c.Memory.HierarchicalMemoryLimit), "", tags)
 			if c.Memory.HierarchicalMemoryLimit != 0 {
-				sender.Gauge("docker.mem.in_use", float64(c.Memory.RSS/c.Memory.HierarchicalMemoryLimit), "", tags)
+				sender.Gauge("docker.mem.in_use", float64(c.Memory.RSS)/float64(c.Memory.HierarchicalMemoryLimit), "", tags)
 			}
 		}
 
@@ -193,7 +193,7 @@ func (d *DockerCheck) Run() error {
 			sender.Gauge("docker.mem.sw_limit", float64(c.Memory.HierarchicalMemSWLimit), "", tags)
 			if c.Memory.HierarchicalMemSWLimit != 0 {
 				sender.Gauge("docker.mem.sw_in_use",
-					float64((c.Memory.Swap+c.Memory.RSS)/c.Memory.HierarchicalMemSWLimit), "", tags)
+					float64(c.Memory.Swap+c.Memory.RSS)/float64(c.Memory.HierarchicalMemSWLimit), "", tags)
 			}
 		}
 
