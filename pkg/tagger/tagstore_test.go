@@ -27,13 +27,13 @@ func (s *StoreTestSuite) TestIngest() {
 	s.store.processTagInfo(&collectors.TagInfo{
 		Source:       "source1",
 		Entity:       "test",
-		LowCardTags:  []string{"tag1"},
-		HighCardTags: []string{"tag2"},
+		LowCardTags:  []string{"tag"},
+		HighCardTags: []string{"tag"},
 	})
 	s.store.processTagInfo(&collectors.TagInfo{
 		Source:      "source2",
 		Entity:      "test",
-		LowCardTags: []string{"tag3"},
+		LowCardTags: []string{"tag"},
 	})
 
 	s.store.storeMutex.RLock()
@@ -48,13 +48,13 @@ func (s *StoreTestSuite) TestLookup() {
 	s.store.processTagInfo(&collectors.TagInfo{
 		Source:       "source1",
 		Entity:       "test",
-		LowCardTags:  []string{"tag1"},
-		HighCardTags: []string{"tag2"},
+		LowCardTags:  []string{"tag"},
+		HighCardTags: []string{"tag"},
 	})
 	s.store.processTagInfo(&collectors.TagInfo{
 		Source:      "source2",
 		Entity:      "test",
-		LowCardTags: []string{"tag3"},
+		LowCardTags: []string{"tag"},
 	})
 
 	tagsHigh, sourcesHigh := s.store.lookup("test", true)
@@ -87,19 +87,19 @@ func (s *StoreTestSuite) TestPrune() {
 	s.store.processTagInfo(&collectors.TagInfo{
 		Source:       "source1",
 		Entity:       "test1",
-		LowCardTags:  []string{"tag1"},
-		HighCardTags: []string{"tag2"},
+		LowCardTags:  []string{"tag"},
+		HighCardTags: []string{"tag"},
 	})
 	s.store.processTagInfo(&collectors.TagInfo{
 		Source:      "source2",
 		Entity:      "test1",
-		LowCardTags: []string{"tag3"},
+		LowCardTags: []string{"tag"},
 	})
 	s.store.processTagInfo(&collectors.TagInfo{
 		Source:       "source1",
 		Entity:       "test2",
-		LowCardTags:  []string{"tag1"},
-		HighCardTags: []string{"tag2"},
+		LowCardTags:  []string{"tag"},
+		HighCardTags: []string{"tag"},
 	})
 
 	// Deletion, to be batched
