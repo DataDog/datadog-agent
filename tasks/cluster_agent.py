@@ -142,7 +142,7 @@ def image_build(ctx):
     latest_file = max(dca_binary, key=os.path.getctime)
 
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
-    ctx.run("cp ./cmd/cluster-agent/dist Dockerfiles/cluster-agent/")
+    ctx.run("cp -R cmd/cluster-agent/dist Dockerfiles/cluster-agent/")
     ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
     ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
     ctx.run("rm -rf Dockerfiles/cluster-agent/dist")
