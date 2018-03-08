@@ -66,18 +66,16 @@ func (l *ECSListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
 
-	go func() {
-		for {
-			select {
-			case <-l.stop:
-				l.health.Deregister()
-				return
-			case <-l.health.C:
-			case <-l.t.C:
-				l.refreshServices()
-			}
+	for {
+		select {
+		case <-l.stop:
+			l.health.Deregister()
+			return
+		case <-l.health.C:
+		case <-l.t.C:
+			l.refreshServices()
 		}
-	}()
+	}
 }
 
 // Stop queues a shutdown of ECSListener

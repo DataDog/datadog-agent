@@ -69,38 +69,36 @@ func (l *KubeletListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
 
-	go func() {
-		for {
-			select {
-			case <-l.stop:
-				l.health.Deregister()
-				return
-			case <-l.health.C:
-			case <-l.ticker.C:
-				// Compute new/updated pods
-				updatedPods, err := l.watcher.PullChanges()
-				if err != nil {
-					log.Error(err)
-					continue
-				}
-				for _, pod := range updatedPods {
-					// Ignore pending/failed/succeeded/unknown states
-					if pod.Status.Phase == "Running" {
-						l.processNewPod(pod)
-					}
-				}
-				// Compute deleted pods
-				expiredContainerList, err := l.watcher.Expire()
-				if err != nil {
-					log.Error(err)
-					continue
-				}
-				for _, containerID := range expiredContainerList {
-					l.removeService(ID(containerID))
+	for {
+		select {
+		case <-l.stop:
+			l.health.Deregister()
+			return
+		case <-l.health.C:
+		case <-l.ticker.C:
+			// Compute new/updated pods
+			updatedPods, err := l.watcher.PullChanges()
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			for _, pod := range updatedPods {
+				// Ignore pending/failed/succeeded/unknown states
+				if pod.Status.Phase == "Running" {
+					l.processNewPod(pod)
 				}
 			}
+			// Compute deleted pods
+			expiredContainerList, err := l.watcher.Expire()
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			for _, containerID := range expiredContainerList {
+				l.removeService(ID(containerID))
+			}
 		}
-	}()
+	}
 }
 
 func (l *KubeletListener) Stop() {

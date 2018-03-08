@@ -83,25 +83,23 @@ func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 		return
 	}
 
-	go func() {
-		for {
-			select {
-			case <-l.stop:
-				l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener")
-				l.health.Deregister()
-				return
-			case <-l.health.C:
-			case msg := <-messages:
-				l.processEvent(msg)
-			case err := <-errs:
-				if err != nil && err != io.EOF {
-					log.Errorf("docker listener error: %v", err)
-					signals.ErrorStopper <- true
-				}
-				return
+	for {
+		select {
+		case <-l.stop:
+			l.dockerUtil.UnsubscribeFromContainerEvents("DockerListener")
+			l.health.Deregister()
+			return
+		case <-l.health.C:
+		case msg := <-messages:
+			l.processEvent(msg)
+		case err := <-errs:
+			if err != nil && err != io.EOF {
+				log.Errorf("docker listener error: %v", err)
+				signals.ErrorStopper <- true
 			}
+			return
 		}
-	}()
+	}
 }
 
 // Stop queues a shutdown of DockerListener
