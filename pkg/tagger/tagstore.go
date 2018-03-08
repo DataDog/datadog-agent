@@ -118,7 +118,7 @@ func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string) {
 	return storedTags.get(highCard)
 }
 
-type tagSort struct {
+type tagPriority struct {
 	tag        string                       // full tag
 	priority   collectors.CollectorPriority // collector priority
 	isHighCard bool                         // is the tag high cardinality
@@ -138,20 +138,20 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 
 	// Cache miss
 	var sources []string
-	tagSortList := make(map[string][]tagSort)
+	tagPrioMapper := make(map[string][]tagPriority)
 
 	for source, tags := range e.lowCardTags {
 		sources = append(sources, source)
-		insertWithPriority(tagSortList, tags, source, false)
+		insertWithPriority(tagPrioMapper, tags, source, false)
 	}
 
 	for source, tags := range e.highCardTags {
-		insertWithPriority(tagSortList, tags, source, true)
+		insertWithPriority(tagPrioMapper, tags, source, true)
 	}
 
 	lowCardTags := []string{}
 	highCardTags := []string{}
-	for _, tags := range tagSortList {
+	for _, tags := range tagPrioMapper {
 		for i := 0; i < len(tags); i++ {
 			insert := true
 			for j := 0; j < len(tags); j++ {
@@ -188,12 +188,18 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 	return lowCardTags, sources
 }
 
-func insertWithPriority(tagSortList map[string][]tagSort, tags []string, source string, isHighCard bool) {
+func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, source string, isHighCard bool) {
+	priority, found := collectors.CollectorPriorities[source]
+	if !found {
+		log.Warnf("Tagger: %s collector has no defined priority, assuming low", source)
+		priority = collectors.LowPriority
+	}
+
 	for _, t := range tags {
 		tagName := strings.Split(t, ":")[0]
-		tagSortList[tagName] = append(tagSortList[tagName], tagSort{
+		tagPrioMapper[tagName] = append(tagPrioMapper[tagName], tagPriority{
 			tag:        t,
-			priority:   collectors.CollectorPriorities[source],
+			priority:   priority,
 			isHighCard: isHighCard,
 		})
 	}
