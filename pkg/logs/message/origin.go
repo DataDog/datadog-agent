@@ -49,10 +49,12 @@ func (o *Origin) TagsPayload() []byte {
 	if o.LogSource.Config.SourceCategory != "" {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+o.LogSource.Config.SourceCategory+"\"]")...)
 	}
-	if o.LogSource.Config.Tags != "" {
+	if o.LogSource.Config.Tags != "" || len(o.tags) != 0 {
 		tags := o.LogSource.Config.Tags
-		if len(o.tags) > 0 {
+		if len(o.tags) > 0 && tags != "" {
 			tags = tags + "," + strings.Join(o.tags, ",")
+		} else {
+			tags = strings.Join(o.tags, ",")
 		}
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+tags+"\"]")...)
 	}

@@ -22,7 +22,7 @@ func TestSetTagsEmpty(t *testing.T) {
 	assert.Equal(t, []byte{}, origin.TagsPayload())
 }
 
-func TestSetTags(t *testing.T) {
+func TestSetTagsWithConfigTags(t *testing.T) {
 	cfg := &config.LogsConfig{
 		Source:         "a",
 		SourceCategory: "b",
@@ -34,4 +34,17 @@ func TestSetTags(t *testing.T) {
 	origin.SetTags([]string{"foo:bar", "baz"})
 	assert.Equal(t, []string{"foo:bar", "baz", "source:a", "sourcecategory:b", "c:d", "e"}, origin.Tags())
 	assert.Equal(t, "[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"c:d,e,foo:bar,baz\"]", string(origin.TagsPayload()))
+}
+
+func TestSetTagsWithoutConfigTags(t *testing.T) {
+	cfg := &config.LogsConfig{
+		Source:         "a",
+		SourceCategory: "b",
+	}
+	source := config.NewLogSource("", cfg)
+	origin := NewOrigin()
+	origin.LogSource = source
+	origin.SetTags([]string{"foo:bar", "baz"})
+	assert.Equal(t, []string{"foo:bar", "baz", "source:a", "sourcecategory:b"}, origin.Tags())
+	assert.Equal(t, "[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"foo:bar,baz\"]", string(origin.TagsPayload()))
 }
