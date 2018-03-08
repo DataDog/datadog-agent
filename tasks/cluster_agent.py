@@ -5,7 +5,6 @@ Cluster Agent tasks
 import os
 import glob
 import shutil
-from distutils.dir_util import copy_tree
 
 from invoke import task
 import invoke
@@ -126,7 +125,6 @@ def image_build(ctx):
     latest_file = max(dca_binary, key=os.path.getctime)
 
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
-    copy_tree("./cmd/cluster-agent/dist", "Dockerfiles/cluster-agent/dist")
 
     ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
     ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
