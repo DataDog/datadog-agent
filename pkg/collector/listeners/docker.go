@@ -191,11 +191,15 @@ func (l *DockerListener) createService(cID ID) {
 	var svc Service
 
 	// Detect whether that container is managed by Kubernetes
+	var isKube bool
 	cInspect, err := l.dockerUtil.Inspect(string(cID), false)
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
+	} else if findKubernetesInLabels(cInspect.Config.Labels) {
+		isKube = true
 	}
-	if findKubernetesInLabels(cInspect.Config.Labels) {
+
+	if isKube {
 		svc = &DockerKubeletService{
 			DockerService: DockerService{
 				ID: cID,
