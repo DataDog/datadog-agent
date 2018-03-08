@@ -136,7 +136,7 @@ end
 
 # Remove pyc/pyo files from package
 # should be built after all the other python-related software defs
-if linux?
+unless osx?
   dependency 'py-compiled-cleanup'
 end
 
