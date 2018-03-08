@@ -11,6 +11,7 @@ package py
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -46,7 +47,7 @@ func TestGetTags(t *testing.T) {
 	require.Equal(t, low, []string{"test_entity:low"})
 	high, err := tagger.Tag("test_entity", true)
 	require.NoError(t, err)
-	require.Equal(t, high, []string{"test_entity:low", "test_entity:high", "other_tag:high"})
+	assert.ElementsMatch(t, high, []string{"test_entity:low", "test_entity:high", "other_tag:high"})
 
 	check, _ := getCheckInstance("testtagger", "TestCheck")
 	mockSender := mocksender.NewMockSender(check.ID())
