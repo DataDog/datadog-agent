@@ -119,10 +119,9 @@ func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string) {
 }
 
 type tagSort struct {
-	tag        string // full tag
-	tagName    string // first part of the tag (before ":")
-	source     string // collector
-	isHighCard bool   // is the tag high cardinality
+	tag        string                       // full tag
+	priority   collectors.CollectorPriority // collector priority
+	isHighCard bool                         // is the tag high cardinality
 }
 
 func (e *entityTags) get(highCard bool) ([]string, []string) {
@@ -143,27 +142,11 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 
 	for source, tags := range e.lowCardTags {
 		sources = append(sources, source)
-		for _, t := range tags {
-			tagName := strings.Split(t, ":")[0]
-			tagSortList[tagName] = append(tagSortList[tagName], tagSort{
-				tag:        t,
-				tagName:    tagName,
-				source:     source,
-				isHighCard: false,
-			})
-		}
+		insertWithPriority(tagSortList, tags, source, false)
 	}
 
 	for source, tags := range e.highCardTags {
-		for _, t := range tags {
-			tagName := strings.Split(t, ":")[0]
-			tagSortList[tagName] = append(tagSortList[tagName], tagSort{
-				tag:        t,
-				tagName:    strings.Split(t, ":")[0],
-				source:     source,
-				isHighCard: true,
-			})
-		}
+		insertWithPriority(tagSortList, tags, source, true)
 	}
 
 	lowCardTags := []string{}
@@ -173,7 +156,7 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 			insert := true
 			for j := 0; j < len(tags); j++ {
 				// if we find a duplicate tag with higher priority we do not insert the tag
-				if i != j && collectors.CollectorPriorities[tags[i].source] < collectors.CollectorPriorities[tags[j].source] {
+				if i != j && tags[i].priority < tags[j].priority {
 					insert = false
 					break
 				}
@@ -203,4 +186,15 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 		return tags, sources
 	}
 	return lowCardTags, sources
+}
+
+func insertWithPriority(tagSortList map[string][]tagSort, tags []string, source string, isHighCard bool) {
+	for _, t := range tags {
+		tagName := strings.Split(t, ":")[0]
+		tagSortList[tagName] = append(tagSortList[tagName], tagSort{
+			tag:        t,
+			priority:   collectors.CollectorPriorities[source],
+			isHighCard: isHighCard,
+		})
+	}
 }
