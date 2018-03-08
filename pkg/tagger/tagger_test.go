@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -80,7 +81,7 @@ func TestInit(t *testing.T) {
 
 	tagger := newTagger()
 	err := tagger.Init(catalog)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.Equal(t, 3, len(tagger.fetchers))
 	assert.Equal(t, 1, len(tagger.streamers))
@@ -113,7 +114,7 @@ func TestFetchAllMiss(t *testing.T) {
 	puller.On("Fetch", "entity_name").Return([]string{"low2"}, []string{}, nil)
 
 	tags, err := tagger.Tag("entity_name", false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	sort.Strings(tags)
 	assert.Equal(t, []string{"low1", "low2"}, tags)
 
@@ -147,9 +148,15 @@ func TestFetchAllCached(t *testing.T) {
 	puller.On("Fetch", "entity_name").Return([]string{"low2"}, []string{}, nil)
 
 	tags, err := tagger.Tag("entity_name", true)
-	assert.Nil(t, err)
-	sort.Strings(tags)
-	assert.Equal(t, []string{"high", "low1", "low2"}, tags)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tags)
+
+	streamer.AssertNotCalled(t, "Fetch", "entity_name")
+	puller.AssertNotCalled(t, "Fetch", "entity_name")
+
+	tags2, err := tagger.Tag("entity_name", false)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2"}, tags2)
 
 	streamer.AssertNotCalled(t, "Fetch", "entity_name")
 	puller.AssertNotCalled(t, "Fetch", "entity_name")
@@ -183,9 +190,8 @@ func TestFetchOneCached(t *testing.T) {
 	fetcher.On("Fetch", "entity_name").Return([]string{"low3"}, []string{}, nil)
 
 	tags, err := tagger.Tag("entity_name", true)
-	assert.Nil(t, err)
-	sort.Strings(tags)
-	assert.Equal(t, []string{"low1", "low2", "low3"}, tags)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2", "low3"}, tags)
 
 	streamer.AssertNotCalled(t, "Fetch", "entity_name")
 	puller.AssertCalled(t, "Fetch", "entity_name")
@@ -265,18 +271,41 @@ func TestErrNotFound(t *testing.T) {
 	// Result should not be cached
 	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, badErr).Once()
 	_, err := tagger.Tag("invalid", true)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 1)
 
 	// Nil result should be cached now
 	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, collectors.ErrNotFound).Once()
 	_, err = tagger.Tag("invalid", true)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 2)
 
 	// Fetch will not be called again
 	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, collectors.ErrNotFound).Once()
 	_, err = tagger.Tag("invalid", true)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 2)
+}
+
+func TestFullCardinality(t *testing.T) {
+	catalog := collectors.Catalog{"stream": NewDummyStreamer}
+	config.Datadog.SetDefault("full_cardinality_tagging", true)
+	tagger := newTagger()
+	config.Datadog.SetDefault("full_cardinality_tagging", false)
+	tagger.Init(catalog)
+
+	tagger.tagStore.processTagInfo(&collectors.TagInfo{
+		Entity:       "entity_name",
+		Source:       "stream",
+		LowCardTags:  []string{"low"},
+		HighCardTags: []string{"high"},
+	})
+
+	tags, err := tagger.Tag("entity_name", true)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"high", "low"}, tags)
+
+	tags, err = tagger.Tag("entity_name", false)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"high", "low"}, tags)
 }

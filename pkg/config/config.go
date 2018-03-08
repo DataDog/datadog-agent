@@ -214,6 +214,10 @@ func init() {
 	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 
+	// Tagger full cardinality mode
+	// Undocumented opt-in feature for now
+	BindEnvAndSetDefault("full_cardinality_tagging", false)
+
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
 	Datadog.BindEnv("dd_url")

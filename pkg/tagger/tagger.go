@@ -12,6 +12,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -34,6 +35,7 @@ type Tagger struct {
 	retryTicker *time.Ticker
 	stop        chan bool
 	health      *health.Handle
+	fullCard    bool
 }
 
 type collectorReply struct {
@@ -59,6 +61,7 @@ func newTagger() *Tagger {
 		retryTicker: time.NewTicker(30 * time.Second),
 		stop:        make(chan bool),
 		health:      health.Register("tagger"),
+		fullCard:    config.Datadog.GetBool("full_cardinality_tagging"),
 	}
 }
 
@@ -219,6 +222,12 @@ func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
 	if entity == "" {
 		return nil, errors.New("empty entity ID")
 	}
+
+	// Temporary full cardinality mode override
+	if highCard == false && t.fullCard == true {
+		highCard = true
+	}
+
 	cachedTags, sources := t.tagStore.lookup(entity, highCard)
 
 	if len(sources) == len(t.fetchers) {
