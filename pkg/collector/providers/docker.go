@@ -9,6 +9,7 @@ package providers
 
 import (
 	"sync"
+	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -72,11 +73,12 @@ func (d *DockerConfigProvider) listen() {
 	d.health = health.Register("ad-dockerprovider")
 	d.Unlock()
 
+	// Outer loop handles re-subscribing
 CONNECT:
 	for {
 		eventChan, errChan, err := d.dockerUtil.SubscribeToContainerEvents(d.String())
 		if err != nil {
-			log.Warnf("error subscribing to docker events: %s", err)
+			log.Warnf("Unexpected error, enabling pull collection: %s", err)
 			break CONNECT // We disable streaming and revert to always-pull behaviour
 		}
 
@@ -94,11 +96,17 @@ CONNECT:
 					d.Unlock()
 				}
 			case err := <-errChan:
-				log.Warnf("error getting docker events: %s", err)
-				d.Lock()
-				d.upToDate = false
-				d.Unlock()
-				continue CONNECT // Re-connect to dockerutils
+				if err == docker.ErrEventTimeout {
+					// We fell behind, let's wait a second and re-subscribe
+					log.Infof("Restarting collection: %s", err)
+					d.Lock()
+					d.upToDate = false
+					d.Unlock()
+					time.Sleep(time.Second)
+					continue CONNECT // Re-subscribe to events
+				}
+				log.Warnf("Unexpected error, enabling pull collection: %s", err)
+				break CONNECT // We disable streaming and revert to always-pull behaviour
 			}
 		}
 	}
