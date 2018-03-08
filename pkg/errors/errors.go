@@ -14,22 +14,21 @@ const (
 	unknownError
 )
 
-// AgentError is an error intended for consumption by a datadog pkg; it can also be
-// reconstructed by clients from a error response. Public to allow easy type switches.
-type AgentError struct {
+// agentError is an error intended for consumption by a datadog pkg
+type agentError struct {
 	error
 	message     string
 	errorReason errorReason
 }
 
 // Error satisfies the error interface
-func (e AgentError) Error() string {
+func (e agentError) Error() string {
 	return e.message
 }
 
 // NewNotFound returns a new error which indicates that the object passed in parameter was not found.
-func NewNotFound(notFoundObject string) *AgentError {
-	return &AgentError{
+func NewNotFound(notFoundObject string) *agentError {
+	return &agentError{
 		message:     fmt.Sprintf("%q not found", notFoundObject),
 		errorReason: notFoundError,
 	}
@@ -42,7 +41,7 @@ func IsNotFound(err error) bool {
 
 func reasonForError(err error) errorReason {
 	switch t := err.(type) {
-	case *AgentError:
+	case *agentError:
 		return t.errorReason
 	}
 	return unknownError
