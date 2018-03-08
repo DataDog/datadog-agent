@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    The kubelet will now collect image tags from the pod list
+    The agent will now collect container image tags when running in kubernetes-only mode

@@ -119,10 +119,10 @@ func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string) {
 }
 
 type tagSort struct {
-	tag         string // full tag
-	tagName     string // first part of the tag (before ":")
-	source      string // collector
-	cardinality bool   // true is high card
+	tag        string // full tag
+	tagName    string // first part of the tag (before ":")
+	source     string // collector
+	isHighCard bool   // is the tag high cardinality
 }
 
 func (e *entityTags) get(highCard bool) ([]string, []string) {
@@ -145,10 +145,10 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 		sources = append(sources, source)
 		for _, t := range tags {
 			tagSortList = append(tagSortList, tagSort{
-				tag:         t,
-				tagName:     strings.Split(t, ":")[0],
-				source:      source,
-				cardinality: false,
+				tag:        t,
+				tagName:    strings.Split(t, ":")[0],
+				source:     source,
+				isHighCard: false,
 			})
 		}
 	}
@@ -156,10 +156,10 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 	for source, tags := range e.highCardTags {
 		for _, t := range tags {
 			tagSortList = append(tagSortList, tagSort{
-				tag:         t,
-				tagName:     strings.Split(t, ":")[0],
-				source:      source,
-				cardinality: true,
+				tag:        t,
+				tagName:    strings.Split(t, ":")[0],
+				source:     source,
+				isHighCard: true,
 			})
 		}
 	}
@@ -173,10 +173,11 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 			if i != j && tagSortList[i].tagName == tagSortList[j].tagName &&
 				collectors.CollectorPriorities[tagSortList[i].source] < collectors.CollectorPriorities[tagSortList[j].source] {
 				insert = false
+				break
 			}
 		}
 		if insert {
-			if tagSortList[i].cardinality {
+			if tagSortList[i].isHighCard {
 				highCardTags = append(highCardTags, tagSortList[i].tag)
 			} else {
 				lowCardTags = append(lowCardTags, tagSortList[i].tag)
@@ -192,7 +193,7 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 	e.cacheValid = true
 	e.cachedSource = sources
 	e.cachedAll = tags
-	e.cachedLow = lowCardTags
+	e.cachedLow = e.cachedAll[:len(lowCardTags)]
 	e.Unlock()
 
 	if highCard {
