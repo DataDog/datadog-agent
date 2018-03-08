@@ -1,24 +1,23 @@
 FROM debian:stretch-slim
-COPY datadog-cluster-agent*_amd64.deb /
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
-ENV DOCKER_DD_AGENT=yes \
-    AGENT_VERSION=1:7.0-1 \
-    DD_AGENT_HOME=/opt/datadog-cluster-agent/
+ENV PATH="/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/embedded/bin/":$PATH
 
 # Install the Agent
+RUN mkdir -p /opt/datadog-cluster-agent/bin/datadog-cluster-agent/
 
-RUN dpkg -x /datadog-cluster-agent*_amd64.deb .
+COPY datadog-cluster-agent /opt/datadog-cluster-agent/bin/datadog-cluster-agent/datadog-cluster-agent
+
+COPY ./conf.d /etc/datadog-cluster-agent/etc/conf.d
+COPY ./datadog-cluster.yaml /etc/datadog-cluster-agent/etc/datadog-cluster.yaml
 
 RUN apt-get update \
- && apt-get install --no-install-recommends -y apt-transport-https ca-certificates\
+ && apt-get install --no-install-recommends -y apt-transport-https ca-certificates curl\
  && apt-get clean
 
 COPY entrypoint.sh .
 
-EXPOSE 8125/udp
-
 ENTRYPOINT ["/entrypoint.sh"]
 
-CMD ["/opt/datadog-cluster-agent/bin/datadog-cluster-agent/datadog-cluster-agent", "start"]
+CMD ["datadog-cluster-agent", "start"]
