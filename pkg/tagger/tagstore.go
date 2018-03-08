@@ -139,14 +139,15 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 
 	// Cache miss
 	var sources []string
-	var tagSortList []tagSort
+	tagSortList := make(map[string][]tagSort)
 
 	for source, tags := range e.lowCardTags {
 		sources = append(sources, source)
 		for _, t := range tags {
-			tagSortList = append(tagSortList, tagSort{
+			tagName := strings.Split(t, ":")[0]
+			tagSortList[tagName] = append(tagSortList[tagName], tagSort{
 				tag:        t,
-				tagName:    strings.Split(t, ":")[0],
+				tagName:    tagName,
 				source:     source,
 				isHighCard: false,
 			})
@@ -155,7 +156,8 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 
 	for source, tags := range e.highCardTags {
 		for _, t := range tags {
-			tagSortList = append(tagSortList, tagSort{
+			tagName := strings.Split(t, ":")[0]
+			tagSortList[tagName] = append(tagSortList[tagName], tagSort{
 				tag:        t,
 				tagName:    strings.Split(t, ":")[0],
 				source:     source,
@@ -166,21 +168,22 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 
 	lowCardTags := []string{}
 	highCardTags := []string{}
-	for i := 0; i < len(tagSortList); i++ {
-		insert := true
-		for j := 0; j < len(tagSortList); j++ {
-			// if we find a duplicate tag with higher priority we do not insert the tag
-			if i != j && tagSortList[i].tagName == tagSortList[j].tagName &&
-				collectors.CollectorPriorities[tagSortList[i].source] < collectors.CollectorPriorities[tagSortList[j].source] {
-				insert = false
-				break
+	for _, tags := range tagSortList {
+		for i := 0; i < len(tags); i++ {
+			insert := true
+			for j := 0; j < len(tags); j++ {
+				// if we find a duplicate tag with higher priority we do not insert the tag
+				if i != j && collectors.CollectorPriorities[tags[i].source] < collectors.CollectorPriorities[tags[j].source] {
+					insert = false
+					break
+				}
 			}
-		}
-		if insert {
-			if tagSortList[i].isHighCard {
-				highCardTags = append(highCardTags, tagSortList[i].tag)
-			} else {
-				lowCardTags = append(lowCardTags, tagSortList[i].tag)
+			if insert {
+				if tags[i].isHighCard {
+					highCardTags = append(highCardTags, tags[i].tag)
+				} else {
+					lowCardTags = append(lowCardTags, tags[i].tag)
+				}
 			}
 		}
 	}
