@@ -127,6 +127,7 @@ func GetDCAStatus() (map[string]interface{}, error) {
 
 	return stats, nil
 }
+
 // getDCAPartialConfig returns config parameters of interest for the status page.
 func getDCAPartialConfig() map[string]string {
 	conf := make(map[string]string)
