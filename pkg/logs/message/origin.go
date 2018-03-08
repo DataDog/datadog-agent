@@ -55,10 +55,9 @@ func (o *Origin) TagsPayload() []byte {
 	}
 	if len(o.tags) > 0 {
 		if tags != "" {
-			tags = tags + "," + strings.Join(o.tags, ",")
-		} else {
-			tags = strings.Join(o.tags, ",")
+			tags = tags + ","
 		}
+		tags = tags + strings.Join(o.tags, ",")
 	}
 	if tags != "" {
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+tags+"\"]")...)
