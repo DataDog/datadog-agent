@@ -49,7 +49,10 @@ func getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 
 		tagList := utils.NewTagList()
 
-		serviceNames := apiserver.GetPodServiceNames(po.Spec.NodeName, po.Metadata.Name)
+		serviceNames, err := apiserver.GetPodServiceNames(po.Spec.NodeName, po.Metadata.Name)
+		if err != nil {
+			log.Debugf("Could not fetch the services for the pod %s on the node %s: %s", po.Metadata.Name, po.Spec.NodeName, err.Error())
+		}
 		log.Debugf("nodeName: %s, podName: %s, services: %q", po.Spec.NodeName, po.Metadata.Name, strings.Join(serviceNames, ","))
 		for _, serviceName := range serviceNames {
 			log.Tracef("tagging %s kube_service:%s", po.Metadata.Name, serviceName)

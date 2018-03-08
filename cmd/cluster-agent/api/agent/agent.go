@@ -150,15 +150,30 @@ func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 
 func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
+	var err error
+	var slcB []byte
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
-	svcList := as.GetPodServiceNames(nodeName, podName)
 
-	slcB, err := json.Marshal(svcList)
+	if podName == "*" {
+		log.Info("Computing service map on all nodes ...")
+		svcList, errNodes := as.GetServiceMapBundleOnNode(nodeName)
+		if errNodes != nil {
+			log.Errorf("could not collect the service map for %s: %s", nodeName, errNodes.Error())
+		}
+		slcB, err = json.Marshal(svcList)
+	} else {
+		svcList, errSvcList := as.GetPodServiceNames(nodeName, podName)
+		if errSvcList != nil {
+			slcB, err = json.Marshal(errSvcList.Error())
+		} else {
+			slcB, err = json.Marshal(svcList)
+		}
+	}
 	if err != nil {
 		log.Errorf("Could not process the list of services of: %s", podName)
 	}
-	if len(svcList) != 0 {
+	if len(slcB) != 0 {
 		w.WriteHeader(200)
 		w.Write(slcB)
 		return

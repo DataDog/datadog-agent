@@ -69,6 +69,17 @@ func FormatDCAStatus(data []byte) (string, error) {
 	return b.String(), nil
 }
 
+// FormatServiceMapCLI builds the rendering in the servicemapper template.
+func FormatServiceMapCLI(data []byte) (string, error) {
+	var b = new(bytes.Buffer)
+
+	stats := make(map[string]interface{})
+	json.Unmarshal(data, &stats)
+	renderServiceMapper(b, stats)
+
+	return b.String(), nil
+}
+
 func renderHeader(w io.Writer, stats map[string]interface{}) {
 	t := template.Must(template.New("header.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "header.tmpl")))
 	err := t.Execute(w, stats)
@@ -132,6 +143,14 @@ func renderJMXFetchStatus(w io.Writer, jmxStats interface{}) {
 func renderLogsStatus(w io.Writer, logsStats interface{}) {
 	t := template.Must(template.New("logsagent.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "logsagent.tmpl")))
 	err := t.Execute(w, logsStats)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func renderServiceMapper(w io.Writer, serviceMapperStats interface{}) {
+	t := template.Must(template.New("servicemapper.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "servicemapper.tmpl")))
+	err := t.Execute(w, serviceMapperStats)
 	if err != nil {
 		fmt.Println(err)
 	}

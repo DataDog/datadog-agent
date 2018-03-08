@@ -63,28 +63,25 @@ func (smb *ServiceMapperBundle) mapServices(nodeName string, pods v1.PodList, en
 }
 
 // GetPodServiceNames is used when the API endpoint of the DCA to get the services of a pod is hit.
-func GetPodServiceNames(nodeName string, podName string) []string {
+func GetPodServiceNames(nodeName string, podName string) ([]string, error) {
 	var serviceList []string
 	cacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
 
 	smbInterface, found := cache.Cache.Get(cacheKey)
 	if !found {
-		log.Debugf("No metadata was found for the pod %s on node %s at the cache key %q", podName, nodeName, cacheKey)
-		return serviceList
+		return serviceList, fmt.Errorf("No metadata was found for the pod %s on node %s", podName, nodeName)
 	}
 
 	smb, ok := smbInterface.(*ServiceMapperBundle)
 	if !ok {
-		log.Warnf("Invalid cache format at cacheKey: %s", cacheKey)
-		return serviceList
+		return serviceList, fmt.Errorf("Invalid cache format for the cacheKey: %s", cacheKey)
 	}
 
 	serviceList, found = smb.PodNameToServices[podName]
 	if !found {
-		log.Debugf("No cached metadata found for the pod %s on the node %s", podName, nodeName)
-		return serviceList
+		return serviceList, fmt.Errorf("No cached metadata found for the pod %s on the node %s", podName, nodeName)
 	}
 
 	log.Debugf("cacheKey: %s, with %d services", cacheKey, len(serviceList))
-	return serviceList
+	return serviceList, nil
 }

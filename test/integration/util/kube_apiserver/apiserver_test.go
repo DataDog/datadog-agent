@@ -281,7 +281,8 @@ func (suite *testSuite) TestServiceMapper() {
 	err = apiClient.ClusterServiceMapping()
 	require.Nil(suite.T(), err)
 
-	serviceNames := apiserver.GetPodServiceNames(node.Name, pod.Name)
+	serviceNames, err := apiserver.GetPodServiceNames(node.Name, pod.Name)
+	require.Nil(suite.T(), err)
 	assert.Len(suite.T(), serviceNames, 1)
 	assert.Contains(suite.T(), serviceNames, "nginx-1")
 
@@ -297,7 +298,8 @@ func (suite *testSuite) TestServiceMapper() {
 	err = apiClient.ClusterServiceMapping()
 	require.Nil(suite.T(), err)
 
-	serviceNames = apiserver.GetPodServiceNames(node.Name, pod.Name)
+	serviceNames, err = apiserver.GetPodServiceNames(node.Name, pod.Name)
+	require.Nil(suite.T(), err)
 	assert.Len(suite.T(), serviceNames, 2)
 	assert.Contains(suite.T(), serviceNames, "nginx-1")
 	assert.Contains(suite.T(), serviceNames, "nginx-2")

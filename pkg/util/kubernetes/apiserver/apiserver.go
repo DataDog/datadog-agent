@@ -389,3 +389,57 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 	}
 	return node.GetMetadata().GetLabels(), nil
 }
+
+// GetServiceMapBundleOnNode is used for the CLI svcmap command to output given a
+func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
+	nodePodServiceMap := make(map[string]map[string][]string)
+	stats := make(map[string]interface{})
+	var err error
+	if nodeName != "*" {
+		nodePodServiceMap[nodeName], err = getSMBOnNodes(nodeName)
+		if err != nil {
+			stats["Error"] = err.Error()
+			return stats, err
+		}
+		stats["Nodes"] = nodePodServiceMap
+	} else {
+		nodes, err := getNodeList()
+		if err != nil {
+			stats["Error"] = err.Error()
+			return stats, err
+		}
+		for _, node := range nodes {
+			nodePodServiceMap[*node.Metadata.Name], err = getSMBOnNodes(*node.Metadata.Name)
+			if err != nil {
+				log.Error("Node %s could not be added to the service map bundle: %s", err.Error())
+			}
+		}
+		stats["Nodes"] = nodePodServiceMap
+	}
+	return stats, nil
+}
+
+func getSMBOnNodes(nodeName string) (map[string][]string, error) {
+	nodeNameCacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
+	smb, found := cache.Cache.Get(nodeNameCacheKey)
+	if !found {
+		return nil, fmt.Errorf("The key %s was not found in the cache", nodeNameCacheKey)
+	}
+	return smb.(*ServiceMapperBundle).PodNameToServices, nil
+}
+
+func getNodeList() ([]*v1.Node, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5) // In case there are thousands of nodes.
+	defer cancel()
+	cl, err := GetAPIClient()
+	if err != nil {
+		log.Error("Can't create client to query the API Server: %s", err.Error())
+		return nil, err
+	}
+	nodes, err := cl.client.CoreV1().ListNodes(ctx)
+	if err != nil {
+		log.Error("Can't list nodes from the API server: %s", err.Error())
+		return nil, err
+	}
+	return nodes.Items, nil
+}
