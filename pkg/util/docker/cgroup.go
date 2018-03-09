@@ -133,9 +133,9 @@ func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
 			ret.SwapPresent = true
 		case "rss":
 			ret.RSS = v
-		case "rssHuge":
+		case "rss_huge":
 			ret.RSSHuge = v
-		case "mappedFile":
+		case "mapped_file":
 			ret.MappedFile = v
 		case "pgpgin":
 			ret.Pgpgin = v
@@ -145,45 +145,45 @@ func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
 			ret.Pgfault = v
 		case "pgmajfault":
 			ret.Pgmajfault = v
-		case "inactiveAnon":
+		case "inactive_anon":
 			ret.InactiveAnon = v
-		case "activeAnon":
+		case "active_anon":
 			ret.ActiveAnon = v
-		case "inactiveFile":
+		case "inactive_file":
 			ret.InactiveFile = v
-		case "activeFile":
+		case "active_file":
 			ret.ActiveFile = v
 		case "unevictable":
 			ret.Unevictable = v
-		case "hierarchicalMemoryLimit":
+		case "hierarchical_memory_limit":
 			ret.HierarchicalMemoryLimit = v
 		case "hierarchical_memsw_limit":
 			ret.HierarchicalMemSWLimit = v
-		case "totalCache":
+		case "total_cache":
 			ret.TotalCache = v
-		case "totalRss":
+		case "total_rss":
 			ret.TotalRSS = v
-		case "totalRssHuge":
+		case "total_rssHuge":
 			ret.TotalRSSHuge = v
-		case "totalMappedFile":
+		case "total_mapped_file":
 			ret.TotalMappedFile = v
-		case "totalPgpgin":
+		case "total_pgpgin":
 			ret.TotalPgpgIn = v
-		case "totalPgpgout":
+		case "total_pgpgout":
 			ret.TotalPgpgOut = v
-		case "totalPgfault":
+		case "total_pgfault":
 			ret.TotalPgFault = v
-		case "totalPgmajfault":
+		case "total_pgmajfault":
 			ret.TotalPgMajFault = v
-		case "totalInactiveAnon":
+		case "total_inactive_anon":
 			ret.TotalInactiveAnon = v
-		case "totalActiveAnon":
+		case "total_active_anon":
 			ret.TotalActiveAnon = v
-		case "totalInactiveFile":
+		case "total_inactive_file":
 			ret.TotalInactiveFile = v
-		case "totalActiveFile":
+		case "total_active_file":
 			ret.TotalActiveFile = v
-		case "totalUnevictable":
+		case "total_unevictable":
 			ret.TotalUnevictable = v
 		}
 	}
