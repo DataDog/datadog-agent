@@ -19,6 +19,9 @@ RUN apt-get update \
 
 COPY entrypoint.sh .
 
+RUN chmod 755 /entrypoint.sh \
+    && chmod g+r,g+w,g+X -R /etc/datadog-cluster-agent/
+
 ENTRYPOINT ["/entrypoint.sh"]
 
 CMD ["datadog-cluster-agent", "start"]

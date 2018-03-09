@@ -128,4 +128,3 @@ def image_build(ctx):
 
     ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
     ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
-    ctx.run("rm -rf Dockerfiles/cluster-agent/dist")
