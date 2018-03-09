@@ -19,5 +19,5 @@ import (
 
 // getListener returns a listening connection
 func getListener() (net.Listener, error) {
-	return net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", config.Datadog.GetInt("clusteragent_cmd_port")))
+	return net.Listen("tcp", fmt.Sprintf("0.0.0.0:%v", config.Datadog.GetInt("cmd_port")))
 }

@@ -123,8 +123,8 @@ def image_build(ctx):
         print("See cluster-agent.build")
         raise Exit(1)
     latest_file = max(dca_binary, key=os.path.getctime)
+    ctx.run("chmod +x {}".format(latest_file))
 
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
-
     ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
     ctx.run("rm Dockerfiles/cluster-agent/datadog-cluster-agent")
