@@ -42,13 +42,11 @@ type MockLoader struct{}
 func (l *MockLoader) Load(config check.Config) ([]check.Check, error) { return []check.Check{}, nil }
 
 type MockListener struct {
-	ListenCount  int
 	stopReceived bool
 	started      chan struct{}
 }
 
 func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
-	l.ListenCount++
 	l.started <- struct{}{}
 }
 
@@ -92,9 +90,7 @@ func TestAddListener(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 		assert.FailNow(t, "listener didn't start in 100 ms")
 	}
-
 	require.Len(t, ac.listeners, 1)
-	assert.Equal(t, 1, ml.ListenCount)
 }
 
 func TestContains(t *testing.T) {
