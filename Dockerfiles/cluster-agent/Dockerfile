@@ -16,6 +16,7 @@ COPY ./dist /opt/datadog-cluster-agent/bin/datadog-cluster-agent/dist
 RUN apt-get update \
  && apt-get install --no-install-recommends -y apt-transport-https ca-certificates curl\
  && apt-get clean
+ && apt-get autoremove
 
 COPY entrypoint.sh .
 

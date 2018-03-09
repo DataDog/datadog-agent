@@ -1,24 +1,22 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	log "github.com/cihub/seelog"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
-
-	"bytes"
-	"fmt"
 )
 
 func init() {
 	ClusterAgentCmd.AddCommand(svcMapperCmd)
 	svcMapperCmd.SetArgs([]string{"caseID"})
-
 }
 
 // TODO add all registered nodes command

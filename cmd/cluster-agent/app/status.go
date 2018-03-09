@@ -12,11 +12,11 @@ import (
 	"io/ioutil"
 
 	log "github.com/cihub/seelog"
+	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
-	"github.com/spf13/cobra"
 )
 
 var (

@@ -74,7 +74,10 @@ func FormatServiceMapCLI(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
 
 	stats := make(map[string]interface{})
-	json.Unmarshal(data, &stats)
+	err := json.Unmarshal(data, &stats)
+	if err != nil {
+		return b.String(), nil
+	}
 	renderServiceMapper(b, stats)
 
 	return b.String(), nil

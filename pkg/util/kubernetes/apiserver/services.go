@@ -69,17 +69,17 @@ func GetPodServiceNames(nodeName string, podName string) ([]string, error) {
 
 	smbInterface, found := cache.Cache.Get(cacheKey)
 	if !found {
-		return serviceList, fmt.Errorf("No metadata was found for the pod %s on node %s", podName, nodeName)
+		return serviceList, fmt.Errorf("no metadata was found for the pod %s on node %s", podName, nodeName)
 	}
 
 	smb, ok := smbInterface.(*ServiceMapperBundle)
 	if !ok {
-		return serviceList, fmt.Errorf("Invalid cache format for the cacheKey: %s", cacheKey)
+		return serviceList, fmt.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 	}
 
 	serviceList, found = smb.PodNameToServices[podName]
 	if !found {
-		return serviceList, fmt.Errorf("No cached metadata found for the pod %s on the node %s", podName, nodeName)
+		return serviceList, fmt.Errorf("no cached metadata found for the pod %s on the node %s", podName, nodeName)
 	}
 
 	log.Debugf("cacheKey: %s, with %d services", cacheKey, len(serviceList))
