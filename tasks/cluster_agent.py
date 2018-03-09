@@ -23,7 +23,7 @@ DEFAULT_BUILD_TAGS = [
 ]
 
 @task
-def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False, skip_assets=False):
+def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False):
     """
     Build Cluster Agent
 
@@ -47,6 +47,7 @@ def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False,
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)
+
 
 @task
 def run(ctx, rebuild=False, race=False, skip_build=False, development=True):
@@ -122,6 +123,7 @@ def image_build(ctx):
         print("See cluster-agent.build")
         raise Exit(1)
     latest_file = max(dca_binary, key=os.path.getctime)
+    ctx.run("chmod +x {}".format(latest_file))
 
     shutil.copy2(latest_file, "Dockerfiles/cluster-agent/")
     ctx.run("docker build -t {} Dockerfiles/cluster-agent".format(AGENT_TAG))
