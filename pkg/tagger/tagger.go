@@ -224,9 +224,7 @@ func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
 	}
 
 	// Temporary full cardinality mode override
-	if highCard == false && t.fullCard == true {
-		highCard = true
-	}
+	highCard = highCard || t.fullCard
 
 	cachedTags, sources := t.tagStore.lookup(entity, highCard)
 
