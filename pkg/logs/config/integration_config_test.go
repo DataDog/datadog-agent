@@ -36,7 +36,7 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	assert.Equal(t, "nginx", sources[0].Config.Service)
 	assert.Equal(t, "nginx", sources[0].Config.Source)
 	assert.Equal(t, "http_access", sources[0].Config.SourceCategory)
-	assert.Equal(t, []string{"env:prod"}, sources[0].Config.Tags)
+	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[0].Config.Tags)
 
 	assert.Equal(t, "file", sources[1].Config.Type)
 	assert.Equal(t, "/var/log/access.log", sources[1].Config.Path)
