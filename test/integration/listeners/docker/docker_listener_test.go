@@ -118,7 +118,7 @@ func (suite *DockerListenerTestSuite) TestListenAfterStart() {
 	log.Infof("got container IDs %s from compose", containerIDs)
 
 	// Start listening after the containers started, they'll be listed in the init
-	suite.listener.Listen(suite.newSvc, suite.delSvc)
+	go suite.listener.Listen(suite.newSvc, suite.delSvc)
 
 	suite.commonSection(containerIDs)
 }
@@ -129,7 +129,7 @@ func (suite *DockerListenerTestSuite) TestListenBeforeStart() {
 	defer suite.m.RUnlock()
 
 	// Start listening after the containers started, they'll be detected via docker events
-	suite.listener.Listen(suite.newSvc, suite.delSvc)
+	go suite.listener.Listen(suite.newSvc, suite.delSvc)
 
 	containerIDs, err := suite.startContainers()
 	assert.Nil(suite.T(), err)
@@ -187,6 +187,36 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 	services, err = suite.getServices(containerIDs, suite.delSvc, 5*time.Second)
 	assert.Nil(suite.T(), err)
 	assert.Len(suite.T(), services, 2)
+}
+
+// Test the catch-up logic used on init and on event stream breakage
+func (suite *DockerListenerTestSuite) TestCatchup() {
+	suite.m.RLock()
+	defer suite.m.RUnlock()
+
+	dl, ok := suite.listener.(*listeners.DockerListener)
+	require.True(suite.T(), ok)
+
+	// Setup the listener, but stop the listening loop after initial catchup
+	go suite.listener.Listen(suite.newSvc, suite.delSvc)
+	suite.listener.Stop() // Blocking call
+
+	// Start the two containers and manually trigger catchup
+	containerIDs, err := suite.startContainers()
+	dl.CatchUp()
+	services, err := suite.getServices(containerIDs, suite.newSvc, 5*time.Second)
+	assert.Nil(suite.T(), err)
+	assert.Len(suite.T(), services, 2)
+
+	// Stop the containers and manually trigger catchup
+	suite.stopContainers()
+	dl.CatchUp()
+	services, err = suite.getServices(containerIDs, suite.delSvc, 5*time.Second)
+	assert.Nil(suite.T(), err)
+	assert.Len(suite.T(), services, 2)
+
+	// Restore the listen loop so TearDown does not hangup
+	go suite.listener.Listen(suite.newSvc, suite.delSvc)
 }
 
 func TestDockerListenerSuite(t *testing.T) {

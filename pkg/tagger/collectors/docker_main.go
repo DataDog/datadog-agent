@@ -58,8 +58,7 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 func (c *DockerCollector) Stream() error {
 	healthHandle := health.Register("tagger-docker")
 
-	// Outer loop handles re-subscribing
-CONNECT:
+CONNECT: // Outer loop handles re-subscribing
 	for {
 		messages, errs, err := c.dockerUtil.SubscribeToContainerEvents("DockerCollector")
 		if err != nil {

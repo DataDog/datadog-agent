@@ -73,8 +73,7 @@ func (d *DockerConfigProvider) listen() {
 	d.health = health.Register("ad-dockerprovider")
 	d.Unlock()
 
-	// Outer loop handles re-subscribing
-CONNECT:
+CONNECT: // Outer loop handles re-subscribing
 	for {
 		eventChan, errChan, err := d.dockerUtil.SubscribeToContainerEvents(d.String())
 		if err != nil {

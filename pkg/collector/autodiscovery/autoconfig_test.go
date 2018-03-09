@@ -7,11 +7,13 @@ package autodiscovery
 
 import (
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/listeners"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type MockProvider struct {
@@ -42,10 +44,17 @@ func (l *MockLoader) Load(config check.Config) ([]check.Check, error) { return [
 type MockListener struct {
 	ListenCount  int
 	stopReceived bool
+	started      chan struct{}
 }
 
-func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) { l.ListenCount++ }
-func (l *MockListener) Stop()                                          { l.stopReceived = true }
+func (l *MockListener) Listen(newSvc, delSvc chan<- listeners.Service) {
+	l.ListenCount++
+	l.started <- struct{}{}
+}
+
+func (l *MockListener) Stop() {
+	l.stopReceived = true
+}
 
 func TestAddProvider(t *testing.T) {
 	ac := NewAutoConfig(nil)
@@ -73,8 +82,17 @@ func TestAddLoader(t *testing.T) {
 func TestAddListener(t *testing.T) {
 	ac := NewAutoConfig(nil)
 	assert.Len(t, ac.listeners, 0)
-	ml := &MockListener{}
+	ml := &MockListener{
+		started: make(chan struct{}, 1),
+	}
 	ac.AddListener(ml)
+	select {
+	case <-ml.started:
+		// Cool
+	case <-time.After(100 * time.Millisecond):
+		assert.FailNow(t, "listener didn't start in 100 ms")
+	}
+
 	require.Len(t, ac.listeners, 1)
 	assert.Equal(t, 1, ml.ListenCount)
 }
@@ -91,12 +109,17 @@ func TestContains(t *testing.T) {
 func TestStop(t *testing.T) {
 	ac := NewAutoConfig(nil)
 	ac.StartPolling() // otherwise Stop would block
-
-	ml := &MockListener{}
+	ml := &MockListener{
+		started: make(chan struct{}, 1),
+	}
 	ac.AddListener(ml)
+	select {
+	case <-ml.started:
+		// Cool
+	case <-time.After(100 * time.Millisecond):
+		assert.FailNow(t, "listener didn't start in 100 ms")
+	}
 
 	ac.Stop()
-
-	assert.True(t, ml.stopReceived)
 	assert.True(t, ml.stopReceived)
 }
