@@ -26,7 +26,7 @@ func TestTagsWithConfigTagsOnly(t *testing.T) {
 	cfg := &config.LogsConfig{
 		Source:         "a",
 		SourceCategory: "b",
-		Tags:           "c:d,e",
+		Tags:           []string{"c:d", "e"},
 	}
 	source := config.NewLogSource("", cfg)
 	origin := NewOrigin()
@@ -52,7 +52,7 @@ func TestSetTagsWithConfigTags(t *testing.T) {
 	cfg := &config.LogsConfig{
 		Source:         "a",
 		SourceCategory: "b",
-		Tags:           "c:d,e",
+		Tags:           []string{"c:d", "e"},
 	}
 	source := config.NewLogSource("", cfg)
 	origin := NewOrigin()

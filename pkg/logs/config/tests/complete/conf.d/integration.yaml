@@ -10,3 +10,13 @@ logs:
     source: nginx
     sourcecategory: http_access
     tags: env:prod
+
+  # test for tags as array
+  - type: file
+    path: /var/log/access.log
+    service: nginx
+    source: nginx
+    sourcecategory: http_access
+    tags:
+      - env:prod
+      - foo:bar

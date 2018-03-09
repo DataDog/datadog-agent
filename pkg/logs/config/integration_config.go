@@ -66,7 +66,7 @@ type LogsConfig struct {
 	Service         string
 	Source          string
 	SourceCategory  string
-	Tags            string
+	Tags            []string
 	ProcessingRules []LogsProcessingRule `mapstructure:"log_processing_rules"`
 }
 
