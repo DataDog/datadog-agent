@@ -15,13 +15,6 @@ spec:
       - image: datadog/agent:latest
         imagePullPolicy: Always
         name: datadog-agent
-        ports:
-          - containerPort: 8125
-            name: dogstatsdport
-            protocol: UDP
-          - containerPort: 8126
-            name: traceport
-            protocol: TCP
         env:
           - name: DD_API_KEY
             value: <YOUR_API_KEY>
@@ -42,28 +35,9 @@ spec:
           limits:
             memory: "512Mi"
             cpu: "250m"
-        volumeMounts:
-          - name: dockersocket
-            mountPath: /var/run/docker.sock
-          - name: procdir
-            mountPath: /host/proc
-            readOnly: true
-          - name: cgroups
-            mountPath: /host/sys/fs/cgroup
-            readOnly: true
         livenessProbe:
           exec:
             command:
             - ./probe.sh
           initialDelaySeconds: 15
           periodSeconds: 5
-      volumes:
-        - hostPath:
-            path: /var/run/docker.sock
-          name: dockersocket
-        - hostPath:
-            path: /proc
-          name: procdir
-        - hostPath:
-            path: /sys/fs/cgroup
-          name: cgroups
