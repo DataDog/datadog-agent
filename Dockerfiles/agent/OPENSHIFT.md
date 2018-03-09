@@ -24,7 +24,6 @@ Starting with version 6.1, the Datadog Agent supports monitoring OpenShift Origi
 ```
 sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrole.yaml | oc apply -f -
 sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrolebinding.yaml | oc apply -f -
-
 ```
 
 ## Restricted SCC operations
