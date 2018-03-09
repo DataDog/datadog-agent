@@ -7,64 +7,44 @@
 package system
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-
-	"github.com/lxn/win"
 )
 
 const fileHandlesCheckName = "file_handle"
 
 type fhCheck struct {
 	core.CheckBase
+	counter *pdhutil.PdhCounterSet
 }
 
 // Run executes the check
 func (c *fhCheck) Run() error {
-	var hq win.PDH_HQUERY
-	var counter win.PDH_HCOUNTER
-	userdata := uintptr(0)
-	winerror := win.PdhOpenQuery(0, userdata, &hq)
-	if win.ERROR_SUCCESS != winerror {
-		return fmt.Errorf("Unable to open query %d", winerror)
-	}
-	defer win.PdhCloseQuery(hq)
-
-	winerror = win.PdhAddEnglishCounter(hq, "\\Process(_Total)\\Handle Count", userdata, &counter)
-	if win.ERROR_SUCCESS != winerror {
-		return fmt.Errorf("Unable to add counter %d", winerror)
-	}
-	winerror = win.PdhCollectQueryData(hq)
-	if win.ERROR_SUCCESS != winerror {
-		return fmt.Errorf("Unable to collect data %d", winerror)
-	}
-	var value win.PDH_FMT_COUNTERVALUE_LARGE
-	var dwtype uint32
-	winerror = win.PdhGetFormattedCounterValueLarge(counter, &dwtype, &value)
-	if win.ERROR_SUCCESS != winerror {
-		return fmt.Errorf("Unable to collect value %d", winerror)
-	}
 
 	sender, err := aggregator.GetSender(c.ID())
 	if err != nil {
 		return err
 	}
-	log.Debugf("Submitting system.fs.file_handles_in_use %v", value.LargeValue)
-	sender.Gauge("system.fs.file_handles.in_use", float64(value.LargeValue), "", nil)
+	val, err := c.counter.GetSingleValue()
+	if err != nil {
+		log.Warnf("Error getting handle value %v", err)
+		return err
+	}
+	log.Debugf("Submitting system.fs.file_handles_in_use %v", val)
+	sender.Gauge("system.fs.file_handles.in_use", float64(val), "", nil)
 	sender.Commit()
 
 	return nil
 }
 
 // The check doesn't need configuration
-func (c *fhCheck) Configure(data check.ConfigData, initConfig check.ConfigData) error {
-	// do nothing
-	return nil
+func (c *fhCheck) Configure(data check.ConfigData, initConfig check.ConfigData) (err error) {
+	c.counter, err = pdhutil.GetCounterSet("Process", "Handle Count", "_Total", nil)
+	return err
 }
 
 func fhFactory() check.Check {

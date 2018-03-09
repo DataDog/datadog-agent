@@ -30,7 +30,7 @@ func (c *processChk) Run() error {
 	}
 
 	procQueueLength, _ := c.pql.GetSingleValue()
-	procCount, _ := c.pql.GetSingleValue()
+	procCount, _ := c.numprocs.GetSingleValue()
 
 	sender.Gauge("system.proc.queue_length", procQueueLength, "", nil)
 	sender.Gauge("system.proc.count", procCount, "", nil)
