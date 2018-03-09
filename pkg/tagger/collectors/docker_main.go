@@ -126,5 +126,5 @@ func dockerFactory() Collector {
 }
 
 func init() {
-	registerCollector(dockerCollectorName, dockerFactory)
+	registerCollector(dockerCollectorName, dockerFactory, LowPriority)
 }

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The agent will now collect container image tags when running in kubernetes-only mode

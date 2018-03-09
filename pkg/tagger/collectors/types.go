@@ -34,7 +34,6 @@ const (
 	PullCollection                            // Call regularly via the Pull method
 	StreamCollection                          // Will continuously feed updates on the channel from Steam() to Stop()
 	FetchOnlyCollection                       // Only call Fetch() on cache misses
-
 )
 
 // Collector retrieve entity tags from a given source and feeds
@@ -42,6 +41,15 @@ const (
 type Collector interface {
 	Detect(chan<- []*TagInfo) (CollectionMode, error)
 }
+
+// CollectorPriority helps resolving dupe tags from collectors
+type CollectorPriority int
+
+// List of collector priorities
+const (
+	LowPriority CollectorPriority = iota
+	HighPriority
+)
 
 // Fetcher allows to fetch tags on-demand in case of cache miss
 type Fetcher interface {
