@@ -194,7 +194,7 @@ func init() {
 
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
-	Datadog.SetDefault("clusteragent_expvar_port", "5006")
+
 	// Trace agent
 	Datadog.SetDefault("apm_config.enabled", true)
 
