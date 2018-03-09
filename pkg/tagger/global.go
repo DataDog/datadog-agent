@@ -32,6 +32,8 @@ func Stop() error {
 	return defaultTagger.Stop()
 }
 
+// IsFullCardinality returns the full_cardinality_tagging option
+// this caches the call to viper, that would lookup and parse envvars
 func IsFullCardinality() bool {
 	return fullCardinality
 }
