@@ -13,7 +13,6 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -164,7 +163,7 @@ func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
 
 	// Tags
 	entity := docker.ContainerIDToEntityName(string(c.DockerID))
-	tags, err := tagger.Tag(entity, config.Datadog.GetBool("full_cardinality_tagging"))
+	tags, err := tagger.Tag(entity, tagger.IsFullCardinality())
 	if err != nil {
 		log.Errorf("Failed to extract tags for container %s - %s", cID[:12], err)
 	}

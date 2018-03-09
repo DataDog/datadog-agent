@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -239,5 +238,5 @@ func (s *PodContainerService) GetPorts() ([]int, error) {
 
 // GetTags retrieves tags using the Tagger
 func (s *PodContainerService) GetTags() ([]string, error) {
-	return tagger.Tag(string(s.ID), config.Datadog.GetBool("full_cardinality_tagging"))
+	return tagger.Tag(string(s.ID), tagger.IsFullCardinality())
 }

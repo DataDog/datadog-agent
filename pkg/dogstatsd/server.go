@@ -37,7 +37,6 @@ type Server struct {
 	stopChan     chan bool
 	health       *health.Handle
 	metricPrefix string
-	fullCard     bool
 }
 
 // NewServer returns a running Dogstatsd server
@@ -93,7 +92,6 @@ func NewServer(metricOut chan<- *metrics.MetricSample, eventOut chan<- metrics.E
 		stopChan:     make(chan bool),
 		health:       health.Register("dogstatsd-main"),
 		metricPrefix: metricPrefix,
-		fullCard:     config.Datadog.GetBool("full_cardinality_tagging"),
 	}
 
 	forwardHost := config.Datadog.GetString("statsd_forward_host")
@@ -168,7 +166,7 @@ func (s *Server) worker(metricOut chan<- *metrics.MetricSample, eventOut chan<- 
 			if packet.Origin != listeners.NoOrigin {
 				var err error
 				log.Tracef("Dogstatsd receive from %s: %s", packet.Origin, packet.Contents)
-				originTags, err = tagger.Tag(packet.Origin, s.fullCard)
+				originTags, err = tagger.Tag(packet.Origin, tagger.IsFullCardinality())
 				if err != nil {
 					log.Errorf(err.Error())
 				}
