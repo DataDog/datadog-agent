@@ -18,6 +18,7 @@ if [ -z $DD_DD_URL ]; then
 fi
 
 chmod +x /opt/datadog-cluster-agent/bin/datadog-cluster-agent/datadog-cluster-agent
+sync	# Fix for 'Text file busy' error
 
 ##### Starting up #####
 export PATH="/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/embedded/bin/":$PATH
