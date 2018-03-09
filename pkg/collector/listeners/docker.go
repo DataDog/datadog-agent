@@ -20,6 +20,7 @@ import (
 	"github.com/docker/go-connections/nat"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -442,7 +443,7 @@ func parseDockerPort(port nat.Port) ([]int, error) {
 // GetTags retrieves tags using the Tagger
 func (s *DockerService) GetTags() ([]string, error) {
 	entity := docker.ContainerIDToEntityName(string(s.ID))
-	tags, err := tagger.Tag(entity, false)
+	tags, err := tagger.Tag(entity, config.Datadog.GetBool("full_cardinality_tagging"))
 	if err != nil {
 		return []string{}, err
 	}
