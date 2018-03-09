@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -285,27 +284,4 @@ func TestErrNotFound(t *testing.T) {
 	_, err = tagger.Tag("invalid", true)
 	assert.NoError(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 2)
-}
-
-func TestFullCardinality(t *testing.T) {
-	catalog := collectors.Catalog{"stream": NewDummyStreamer}
-	config.Datadog.SetDefault("full_cardinality_tagging", true)
-	tagger := newTagger()
-	config.Datadog.SetDefault("full_cardinality_tagging", false)
-	tagger.Init(catalog)
-
-	tagger.tagStore.processTagInfo(&collectors.TagInfo{
-		Entity:       "entity_name",
-		Source:       "stream",
-		LowCardTags:  []string{"low"},
-		HighCardTags: []string{"high"},
-	})
-
-	tags, err := tagger.Tag("entity_name", true)
-	assert.NoError(t, err)
-	assert.ElementsMatch(t, []string{"high", "low"}, tags)
-
-	tags, err = tagger.Tag("entity_name", false)
-	assert.NoError(t, err)
-	assert.ElementsMatch(t, []string{"high", "low"}, tags)
 }
