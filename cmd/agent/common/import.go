@@ -12,8 +12,11 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/legacy"
@@ -213,6 +216,20 @@ func copyFile(src, dst string, overwrite bool) error {
 	_, err = io.Copy(out, in)
 	if err != nil {
 		return err
+	}
+
+	ddID, err := user.LookupGroup("dd-agent")
+	fi, err := out.Stat()
+	
+	if err == nil {
+		uid := fi.Sys().(*syscall.Stat_t).Uid
+		ddgroup, err := strconv.Atoi(ddID.Gid)
+		err = out.Chown(int(uid), ddgroup)
+		if err != nil {
+			return fmt.Errorf("Couldn't change the directory group to the dd-agent user. Please ensure the dd-agent user has access to read the configuration files. Error: %s", err)
+		}
+	} else {
+		return fmt.Errorf("Couldn't change the directory group to the dd-agent user. Please ensure the dd-agent user has access to read the configuration files. Error: %s", err)
 	}
 
 	err = out.Chmod(0640)
