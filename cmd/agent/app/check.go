@@ -131,6 +131,10 @@ var checkCmd = &cobra.Command{
 			fmt.Println(string(checkStatus))
 		}
 
+		if checkRate == false {
+			color.Yellow("Currently only displaying Gauge metrics. Please run the command with --check-rate to see any other metric types if available.")
+		}
+
 		return nil
 	},
 }
