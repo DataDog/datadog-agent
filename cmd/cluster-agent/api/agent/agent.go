@@ -54,26 +54,15 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
-		body, err := json.Marshal(map[string]string{"error": err.Error()})
-		if err != nil {
-			http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
-			return
-		}
-		http.Error(w, string(body), 500)
+		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
 		return
 	}
 	jsonStats, err := json.Marshal(s)
 	if err != nil {
 		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
-		body, err := json.Marshal(map[string]string{"error": err.Error()})
-		if err != nil {
-			http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
-			return
-		}
-		http.Error(w, string(body), 500)
+		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), 500)
 		return
 	}
-
 	w.Write(jsonStats)
 }
 
