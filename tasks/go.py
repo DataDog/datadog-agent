@@ -101,7 +101,7 @@ def vet(ctx, targets):
     # add the /... suffix to the targets
     args = ["{}/...".format(t) for t in targets]
     build_tags = get_default_build_tags()
-    ctx.run("go vet -tags \"{}\" ".format(build_tags) + " ".join(args))
+    ctx.run("go vet -x -tags \"{}\" ".format(build_tags) + " ".join(args))
     # go vet exits with status 1 when it finds an issue, if we're here
     # everything went smooth
     print("go vet found no issues")
