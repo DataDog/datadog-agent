@@ -60,7 +60,7 @@ func getServiceMap(nodeName string) error {
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	// TODO use https
-	urlstr := fmt.Sprintf("http://localhost:%v/api/v1/metadata/%s/*", config.Datadog.GetInt("clusteragent_cmd_port"), nodeName)
+	urlstr := fmt.Sprintf("http://localhost:%v/api/v1/metadata/%s/*", config.Datadog.GetInt("cmd_port"), nodeName)
 
 	// Set session token
 	e = util.SetAuthToken()
