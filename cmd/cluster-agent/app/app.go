@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -154,6 +155,15 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Errorf("Could not start the Cluster Agent Process.")
 
 	}
+
+	// Start the Service Mapper.
+	asc, err := apiserver.GetAPIClient()
+	if err != nil {
+		log.Errorf("Could not instanciate the API Server Client: %s", err.Error())
+	} else {
+		asc.StartServiceMapping()
+	}
+
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
