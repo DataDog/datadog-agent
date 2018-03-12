@@ -2,6 +2,21 @@
 Release Notes
 =============
 
+6.0.3
+=====
+
+Prelude
+_______
+
+- This release also includes bugfixes to the process agent. See .. _Diff: https://github.com/DataDog/datadog-process-agent/compare/5.23.1...6.0.3 
+
+Bug Fixes
+---------
+
+- Fixed the issue preventing from having docker tags when collecting logs from containers.
+- Fix docker metrics collection on Moby Linux hosts (default Swarm AMI)
+
+
 6.0.2
 =====
 
