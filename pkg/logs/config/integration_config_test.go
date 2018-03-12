@@ -18,7 +18,7 @@ const testsPath = "tests"
 
 func TestAvailableIntegrationConfigs(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
-	assert.Equal(t, []string{"integration.yaml", "integration2.yml", "misconfigured_integration.yaml", "integration.d/integration3.yaml"}, availableIntegrationConfigs(ddconfdPath))
+	assert.Equal(t, []string{"integration.yaml", "integration2.yml", "misconfigured_integration.yaml", "integration.d/integration3.yaml", "integration.d/integration4.yaml"}, availableIntegrationConfigs(ddconfdPath))
 }
 
 func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
@@ -26,8 +26,8 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	allSources, err := buildLogSources(ddconfdPath)
 
 	assert.Nil(t, err)
-	assert.Equal(t, 4, len(allSources.GetValidSources()))
-	assert.Equal(t, 5, len(allSources.GetSources()))
+	assert.Equal(t, 5, len(allSources.GetValidSources()))
+	assert.Equal(t, 6, len(allSources.GetSources()))
 
 	sources := allSources.GetValidSources()
 
@@ -36,48 +36,44 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	assert.Equal(t, "nginx", sources[0].Config.Service)
 	assert.Equal(t, "nginx", sources[0].Config.Source)
 	assert.Equal(t, "http_access", sources[0].Config.SourceCategory)
-	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[0].Config.Tags)
+	assert.Equal(t, []string{"env:prod"}, sources[0].Config.Tags)
 
-	assert.Equal(t, "file", sources[1].Config.Type)
-	assert.Equal(t, "/var/log/access.log", sources[1].Config.Path)
-	assert.Equal(t, "nginx", sources[1].Config.Service)
-	assert.Equal(t, "nginx", sources[1].Config.Source)
-	assert.Equal(t, "http_access", sources[1].Config.SourceCategory)
-	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[1].Config.Tags)
+	assert.Equal(t, "tcp", sources[1].Config.Type)
+	assert.Equal(t, 10514, sources[1].Config.Port)
+	assert.Equal(t, "", sources[1].Config.Service)
+	assert.Equal(t, "", sources[1].Config.Source)
+	assert.Equal(t, 0, len(sources[1].Config.Tags))
 
-	assert.Equal(t, "tcp", sources[2].Config.Type)
-	assert.Equal(t, 10514, sources[2].Config.Port)
-	assert.Equal(t, "", sources[2].Config.Service)
-	assert.Equal(t, "", sources[2].Config.Source)
-	assert.Equal(t, 0, len(sources[2].Config.Tags))
+	assert.Equal(t, "docker", sources[2].Config.Type)
+	assert.Equal(t, "test", sources[2].Config.Image)
 
-	assert.Equal(t, "docker", sources[3].Config.Type)
-	assert.Equal(t, "test", sources[3].Config.Image)
+	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[3].Config.Tags)
+	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[4].Config.Tags)
 
 	// processing
 	assert.Equal(t, 0, len(sources[0].Config.ProcessingRules))
-	assert.Equal(t, 4, len(sources[2].Config.ProcessingRules))
+	assert.Equal(t, 4, len(sources[1].Config.ProcessingRules))
 
-	pRule := sources[2].Config.ProcessingRules[0]
+	pRule := sources[1].Config.ProcessingRules[0]
 	assert.Equal(t, "mask_sequences", pRule.Type)
 	assert.Equal(t, "mocked_mask_rule", pRule.Name)
 	assert.Equal(t, "[mocked]", pRule.ReplacePlaceholder)
 	assert.Equal(t, []byte("[mocked]"), pRule.ReplacePlaceholderBytes)
 	assert.Equal(t, ".*", pRule.Pattern)
 
-	mRule := sources[2].Config.ProcessingRules[1]
+	mRule := sources[1].Config.ProcessingRules[1]
 	assert.Equal(t, "multi_line", mRule.Type)
 	assert.Equal(t, "numbers", mRule.Name)
 	re := mRule.Reg
 	assert.True(t, re.MatchString("123"))
 	assert.False(t, re.MatchString("a123"))
 
-	eRule := sources[2].Config.ProcessingRules[2]
+	eRule := sources[1].Config.ProcessingRules[2]
 	assert.Equal(t, "exclude_at_match", eRule.Type)
 	assert.Equal(t, "exclude_bob", eRule.Name)
 	assert.Equal(t, "^bob", eRule.Pattern)
 
-	iRule := sources[2].Config.ProcessingRules[3]
+	iRule := sources[1].Config.ProcessingRules[3]
 	assert.Equal(t, "include_at_match", iRule.Type)
 	assert.Equal(t, "include_datadoghq", iRule.Name)
 	assert.Equal(t, ".*@datadoghq.com$", iRule.Pattern)
