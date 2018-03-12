@@ -220,7 +220,7 @@ func copyFile(src, dst string, overwrite bool) error {
 
 	ddID, err := user.LookupGroup("dd-agent")
 	fi, err := out.Stat()
-	
+
 	if err == nil {
 		uid := fi.Sys().(*syscall.Stat_t).Uid
 		ddgroup, err := strconv.Atoi(ddID.Gid)
