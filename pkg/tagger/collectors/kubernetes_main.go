@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -27,27 +28,36 @@ type KubeServiceCollector struct {
 	kubeUtil  *kubelet.KubeUtil
 	apiClient *apiserver.APIClient
 	infoOut   chan<- []*TagInfo
-
+	dcaClient *clusteragent.DCAClient
 	// used to set a custom delay
 	lastUpdate time.Time
 	updateFreq time.Duration
 }
 
-// Detect tries to connect to the kubelet
-// TODO refactor when we have the DCA
+// Detect tries to connect to the kubelet and the API Server if the DCA is not used or the DCA.
 func (c *KubeServiceCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
 	if config.Datadog.GetBool("kubernetes_collect_service_tags") == false {
 		return NoCollection, fmt.Errorf("collection disabled by the configuration")
 	}
 
-	var err error
+	var err, errDCA error
 	c.kubeUtil, err = kubelet.GetKubeUtil()
 	if err != nil {
 		return NoCollection, err
 	}
-	c.apiClient, err = apiserver.GetAPIClient()
-	if err != nil {
-		return NoCollection, err
+	// if no DCA or can't communicate with the DCA run the local service mapper.
+	if config.Datadog.GetBool("cluster_agent") {
+		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
+		if errDCA != nil {
+			log.Errorf("Could not initialise the communication with the DCA, falling back to local service mapping")
+		}
+	}
+	if !config.Datadog.GetBool("cluster_agent") || errDCA != nil {
+		c.apiClient, err = apiserver.GetAPIClient()
+		if err != nil {
+			return NoCollection, err
+		}
+		c.apiClient.StartServiceMapping()
 	}
 
 	c.infoOut = out
@@ -56,7 +66,6 @@ func (c *KubeServiceCollector) Detect(out chan<- []*TagInfo) (CollectionMode, er
 }
 
 // Pull implements an additional time constraints to avoid exhausting the kube-apiserver
-// TODO refactor when we have the DCA
 func (c *KubeServiceCollector) Pull() error {
 	// Time constraints, get the delta in seconds to display it in the logs:
 	timeDelta := c.lastUpdate.Add(c.updateFreq).Unix() - time.Now().Unix()
@@ -69,20 +78,20 @@ func (c *KubeServiceCollector) Pull() error {
 	if err != nil {
 		return err
 	}
-
-	// TODO, remove this because we are acting like the DCA API
-	err = c.addToCacheServiceMapping(pods)
-	if err != nil {
-		log.Debugf("cannot add the serviceMapping to cache: %s", err)
+	if !config.Datadog.GetBool("cluster_agent") {
+		// If the DCA is not used, each agent stores a local cache of the ServiceMap.
+		err = c.addToCacheServiceMapping(pods)
+		if err != nil {
+			log.Debugf("cannot add the serviceMapping to cache: %s", err)
+		}
 	}
-
-	c.infoOut <- getTagInfos(pods)
+	c.infoOut <- c.getTagInfos(pods)
 	c.lastUpdate = time.Now()
 	return nil
 }
 
 // Fetch fetches tags for a given entity by iterating on the whole podlist and
-// the serviceMapper, TODO refactor when we have the DCA
+// the serviceMapper
 func (c *KubeServiceCollector) Fetch(entity string) ([]string, []string, error) {
 	var lowCards, highCards []string
 
@@ -96,9 +105,15 @@ func (c *KubeServiceCollector) Fetch(entity string) ([]string, []string, error) 
 	}
 
 	pods := []*kubelet.Pod{pod}
-	c.addToCacheServiceMapping(pods)
+	if !config.Datadog.GetBool("cluster_agent") {
+		// If the DCA is not used, each agent stores a local cache of the ServiceMap.
+		err = c.addToCacheServiceMapping(pods)
+		if err != nil {
+			log.Debugf("cannot add the serviceMapping to cache: %s", err)
+		}
+	}
 
-	tagInfos := getTagInfos(pods)
+	tagInfos := c.getTagInfos(pods)
 	c.infoOut <- tagInfos
 	for _, info := range tagInfos {
 		if info.Entity == entity {

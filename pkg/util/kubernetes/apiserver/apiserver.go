@@ -122,7 +122,6 @@ func (c *APIClient) connect() error {
 	if !useServiceMapper {
 		return nil
 	}
-	c.startServiceMapping()
 
 	return nil
 }
@@ -238,9 +237,9 @@ func processKubeResources(nodeList *v1.NodeList, podList *v1.PodList, endpointLi
 	}
 }
 
-// startServiceMapping is only called once, when we have confirmed we could correctly connect to the API server.
+// StartServiceMapping is only called once, when we have confirmed we could correctly connect to the API server.
 // The logic here is solely to retrieve Nodes, Pods and Endpoints. The processing part is in mapServices.
-func (c *APIClient) startServiceMapping() {
+func (c *APIClient) StartServiceMapping() {
 	tickerSvcProcess := time.NewTicker(servicesPollIntl)
 	go func() {
 		for {
