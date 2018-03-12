@@ -72,3 +72,126 @@ func TestReportExitCodes(t *testing.T) {
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 2)
 }
+
+func TestAggregateEvents(t *testing.T) {
+	testCases := []struct {
+		events          []*docker.ContainerEvent
+		filteredActions []string
+		output          map[string]*dockerEventBundle
+	}{
+		{
+			events:          nil,
+			filteredActions: nil,
+			output:          make(map[string]*dockerEventBundle),
+		},
+		{
+			// One filtered out, and one not filtered
+			events: []*docker.ContainerEvent{
+				&docker.ContainerEvent{
+					ImageName: "test_image",
+					Action:    "unfiltered_action",
+				},
+				&docker.ContainerEvent{
+					ImageName: "test_image",
+					Action:    "top",
+				},
+			},
+			filteredActions: []string{"top", "exec_create", "exec_start"},
+			output: map[string]*dockerEventBundle{
+				"test_image": &dockerEventBundle{
+					imageName: "test_image",
+					countByAction: map[string]int{
+						"unfiltered_action": 1,
+					},
+				},
+			},
+		},
+		{
+			// Only one filtered out action, empty output
+			events: []*docker.ContainerEvent{
+				&docker.ContainerEvent{
+					ImageName: "test_image",
+					Action:    "top",
+				},
+			},
+			filteredActions: []string{"top", "exec_create", "exec_start"},
+			output:          map[string]*dockerEventBundle{},
+		},
+		{
+			// 2+1 events, to count correctly
+			events: []*docker.ContainerEvent{
+				&docker.ContainerEvent{
+					ImageName: "test_image",
+					Action:    "unfiltered_action",
+				},
+				&docker.ContainerEvent{
+					ImageName: "test_image",
+					Action:    "unfiltered_action",
+				},
+				&docker.ContainerEvent{
+					ImageName: "test_image",
+					Action:    "other_action",
+				},
+			},
+			filteredActions: []string{"top", "exec_create", "exec_start"},
+			output: map[string]*dockerEventBundle{
+				"test_image": &dockerEventBundle{
+					imageName: "test_image",
+					countByAction: map[string]int{
+						"unfiltered_action": 2,
+						"other_action":      1,
+					},
+				},
+			},
+		},
+		{
+			// Two images
+			events: []*docker.ContainerEvent{
+				&docker.ContainerEvent{
+					ImageName: "test_image",
+					Action:    "unfiltered_action",
+				},
+				&docker.ContainerEvent{
+					ImageName: "test_image",
+					Action:    "unfiltered_action",
+				},
+				&docker.ContainerEvent{
+					ImageName: "test_image",
+					Action:    "other_action",
+				},
+				&docker.ContainerEvent{
+					ImageName: "other_image",
+					Action:    "other_action",
+				},
+			},
+			filteredActions: []string{"top", "exec_create", "exec_start"},
+			output: map[string]*dockerEventBundle{
+				"test_image": &dockerEventBundle{
+					imageName: "test_image",
+					countByAction: map[string]int{
+						"unfiltered_action": 2,
+						"other_action":      1,
+					},
+				},
+				"other_image": &dockerEventBundle{
+					imageName: "other_image",
+					countByAction: map[string]int{
+						"other_action": 1,
+					},
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run("", func(t *testing.T) {
+			bundles := aggregateEvents(tc.events, tc.filteredActions)
+			for _, b := range bundles {
+				// Strip underlying events to ease testing
+				// countByAction is enough for testing the
+				// filtering and aggregation
+				b.events = nil
+			}
+			assert.EqualValues(t, tc.output, bundles)
+		})
+	}
+}

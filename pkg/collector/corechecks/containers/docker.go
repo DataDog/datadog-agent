@@ -309,7 +309,7 @@ func (d *DockerCheck) Configure(config, initConfig check.ConfigData) error {
 	d.instance.Parse(config)
 
 	if len(d.instance.FilteredEventType) == 0 {
-		d.instance.FilteredEventType = []string{"top", "exec_create", "exec_start"}
+		d.instance.FilteredEventType = []string{"top", "exec_create", "exec_start", "exec_die"}
 	}
 
 	var err error
