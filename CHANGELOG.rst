@@ -6,9 +6,11 @@ Release Notes
 =====
 
 Prelude
-_______
+-------
 
-- This release also includes bugfixes to the process agent. See .. _Diff: https://github.com/DataDog/datadog-process-agent/compare/5.23.1...6.0.3 
+- This release also includes bugfixes to the process agent. See diff_.
+
+  .. _diff: https://github.com/DataDog/datadog-process-agent/compare/5.23.1...6.0.3
 
 Bug Fixes
 ---------
