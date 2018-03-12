@@ -141,7 +141,7 @@ func newServiceMapperBundle() *ServiceMapperBundle {
 
 // NodeServiceMapping only fetch the endpoints from Kubernetes apiserver and add the serviceMapper of the
 // node to the cache
-// TODO remove when the DCA is here
+// Only called when the node agent computes the service mapper locally and does not rely on the DCA.
 func (c *APIClient) NodeServiceMapping(nodeName string, podList *v1.PodList) error {
 	ctx, cancel := context.WithTimeout(context.Background(), servicesPollIntl)
 	defer cancel()
@@ -287,6 +287,14 @@ func (c *APIClient) checkResourcesAuth() error {
 	_, err = c.client.CoreV1().ListNodes(ctx)
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
+	}
+	_, err = c.client.CoreV1().ListConfigMaps(ctx, "")
+	if err != nil {
+		errorMessages = append(errorMessages, fmt.Sprintf("configmap collection: %q", err.Error()))
+	}
+	_, err = c.client.CoreV1().ListEndpoints(ctx, "")
+	if err != nil {
+		errorMessages = append(errorMessages, fmt.Sprintf("endpoints collection: %q", err.Error()))
 	}
 	return aggregateCheckResourcesErrors(errorMessages)
 }
