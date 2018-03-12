@@ -34,9 +34,8 @@ func (o *Origin) Tags() []string {
 	if o.LogSource.Config.SourceCategory != "" {
 		tags = append(tags, "sourcecategory:"+o.LogSource.Config.SourceCategory)
 	}
-	if o.LogSource.Config.Tags != "" {
-		tags = append(tags, strings.Split(o.LogSource.Config.Tags, ",")...)
-	}
+
+	tags = append(tags, o.LogSource.Config.Tags...)
 	return tags
 }
 
@@ -49,18 +48,13 @@ func (o *Origin) TagsPayload() []byte {
 	if o.LogSource.Config.SourceCategory != "" {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+o.LogSource.Config.SourceCategory+"\"]")...)
 	}
-	var tags string
-	if o.LogSource.Config.Tags != "" {
-		tags = o.LogSource.Config.Tags
-	}
-	if len(o.tags) > 0 {
-		if tags != "" {
-			tags = tags + ","
-		}
-		tags = tags + strings.Join(o.tags, ",")
-	}
-	if tags != "" {
-		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+tags+"\"]")...)
+
+	var tags []string
+	tags = append(tags, o.LogSource.Config.Tags...)
+	tags = append(tags, o.tags...)
+
+	if len(tags) > 0 {
+		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)
 	}
 	if len(tagsPayload) == 0 {
 		tagsPayload = []byte{}
