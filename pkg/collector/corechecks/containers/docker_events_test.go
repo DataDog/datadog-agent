@@ -87,18 +87,18 @@ func TestAggregateEvents(t *testing.T) {
 		{
 			// One filtered out, and one not filtered
 			events: []*docker.ContainerEvent{
-				&docker.ContainerEvent{
+				{
 					ImageName: "test_image",
 					Action:    "unfiltered_action",
 				},
-				&docker.ContainerEvent{
+				{
 					ImageName: "test_image",
 					Action:    "top",
 				},
 			},
 			filteredActions: []string{"top", "exec_create", "exec_start"},
 			output: map[string]*dockerEventBundle{
-				"test_image": &dockerEventBundle{
+				"test_image": {
 					imageName: "test_image",
 					countByAction: map[string]int{
 						"unfiltered_action": 1,
@@ -109,7 +109,7 @@ func TestAggregateEvents(t *testing.T) {
 		{
 			// Only one filtered out action, empty output
 			events: []*docker.ContainerEvent{
-				&docker.ContainerEvent{
+				{
 					ImageName: "test_image",
 					Action:    "top",
 				},
@@ -120,22 +120,22 @@ func TestAggregateEvents(t *testing.T) {
 		{
 			// 2+1 events, to count correctly
 			events: []*docker.ContainerEvent{
-				&docker.ContainerEvent{
+				{
 					ImageName: "test_image",
 					Action:    "unfiltered_action",
 				},
-				&docker.ContainerEvent{
+				{
 					ImageName: "test_image",
 					Action:    "unfiltered_action",
 				},
-				&docker.ContainerEvent{
+				{
 					ImageName: "test_image",
 					Action:    "other_action",
 				},
 			},
 			filteredActions: []string{"top", "exec_create", "exec_start"},
 			output: map[string]*dockerEventBundle{
-				"test_image": &dockerEventBundle{
+				"test_image": {
 					imageName: "test_image",
 					countByAction: map[string]int{
 						"unfiltered_action": 2,
@@ -147,33 +147,33 @@ func TestAggregateEvents(t *testing.T) {
 		{
 			// Two images
 			events: []*docker.ContainerEvent{
-				&docker.ContainerEvent{
+				{
 					ImageName: "test_image",
 					Action:    "unfiltered_action",
 				},
-				&docker.ContainerEvent{
+				{
 					ImageName: "test_image",
 					Action:    "unfiltered_action",
 				},
-				&docker.ContainerEvent{
+				{
 					ImageName: "test_image",
 					Action:    "other_action",
 				},
-				&docker.ContainerEvent{
+				{
 					ImageName: "other_image",
 					Action:    "other_action",
 				},
 			},
 			filteredActions: []string{"top", "exec_create", "exec_start"},
 			output: map[string]*dockerEventBundle{
-				"test_image": &dockerEventBundle{
+				"test_image": {
 					imageName: "test_image",
 					countByAction: map[string]int{
 						"unfiltered_action": 2,
 						"other_action":      1,
 					},
 				},
-				"other_image": &dockerEventBundle{
+				"other_image": {
 					imageName: "other_image",
 					countByAction: map[string]int{
 						"other_action": 1,
