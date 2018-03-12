@@ -49,7 +49,9 @@ func (o *Origin) TagsPayload() []byte {
 		tagsPayload = append(tagsPayload, []byte("[dd ddsourcecategory=\""+o.LogSource.Config.SourceCategory+"\"]")...)
 	}
 
-	tags := append(o.LogSource.Config.Tags, o.tags...)
+	var tags []string
+	tags = append(tags, o.LogSource.Config.Tags...)
+	tags = append(tags, o.tags...)
 
 	if len(tags) > 0 {
 		tagsPayload = append(tagsPayload, []byte("[dd ddtags=\""+strings.Join(tags, ",")+"\"]")...)
