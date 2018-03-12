@@ -14,6 +14,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
@@ -91,7 +92,7 @@ func (c *KubeServiceCollector) Fetch(entity string) ([]string, []string, error) 
 	}
 
 	if kubelet.IsPodReady(pod) == false {
-		return lowCards, highCards, ErrNotFound
+		return lowCards, highCards, errors.NewNotFound(entity)
 	}
 
 	pods := []*kubelet.Pod{pod}
@@ -104,7 +105,7 @@ func (c *KubeServiceCollector) Fetch(entity string) ([]string, []string, error) 
 			return info.LowCardTags, info.HighCardTags, nil
 		}
 	}
-	return lowCards, highCards, ErrNotFound
+	return lowCards, highCards, errors.NewNotFound(entity)
 }
 
 func kubernetesFactory() Collector {

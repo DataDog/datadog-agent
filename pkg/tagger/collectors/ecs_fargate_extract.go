@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs"
@@ -138,5 +139,5 @@ func (c *ECSFargateCollector) fetchMetadata(meta ecs.TaskMetadata, container str
 		}
 		return info.LowCardTags, info.HighCardTags, nil
 	}
-	return nil, nil, ErrNotFound
+	return nil, nil, errors.NewNotFound(fmt.Sprintf("%s/%s", meta.TaskARN, container))
 }
