@@ -16,7 +16,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/legacy"
@@ -218,18 +217,29 @@ func copyFile(src, dst string, overwrite bool) error {
 		return err
 	}
 
-	ddID, err := user.LookupGroup("dd-agent")
-	fi, err := out.Stat()
+	ddGroup, err := user.LookupGroup("dd-agent")
+	if err != nil {
+		return fmt.Errorf("Couldn't detect the dd-agent group id: %s", err)
+	}
 
-	if err == nil {
-		uid := fi.Sys().(*syscall.Stat_t).Uid
-		ddgroup, err := strconv.Atoi(ddID.Gid)
-		err = out.Chown(int(uid), ddgroup)
-		if err != nil {
-			return fmt.Errorf("Couldn't change the directory group to the dd-agent user. Please ensure the dd-agent user has access to read the configuration files. Error: %s", err)
-		}
-	} else {
-		return fmt.Errorf("Couldn't change the directory group to the dd-agent user. Please ensure the dd-agent user has access to read the configuration files. Error: %s", err)
+	ddUser, err := user.LookupId("dd-agent")
+	if err != nil {
+		return fmt.Errorf("Couldn't detect the dd-agent User id: %s", err)
+	}
+
+	ddGID, err := strconv.Atoi(ddGroup.Gid)
+	if err != nil {
+		return fmt.Errorf("Couldn't convert dd-agent group ID: %s into an int: %s", ddGroup.Gid, err)
+	}
+
+	ddUID, err := strconv.Atoi(ddUser.Uid)
+	if err != nil {
+		return fmt.Errorf("Couldn't convert dd-agent user ID: %s into an int: %s", ddUser.Uid, err)
+	}
+
+	err = out.Chown(ddUID, ddGID)
+	if err != nil {
+		return fmt.Errorf("Couldn't change the file permissions for this check. Please ensure the dd-agent user has access to read the configuration files. Error: %s", err)
 	}
 
 	err = out.Chmod(0640)
