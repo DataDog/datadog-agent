@@ -36,3 +36,9 @@ func GetServiceMapBundleOnAllNodes() (map[string]interface{}, error) {
 	log.Errorf("GetServiceMapBundleOnAllNodes not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
+
+// StartServiceMapping is only called once, when we have confirmed we could correctly connect to the API server.
+func (c *APIClient) StartServiceMapping() {
+	log.Errorf("StartServiceMapping not implemented %s", ErrNotCompiled.Error())
+	return nil
+}
