@@ -7,13 +7,15 @@ import time
 import win32pdh
 import _winreg
 
+DATA_TYPE_INT = win32pdh.PDH_FMT_LONG
+DATA_TYPE_DOUBLE = win32pdh.PDH_FMT_DOUBLE
 DATA_POINT_INTERVAL = 0.10
 SINGLE_INSTANCE_KEY = "__single_instance"
 class WinPDHCounter(object):
     # store the dictionary of pdh counter names
     pdh_counter_dict = {}
 
-    def __init__(self, class_name, counter_name, log, instance_name=None, machine_name=None):
+    def __init__(self, class_name, counter_name, log, instance_name = None, machine_name = None, precision=DATA_TYPE_DOUBLE):
         self._get_counter_dictionary()
         self._class_name = win32pdh.LookupPerfNameByIndex(None, int(WinPDHCounter.pdh_counter_dict[class_name]))
         self._counter_name = win32pdh.LookupPerfNameByIndex(None, int(WinPDHCounter.pdh_counter_dict[counter_name]))
@@ -22,6 +24,10 @@ class WinPDHCounter(object):
         self.hq = win32pdh.OpenQuery()
         self.logger = log
         self.counterdict = {}
+        if precision is None:
+            self._precision = win32pdh.PDH_FMT_DOUBLE
+        else:
+            self._precision = precision
         counters, instances = win32pdh.EnumObjectItems(None, machine_name, self._class_name, win32pdh.PERF_DETAIL_WIZARD)
         if instance_name is None and len(instances) > 0:
             for inst in instances:
@@ -91,7 +97,7 @@ class WinPDHCounter(object):
 
         for inst, counter_handle in self.counterdict.iteritems():
             try:
-                t, val = win32pdh.GetFormattedCounterValue(counter_handle, win32pdh.PDH_FMT_LONG)
+                t, val = win32pdh.GetFormattedCounterValue(counter_handle, self._precision)
                 ret[inst] = val
             except Exception as e:
                 # exception usually means self type needs two data points to calculate. Wait
@@ -100,7 +106,7 @@ class WinPDHCounter(object):
                 win32pdh.CollectQueryData(self.hq)
                 # if we get exception self time, just return it up
                 try:
-                    t, val = win32pdh.GetFormattedCounterValue(counter_handle, win32pdh.PDH_FMT_LONG)
+                    t, val = win32pdh.GetFormattedCounterValue(counter_handle, self._precision)
                     ret[inst] = val
                 except Exception as e:
                     raise e
