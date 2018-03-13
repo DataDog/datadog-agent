@@ -67,7 +67,16 @@ class PDHBaseCheck(AgentCheck):
                     except Exception as e:
                         self.log.error("Failed to make remote connection %s" % str(e))
                         return
-                
+
+                ## counter_data_types allows the precision with which counters are queried
+                ## to be configured on a per-metric basis. In the metric instance, precision
+                ## should be specified as
+                ## counter_data_types:
+                ## - iis.httpd_request_method.get,int
+                ## - iis.net.bytes_rcvd,float
+                ##
+                ## the above would query the counter associated with iis.httpd_request_method.get
+                ## as an integer (LONG) and iis.net.bytes_rcvd as a double
                 datatypes = {}
                 precisions = instance.get('counter_data_types')
                 if precisions is not None:
@@ -92,10 +101,9 @@ class PDHBaseCheck(AgentCheck):
 
                 for counterset, inst_name, counter_name, dd_name, mtype in counter_list:
                     m = getattr(self, mtype.lower())
-                    precision = None
-                    if dd_name in datatypes:
-                        precision = datatypes[dd_name]
-                        
+
+                    precision = datatypes.get(dd_name)
+
                     obj = WinPDHCounter(counterset, counter_name, self.log, inst_name, machine_name = remote_machine, precision=precision)
                     entry = [inst_name, dd_name, m, obj]
                     self.log.debug("entry: %s" % str(entry))
@@ -108,9 +116,8 @@ class PDHBaseCheck(AgentCheck):
                         if inst_name.lower() == "none" or len(inst_name) == 0 or inst_name == "*" or inst_name.lower() == "all":
                             inst_name = None
                         m = getattr(self, mtype.lower())
-                        precision = None
-                        if dd_name in datatypes:
-                            precision = datatypes[dd_name]
+
+                        precision = datatypes.get(dd_name)
 
                         obj = WinPDHCounter(counterset, counter_name, self.log, inst_name, machine_name = remote_machine, precision = precision)
                         entry = [inst_name, dd_name, m, obj]

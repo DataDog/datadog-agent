@@ -15,7 +15,7 @@ class WinPDHCounter(object):
     # store the dictionary of pdh counter names
     pdh_counter_dict = {}
 
-    def __init__(self, class_name, counter_name, log, instance_name = None, machine_name = None, precision=DATA_TYPE_DOUBLE):
+    def __init__(self, class_name, counter_name, log, instance_name = None, machine_name = None, precision=None):
         self._get_counter_dictionary()
         self._class_name = win32pdh.LookupPerfNameByIndex(None, int(WinPDHCounter.pdh_counter_dict[class_name]))
         self._counter_name = win32pdh.LookupPerfNameByIndex(None, int(WinPDHCounter.pdh_counter_dict[counter_name]))
