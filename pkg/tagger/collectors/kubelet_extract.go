@@ -14,6 +14,7 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -92,6 +93,25 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		// container tags
 		for _, container := range pod.Status.Containers {
 			lowC := append(low, fmt.Sprintf("kube_container_name:%s", container.Name))
+			// check image tag in spec
+			for _, containerSpec := range pod.Spec.Containers {
+				if containerSpec.Name == container.Name {
+					imageName, shortImage, imageTag, err := docker.SplitImageName(containerSpec.Image)
+					if err != nil {
+						log.Debugf("Cannot split %s: %s", containerSpec.Image, err)
+						break
+					}
+					lowC = append(lowC, fmt.Sprintf("image_name:%s", imageName))
+					lowC = append(lowC, fmt.Sprintf("short_image:%s", shortImage))
+					if imageTag == "" {
+						// k8s default to latest if tag is omitted
+						imageTag = "latest"
+					}
+					lowC = append(lowC, fmt.Sprintf("image_tag:%s", imageTag))
+					break
+				}
+			}
+
 			info := &TagInfo{
 				Source:       kubeletCollectorName,
 				Entity:       container.ID,

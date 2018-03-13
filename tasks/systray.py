@@ -13,6 +13,7 @@ from invoke.exceptions import Exit
 
 from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
+from .utils import get_version_ldflags
 from .build_tags import get_build_tags, get_default_build_tags, ALL_TAGS
 from .go import deps
 
@@ -49,8 +50,8 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     )
     command += "-i cmd/systray/systray.rc --target=pe-x86-64 -O coff -o cmd/systray/rsrc.syso"
     ctx.run(command)
-
-    ldflags = "-s -w -linkmode external -extldflags '-Wl,--subsystem,windows' "
+    ldflags = get_version_ldflags(ctx)
+    ldflags += "-s -w -linkmode external -extldflags '-Wl,--subsystem,windows' "
     cmd = "go build {race_opt} {build_type} -o {agent_bin} -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/systray"
     args = {
         "race_opt": "-race" if race else "",

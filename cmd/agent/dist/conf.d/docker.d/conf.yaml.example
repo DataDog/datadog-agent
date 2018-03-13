@@ -13,13 +13,14 @@ instances:
     #
     # collect_events: false
 
-    # By default we do not collect events with a status ['top', 'exec_start', 'exec_create'].
+    # By default we do not collect events with a status ['top', 'exec_start', 'exec_create', 'exec_die'].
     # Here can be added additional statuses to be filtered.
     # List of available statuses can be found here https://docs.docker.com/engine/reference/commandline/events/#object-types
     # filtered_event_types:
     #    - 'top'
     #    - 'exec_start'
     #    - 'exec_create'
+    #    - 'exec_die'
 
     # Collect disk usage per container with docker.container.size_rw and
     # docker.container.size_rootfs metrics.

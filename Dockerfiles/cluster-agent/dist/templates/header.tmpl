@@ -1,0 +1,46 @@
+{{printDashes .title "="}}
+{{doNotEscape .title}}
+{{printDashes .title "="}}
+
+  Status date: {{.time}}
+  Pid: {{.pid}}
+  {{- if .runnerStats.Workers}}
+  Check Runners: {{.runnerStats.Workers}}
+  {{end -}}
+  Log Level: {{.config.log_level}}
+
+  Paths
+  =====
+    Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}
+    conf.d: {{.config.confd_dca_path}}
+
+  Clocks
+  ======
+    {{- if .ntpOffset }}
+    NTP offset: {{.ntpOffset}} s
+    {{- end }}
+    System UTC time: {{.time}}
+
+  Hostnames
+  =========
+  {{- range $name, $value := .metadata.meta -}}
+    {{- if and (ne $name "timezones") ($value) }}
+    {{$name}}: {{$value}}
+    {{- end }}
+  {{- end }}
+
+  Leader Election
+  ===============
+    {{- if .leaderelection}}
+    Leader Election Status:  {{.leaderelection.status}}
+    {{- if eq .leaderelection.status "Failing"}}
+    Error: {{.leaderelection.error}}
+    {{else}}
+    Leader Name is: {{.leaderelection.leaderName}}
+    Last Acquisition of the lease: {{.leaderelection.acquiredTime}}
+    Renewed leadership: {{.leaderelection.renewedTime}}
+    Number of leader transitions: {{.leaderelection.transitions}}
+    {{- end}}
+    {{- end}}
+{{/* this line intentionally left blank */}}
+

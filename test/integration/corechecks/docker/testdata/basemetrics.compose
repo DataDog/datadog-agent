@@ -10,3 +10,4 @@ services:
     environment:
         LOW_CARD_ENV: "redislowenv"
         HIGH_CARD_ENV: "redishighenv"
+    mem_limit: 32000000

@@ -2,6 +2,7 @@ apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
   name: datadog-agent
+  namespace: default
 spec:
   template:
     metadata:
