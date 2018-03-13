@@ -12,7 +12,9 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -213,6 +215,31 @@ func copyFile(src, dst string, overwrite bool) error {
 	_, err = io.Copy(out, in)
 	if err != nil {
 		return err
+	}
+
+	ddGroup, err := user.LookupGroup("dd-agent")
+	if err != nil {
+		return fmt.Errorf("Couldn't detect the dd-agent group id: %s", err)
+	}
+
+	ddUser, err := user.LookupId("dd-agent")
+	if err != nil {
+		return fmt.Errorf("Couldn't detect the dd-agent User id: %s", err)
+	}
+
+	ddGID, err := strconv.Atoi(ddGroup.Gid)
+	if err != nil {
+		return fmt.Errorf("Couldn't convert dd-agent group ID: %s into an int: %s", ddGroup.Gid, err)
+	}
+
+	ddUID, err := strconv.Atoi(ddUser.Uid)
+	if err != nil {
+		return fmt.Errorf("Couldn't convert dd-agent user ID: %s into an int: %s", ddUser.Uid, err)
+	}
+
+	err = out.Chown(ddUID, ddGID)
+	if err != nil {
+		return fmt.Errorf("Couldn't change the file permissions for this check. Please ensure the dd-agent user has access to read the configuration files. Error: %s", err)
 	}
 
 	err = out.Chmod(0640)
