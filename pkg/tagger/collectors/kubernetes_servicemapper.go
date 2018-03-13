@@ -59,7 +59,8 @@ func (c *KubeServiceCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		} else {
 			serviceNames, err = c.dcaClient.GetKubernetesServiceNames(po.Spec.NodeName, po.Metadata.Name)
 			if err != nil {
-				log.Debugf("Could not pull the service map from the Datadog Cluster Agent: %s", err.Error())
+				// TODO move this to trace
+				log.Debugf("Could not pull the service map of po %s on node %s from the Datadog Cluster Agent: %s", po.Spec.NodeName, po.Metadata.Name, err.Error())
 			}
 
 		}
@@ -83,8 +84,7 @@ func (c *KubeServiceCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	return tagInfo
 }
 
-// addToCacheServiceMapping TODO remove this when we have the DCA, we are currently acting like the
-// DCA but only on a node level
+// addToCacheServiceMapping is acting like the DCA at the node level.
 func (c *KubeServiceCollector) addToCacheServiceMapping(kubeletPodList []*kubelet.Pod) error {
 	if len(kubeletPodList) == 0 {
 		log.Debugf("empty kubelet pod list")

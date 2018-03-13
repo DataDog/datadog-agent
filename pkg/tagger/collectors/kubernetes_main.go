@@ -49,7 +49,7 @@ func (c *KubeServiceCollector) Detect(out chan<- []*TagInfo) (CollectionMode, er
 	if config.Datadog.GetBool("cluster_agent") {
 		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
 		if errDCA != nil {
-			log.Errorf("Could not initialise the communication with the DCA, falling back to local service mapping")
+			log.Errorf("Could not initialise the communication with the DCA, falling back to local service mapping: %s", errDCA.Error())
 		}
 	}
 	if !config.Datadog.GetBool("cluster_agent") || errDCA != nil {

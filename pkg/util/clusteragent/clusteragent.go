@@ -194,8 +194,8 @@ func (c *DCAClient) GetKubernetesServiceNames(nodeName, podName string) ([]strin
 	var serviceNames serviceNames
 	var err error
 
-	if c.clusterAgentAPIRequestHeaders == nil || c.clusterAgentAPIClient == nil {
-		return nil, fmt.Errorf("cluster agent's client was not properly initialized")
+	if c == nil {
+		return nil, fmt.Errorf("cluster agent's client is not properly initialized")
 	}
 	req := &http.Request{
 		Header: *c.clusterAgentAPIRequestHeaders,
