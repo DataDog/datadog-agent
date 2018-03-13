@@ -75,10 +75,10 @@ func StartServer() error {
 		ErrorLog:  stdLog.New(&config.ErrorLogWriter{}, "", 0), // log errors to seelog
 		TLSConfig: &tlsConfig,
 	}
-	// TODO verify tls works. Change srv.Serve(listener) to srv.Serve(tlslistener)
-	//tlsListener := tls.NewListener(listener, &tlsConfig)
 
-	go srv.Serve(listener)
+	tlsListener := tls.NewListener(listener, &tlsConfig)
+
+	go srv.Serve(tlsListener)
 	return nil
 
 }
