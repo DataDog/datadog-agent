@@ -90,8 +90,10 @@ func (p *FileProvider) FilesToTail() []*File {
 }
 
 // exists returns true if the file at path filePath exists
+// Note: we can't rely on os.IsNotExist for windows, so we check error nullity.
+// As we're tailing with *, the error is related to the path being malformed.
 func (p *FileProvider) exists(filePath string) bool {
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	if _, err := os.Stat(filePath); err != nil {
 		return false
 	}
 	return true
