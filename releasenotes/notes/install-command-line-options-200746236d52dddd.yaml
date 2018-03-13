@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    Allow configuring the enabled-state of process, logs, and apm to be 
+    Allow configuration of the enabled-state of process, logs, and apm to be 
     specified on the installation command line for Windows.
 fixes:
   - |

@@ -15,17 +15,7 @@ environment:
   PYTHONHOME: c:\python27-x64
 
 install:
-<<<<<<< HEAD
-  - set PATH=%GOPATH%\bin;C:\go\bin;%RUBY_PATH%\bin;%RI_DEVKIT%bin;%RI_DEVKIT%mingw\bin;c:\python27-x64;c:\python27-x64\scripts;%PATH%
-=======
-  - mkdir c:\deps
-  - cd c:\deps
-  - curl -fsS -o glib.zip %GLIB-URL%
-  - curl -fsS -o pkg-config.zip %PKG-CONFIG-URL%
-  - curl -fsS -o gettext.zip %GETTEXT-URL%
-  - 7z x *.zip > NUL
-  - set PATH=C:\deps\bin;%GOPATH%\bin;%GOROOT%\bin;%RUBY_PATH%\bin;%RI_DEVKIT%bin;%RI_DEVKIT%mingw\bin;c:\python27-x64;c:\python27-x64\scripts;%PATH%
->>>>>>> 2be69cf7... pin the go version in appveyor to 1.9 (#1448)
+  - set PATH=%GOPATH%\bin;C:\%GOPATH%\bin;%RUBY_PATH%\bin;%RI_DEVKIT%bin;%RI_DEVKIT%mingw\bin;c:\python27-x64;c:\python27-x64\scripts;%PATH%
   - go version
   - pip install invoke
   - choco install pkgconfiglite
