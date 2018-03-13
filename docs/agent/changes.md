@@ -152,6 +152,11 @@ There are a few major changes
 * Commands should be run with the command line `"c:\program files\datadog\datadog agent\embedded\agent.exe" <command>` from an "As Administrator" command prompt.
 * The configuration GUI is now a web-based configuration application, it can be easily accessed by running
   the command `"c:\program files\datadog\datadog agent\embedded\agent.exe" launch-gui` or using the systray app.
+* The Windows service is now started "Automatic-Delayed"; it is started automatically on boot, but after
+  all other services.  This will result in a small delay in reporting of metrics after a reboot of a 
+  Windows device.
+* The Windows GUI and Windows system tray icon are now implemented separately.  See the 
+  [specific docs](gui.md) for more details.
 
 ### MacOS
 

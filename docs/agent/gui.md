@@ -12,6 +12,14 @@ on port `5002` on Windows and Mac, and is disabled on Linux.
 Once the Agent is running, use the `datadog-agent launch-gui` command to launch
 the GUI within your default web browser.
 
+In addition, on Windows operating systems, the GUI can be launched by executing 
+the `ddtray` executable with the `-launch-gui` flag. The `ddtray` executable 
+is what is run when starting via the shortcut in the Applications folder.
+
+The `ddtray` executable provides the system tray functionality, including the
+ability to launch the web-based configuration gui, and start, stop and restart
+Datadog services.  The system tray can also initiate a `flare` directly.
+
 ## Requirements
 
 1. Cookies must be enabled in your browser. The GUI generates and saves a token
