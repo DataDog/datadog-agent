@@ -37,16 +37,16 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		tags.AddLow("kube_namespace", pod.Metadata.Namespace)
 
 		// Pod labels
-		for labelName, labelValue := range pod.Metadata.Labels {
-			if tagName, found := c.labelsAsTags[strings.ToLower(labelName)]; found {
-				tags.AddAuto(tagName, labelValue)
+		for name, value := range pod.Metadata.Labels {
+			if tagName, found := c.labelsAsTags[strings.ToLower(name)]; found {
+				tags.AddAuto(tagName, value)
 			}
 		}
 
 		// Pod annotations
-		for labelName, labelValue := range pod.Metadata.Annotations {
-			if tagName, found := c.annotationsAsTags[strings.ToLower(labelName)]; found {
-				tags.AddAuto(tagName, labelValue)
+		for name, value := range pod.Metadata.Annotations {
+			if tagName, found := c.annotationsAsTags[strings.ToLower(name)]; found {
+				tags.AddAuto(tagName, value)
 			}
 		}
 
