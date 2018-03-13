@@ -52,13 +52,8 @@ def get_build_flags(ctx, static=False, use_embedded_libs=False):
     We need to invoke external processes here so this function need the
     Context object.
     """
-    payload_v = get_payload_version()
-    commit = ctx.run("git rev-parse --short HEAD", hide=True).stdout.strip()
-
     gcflags = ""
-    ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
-    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True))
-    ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
+    ldflags = get_version_ldflags(ctx)
     env = {
         "PKG_CONFIG_PATH": pkg_config_path(use_embedded_libs),
         "CGO_CFLAGS_ALLOW": "-static-libgcc",  # whitelist additional flags, here a flag used for net-snmp
@@ -121,6 +116,18 @@ def get_payload_version():
 
     return ""
 
+def get_version_ldflags(ctx):
+    """
+    Compute the version from the git tags, and set the appropriate compiler
+    flags
+    """
+    payload_v = get_payload_version()
+    commit = ctx.run("git rev-parse --short HEAD", hide=True).stdout.strip()
+
+    ldflags = "-X {}/pkg/version.Commit={} ".format(REPO_PATH, commit)
+    ldflags += "-X {}/pkg/version.AgentVersion={} ".format(REPO_PATH, get_version(ctx, include_git=True))
+    ldflags += "-X {}/pkg/serializer.AgentPayloadVersion={} ".format(REPO_PATH, payload_v)
+    return ldflags
 
 def get_root():
     """
