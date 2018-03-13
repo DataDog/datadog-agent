@@ -265,6 +265,7 @@ func init() {
 	Datadog.BindEnv("ac_exclude")
 
 	Datadog.BindEnv("cluster_agent")
+	Datadog.BindEnv("cluster_agent.url")
 	Datadog.BindEnv("cluster_agent.auth_token")
 	Datadog.BindEnv("cluster_agent_cmd_port")
 
