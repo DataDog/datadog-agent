@@ -61,7 +61,7 @@ func init() {
 	Datadog.SetEnvPrefix("DD")
 	Datadog.SetTypeByDefaultValue(true)
 
-	// Replace '.' from config keys by '_' in env variables bindings.
+	// Replace '.' from config keys with '_' in env variables bindings.
 	// e.g. : BindEnv("foo.bar") will bind config key
 	// "foo.bar" to env variable "FOO_BAR"
 	Datadog.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
