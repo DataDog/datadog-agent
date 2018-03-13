@@ -28,7 +28,7 @@ func TestRawEncoder(t *testing.T) {
 		Service:        "Service",
 		Source:         "Source",
 		SourceCategory: "SourceCategory",
-		Tags:           "foo:bar,baz",
+		Tags:           []string{"foo:bar", "baz"},
 	}
 
 	source := config.NewLogSource("", logsConfig)
@@ -119,7 +119,7 @@ func TestProtoEncoder(t *testing.T) {
 		Service:        "Service",
 		Source:         "Source",
 		SourceCategory: "SourceCategory",
-		Tags:           "foo:bar,baz",
+		Tags:           []string{"foo:bar", "baz"},
 	}
 
 	source := config.NewLogSource("", logsConfig)

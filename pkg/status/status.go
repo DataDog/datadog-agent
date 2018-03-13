@@ -103,6 +103,40 @@ func GetCheckStatus(c check.Check, cs *check.Stats) ([]byte, error) {
 	return []byte(st), nil
 }
 
+// GetDCAStatus grabs the status from expvar and puts it into a map
+func GetDCAStatus() (map[string]interface{}, error) {
+	stats := make(map[string]interface{})
+	stats, err := expvarStats(stats)
+	if err != nil {
+		log.Errorf("Error Getting ExpVar Stats: %v", err)
+	}
+	stats["config"] = getDCAPartialConfig()
+
+	stats["version"] = version.AgentVersion
+	stats["pid"] = os.Getpid()
+	hostname, err := util.GetHostname()
+	if err != nil {
+		log.Errorf("Error grabbing hostname for status: %v", err)
+		stats["metadata"] = host.GetPayloadFromCache("unknown")
+	} else {
+		stats["metadata"] = host.GetPayloadFromCache(hostname)
+	}
+	now := time.Now()
+	stats["time"] = now.Format(timeFormat)
+	stats["leaderelection"] = getLeaderElectionDetails()
+
+	return stats, nil
+}
+
+// getDCAPartialConfig returns config parameters of interest for the status page.
+func getDCAPartialConfig() map[string]string {
+	conf := make(map[string]string)
+	conf["log_file"] = config.Datadog.GetString("log_file")
+	conf["log_level"] = config.Datadog.GetString("log_level")
+	conf["confd_dca_path"] = config.Datadog.GetString("confd_dca_path")
+	return conf
+}
+
 // getPartialConfig returns config parameters of interest for the status page
 func getPartialConfig() map[string]string {
 	conf := make(map[string]string)

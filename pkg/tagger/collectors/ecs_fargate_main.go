@@ -122,5 +122,5 @@ func ecsFargateFactory() Collector {
 }
 
 func init() {
-	registerCollector(ecsFargateCollectorName, ecsFargateFactory)
+	registerCollector(ecsFargateCollectorName, ecsFargateFactory, HighPriority)
 }

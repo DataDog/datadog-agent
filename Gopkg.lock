@@ -707,6 +707,12 @@
   revision = "95b47aa5df4eda9bfbc0133f77c0e320f0275eba"
 
 [[projects]]
+  name = "gopkg.in/Knetic/govaluate.v3"
+  packages = ["."]
+  revision = "d216395917cc49052c7c7094cf57f09657ca08a8"
+  version = "v3.0.0"
+
+[[projects]]
   name = "gopkg.in/inf.v0"
   packages = ["."]
   revision = "3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4"
@@ -839,6 +845,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f5ae0313a92b1cf98ae07c5eb9a633275141b3d3c8f960caf3e8fbd6becfe38e"
+  inputs-digest = "74342c7afe03c0a5f0996cfa44513e82b532f1556c99fd4f8d79e4ab3c1981e6"
   solver-name = "gps-cdcl"
   solver-version = 1

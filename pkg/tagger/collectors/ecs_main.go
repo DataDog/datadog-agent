@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
@@ -74,7 +75,7 @@ func (c *ECSCollector) Fetch(container string) ([]string, []string, error) {
 		}
 	}
 	// container not found in updates
-	return []string{}, []string{}, ErrNotFound
+	return []string{}, []string{}, errors.NewNotFound(container)
 }
 
 func ecsFactory() Collector {
@@ -82,5 +83,5 @@ func ecsFactory() Collector {
 }
 
 func init() {
-	registerCollector(ecsCollectorName, ecsFactory)
+	registerCollector(ecsCollectorName, ecsFactory, LowPriority)
 }

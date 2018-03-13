@@ -138,6 +138,36 @@ func TestProcessContainerEvent(t *testing.T) {
 			event: nil,
 			err:   nil,
 		},
+		{
+			// Fix bad action
+			source: events.Message{
+				Type: "container",
+				Actor: events.Actor{
+					ID: "test_id",
+					Attributes: map[string]string{
+						"name":      "test_name",
+						"image":     "test_image",
+						"extra_key": "value",
+					},
+				},
+				Action:   "exec_start: /bin/sh -c true",
+				Time:     timestamp.Unix(),
+				TimeNano: timestamp.UnixNano(),
+			},
+			event: &ContainerEvent{
+				ContainerID:   "test_id",
+				ContainerName: "test_name",
+				ImageName:     "test_image",
+				Action:        "exec_start",
+				Timestamp:     timestamp,
+				Attributes: map[string]string{
+					"name":      "test_name",
+					"image":     "test_image",
+					"extra_key": "value",
+				},
+			},
+			err: nil,
+		},
 	} {
 		t.Logf("test case %d", nb)
 		event, err := dockerUtil.processContainerEvent(tc.source)

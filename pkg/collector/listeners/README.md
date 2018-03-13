@@ -33,8 +33,8 @@ The `KubeletListener` relies on the Kubelet API. We're listening on changes on t
 
 ### Template variable support
 
-| Listener | AD identifiers | Host | Port | Tag | Pid |
+| Listener | AD identifiers | Host | Port | Tag | Pid | Env
 |---|---|---|---|---|---|
-| Docker | ✅ | ✅ | ✅ | ✅ | ✅ |
-| ECS | ✅ | ✅ | ❌ | ✅ | ❌ |
-| Kubelet | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Docker | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| ECS | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ |
+| Kubelet | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |

@@ -90,7 +90,7 @@
         Id="LaunchApp"
         Directory="AGENT"
         Execute="immediate"
-        Return="check"
+        Return="asyncNoWait"
         ExeCommand="&quot;[AGENT]ddtray.exe&quot; &quot;-launch-gui&quot;" />
 
 
@@ -131,6 +131,27 @@
           <RegistryValue Name="hostname"
                          Type="string"
                          Value="[HOSTNAME]" />
+           <RegistryValue Name="proxy_host"
+                         Type="string"
+                         Value="[PROXY_HOST]" />
+          <RegistryValue Name="proxy_port"
+                         Type="string"
+                         Value="[PROXY_PORT]" />
+          <RegistryValue Name="proxy_user"
+                         Type="string"
+                         Value="[PROXY_USER]" />
+          <RegistryValue Name="proxy_password"
+                         Type="string"
+                         Value="[PROXY_PASSWORD]" />
+          <RegistryValue Name="logs_enabled"
+                         Type="string"
+                         Value="[LOGS_ENABLED]" />
+          <RegistryValue Name="apm_enabled"
+                         Type="string"
+                         Value="[APM_ENABLED]" />
+          <RegistryValue Name="process_enabled"
+                         Type="string"
+                         Value="[PROCESS_ENABLED]" />
         </RegistryKey>
 
       </Component>

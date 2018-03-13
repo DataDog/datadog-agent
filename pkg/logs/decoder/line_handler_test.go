@@ -7,7 +7,6 @@ package decoder
 
 import (
 	"bytes"
-	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -73,8 +72,6 @@ func TestSingleLineHandler(t *testing.T) {
 	assert.Equal(t, len(line)+1, output.RawDataLen)
 
 	h.Stop()
-	output = <-outputChan
-	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
 }
 
 func TestTrimSingleLine(t *testing.T) {
@@ -93,8 +90,6 @@ func TestTrimSingleLine(t *testing.T) {
 	assert.Equal(t, len(line)+1, output.RawDataLen)
 
 	h.Stop()
-	output = <-outputChan
-	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
 }
 
 func TestMultiLineHandler(t *testing.T) {
@@ -148,8 +143,6 @@ func TestMultiLineHandler(t *testing.T) {
 	assert.Equal(t, 10+1, output.RawDataLen)
 
 	h.Stop()
-	output = <-outputChan
-	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
 }
 
 func TestTrimMultiLine(t *testing.T) {
@@ -174,8 +167,6 @@ func TestTrimMultiLine(t *testing.T) {
 	assert.Equal(t, len(whitespace+"foo"+whitespace)+1+len("bar"+whitespace)+1, output.RawDataLen)
 
 	h.Stop()
-	output = <-outputChan
-	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
 }
 
 func TestUnwrapMultiLine(t *testing.T) {
@@ -212,6 +203,4 @@ func TestUnwrapMultiLine(t *testing.T) {
 	assert.Equal(t, header+"4. first line", string(output.Content))
 
 	h.Stop()
-	output = <-outputChan
-	assert.Equal(t, reflect.TypeOf(output), reflect.TypeOf(newStopOutput()))
 }

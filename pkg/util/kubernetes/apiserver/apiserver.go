@@ -221,7 +221,7 @@ func processKubeResources(nodeList *v1.NodeList, podList *v1.PodList, endpointLi
 	if nodeList.Items == nil || podList.Items == nil || endpointList.Items == nil {
 		return
 	}
-	log.Debugf("%d node, %d pod, %d endpoints", len(nodeList.Items), len(podList.Items), len(endpointList.Items))
+	log.Debugf("Identified: %d node, %d pod, %d endpoints", len(nodeList.Items), len(podList.Items), len(endpointList.Items))
 	for _, node := range nodeList.Items {
 		nodeName := *node.Metadata.Name
 		nodeNameCacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
@@ -378,4 +378,14 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	}
 	log.Debugf("Updated %s to %s in the ConfigMap %s", eventTokenKey, tokenValue, configMapDCAToken)
 	return nil
+}
+
+func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	node, err := c.client.CoreV1().GetNode(ctx, nodeName)
+	if err != nil {
+		return nil, err
+	}
+	return node.GetMetadata().GetLabels(), nil
 }

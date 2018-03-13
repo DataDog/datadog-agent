@@ -179,11 +179,54 @@ func TestGetEntityTags(t *testing.T) {
 	etags.cacheValid = false
 	tags, sources = etags.get(true)
 	assert.Len(t, tags, 4)
-	assert.Contains(t, tags, "low1", "low2", "high1", "high2")
+	assert.ElementsMatch(t, tags, []string{"low1", "low2", "high1", "high2"})
 	assert.Len(t, sources, 1)
 	assert.True(t, etags.cacheValid)
 	tags, sources = etags.get(false)
 	assert.Len(t, tags, 2)
-	assert.Contains(t, tags, "low1", "low2")
+	assert.ElementsMatch(t, tags, []string{"low1", "low2"})
 	assert.Len(t, sources, 1)
+}
+
+func TestDuplicateSourceTags(t *testing.T) {
+	etags := entityTags{
+		lowCardTags:  make(map[string][]string),
+		highCardTags: make(map[string][]string),
+		cacheValid:   false,
+	}
+	assert.False(t, etags.cacheValid)
+
+	// Get empty tags and make sure cache is now set to valid
+	tags, sources := etags.get(true)
+	assert.Len(t, tags, 0)
+	assert.Len(t, sources, 0)
+	assert.True(t, etags.cacheValid)
+
+	// Mock collector priorities
+	collectors.CollectorPriorities = map[string]collectors.CollectorPriority{
+		"sourceHigh": collectors.HighPriority,
+		"sourceLow":  collectors.LowPriority,
+	}
+
+	// Add tags but don't invalidate the cache, we should return empty arrays
+	etags.lowCardTags["sourceHigh"] = []string{"bar", "tag1:sourceHigh", "tag2:sourceHigh"}
+	etags.lowCardTags["sourceLow"] = []string{"foo", "tag1:sourceLow", "tag2:sourceLow"}
+	etags.highCardTags["sourceLow"] = []string{"tag3:sourceLow", "tag5:sourceLow"}
+	etags.highCardTags["sourceHigh"] = []string{"tag3:sourceHigh", "tag4:sourceHigh"}
+	tags, sources = etags.get(true)
+	assert.Len(t, tags, 0)
+	assert.Len(t, sources, 0)
+	assert.True(t, etags.cacheValid)
+
+	// Invalidate the cache, we should now get the tags
+	etags.cacheValid = false
+	tags, sources = etags.get(true)
+	assert.Len(t, tags, 7)
+	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceHigh", "tag2:sourceHigh", "tag3:sourceHigh", "tag4:sourceHigh", "tag5:sourceLow"})
+	assert.Len(t, sources, 2)
+	assert.True(t, etags.cacheValid)
+	tags, sources = etags.get(false)
+	assert.Len(t, sources, 2)
+	assert.Len(t, tags, 4)
+	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceHigh", "tag2:sourceHigh"})
 }

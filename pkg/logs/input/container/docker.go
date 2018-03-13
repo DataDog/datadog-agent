@@ -139,9 +139,9 @@ func (dt *DockerTailer) tailFrom(from string) error {
 	dt.source.AddInput(dt.ContainerID)
 
 	dt.reader = reader
-	dt.decoder.Start()
 	go dt.keepDockerTagsUpdated()
 	go dt.forwardMessages()
+	dt.decoder.Start()
 	go dt.readForever()
 
 	return nil
@@ -190,10 +190,6 @@ func (dt *DockerTailer) forwardMessages() {
 		dt.done <- struct{}{}
 	}()
 	for output := range dt.decoder.OutputChan {
-		if output.ShouldStop {
-			// the decoder has been stopped, there is no more message to forward
-			return
-		}
 		ts, sev, updatedMsg, err := parser.ParseMessage(output.Content)
 		if err != nil {
 			log.Warn(err)

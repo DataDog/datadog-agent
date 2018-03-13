@@ -12,18 +12,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/common"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	log "github.com/cihub/seelog"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/host"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
-	log "github.com/cihub/seelog"
+	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hosttags"
 )
 
 const packageCachePrefix = "host"
@@ -97,6 +98,13 @@ func getHostTags() *tags {
 		} else {
 			hostTags = append(hostTags, ec2Tags...)
 		}
+	}
+
+	k8sTags, err := k8s.GetTags()
+	if err != nil {
+		log.Debugf("No Kubernetes host tags %v", err)
+	} else {
+		hostTags = append(hostTags, k8sTags...)
 	}
 
 	gceTags, err := gce.GetTags()

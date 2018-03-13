@@ -6,13 +6,14 @@
 package tagger
 
 import (
-	"errors"
+	"fmt"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -80,7 +81,7 @@ func TestInit(t *testing.T) {
 
 	tagger := newTagger()
 	err := tagger.Init(catalog)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.Equal(t, 3, len(tagger.fetchers))
 	assert.Equal(t, 1, len(tagger.streamers))
@@ -113,7 +114,7 @@ func TestFetchAllMiss(t *testing.T) {
 	puller.On("Fetch", "entity_name").Return([]string{"low2"}, []string{}, nil)
 
 	tags, err := tagger.Tag("entity_name", false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	sort.Strings(tags)
 	assert.Equal(t, []string{"low1", "low2"}, tags)
 
@@ -147,9 +148,15 @@ func TestFetchAllCached(t *testing.T) {
 	puller.On("Fetch", "entity_name").Return([]string{"low2"}, []string{}, nil)
 
 	tags, err := tagger.Tag("entity_name", true)
-	assert.Nil(t, err)
-	sort.Strings(tags)
-	assert.Equal(t, []string{"high", "low1", "low2"}, tags)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tags)
+
+	streamer.AssertNotCalled(t, "Fetch", "entity_name")
+	puller.AssertNotCalled(t, "Fetch", "entity_name")
+
+	tags2, err := tagger.Tag("entity_name", false)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2"}, tags2)
 
 	streamer.AssertNotCalled(t, "Fetch", "entity_name")
 	puller.AssertNotCalled(t, "Fetch", "entity_name")
@@ -183,9 +190,8 @@ func TestFetchOneCached(t *testing.T) {
 	fetcher.On("Fetch", "entity_name").Return([]string{"low3"}, []string{}, nil)
 
 	tags, err := tagger.Tag("entity_name", true)
-	assert.Nil(t, err)
-	sort.Strings(tags)
-	assert.Equal(t, []string{"low1", "low2", "low3"}, tags)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2", "low3"}, tags)
 
 	streamer.AssertNotCalled(t, "Fetch", "entity_name")
 	puller.AssertCalled(t, "Fetch", "entity_name")
@@ -214,7 +220,7 @@ func TestEmptyEntity(t *testing.T) {
 func TestRetryCollector(t *testing.T) {
 	c := &DummyCollector{}
 	retryError := &retry.Error{
-		LogicError:    errors.New("testing"),
+		LogicError:    fmt.Errorf("testing"),
 		RessourceName: "testing",
 		RetryStatus:   retry.FailWillRetry,
 	}
@@ -255,7 +261,7 @@ func TestErrNotFound(t *testing.T) {
 	c := &DummyCollector{}
 	c.On("Detect", mock.Anything).Return(collectors.FetchOnlyCollection, nil)
 
-	badErr := errors.New("test failure")
+	badErr := fmt.Errorf("test failure")
 	catalog := collectors.Catalog{
 		"fetcher": func() collectors.Collector { return c },
 	}
@@ -265,18 +271,18 @@ func TestErrNotFound(t *testing.T) {
 	// Result should not be cached
 	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, badErr).Once()
 	_, err := tagger.Tag("invalid", true)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 1)
 
 	// Nil result should be cached now
-	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, collectors.ErrNotFound).Once()
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, errors.NewNotFound("")).Once()
 	_, err = tagger.Tag("invalid", true)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 2)
 
 	// Fetch will not be called again
-	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, collectors.ErrNotFound).Once()
+	c.On("Fetch", mock.Anything).Return([]string{}, []string{}, errors.NewNotFound("")).Once()
 	_, err = tagger.Tag("invalid", true)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 2)
 }

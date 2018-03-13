@@ -42,7 +42,7 @@ func dockerExtractImage(tags *utils.TagList, dockerImage string) {
 	tags.AddLow("docker_image", dockerImage)
 	imageName, shortImage, imageTag, err := docker.SplitImageName(dockerImage)
 	if err != nil {
-		log.Debugf("Error splitting %s: %s", dockerImage, err)
+		log.Debugf("Cannot split %s: %s", dockerImage, err)
 		return
 	}
 	tags.AddLow("image_name", imageName)

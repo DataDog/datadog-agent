@@ -66,7 +66,7 @@ type LogsConfig struct {
 	Service         string
 	Source          string
 	SourceCategory  string
-	Tags            string
+	Tags            []string
 	ProcessingRules []LogsProcessingRule `mapstructure:"log_processing_rules"`
 }
 
@@ -101,6 +101,16 @@ func buildLogSources(ddconfdPath string) (*LogSources, error) {
 		}
 		for _, logSourceConfigIterator := range integrationConfig.Logs {
 			config := logSourceConfigIterator
+
+			// Users can specify tags as comma separated string, or as YAML array. Handle the first case here
+			if len(config.Tags) == 1 {
+				newSlice := []string{}
+				for _, splitted := range strings.Split(config.Tags[0], ",") {
+					newSlice = append(newSlice, strings.TrimSpace(splitted))
+				}
+				config.Tags = newSlice
+			}
+
 			source := NewLogSource(integrationName, &config)
 			sources = append(sources, source)
 			// Mis-configured sources are also tracked to report configuration errors

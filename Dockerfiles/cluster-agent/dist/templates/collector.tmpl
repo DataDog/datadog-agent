@@ -1,0 +1,59 @@
+=========
+Collector
+=========
+
+  Running Checks
+  ==============
+{{- with .RunnerStats }}
+  {{- if and (not .Runs) (not .Checks)}}
+    No checks have run yet
+  {{end -}}
+
+  {{- range .Checks}}
+    {{.CheckName}}
+    {{printDashes .CheckName "-"}}
+      Total Runs: {{.TotalRuns}}
+      Metrics: {{.Metrics}}, Total Metrics: {{humanize .TotalMetrics}}
+      Events: {{.Events}}, Total Events: {{humanize .TotalEvents}}
+      Service Checks: {{.ServiceChecks}}, Total Service Checks: {{humanize .TotalServiceChecks}}
+      {{- if .LastError -}}
+      Error: {{lastErrorMessage .LastError}}
+      {{lastErrorTraceback .LastError -}}
+      {{- end }}
+      {{- if .LastWarnings -}}
+        {{- range .LastWarnings }}
+      Warning: {{.}}
+        {{ end -}}
+      {{- end }}
+  {{ end }}
+{{- end }}
+
+{{- with .AutoConfigStats }}
+  {{- if .ConfigErrors}}
+  Config Errors
+  ==============
+    {{- range $checkname, $error := .ConfigErrors }}
+    {{$checkname}}
+    {{printDashes $checkname "-"}}
+      {{ configError $error }}
+    {{- end }}
+  {{- end}}
+
+  {{- if .LoaderErrors}}
+  Loading Errors
+  ==============
+    {{- range $checkname, $errors := .LoaderErrors }}
+    {{$checkname}}
+    {{printDashes $checkname "-"}}
+      {{- range $kind, $err := $errors -}}
+        {{- if eq $kind "Python Check Loader" }}
+      {{$kind}}:
+        {{ pythonLoaderError $err }}
+        {{ else }}
+      {{$kind}}:
+        {{ doNotEscape $err }}
+        {{ end }}
+      {{- end }}
+    {{- end }}
+  {{- end}}
+{{- end }}

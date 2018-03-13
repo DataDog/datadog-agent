@@ -17,12 +17,10 @@ if [ -z $DD_DD_URL ]; then
     export DD_DD_URL="https://app.datadoghq.com"
 fi
 
-if [[ -z $DD_CMD_PORT ]]; then
-    export DD_CMD_PORT=$DD_CMD_PORT
-fi
+chmod +x /opt/datadog-cluster-agent/bin/datadog-cluster-agent/datadog-cluster-agent
+sync	# Fix for 'Text file busy' error
 
 ##### Starting up #####
-
-export PATH="/opt/datadog-agent/bin/datadog-cluster-agent/:/opt/datadog-agent/bin/:$PATH"
+export PATH="/opt/datadog-cluster-agent/bin/datadog-cluster-agent/:/opt/datadog-cluster-agent/embedded/bin/":$PATH
 
 exec "$@"

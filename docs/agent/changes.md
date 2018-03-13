@@ -12,13 +12,15 @@ open an issue or submit a Pull Request.
 * [GUI](#gui)
 * [CLI](#cli)
 * [Logs](#logs)
-* [Checks](#checks)
 * [APM agent](#apm-agent)
 * [Process agent](#process-agent)
-* [Python Modules](#python-modules)
 * [Docker](#docker-check)
 * [Kubernetes](#kubernetes-support)
 * [Autodiscovery](#autodiscovery)
+* [Python Modules](#python-modules)
+  * [Agent Integrations](#agent-integrations)
+  * [Check API](#check-api)
+  * [Custom Checks](#custom-checks)
 * [JMX](#jmx)
 
 ## Configuration Files
@@ -147,9 +149,9 @@ no need anymore to invoke them through `service` (or `systemctl`). For example, 
 
 There are a few major changes
 * the main executable name is now `agent.exe` (it was `ddagent.exe` previously)
-* Commands should be run with the command line `c:\program files\datadog\datadog-agent\embedded\agent.exe <command>`
+* Commands should be run with the command line `"c:\program files\datadog\datadog agent\embedded\agent.exe" <command>` from an "As Administrator" command prompt.
 * The configuration GUI is now a web-based configuration application, it can be easily accessed by running
-  the command `datadog-agent launch-gui` or using the systray app.
+  the command `"c:\program files\datadog\datadog agent\embedded\agent.exe" launch-gui` or using the systray app.
 * The Windows service is now started "Automatic-Delayed"; it is started automatically on boot, but after
   all other services.  This will result in a small delay in reporting of metrics after a reboot of a 
   Windows device.
@@ -183,66 +185,6 @@ The Agent logs are still located in the `/var/log/datadog/` directory.  On Windo
 
 Prior releases were logging to multiple files in that directory (`collector.log`,
 `forwarder.log`, `dogstatsd.log`, etc). Starting with 6.0 the Agent logs to a single log file, `agent.log`.
-
-## Checks
-
-### Custom check precedence
-
-Starting from version `6.0.0-beta.9` and going forward, the order of precedence between custom
-checks (i.e. checks in the `/etc/datadog-agent/checks.d/` folder by default on Linux) and the checks shipped
-with the Agent by default (i.e. checks from [`integrations-core`][integrations-core]) has changed: the
-`integrations-core` checks now have precedence over custom checks.
-
-This affects your setup if you have custom checks that have the same name as existing `integrations-core`
-checks: these custom checks will now be ignored, and the `integrations-core` checks loaded instead.
-
-To fix your custom check setup with Agent 6, rename your affected custom checks to a new and unused name,
-and rename the related `.yaml` configuration files accordingly.
-
-### `AgentCheck` interface
-
-The base class for python checks remains `AgentCheck`, and you will import it in
-the same way. However, there are a number of things that have been removed or
-changed in the new implementation of the check. In addition, each check instance
-is now its own instance of the class. So you cannot share state between them.
-
-All the official integrations have had these methods removed from them, so these
-will only affect custom checks.
-
-The following methods have been removed from `AgentCheck`:
-
-* `_roll_up_instance_metadata`
-* `instance_count`
-* `is_check_enabled`
-* `read_config`
-* `set_check_version`
-* `set_manifest_path`
-* `_get_statistic_name_from_method`
-* `_collect_internal_stats`
-* `_get_internal_profiling_stats`
-* `_set_internal_profiling_stats`
-* `get_library_versions`
-* `get_library_info`
-* `from_yaml`
-* `get_service_checks`
-* `has_warnings`
-* `get_metrics`
-* `has_events`
-* `get_events`
-
-The following things have been changed:
-
-The function signature of the metric senders changed from:
-
-```python
-gauge(self, metric, value, tags=None, hostname=None, device_name=None, timestamp=None)
-```
-
-to:
-
-```python
-gauge(self, name, value, tags=None, hostname=None, device_name=None)
-```
 
 ## APM agent
 
@@ -379,13 +321,160 @@ in almost anyone's checks. The flare module, for example, was removed and
 reimplemented in Go, but is unlikely to have been used by anyone in a custom check.
 To learn more, you can read about the details in the [development documentation][python-dev].
 
+### Agent Integrations
+
+Even if the new Agent fully supports Python checks, a few of those provided
+by [integrations-core](https://github.com/DataDog/integrations-core) are expected to fail if run within the
+Agent as they are not currently implemented:
+
+* agent_metrics
+* docker_daemon [replaced by a new `docker` check](#docker-check)
+* kubernetes [replaced by new checks](#kubernetes-support)
+
+### Check API
+
+The base class for python checks remains `AgentCheck`, and you will import it in
+the same way. However, there are a number of things that have been removed or
+changed in the class API. In addition, each check instance is now its own instance
+of the class. So you cannot share state between them.
+
+Some methods in the `AgentCheck` class are not currently implemented. These include:
+
+* `service_metadata`
+* `get_service_metadata`
+* `generate_historate_func`
+* `generate_histogram_func`
+* `stop`
+
+The function signature of the metric senders changed from:
+
+```python
+gauge(self, metric, value, tags=None, hostname=None, device_name=None, timestamp=None)
+```
+
+to:
+
+```python
+gauge(self, name, value, tags=None, hostname=None, device_name=None)
+```
+
+The following methods have been permanently removed from `AgentCheck`:
+
+* `_roll_up_instance_metadata`
+* `instance_count`
+* `is_check_enabled`
+* `read_config`
+* `set_check_version`
+* `set_manifest_path`
+* `_get_statistic_name_from_method`
+* `_collect_internal_stats`
+* `_get_internal_profiling_stats`
+* `_set_internal_profiling_stats`
+* `get_library_versions`
+* `get_library_info`
+* `from_yaml`
+* `get_service_checks`
+* `has_warnings`
+* `get_metrics`
+* `has_events`
+* `get_events`
+
+All the official integrations have had these methods removed from them, so these
+will only affect custom checks.
+
+### Custom Checks
+
+#### Precedence
+
+With Agent 6, the order of precedence between custom
+checks (i.e. checks in the `/etc/datadog-agent/checks.d/` folder by default on Linux) and the checks shipped
+with the Agent by default (i.e. checks from [`integrations-core`][integrations-core]) has changed: the
+`integrations-core` checks now have precedence over custom checks.
+
+This affects your setup if you have custom checks that have the same name as existing `integrations-core`
+checks: these custom checks will now be ignored, and the `integrations-core` checks loaded instead.
+
+To fix your custom check setup with Agent 6, rename your affected custom checks to a new and unused name,
+and rename the related `.yaml` configuration files accordingly.
+
+#### Dependencies
+
+If you happen to use custom checks, there's a chance your code depends on py code
+that was bundled with agent5 that may not longer be available in the with the new
+Agent 6 package. This is a list of packages no longer bundled with the Agent:
+
+- backports.ssl-match-hostname
+- datadog
+- decorator
+- future
+- futures
+- google-apputils
+- pycurl
+- pyOpenSSL
+- python-consul
+- python-dateutil
+- python-etcd
+- python-gflags
+- pytz
+- PyYAML
+- rancher-metadata
+- tornado
+- uptime
+- websocket-client
+
+If your code depends on any of those packages, it'll break. You can fix that
+by running the following:
+
+```bash
+sudo -u dd-agent -- /opt/datadog-agent/embedded/bin/pip install <dependency>
+```
+
+Similarly, you may have added a pip package to meet a requirement for a custom
+check while on Agent 5. If the added pip package had inner dependencies with
+packages already bundled with Agent 5 (see list above), those dependencies will
+be missing after the upgrade to Agent 6 and your custom checks will break.
+You will have to install the missing dependencies manually as described above.
+
 ## JMX
 
-The Agent 6 ships JMXFetch and supports all of its features, except those that
-are listed in the _Known Issues_ section of the [beta docs](../beta.md).
+The Agent 6 ships JMXFetch and supports all of its features, except those listed below.
 
 The Agent 6 does not ship the `jmxterm` JAR. If you wish to download and use `jmxterm`, please refer to the [upstream project](https://github.com/jiaqi/jmxterm).
 
+We still don't have a full featured interface to JMXFetch, so for now you may
+have to run some commands manually to debug the list of beans collected, JVMs,
+etc. A typical manual call will take the following form:
+
+```shell
+/usr/bin/java -Xmx200m -Xms50m -classpath /usr/lib/jvm/java-8-oracle/lib/tools.jar:/opt/datadog-agent/bin/agent/dist/jmx/jmxfetch-0.18.2-jar-with-dependencies.jar org.datadog.jmxfetch.App --check <check list> --conf_directory /etc/datadog-agent/conf.d --log_level INFO --log_location /var/log/datadog/jmxfetch.log --reporter console <command>
+```
+
+where `<command>` can be any of:
+- `list_everything`
+- `list_collected_attributes`
+- `list_matching_attributes`
+- `list_not_matching_attributes`
+- `list_limited_attributes`
+- `list_jvms`
+
+and `<check list>` corresponds to a list of valid `yaml` configurations in
+`/etc/datadog-agent/conf.d/`. For instance:
+- `cassandra.d/conf.yaml`
+- `kafka.d/conf.yaml`
+- `jmx.d/conf.yaml`
+- ...
+
+Example:
+```
+/usr/bin/java -Xmx200m -Xms50m -classpath /usr/lib/jvm/java-8-oracle/lib/tools.jar:/opt/datadog-agent/bin/agent/dist/jmx/jmxfetch-0.18.2-jar-with-dependencies.jar org.datadog.jmxfetch.App --check cassandra.d/conf.yaml jmx.d/conf.yaml --conf_directory /etc/datadog-agent/conf.d --log_level INFO --log_location /var/log/datadog/jmxfetch.log --reporter console list_everything
+```
+
+Note: the location to the JRE tools.jar (`/usr/lib/jvm/java-8-oracle/lib/tools.jar`
+in the example) might reside elsewhere in your system. You should be able to easily
+find it with `sudo find / -type f -name 'tools.jar'`.
+
+Note: you may wish to specify alternative JVM heap parameters `-Xmx`, `-Xms`, the
+values used in the example correspond to the JMXFetch defaults.
 
 
 [known-issues]: known_issues.md

@@ -93,6 +93,7 @@ func (jq *jobQueue) waitForTick(out chan<- check.Check) bool {
 			select {
 			case <-jq.stop:
 				jq.ticker.Stop()
+				jq.health.Deregister()
 				jq.mu.RUnlock()
 				return false
 			case out <- check:

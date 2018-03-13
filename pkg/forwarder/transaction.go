@@ -31,9 +31,8 @@ type HTTPTransaction struct {
 	// ErrorCount is the number of times this HTTPTransaction failed to be processed.
 	ErrorCount int
 
-	apiKeyStatusKey string
-	nextFlush       time.Time
-	createdAt       time.Time
+	nextFlush time.Time
+	createdAt time.Time
 }
 
 const (
@@ -106,26 +105,18 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	if resp.StatusCode == 400 || resp.StatusCode == 404 || resp.StatusCode == 413 {
 		log.Errorf("Error code %q received while sending transaction to %q: %s, dropping it", resp.Status, logURL, string(body))
 		transactionsExpvar.Add("Dropped", 1)
-		if apiKeyStatus.Get(t.apiKeyStatusKey) == nil {
-			apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyStatusUnknown)
-		}
 		return nil
 	} else if resp.StatusCode == 403 {
 		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
 		transactionsExpvar.Add("Dropped", 1)
-		apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyInvalid)
 		return nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
 		transactionsExpvar.Add("Errors", 1)
-		if apiKeyStatus.Get(t.apiKeyStatusKey) == nil {
-			apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyStatusUnknown)
-		}
 		return fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
 
 	successfulTransactions.Add(1)
-	apiKeyStatus.Set(t.apiKeyStatusKey, &apiKeyValid)
 
 	loggingFrequency := config.Datadog.GetInt64("logging_frequency")
 

@@ -6,12 +6,13 @@
 package tagger
 
 import (
-	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
@@ -217,7 +218,7 @@ func (t *Tagger) Stop() error {
 // cardinality tags are left out.
 func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
 	if entity == "" {
-		return nil, errors.New("empty entity ID")
+		return nil, fmt.Errorf("empty entity ID")
 	}
 	cachedTags, sources := t.tagStore.lookup(entity, highCard)
 
@@ -240,8 +241,8 @@ ITER_COLLECTORS:
 		log.Debugf("cache miss for %s, collecting tags for %s", name, entity)
 		low, high, err := collector.Fetch(entity)
 		switch {
-		case err == collectors.ErrNotFound:
-			log.Debugf("entity %s not found in %s, skipping", entity, name)
+		case errors.IsNotFound(err):
+			log.Debugf("entity %s not found in %s, skipping: %v", entity, name, err)
 		case err != nil:
 			log.Warnf("error collecting from %s: %s", name, err)
 			continue // don't store empty tags, retry next time

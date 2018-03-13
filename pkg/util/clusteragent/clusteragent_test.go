@@ -13,7 +13,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -315,7 +315,7 @@ func TestClusterAgentSuite(t *testing.T) {
 
 	s := &clusterAgentSuite{}
 	config.Datadog.SetConfigFile(f.Name())
-	s.authTokenPath = path.Join(fakeDir, clusterAgentAuthTokenFilename)
+	s.authTokenPath = filepath.Join(fakeDir, clusterAgentAuthTokenFilename)
 	_, err = os.Stat(s.authTokenPath)
 	require.NotNil(t, err, fmt.Sprintf("%v", err))
 	defer os.Remove(s.authTokenPath)

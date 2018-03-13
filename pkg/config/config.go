@@ -61,6 +61,11 @@ func init() {
 	Datadog.SetEnvPrefix("DD")
 	Datadog.SetTypeByDefaultValue(true)
 
+	// Replace '.' from config keys with '_' in env variables bindings.
+	// e.g. : BindEnv("foo.bar") will bind config key
+	// "foo.bar" to env variable "FOO_BAR"
+	Datadog.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
 	// Configuration defaults
 	// Agent
 	Datadog.SetDefault("dd_url", "https://app.datadoghq.com")
@@ -86,6 +91,7 @@ func init() {
 	Datadog.SetDefault("syslog_pem", "")
 	Datadog.SetDefault("cmd_host", "localhost")
 	Datadog.SetDefault("cmd_port", 5001)
+	Datadog.SetDefault("clusteragent_cmd_port", 5005)
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("enable_gohai", true)
@@ -154,6 +160,7 @@ func init() {
 	Datadog.SetDefault("docker_labels_as_tags", map[string]string{})
 	Datadog.SetDefault("docker_env_as_tags", map[string]string{})
 	Datadog.SetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
+	Datadog.SetDefault("kubernetes_node_labels_as_tags", map[string]string{})
 
 	// Kubernetes
 	Datadog.SetDefault("kubernetes_http_kubelet_port", 10255)
@@ -201,17 +208,15 @@ func init() {
 	BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
 	BindEnvAndSetDefault("logset", "")
 
-	Datadog.SetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")
-	Datadog.BindEnv("logs_config.dd_url", "DD_LOGS_CONFIG_DD_URL")
-
-	Datadog.SetDefault("logs_config.dd_port", 10516)
-	Datadog.BindEnv("logs_config.dd_port", "DD_LOGS_CONFIG_DD_PORT")
-
-	Datadog.SetDefault("logs_config.dev_mode_use_proto", false)
-	Datadog.BindEnv("logs_config.dev_mode_use_proto", "DD_LOGS_CONFIG_DEV_MODE_USE_PROTO")
-
+	BindEnvAndSetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")
+	BindEnvAndSetDefault("logs_config.dd_port", 10516)
+	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", false)
 	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
+
+	// Tagger full cardinality mode
+	// Undocumented opt-in feature for now
+	BindEnvAndSetDefault("full_cardinality_tagging", false)
 
 	// ENV vars bindings
 	Datadog.BindEnv("api_key")
@@ -247,10 +252,12 @@ func init() {
 	Datadog.BindEnv("docker_labels_as_tags")
 	Datadog.BindEnv("docker_env_as_tags")
 	Datadog.BindEnv("kubernetes_pod_labels_as_tags")
+	Datadog.BindEnv("kubernetes_node_labels_as_tags")
 	Datadog.BindEnv("ac_include")
 	Datadog.BindEnv("ac_exclude")
 
 	Datadog.BindEnv("cluster_agent.auth_token")
+	Datadog.BindEnv("clusteragent_cmd_port")
 
 	Datadog.BindEnv("forwarder_timeout")
 	Datadog.BindEnv("forwarder_retry_queue_max_size")
@@ -281,6 +288,12 @@ func GetMultipleEndpoints() (map[string][]string, error) {
 	return getMultipleEndpoints(Datadog)
 }
 
+// getDomainPrefix provides the right prefix for agent X.Y.Z
+func getDomainPrefix(app string) string {
+	v, _ := version.New(version.AgentVersion, version.Commit)
+	return fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
+}
+
 // addAgentVersionToDomain prefix the domain with the agent version: X-Y-Z.domain
 func addAgentVersionToDomain(domain string, app string) (string, error) {
 	u, err := url.Parse(domain)
@@ -293,9 +306,8 @@ func addAgentVersionToDomain(domain string, app string) (string, error) {
 		return domain, nil
 	}
 
-	v, _ := version.New(version.AgentVersion, version.Commit)
 	subdomain := strings.Split(u.Host, ".")[0]
-	newSubdomain := fmt.Sprintf("%d-%d-%d-%s.agent", v.Major, v.Minor, v.Patch, app)
+	newSubdomain := getDomainPrefix(app)
 
 	u.Host = strings.Replace(u.Host, subdomain, newSubdomain, 1)
 	return u.String(), nil
