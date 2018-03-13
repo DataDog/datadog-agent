@@ -441,7 +441,7 @@ deploy_suse_rpm_testing:
 testkitchen_testing:
   stage: testkitchen_testing
   allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:pipeline-189121
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
     - tags
@@ -484,7 +484,7 @@ testkitchen_cleanup_s3:
 # run dd-agent-testing
 testkitchen_cleanup_azure:
   stage: testkitchen_cleanup
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:pipeline-189121
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
     - tags
