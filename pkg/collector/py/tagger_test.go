@@ -11,9 +11,11 @@ package py
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
@@ -26,7 +28,7 @@ func (c *DummyCollector) Detect(out chan<- []*collectors.TagInfo) (collectors.Co
 }
 func (c *DummyCollector) Fetch(entity string) ([]string, []string, error) {
 	if entity == "404" {
-		return nil, nil, collectors.ErrNotFound
+		return nil, nil, errors.NewNotFound(entity)
 	} else {
 		return []string{entity + ":low"}, []string{entity + ":high", "other_tag:high"}, nil
 	}
@@ -46,7 +48,7 @@ func TestGetTags(t *testing.T) {
 	require.Equal(t, low, []string{"test_entity:low"})
 	high, err := tagger.Tag("test_entity", true)
 	require.NoError(t, err)
-	require.Equal(t, high, []string{"test_entity:low", "test_entity:high", "other_tag:high"})
+	assert.ElementsMatch(t, high, []string{"test_entity:low", "test_entity:high", "other_tag:high"})
 
 	check, _ := getCheckInstance("testtagger", "TestCheck")
 	mockSender := mocksender.NewMockSender(check.ID())

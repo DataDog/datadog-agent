@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -206,7 +206,7 @@ func init() {
 
 func getProcessAgentDefaultBinPath() (string, error) {
 	here, _ := executable.Folder()
-	binPath := path.Join(here, "..", "..", "embedded", "bin", "process-agent")
+	binPath := filepath.Join(here, "..", "..", "embedded", "bin", "process-agent")
 	if _, err := os.Stat(binPath); err == nil {
 		return binPath, nil
 	}

@@ -2,12 +2,12 @@ package tagger
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 )
 
 // entityTags holds the tag information for a given entity
@@ -118,6 +118,12 @@ func (s *tagStore) lookup(entity string, highCard bool) ([]string, []string) {
 	return storedTags.get(highCard)
 }
 
+type tagPriority struct {
+	tag        string                       // full tag
+	priority   collectors.CollectorPriority // collector priority
+	isHighCard bool                         // is the tag high cardinality
+}
+
 func (e *entityTags) get(highCard bool) ([]string, []string) {
 	e.RLock()
 
@@ -131,19 +137,41 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 	}
 
 	// Cache miss
-	var arrays [][]string
 	var sources []string
-	lowCardCount := 0
+	tagPrioMapper := make(map[string][]tagPriority)
 
 	for source, tags := range e.lowCardTags {
-		arrays = append(arrays, tags)
-		lowCardCount += len(tags)
 		sources = append(sources, source)
+		insertWithPriority(tagPrioMapper, tags, source, false)
 	}
-	for _, tags := range e.highCardTags {
-		arrays = append(arrays, tags)
+
+	for source, tags := range e.highCardTags {
+		insertWithPriority(tagPrioMapper, tags, source, true)
 	}
-	tags := utils.ConcatenateTags(arrays)
+
+	lowCardTags := []string{}
+	highCardTags := []string{}
+	for _, tags := range tagPrioMapper {
+		for i := 0; i < len(tags); i++ {
+			insert := true
+			for j := 0; j < len(tags); j++ {
+				// if we find a duplicate tag with higher priority we do not insert the tag
+				if i != j && tags[i].priority < tags[j].priority {
+					insert = false
+					break
+				}
+			}
+			if insert {
+				if tags[i].isHighCard {
+					highCardTags = append(highCardTags, tags[i].tag)
+				} else {
+					lowCardTags = append(lowCardTags, tags[i].tag)
+				}
+			}
+		}
+	}
+
+	tags := append(lowCardTags, highCardTags...)
 
 	// Write cache
 	e.RUnlock()
@@ -151,11 +179,28 @@ func (e *entityTags) get(highCard bool) ([]string, []string) {
 	e.cacheValid = true
 	e.cachedSource = sources
 	e.cachedAll = tags
-	e.cachedLow = e.cachedAll[:lowCardCount]
+	e.cachedLow = e.cachedAll[:len(lowCardTags)]
 	e.Unlock()
 
 	if highCard {
 		return tags, sources
 	}
-	return tags[:lowCardCount], sources
+	return lowCardTags, sources
+}
+
+func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, source string, isHighCard bool) {
+	priority, found := collectors.CollectorPriorities[source]
+	if !found {
+		log.Warnf("Tagger: %s collector has no defined priority, assuming low", source)
+		priority = collectors.LowPriority
+	}
+
+	for _, t := range tags {
+		tagName := strings.Split(t, ":")[0]
+		tagPrioMapper[tagName] = append(tagPrioMapper[tagName], tagPriority{
+			tag:        t,
+			priority:   priority,
+			isHighCard: isHighCard,
+		})
+	}
 }

@@ -191,11 +191,15 @@ func (l *DockerListener) createService(cID ID) {
 	var svc Service
 
 	// Detect whether that container is managed by Kubernetes
+	var isKube bool
 	cInspect, err := l.dockerUtil.Inspect(string(cID), false)
 	if err != nil {
 		log.Errorf("Failed to inspect container %s - %s", cID[:12], err)
+	} else if findKubernetesInLabels(cInspect.Config.Labels) {
+		isKube = true
 	}
-	if findKubernetesInLabels(cInspect.Config.Labels) {
+
+	if isKube {
 		svc = &DockerKubeletService{
 			DockerService: DockerService{
 				ID: cID,
@@ -438,7 +442,7 @@ func parseDockerPort(port nat.Port) ([]int, error) {
 // GetTags retrieves tags using the Tagger
 func (s *DockerService) GetTags() ([]string, error) {
 	entity := docker.ContainerIDToEntityName(string(s.ID))
-	tags, err := tagger.Tag(entity, false)
+	tags, err := tagger.Tag(entity, tagger.IsFullCardinality())
 	if err != nil {
 		return []string{}, err
 	}

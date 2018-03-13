@@ -2,6 +2,16 @@
                                 Helpers
 *************************************************************************/
 
+// Add endsWith support to browsers (IE most notably) that may not
+if (!String.prototype.endsWith) {
+	String.prototype.endsWith = function(search, this_len) {
+		if (this_len === undefined || this_len > this.length) {
+			this_len = this.length;
+		}
+		return this.substring(this_len - search.length, this_len) === search;
+	};
+}
+
 // Attempts to fetch the API key from the browsers cookies
 function getAuthToken() {
   var cookies = document.cookie.split(';');

@@ -35,8 +35,11 @@ class PDHBaseCheck(AgentCheck):
 
                 cfg_tags = instance.get('tags')
                 if cfg_tags is not None:
-                    tags = ",".join(cfg_tags)
-                    self._tags[key] = list(tags) if tags else []
+                    if not isinstance(cfg_tags, list):
+                        self.log.error("Tags must be configured as a list")
+                        raise ValueError("Tags must be type list, not %s" % str(type(cfg_tags)))
+                    self._tags[key] = list(cfg_tags)
+
                 remote_machine = None
                 host = instance.get('host')
                 self._metrics[key] = []
@@ -93,7 +96,7 @@ class PDHBaseCheck(AgentCheck):
                 for instance_name, val in vals.iteritems():
                     tags = []
                     if key in self._tags:
-                        tags = self._tags[key]
+                        tags = list(self._tags[key])
 
                     if not counter.is_single_instance():
                         tag = "instance:%s" % instance_name

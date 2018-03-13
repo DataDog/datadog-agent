@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
+	log "github.com/cihub/seelog"
 	"github.com/mholt/archiver"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -82,50 +83,52 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		// Only zip it up if the agent is running
 		err = zipStatusFile(tempDir, hostname)
 		if err != nil {
-			return "", err
+			log.Errorf("Could not zip status: %s", err)
 		}
-	}
-
-	err = zipLogFiles(tempDir, hostname, logFilePath)
-	if err != nil {
-		return "", err
 	}
 
 	err = zipConfigFiles(tempDir, hostname, confSearchPaths)
 	if err != nil {
-		return "", err
+		log.Errorf("Could not zip config: %s", err)
 	}
 
 	err = zipExpVar(tempDir, hostname)
 	if err != nil {
-		return "", err
+		log.Errorf("Could not zip exp var: %s", err)
 	}
 
 	err = zipDiagnose(tempDir, hostname)
 	if err != nil {
-		return "", err
+		log.Errorf("Could not zip diagnose: %s", err)
 	}
 
 	err = zipEnvvars(tempDir, hostname)
 	if err != nil {
-		return "", err
+		log.Errorf("Could not zip env vars: %s", err)
 	}
 
 	err = zipConfigCheck(tempDir, hostname)
 	if err != nil {
-		return "", err
+		log.Errorf("Could not zip config check: %s", err)
 	}
 
 	err = zipHealth(tempDir, hostname)
 	if err != nil {
-		return "", err
+		log.Errorf("Could not zip health check: %s", err)
 	}
 
 	if config.IsContainerized() {
 		err = zipDockerSelfInspect(tempDir, hostname)
 		if err != nil {
-			return "", err
+			log.Errorf("Could not zip docker inspect: %s", err)
 		}
+	}
+
+	// force a log flush before zipping them
+	log.Flush()
+	err = zipLogFiles(tempDir, hostname, logFilePath)
+	if err != nil {
+		log.Errorf("Could not zip logs: %s", err)
 	}
 
 	err = archiver.Zip.Make(zipFilePath, []string{filepath.Join(tempDir, hostname)})

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Set a default config for vanilla Docker
+# Set a fallback empty config with no AD
 # Don't override /etc/datadog-agent/datadog.yaml if it exists
 
 if [[ ! -e /etc/datadog-agent/datadog.yaml ]]; then
-    ln -s /etc/datadog-agent/datadog-docker.yaml /etc/datadog-agent/datadog.yaml
+    touch  /etc/datadog-agent/datadog.yaml
 fi

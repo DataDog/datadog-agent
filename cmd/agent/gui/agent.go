@@ -49,7 +49,6 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json, _ := json.Marshal(status)
-
 	html, e := renderStatus(json, statusType)
 	if e != nil {
 		w.Write([]byte("Error generating status html: " + e.Error()))

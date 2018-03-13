@@ -2,6 +2,79 @@
 Release Notes
 =============
 
+6.0.3
+=====
+
+Prelude
+-------
+
+- This release also includes bugfixes to the process agent. See diff_.
+
+  .. _diff: https://github.com/DataDog/datadog-process-agent/compare/5.23.1...6.0.3
+
+Bug Fixes
+---------
+
+- Fixed the issue preventing from having docker tags when collecting logs from containers.
+- Fix docker metrics collection on Moby Linux hosts (default Swarm AMI)
+
+
+6.0.2
+=====
+
+Critical Issues
+---------------
+
+- Packaging issue in 6.0.1 resulted in the release of nightly builds for trace-agent and process-agent. 6.0.2 ships the stable intended versions. 
+
+
+6.0.1
+=====
+
+Enhancements
+------------
+
+- Add information about Log Agent checks to the GUI General Status page.
+
+
+Bug Fixes
+---------
+
+- Run the service mapper on all the agents running the apiserver check. Exit before running the rest of the check if the agent is not the leader.
+
+- Fixing docker network metrics collection for the docker check and the process agent on some network configurations.
+
+- Replaces the system.mem.free metric with gopsutil's 'available' and splits the windows and linux memory checks. Previously this reported with a value of 0 and `system.mem.used` was reporting the same as `system.mem.total`
+
+- ".pdh" suffix was added to `system.io` metrics on windows for side-by-side 
+  testing when changed the collection mechanism, and inadvertently left.
+
+- Fix bug where global tags for PDH based python checks are not read
+  correctly from the configuration yaml.
+
+- IE does not support String.prototype.endsWith, add implementation to the
+  string prototype to enable the functionality.
+
+- remove `.pdh` suffix from system.io.wkb_s, system.io_w_s, system.io.rkb_s, 
+  system.io.r_s, system.io.avg_q_sz
+
+- Fix GUI for JMX checks, they are now manageable from the web UI.
+
+- Fix the launch of JMXFetch on windows and make multiplatform treatment of
+  the launch more robust.
+
+
+6.0.0
+=====
+
+Bug Fixes
+---------
+
+- Fixes bug in agent hostname command, whereby the configuration library
+  wasn't initialized.  This caused `agent hostname` to use the default
+  computed hostname, rather than the entry in the configuration file
+
+
 6.0.0-rc.4
 ==========
 
@@ -16,6 +89,10 @@ Enhancements
 
 Bug Fixes
 ---------
+
+- Process agent service should pass the configuration file argument to the
+  executable when launching - otherwise service will always come up on 
+  reboots.
 
 - Add the windows icon to the Infrastructure List for Agents installed on Windows machines.
 

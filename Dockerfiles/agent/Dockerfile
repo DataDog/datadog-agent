@@ -34,9 +34,7 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
 
 # Configuration:
 #   - copy default config files
-#   - enable docker check by default
 COPY datadog*.yaml etc/datadog-agent/
-RUN mv etc/datadog-agent/conf.d/docker.d/conf.yaml.example etc/datadog-agent/conf.d/docker.d/conf.yaml.default
 
 
 ####################################
@@ -84,10 +82,13 @@ COPY probe.sh initlog.sh /
 COPY init-stage3 /etc/s6/init/init-stage3
 
 # Prepare for running without root
-RUN adduser --group dd-agent \
- && adduser --system --no-create-home --disabled-password --ingroup dd-agent dd-agent \
- && chown -R dd-agent:dd-agent /etc/datadog-agent/ \
- && chown dd-agent:dd-agent /var/log/datadog/ \
+# - Create a dd-agent:root user and give it permissions on relevant folders
+# - Remove the /var/run -> /run symlink and create a legit /var/run folder
+# as some docker versions re-create /run from zero at container start
+RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
+ && rm /var/run && mkdir -p /var/run/s6 \
+ && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
+ && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod 755 /probe.sh /initlog.sh
 
 # Expose DogStatsD and trace-agent ports

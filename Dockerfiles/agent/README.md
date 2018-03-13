@@ -54,6 +54,11 @@ We automatically collect common tags from [Docker](https://github.com/DataDog/da
 
 You can either define them in your custom `datadog.yaml`, or set them as JSON maps in these envvars. The map key is the source (label/envvar) name, and the map value the datadog tag name.
 
+```shell
+DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app":"kube_app","release":"helm_release"}'
+DD_DOCKER_LABELS_AS_TAGS='{"com.docker.compose.service":"service_name"}'
+```
+
 #### Ignore containers
 
 You can exclude containers from the metrics collection and autodiscovery, if these are not useful for you. We already exclude Kubernetes and OpenShift `pause` containers by default. See the `datadog.yaml.example` file for more documentation, and examples.
@@ -61,11 +66,6 @@ You can exclude containers from the metrics collection and autodiscovery, if the
 - `DD_AC_EXCLUDE`: blacklist of containers to exclude
 
 Please note that the `docker.containers.running`, `.stopped`, `.running.total` and `.stopped.total` metrics are not affected by these settings and always count all containers. This does not affect your per-container billing.
-
-```shell
-DD_KUBERNETES_POD_LABELS_AS_TAGS='{"app":"kube_app","release":"helm_release"}'
-DD_DOCKER_LABELS_AS_TAGS='{"com.docker.compose.service":"service_name"}'
-```
 
 #### Kubernetes integration
 
@@ -151,6 +151,10 @@ You will need to allow the agent to be allowed to perform a few actions:
 
 You can find the templates in manifests/rbac [here](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/manifests/rbac).
 This will create the Service Account in the default namespace, a Cluster Role with the above rights and the Cluster Role Binding.
+
+### Node label collection
+
+The agent can collect node labels from the APIserver and report them as host tags. This feature is disabled by default, as it is usually redundant with cloud provider host tags. If you need to do so, you can provide a node label -> host tag mapping in the `DD_KUBERNETES_NODE_LABELS_AS_TAGS` environment variable. The format is the inline JSON described in the [tagging section](#Tagging).
 
 ## Log collection
 

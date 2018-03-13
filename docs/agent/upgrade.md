@@ -1,5 +1,7 @@
 # Upgrade to Agent 6
 
+** Important ** Datadog Agent 6.0.0 has officially been released. Please utilize the in-application [install instructions](https://app.datadoghq.com/account/settings#agent) for our pre packaged binaries. 
+
 * [Linux](#linux)
 * [Windows](#windows)
 * [MacOS](#macos)
@@ -51,7 +53,7 @@ sudo apt-get install apt-transport-https
 
 ```shell
 echo 'deb https://apt.datadoghq.com/ beta main' | sudo tee /etc/apt/sources.list.d/datadog-beta.list
-sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 C7A7DA52
+sudo apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 382E94DE
 ```
 
 ##### Update Apt and Install the agent

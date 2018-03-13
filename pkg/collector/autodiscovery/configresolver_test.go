@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build docker
-
 package autodiscovery
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -44,7 +44,7 @@ func TestResolveTemplate(t *testing.T) {
 	res := cr.ResolveTemplate(tpl)
 	assert.Len(t, res, 0)
 
-	service := listeners.DockerService{
+	service := dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 	}
@@ -96,6 +96,12 @@ func TestGetFallbackHost(t *testing.T) {
 }
 
 func TestResolve(t *testing.T) {
+	// Prepare envvars for test
+	err := os.Setenv("test_envvar_key", "test_value")
+	require.NoError(t, err)
+	os.Unsetenv("test_envvar_not_set")
+	defer os.Unsetenv("test_envvar_key")
+
 	testCases := []struct {
 		testName    string
 		tpl         check.Config
@@ -106,7 +112,7 @@ func TestResolve(t *testing.T) {
 		//// %%host%% tag testing
 		{
 			testName: "simple %%host%% with bridge fallback",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{"bridge": "127.0.0.1"},
@@ -124,7 +130,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			testName: "simple %%host%% with non-bridge fallback",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{"custom": "127.0.0.2"},
@@ -142,7 +148,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			testName: "%%host_custom%% with two custom networks",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{"custom": "127.0.0.2", "other": "127.0.0.3"},
@@ -160,7 +166,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			testName: "%%host_custom_net%% for docker compose support",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{"other": "127.0.0.2", "custom_net": "127.0.0.3"},
@@ -178,7 +184,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			testName: "%%host_custom%% with invalid name, default to fallbackHost",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{"other": "127.0.0.3"},
@@ -196,7 +202,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			testName: "%%host%% with no host in service, error",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Hosts:         map[string]string{},
@@ -211,7 +217,7 @@ func TestResolve(t *testing.T) {
 		//// %%port%% tag testing
 		{
 			testName: "simple %%port%%, pick last",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Ports:         []int{1, 2, 3},
@@ -229,7 +235,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			testName: "%%port_0%%, pick first",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Ports:         []int{1, 2, 3},
@@ -247,7 +253,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			testName: "%%port_4%% too high, error",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Ports:         []int{1, 2, 3},
@@ -261,7 +267,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			testName: "%%port_A%% not int, error",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Ports:         []int{1, 2, 3},
@@ -275,7 +281,7 @@ func TestResolve(t *testing.T) {
 		},
 		{
 			testName: "%%port%% but no port in service, error",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Ports:         []int{},
@@ -287,10 +293,56 @@ func TestResolve(t *testing.T) {
 			},
 			errorString: "no port found for container a5901276aed1 - ignoring it",
 		},
+		//// envvars
+		{
+			testName: "simple %%env_test_envvar_key%%",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: check.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []check.ConfigData{check.ConfigData("test: %%env_test_envvar_key%%")},
+			},
+			out: check.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []check.ConfigData{check.ConfigData("test: test_value")},
+			},
+		},
+		{
+			testName: "not found %%env_test_envvar_not_set%%",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: check.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []check.ConfigData{check.ConfigData("test: %%env_test_envvar_not_set%%")},
+			},
+			errorString: "failed to retrieve envvar test_envvar_not_set, skipping service a5901276aed1"},
+		{
+			testName: "invalid %%env%%",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: check.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []check.ConfigData{check.ConfigData("test: %%env%%")},
+			},
+			errorString: "envvar name is missing, skipping service a5901276aed1",
+		},
 		//// other tags testing
 		{
 			testName: "simple %%pid%%",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 				Pid:           1337,
@@ -309,7 +361,7 @@ func TestResolve(t *testing.T) {
 		//// unknown tag
 		{
 			testName: "invalid %%FOO%% tag",
-			svc: &listeners.DockerService{
+			svc: &dummyService{
 				ID:            "a5901276aed1",
 				ADIdentifiers: []string{"redis"},
 			},

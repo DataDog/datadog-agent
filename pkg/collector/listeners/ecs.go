@@ -163,7 +163,7 @@ func (l *ECSListener) createService(c ecs.Container) (ECSService, error) {
 
 	// Tags
 	entity := docker.ContainerIDToEntityName(string(c.DockerID))
-	tags, err := tagger.Tag(entity, false)
+	tags, err := tagger.Tag(entity, tagger.IsFullCardinality())
 	if err != nil {
 		log.Errorf("Failed to extract tags for container %s - %s", cID[:12], err)
 	}
