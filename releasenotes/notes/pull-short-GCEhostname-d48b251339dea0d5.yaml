@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Change GCE hostname logic to pull short hostname from GCE metadata to conform with similiar Agent 5 behavior 
