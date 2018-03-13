@@ -18,6 +18,7 @@ environment:
   GETTEXT-URL: http://ftp.gnome.org/pub/gnome/binaries/win64/dependencies/gettext-runtime_0.18.1.1-2_win64.zip
 
 install:
+  - set PATH=%GOPATH%\bin;C:\%GOPATH%\bin;%RUBY_PATH%\bin;%RI_DEVKIT%bin;%RI_DEVKIT%mingw\bin;c:\python27-x64;c:\python27-x64\scripts;%PATH%
   - mkdir c:\deps
   - cd c:\deps
   - curl -fsS -o glib.zip %GLIB-URL%
