@@ -1,0 +1,3 @@
+---
+features:
+  - Add option to extract kubernetes pod annotations as tags, similar to labels

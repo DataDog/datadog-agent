@@ -43,6 +43,13 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 			}
 		}
 
+		// Pod annotations
+		for labelName, labelValue := range pod.Metadata.Annotations {
+			if tagName, found := c.annotationsAsTags[strings.ToLower(labelName)]; found {
+				tags.AddAuto(tagName, labelValue)
+			}
+		}
+
 		// OpenShift pod annotations
 		if dc_name, found := pod.Metadata.Annotations["openshift.io/deployment-config.name"]; found {
 			tags.AddLow("oshift_deployment_config", dc_name)

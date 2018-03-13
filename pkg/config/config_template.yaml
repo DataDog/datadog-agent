@@ -323,12 +323,17 @@ api_key:
 {{- if .KubernetesTagging }}
 # Kubernetes tag extraction
 #
-# We can extract pod labels as metric tags. If you prefix your
+# We can extract pod labels and annotations as metric tags. If you prefix your
 # tag name with +, it will only be added to high cardinality metrics
 #
 # kubernetes_pod_labels_as_tags:
 #   app:               kube_app
 #   pod-template-hash: +kube_pod-template-hash
+#
+# kubernetes_pod_annotations_as_tags:
+#   app:               kube_app
+#   pod-template-hash: +kube_pod-template-hash
+#
 {{ end -}}
 {{- if .ECS }}
 # ECS integration
