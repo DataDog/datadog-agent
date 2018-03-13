@@ -61,7 +61,7 @@ func FromAgentConfig(agentConfig Config) error {
 	// TODO: exclude_process_args
 
 	histogramAggregates := buildHistogramAggregates(agentConfig)
-	if histogramAggrates != nil && len(histogramAggregates) != 0 {
+	if histogramAggregates != nil && len(histogramAggregates) != 0 {
 		config.Datadog.Set("histogram_aggregates", histogramAggregates)
 	}
 
