@@ -134,6 +134,7 @@ func getClusterAgentEndpoint() (string, error) {
 	const configDcaSvcName = "cluster_agent.kubernetes_service_name"
 
 	dcaURL := config.Datadog.GetString(configDcaURL)
+	log.Debugf("dcaURL is %s", dcaURL)
 	if dcaURL != "" {
 		if strings.HasPrefix(dcaURL, "http://") {
 			return "", fmt.Errorf("cannot get cluster agent endpoint, not a https scheme: %s", dcaURL)
@@ -155,6 +156,7 @@ func getClusterAgentEndpoint() (string, error) {
 	// Construct the URL with the Kubernetes service environment variables
 	// *_SERVICE_HOST and *_SERVICE_PORT
 	dcaSvc := config.Datadog.GetString(configDcaSvcName)
+	log.Debugf("dcaSvc is %s", dcaSvc)
 	if dcaSvc == "" {
 		return "", fmt.Errorf("cannot get a cluster agent endpoint, both %q and %q are empty", configDcaURL, configDcaSvcName)
 	}
@@ -164,6 +166,7 @@ func getClusterAgentEndpoint() (string, error) {
 	// host
 	dcaSvcHostEnv := fmt.Sprintf("%s_SERVICE_HOST", dcaSvc)
 	dcaSvcHost := os.Getenv(dcaSvcHostEnv)
+	log.Debugf("dcaSvcHost is %s and dcaSvcHostEnv is %s", dcaSvcHost, dcaSvcHostEnv)
 	if dcaSvcHost == "" {
 		return "", fmt.Errorf("cannot get a cluster agent endpoint for kubernetes service %q, env %q is empty", dcaSvc, dcaSvcHostEnv)
 	}
@@ -191,6 +194,9 @@ func (c *DCAClient) GetKubernetesServiceNames(nodeName, podName string) ([]strin
 	var serviceNames serviceNames
 	var err error
 
+	if c.clusterAgentAPIRequestHeaders == nil || c.clusterAgentAPIClient == nil {
+		return nil, fmt.Errorf("cluster agent's client was not properly initialized")
+	}
 	req := &http.Request{
 		Header: *c.clusterAgentAPIRequestHeaders,
 	}

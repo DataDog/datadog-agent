@@ -67,7 +67,7 @@ func requestStatus() error {
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	// TODO use https
-	urlstr := fmt.Sprintf("http://localhost:%v/status", config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/status", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
 	e = util.SetAuthToken()
