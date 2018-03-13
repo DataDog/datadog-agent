@@ -75,10 +75,7 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 
 // reportEvents aggregates and sends events to the Datadog event feed
 func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggregator.Sender) error {
-	bundles, err := d.aggregateEvents(events)
-	if err != nil {
-		return err
-	}
+	bundles := aggregateEvents(events, d.instance.FilteredEventType)
 
 	for _, bundle := range bundles {
 		ev, err := bundle.toDatadogEvent(d.dockerHostname)
@@ -94,18 +91,15 @@ func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggre
 
 // aggregateEvents converts a bunch of ContainerEvent to bundles aggregated by
 // image name. It also filters out unwanted event types.
-func (d *DockerCheck) aggregateEvents(events []*docker.ContainerEvent) (map[string]*dockerEventBundle, error) {
+func aggregateEvents(events []*docker.ContainerEvent, filteredActions []string) map[string]*dockerEventBundle {
 	// Pre-aggregate container events by image
 	eventsByImage := make(map[string]*dockerEventBundle)
 	filteredByType := make(map[string]int)
 
-ITER_EVENT:
 	for _, event := range events {
-		for _, action := range d.instance.FilteredEventType {
-			if event.Action == action {
-				filteredByType[action] = filteredByType[action] + 1
-				continue ITER_EVENT
-			}
+		if matchFilter(event.Action, filteredActions) {
+			filteredByType[event.Action] = filteredByType[event.Action] + 1
+			continue
 		}
 		bundle, found := eventsByImage[event.ImageName]
 		if found == false {
@@ -118,7 +112,16 @@ ITER_EVENT:
 	if len(filteredByType) > 0 {
 		log.Debugf("filtered out the following events: %s", formatStringIntMap(filteredByType))
 	}
-	return eventsByImage, nil
+	return eventsByImage
+}
+
+func matchFilter(item string, filterList []string) bool {
+	for _, filtered := range filterList {
+		if filtered == item {
+			return true
+		}
+	}
+	return false
 }
 
 func formatStringIntMap(input map[string]int) string {
