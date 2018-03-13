@@ -74,6 +74,7 @@ func (dt *DockerTailer) Identifier() string {
 func (dt *DockerTailer) Stop() {
 	log.Info("Stop tailing container ", dt.ContainerID[:12])
 	dt.stop <- struct{}{}
+	dt.reader.Close()
 	dt.source.RemoveInput(dt.ContainerID)
 	// wait for the decoder to be flushed
 	<-dt.done
