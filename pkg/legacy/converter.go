@@ -59,9 +59,16 @@ func FromAgentConfig(agentConfig Config) error {
 	}
 
 	// TODO: exclude_process_args
-	config.Datadog.Set("histogram_aggregates", buildHistogramAggregates(agentConfig))
 
-	config.Datadog.Set("histogram_percentiles", buildHistogramPercentiles(agentConfig))
+	histogramAggregates := buildHistogramAggregates(agentConfig)
+	if histogramAggregates != nil && len(histogramAggregates) != 0 {
+		config.Datadog.Set("histogram_aggregates", histogramAggregates)
+	}
+
+	histogramPercentiles := buildHistogramPercentiles(agentConfig)
+	if histogramPercentiles != nil && len(histogramPercentiles) != 0 {
+		config.Datadog.Set("histogram_percentiles", histogramPercentiles)
+	}
 
 	if agentConfig["service_discovery_backend"] == "docker" {
 		// `docker` is the only possible value also on the Agent v5
