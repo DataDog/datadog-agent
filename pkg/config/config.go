@@ -61,6 +61,11 @@ func init() {
 	Datadog.SetEnvPrefix("DD")
 	Datadog.SetTypeByDefaultValue(true)
 
+	// Replace '.' from config keys with '_' in env variables bindings.
+	// e.g. : BindEnv("foo.bar") will bind config key
+	// "foo.bar" to env variable "FOO_BAR"
+	Datadog.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
 	// Configuration defaults
 	// Agent
 	Datadog.SetDefault("dd_url", "https://app.datadoghq.com")
@@ -203,15 +208,9 @@ func init() {
 	BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
 	BindEnvAndSetDefault("logset", "")
 
-	Datadog.SetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")
-	Datadog.BindEnv("logs_config.dd_url", "DD_LOGS_CONFIG_DD_URL")
-
-	Datadog.SetDefault("logs_config.dd_port", 10516)
-	Datadog.BindEnv("logs_config.dd_port", "DD_LOGS_CONFIG_DD_PORT")
-
-	Datadog.SetDefault("logs_config.dev_mode_use_proto", false)
-	Datadog.BindEnv("logs_config.dev_mode_use_proto", "DD_LOGS_CONFIG_DEV_MODE_USE_PROTO")
-
+	BindEnvAndSetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")
+	BindEnvAndSetDefault("logs_config.dd_port", 10516)
+	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", false)
 	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 
