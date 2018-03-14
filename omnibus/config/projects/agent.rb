@@ -111,6 +111,7 @@ if linux?
   dependency 'curl'
 end
 
+dependency 'cacerts'
 # creates required build directories
 dependency 'datadog-agent-prepare'
 
