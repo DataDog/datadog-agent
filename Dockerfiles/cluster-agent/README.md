@@ -57,6 +57,14 @@ spec:
         env:
           - name: DD_API_KEY
             value: XXXX
+        volumeMounts:
+        - name: dca_auth_token
+          mountPath: /auth_token
+          readOnly: true
+      volumes:
+      - name: dca_auth_token
+        secret:
+          secretName: dca_auth_token
 ```
 And use the RBAC below to get the best out of it.
 
@@ -132,4 +140,37 @@ NB: you can set any resversion here, make sure it's not set to a value superior 
 
 You can also set the `event.tokenTimestamp`, if not present, it will be automatically set.
 
+### Communication with the Datadog Node Agent.
 
+For the DCA to communicate with the Node Agent, you need to share an authentication token between the two agents.
+The Token needs to be longer than 32 characters and should only have upper case or lower case letters and numbers.
+You can pass the token as an environment variable: `DD_CLUSTER_AGENT_AUTH_TOKEN` or you can also mount it in:
+`/auth_token` in the DCA and `/etc/datadog-agent/dca_auth_token` in the Node Agent.
+
+Finally, you can use the Kubernetes secrets, first encode the token:
+`echo -n <32 character token> | base64` and set this output in the following manifest:
+
+```
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dca-auth
+type: Opaque
+data:
+  dca_auth_token: <base64 encoded token>
+```
+
+Then run `kubectl create -f nameOfTheFile`
+
+This should be mounted in the DCA manifest as follows:
+```
+        volumeMounts:
+        - name: dca_auth_token
+          mountPath: /auth_token
+          readOnly: true
+      volumes:
+      - name: dca_auth_token
+        secret:
+          secretName: dca_auth_token
+```
+And in the Node Agent at the mountPath `/etc/datadog-agent/dca_auth_token`
