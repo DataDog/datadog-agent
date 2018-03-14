@@ -66,7 +66,7 @@ func newTagger() *Tagger {
 // Init goes through a catalog and tries to detect which are relevant
 // for this host. It then starts the collection logic and is ready for
 // requests.
-func (t *Tagger) Init(catalog collectors.Catalog) error {
+func (t *Tagger) Init(catalog collectors.Catalog) {
 	t.Lock()
 	// Populate collector candidate list from catalog
 	// as we'll remove entries we need to copy the map
@@ -80,8 +80,6 @@ func (t *Tagger) Init(catalog collectors.Catalog) error {
 	t.startCollectors()
 	go t.run()
 	go t.pull()
-
-	return nil
 }
 
 func (t *Tagger) run() error {

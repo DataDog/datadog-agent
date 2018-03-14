@@ -20,17 +20,13 @@ var initOnce sync.Once
 var fullCardinality bool
 
 // Init must be called once config is available, call it in your cmd
+// defaultTagger.Init cannot fail for now, keeping the `error` for API stability
 func Init() error {
-	var err error
 	initOnce.Do(func() {
 		fullCardinality = config.Datadog.GetBool("full_cardinality_tagging")
-		err = defaultTagger.Init(collectors.DefaultCatalog)
+		defaultTagger.Init(collectors.DefaultCatalog)
 	})
-	if err != nil {
-		// Let's allow a retry if we failed
-		initOnce = sync.Once{}
-	}
-	return err
+	return nil
 }
 
 // Tag queries the defaultTagger to get entity tags from cache or sources
