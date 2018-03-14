@@ -23,7 +23,7 @@ func TestAvailableIntegrationConfigs(t *testing.T) {
 
 func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
-	allSources, err := buildLogSources(ddconfdPath)
+	allSources, err := buildLogSources(ddconfdPath, false)
 
 	assert.Nil(t, err)
 	assert.Equal(t, 5, len(allSources.GetValidSources()))
@@ -83,23 +83,23 @@ func TestBuildLogsAgentIntegrationConfigsWithMisconfiguredFile(t *testing.T) {
 	var ddconfdPath string
 	var err error
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_1")
-	_, err = buildLogSources(ddconfdPath)
+	_, err = buildLogSources(ddconfdPath, false)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_2", "conf.d")
-	_, err = buildLogSources(ddconfdPath)
+	_, err = buildLogSources(ddconfdPath, false)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_3", "conf.d")
-	_, err = buildLogSources(ddconfdPath)
+	_, err = buildLogSources(ddconfdPath, false)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_4", "conf.d")
-	_, err = buildLogSources(ddconfdPath)
+	_, err = buildLogSources(ddconfdPath, false)
 	assert.NotNil(t, err)
 
 	ddconfdPath = filepath.Join(testsPath, "misconfigured_5", "conf.d")
-	_, err = buildLogSources(ddconfdPath)
+	_, err = buildLogSources(ddconfdPath, false)
 	assert.NotNil(t, err)
 }
 
