@@ -37,6 +37,9 @@ func (suite *ContainerScannerTestSuite) TestContainerScannerFilter() {
 	container = types.Container{Image: "repository/myapp@sha256:1234567890"}
 	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
 
+	container = types.Container{Image: "repositorymyapp"}
+	suite.False(suite.c.sourceShouldMonitorContainer(cfg, container))
+
 	container = types.Container{Image: "myapp2"}
 	suite.False(suite.c.sourceShouldMonitorContainer(cfg, container))
 	container = types.Container{Image: "myapp2@sha256:1234567890"}

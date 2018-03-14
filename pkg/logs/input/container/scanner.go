@@ -180,11 +180,11 @@ func (s *Scanner) sourceShouldMonitorContainer(source *config.LogSource, contain
 	if source.Config.Image != "" {
 		image := container.Image
 		if strings.Contains(image, digestPrefix) {
-			// Trim digest with format @256:X
+			// Trim digest if present
 			splitted := strings.SplitN(image, digestPrefix, 2)
 			image = splitted[0]
 		}
-		// Expect prefix to be a repository or null
+		// Expect prefix to end with '/'
 		repository := strings.TrimSuffix(image, source.Config.Image)
 		if len(repository) != 0 && !strings.HasSuffix(repository, "/") {
 			return false
