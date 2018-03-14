@@ -80,8 +80,7 @@ func TestInit(t *testing.T) {
 	assert.Equal(t, 3, len(catalog))
 
 	tagger := newTagger()
-	err := tagger.Init(catalog)
-	assert.NoError(t, err)
+	tagger.Init(catalog)
 
 	assert.Equal(t, 3, len(tagger.fetchers))
 	assert.Equal(t, 1, len(tagger.streamers))

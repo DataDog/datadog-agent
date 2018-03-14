@@ -6,20 +6,27 @@
 package tagger
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
 
 // defaultTagger is the shared tagger instance backing the global Tag and Init functions
 var defaultTagger *Tagger
+var initOnce sync.Once
 
 // fullCardinality caches the value of the full_cardinality_taggin option
 var fullCardinality bool
 
 // Init must be called once config is available, call it in your cmd
+// defaultTagger.Init cannot fail for now, keeping the `error` for API stability
 func Init() error {
-	fullCardinality = config.Datadog.GetBool("full_cardinality_tagging")
-	return defaultTagger.Init(collectors.DefaultCatalog)
+	initOnce.Do(func() {
+		fullCardinality = config.Datadog.GetBool("full_cardinality_tagging")
+		defaultTagger.Init(collectors.DefaultCatalog)
+	})
+	return nil
 }
 
 // Tag queries the defaultTagger to get entity tags from cache or sources
