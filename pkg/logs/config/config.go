@@ -26,12 +26,14 @@ func Build() (*LogSources, error) {
 func buildLogSources(ddconfdPath string, collectAllLogsFromContainers bool) (*LogSources, error) {
 	var sources []*LogSource
 
-	// append sources from all logs config file
+	// append sources from all logs config files
 	fileSources := buildLogSourcesFromDirectory(ddconfdPath)
 	sources = append(sources, fileSources...)
 
 	if collectAllLogsFromContainers {
-		// append source to collect all logs from all containers
+		// append source to collect all logs from all containers,
+		// this source must be added to the end of the list
+		// to assure sources metadata are not overridden when already defined
 		containersSource := NewLogSource("container_collect_all", &LogsConfig{
 			Type:    DockerType,
 			Service: "docker",
