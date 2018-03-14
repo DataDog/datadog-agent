@@ -27,9 +27,26 @@ func (suite *ContainerScannerTestSuite) SetupTest() {
 
 func (suite *ContainerScannerTestSuite) TestContainerScannerFilter() {
 	cfg := config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp"})
+
 	container := types.Container{Image: "myapp"}
 	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
+	container = types.Container{Image: "repository/myapp"}
+	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
+	container = types.Container{Image: "myapp@sha256:1234567890"}
+	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
+	container = types.Container{Image: "repository/myapp@sha256:1234567890"}
+	suite.True(suite.c.sourceShouldMonitorContainer(cfg, container))
+
+	container = types.Container{Image: "repositorymyapp"}
+	suite.False(suite.c.sourceShouldMonitorContainer(cfg, container))
+
 	container = types.Container{Image: "myapp2"}
+	suite.False(suite.c.sourceShouldMonitorContainer(cfg, container))
+	container = types.Container{Image: "myapp2@sha256:1234567890"}
+	suite.False(suite.c.sourceShouldMonitorContainer(cfg, container))
+	container = types.Container{Image: "repository/myapp2"}
+	suite.False(suite.c.sourceShouldMonitorContainer(cfg, container))
+	container = types.Container{Image: "repository/myapp2@sha256:1234567890"}
 	suite.False(suite.c.sourceShouldMonitorContainer(cfg, container))
 
 	cfg = config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"})
