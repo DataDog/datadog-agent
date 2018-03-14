@@ -1,6 +1,6 @@
 {
 	"nightly": {
-		"INTEGRATIONS_CORE_VERSION": "master",
+		"INTEGRATIONS_CORE_VERSION": "db/fix_http_cert_path",
 		"TRACE_AGENT_VERSION": "master",
 		"PROCESS_AGENT_VERSION": "master",
 		"JMXFETCH_VERSION": "0.18.2",
