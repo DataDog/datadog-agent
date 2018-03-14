@@ -75,7 +75,7 @@ type IntegrationConfig struct {
 	Logs []LogsConfig
 }
 
-// buildLogSources looks for all yml configs in the ddconfdPath directory,
+// buildLogSourcesFromDirectory looks for all yml configs in the ddconfdPath directory,
 // and returns a list of all the valid logs sources along with their trackers
 func buildLogSourcesFromDirectory(ddconfdPath string) []*LogSource {
 	integrationConfigFiles := availableIntegrationConfigs(ddconfdPath)
