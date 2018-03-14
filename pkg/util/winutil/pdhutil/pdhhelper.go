@@ -12,7 +12,6 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/lxn/win"
 )
 
 var (
@@ -22,6 +21,10 @@ var (
 	procPdhEnumObjectItems          = modPdhDll.NewProc("PdhEnumObjectItemsW")
 	procPdhMakeCounterPath          = modPdhDll.NewProc("PdhMakeCounterPathW")
 	procPdhGetFormattedCounterValue = modPdhDll.NewProc("PdhGetFormattedCounterValue")
+	procPdhAddCounterW              = modPdhDll.NewProc("PdhAddCounterW")
+	procPdhCollectQueryData         = modPdhDll.NewProc("PdhCollectQueryData")
+	procPdhCloseQuery               = modPdhDll.NewProc("PdhCloseQuery")
+	procPdhOpenQuery                = modPdhDll.NewProc("PdhOpenQuery")
 )
 
 const (
@@ -40,7 +43,7 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 		uintptr(0),
 		uintptr(unsafe.Pointer(&len)))
 
-	if r != win.PDH_MORE_DATA {
+	if r != PDH_MORE_DATA {
 		return name, fmt.Errorf("Failed to get buffer size %v", r)
 	}
 	buf := make([]uint16, len)
@@ -49,7 +52,7 @@ func pdhLookupPerfNameByIndex(ndx int) (string, error) {
 		uintptr(unsafe.Pointer(&buf[0])),
 		uintptr(unsafe.Pointer(&len)))
 
-	if r != win.ERROR_SUCCESS {
+	if r != ERROR_SUCCESS {
 		return name, fmt.Errorf("Error getting perf name for index %d %v", ndx, r)
 	}
 	name = syscall.UTF16ToString(buf)
@@ -69,7 +72,7 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 		uintptr(unsafe.Pointer(&instancelen)),
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(0))
-	if r != win.PDH_MORE_DATA {
+	if r != PDH_MORE_DATA {
 		return nil, nil, fmt.Errorf("Failed to get buffer size %v", r)
 	}
 	counterbuf := make([]uint16, counterlen)
@@ -90,7 +93,7 @@ func pdhEnumObjectItems(className string) (counters []string, instances []string
 		uintptr(unsafe.Pointer(&instancelen)),
 		uintptr(PERF_DETAIL_WIZARD),
 		uintptr(0))
-	if r != win.ERROR_SUCCESS {
+	if r != ERROR_SUCCESS {
 		err = fmt.Errorf("Error getting counter items %v", r)
 		return
 	}
@@ -131,7 +134,7 @@ func pdhMakeCounterPath(machine string, object string, instance string, counter 
 		uintptr(0),
 		uintptr(unsafe.Pointer(&len)),
 		uintptr(0))
-	if r != win.PDH_MORE_DATA {
+	if r != PDH_MORE_DATA {
 		err = fmt.Errorf("Failed to get buffer size %v", r)
 		return
 	}
@@ -141,7 +144,7 @@ func pdhMakeCounterPath(machine string, object string, instance string, counter 
 		uintptr(unsafe.Pointer(&buf[0])),
 		uintptr(unsafe.Pointer(&len)),
 		uintptr(0))
-	if r != win.ERROR_SUCCESS {
+	if r != ERROR_SUCCESS {
 		err = fmt.Errorf("Failed to get path %v", r)
 		return
 	}
@@ -150,32 +153,32 @@ func pdhMakeCounterPath(machine string, object string, instance string, counter 
 
 }
 
-func pdhGetFormattedCounterValueLarge(hCounter win.PDH_HCOUNTER) (val int64, err error) {
+func pdhGetFormattedCounterValueLarge(hCounter PDH_HCOUNTER) (val int64, err error) {
 	var lpdwType uint32
-	var pValue win.PDH_FMT_COUNTERVALUE_LARGE
+	var pValue PDH_FMT_COUNTERVALUE_LARGE
 
 	ret, _, _ := procPdhGetFormattedCounterValue.Call(
 		uintptr(hCounter),
-		uintptr(win.PDH_FMT_LARGE),
+		uintptr(PDH_FMT_LARGE),
 		uintptr(unsafe.Pointer(&lpdwType)),
 		uintptr(unsafe.Pointer(&pValue)))
-	if win.ERROR_SUCCESS != ret {
+	if ERROR_SUCCESS != ret {
 		return 0, fmt.Errorf("Error retrieving large value %v", ret)
 	}
 
 	return pValue.LargeValue, nil
 }
 
-func pdhGetFormattedCounterValueFloat(hCounter win.PDH_HCOUNTER) (val float64, err error) {
+func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err error) {
 	var lpdwType uint32
-	var pValue win.PDH_FMT_COUNTERVALUE_DOUBLE
+	var pValue PDH_FMT_COUNTERVALUE_DOUBLE
 
 	ret, _, _ := procPdhGetFormattedCounterValue.Call(
 		uintptr(hCounter),
-		uintptr(win.PDH_FMT_DOUBLE),
+		uintptr(PDH_FMT_DOUBLE),
 		uintptr(unsafe.Pointer(&lpdwType)),
 		uintptr(unsafe.Pointer(&pValue)))
-	if win.ERROR_SUCCESS != ret {
+	if ERROR_SUCCESS != ret {
 		return 0, fmt.Errorf("Error retrieving large value %v", ret)
 	}
 

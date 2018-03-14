@@ -13,8 +13,9 @@ from .build_tags import get_default_build_tags
 WIN_MODULE_WHITELIST = [
     "iostats_wmi_windows.go",
     "iostats_pdh_windows.go",
+    "pdh.go",
     "pdhhelper.go",
-    "doflare.go"
+    "doflare.go",
 ]
 
 # List of paths to ignore in misspell's output

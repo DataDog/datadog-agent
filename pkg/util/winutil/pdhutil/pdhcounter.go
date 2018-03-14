@@ -13,7 +13,6 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/lxn/win"
 	"golang.org/x/sys/windows"
 )
 
@@ -30,9 +29,9 @@ type CounterInstanceVerify func(string) bool
 type PdhCounterSet struct {
 	className     string
 	counterName   string
-	query         win.PDH_HQUERY
-	countermap    map[string]win.PDH_HCOUNTER // map instance name to counter handle
-	singleCounter win.PDH_HCOUNTER
+	query         PDH_HQUERY
+	countermap    map[string]PDH_HCOUNTER // map instance name to counter handle
+	singleCounter PDH_HCOUNTER
 }
 
 const singleInstanceKey = "_singleInstance_"
@@ -72,7 +71,7 @@ func init() {
 // GetCounterSet returns an initialized PDH counter set.
 func GetCounterSet(className string, counterName string, instanceName string, verifyfn CounterInstanceVerify) (*PdhCounterSet, error) {
 	var p PdhCounterSet
-	p.countermap = make(map[string]win.PDH_HCOUNTER)
+	p.countermap = make(map[string]PDH_HCOUNTER)
 	var ndx int
 	var err error
 	if ndx = getCounterIndex(className); ndx == -1 {
@@ -89,8 +88,8 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 	if err != nil {
 		return nil, err
 	}
-	winerror := win.PdhOpenQuery(uintptr(0), uintptr(0), &p.query)
-	if win.ERROR_SUCCESS != winerror {
+	winerror := PdhOpenQuery(uintptr(0), uintptr(0), &p.query)
+	if ERROR_SUCCESS != winerror {
 		err = fmt.Errorf("Failed to open PDH query handle %d", winerror)
 		return nil, err
 	}
@@ -111,9 +110,9 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 			if err != nil {
 				continue
 			}
-			var hc win.PDH_HCOUNTER
-			winerror = win.PdhAddCounter(p.query, path, uintptr(0), &hc)
-			if win.ERROR_SUCCESS != winerror {
+			var hc PDH_HCOUNTER
+			winerror = PdhAddCounter(p.query, path, uintptr(0), &hc)
+			if ERROR_SUCCESS != winerror {
 				continue
 			}
 			p.countermap[inst] = hc
@@ -139,13 +138,13 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 		if err != nil {
 			return nil, err
 		}
-		winerror = win.PdhAddCounter(p.query, path, uintptr(0), &p.singleCounter)
-		if win.ERROR_SUCCESS != winerror {
+		winerror = PdhAddCounter(p.query, path, uintptr(0), &p.singleCounter)
+		if ERROR_SUCCESS != winerror {
 			return nil, fmt.Errorf("Failed to add single counter %d", winerror)
 		}
 	}
 	// do the initial collect now
-	win.PdhCollectQueryData(p.query)
+	PdhCollectQueryData(p.query)
 	return &p, nil
 }
 
@@ -153,8 +152,8 @@ func GetCounterSet(className string, counterName string, instanceName string, ve
 func (p *PdhCounterSet) GetAllValues() (values map[string]float64, err error) {
 	values = make(map[string]float64)
 	err = nil
-	win.PdhCollectQueryData(p.query)
-	if p.singleCounter != win.PDH_HCOUNTER(0) {
+	PdhCollectQueryData(p.query)
+	if p.singleCounter != PDH_HCOUNTER(0) {
 		values[singleInstanceKey], _ = pdhGetFormattedCounterValueFloat(p.singleCounter)
 		return
 	}
@@ -169,7 +168,7 @@ func (p *PdhCounterSet) GetAllValues() (values map[string]float64, err error) {
 
 // GetSingleValue returns the data associated with a single-value counter
 func (p *PdhCounterSet) GetSingleValue() (val float64, err error) {
-	if p.singleCounter == win.PDH_HCOUNTER(0) {
+	if p.singleCounter == PDH_HCOUNTER(0) {
 		return 0, fmt.Errorf("Not a single-value counter")
 	}
 	vals, err := p.GetAllValues()
@@ -181,7 +180,7 @@ func (p *PdhCounterSet) GetSingleValue() (val float64, err error) {
 
 // Close closes the query handle, freeing the underlying windows resources.
 func (p *PdhCounterSet) Close() {
-	win.PdhCloseQuery(p.query)
+	PdhCloseQuery(p.query)
 }
 
 func getCounterIndex(cname string) int {
