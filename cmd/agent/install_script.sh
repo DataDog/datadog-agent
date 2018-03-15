@@ -59,6 +59,11 @@ if [ -n "$DD_INSTALL_ONLY" ]; then
     no_start=true
 fi
 
+# comma-separated list of tags
+if [ -n "$DD_HOST_TAGS" ]; then
+    host_tags=$DD_HOST_TAGS
+fi
+
 if [ -n "$DD_URL" ]; then
   dd_url=$DD_URL
 else
@@ -222,6 +227,11 @@ else
   if [ $dd_hostname ]; then
     printf "\033[34m\n* Adding your HOSTNAME to the Agent configuration: $CONF\n\033[0m\n"
     $sudo_cmd sh -c "sed -i 's/# hostname:.*/hostname: $dd_hostname/' $CONF"
+  fi
+  if [ $host_tags ]; then
+      printf "\033[34m\n* Adding your HOST TAGS to the Agent configuration: $CONF\n\033[0m\n"
+      formatted_host_tags="['"$( echo "$host_tags" | sed "s/,/','/g" )"']"  # format `env:prod,foo:bar` to yaml-compliant `['env:prod','foo:bar']`
+      $sudo_cmd sh -c "sed -i \"s/# tags:.*/tags: "$formatted_host_tags"/\" $CONF"
   fi
   $sudo_cmd chown dd-agent:dd-agent $CONF
   $sudo_cmd chmod 640 $CONF
