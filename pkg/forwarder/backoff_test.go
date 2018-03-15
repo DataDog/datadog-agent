@@ -36,7 +36,7 @@ func TestRandomBetween(t *testing.T) {
 		between := randomBetween(min, max)
 
 		assert.True(t, min <= between)
-		assert.True(t, max > between)
+		assert.True(t, max >= between)
 	}
 }
 
@@ -46,30 +46,19 @@ func TestGetBackoffDuration(t *testing.T) {
 	backoffDecrease := 0
 
 	for i := 1; ; i++ {
-		backoffTime := baseBackoffTime * math.Pow(2, float64(i))
-
-		if backoffTime > maxBackoffTime {
-			backoffTime = maxBackoffTime
-		} else {
-			min := backoffTime / minBackoffFactor
-			max := math.Min(maxBackoffTime, backoffTime)
-			backoffTime = randomBetween(min, max)
-		}
-
-		expectedBackoffDuration := time.Duration(backoffTime * secondsFloat)
-		assert.Equal(t, expectedBackoffDuration, GetBackoffDuration(i))
+		backoffDuration := GetBackoffDuration(i)
 
 		if i > 1000 {
 			assert.Truef(t, i < 1000, "Too many iterations")
-		} else if expectedBackoffDuration == previousBackoffDuration {
+		} else if backoffDuration == previousBackoffDuration {
 			break
 		} else {
-			if expectedBackoffDuration > previousBackoffDuration {
+			if backoffDuration > previousBackoffDuration {
 				backoffIncrease++
 			} else {
 				backoffDecrease++
 			}
-			previousBackoffDuration = expectedBackoffDuration
+			previousBackoffDuration = backoffDuration
 		}
 	}
 
