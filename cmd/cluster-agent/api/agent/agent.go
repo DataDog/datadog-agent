@@ -41,6 +41,8 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/status", getStatus).Methods("GET")
 	// r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/api/v1/metadata/{nodeName}/{podName}", getPodMetadata).Methods("GET")
+	r.HandleFunc("/api/v1/metadata/{nodeName}", getNodeMetadata).Methods("GET")
+	r.HandleFunc("/api/v1/metadata", getAllMetadata).Methods("GET")
 	r.HandleFunc("/api/v1/{check}/events", getCheckLatestEvents).Methods("GET")
 }
 
@@ -158,6 +160,21 @@ func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func getPodMetadata(w http.ResponseWriter, r *http.Request) {
+	////// Input
+	//	localhost:5001/api/v1/metadata/localhost/my-nginx-5d69
+	////// Outputs
+	//	Status: 200
+	//	Returns: []string
+	//	Example: ["my-nginx-service"]
+	//
+	//	Status: 404
+	//	Returns: string
+	//	Example: 404 page not found
+	//
+	//	Status: 500
+	//	Returns: string
+	//	Example: "no cached metadata found for the pod my-nginx-5d69 on the node localhost"
+	//////
 	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
@@ -166,22 +183,15 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	var slcB []byte
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
+	fmt.Printf("podname is %s, nodeName is %s", podName, nodeName)
 
-	if podName == "*" {
-		log.Info("Computing service map on all nodes ...")
-		svcList, errNodes := as.GetServiceMapBundleOnNode(nodeName)
-		if errNodes != nil {
-			log.Errorf("could not collect the service map for %s: %s", nodeName, errNodes.Error())
-		}
-		slcB, err = json.Marshal(svcList)
+	svcList, errSvcList := as.GetPodServiceNames(nodeName, podName)
+	if errSvcList != nil {
+		slcB, err = json.Marshal(errSvcList.Error())
 	} else {
-		svcList, errSvcList := as.GetPodServiceNames(nodeName, podName)
-		if errSvcList != nil {
-			slcB, err = json.Marshal(errSvcList.Error())
-		} else {
-			slcB, err = json.Marshal(svcList)
-		}
+		slcB, err = json.Marshal(svcList)
 	}
+
 	if err != nil {
 		log.Errorf("Could not process the list of services of: %s", podName)
 	}
@@ -193,4 +203,74 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(404)
 	w.Write([]byte(fmt.Sprintf("Could not find associated services mapped to the pod: %s on node: %s", podName, nodeName)))
 
+}
+func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
+	// getNodeMetadata has the same signature as getAllMetadata, but is only scoped on one node.
+	if err := apiutil.Validate(w, r); err != nil {
+		return
+	}
+	vars := mux.Vars(r)
+	nodeName := vars["nodeName"]
+	log.Info("Fetching service map on all pods of the node %s", nodeName)
+	svcList, errNodes := as.GetServiceMapBundleOnNode(nodeName)
+	if len(errNodes) != 0 {
+		log.Errorf("could not collect the service map for %s", nodeName)
+		svcList["Error"] = errNodes
+	}
+	slcB, err := json.Marshal(svcList)
+	if err != nil {
+		w.WriteHeader(500)
+		errB, _ := json.Marshal(err.Error())
+		w.Write(errB)
+		return
+	}
+
+	if len(slcB) != 0 {
+		w.WriteHeader(200)
+		w.Write(slcB)
+		return
+	}
+	w.WriteHeader(404)
+	return
+}
+
+func getAllMetadata(w http.ResponseWriter, r *http.Request) {
+	////// Input
+	//	localhost:5001/api/v1/metadata
+	////// Outputs
+	//	Status: 200
+	//	Returns: map[string][]string
+	//	Example: ["Node1":["pod1":["svc1"],"pod2":["svc2"]],"Node2":["pod3":["svc1"]], "Error":"the key KubernetesServiceMapping/Node3 not found in the cache"]
+	//
+	//	Status: 404
+	//	Returns: string
+	//	Example: 404 page not found
+	//
+	//	Status: 500
+	//	Returns: string
+	//	Example: "could not collect the service map for all nodes: List services is not permitted at the cluster scope."
+	//////
+	if err := apiutil.Validate(w, r); err != nil {
+		return
+	}
+	log.Info("Computing service map on all nodes")
+	svcList, errNodes := as.GetServiceMapBundleOnNode("")
+	if errNodes != nil {
+		log.Errorf("Could not collect the service map for all nodes")
+		svcList["Error"] = errNodes
+	}
+	slcB, err := json.Marshal(svcList)
+	if err != nil {
+		w.WriteHeader(500)
+		errB, _ := json.Marshal(err.Error())
+		w.Write(errB)
+		return
+	}
+	if len(slcB) != 0 {
+		w.WriteHeader(200)
+		w.Write(slcB)
+		return
+	}
+	w.WriteHeader(404)
+	return
 }

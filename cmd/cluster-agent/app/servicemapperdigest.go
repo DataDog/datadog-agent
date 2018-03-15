@@ -41,13 +41,10 @@ var svcMapperCmd = &cobra.Command{
 			log.Debugf("Config read from env variables")
 		}
 		nodeName := ""
-		// "*" Can be used to output all nodes.
-		if len(args) == 0 {
-			log.Infof("You need to specify on which node you want to run the service mapper.")
-			return nil
+		if len(args) > 0 {
+			nodeName = args[0]
 		}
-		nodeName = args[0]
-		err := getServiceMap(nodeName) // if nodeName == "*", call all.
+		err := getServiceMap(nodeName) // if nodeName == "", call all.
 		if err != nil {
 			return err
 		}
@@ -59,8 +56,13 @@ func getServiceMap(nodeName string) error {
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
+	var urlstr string
 	// TODO use https
-	urlstr := fmt.Sprintf("http://localhost:%v/api/v1/metadata/%s/*", config.Datadog.GetInt("cmd_port"), nodeName)
+	if nodeName == "" {
+		urlstr = fmt.Sprintf("http://localhost:%v/api/v1/metadata", config.Datadog.GetInt("cmd_port"))
+	} else {
+		urlstr = fmt.Sprintf("http://localhost:%v/api/v1/metadata/%s", config.Datadog.GetInt("cmd_port"), nodeName)
+	}
 
 	// Set session token
 	e = util.SetAuthToken()
@@ -77,7 +79,9 @@ func getServiceMap(nodeName string) error {
 			e = fmt.Errorf(err)
 		}
 
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the map of services to pods and contact support if you continue having issues. \n", e)
+		fmt.Printf(`"Could not reach agent: %v
+		Make sure the agent is properly running before requesting the map of services to pods.
+		Contact support if you continue having issues."`, e)
 		return e
 	}
 

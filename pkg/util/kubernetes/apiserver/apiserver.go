@@ -391,16 +391,16 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 }
 
 // GetServiceMapBundleOnNode is used for the CLI svcmap command to output given a nodeName.
-func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
+func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, []error) {
 	nodePodServiceMap := make(map[string]map[string][]string)
 	stats := make(map[string]interface{})
+	var errlist []error
 	var err error
-
-	if nodeName != "*" {
+	if nodeName != "" {
 		nodePodServiceMap[nodeName], err = getSMBOnNodes(nodeName)
 		if err != nil {
-			stats["Error"] = err.Error()
-			return stats, err
+			errlist = append(errlist, err)
+			return stats, errlist
 		}
 		stats["Nodes"] = nodePodServiceMap
 		return stats, nil
@@ -408,24 +408,25 @@ func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, error) 
 
 	nodes, err := getNodeList()
 	if err != nil {
-		stats["Error"] = err.Error()
-		return stats, err
+		errlist = append(errlist, err)
+		return stats, errlist
 	}
 	for _, node := range nodes {
 		nodePodServiceMap[*node.Metadata.Name], err = getSMBOnNodes(*node.Metadata.Name)
 		if err != nil {
-			log.Error("Node %s could not be added to the service map bundle: %s", err.Error())
+			errlist = append(errlist, err)
+			log.Errorf("Node %s could not be added to the service map bundle: %s", err.Error())
 		}
 	}
 	stats["Nodes"] = nodePodServiceMap
-	return stats, nil
+	return stats, errlist
 }
 
 func getSMBOnNodes(nodeName string) (map[string][]string, error) {
 	nodeNameCacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
 	smb, found := cache.Cache.Get(nodeNameCacheKey)
 	if !found {
-		return nil, fmt.Errorf("The key %s was not found in the cache", nodeNameCacheKey)
+		return nil, fmt.Errorf("the key %s was not found in the cache", nodeNameCacheKey)
 	}
 	return smb.(*ServiceMapperBundle).PodNameToServices, nil
 }
