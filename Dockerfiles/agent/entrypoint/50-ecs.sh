@@ -15,3 +15,8 @@ fi
 # Remove all default checks (no host)
 
 find /etc/datadog-agent/conf.d/ -iname "*.yaml.default" -delete
+
+# Enable fargate check
+mv /etc/datadog-agent/conf.d/ecs_fargate.d/conf.yaml.example /etc/datadog-agent/conf.d/ecs_fargate.d/conf.yaml.default
+# (temporary) actually enable the instance in the config file
+sed -i -e "s/# \-/\-/" /etc/datadog-agent/conf.d/ecs_fargate.d/conf.yaml.default
