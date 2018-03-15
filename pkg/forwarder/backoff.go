@@ -17,9 +17,9 @@ const (
 	// will asymptotically approach 50% the higher the value is set.
 	minBackoffFactor = 2
 
-	baseBackoff    = 2
-	maxBackoffTime = 64
-	secondsFloat   = float64(time.Second)
+	baseBackoffTime = 2
+	maxBackoffTime  = 64
+	secondsFloat    = float64(time.Second)
 )
 
 func randomBetween(min, max float64) float64 {
@@ -30,8 +30,15 @@ func randomBetween(min, max float64) float64 {
 // error retry given the current number of attempts. Unlike `github.com/cenkalti/backoff`,
 // this implementation is thread-safe.
 func GetBackoffDuration(numAttempts int) time.Duration {
-	backoffTime := baseBackoff * math.Pow(2, float64(numAttempts))
-	min := backoffTime / minBackoffFactor
-	max := math.Min(maxBackoffTime, backoffTime)
-	return time.Duration(randomBetween(min, max) * secondsFloat)
+	backoffTime := baseBackoffTime * math.Pow(2, float64(numAttempts))
+
+	if backoffTime > maxBackoffTime {
+		backoffTime = maxBackoffTime
+	} else {
+		min := backoffTime / minBackoffFactor
+		max := math.Min(maxBackoffTime, backoffTime)
+		backoffTime = randomBetween(min, max)
+	}
+
+	return time.Duration(backoffTime * secondsFloat)
 }
