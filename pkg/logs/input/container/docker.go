@@ -214,9 +214,9 @@ func (dt *DockerTailer) forwardMessages() {
 		// use logs metada instead of source config when defined,
 		// it might interesting to merge both at some point.
 		if dt.logsMetadata != nil {
-			msgOrigin.LogsConfig = dt.source.Config
-		} else {
 			msgOrigin.LogsConfig = dt.logsMetadata
+		} else {
+			msgOrigin.LogsConfig = dt.source.Config
 		}
 		msgOrigin.Timestamp = ts
 		msgOrigin.Identifier = dt.Identifier()
@@ -241,7 +241,7 @@ func (dt *DockerTailer) fetchLogsMetadata() (*config.LogsConfig, bool) {
 	return dt.computeLogsMetadataFromLabel(label)
 }
 
-// computeLogsMetadataFromLabel returns logs metadata if label is correctly formatted.
+// computeLogsMetadataFromLabel returns logs metadata if label is respects format: '[{"source":"foo", "service":"bar", ...}]'
 func (dt *DockerTailer) computeLogsMetadataFromLabel(label string) (*config.LogsConfig, bool) {
 	var configs []config.LogsConfig
 	err := json.Unmarshal([]byte(label), &configs)
