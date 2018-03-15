@@ -56,10 +56,11 @@ func TestParsePods(t *testing.T) {
 	}
 
 	for nb, tc := range []struct {
-		desc         string
-		pod          *kubelet.Pod
-		labelsAsTags map[string]string
-		expectedInfo *TagInfo
+		desc              string
+		pod               *kubelet.Pod
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		expectedInfo      *TagInfo
 	}{
 		{
 			desc:         "empty pod",
@@ -221,6 +222,48 @@ func TestParsePods(t *testing.T) {
 			},
 		},
 		{
+			desc: "pod labels + annotations",
+			pod: &kubelet.Pod{
+				Metadata: kubelet.PodMetadata{
+					Labels: map[string]string{
+						"component":         "kube-proxy",
+						"tier":              "node",
+						"k8s-app":           "kubernetes-dashboard",
+						"pod-template-hash": "490794276",
+					},
+					Annotations: map[string]string{
+						"noTag":     "don't collect",
+						"GitCommit": "ea38b55f07e40b68177111a2bff1e918132fd5fb",
+						"OwnerTeam": "Kenafeh",
+					},
+				},
+				Status: dockerContainerStatus,
+				Spec:   dockerContainerSpec,
+			},
+			labelsAsTags: map[string]string{
+				"component": "component",
+				"tier":      "tier",
+			},
+			annotationsAsTags: map[string]string{
+				"ownerteam": "team",
+				"gitcommit": "+GitCommit",
+			},
+			expectedInfo: &TagInfo{
+				Source: "kubelet",
+				Entity: dockerEntityID,
+				LowCardTags: []string{
+					"kube_container_name:dd-agent",
+					"team:Kenafeh",
+					"component:kube-proxy",
+					"tier:node",
+					"image_tag:latest5",
+					"image_name:datadog/docker-dd-agent",
+					"short_image:docker-dd-agent",
+				},
+				HighCardTags: []string{"GitCommit:ea38b55f07e40b68177111a2bff1e918132fd5fb"},
+			},
+		},
+		{
 			desc: "openshift deploymentconfig",
 			pod: &kubelet.Pod{
 				Metadata: kubelet.PodMetadata{
@@ -271,7 +314,8 @@ func TestParsePods(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("case %d: %s", nb, tc.desc), func(t *testing.T) {
 			collector := &KubeletCollector{
-				labelsAsTags: tc.labelsAsTags,
+				labelsAsTags:      tc.labelsAsTags,
+				annotationsAsTags: tc.annotationsAsTags,
 			}
 			infos, err := collector.parsePods([]*kubelet.Pod{tc.pod})
 			assert.Nil(t, err)

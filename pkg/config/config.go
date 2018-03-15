@@ -160,6 +160,7 @@ func init() {
 	Datadog.SetDefault("docker_labels_as_tags", map[string]string{})
 	Datadog.SetDefault("docker_env_as_tags", map[string]string{})
 	Datadog.SetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
+	Datadog.SetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
 	Datadog.SetDefault("kubernetes_node_labels_as_tags", map[string]string{})
 
 	// Kubernetes
@@ -252,6 +253,7 @@ func init() {
 	Datadog.BindEnv("docker_labels_as_tags")
 	Datadog.BindEnv("docker_env_as_tags")
 	Datadog.BindEnv("kubernetes_pod_labels_as_tags")
+	Datadog.BindEnv("kubernetes_pod_annotations_as_tags")
 	Datadog.BindEnv("kubernetes_node_labels_as_tags")
 	Datadog.BindEnv("ac_include")
 	Datadog.BindEnv("ac_exclude")

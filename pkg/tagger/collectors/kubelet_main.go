@@ -24,11 +24,12 @@ const (
 // tags. It is to be supplemented by the cluster agent collector for tags from
 // the apiserver.
 type KubeletCollector struct {
-	watcher      *kubelet.PodWatcher
-	infoOut      chan<- []*TagInfo
-	lastExpire   time.Time
-	expireFreq   time.Duration
-	labelsAsTags map[string]string
+	watcher           *kubelet.PodWatcher
+	infoOut           chan<- []*TagInfo
+	lastExpire        time.Time
+	expireFreq        time.Duration
+	labelsAsTags      map[string]string
+	annotationsAsTags map[string]string
 }
 
 // Detect tries to connect to the kubelet
@@ -44,6 +45,7 @@ func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error)
 
 	// viper lower-cases map keys, so extractor must lowercase before matching
 	c.labelsAsTags = config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
+	c.annotationsAsTags = config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
 
 	return PullCollection, nil
 }
