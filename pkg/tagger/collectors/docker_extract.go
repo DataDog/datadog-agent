@@ -59,6 +59,8 @@ func dockerExtractLabels(tags *utils.TagList, containerLabels map[string]string,
 		// Docker swarm
 		case "com.docker.swarm.service.name":
 			tags.AddLow("swarm_service", labelValue)
+		case "com.docker.stack.namespace":
+			tags.AddLow("swarm_namespace", labelValue)
 
 		// Rancher 1.x
 		case "io.rancher.container.name":
