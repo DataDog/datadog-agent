@@ -29,7 +29,7 @@ const (
 )
 
 func randomBetween(min, max float64) float64 {
-	return rand.Float64() * (max - min) + min
+	return rand.Float64()*(max-min) + min
 }
 
 // GetBackoffDuration returns an appropriate amount of time to wait for the next network
