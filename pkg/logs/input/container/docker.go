@@ -29,6 +29,10 @@ import (
 	"github.com/docker/docker/client"
 )
 
+// logsMetadataPath refers to the logs configuration that can be passed over a docker label,
+// this feature is commonly named autodicovery.
+const logsMetadataPath = "com.datadoghq.ad.logs"
+
 const defaultSleepDuration = 1 * time.Second
 const tagsUpdatePeriod = 10 * time.Second
 
@@ -43,6 +47,7 @@ type DockerTailer struct {
 	cli           *client.Client
 	source        *config.LogSource
 	containerTags []string
+	logsMetadata  *config.LogsConfig
 
 	sleepDuration time.Duration
 	shouldStop    bool
@@ -142,9 +147,10 @@ func (dt *DockerTailer) tailFrom(from string) error {
 
 	dt.reader = reader
 
-	logsConfig, exists := dt.fetchContainerLogsMetadata()
+	// check if logs metadata are attached to the container
+	logsMetadata, exists := dt.fetchLogsMetadata()
 	if exists {
-		fmt.Println(logsConfig.Service, logsConfig.Source)
+		dt.logsMetadata = logsMetadata
 	}
 
 	go dt.keepDockerTagsUpdated()
@@ -205,7 +211,13 @@ func (dt *DockerTailer) forwardMessages() {
 		}
 		containerMsg := message.NewContainerMessage(updatedMsg)
 		msgOrigin := message.NewOrigin()
-		msgOrigin.LogSource = dt.source
+		// use logs metada instead of source config when defined,
+		// it might interesting to merge both at some point.
+		if dt.logsMetadata != nil {
+			msgOrigin.LogsConfig = dt.source.Config
+		} else {
+			msgOrigin.LogsConfig = dt.logsMetadata
+		}
 		msgOrigin.Timestamp = ts
 		msgOrigin.Identifier = dt.Identifier()
 		msgOrigin.SetTags(dt.containerTags)
@@ -215,21 +227,25 @@ func (dt *DockerTailer) forwardMessages() {
 	}
 }
 
-// fetchContainerLogsMetadata returns the logs metedata defined in container labels
-// for now only support service and source metadata
-func (dt *DockerTailer) fetchContainerLogsMetadata() (*config.LogsConfig, bool) {
-	inf, err := dt.cli.ContainerInspect(context.Background(), dt.ContainerID)
+// fetchLogsMetadata returns the logs metedata defined in the container labels.
+// if no metadata are specified, return false
+func (dt *DockerTailer) fetchLogsMetadata() (*config.LogsConfig, bool) {
+	information, err := dt.cli.ContainerInspect(context.Background(), dt.ContainerID)
 	if err != nil {
 		return nil, false
 	}
-	labels, exists := inf.Config.Labels["com.datadoghq.ad.logs"]
+	label, exists := information.Config.Labels[logsMetadataPath]
 	if !exists {
 		return nil, false
 	}
+	return dt.computeLogsMetadataFromLabel(label)
+}
+
+// computeLogsMetadataFromLabel returns logs metadata if label is correctly formatted.
+func (dt *DockerTailer) computeLogsMetadataFromLabel(label string) (*config.LogsConfig, bool) {
 	var configs []config.LogsConfig
-	err = json.Unmarshal([]byte(labels), &configs)
+	err := json.Unmarshal([]byte(label), &configs)
 	if err != nil {
-		fmt.Println(err)
 		return nil, false
 	}
 	if len(configs) < 1 {

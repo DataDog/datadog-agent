@@ -67,7 +67,7 @@ func (w *Worker) forwardMessages() {
 	for output := range w.decoder.OutputChan {
 		netMsg := message.NewNetworkMessage(output.Content)
 		o := message.NewOrigin()
-		o.LogSource = w.source
+		o.LogsConfig = w.source.Config
 		netMsg.SetOrigin(o)
 		w.outputChan <- netMsg
 	}
