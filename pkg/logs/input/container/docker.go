@@ -9,6 +9,7 @@ package container
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
@@ -140,6 +141,12 @@ func (dt *DockerTailer) tailFrom(from string) error {
 	dt.source.AddInput(dt.ContainerID)
 
 	dt.reader = reader
+
+	logsConfig, exists := dt.fetchContainerLogsMetadata()
+	if exists {
+		fmt.Println(logsConfig.Service, logsConfig.Source)
+	}
+
 	go dt.keepDockerTagsUpdated()
 	go dt.forwardMessages()
 	dt.decoder.Start()
@@ -206,6 +213,30 @@ func (dt *DockerTailer) forwardMessages() {
 		containerMsg.SetOrigin(msgOrigin)
 		dt.outputChan <- containerMsg
 	}
+}
+
+// fetchContainerLogsMetadata returns the logs metedata defined in container labels
+// for now only support service and source metadata
+func (dt *DockerTailer) fetchContainerLogsMetadata() (*config.LogsConfig, bool) {
+	inf, err := dt.cli.ContainerInspect(context.Background(), dt.ContainerID)
+	if err != nil {
+		return nil, false
+	}
+	labels, exists := inf.Config.Labels["com.datadoghq.ad.logs"]
+	if !exists {
+		return nil, false
+	}
+	var configs []config.LogsConfig
+	err = json.Unmarshal([]byte(labels), &configs)
+	if err != nil {
+		fmt.Println(err)
+		return nil, false
+	}
+	if len(configs) < 1 {
+		return nil, false
+	}
+	logsConfig := configs[0]
+	return &logsConfig, true
 }
 
 func (dt *DockerTailer) keepDockerTagsUpdated() {
