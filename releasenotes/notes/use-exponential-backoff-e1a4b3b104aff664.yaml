@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Use jittered, truncated exponential backoff for network error retries.
