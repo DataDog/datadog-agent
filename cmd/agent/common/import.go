@@ -220,7 +220,7 @@ func copyFile(src, dst string, overwrite bool) error {
 	ddGroup, errGroup := user.LookupGroup("dd-agent")
 	ddUser, errUser := user.LookupId("dd-agent")
 
-	// Only change the owner/group of the configuration fiels if we can detect the dd-agent user
+	// Only change the owner/group of the configuration files if we can detect the dd-agent user
 	// This will not take affect on Windows/MacOS as the user is not available.
 	if errGroup == nil && errUser == nil {
 		ddGID, err := strconv.Atoi(ddGroup.Gid)
