@@ -2,7 +2,7 @@
 # Preparation stage: extract and cleanup #
 ##########################################
 
-FROM debian:stretch-slim as extract
+FROM debian:buster-slim as extract
 ARG WITH_JMX
 COPY datadog-agent*_amd64.deb /
 WORKDIR /output
@@ -12,7 +12,7 @@ ENV S6_VERSION v1.21.2.2
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz /output/s6.tgz
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz.sig /tmp/s6.tgz.sig
 RUN apt-get update \
- && apt-get install --no-install-recommends -y gpg curl ca-certificates \
+ && apt-get install --no-install-recommends -y gpg gpg-agent curl ca-certificates \
  && curl https://keybase.io/justcontainers/key.asc | gpg --import \
  && gpg --verify /tmp/s6.tgz.sig /output/s6.tgz
 
@@ -41,7 +41,7 @@ COPY datadog*.yaml etc/datadog-agent/
 # Actual docker image construction #
 ####################################
 
-FROM debian:stretch-slim
+FROM debian:buster-slim
 LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ENV DOCKER_DD_AGENT=yes \
@@ -68,12 +68,10 @@ RUN if [ -n "$WITH_JMX" ]; then apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; fi
 
+RUN apt-get update && apt-get upgrade -y --no-install-recommends
+
 # Copy agent from extract stage
 COPY --from=extract /output/ /
-
-# Extract s6-overlay
-# FIXME: copying it from the extract stage does not work
-RUN tar xfz s6.tgz && rm s6.tgz
 
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
@@ -83,11 +81,14 @@ COPY probe.sh initlog.sh /
 # Override the exit script by ours to fix --pid=host operations
 COPY init-stage3 /etc/s6/init/init-stage3
 
+# Extract s6-overlay
+# FIXME: copying it from the extract stage does not work
+RUN tar xzf s6.tgz && rm s6.tgz \
 # Prepare for running without root
 # - Create a dd-agent:root user and give it permissions on relevant folders
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
 # as some docker versions re-create /run from zero at container start
-RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
+ && adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
  && rm /var/run && mkdir -p /var/run/s6 \
  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ \
