@@ -412,10 +412,14 @@ func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, []error
 		return stats, errlist
 	}
 	for _, node := range nodes {
+		if node.Metadata == nil || node.Metadata.Name == nil {
+			errlist = append(errlist, fmt.Errorf("incorrect payload when evaluating a node for the service mapper"))
+			continue
+		}
 		nodePodServiceMap[*node.Metadata.Name], err = getSMBOnNodes(*node.Metadata.Name)
 		if err != nil {
 			errlist = append(errlist, err)
-			log.Errorf("Node %s could not be added to the service map bundle: %s", err.Error())
+			log.Errorf("Node %s could not be added to the service map bundle: %s", *node.Metadata.Name, err.Error())
 		}
 	}
 	stats["Nodes"] = nodePodServiceMap
