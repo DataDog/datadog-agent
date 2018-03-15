@@ -15,9 +15,9 @@ func TestDefaultDatadogConfig(t *testing.T) {
 	assert.Equal(t, false, LogsAgent.GetBool("log_enabled"))
 	assert.Equal(t, false, LogsAgent.GetBool("logs_enabled"))
 	assert.Equal(t, "", LogsAgent.GetString("logset"))
-	assert.Equal(t, "intake.logs.datadoghq.com", LogsAgent.GetString("logs_config.dd_url"))
+	assert.Equal(t, "intake-agent.logs.datadoghq.com", LogsAgent.GetString("logs_config.dd_url"))
 	assert.Equal(t, 10516, LogsAgent.GetInt("logs_config.dd_port"))
 	assert.Equal(t, false, LogsAgent.GetBool("logs_config.dev_mode_no_ssl"))
-	assert.Equal(t, false, LogsAgent.GetBool("logs_config.dev_mode_use_proto"))
+	assert.Equal(t, true, LogsAgent.GetBool("logs_config.dev_mode_use_proto"))
 	assert.Equal(t, 100, LogsAgent.GetInt("logs_config.open_files_limit"))
 }
