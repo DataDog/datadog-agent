@@ -15,7 +15,7 @@ var LogsAgent = config.Datadog
 
 // Build returns logs-agent sources
 func Build() (*LogSources, error) {
-	sources, err := buildLogSources(LogsAgent.GetString("confd_path"), LogsAgent.GetBool("logs_config.collect_all"))
+	sources, err := buildLogSources(LogsAgent.GetString("confd_path"), LogsAgent.GetBool("logs_config.container_collect_all"))
 	if err != nil {
 		return nil, err
 	}

@@ -213,7 +213,7 @@ func init() {
 	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", false)
 	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
-	BindEnvAndSetDefault("logs_config.collect_all", false)
+	BindEnvAndSetDefault("logs_config.container_collect_all", false)
 
 	// Tagger full cardinality mode
 	// Undocumented opt-in feature for now
