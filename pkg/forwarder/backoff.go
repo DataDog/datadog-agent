@@ -17,9 +17,15 @@ const (
 	// will asymptotically approach 50% the higher the value is set.
 	minBackoffFactor = 2
 
+	// This controls the rate of exponential growth. Also, you can calculate the start
+	// of the very first retry interval range by evaluating the following expression:
+	// baseBackoffTime / minBackoffFactor * 2
 	baseBackoffTime = 2
-	maxBackoffTime  = 64
-	secondsFloat    = float64(time.Second)
+
+	// This is the maximum number of seconds to wait for a retry.
+	maxBackoffTime = 64
+
+	secondsFloat = float64(time.Second)
 )
 
 func randomBetween(min, max float64) float64 {
