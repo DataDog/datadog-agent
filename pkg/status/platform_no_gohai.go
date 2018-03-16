@@ -5,14 +5,8 @@
 
 // +build freebsd netbsd openbsd solaris dragonfly
 
-package v5
+package status
 
-// Payload handles the JSON unmarshalling of the metadata payload
-type Payload struct {
-	CommonPayload
-	HostPayload
-	ResourcesPayload
-	// TODO: host-tags
-	ExternalHostPayload
-	// TODO: gohai alternative (or fix gohai)
+func getPlatformPayload() (result interface{}, err error) {
+	return make(map[string]interface{}), nil
 }
