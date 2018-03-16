@@ -22,6 +22,7 @@ open an issue or submit a Pull Request.
   * [Check API](#check-api)
   * [Custom Checks](#custom-checks)
 * [JMX](#jmx)
+* [GCE hostname](#gce-hostname)
 
 ## Configuration Files
 
@@ -153,9 +154,9 @@ There are a few major changes
 * The configuration GUI is now a web-based configuration application, it can be easily accessed by running
   the command `"c:\program files\datadog\datadog agent\embedded\agent.exe" launch-gui` or using the systray app.
 * The Windows service is now started "Automatic-Delayed"; it is started automatically on boot, but after
-  all other services.  This will result in a small delay in reporting of metrics after a reboot of a 
+  all other services.  This will result in a small delay in reporting of metrics after a reboot of a
   Windows device.
-* The Windows GUI and Windows system tray icon are now implemented separately.  See the 
+* The Windows GUI and Windows system tray icon are now implemented separately.  See the
   [specific docs](gui.md) for more details.
 
 ### MacOS
@@ -475,6 +476,18 @@ find it with `sudo find / -type f -name 'tools.jar'`.
 
 Note: you may wish to specify alternative JVM heap parameters `-Xmx`, `-Xms`, the
 values used in the example correspond to the JMXFetch defaults.
+
+### GCE hostname
+
+_Only affects Agents running on GCE_
+
+When running on GCE, by default, Agent 6 uses the instance's hostname provided by GCE as its hostname.
+This matches the behavior of Agent 5 (since v5.5.1) if `gce_updated_hostname` is set to true in `datadog.conf`,
+which is recommended.
+
+If you're upgrading from an Agent 5 with `gce_updated_hostname` unset or set to false, and the hostname
+of the Agent is not hardcoded in `datadog.conf`/`datadog.yaml`, the reported hostname on Datadog
+will change from the GCE instance _name_ to the full GCE instance _hostname_ (which includes the GCE project id).
 
 
 [known-issues]: known_issues.md
