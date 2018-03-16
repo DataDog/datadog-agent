@@ -24,6 +24,7 @@ type configFormat struct {
 	MetricConfig  interface{} `yaml:"jmx_metrics"`
 	LogsConfig    interface{} `yaml:"logs"`
 	Instances     []check.ConfigRawMap
+        DockerImages []string `yaml:"docker_images"` // To avoid issues if check uses former conf
 }
 
 type configPkg struct {
@@ -294,6 +295,14 @@ func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 		rawLogsConfig, _ := yaml.Marshal(cf.LogsConfig)
 		config.LogsConfig = rawLogsConfig
 	}
+
+        // DockerImages entry was found: we ignore it if no ADIdentifiers has been found
+        if cf.DockerImages != nil && cf.ADIdentifiers == nil {
+            log.Warnf("In check `%s`: The 'docker_images:' section has been deprecated in favor of 'ad_identifiers:'. " +
+                      "Please make change in your configuration it in order to load the check", name)
+
+            return config, errors.New("unexpected 'docker_images:' section found in configuration")
+        }
 
 	return config, err
 }
