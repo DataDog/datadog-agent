@@ -274,13 +274,17 @@ func (c *JMXCheck) start() error {
 
 	javaOptions := c.javaOptions
 	if config.Datadog.GetBool("jmx_use_cgroup_memory_limit") {
+		passOption := true
 		// This option is incompatible with the Xmx and Xms options, log a warning if there are found in the javaOptions
 		for _, option := range jvmCgroupMemoryIncompatOptions {
 			if strings.Contains(javaOptions, option) {
-				log.Warnf("Java option %q is incompatible with cgroup memory limit, please remove it", option)
+				log.Warnf("Java option %q is incompatible with cgroup_memory_limit, disabling cgroup mode", option)
+				passOption = false
 			}
 		}
-		javaOptions += jvmCgroupMemoryAwareness
+		if passOption {
+			javaOptions += jvmCgroupMemoryAwareness
+		}
 	} else {
 		// Specify a maximum memory allocation pool for the JVM
 		if !strings.Contains(javaOptions, "Xmx") && !strings.Contains(javaOptions, "XX:MaxHeapSize") {
