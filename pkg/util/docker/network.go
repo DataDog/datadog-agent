@@ -137,7 +137,6 @@ func findDockerNetworks(containerID string, pid int, container types.Container) 
 		}
 	}
 	sort.Sort(dockerNetworks(networks))
-	log.Warnf("Nets for %s: %+v", containerID, networks)
 	return networks
 }
 
