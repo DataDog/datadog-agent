@@ -668,7 +668,7 @@ agent6_dev_quay_master:
   variables:
     <<: *quay_variables
     SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: quay.io/datadog/agent-dev
+    DEST_IMAGE: quay.io/datawhale/agent-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
 
 agent6_jmx_dev_quay_master:
@@ -678,7 +678,7 @@ agent6_jmx_dev_quay_master:
   variables:
     <<: *quay_variables
     SOURCE_IMAGE: *agent_ecr
-    DEST_IMAGE: quay.io/datadog/agent-dev
+    DEST_IMAGE: quay.io/datawhale/agent-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
     TAG_SUFFIX: -jmx
 
@@ -689,7 +689,7 @@ dogstatsd_dev_quay_master:
   variables:
     <<: *quay_variables
     SOURCE_IMAGE: *dogstatsd_ecr
-    DEST_IMAGE: quay.io/datadog/dogstatsd-dev
+    DEST_IMAGE: quay.io/datawhale/dogstatsd-dev
     LATEST_TAG: $CI_COMMIT_REF_SLUG
 
 #
