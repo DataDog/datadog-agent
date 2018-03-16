@@ -318,7 +318,12 @@ func zipConfigCheck(tempDir, hostname string) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(f, b.Bytes(), os.ModePerm)
+	data, err := credentialsCleanerBytes(b.Bytes())
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(f, data, os.ModePerm)
 	if err != nil {
 		return err
 	}
