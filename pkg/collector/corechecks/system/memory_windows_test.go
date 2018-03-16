@@ -42,9 +42,8 @@ func TestMemoryCheckWindows(t *testing.T) {
 
 	mock := mocksender.NewMockSender(memCheck.ID())
 
-	runtimeOS = "linux"
-
 	mock.On("Gauge", "system.mem.free", 234567890.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.usable", 234567890.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.used", 12111100000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.total", 12345667890.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.pct_usable", 0.19, "", []string(nil)).Return().Times(1)
