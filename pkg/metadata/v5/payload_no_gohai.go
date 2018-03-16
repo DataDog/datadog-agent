@@ -7,12 +7,22 @@
 
 package v5
 
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
+)
+
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	CommonPayload
 	HostPayload
-	ResourcesPayload
-	// TODO: host-tags
-	ExternalHostPayload
+	// Notice: ResourcesPayload requires gohai so it can't be included
 	// TODO: gohai alternative (or fix gohai)
+}
+
+// SplitPayload breaks the payload into times number of pieces
+func (p *Payload) SplitPayload(times int) ([]marshaler.Marshaler, error) {
+	// Metadata payloads are analyzed as a whole, so they cannot be split
+	return nil, fmt.Errorf("V5 Payload splitting is not implemented")
 }

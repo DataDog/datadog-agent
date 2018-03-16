@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/gohai/platform"
 	log "github.com/cihub/seelog"
 )
 
@@ -44,7 +43,7 @@ func GetStatus() (map[string]interface{}, error) {
 	stats["config"] = getPartialConfig()
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 
-	platformPayload, err := new(platform.Platform).Collect()
+	platformPayload, err := getPlatformPayload()
 	if err != nil {
 		return nil, err
 	}
