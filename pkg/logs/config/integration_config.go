@@ -75,9 +75,9 @@ type IntegrationConfig struct {
 	Logs []LogsConfig
 }
 
-// buildLogSources looks for all yml configs in the ddconfdPath directory,
+// buildLogSourcesFromDirectory looks for all yml configs in the ddconfdPath directory,
 // and returns a list of all the valid logs sources along with their trackers
-func buildLogSources(ddconfdPath string) (*LogSources, error) {
+func buildLogSourcesFromDirectory(ddconfdPath string) []*LogSource {
 	integrationConfigFiles := availableIntegrationConfigs(ddconfdPath)
 	var sources []*LogSource
 	for _, file := range integrationConfigFiles {
@@ -130,13 +130,7 @@ func buildLogSources(ddconfdPath string) (*LogSources, error) {
 		}
 	}
 
-	logSources := &LogSources{sources}
-
-	if len(logSources.GetValidSources()) == 0 {
-		return nil, fmt.Errorf("could not find any valid logs configuration file in %s", ddconfdPath)
-	}
-
-	return logSources, nil
+	return sources
 }
 
 // buildIntegrationName returns the name of the integration
