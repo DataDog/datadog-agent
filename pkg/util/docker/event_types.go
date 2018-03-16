@@ -35,9 +35,10 @@ var (
 
 // eventSubscriber holds the state for a subscriber
 type eventSubscriber struct {
-	name      string
-	eventChan chan *ContainerEvent
-	errorChan chan error
+	name       string
+	eventChan  chan *ContainerEvent
+	errorChan  chan error
+	cancelChan chan struct{}
 }
 
 // eventStreamState holds the state for event streaming towards subscribers
@@ -45,7 +46,6 @@ type eventStreamState struct {
 	sync.RWMutex
 	subscribers map[string]*eventSubscriber
 	cancelChan  chan struct{}
-	running     bool
 }
 
 func newEventStreamState() *eventStreamState {

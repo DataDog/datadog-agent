@@ -16,112 +16,78 @@ import (
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
-
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 //// eventStreamState logic unit tested in event_stream_test.go
 //// DockerUtil logic covered by the listeners/docker and dogstatsd/origin_detection integration tests.
-
-const eventSendTimeout = 100 * time.Millisecond
 const eventSendBuffer = 5
 
 // SubscribeToContainerEvents allows a package to subscribe to events from the event stream.
 // A unique subscriber name should be provided.
-//
-// Attention: events sent through the channel are references to objects shared between subscribers,
-// subscribers should NOT modify them.
 func (d *DockerUtil) SubscribeToContainerEvents(name string) (<-chan *ContainerEvent, <-chan error, error) {
-	eventChan, errorChan, err, shouldStart := d.eventState.subscribe(name)
-
-	if shouldStart {
-		d.eventState.Lock()
-		d.eventState.running = true
-		go d.dispatchEvents(d.eventState.cancelChan)
-		d.eventState.Unlock()
+	sub, err := d.eventState.subscribe(name)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return eventChan, errorChan, err
+	go d.dispatchEvents(sub)
+	return sub.eventChan, sub.errorChan, err
 }
 
-// extracted from SubscribeToContainerEvents for unit testing, additional boolean
-// indicates whether the dispatch goroutine should be started by DockerUtil
-func (e *eventStreamState) subscribe(name string) (<-chan *ContainerEvent, <-chan error, error, bool) {
-	var shouldStart bool
+func (e *eventStreamState) subscribe(name string) (*eventSubscriber, error) {
 	e.RLock()
 	if _, found := e.subscribers[name]; found {
 		e.RUnlock()
-		return nil, nil, ErrAlreadySubscribed, false
+		return nil, ErrAlreadySubscribed
 	}
 	e.RUnlock()
 
 	sub := &eventSubscriber{
-		name:      name,
-		eventChan: make(chan *ContainerEvent, eventSendBuffer),
-		errorChan: make(chan error, 1),
+		name:       name,
+		eventChan:  make(chan *ContainerEvent, eventSendBuffer),
+		errorChan:  make(chan error, 1), // TODO: remove errorChan once design is stable
+		cancelChan: make(chan struct{}),
 	}
 	e.Lock()
 	e.subscribers[name] = sub
-	if !e.running {
-		shouldStart = true
-	}
 	e.Unlock()
 
-	return sub.eventChan, sub.errorChan, nil, shouldStart
+	return sub, nil
 }
 
 // UnsubscribeFromContainerEvents allows a package to unsubscribe.
 // The call is blocking until the request is processed.
 func (d *DockerUtil) UnsubscribeFromContainerEvents(name string) error {
-	err, shouldStop := d.eventState.unsubscribe(name)
-
-	if shouldStop {
-		d.eventState.Lock()
-		d.eventState.running = false
-		d.eventState.cancelChan <- struct{}{}
-		d.eventState.Unlock()
-	}
-
-	return err
+	return d.eventState.unsubscribe(name)
 }
 
-// extracted from UnsubscribeFromContainerEvents for unit testing, additional boolean
-// indicates whether the dispatch goroutine should be stopped by DockerUtil
-func (e *eventStreamState) unsubscribe(name string) (error, bool) {
-	var shouldStop bool
+func (e *eventStreamState) unsubscribe(name string) error {
 	e.Lock()
 	defer e.Unlock()
 
 	sub, found := e.subscribers[name]
 	if !found {
-		return ErrNotSubscribed, false
+		return ErrNotSubscribed
 	}
 
-	// Remove subscriber
-	close(sub.errorChan)
-	close(sub.eventChan)
+	// Stop dispatch and remove subscriber
+	close(sub.cancelChan)
 	delete(e.subscribers, name)
-
-	// Stop dispatch if no subs remaining
-	if e.running && len(e.subscribers) == 0 {
-		shouldStop = true
-	}
-	return nil, shouldStop
+	return nil
 }
 
-func (d *DockerUtil) dispatchEvents(cancelChan chan struct{}) {
+func (d *DockerUtil) dispatchEvents(sub *eventSubscriber) {
 	fltrs := filters.NewArgs()
 	fltrs.Add("type", "container")
 	fltrs.Add("event", "start")
 	fltrs.Add("event", "die")
 
-	healthHandle := health.Register("dockerutil-event-dispatch")
+	latestTimestamp := time.Now().Unix()
 
-	// Outer loop handles re-connecting in case the docker daemon closes the connection
-CONNECT:
+CONNECT: // Outer loop handles re-connecting in case the docker daemon closes the connection
 	for {
 		eventOptions := types.EventsOptions{
-			Since:   strconv.FormatInt(time.Now().Unix(), 10),
+			Since:   strconv.FormatInt(latestTimestamp, 10),
 			Filters: fltrs,
 		}
 
@@ -131,23 +97,24 @@ CONNECT:
 		// Inner loop iterates over elements in the channel
 		for {
 			select {
-			case <-cancelChan:
+			case <-sub.cancelChan:
 				cancel()
-				healthHandle.Deregister()
+				close(sub.errorChan)
+				close(sub.eventChan)
 				return
-			case <-healthHandle.C:
 			case err := <-errs:
 				if err == io.EOF {
 					// Silently ignore io.EOF that happens on http connection reset
 					log.Debug("Got EOF, re-connecting")
 				} else {
 					// Else, let's wait 10 seconds and try reconnecting
-					log.Errorf("Error getting docker events: %s", err)
+					log.Warnf("Got error from docker, waiting for 10 seconds: %s", err)
 					time.Sleep(10 * time.Second)
 				}
 				cancel()
 				continue CONNECT // Re-connect to docker
 			case msg := <-messages:
+				latestTimestamp = msg.Time
 				event, err := d.processContainerEvent(msg)
 				if err != nil {
 					log.Debugf("Skipping event: %s", err)
@@ -156,43 +123,11 @@ CONNECT:
 				if event == nil {
 					continue
 				}
-				badSubs := d.eventState.dispatch(event)
-				for _, sub := range badSubs {
-					d.UnsubscribeFromContainerEvents(sub.name)
-				}
+				// Block if the buffered channel is full, pausing the http
+				// stream. If docker closes because of client timeout, we
+				// will reconnect later an stream from latestTimestamp.
+				sub.eventChan <- event
 			}
 		}
 	}
-}
-
-func (e *eventStreamState) dispatch(event *ContainerEvent) []*eventSubscriber {
-	var badSubs []*eventSubscriber
-	e.RLock()
-	for _, sub := range e.subscribers {
-		err := e.sendEvent(event, sub)
-		if err != nil {
-			badSubs = append(badSubs, sub)
-		}
-	}
-	e.RUnlock()
-	return badSubs
-}
-
-func (s *eventStreamState) sendEvent(ev *ContainerEvent, sub *eventSubscriber) error {
-	var err error
-	select {
-	case sub.eventChan <- ev:
-		return nil
-	case <-time.After(eventSendTimeout):
-		err = ErrEventTimeout
-	}
-
-	// We timeouted, let's try to send the error to the subscriber
-	select {
-	case sub.errorChan <- err:
-		// Send successful
-	case <-time.After(eventSendTimeout):
-		// We don't want to block, let's return
-	}
-	return err
 }

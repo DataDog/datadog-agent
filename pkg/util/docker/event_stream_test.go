@@ -9,71 +9,42 @@ package docker
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestTwoSubs(t *testing.T) {
+func TestSubscribe(t *testing.T) {
 	state := newEventStreamState()
+	assert.Equal(t, 0, len(state.subscribers))
 
-	outData1, outErr1, err, shouldStart := state.subscribe("listener1")
-	assert.Nil(t, err)
-	assert.True(t, shouldStart)
-	state.running = true
+	sub1, err := state.subscribe("listener1")
+	assert.NoError(t, err)
+	assert.NotNil(t, sub1)
+	assert.Equal(t, 1, len(state.subscribers))
 
-	outData2, outErr2, err, shouldStart := state.subscribe("listener2")
-	assert.Nil(t, err)
-	assert.False(t, shouldStart)
+	sub2, err := state.subscribe("listener2")
+	assert.NoError(t, err)
+	assert.NotNil(t, sub2)
+	assert.Equal(t, 2, len(state.subscribers))
 
-	ev := &ContainerEvent{}
-	state.dispatch(ev)
-	received1 := <-outData1
-	assert.Equal(t, ev, received1)
-	received2 := <-outData2
-	assert.Equal(t, ev, received2)
-
-	select {
-	case err := <-outErr1:
-		assert.FailNow(t, "should not have received an error, received %s", err)
-	case err := <-outErr2:
-		assert.FailNow(t, "should not have received an error, received %s", err)
-	case <-time.After(time.Millisecond):
-		break
-	}
+	_, err = state.subscribe("listener2")
+	assert.Equal(t, ErrAlreadySubscribed, err)
+	assert.Equal(t, 2, len(state.subscribers))
 }
 
-func TestSendTimeout(t *testing.T) {
+func TestUnsubscribe(t *testing.T) {
 	state := newEventStreamState()
+	assert.Equal(t, 0, len(state.subscribers))
 
-	_, outErr, err, _ := state.subscribe("listener1")
-	assert.Nil(t, err)
+	_, err := state.subscribe("listener1")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(state.subscribers))
 
-	ev := &ContainerEvent{}
+	err = state.unsubscribe("listener2")
+	assert.Equal(t, ErrNotSubscribed, err)
+	assert.Equal(t, 1, len(state.subscribers))
 
-	// First sends should be OK
-	for i := 0; i < eventSendBuffer; i++ {
-		badSubs := state.dispatch(ev)
-		assert.Equal(t, 0, len(badSubs))
-	}
-
-	select {
-	case err := <-outErr:
-		assert.FailNow(t, "should not have received an error, received %s", err)
-	case <-time.After(time.Millisecond):
-		break
-	}
-
-	// Next send should timeout
-	badSubs := state.dispatch(ev)
-	assert.Equal(t, 1, len(badSubs))
-
-	select {
-	case err := <-outErr:
-		require.NotNil(t, err)
-		assert.Equal(t, err, ErrEventTimeout)
-	case <-time.After(time.Second):
-		assert.FailNow(t, "should have received a timeout error")
-	}
+	err = state.unsubscribe("listener1")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(state.subscribers))
 }
