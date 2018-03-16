@@ -123,6 +123,10 @@ func FromAgentConfig(agentConfig Config) error {
 		config.Datadog.Set("enable_gohai", enabled)
 	}
 
+	if agentConfig["bind_host"] != "" {
+		config.Datadog.Set("bind_host", agentConfig["bind_host"])
+	}
+
 	//Trace APM based configurations
 
 	if agentConfig["apm_enabled"] != "" {
