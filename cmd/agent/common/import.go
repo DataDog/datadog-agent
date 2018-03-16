@@ -118,6 +118,13 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 				return err
 			}
 			continue
+		} else if f.Name() == "docker.yaml" {
+			// if people upgrade from a very old version of the agent who ship the old docker check.
+			fmt.Fprintln(
+				color.Output,
+				fmt.Sprintf("Ignoring %s, old docker check has been deprecated.", color.YellowString(src)),
+			)
+			continue
 		}
 
 		if err := copyFile(src, dst, force); err != nil {
