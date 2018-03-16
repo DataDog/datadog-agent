@@ -29,19 +29,19 @@ func TestDefaultGateway(t *testing.T) {
 		expectedIP      string
 	}{
 		{
-			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT                                                       
+			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
 ens33	00000000	0280A8C0	0003	0	0	100	00000000	0	0	0
 `),
 			"192.168.128.2",
 		},
 		{
-			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT                                                       
+			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
 ens33	00000000	FE01A8C0	0003	0	0	100	00000000	0	0	0
 `),
 			"192.168.1.254",
 		},
 		{
-			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT                                                       
+			[]byte(`Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT
 ens33	00000000	FEFEA8C0	0003	0	0	100	00000000	0	0	0
 `),
 			"192.168.254.254",
@@ -217,7 +217,7 @@ func TestFindDockerNetworks(t *testing.T) {
 				NetworkSettings: &types.SummaryNetworkSettings{
 					Networks: map[string]*dockernetwork.EndpointSettings{
 						"eth0": {
-							Gateway: "172.17.0.1/24",
+							IPAddress: "172.17.0.1",
 						},
 					},
 				},
@@ -250,6 +250,7 @@ func TestFindDockerNetworks(t *testing.T) {
 				PacketsSent: 0,
 			},
 		},
+		// previous int32 overflow bug, now we parse uint32
 		{
 			pid: 1245,
 			container: types.Container{
@@ -262,7 +263,7 @@ func TestFindDockerNetworks(t *testing.T) {
 				NetworkSettings: &types.SummaryNetworkSettings{
 					Networks: map[string]*dockernetwork.EndpointSettings{
 						"eth0": {
-							Gateway: "192.168.254.254",
+							IPAddress: "192.168.254.254",
 						},
 					},
 				},
@@ -303,10 +304,10 @@ func TestFindDockerNetworks(t *testing.T) {
 				NetworkSettings: &types.SummaryNetworkSettings{
 					Networks: map[string]*dockernetwork.EndpointSettings{
 						"bridge": {
-							Gateway: "172.17.0.1",
+							IPAddress: "172.17.0.1",
 						},
 						"test": {
-							Gateway: "172.18.0.1",
+							IPAddress: "172.18.0.1",
 						},
 					},
 				},
@@ -363,10 +364,10 @@ func TestFindDockerNetworks(t *testing.T) {
 				NetworkSettings: &types.SummaryNetworkSettings{
 					Networks: map[string]*dockernetwork.EndpointSettings{
 						"isolated_nw": {
-							Gateway: "172.18.0.1",
+							IPAddress: "172.18.0.1",
 						},
 						"eth0": {
-							Gateway: "172.0.0.4/24",
+							IPAddress: "172.0.0.4/24",
 						},
 					},
 				},

@@ -67,32 +67,32 @@ func findDockerNetworks(containerID string, pid int, container types.Container) 
 	}
 
 	var err error
-	dockerGateways := make(map[string]uint64)
+	interfaces := make(map[string]uint64)
 	for netName, netConf := range netSettings.Networks {
-		gw := netConf.Gateway
-		if netName == "host" || gw == "" {
-			log.Debugf("Empty network gateway, container %s is in network host mode, its network metrics are for the whole host", containerID)
+		if netName == "host" {
+			log.Debugf("Container %s is in network host mode, its network metrics are for the whole host", containerID)
 			return []dockerNetwork{hostNetwork}
 		}
 
+		ipString := netConf.IPAddress
 		// Check if this is a CIDR or just an IP
 		var ip net.IP
-		if strings.Contains(gw, "/") {
-			ip, _, err = net.ParseCIDR(gw)
+		if strings.Contains(ipString, "/") {
+			ip, _, err = net.ParseCIDR(ipString)
 			if err != nil {
-				log.Warnf("Invalid gateway %s for container id %s: %s, skipping", gw, containerID, err)
+				log.Warnf("Malformed IP %s for container id %s: %s, skipping", ipString, containerID, err)
 				continue
 			}
 		} else {
-			ip = net.ParseIP(gw)
+			ip = net.ParseIP(ipString)
 			if ip == nil {
-				log.Warnf("Invalid gateway %s for container id %s: %s, skipping", gw, containerID, err)
+				log.Warnf("Malformed IP %s for container id %s: %s, skipping", ipString, containerID, err)
 				continue
 			}
 		}
 
 		// Convert IP to little endian uint64 for comparison to network routes.
-		dockerGateways[netName] = uint64(binary.LittleEndian.Uint32(ip.To4()))
+		interfaces[netName] = uint64(binary.LittleEndian.Uint32(ip.To4()))
 	}
 
 	// Read contents of file. Handle missing or unreadable file in case container was stopped.
@@ -130,13 +130,14 @@ func findDockerNetworks(containerID string, pid int, container types.Container) 
 			log.Debugf("Cannot parse mask %q: %v", fields[7], err)
 			continue
 		}
-		for n, gw := range dockerGateways {
-			if gw&mask == dest {
+		for n, ip := range interfaces {
+			if ip&mask == dest {
 				networks = append(networks, dockerNetwork{iface: fields[0], dockerName: n})
 			}
 		}
 	}
 	sort.Sort(dockerNetworks(networks))
+	log.Warnf("Nets for %s: %+v", containerID, networks)
 	return networks
 }
 
