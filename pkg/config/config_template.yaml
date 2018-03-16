@@ -123,6 +123,11 @@ api_key:
 # Make sure your client is sending to the same UDP port
 # dogstatsd_port: 8125
 #
+# The host to bind to receive external metrics (used only by the dogstatsd
+# server for now). For dogstatsd this is ignored if
+# 'dogstatsd_non_local_traffic' is set to true
+# bind_host: localhost
+#
 # Whether dogstatsd should listen to a Unix Socket instead of UDP (*nix only).
 # Set to a valid filesystem path to enable
 # dogstatsd_socket:
