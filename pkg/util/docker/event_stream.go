@@ -82,7 +82,10 @@ func (d *DockerUtil) dispatchEvents(sub *eventSubscriber) {
 	fltrs.Add("event", "start")
 	fltrs.Add("event", "die")
 
+	// On initial subscribe, don't go back in time. On reconnect, we'll
+	// resume at the latest timestamp we got.
 	latestTimestamp := time.Now().Unix()
+	var cancelFunc context.CancelFunc
 
 CONNECT: // Outer loop handles re-connecting in case the docker daemon closes the connection
 	for {
@@ -91,17 +94,15 @@ CONNECT: // Outer loop handles re-connecting in case the docker daemon closes th
 			Filters: fltrs,
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		var ctx context.Context
+		ctx, cancelFunc = context.WithCancel(context.Background())
 		messages, errs := d.cli.Events(ctx, eventOptions)
 
 		// Inner loop iterates over elements in the channel
 		for {
 			select {
 			case <-sub.cancelChan:
-				cancel()
-				close(sub.errorChan)
-				close(sub.eventChan)
-				return
+				break CONNECT
 			case err := <-errs:
 				if err == io.EOF {
 					// Silently ignore io.EOF that happens on http connection reset
@@ -111,7 +112,7 @@ CONNECT: // Outer loop handles re-connecting in case the docker daemon closes th
 					log.Warnf("Got error from docker, waiting for 10 seconds: %s", err)
 					time.Sleep(10 * time.Second)
 				}
-				cancel()
+				cancelFunc()
 				continue CONNECT // Re-connect to docker
 			case msg := <-messages:
 				latestTimestamp = msg.Time
@@ -130,4 +131,7 @@ CONNECT: // Outer loop handles re-connecting in case the docker daemon closes th
 			}
 		}
 	}
+	cancelFunc()
+	close(sub.errorChan)
+	close(sub.eventChan)
 }
