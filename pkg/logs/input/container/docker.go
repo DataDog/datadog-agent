@@ -212,7 +212,7 @@ func (dt *DockerTailer) forwardMessages() {
 		containerMsg := message.NewContainerMessage(updatedMsg)
 		msgOrigin := message.NewOrigin()
 		// use logs metada instead of source config when defined,
-		// it might interesting to merge both at some point.
+		// it might be interesting to merge both at some point.
 		if dt.logsMetadata != nil {
 			msgOrigin.LogsConfig = dt.logsMetadata
 		} else {
@@ -227,22 +227,23 @@ func (dt *DockerTailer) forwardMessages() {
 	}
 }
 
-// fetchLogsMetadata returns the logs metedata defined in the container labels.
+// fetchLogsMetadata returns the logs metedata defined in container labels.
 // if no metadata are specified, return false
 func (dt *DockerTailer) fetchLogsMetadata() (*config.LogsConfig, bool) {
 	information, err := dt.cli.ContainerInspect(context.Background(), dt.ContainerID)
 	if err != nil {
 		return nil, false
 	}
-	label, exists := information.Config.Labels[logsMetadataPath]
+	return dt.extractLogsMetadataFromLabels(information.Config.Labels)
+}
+
+// extractLogsMetadataFromLabels returns logs metadata extracted from labels when it contains key 'com.datadoghq.ad.logs'
+// and its value respects format '[{...}]'.
+func (dt *DockerTailer) extractLogsMetadataFromLabels(labels map[string]string) (*config.LogsConfig, bool) {
+	label, exists := labels[logsMetadataPath]
 	if !exists {
 		return nil, false
 	}
-	return dt.computeLogsMetadataFromLabel(label)
-}
-
-// computeLogsMetadataFromLabel returns logs metadata if label is respects format: '[{"source":"foo", "service":"bar", ...}]'
-func (dt *DockerTailer) computeLogsMetadataFromLabel(label string) (*config.LogsConfig, bool) {
 	var configs []config.LogsConfig
 	err := json.Unmarshal([]byte(label), &configs)
 	if err != nil {
