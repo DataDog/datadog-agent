@@ -112,6 +112,14 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 		src := filepath.Join(oldConfigDir, "conf.d", f.Name())
 		dst := filepath.Join(newConfigDir, "conf.d", checkName+dirExt, "conf"+cfgExt)
 
+		if f.Name() == "docker_daemon.yaml" {
+			err := legacy.ImportDockerConf(src, filepath.Join(newConfigDir, "conf.d", "docker.yaml"), force)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
 		if err := copyFile(src, dst, force); err != nil {
 			return fmt.Errorf("unable to copy %s to %s: %v", src, dst, err)
 		}
