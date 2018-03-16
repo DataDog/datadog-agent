@@ -211,7 +211,7 @@ func (dt *DockerTailer) forwardMessages() {
 		}
 		containerMsg := message.NewContainerMessage(updatedMsg)
 		msgOrigin := message.NewOrigin()
-		// use logs metada instead of source config when defined,
+		// use logs metadata instead of source config when defined,
 		// it might be interesting to merge both at some point.
 		if dt.logsMetadata != nil {
 			msgOrigin.LogsConfig = dt.logsMetadata
@@ -227,8 +227,8 @@ func (dt *DockerTailer) forwardMessages() {
 	}
 }
 
-// fetchLogsMetadata returns the logs metedata defined in container labels.
-// if no metadata are specified, return false
+// fetchLogsMetadata returns the logs metadata defined in container labels.
+// If no metadata are specified, return false
 func (dt *DockerTailer) fetchLogsMetadata() (*config.LogsConfig, bool) {
 	information, err := dt.cli.ContainerInspect(context.Background(), dt.ContainerID)
 	if err != nil {
@@ -237,8 +237,8 @@ func (dt *DockerTailer) fetchLogsMetadata() (*config.LogsConfig, bool) {
 	return dt.extractLogsMetadataFromLabels(information.Config.Labels)
 }
 
-// extractLogsMetadataFromLabels returns logs metadata extracted from labels when it contains key 'com.datadoghq.ad.logs'
-// and its value respects format '[{...}]'.
+// extractLogsMetadataFromLabels returns the logs metadata present in the label 'com.datadoghq.ad.logs',
+// the metadata has to be conform with the format '[{...}]'.
 func (dt *DockerTailer) extractLogsMetadataFromLabels(labels map[string]string) (*config.LogsConfig, bool) {
 	label, exists := labels[logsMetadataPath]
 	if !exists {
@@ -246,14 +246,12 @@ func (dt *DockerTailer) extractLogsMetadataFromLabels(labels map[string]string) 
 	}
 	var configs []config.LogsConfig
 	err := json.Unmarshal([]byte(label), &configs)
-	if err != nil {
+	if err != nil || len(configs) < 1 {
+		log.Warnf("Could not parse logs configs, got %v, expect value with format '[{\"source\":\"a_source\",\"service\":\"a_service\", ...}]'")
 		return nil, false
 	}
-	if len(configs) < 1 {
-		return nil, false
-	}
-	logsConfig := configs[0]
-	return &logsConfig, true
+	logsMetadata := configs[0]
+	return &logsMetadata, true
 }
 
 func (dt *DockerTailer) keepDockerTagsUpdated() {
