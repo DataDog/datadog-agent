@@ -58,6 +58,6 @@ func TestMemoryCheckWindows(t *testing.T) {
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 8)
+	mock.AssertNumberOfCalls(t, "Gauge", 9)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
