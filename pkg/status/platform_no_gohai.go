@@ -8,5 +8,5 @@
 package status
 
 func getPlatformPayload() (result interface{}, err error) {
-	return nil, nil
+	return make(map[string]interface{}), nil
 }
