@@ -28,17 +28,12 @@ type HTTPTransaction struct {
 	Headers http.Header
 	// Payload is the content delivered to the backend.
 	Payload *[]byte
-	// ErrorCount is the number of times this HTTPTransaction failed to be processed.
-	ErrorCount int
 
-	nextFlush time.Time
 	createdAt time.Time
 }
 
 const (
 	apiKeyReplacement = "api_key=*************************$1"
-	retryInterval     = 20 * time.Second
-	maxRetryInterval  = 90 * time.Second
 )
 
 var apiKeyRegExp = regexp.MustCompile("api_key=*\\w+(\\w{5})")
@@ -46,16 +41,9 @@ var apiKeyRegExp = regexp.MustCompile("api_key=*\\w+(\\w{5})")
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	return &HTTPTransaction{
-		nextFlush:  time.Now(),
 		createdAt:  time.Now(),
-		ErrorCount: 0,
 		Headers:    make(http.Header),
 	}
-}
-
-// GetNextFlush returns the next time when this HTTPTransaction expect to be processed.
-func (t *HTTPTransaction) GetNextFlush() time.Time {
-	return t.nextFlush
 }
 
 // GetCreatedAt returns the creation time of the HTTPTransaction.
@@ -90,7 +78,6 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		if ctx.Err() == context.Canceled {
 			return nil
 		}
-		t.ErrorCount++
 		transactionsExpvar.Add("Errors", 1)
 		return fmt.Errorf("error while sending transaction, rescheduling it: %s", apiKeyRegExp.ReplaceAllString(err.Error(), apiKeyReplacement))
 	}
@@ -111,7 +98,6 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		transactionsExpvar.Add("Dropped", 1)
 		return nil
 	} else if resp.StatusCode > 400 {
-		t.ErrorCount++
 		transactionsExpvar.Add("Errors", 1)
 		return fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
@@ -132,18 +118,4 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 	}
 	log.Debugf("Successfully posted payload to %q: %s", logURL, string(body))
 	return nil
-}
-
-// Reschedule update nextFlush time according to the number of ErrorCount. This
-// will increase gaps between each retry as the ErrorCount increase.
-func (t *HTTPTransaction) Reschedule() {
-	if t.ErrorCount == 0 {
-		return
-	}
-
-	newInterval := time.Duration(t.ErrorCount) * retryInterval
-	if newInterval > maxRetryInterval {
-		newInterval = maxRetryInterval
-	}
-	t.nextFlush = time.Now().Add(newInterval)
 }

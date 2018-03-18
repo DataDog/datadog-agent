@@ -28,6 +28,10 @@ const (
 	secondsFloat = float64(time.Second)
 )
 
+// This is the number of attempts it will take to reach the maxBackoffTime. Our
+// blockedEndpoints circuit breaker uses this value as the maximum number of errors.
+var maxAttempts = int(math.Ceil(math.Log2(float64(maxBackoffTime) / float64(baseBackoffTime))))
+
 func randomBetween(min, max float64) float64 {
 	return rand.Float64()*(max-min) + min
 }
@@ -36,14 +40,18 @@ func randomBetween(min, max float64) float64 {
 // error retry given the current number of attempts. Unlike `github.com/cenkalti/backoff`,
 // this implementation is thread-safe.
 func GetBackoffDuration(numAttempts int) time.Duration {
-	backoffTime := baseBackoffTime * math.Pow(2, float64(numAttempts))
+	var backoffTime float64
 
-	if backoffTime > maxBackoffTime {
-		backoffTime = maxBackoffTime
-	} else {
-		min := backoffTime / minBackoffFactor
-		max := math.Min(maxBackoffTime, backoffTime)
-		backoffTime = randomBetween(min, max)
+	if numAttempts > 0 {
+		backoffTime = baseBackoffTime * math.Pow(2, float64(numAttempts))
+
+		if backoffTime > maxBackoffTime {
+			backoffTime = maxBackoffTime
+		} else {
+			min := backoffTime / minBackoffFactor
+			max := math.Min(maxBackoffTime, backoffTime)
+			backoffTime = randomBetween(min, max)
+		}
 	}
 
 	return time.Duration(backoffTime * secondsFloat)

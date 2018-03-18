@@ -6,13 +6,9 @@
 package forwarder
 
 import (
+	"math"
 	"sync"
 	"time"
-)
-
-const (
-	blockInterval    time.Duration = 5 * time.Second
-	maxBlockInterval time.Duration = 30 * time.Second
 )
 
 type block struct {
@@ -29,32 +25,38 @@ func newBlockedEndpoints() *blockedEndpoints {
 	return &blockedEndpoints{errorPerEndpoint: make(map[string]*block)}
 }
 
-func (e *blockedEndpoints) block(endpointName string) {
+func (e *blockedEndpoints) block(endpoint string) {
 	e.m.Lock()
 	defer e.m.Unlock()
 
 	var b *block
-	if knownBlock, ok := e.errorPerEndpoint[endpointName]; ok {
+	if knownBlock, ok := e.errorPerEndpoint[endpoint]; ok {
 		b = knownBlock
 	} else {
 		b = &block{}
 	}
-	b.nbError++
 
-	newInterval := time.Duration(b.nbError) * blockInterval
-	if newInterval > maxRetryInterval {
-		newInterval = maxBlockInterval
-	}
-	b.until = time.Now().Add(newInterval)
+	b.nbError = int(math.Min(float64(maxAttempts), float64(b.nbError + 1)))
+	b.until = time.Now().Add(GetBackoffDuration(b.nbError))
 
-	e.errorPerEndpoint[endpointName] = b
+	e.errorPerEndpoint[endpoint] = b
 }
 
 func (e *blockedEndpoints) unblock(endpoint string) {
 	e.m.Lock()
 	defer e.m.Unlock()
 
-	delete(e.errorPerEndpoint, endpoint)
+	var b *block
+	if knownBlock, ok := e.errorPerEndpoint[endpoint]; ok {
+		b = knownBlock
+	} else {
+		b = &block{}
+	}
+
+	b.nbError = int(math.Max(0, float64(b.nbError - 1)))
+	b.until = time.Now().Add(GetBackoffDuration(b.nbError))
+
+	e.errorPerEndpoint[endpoint] = b
 }
 
 func (e *blockedEndpoints) isBlock(endpoint string) bool {

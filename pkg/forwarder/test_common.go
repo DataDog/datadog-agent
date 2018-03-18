@@ -24,10 +24,6 @@ func newTestTransaction() *testTransaction {
 	return t
 }
 
-func (t *testTransaction) GetNextFlush() time.Time {
-	return t.Called().Get(0).(time.Time)
-}
-
 func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
@@ -35,10 +31,6 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 func (t *testTransaction) Process(ctx context.Context, client *http.Client) error {
 	defer func() { t.processed <- true }()
 	return t.Called(client).Error(0) // we ignore the context to ease mocking
-}
-
-func (t *testTransaction) Reschedule() {
-	t.Called()
 }
 
 func (t *testTransaction) GetTarget() string {

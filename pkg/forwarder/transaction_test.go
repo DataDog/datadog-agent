@@ -20,18 +20,9 @@ func TestNewHTTPTransaction(t *testing.T) {
 	after := time.Now()
 
 	assert.NotNil(t, transaction)
-	assert.Equal(t, transaction.ErrorCount, 0)
-
-	assert.True(t, transaction.nextFlush.After(before) || transaction.nextFlush.Equal(before))
-	assert.True(t, transaction.nextFlush.Before(after) || transaction.nextFlush.Equal(after))
 
 	assert.True(t, transaction.createdAt.After(before) || transaction.createdAt.Equal(before))
 	assert.True(t, transaction.createdAt.Before(after) || transaction.createdAt.Equal(after))
-}
-
-func TestGetNextFlush(t *testing.T) {
-	transaction := NewHTTPTransaction()
-	assert.Equal(t, transaction.nextFlush, transaction.GetNextFlush())
 }
 
 func TestGetCreatedAt(t *testing.T) {
@@ -39,35 +30,6 @@ func TestGetCreatedAt(t *testing.T) {
 
 	assert.NotNil(t, transaction)
 	assert.Equal(t, transaction.createdAt, transaction.GetCreatedAt())
-}
-
-func TestReschedule(t *testing.T) {
-	transaction := NewHTTPTransaction()
-
-	baseSchedule := transaction.nextFlush
-	transaction.Reschedule()
-
-	assert.Equal(t, baseSchedule, transaction.nextFlush)
-
-	transaction.ErrorCount = 1
-	before := time.Now()
-	transaction.Reschedule()
-	after := time.Now()
-
-	assert.True(t, transaction.nextFlush.After(before.Add(retryInterval)) || transaction.nextFlush.Equal(before.Add(retryInterval)))
-	assert.True(t, transaction.nextFlush.Before(after.Add(retryInterval)) || transaction.nextFlush.Equal(after.Add(retryInterval)))
-}
-
-func TestMaxReschedule(t *testing.T) {
-	transaction := NewHTTPTransaction()
-	transaction.ErrorCount = 200
-
-	before := time.Now()
-	transaction.Reschedule()
-	after := time.Now()
-
-	assert.True(t, transaction.nextFlush.After(before.Add(maxRetryInterval)) || transaction.nextFlush.Equal(before.Add(maxRetryInterval)))
-	assert.True(t, transaction.nextFlush.Before(after.Add(maxRetryInterval)) || transaction.nextFlush.Equal(after.Add(maxRetryInterval)))
 }
 
 func TestProcess(t *testing.T) {
@@ -86,7 +48,6 @@ func TestProcess(t *testing.T) {
 
 	err := transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
-	assert.Equal(t, transaction.ErrorCount, 0)
 }
 
 func TestProcessInvalidDomain(t *testing.T) {
@@ -100,7 +61,6 @@ func TestProcessInvalidDomain(t *testing.T) {
 
 	err := transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
-	assert.Equal(t, transaction.ErrorCount, 0)
 }
 
 func TestProcessNetworkError(t *testing.T) {
@@ -114,7 +74,6 @@ func TestProcessNetworkError(t *testing.T) {
 
 	err := transaction.Process(context.Background(), client)
 	assert.NotNil(t, err)
-	assert.Equal(t, transaction.ErrorCount, 1)
 }
 
 func TestProcessHTTPError(t *testing.T) {
@@ -136,17 +95,14 @@ func TestProcessHTTPError(t *testing.T) {
 	err := transaction.Process(context.Background(), client)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
-	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusBadRequest
 	err = transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
-	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusRequestEntityTooLarge
 	err = transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
-	assert.Equal(t, transaction.ErrorCount, 1)
 }
 
 func TestProcessCancel(t *testing.T) {
@@ -162,5 +118,4 @@ func TestProcessCancel(t *testing.T) {
 
 	err := transaction.Process(ctx, client)
 	assert.Nil(t, err)
-	assert.Equal(t, transaction.ErrorCount, 0)
 }

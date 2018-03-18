@@ -13,32 +13,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const maxBackoffDuration = maxBackoffTime * time.Second
+
 func TestBlock(t *testing.T) {
 	e := newBlockedEndpoints()
 
-	before := time.Now()
 	e.block("test")
-	after := time.Now()
+	now := time.Now()
+
 	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.True(t, before.Add(blockInterval).Before(e.errorPerEndpoint["test"].until) ||
-		before.Add(blockInterval).Equal(e.errorPerEndpoint["test"].until))
-	assert.True(t, after.Add(blockInterval).After(e.errorPerEndpoint["test"].until) ||
-		after.Add(blockInterval).Equal(e.errorPerEndpoint["test"].until))
+	assert.True(t, now.Before(e.errorPerEndpoint["test"].until))
 }
 
 func TestMaxBlock(t *testing.T) {
 	e := newBlockedEndpoints()
 	e.block("test")
-	e.errorPerEndpoint["test"].nbError = 100
+	e.errorPerEndpoint["test"].nbError = 1000000
 
-	before := time.Now()
 	e.block("test")
-	after := time.Now()
+	now := time.Now()
+
 	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.True(t, before.Add(maxBlockInterval).Before(e.errorPerEndpoint["test"].until) ||
-		before.Add(maxBlockInterval).Equal(e.errorPerEndpoint["test"].until))
-	assert.True(t, after.Add(maxBlockInterval).After(e.errorPerEndpoint["test"].until) ||
-		after.Add(maxBlockInterval).Equal(e.errorPerEndpoint["test"].until))
+	assert.True(t, e.errorPerEndpoint["test"].nbError == maxAttempts)
+	assert.True(t, now.Add(maxBackoffDuration).After(e.errorPerEndpoint["test"].until) ||
+		now.Add(maxBackoffDuration).Equal(e.errorPerEndpoint["test"].until))
 }
 
 func TestUnblock(t *testing.T) {
@@ -46,16 +44,31 @@ func TestUnblock(t *testing.T) {
 
 	e.block("test")
 	require.Contains(t, e.errorPerEndpoint, "test")
+	e.block("test")
 
 	e.unblock("test")
-	assert.NotContains(t, e.errorPerEndpoint, "test")
+	assert.True(t, e.errorPerEndpoint["test"].nbError == 1)
+}
+
+func TestMaxUnblock(t *testing.T) {
+	e := newBlockedEndpoints()
+
+	e.block("test")
+	e.unblock("test")
+	e.unblock("test")
+	now := time.Now()
+
+	assert.Contains(t, e.errorPerEndpoint, "test")
+	assert.True(t, e.errorPerEndpoint["test"].nbError == 0)
+	assert.True(t, now.After(e.errorPerEndpoint["test"].until) || now.Equal(e.errorPerEndpoint["test"].until))
 }
 
 func TestUnblockUnknown(t *testing.T) {
 	e := newBlockedEndpoints()
 
 	e.unblock("test")
-	assert.NotContains(t, e.errorPerEndpoint, "test")
+	assert.Contains(t, e.errorPerEndpoint, "test")
+	assert.True(t, e.errorPerEndpoint["test"].nbError == 0)
 }
 
 func TestIsBlock(t *testing.T) {

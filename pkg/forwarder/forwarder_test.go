@@ -187,9 +187,7 @@ func TestForwarderRetry(t *testing.T) {
 
 	ready.On("Process", forwarder.workers[0].Client).Return(nil).Times(1)
 	ready.On("GetTarget").Return("").Times(1)
-	ready.On("GetNextFlush").Return(time.Now()).Times(1)
 	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
-	notReady.On("GetNextFlush").Return(time.Now().Add(10 * time.Minute)).Times(1)
 	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)
 
 	forwarder.retryTransactions(time.Now())
@@ -213,10 +211,8 @@ func TestForwarderRetryLifo(t *testing.T) {
 	forwarder.requeueTransaction(transaction1)
 	forwarder.requeueTransaction(transaction2)
 
-	transaction1.On("GetNextFlush").Return(time.Now()).Times(1)
 	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
 
-	transaction2.On("GetNextFlush").Return(time.Now()).Times(1)
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
 
 	forwarder.retryTransactions(time.Now())
@@ -244,10 +240,8 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 	forwarder.requeueTransaction(transaction1)
 	forwarder.requeueTransaction(transaction2)
 
-	transaction1.On("GetNextFlush").Return(time.Now().Add(1 * time.Minute)).Times(1)
 	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
 
-	transaction2.On("GetNextFlush").Return(time.Now().Add(1 * time.Minute)).Times(1)
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
 
 	forwarder.retryTransactions(time.Now())
