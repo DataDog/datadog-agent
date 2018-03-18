@@ -150,7 +150,7 @@ func (f *DefaultForwarder) retryTransactions(retryBefore time.Time) {
 	defer f.blockedList.m.RUnlock()
 
 	for _, t := range f.retryQueue {
-		if b, ok := f.blockedList.errorPerEndpoint[t.GetTarget()]; ok && b.until.Before(retryBefore) {
+		if b, ok := f.blockedList.errorPerEndpoint[t.GetTarget()]; !ok || b.until.Before(retryBefore) {
 			select {
 			case f.lowPrio <- t:
 				transactionsExpvar.Add("Retried", 1)
