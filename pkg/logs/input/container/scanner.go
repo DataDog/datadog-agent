@@ -107,21 +107,24 @@ func (s *Scanner) scan(tailFromBeginning bool) {
 	containersToMonitor := make(map[string]bool)
 
 	// monitor new containers, and restart tailers if needed
-	for _, container := range Filter(runningContainers, s.sources) {
-		containerID := container.Identifier
-		tailer, isTailed := s.tailers[containerID]
+	for _, container := range runningContainers {
+		source := NewContainer(container).findSource(s.sources)
+		if source == nil {
+			continue
+		}
+		tailer, isTailed := s.tailers[container.ID]
 		if isTailed && tailer.shouldStop {
 			continue
 		}
 		if !isTailed {
 			// setup a new tailer
-			succeeded := s.setupTailer(s.cli, container, tailFromBeginning, s.pp.NextPipelineChan())
+			succeeded := s.setupTailer(s.cli, container, source, tailFromBeginning, s.pp.NextPipelineChan())
 			if !succeeded {
 				// the setup failed, let's try to tail this container in the next scan
 				continue
 			}
 		}
-		containersToMonitor[containerID] = true
+		containersToMonitor[container.ID] = true
 	}
 
 	// stop old containers
@@ -159,10 +162,9 @@ func (s *Scanner) setup() error {
 
 // setupTailer sets one tailer, making it tail from the beginning or the end,
 // returns true if the setup succeeded, false otherwise
-func (s *Scanner) setupTailer(cli *client.Client, container *Container, tailFromBeginning bool, outputChan chan message.Message) bool {
-	containerID := container.Identifier
-	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(containerID))
-	t := NewDockerTailer(cli, containerID, container.Source, outputChan)
+func (s *Scanner) setupTailer(cli *client.Client, container types.Container, source *config.LogSource, tailFromBeginning bool, outputChan chan message.Message) bool {
+	log.Info("Detected container ", container.Image, " - ", s.humanReadableContainerID(container.ID))
+	t := NewDockerTailer(cli, container.ID, source, outputChan)
 	var err error
 	if tailFromBeginning {
 		err = t.tailFromBeginning()
@@ -173,7 +175,7 @@ func (s *Scanner) setupTailer(cli *client.Client, container *Container, tailFrom
 		log.Warn(err)
 		return false
 	}
-	s.tailers[containerID] = t
+	s.tailers[container.ID] = t
 	return true
 }
 
