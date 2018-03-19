@@ -126,7 +126,7 @@ CONNECT: // Outer loop handles re-connecting in case the docker daemon closes th
 				}
 				// Block if the buffered channel is full, pausing the http
 				// stream. If docker closes because of client timeout, we
-				// will reconnect later an stream from latestTimestamp.
+				// will reconnect later and stream from latestTimestamp.
 				sub.eventChan <- event
 			}
 		}
