@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    Use protobuf based transport for sending logs to datadog. This doesn't have any impact, besides a small
+    reduction of the payload size.
+    
