@@ -79,11 +79,16 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 			return "", err
 		}
 	} else {
-		// The Status will be unavailable unless the agent is running.
-		// Only zip it up if the agent is running
+		// Status informations will be unavailable unless the agent is running.
+		// Only zip them up if the agent is running
 		err = zipStatusFile(tempDir, hostname)
 		if err != nil {
 			log.Errorf("Could not zip status: %s", err)
+		}
+
+		err = zipConfigCheck(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not zip config check: %s", err)
 		}
 	}
 
@@ -105,11 +110,6 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 	err = zipEnvvars(tempDir, hostname)
 	if err != nil {
 		log.Errorf("Could not zip env vars: %s", err)
-	}
-
-	err = zipConfigCheck(tempDir, hostname)
-	if err != nil {
-		log.Errorf("Could not zip config check: %s", err)
 	}
 
 	err = zipHealth(tempDir, hostname)
