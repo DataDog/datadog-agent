@@ -10,10 +10,51 @@ package container
 import (
 	"testing"
 
+	"github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
+
+func TestFilter(t *testing.T) {
+	var source *config.LogSource
+	var containersToTail []*Container
+
+	containers := []types.Container{
+		{ID: "1", Image: "myapp"},
+		{ID: "2", Image: "myapp", Labels: map[string]string{"mylabel": "anything"}},
+		{ID: "3", Image: "wrongapp"},
+		{ID: "4", Image: "wrongapp", Labels: map[string]string{"mylabel": "anything"}},
+		{ID: "5", Image: "myapp", Labels: map[string]string{"wronglabel": "anything"}},
+		{ID: "6", Image: "wrongapp", Labels: map[string]string{"wronglabel": "anything"}},
+		{ID: "7", Image: "wrongapp", Labels: map[string]string{"wronglabel": "anything", "com.datadoghq.ad.logs": "[{\"source\":\"any_source\",\"service\":\"any_service\"}]"}},
+	}
+
+	source = config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp"})
+	containersToTail = Filter(containers, []*config.LogSource{source})
+	assert.Equal(t, 4, len(containersToTail))
+	assert.Equal(t, "1", containersToTail[0].Identifier)
+	assert.Equal(t, "2", containersToTail[1].Identifier)
+	assert.Equal(t, "5", containersToTail[2].Identifier)
+	assert.Equal(t, "7", containersToTail[3].Identifier)
+
+	source = config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"})
+	containersToTail = Filter(containers, []*config.LogSource{source})
+	assert.Equal(t, 3, len(containersToTail))
+	assert.Equal(t, "2", containersToTail[0].Identifier)
+	assert.Equal(t, "4", containersToTail[1].Identifier)
+	assert.Equal(t, "7", containersToTail[2].Identifier)
+
+	source = config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"})
+	containersToTail = Filter(containers, []*config.LogSource{source})
+	assert.Equal(t, 2, len(containersToTail))
+	assert.Equal(t, "2", containersToTail[0].Identifier)
+	assert.Equal(t, "7", containersToTail[1].Identifier)
+
+	source = config.NewLogSource("", &config.LogsConfig{Type: config.DockerType})
+	containersToTail = Filter(containers, []*config.LogSource{source})
+	assert.Equal(t, 7, len(containersToTail))
+}
 
 func TestIsImageMatch(t *testing.T) {
 	assert.True(t, isImageMatch("myapp", "myapp"))
@@ -26,18 +67,6 @@ func TestIsImageMatch(t *testing.T) {
 	assert.False(t, isImageMatch("myapp", "myapp2@sha256:1234567890"))
 	assert.False(t, isImageMatch("myapp", "repository/myapp2"))
 	assert.False(t, isImageMatch("myapp", "repository/myapp2@sha256:1234567890"))
-
-	// cfg = config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"})
-	// l1 := make(map[string]string)
-	// l2 := make(map[string]string)
-	// l2["mylabel"] = "anything"
-	// container = types.Container{Image: "myapp", Labels: l1}
-	// assert.False(assert.c.sourceShouldMonitorContainer(cfg, container))
-	// container = types.Container{Image: "myapp", Labels: l2}
-	// assert.True(assert.c.sourceShouldMonitorContainer(cfg, container))
-
-	// cfg = config.NewLogSource("", &config.LogsConfig{Type: config.DockerType})
-	// assert.True(assert.c.sourceShouldMonitorContainer(cfg, container))
 }
 
 func TestIsLabelMatch(t *testing.T) {
