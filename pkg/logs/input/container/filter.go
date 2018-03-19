@@ -50,6 +50,7 @@ func searchSource(container types.Container, sources []*config.LogSource) *confi
 	if source := sourceFromContainer(container); source != nil {
 		return source
 	}
+	var candidate *config.LogSource
 	for _, source := range sources {
 		if source.Config.Image != "" && !isImageMatch(source.Config.Image, container.Image) {
 			continue
@@ -57,12 +58,30 @@ func searchSource(container types.Container, sources []*config.LogSource) *confi
 		if source.Config.Label != "" && !isLabelMatch(source.Config.Label, container.Labels) {
 			continue
 		}
-		return source
+		if candidate == nil {
+			candidate = source
+		}
+		if computeScore(container, candidate) < computeScore(container, source) {
+			candidate = source
+		}
 	}
-	return nil
+	return candidate
 }
 
-// digestPrefix represents q prefix that can be added to an image name.
+// computeScore returns the matching score between the container and the source,
+// the higher, the better
+func computeScore(container types.Container, source *config.LogSource) int {
+	score := 0
+	if isImageMatch(source.Config.Image, container.Image) {
+		score++
+	}
+	if isLabelMatch(source.Config.Label, container.Labels) {
+		score++
+	}
+	return score
+}
+
+// digestPrefix represents a prefix that can be added to an image name.
 const digestPrefix = "@sha256:"
 
 // isImageMatch returns true if image respects format: "Y/imageFilter@sha256:X" with 'Y/' and '@sha256:X' optional.

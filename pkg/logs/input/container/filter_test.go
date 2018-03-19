@@ -65,6 +65,63 @@ func TestFilter(t *testing.T) {
 	assert.Equal(t, 7, len(containersToTail))
 }
 
+func TestSearchSourceWithSourceFiltersShouldSucceed(t *testing.T) {
+	var source *config.LogSource
+	var container types.Container
+
+	sources := []*config.LogSource{
+		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp"}),
+		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}),
+		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Image: "myapp", Label: "mylabel"}),
+	}
+
+	container = types.Container{Image: "myapp"}
+	source = searchSource(container, sources)
+	assert.NotNil(t, source)
+	assert.Equal(t, source, sources[0])
+
+	container = types.Container{Image: "wrongapp", Labels: map[string]string{"mylabel": "anything"}}
+	source = searchSource(container, sources)
+	assert.NotNil(t, source)
+	assert.Equal(t, source, sources[1])
+
+	container = types.Container{Image: "myapp", Labels: map[string]string{"mylabel": "anything"}}
+	source = searchSource(container, sources)
+	assert.NotNil(t, source)
+	assert.Equal(t, source, sources[2])
+
+	container = types.Container{Image: "wrongapp"}
+	source = searchSource(container, sources)
+	assert.Nil(t, source)
+}
+
+func TestSearchSourceWithNoSourceFilterShouldSucceed(t *testing.T) {
+	var source *config.LogSource
+	var container types.Container
+
+	sources := []*config.LogSource{
+		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType}),
+		config.NewLogSource("", &config.LogsConfig{Type: config.DockerType, Label: "mylabel"}),
+	}
+
+	container = types.Container{Image: "myapp", Labels: map[string]string{"mylabel": "anything"}}
+	source = searchSource(container, sources)
+	assert.NotNil(t, source)
+	assert.Equal(t, source, sources[1])
+
+	container = types.Container{Image: "wrongapp"}
+	source = searchSource(container, sources)
+	assert.NotNil(t, source)
+	assert.Equal(t, source, sources[0])
+
+	container = types.Container{Image: "wrongapp", Labels: map[string]string{"wronglabel": "anything", "com.datadoghq.ad.logs": "[{\"source\":\"any_source\",\"service\":\"any_service\"}]"}}
+	source = searchSource(container, sources)
+	assert.NotNil(t, source)
+	for _, s := range sources {
+		assert.NotEqual(t, source, s)
+	}
+}
+
 func TestIsImageMatch(t *testing.T) {
 	assert.True(t, isImageMatch("myapp", "myapp"))
 	assert.True(t, isImageMatch("myapp", "repository/myapp"))
