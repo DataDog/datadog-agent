@@ -249,6 +249,8 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 	forwarder.init()
 
 	forwarder.retryQueueLimit = 1
+	forwarder.blockedList.block("blocked")
+	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
 	transaction1 := newTestTransaction()
 	transaction2 := newTestTransaction()
@@ -260,7 +262,7 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 	transaction1.On("GetTarget").Return("").Times(1)
 
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
-	transaction2.On("GetTarget").Return("").Times(1)
+	transaction2.On("GetTarget").Return("blocked").Times(1)
 
 	forwarder.retryTransactions(time.Now())
 
