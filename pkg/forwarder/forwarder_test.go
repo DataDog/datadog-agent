@@ -188,6 +188,9 @@ func TestForwarderRetry(t *testing.T) {
 	forwarder.Start()
 	defer forwarder.Stop()
 
+	forwarder.blockedList.block("blocked")
+	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Hour)
+
 	ready := newTestTransaction()
 	notReady := newTestTransaction()
 
@@ -196,9 +199,10 @@ func TestForwarderRetry(t *testing.T) {
 	require.Len(t, forwarder.retryQueue, 2)
 
 	ready.On("Process", forwarder.workers[0].Client).Return(nil).Times(1)
-	ready.On("GetTarget").Return("").Times(1)
+	ready.On("GetTarget").Return("").Times(2)
 	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
 	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)
+	notReady.On("GetTarget").Return("blocked").Times(1)
 
 	forwarder.retryTransactions(time.Now())
 	<-ready.processed
@@ -206,7 +210,7 @@ func TestForwarderRetry(t *testing.T) {
 	ready.AssertExpectations(t)
 	notReady.AssertExpectations(t)
 	notReady.AssertNumberOfCalls(t, "Process", 0)
-	notReady.AssertNumberOfCalls(t, "GetTarget", 0)
+	notReady.AssertNumberOfCalls(t, "GetTarget", 1)
 	require.Len(t, forwarder.retryQueue, 1)
 	assert.Equal(t, forwarder.retryQueue[0], notReady)
 }
