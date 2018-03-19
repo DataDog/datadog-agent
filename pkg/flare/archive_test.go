@@ -6,11 +6,18 @@
 package flare
 
 import (
+	"encoding/json"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
@@ -29,16 +36,11 @@ func TestCreateArchive(t *testing.T) {
 		assert.Fail(t, "The Zip File was not created")
 	} else {
 		os.Remove(zipFilePath)
-		err := security.DeleteAuthToken()
-		assert.Nil(t, err)
 	}
 }
 
+// The zipfile should be created even if there is no config file.
 func TestCreateArchiveBadConfig(t *testing.T) {
-	/**
-		The zipfile should be created even if there is no config file.
-	**/
-
 	common.SetupConfig("")
 	zipFilePath := getArchivePath()
 	filePath, err := createArchive(zipFilePath, true, SearchPaths{}, "")
@@ -51,4 +53,36 @@ func TestCreateArchiveBadConfig(t *testing.T) {
 	} else {
 		os.Remove(zipFilePath)
 	}
+}
+
+// Ensure sensitive data is redacted
+func TestZipConfigCheck(t *testing.T) {
+	cr := response.ConfigCheckResponse{
+		Configs: make(map[string][]check.Config),
+	}
+	cr.Configs["FooProvider"] = []check.Config{{
+		Name:      "TestCheck",
+		Instances: []check.ConfigData{[]byte("username: User\npassword: MySecurePass")},
+	}}
+
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		out, _ := json.Marshal(cr)
+		w.Write(out)
+	}))
+	defer ts.Close()
+	ConfigCheckURL = ts.URL
+
+	dir, err := ioutil.TempDir("", "TestZipConfigCheck")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	zipConfigCheck(dir, "")
+	content, err := ioutil.ReadFile(filepath.Join(dir, "config-check.log"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	assert.NotContains(t, string(content), "MySecurePass")
 }

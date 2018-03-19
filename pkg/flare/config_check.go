@@ -18,6 +18,9 @@ import (
 	"github.com/fatih/color"
 )
 
+// ConfigCheckURL contains the Agent API endpoint URL exposing the loaded checks
+var ConfigCheckURL = fmt.Sprintf("https://localhost:%v/agent/config-check", config.Datadog.GetInt("cmd_port"))
+
 // GetConfigCheck dump all loaded configurations to the writer
 func GetConfigCheck(w io.Writer, withDebug bool) error {
 	if w != color.Output {
@@ -25,7 +28,6 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	}
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/config-check", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
 	err := util.SetAuthToken()
@@ -33,7 +35,7 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 		return err
 	}
 
-	r, err := util.DoGet(c, urlstr)
+	r, err := util.DoGet(c, ConfigCheckURL)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintln(w, fmt.Sprintf("The agent ran into an error while checking config: %s", string(r)))
