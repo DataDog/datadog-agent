@@ -153,9 +153,9 @@ There are a few major changes
 * The configuration GUI is now a web-based configuration application, it can be easily accessed by running
   the command `"c:\program files\datadog\datadog agent\embedded\agent.exe" launch-gui` or using the systray app.
 * The Windows service is now started "Automatic-Delayed"; it is started automatically on boot, but after
-  all other services.  This will result in a small delay in reporting of metrics after a reboot of a 
+  all other services.  This will result in a small delay in reporting of metrics after a reboot of a
   Windows device.
-* The Windows GUI and Windows system tray icon are now implemented separately.  See the 
+* The Windows GUI and Windows system tray icon are now implemented separately.  See the
   [specific docs](gui.md) for more details.
 
 ### MacOS
@@ -254,7 +254,7 @@ are ported, excepted the following deprecations:
     Kubernetes and Openshift (default to true). This will avoid removing
     them from the exclude list by error
 
-The [`import`](#configuration-files) command support a `--docker` flag to convert the old
+The [`import`](#configuration-files) will help you converting the old
 `docker_daemon.yaml` to the new `docker.yaml`. The command will also move
 needed settings from `docker_daemon.yaml` to `datadog.yaml`.
 

@@ -27,7 +27,7 @@ const (
 		"docker.yaml.example for more information\n"
 	excludeIncludeBadFormat string = "\t- Warning: \"%s\" item wrongly formatted (should be 'tag:value'), got '%s'. Dropping it\n"
 
-	warningNewCheck string = "Warning: the new docker check includes a change in the exclude/include list that may impact your billing. Please check docs/beta/changes.md documentation to learn more."
+	warningNewCheck string = "Warning: the new docker check includes a change in the exclude/include list that may impact your billing. Please check docs/agent/changes.md#docker-check documentation to learn more."
 )
 
 func handleFilterList(input []string, name string) []string {
