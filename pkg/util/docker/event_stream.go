@@ -23,7 +23,7 @@ import (
 //// eventStreamState logic unit tested in event_stream_test.go
 //// DockerUtil logic covered by the listeners/docker and dogstatsd/origin_detection integration tests.
 
-const eventSendTimeout = 100 * time.Millisecond
+const eventSendTimeout = 500 * time.Millisecond
 const eventSendBuffer = 5
 
 // SubscribeToContainerEvents allows a package to subscribe to events from the event stream.

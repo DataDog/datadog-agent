@@ -30,7 +30,7 @@ func (ev *ContainerEvent) ContainerEntityName() string {
 var (
 	ErrAlreadySubscribed = errors.New("already subscribed")
 	ErrNotSubscribed     = errors.New("not subscribed")
-	ErrEventTimeout      = errors.New("timeout on event sending, re-subscribe")
+	ErrEventTimeout      = errors.New("fell behind in processing docker events, unsubscribed")
 )
 
 // eventSubscriber holds the state for a subscriber

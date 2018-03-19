@@ -10,10 +10,10 @@ package listeners
 import (
 	"context"
 	"fmt"
-	"io"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	log "github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
@@ -53,7 +53,6 @@ func init() {
 }
 
 // NewDockerListener creates a client connection to Docker and instantiate a DockerListener with it
-// TODO: TLS support
 func NewDockerListener() (ServiceListener, error) {
 	d, err := docker.GetDockerUtil()
 	if err != nil {
@@ -73,17 +72,18 @@ func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 	l.newService = newSvc
 	l.delService = delSvc
 
-	// process containers that might be already running
-	l.init()
+CONNECT: // Outer loop handles re-subscribing
+	for {
+		messages, errs, err := l.dockerUtil.SubscribeToContainerEvents("DockerListener")
+		if err != nil {
+			log.Errorf("Cannot listen to docker events: %v", err)
+			signals.ErrorStopper <- true
+			return
+		}
 
-	messages, errs, err := l.dockerUtil.SubscribeToContainerEvents("DockerListener")
-	if err != nil {
-		log.Errorf("can't listen to docker events: %v", err)
-		signals.ErrorStopper <- true
-		return
-	}
+		// Process current state
+		l.CatchUp()
 
-	go func() {
 		for {
 			select {
 			case <-l.stop:
@@ -94,14 +94,18 @@ func (l *DockerListener) Listen(newSvc chan<- Service, delSvc chan<- Service) {
 			case msg := <-messages:
 				l.processEvent(msg)
 			case err := <-errs:
-				if err != nil && err != io.EOF {
-					log.Errorf("docker listener error: %v", err)
-					signals.ErrorStopper <- true
+				if err == docker.ErrEventTimeout {
+					// We fell behind, let's wait a second and re-subscribe
+					log.Infof("Restarting collection: %s", err)
+					time.Sleep(time.Second)
+					continue CONNECT // Re-subscribe to events
 				}
+				log.Warnf("Unexpected error: %s", err)
+				signals.ErrorStopper <- true
 				return
 			}
 		}
-	}()
+	}
 }
 
 // Stop queues a shutdown of DockerListener
@@ -109,22 +113,36 @@ func (l *DockerListener) Stop() {
 	l.stop <- true
 }
 
-// init looks at currently running Docker containers,
-// creates services for them, and pass them to the ConfigResolver.
-// It is typically called at start up.
-func (l *DockerListener) init() {
-	l.m.Lock()
-	defer l.m.Unlock()
+// CatchUp compares the currently running Docker containers to the l.services
+// state computes new/removed containers creates services for them, and passes
+// them to the ConfigResolver. It is typically called at start up.
+// Exported for integration testing
+func (l *DockerListener) CatchUp() {
+	l.m.RLock()
+	// Prepare a set of services we already know about.
+	// If we don't find them in the container list, we will need to remove them.
+	servicesToRemove := make(map[ID]struct{})
+	for cID := range l.services {
+		servicesToRemove[cID] = struct{}{}
+	}
+
+	var newServices []Service
 
 	containers, err := l.dockerUtil.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
-		log.Errorf("Couldn't retrieve container list - %s", err)
+		log.Errorf("Couldn't retrieve container list: %s", err)
 	}
 
 	for _, co := range containers {
 		id := ID(co.ID)
-		var svc Service
+		delete(servicesToRemove, id) // Don't delete the service if existing
 
+		if _, found := l.services[id]; found {
+			// Service already registered, skip this container
+			continue
+		}
+
+		var svc Service
 		if findKubernetesInLabels(co.Labels) {
 			svc = &DockerKubeletService{
 				DockerService: DockerService{
@@ -141,8 +159,21 @@ func (l *DockerListener) init() {
 				Ports:         l.getPortsFromPs(co),
 			}
 		}
-		l.newService <- svc
-		l.services[id] = svc
+		newServices = append(newServices, svc)
+	}
+	l.m.RUnlock()
+
+	if len(newServices) > 0 {
+		l.m.Lock()
+		for _, svc := range newServices {
+			l.newService <- svc
+			l.services[svc.GetID()] = svc
+		}
+		l.m.Unlock()
+	}
+
+	for id := range servicesToRemove {
+		l.removeService(id)
 	}
 }
 

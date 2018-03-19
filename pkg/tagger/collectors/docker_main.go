@@ -8,8 +8,8 @@
 package collectors
 
 import (
-	"io"
 	"strings"
+	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -58,25 +58,35 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 func (c *DockerCollector) Stream() error {
 	healthHandle := health.Register("tagger-docker")
 
-	messages, errs, err := c.dockerUtil.SubscribeToContainerEvents("DockerCollector")
-	if err != nil {
-		return err
-	}
-
+CONNECT: // Outer loop handles re-subscribing
 	for {
-		select {
-		case <-c.stop:
-			healthHandle.Deregister()
-			return c.dockerUtil.UnsubscribeFromContainerEvents("DockerCollector")
-		case <-healthHandle.C:
-		case msg := <-messages:
-			c.processEvent(msg)
-		case err := <-errs:
-			if err != nil && err != io.EOF {
-				log.Errorf("stopping collection: %s", err)
+		messages, errs, err := c.dockerUtil.SubscribeToContainerEvents("DockerCollector")
+		if err != nil {
+			// Purposely keep the healthcheck open, we are unhealthy now
+			log.Errorf("Unexpected error, stopping collection: %s", err)
+			return err
+		}
+
+		for {
+			select {
+			case <-c.stop:
+				healthHandle.Deregister()
+				return c.dockerUtil.UnsubscribeFromContainerEvents("DockerCollector")
+			case <-healthHandle.C:
+			case msg := <-messages:
+				c.processEvent(msg)
+			case err := <-errs:
+				if err == docker.ErrEventTimeout {
+					// We fell behind, let's wait a second and re-subscribe
+					// If we were to miss containers, we'll handle them via Fetch
+					log.Infof("Restarting collection: %s", err)
+					time.Sleep(time.Second)
+					continue CONNECT // Re-subscribe to events
+				}
+				// Purposely keep the healthcheck open, we are unhealthy now
+				log.Errorf("Unexpected error, stopping collection: %s", err)
 				return err
 			}
-			return nil
 		}
 	}
 }
