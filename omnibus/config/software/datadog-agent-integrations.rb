@@ -10,6 +10,11 @@ name 'datadog-agent-integrations'
 dependency 'pip'
 dependency 'datadog-agent'
 
+if linux?
+  # add nfsiostat script
+  dependency 'nfsiostat'
+end
+
 relative_path 'integrations-core'
 whitelist_file "embedded/lib/python2.7"
 
