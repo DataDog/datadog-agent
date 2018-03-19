@@ -44,10 +44,10 @@ func Filter(containers []types.Container, sources []*config.LogSource) []*Contai
 	return containersToTail
 }
 
-// searchSource returns a valid source for container,
-// if no source is found, return nil
+// searchSource returns the source that most closely matches the container,
+// if no source is found return nil
 func searchSource(container types.Container, sources []*config.LogSource) *config.LogSource {
-	if source := sourceFromContainer(container); source != nil {
+	if source := toSource(container); source != nil {
 		return source
 	}
 	var candidate *config.LogSource
@@ -84,13 +84,11 @@ func computeScore(container types.Container, source *config.LogSource) int {
 // digestPrefix represents a prefix that can be added to an image name.
 const digestPrefix = "@sha256:"
 
-// isImageMatch returns true if image respects format: "Y/imageFilter@sha256:X" with 'Y/' and '@sha256:X' optional.
+// isImageMatch returns true if image respects format: '[<repository>/]image[@sha256:<digest>]'.
 func isImageMatch(imageFilter string, image string) bool {
-	if strings.Contains(image, digestPrefix) {
-		// Trim digest if present
-		splitted := strings.SplitN(image, digestPrefix, 2)
-		image = splitted[0]
-	}
+	// Trim digest if present
+	splitted := strings.SplitN(image, digestPrefix, 2)
+	image = splitted[0]
 	// Expect prefix to end with '/'
 	repository := strings.TrimSuffix(image, imageFilter)
 	return len(repository) == 0 || strings.HasSuffix(repository, "/")
@@ -115,12 +113,12 @@ func isLabelMatch(labelFilter string, labels map[string]string) bool {
 }
 
 // logsConfigPath refers to the logs configuration that can be passed over a docker label,
-// this feature is commonly named autodicovery.
+// this feature is commonly named 'ad' or 'autodicovery'.
 const logsConfigPath = "com.datadoghq.ad.logs"
 
-// sourceFromContainer returns the source extracted and computed from the container labels.
-func sourceFromContainer(container types.Container) *config.LogSource {
-	logsConfig := extractLogsConfig(container.Labels)
+// toSource converts a container to source
+func toSource(container types.Container) *config.LogSource {
+	logsConfig := extractLogsConfig(container)
 	if logsConfig == nil {
 		return nil
 	}
@@ -129,15 +127,15 @@ func sourceFromContainer(container types.Container) *config.LogSource {
 
 // extractLogsConfig returns the logs config present in the label 'com.datadoghq.ad.logs',
 // the config has to be conform with the format '[{...}]'.
-func extractLogsConfig(labels map[string]string) *config.LogsConfig {
-	label, exists := labels[logsConfigPath]
+func extractLogsConfig(container types.Container) *config.LogsConfig {
+	label, exists := container.Labels[logsConfigPath]
 	if !exists {
 		return nil
 	}
 	var configs []config.LogsConfig
 	err := json.Unmarshal([]byte(label), &configs)
 	if err != nil || len(configs) < 1 {
-		log.Warnf("Could not parse logs configs, got %v, expect value with format '[{\"source\":\"a_source\",\"service\":\"a_service\", ...}]'")
+		log.Warnf("Could not parse logs configs, %v is malformed", label)
 		return nil
 	}
 	logsConfig := configs[0]

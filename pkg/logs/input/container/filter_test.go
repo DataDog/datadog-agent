@@ -162,11 +162,11 @@ func TestExtractLogsConfigWithNoValidKeyShouldFail(t *testing.T) {
 	var labels map[string]string
 	var config *config.LogsConfig
 
-	config = extractLogsConfig(labels)
+	config = extractLogsConfig(types.Container{Labels: labels})
 	assert.Nil(t, config)
 
 	labels = map[string]string{"com.datadoghq.ad.name": "any_name"}
-	config = extractLogsConfig(labels)
+	config = extractLogsConfig(types.Container{Labels: labels})
 	assert.Nil(t, config)
 }
 
@@ -175,11 +175,11 @@ func TestExtractLogsConfigWithWrongFormatShouldFail(t *testing.T) {
 	var config *config.LogsConfig
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "{}"}
-	config = extractLogsConfig(labels)
+	config = extractLogsConfig(types.Container{Labels: labels})
 	assert.Nil(t, config)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "{\"source\":\"any_source\",\"service\":\"any_service\"}"}
-	config = extractLogsConfig(labels)
+	config = extractLogsConfig(types.Container{Labels: labels})
 	assert.Nil(t, config)
 }
 
@@ -188,11 +188,11 @@ func TestExtractLogsConfigWithValidFormatShouldSucceed(t *testing.T) {
 	var config *config.LogsConfig
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "[{}]"}
-	config = extractLogsConfig(labels)
+	config = extractLogsConfig(types.Container{Labels: labels})
 	assert.NotNil(t, config)
 
 	labels = map[string]string{"com.datadoghq.ad.logs": "[{\"source\":\"any_source\",\"service\":\"any_service\"}]"}
-	config = extractLogsConfig(labels)
+	config = extractLogsConfig(types.Container{Labels: labels})
 	assert.NotNil(t, config)
 	assert.Equal(t, "any_source", config.Source)
 	assert.Equal(t, "any_service", config.Service)

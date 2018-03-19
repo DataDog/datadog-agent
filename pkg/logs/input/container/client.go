@@ -41,6 +41,7 @@ func NewDockerClient() (*client.Client, error) {
 
 // serverAPIVersion returns the latest version of the docker API supported by the docker server
 func getServerAPIVersion(client *client.Client) (string, error) {
+	// hit unversioned API first to be able to communicate with the backend
 	client.UpdateClientVersion("")
 	v, err := client.ServerVersion(context.Background())
 	if err != nil {
@@ -50,12 +51,12 @@ func getServerAPIVersion(client *client.Client) (string, error) {
 }
 
 // computeAPIVersion returns the version of the API that the docker client should use to be able to communicate with the server
-func computeClientAPIVersion(apiVersion string) (string, error) {
-	if versions.LessThan(apiVersion, minVersion) {
-		return "", fmt.Errorf("Docker API versions prior to %s are not supported by logs-agent, the current version is %s", minVersion, apiVersion)
+func computeClientAPIVersion(serverVersion string) (string, error) {
+	if versions.LessThan(serverVersion, minVersion) {
+		return "", fmt.Errorf("Docker API versions prior to %s are not supported by logs-agent, the current version is %s", minVersion, serverVersion)
 	}
-	if versions.LessThan(apiVersion, maxVersion) {
-		return apiVersion, nil
+	if versions.LessThan(serverVersion, maxVersion) {
+		return serverVersion, nil
 	}
 	return maxVersion, nil
 }
