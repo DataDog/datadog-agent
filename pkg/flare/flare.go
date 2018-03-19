@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var datadogSupportURL = "/support/flare"
@@ -53,6 +54,10 @@ func SendFlareWithHostname(archivePath string, caseID string, email string, host
 	if email != "" {
 		writer.WriteField("email", email)
 	}
+
+	// Send the full version
+	av, _ := version.New(version.AgentVersion, version.Commit)
+	writer.WriteField("agent_version", av.String())
 
 	writer.WriteField("hostname", hostname)
 
