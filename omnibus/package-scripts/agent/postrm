@@ -46,7 +46,6 @@ elif [ -f "/etc/redhat-release" ] || [ -f "/etc/system-release" ] || [ -f "/etc/
     esac
 else
     echo "[ ${Red}FAILED ${RCol}]\tYour system is currently not supported by this script.";
-    exit 1;
 fi
 
 exit 0
