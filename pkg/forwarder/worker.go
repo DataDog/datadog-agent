@@ -115,12 +115,22 @@ func (w *Worker) callProcess(t Transaction) error {
 }
 
 func (w *Worker) process(ctx context.Context, t Transaction) {
+	requeue := func() {
+		select {
+		case w.RequeueChan <- t:
+		default:
+			log.Errorf("dropping transaction because the retry goroutine is too busy to handle another one")
+		}
+	}
+
 	// Run the endpoint through our blockedEndpoints circuit breaker
 	target := t.GetTarget()
 	if w.blockedList.isBlock(target) {
+		requeue()
 		log.Errorf("Too many errors for endpoint '%s': retrying later", target)
 	} else if err := t.Process(ctx, w.Client); err != nil {
 		w.blockedList.block(target)
+		requeue()
 		log.Errorf("Error while processing transaction: %v", err)
 	} else {
 		w.blockedList.unblock(target)
