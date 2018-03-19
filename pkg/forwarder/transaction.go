@@ -41,8 +41,8 @@ var apiKeyRegExp = regexp.MustCompile("api_key=*\\w+(\\w{5})")
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	return &HTTPTransaction{
-		createdAt:  time.Now(),
-		Headers:    make(http.Header),
+		createdAt: time.Now(),
+		Headers:   make(http.Header),
 	}
 }
 
