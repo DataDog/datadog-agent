@@ -51,6 +51,10 @@ func TestGetCheckConfig(t *testing.T) {
 	config, err = GetCheckConfigFromFile("foo", "tests/ad.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.ADIdentifiers, []string{"foo_id", "bar_id"})
+
+	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
+	config, err = GetCheckConfigFromFile("foo", "tests/ad_deprecated.yaml")
+	assert.NotNil(t, err)
 }
 
 func TestNewYamlConfigProvider(t *testing.T) {
@@ -111,6 +115,6 @@ func TestCollect(t *testing.T) {
 	// total number of configurations found
 	assert.Equal(t, 11, len(configs))
 
-	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml)
-	assert.Equal(t, 2, len(provider.Errors))
+	// incorrect configs get saved in the Errors map (invalid.yaml & notaconfig.yaml & ad_deprecated.yaml)
+	assert.Equal(t, 3, len(provider.Errors))
 }
