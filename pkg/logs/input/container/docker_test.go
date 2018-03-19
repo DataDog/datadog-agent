@@ -11,7 +11,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	parser "github.com/DataDog/datadog-agent/pkg/logs/docker"
 	"github.com/stretchr/testify/suite"
 )
@@ -70,6 +69,7 @@ func (suite *DockerTailerTestSuite) TestDockerTailerIdentifier() {
 }
 
 func (suite *DockerTailerTestSuite) TestParseMessage() {
+
 	msg := []byte{}
 	msg = append(msg, []byte{1, 0, 0, 0, 0}...)
 	_, _, _, err := parser.ParseMessage(msg)
@@ -81,55 +81,7 @@ func (suite *DockerTailerTestSuite) TestParseMessage() {
 
 	_, _, _, err = parser.ParseMessage(msg)
 	suite.Equal(errors.New("Can't parse docker message: expected a whitespace after header"), err)
-}
 
-func (suite *DockerTailerTestSuite) TestExtractLogsMetadataFromLabelsWithNoValidKeyShouldFail() {
-	var labels map[string]string
-	var config *config.LogsConfig
-	var valid bool
-
-	config, valid = suite.tailer.extractLogsMetadataFromLabels(labels)
-	suite.Nil(config)
-	suite.False(valid)
-
-	labels = map[string]string{"com.datadoghq.ad.name": "any_name"}
-	config, valid = suite.tailer.extractLogsMetadataFromLabels(labels)
-	suite.Nil(config)
-	suite.False(valid)
-}
-
-func (suite *DockerTailerTestSuite) TestExtractLogsMetadataFromLabelsWithWrongFormatShouldFail() {
-	var labels map[string]string
-	var config *config.LogsConfig
-	var valid bool
-
-	labels = map[string]string{"com.datadoghq.ad.logs": "{}"}
-	config, valid = suite.tailer.extractLogsMetadataFromLabels(labels)
-	suite.Nil(config)
-	suite.False(valid)
-
-	labels = map[string]string{"com.datadoghq.ad.logs": "{\"source\":\"any_source\",\"service\":\"any_service\"}"}
-	config, valid = suite.tailer.extractLogsMetadataFromLabels(labels)
-	suite.Nil(config)
-	suite.False(valid)
-}
-
-func (suite *DockerTailerTestSuite) TestExtractLogsMetadataFromLabelsWithValidFormatShouldSucceed() {
-	var labels map[string]string
-	var config *config.LogsConfig
-	var valid bool
-
-	labels = map[string]string{"com.datadoghq.ad.logs": "[{}]"}
-	config, valid = suite.tailer.extractLogsMetadataFromLabels(labels)
-	suite.NotNil(config)
-	suite.True(valid)
-
-	labels = map[string]string{"com.datadoghq.ad.logs": "[{\"source\":\"any_source\",\"service\":\"any_service\"}]"}
-	config, valid = suite.tailer.extractLogsMetadataFromLabels(labels)
-	suite.NotNil(config)
-	suite.True(valid)
-	suite.Equal("any_source", config.Source)
-	suite.Equal("any_service", config.Service)
 }
 
 func TestDockerTailerTestSuite(t *testing.T) {

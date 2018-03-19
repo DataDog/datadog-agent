@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func buildTestLogsConfig(ruleType, replacePlaceholder, pattern string) *config.LogsConfig {
+func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) config.LogSource {
 	rule := config.LogsProcessingRule{
 		Type:                    ruleType,
 		Name:                    "test",
@@ -23,61 +23,64 @@ func buildTestLogsConfig(ruleType, replacePlaceholder, pattern string) *config.L
 		Pattern:                 pattern,
 		Reg:                     regexp.MustCompile(pattern),
 	}
-	return &config.LogsConfig{ProcessingRules: []config.LogsProcessingRule{rule}}
+	return config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.LogsProcessingRule{rule}}}
 }
 
-func newNetworkMessage(content []byte, cfg *config.LogsConfig) message.Message {
+func newNetworkMessage(content []byte, source *config.LogSource) message.Message {
 	msg := message.NewNetworkMessage(content)
 	msgOrigin := message.NewOrigin()
-	msgOrigin.LogsConfig = cfg
+	msgOrigin.LogSource = source
 	msg.SetOrigin(msgOrigin)
 	return msg
 }
 
 func TestExclusion(t *testing.T) {
+
 	var shouldProcess bool
 	var redactedMessage []byte
 
-	logsConfig := buildTestLogsConfig("exclude_at_match", "", "world")
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("hello"), logsConfig))
+	source := buildTestConfigLogSource("exclude_at_match", "", "world")
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("hello"), &source))
 	assert.Equal(t, true, shouldProcess)
 	assert.Equal(t, []byte("hello"), redactedMessage)
 
-	shouldProcess, _ = applyRedactingRules(newNetworkMessage([]byte("world"), logsConfig))
+	shouldProcess, _ = applyRedactingRules(newNetworkMessage([]byte("world"), &source))
 	assert.Equal(t, false, shouldProcess)
 
-	shouldProcess, _ = applyRedactingRules(newNetworkMessage([]byte("a brand new world"), logsConfig))
+	shouldProcess, _ = applyRedactingRules(newNetworkMessage([]byte("a brand new world"), &source))
 	assert.Equal(t, false, shouldProcess)
 
-	logsConfig = buildTestLogsConfig("exclude_at_match", "", "$world")
-	shouldProcess, _ = applyRedactingRules(newNetworkMessage([]byte("a brand new world"), logsConfig))
+	source = buildTestConfigLogSource("exclude_at_match", "", "$world")
+	shouldProcess, _ = applyRedactingRules(newNetworkMessage([]byte("a brand new world"), &source))
 	assert.Equal(t, true, shouldProcess)
 }
 
 func TestInclusion(t *testing.T) {
+
 	var shouldProcess bool
 	var redactedMessage []byte
 
-	logsConfig := buildTestLogsConfig("include_at_match", "", "world")
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("hello"), logsConfig))
+	source := buildTestConfigLogSource("include_at_match", "", "world")
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("hello"), &source))
 	assert.Equal(t, false, shouldProcess)
 	assert.Nil(t, redactedMessage)
 
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("world"), logsConfig))
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("world"), &source))
 	assert.Equal(t, true, shouldProcess)
 	assert.Equal(t, []byte("world"), redactedMessage)
 
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("a brand new world"), logsConfig))
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("a brand new world"), &source))
 	assert.Equal(t, true, shouldProcess)
 	assert.Equal(t, []byte("a brand new world"), redactedMessage)
 
-	logsConfig = buildTestLogsConfig("include_at_match", "", "^world")
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("a brand new world"), logsConfig))
+	source = buildTestConfigLogSource("include_at_match", "", "^world")
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("a brand new world"), &source))
 	assert.Equal(t, false, shouldProcess)
 	assert.Nil(t, redactedMessage)
 }
 
 func TestExclusionWithInclusion(t *testing.T) {
+
 	var shouldProcess bool
 	var redactedMessage []byte
 
@@ -95,53 +98,55 @@ func TestExclusionWithInclusion(t *testing.T) {
 		Pattern: iPattern,
 		Reg:     regexp.MustCompile(iPattern),
 	}
-	logsConfig := &config.LogsConfig{ProcessingRules: []config.LogsProcessingRule{eRule, iRule}}
+	source := config.LogSource{Config: &config.LogsConfig{ProcessingRules: []config.LogsProcessingRule{eRule, iRule}}}
 
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("bob@datadoghq.com"), logsConfig))
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("bob@datadoghq.com"), &source))
 	assert.Equal(t, false, shouldProcess)
 	assert.Nil(t, redactedMessage)
 
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("bill@datadoghq.com"), logsConfig))
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("bill@datadoghq.com"), &source))
 	assert.Equal(t, true, shouldProcess)
 	assert.Equal(t, []byte("bill@datadoghq.com"), redactedMessage)
 
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("bob@amail.com"), logsConfig))
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("bob@amail.com"), &source))
 	assert.Equal(t, false, shouldProcess)
 	assert.Nil(t, redactedMessage)
 
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("bill@amail.com"), logsConfig))
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("bill@amail.com"), &source))
 	assert.Equal(t, false, shouldProcess)
 	assert.Nil(t, redactedMessage)
 }
 
 func TestMask(t *testing.T) {
+
 	var shouldProcess bool
 	var redactedMessage []byte
 
-	logsConfig := buildTestLogsConfig("mask_sequences", "[masked_world]", "world")
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("hello"), logsConfig))
+	source := buildTestConfigLogSource("mask_sequences", "[masked_world]", "world")
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("hello"), &source))
 	assert.Equal(t, true, shouldProcess)
 	assert.Equal(t, []byte("hello"), redactedMessage)
 
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("hello world!"), logsConfig))
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("hello world!"), &source))
 	assert.Equal(t, true, shouldProcess)
 	assert.Equal(t, []byte("hello [masked_world]!"), redactedMessage)
 
-	logsConfig = buildTestLogsConfig("mask_sequences", "[masked_user]", "User=\\w+@datadoghq.com")
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("new test launched by User=beats@datadoghq.com on localhost"), logsConfig))
+	source = buildTestConfigLogSource("mask_sequences", "[masked_user]", "User=\\w+@datadoghq.com")
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("new test launched by User=beats@datadoghq.com on localhost"), &source))
 	assert.Equal(t, true, shouldProcess)
 	assert.Equal(t, []byte("new test launched by [masked_user] on localhost"), redactedMessage)
 
-	logsConfig = buildTestLogsConfig("mask_sequences", "[masked_credit_card]", "(?:4[0-9]{12}(?:[0-9]{3})?|[25][1-7][0-9]{14}|6(?:011|5[0-9][0-9])[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\\d{3})\\d{11})")
-	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("The credit card 4323124312341234 was used to buy some time"), logsConfig))
+	source = buildTestConfigLogSource("mask_sequences", "[masked_credit_card]", "(?:4[0-9]{12}(?:[0-9]{3})?|[25][1-7][0-9]{14}|6(?:011|5[0-9][0-9])[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\\d{3})\\d{11})")
+	shouldProcess, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("The credit card 4323124312341234 was used to buy some time"), &source))
 	assert.Equal(t, true, shouldProcess)
 	assert.Equal(t, []byte("The credit card [masked_credit_card] was used to buy some time"), redactedMessage)
 }
 
 func TestTruncate(t *testing.T) {
-	logsConfig := &config.LogsConfig{}
+
+	source := config.NewLogSource("", &config.LogsConfig{})
 	var redactedMessage []byte
 
-	_, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("hello"), logsConfig))
+	_, redactedMessage = applyRedactingRules(newNetworkMessage([]byte("hello"), source))
 	assert.Equal(t, []byte("hello"), redactedMessage)
 }

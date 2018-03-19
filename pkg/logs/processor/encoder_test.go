@@ -31,10 +31,12 @@ func TestRawEncoder(t *testing.T) {
 		Tags:           []string{"foo:bar", "baz"},
 	}
 
+	source := config.NewLogSource("", logsConfig)
+
 	rawMessage := "message"
-	message := newNetworkMessage([]byte(rawMessage), logsConfig)
+	message := newNetworkMessage([]byte(rawMessage), source)
 	message.SetSeverity(config.SevError)
-	message.GetOrigin().LogsConfig = logsConfig
+	message.GetOrigin().LogSource = source
 	message.GetOrigin().SetTags([]string{"a", "b:c"})
 
 	redactedMessage := "redacted"
@@ -62,8 +64,10 @@ func TestRawEncoderDefaults(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
+	source := config.NewLogSource("", logsConfig)
+
 	rawMessage := "a"
-	message := newNetworkMessage([]byte(rawMessage), logsConfig)
+	message := newNetworkMessage([]byte(rawMessage), source)
 
 	redactedMessage := "a"
 
@@ -89,8 +93,10 @@ func TestRawEncoderEmpty(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
+	source := config.NewLogSource("", logsConfig)
+
 	rawMessage := ""
-	message := newNetworkMessage([]byte(rawMessage), logsConfig)
+	message := newNetworkMessage([]byte(rawMessage), source)
 
 	redactedMessage := "foo"
 
@@ -116,10 +122,12 @@ func TestProtoEncoder(t *testing.T) {
 		Tags:           []string{"foo:bar", "baz"},
 	}
 
+	source := config.NewLogSource("", logsConfig)
+
 	rawMessage := "message"
-	message := newNetworkMessage([]byte(rawMessage), logsConfig)
+	message := newNetworkMessage([]byte(rawMessage), source)
 	message.SetSeverity(config.SevError)
-	message.GetOrigin().LogsConfig = logsConfig
+	message.GetOrigin().LogSource = source
 	message.GetOrigin().SetTags([]string{"a", "b:c"})
 
 	redactedMessage := "redacted"
@@ -147,8 +155,10 @@ func TestProtoEncoderEmpty(t *testing.T) {
 
 	logsConfig := &config.LogsConfig{}
 
+	source := config.NewLogSource("", logsConfig)
+
 	rawMessage := ""
-	message := newNetworkMessage([]byte(rawMessage), logsConfig)
+	message := newNetworkMessage([]byte(rawMessage), source)
 
 	redactedMessage := ""
 

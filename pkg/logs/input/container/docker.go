@@ -9,7 +9,6 @@ package container
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
@@ -29,10 +28,6 @@ import (
 	"github.com/docker/docker/client"
 )
 
-// logsMetadataPath refers to the logs configuration that can be passed over a docker label,
-// this feature is commonly named autodicovery.
-const logsMetadataPath = "com.datadoghq.ad.logs"
-
 const defaultSleepDuration = 1 * time.Second
 const tagsUpdatePeriod = 10 * time.Second
 
@@ -47,7 +42,6 @@ type DockerTailer struct {
 	cli           *client.Client
 	source        *config.LogSource
 	containerTags []string
-	logsMetadata  *config.LogsConfig
 
 	sleepDuration time.Duration
 	shouldStop    bool
@@ -56,9 +50,9 @@ type DockerTailer struct {
 }
 
 // NewDockerTailer returns a new DockerTailer
-func NewDockerTailer(cli *client.Client, container types.Container, source *config.LogSource, outputChan chan message.Message) *DockerTailer {
+func NewDockerTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message) *DockerTailer {
 	return &DockerTailer{
-		ContainerID: container.ID,
+		ContainerID: containerID,
 		outputChan:  outputChan,
 		decoder:     decoder.InitializeDecoder(source),
 		source:      source,
@@ -147,12 +141,6 @@ func (dt *DockerTailer) tailFrom(from string) error {
 
 	dt.reader = reader
 
-	// check if logs metadata are attached to the container
-	logsMetadata, exists := dt.fetchLogsMetadata()
-	if exists {
-		dt.logsMetadata = logsMetadata
-	}
-
 	go dt.keepDockerTagsUpdated()
 	go dt.forwardMessages()
 	dt.decoder.Start()
@@ -211,13 +199,7 @@ func (dt *DockerTailer) forwardMessages() {
 		}
 		containerMsg := message.NewContainerMessage(updatedMsg)
 		msgOrigin := message.NewOrigin()
-		// use logs metadata instead of source config when defined,
-		// it might be interesting to merge both at some point.
-		if dt.logsMetadata != nil {
-			msgOrigin.LogsConfig = dt.logsMetadata
-		} else {
-			msgOrigin.LogsConfig = dt.source.Config
-		}
+		msgOrigin.LogSource = dt.source
 		msgOrigin.Timestamp = ts
 		msgOrigin.Identifier = dt.Identifier()
 		msgOrigin.SetTags(dt.containerTags)
@@ -225,33 +207,6 @@ func (dt *DockerTailer) forwardMessages() {
 		containerMsg.SetOrigin(msgOrigin)
 		dt.outputChan <- containerMsg
 	}
-}
-
-// fetchLogsMetadata returns the logs metadata defined in container labels.
-// If no metadata are specified, return false
-func (dt *DockerTailer) fetchLogsMetadata() (*config.LogsConfig, bool) {
-	information, err := dt.cli.ContainerInspect(context.Background(), dt.ContainerID)
-	if err != nil {
-		return nil, false
-	}
-	return dt.extractLogsMetadataFromLabels(information.Config.Labels)
-}
-
-// extractLogsMetadataFromLabels returns the logs metadata present in the label 'com.datadoghq.ad.logs',
-// the metadata has to be conform with the format '[{...}]'.
-func (dt *DockerTailer) extractLogsMetadataFromLabels(labels map[string]string) (*config.LogsConfig, bool) {
-	label, exists := labels[logsMetadataPath]
-	if !exists {
-		return nil, false
-	}
-	var configs []config.LogsConfig
-	err := json.Unmarshal([]byte(label), &configs)
-	if err != nil || len(configs) < 1 {
-		log.Warnf("Could not parse logs configs, got %v, expect value with format '[{\"source\":\"a_source\",\"service\":\"a_service\", ...}]'")
-		return nil, false
-	}
-	logsMetadata := configs[0]
-	return &logsMetadata, true
 }
 
 func (dt *DockerTailer) keepDockerTagsUpdated() {

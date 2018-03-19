@@ -147,7 +147,7 @@ func (t *Tailer) forwardMessages() {
 		}
 		t.decodedOffset = msgOffset
 		msgOrigin := message.NewOrigin()
-		msgOrigin.LogsConfig = t.source.Config
+		msgOrigin.LogSource = t.source
 		msgOrigin.Identifier = identifier
 		msgOrigin.Offset = msgOffset
 		fileMsg.SetOrigin(msgOrigin)
