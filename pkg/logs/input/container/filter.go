@@ -17,14 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
-// Container -
+// Container represents a container to tail logs from.
 type Container struct {
 	Identifier string
 	Image      string
 	Source     *config.LogSource
 }
 
-// NewContainer -
+// NewContainer returns a new Container
 func NewContainer(container types.Container, source *config.LogSource) *Container {
 	return &Container{
 		Identifier: container.ID,
@@ -33,7 +33,7 @@ func NewContainer(container types.Container, source *config.LogSource) *Containe
 	}
 }
 
-// Filter -
+// Filter returns all the containers for which a source exists.
 func Filter(containers []types.Container, sources []*config.LogSource) []*Container {
 	containersToTail := []*Container{}
 	for _, container := range containers {
@@ -44,7 +44,8 @@ func Filter(containers []types.Container, sources []*config.LogSource) []*Contai
 	return containersToTail
 }
 
-// searchSource -
+// searchSource returns a valid source for container,
+// if no source is found, return nil
 func searchSource(container types.Container, sources []*config.LogSource) *config.LogSource {
 	if source := sourceFromContainer(container); source != nil {
 		return source
@@ -61,10 +62,10 @@ func searchSource(container types.Container, sources []*config.LogSource) *confi
 	return nil
 }
 
-//
+// digestPrefix represents q prefix that can be added to an image name.
 const digestPrefix = "@sha256:"
 
-// isImageMatch -
+// isImageMatch returns true if image respects format: "Y/imageFilter@sha256:X" with 'Y/' and '@sha256:X' optional.
 func isImageMatch(imageFilter string, image string) bool {
 	if strings.Contains(image, digestPrefix) {
 		// Trim digest if present
@@ -76,7 +77,7 @@ func isImageMatch(imageFilter string, image string) bool {
 	return len(repository) == 0 || strings.HasSuffix(repository, "/")
 }
 
-// isLabelMatch -
+// isLabelMatch returns true if labels contains at least one label from labelFilter.
 func isLabelMatch(labelFilter string, labels map[string]string) bool {
 	// Expect a comma-separated list of labels, eg: foo:bar, baz
 	for _, value := range strings.Split(labelFilter, ",") {
@@ -98,7 +99,7 @@ func isLabelMatch(labelFilter string, labels map[string]string) bool {
 // this feature is commonly named autodicovery.
 const logsConfigPath = "com.datadoghq.ad.logs"
 
-// sourceFromContainer -
+// sourceFromContainer returns the source extracted and computed from the container labels.
 func sourceFromContainer(container types.Container) *config.LogSource {
 	logsConfig := extractLogsConfig(container.Labels)
 	if logsConfig == nil {
