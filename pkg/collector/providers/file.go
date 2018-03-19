@@ -298,7 +298,7 @@ func GetCheckConfigFromFile(name, fpath string) (check.Config, error) {
 
 	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
 	if cf.DockerImages != nil && cf.ADIdentifiers == nil {
-		return config, errors.New("the 'docker_images:' section is deprecated, please use 'ad_identifiers:' instead")
+		return config, errors.New("the 'docker_images' section is deprecated, please use 'ad_identifiers' instead")
 	}
 
 	return config, err

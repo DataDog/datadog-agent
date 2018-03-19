@@ -51,6 +51,10 @@ func TestGetCheckConfig(t *testing.T) {
 	config, err = GetCheckConfigFromFile("foo", "tests/ad.yaml")
 	require.Nil(t, err)
 	assert.Equal(t, config.ADIdentifiers, []string{"foo_id", "bar_id"})
+
+	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
+	config, err = GetCheckConfigFromFile("foo", "tests/ad_deprecated.yaml")
+	assert.NotNil(t, err)
 }
 
 func TestNewYamlConfigProvider(t *testing.T) {
