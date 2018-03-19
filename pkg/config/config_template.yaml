@@ -175,6 +175,14 @@ api_key:
 # set in the check templates. If that is the case, you can force custom jars here.
 # jmx_custom_jars:
 #   - /jmx-jars/jboss-cli-client.jar
+#
+# When running in a memory cgroup, openjdk 8u131 and higher can automatically adjust
+# its heap memory usage in accordance to the cgroup/container's memory limit.
+# Default is false: we'll set a Xmx of 200MB if none is configured.
+# Note: older openjdk versions and other jvms might fail to start if this option is set
+#
+# jmx_use_cgroup_memory_limit: true
+#
 {{ end -}}
 {{- if .Autoconfig }}
 # Autoconfig

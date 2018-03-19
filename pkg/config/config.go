@@ -196,7 +196,8 @@ func init() {
 	Datadog.SetDefault("bosh_id", "")
 
 	// JMXFetch
-	Datadog.SetDefault("jmx_custom_jars", []string{})
+	BindEnvAndSetDefault("jmx_custom_jars", []string{})
+	BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
 
 	// Go_expvar server port
 	Datadog.SetDefault("expvar_port", "5000")
@@ -237,7 +238,6 @@ func init() {
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
 	Datadog.BindEnv("dogstatsd_origin_detection")
-	Datadog.BindEnv("jmx_custom_jars")
 
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")

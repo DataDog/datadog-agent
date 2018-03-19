@@ -34,6 +34,7 @@ const (
 	jmxCollectCommand                 = "collect"
 	jvmDefaultMaxMemoryAllocation     = " -Xmx200m"
 	jvmDefaultInitialMemoryAllocation = " -Xms50m"
+	jvmCgroupMemoryAwareness          = " -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap"
 	linkToDoc                         = "See http://docs.datadoghq.com/integrations/java/ for more information"
 )
 
@@ -47,6 +48,12 @@ var (
 		"error":    "ERROR",
 		"err":      "ERROR",
 		"critical": "FATAL",
+	}
+	jvmCgroupMemoryIncompatOptions = []string{
+		"Xmx",
+		"XX:MaxHeapSize",
+		"Xms",
+		"XX:InitialHeapSize",
 	}
 )
 
@@ -265,14 +272,28 @@ func (c *JMXCheck) start() error {
 
 	subprocessArgs := []string{}
 
-	// Specify a maximum memory allocation pool for the JVM
 	javaOptions := c.javaOptions
-	if !strings.Contains(javaOptions, "Xmx") && !strings.Contains(javaOptions, "XX:MaxHeapSize") {
-		javaOptions += jvmDefaultMaxMemoryAllocation
-	}
-	// Specify the initial memory allocation pool for the JVM
-	if !strings.Contains(javaOptions, "Xms") && !strings.Contains(javaOptions, "XX:InitialHeapSize") {
-		javaOptions += jvmDefaultInitialMemoryAllocation
+	if config.Datadog.GetBool("jmx_use_cgroup_memory_limit") {
+		passOption := true
+		// This option is incompatible with the Xmx and Xms options, log a warning if there are found in the javaOptions
+		for _, option := range jvmCgroupMemoryIncompatOptions {
+			if strings.Contains(javaOptions, option) {
+				log.Warnf("Java option %q is incompatible with cgroup_memory_limit, disabling cgroup mode", option)
+				passOption = false
+			}
+		}
+		if passOption {
+			javaOptions += jvmCgroupMemoryAwareness
+		}
+	} else {
+		// Specify a maximum memory allocation pool for the JVM
+		if !strings.Contains(javaOptions, "Xmx") && !strings.Contains(javaOptions, "XX:MaxHeapSize") {
+			javaOptions += jvmDefaultMaxMemoryAllocation
+		}
+		// Specify the initial memory allocation pool for the JVM
+		if !strings.Contains(javaOptions, "Xms") && !strings.Contains(javaOptions, "XX:InitialHeapSize") {
+			javaOptions += jvmDefaultInitialMemoryAllocation
+		}
 	}
 
 	subprocessArgs = append(subprocessArgs, strings.Fields(javaOptions)...)
