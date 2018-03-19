@@ -63,6 +63,7 @@ func TestInit(t *testing.T) {
 	forwarder.init()
 	assert.Len(t, forwarder.workers, 0)
 	assert.Len(t, forwarder.retryQueue, 0)
+	assert.Len(t, forwarder.blockedList.errorPerEndpoint, 0)
 }
 
 func TestStop(t *testing.T) {
@@ -159,9 +160,19 @@ func TestRetryTransactions(t *testing.T) {
 	assert.Nil(t, transactionsExpvar.Get("Dropped"))
 
 	t1 := NewHTTPTransaction()
-	t1.nextFlush = time.Now().Add(-1 * time.Hour)
+	t1.Domain = "domain/"
+	t1.Endpoint = "test1"
 	t2 := NewHTTPTransaction()
-	t2.nextFlush = time.Now().Add(1 * time.Hour)
+	t2.Domain = "domain/"
+	t2.Endpoint = "test2"
+
+	// Create blocks
+	forwarder.blockedList.unblock(t1.GetTarget())
+	forwarder.blockedList.unblock(t2.GetTarget())
+
+	forwarder.blockedList.errorPerEndpoint[t1.GetTarget()].until = time.Now().Add(-1 * time.Hour)
+	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].until = time.Now().Add(1 * time.Hour)
+
 	forwarder.requeueTransaction(t2)
 	forwarder.requeueTransaction(t2) // this second one should be dropped
 	forwarder.requeueTransaction(t1) // the queue should be sorted
