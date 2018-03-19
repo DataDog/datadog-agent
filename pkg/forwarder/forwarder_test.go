@@ -226,8 +226,10 @@ func TestForwarderRetryLifo(t *testing.T) {
 	forwarder.requeueTransaction(transaction2)
 
 	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
+	transaction1.On("GetTarget").Return("").Times(1)
 
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
+	transaction2.On("GetTarget").Return("").Times(1)
 
 	forwarder.retryTransactions(time.Now())
 
@@ -255,8 +257,10 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 	forwarder.requeueTransaction(transaction2)
 
 	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
+	transaction1.On("GetTarget").Return("").Times(1)
 
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
+	transaction2.On("GetTarget").Return("").Times(1)
 
 	forwarder.retryTransactions(time.Now())
 
