@@ -17,10 +17,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/legacy"
 	"github.com/fatih/color"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/legacy"
 )
 
 // ImportConfig imports the agent5 configuration into the agent6 yaml config
@@ -124,6 +125,12 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 				color.Output,
 				fmt.Sprintf("Ignoring %s, old docker check has been deprecated.", color.YellowString(src)),
 			)
+			continue
+		} else if f.Name() == "kubernetes.yaml" {
+			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubernetes.yaml"), force)
+			if err != nil {
+				return err
+			}
 			continue
 		}
 
