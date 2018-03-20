@@ -176,7 +176,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 			Returns: string
 			Example: "no cached metadata found for the pod my-nginx-5d69 on the node localhost"
 	*/
-	if err := apiutil.Validate(w, r); err != nil {
+	if err := apiutil.ValidateDCARequest(w, r); err != nil {
 		return
 	}
 	vars := mux.Vars(r)
