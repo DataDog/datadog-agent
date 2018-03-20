@@ -266,7 +266,11 @@ needed settings from `docker_daemon.yaml` to `datadog.yaml`.
 The `kubernetes` integration insights are provided combining:
   * The [`kubelet`](https://github.com/DataDog/integrations-core/tree/master/kubelet) check
   retrieving metrics from the kubelet
-  * The `kubernetes_apiserver` check retrieving events and service checks from the apiserver
+  * The [`kubernetes_apiserver`](https://github.com/DataDog/datadog-agent/tree/master/cmd/agent/dist/conf.d/kubernetes_apiserver.d) check retrieving events and service checks from the apiserver
+
+The `agent import` command (in versions 6.2 and higher) will import settings from the legacy `kubernetes.yaml` configuration, if found.
+
+The [`kubernetes_state` integration](https://github.com/DataDog/integrations-core/tree/master/kubernetes_state) works on both versions of the agent.
 
 ### Tagging
 
@@ -281,8 +285,6 @@ The following options and tags are deprecated:
      - `kube_replicate_controller` is only added if the pod is created by a replication controller,
      not systematically. Use the relevant creator tag (`kube_deployment` / `kube_daemon_set`...)
 
-The `kube_service` tagging depends on the `Datadog Cluster Agent`, which is not released yet.
-
 ## Autodiscovery
 
 We reworked the [Autodiscovery](https://docs.datadoghq.com/agent/autodiscovery/) system from the ground up to be faster and more reliable.
@@ -293,8 +295,7 @@ All documented use cases are supported, please contact our support team if you r
 ### Kubernetes
 
 When using Kubernetes, the Autodiscovery system now sources information from the kubelet, instead of the Docker daemon. This will allow AD
-to work without access to the Docker socket, and enable a more consistent experience accross all parts of the agent. The side effect of that
-is that templates in Docker labels are not supported when using the kubelet AD listener. Templates in pod annotations still work as intended.
+to work without access to the Docker socket, and enable a more consistent experience accross all parts of the agent. The side effect of that change is that templates in Docker labels are not read by default when using the kubelet AD listener. Templates in pod annotations still work as intended.
 
 When specifying AD templates in pod annotations, the new annotation name prefix is `ad.datadoghq.com/`. the previous annotation prefix
 `service-discovery.datadoghq.com/` is still supported for Agent6 but support will be removed in Agent7.
