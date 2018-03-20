@@ -29,9 +29,11 @@ func TestFlareHasRightForm(t *testing.T) {
 	var lastRequest *http.Request
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		io.WriteString(w, "{}")
+		w.Header().Set("Content-Type", "application/json")
 		lastRequest = r
+		err := lastRequest.ParseMultipartForm(1000000)
+		assert.Nil(t, err)
+		io.WriteString(w, "{}")
 	}))
 	defer ts.Close()
 
@@ -48,11 +50,6 @@ func TestFlareHasRightForm(t *testing.T) {
 	assert.Nil(t, err)
 
 	av, _ := version.New(version.AgentVersion, version.Commit)
-
-	// parse the form
-	err = lastRequest.ParseForm()
-	// the form should parse
-	assert.Nil(t, err)
 
 	assert.Equal(t, caseID, lastRequest.FormValue("case_id"))
 	assert.Equal(t, email, lastRequest.FormValue("email"))
