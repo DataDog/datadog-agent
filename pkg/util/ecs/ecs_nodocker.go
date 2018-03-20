@@ -7,9 +7,11 @@
 
 package ecs
 
-// IsInstance returns whether this host is part of an ECS cluster
-func IsInstance() bool {
-	return false
+import "github.com/DataDog/datadog-agent/pkg/util/docker"
+
+// GetUtil returns an ECS util
+func GetUtil() (*Util, error) {
+	return nil, docker.ErrDockerNotCompiled
 }
 
 // IsFargateInstance returns whether the agent is in an ECS fargate task.

@@ -5,6 +5,8 @@
 
 package ecs
 
+import "github.com/DataDog/datadog-agent/pkg/util/retry"
+
 // TaskMetadata is the info returned by the ECS task metadata API
 type TaskMetadata struct {
 	ClusterName   string         `json:"Cluster"`
@@ -101,4 +103,11 @@ type NetStats struct {
 	RxPackets uint64 `json:"rx_packets"`
 	TxBytes   uint64 `json:"tx_bytes"`
 	TxPackets uint64 `json:"tx_packets"`
+}
+
+// Util wraps interactions with the ECS agent
+type Util struct {
+	// used to setup the ECSUtil
+	initRetry retry.Retrier
+	agentURL  string
 }

@@ -8,12 +8,11 @@
 package collectors
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	taggerutil "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
 const (
@@ -28,30 +27,31 @@ type ECSCollector struct {
 	expire     *taggerutil.Expire
 	lastExpire time.Time
 	expireFreq time.Duration
+	ecsUtil    *ecs.Util
 }
 
 // Detect tries to connect to the ECS agent
 func (c *ECSCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	var err error
-	if ecsutil.IsInstance() {
-		c.infoOut = out
-		c.lastExpire = time.Now()
-		c.expireFreq = ecsExpireFreq
-
-		c.expire, err = taggerutil.NewExpire(ecsExpireFreq)
-
-		if err != nil {
-			return NoCollection, err
-		}
-		return FetchOnlyCollection, nil
+	ecsUtil, err := ecs.GetUtil()
+	if err != nil {
+		return NoCollection, err
 	}
-	return NoCollection, fmt.Errorf("cannot find ECS agent")
+	c.ecsUtil = ecsUtil
+	c.infoOut = out
+	c.lastExpire = time.Now()
+	c.expireFreq = ecsExpireFreq
+
+	c.expire, err = taggerutil.NewExpire(ecsExpireFreq)
+
+	if err != nil {
+		return NoCollection, err
+	}
+	return FetchOnlyCollection, nil
 }
 
 // Fetch fetches ECS tags
 func (c *ECSCollector) Fetch(container string) ([]string, []string, error) {
-
-	tasks_list, err := ecsutil.GetTasks()
+	tasks_list, err := c.ecsUtil.GetTasks()
 	if err != nil {
 		return []string{}, []string{}, err
 	}

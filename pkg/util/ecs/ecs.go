@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -31,11 +32,6 @@ const (
 	// Cache the fact we're running on ECS Fargate
 	isFargateInstanceCacheKey = "IsFargateInstanceCacheKey"
 )
-
-// DetectedAgentURL stores the URL of the ECS agent. After the first call to
-// getHostname this will be detected and used as-is going forward. It will only
-// be re-detected if getHostname is called again.
-var detectedAgentURL string
 
 type (
 	// CommandsV1Response is the format of a response from the ECS-agent on the root.
@@ -67,16 +63,37 @@ type (
 	}
 )
 
-// IsInstance returns whether this host is part of an ECS cluster
-func IsInstance() bool {
-	if detectedAgentURL == "" {
-		_, err := detectAgentURL()
-		if err != nil {
-			return false
-		}
-		return true
+var globalUtil *Util
+
+// GetUtil returns a ready to use DockerUtil. It is backed by a shared singleton.
+func GetUtil() (*Util, error) {
+	if globalUtil == nil {
+		globalUtil = &Util{}
+		globalUtil.initRetry.SetupRetrier(&retry.Config{
+			Name:          "ecsutil",
+			AttemptMethod: globalUtil.init,
+			Strategy:      retry.RetryCount,
+			RetryCount:    10,
+			RetryDelay:    30 * time.Second,
+		})
 	}
-	return true
+	err := globalUtil.initRetry.TriggerRetry()
+	if err != nil {
+		log.Debugf("ECS init error: %s", err)
+		return nil, err
+	}
+	return globalUtil, nil
+}
+
+// init makes an empty Util bootstrap itself.
+func (u *Util) init() error {
+	url, err := detectAgentURL()
+	if err != nil {
+		return err
+	}
+	u.agentURL = url
+
+	return nil
 }
 
 // IsFargateInstance returns whether the agent is in an ECS fargate task.
@@ -131,19 +148,10 @@ func IsAgentNotDetected(err error) bool {
 
 // GetTasks returns a TasksV1Response containing information about the state
 // of the local ECS containers running on this node. This data is provided via
-// the local ECS agent.
-func GetTasks() (TasksV1Response, error) {
-
+// the local ECS agent
+func (u *Util) GetTasks() (TasksV1Response, error) {
 	var resp TasksV1Response
-	if detectedAgentURL == "" {
-		_, err := detectAgentURL()
-		if err != nil {
-			return resp, err
-		}
-	}
-	// TODO: Use IsAgentNotDetected ?
-
-	r, err := http.Get(fmt.Sprintf("%sv1/tasks", detectedAgentURL))
+	r, err := http.Get(fmt.Sprintf("%sv1/tasks", u.agentURL))
 	if err != nil {
 		return resp, err
 	}
@@ -201,7 +209,6 @@ func detectAgentURL() (string, error) {
 	urls = append(urls, fmt.Sprintf("http://localhost:%d/", DefaultAgentPort))
 	detected := testURLs(urls, 1*time.Second)
 	if detected != "" {
-		detectedAgentURL = detected
 		return detected, nil
 	}
 	return "", fmt.Errorf("could not detect ECS agent, tried URLs: %s", urls)
