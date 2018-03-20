@@ -24,11 +24,13 @@ func init() {
 	svcMapperCmd.SetArgs([]string{"caseID"})
 }
 
-// TODO add all registered nodes command
 var svcMapperCmd = &cobra.Command{
 	Use:   "svcmap [nodeName]",
 	Short: "Print the map between the services and the pods behind them",
-	Long:  ``,
+	Long: `The svcmap command is mostly designed for troubleshooting purposes.
+One can easily identify which pods are running on which nodes,
+as well as which services are service the pods.`,
+	Example: "datadog-cluster-agent svcmap ip-10-0-115-123",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configFound := false
 		// a path to the folder containing the config file was passed
