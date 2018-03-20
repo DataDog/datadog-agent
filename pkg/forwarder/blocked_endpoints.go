@@ -12,7 +12,9 @@ import (
 )
 
 const (
-	// This controls how many retry interval ranges to step down for an endpoint upon success.
+	// This controls the rate of exponential decay, i.e. how many retry interval ranges to
+	// step down for an endpoint upon success. Increasing this should only be considered when
+	// maxBackoffTime is particularly high or if our intake team is particularly confident.
 	recoveryInterval = 1
 )
 
