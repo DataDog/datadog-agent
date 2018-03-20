@@ -98,7 +98,7 @@ func (c *Container) isLabelMatch(labelFilter string) bool {
 // this feature is commonly named 'ad' or 'autodicovery'.
 const configPath = "com.datadoghq.ad.logs"
 
-// toSource converts a container to source
+// toSource converts a container to a source
 func (c *Container) toSource() *config.LogSource {
 	cfg := c.parseConfig()
 	if cfg == nil {
