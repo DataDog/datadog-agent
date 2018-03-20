@@ -66,7 +66,8 @@ func (c *Container) computeScore(source *config.LogSource) int {
 // digestPrefix represents a prefix that can be added to an image name.
 const digestPrefix = "@sha256:"
 
-// isImageMatch returns true if container image respects format: '[<repository>/]image[@sha256:<digest>]'.
+// isImageMatch returns true if container image respects format '[<repository>/]image[@sha256:<digest>]',
+// imageFilter must respect format '[<repository>/]image'.
 func (c *Container) isImageMatch(imageFilter string) bool {
 	// Trim digest if present
 	splitted := strings.SplitN(c.Image, digestPrefix, 2)
