@@ -28,7 +28,10 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-const setupTimeout = time.Second * 10
+const (
+	setupTimeout             = time.Second * 10
+	serviceMapperCachePrefix = "KubernetesServiceMapping"
+)
 
 type testSuite struct {
 	suite.Suite
@@ -303,4 +306,11 @@ func (suite *testSuite) TestServiceMapper() {
 	assert.Len(suite.T(), serviceNames, 2)
 	assert.Contains(suite.T(), serviceNames, "nginx-1")
 	assert.Contains(suite.T(), serviceNames, "nginx-2")
+
+	fullmapper, errList := apiserver.GetServiceMapBundleOnNode("")
+	require.Nil(suite.T(), errList)
+	list := fullmapper["Nodes"]
+	assert.Contains(suite.T(), list, "ip-172-31-119-125")
+	fullMap := list.(map[string]map[string][]string)
+	assert.Contains(suite.T(), fullMap["ip-172-31-119-125"]["nginx"], "nginx-1")
 }

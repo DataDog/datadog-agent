@@ -213,7 +213,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	nodeName := vars["nodeName"]
 	log.Info("Fetching service map on all pods of the node %s", nodeName)
 	svcList, errNodes := as.GetServiceMapBundleOnNode(nodeName)
-	if len(errNodes) != 0 {
+	if errNodes != nil {
 		log.Errorf("could not collect the service map for %s", nodeName)
 		svcList["Error"] = errNodes
 	}
