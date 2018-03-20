@@ -49,6 +49,11 @@ func TestFlareHasRightForm(t *testing.T) {
 
 	av, _ := version.New(version.AgentVersion, version.Commit)
 
+	// parse the form
+	err = lastRequest.ParseForm()
+	// the form should parse
+	assert.Nil(t, err)
+
 	assert.Equal(t, caseID, lastRequest.FormValue("case_id"))
 	assert.Equal(t, email, lastRequest.FormValue("email"))
 	assert.Equal(t, av.String(), lastRequest.FormValue("agent_version"))
