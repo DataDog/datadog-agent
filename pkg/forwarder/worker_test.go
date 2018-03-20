@@ -102,7 +102,7 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	mock := newTestTransaction()
 	mock.On("GetTarget").Return("error_url").Times(1)
 
-	w.blockedList.block("error_url")
+	w.blockedList.close("error_url")
 	w.Start()
 	highPrio <- mock
 	retryTransaction := <-requeue

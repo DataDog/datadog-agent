@@ -33,13 +33,13 @@ func randomBetween(min, max float64) float64 {
 }
 
 // GetBackoffDuration returns an appropriate amount of time to wait for the next network
-// error retry given the current number of attempts. Unlike `github.com/cenkalti/backoff`,
+// error retry given the current number of errors. Unlike `github.com/cenkalti/backoff`,
 // this implementation is thread-safe.
-func GetBackoffDuration(numAttempts int) time.Duration {
+func GetBackoffDuration(numErrors int) time.Duration {
 	var backoffTime float64
 
-	if numAttempts > 0 {
-		backoffTime = baseBackoffTime * math.Pow(2, float64(numAttempts))
+	if numErrors > 0 {
+		backoffTime = baseBackoffTime * math.Pow(2, float64(numErrors))
 
 		if backoffTime > maxBackoffTime {
 			backoffTime = maxBackoffTime

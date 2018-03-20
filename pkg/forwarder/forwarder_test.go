@@ -166,8 +166,8 @@ func TestRetryTransactions(t *testing.T) {
 	t2.Endpoint = "test2"
 
 	// Create blocks
-	forwarder.blockedList.unblock(t1.GetTarget())
-	forwarder.blockedList.unblock(t2.GetTarget())
+	forwarder.blockedList.recover(t1.GetTarget())
+	forwarder.blockedList.recover(t2.GetTarget())
 
 	forwarder.blockedList.errorPerEndpoint[t1.GetTarget()].until = time.Now().Add(-1 * time.Hour)
 	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].until = time.Now().Add(1 * time.Hour)
@@ -188,7 +188,7 @@ func TestForwarderRetry(t *testing.T) {
 	forwarder.Start()
 	defer forwarder.Stop()
 
-	forwarder.blockedList.block("blocked")
+	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Hour)
 
 	ready := newTestTransaction()
@@ -249,7 +249,7 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 	forwarder.init()
 
 	forwarder.retryQueueLimit = 1
-	forwarder.blockedList.block("blocked")
+	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
 	transaction1 := newTestTransaction()

@@ -36,7 +36,7 @@ func newBlockedEndpoints() *blockedEndpoints {
 	return &blockedEndpoints{errorPerEndpoint: make(map[string]*block)}
 }
 
-func (e *blockedEndpoints) block(endpoint string) {
+func (e *blockedEndpoints) close(endpoint string) {
 	e.m.Lock()
 	defer e.m.Unlock()
 
@@ -53,7 +53,7 @@ func (e *blockedEndpoints) block(endpoint string) {
 	e.errorPerEndpoint[endpoint] = b
 }
 
-func (e *blockedEndpoints) unblock(endpoint string) {
+func (e *blockedEndpoints) recover(endpoint string) {
 	e.m.Lock()
 	defer e.m.Unlock()
 

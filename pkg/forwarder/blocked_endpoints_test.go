@@ -39,7 +39,7 @@ func TestMaxErrors(t *testing.T) {
 func TestBlock(t *testing.T) {
 	e := newBlockedEndpoints()
 
-	e.block("test")
+	e.close("test")
 	now := time.Now()
 
 	assert.Contains(t, e.errorPerEndpoint, "test")
@@ -48,10 +48,10 @@ func TestBlock(t *testing.T) {
 
 func TestMaxBlock(t *testing.T) {
 	e := newBlockedEndpoints()
-	e.block("test")
+	e.close("test")
 	e.errorPerEndpoint["test"].nbError = 1000000
 
-	e.block("test")
+	e.close("test")
 	now := time.Now()
 
 	assert.Contains(t, e.errorPerEndpoint, "test")
@@ -63,23 +63,23 @@ func TestMaxBlock(t *testing.T) {
 func TestUnblock(t *testing.T) {
 	e := newBlockedEndpoints()
 
-	e.block("test")
+	e.close("test")
 	require.Contains(t, e.errorPerEndpoint, "test")
-	e.block("test")
-	e.block("test")
-	e.block("test")
-	e.block("test")
+	e.close("test")
+	e.close("test")
+	e.close("test")
+	e.close("test")
 
-	e.unblock("test")
+	e.recover("test")
 	assert.True(t, e.errorPerEndpoint["test"].nbError == int(math.Max(0, float64(5-recoveryInterval))))
 }
 
 func TestMaxUnblock(t *testing.T) {
 	e := newBlockedEndpoints()
 
-	e.block("test")
-	e.unblock("test")
-	e.unblock("test")
+	e.close("test")
+	e.recover("test")
+	e.recover("test")
 	now := time.Now()
 
 	assert.Contains(t, e.errorPerEndpoint, "test")
@@ -90,7 +90,7 @@ func TestMaxUnblock(t *testing.T) {
 func TestUnblockUnknown(t *testing.T) {
 	e := newBlockedEndpoints()
 
-	e.unblock("test")
+	e.recover("test")
 	assert.Contains(t, e.errorPerEndpoint, "test")
 	assert.True(t, e.errorPerEndpoint["test"].nbError == 0)
 }
@@ -100,21 +100,21 @@ func TestIsBlock(t *testing.T) {
 
 	assert.False(t, e.isBlock("test"))
 
-	e.block("test")
+	e.close("test")
 	assert.True(t, e.isBlock("test"))
 
-	e.unblock("test")
+	e.recover("test")
 	assert.False(t, e.isBlock("test"))
 }
 
 func TestIsBlockTiming(t *testing.T) {
 	e := newBlockedEndpoints()
 
-	// setting an old block
+	// setting an old close
 	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(-time.Duration(30 * time.Second))}
 	assert.False(t, e.isBlock("test"))
 
-	// setting an new block
+	// setting an new close
 	e.errorPerEndpoint["test"] = &block{nbError: 1, until: time.Now().Add(time.Duration(30 * time.Second))}
 	assert.True(t, e.isBlock("test"))
 }
