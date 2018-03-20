@@ -58,7 +58,6 @@ func SendFlareWithHostname(archivePath string, caseID string, email string, host
 	// Send the full version
 	av, _ := version.New(version.AgentVersion, version.Commit)
 	writer.WriteField("agent_version", av.String())
-
 	writer.WriteField("hostname", hostname)
 
 	err = writer.Close()
