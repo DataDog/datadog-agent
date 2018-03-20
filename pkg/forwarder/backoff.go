@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	// The `minBackoffFactor` controls the overlap between consecutive interval ranges.
-	// When set to `2`, there is a guarantee that there will be no overlap. The overlap
-	// will asymptotically approach 50% the higher the value is set.
+	// The minBackoffFactor controls the overlap between consecutive retry interval
+	// ranges. When set to `2`, there is a guarantee that there will be no overlap.
+	// The overlap will asymptotically approach 50% the higher the value is set.
 	minBackoffFactor = 2
 
 	// This controls the rate of exponential growth. Also, you can calculate the start
@@ -27,10 +27,6 @@ const (
 
 	secondsFloat = float64(time.Second)
 )
-
-// This is the number of attempts it will take to reach the maxBackoffTime. Our
-// blockedEndpoints circuit breaker uses this value as the maximum number of errors.
-var maxAttempts = int(math.Ceil(math.Log2(float64(maxBackoffTime) / float64(baseBackoffTime))))
 
 func randomBetween(min, max float64) float64 {
 	return rand.Float64()*(max-min) + min

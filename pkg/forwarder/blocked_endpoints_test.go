@@ -6,6 +6,7 @@
 package forwarder
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -14,6 +15,26 @@ import (
 )
 
 const maxBackoffDuration = maxBackoffTime * time.Second
+
+func TestMaxErrors(t *testing.T) {
+	previousBackoffDuration := time.Duration(0) * time.Second
+	attempts := 0
+
+	for i := 1; ; i++ {
+		backoffDuration := GetBackoffDuration(i)
+
+		if i > 1000 {
+			assert.Truef(t, i < 1000, "Too many iterations")
+		} else if backoffDuration == previousBackoffDuration {
+			attempts = i - 1
+			break
+		}
+
+		previousBackoffDuration = backoffDuration
+	}
+
+	assert.Equal(t, maxErrors, attempts)
+}
 
 func TestBlock(t *testing.T) {
 	e := newBlockedEndpoints()
@@ -34,7 +55,7 @@ func TestMaxBlock(t *testing.T) {
 	now := time.Now()
 
 	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.True(t, e.errorPerEndpoint["test"].nbError == maxAttempts)
+	assert.True(t, e.errorPerEndpoint["test"].nbError == maxErrors)
 	assert.True(t, now.Add(maxBackoffDuration).After(e.errorPerEndpoint["test"].until) ||
 		now.Add(maxBackoffDuration).Equal(e.errorPerEndpoint["test"].until))
 }
@@ -45,9 +66,12 @@ func TestUnblock(t *testing.T) {
 	e.block("test")
 	require.Contains(t, e.errorPerEndpoint, "test")
 	e.block("test")
+	e.block("test")
+	e.block("test")
+	e.block("test")
 
 	e.unblock("test")
-	assert.True(t, e.errorPerEndpoint["test"].nbError == 1)
+	assert.True(t, e.errorPerEndpoint["test"].nbError == int(math.Max(0, float64(5-recoveryInterval))))
 }
 
 func TestMaxUnblock(t *testing.T) {

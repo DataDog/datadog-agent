@@ -11,6 +11,15 @@ import (
 	"time"
 )
 
+const (
+	// This controls how many retry interval ranges to step down for an endpoint upon success.
+	recoveryInterval = 1
+)
+
+// This is the number of errors it will take to reach the maxBackoffTime. Our
+// blockedEndpoints circuit breaker uses this value as the maximum number of errors.
+var maxErrors = int(math.Floor(math.Log2(float64(maxBackoffTime)/float64(baseBackoffTime)))) + 1
+
 type block struct {
 	nbError int
 	until   time.Time
@@ -36,7 +45,7 @@ func (e *blockedEndpoints) block(endpoint string) {
 		b = &block{}
 	}
 
-	b.nbError = int(math.Min(float64(maxAttempts), float64(b.nbError+1)))
+	b.nbError = int(math.Min(float64(maxErrors), float64(b.nbError+1)))
 	b.until = time.Now().Add(GetBackoffDuration(b.nbError))
 
 	e.errorPerEndpoint[endpoint] = b
@@ -53,7 +62,7 @@ func (e *blockedEndpoints) unblock(endpoint string) {
 		b = &block{}
 	}
 
-	b.nbError = int(math.Max(0, float64(b.nbError-1)))
+	b.nbError = int(math.Max(0, float64(b.nbError-recoveryInterval)))
 	b.until = time.Now().Add(GetBackoffDuration(b.nbError))
 
 	e.errorPerEndpoint[endpoint] = b
