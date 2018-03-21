@@ -160,26 +160,27 @@ func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func getPodMetadata(w http.ResponseWriter, r *http.Request) {
-	////// Input
-	//	localhost:5001/api/v1/metadata/localhost/my-nginx-5d69
-	////// Outputs
-	//	Status: 200
-	//	Returns: []string
-	//	Example: ["my-nginx-service"]
-	//
-	//	Status: 404
-	//	Returns: string
-	//	Example: 404 page not found
-	//
-	//	Status: 500
-	//	Returns: string
-	//	Example: "no cached metadata found for the pod my-nginx-5d69 on the node localhost"
-	//////
+	/*
+		Input
+
+			localhost:5001/api/v1/metadata/localhost/my-nginx-5d69
+		Outputs
+			Status: 200
+			Returns: []string
+			Example: ["my-nginx-service"]
+
+			Status: 404
+			Returns: string
+			Example: 404 page not found
+
+			Status: 500
+			Returns: string
+			Example: "no cached metadata found for the pod my-nginx-5d69 on the node localhost"
+	*/
 	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	vars := mux.Vars(r)
-	var err error
 	var slcB []byte
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
@@ -187,13 +188,16 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 
 	svcList, errSvcList := as.GetPodServiceNames(nodeName, podName)
 	if errSvcList != nil {
-		slcB, err = json.Marshal(errSvcList.Error())
-	} else {
-		slcB, err = json.Marshal(svcList)
+		log.Errorf("Could not retrieve the list of services of: %s from the cache", podName)
+		http.Error(w, errSvcList.Error(), 500)
+		return
 	}
 
+	slcB, err := json.Marshal(svcList)
 	if err != nil {
 		log.Errorf("Could not process the list of services of: %s", podName)
+		http.Error(w, err.Error(), 500)
+		return
 	}
 	if len(slcB) != 0 {
 		w.WriteHeader(200)
@@ -204,24 +208,23 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("Could not find associated services mapped to the pod: %s on node: %s", podName, nodeName)))
 
 }
+
+// getNodeMetadata has the same signature as getAllMetadata, but is only scoped on one node.
 func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
-	// getNodeMetadata has the same signature as getAllMetadata, but is only scoped on one node.
 	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
-	log.Info("Fetching service map on all pods of the node %s", nodeName)
+	log.Infof("Fetching service map on all pods of the node %s", nodeName)
 	svcList, errNodes := as.GetServiceMapBundleOnNode(nodeName)
 	if errNodes != nil {
-		log.Errorf("could not collect the service map for %s", nodeName)
+		log.Errorf("Could not collect the service map for %s", nodeName)
 		svcList["Error"] = errNodes
 	}
 	slcB, err := json.Marshal(svcList)
 	if err != nil {
-		w.WriteHeader(500)
-		errB, _ := json.Marshal(err.Error())
-		w.Write(errB)
+		http.Error(w, err.Error(), 500)
 		return
 	}
 
@@ -235,21 +238,22 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAllMetadata(w http.ResponseWriter, r *http.Request) {
-	////// Input
-	//	localhost:5001/api/v1/metadata
-	////// Outputs
-	//	Status: 200
-	//	Returns: map[string][]string
-	//	Example: ["Node1":["pod1":["svc1"],"pod2":["svc2"]],"Node2":["pod3":["svc1"]], "Error":"the key KubernetesServiceMapping/Node3 not found in the cache"]
-	//
-	//	Status: 404
-	//	Returns: string
-	//	Example: 404 page not found
-	//
-	//	Status: 500
-	//	Returns: string
-	//	Example: "could not collect the service map for all nodes: List services is not permitted at the cluster scope."
-	//////
+	/*
+		Input
+			localhost:5001/api/v1/metadata
+		Outputs
+			Status: 200
+			Returns: map[string][]string
+			Example: ["Node1":["pod1":["svc1"],"pod2":["svc2"]],"Node2":["pod3":["svc1"]], "Error":"the key KubernetesServiceMapping/Node3 not found in the cache"]
+
+			Status: 404
+			Returns: string
+			Example: 404 page not found
+
+			Status: 500
+			Returns: string
+			Example: "could not collect the service map for all nodes: List services is not permitted at the cluster scope."
+	*/
 	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
@@ -261,9 +265,7 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	slcB, err := json.Marshal(svcList)
 	if err != nil {
-		w.WriteHeader(500)
-		errB, _ := json.Marshal(err.Error())
-		w.Write(errB)
+		http.Error(w, err.Error(), 500)
 		return
 	}
 	if len(slcB) != 0 {

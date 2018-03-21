@@ -51,11 +51,7 @@ as well as which services are service the pods.`,
 		if len(args) > 0 {
 			nodeName = args[0]
 		}
-		err := getServiceMap(nodeName) // if nodeName == "", call all.
-		if err != nil {
-			return err
-		}
-		return nil
+		return getServiceMap(nodeName) // if nodeName == "", call all.
 	},
 }
 
@@ -79,13 +75,6 @@ func getServiceMap(nodeName string) error {
 
 	r, e := util.DoGet(c, urlstr)
 	if e != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, errMap)
-		// If the error has been marshalled into a json object, check it and return it properly
-		if err, found := errMap["error"]; found {
-			e = fmt.Errorf(err)
-		}
-
 		fmt.Printf(`"Could not reach agent: %v
 		Make sure the agent is properly running before requesting the map of services to pods.
 		Contact support if you continue having issues."`, e)
