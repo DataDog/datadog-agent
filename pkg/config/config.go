@@ -240,6 +240,7 @@ func init() {
 	Datadog.BindEnv("dogstatsd_stats_port")
 	Datadog.BindEnv("dogstatsd_non_local_traffic")
 	Datadog.BindEnv("dogstatsd_origin_detection")
+	Datadog.BindEnv("check_runners")
 
 	Datadog.BindEnv("log_file")
 	Datadog.BindEnv("log_level")
