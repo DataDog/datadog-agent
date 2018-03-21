@@ -268,7 +268,11 @@ The `kubernetes` integration insights are provided combining:
   retrieving metrics from the kubelet
   * The [`kubernetes_apiserver`](https://github.com/DataDog/datadog-agent/tree/master/cmd/agent/dist/conf.d/kubernetes_apiserver.d) check retrieving events and service checks from the apiserver
 
-The `agent import` command (in versions 6.2 and higher) will import settings from the legacy `kubernetes.yaml` configuration, if found.
+The `agent import` command (in versions 6.2 and higher) will import settings from the legacy `kubernetes.yaml` configuration, if found. The following  options are deprecated:
+
+  - API Server credentials (`api_server_url`, `apiserver_client_crt`, `apiserver_client_key`, `apiserver_ca_cert`) please provide a a kubeconfig file to the agent via the `kubernetes_kubeconfig_path` option
+  - `use_histogram`: please contact support to determine the best alternative for you
+  - `namespaces`, `namespace_name_regexp`, `enabled_rates`, `enabled_gauges`: Agent6 now collects all available namespaces and metrics
 
 The [`kubernetes_state` integration](https://github.com/DataDog/integrations-core/tree/master/kubernetes_state) works on both versions of the agent.
 

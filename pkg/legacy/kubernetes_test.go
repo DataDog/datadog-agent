@@ -84,7 +84,7 @@ instances:
 var expectedKubeDeprecations = kubeDeprecations{
 	deprecationAPIServerCreds: []string{"api_server_url", "apiserver_client_crt", "apiserver_client_key", "apiserver_ca_cert"},
 	deprecationHisto:          []string{"use_histogram"},
-	deprecationFiltering:      []string{"namespaces", "namespace_name_regexp", "enabled_rates", "enabled_gauges"},
+	deprecationFiltering:      []string{"namespaces", "namespace_name_regexp", "enabled_rates", "enabled_gaugesS"},
 }
 
 var expectedHostTags = map[string]string{
