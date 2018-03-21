@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	// The minBackoffFactor controls the overlap between consecutive retry interval
-	// ranges. When set to `2`, there is a guarantee that there will be no overlap.
-	// The overlap will asymptotically approach 50% the higher the value is set.
+	// This controls the overlap between consecutive retry interval ranges. When
+	// set to `2`, there is a guarantee that there will be no overlap. The overlap
+	// will asymptotically approach 50% the higher the value is set.
 	minBackoffFactor = 2
 
 	// This controls the rate of exponential growth. Also, you can calculate the start
