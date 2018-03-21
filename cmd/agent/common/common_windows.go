@@ -222,7 +222,10 @@ func ImportRegistryConfig() error {
 				}
 			}
 		}
-		config.Datadog.Set("proxy", u.String())
+		proxyMap := make(map[string]string)
+		proxyMap["http"] = u.String()
+		proxyMap["https"] = u.String()
+		config.Datadog.Set("proxy", proxyMap)
 	} else {
 		log.Debug("proxy key not found, not setting proxy config")
 	}
