@@ -312,7 +312,11 @@ api_key:
 # You can also use the regex to ignore them all:
 # ac_exclude: ["image:dockercloud/*"]
 # ac_include: []
-
+#
+# The default timeout value when connecting to the docker daemon
+# is 5 seconds. It can be configured with this option.
+# docker_query_timeout: 5
+#
 {{ end -}}
 {{- if .DockerTagging }}
 # Docker tag extraction

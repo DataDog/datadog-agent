@@ -8,7 +8,6 @@
 package ecs
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,11 +15,10 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
-	"github.com/docker/docker/client"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -173,19 +171,17 @@ func detectAgentURL() (string, error) {
 	}
 
 	if config.IsContainerized() {
-		cli, err := dockerutil.ConnectToDocker()
+		du, err := docker.GetDockerUtil()
 		if err != nil {
 			return "", err
 		}
-		defer cli.Close()
 
 		// Try all networks available on the ecs container.
-		ecsConfig, err := cli.ContainerInspect(context.TODO(), DefaultECSContainer)
-		if client.IsErrContainerNotFound(err) {
-			return "", fmt.Errorf("could not detect ECS agent, missing %s container", DefaultECSContainer)
-		} else if err != nil {
+		ecsConfig, err := du.Inspect(DefaultECSContainer, false)
+		if err != nil {
 			return "", err
 		}
+
 		for _, network := range ecsConfig.NetworkSettings.Networks {
 			ip := network.IPAddress
 			if ip != "" {
@@ -194,7 +190,7 @@ func detectAgentURL() (string, error) {
 		}
 
 		// Try the default gateway
-		gw, err := dockerutil.DefaultGateway()
+		gw, err := docker.DefaultGateway()
 		if err != nil {
 			// "expected" errors are handled in DefaultGateway so only
 			// unexpected errors are bubbled up, so we keep bubbling.

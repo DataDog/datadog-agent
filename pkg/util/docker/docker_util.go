@@ -36,19 +36,15 @@ const (
 	pauseContainerKubernetes = "image:kubernetes/pause"
 )
 
-// FIXME: remove once DockerListener is moved to .Containers
-func (d *DockerUtil) ContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
-	return d.cli.ContainerList(ctx, options)
-}
-
 // DockerUtil wraps interactions with a local docker API.
 type DockerUtil struct {
 	// used to setup the DockerUtil
 	initRetry retry.Retrier
 
 	sync.Mutex
-	cfg *Config
-	cli *client.Client
+	cfg          *Config
+	cli          *client.Client
+	queryTimeout time.Duration
 	// tracks the last time we invalidate our internal caches
 	lastInvalidate time.Time
 	// networkMappings by container id
@@ -62,8 +58,12 @@ type DockerUtil struct {
 // init makes an empty DockerUtil bootstrap itself.
 // This is not exposed as public API but is called by the retrier embed.
 func (d *DockerUtil) init() error {
+	d.queryTimeout = config.Datadog.GetDuration("docker_query_timeout") * time.Second
+
 	// Major failure risk is here, do that first
-	cli, err := ConnectToDocker()
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	cli, err := connectToDocker(ctx)
+	cancel()
 	if err != nil {
 		return err
 	}
@@ -97,13 +97,8 @@ func (d *DockerUtil) init() error {
 	return nil
 }
 
-// ConnectToDocker connects to a local docker socket.
-// Returns ErrDockerNotAvailable if the socket or mounts file is missing
-// otherwise it returns either a valid client or an error.
-//
-// TODO: REMOVE USES AND MOVE TO PRIVATE
-//
-func ConnectToDocker() (*client.Client, error) {
+// connectToDocker connects to docker and negociates the API version
+func connectToDocker(ctx context.Context) (*client.Client, error) {
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		return nil, err
@@ -112,7 +107,7 @@ func ConnectToDocker() (*client.Client, error) {
 	cli.UpdateClientVersion("") // Hit unversionned endpoint first
 
 	// TODO: remove this logic when "client.NegotiateAPIVersion" function is released by moby/docker
-	v, err := cli.ServerVersion(context.Background())
+	v, err := cli.ServerVersion(ctx)
 	if err != nil || v.APIVersion == "" {
 		return nil, fmt.Errorf("could not determine docker server API version: %s", err)
 	}
@@ -133,7 +128,9 @@ func ConnectToDocker() (*client.Client, error) {
 
 // Images returns a slice of all images.
 func (d *DockerUtil) Images(includeIntermediate bool) ([]types.ImageSummary, error) {
-	images, err := d.cli.ImageList(context.Background(), types.ImageListOptions{All: includeIntermediate})
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	images, err := d.cli.ImageList(ctx, types.ImageListOptions{All: includeIntermediate})
+	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("unable to list docker images: %s", err)
 	}
@@ -144,12 +141,14 @@ func (d *DockerUtil) Images(includeIntermediate bool) ([]types.ImageSummary, err
 func (d *DockerUtil) CountVolumes() (int, int, error) {
 	attachedFilter, _ := buildDockerFilter("dangling", "false")
 	danglingFilter, _ := buildDockerFilter("dangling", "true")
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
 
-	attachedVolumes, err := d.cli.VolumeList(context.Background(), attachedFilter)
+	attachedVolumes, err := d.cli.VolumeList(ctx, attachedFilter)
 	if err != nil {
 		return 0, 0, fmt.Errorf("unable to list attached docker volumes: %s", err)
 	}
-	danglingVolumes, err := d.cli.VolumeList(context.Background(), danglingFilter)
+	danglingVolumes, err := d.cli.VolumeList(ctx, danglingFilter)
 	if err != nil {
 		return 0, 0, fmt.Errorf("unable to list dangling docker volumes: %s", err)
 	}
@@ -161,7 +160,9 @@ func (d *DockerUtil) CountVolumes() (int, int, error) {
 // Docker API. This requires the running user to be in the "docker" user group
 // or have access to /tmp/docker.sock.
 func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, error) {
-	containers, err := d.cli.ContainerList(context.Background(), types.ContainerListOptions{All: cfg.IncludeExited})
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
+	containers, err := d.cli.ContainerList(ctx, types.ContainerListOptions{All: cfg.IncludeExited})
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}
@@ -171,7 +172,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 			// FIXME: We might need to invalidate this cache if a containers networks are changed live.
 			d.Lock()
 			if _, ok := d.networkMappings[c.ID]; !ok {
-				i, err := d.cli.ContainerInspect(context.Background(), c.ID)
+				i, err := d.cli.ContainerInspect(ctx, c.ID)
 				if err != nil && client.IsErrContainerNotFound(err) {
 					d.Unlock()
 					log.Debugf("Error inspecting container %s: %s", c.ID, err)
@@ -344,8 +345,18 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 	return newContainers, nil
 }
 
+// RawContainerList wraps around the docker client's ContainerList method.
+// Value validation and error handling are the caller's responsibility.
+func (d *DockerUtil) RawContainerList(options types.ContainerListOptions) ([]types.Container, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
+	return d.cli.ContainerList(ctx, options)
+}
+
 func (d *DockerUtil) GetHostname() (string, error) {
-	info, err := d.cli.Info(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	info, err := d.cli.Info(ctx)
+	cancel()
 	if err != nil {
 		return "", fmt.Errorf("unable to get Docker info: %s", err)
 	}
@@ -355,7 +366,9 @@ func (d *DockerUtil) GetHostname() (string, error) {
 // GetStorageStats returns the docker global storage stats if available
 // or ErrStorageStatsNotAvailable
 func (d *DockerUtil) GetStorageStats() ([]*StorageStats, error) {
-	info, err := d.cli.Info(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	info, err := d.cli.Info(ctx)
+	cancel()
 	if err != nil {
 		return []*StorageStats{}, fmt.Errorf("unable to get Docker info: %s", err)
 	}
@@ -372,7 +385,9 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 	d.Lock()
 	defer d.Unlock()
 	if _, ok := d.imageNameBySha[image]; !ok {
-		r, _, err := d.cli.ImageInspectWithRaw(context.Background(), image)
+		ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+		r, _, err := d.cli.ImageInspectWithRaw(ctx, image)
+		cancel()
 		if err != nil {
 			// Only log errors that aren't "not found" because some images may
 			// just not be available in docker inspect.
@@ -412,7 +427,9 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 			return container, nil
 		}
 	}
-	container, _, err := d.cli.ContainerInspectWithRaw(context.Background(), id, withSize)
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	container, _, err := d.cli.ContainerInspectWithRaw(ctx, id, withSize)
+	cancel()
 	if err != nil {
 		return container, err
 	}
@@ -478,7 +495,9 @@ func parseContainerHealth(status string) string {
 // AllContainerLabels retrieves all running containers (`docker ps`) and returns
 // a map mapping containerID to container labels as a map[string]string
 func (d *DockerUtil) AllContainerLabels() (map[string]map[string]string, error) {
-	containers, err := d.cli.ContainerList(context.Background(), types.ContainerListOptions{})
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	containers, err := d.cli.ContainerList(ctx, types.ContainerListOptions{})
+	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}

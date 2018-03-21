@@ -54,7 +54,7 @@ func (suite *EtcdTestSuite) SetupSuite() {
 	}
 
 	output, err := suite.compose.Start()
-	require.Nil(suite.T(), err, string(output))
+	require.NoError(suite.T(), err, string(output))
 
 	suite.templates = map[string]string{
 		"/foo/nginx/check_names":  `["http_check", "nginx"]`,

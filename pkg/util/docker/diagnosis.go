@@ -19,7 +19,7 @@ func init() {
 
 // diagnose the docker availability on the system
 func diagnose() error {
-	_, err := ConnectToDocker()
+	_, err := GetDockerUtil()
 	if err != nil {
 		log.Error(err)
 	} else {

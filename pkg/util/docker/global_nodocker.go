@@ -7,10 +7,6 @@
 
 package docker
 
-import (
-	"github.com/docker/docker/client"
-)
-
 var (
 	// NullContainer is an empty container object that has
 	// default values for all fields including sub-fields.
@@ -27,16 +23,6 @@ var (
 // HostnameProvider docker implementation for the hostname provider
 func HostnameProvider(hostName string) (string, error) {
 	return "", ErrDockerNotCompiled
-}
-
-// ConnectToDocker connects to a local docker socket.
-// Returns ErrDockerNotAvailable if the socket or mounts file is missing
-// otherwise it returns either a valid client or an error.
-//
-// TODO: REMOVE USES AND MOVE TO PRIVATE
-//
-func ConnectToDocker() (*client.Client, error) {
-	return nil, ErrDockerNotAvailable
 }
 
 // IsContainerized returns True if we're running in the docker-dd-agent container.

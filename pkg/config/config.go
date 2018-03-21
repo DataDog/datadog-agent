@@ -158,6 +158,7 @@ func init() {
 	Datadog.SetDefault("ac_exclude", []string{})
 
 	// Docker
+	BindEnvAndSetDefault("docker_query_timeout", int64(5))
 	Datadog.SetDefault("docker_labels_as_tags", map[string]string{})
 	Datadog.SetDefault("docker_env_as_tags", map[string]string{})
 	Datadog.SetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
