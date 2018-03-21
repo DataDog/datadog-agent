@@ -25,8 +25,14 @@ func GetPodServiceNames(nodeName string, podName string) ([]string, error) {
 	return nil, nil
 }
 
-// GetServiceMapBundleOnNode is used for the CLI svcmap command to output given a
+// GetServiceMapBundleOnNode is used for the CLI svcmap command to output given a nodeName
 func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
 	log.Errorf("GetServiceMapBundleOnNode not implemented %s", ErrNotCompiled.Error())
+	return nil, nil
+}
+
+// GetServiceMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the service map of all nodes.
+func GetServiceMapBundleOnAllNodes() (map[string]interface{}, error) {
+	log.Errorf("GetServiceMapBundleOnAllNodes not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }

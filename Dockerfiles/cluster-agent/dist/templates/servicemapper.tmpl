@@ -2,15 +2,19 @@
 ==============
 Service Mapper
 ==============
-{{ if .Error }}
-Could not run the service mapper: {{.Error}}
-{{else}}
+{{- if .Warnings }}
+Warnings:
+{{- range .Warnings}}
+   - {{.}}
+{{ end -}}
+{{- end -}}
+{{if .Nodes}}
 {{- range $index, $element := .Nodes }}
 
-Node name: {{ $index -}}
+Node detected: {{ $index -}}
    {{ range $pod, $svc := $element }}
  -  Pod name: {{ $pod }}
-    Service list: {{ $svc -}}
+    Services list: {{ $svc -}}
    {{ end -}}
 {{- end }}
-{{ end }}
+{{- end -}}

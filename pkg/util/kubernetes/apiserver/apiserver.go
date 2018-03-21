@@ -390,40 +390,48 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 	return node.GetMetadata().GetLabels(), nil
 }
 
-// GetServiceMapBundleOnNode is used for the CLI svcmap command to output given a nodeName.
-func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, []error) {
+// GetServiceMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the service map of all nodes.
+func GetServiceMapBundleOnAllNodes() (map[string]interface{}, error) {
 	nodePodServiceMap := make(map[string]map[string][]string)
 	stats := make(map[string]interface{})
-	var errlist []error
+	var warnlist []string
+	var warn string
 	var err error
-	if nodeName != "" {
-		nodePodServiceMap[nodeName], err = getSMBOnNodes(nodeName)
-		if err != nil {
-			errlist = append(errlist, err)
-			return stats, errlist
-		}
-		stats["Nodes"] = nodePodServiceMap
-		return stats, nil
-	}
 
 	nodes, err := getNodeList()
 	if err != nil {
-		errlist = append(errlist, err)
-		return stats, errlist
+		return stats, err
 	}
+
 	for _, node := range nodes {
 		if node.Metadata == nil || node.Metadata.Name == nil {
-			errlist = append(errlist, fmt.Errorf("incorrect payload when evaluating a node for the service mapper"))
+			log.Error("Incorrect payload when evaluating a node for the service mapper") // This will be removed as we move to the client-go
 			continue
 		}
 		nodePodServiceMap[*node.Metadata.Name], err = getSMBOnNodes(*node.Metadata.Name)
 		if err != nil {
-			errlist = append(errlist, err)
-			log.Errorf("Node %s could not be added to the service map bundle: %s", *node.Metadata.Name, err.Error())
+			warn = fmt.Sprintf("Node %s could not be added to the service map bundle: %s", *node.Metadata.Name, err.Error())
+			warnlist = append(warnlist, warn)
 		}
 	}
 	stats["Nodes"] = nodePodServiceMap
-	return stats, errlist
+	stats["Warnings"] = warnlist
+	return stats, nil
+}
+
+// GetServiceMapBundleOnNode is used for the CLI svcmap command to output given a nodeName.
+func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
+	nodePodServiceMap := make(map[string]map[string][]string)
+	stats := make(map[string]interface{})
+	var err error
+
+	nodePodServiceMap[nodeName], err = getSMBOnNodes(nodeName)
+	if err != nil {
+		stats["Warnings"] = []string{fmt.Sprintf("Node %s could not be added to the service map bundle: %s", nodeName, err.Error())}
+		return stats, err
+	}
+	stats["Nodes"] = nodePodServiceMap
+	return stats, nil
 }
 
 func getSMBOnNodes(nodeName string) (map[string][]string, error) {

@@ -184,7 +184,6 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	var slcB []byte
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
-	fmt.Printf("podname is %s, nodeName is %s", podName, nodeName)
 
 	svcList, errSvcList := as.GetPodServiceNames(nodeName, podName)
 	if errSvcList != nil {
@@ -220,7 +219,6 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	svcList, errNodes := as.GetServiceMapBundleOnNode(nodeName)
 	if errNodes != nil {
 		log.Errorf("Could not collect the service map for %s", nodeName)
-		svcList["Error"] = errNodes
 	}
 	slcB, err := json.Marshal(svcList)
 	if err != nil {
@@ -258,10 +256,10 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Info("Computing service map on all nodes")
-	svcList, errNodes := as.GetServiceMapBundleOnNode("")
-	if errNodes != nil {
-		log.Errorf("Could not collect the service map for all nodes")
-		svcList["Error"] = errNodes
+	svcList, err := as.GetServiceMapBundleOnAllNodes()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
 	}
 	slcB, err := json.Marshal(svcList)
 	if err != nil {
