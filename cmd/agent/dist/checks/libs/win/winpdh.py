@@ -14,7 +14,7 @@ DATA_POINT_INTERVAL = 0.10
 SINGLE_INSTANCE_KEY = "__single_instance"
 class WinPDHCounter(object):
     # store the dictionary of pdh counter names
-    pdh_counter_dict = {}
+    pdh_counter_dict = defaultdict(list)
 
     def __init__(self, class_name, counter_name, log, instance_name = None, machine_name = None, precision=None):
         self.logger = log
