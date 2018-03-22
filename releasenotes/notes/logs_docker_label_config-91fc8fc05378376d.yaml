@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Added a support for docker labels to enrich logs metadata.
