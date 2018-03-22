@@ -448,12 +448,12 @@ func getNodeList() ([]*v1.Node, error) {
 	defer cancel()
 	cl, err := GetAPIClient()
 	if err != nil {
-		log.Error("Can't create client to query the API Server: %s", err.Error())
+		log.Errorf("Can't create client to query the API Server: %s", err.Error())
 		return nil, err
 	}
 	nodes, err := cl.client.CoreV1().ListNodes(ctx)
 	if err != nil {
-		log.Error("Can't list nodes from the API server: %s", err.Error())
+		log.Errorf("Can't list nodes from the API server: %s", err.Error())
 		return nil, err
 	}
 	return nodes.Items, nil

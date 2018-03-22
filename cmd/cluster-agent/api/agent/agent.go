@@ -257,13 +257,16 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Info("Computing service map on all nodes")
 	svcList, err := as.GetServiceMapBundleOnAllNodes()
+	// If we hit an error at this point, it is because we don't have access to the API server.
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		w.WriteHeader(503)
+		log.Errorf("Failed to get nodes from the API server: %s", err)
 		return
 	}
 	slcB, err := json.Marshal(svcList)
 	if err != nil {
-		http.Error(w, err.Error(), 500)
+		w.WriteHeader(501)
+		log.Errorf("Failed to process the service map for all nodes")
 		return
 	}
 	if len(slcB) != 0 {
