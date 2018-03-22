@@ -12,8 +12,8 @@ might mean:
 
 Orchestration has now been deferred to OS facilities wherever possible. To this purpose
 we now rely on upstart/systemd on linux environments and windows services on Windows.
-Enabling the APM and Process agents bundled with the agent can now be achieved via 
-configuration flags defined in the main configuration file: `datadog.yaml`. 
+Enabling the APM and Process agents bundled with the agent can now be achieved via
+configuration flags defined in the main configuration file: `datadog.yaml`.
 
 ### Process Agent
 To enable the process agent add the following to `datadog.yaml`:
@@ -33,7 +33,7 @@ apm_config:
 ...
 ```
 
-The OS-level services will be enabled by default for all agents. The agents will process 
+The OS-level services will be enabled by default for all agents. The agents will process
 the configuration and decide whether to stay up or gracefully shut down. You may decide
 to disable the OS-level service units, but that will require your manual intervention if
 you ever wish to re-enable any of the agents.
@@ -83,9 +83,10 @@ differently from Agent version 5.
 | `autorestart` | |
 | `dogstream_log` | |
 | `use_curl_http_client` | |
-| `gce_updated_hostname` | |
+| `gce_updated_hostname` | v6 behaves like v5 with `gce_updated_hostname` set to true. May affect reported hostname, see [doc][gce-hostname] |
 | `collect_security_groups` | feature still available with the aws integration  |
 
 
 
 [datadog-yaml]: https://raw.githubusercontent.com/DataDog/datadog-agent/master/pkg/config/config_template.yaml
+[gce-hostname]: changes.md#gce-hostname
