@@ -99,7 +99,11 @@ func ImportDockerConf(src, dst string, overwrite bool) error {
 	}
 
 	// write docker.yaml
-	data, err := yaml.Marshal(dc)
+	newCfg := map[string][]*containers.DockerConfig{
+		"instances": {&dc},
+	}
+
+	data, err := yaml.Marshal(newCfg)
 	if err != nil {
 		return fmt.Errorf("Could not marshall final configuration for the new docker check: %s", err)
 	}

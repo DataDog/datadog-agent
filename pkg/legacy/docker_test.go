@@ -53,23 +53,24 @@ instances:
     collect_labels_as_tags: ["test1", "test2"]
 `
 
-	dockerNewConf string = `collect_container_size: true
-collect_exit_codes: true
-collect_images_stats: false
-collect_image_size: true
-collect_disk_stats: true
-collect_volume_count: true
-tags:
-- tag:value
-- value
-collect_events: false
-filtered_event_types:
-- top
-- exec_start
-- exec_create
-capped_metrics:
-  docker.cpu.system: 1000
-  docker.cpu.user: 1000
+	dockerNewConf string = `instances:
+- collect_container_size: true
+  collect_exit_codes: true
+  collect_images_stats: false
+  collect_image_size: true
+  collect_disk_stats: true
+  collect_volume_count: true
+  tags:
+  - tag:value
+  - value
+  collect_events: false
+  filtered_event_types:
+  - top
+  - exec_start
+  - exec_create
+  capped_metrics:
+    docker.cpu.system: 1000
+    docker.cpu.user: 1000
 `
 )
 
