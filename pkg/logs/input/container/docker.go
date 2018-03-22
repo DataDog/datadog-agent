@@ -50,9 +50,9 @@ type DockerTailer struct {
 }
 
 // NewDockerTailer returns a new DockerTailer
-func NewDockerTailer(cli *client.Client, container types.Container, source *config.LogSource, outputChan chan message.Message) *DockerTailer {
+func NewDockerTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message) *DockerTailer {
 	return &DockerTailer{
-		ContainerID: container.ID,
+		ContainerID: containerID,
 		outputChan:  outputChan,
 		decoder:     decoder.InitializeDecoder(source),
 		source:      source,
@@ -140,6 +140,7 @@ func (dt *DockerTailer) tailFrom(from string) error {
 	dt.source.AddInput(dt.ContainerID)
 
 	dt.reader = reader
+
 	go dt.keepDockerTagsUpdated()
 	go dt.forwardMessages()
 	dt.decoder.Start()
