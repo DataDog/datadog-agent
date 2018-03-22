@@ -35,6 +35,7 @@ func GetHostname() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve hostname from GCE: %s", err)
 	}
+	hostname = strings.SplitN(hostname, ".", 2)[0]
 	return hostname, nil
 }
 
