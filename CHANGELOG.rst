@@ -101,8 +101,6 @@ Other Notes
 - Make the check-rate command more visible when running "check` to get a list of metrics.
 
 
-
-
 6.0.3
 =====
 
