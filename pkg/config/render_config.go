@@ -12,10 +12,32 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
-// context contains the context used to render the config file template
+func main() {
+	if len(os.Args[1:]) != 3 {
+		panic("please use 'go run render_config.go <template_file> <destination_file>'")
+	}
+
+	tplFile, _ := filepath.Abs(os.Args[1])
+	tplFilename := filepath.Base(tplFile)
+	destFile, _ := filepath.Abs(os.Args[2])
+
+	f, err := os.Create(destFile)
+	if err != nil {
+		panic(err)
+	}
+
+	t := template.Must(template.New(tplFilename).ParseFiles(tplFile))
+	err = t.Execute(f, sections)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Successfully wrote", destFile)
+}
+
+/*// context contains the context used to render the config file template
 type context struct {
 	Common            bool
 	Agent             bool
@@ -102,4 +124,4 @@ func main() {
 	}
 
 	fmt.Println("Successfully wrote", destFile)
-}
+}*/

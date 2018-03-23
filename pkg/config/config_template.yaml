@@ -114,62 +114,7 @@ api_key:
 #  - name: k8s
 #    interval: 60
 {{ end -}}
-{{- if .Dogstatsd }}
-# DogStatsd
-#
-# If you don't want to enable the DogStatsd server, set this option to no
-# use_dogstatsd: yes
-#
-# Make sure your client is sending to the same UDP port
-# dogstatsd_port: 8125
-#
-# The host to bind to receive external metrics (used only by the dogstatsd
-# server for now). For dogstatsd this is ignored if
-# 'dogstatsd_non_local_traffic' is set to true
-# bind_host: localhost
-#
-# Whether dogstatsd should listen to a Unix Socket instead of UDP (*nix only).
-# Set to a valid filesystem path to enable
-# dogstatsd_socket:
-#
-# Whether origin detection and container tagging should be enabled for Unix
-# Socket incoming metrics. This feature is experimental for now.
-#
-# dogstatsd_origin_detection: false
-#
-# The buffer size use to receive statsd packet, in bytes
-# dogstatsd_buffer_size: 1024
-#
-# Whether dogstatsd should listen to non local UDP traffic
-# dogstatsd_non_local_traffic: no
-#
-# Publish dogstatsd's internal stats as Go epxvars
-# dogstatsd_stats_enable: no
-#
-# How many items in the dogstatsd's stats circular buffer
-# dogstatsd_stats_buffer: 10
-#
-# The port for the go_expvar server
-# dogstatsd_stats_port: 5000
-#
-# If you want to forward every packet received by the dogstatsd server
-# to another statsd server, uncomment these lines.
-# WARNING: Make sure that forwarded packets are regular statsd packets and not "dogstatsd" packets,
-# as your other statsd server might not be able to handle them.
-# statsd_forward_host: address_of_own_statsd_server
-# statsd_forward_port: 8125
-#
-# If you want all statsd metrics coming from this host to be namespaced
-# you can configure the namspace below. Each metric received will be prefixed
-# with the namespace before it's sent to Datadog.
-# statsd_metric_namespace:
-{{ end -}}
-{{- if .LogsAgent }}
-# Logs agent
-#
-# Logs agent is disabled by default
-# logs_enabled: false
-{{ end -}}
+
 {{- if .JMX }}
 # JMX
 #
@@ -242,78 +187,7 @@ api_key:
 # log_level: info
 # log_file: /var/log/datadog/agent.log
 {{ end -}}
-{{- if .Autodiscovery }}
-# Autodiscovery
-#
-# Change the root directory to look at to get cgroup statistics. Useful when running inside a
-# container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
-# "/host/sys/fs/cgroup" and "/sys/fs/cgroup" if not.
-#
-# container_cgroup_root: /host/sys/fs/cgroup/
-#
-# Change the root directory to look at to get proc statistics. Useful when running inside a
-# container with host directories mounted on a different folder.
-# Default if environment variable "DOCKER_DD_AGENT" is set to "yes"
-# "/host/proc" and "/proc" if not.
-#
-# container_proc_root: /host/proc
-#
-# Choose "auto" if you want to let the agent find any relevant listener on your host
-# At the moment, the only auto listener supported is docker
-# If you have already set docker anywhere in the listeners, the auto listener is ignored
-# listeners:
-#   - name: auto
-#   - name: docker
-#
-# Exclude containers from metrics and AD based on their name or image:
-# An excluded container will not get any individual container metric reported for it.
-# Please note that the `docker.containers.running`, `.stopped`, `.running.total` and
-# `.stopped.total` metrics are not affected by these settings and always count all
-# containers. This does not affect your per-container billing.
-#
-# How it works: include first.
-# If a container matches an exclude rule, it won't be included unless it first matches an include rule.
-#
-# Rules are regexp.
-#
-# Examples:
-# exclude all, except containers based on the 'ubuntu' image or the 'debian' image.
-# ac_exclude: ["image:.*"]
-# ac_include: ["image:ubuntu", "image:debian"]
-#
-# include all, except containers based on the 'ubuntu' image.
-# ac_exclude: ["image:ubuntu"]
-# ac_include: []
-#
-# exclude all debian images except containers with a name starting with 'frontend'.
-# ac_exclude: ["image:debian"]
-# ac_include: ["name:frontend.*"]
-#
-# ac_exclude: []
-# ac_include: []
-#
-#
-# Exclude default pause containers from orchestrators.
-#
-# By default the agent will not monitor kubernetes/openshift pause
-# container. They will still be counted in the container count (just like
-# excluded containers) since ignoring them would give a wrong impression
-# about the docker daemon load.
-#
-# exclude_pause_container: true
 
-# Exclude default containers from DockerCloud:
-# The following configuration will instruct the agent to ignore the containers from Docker Cloud.
-# You can remove the ones you want to collect.
-# ac_exclude: ["image:dockercloud/network-daemon","image:dockercloud/cleanup","image:dockercloud/logrotate","image:dockercloud/events","image:dockercloud/ntpd"]
-# ac_include: []
-#
-# You can also use the regex to ignore them all:
-# ac_exclude: ["image:dockercloud/*"]
-# ac_include: []
-
-{{ end -}}
 {{- if .DockerTagging }}
 # Docker tag extraction
 #

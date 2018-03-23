@@ -19,8 +19,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// Datadog is the global configuration object
-var Datadog = viper.New()
+var (
+	// Datadog is the global configuration object
+	Datadog = viper.New()
+
+	// All envvars start with `DD_`
+	envvarPrefix = "DD"
+
+	// Replace '.' from config keys with '_' in env variables bindings.
+	// e.g. : BindEnv("foo.bar") will bind config key
+	// "foo.bar" to env variable "FOO_BAR"
+	envvarReplacer = strings.NewReplacer(".", "_")
+)
 
 // MetadataProviders helps unmarshalling `metadata_providers` config param
 type MetadataProviders struct {
@@ -58,13 +68,9 @@ type Proxy struct {
 func init() {
 	// config identifiers
 	Datadog.SetConfigName("datadog")
-	Datadog.SetEnvPrefix("DD")
+	Datadog.SetEnvPrefix(envvarPrefix)
+	Datadog.SetEnvKeyReplacer(envvarReplacer)
 	Datadog.SetTypeByDefaultValue(true)
-
-	// Replace '.' from config keys with '_' in env variables bindings.
-	// e.g. : BindEnv("foo.bar") will bind config key
-	// "foo.bar" to env variable "FOO_BAR"
-	Datadog.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	// Configuration defaults
 	// Agent
@@ -98,7 +104,6 @@ func init() {
 	Datadog.SetDefault("check_runners", int64(1))
 	Datadog.SetDefault("expvar_port", "5000")
 	Datadog.SetDefault("auth_token_file_path", "")
-	Datadog.SetDefault("bind_host", "localhost")
 
 	// Use to output logs in JSON format
 	BindEnvAndSetDefault("log_format_json", false)
@@ -111,21 +116,12 @@ func init() {
 
 	// Agent GUI access port
 	Datadog.SetDefault("GUI_port", defaultGuiPort)
+
 	if IsContainerized() {
-		Datadog.SetDefault("container_proc_root", "/host/proc")
 		Datadog.SetDefault("procfs_path", "/host/proc")
-		Datadog.SetDefault("container_cgroup_root", "/host/sys/fs/cgroup/")
 		Datadog.BindEnv("procfs_path")
-	} else {
-		Datadog.SetDefault("container_proc_root", "/proc")
-		// for amazon linux the cgroup directory on host is /cgroup/
-		// we pick memory.stat to make sure it exists and not empty
-		if _, err := os.Stat("/cgroup/memory/memory.stat"); !os.IsNotExist(err) {
-			Datadog.SetDefault("container_cgroup_root", "/cgroup/")
-		} else {
-			Datadog.SetDefault("container_cgroup_root", "/sys/fs/cgroup/")
-		}
 	}
+
 	Datadog.SetDefault("proc_root", "/proc")
 	Datadog.SetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})
 	Datadog.SetDefault("histogram_percentiles", []string{"0.95"})
@@ -137,25 +133,9 @@ func init() {
 	Datadog.SetDefault("forwarder_timeout", 20)
 	Datadog.SetDefault("forwarder_retry_queue_max_size", 30)
 	BindEnvAndSetDefault("forwarder_num_workers", 1)
-	// Dogstatsd
-	Datadog.SetDefault("use_dogstatsd", true)
-	Datadog.SetDefault("dogstatsd_port", 8125)          // Notice: 0 means UDP port closed
-	Datadog.SetDefault("dogstatsd_buffer_size", 1024*8) // 8KB buffer
-	Datadog.SetDefault("dogstatsd_non_local_traffic", false)
-	Datadog.SetDefault("dogstatsd_socket", "") // Notice: empty means feature disabled
-	Datadog.SetDefault("dogstatsd_stats_port", 5000)
-	Datadog.SetDefault("dogstatsd_stats_enable", false)
-	Datadog.SetDefault("dogstatsd_stats_buffer", 10)
-	Datadog.SetDefault("dogstatsd_expiry_seconds", 300)
-	Datadog.SetDefault("dogstatsd_origin_detection", false) // Only supported for socket traffic
-	Datadog.SetDefault("statsd_forward_host", "")
-	Datadog.SetDefault("statsd_forward_port", 0)
-	BindEnvAndSetDefault("statsd_metric_namespace", "")
+
 	// Autoconfig
 	Datadog.SetDefault("autoconf_template_dir", "/datadog/check_configs")
-	Datadog.SetDefault("exclude_pause_container", true)
-	Datadog.SetDefault("ac_include", []string{})
-	Datadog.SetDefault("ac_exclude", []string{})
 
 	// Docker
 	Datadog.SetDefault("docker_labels_as_tags", map[string]string{})
@@ -206,18 +186,6 @@ func init() {
 	// Trace agent
 	Datadog.SetDefault("apm_config.enabled", true)
 
-	// Logs Agent
-	BindEnvAndSetDefault("logs_enabled", false)
-	BindEnvAndSetDefault("log_enabled", false) // deprecated, use logs_enabled instead
-	BindEnvAndSetDefault("logset", "")
-
-	BindEnvAndSetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")
-	BindEnvAndSetDefault("logs_config.dd_port", 10516)
-	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", false)
-	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
-	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
-	BindEnvAndSetDefault("logs_config.container_collect_all", false)
-
 	// Tagger full cardinality mode
 	// Undocumented opt-in feature for now
 	BindEnvAndSetDefault("full_cardinality_tagging", false)
@@ -231,15 +199,8 @@ func init() {
 	Datadog.BindEnv("cmd_port")
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("enable_metadata_collection")
-	Datadog.BindEnv("dogstatsd_port")
-	Datadog.BindEnv("bind_host")
 	Datadog.BindEnv("proc_root")
-	Datadog.BindEnv("container_proc_root")
-	Datadog.BindEnv("container_cgroup_root")
-	Datadog.BindEnv("dogstatsd_socket")
-	Datadog.BindEnv("dogstatsd_stats_port")
-	Datadog.BindEnv("dogstatsd_non_local_traffic")
-	Datadog.BindEnv("dogstatsd_origin_detection")
+
 	Datadog.BindEnv("check_runners")
 
 	Datadog.BindEnv("log_file")
@@ -259,8 +220,6 @@ func init() {
 	Datadog.BindEnv("kubernetes_pod_labels_as_tags")
 	Datadog.BindEnv("kubernetes_pod_annotations_as_tags")
 	Datadog.BindEnv("kubernetes_node_labels_as_tags")
-	Datadog.BindEnv("ac_include")
-	Datadog.BindEnv("ac_exclude")
 
 	Datadog.BindEnv("cluster_agent.auth_token")
 	Datadog.BindEnv("clusteragent_cmd_port")
