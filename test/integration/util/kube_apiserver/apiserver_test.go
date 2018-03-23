@@ -307,7 +307,7 @@ func (suite *testSuite) TestServiceMapper() {
 	assert.Contains(suite.T(), serviceNames, "nginx-1")
 	assert.Contains(suite.T(), serviceNames, "nginx-2")
 
-	fullmapper, errList := apiserver.GetServiceMapBundleOnNode("")
+	fullmapper, errList := apiserver.GetServiceMapBundleOnAllNodes()
 	require.Nil(suite.T(), errList)
 	list := fullmapper["Nodes"]
 	assert.Contains(suite.T(), list, "ip-172-31-119-125")

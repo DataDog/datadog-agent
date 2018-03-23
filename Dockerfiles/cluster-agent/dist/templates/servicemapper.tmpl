@@ -4,8 +4,8 @@ Service Mapper
 ==============
 {{- if .Errors }}
 Could not run the service mapper: {{.Errors}}
-{{ else }}
-{{- if .Warnings }}
+{{else}}
+{{ if .Warnings -}}
 Warnings:
 {{- range .Warnings}}
    - {{.}}
