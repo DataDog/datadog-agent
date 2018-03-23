@@ -37,8 +37,8 @@ platforms:
 # for both drivers
 
 # TEST_PLATFORMS syntax is `short_name1,azure_full_qualified_name1|short_name2,azure_full_qualified_name1`
-<% azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').split(',')
-      # working
+<%
+    azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').split(',')
 
     chef_versions = %w(
       13.6.4
