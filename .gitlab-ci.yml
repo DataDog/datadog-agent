@@ -51,92 +51,92 @@ before_script:
 
 
 # run tests for deb-x64
-# run_tests_deb-x64:
-#   stage: source_test
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - inv -e test --race --profile
+run_tests_deb-x64:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e test --race --profile
 
-# # run tests for rpm-x64
-# run_test_rpm-x64:
-#   stage: source_test
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - inv -e test --race --profile
+# run tests for rpm-x64
+run_test_rpm-x64:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/rpm_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e test --race --profile
 
-# # scan the dependencies for security vulnerabilities with snyk
-# run_security_scan_test:
-#   stage: source_test
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:latest
-#   tags: ["runner:main", "size:large"]
-#   before_script:
-#     # this image isn't built in the datadog-agent-builders repo
-#     # it doesn't have invoke so we install the dependencies without invoke
-#     - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
-#     - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
-#     - cd $GOPATH/src/github.com/DataDog/datadog-agent
-#     - dep ensure
-#   script:
-#     - set +x     # don't print the api key to the logs
-#     - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
-#       snyk monitor # send the list of the dependencies to snyk
-#   only:
-#     - master
+# scan the dependencies for security vulnerabilities with snyk
+run_security_scan_test:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/snyk:latest
+  tags: ["runner:main", "size:large"]
+  before_script:
+    # this image isn't built in the datadog-agent-builders repo
+    # it doesn't have invoke so we install the dependencies without invoke
+    - mkdir -p $GOPATH/src/github.com/DataDog/datadog-agent
+    - rsync -azr --delete ./ $GOPATH/src/github.com/DataDog/datadog-agent
+    - cd $GOPATH/src/github.com/DataDog/datadog-agent
+    - dep ensure
+  script:
+    - set +x     # don't print the api key to the logs
+    - SNYK_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.snyk_token --with-decryption --query "Parameter.Value" --out text)
+      snyk monitor # send the list of the dependencies to snyk
+  only:
+    - master
 
 #
 # binary_build
 #
 
 
-# # build dogstatsd static for deb-x64
-# build_dogstatsd_static-deb_x64:
-#   stage: binary_build
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - inv -e dogstatsd.build --static
-#     - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/static/dogstatsd
+# build dogstatsd static for deb-x64
+build_dogstatsd_static-deb_x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e dogstatsd.build --static
+    - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/static/dogstatsd
 
-# # build puppy agent for deb-x64, to make sure the build is not broken because of build flags
-# build_puppy_agent-deb_x64:
-#   stage: binary_build
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - inv -e agent.build --puppy
-#     - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTEFACTS_URI/puppy/agent
+# build puppy agent for deb-x64, to make sure the build is not broken because of build flags
+build_puppy_agent-deb_x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e agent.build --puppy
+    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTEFACTS_URI/puppy/agent
 
-# # build puppy agent for ARM, to make sure the build is not broken because of build targets
-# build_puppy_agent-deb_x64_arm:
-#   stage: binary_build
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - GOOS=linux GOARCH=arm inv -e agent.build --puppy
+# build puppy agent for ARM, to make sure the build is not broken because of build targets
+build_puppy_agent-deb_x64_arm:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - GOOS=linux GOARCH=arm inv -e agent.build --puppy
 
-# # build dogstatsd for deb-x64
-# build_dogstatsd-deb_x64:
-#   stage: binary_build
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - inv -e dogstatsd.build
-#     - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/dogstatsd/dogstatsd
+# build dogstatsd for deb-x64
+build_dogstatsd-deb_x64:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e dogstatsd.build
+    - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTEFACTS_URI/dogstatsd/dogstatsd
 
-# # build cluster-agent bin
-# cluster_agent-build:
-#   stage: binary_build
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
-#   tags: [ "runner:main", "size:large" ]
-#   script:
-#     - inv -e cluster-agent.build -s
-#     - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTEFACTS_URI/datadog-cluster-agent
+# build cluster-agent bin
+cluster_agent-build:
+  stage: binary_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - inv -e cluster-agent.build -s
+    - $S3_CP_CMD $SRC_PATH/$CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $S3_ARTEFACTS_URI/datadog-cluster-agent
 
-# #
-# # integration_test
 #
+# integration_test
+
 
 # run benchmarks on deb
 # run_benchmarks-deb_x64:
@@ -158,24 +158,24 @@ before_script:
 #     - ./bin/benchmarks/dogstatsd -pps=20000 -dur 30 -ser 5 -branch $DD_REPO_BRANCH_NAME -api-key $DD_AGENT_API_KEY
 #   artifacts:
 #     expire_in: 2 weeks
-# #     paths:
-# #       - benchmarks
+#     paths:
+#       - benchmarks
 
-# # check the size of the static dogstatsd binary
-# run_dogstatsd_size_test:
-#   stage: integration_test
-#   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
-#   tags: [ "runner:main", "size:large" ]
-#   before_script:
-#     # Disable global before_script
-#     - mkdir -p $STATIC_BINARIES_DIR
-#     - $S3_CP_CMD $S3_ARTEFACTS_URI/static/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
-#   script:
-#     - inv -e dogstatsd.size-test --skip-build
+# check the size of the static dogstatsd binary
+run_dogstatsd_size_test:
+  stage: integration_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deb_x64:latest
+  tags: [ "runner:main", "size:large" ]
+  before_script:
+    # Disable global before_script
+    - mkdir -p $STATIC_BINARIES_DIR
+    - $S3_CP_CMD $S3_ARTEFACTS_URI/static/dogstatsd $STATIC_BINARIES_DIR/dogstatsd
+  script:
+    - inv -e dogstatsd.size-test --skip-build
 
-# #
-# # package_build
 #
+# package_build
+
 
 
 # build Agent package for deb-x64
@@ -382,7 +382,7 @@ deploy_deb_testing:
     - ls $OMNIBUS_PACKAGE_DIR
   only:
     - master
-    - arbll/fix-kitchen
+    - arbll/test-kitchen-update
     - tags
   tags: [ "runner:main", "size:large" ]
   script:
@@ -411,7 +411,7 @@ deploy_rpm_testing:
     - ls $OMNIBUS_PACKAGE_DIR
   only:
     - master
-    - arbll/fix-kitchen
+    - arbll/test-kitchen-update
     - tags
   tags: [ "runner:main", "size:large" ]
   script:
@@ -432,7 +432,7 @@ deploy_suse_rpm_testing:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   only:
     - master
-    - arbll/fix-kitchen
+    - arbll/test-kitchen-update
     - tags
   tags: [ "runner:main", "size:large" ]
   script:
@@ -451,7 +451,7 @@ testkitchen_testing:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
-    - arbll/fix-kitchen
+    - arbll/test-kitchen-update
     - tags
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
@@ -474,7 +474,7 @@ testkitchen_cleanup_s3:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   only:
     - master
-    - arbll/fix-kitchen
+    - arbll/test-kitchen-update
     - tags
   tags: [ "runner:main", "size:large" ]
   before_script:
@@ -496,7 +496,7 @@ testkitchen_cleanup_azure:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
-    - arbll/fix-kitchen
+    - arbll/test-kitchen-update
     - tags
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
