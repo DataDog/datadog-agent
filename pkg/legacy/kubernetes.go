@@ -106,7 +106,10 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 	if err := yaml.Unmarshal(c.Instances[0], newKube); err != nil {
 		return deprecations, fmt.Errorf("Could not parse instance from %s: %s", src, err)
 	}
-	data, err := yaml.Marshal(newKube)
+	newCfg := map[string][]*newKubeletInstance{
+		"instances": {newKube},
+	}
+	data, err := yaml.Marshal(newCfg)
 	if err != nil {
 		return deprecations, fmt.Errorf("Could not marshall final configuration for the new kubelet check: %s", err)
 	}

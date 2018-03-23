@@ -75,16 +75,21 @@ instances:
  - {}
 `
 
-	kubeletNewConf string = `tags:
-- optional_tag1
-- optional_tag2
+	kubeletNewConf string = `instances:
+- tags:
+  - optional_tag1
+  - optional_tag2
+`
+
+	kubeletNewEmptyConf string = `instances:
+- tags: []
 `
 )
 
 var expectedKubeDeprecations = kubeDeprecations{
 	deprecationAPIServerCreds: []string{"api_server_url", "apiserver_client_crt", "apiserver_client_key", "apiserver_ca_cert"},
 	deprecationHisto:          []string{"use_histogram"},
-	deprecationFiltering:      []string{"namespaces", "namespace_name_regexp", "enabled_rates", "enabled_gaugesS"},
+	deprecationFiltering:      []string{"namespaces", "namespace_name_regexp", "enabled_rates", "enabled_gauges"},
 }
 
 var expectedHostTags = map[string]string{
@@ -111,7 +116,7 @@ func TestConvertKubernetes(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, expectedKubeDeprecations, deprecations)
 
-	newConf, err := ioutil.ReadFile(filepath.Join(dir, "kubelet.yaml"))
+	newConf, err := ioutil.ReadFile(dst)
 	require.NoError(t, err)
 	assert.Equal(t, kubeletNewConf, string(newConf))
 
@@ -130,6 +135,9 @@ func TestConvertKubernetes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, true, config.Datadog.GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 0, len(deprecations))
+	newEmptyConf, err := ioutil.ReadFile(dstEmpty)
+	require.NoError(t, err)
+	assert.Equal(t, kubeletNewEmptyConf, string(newEmptyConf))
 
 	// test overwrite
 	err = ImportKubernetesConf(src, dst, false)
