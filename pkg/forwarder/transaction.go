@@ -34,6 +34,13 @@ type HTTPTransaction struct {
 	createdAt time.Time
 }
 
+// Transaction represents the task to process for a Worker.
+type Transaction interface {
+	Process(ctx context.Context, client *http.Client) error
+	GetCreatedAt() time.Time
+	GetTarget() string
+}
+
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	return &HTTPTransaction{

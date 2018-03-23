@@ -6,54 +6,47 @@
 package forwarder
 
 import (
-	"context"
 	"expvar"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
-	flushInterval = 5 * time.Second
-
 	forwarderExpvar        = expvar.NewMap("forwarder")
 	transactionsExpvar     = expvar.Map{}
 	retryQueueSize         = expvar.Int{}
 	successfulTransactions = expvar.Int{}
+	droppedOnInput         = expvar.Int{}
 	apiKeyStatus           = expvar.Map{}
-	apiKeyStatusUnknown    = expvar.String{}
-	apiKeyInvalid          = expvar.String{}
-	apiKeyValid            = expvar.String{}
 )
 
 func init() {
-
 	transactionsExpvar.Init()
 	forwarderExpvar.Set("Transactions", &transactionsExpvar)
 	transactionsExpvar.Set("RetryQueueSize", &retryQueueSize)
 	transactionsExpvar.Set("Success", &successfulTransactions)
+	transactionsExpvar.Set("DroppedOnInput", &droppedOnInput)
 
 	apiKeyStatus.Init()
 	forwarderExpvar.Set("APIKeyStatus", &apiKeyStatus)
-	apiKeyStatusUnknown.Set("Unable to validate API Key")
-	apiKeyInvalid.Set("API Key invalid")
-	apiKeyValid.Set("API Key valid")
 }
 
 const (
-	chanBufferSize = 100
+	// Stopped represent the internal state of an unstarted Forwarder.
+	Stopped uint32 = iota
+	// Started represent the internal state of an started Forwarder.
+	Started
+)
 
+const (
 	v1SeriesEndpoint       = "/api/v1/series"
 	v1CheckRunsEndpoint    = "/api/v1/check_run"
 	v1IntakeEndpoint       = "/intake/"
@@ -71,24 +64,11 @@ const (
 	versionHTTPHeaderKey = "DD-Agent-Version"
 )
 
-const (
-	// Stopped represent the internal state of an unstarted Forwarder.
-	Stopped uint32 = iota
-	// Started represent the internal state of an started Forwarder.
-	Started
-)
-
-// Payloads is a slice of pointers to byte arrays, an alias for the slices of payloads we pass into the forwarder
+// Payloads is a slice of pointers to byte arrays, an alias for the slices of
+// payloads we pass into the forwarder
 type Payloads []*[]byte
 
-// Transaction represents the task to process for a Worker.
-type Transaction interface {
-	Process(ctx context.Context, client *http.Client) error
-	GetCreatedAt() time.Time
-	GetTarget() string
-}
-
-// Forwarder implements basic interface - useful for testing
+// Forwarder interface allows packages to send payload to the backend
 type Forwarder interface {
 	Start() error
 	Stop()
@@ -103,112 +83,45 @@ type Forwarder interface {
 	SubmitMetadata(payload Payloads, extra http.Header) error
 }
 
-// DefaultForwarder is in charge of receiving transaction payloads and sending them to Datadog backend over HTTP.
+// DefaultForwarder is the default implementation of the Forwarder.
 type DefaultForwarder struct {
-	stop                chan struct{}
-	highPrio            chan Transaction // use to receive new transactions
-	lowPrio             chan Transaction // use to retry transactions
-	requeuedTransaction chan Transaction
-	stopRetry           chan bool
-	blockedList         *blockedEndpoints
-	workers             []*Worker
-	retryQueue          []Transaction
-	internalState       uint32
-	m                   sync.Mutex // To control Start/Stop races
-	health              *health.Handle
-	retryQueueLimit     int
-
 	// NumberOfWorkers Number of concurrent HTTP request made by the DefaultForwarder (default 4).
 	NumberOfWorkers int
-	// KeysPerDomains are the different keys to use per domain when sending transactions.
-	KeysPerDomains map[string][]string
+
+	domainForwarders map[string]*domainForwarder
+	keysPerDomains   map[string][]string
+	healthChecker    *forwarderHealth
+	internalState    uint32
+	m                sync.Mutex // To control Start/Stop races
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
-func NewDefaultForwarder(KeysPerDomains map[string][]string) *DefaultForwarder {
-	return &DefaultForwarder{
-		NumberOfWorkers: config.Datadog.GetInt("forwarder_num_workers"),
-		KeysPerDomains:  KeysPerDomains,
-		internalState:   Stopped,
-		retryQueueLimit: config.Datadog.GetInt("forwarder_retry_queue_max_size"),
+func NewDefaultForwarder(keysPerDomains map[string][]string) *DefaultForwarder {
+	f := &DefaultForwarder{
+		NumberOfWorkers:  config.Datadog.GetInt("forwarder_num_workers"),
+		domainForwarders: map[string]*domainForwarder{},
+		keysPerDomains:   map[string][]string{},
+		internalState:    Stopped,
+		healthChecker:    &forwarderHealth{},
 	}
-}
+	numWorkers := config.Datadog.GetInt("forwarder_num_workers")
+	retryQueueMaxSize := config.Datadog.GetInt("forwarder_retry_queue_max_size")
 
-type byCreatedTime []Transaction
-
-func (v byCreatedTime) Len() int           { return len(v) }
-func (v byCreatedTime) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
-func (v byCreatedTime) Less(i, j int) bool { return v[i].GetCreatedAt().After(v[j].GetCreatedAt()) }
-
-func (f *DefaultForwarder) retryTransactions(retryBefore time.Time) {
-	newQueue := []Transaction{}
-	droppedRetryQueueFull := 0
-	droppedWorkerBusy := 0
-
-	sort.Sort(byCreatedTime(f.retryQueue))
-
-	for _, t := range f.retryQueue {
-		if !f.blockedList.isBlock(t.GetTarget()) {
-			select {
-			case f.lowPrio <- t:
-				transactionsExpvar.Add("Retried", 1)
-			default:
-				droppedWorkerBusy++
-				transactionsExpvar.Add("Dropped", 1)
-			}
-		} else if len(newQueue) < f.retryQueueLimit {
-			newQueue = append(newQueue, t)
-			transactionsExpvar.Add("Requeued", 1)
+	for domain, keys := range keysPerDomains {
+		if keys == nil || len(keys) == 0 {
+			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
-			droppedRetryQueueFull++
-			transactionsExpvar.Add("Dropped", 1)
+			f.keysPerDomains[domain] = keys
+			f.domainForwarders[domain] = newDomainForwarder(domain, numWorkers, retryQueueMaxSize)
 		}
 	}
 
-	f.retryQueue = newQueue
-	retryQueueSize.Set(int64(len(f.retryQueue)))
-
-	if droppedRetryQueueFull+droppedWorkerBusy > 0 {
-		log.Errorf("Dropped %d transactions in this retry attempt: %d for exceeding the retry queue size limit of %d, %d because the workers are too busy",
-			droppedRetryQueueFull+droppedWorkerBusy, droppedRetryQueueFull, f.retryQueueLimit, droppedWorkerBusy)
-	}
+	return f
 }
 
-func (f *DefaultForwarder) requeueTransaction(t Transaction) {
-	f.retryQueue = append(f.retryQueue, t)
-	transactionsExpvar.Add("Requeued", 1)
-	retryQueueSize.Set(int64(len(f.retryQueue)))
-}
-
-func (f *DefaultForwarder) handleFailedTransactions() {
-	ticker := time.NewTicker(flushInterval)
-	for {
-		select {
-		case tickTime := <-ticker.C:
-			f.retryTransactions(tickTime)
-		case t := <-f.requeuedTransaction:
-			f.requeueTransaction(t)
-		case <-f.stopRetry:
-			ticker.Stop()
-			return
-		}
-	}
-}
-
-func (f *DefaultForwarder) init() {
-	f.stop = make(chan struct{})
-	f.highPrio = make(chan Transaction, chanBufferSize)
-	f.lowPrio = make(chan Transaction, chanBufferSize)
-	f.requeuedTransaction = make(chan Transaction, chanBufferSize)
-	f.stopRetry = make(chan bool)
-	f.blockedList = newBlockedEndpoints()
-	f.workers = []*Worker{}
-	f.retryQueue = []Transaction{}
-}
-
-// Start starts a DefaultForwarder.
+// Start initialize and runs the forwarder.
 func (f *DefaultForwarder) Start() error {
-	// Lock so we can't stop a DefaultForwarder while is starting
+	// Lock so we can't stop a Forwarder while is starting
 	f.m.Lock()
 	defer f.m.Unlock()
 
@@ -216,41 +129,27 @@ func (f *DefaultForwarder) Start() error {
 		return fmt.Errorf("the forwarder is already started")
 	}
 
-	// reset internal state to purge transactions from past starts
-	f.init()
-
-	for i := 0; i < f.NumberOfWorkers; i++ {
-		w := NewWorker(f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList)
-		w.Start()
-		f.workers = append(f.workers, w)
+	for _, df := range f.domainForwarders {
+		df.Start()
 	}
-	go f.handleFailedTransactions()
-	f.internalState = Started
 
 	// log endpoints configuration
-	endpointLogs := make([]string, 0, len(f.KeysPerDomains))
-	for domain, apiKeys := range f.KeysPerDomains {
-		endpointLogs = append(endpointLogs, fmt.Sprintf("\"%s\" (%v api key(s))", domain, len(apiKeys)))
+	endpointLogs := make([]string, 0, len(f.keysPerDomains))
+	for domain, apiKeys := range f.keysPerDomains {
+		endpointLogs = append(endpointLogs, fmt.Sprintf("\"%s\" (%v api key(s))",
+			domain, len(apiKeys)))
 	}
-	log.Infof("DefaultForwarder started (%v workers), sending to %v endpoint(s): %s", f.NumberOfWorkers, len(endpointLogs), strings.Join(endpointLogs, " ; "))
+	log.Infof("Forwarder started, sending to %v endpoint(s) with %v workers each: %s",
+		f.NumberOfWorkers, len(endpointLogs), strings.Join(endpointLogs, " ; "))
 
-	f.health = health.Register("forwarder")
-	go f.healthCheckLoop()
-
+	f.healthChecker.Start(f.keysPerDomains)
+	f.internalState = Started
 	return nil
 }
 
-// State returns the internal state of the DefaultForwarder (either Started or Stopped).
-func (f *DefaultForwarder) State() uint32 {
-	f.m.Lock()
-	defer f.m.Unlock()
-
-	return f.internalState
-}
-
-// Stop stops a DefaultForwarder, all transactions not yet flushed will be lost.
+// Stop all the component of a forwarder and free resources
 func (f *DefaultForwarder) Stop() {
-	// Lock so we can't start a DefaultForwarder while is stopping
+	// Lock so we can't start a Forwarder while is stopping
 	f.m.Lock()
 	defer f.m.Unlock()
 
@@ -259,96 +158,30 @@ func (f *DefaultForwarder) Stop() {
 		return
 	}
 
-	f.health.Deregister()
 	f.internalState = Stopped
 
-	f.stopRetry <- true
-	for _, w := range f.workers {
-		w.Stop()
+	for _, df := range f.domainForwarders {
+		df.Stop()
 	}
-	f.workers = []*Worker{}
-	f.retryQueue = []Transaction{}
-	close(f.highPrio)
-	close(f.lowPrio)
-	close(f.requeuedTransaction)
-	close(f.stop)
-	log.Info("DefaultForwarder stopped")
+
+	f.healthChecker.Stop()
+	f.healthChecker = nil
+	f.domainForwarders = map[string]*domainForwarder{}
 }
 
-func (f *DefaultForwarder) hasValidAPIKey(timeout time.Duration) (bool, error) {
-	// Since timeout is the maximum duration we can wait, we need to divide it
-	// by the total number of api keys to obtain the max duration for each key
-	apiKeyCount := 0
-	for _, apiKeys := range f.KeysPerDomains {
-		apiKeyCount += len(apiKeys)
-	}
-	if apiKeyCount == 0 {
-		return false, nil
-	}
+// State returns the internal state of the forwarder (Started or Stopped)
+func (f *DefaultForwarder) State() uint32 {
+	// Lock so we can't start/stop a Forwarder while getting its state
+	f.m.Lock()
+	defer f.m.Unlock()
 
-	validKey := false
-	apiError := false
-
-	keyTimeout := timeout / time.Duration(apiKeyCount)
-
-	for domain, apiKeys := range f.KeysPerDomains {
-		for _, apiKey := range apiKeys {
-			v, err := f.validateAPIKey(apiKey, domain, keyTimeout)
-			if err != nil {
-				log.Debug(err)
-				apiError = true
-			} else if v {
-				validKey = true
-			}
-		}
-	}
-
-	if apiError {
-		return validKey, fmt.Errorf("Error while validating api keys")
-	}
-	return validKey, nil
-}
-
-func (f *DefaultForwarder) healthCheckLoop() {
-	log.Debug("Waiting for APIkey validity to be confirmed.")
-
-	validateTicker := time.NewTicker(time.Hour * 1)
-	defer validateTicker.Stop()
-
-	valid, err := f.hasValidAPIKey(10 * time.Second)
-	// If there is an error during the api call, we assume that there is a valid
-	// key to avoid killing lots of agent on an outage.
-	if err == nil && !valid {
-		// If no key is valid, no need to keep checking, they won't magicaly become valid
-		log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
-		return
-	}
-
-	for {
-		select {
-		case <-f.stop:
-			return
-		case <-validateTicker.C:
-			// Timeout should always be lower than health.pingFrequency to avoid
-			// reporting the forwarder as unhealthy
-			valid, err := f.hasValidAPIKey(10 * time.Second)
-			if err == nil && !valid {
-				log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
-				return
-			}
-		case <-f.health.C:
-			if transactionsExpvar.Get("DroppedOnInput") != nil {
-				log.Errorf("Detected dropped transaction, reporting the forwarder as unhealthy.")
-				return
-			}
-		}
-	}
+	return f.internalState
 }
 
 func (f *DefaultForwarder) createHTTPTransactions(endpoint string, payloads Payloads, apiKeyInQueryString bool, extra http.Header) []*HTTPTransaction {
 	transactions := []*HTTPTransaction{}
 	for _, payload := range payloads {
-		for domain, apiKeys := range f.KeysPerDomains {
+		for domain, apiKeys := range f.keysPerDomains {
 			for _, apiKey := range apiKeys {
 				transactionEndpoint := endpoint
 				if apiKeyInQueryString {
@@ -377,54 +210,11 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*HTTPTransaction)
 	}
 
 	for _, t := range transactions {
-		// We don't want to block the collector if the highPrio queue is full
-		select {
-		case f.highPrio <- t:
-		default:
-			log.Errorf("the input queue of the forwarder is full: dropping transaction")
-			transactionsExpvar.Add("DroppedOnInput", 1)
+		if err := f.domainForwarders[t.Domain].sendHTTPTransactions(t); err != nil {
+			log.Errorf(err.Error())
 		}
 	}
-
 	return nil
-}
-
-func (f *DefaultForwarder) setAPIKeyStatus(apiKey string, domain string, status expvar.Var) {
-	obfuscatedKey := fmt.Sprintf("%s,*************************", domain)
-	if len(apiKey) > 5 {
-		obfuscatedKey += apiKey[len(apiKey)-5:]
-	}
-	apiKeyStatus.Set(obfuscatedKey, status)
-}
-
-func (f *DefaultForwarder) validateAPIKey(apiKey, domain string, timeout time.Duration) (bool, error) {
-	url := fmt.Sprintf("%s%s?api_key=%s", config.Datadog.GetString("dd_url"), v1ValidateEndpoint, apiKey)
-
-	transport := util.CreateHTTPTransport()
-
-	client := &http.Client{
-		Transport: transport,
-		Timeout:   timeout,
-	}
-
-	resp, err := client.Get(url)
-	if err != nil {
-		f.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
-		return false, err
-	}
-	defer resp.Body.Close()
-
-	// Server will respond 200 if the key is valid or 403 if invalid
-	if resp.StatusCode == 200 {
-		f.setAPIKeyStatus(apiKey, domain, &apiKeyValid)
-		return true, nil
-	} else if resp.StatusCode == 403 {
-		f.setAPIKeyStatus(apiKey, domain, &apiKeyInvalid)
-		return false, nil
-	}
-
-	f.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
-	return false, fmt.Errorf("Unexpected response code from the apikey validation endpoint: %v", resp.StatusCode)
 }
 
 // SubmitSeries will send a series type payload to Datadog backend.

@@ -7,20 +7,28 @@ package forwarder
 
 import (
 	"net/http"
-	"strconv"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
+	monoKeysDomains = map[string][]string{
+		"datadog.foo": {"monokey"},
+	}
 	keysPerDomains = map[string][]string{
 		"datadog.foo": {"api-key-1", "api-key-2"},
 		"datadog.bar": nil,
+	}
+	validKeysPerDomain = map[string][]string{
+		"datadog.foo": {"api-key-1", "api-key-2"},
 	}
 )
 
@@ -28,56 +36,40 @@ func TestNewDefaultForwarder(t *testing.T) {
 	forwarder := NewDefaultForwarder(keysPerDomains)
 
 	assert.NotNil(t, forwarder)
-	assert.Equal(t, forwarder.NumberOfWorkers, 1)
-	assert.Equal(t, forwarder.KeysPerDomains, keysPerDomains)
+	assert.Equal(t, 1, forwarder.NumberOfWorkers)
+	require.Len(t, forwarder.domainForwarders, 1) // only one domain has keys
+	assert.Equal(t, validKeysPerDomain, forwarder.keysPerDomains)
+	assert.Len(t, forwarder.domainForwarders, 1) // datadog.bar should have been dropped
 
-	assert.Nil(t, forwarder.highPrio)
-	assert.Nil(t, forwarder.lowPrio)
-	assert.Nil(t, forwarder.requeuedTransaction)
-	assert.Nil(t, forwarder.stopRetry)
-	assert.Len(t, forwarder.workers, 0)
-	assert.Len(t, forwarder.retryQueue, 0)
 	assert.Equal(t, forwarder.internalState, Stopped)
 	assert.Equal(t, forwarder.State(), forwarder.internalState)
 }
 
 func TestStart(t *testing.T) {
-	forwarder := NewDefaultForwarder(nil)
+	forwarder := NewDefaultForwarder(monoKeysDomains)
 	err := forwarder.Start()
+	defer forwarder.Stop()
 
 	assert.Nil(t, err)
-	require.Len(t, forwarder.retryQueue, 0)
 	assert.Equal(t, Started, forwarder.State())
-	assert.NotNil(t, forwarder.highPrio)
-	assert.NotNil(t, forwarder.lowPrio)
-	assert.NotNil(t, forwarder.requeuedTransaction)
-	assert.NotNil(t, forwarder.stopRetry)
+	require.Len(t, forwarder.domainForwarders, 1)
+	require.NotNil(t, forwarder.healthChecker)
 	assert.NotNil(t, forwarder.Start())
-
-	forwarder.Stop()
-}
-
-func TestInit(t *testing.T) {
-	forwarder := NewDefaultForwarder(nil)
-	forwarder.init()
-	assert.Len(t, forwarder.workers, 0)
-	assert.Len(t, forwarder.retryQueue, 0)
-	assert.Len(t, forwarder.blockedList.errorPerEndpoint, 0)
 }
 
 func TestStop(t *testing.T) {
-	forwarder := NewDefaultForwarder(nil)
-	forwarder.Stop() // this should be a noop
+	forwarder := NewDefaultForwarder(keysPerDomains)
 	assert.Equal(t, Stopped, forwarder.State())
+	forwarder.Stop() // this should be a noop
 	forwarder.Start()
 	forwarder.Stop()
-	assert.Len(t, forwarder.workers, 0)
-	assert.Len(t, forwarder.retryQueue, 0)
 	assert.Equal(t, Stopped, forwarder.State())
+	assert.Nil(t, forwarder.healthChecker)
+	assert.Len(t, forwarder.domainForwarders, 0)
 }
 
 func TestSubmitIfStopped(t *testing.T) {
-	forwarder := NewDefaultForwarder(nil)
+	forwarder := NewDefaultForwarder(monoKeysDomains)
 
 	require.NotNil(t, forwarder)
 	require.Equal(t, Stopped, forwarder.State())
@@ -87,6 +79,9 @@ func TestSubmitIfStopped(t *testing.T) {
 	assert.NotNil(t, forwarder.SubmitSketchSeries(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitHostMetadata(nil, make(http.Header)))
 	assert.NotNil(t, forwarder.SubmitMetadata(nil, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitV1Series(nil, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitV1Intake(nil, make(http.Header)))
+	assert.NotNil(t, forwarder.SubmitV1CheckRuns(nil, make(http.Header)))
 }
 
 func TestCreateHTTPTransactions(t *testing.T) {
@@ -138,139 +133,85 @@ func TestSendHTTPTransactions(t *testing.T) {
 	assert.NotNil(t, err)
 
 	forwarder.Start()
+	defer forwarder.Stop()
 	err = forwarder.sendHTTPTransactions(tr)
 	assert.Nil(t, err)
 }
 
-func TestRequeueTransaction(t *testing.T) {
-	forwarder := NewDefaultForwarder(nil)
-	tr := NewHTTPTransaction()
-	assert.Len(t, forwarder.retryQueue, 0)
-	forwarder.requeueTransaction(tr)
-	assert.Len(t, forwarder.retryQueue, 1)
-}
-
-func TestRetryTransactions(t *testing.T) {
-	forwarder := NewDefaultForwarder(nil)
-	forwarder.init()
-	forwarder.retryQueueLimit = 1
-
-	// Default value should be nil
-	assert.Nil(t, transactionsExpvar.Get("Dropped"))
-
-	t1 := NewHTTPTransaction()
-	t1.Domain = "domain/"
-	t1.Endpoint = "test1"
-	t2 := NewHTTPTransaction()
-	t2.Domain = "domain/"
-	t2.Endpoint = "test2"
-
-	// Create blocks
-	forwarder.blockedList.recover(t1.GetTarget())
-	forwarder.blockedList.recover(t2.GetTarget())
-
-	forwarder.blockedList.errorPerEndpoint[t1.GetTarget()].until = time.Now().Add(-1 * time.Hour)
-	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].until = time.Now().Add(1 * time.Hour)
-
-	forwarder.requeueTransaction(t2)
-	forwarder.requeueTransaction(t2) // this second one should be dropped
-	forwarder.requeueTransaction(t1) // the queue should be sorted
-	forwarder.retryTransactions(time.Now())
-	assert.Len(t, forwarder.retryQueue, 1)
-	assert.Len(t, forwarder.lowPrio, 1)
-	require.NotNil(t, transactionsExpvar.Get("Dropped"))
-	dropped, _ := strconv.ParseInt(transactionsExpvar.Get("Dropped").String(), 10, 64)
-	assert.Equal(t, int64(1), dropped)
-}
-
-func TestForwarderRetry(t *testing.T) {
-	forwarder := NewDefaultForwarder(nil)
+func TestSubmitV1Intake(t *testing.T) {
+	forwarder := NewDefaultForwarder(monoKeysDomains)
 	forwarder.Start()
 	defer forwarder.Stop()
 
-	forwarder.blockedList.close("blocked")
-	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Hour)
+	// Overwrite domainForwarders input channel. We are testing that the
+	// DefaultForwarder correctly create HTTPTransaction, set the headers
+	// and send them to the correct domainForwarder.
+	inputQueue := make(chan Transaction, 1)
+	df := forwarder.domainForwarders["datadog.foo"]
+	bk := df.highPrio
+	df.highPrio = inputQueue
+	defer func() { df.highPrio = bk }()
 
-	ready := newTestTransaction()
-	notReady := newTestTransaction()
+	p := []byte("test")
+	assert.Nil(t, forwarder.SubmitV1Intake(Payloads{&p}, make(http.Header)))
 
-	forwarder.requeueTransaction(ready)
-	forwarder.requeueTransaction(notReady)
-	require.Len(t, forwarder.retryQueue, 2)
-
-	ready.On("Process", forwarder.workers[0].Client).Return(nil).Times(1)
-	ready.On("GetTarget").Return("").Times(2)
-	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
-	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)
-	notReady.On("GetTarget").Return("blocked").Times(1)
-
-	forwarder.retryTransactions(time.Now())
-	<-ready.processed
-
-	ready.AssertExpectations(t)
-	notReady.AssertExpectations(t)
-	notReady.AssertNumberOfCalls(t, "Process", 0)
-	notReady.AssertNumberOfCalls(t, "GetTarget", 1)
-	require.Len(t, forwarder.retryQueue, 1)
-	assert.Equal(t, forwarder.retryQueue[0], notReady)
+	select {
+	case tr := <-df.highPrio:
+		require.NotNil(t, tr)
+		httpTr := tr.(*HTTPTransaction)
+		assert.Equal(t, "application/json", httpTr.Headers.Get("Content-Type"))
+	case <-time.After(1 * time.Second):
+		require.Fail(t, "highPrio queue should contain a transaction")
+	}
 }
 
-func TestForwarderRetryLifo(t *testing.T) {
-	forwarder := NewDefaultForwarder(nil)
-	forwarder.init()
+// TestForwarderEndtoEnd is a simple test to see if a payload is well broadcast
+// between every components of the forwarder. Corner cases and error are tested
+// per component.
+func TestForwarderEndtoEnd(t *testing.T) {
+	// reseting DroppedOnInput
+	droppedOnInput.Set(0)
 
-	transaction1 := newTestTransaction()
-	transaction2 := newTestTransaction()
+	requests := int64(0)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt64(&requests, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	ddURL := config.Datadog.Get("dd_url")
+	config.Datadog.Set("dd_url", ts.URL)
+	defer config.Datadog.Set("dd_url", ddURL)
 
-	forwarder.requeueTransaction(transaction1)
-	forwarder.requeueTransaction(transaction2)
+	f := NewDefaultForwarder(map[string][]string{
+		ts.URL:     {"api_key1", "api_key2"},
+		"invalid":  {},
+		"invalid2": nil,
+	})
 
-	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
-	transaction1.On("GetTarget").Return("").Times(1)
+	f.Start()
+	defer f.Stop()
 
-	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
-	transaction2.On("GetTarget").Return("").Times(1)
+	data1 := []byte("data payload 1")
+	data2 := []byte("data payload 2")
+	payload := Payloads{&data1, &data2}
+	headers := http.Header{}
+	headers.Set("key", "value")
 
-	forwarder.retryTransactions(time.Now())
+	assert.Nil(t, f.SubmitV1Series(payload, headers))
+	assert.Nil(t, f.SubmitV1Intake(payload, headers))
+	assert.Nil(t, f.SubmitV1CheckRuns(payload, headers))
+	assert.Nil(t, f.SubmitSeries(payload, headers))
+	assert.Nil(t, f.SubmitEvents(payload, headers))
+	assert.Nil(t, f.SubmitServiceChecks(payload, headers))
+	assert.Nil(t, f.SubmitSketchSeries(payload, headers))
+	assert.Nil(t, f.SubmitHostMetadata(payload, headers))
+	assert.Nil(t, f.SubmitMetadata(payload, headers))
 
-	firstOut := <-forwarder.lowPrio
-	assert.Equal(t, firstOut, transaction2)
+	// let's wait a second for every channel communication to trigger
+	<-time.After(1 * time.Second)
 
-	secondOut := <-forwarder.lowPrio
-	assert.Equal(t, secondOut, transaction1)
-
-	transaction1.AssertExpectations(t)
-	transaction2.AssertExpectations(t)
-	assert.Len(t, forwarder.retryQueue, 0)
-}
-
-func TestForwarderRetryLimitQueue(t *testing.T) {
-	forwarder := NewDefaultForwarder(nil)
-	forwarder.init()
-
-	forwarder.retryQueueLimit = 1
-	forwarder.blockedList.close("blocked")
-	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
-
-	transaction1 := newTestTransaction()
-	transaction2 := newTestTransaction()
-
-	forwarder.requeueTransaction(transaction1)
-	forwarder.requeueTransaction(transaction2)
-
-	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
-	transaction1.On("GetTarget").Return("blocked").Times(1)
-
-	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
-	transaction2.On("GetTarget").Return("blocked").Times(1)
-
-	forwarder.retryTransactions(time.Now())
-
-	transaction1.AssertExpectations(t)
-	transaction2.AssertExpectations(t)
-	require.Len(t, forwarder.retryQueue, 1)
-	require.Len(t, forwarder.highPrio, 0)
-	require.Len(t, forwarder.lowPrio, 0)
-	// assert that the oldest transaction was dropped
-	assert.Equal(t, transaction2, forwarder.retryQueue[0])
+	// We should receive 38 requests:
+	// - 9 transactions * 2 payloads per transactions * 2 api_keys
+	// - 2 requests to check the validity of the two api_key
+	ts.Close()
+	assert.Equal(t, int64(38), requests)
 }
