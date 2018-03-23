@@ -445,9 +445,8 @@ deploy_suse_rpm_testing:
     - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # run dd-agent-testing
-testkitchen_testing:
+testkitchen_testing_windows:
   stage: testkitchen_testing
-  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
@@ -461,13 +460,15 @@ testkitchen_testing:
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20171115"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20171115"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20171116"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
-
 # run dd-agent-testing
 testkitchen_cleanup_s3:
   stage: testkitchen_cleanup
