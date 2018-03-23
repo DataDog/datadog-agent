@@ -237,24 +237,6 @@ shared_examples_for "a running Agent with no errors" do
     expect(File).to exist(conf_path)
   end
 
-  # it 'has running checks' do
-
-
-  #   # On systems that use systemd (on which the `start` script returns immediately)
-  #   # sleep a few seconds to let the collector finish its first run
-  #   # This seems to happen on windows, too
-  #   if os != :windows
-  #     system('command -v systemctl 2>&1 > /dev/null && sleep 300')
-  #   else
-  #     sleep 300
-  #   end
-
-  #   json_info_output = json_info
-  #   expect(json_info_output).to have_key("runnerStats")
-  #   expect(json_info_output['runnerStats']).to have_key("Checks")
-  #   expect(json_info_output['runnerStats']['Checks']).not_to be_empty
-  # end
-
   it 'has an info command' do
     # On systems that use systemd (on which the `start` script returns immediately)
     # sleep a few seconds to let the collector finish its first run
