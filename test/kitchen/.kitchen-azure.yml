@@ -112,7 +112,7 @@ platforms:
 <% end %>
 
 suites:
-
+  excludes: []
 <%
   aptrepo = "http://apttesting.datad0g.com/"
   api_key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
