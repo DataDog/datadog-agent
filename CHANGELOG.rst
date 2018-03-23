@@ -2,6 +2,105 @@
 Release Notes
 =============
 
+6.1.0
+=====
+
+New Features
+------------
+
+- Add Agent Version to flare form
+
+- Add the DD_CHECK_RUNNERS environment variable binding
+
+- Add the status command to the DCA.
+
+- Docker check: ignore the new exec_die event type by default
+
+- Extract the swarm_namespace tag for docker swarm containers, in addition
+  to the already present swarm_service tag.
+
+- Allow configuration of the enabled-state of process, logs, and apm to be 
+  specified on the installation command line for Windows.
+
+- Add a jmx_use_cgroup_memory_limit option to set jmxfetch to use cgroup
+  memory limits when calculating its heap size. It is enabled by default
+  in the docker image.
+
+- Add option to extract kubernetes pod annotations as tags, similar to labels
+
+- Added an environment variable `DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL` to enable logs tailing on all containers.
+
+- Adding the 'bind_host' option to configure the interface to bind by dogstatsd and JMX.
+
+- Support setting tags as a YAML array in the logs agent integration configuration
+
+
+Bug Fixes
+---------
+
+- Fix docker memory metrics parsing from cgroup files
+
+- Fix docker.mem.in_use metric computation
+
+- When using the import script, change the group owner of configuration files to the dd-agent user.
+
+- Fix a false positive in the collector-queue healthcheck
+
+- The old docker_daemon check is now properly converted in the "import" command by default
+
+- Docker check: fix event filtering for exec events
+
+- Improve docker monitoring when the system is under a very high load. The agent
+  might still temporarily miss a healthcheck, but will be able to run already
+  scheduled checks, and recover once the spike ends
+
+- Fixes the container startup on Fargate, where we tried and remove the same
+  file twice, failing hard (stopping) on the second attempt.
+
+- Fix flare failing on zipping individual components
+
+- Fixed an issue where the import script would put an empty histogram aggregates and percentiles in datadog.yaml if they didn't exist in datadog.conf.
+
+- Fix the build for platforms not supporting Gohai.
+
+- Fixes flaw where Windows Performance counters were not properly initialized
+  on non EN-US versions of windows
+
+- Menu in system tray reports wrong version (6.0.0) for all versions of Agent.  This fixes the system tray menu to report the correct version.
+
+- Fixing clear passwords in "config-check.log" when sending a flare.
+
+- Allow network proxy settings set on the Windows installation command
+  line to be set in the registry, where they'll be translated to the 
+  configuration
+
+- Accept now short names for docker image in logs configuration file and added to the possibilty to filter containers by image name with Kubernetes.
+
+- Fixes an issue that would prevent the agent from stopping when it was tailing logs
+  of a container that had no logs.
+
+- fixes an issue with wildcard tailing of logs files on windows
+
+- Allow Linux package uninstallation to proceed without errors even on platforms
+  that aren't supported by the Agent
+
+- Fixes agent to run on Server "Core" versions
+
+- Changes default precision of pdh-based counters from int to float. Fixes bug where fidelity of some counters is quite low, especially counters with values between 0 and 1.
+
+- Adds back the removed system.mem.usable metric for Agents running on Windows.
+
+- Avoid multiple initializations of the tagger subsystem
+
+
+Other Notes
+-----------
+
+- Normalize support of nested config options defined with env vars.
+
+- Make the check-rate command more visible when running "check` to get a list of metrics.
+
+
 6.0.3
 =====
 
