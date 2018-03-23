@@ -400,6 +400,7 @@ func GetServiceMapBundleOnAllNodes() (map[string]interface{}, error) {
 
 	nodes, err := getNodeList()
 	if err != nil {
+		stats["Errors"] = fmt.Sprintf("Failed to get nodes from the API server: %s", err.Error())
 		return stats, err
 	}
 

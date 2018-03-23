@@ -73,12 +73,12 @@ func getServiceMap(nodeName string) error {
 		return e
 	}
 
-	r, e := util.DoGet(c, urlstr)
+	r, e := util.DoGetExternal(c, urlstr)
 	if e != nil {
 		fmt.Printf(`
-		"Could not reach agent: %v
+		Could not reach agent: %v
 		Make sure the agent is properly running before requesting the map of services to pods.
-		Contact support if you continue having issues."`, e)
+		Contact support if you continue having issues.`, e)
 		return e
 	}
 

@@ -248,29 +248,27 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 			Returns: string
 			Example: 404 page not found
 
-			Status: 500
-			Returns: string
-			Example: "could not collect the service map for all nodes: List services is not permitted at the cluster scope."
+			Status: 503
+			Returns: map[string]string
+			Example: "["Error":"could not collect the service map for all nodes: List services is not permitted at the cluster scope."]
 	*/
 	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	log.Info("Computing service map on all nodes")
-	svcList, err := as.GetServiceMapBundleOnAllNodes()
+	svcList, errAPIServer := as.GetServiceMapBundleOnAllNodes()
 	// If we hit an error at this point, it is because we don't have access to the API server.
-	if err != nil {
+	if errAPIServer != nil {
 		w.WriteHeader(503)
-		log.Errorf("Failed to get nodes from the API server: %s", err)
-		return
+	} else {
+		w.WriteHeader(200)
 	}
 	slcB, err := json.Marshal(svcList)
 	if err != nil {
-		w.WriteHeader(501)
-		log.Errorf("Failed to process the service map for all nodes")
+		http.Error(w, err.Error(), 500)
 		return
 	}
 	if len(slcB) != 0 {
-		w.WriteHeader(200)
 		w.Write(slcB)
 		return
 	}

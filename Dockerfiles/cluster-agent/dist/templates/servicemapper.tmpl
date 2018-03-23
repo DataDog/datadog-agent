@@ -2,6 +2,9 @@
 ==============
 Service Mapper
 ==============
+{{- if .Errors }}
+Could not run the service mapper: {{.Errors}}
+{{ else }}
 {{- if .Warnings }}
 Warnings:
 {{- range .Warnings}}
@@ -17,4 +20,5 @@ Node detected: {{ $index -}}
     Services list: {{ $svc -}}
    {{ end -}}
 {{- end }}
+{{- end -}}
 {{- end -}}
