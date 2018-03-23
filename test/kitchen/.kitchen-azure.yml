@@ -36,9 +36,10 @@ platforms:
 # Loop through two lists and output a total matrix of all possible platform + chef versions,
 # for both drivers
 
-# TEST_PLATFORMS syntax is `short_name1,azure_full_qualified_name1|short_name2,azure_full_qualified_name1`
+
 <%
-    azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').split(',')
+    # TEST_PLATFORMS syntax is `short_name1,azure_full_qualified_name1|short_name2,azure_full_qualified_name1`
+    azure_test_platforms = ENV['TEST_PLATFORMS'].split('|').map { |p| p.split(',') }
 
     chef_versions = %w(
       13.6.4

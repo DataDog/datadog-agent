@@ -469,6 +469,104 @@ testkitchen_testing_windows:
     when: always
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
+
+# run dd-agent-testing
+testkitchen_testing_centos:
+  stage: testkitchen_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
+  only:
+    - master
+    - arbll/test-kitchen-update
+    - tags
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="centos-74,OpenLogic:CentOS:7.4:7.4.20171110"
+    - bash -l tasks/run-test-kitchen.sh
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
+# run dd-agent-testing
+testkitchen_testing_ubuntu:
+  stage: testkitchen_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
+  only:
+    - master
+    - arbll/test-kitchen-update
+    - tags
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201803080"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201802220"
+    - bash -l tasks/run-test-kitchen.sh
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
+# run dd-agent-testing
+testkitchen_testing_suse:
+  stage: testkitchen_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
+  only:
+    - master
+    - arbll/test-kitchen-update
+    - tags
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP3:2017.12.11"
+    - bash -l tasks/run-test-kitchen.sh
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
+# run dd-agent-testing
+testkitchen_testing_debian:
+  stage: testkitchen_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
+  only:
+    - master
+    - arbll/test-kitchen-update
+    - tags
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.0.201803130"
+    - bash -l tasks/run-test-kitchen.sh
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
 # run dd-agent-testing
 testkitchen_cleanup_s3:
   stage: testkitchen_cleanup
