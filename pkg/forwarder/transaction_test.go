@@ -103,6 +103,12 @@ func TestProcessHTTPError(t *testing.T) {
 	errorCode = http.StatusRequestEntityTooLarge
 	err = transaction.Process(context.Background(), client)
 	assert.Nil(t, err)
+	assert.Equal(t, transaction.ErrorCount, 1)
+
+	errorCode = http.StatusForbidden
+	err = transaction.Process(context.Background(), client)
+	assert.Nil(t, err)
+	assert.Equal(t, transaction.ErrorCount, 1)
 }
 
 func TestProcessCancel(t *testing.T) {

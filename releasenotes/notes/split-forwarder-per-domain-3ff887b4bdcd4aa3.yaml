@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    The fowarder will now spaw specific workers per domain to avoid slow down when one domain is down.

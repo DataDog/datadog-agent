@@ -50,21 +50,16 @@ func TestWorkerStart(t *testing.T) {
 	mock2.On("Process", w.Client).Return(nil).Times(1)
 	mock2.On("GetTarget").Return("").Times(1)
 
-	dummy := newTestTransaction()
-	dummy.On("Process", w.Client).Return(nil).Times(2)
-	dummy.On("GetTarget").Return("").Times(2)
-
 	w.Start()
 
 	highPrio <- mock
-	// since highPrio and lowPrio have no buffering the worker won't take another Transaction until it has processed the first one
-	highPrio <- dummy
+	<-mock.processed
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Process", 1)
 
 	lowPrio <- mock2
-	lowPrio <- dummy
+	<-mock2.processed
 
 	mock2.AssertExpectations(t)
 	mock2.AssertNumberOfCalls(t, "Process", 1)
