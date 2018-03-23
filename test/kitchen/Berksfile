@@ -1,5 +1,5 @@
 source 'https://supermarket.chef.io'
-cookbook 'datadog', git: "https://github.com/datadog/chef-datadog.git", branch: "greg/sles"
+cookbook 'datadog', git: "https://github.com/datadog/chef-datadog.git", branch: "arbll/kitchen"
 # cookbook 'datadog', '~> 2.13.0'
 cookbook 'apt', '~> 3.0'
 cookbook 'yum', '< 5.0'

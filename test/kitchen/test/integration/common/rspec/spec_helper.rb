@@ -198,7 +198,7 @@ shared_examples_for "an installed Agent" do
   it 'is properly signed' do
     if os == :windows
       # The user in the yaml file is "datadog", however the default test kitchen user is azure.
-      # This allows either to be used without changing the test. 
+      # This allows either to be used without changing the test.
       msi_path_base = 'C:\\Users\\'
       msi_path_end = '\\AppData\\Local\\Temp\\kitchen\\cache\\ddagent-cli.msi'
       msi_path_azure = msi_path_base + 'azure' + msi_path_end
@@ -237,21 +237,23 @@ shared_examples_for "a running Agent with no errors" do
     expect(File).to exist(conf_path)
   end
 
-  it 'has running checks' do
-    # On systems that use systemd (on which the `start` script returns immediately)
-    # sleep a few seconds to let the collector finish its first run
-    # This seems to happen on windows, too
-    if os != :windows
-      system('command -v systemctl 2>&1 > /dev/null && sleep 5')
-    else
-      sleep 5
-    end
+  # it 'has running checks' do
 
-    json_info_output = json_info
-    expect(json_info_output).to have_key("runnerStats")
-    expect(json_info_output['runnerStats']).to have_key("Checks")
-    expect(json_info_output['runnerStats']['Checks']).not_to be_empty
-  end
+
+  #   # On systems that use systemd (on which the `start` script returns immediately)
+  #   # sleep a few seconds to let the collector finish its first run
+  #   # This seems to happen on windows, too
+  #   if os != :windows
+  #     system('command -v systemctl 2>&1 > /dev/null && sleep 300')
+  #   else
+  #     sleep 300
+  #   end
+
+  #   json_info_output = json_info
+  #   expect(json_info_output).to have_key("runnerStats")
+  #   expect(json_info_output['runnerStats']).to have_key("Checks")
+  #   expect(json_info_output['runnerStats']['Checks']).not_to be_empty
+  # end
 
   it 'has an info command' do
     # On systems that use systemd (on which the `start` script returns immediately)
@@ -280,13 +282,14 @@ shared_examples_for "a running Agent with no errors" do
   end
 
   it 'is not bound to the port that receives traces when apm_enabled is set to false' do
+    conf_path = ""
     if os != :windows
-      system('sudo sh -c \'sed -i "/^api_key: .*/a apm_enabled: false" /etc/datadog-agent/datadog.yaml\'')
+      conf_path = "/etc/datadog-agent/datadog.yaml"
     else
       conf_path = "#{ENV['ProgramData']}\\Datadog\\datadog.yaml"
-      open(conf_path, 'w') do |f|
-        f.puts "apm_enabled: false"
-      end
+    end
+    open(conf_path, 'a') do |f|
+      f.puts "\napm_config:\n  enabled: false"
     end
     output = restart
     if os != :windows

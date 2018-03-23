@@ -38,9 +38,9 @@ platforms:
 <% azure_test_platforms = [
       # working
       ['centos-74', 'OpenLogic:CentOS:7.4:7.4.20171110'],
-      ['ubuntu-14-04', 'Canonical:UbuntuServer:14.04.5-LTS:14.04.201711151'],
-      ['ubuntu-16-04','Canonical:UbuntuServer:16.04.0-LTS:16.04.201610200'],
-      ['debian-8', 'credativ:Debian:8:8.0.201801170'],
+      ['ubuntu-14-04', 'Canonical:UbuntuServer:14.04.5-LTS:14.04.201803080'],
+      ['ubuntu-16-04','Canonical:UbuntuServer:16.04.0-LTS:16.04.201802220'],
+      ['debian-8', 'credativ:Debian:8:8.0.201803130'],
       ['sles-12', 'SUSE:SLES:12-SP3:2017.12.11'],
 
       ['win2012', 'MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20171115'],
