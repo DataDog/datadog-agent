@@ -196,8 +196,7 @@ func GetLeaderDetails() (leaderDetails rl.LeaderElectionRecord, err error) {
 	if !found {
 		return led, apiserver.ErrNotFound
 	}
-	bytes := []byte(annotation)
-	err = json.Unmarshal(bytes, &led)
+	err = json.Unmarshal([]byte(annotation), &led)
 	if err != nil {
 		return led, err
 	}

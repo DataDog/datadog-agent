@@ -1,0 +1,24 @@
+
+==============
+Service Mapper
+==============
+{{- if .Errors }}
+Could not run the service mapper: {{.Errors}}
+{{else}}
+{{ if .Warnings -}}
+Warnings:
+{{- range .Warnings}}
+   - {{.}}
+{{ end -}}
+{{- end -}}
+{{if .Nodes}}
+{{- range $index, $element := .Nodes }}
+
+Node detected: {{ $index -}}
+   {{ range $pod, $svc := $element }}
+ -  Pod name: {{ $pod }}
+    Services list: {{ $svc -}}
+   {{ end -}}
+{{- end }}
+{{- end -}}
+{{- end -}}

@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2018 Datadog, Inc.
+
 package app
 
 import (
@@ -8,6 +13,9 @@ import (
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
 
+	log "github.com/cihub/seelog"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -17,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	log "github.com/cihub/seelog"
-	"github.com/spf13/cobra"
 )
 
 // FIXME: move SetupAutoConfig and StartAutoConfig in their own package so we don't import cmd/agent
@@ -162,5 +168,4 @@ func start(cmd *cobra.Command, args []string) error {
 	log.Info("See ya!")
 	log.Flush()
 	return nil
-
 }

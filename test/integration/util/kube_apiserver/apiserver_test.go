@@ -28,7 +28,9 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-const setupTimeout = time.Second * 10
+const (
+	setupTimeout = 10 * time.Second
+)
 
 type testSuite struct {
 	suite.Suite
@@ -281,7 +283,8 @@ func (suite *testSuite) TestServiceMapper() {
 	err = apiClient.ClusterServiceMapping()
 	require.Nil(suite.T(), err)
 
-	serviceNames := apiserver.GetPodServiceNames(node.Name, pod.Name)
+	serviceNames, err := apiserver.GetPodServiceNames(node.Name, pod.Name)
+	require.Nil(suite.T(), err)
 	assert.Len(suite.T(), serviceNames, 1)
 	assert.Contains(suite.T(), serviceNames, "nginx-1")
 
@@ -297,8 +300,16 @@ func (suite *testSuite) TestServiceMapper() {
 	err = apiClient.ClusterServiceMapping()
 	require.Nil(suite.T(), err)
 
-	serviceNames = apiserver.GetPodServiceNames(node.Name, pod.Name)
+	serviceNames, err = apiserver.GetPodServiceNames(node.Name, pod.Name)
+	require.Nil(suite.T(), err)
 	assert.Len(suite.T(), serviceNames, 2)
 	assert.Contains(suite.T(), serviceNames, "nginx-1")
 	assert.Contains(suite.T(), serviceNames, "nginx-2")
+
+	fullmapper, errList := apiserver.GetServiceMapBundleOnAllNodes()
+	require.Nil(suite.T(), errList)
+	list := fullmapper["Nodes"]
+	assert.Contains(suite.T(), list, "ip-172-31-119-125")
+	fullMap := list.(map[string]map[string][]string)
+	assert.Contains(suite.T(), fullMap["ip-172-31-119-125"]["nginx"], "nginx-1")
 }

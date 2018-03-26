@@ -19,23 +19,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 )
 
-var (
-	jsonStatus      bool
-	prettyPrintJSON bool
-	statusFilePath  string
-)
-
 func init() {
-	ClusterAgentCmd.AddCommand(statusCmd)
-	statusCmd.Flags().BoolVarP(&jsonStatus, "json", "j", false, "print out raw json")
-	statusCmd.Flags().BoolVarP(&prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
-	statusCmd.Flags().StringVarP(&statusFilePath, "file", "o", "", "Output the status command to a file")
+	ClusterAgentCmd.AddCommand(svcMapperCmd)
+	svcMapperCmd.SetArgs([]string{"caseID"})
 }
 
-var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Print the current status",
-	Long:  ``,
+var svcMapperCmd = &cobra.Command{
+	Use:   "svcmap [nodeName]",
+	Short: "Print the map between the services and the pods behind them",
+	Long: `The svcmap command is mostly designed for troubleshooting purposes.
+One can easily identify which pods are running on which nodes,
+as well as which services are service the pods.`,
+	Example: "datadog-cluster-agent svcmap ip-10-0-115-123",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configFound := false
 		// a path to the folder containing the config file was passed
@@ -52,22 +47,25 @@ var statusCmd = &cobra.Command{
 		if !configFound {
 			log.Debugf("Config read from env variables")
 		}
-
-		err := requestStatus()
-		if err != nil {
-			return err
+		nodeName := ""
+		if len(args) > 0 {
+			nodeName = args[0]
 		}
-		return nil
+		return getServiceMap(nodeName) // if nodeName == "", call all.
 	},
 }
 
-func requestStatus() error {
-	fmt.Printf("Getting the status from the agent.\n\n")
+func getServiceMap(nodeName string) error {
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
+	var urlstr string
 	// TODO use https
-	urlstr := fmt.Sprintf("http://localhost:%v/status", config.Datadog.GetInt("cmd_port"))
+	if nodeName == "" {
+		urlstr = fmt.Sprintf("http://localhost:%v/api/v1/metadata", config.Datadog.GetInt("cmd_port"))
+	} else {
+		urlstr = fmt.Sprintf("http://localhost:%v/api/v1/metadata/%s", config.Datadog.GetInt("cmd_port"), nodeName)
+	}
 
 	// Set session token
 	e = util.SetAuthToken()
@@ -75,16 +73,12 @@ func requestStatus() error {
 		return e
 	}
 
-	r, e := util.DoGet(c, urlstr)
+	r, e := util.DoGetExternalEndpoint(c, urlstr)
 	if e != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, errMap)
-		// If the error has been marshalled into a json object, check it and return it properly
-		if err, found := errMap["error"]; found {
-			e = fmt.Errorf(err)
-		}
-
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
+		fmt.Printf(`
+		Could not reach agent: %v
+		Make sure the agent is properly running before requesting the map of services to pods.
+		Contact support if you continue having issues.`, e)
 		return e
 	}
 
@@ -96,11 +90,11 @@ func requestStatus() error {
 	} else if jsonStatus {
 		s = string(r)
 	} else {
-		formattedStatus, err := status.FormatDCAStatus(r)
+		formattedServiceMap, err := status.FormatServiceMapCLI(r)
 		if err != nil {
 			return err
 		}
-		s = formattedStatus
+		s = formattedServiceMap
 	}
 
 	if statusFilePath != "" {
@@ -108,6 +102,5 @@ func requestStatus() error {
 	} else {
 		fmt.Println(s)
 	}
-
 	return nil
 }
