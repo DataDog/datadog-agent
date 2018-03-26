@@ -25,6 +25,7 @@ The agent is highly customizable, here are the most used environment variables:
 - `DD_API_KEY`: your API key (**required**)
 - `DD_HOSTNAME`: hostname to use for metrics (if autodetection fails)
 - `DD_TAGS`: host tags, separated by spaces. For example: `simple-tag-0 tag-key-1:tag-value-1`
+- `DD_CHECK_RUNNERS`: the agent runs all checks in sequence by default (default value = `1` runner). If you need to run a high number of checks (or slow checks) the `collector-queue` component might fall behind and fail the healthcheck. You can increase the number of runners to run checks in parallel
 
 #### Optional collection agents
 
