@@ -8,6 +8,7 @@ package listener
 import (
 	"io"
 	"net"
+	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -15,6 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
+
+// defaultTimeout represents the time after which a connection is closed when no data is read
+const defaultTimeout = 60000 * time.Millisecond
 
 // Worker reads data from a connection
 type Worker struct {
@@ -81,6 +85,7 @@ func (w *Worker) readForever() {
 			// stop reading data from the connection
 			return
 		default:
+			w.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
 			inBuf := make([]byte, 4096)
 			n, err := w.conn.Read(inBuf)
 			if err == io.EOF {
