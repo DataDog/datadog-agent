@@ -51,14 +51,14 @@ func DoGet(c *http.Client, url string) (body []byte, e error) {
 
 }
 
-// DoGetExternal is a wrapper around performing HTTP GET requests designed for external endpoints.
-func DoGetExternal(c *http.Client, url string) (body []byte, e error) {
+// DoGetExternalEndpoint is a wrapper around performing HTTP GET requests designed for external endpoints.
+func DoGetExternalEndpoint(c *http.Client, url string) (body []byte, e error) {
 	req, e := http.NewRequest("GET", url, nil)
 	if e != nil {
 		return body, e
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+GetAuthToken()) // To be updated for DCA token.
+	req.Header.Set("Authorization", "Bearer "+GetAuthToken()) // TODO update with function to check DCA token.
 
 	r, e := c.Do(req)
 	if e != nil {
@@ -79,7 +79,6 @@ func DoGetExternal(c *http.Client, url string) (body []byte, e error) {
 	}
 
 	return body, nil
-
 }
 
 // DoPost is a wrapper around performing HTTP POST requests
@@ -104,5 +103,4 @@ func DoPost(c *http.Client, url string, contentType string, body io.Reader) (res
 		return resp, fmt.Errorf("%s", resp)
 	}
 	return resp, nil
-
 }

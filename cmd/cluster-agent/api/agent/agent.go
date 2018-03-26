@@ -162,7 +162,6 @@ func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
-
 			localhost:5001/api/v1/metadata/localhost/my-nginx-5d69
 		Outputs
 			Status: 200
@@ -260,16 +259,17 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	// If we hit an error at this point, it is because we don't have access to the API server.
 	if errAPIServer != nil {
 		w.WriteHeader(503)
+		log.Errorf("There was an error querying the nodes from the API: %s", errAPIServer.Error())
 	} else {
 		w.WriteHeader(200)
 	}
-	slcB, err := json.Marshal(svcList)
+	svcListBytes, err := json.Marshal(svcList)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	if len(slcB) != 0 {
-		w.Write(slcB)
+	if len(svcListBytes) != 0 {
+		w.Write(svcListBytes)
 		return
 	}
 	w.WriteHeader(404)

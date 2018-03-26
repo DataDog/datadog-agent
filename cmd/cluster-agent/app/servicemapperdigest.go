@@ -73,7 +73,7 @@ func getServiceMap(nodeName string) error {
 		return e
 	}
 
-	r, e := util.DoGetExternal(c, urlstr)
+	r, e := util.DoGetExternalEndpoint(c, urlstr)
 	if e != nil {
 		fmt.Printf(`
 		Could not reach agent: %v

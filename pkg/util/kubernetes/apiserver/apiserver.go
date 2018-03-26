@@ -409,7 +409,7 @@ func GetServiceMapBundleOnAllNodes() (map[string]interface{}, error) {
 			log.Error("Incorrect payload when evaluating a node for the service mapper") // This will be removed as we move to the client-go
 			continue
 		}
-		nodePodServiceMap[*node.Metadata.Name], err = getSMBOnNodes(*node.Metadata.Name)
+		nodePodServiceMap[*node.Metadata.Name], err = getServiceMapBundleOnNodes(*node.Metadata.Name)
 		if err != nil {
 			warn = fmt.Sprintf("Node %s could not be added to the service map bundle: %s", *node.Metadata.Name, err.Error())
 			warnlist = append(warnlist, warn)
@@ -426,7 +426,7 @@ func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, error) 
 	stats := make(map[string]interface{})
 	var err error
 
-	nodePodServiceMap[nodeName], err = getSMBOnNodes(nodeName)
+	nodePodServiceMap[nodeName], err = getServiceMapBundleOnNodes(nodeName)
 	if err != nil {
 		stats["Warnings"] = []string{fmt.Sprintf("Node %s could not be added to the service map bundle: %s", nodeName, err.Error())}
 		return stats, err
@@ -435,7 +435,7 @@ func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, error) 
 	return stats, nil
 }
 
-func getSMBOnNodes(nodeName string) (map[string][]string, error) {
+func getServiceMapBundleOnNodes(nodeName string) (map[string][]string, error) {
 	nodeNameCacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
 	smb, found := cache.Cache.Get(nodeNameCacheKey)
 	if !found {

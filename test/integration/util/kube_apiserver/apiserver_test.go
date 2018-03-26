@@ -29,8 +29,7 @@ import (
 )
 
 const (
-	setupTimeout             = time.Second * 10
-	serviceMapperCachePrefix = "KubernetesServiceMapping"
+	setupTimeout = 10 * time.Second
 )
 
 type testSuite struct {
