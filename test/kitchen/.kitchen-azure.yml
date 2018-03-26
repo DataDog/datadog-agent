@@ -246,7 +246,7 @@ suites:
 
 # Installs the latest release candidate using the install script
 - name: dd-agent-install-script
-  excludes: <% windows_platforms.empty? %>[]<% end %>
+  excludes: <% if windows_platforms.empty? %>[]<% end %>
     <% windows_platforms.each do |p| %>
     - <%= p %>
     <% end %>
