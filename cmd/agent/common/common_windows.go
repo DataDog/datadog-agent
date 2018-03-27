@@ -202,7 +202,7 @@ func ImportRegistryConfig() error {
 			}
 		}
 	}
-	if val, _, err = k.GetStringValue("proxy_host"); err == nil {
+	if val, _, err = k.GetStringValue("proxy_host"); err == nil && val != "" {
 		var u *url.URL
 		if u, err = url.Parse(val); err != nil {
 			log.Warnf("unable to import value of settings 'proxy_host': %v", err)
