@@ -231,6 +231,7 @@ func init() {
 	Datadog.BindEnv("cmd_port")
 	Datadog.BindEnv("conf_path")
 	Datadog.BindEnv("enable_metadata_collection")
+	Datadog.BindEnv("enable_gohai")
 	Datadog.BindEnv("dogstatsd_port")
 	Datadog.BindEnv("bind_host")
 	Datadog.BindEnv("proc_root")

@@ -73,15 +73,16 @@ Please note that the `docker.containers.running`, `.stopped`, `.running.total` a
 
 Please refer to the dedicated section about the [Kubernetes integration](#kubernetes) for more details.
 
-- `DD_KUBERNETES_COLLECT_SERVICE_TAGS`: Configures the agent to collect Kubernetes service names as tags.
-- `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: Set the collection frequency in seconds for the Kubernetes service names.
-- `DD_COLLECT_KUBERNETES_EVENTS`: Configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
-- `DD_LEADER_ELECTION`: Activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true. The expected value is a bool: true/false.
-- `DD_LEADER_LEASE_DURATION`: Only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
+- `DD_KUBERNETES_COLLECT_SERVICE_TAGS`: configures the agent to collect Kubernetes service names as tags.
+- `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ`: set the collection frequency in seconds for the Kubernetes service names.
+- `DD_COLLECT_KUBERNETES_EVENTS`: configures the agent to collect Kubernetes events. See [Event collection](#event-collection) for more details.
+- `DD_LEADER_ELECTION`: activates the [leader election](#leader-election). Will be activated if the `DD_COLLECT_KUBERNETES_EVENTS` is set to true. The expected value is a bool: true/false.
+- `DD_LEADER_LEASE_DURATION`: only used if the leader election is activated. See the details [here](#leader-election-lease). The expected value is a number of seconds.
 
 #### Others
 
 - `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
+- `DD_ENABLE_GOHAI`: enable or disable the system information collector [gohai](https://github.com/DataDog/gohai) (enabled by default if not set)
 
 ### Optional volumes
 
