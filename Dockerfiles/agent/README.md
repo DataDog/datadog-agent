@@ -81,7 +81,7 @@ Please refer to the dedicated section about the [Kubernetes integration](#kubern
 #### Others
 
 - `DD_JMX_CUSTOM_JARS`: space-separated list of custom jars to load in jmxfetch (only for the `-jmx` variants)
-- `DD_ENABLE_GOHAI`: enable or disable the system information collector [gohai](https://github.com/DataDog/gohai)
+- `DD_ENABLE_GOHAI`: enable or disable the system information collector [gohai](https://github.com/DataDog/gohai) (enabled by default if not set)
 
 ### Optional volumes
 
