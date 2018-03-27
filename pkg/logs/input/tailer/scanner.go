@@ -71,6 +71,16 @@ func (s *Scanner) setup() {
 	}
 }
 
+// cleanup all tailers
+func (s *Scanner) cleanup() {
+	stopper := restart.NewParallelStopper()
+	for _, tailer := range s.tailers {
+		stopper.Add(tailer)
+		delete(s.tailers, tailer.path)
+	}
+	stopper.Stop()
+}
+
 // createTailer returns a new initialized tailer
 func (s *Scanner) createTailer(file *File, outputChan chan message.Message) *Tailer {
 	return NewTailer(outputChan, file.Source, file.Path, s.tailerSleepDuration)
@@ -107,12 +117,7 @@ func (s *Scanner) Start() {
 // this call returns only when all the tailers are stopped
 func (s *Scanner) Stop() {
 	s.stop <- struct{}{}
-	stopper := restart.NewParallelStopper()
-	for _, tailer := range s.tailers {
-		stopper.Add(tailer)
-		delete(s.tailers, tailer.path)
-	}
-	stopper.Stop()
+	s.cleanup()
 }
 
 // run checks periodically if there are new files to tail and the state of its tailers until stop
