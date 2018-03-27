@@ -68,6 +68,7 @@ func (suite *ScannerTestSuite) TearDownTest() {
 	suite.testFile.Close()
 	suite.testRotatedFile.Close()
 	os.Remove(suite.testDir)
+	suite.s.cleanup()
 }
 
 func (suite *ScannerTestSuite) TestScannerStartsTailers() {
