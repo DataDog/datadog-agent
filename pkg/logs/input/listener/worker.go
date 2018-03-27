@@ -85,7 +85,9 @@ func (w *Worker) readForever() {
 			// stop reading data from the connection
 			return
 		default:
-			w.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
+			if !w.mustKeepConnAlive() {
+				w.conn.SetReadDeadline(time.Now().Add(defaultTimeout))
+			}
 			inBuf := make([]byte, 4096)
 			n, err := w.conn.Read(inBuf)
 			if err == io.EOF {
@@ -104,4 +106,17 @@ func (w *Worker) readForever() {
 			w.decoder.InputChan <- decoder.NewInput(inBuf[:n])
 		}
 	}
+}
+
+// mustKeepConnAlive returns if the connection must remain open
+// returns false otherwise
+func (w *Worker) mustKeepConnAlive() bool {
+	switch w.source.Config.Type {
+	case config.UDPType:
+		return true
+	case config.TCPType:
+		// prevent client from keeping too many open connections
+		return false
+	}
+	return false
 }

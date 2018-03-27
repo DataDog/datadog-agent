@@ -9,6 +9,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -59,4 +60,17 @@ func (suite *WorkerTestSuite) TestReadAndForward() {
 
 func TestWorkerTestSuite(t *testing.T) {
 	suite.Run(t, new(WorkerTestSuite))
+}
+
+func TestMustKeepConnAlive(t *testing.T) {
+	var source *config.LogSource
+	var worker *Worker
+
+	source = config.NewLogSource("", &config.LogsConfig{Type: config.TCPType})
+	worker = NewWorker(source, nil, nil)
+	assert.False(t, worker.mustKeepConnAlive())
+
+	source = config.NewLogSource("", &config.LogsConfig{Type: config.UDPType})
+	worker = NewWorker(source, nil, nil)
+	assert.True(t, worker.mustKeepConnAlive())
 }
