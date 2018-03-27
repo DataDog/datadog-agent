@@ -18,3 +18,5 @@ find /etc/datadog-agent/conf.d/ -iname "*.yaml.default" -delete
 
 # Enable fargate check
 mv /etc/datadog-agent/conf.d/ecs_fargate.d/conf.yaml.example /etc/datadog-agent/conf.d/ecs_fargate.d/conf.yaml.default
+
+sed -i 's/Version/Revision/g' /opt/datadog-agent/embedded/lib/python2.7/site-packages/datadog_checks/ecs_fargate/ecs_fargate.py
