@@ -83,9 +83,10 @@ func (suite *SecureTestSuite) TestTLSWithoutCA() {
 	config.Datadog.Set("kubernetes_kubelet_host", "127.0.0.1")
 
 	_, err := kubelet.GetKubeUtil()
-	require.NotNil(suite.T(), err)
+	require.Error(suite.T(), err)
 	assert.Contains(suite.T(), err.Error(), "Get https://127.0.0.1:10250/pods: x509: ")
-	assert.Contains(suite.T(), err.Error(), "Get http://127.0.0.1:10255/pods: dial tcp 127.0.0.1:10255: getsockopt: connection refused")
+
+	assert.Contains(suite.T(), err.Error(), "Get http://127.0.0.1:10255/pods: dial tcp 127.0.0.1:10255")
 }
 
 // TestTLSWithCACertificate with:

@@ -1,4 +1,4 @@
-FROM golang:1.9.4
+FROM golang:1.10.0
 
 RUN sed -i 's/^#\s*\(deb.*universe\)$/\1/g' /etc/apt/sources.list \
     && sed -i 's/^#\s*\(deb.*multiverse\)$/\1/g' /etc/apt/sources.list \
@@ -71,6 +71,8 @@ ENV BUNDLER_VERSION 1.15.3
 RUN gem install bundler --version "$BUNDLER_VERSION"
 
 RUN apt-get update && apt-get install -y python-pip  \
+    # Remove default py-crypto 1.7 so pip will install 2.2.x
+    && apt-get remove -y python-cryptography \
 	&& pip install invoke \
 	&& pip install docker==3.0.1 \
 	&& pip install reno   \
