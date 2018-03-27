@@ -202,7 +202,7 @@ func ImportRegistryConfig() error {
 			}
 		}
 	}
-	if val, _, err = k.GetStringValue("proxy_host"); err == nil {
+	if val, _, err = k.GetStringValue("proxy_host"); err == nil && val != "" {
 		var u *url.URL
 		if u, err = url.Parse(val); err != nil {
 			log.Warnf("unable to import value of settings 'proxy_host': %v", err)
@@ -211,11 +211,11 @@ func ImportRegistryConfig() error {
 			if u.Scheme == "" {
 				u, _ = url.Parse("http://" + val)
 			}
-			if val, _, err = k.GetStringValue("proxy_port"); err == nil {
+			if val, _, err = k.GetStringValue("proxy_port"); err == nil && val != "" {
 				u.Host = u.Host + ":" + val
 			}
-			if user, _, _ := k.GetStringValue("proxy_user"); user != "" {
-				if pass, _, _ := k.GetStringValue("proxy_password"); pass != "" {
+			if user, _, _ := k.GetStringValue("proxy_user"); err == nil && user != "" {
+				if pass, _, _ := k.GetStringValue("proxy_password"); err == nil && pass != "" {
 					u.User = url.UserPassword(user, pass)
 				} else {
 					u.User = url.User(user)
