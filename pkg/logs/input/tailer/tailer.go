@@ -170,6 +170,12 @@ func (t *Tailer) SetReadOffset(off int64) {
 	atomic.StoreInt64(&t.readOffset, off)
 }
 
+// GetDecodedOffset gets the position of the last byte decoded in the
+// file
+func (t *Tailer) GetDecodedOffset() int64 {
+	return atomic.LoadInt64(&t.decodedOffset)
+}
+
 // SetDecodedOffset sets the position of the last byte decoded in the
 // file
 func (t *Tailer) SetDecodedOffset(off int64) {
