@@ -74,9 +74,10 @@ def dogstastd(ctx):
 
     key = os.environ.get("DD_AGENT_API_KEY")
     if key:
-      options +=" -api-key {}".format(key)
+        options += " -api-key {}".format(key)
 
     ctx.run("{} -pps=5000 -dur 45 -ser 5 -brk -inc 1000 {}".format(bin_path, options))
+
 
 @task(pre=[build_aggregator])
 def aggregator(ctx):
@@ -89,7 +90,7 @@ def aggregator(ctx):
 
     key = os.environ.get("DD_AGENT_API_KEY")
     if key:
-      options +=" -api-key {}".format(key)
+        options += " -api-key {}".format(key)
 
     ctx.run("{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json {}".format(bin_path, options))
     ctx.run("{} -points 2,10,100,500,1000 -series 10,100,1000 -log-level info -json -memory -duration 10 {}".format(bin_path, options))

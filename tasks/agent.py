@@ -12,12 +12,12 @@ import invoke
 from invoke import task
 from invoke.exceptions import Exit
 
-from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_build_flags, get_version_numeric_only, load_release_versions
 from .utils import REPO_PATH
-from .build_tags import get_build_tags, get_default_build_tags, ALL_TAGS, LINUX_ONLY_TAGS
+from .build_tags import get_build_tags, get_default_build_tags, LINUX_ONLY_TAGS
 from .go import deps
 
-#constants
+# constants
 BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
 DEFAULT_BUILD_TAGS = [
@@ -63,7 +63,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     if invoke.platform.WINDOWS:
         # This generates the manifest resource. The manifest resource is necessary for
         # being able to load the ancient C-runtime that comes along with Python 2.7
-        #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
+        # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
         ver = get_version_numeric_only(ctx)
         build_maj, build_min, build_patch = ver.split(".")
 

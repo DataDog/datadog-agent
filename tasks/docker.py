@@ -117,5 +117,6 @@ def mirror_image(ctx, src_image, dst_image="datadog/docker-library", dst_tag="au
 
     # TODO: use docker python lib
     ctx.run("docker pull {src} && docker tag {src} {dst} && docker push {dst}".format(
-        src = src_image,
-        dst = dst))
+        src=src_image,
+        dst=dst)
+    )
