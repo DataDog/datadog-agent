@@ -47,7 +47,10 @@ func (e *blockedEndpoints) close(endpoint string) {
 		b = &block{}
 	}
 
-	b.nbError = int(math.Min(float64(maxErrors), float64(b.nbError+1)))
+	b.nbError += 1
+	if b.nbError > maxErrors {
+		b.nbError = maxErrors
+	}
 	b.until = time.Now().Add(GetBackoffDuration(b.nbError))
 
 	e.errorPerEndpoint[endpoint] = b
@@ -64,7 +67,10 @@ func (e *blockedEndpoints) recover(endpoint string) {
 		b = &block{}
 	}
 
-	b.nbError = int(math.Max(0, float64(b.nbError-recoveryInterval)))
+	b.nbError -= recoveryInterval
+	if b.nbError < 0 {
+		b.nbError = 0
+	}
 	b.until = time.Now().Add(GetBackoffDuration(b.nbError))
 
 	e.errorPerEndpoint[endpoint] = b
