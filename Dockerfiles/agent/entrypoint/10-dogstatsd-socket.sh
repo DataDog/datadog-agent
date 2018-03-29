@@ -2,7 +2,6 @@
 
 # Delete the dogstatsd unix socket if present
 # FIXME: move that logic to dsd itself
-
 if [[ -e "${DD_DOGSTATSD_SOCKET}" ]]; then
     if [[ -S "${DD_DOGSTATSD_SOCKET}" ]]; then
         echo "Deleting existing socket at ${DD_DOGSTATSD_SOCKET}"
