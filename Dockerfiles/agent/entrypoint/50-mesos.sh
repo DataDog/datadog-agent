@@ -5,22 +5,26 @@
 CONFD=/etc/datadog-agent/conf.d
 
 if [[ $MESOS_MASTER ]]; then
-  mv $CONFD/mesos_master.d/conf.yaml.example \
-     $CONFD/mesos_master.d/conf.yaml.default
-  sed -i -e "s/localhost/leader.mesos/" $CONFD/mesos_master.d/conf.yaml.default
+  if [[ ! -e $CONFD/mesos_master.d/conf.yaml.default ]]; then
+    mv $CONFD/mesos_master.d/conf.yaml.example \
+      $CONFD/mesos_master.d/conf.yaml.default
+    sed -i -e "s/localhost/leader.mesos/" $CONFD/mesos_master.d/conf.yaml.default
+  fi
 
-  mv $CONFD/zk.d/conf.yaml.example \
-    $CONFD/zk.d/conf.yaml.default
-  sed -i -e "s/localhost/leader.mesos/" $CONFD/zk.d/conf.yaml.default
+  if [[ ! -e $CONFD/zk.d/conf.yaml.default ]]; then
+    mv $CONFD/zk.d/conf.yaml.example \
+      $CONFD/zk.d/conf.yaml.default
+    sed -i -e "s/localhost/leader.mesos/" $CONFD/zk.d/conf.yaml.default
+  fi
 fi
 
-if [[ $MESOS_SLAVE ]]; then
+if [[ $MESOS_SLAVE ]] && [[ ! -e $CONFD/mesos_slave.d/conf.yaml.default ]]; then
   mv $CONFD/mesos_slave.d/conf.yaml.example \
      $CONFD/mesos_slave.d/conf.yaml.default
   sed -i -e "s/localhost/$HOST/" $CONFD/mesos_slave.d/conf.yaml.default
 fi
 
-if [[ $MARATHON_URL ]]; then
+if [[ $MARATHON_URL ]] && [[ ! -e $CONFD/marathon.d/conf.yaml.default ]]; then
   mv $CONFD/marathon.d/conf.yaml.example \
      $CONFD/marathon.d/conf.yaml.default
   sed -i -e "s@# - url: \"https://server:port\"@- url: ${MARATHON_URL}@" $CONFD/marathon.d/conf.yaml.default

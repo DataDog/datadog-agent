@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Don't allow starting without an apikey set
-
 if [[ -z "${DD_API_KEY}" ]]; then
     echo ""
     echo "=================================================================================="
