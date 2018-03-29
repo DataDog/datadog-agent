@@ -47,7 +47,7 @@ func (e *blockedEndpoints) close(endpoint string) {
 		b = &block{}
 	}
 
-	b.nbError += 1
+	b.nbError++
 	if b.nbError > maxErrors {
 		b.nbError = maxErrors
 	}
