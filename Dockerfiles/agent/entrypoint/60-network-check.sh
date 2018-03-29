@@ -8,5 +8,5 @@ if [[ -n "${ECS_FARGATE}" ]]; then
 fi
 
 if [[ ! -d /host/proc ]]; then
-    rm /etc/datadog-agent/conf.d/network.d/conf.yaml.default
+    rm /etc/datadog-agent/conf.d/network.d/conf.yaml.default || true
 fi
