@@ -214,6 +214,7 @@ func init() {
 	BindEnvAndSetDefault("logs_config.dd_url", "intake.logs.datadoghq.com")
 	BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	BindEnvAndSetDefault("logs_config.dev_mode_use_proto", false)
+	BindEnvAndSetDefault("logs_config.input_format", "raw")
 	BindEnvAndSetDefault("logs_config.run_path", defaultRunPath)
 	BindEnvAndSetDefault("logs_config.open_files_limit", 100)
 	BindEnvAndSetDefault("logs_config.container_collect_all", false)

@@ -15,6 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pb"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"encoding/json"
+)
+
+type InputFormat int
+
+const (
+	FormatRaw      InputFormat = 0
+	FormatUseProto InputFormat = 1
+	FormatJson     InputFormat = 2
 )
 
 // Encoder turns a message into a raw byte array ready to be sent.
@@ -28,12 +37,20 @@ var rawEncoder raw
 // Proto is an encoder implementation that writes messages as protocol buffers.
 var protoEncoder proto
 
+// Json is an encoder implementation that writes messages as raw strings without syslog frame
+// It's useful when application is logging directly in JSON format, and only DD_API_KEY is prepended.
+var jsonEncoder jsontype
+
 // NewEncoder returns an encoder.
-func NewEncoder(useProto bool) Encoder {
-	if useProto {
+func NewEncoder(inputFormat InputFormat) Encoder {
+	switch inputFormat {
+	case FormatUseProto:
 		return &protoEncoder
+	case FormatJson:
+		return &jsonEncoder
+	default:
+		return &rawEncoder
 	}
-	return &rawEncoder
 }
 
 var rfc5424Pattern, _ = regexp.Compile("<[0-9]{1,3}>[0-9] ")
@@ -122,6 +139,23 @@ func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) 
 		Source:    msg.GetOrigin().LogSource.Config.Source,
 		Tags:      msg.GetOrigin().Tags(),
 	}).Marshal()
+}
+
+type jsontype struct{}
+
+func isJSON(msg []byte) bool {
+	var js json.RawMessage
+	return json.Unmarshal(msg, &js) == nil
+}
+
+func (j *jsontype) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
+	if (isJSON(redactedMsg)) {
+		// Message is a JSON type. Let's pass it straight to Datadog
+		// TODO: Add tags, and other agent stuff
+		return redactedMsg, nil
+	}
+	// If this is not a JSON payload, we should fallback to syslog
+	return rawEncoder.encode(msg, redactedMsg)
 }
 
 // getHostname returns the hostname for the agent.

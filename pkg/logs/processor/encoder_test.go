@@ -18,8 +18,9 @@ import (
 )
 
 func TestNewEncoder(t *testing.T) {
-	assert.Equal(t, &protoEncoder, NewEncoder(true))
-	assert.Equal(t, &rawEncoder, NewEncoder(false))
+	assert.Equal(t, &protoEncoder, NewEncoder(FormatUseProto))
+	assert.Equal(t, &rawEncoder, NewEncoder(FormatRaw))
+	assert.Equal(t, &jsonEncoder, NewEncoder(FormatJson))
 }
 
 func TestRawEncoder(t *testing.T) {
@@ -178,5 +179,87 @@ func TestProtoEncoderEmpty(t *testing.T) {
 	assert.Empty(t, log.Message)
 	assert.Equal(t, log.Status, config.StatusInfo)
 	assert.NotEmpty(t, log.Timestamp)
+
+}
+
+func TestJsonEncoder(t *testing.T) {
+	logsConfig := &config.LogsConfig{
+		Service:        "Service",
+		Source:         "Source",
+		SourceCategory: "SourceCategory",
+		Tags:           []string{"foo:bar", "baz"},
+	}
+
+	source := config.NewLogSource("", logsConfig)
+
+	rawMessage := "{\"message\": \"some message\"}"
+	message := newNetworkMessage([]byte(rawMessage), source)
+	message.SetSeverity(config.SevError)
+	message.GetOrigin().LogSource = source
+	message.GetOrigin().SetTags([]string{"a", "b:c"})
+
+	redactedMessage := rawMessage
+
+	raw, err := jsonEncoder.encode(message, []byte(redactedMessage))
+	assert.Nil(t, err)
+
+	msg := string(raw)
+
+	assert.Equal(t, redactedMessage, msg)
+
+}
+
+func TestJsonEncoderEmpty(t *testing.T) {
+
+	logsConfig := &config.LogsConfig{}
+
+	source := config.NewLogSource("", logsConfig)
+
+	rawMessage := ""
+	message := newNetworkMessage([]byte(rawMessage), source)
+
+	redactedMessage := "{\"message\": \"some message\"}"
+
+	raw, err := jsonEncoder.encode(message, []byte(redactedMessage))
+	assert.Nil(t, err)
+	assert.Equal(t, redactedMessage, string(raw))
+
+}
+
+func TestJsonEncoderNotJsonInput(t *testing.T) {
+
+	logsConfig := &config.LogsConfig{
+		Service:        "Service",
+		Source:         "Source",
+		SourceCategory: "SourceCategory",
+		Tags:           []string{"foo:bar", "baz"},
+	}
+
+	source := config.NewLogSource("", logsConfig)
+
+	rawMessage := "message"
+	message := newNetworkMessage([]byte(rawMessage), source)
+	message.SetSeverity(config.SevError)
+	message.GetOrigin().LogSource = source
+	message.GetOrigin().SetTags([]string{"a", "b:c"})
+
+	redactedMessage := "redacted"
+
+	raw, err := jsonEncoder.encode(message, []byte(redactedMessage))
+	assert.Nil(t, err)
+
+	day := time.Now().UTC().Format("2006-01-02")
+
+	msg := string(raw)
+	parts := strings.Fields(msg)
+	assert.Equal(t, string(config.SevError)+"0", parts[0])
+	assert.Equal(t, day, parts[1][:len(day)])
+	assert.NotEmpty(t, parts[2])
+	assert.Equal(t, "Service", parts[3])
+	assert.Equal(t, "-", parts[4])
+	assert.Equal(t, "-", parts[5])
+	extra := msg[strings.Index(msg, "[") : strings.LastIndex(msg, "]")+1]
+	assert.Equal(t, "[dd ddsource=\"Source\"][dd ddsourcecategory=\"SourceCategory\"][dd ddtags=\"foo:bar,baz,a,b:c\"]", extra)
+	assert.Equal(t, "redacted", msg[strings.LastIndex(msg, " ")+1:])
 
 }
