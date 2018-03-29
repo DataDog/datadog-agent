@@ -40,7 +40,8 @@ func TestRandomBetween(t *testing.T) {
 	}
 }
 
-func TestGetBackoffDuration(t *testing.T) {
+// Test we increase delay on average
+func TestGetBackoffDurationIncrease(t *testing.T) {
 	previousBackoffDuration := time.Duration(0) * time.Second
 	backoffIncrease := 0
 	backoffDecrease := 0
@@ -63,4 +64,10 @@ func TestGetBackoffDuration(t *testing.T) {
 	}
 
 	assert.True(t, backoffIncrease >= backoffDecrease)
+}
+
+func TestMaxGetBackoffDuration(t *testing.T) {
+	backoffDuration := GetBackoffDuration(100)
+
+	assert.Equal(t, maxBackoffTime * time.Second, backoffDuration)
 }
