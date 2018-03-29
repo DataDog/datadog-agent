@@ -48,7 +48,6 @@ build do
   # Install the checks and generate the global requirements file
   block do
     all_reqs_file = File.open("#{project_dir}/check_requirements.txt", 'w+')
-    # Manually add "core" dependencies that are not listed in the checks requirements
     # FIX THIS these dependencies have to be grabbed from somewhere
     all_reqs_file.puts "pympler==0.5 --hash=sha256:7d16c4285f01dcc647f69fb6ed4635788abc7a7cb7caa0065d763f4ce3d21c0f"
     all_reqs_file.puts "wheel==0.30.0 --hash=sha256:e721e53864f084f956f40f96124a74da0631ac13fbbd1ba99e8e2b5e9cafdf64"\
@@ -86,6 +85,10 @@ build do
       pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
       pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
     end
+
+    # Set frozen requirements post `datadog_checks_base` - constraints file will be used by 
+    # pip to ensure all other integrations dependency sanity.
+    pip "freeze > #{install_dir}/agent_requirements.txt"
 
     Dir.glob("#{project_dir}/*").each do |check_dir|
       check = check_dir.split('/').last
