@@ -2,6 +2,28 @@
 Release Notes
 =============
 
+6.1.1
+==========
+
+Bug Fixes
+---------
+
+- Fix a crash in the docker check when collecting sizes on an image with no repository tags.
+
+- Fixes bug on Windows where, if configuration options are specified on the 
+  installation command line, invalid proxy options are set.
+
+- Removed the read timeout for UDP connections causing the agent to stop forwarding logs after one minute of nonactivity.
+
+- Updating the data type of the CPU of the task and the metadata name for Version to Revision.
+
+
+Other Notes
+-----------
+
+- Add environment variable DD_ENABLE_GOHAI for setting option enable_gohai when running in a container.
+
+
 6.1.0
 =====
 
