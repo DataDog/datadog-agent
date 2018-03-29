@@ -194,26 +194,9 @@ func (c *Config) String() string {
 	return yamlBuff.String()
 }
 
-// IsTemplate returns if the config has AD identifiers and template variables
+// IsTemplate returns if the config has AD identifiers
 func (c *Config) IsTemplate() bool {
-	// a template must have at least an AD identifier
-	if len(c.ADIdentifiers) == 0 {
-		return false
-	}
-
-	// init_config containing template tags
-	if tplVarRegex.Match(c.InitConfig) {
-		return true
-	}
-
-	// any of the instances containing template tags
-	for _, inst := range c.Instances {
-		if tplVarRegex.Match(inst) {
-			return true
-		}
-	}
-
-	return false
+	return len(c.ADIdentifiers) > 0
 }
 
 // CollectDefaultMetrics returns if the config is for a JMX check which has collect_default_metrics: true
