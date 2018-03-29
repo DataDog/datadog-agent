@@ -15,7 +15,7 @@ import (
 )
 
 func init() {
-	rand.Seed(time.Now().UnixNano())
+	rand.Seed(10)
 }
 
 func TestMinBackoffFactorValid(t *testing.T) {
