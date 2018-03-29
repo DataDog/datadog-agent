@@ -69,5 +69,5 @@ func TestGetBackoffDurationIncrease(t *testing.T) {
 func TestMaxGetBackoffDuration(t *testing.T) {
 	backoffDuration := GetBackoffDuration(100)
 
-	assert.Equal(t, maxBackoffTime * time.Second, backoffDuration)
+	assert.Equal(t, maxBackoffTime*time.Second, backoffDuration)
 }
