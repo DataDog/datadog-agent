@@ -19,6 +19,9 @@ var (
 	ErrNotCompiled = errors.New("kubernetes apiserver support not compiled in")
 )
 
+// APIClient provides authenticated access to the
+type APIClient struct{}
+
 // GetPodServiceNames is used when the API endpoint of the DCA to get the services of a pod is hit.
 func GetPodServiceNames(nodeName string, podName string) ([]string, error) {
 	log.Errorf("GetPodServiceNames not implemented %s", ErrNotCompiled.Error())
@@ -40,5 +43,5 @@ func GetServiceMapBundleOnAllNodes() (map[string]interface{}, error) {
 // StartServiceMapping is only called once, when we have confirmed we could correctly connect to the API server.
 func (c *APIClient) StartServiceMapping() {
 	log.Errorf("StartServiceMapping not implemented %s", ErrNotCompiled.Error())
-	return nil
+	return
 }
