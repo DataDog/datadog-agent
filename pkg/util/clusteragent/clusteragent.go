@@ -75,7 +75,7 @@ func validateAuthToken(authToken string) error {
 }
 
 // GetClusterAgentAuthToken load the authentication token from:
-// 1srt. the configuration value of "cluster_agent_auth_token" in datadog.yaml
+// 1st. the configuration value of "cluster_agent_auth_token" in datadog.yaml
 // 2nd. from the filesystem
 // If using the token from the filesystem, the token file must be next to the datadog.yaml
 // with the filename: dca_auth_token
@@ -87,7 +87,7 @@ func GetClusterAgentAuthToken() (string, error) {
 
 	// load the cluster agent auth token from filesystem
 	tokenAbsPath := filepath.Join(config.FileUsedDir(), clusterAgentAuthTokenFilename)
-	log.Debugf("empty cluster_agent_auth_token, loading from %s", tokenAbsPath)
+	log.Debugf("Empty cluster_agent_auth_token, loading from %s", tokenAbsPath)
 	_, err := os.Stat(tokenAbsPath)
 	if err != nil {
 		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot find %q: %s", tokenAbsPath, err)
@@ -96,7 +96,7 @@ func GetClusterAgentAuthToken() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot read %s: %s", tokenAbsPath, err)
 	}
-	log.Debugf("cluster_agent_auth_token loaded from %s", tokenAbsPath)
+	log.Debugf("Cluster_agent_auth_token loaded from %s", tokenAbsPath)
 
 	authToken = string(b)
 	return authToken, validateAuthToken(authToken)
@@ -134,13 +134,12 @@ func getClusterAgentEndpoint() (string, error) {
 	const configDcaSvcName = "cluster_agent.kubernetes_service_name"
 
 	dcaURL := config.Datadog.GetString(configDcaURL)
-	log.Debugf("dcaURL is %s", dcaURL)
 	if dcaURL != "" {
 		if strings.HasPrefix(dcaURL, "http://") {
 			return "", fmt.Errorf("cannot get cluster agent endpoint, not a https scheme: %s", dcaURL)
 		}
 		if strings.Contains(dcaURL, "://") == false {
-			log.Tracef("adding https scheme to %s: https://%s", dcaURL, dcaURL)
+			log.Tracef("Adding https scheme to %s: https://%s", dcaURL, dcaURL)
 			dcaURL = fmt.Sprintf("https://%s", dcaURL)
 		}
 		u, err := url.Parse(dcaURL)
@@ -150,13 +149,14 @@ func getClusterAgentEndpoint() (string, error) {
 		if u.Scheme != "https" {
 			return "", fmt.Errorf("cannot get cluster agent endpoint, not a https scheme: %s", u.Scheme)
 		}
+		log.Debugf("Connecting to the configured URL for the Datadog Cluster Agent: %s", dcaURL)
 		return u.String(), nil
 	}
 
 	// Construct the URL with the Kubernetes service environment variables
 	// *_SERVICE_HOST and *_SERVICE_PORT
 	dcaSvc := config.Datadog.GetString(configDcaSvcName)
-	log.Debugf("dcaSvc is %s", dcaSvc)
+	log.Debugf("Identified service for the Datadog Cluster Agent: %s", dcaSvc)
 	if dcaSvc == "" {
 		return "", fmt.Errorf("cannot get a cluster agent endpoint, both %q and %q are empty", configDcaURL, configDcaSvcName)
 	}
@@ -166,7 +166,6 @@ func getClusterAgentEndpoint() (string, error) {
 	// host
 	dcaSvcHostEnv := fmt.Sprintf("%s_SERVICE_HOST", dcaSvc)
 	dcaSvcHost := os.Getenv(dcaSvcHostEnv)
-	log.Debugf("dcaSvcHost is %s and dcaSvcHostEnv is %s", dcaSvcHost, dcaSvcHostEnv)
 	if dcaSvcHost == "" {
 		return "", fmt.Errorf("cannot get a cluster agent endpoint for kubernetes service %q, env %q is empty", dcaSvc, dcaSvcHostEnv)
 	}
