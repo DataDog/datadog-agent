@@ -8,8 +8,6 @@
 package collectors
 
 import (
-	"strings"
-
 	log "github.com/cihub/seelog"
 
 	"github.com/ericchiang/k8s/api/v1"
