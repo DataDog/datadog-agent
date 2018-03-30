@@ -135,13 +135,14 @@ You can pass the token as an environment variable: `DD_CLUSTER_AGENT_AUTH_TOKEN`
 
 #### Event collection
 
-You need:
+In order to collect events, you need the following environment varibales:
 ```
           - name: DD_COLLECT_KUBERNETES_EVENTS
             value: "true"
           - name: DD_LEADER_ELECTION
             value: "true"
 ```
+Enabling the leader election will ensure that only one agent collects the events.
 
 #### Cluster metadata provider
 

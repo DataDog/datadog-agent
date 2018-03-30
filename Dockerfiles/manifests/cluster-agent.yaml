@@ -10,9 +10,9 @@ spec:
       name: datadog-agent
       namespace: default
     spec:
-      serviceAccountName: datadog-agent
+      serviceAccountName: datadog-dca
       containers:
-      - image: datadog/cluster-agent:master # Image not available yet.
+      - image: datadog/cluster-agent:latest
         imagePullPolicy: Always
         name: datadog-agent
         env:
@@ -22,3 +22,5 @@ spec:
             value: "true"
           - name: DD_LEADER_ELECTION
             value: "true"
+          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+            value: <32 characters long token>

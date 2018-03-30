@@ -82,7 +82,7 @@ func (c *KubeServiceCollector) Pull() error {
 		// If the DCA is not used, each agent stores a local cache of the ServiceMap.
 		err = c.addToCacheServiceMapping(pods)
 		if err != nil {
-			log.Debugf("cannot add the serviceMapping to cache: %s", err)
+			log.Debugf("Cannot add the serviceMapping to cache: %s", err)
 		}
 	}
 	c.infoOut <- c.getTagInfos(pods)
@@ -109,7 +109,7 @@ func (c *KubeServiceCollector) Fetch(entity string) ([]string, []string, error) 
 		// If the DCA is not used, each agent stores a local cache of the ServiceMap.
 		err = c.addToCacheServiceMapping(pods)
 		if err != nil {
-			log.Debugf("cannot add the serviceMapping to cache: %s", err)
+			log.Debugf("Cannot add the serviceMapping to cache: %s", err)
 		}
 	}
 

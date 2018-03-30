@@ -21,10 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-/*
-TODO remove this file when we have the DCA
-*/
-
 func (c *KubeServiceCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	var tagInfo []*TagInfo
 	var serviceNames []string
@@ -63,9 +59,8 @@ func (c *KubeServiceCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 			}
 
 		}
-		log.Debugf("nodeName: %s, podName: %s, services: %q", po.Spec.NodeName, po.Metadata.Name, strings.Join(serviceNames, ","))
 		for _, serviceName := range serviceNames {
-			log.Tracef("tagging %s kube_service:%s", po.Metadata.Name, serviceName)
+			log.Tracef("Tagging %s with kube_service:%s", po.Metadata.Name, serviceName)
 			tagList.AddLow("kube_service", serviceName)
 		}
 
@@ -86,11 +81,10 @@ func (c *KubeServiceCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 // addToCacheServiceMapping is acting like the DCA at the node level.
 func (c *KubeServiceCollector) addToCacheServiceMapping(kubeletPodList []*kubelet.Pod) error {
 	if len(kubeletPodList) == 0 {
-		log.Debugf("empty kubelet pod list")
+		log.Debugf("Empty kubelet pod list")
 		return nil
 	}
 
-	log.Debugf("refreshing the service mapping...")
 	podList := &v1.PodList{}
 	nodeName := ""
 	for _, p := range kubeletPodList {

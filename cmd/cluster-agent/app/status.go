@@ -62,7 +62,7 @@ var statusCmd = &cobra.Command{
 }
 
 func requestStatus() error {
-	fmt.Printf("Getting the status from the agent.\n\n")
+	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
@@ -84,7 +84,10 @@ func requestStatus() error {
 			e = fmt.Errorf(err)
 		}
 
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
+		fmt.Printf(`
+		Could not reach agent: %v
+		Make sure the agent is running before requesting the status.
+		Contact support if you continue having issues.`, e)
 		return e
 	}
 
