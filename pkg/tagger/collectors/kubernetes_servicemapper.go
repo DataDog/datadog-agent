@@ -59,8 +59,7 @@ func (c *KubeServiceCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		} else {
 			serviceNames, err = c.dcaClient.GetKubernetesServiceNames(po.Spec.NodeName, po.Metadata.Name)
 			if err != nil {
-				// TODO move this to trace
-				log.Debugf("Could not pull the service map of po %s on node %s from the Datadog Cluster Agent: %s", po.Spec.NodeName, po.Metadata.Name, err.Error())
+				log.Tracef("Could not pull the service map of po %s on node %s from the Datadog Cluster Agent: %s", po.Spec.NodeName, po.Metadata.Name, err.Error())
 			}
 
 		}
