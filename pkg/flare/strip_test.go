@@ -63,10 +63,24 @@ auth_token: "bar"
 # "comment to strip"
 log_level: info
 DD_API_KEY="aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"
+api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaabaaaa'
+proxy: 'http://user:password@host:port'
+password: 'foo'
+auth_token: 'bar'
+# 'comment to strip'
+log_level: info
+DD_API_KEY='aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'
 `
+
 	cleanedConfigFile := `dd_url: "https://app.datadoghq.com"
 api_key: **************************baaaa
 proxy: "http://user:********@host:port"
+password: ********
+auth_token: ********
+log_level: info
+DD_API_KEY=**************************abbbb
+api_key: **************************baaaa
+proxy: 'http://user:********@host:port'
 password: ********
 auth_token: ********
 log_level: info
