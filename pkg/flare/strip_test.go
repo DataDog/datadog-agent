@@ -54,7 +54,7 @@ log_level: info
 
 	assert.Equal(t, cleanedConfigFile, cleanedString)
 }
-func TestCleanConfigWithQuotes(t *testing.T) {
+func TestCleanSecretsWithQuotes(t *testing.T) {
 	configFile := `dd_url: "https://app.datadoghq.com"
 api_key: "aaaaaaaaaaaaaaaaaaaaaaaaaabaaaa"
 proxy: "http://user:password@host:port"
