@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
+
 	"strings"
 	"time"
 
@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 )
 
 /*
@@ -29,8 +30,6 @@ Client to query the Datadog Cluster Agent (DCA) API.
 
 const (
 	authorizationHeaderKey        = "Authorization"
-	clusterAgentAuthTokenMinLen   = 32
-	clusterAgentAuthTokenFilename = "dca_auth_token"
 )
 
 var globalClusterAgentClient *DCAClient
@@ -67,40 +66,8 @@ func GetClusterAgentClient() (*DCAClient, error) {
 	return globalClusterAgentClient, nil
 }
 
-func validateAuthToken(authToken string) error {
-	if len(authToken) < clusterAgentAuthTokenMinLen {
-		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", clusterAgentAuthTokenMinLen, len(authToken))
-	}
-	return nil
-}
 
-// GetClusterAgentAuthToken load the authentication token from:
-// 1st. the configuration value of "cluster_agent_auth_token" in datadog.yaml
-// 2nd. from the filesystem
-// If using the token from the filesystem, the token file must be next to the datadog.yaml
-// with the filename: dca_auth_token
-func GetClusterAgentAuthToken() (string, error) {
-	authToken := config.Datadog.GetString("cluster_agent.auth_token")
-	if authToken != "" {
-		return authToken, validateAuthToken(authToken)
-	}
 
-	// load the cluster agent auth token from filesystem
-	tokenAbsPath := filepath.Join(config.FileUsedDir(), clusterAgentAuthTokenFilename)
-	log.Debugf("Empty cluster_agent_auth_token, loading from %s", tokenAbsPath)
-	_, err := os.Stat(tokenAbsPath)
-	if err != nil {
-		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot find %q: %s", tokenAbsPath, err)
-	}
-	b, err := ioutil.ReadFile(tokenAbsPath)
-	if err != nil {
-		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot read %s: %s", tokenAbsPath, err)
-	}
-	log.Debugf("Cluster_agent_auth_token loaded from %s", tokenAbsPath)
-
-	authToken = string(b)
-	return authToken, validateAuthToken(authToken)
-}
 
 func (c *DCAClient) init() error {
 	var err error
@@ -110,7 +77,7 @@ func (c *DCAClient) init() error {
 		return err
 	}
 
-	authToken, err := GetClusterAgentAuthToken()
+	authToken, err := security.GetClusterAgentAuthToken()
 	if err != nil {
 		return err
 	}

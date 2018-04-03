@@ -46,7 +46,7 @@ func StartServer() error {
 		// no way we can recover from this error
 		return fmt.Errorf("Unable to create the api server: %v", err)
 	}
-	util.SetAuthToken()
+	util.SetDCAAuthToken()
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}
