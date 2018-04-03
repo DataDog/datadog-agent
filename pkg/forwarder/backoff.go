@@ -10,8 +10,9 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	log "github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const secondsFloat = float64(time.Second)
