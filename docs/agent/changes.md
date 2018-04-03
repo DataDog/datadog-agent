@@ -298,8 +298,7 @@ All documented use cases are supported, please contact our support team if you r
 
 ### Kubernetes
 
-When using Kubernetes, the Autodiscovery system now sources information from the kubelet, instead of the Docker daemon. This will allow AD
-to work without access to the Docker socket, and enable a more consistent experience accross all parts of the agent. The side effect of that change is that templates in Docker labels are not read by default when using the kubelet AD listener. Templates in pod annotations still work as intended.
+When using Kubernetes, the Autodiscovery system now sources information from the kubelet, instead of the Docker daemon. This will allow AD to work without access to the Docker socket, and enable a more consistent experience accross all parts of the agent. Also, the default behaviour is to source AD templates from pod annotations. You can enable the `docker` config-provider to use container labels, and replace the `kubelet` listener by the `kubelet` one if you need AD on containers running out of pods.
 
 When specifying AD templates in pod annotations, the new annotation name prefix is `ad.datadoghq.com/`. the previous annotation prefix
 `service-discovery.datadoghq.com/` is still supported for Agent6 but support will be removed in Agent7.
