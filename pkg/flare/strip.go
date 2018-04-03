@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strings"
 )
 
 type replacer struct {
@@ -30,6 +31,7 @@ func init() {
 		regex: regexp.MustCompile(`(?m)^\s*api_key:( *"?\w+(\w{5})"? ?,?)+$`),
 		replFunc: func(b []byte) []byte {
 			s := string(b)
+			s = strings.TrimSuffix(s, `"`)
 			replacement := "api_key: **************************" + s[len(s)-5:]
 			return []byte(replacement)
 		},
@@ -38,12 +40,13 @@ func init() {
 		regex: regexp.MustCompile(`DD_API_KEY="?\w+"?`),
 		replFunc: func(b []byte) []byte {
 			s := string(b)
+			s = strings.TrimSuffix(s, `"`)
 			replacement := "DD_API_KEY=**************************" + s[len(s)-5:]
 			return []byte(replacement)
 		},
 	}
 	uriPasswordReplacer = replacer{
-		regex: regexp.MustCompile(`(.*\ [A-Za-z0-9]+)\:\/\/([A-Za-z0-9_]+)\:(.+)\@`),
+		regex: regexp.MustCompile(`(.*\ "?[A-Za-z0-9]+)\:\/\/([A-Za-z0-9_]+)\:(.+)\@`),
 		repl:  []byte(`$1://$2:********@`),
 	}
 	passwordReplacer = replacer{

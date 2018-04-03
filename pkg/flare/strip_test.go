@@ -54,3 +54,29 @@ log_level: info
 
 	assert.Equal(t, cleanedConfigFile, cleanedString)
 }
+func TestCleanConfigWithQuotes(t *testing.T) {
+	configFile := `dd_url: "https://app.datadoghq.com"
+api_key: "aaaaaaaaaaaaaaaaaaaaaaaaaabaaaa"
+proxy: "http://user:password@host:port"
+password: "foo"
+auth_token: "bar"
+# "comment to strip"
+log_level: info
+DD_API_KEY="aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"
+`
+	cleanedConfigFile := `dd_url: "https://app.datadoghq.com"
+api_key: **************************baaaa
+proxy: "http://user:********@host:port"
+password: ********
+auth_token: ********
+log_level: info
+DD_API_KEY=**************************abbbb
+`
+
+	cleaned, err := credentialsCleanerBytes([]byte(configFile))
+	assert.Nil(t, err)
+	cleanedString := string(cleaned)
+
+	assert.Equal(t, cleanedConfigFile, cleanedString)
+
+}
