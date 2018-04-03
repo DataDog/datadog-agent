@@ -15,19 +15,31 @@ SINGLE_INSTANCE_KEY = "__single_instance"
 class WinPDHCounter(object):
     # store the dictionary of pdh counter names
     pdh_counter_dict = defaultdict(list)
+    _use_en_counter_names = False
 
     def __init__(self, class_name, counter_name, log, instance_name = None, machine_name = None, precision=None):
         self.logger = log
         self._get_counter_dictionary()
-        class_name_index_list = WinPDHCounter.pdh_counter_dict[class_name]
-        if len(class_name_index_list) == 0:
-            self.logger.warn("Class %s was not in counter name list, attempting english counter" % class_name)
+        try:
+            class_name_index_list = WinPDHCounter.pdh_counter_dict[class_name]
+        except WindowsError as e:
+            WinPDHCounter._use_en_counter_names = True
+            self.logger.warn("Unable to get counter translations; attempting default English names")
+            pass
+        except Exception as e:
+            self.logger.error("Exception loading counter strings %s", str(e))
+            raise
+
+        if WinPDHCounter._use_en_counter_names:
             self._class_name = class_name
         else:
-            if len(class_name_index_list) > 1:
-                self.logger.warn("Class %s had multiple (%d) indices, using first" % (class_name, len(class_name_index_list)))
-            self._class_name = win32pdh.LookupPerfNameByIndex(None, int(class_name_index_list[0]))
-
+            if len(class_name_index_list) == 0:
+                self.logger.warn("Class %s was not in counter name list, attempting english counter" % class_name)
+                self._class_name = class_name
+            else:
+                if len(class_name_index_list) > 1:
+                    self.logger.warn("Class %s had multiple (%d) indices, using first" % (class_name, len(class_name_index_list)))
+                self._class_name = win32pdh.LookupPerfNameByIndex(None, int(class_name_index_list[0]))
         self._is_single_instance = False
         self.hq = win32pdh.OpenQuery()
 
@@ -124,10 +136,15 @@ class WinPDHCounter(object):
         if WinPDHCounter.pdh_counter_dict:
             # already populated
             return
+        if WinPDHCounter._use_en_counter_names:
+            # already found out the registry isn't there
+            return
 
         try:
             val, t = _winreg.QueryValueEx(_winreg.HKEY_PERFORMANCE_DATA, "Counter 009")
-        except:
+        except: # noqa: E722
+            self.logger.error("Windows error; performance counters not found in registry")
+            self.logger.error("Performance counters may need to be rebuilt.")
             raise
 
         # val is an array of strings.  The underlying win32 API returns a list of strings
@@ -162,8 +179,23 @@ class WinPDHCounter(object):
         Search each index, and make sure the requested counter name actually appears in
         the list of available counters; that's the counter we'll use.
         '''
-        counter_name_index_list = WinPDHCounter.pdh_counter_dict[counter_name]
+
         path = ""
+        if WinPDHCounter._use_en_counter_names:
+            '''
+            In this case, we don't have any translations.  Just attempt to make the
+            counter path
+            '''
+            try:
+                path = win32pdh.MakeCounterPath((machine_name, self._class_name, instance_name, None, 0, counter_name))
+                self.logger.debug("Successfully created English-only path")
+            except: #noqua: E722
+                self.logger.warning("Unable to create English-only path")
+                pass
+            return path
+
+        counter_name_index_list = WinPDHCounter.pdh_counter_dict[counter_name]
+
         for index in counter_name_index_list:
             c = win32pdh.LookupPerfNameByIndex(None, int(index))
             if c is None or len(c) == 0:
