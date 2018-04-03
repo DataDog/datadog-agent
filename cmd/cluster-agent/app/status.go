@@ -70,7 +70,7 @@ func requestStatus() error {
 	urlstr := fmt.Sprintf("https://localhost:%v/status", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetDCAAuthToken()
 	if e != nil {
 		return e
 	}

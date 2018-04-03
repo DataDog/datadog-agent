@@ -21,7 +21,6 @@ import (
 
 func init() {
 	ClusterAgentCmd.AddCommand(svcMapperCmd)
-	svcMapperCmd.SetArgs([]string{"caseID"})
 }
 
 var svcMapperCmd = &cobra.Command{
@@ -67,7 +66,7 @@ func getServiceMap(nodeName string) error {
 	}
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetDCAAuthToken()
 	if e != nil {
 		return e
 	}

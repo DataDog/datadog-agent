@@ -14,7 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 )
 
-var token string
+var (
+	token    string
+	dcaToken string
+)
 
 // SetAuthToken sets the session token
 // Requires that the config has been set up before calling
@@ -33,6 +36,25 @@ func SetAuthToken() error {
 // GetAuthToken gets the session token
 func GetAuthToken() string {
 	return token
+}
+
+// SetDCAAuthToken sets the session token for the Cluster Agent
+// Requires that the config has been set up before calling
+func SetDCAAuthToken() error {
+	// Noop if dcaToken is already set
+	if dcaToken != "" {
+		return nil
+	}
+
+	// dcaToken is only set once, no need to mutex protect
+	var err error
+	dcaToken, err = security.GetClusterAgentAuthToken()
+	return err
+}
+
+// GetDCAAuthToken gets the session token
+func GetDCAAuthToken() string {
+	return dcaToken
 }
 
 // Validate validates an http request
@@ -83,7 +105,7 @@ func ValidateDCARequest(w http.ResponseWriter, r *http.Request) error {
 	}
 	dcaToken := config.Datadog.GetString("cluster_agent.auth_token")
 	if dcaToken == "" {
-		dcaToken = GetAuthToken()
+		dcaToken = GetDCAAuthToken()
 	}
 
 	if len(tok) < 2 || tok[1] != dcaToken {

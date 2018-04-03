@@ -47,7 +47,7 @@ func SetupHandlers(r *mux.Router) {
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
+	if err := apiutil.ValidateDCARequest(w, r); err != nil {
 		return
 	}
 
@@ -70,7 +70,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 
 // TODO: make sure it works for DCA
 func stopAgent(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
+	if err := apiutil.ValidateDCARequest(w, r); err != nil {
 		return
 	}
 	signals.Stopper <- true
@@ -80,7 +80,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
+	if err := apiutil.ValidateDCARequest(w, r); err != nil {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -98,7 +98,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
+	if err := apiutil.ValidateDCARequest(w, r); err != nil {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -117,7 +117,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 
 // TODO: make a special flare for DCA
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
+	if err := apiutil.ValidateDCARequest(w, r); err != nil {
 		return
 	}
 
@@ -209,7 +209,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 
 // getNodeMetadata has the same signature as getAllMetadata, but is only scoped on one node.
 func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.Validate(w, r); err != nil {
+	if err := apiutil.ValidateDCARequest(w, r); err != nil {
 		return
 	}
 	vars := mux.Vars(r)
@@ -251,7 +251,7 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 			Returns: map[string]string
 			Example: "["Error":"could not collect the service map for all nodes: List services is not permitted at the cluster scope."]
 	*/
-	if err := apiutil.Validate(w, r); err != nil {
+	if err := apiutil.ValidateDCARequest(w, r); err != nil {
 		return
 	}
 	log.Info("Computing service map on all nodes")
