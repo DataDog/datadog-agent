@@ -75,7 +75,7 @@ func requestStatus() error {
 		return e
 	}
 
-	r, e := util.DoGet(c, urlstr)
+	r, e := util.DoGetExternalEndpoint(c, urlstr)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, errMap)

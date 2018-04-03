@@ -126,7 +126,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	log.Infof("Hostname is: %s", hostname)
 
-	// start the cmd HTTP server
+	// start the cmd HTTPS server
 	if err = api.StartServer(); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
@@ -140,14 +140,8 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start()
 	s := &serializer.Serializer{Forwarder: f}
 
-	hname, err := util.GetHostname()
-	if err != nil {
-		log.Warnf("Error getting hostname: %s", err)
-		hname = ""
-	}
-	log.Debugf("Using hostname: %s", hname)
 
-	aggregatorInstance := aggregator.InitAggregator(s, hname)
+	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupEvent("DCA")
 
 	clusterAgent, err := clusteragent.Run(aggregatorInstance.GetChannels())
