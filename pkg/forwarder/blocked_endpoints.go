@@ -77,3 +77,13 @@ func (e *blockedEndpoints) isBlock(endpoint string) bool {
 	}
 	return false
 }
+
+func (e *blockedEndpoints) willBeReady(endpoint string, moment time.Time) bool {
+	e.m.RLock()
+	defer e.m.RUnlock()
+
+	if b, ok := e.errorPerEndpoint[endpoint]; !ok || b.until.Before(moment) {
+		return true
+	}
+	return false
+}
