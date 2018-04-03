@@ -55,7 +55,7 @@ func TestMaxBlock(t *testing.T) {
 	now := time.Now()
 
 	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.True(t, e.errorPerEndpoint["test"].nbError == maxErrors)
+	assert.Equal(t, maxErrors, e.errorPerEndpoint["test"].nbError)
 	assert.True(t, now.Add(maxBackoffDuration).After(e.errorPerEndpoint["test"].until) ||
 		now.Add(maxBackoffDuration).Equal(e.errorPerEndpoint["test"].until))
 }
