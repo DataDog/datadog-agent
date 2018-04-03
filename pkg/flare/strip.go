@@ -27,7 +27,7 @@ var replacers []replacer
 
 func init() {
 	apiKeyReplacer = replacer{
-		regex: regexp.MustCompile(`(?m)^\s*api_key:( *\w+(\w{5}) ?,?)+$`),
+		regex: regexp.MustCompile(`(?m)^\s*api_key:( *"?\w+(\w{5})"? ?,?)+$`),
 		replFunc: func(b []byte) []byte {
 			s := string(b)
 			replacement := "api_key: **************************" + s[len(s)-5:]
@@ -35,7 +35,7 @@ func init() {
 		},
 	}
 	dockerAPIKeyReplacer = replacer{
-		regex: regexp.MustCompile(`DD_API_KEY=\w+`),
+		regex: regexp.MustCompile(`DD_API_KEY="?\w+"?`),
 		replFunc: func(b []byte) []byte {
 			s := string(b)
 			replacement := "DD_API_KEY=**************************" + s[len(s)-5:]
