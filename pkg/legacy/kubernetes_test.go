@@ -61,6 +61,7 @@ instances:
 
    # Deprecated
    use_histogram: true
+   label_to_tag_prefix: "kube_"
 
    # Move to kubelet.yaml
    tags:
@@ -90,6 +91,7 @@ var expectedKubeDeprecations = kubeDeprecations{
 	deprecationAPIServerCreds: []string{"api_server_url", "apiserver_client_crt", "apiserver_client_key", "apiserver_ca_cert"},
 	deprecationHisto:          []string{"use_histogram"},
 	deprecationFiltering:      []string{"namespaces", "namespace_name_regexp", "enabled_rates", "enabled_gauges"},
+	deprecationTagPrefix:      []string{"label_to_tag_prefix"},
 }
 
 var expectedHostTags = map[string]string{

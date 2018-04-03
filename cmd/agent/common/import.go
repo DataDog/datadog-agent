@@ -127,7 +127,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 			)
 			continue
 		} else if f.Name() == "kubernetes.yaml" {
-			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubernetes.yaml"), force)
+			err := legacy.ImportKubernetesConf(src, filepath.Join(newConfigDir, "conf.d", "kubelet.yaml"), force)
 			if err != nil {
 				return err
 			}

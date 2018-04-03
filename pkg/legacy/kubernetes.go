@@ -23,6 +23,7 @@ const (
 	deprecationAPIServerCreds string = "please use kubernetes_kubeconfig_path instead"
 	deprecationHisto          string = "please contact support to determine the best alternative for you"
 	deprecationFiltering      string = "Agent6 now collects all available namespaces and metrics"
+	deprecationTagPrefix      string = "please specify mapping per label via kubernetes_pod_labels_as_tags"
 )
 
 type legacyKubernetesInstance struct {
@@ -51,6 +52,7 @@ type legacyKubernetesInstance struct {
 	Rates              []string `yaml:"enabled_rates"`
 	Gauges             []string `yaml:"enabled_gauges"`
 	UseHisto           bool     `yaml:"use_histogram"`
+	LabelTagPrefix     string   `yaml:"label_to_tag_prefix"`
 
 	Tags []string `yaml:"tags"`
 }
@@ -210,6 +212,9 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 	}
 	if len(instance.Gauges) > 0 {
 		deprecations.add("enabled_gauges", deprecationFiltering)
+	}
+	if len(instance.LabelTagPrefix) > 0 {
+		deprecations.add("label_to_tag_prefix", deprecationTagPrefix)
 	}
 
 	deprecations.print()
