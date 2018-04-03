@@ -35,11 +35,11 @@ type legacyKubernetesInstance struct {
 	KubeletTLSVerify string            `yaml:"kubelet_tls_verify"`
 	NodeLabelsToTags map[string]string `yaml:"node_labels_to_host_tags"`
 
-	CollectEvents       bool `yaml:"collect_events"`
-	LeaderCandidate     bool `yaml:"leader_candidate"`
-	LeaderLeaseDuration int  `yaml:"leader_lease_duration"`
-	CollectServiceTags  bool `yaml:"collect_service_tags"`
-	ServiceTagUpdateTag int  `yaml:"service_tag_update_freq"`
+	CollectEvents       bool   `yaml:"collect_events"`
+	LeaderCandidate     bool   `yaml:"leader_candidate"`
+	LeaderLeaseDuration int    `yaml:"leader_lease_duration"`
+	CollectServiceTags  string `yaml:"collect_service_tags"`
+	ServiceTagUpdateTag int    `yaml:"service_tag_update_freq"`
 
 	// Deprecated
 	APIServerURL       string   `yaml:"api_server_url"`
