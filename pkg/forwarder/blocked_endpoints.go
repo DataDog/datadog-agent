@@ -6,21 +6,13 @@
 package forwarder
 
 import (
-	"math"
 	"sync"
 	"time"
 )
 
-const (
-	// This controls how many retry interval ranges to step down for an endpoint
-	// upon success. Increasing this should only be considered when maxBackoffTime
-	// is particularly high or if our intake team is particularly confident.
-	recoveryInterval = 1
-)
-
 // This is the number of errors it will take to reach the maxBackoffTime. Our
 // blockedEndpoints circuit breaker uses this value as the maximum number of errors.
-var maxErrors = int(math.Floor(math.Log2(float64(maxBackoffTime)/float64(baseBackoffTime)))) + 1
+var maxErrors int
 
 type block struct {
 	nbError int

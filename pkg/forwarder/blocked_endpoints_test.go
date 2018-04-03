@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const maxBackoffDuration = maxBackoffTime * time.Second
+var maxBackoffDuration = time.Duration(maxBackoffTime) * time.Second
 
 func TestMaxErrors(t *testing.T) {
 	previousBackoffDuration := time.Duration(0) * time.Second

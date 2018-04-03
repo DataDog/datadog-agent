@@ -9,24 +9,74 @@ import (
 	"math"
 	"math/rand"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	log "github.com/cihub/seelog"
 )
 
-const (
+const secondsFloat = float64(time.Second)
+
+var (
 	// This controls the overlap between consecutive retry interval ranges. When
 	// set to `2`, there is a guarantee that there will be no overlap. The overlap
 	// will asymptotically approach 50% the higher the value is set.
-	minBackoffFactor = 2
+	minBackoffFactor float64
 
 	// This controls the rate of exponential growth. Also, you can calculate the start
 	// of the very first retry interval range by evaluating the following expression:
 	// baseBackoffTime / minBackoffFactor * 2
-	baseBackoffTime = 2
+	baseBackoffTime float64
 
 	// This is the maximum number of seconds to wait for a retry.
-	maxBackoffTime = 64
+	maxBackoffTime float64
 
-	secondsFloat = float64(time.Second)
+	// This controls how many retry interval ranges to step down for an endpoint
+	// upon success. Increasing this should only be considered when maxBackoffTime
+	// is particularly high or if our intake team is particularly confident.
+	recoveryInterval int
 )
+
+func init() {
+	backoffFactor := config.Datadog.GetFloat64("backoff_factor")
+	if backoffFactor >= 2 {
+		minBackoffFactor = backoffFactor
+	} else {
+		minBackoffFactor = 2
+		log.Warnf("Configured backoff_factor (%v) is less than 2; 2 will be used", backoffFactor)
+	}
+
+	backoffBase := config.Datadog.GetFloat64("backoff_base")
+	if backoffBase > 0 {
+		baseBackoffTime = backoffBase
+	} else {
+		baseBackoffTime = 2
+		log.Warnf("Configured backoff_base (%v) is not positive; 2 will be used", backoffBase)
+	}
+
+	backoffMax := config.Datadog.GetFloat64("backoff_max")
+	if backoffMax > 0 {
+		maxBackoffTime = backoffMax
+	} else {
+		maxBackoffTime = 64
+		log.Warnf("Configured backoff_max (%v) is not positive; 64 seconds will be used", backoffMax)
+	}
+
+	// Calculate how many errors it will take to reach the maxBackoffTime
+	maxErrors = int(math.Floor(math.Log2(maxBackoffTime/baseBackoffTime))) + 1
+
+	recInterval := config.Datadog.GetInt("recovery_interval")
+	if recInterval > 0 {
+		recoveryInterval = recInterval
+	} else {
+		recoveryInterval = 1
+		log.Warnf("Configured recovery_interval (%v) is not positive; 1 will be used", recInterval)
+	}
+
+	recoveryReset := config.Datadog.GetBool("recovery_reset")
+	if recoveryReset {
+		recoveryInterval = maxErrors
+	}
+}
 
 func randomBetween(min, max float64) float64 {
 	return rand.Float64()*(max-min) + min
