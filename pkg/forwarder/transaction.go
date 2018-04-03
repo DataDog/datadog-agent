@@ -28,6 +28,8 @@ type HTTPTransaction struct {
 	Headers http.Header
 	// Payload is the content delivered to the backend.
 	Payload *[]byte
+	// ErrorCount is the number of times this HTTPTransaction failed to be processed.
+	ErrorCount int
 
 	createdAt time.Time
 }
@@ -41,8 +43,9 @@ var apiKeyRegExp = regexp.MustCompile("api_key=*\\w+(\\w{5})")
 // NewHTTPTransaction returns a new HTTPTransaction.
 func NewHTTPTransaction() *HTTPTransaction {
 	return &HTTPTransaction{
-		createdAt: time.Now(),
-		Headers:   make(http.Header),
+		createdAt:  time.Now(),
+		ErrorCount: 0,
+		Headers:    make(http.Header),
 	}
 }
 
@@ -78,6 +81,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		if ctx.Err() == context.Canceled {
 			return nil
 		}
+		t.ErrorCount++
 		transactionsExpvar.Add("Errors", 1)
 		return fmt.Errorf("error while sending transaction, rescheduling it: %s", apiKeyRegExp.ReplaceAllString(err.Error(), apiKeyReplacement))
 	}
@@ -98,6 +102,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, client *http.Client) erro
 		transactionsExpvar.Add("Dropped", 1)
 		return nil
 	} else if resp.StatusCode > 400 {
+		t.ErrorCount++
 		transactionsExpvar.Add("Errors", 1)
 		return fmt.Errorf("error %q while sending transaction to %q, rescheduling it", resp.Status, logURL)
 	}
