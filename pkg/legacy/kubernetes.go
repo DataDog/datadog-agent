@@ -164,11 +164,17 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 		config.Datadog.Set("kubelet_tls_verify", verify)
 	}
 
+	// Implicit default in Agent5 was true
+	if verify, err := strconv.ParseBool(instance.CollectServiceTags); err == nil {
+		config.Datadog.Set("kubernetes_collect_service_tags", verify)
+	} else {
+		config.Datadog.Set("kubernetes_collect_service_tags", true)
+	}
+
 	// Temporarily in main datadog.yaml, will move to DCA
 	// Booleans are always imported as zero value is false
 	config.Datadog.Set("collect_kubernetes_events", instance.CollectEvents)
 	config.Datadog.Set("leader_election", instance.LeaderCandidate)
-	config.Datadog.Set("kubernetes_collect_service_tags", instance.CollectServiceTags)
 
 	if instance.LeaderLeaseDuration > 0 {
 		config.Datadog.Set("leader_lease_duration", instance.LeaderLeaseDuration)
