@@ -6,91 +6,81 @@
 package flare
 
 import (
-	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCleanConfig(t *testing.T) {
-	configFile := `dd_url: https://app.datadoghq.com
-api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-proxy: http://user:password@host:port
-password: foo
-auth_token: bar
-# comment to strip
-log_level: info
-`
-	cleanedConfigFile := `dd_url: https://app.datadoghq.com
-api_key: **************************aaaaa
-proxy: http://user:********@host:port
-password: ********
-auth_token: ********
-log_level: info
-`
-
-	cleaned, err := credentialsCleanerBytes([]byte(configFile))
-	assert.Nil(t, err)
-	cleanedString := string(cleaned)
-
-	assert.Equal(t, cleanedConfigFile, cleanedString)
-
+func TestConfigStripApiKey(t *testing.T) {
+	assertClean(t,
+		`api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`api_key: ***************************abbbb`)
+	assertClean(t,
+		`api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`api_key: ***************************abbbb`)
+	assertClean(t,
+		`api_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"`,
+		`api_key: "***************************abbbb"`)
+	assertClean(t,
+		`api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'`,
+		`api_key: '***************************abbbb'`)
+	assertClean(t,
+		`api_key: |
+			aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`api_key: |
+			***************************abbbb`)
+	assertClean(t,
+		`api_key: >
+			aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
+		`api_key: >
+			***************************abbbb`)
+	assertClean(t,
+		`   api_key:   'aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'   `,
+		`   api_key:   '***************************abbbb'   `)
 }
 
-func TestCleanConfigFile(t *testing.T) {
-	cleanedConfigFile := `dd_url: https://app.datadoghq.com
-api_key: **************************aaaaa
-proxy: http://user:********@host:port
-dogstatsd_port : 8125
-log_level: info
-`
-
-	wd, _ := os.Getwd()
-	filePath := filepath.Join(wd, "test", "datadog.yaml")
-	cleaned, err := credentialsCleanerFile(filePath)
-	assert.Nil(t, err)
-	cleanedString := string(cleaned)
-
-	assert.Equal(t, cleanedConfigFile, cleanedString)
+func TestConfigStripURLPassword(t *testing.T) {
+	assertClean(t,
+		`random_url_key: http://user:password@host:port`,
+		`random_url_key: http://user:********@host:port`)
+	assertClean(t,
+		`random_url_key: "http://user:password@host:port"`,
+		`random_url_key: "http://user:********@host:port"`)
+	assertClean(t,
+		`random_url_key: 'http://user:password@host:port'`,
+		`random_url_key: 'http://user:********@host:port'`)
+	assertClean(t,
+		`random_url_key: |
+			http://user:password@host:port`,
+		`random_url_key: |
+			http://user:********@host:port`)
+	assertClean(t,
+		`random_url_key: >
+			http://user:password@host:port`,
+		`random_url_key: >
+			http://user:********@host:port`)
+	assertClean(t,
+		`   random_url_key:   'http://user:password@host:port'   `,
+		`   random_url_key:   'http://user:********@host:port'   `)
 }
-func TestCleanSecretsWithQuotes(t *testing.T) {
-	configFile := `dd_url: "https://app.datadoghq.com"
-api_key: "aaaaaaaaaaaaaaaaaaaaaaaaaabaaaa"
-proxy: "http://user:password@host:port"
-password: "foo"
-auth_token: "bar"
-# "comment to strip"
-log_level: info
-DD_API_KEY="aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"
-api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaabaaaa'
-proxy: 'http://user:password@host:port'
-password: 'foo'
-auth_token: 'bar'
-# 'comment to strip'
-log_level: info
-DD_API_KEY='aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'
-`
 
-	cleanedConfigFile := `dd_url: "https://app.datadoghq.com"
-api_key: **************************baaaa
-proxy: "http://user:********@host:port"
-password: ********
-auth_token: ********
-log_level: info
-DD_API_KEY=**************************abbbb
-api_key: **************************baaaa
-proxy: 'http://user:********@host:port'
-password: ********
-auth_token: ********
-log_level: info
-DD_API_KEY=**************************abbbb
-`
+func TestTextStripApiKey(t *testing.T) {
+	assertClean(t,
+		`Error status code 500 : http://dog.tld/api?key=3290abeefc68e1bbe852a25252bad88c`,
+		`Error status code 500 : http://dog.tld/api?key=***************************ad88c`)
+}
 
-	cleaned, err := credentialsCleanerBytes([]byte(configFile))
+func TestTextStripURLPassword(t *testing.T) {
+	assertClean(t,
+		`Connection droped : ftp://user:password@host:port`,
+		`Connection droped : ftp://user:********@host:port`)
+}
+
+func assertClean(t *testing.T, contents, cleanContents string) {
+	cleaned, err := credentialsCleanerBytes([]byte(contents))
 	assert.Nil(t, err)
 	cleanedString := string(cleaned)
 
-	assert.Equal(t, cleanedConfigFile, cleanedString)
-
+	assert.Equal(t, strings.TrimSpace(cleanContents), strings.TrimSpace(cleanedString))
 }
