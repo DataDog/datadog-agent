@@ -2,6 +2,16 @@
 Release Notes
 =============
 
+6.1.2
+==========
+2018-04-04
+
+Bug Fixes
+---------
+
+- Fix some edge cases where flare could contain secrets if the secrets where encapsulated in quotes.
+
+
 6.1.1
 ==========
 2018-03-29
