@@ -38,42 +38,42 @@ var (
 )
 
 func init() {
-	backoffFactor := config.Datadog.GetFloat64("backoff_factor")
+	backoffFactor := config.Datadog.GetFloat64("forwarder_backoff_factor")
 	if backoffFactor >= 2 {
 		minBackoffFactor = backoffFactor
 	} else {
 		minBackoffFactor = 2
-		log.Warnf("Configured backoff_factor (%v) is less than 2; 2 will be used", backoffFactor)
+		log.Warnf("Configured forwarder_backoff_factor (%v) is less than 2; 2 will be used", backoffFactor)
 	}
 
-	backoffBase := config.Datadog.GetFloat64("backoff_base")
+	backoffBase := config.Datadog.GetFloat64("forwarder_backoff_base")
 	if backoffBase > 0 {
 		baseBackoffTime = backoffBase
 	} else {
 		baseBackoffTime = 2
-		log.Warnf("Configured backoff_base (%v) is not positive; 2 will be used", backoffBase)
+		log.Warnf("Configured forwarder_backoff_base (%v) is not positive; 2 will be used", backoffBase)
 	}
 
-	backoffMax := config.Datadog.GetFloat64("backoff_max")
+	backoffMax := config.Datadog.GetFloat64("forwarder_backoff_max")
 	if backoffMax > 0 {
 		maxBackoffTime = backoffMax
 	} else {
 		maxBackoffTime = 64
-		log.Warnf("Configured backoff_max (%v) is not positive; 64 seconds will be used", backoffMax)
+		log.Warnf("Configured forwarder_backoff_max (%v) is not positive; 64 seconds will be used", backoffMax)
 	}
 
 	// Calculate how many errors it will take to reach the maxBackoffTime
 	maxErrors = int(math.Floor(math.Log2(maxBackoffTime/baseBackoffTime))) + 1
 
-	recInterval := config.Datadog.GetInt("recovery_interval")
+	recInterval := config.Datadog.GetInt("forwarder_recovery_interval")
 	if recInterval > 0 {
 		recoveryInterval = recInterval
 	} else {
 		recoveryInterval = 1
-		log.Warnf("Configured recovery_interval (%v) is not positive; 1 will be used", recInterval)
+		log.Warnf("Configured forwarder_recovery_interval (%v) is not positive; 1 will be used", recInterval)
 	}
 
-	recoveryReset := config.Datadog.GetBool("recovery_reset")
+	recoveryReset := config.Datadog.GetBool("forwarder_recovery_reset")
 	if recoveryReset {
 		recoveryInterval = maxErrors
 	}
