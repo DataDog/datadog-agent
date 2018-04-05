@@ -23,7 +23,7 @@ import (
 )
 
 // openEventChannel just wraps the client.Event call with saner argument types.
-func (d *DockerUtil) openEventChannel(since, until time.Time, filter map[string]string) (<-chan events.Message, <-chan error, context.CancelFunc) {
+func (d *DockerUtil) openEventChannel(ctx context.Context, since, until time.Time, filter map[string]string) (<-chan events.Message, <-chan error) {
 	// Event since/until string can be formatted or hold a timestamp,
 	// see https://github.com/moby/moby/blob/7cbbbb95097f065757d38bcccdb1bbef81d10ddb/api/types/time/timestamp.go#L95
 	queryFilter := filters.NewArgs()
@@ -36,9 +36,8 @@ func (d *DockerUtil) openEventChannel(since, until time.Time, filter map[string]
 		Filters: queryFilter,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
 	msgChan, errorChan := d.cli.Events(ctx, options)
-	return msgChan, errorChan, cancel
+	return msgChan, errorChan
 }
 
 // processContainerEvent formats the events from a channel.
@@ -108,7 +107,8 @@ func (d *DockerUtil) LatestContainerEvents(since time.Time) ([]*ContainerEvent, 
 	var events []*ContainerEvent
 	filters := map[string]string{"type": "container"}
 
-	msgChan, errorChan, cancel := d.openEventChannel(since, time.Now(), filters)
+	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	msgChan, errorChan := d.openEventChannel(ctx, since, time.Now(), filters)
 	defer cancel()
 
 	var maxTimestamp time.Time
