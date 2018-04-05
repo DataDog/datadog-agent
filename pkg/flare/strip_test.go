@@ -159,6 +159,39 @@ func TestConfigPassword(t *testing.T) {
 		`   mysql_password: ********`)
 }
 
+func TestSNMPConfig(t *testing.T) {
+	assertClean(t,
+		`community_string: password`,
+		`community_string: ********`)
+	assertClean(t,
+		`authKey: password`,
+		`authKey: ********`)
+	assertClean(t,
+		`privKey: password`,
+		`privKey: ********`)
+	assertClean(t,
+		`community_string: p@ssw0r)`,
+		`community_string: ********`)
+	assertClean(t,
+		`community_string: 🔑 🔒 🔐 🔓`,
+		`community_string: ********`)
+	assertClean(t,
+		`community_string: password`,
+		`community_string: ********`)
+	assertClean(t,
+		`community_string: p@ssw0r)`,
+		`community_string: ********`)
+	assertClean(t,
+		`community_string: "password"`,
+		`community_string: ********`)
+	assertClean(t,
+		`community_string: 'password'`,
+		`community_string: ********`)
+	assertClean(t,
+		`   community_string:   'password'   `,
+		`   community_string: ********`)
+}
+
 func assertClean(t *testing.T, contents, cleanContents string) {
 	cleaned, err := credentialsCleanerBytes([]byte(contents))
 	assert.Nil(t, err)

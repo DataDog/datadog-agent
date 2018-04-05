@@ -44,7 +44,7 @@ func init() {
 		repl:  []byte(`$1 ********`),
 	}
 	snmpReplacer = replacer{
-		regex: matchYAMLKey(`matchYAMLKey`),
+		regex: matchYAMLKey(`(community_string|authKey|privKey)`),
 		repl:  []byte(`$1 ********`),
 	}
 	replacers = []replacer{apiKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
