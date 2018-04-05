@@ -445,7 +445,7 @@ deploy_suse_rpm_testing:
     - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # run dd-agent-testing on windows
-testkitchen_testing_windows:
+kitchen_windows:
   stage: testkitchen_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
@@ -471,7 +471,7 @@ testkitchen_testing_windows:
       - $CI_PROJECT_DIR/kitchen_logs
 
 # run dd-agent-testing on centos
-testkitchen_testing_centos:
+kitchen_centos:
   stage: testkitchen_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
@@ -495,7 +495,7 @@ testkitchen_testing_centos:
       - $CI_PROJECT_DIR/kitchen_logs
 
 # run dd-agent-testing on ubuntu (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
-testkitchen_testing_ubuntu:
+kitchen_ubuntu:
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
@@ -521,7 +521,7 @@ testkitchen_testing_ubuntu:
       - $CI_PROJECT_DIR/kitchen_logs
 
 # run dd-agent-testing on suse
-testkitchen_testing_suse:
+kitchen_suse:
   stage: testkitchen_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
@@ -545,7 +545,7 @@ testkitchen_testing_suse:
       - $CI_PROJECT_DIR/kitchen_logs
 
 # run dd-agent-testing on debian (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
-testkitchen_testing_debian:
+kitchen_debian:
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
