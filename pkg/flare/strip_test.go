@@ -19,8 +19,8 @@ func TestConfigStripApiKey(t *testing.T) {
 		`api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
 		`api_key: ***************************abbbb`)
 	assertClean(t,
-		`api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb`,
-		`api_key: ***************************abbbb`)
+		`api_key: AAAAAAAAAAAAAAAAAAAAAAAAAAAABBBB`,
+		`api_key: ***************************ABBBB`)
 	assertClean(t,
 		`api_key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"`,
 		`api_key: "***************************abbbb"`)

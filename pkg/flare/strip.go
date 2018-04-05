@@ -28,7 +28,7 @@ var replacers []replacer
 
 func init() {
 	apiKeyReplacer := replacer{
-		regex: regexp.MustCompile(`[a-f0-9]{27}([a-f0-9]{5})`),
+		regex: regexp.MustCompile(`[a-fA-F0-9]{27}([a-fA-F0-9]{5})`),
 		repl:  []byte(`***************************$1`),
 	}
 	uriPasswordReplacer = replacer{
