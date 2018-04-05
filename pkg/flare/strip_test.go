@@ -6,6 +6,8 @@
 package flare
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -198,4 +200,37 @@ func assertClean(t *testing.T, contents, cleanContents string) {
 	cleanedString := string(cleaned)
 
 	assert.Equal(t, strings.TrimSpace(cleanContents), strings.TrimSpace(cleanedString))
+}
+func TestConfig(t *testing.T) {
+	assertClean(t,
+		`dd_url: https://app.datadoghq.com
+api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+proxy: http://user:password@host:port
+password: foo
+auth_token: bar
+# comment to strip
+log_level: info`,
+		`dd_url: https://app.datadoghq.com
+api_key: ***************************aaaaa
+proxy: http://user:********@host:port
+password: ********
+auth_token: ********
+log_level: info`)
+}
+
+func TestConfigFile(t *testing.T) {
+	cleanedConfigFile := `dd_url: https://app.datadoghq.com
+api_key: ***************************aaaaa
+proxy: http://user:********@host:port
+dogstatsd_port : 8125
+log_level: info
+`
+
+	wd, _ := os.Getwd()
+	filePath := filepath.Join(wd, "test", "datadog.yaml")
+	cleaned, err := credentialsCleanerFile(filePath)
+	assert.Nil(t, err)
+	cleanedString := string(cleaned)
+
+	assert.Equal(t, cleanedConfigFile, cleanedString)
 }
