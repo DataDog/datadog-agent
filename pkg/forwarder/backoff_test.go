@@ -22,6 +22,18 @@ func TestMinBackoffFactorValid(t *testing.T) {
 	assert.True(t, minBackoffFactor >= 2)
 }
 
+func TestBaseBackoffTimeValid(t *testing.T) {
+	assert.True(t, baseBackoffTime > 0)
+}
+
+func TestMaxBackoffTimeValid(t *testing.T) {
+	assert.True(t, maxBackoffTime > 0)
+}
+
+func TestRecoveryIntervalValid(t *testing.T) {
+	assert.True(t, recoveryInterval > 0)
+}
+
 func TestRandomBetween(t *testing.T) {
 	getRandomMinMax := func() (float64, float64) {
 		a := float64(rand.Intn(10))
