@@ -8,6 +8,7 @@ package flare
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"regexp"
@@ -35,18 +36,26 @@ func init() {
 		repl:  []byte(`://$1:********@`),
 	}
 	passwordReplacer = replacer{
-		regex: regexp.MustCompile(`( *(\w|_)*pass(word)?:).+`),
+		regex: matchYAMLKeyPart(`pass(word)?`),
 		repl:  []byte(`$1 ********`),
 	}
 	tokenReplacer = replacer{
-		regex: regexp.MustCompile(`( *(\w|_)*token:).+`),
+		regex: matchYAMLKeyPart(`token`),
 		repl:  []byte(`$1 ********`),
 	}
 	snmpReplacer = replacer{
-		regex: regexp.MustCompile(`^(\s*community_string:) *.+$`),
+		regex: matchYAMLKey(`matchYAMLKey`),
 		repl:  []byte(`$1 ********`),
 	}
 	replacers = []replacer{apiKeyReplacer, uriPasswordReplacer, passwordReplacer, tokenReplacer, snmpReplacer}
+}
+
+func matchYAMLKeyPart(part string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_)*%s(\w|_)*\s*:).+`, part))
+}
+
+func matchYAMLKey(key string) *regexp.Regexp {
+	return regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:).+`, key))
 }
 
 func credentialsCleanerFile(filePath string) ([]byte, error) {

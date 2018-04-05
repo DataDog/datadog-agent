@@ -38,12 +38,41 @@ func TestConfigStripApiKey(t *testing.T) {
 	assertClean(t,
 		`   api_key:   'aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'   `,
 		`   api_key:   '***************************abbbb'   `)
+	assertClean(t,
+		`
+		additional_endpoints:
+			"https://app.datadoghq.com":
+			- aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb,
+			- bbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaa,
+			"https://dog.datadoghq.com":
+			- aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb,
+			- bbbbbbbbbbbbbbbbbbbbbbbbbbbbaaaa`,
+		`
+		additional_endpoints:
+			"https://app.datadoghq.com":
+			- ***************************abbbb,
+			- ***************************baaaa,
+			"https://dog.datadoghq.com":
+			- ***************************abbbb,
+			- ***************************baaaa`)
 }
 
 func TestConfigStripURLPassword(t *testing.T) {
 	assertClean(t,
 		`random_url_key: http://user:password@host:port`,
 		`random_url_key: http://user:********@host:port`)
+	assertClean(t,
+		`random_url_key: http://user:p@ssw0r)@host:port`,
+		`random_url_key: http://user:********@host:port`)
+	assertClean(t,
+		`random_url_key: http://user:🔑 🔒 🔐 🔓@host:port`,
+		`random_url_key: http://user:********@host:port`)
+	assertClean(t,
+		`random_url_key: http://user:password@host`,
+		`random_url_key: http://user:********@host`)
+	assertClean(t,
+		`random_url_key: protocol://user:p@ssw0r)@host:port`,
+		`random_url_key: protocol://user:********@host:port`)
 	assertClean(t,
 		`random_url_key: "http://user:password@host:port"`,
 		`random_url_key: "http://user:********@host:port"`)
@@ -75,6 +104,59 @@ func TestTextStripURLPassword(t *testing.T) {
 	assertClean(t,
 		`Connection droped : ftp://user:password@host:port`,
 		`Connection droped : ftp://user:********@host:port`)
+}
+
+func TestDockerSelfInspectApiKey(t *testing.T) {
+	assertClean(t,
+		`
+	"Env": [
+		"DD_API_KEY=3290abeefc68e1bbe852a25252bad88c",
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"DOCKER_DD_AGENT=yes",
+		"AGENT_VERSION=1:6.0",
+		"DD_AGENT_HOME=/opt/datadog-agent6/"
+	]`,
+		`
+	"Env": [
+		"DD_API_KEY=***************************ad88c",
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"DOCKER_DD_AGENT=yes",
+		"AGENT_VERSION=1:6.0",
+		"DD_AGENT_HOME=/opt/datadog-agent6/"
+	]`)
+}
+
+func TestConfigPassword(t *testing.T) {
+	assertClean(t,
+		`mysql_password: password`,
+		`mysql_password: ********`)
+	assertClean(t,
+		`mysql_pass: password`,
+		`mysql_pass: ********`)
+	assertClean(t,
+		`password_mysql: password`,
+		`password_mysql: ********`)
+	assertClean(t,
+		`mysql_password: p@ssw0r)`,
+		`mysql_password: ********`)
+	assertClean(t,
+		`mysql_password: 🔑 🔒 🔐 🔓`,
+		`mysql_password: ********`)
+	assertClean(t,
+		`mysql_password: password`,
+		`mysql_password: ********`)
+	assertClean(t,
+		`mysql_password: p@ssw0r)`,
+		`mysql_password: ********`)
+	assertClean(t,
+		`mysql_password: "password"`,
+		`mysql_password: ********`)
+	assertClean(t,
+		`mysql_password: 'password'`,
+		`mysql_password: ********`)
+	assertClean(t,
+		`   mysql_password:   'password'   `,
+		`   mysql_password: ********`)
 }
 
 func assertClean(t *testing.T, contents, cleanContents string) {
