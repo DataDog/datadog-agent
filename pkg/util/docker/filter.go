@@ -3,17 +3,32 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build docker
-
 package docker
 
 import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-type containerFilter struct {
+// TODO: move to pkg/util/container once it does not
+// import pkg/util/docker anymore (circular import)
+// It's already decoupled from that package
+
+const (
+	// pauseContainerGCR regex matches:
+	// - k8s.gcr.io/pause-amd64:3.1
+	// - asia.gcr.io/google_containers/pause-amd64:3.0
+	// - gcr.io/google_containers/pause-amd64:3.0
+	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/)pause(.*)`
+	pauseContainerOpenshift  = "image:openshift/origin-pod"
+	pauseContainerKubernetes = "image:kubernetes/pause"
+)
+
+// Filter holds the state for the container filtering logic
+type Filter struct {
 	Enabled        bool
 	ImageWhitelist []*regexp.Regexp
 	NameWhitelist  []*regexp.Regexp
@@ -43,11 +58,11 @@ func parseFilters(filters []string) (imageFilters, nameFilters []*regexp.Regexp,
 	return imageFilters, nameFilters, nil
 }
 
-// NewcontainerFilter creates a new container filter from a two slices of
+// NewFilter creates a new container filter from a two slices of
 // regexp patterns for a whitelist and blacklist. Each pattern should have
 // the following format: "field:pattern" where field can be: [image, name].
 // An error is returned if any of the expression don't compile.
-func newContainerFilter(whitelist, blacklist []string) (*containerFilter, error) {
+func NewFilter(whitelist, blacklist []string) (*Filter, error) {
 	iwl, nwl, err := parseFilters(whitelist)
 	if err != nil {
 		return nil, err
@@ -57,7 +72,7 @@ func newContainerFilter(whitelist, blacklist []string) (*containerFilter, error)
 		return nil, err
 	}
 
-	return &containerFilter{
+	return &Filter{
 		Enabled:        len(whitelist) > 0 || len(blacklist) > 0,
 		ImageWhitelist: iwl,
 		NameWhitelist:  nwl,
@@ -66,13 +81,21 @@ func newContainerFilter(whitelist, blacklist []string) (*containerFilter, error)
 	}, nil
 }
 
-// IsExcluded returns a bool indicating if the container should be excluded
-// based on the filters in the containerFilter instance.
-func (cf containerFilter) IsExcluded(container *Container) bool {
-	return cf.computeIsExcluded(container.Name, container.Image)
+// NewFilterFromConfig creates a new container filter, sourcing patterns
+// from the pkg/config options
+func NewFilterFromConfig() (*Filter, error) {
+	whitelist := config.Datadog.GetStringSlice("ac_include")
+	blacklist := config.Datadog.GetStringSlice("ac_exclude")
+
+	if config.Datadog.GetBool("exclude_pause_container") {
+		blacklist = append(blacklist, pauseContainerGCR, pauseContainerOpenshift, pauseContainerKubernetes)
+	}
+	return NewFilter(whitelist, blacklist)
 }
 
-func (cf containerFilter) computeIsExcluded(containerName, containerImage string) bool {
+// IsExcluded returns a bool indicating if the container should be excluded
+// based on the filters in the containerFilter instance.
+func (cf Filter) IsExcluded(containerName, containerImage string) bool {
 	if !cf.Enabled {
 		return false
 	}

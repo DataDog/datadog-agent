@@ -26,16 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
-const (
-	// pauseContainerGCR regex matches:
-	// - k8s.gcr.io/pause-amd64:3.1
-	// - asia.gcr.io/google_containers/pause-amd64:3.0
-	// - gcr.io/google_containers/pause-amd64:3.0
-	pauseContainerGCR        = `image:(.*)gcr\.io(/google_containers/|/)pause(.*)`
-	pauseContainerOpenshift  = "image:openshift/origin-pod"
-	pauseContainerKubernetes = "image:kubernetes/pause"
-)
-
 // DockerUtil wraps interactions with a local docker API.
 type DockerUtil struct {
 	// used to setup the DockerUtil
@@ -74,15 +64,7 @@ func (d *DockerUtil) init() error {
 		CacheDuration:  10 * time.Second,
 	}
 
-	whitelist := config.Datadog.GetStringSlice("ac_include")
-	blacklist := config.Datadog.GetStringSlice("ac_exclude")
-
-	if config.Datadog.GetBool("exclude_pause_container") {
-		blacklist = append(blacklist, pauseContainerGCR, pauseContainerOpenshift, pauseContainerKubernetes)
-	}
-
-	// Pre-parse the filter and use that internally.
-	cfg.filter, err = newContainerFilter(whitelist, blacklist)
+	cfg.filter, err = NewFilterFromConfig()
 	if err != nil {
 		return err
 	}
@@ -202,7 +184,7 @@ func (d *DockerUtil) dockerContainers(cfg *ContainerListConfig) ([]*Container, e
 			Health:   parseContainerHealth(c.Status),
 		}
 
-		container.Excluded = d.cfg.filter.IsExcluded(container)
+		container.Excluded = d.cfg.filter.IsExcluded(container.Name, container.Image)
 		if container.Excluded && !cfg.FlagExcluded {
 			continue
 		}

@@ -1,0 +1,3 @@
+---
+features:
+  - The kubelet check now honors container filtering options
