@@ -82,8 +82,11 @@ COPY probe.sh initlog.sh /
 COPY init-stage3 /etc/s6/init/init-stage3
 
 # Extract s6-overlay
+# Done in 2 steps to avoid overriding the /bin --> /usr/bin symlink
 # FIXME: copying it from the extract stage does not work
-RUN tar xzf s6.tgz && rm s6.tgz \
+RUN tar xzf s6.tgz -C / --exclude="./bin" \
+  && tar xzf s6.tgz -C /usr ./bin \
+  && rm s6.tgz \
 # Prepare for running without root
 # - Create a dd-agent:root user and give it permissions on relevant folders
 # - Remove the /var/run -> /run symlink and create a legit /var/run folder
