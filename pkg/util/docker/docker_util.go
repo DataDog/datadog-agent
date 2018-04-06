@@ -62,8 +62,8 @@ func (d *DockerUtil) init() error {
 
 	// Major failure risk is here, do that first
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
 	cli, err := connectToDocker(ctx)
-	cancel()
 	if err != nil {
 		return err
 	}
@@ -129,8 +129,9 @@ func connectToDocker(ctx context.Context) (*client.Client, error) {
 // Images returns a slice of all images.
 func (d *DockerUtil) Images(includeIntermediate bool) ([]types.ImageSummary, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
 	images, err := d.cli.ImageList(ctx, types.ImageListOptions{All: includeIntermediate})
-	cancel()
+
 	if err != nil {
 		return nil, fmt.Errorf("unable to list docker images: %s", err)
 	}
@@ -355,8 +356,8 @@ func (d *DockerUtil) RawContainerList(options types.ContainerListOptions) ([]typ
 
 func (d *DockerUtil) GetHostname() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
 	info, err := d.cli.Info(ctx)
-	cancel()
 	if err != nil {
 		return "", fmt.Errorf("unable to get Docker info: %s", err)
 	}
@@ -367,8 +368,8 @@ func (d *DockerUtil) GetHostname() (string, error) {
 // or ErrStorageStatsNotAvailable
 func (d *DockerUtil) GetStorageStats() ([]*StorageStats, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
 	info, err := d.cli.Info(ctx)
-	cancel()
 	if err != nil {
 		return []*StorageStats{}, fmt.Errorf("unable to get Docker info: %s", err)
 	}
@@ -386,8 +387,8 @@ func (d *DockerUtil) ResolveImageName(image string) (string, error) {
 	defer d.Unlock()
 	if _, ok := d.imageNameBySha[image]; !ok {
 		ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+		defer cancel()
 		r, _, err := d.cli.ImageInspectWithRaw(ctx, image)
-		cancel()
 		if err != nil {
 			// Only log errors that aren't "not found" because some images may
 			// just not be available in docker inspect.
@@ -428,8 +429,8 @@ func (d *DockerUtil) Inspect(id string, withSize bool) (types.ContainerJSON, err
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
 	container, _, err := d.cli.ContainerInspectWithRaw(ctx, id, withSize)
-	cancel()
 	if err != nil {
 		return container, err
 	}
@@ -496,8 +497,8 @@ func parseContainerHealth(status string) string {
 // a map mapping containerID to container labels as a map[string]string
 func (d *DockerUtil) AllContainerLabels() (map[string]map[string]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
+	defer cancel()
 	containers, err := d.cli.ContainerList(ctx, types.ContainerListOptions{})
-	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}
