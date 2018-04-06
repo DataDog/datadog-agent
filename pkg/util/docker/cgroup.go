@@ -578,7 +578,7 @@ func parseCgroupPaths(r io.Reader) (string, map[string]string, error) {
 		l := scanner.Text()
 		cID, ok := containerIDFromCgroup(l)
 		if !ok {
-			log.Debugf("could not parse container id from path '%s'", l)
+			log.Tracef("could not parse container id from path '%s'", l)
 			continue
 		}
 		if containerID == "" {
