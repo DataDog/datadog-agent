@@ -23,7 +23,7 @@ func init() {
 func TestMinBackoffFactorValid(t *testing.T) {
 	// Verify default triggered by init()
 	defaultValue := minBackoffFactor
-	assert.Equal(t, 2, defaultValue)
+	assert.Equal(t, float64(2), defaultValue)
 
 	// Reset original value when finished
 	defer loadConfig()
@@ -32,7 +32,7 @@ func TestMinBackoffFactorValid(t *testing.T) {
 	// Verify configuration updates global var
 	config.Datadog.Set("forwarder_backoff_factor", 4)
 	loadConfig()
-	assert.Equal(t, 4, minBackoffFactor)
+	assert.Equal(t, float64(4), minBackoffFactor)
 
 	// Verify invalid values recover gracefully
 	config.Datadog.Set("forwarder_backoff_factor", 1.5)
@@ -43,7 +43,7 @@ func TestMinBackoffFactorValid(t *testing.T) {
 func TestBaseBackoffTimeValid(t *testing.T) {
 	// Verify default triggered by init()
 	defaultValue := baseBackoffTime
-	assert.Equal(t, 2, defaultValue)
+	assert.Equal(t, float64(2), defaultValue)
 
 	// Reset original value when finished
 	defer loadConfig()
@@ -52,7 +52,7 @@ func TestBaseBackoffTimeValid(t *testing.T) {
 	// Verify configuration updates global var
 	config.Datadog.Set("forwarder_backoff_base", 4)
 	loadConfig()
-	assert.Equal(t, 4, baseBackoffTime)
+	assert.Equal(t, float64(4), baseBackoffTime)
 
 	// Verify invalid values recover gracefully
 	config.Datadog.Set("forwarder_backoff_base", 0)
@@ -63,7 +63,7 @@ func TestBaseBackoffTimeValid(t *testing.T) {
 func TestMaxBackoffTimeValid(t *testing.T) {
 	// Verify default triggered by init()
 	defaultValue := maxBackoffTime
-	assert.Equal(t, 64, defaultValue)
+	assert.Equal(t, float64(64), defaultValue)
 
 	// Reset original value when finished
 	defer loadConfig()
@@ -72,7 +72,7 @@ func TestMaxBackoffTimeValid(t *testing.T) {
 	// Verify configuration updates global var
 	config.Datadog.Set("forwarder_backoff_max", 128)
 	loadConfig()
-	assert.Equal(t, 128, maxBackoffTime)
+	assert.Equal(t, float64(128), maxBackoffTime)
 
 	// Verify invalid values recover gracefully
 	config.Datadog.Set("forwarder_backoff_max", 0)
