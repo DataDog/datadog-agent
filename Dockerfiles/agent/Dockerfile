@@ -68,7 +68,11 @@ RUN if [ -n "$WITH_JMX" ]; then apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; fi
 
-RUN apt-get update && apt-get upgrade -y --no-install-recommends
+# make sure we have recent dependencies
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+  # CVE-fixing time!
+  # https://security-tracker.debian.org/tracker/CVE-2016-2779
+  && rm -f /usr/sbin/runuser
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /
