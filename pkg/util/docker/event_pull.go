@@ -108,8 +108,8 @@ func (d *DockerUtil) LatestContainerEvents(since time.Time) ([]*ContainerEvent, 
 	filters := map[string]string{"type": "container"}
 
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)
-	msgChan, errorChan := d.openEventChannel(ctx, since, time.Now(), filters)
 	defer cancel()
+	msgChan, errorChan := d.openEventChannel(ctx, since, time.Now(), filters)
 
 	var maxTimestamp time.Time
 
