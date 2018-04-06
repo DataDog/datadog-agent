@@ -19,7 +19,7 @@ func init() {
 
 // diagnose the ECS metadata API availability
 func diagnoseECS() error {
-	_, err := GetTasks()
+	_, err := GetUtil()
 	if err != nil {
 		log.Error(err)
 	}

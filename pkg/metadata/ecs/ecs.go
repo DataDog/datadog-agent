@@ -10,21 +10,25 @@ package ecs
 import (
 	payload "github.com/DataDog/agent-payload/gogen"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
-	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
-// GetPayload returns a payload.ECSMetadataPayload with metadat about the state
+// GetPayload returns a payload.ECSMetadataPayload with metadata about the state
 // of the local ECS containers running on this node. This data is provided via
 // the local ECS agent.
 func GetPayload() (metadata.Payload, error) {
-	resp, err := ecsutil.GetTasks()
+	ecsUtil, err := ecs.GetUtil()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := ecsUtil.GetTasks()
 	if err != nil {
 		return nil, err
 	}
 	return parseTaskResponse(resp), nil
 }
 
-func parseTaskResponse(resp ecsutil.TasksV1Response) *payload.ECSMetadataPayload {
+func parseTaskResponse(resp ecs.TasksV1Response) *payload.ECSMetadataPayload {
 	tasks := make([]*payload.ECSMetadataPayload_Task, 0, len(resp.Tasks))
 	for _, t := range resp.Tasks {
 		containers := make([]*payload.ECSMetadataPayload_Container, 0, len(t.Containers))

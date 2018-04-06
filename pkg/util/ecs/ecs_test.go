@@ -66,8 +66,8 @@ func TestLocateECSHTTP(t *testing.T) {
 
 	config.Datadog.SetDefault("ecs_agent_url", fmt.Sprintf("http://localhost:%d/", ecs_agent_port))
 
-	isInstance := IsInstance()
-	assert.True(isInstance)
+	util, err := GetUtil()
+	assert.Nil(err)
 	select {
 	case r := <-ecsinterface.Requests:
 		assert.Equal("GET", r.Method)
@@ -137,7 +137,7 @@ func TestLocateECSHTTP(t *testing.T) {
 	} {
 		t.Logf("test case %d", nb)
 		ecsinterface.TaskListJSON = tc.input
-		tasks, err := GetTasks()
+		tasks, err := util.GetTasks()
 		assert.Equal(tc.expected, tasks)
 		if tc.err == nil {
 			assert.Nil(err)
