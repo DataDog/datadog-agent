@@ -8,7 +8,6 @@
 package listeners
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"sort"
@@ -116,7 +115,7 @@ func (l *DockerListener) init() {
 	l.m.Lock()
 	defer l.m.Unlock()
 
-	containers, err := l.dockerUtil.ContainerList(context.Background(), types.ContainerListOptions{})
+	containers, err := l.dockerUtil.RawContainerList(types.ContainerListOptions{})
 	if err != nil {
 		log.Errorf("Couldn't retrieve container list - %s", err)
 	}
