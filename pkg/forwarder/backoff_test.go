@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func init() {
@@ -19,19 +21,91 @@ func init() {
 }
 
 func TestMinBackoffFactorValid(t *testing.T) {
-	assert.True(t, minBackoffFactor >= 2)
+	// Verify default triggered by init()
+	defaultValue := minBackoffFactor
+	assert.Equal(t, 2, defaultValue)
+
+	// Reset original value when finished
+	defer loadConfig()
+	defer config.Datadog.Set("forwarder_backoff_factor", defaultValue)
+
+	// Verify configuration updates global var
+	config.Datadog.Set("forwarder_backoff_factor", 4)
+	loadConfig()
+	assert.Equal(t, 4, minBackoffFactor)
+
+	// Verify invalid values recover gracefully
+	config.Datadog.Set("forwarder_backoff_factor", 1.5)
+	loadConfig()
+	assert.Equal(t, defaultValue, minBackoffFactor)
 }
 
 func TestBaseBackoffTimeValid(t *testing.T) {
-	assert.True(t, baseBackoffTime > 0)
+	// Verify default triggered by init()
+	defaultValue := baseBackoffTime
+	assert.Equal(t, 2, defaultValue)
+
+	// Reset original value when finished
+	defer loadConfig()
+	defer config.Datadog.Set("forwarder_backoff_base", defaultValue)
+
+	// Verify configuration updates global var
+	config.Datadog.Set("forwarder_backoff_base", 4)
+	loadConfig()
+	assert.Equal(t, 4, baseBackoffTime)
+
+	// Verify invalid values recover gracefully
+	config.Datadog.Set("forwarder_backoff_base", 0)
+	loadConfig()
+	assert.Equal(t, defaultValue, baseBackoffTime)
 }
 
 func TestMaxBackoffTimeValid(t *testing.T) {
-	assert.True(t, maxBackoffTime > 0)
+	// Verify default triggered by init()
+	defaultValue := maxBackoffTime
+	assert.Equal(t, 64, defaultValue)
+
+	// Reset original value when finished
+	defer loadConfig()
+	defer config.Datadog.Set("forwarder_backoff_max", defaultValue)
+
+	// Verify configuration updates global var
+	config.Datadog.Set("forwarder_backoff_max", 128)
+	loadConfig()
+	assert.Equal(t, 128, maxBackoffTime)
+
+	// Verify invalid values recover gracefully
+	config.Datadog.Set("forwarder_backoff_max", 0)
+	loadConfig()
+	assert.Equal(t, defaultValue, maxBackoffTime)
 }
 
 func TestRecoveryIntervalValid(t *testing.T) {
-	assert.True(t, recoveryInterval > 0)
+	// Verify default triggered by init()
+	defaultValue := recoveryInterval
+	recoveryReset := config.Datadog.GetBool("forwarder_recovery_reset")
+	assert.Equal(t, 1, defaultValue)
+	assert.Equal(t, false, recoveryReset)
+
+	// Reset original value when finished
+	defer loadConfig()
+	defer config.Datadog.Set("forwarder_recovery_reset", recoveryReset)
+	defer config.Datadog.Set("forwarder_recovery_interval", defaultValue)
+
+	// Verify configuration updates global var
+	config.Datadog.Set("forwarder_recovery_interval", 2)
+	loadConfig()
+	assert.Equal(t, 2, recoveryInterval)
+
+	// Verify invalid values recover gracefully
+	config.Datadog.Set("forwarder_recovery_interval", 0)
+	loadConfig()
+	assert.Equal(t, defaultValue, recoveryInterval)
+
+	// Verify reset error count
+	config.Datadog.Set("forwarder_recovery_reset", true)
+	loadConfig()
+	assert.Equal(t, maxErrors, recoveryInterval)
 }
 
 func TestRandomBetween(t *testing.T) {

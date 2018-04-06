@@ -14,12 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var maxBackoffDuration time.Duration
-
-func init() {
-	maxBackoffDuration = time.Duration(maxBackoffTime) * time.Second
-}
-
 func TestMaxErrors(t *testing.T) {
 	previousBackoffDuration := time.Duration(0) * time.Second
 	attempts := 0
@@ -57,6 +51,8 @@ func TestMaxBlock(t *testing.T) {
 
 	e.close("test")
 	now := time.Now()
+
+	maxBackoffDuration := time.Duration(maxBackoffTime) * time.Second
 
 	assert.Contains(t, e.errorPerEndpoint, "test")
 	assert.Equal(t, maxErrors, e.errorPerEndpoint["test"].nbError)

@@ -38,6 +38,11 @@ var (
 )
 
 func init() {
+	// We need to load default values
+	loadConfig()
+}
+
+func loadConfig() {
 	backoffFactor := config.Datadog.GetFloat64("forwarder_backoff_factor")
 	if backoffFactor >= 2 {
 		minBackoffFactor = backoffFactor
@@ -62,9 +67,6 @@ func init() {
 		log.Warnf("Configured forwarder_backoff_max (%v) is not positive; 64 seconds will be used", backoffMax)
 	}
 
-	// Calculate how many errors it will take to reach the maxBackoffTime
-	maxErrors = int(math.Floor(math.Log2(maxBackoffTime/baseBackoffTime))) + 1
-
 	recInterval := config.Datadog.GetInt("forwarder_recovery_interval")
 	if recInterval > 0 {
 		recoveryInterval = recInterval
@@ -77,6 +79,9 @@ func init() {
 	if recoveryReset {
 		recoveryInterval = maxErrors
 	}
+
+	// Calculate how many errors it will take to reach the maxBackoffTime
+	maxErrors = int(math.Floor(math.Log2(maxBackoffTime/baseBackoffTime))) + 1
 }
 
 func randomBetween(min, max float64) float64 {

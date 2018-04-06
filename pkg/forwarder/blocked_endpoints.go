@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// Whether or not our config has been loaded by the agent yet.
+var configLoaded = false
+
 // This is the number of errors it will take to reach the maxBackoffTime. Our
 // blockedEndpoints circuit breaker uses this value as the maximum number of errors.
 var maxErrors int
@@ -25,6 +28,13 @@ type blockedEndpoints struct {
 }
 
 func newBlockedEndpoints() *blockedEndpoints {
+	// All forwarder settings are used directly or indirectly (GetBackoffDuration) by
+	// this circuit breaker singleton. Therefore, it makes sense to load them here.
+	if !configLoaded {
+		loadConfig()
+		configLoaded = true
+	}
+
 	return &blockedEndpoints{errorPerEndpoint: make(map[string]*block)}
 }
 
