@@ -35,6 +35,7 @@ func TestContainerMetricsTagging(t *testing.T) {
 			"docker.mem.limit",
 			"docker.container.size_rw",
 			"docker.container.size_rootfs",
+			"docker.cpu.shares",
 		},
 		"Rate": {
 			"docker.cpu.system",

@@ -67,6 +67,32 @@ func TestCPUNrThrottled(t *testing.T) {
 	assert.Equal(t, value, uint64(10))
 }
 
+func TestCPUShares(t *testing.T) {
+	tempFolder, err := newTempFolder("cpu-shares")
+	assert.Nil(t, err)
+	defer tempFolder.removeAll()
+
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpu")
+
+	// No file
+	value, err := cgroup.CPUShares()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(1024))
+
+	// Invalid file
+	tempFolder.add("cpu/cpu.shares", "abc")
+	value, err = cgroup.CPUShares()
+	assert.NotNil(t, err)
+	assert.IsType(t, err, &strconv.NumError{})
+	assert.Equal(t, value, uint64(0))
+
+	// Valid file
+	tempFolder.add("cpu/cpu.shares", "512\n")
+	value, err = cgroup.CPUShares()
+	assert.Nil(t, err)
+	assert.Equal(t, value, uint64(512))
+}
+
 func TestMemLimit(t *testing.T) {
 	tempFolder, err := newTempFolder("mem-limit")
 	assert.Nil(t, err)
