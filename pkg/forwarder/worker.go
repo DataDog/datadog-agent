@@ -31,6 +31,7 @@ type Worker struct {
 	RequeueChan chan<- Transaction
 
 	stopChan    chan bool
+	stopped     chan struct{}
 	blockedList *blockedEndpoints
 }
 
@@ -49,6 +50,7 @@ func NewWorker(highPrioChan <-chan Transaction, lowPrioChan <-chan Transaction, 
 		LowPrio:     lowPrioChan,
 		RequeueChan: requeueChan,
 		stopChan:    make(chan bool),
+		stopped:     make(chan struct{}),
 		Client:      httpClient,
 		blockedList: blocked,
 	}
@@ -57,11 +59,15 @@ func NewWorker(highPrioChan <-chan Transaction, lowPrioChan <-chan Transaction, 
 // Stop stops the worker.
 func (w *Worker) Stop() {
 	w.stopChan <- true
+	<-w.stopped
 }
 
 // Start starts a Worker.
 func (w *Worker) Start() {
 	go func() {
+		// notify that the worker did stop
+		defer close(w.stopped)
+
 		for {
 			// handling high priority transactions first
 			select {
@@ -108,6 +114,7 @@ func (w *Worker) callProcess(t Transaction) error {
 	case <-w.stopChan:
 		// cancel current Transaction if we need to stop the worker
 		cancel()
+		<-done // We still need to wait for the process func to return
 		return fmt.Errorf("Worker was requested to stop")
 	}
 	cancel()
