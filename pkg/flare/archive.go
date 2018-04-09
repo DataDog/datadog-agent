@@ -124,6 +124,14 @@ func createArchive(zipFilePath string, local bool, confSearchPaths SearchPaths, 
 		}
 	}
 
+	err = zipTypeperfData(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not write typeperf data: %s", err)
+	}
+	err = zipCounterStrings(tempDir, hostname)
+	if err != nil {
+		log.Errorf("Could not write counter strings: %s", err)
+	}
 	// force a log flush before zipping them
 	log.Flush()
 	err = zipLogFiles(tempDir, hostname, logFilePath)
