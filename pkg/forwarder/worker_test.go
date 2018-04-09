@@ -62,14 +62,12 @@ func TestWorkerStart(t *testing.T) {
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Process", 1)
-	mock.AssertNumberOfCalls(t, "Reschedule", 0)
 
 	lowPrio <- mock2
 	lowPrio <- dummy
 
 	mock2.AssertExpectations(t)
 	mock2.AssertNumberOfCalls(t, "Process", 1)
-	mock2.AssertNumberOfCalls(t, "Reschedule", 0)
 
 	w.Stop()
 }
@@ -82,7 +80,6 @@ func TestWorkerRetry(t *testing.T) {
 
 	mock := newTestTransaction()
 	mock.On("Process", w.Client).Return(fmt.Errorf("some kind of error")).Times(1)
-	mock.On("Reschedule").Return(nil).Times(1)
 	mock.On("GetTarget").Return("error_url").Times(1)
 
 	w.Start()
@@ -92,7 +89,6 @@ func TestWorkerRetry(t *testing.T) {
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Process", 1)
 	mock.AssertNumberOfCalls(t, "GetTarget", 1)
-	mock.AssertNumberOfCalls(t, "Reschedule", 1)
 	assert.Equal(t, mock, retryTransaction)
 	assert.True(t, w.blockedList.isBlock("error_url"))
 }
@@ -104,10 +100,9 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	w := NewWorker(highPrio, lowPrio, requeue, newBlockedEndpoints())
 
 	mock := newTestTransaction()
-	mock.On("Reschedule").Return(nil).Times(1)
 	mock.On("GetTarget").Return("error_url").Times(1)
 
-	w.blockedList.block("error_url")
+	w.blockedList.close("error_url")
 	w.Start()
 	highPrio <- mock
 	retryTransaction := <-requeue
@@ -115,7 +110,6 @@ func TestWorkerRetryBlockedTransaction(t *testing.T) {
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Process", 0)
 	mock.AssertNumberOfCalls(t, "GetTarget", 1)
-	mock.AssertNumberOfCalls(t, "Reschedule", 1)
 	assert.Equal(t, mock, retryTransaction)
 	assert.True(t, w.blockedList.isBlock("error_url"))
 }

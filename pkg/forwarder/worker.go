@@ -116,7 +116,6 @@ func (w *Worker) callProcess(t Transaction) error {
 
 func (w *Worker) process(ctx context.Context, t Transaction) {
 	requeue := func() {
-		t.Reschedule()
 		select {
 		case w.RequeueChan <- t:
 		default:
@@ -124,16 +123,16 @@ func (w *Worker) process(ctx context.Context, t Transaction) {
 		}
 	}
 
-	// First we check if we don't have recently received an error for that endpoint
+	// Run the endpoint through our blockedEndpoints circuit breaker
 	target := t.GetTarget()
 	if w.blockedList.isBlock(target) {
 		requeue()
 		log.Errorf("Too many errors for endpoint '%s': retrying later", target)
 	} else if err := t.Process(ctx, w.Client); err != nil {
-		w.blockedList.block(target)
+		w.blockedList.close(target)
 		requeue()
 		log.Errorf("Error while processing transaction: %v", err)
 	} else {
-		w.blockedList.unblock(target)
+		w.blockedList.recover(target)
 	}
 }

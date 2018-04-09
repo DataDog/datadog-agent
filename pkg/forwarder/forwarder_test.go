@@ -2,7 +2,6 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
-// +build !windows
 
 package forwarder
 
@@ -63,6 +62,7 @@ func TestInit(t *testing.T) {
 	forwarder.init()
 	assert.Len(t, forwarder.workers, 0)
 	assert.Len(t, forwarder.retryQueue, 0)
+	assert.Len(t, forwarder.blockedList.errorPerEndpoint, 0)
 }
 
 func TestStop(t *testing.T) {
@@ -159,9 +159,19 @@ func TestRetryTransactions(t *testing.T) {
 	assert.Nil(t, transactionsExpvar.Get("Dropped"))
 
 	t1 := NewHTTPTransaction()
-	t1.nextFlush = time.Now().Add(-1 * time.Hour)
+	t1.Domain = "domain/"
+	t1.Endpoint = "test1"
 	t2 := NewHTTPTransaction()
-	t2.nextFlush = time.Now().Add(1 * time.Hour)
+	t2.Domain = "domain/"
+	t2.Endpoint = "test2"
+
+	// Create blocks
+	forwarder.blockedList.recover(t1.GetTarget())
+	forwarder.blockedList.recover(t2.GetTarget())
+
+	forwarder.blockedList.errorPerEndpoint[t1.GetTarget()].until = time.Now().Add(-1 * time.Hour)
+	forwarder.blockedList.errorPerEndpoint[t2.GetTarget()].until = time.Now().Add(1 * time.Hour)
+
 	forwarder.requeueTransaction(t2)
 	forwarder.requeueTransaction(t2) // this second one should be dropped
 	forwarder.requeueTransaction(t1) // the queue should be sorted
@@ -178,6 +188,9 @@ func TestForwarderRetry(t *testing.T) {
 	forwarder.Start()
 	defer forwarder.Stop()
 
+	forwarder.blockedList.close("blocked")
+	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Hour)
+
 	ready := newTestTransaction()
 	notReady := newTestTransaction()
 
@@ -186,11 +199,10 @@ func TestForwarderRetry(t *testing.T) {
 	require.Len(t, forwarder.retryQueue, 2)
 
 	ready.On("Process", forwarder.workers[0].Client).Return(nil).Times(1)
-	ready.On("GetTarget").Return("").Times(1)
-	ready.On("GetNextFlush").Return(time.Now()).Times(1)
+	ready.On("GetTarget").Return("").Times(2)
 	ready.On("GetCreatedAt").Return(time.Now()).Times(1)
-	notReady.On("GetNextFlush").Return(time.Now().Add(10 * time.Minute)).Times(1)
 	notReady.On("GetCreatedAt").Return(time.Now()).Times(1)
+	notReady.On("GetTarget").Return("blocked").Times(1)
 
 	forwarder.retryTransactions(time.Now())
 	<-ready.processed
@@ -198,7 +210,7 @@ func TestForwarderRetry(t *testing.T) {
 	ready.AssertExpectations(t)
 	notReady.AssertExpectations(t)
 	notReady.AssertNumberOfCalls(t, "Process", 0)
-	notReady.AssertNumberOfCalls(t, "GetTarget", 0)
+	notReady.AssertNumberOfCalls(t, "GetTarget", 1)
 	require.Len(t, forwarder.retryQueue, 1)
 	assert.Equal(t, forwarder.retryQueue[0], notReady)
 }
@@ -213,11 +225,11 @@ func TestForwarderRetryLifo(t *testing.T) {
 	forwarder.requeueTransaction(transaction1)
 	forwarder.requeueTransaction(transaction2)
 
-	transaction1.On("GetNextFlush").Return(time.Now()).Times(1)
 	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
+	transaction1.On("GetTarget").Return("").Times(1)
 
-	transaction2.On("GetNextFlush").Return(time.Now()).Times(1)
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
+	transaction2.On("GetTarget").Return("").Times(1)
 
 	forwarder.retryTransactions(time.Now())
 
@@ -237,6 +249,8 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 	forwarder.init()
 
 	forwarder.retryQueueLimit = 1
+	forwarder.blockedList.close("blocked")
+	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
 	transaction1 := newTestTransaction()
 	transaction2 := newTestTransaction()
@@ -244,11 +258,11 @@ func TestForwarderRetryLimitQueue(t *testing.T) {
 	forwarder.requeueTransaction(transaction1)
 	forwarder.requeueTransaction(transaction2)
 
-	transaction1.On("GetNextFlush").Return(time.Now().Add(1 * time.Minute)).Times(1)
 	transaction1.On("GetCreatedAt").Return(time.Now()).Times(1)
+	transaction1.On("GetTarget").Return("blocked").Times(1)
 
-	transaction2.On("GetNextFlush").Return(time.Now().Add(1 * time.Minute)).Times(1)
 	transaction2.On("GetCreatedAt").Return(time.Now().Add(1 * time.Minute)).Times(1)
+	transaction2.On("GetTarget").Return("blocked").Times(1)
 
 	forwarder.retryTransactions(time.Now())
 

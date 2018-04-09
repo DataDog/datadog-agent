@@ -100,6 +100,13 @@ func init() {
 	Datadog.SetDefault("auth_token_file_path", "")
 	Datadog.SetDefault("bind_host", "localhost")
 
+	// Retry settings
+	Datadog.SetDefault("forwarder_backoff_factor", 2)
+	Datadog.SetDefault("forwarder_backoff_base", 2)
+	Datadog.SetDefault("forwarder_backoff_max", 64)
+	Datadog.SetDefault("forwarder_recovery_interval", 1)
+	Datadog.SetDefault("forwarder_recovery_reset", false)
+
 	// Use to output logs in JSON format
 	BindEnvAndSetDefault("log_format_json", false)
 

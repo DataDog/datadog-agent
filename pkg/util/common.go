@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	log "github.com/cihub/seelog"
 
@@ -21,6 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 // CopyFile atomically copies file path `src`` to file path `dst`.
 func CopyFile(src, dst string) error {

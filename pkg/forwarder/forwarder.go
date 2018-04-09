@@ -83,8 +83,6 @@ type Payloads []*[]byte
 // Transaction represents the task to process for a Worker.
 type Transaction interface {
 	Process(ctx context.Context, client *http.Client) error
-	Reschedule()
-	GetNextFlush() time.Time
 	GetCreatedAt() time.Time
 	GetTarget() string
 }
@@ -111,6 +109,7 @@ type DefaultForwarder struct {
 	lowPrio             chan Transaction // use to retry transactions
 	requeuedTransaction chan Transaction
 	stopRetry           chan bool
+	blockedList         *blockedEndpoints
 	workers             []*Worker
 	retryQueue          []Transaction
 	internalState       uint32
@@ -148,7 +147,7 @@ func (f *DefaultForwarder) retryTransactions(retryBefore time.Time) {
 	sort.Sort(byCreatedTime(f.retryQueue))
 
 	for _, t := range f.retryQueue {
-		if t.GetNextFlush().Before(retryBefore) {
+		if !f.blockedList.isBlock(t.GetTarget()) {
 			select {
 			case f.lowPrio <- t:
 				transactionsExpvar.Add("Retried", 1)
@@ -201,6 +200,7 @@ func (f *DefaultForwarder) init() {
 	f.lowPrio = make(chan Transaction, chanBufferSize)
 	f.requeuedTransaction = make(chan Transaction, chanBufferSize)
 	f.stopRetry = make(chan bool)
+	f.blockedList = newBlockedEndpoints()
 	f.workers = []*Worker{}
 	f.retryQueue = []Transaction{}
 }
@@ -218,9 +218,8 @@ func (f *DefaultForwarder) Start() error {
 	// reset internal state to purge transactions from past starts
 	f.init()
 
-	blockedList := newBlockedEndpoints()
 	for i := 0; i < f.NumberOfWorkers; i++ {
-		w := NewWorker(f.highPrio, f.lowPrio, f.requeuedTransaction, blockedList)
+		w := NewWorker(f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
