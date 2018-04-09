@@ -7,19 +7,171 @@ package forwarder
 
 import (
 	"math"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+func init() {
+	rand.Seed(10)
+}
+
+func TestRandomBetween(t *testing.T) {
+	getRandomMinMax := func() (float64, float64) {
+		a := float64(rand.Intn(10))
+		b := float64(rand.Intn(10))
+		min := math.Min(a, b)
+		max := math.Max(a, b)
+		return min, max
+	}
+
+	for i := 1; i < 100; i++ {
+		min, max := getRandomMinMax()
+		between := randomBetween(min, max)
+
+		assert.True(t, min <= between)
+		assert.True(t, max >= between)
+	}
+}
+
+func TestMinBackoffFactorValid(t *testing.T) {
+	e := newBlockedEndpoints()
+
+	// Verify default
+	defaultValue := e.minBackoffFactor
+	assert.Equal(t, float64(2), defaultValue)
+
+	// Reset original value when finished
+	defer config.Datadog.Set("forwarder_backoff_factor", defaultValue)
+
+	// Verify configuration updates global var
+	config.Datadog.Set("forwarder_backoff_factor", 4)
+	e = newBlockedEndpoints()
+	assert.Equal(t, float64(4), e.minBackoffFactor)
+
+	// Verify invalid values recover gracefully
+	config.Datadog.Set("forwarder_backoff_factor", 1.5)
+	e = newBlockedEndpoints()
+	assert.Equal(t, defaultValue, e.minBackoffFactor)
+}
+
+func TestBaseBackoffTimeValid(t *testing.T) {
+	e := newBlockedEndpoints()
+
+	// Verify default
+	defaultValue := e.baseBackoffTime
+	assert.Equal(t, float64(2), defaultValue)
+
+	// Reset original value when finished
+	defer config.Datadog.Set("forwarder_backoff_base", defaultValue)
+
+	// Verify configuration updates global var
+	config.Datadog.Set("forwarder_backoff_base", 4)
+	e = newBlockedEndpoints()
+	assert.Equal(t, float64(4), e.baseBackoffTime)
+
+	// Verify invalid values recover gracefully
+	config.Datadog.Set("forwarder_backoff_base", 0)
+	e = newBlockedEndpoints()
+	assert.Equal(t, defaultValue, e.baseBackoffTime)
+}
+
+func TestMaxBackoffTimeValid(t *testing.T) {
+	e := newBlockedEndpoints()
+
+	// Verify default
+	defaultValue := e.maxBackoffTime
+	assert.Equal(t, float64(64), defaultValue)
+
+	// Reset original value when finished
+	defer config.Datadog.Set("forwarder_backoff_max", defaultValue)
+
+	// Verify configuration updates global var
+	config.Datadog.Set("forwarder_backoff_max", 128)
+	e = newBlockedEndpoints()
+	assert.Equal(t, float64(128), e.maxBackoffTime)
+
+	// Verify invalid values recover gracefully
+	config.Datadog.Set("forwarder_backoff_max", 0)
+	e = newBlockedEndpoints()
+	assert.Equal(t, defaultValue, e.maxBackoffTime)
+}
+
+func TestRecoveryIntervalValid(t *testing.T) {
+	e := newBlockedEndpoints()
+
+	// Verify default
+	defaultValue := e.recoveryInterval
+	recoveryReset := config.Datadog.GetBool("forwarder_recovery_reset")
+	assert.Equal(t, 1, defaultValue)
+	assert.Equal(t, false, recoveryReset)
+
+	// Reset original values when finished
+	defer config.Datadog.Set("forwarder_recovery_reset", recoveryReset)
+	defer config.Datadog.Set("forwarder_recovery_interval", defaultValue)
+
+	// Verify configuration updates global var
+	config.Datadog.Set("forwarder_recovery_interval", 2)
+	e = newBlockedEndpoints()
+	assert.Equal(t, 2, e.recoveryInterval)
+
+	// Verify invalid values recover gracefully
+	config.Datadog.Set("forwarder_recovery_interval", 0)
+	e = newBlockedEndpoints()
+	assert.Equal(t, defaultValue, e.recoveryInterval)
+
+	// Verify reset error count
+	config.Datadog.Set("forwarder_recovery_reset", true)
+	e = newBlockedEndpoints()
+	assert.Equal(t, e.maxErrors, e.recoveryInterval)
+}
+
+// Test we increase delay on average
+func TestGetBackoffDurationIncrease(t *testing.T) {
+	e := newBlockedEndpoints()
+	previousBackoffDuration := time.Duration(0) * time.Second
+	backoffIncrease := 0
+	backoffDecrease := 0
+
+	for i := 1; ; i++ {
+		backoffDuration := e.getBackoffDuration(i)
+
+		if i > 1000 {
+			assert.Truef(t, i < 1000, "Too many iterations")
+		} else if backoffDuration == previousBackoffDuration {
+			break
+		} else {
+			if backoffDuration > previousBackoffDuration {
+				backoffIncrease++
+			} else {
+				backoffDecrease++
+			}
+			previousBackoffDuration = backoffDuration
+		}
+	}
+
+	assert.True(t, backoffIncrease >= backoffDecrease)
+}
+
+func TestMaxGetBackoffDuration(t *testing.T) {
+	e := newBlockedEndpoints()
+	backoffDuration := e.getBackoffDuration(100)
+
+	assert.Equal(t, time.Duration(e.maxBackoffTime)*time.Second, backoffDuration)
+}
+
 func TestMaxErrors(t *testing.T) {
+	e := newBlockedEndpoints()
 	previousBackoffDuration := time.Duration(0) * time.Second
 	attempts := 0
 
 	for i := 1; ; i++ {
-		backoffDuration := GetBackoffDuration(i)
+		backoffDuration := e.getBackoffDuration(i)
 
 		if i > 1000 {
 			assert.Truef(t, i < 1000, "Too many iterations")
@@ -31,7 +183,7 @@ func TestMaxErrors(t *testing.T) {
 		previousBackoffDuration = backoffDuration
 	}
 
-	assert.Equal(t, maxErrors, attempts)
+	assert.Equal(t, e.maxErrors, attempts)
 }
 
 func TestBlock(t *testing.T) {
@@ -52,10 +204,10 @@ func TestMaxBlock(t *testing.T) {
 	e.close("test")
 	now := time.Now()
 
-	maxBackoffDuration := time.Duration(maxBackoffTime) * time.Second
+	maxBackoffDuration := time.Duration(e.maxBackoffTime) * time.Second
 
 	assert.Contains(t, e.errorPerEndpoint, "test")
-	assert.Equal(t, maxErrors, e.errorPerEndpoint["test"].nbError)
+	assert.Equal(t, e.maxErrors, e.errorPerEndpoint["test"].nbError)
 	assert.True(t, now.Add(maxBackoffDuration).After(e.errorPerEndpoint["test"].until) ||
 		now.Add(maxBackoffDuration).Equal(e.errorPerEndpoint["test"].until))
 }
@@ -71,7 +223,7 @@ func TestUnblock(t *testing.T) {
 	e.close("test")
 
 	e.recover("test")
-	assert.True(t, e.errorPerEndpoint["test"].nbError == int(math.Max(0, float64(5-recoveryInterval))))
+	assert.True(t, e.errorPerEndpoint["test"].nbError == int(math.Max(0, float64(5-e.recoveryInterval))))
 }
 
 func TestMaxUnblock(t *testing.T) {
