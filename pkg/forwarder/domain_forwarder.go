@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -34,6 +35,7 @@ type domainForwarder struct {
 	retryQueueLimit     int
 	internalState       uint32
 	m                   sync.Mutex // To control Start/Stop races
+	isRetrying          int32
 	blockedList         *blockedEndpoints
 }
 
@@ -54,6 +56,14 @@ func (v byCreatedTime) Swap(i, j int)      { v[i], v[j] = v[j], v[i] }
 func (v byCreatedTime) Less(i, j int) bool { return v[i].GetCreatedAt().After(v[j].GetCreatedAt()) }
 
 func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
+	// In case it takes more that flushInterval to sort and retry
+	// transactions we skip a retry.
+	if !atomic.CompareAndSwapInt32(&f.isRetrying, 0, 1) {
+		log.Errorf("The forwarder is still retrying Transaction: this should never happens and you might lower the 'forwarder_retry_queue_max_size'")
+		return
+	}
+	defer atomic.StoreInt32(&f.isRetrying, 0)
+
 	newQueue := []Transaction{}
 	droppedRetryQueueFull := 0
 	droppedWorkerBusy := 0
