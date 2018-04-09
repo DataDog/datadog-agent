@@ -423,7 +423,10 @@ api_key:
 # Process agent specific settings
 #
 # process_config:
-#   Note: the Process Agent expects this to be a string
+#   A string indicating the enabled state of the Process Agent.
+#   If "false" (the default) it will only collect containers.
+#   If "true" it will collect containers and processes.
+#   If "disabled" it will be disabled altogether and won't start.
 #   enabled: "true"
 #   The full path to the file where process-agent logs will be written.
 #   log_file:
