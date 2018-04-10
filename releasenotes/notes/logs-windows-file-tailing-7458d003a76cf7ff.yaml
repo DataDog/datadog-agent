@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed an issue with collecting logs bigger than 4096 chars on windows.
