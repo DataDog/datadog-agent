@@ -146,7 +146,9 @@ If the `service` wrapper command is not available on your system, use:
 If you're unsure which init system your distribution uses by default, please refer to the table below:
 
 | distribution \ init system | `upstart` | `systemd` | Notes |
-| ---------------------- |:---------:|:---------:| ----- |
+| -------------------------- |:---------:|:---------:| ----- |
+| Amazon Linux (<= 2017.09) | ✅ |  |  |
+| Amazon Linux 2 (>= 2017.12) |  | ✅ |  |
 | CentOS/RHEL 6 | ✅ |  |  |
 | CentOS/RHEL 7 |  | ✅ |  |
 | Debian 7 (wheezy) |  |  | _currently unsupported unless you install systemd_ |
