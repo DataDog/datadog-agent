@@ -261,6 +261,10 @@ needed settings from `docker_daemon.yaml` to `datadog.yaml`.
 
 ## Kubernetes support
 
+### Kubernetes versions
+
+Agent 6 currently supports Kubernetes versions 1.7.6 and above. Support for previous versions will be added in a future release.
+
 ### Kubernetes metrics and events
 
 The `kubernetes` integration insights are provided combining:
