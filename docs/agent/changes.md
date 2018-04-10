@@ -101,9 +101,14 @@ The new command line interface for the Agent is sub-command based:
 | stopservice     | stops the agent within the service control manager |
 | version         | Print the version info |
 
+To see the list of available sub-commands on your platform, run:
+```
+<agent_binary> --help
+```
+
 To run a sub-command, the Agent binary must be invoked like this:
 ```
-<path_to_agent_bin> <sub_command> <options>
+<agent_binary> <sub_command> <options>
 ```
 
 Some options have their own set of flags and options detailed in a help message.
@@ -117,12 +122,14 @@ For example, to see how to use the `check` sub-command, run:
 There are a few major changes:
 
 * only the _lifecycle commands_ (i.e. `start`/`stop`/`restart`/`status` on the Agent service) should be run with `sudo service`/`sudo initctl`/`sudo systemctl`
-* all the other commands need to be run with the `datadog-agent` command, located in the `PATH` (`/usr/bin`) by default. The binary `dd-agent` is not available anymore.
+* all the other commands need to be invoked on the Agent binary, located in the `PATH` (`/usr/bin`) as `datadog-agent` by default. The `dd-agent` command is not available anymore.
 * the `info` command has been renamed `status`
 * the Agent 6 does not ship a SysV-init script (previously located at `/etc/init.d/datadog-agent`)
 
-Most of the commands didn't change, for example this is the list of the _lifecycle commands_
-on Ubuntu:
+#### Service lifecycle commands
+
+The lifecycle commands didn't change if the `service` wrapper command is available on your system.
+For example, on Ubuntu, the _lifecycle commands_ are:
 
 | Command  | Notes |
 | -------- | ----- |
@@ -131,8 +138,27 @@ on Ubuntu:
 | `sudo service datadog-agent restart` | Restart the Agent service |
 | `sudo service datadog-agent status` | Print the status of the Agent service |
 
-Some functionalities are now provided by the Agent binary itself as sub-commands and there's
-no need anymore to invoke them through `service` (or `systemctl`). For example, for an Agent installed on Ubuntu, the differences are as follows:
+If the `service` wrapper command is not available on your system, use:
+
+* on `upstart`-based systems: `sudo start/stop/restart/status datadog-agent`
+* on `systemd`-based systems: `sudo systemctl start/stop/restart/status datadog-agent`
+
+If you're unsure which init system your distribution uses by default, please refer to the table below:
+
+| distribution \ init system | `upstart` | `systemd` | Notes |
+| ---------------------- |:---------:|:---------:| ----- |
+| CentOS/RHEL 6 | ✅ |  |  |
+| CentOS/RHEL 7 |  | ✅ |  |
+| Debian 7 (wheezy) |  |  | _currently unsupported unless you install systemd_ |
+| Debian 8 (jessie) & 9 (stretch) |  | ✅ |  |
+| SUSE 11 |  |  | _currently unsupported unless you install systemd_ |
+| SUSE 12 |  | ✅ |  |
+| Ubuntu < 15.04 | ✅ | |  |
+| Ubuntu >= 15.04 |  | ✅ |  |
+
+#### Agent commands
+
+Other functionalities are now provided by the Agent binary itself as sub-commands and shouldn't be invoked with `service`/`systemctl`/`initctl`. Here are a few examples:
 
 | Agent5 Command | Agent6 Command | Notes |
 | -------------- | -------------- | ----- |
@@ -140,11 +166,6 @@ no need anymore to invoke them through `service` (or `systemctl`). For example, 
 | `sudo service datadog-agent flare` | `sudo datadog-agent flare` | Send flare |
 | `sudo service datadog-agent` | `sudo datadog-agent --help` | Display Agent usage |
 | `sudo -u dd-agent -- dd-agent check <check_name>` | `sudo -u dd-agent -- datadog-agent check <check_name>` | Run a check |
-
-**NB**: If `service` is not available on your system, use:
-
-* on `upstart`-based systems: `sudo start/stop/restart datadog-agent`
-* on `systemd`-based systems: `sudo systemctl start/stop/restart datadog-agent`
 
 ### Windows
 
