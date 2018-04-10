@@ -179,6 +179,7 @@ type configFormat struct {
 	ADIdentifiers []string    `yaml:"ad_identifiers"`
 	InitConfig    interface{} `yaml:"init_config"`
 	MetricConfig  interface{} `yaml:"jmx_metrics"`
+	LogsConfig    interface{} `yaml:"logs"`
 	Instances     []check.ConfigRawMap
 }
 
@@ -205,8 +206,8 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte("Error: " + e.Error()))
 			return
 		}
-		if len(cf.Instances) < 1 && cf.MetricConfig == nil {
-			w.Write([]byte("Configuration file contains no valid instances"))
+		if cf.MetricConfig == nil && cf.LogsConfig == nil && len(cf.Instances) < 1 {
+			w.Write([]byte("Configuration file contains no valid instances or log configuration"))
 			return
 		}
 
