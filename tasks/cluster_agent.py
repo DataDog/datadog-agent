@@ -7,7 +7,6 @@ import glob
 import shutil
 
 from invoke import task
-import invoke
 from invoke.exceptions import Exit
 
 from .build_tags import get_build_tags
@@ -15,12 +14,13 @@ from .utils import get_build_flags, bin_name
 from .utils import REPO_PATH
 from .go import deps
 
-#constants
+# constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
 AGENT_TAG = "datadog/cluster_agent:master"
 DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
 ]
+
 
 @task
 def build(ctx, rebuild=False, race=False, static=False, use_embedded_libs=False):
@@ -66,6 +66,7 @@ def run(ctx, rebuild=False, race=False, skip_build=False, development=True):
 
     ctx.run("{0} start {1}".format(target, cfgPath))
 
+
 @task
 def clean(ctx):
     """
@@ -78,6 +79,7 @@ def clean(ctx):
     # remove the bin/agent folder
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/datadog-cluster-agent")
+
 
 @task
 def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
