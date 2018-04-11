@@ -5,7 +5,7 @@
 
 // +build kubelet,kubeapiserver
 
-package hosttags
+package hostinfo
 
 import (
 	"testing"

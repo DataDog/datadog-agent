@@ -5,7 +5,7 @@
 
 // +build !kubelet !kubeapiserver
 
-package hosttags
+package hostinfo
 
 // GetTags gets the tags from the kubernetes apiserver
 func GetTags() ([]string, error) {
