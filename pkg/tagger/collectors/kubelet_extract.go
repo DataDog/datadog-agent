@@ -59,7 +59,7 @@ func (c *KubeletCollector) parsePods(pods []*kubelet.Pod) ([]*TagInfo, error) {
 		}
 
 		// Creator
-		for _, owner := range pod.Metadata.Owners {
+		for _, owner := range pod.Owners() {
 			switch owner.Kind {
 			case "":
 				continue
