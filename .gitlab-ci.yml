@@ -136,7 +136,7 @@ cluster_agent-build:
 
 #
 # integration_test
-#
+
 
 # run benchmarks on deb
 # run_benchmarks-deb_x64:
@@ -175,7 +175,7 @@ run_dogstatsd_size_test:
 
 #
 # package_build
-#
+
 
 
 # build Agent package for deb-x64
@@ -282,6 +282,8 @@ build_windows_msi_x64:
     - rm -rf .omnibus/pkg/
     - cd %GOPATH%\src\github.com\DataDog\datadog-agent
     - inv agent.omnibus-build --release-version %RELEASE_VERSION%
+  after_script:
+    - '"C:\Program Files\Amazon\AWSCLI\aws.exe" s3 cp --profile ci-datadog-agent %S3_CP_OPTIONS% --recursive --exclude "*" --include "*.msi" .omnibus/pkg/ s3://%WINDOWS_TESTING_S3_BUCKET%/ --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732'
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -439,8 +441,56 @@ deploy_suse_rpm_testing:
     - createrepo --update -v --checksum sha ./rpmrepo/suse/x86_64
     - aws s3 sync ./rpmrepo/suse/ s3://$RPM_TESTING_S3_BUCKET/suse/pipeline-$CI_PIPELINE_ID --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
-# run dd-agent-testing
-testkitchen_testing:
+# run dd-agent-testing on windows
+kitchen_windows:
+  stage: testkitchen_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
+  only:
+    - master
+    - tags
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="win2012,MicrosoftWindowsServer:WindowsServer:2012-Datacenter:3.127.20171115"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2012r2,MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20171115"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|win2016,MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20171116"
+    - bash -l tasks/run-test-kitchen.sh
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
+# run dd-agent-testing on centos
+kitchen_centos:
+  stage: testkitchen_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
+  only:
+    - master
+    - tags
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="centos-74,OpenLogic:CentOS:7.4:7.4.20171110"
+    - bash -l tasks/run-test-kitchen.sh
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
+# run dd-agent-testing on ubuntu (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
+kitchen_ubuntu:
   stage: testkitchen_testing
   allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
@@ -455,6 +505,55 @@ testkitchen_testing:
     - cd $DD_AGENT_TESTING_DIR
     - mkdir $CI_PROJECT_DIR/kitchen_logs
     - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="ubuntu-14-04,Canonical:UbuntuServer:14.04.5-LTS:14.04.201803080"
+    - export TEST_PLATFORMS="$TEST_PLATFORMS|ubuntu-16-04,Canonical:UbuntuServer:16.04.0-LTS:16.04.201802220"
+    - bash -l tasks/run-test-kitchen.sh
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
+# run dd-agent-testing on suse
+kitchen_suse:
+  stage: testkitchen_testing
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
+  only:
+    - master
+    - tags
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="sles-12,SUSE:SLES:12-SP3:2017.12.11"
+    - bash -l tasks/run-test-kitchen.sh
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/kitchen_logs
+
+# run dd-agent-testing on debian (FIXME: Allowed to fail until we resolve the issue with apt locks/azure agent)
+kitchen_debian:
+  stage: testkitchen_testing
+  allow_failure: true
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
+  only:
+    - master
+    - tags
+  before_script:
+    - rsync -azr --delete ./ $SRC_PATH
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd $CI_PROJECT_DIR
+    - cd $DD_AGENT_TESTING_DIR
+    - mkdir $CI_PROJECT_DIR/kitchen_logs
+    - ln -s $CI_PROJECT_DIR/kitchen_logs $DD_AGENT_TESTING_DIR/.kitchen
+    - export TEST_PLATFORMS="debian-8,credativ:Debian:8:8.0.201803130"
     - bash -l tasks/run-test-kitchen.sh
   artifacts:
     expire_in: 2 weeks
