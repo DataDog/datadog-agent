@@ -2,24 +2,19 @@
 systray tasks
 """
 from __future__ import print_function
-import glob
 import os
-import shutil
-from distutils.dir_util import copy_tree
 
 import invoke
 from invoke import task
-from invoke.exceptions import Exit
 
-from .utils import bin_name, get_build_flags, pkg_config_path, get_version_numeric_only, load_release_versions
+from .utils import bin_name, get_version_numeric_only
 from .utils import REPO_PATH
 from .utils import get_version_ldflags
-from .build_tags import get_build_tags, get_default_build_tags, ALL_TAGS
-from .go import deps
 
-#constants
+# constants
 BIN_PATH = os.path.join(".", "bin", "agent")
 AGENT_TAG = "datadog/agent:master"
+
 
 @task
 def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None,
@@ -30,16 +25,16 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     the values from `invoke.yaml` will be used.
 
     Example invokation:
-        inv systray.build 
+        inv systray.build
     """
-    
+
     if not invoke.platform.WINDOWS:
         print("Systray only available on Windows")
         return
 
     # This generates the manifest resource. The manifest resource is necessary for
     # being able to load the ancient C-runtime that comes along with Python 2.7
-    #command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
+    # command = "rsrc -arch amd64 -manifest cmd/agent/agent.exe.manifest -o cmd/agent/rsrc.syso"
     ver = get_version_numeric_only(ctx)
     build_maj, build_min, build_patch = ver.split(".")
 
@@ -56,12 +51,11 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     args = {
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else ("-i" if precompile_only else ""),
-       "agent_bin": os.path.join(BIN_PATH, bin_name("ddtray")),
-       "ldflags": ldflags,
+        "agent_bin": os.path.join(BIN_PATH, bin_name("ddtray")),
+        "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args))
-
 
 
 @task
