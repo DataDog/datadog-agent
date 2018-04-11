@@ -1,4 +1,5 @@
 stages:
+  - run_test_cmd
   - source_test
   - binary_build
   - integration_test
@@ -44,17 +45,13 @@ before_script:
   # We need to install go deps from within the GOPATH, which we set to / on builder images; that's because pointing
   # GOPATH to the project folder would be too complex (we'd need to replicate the `src/github/project` scheme).
   # So we copy the agent sources to / and bootstrap from there the vendor dependencies before running any job.
-  - rsync -azr --delete ./ $SRC_PATH
-  - cd $SRC_PATH
-  - pip install -U pip
-  - inv -e deps
+
 
 
 
 #
 # source_test
 #
-
 
 # run tests for deb-x64
 run_tests_deb-x64:
@@ -978,6 +975,20 @@ deploy_puppy:
     - $S3_CP_CMD $S3_ARTEFACTS_URI/puppy/agent ./agent
     - export VERSION=$(inv version --url-safe)
     - aws s3 cp --region us-east-1 ./agent $S3_DSD6_URI/puppy/agent-$VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+
+# invalidate cloudfront cache
+deploy_cloudfront_invalidate:
+  stage: run_test_cmd
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:v426045-7f4e3be
+  only:
+    - master
+    - tags
+    - arbll/invlidate-staging-cloudfront
+  tags: [ "runner:main", "size:large" ]
+  script:
+    - cd /deploy_scripts/cloudfront-invalidation
+    - "REPO=apt ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
+    - "REPO=yum ENV=staging PATTERN_SUBSTRING=/$DEB_RPM_BUCKET_BRANCH/ ./invalidate.sh"
 
 tag_push_agent:
   <<: *docker_tag_job_definition
