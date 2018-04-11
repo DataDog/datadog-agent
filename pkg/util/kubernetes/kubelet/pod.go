@@ -38,11 +38,11 @@ func (p *Pod) Owners() []PodOwner {
 
 	// Error handling
 	if err != nil {
-		log.Debugf("cannot parse created-by field for pod %q: %s", p.Metadata.Name, err)
+		log.Debugf("Cannot parse created-by field for pod %q: %s", p.Metadata.Name, err)
 		return nil
 	}
 	if ref.Kind != "SerializedReference" {
-		log.Debugf("cannot parse created-by field for pod %q: unknown kind %q", p.Metadata.Name, ref.Kind)
+		log.Debugf("Cannot parse created-by field for pod %q: unknown kind %q", p.Metadata.Name, ref.Kind)
 		return nil
 	}
 
