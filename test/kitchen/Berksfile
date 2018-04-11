@@ -1,4 +1,5 @@
 source 'https://supermarket.chef.io'
+# TODO: pin to a release once https://github.com/DataDog/chef-datadog/pull/520 & https://github.com/DataDog/chef-datadog/pull/505 are released
 cookbook 'datadog', git: "https://github.com/datadog/chef-datadog.git", branch: "arbll/kitchen"
 # cookbook 'datadog', '~> 2.13.0'
 cookbook 'apt', '~> 3.0'
