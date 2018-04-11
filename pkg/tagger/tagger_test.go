@@ -285,3 +285,28 @@ func TestErrNotFound(t *testing.T) {
 	assert.NoError(t, err)
 	c.AssertNumberOfCalls(t, "Fetch", 2)
 }
+
+func TestSafeCache(t *testing.T) {
+	catalog := collectors.Catalog{"pull": NewDummyPuller}
+	tagger := newTagger()
+	tagger.Init(catalog)
+
+	tagger.tagStore.processTagInfo(&collectors.TagInfo{
+		Entity:      "entity_name",
+		Source:      "pull",
+		LowCardTags: []string{"low1", "low2", "low3"},
+	})
+
+	// First lookup
+	tags, err := tagger.Tag("entity_name", true)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2", "low3"}, tags)
+
+	// Let's modify the return value
+	tags[0] = "nope"
+
+	// Make sure the cache is not affected
+	tags2, err := tagger.Tag("entity_name", true)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{"low1", "low2", "low3"}, tags2)
+}
