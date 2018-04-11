@@ -31,7 +31,7 @@ func (p *Pod) Owners() []PodOwner {
 	// Else, try unserialising the legacy field
 	content, found := p.Metadata.Annotations["kubernetes.io/created-by"]
 	if !found {
-		return owners
+		return nil
 	}
 	var ref creatorRef
 	err := json.Unmarshal([]byte(content), &ref)
@@ -39,13 +39,13 @@ func (p *Pod) Owners() []PodOwner {
 	// Error handling
 	if err != nil {
 		log.Debugf("cannot parse created-by field for pod %q: %s", p.Metadata.Name, err)
-		return owners
+		return nil
 	}
 	if ref.Kind != "SerializedReference" {
 		log.Debugf("cannot parse created-by field for pod %q: unknown kind %q", p.Metadata.Name, ref.Kind)
-		return owners
+		return nil
 	}
 
-	owners = append(owners, ref.Reference)
+	owners = []PodOwner{ref.Reference}
 	return owners
 }
