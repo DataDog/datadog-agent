@@ -50,7 +50,8 @@ DD_API_KEY=12345678990 ./bin/agent/agent -c bin/agent/dist/datadog.yaml
 
 ## Contributing code
 
-You must sign a CLA before we can accept your contributions. The first time you
+You must sign [our CLA](https://gist.github.com/bits-bot/55bdc97a4fdad52d97feb4d6c3d1d618)
+before we can accept your contributions. The first time you
 submit a PR, a bot will walk you through the automated process. On subsequent
 contributions you will not be prompted unless the content of the agreement has
 changed. We sincerely appreciate your contribution and have worked hard to ensure
