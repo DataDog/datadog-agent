@@ -222,7 +222,7 @@ func (t *Tagger) Tag(entity string, highCard bool) ([]string, error) {
 
 	if len(sources) == len(t.fetchers) {
 		// All sources sent data to cache
-		return cachedTags, nil
+		return copyArray(cachedTags), nil
 	}
 	// Else, partial cache miss, query missing data
 	// TODO: get logging on that to make sure we should optimize
@@ -259,5 +259,17 @@ ITER_COLLECTORS:
 	}
 	t.RUnlock()
 
-	return utils.ConcatenateTags(tagArrays), nil
+	computedTags := utils.ConcatenateTags(tagArrays)
+
+	return copyArray(computedTags), nil
+}
+
+// copyArray makes sure the tagger does not return internal slices
+// that could be modified by others, by explicitly copying the slice
+// contents to a new slice. As strings are references, the size of
+// the new array is small enough.
+func copyArray(source []string) []string {
+	copied := make([]string, len(source))
+	copy(copied, source)
+	return copied
 }
