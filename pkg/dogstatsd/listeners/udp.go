@@ -40,7 +40,7 @@ func NewUDPListener(packetOut chan *Packet, packetPool *PacketPool) (*UDPListene
 		// Listen to all network interfaces
 		url = fmt.Sprintf(":%d", config.Datadog.GetInt("dogstatsd_port"))
 	} else {
-		url = fmt.Sprintf("%s:%d", config.Datadog.GetString("bind_host"), config.Datadog.GetInt("dogstatsd_port"))
+		url = net.JoinHostPort(config.Datadog.GetString("bind_host"), config.Datadog.GetString("dogstatsd_port"))
 	}
 
 	conn, err = net.ListenPacket("udp", url)
