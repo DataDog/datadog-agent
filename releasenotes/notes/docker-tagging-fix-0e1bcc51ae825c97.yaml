@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a bug where the `docker_network` tag incorrectly appeared on
+    non-network docker metrics and autodiscovery tags
