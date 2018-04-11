@@ -239,11 +239,14 @@ api_key:
 # log_level: info
 # log_file: /var/log/datadog/agent.log
 
-# Set to "yes" to output logs in JSON format
+# Set to 'yes' to output logs in JSON format
 # log_format_json: no
 
 # Set to 'no' to disable logging to stdout
 # log_to_console: yes
+
+# Set to 'yes' to disable logging to the log file
+# disable_file_logging: no
 
 # Set to 'yes' to enable logging to syslog.
 #
