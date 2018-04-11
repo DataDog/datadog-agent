@@ -264,10 +264,6 @@ api_key:
 #
 # syslog_tls: no
 #
-# If 'syslog_tls' is enabled, you can set your pem-encoded root ca certs here
-#
-# syslog_pem:
-#
 {{ end -}}
 {{- if .Autodiscovery }}
 # Autodiscovery
