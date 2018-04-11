@@ -32,15 +32,17 @@ func NewFile(path string, source *config.LogSource) *File {
 
 // FileProvider implements the logic to retrieve at most filesLimit Files defined in sources
 type FileProvider struct {
-	sources    []*config.LogSource
-	filesLimit int
+	sources         []*config.LogSource
+	filesLimit      int
+	shouldLogErrors bool
 }
 
 // NewFileProvider returns a new FileProvider
 func NewFileProvider(sources []*config.LogSource, filesLimit int) *FileProvider {
 	return &FileProvider{
-		sources:    sources,
-		filesLimit: filesLimit,
+		sources:         sources,
+		filesLimit:      filesLimit,
+		shouldLogErrors: true,
 	}
 }
 
@@ -50,6 +52,9 @@ func NewFileProvider(sources []*config.LogSource, filesLimit int) *FileProvider 
 // they are just returned in alphabetical order
 func (p *FileProvider) FilesToTail() []*File {
 	filesToTail := []*File{}
+	shouldLogErrors := p.shouldLogErrors
+	p.shouldLogErrors = false // Let's log errors on first run only
+
 	for i := 0; i < len(p.sources) && len(filesToTail) < p.filesLimit; i++ {
 		source := p.sources[i]
 		sourcePath := source.Config.Path
@@ -64,15 +69,25 @@ func (p *FileProvider) FilesToTail() []*File {
 		if err != nil {
 			err := fmt.Errorf("Malformed pattern, could not find any file: %s", pattern)
 			source.Status.Error(err)
-			log.Error(err)
+			if shouldLogErrors {
+				log.Error(err)
+			}
 			continue
 		}
 		if len(paths) == 0 {
 			// no file was found, its parent directories might have wrong permissions or it just does not exist
 			if p.containsWildcard(pattern) {
-				log.Warnf("Could not find any file matching pattern %s, check that all its subdirectories are exectutable", pattern)
+				err := fmt.Errorf("Could not find any file matching pattern %s, check that all its subdirectories are exectutable", pattern)
+				source.Status.Error(err)
+				if shouldLogErrors {
+					log.Error(err)
+				}
 			} else {
-				log.Warnf("File %s does not exist", sourcePath)
+				err := fmt.Errorf("File %s does not exist", sourcePath)
+				source.Status.Error(err)
+				if shouldLogErrors {
+					log.Error(err)
+				}
 			}
 			continue
 		}
@@ -82,7 +97,9 @@ func (p *FileProvider) FilesToTail() []*File {
 		}
 	}
 	if len(filesToTail) == p.filesLimit {
-		log.Warn("Reached the limit on the maximum number of files in use: ", p.filesLimit)
+		if shouldLogErrors {
+			log.Warn("Reached the limit on the maximum number of files in use: ", p.filesLimit)
+		}
 		return filesToTail
 	}
 
