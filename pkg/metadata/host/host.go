@@ -217,7 +217,7 @@ func getHostAliases() []string {
 
 	k8sAlias, err := k8s.GetHostAlias()
 	if err != nil {
-		log.Debugf("no Kubernetes Host Alias: %s (through kubelet API)", err)
+		log.Debugf("no Kubernetes Host Alias (through kubelet API): %s", err)
 	} else if k8sAlias != "" {
 		aliases = append(aliases, k8sAlias)
 	}
