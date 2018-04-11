@@ -382,7 +382,6 @@ deploy_deb_testing:
     - ls $OMNIBUS_PACKAGE_DIR
   only:
     - master
-    - arbll/test-kitchen-update
     - tags
   tags: [ "runner:main", "size:large" ]
   script:
@@ -411,7 +410,6 @@ deploy_rpm_testing:
     - ls $OMNIBUS_PACKAGE_DIR
   only:
     - master
-    - arbll/test-kitchen-update
     - tags
   tags: [ "runner:main", "size:large" ]
   script:
@@ -432,7 +430,6 @@ deploy_suse_rpm_testing:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   only:
     - master
-    - arbll/test-kitchen-update
     - tags
   tags: [ "runner:main", "size:large" ]
   script:
@@ -450,7 +447,6 @@ kitchen_windows:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
-    - arbll/test-kitchen-update
     - tags
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
@@ -476,7 +472,6 @@ kitchen_centos:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
-    - arbll/test-kitchen-update
     - tags
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
@@ -501,7 +496,6 @@ kitchen_ubuntu:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
-    - arbll/test-kitchen-update
     - tags
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
@@ -526,7 +520,6 @@ kitchen_suse:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
-    - arbll/test-kitchen-update
     - tags
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
@@ -551,7 +544,6 @@ kitchen_debian:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
-    - arbll/test-kitchen-update
     - tags
   before_script:
     - rsync -azr --delete ./ $SRC_PATH
@@ -575,7 +567,6 @@ testkitchen_cleanup_s3:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/deploy:latest
   only:
     - master
-    - arbll/test-kitchen-update
     - tags
   tags: [ "runner:main", "size:large" ]
   before_script:
@@ -597,7 +588,6 @@ testkitchen_cleanup_azure:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
-    - arbll/test-kitchen-update
     - tags
   # even if this fails, it shouldn't block the pipeline.
   allow_failure: true
