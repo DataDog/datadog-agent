@@ -124,7 +124,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	log.Infof("Making a flare")
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = common.DefaultDCALogFile
 	}
 	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
 	if err != nil || filePath == "" {

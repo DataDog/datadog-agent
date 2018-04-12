@@ -92,7 +92,7 @@ func start(cmd *cobra.Command, args []string) error {
 	syslogURI := config.GetSyslogURI()
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = common.DefaultDCALogFile
 	}
 	if config.Datadog.GetBool("disable_file_logging") {
 		// this will prevent any logging on file
