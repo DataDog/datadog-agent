@@ -1,0 +1,3 @@
+---
+features:
+  - Enable to set ec2_collect_tags from environment variable DD_COLLECT_EC2_TAGS
