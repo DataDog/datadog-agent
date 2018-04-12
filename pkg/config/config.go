@@ -283,6 +283,8 @@ func init() {
 	Datadog.BindEnv("kubernetes_kubeconfig_path")
 	Datadog.BindEnv("leader_election")
 	Datadog.BindEnv("leader_lease_duration")
+
+	Datadog.BindEnv("collect_ec2_tags")
 }
 
 // BindEnvAndSetDefault sets the default value for a config parameter, and adds an env binding
