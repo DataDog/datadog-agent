@@ -67,6 +67,13 @@ You can exclude containers from the metrics collection and autodiscovery, if the
 - `DD_AC_INCLUDE`: whitelist of containers to always include
 - `DD_AC_EXCLUDE`: blacklist of containers to exclude
 
+**The format for these option is space-separated strings**. For example, if you only want to monitor two images, and exclude the rest, you should specify:
+
+```
+DD_AC_EXCLUDE = "image:.*"
+DD_AC_INCLUDE = "image:cp-kafka image:k8szk"
+```
+
 Please note that the `docker.containers.running`, `.stopped`, `.running.total` and `.stopped.total` metrics are not affected by these settings and always count all containers. This does not affect your per-container billing.
 
 #### Kubernetes integration
