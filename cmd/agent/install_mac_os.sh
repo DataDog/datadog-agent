@@ -106,12 +106,16 @@ if egrep 'api_key:( APIKEY)?$' "/opt/datadog-agent/etc/datadog.yaml" > /dev/null
 
     # Wait for the agent to fully stop
     retry=0
-    until [ $retry -ge 5 ]
-    do
+    until [ $retry -ge 5 ]; do
         curl -m 5 -o /dev/null -s -I http://127.0.0.1:5002 || break
         retry=$[$retry+1]
         sleep 5
     done
+    if [ $retry -ge 5 ]; then
+        printf "\n\033[33mCould not restart the agent.
+You may have to restart it manualy using the systray app or the \
+\"launchctl start com.datadoghq.agent\" command.\n\033[0m\n"
+    fi
 
     $cmd_launchctl start com.datadoghq.agent
 else
