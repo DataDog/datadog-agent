@@ -91,7 +91,7 @@ type Config struct {
 	Blacklist []string
 
 	// internal use only
-	filter *containerFilter
+	filter *Filter
 }
 
 // Expose module-level functions that will interact with a the globalDockerUtil singleton.

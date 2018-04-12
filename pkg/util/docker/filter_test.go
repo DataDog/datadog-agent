@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
-// +build docker
-
 package docker
 
 import (
@@ -12,9 +10,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func TestContainerFilter(t *testing.T) {
+func TestFilter(t *testing.T) {
 	containers := []*Container{
 		{
 			ID:    "1",
@@ -105,16 +105,41 @@ func TestContainerFilter(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			f, err := newContainerFilter(tc.whitelist, tc.blacklist)
+			f, err := NewFilter(tc.whitelist, tc.blacklist)
 			require.Nil(t, err, "case %d", i)
 
 			var allowed []string
 			for _, c := range containers {
-				if !f.IsExcluded(c) {
+				if !f.IsExcluded(c.Name, c.Image) {
 					allowed = append(allowed, c.ID)
 				}
 			}
 			assert.Equal(t, tc.expectedIDs, allowed, "case %d", i)
 		})
 	}
+}
+
+// NewFilterFromConfig creates a new container filter, sourcing patterns
+// from the pkg/config options
+func TestNewFilterFromConfig(t *testing.T) {
+	config.Datadog.SetDefault("exclude_pause_container", true)
+	config.Datadog.SetDefault("ac_include", []string{"image:apache.*"})
+	config.Datadog.SetDefault("ac_exclude", []string{"name:dd-.*"})
+
+	f, err := NewFilterFromConfig()
+	require.NoError(t, err)
+
+	assert.True(t, f.IsExcluded("dd-152462", "dummy:latest"))
+	assert.False(t, f.IsExcluded("dd-152462", "apache:latest"))
+	assert.False(t, f.IsExcluded("dummy", "dummy"))
+	assert.True(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1"))
+
+	config.Datadog.SetDefault("exclude_pause_container", false)
+	f, err = NewFilterFromConfig()
+	require.NoError(t, err)
+	assert.False(t, f.IsExcluded("dummy", "k8s.gcr.io/pause-amd64:3.1"))
+
+	config.Datadog.SetDefault("exclude_pause_container", true)
+	config.Datadog.SetDefault("ac_include", []string{})
+	config.Datadog.SetDefault("ac_exclude", []string{})
 }

@@ -23,7 +23,7 @@ func TestProcessContainerEvent(t *testing.T) {
 	timestamp := time.Now().Truncate(10 * time.Millisecond)
 
 	// Container filter
-	filter, err := newContainerFilter([]string{},
+	filter, err := NewFilter([]string{},
 		[]string{"name:excluded_name", "image:excluded_image"})
 
 	assert.Nil(err)
