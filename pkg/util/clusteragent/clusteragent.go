@@ -18,10 +18,10 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 )
 
 /*
@@ -29,7 +29,7 @@ Client to query the Datadog Cluster Agent (DCA) API.
 */
 
 const (
-	authorizationHeaderKey        = "Authorization"
+	authorizationHeaderKey = "Authorization"
 )
 
 var globalClusterAgentClient *DCAClient
@@ -65,9 +65,6 @@ func GetClusterAgentClient() (*DCAClient, error) {
 	}
 	return globalClusterAgentClient, nil
 }
-
-
-
 
 func (c *DCAClient) init() error {
 	var err error
