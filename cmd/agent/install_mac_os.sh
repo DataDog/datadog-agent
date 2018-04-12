@@ -103,6 +103,16 @@ if egrep 'api_key:( APIKEY)?$' "/opt/datadog-agent/etc/datadog.yaml" > /dev/null
     fi
     printf "\n\033[34m* Restarting the Agent...\n\033[0m\n"
     $cmd_launchctl stop com.datadoghq.agent
+
+    # Wait for the agent to fully stop
+    retry=0
+    until [ $retry -ge 5 ]
+    do
+        curl -m 5 -o /dev/null -s -I http://127.0.0.1:5002 || break
+        retry=$[$retry+1]
+        sleep 5
+    done
+
     $cmd_launchctl start com.datadoghq.agent
 else
     printf "\033[34m\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n\033[0m\n"
