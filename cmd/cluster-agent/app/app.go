@@ -140,7 +140,6 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start()
 	s := &serializer.Serializer{Forwarder: f}
 
-
 	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupEvent("DCA")
 

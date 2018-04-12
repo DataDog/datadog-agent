@@ -24,8 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 type dummyClusterAgent struct {
