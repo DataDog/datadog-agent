@@ -228,10 +228,11 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
         overrides_cmd = "--override=" + " ".join(overrides)
 
     with ctx.cd("omnibus"):
+        env = load_release_versions(ctx, release_version)
         cmd = "bundle install"
         if gem_path:
             cmd += " --path {}".format(gem_path)
-        ctx.run(cmd)
+        ctx.run(cmd, env=env)
 
         omnibus = "bundle exec omnibus.bat" if invoke.platform.WINDOWS else "bundle exec omnibus"
         cmd = "{omnibus} build {project_name} --log-level={log_level} {overrides}"
@@ -241,7 +242,6 @@ def omnibus_build(ctx, puppy=False, log_level="info", base_dir=None, gem_path=No
             "log_level": log_level,
             "overrides": overrides_cmd
         }
-        env = load_release_versions(ctx, release_version)
         if skip_sign:
             env['SKIP_SIGN_MAC'] = 'true'
         ctx.run(cmd.format(**args), env=env)
