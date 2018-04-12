@@ -67,7 +67,7 @@ You can exclude containers from the metrics collection and autodiscovery, if the
 - `DD_AC_INCLUDE`: whitelist of containers to always include
 - `DD_AC_EXCLUDE`: blacklist of containers to exclude
 
-**The format for these option is space-separated strings**. For example, if you only want to monitor two images, and exclude the rest, you should specify:
+**The format for these option is space-separated strings**. For example, if you only want to monitor two images, and exclude the rest, specify:
 
 ```
 DD_AC_EXCLUDE = "image:.*"
