@@ -39,6 +39,8 @@ const (
 	DefaultConfPath = "c:\\programdata\\datadog"
 	// DefaultLogFile points to the log file that will be used if not configured
 	DefaultLogFile = "c:\\programdata\\datadog\\logs\\agent.log"
+	// DefaultDCALogFile points to the log file that will be used if not configured
+	DefaultDCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
 )
 
 // EnableLoggingToFile -- set up logging to file
