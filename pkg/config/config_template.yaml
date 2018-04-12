@@ -63,9 +63,6 @@ api_key:
 # flush.
 # forwarder_num_workers: 1
 
-# Set this option to "yes" to output logs in JSON format
-# log_format_json: no
-
 # Collect AWS EC2 custom tags as agent tags
 # collect_ec2_tags: false
 {{ end }}
@@ -241,6 +238,32 @@ api_key:
 #
 # log_level: info
 # log_file: /var/log/datadog/agent.log
+
+# Set to 'yes' to output logs in JSON format
+# log_format_json: no
+
+# Set to 'no' to disable logging to stdout
+# log_to_console: yes
+
+# Set to 'yes' to disable logging to the log file
+# disable_file_logging: no
+
+# Set to 'yes' to enable logging to syslog.
+#
+# log_to_syslog: no
+#
+# If 'syslog_uri' is left undefined/empty, a local domain socket connection will be attempted
+#
+# syslog_uri:
+#
+# Set to 'yes' to output in an RFC 5424-compliant format
+#
+# syslog_rfc: no
+#
+# If connecting through a TCP socket, set to 'yes' to enable TLS
+#
+# syslog_tls: no
+#
 {{ end -}}
 {{- if .Autodiscovery }}
 # Autodiscovery
