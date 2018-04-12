@@ -13,11 +13,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func TestContainerFilter(t *testing.T) {
+type ContainerFilterSuite struct {
+	suite.Suite
+}
+
+func (s *ContainerFilterSuite) TearDownTest() {
+	config.Datadog.SetDefault("exclude_pause_container", true)
+	config.Datadog.SetDefault("ac_include", []string{})
+	config.Datadog.SetDefault("ac_exclude", []string{})
+	initContainerFilter()
+}
+
+func (s *ContainerFilterSuite) TestCheckRun() {
 	config.Datadog.SetDefault("exclude_pause_container", true)
 	config.Datadog.SetDefault("ac_include", []string{"image:apache.*"})
 	config.Datadog.SetDefault("ac_exclude", []string{"name:dd-.*"})
@@ -25,14 +37,12 @@ func TestContainerFilter(t *testing.T) {
 
 	check, _ := getCheckInstance("testcontainers", "TestCheck")
 	err := check.Run()
-	assert.Nil(t, err)
+	assert.NoError(s.T(), err)
 
 	warnings := check.GetWarnings()
-	require.Len(t, warnings, 0)
+	require.Len(s.T(), warnings, 0)
+}
 
-	// Cleanup
-	config.Datadog.SetDefault("exclude_pause_container", true)
-	config.Datadog.SetDefault("ac_include", []string{})
-	config.Datadog.SetDefault("ac_exclude", []string{})
-	initContainerFilter()
+func TestContainerFilterSuite(t *testing.T) {
+	suite.Run(t, new(ContainerFilterSuite))
 }

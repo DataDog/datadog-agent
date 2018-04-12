@@ -35,11 +35,10 @@ static PyObject *is_excluded(PyObject *self, PyObject *args) {
 
 static PyMethodDef containersMethods[] = {
   {"is_excluded", is_excluded, METH_VARARGS, "Filter a container per name and image"},
-  {NULL, NULL}
+  {NULL, NULL}  // guards
 };
 
-void initcontainers()
-{
+void initcontainers() {
   PyGILState_STATE gstate;
   gstate = PyGILState_Ensure();
 
