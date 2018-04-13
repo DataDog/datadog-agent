@@ -104,7 +104,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	hname, err := util.GetHostname()
 	if err != nil {
-		log.Warnf("Error getting hostname: %s\n", err)
+		log.Warnf("Error getting hostname: %s", err)
 		hname = ""
 	}
 	j, err := json.Marshal(hname)

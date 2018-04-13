@@ -108,7 +108,7 @@ func ValidateDCARequest(w http.ResponseWriter, r *http.Request) error {
 		dcaToken = GetDCAAuthToken()
 	}
 
-	if len(tok) < 2 || tok[1] != dcaToken {
+	if len(tok) != 2 || tok[1] != dcaToken {
 		err = fmt.Errorf("invalid session token")
 		http.Error(w, err.Error(), 403)
 	}
