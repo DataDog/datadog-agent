@@ -27,6 +27,12 @@ RUN dpkg -x /datadog-agent*_amd64.deb . \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
     opt/datadog-agent/embedded/share/man \
+    # remove libsasl as we don't need it and it's vulnerable
+    opt/datadog-agent/embedded/lib/python2.7/site-packages/psycopg2/.libs/libsasl2-e96a0dbf.so.2.0.22 \
+    # remove libcurl 4.4.0 - it gets removed later anyway but the docker store scanner doesn't see that
+    opt/datadog-agent/embedded/lib/libcurl.so.4.4.0 \
+    # ditto for this older libsystemd
+    usr/lib/x86_64-linux-gnu/libsystemd.so.0.21.0 \
  && find opt/datadog-agent/ -iname "*.a" -delete \
  && if [ -z "$WITH_JMX" ]; then rm -rf opt/datadog-agent/bin/agent/dist/jmx; fi \
  && ln -s /opt/datadog-agent/embedded/ssl etc/ssl \
@@ -72,7 +78,11 @@ RUN if [ -n "$WITH_JMX" ]; then apt-get update \
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \
   # CVE-fixing time!
   # https://security-tracker.debian.org/tracker/CVE-2016-2779
-  && rm -f /usr/sbin/runuser
+  && rm -f /usr/sbin/runuser \
+  # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6954
+  /usr/lib/x86_64-linux-gnu/libdb-5.3.so \
+  # https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-6829
+  /usr/lib/x86_64-linux-gnu/libgcrypt.so.2*
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /
