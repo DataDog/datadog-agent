@@ -1,36 +1,27 @@
 # Cluster Agent 6 docker image
 
-This is how the official Datadog Cluster Agent 6 (aka DCA) image available [here](https://hub.docker.com/r/datadog/cluster-agent/) is built.
+This is how the official Datadog Cluster Agent (also known as `DCA`) image, available [here](https://hub.docker.com/r/datadog/cluster-agent/), is built.
 
 ## How to run it
 
 The following environment variables are supported:
 
 - `DD_API_KEY`: your API key (**required**)
-- `DD_HOSTNAME`: hostname to use for metrics
-- 'DD_CMD_PORT': Port you want the DCA to serve
-
-Example usage: `docker run -e DD_API_KEY=your-api-key-here -e CMD_PORT=1234 -it <image-name>`
+- `DD_HOSTNAME`: hostname to use for the DCA.
+- `DD_CMD_PORT`: Port you want the DCA to serve
 
 For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/cluster-agent/)
 
 ## How to build it
 
-### On debian-based systems
+### Dockerized Agent
 
-You can build your own debian package using `inv cluster-agent.omnibus-build`
+The Datadog Cluster Agent is designed to be used in a containerized ecosystem.
+Therefore, you will need to have docker installed on your system.
 
-Then you can call `inv cluster-agent.image-build` that will take the debian package generated above and use it to build the image
+Start by creating the binary by running `inv -e cluster-agent.build`. This will add a binary in `./bin/datadog-cluster-agent/`
+Then from the current folder, run `inv -e cluster-agent.image-build`.
 
-### On other systems
-
-To build the image you'll need the cluster-agent debian package that will soon be on our apt/yum repos. In the meantime, you can use the omnibus-build command listed above.
-
-You'll need to download one of the `datadog-cluster-agent*_amd64.deb` package in this directory, it will then be used by the `Dockerfile` and installed within the image.
-
-You can then build the image using `docker build -t datadog/cluster-agent:master .`
-
-If you are on macOS, use the --skip-sign option on the omnibus-build.
 
 ## Running the DCA with Kubernetes
 
@@ -49,7 +40,7 @@ spec:
       name: dca
       namespace: default
     spec:
-      serviceAccountName: dca
+      serviceAccountName: datadog-dca
       containers:
       - image: datadog/cluster-agent
         imagePullPolicy: Always
@@ -57,6 +48,8 @@ spec:
         env:
           - name: DD_API_KEY
             value: XXXX
+          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+            value: <32 characters long string shared with node agent>
 ```
 And use the RBAC below to get the best out of it.
 
@@ -132,4 +125,33 @@ NB: you can set any resversion here, make sure it's not set to a value superior 
 
 You can also set the `event.tokenTimestamp`, if not present, it will be automatically set.
 
+### Communication with the Datadog Node Agent.
+
+For the DCA to communicate with the Node Agent, you need to share an authentication token between the two agents.
+The Token needs to be longer than 32 characters and should only have upper case or lower case letters and numbers.
+You can pass the token as an environment variable: `DD_CLUSTER_AGENT_AUTH_TOKEN`.
+
+### Enabling Features
+
+#### Event collection
+
+In order to collect events, you need the following environment varibales:
+```
+          - name: DD_COLLECT_KUBERNETES_EVENTS
+            value: "true"
+          - name: DD_LEADER_ELECTION
+            value: "true"
+```
+Enabling the leader election will ensure that only one agent collects the events.
+
+#### Cluster metadata provider
+
+You need to ensure the Node agents and the DCA can properly communicate.
+Create a service in front of the DCA (see /manifests/datadog-cluster-agent_service.yaml)
+Ensure an auth_token is properly shared between the agents.
+Confirm the RBAC rules are properly set (see /manifests/rbac/).
+
+In the Node Agent, make sure the `DD_CLUSTER_AGENT` env var is set to true.
+The env var `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ` can be set to specify how often the node agents hit the DCA.
+You can disable the kubernetes service tag collection with `DD_KUBERNETES_COLLECT_SERVICE_TAGS`. 
 

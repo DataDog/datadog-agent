@@ -12,12 +12,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
+
 	"strings"
 	"time"
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -28,9 +29,7 @@ Client to query the Datadog Cluster Agent (DCA) API.
 */
 
 const (
-	authorizationHeaderKey        = "Authorization"
-	clusterAgentAuthTokenMinLen   = 32
-	clusterAgentAuthTokenFilename = "dca_auth_token"
+	authorizationHeaderKey = "Authorization"
 )
 
 var globalClusterAgentClient *DCAClient
@@ -67,41 +66,6 @@ func GetClusterAgentClient() (*DCAClient, error) {
 	return globalClusterAgentClient, nil
 }
 
-func validateAuthToken(authToken string) error {
-	if len(authToken) < clusterAgentAuthTokenMinLen {
-		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", clusterAgentAuthTokenMinLen, len(authToken))
-	}
-	return nil
-}
-
-// GetClusterAgentAuthToken load the authentication token from:
-// 1srt. the configuration value of "cluster_agent_auth_token" in datadog.yaml
-// 2nd. from the filesystem
-// If using the token from the filesystem, the token file must be next to the datadog.yaml
-// with the filename: dca_auth_token
-func GetClusterAgentAuthToken() (string, error) {
-	authToken := config.Datadog.GetString("cluster_agent.auth_token")
-	if authToken != "" {
-		return authToken, validateAuthToken(authToken)
-	}
-
-	// load the cluster agent auth token from filesystem
-	tokenAbsPath := filepath.Join(config.FileUsedDir(), clusterAgentAuthTokenFilename)
-	log.Debugf("empty cluster_agent_auth_token, loading from %s", tokenAbsPath)
-	_, err := os.Stat(tokenAbsPath)
-	if err != nil {
-		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot find %q: %s", tokenAbsPath, err)
-	}
-	b, err := ioutil.ReadFile(tokenAbsPath)
-	if err != nil {
-		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot read %s: %s", tokenAbsPath, err)
-	}
-	log.Debugf("cluster_agent_auth_token loaded from %s", tokenAbsPath)
-
-	authToken = string(b)
-	return authToken, validateAuthToken(authToken)
-}
-
 func (c *DCAClient) init() error {
 	var err error
 
@@ -110,7 +74,7 @@ func (c *DCAClient) init() error {
 		return err
 	}
 
-	authToken, err := GetClusterAgentAuthToken()
+	authToken, err := security.GetClusterAgentAuthToken()
 	if err != nil {
 		return err
 	}
@@ -139,7 +103,7 @@ func getClusterAgentEndpoint() (string, error) {
 			return "", fmt.Errorf("cannot get cluster agent endpoint, not a https scheme: %s", dcaURL)
 		}
 		if strings.Contains(dcaURL, "://") == false {
-			log.Tracef("adding https scheme to %s: https://%s", dcaURL, dcaURL)
+			log.Tracef("Adding https scheme to %s: https://%s", dcaURL, dcaURL)
 			dcaURL = fmt.Sprintf("https://%s", dcaURL)
 		}
 		u, err := url.Parse(dcaURL)
@@ -149,12 +113,14 @@ func getClusterAgentEndpoint() (string, error) {
 		if u.Scheme != "https" {
 			return "", fmt.Errorf("cannot get cluster agent endpoint, not a https scheme: %s", u.Scheme)
 		}
+		log.Debugf("Connecting to the configured URL for the Datadog Cluster Agent: %s", dcaURL)
 		return u.String(), nil
 	}
 
 	// Construct the URL with the Kubernetes service environment variables
 	// *_SERVICE_HOST and *_SERVICE_PORT
 	dcaSvc := config.Datadog.GetString(configDcaSvcName)
+	log.Debugf("Identified service for the Datadog Cluster Agent: %s", dcaSvc)
 	if dcaSvc == "" {
 		return "", fmt.Errorf("cannot get a cluster agent endpoint, both %q and %q are empty", configDcaURL, configDcaSvcName)
 	}
@@ -191,6 +157,9 @@ func (c *DCAClient) GetKubernetesServiceNames(nodeName, podName string) ([]strin
 	var serviceNames serviceNames
 	var err error
 
+	if c == nil {
+		return nil, fmt.Errorf("cluster agent's client is not properly initialized")
+	}
 	req := &http.Request{
 		Header: *c.clusterAgentAPIRequestHeaders,
 	}

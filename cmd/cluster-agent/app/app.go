@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -91,7 +92,7 @@ func start(cmd *cobra.Command, args []string) error {
 	syslogURI := config.GetSyslogURI()
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
-		logFile = common.DefaultLogFile
+		logFile = common.DefaultDCALogFile
 	}
 	if config.Datadog.GetBool("disable_file_logging") {
 		// this will prevent any logging on file
@@ -125,7 +126,7 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 	log.Infof("Hostname is: %s", hostname)
 
-	// start the cmd HTTP server
+	// start the cmd HTTPS server
 	if err = api.StartServer(); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
@@ -139,14 +140,7 @@ func start(cmd *cobra.Command, args []string) error {
 	f.Start()
 	s := &serializer.Serializer{Forwarder: f}
 
-	hname, err := util.GetHostname()
-	if err != nil {
-		log.Warnf("Error getting hostname: %s", err)
-		hname = ""
-	}
-	log.Debugf("Using hostname: %s", hname)
-
-	aggregatorInstance := aggregator.InitAggregator(s, hname)
+	aggregatorInstance := aggregator.InitAggregator(s, hostname)
 	aggregatorInstance.AddAgentStartupEvent("DCA")
 
 	clusterAgent, err := clusteragent.Run(aggregatorInstance.GetChannels())
@@ -154,6 +148,15 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Errorf("Could not start the Cluster Agent Process.")
 
 	}
+
+	// Start the Service Mapper.
+	asc, err := apiserver.GetAPIClient()
+	if err != nil {
+		log.Errorf("Could not instantiate the API Server Client: %s", err.Error())
+	} else {
+		asc.StartServiceMapping()
+	}
+
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)

@@ -26,8 +26,9 @@ import (
 )
 
 const (
-	authTokenName       = "auth_token"
-	authTokenMinimalLen = 32
+	authTokenName                 = "auth_token"
+	authTokenMinimalLen           = 32
+	clusterAgentAuthTokenFilename = "dca_auth_token"
 )
 
 // GenerateKeyPair create a public/private keypair
@@ -150,4 +151,41 @@ func FetchAuthToken() (string, error) {
 func DeleteAuthToken() error {
 	authTokenFile := filepath.Join(filepath.Dir(config.Datadog.ConfigFileUsed()), authTokenName)
 	return os.Remove(authTokenFile)
+}
+
+// GetClusterAgentAuthToken load the authentication token from:
+// 1st. the configuration value of "cluster_agent.auth_token" in datadog.yaml
+// 2nd. from the filesystem
+// If using the token from the filesystem, the token file must be next to the datadog.yaml
+// with the filename: dca_auth_token
+func GetClusterAgentAuthToken() (string, error) {
+	authToken := config.Datadog.GetString("cluster_agent.auth_token")
+	if authToken != "" {
+		log.Debugf("Using cluster_agent.auth_token from datadog.yaml")
+		return authToken, validateAuthToken(authToken)
+	}
+
+	// load the cluster agent auth token from filesystem
+	tokenAbsPath := filepath.Join(config.FileUsedDir(), clusterAgentAuthTokenFilename)
+	log.Debugf("Empty cluster_agent_auth_token, loading from %s", tokenAbsPath)
+	_, err := os.Stat(tokenAbsPath)
+	if err != nil {
+		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot find %q: %s", tokenAbsPath, err)
+	}
+	b, err := ioutil.ReadFile(tokenAbsPath)
+	if err != nil {
+		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot read %s: %s", tokenAbsPath, err)
+	}
+	log.Debugf("Cluster_agent_auth_token loaded from %s", tokenAbsPath)
+
+	authToken = string(b)
+	return authToken, validateAuthToken(authToken)
+}
+
+// TODO check the token is base64
+func validateAuthToken(authToken string) error {
+	if len(authToken) < authTokenMinimalLen {
+		return fmt.Errorf("cluster agent authentication token length must be greater than %d, curently: %d", authTokenMinimalLen, len(authToken))
+	}
+	return nil
 }

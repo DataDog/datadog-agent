@@ -122,7 +122,6 @@ func (c *APIClient) connect() error {
 	if !useServiceMapper {
 		return nil
 	}
-	c.startServiceMapping()
 
 	return nil
 }
@@ -142,7 +141,7 @@ func newServiceMapperBundle() *ServiceMapperBundle {
 
 // NodeServiceMapping only fetch the endpoints from Kubernetes apiserver and add the serviceMapper of the
 // node to the cache
-// TODO remove when the DCA is here
+// Only called when the node agent computes the service mapper locally and does not rely on the DCA.
 func (c *APIClient) NodeServiceMapping(nodeName string, podList *v1.PodList) error {
 	ctx, cancel := context.WithTimeout(context.Background(), servicesPollIntl)
 	defer cancel()
@@ -238,9 +237,9 @@ func processKubeResources(nodeList *v1.NodeList, podList *v1.PodList, endpointLi
 	}
 }
 
-// startServiceMapping is only called once, when we have confirmed we could correctly connect to the API server.
+// StartServiceMapping is only called once, when we have confirmed we could correctly connect to the API server.
 // The logic here is solely to retrieve Nodes, Pods and Endpoints. The processing part is in mapServices.
-func (c *APIClient) startServiceMapping() {
+func (c *APIClient) StartServiceMapping() {
 	tickerSvcProcess := time.NewTicker(servicesPollIntl)
 	go func() {
 		for {
@@ -288,6 +287,14 @@ func (c *APIClient) checkResourcesAuth() error {
 	_, err = c.client.CoreV1().ListNodes(ctx)
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
+	}
+	_, err = c.client.CoreV1().ListConfigMaps(ctx, "")
+	if err != nil {
+		errorMessages = append(errorMessages, fmt.Sprintf("configmap collection: %q", err.Error()))
+	}
+	_, err = c.client.CoreV1().ListEndpoints(ctx, "")
+	if err != nil {
+		errorMessages = append(errorMessages, fmt.Sprintf("endpoints collection: %q", err.Error()))
 	}
 	return aggregateCheckResourcesErrors(errorMessages)
 }

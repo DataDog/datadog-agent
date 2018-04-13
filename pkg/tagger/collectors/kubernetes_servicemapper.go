@@ -8,25 +8,21 @@
 package collectors
 
 import (
-	"strings"
-
 	log "github.com/cihub/seelog"
 
 	"github.com/ericchiang/k8s/api/v1"
 	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-/*
-TODO remove this file when we have the DCA
-*/
-
-func getTagInfos(pods []*kubelet.Pod) []*TagInfo {
+func (c *KubeServiceCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	var tagInfo []*TagInfo
-
+	var serviceNames []string
+	var err error
 	for _, po := range pods {
 		if kubelet.IsPodReady(po) == false {
 			log.Debugf("pod %q is not ready, skipping", po.Metadata.Name)
@@ -48,14 +44,21 @@ func getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		}
 
 		tagList := utils.NewTagList()
+		if !config.Datadog.GetBool("cluster_agent") {
+			serviceNames, err = apiserver.GetPodServiceNames(po.Spec.NodeName, po.Metadata.Name)
+			if err != nil {
+				log.Error("Could not fetch tags for pod %s from the Cluster Agent: %s", po.Metadata.Name, err.Error())
+				continue
+			}
+		} else {
+			serviceNames, err = c.dcaClient.GetKubernetesServiceNames(po.Spec.NodeName, po.Metadata.Name)
+			if err != nil {
+				log.Tracef("Could not pull the service map of po %s on node %s from the Datadog Cluster Agent: %s", po.Spec.NodeName, po.Metadata.Name, err.Error())
+			}
 
-		serviceNames, err := apiserver.GetPodServiceNames(po.Spec.NodeName, po.Metadata.Name)
-		if err != nil {
-			log.Debugf("Could not fetch the services for the pod %s on the node %s: %s", po.Metadata.Name, po.Spec.NodeName, err.Error())
 		}
-		log.Debugf("nodeName: %s, podName: %s, services: %q", po.Spec.NodeName, po.Metadata.Name, strings.Join(serviceNames, ","))
 		for _, serviceName := range serviceNames {
-			log.Tracef("tagging %s kube_service:%s", po.Metadata.Name, serviceName)
+			log.Tracef("Tagging %s with kube_service:%s", po.Metadata.Name, serviceName)
 			tagList.AddLow("kube_service", serviceName)
 		}
 
@@ -73,15 +76,13 @@ func getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	return tagInfo
 }
 
-// addToCacheServiceMapping TODO remove this when we have the DCA, we are currently acting like the
-// DCA but only on a node level
+// addToCacheServiceMapping is acting like the DCA at the node level.
 func (c *KubeServiceCollector) addToCacheServiceMapping(kubeletPodList []*kubelet.Pod) error {
 	if len(kubeletPodList) == 0 {
-		log.Debugf("empty kubelet pod list")
+		log.Debugf("Empty kubelet pod list")
 		return nil
 	}
 
-	log.Debugf("refreshing the service mapping...")
 	podList := &v1.PodList{}
 	nodeName := ""
 	for _, p := range kubeletPodList {

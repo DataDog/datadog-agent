@@ -16,6 +16,8 @@ const (
 	DefaultConfPath = "/etc/datadog-agent"
 	// DefaultLogFile points to the log file that will be used if not configured
 	DefaultLogFile = "/var/log/datadog/agent.log"
+	// DefaultDCALogFile points to the log file that will be used if not configured
+	DefaultDCALogFile = "/var/log/datadog/cluster-agent.log"
 )
 
 var (

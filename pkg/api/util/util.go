@@ -7,13 +7,17 @@ package util
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"net/http"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 )
 
-var token string
+var (
+	token    string
+	dcaToken string
+)
 
 // SetAuthToken sets the session token
 // Requires that the config has been set up before calling
@@ -34,12 +38,31 @@ func GetAuthToken() string {
 	return token
 }
 
+// SetDCAAuthToken sets the session token for the Cluster Agent
+// Requires that the config has been set up before calling
+func SetDCAAuthToken() error {
+	// Noop if dcaToken is already set
+	if dcaToken != "" {
+		return nil
+	}
+
+	// dcaToken is only set once, no need to mutex protect
+	var err error
+	dcaToken, err = security.GetClusterAgentAuthToken()
+	return err
+}
+
+// GetDCAAuthToken gets the session token
+func GetDCAAuthToken() string {
+	return dcaToken
+}
+
 // Validate validates an http request
 func Validate(w http.ResponseWriter, r *http.Request) error {
 	var err error
 	auth := r.Header.Get("Authorization")
 	if auth == "" {
-		w.Header().Set("WWW-Authenticate", "Bearer realm=\"Datadog Agent\"")
+		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
 		err = fmt.Errorf("no session token provided")
 		http.Error(w, err.Error(), 401)
 		return err
@@ -47,13 +70,45 @@ func Validate(w http.ResponseWriter, r *http.Request) error {
 
 	tok := strings.Split(auth, " ")
 	if tok[0] != "Bearer" {
-		w.Header().Set("WWW-Authenticate", "Bearer realm=\"Datadog Agent\"")
+		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
 		err = fmt.Errorf("unsupported authorization scheme: %s", tok[0])
 		http.Error(w, err.Error(), 401)
 		return err
 	}
 
 	if len(tok) < 2 || tok[1] != GetAuthToken() {
+		err = fmt.Errorf("invalid session token")
+		http.Error(w, err.Error(), 403)
+	}
+
+	return err
+}
+
+// ValidateDCARequest is used for the exposed endpoints of the DCA.
+// It is different from Validate as we want to have different validations.
+func ValidateDCARequest(w http.ResponseWriter, r *http.Request) error {
+	var err error
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
+		err = fmt.Errorf("no session token provided")
+		http.Error(w, err.Error(), 401)
+		return err
+	}
+
+	tok := strings.Split(auth, " ")
+	if tok[0] != "Bearer" {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
+		err = fmt.Errorf("unsupported authorization scheme: %s", tok[0])
+		http.Error(w, err.Error(), 401)
+		return err
+	}
+	dcaToken := config.Datadog.GetString("cluster_agent.auth_token")
+	if dcaToken == "" {
+		dcaToken = GetDCAAuthToken()
+	}
+
+	if len(tok) != 2 || tok[1] != dcaToken {
 		err = fmt.Errorf("invalid session token")
 		http.Error(w, err.Error(), 403)
 	}

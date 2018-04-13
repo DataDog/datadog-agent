@@ -192,6 +192,7 @@ func init() {
 	Datadog.SetDefault("leader_election", false)
 
 	// Datadog cluster agent
+	Datadog.SetDefault("cluster_agent", false)
 	Datadog.SetDefault("cluster_agent.auth_token", "")
 	Datadog.SetDefault("cluster_agent.url", "")
 	Datadog.SetDefault("cluster_agent.kubernetes_service_name", "dca")
@@ -271,6 +272,8 @@ func init() {
 	Datadog.BindEnv("ac_include")
 	Datadog.BindEnv("ac_exclude")
 
+	Datadog.BindEnv("cluster_agent")
+	Datadog.BindEnv("cluster_agent.url")
 	Datadog.BindEnv("cluster_agent.auth_token")
 	Datadog.BindEnv("cluster_agent_cmd_port")
 

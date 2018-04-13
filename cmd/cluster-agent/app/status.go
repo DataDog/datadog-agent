@@ -62,20 +62,20 @@ var statusCmd = &cobra.Command{
 }
 
 func requestStatus() error {
-	fmt.Printf("Getting the status from the agent.\n\n")
+	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	// TODO use https
-	urlstr := fmt.Sprintf("http://localhost:%v/status", config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/status", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetDCAAuthToken()
 	if e != nil {
 		return e
 	}
 
-	r, e := util.DoGet(c, urlstr)
+	r, e := util.DoGetExternalEndpoint(c, urlstr)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, errMap)
@@ -84,7 +84,10 @@ func requestStatus() error {
 			e = fmt.Errorf(err)
 		}
 
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before requesting the status and contact support if you continue having issues. \n", e)
+		fmt.Printf(`
+		Could not reach agent: %v
+		Make sure the agent is running before requesting the status.
+		Contact support if you continue having issues.`, e)
 		return e
 	}
 

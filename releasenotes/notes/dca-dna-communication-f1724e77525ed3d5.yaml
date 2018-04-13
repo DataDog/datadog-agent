@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Adding Datadog Cluster Agent client in Node Agent.
+    Adding support for TLS in the Datadog Cluster Agent API.

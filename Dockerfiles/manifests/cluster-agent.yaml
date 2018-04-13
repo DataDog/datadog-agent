@@ -1,0 +1,26 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: datadog-cluster-agent
+spec:
+  template:
+    metadata:
+      labels:
+        app: datadog-cluster-agent
+      name: datadog-agent
+      namespace: default
+    spec:
+      serviceAccountName: datadog-dca
+      containers:
+      - image: datadog/cluster-agent:latest
+        imagePullPolicy: Always
+        name: datadog-agent
+        env:
+          - name: DD_API_KEY
+            value: <YOUR_API_KEY>
+          - name: DD_COLLECT_KUBERNETES_EVENTS
+            value: "true"
+          - name: DD_LEADER_ELECTION
+            value: "true"
+          - name: DD_CLUSTER_AGENT_AUTH_TOKEN
+            value: <32 characters long token>

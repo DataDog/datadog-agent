@@ -21,7 +21,6 @@ import (
 
 func init() {
 	ClusterAgentCmd.AddCommand(svcMapperCmd)
-	svcMapperCmd.SetArgs([]string{"caseID"})
 }
 
 var svcMapperCmd = &cobra.Command{
@@ -60,15 +59,14 @@ func getServiceMap(nodeName string) error {
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	var urlstr string
-	// TODO use https
 	if nodeName == "" {
-		urlstr = fmt.Sprintf("http://localhost:%v/api/v1/metadata", config.Datadog.GetInt("cmd_port"))
+		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/metadata", config.Datadog.GetInt("cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("http://localhost:%v/api/v1/metadata/%s", config.Datadog.GetInt("cmd_port"), nodeName)
+		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/metadata/%s", config.Datadog.GetInt("cmd_port"), nodeName)
 	}
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetDCAAuthToken()
 	if e != nil {
 		return e
 	}

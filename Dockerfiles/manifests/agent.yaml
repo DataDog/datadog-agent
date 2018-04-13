@@ -25,10 +25,6 @@ spec:
         env:
           - name: DD_API_KEY
             value: <YOUR_API_KEY>
-          - name: DD_COLLECT_KUBERNETES_EVENTS
-            value: "true"
-          - name: DD_LEADER_ELECTION
-            value: "true"
           - name: KUBERNETES
             value: "yes"
           - name: DD_KUBERNETES_KUBELET_HOST

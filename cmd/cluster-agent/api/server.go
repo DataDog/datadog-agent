@@ -46,7 +46,7 @@ func StartServer() error {
 		// no way we can recover from this error
 		return fmt.Errorf("Unable to create the api server: %v", err)
 	}
-	util.SetAuthToken()
+	util.SetDCAAuthToken()
 
 	// create cert
 	hosts := []string{"127.0.0.1", "localhost"}
@@ -75,10 +75,10 @@ func StartServer() error {
 		ErrorLog:  stdLog.New(&config.ErrorLogWriter{}, "", 0), // log errors to seelog
 		TLSConfig: &tlsConfig,
 	}
-	// TODO verify tls works. Change srv.Serve(listener) to srv.Serve(tlslistener)
-	//tlsListener := tls.NewListener(listener, &tlsConfig)
 
-	go srv.Serve(listener)
+	tlsListener := tls.NewListener(listener, &tlsConfig)
+
+	go srv.Serve(tlsListener)
 	return nil
 
 }
