@@ -17,11 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
+	"strings"
 )
 
-func (c *KubeServiceCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
+func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	var tagInfo []*TagInfo
-	var serviceNames []string
+	var metadataNames []string
+	var tag []string
 	var err error
 	for _, po := range pods {
 		if kubelet.IsPodReady(po) == false {
@@ -33,7 +35,7 @@ func (c *KubeServiceCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 		if po.Spec.HostNetwork == true {
 			for _, container := range po.Status.Containers {
 				info := &TagInfo{
-					Source:       kubeServiceCollectorName,
+					Source:       kubeMetadataCollectorName,
 					Entity:       container.ID,
 					HighCardTags: []string{},
 					LowCardTags:  []string{},
@@ -45,27 +47,31 @@ func (c *KubeServiceCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 
 		tagList := utils.NewTagList()
 		if !config.Datadog.GetBool("cluster_agent") {
-			serviceNames, err = apiserver.GetPodServiceNames(po.Spec.NodeName, po.Metadata.Name)
+			metadataNames, err = apiserver.GetPodMetadataNames(po.Spec.NodeName, po.Metadata.Name)
 			if err != nil {
-				log.Error("Could not fetch tags for pod %s from the Cluster Agent: %s", po.Metadata.Name, err.Error())
+				log.Errorf("Could not fetch tags for pod %s from the Cluster Agent: %s", po.Metadata.Name, err.Error())
 				continue
 			}
 		} else {
-			serviceNames, err = c.dcaClient.GetKubernetesServiceNames(po.Spec.NodeName, po.Metadata.Name)
+			metadataNames, err = c.dcaClient.GetKubernetesMetadataNames(po.Spec.NodeName, po.Metadata.Name)
 			if err != nil {
-				log.Tracef("Could not pull the service map of po %s on node %s from the Datadog Cluster Agent: %s", po.Spec.NodeName, po.Metadata.Name, err.Error())
+				log.Tracef("Could not pull the metadata map of po %s on node %s from the Datadog Cluster Agent: %s", po.Metadata.Name, po.Spec.NodeName, err.Error())
 			}
-
 		}
-		for _, serviceName := range serviceNames {
-			log.Tracef("Tagging %s with kube_service:%s", po.Metadata.Name, serviceName)
-			tagList.AddLow("kube_service", serviceName)
+		for _, tagDCA := range metadataNames {
+			// for service in metadataName.[services]
+			log.Tracef("Tagging %s with %s", po.Metadata.Name, tagDCA)
+			tag = strings.Split(tagDCA, ":")
+			if len(tag) != 2 {
+				continue
+			}
+			tagList.AddLow(tag[0], tag[1])
 		}
 
 		low, high := tagList.Compute()
 		for _, container := range po.Status.Containers {
 			info := &TagInfo{
-				Source:       kubeServiceCollectorName,
+				Source:       kubeMetadataCollectorName,
 				Entity:       container.ID,
 				HighCardTags: high,
 				LowCardTags:  low,
@@ -76,8 +82,8 @@ func (c *KubeServiceCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 	return tagInfo
 }
 
-// addToCacheServiceMapping is acting like the DCA at the node level.
-func (c *KubeServiceCollector) addToCacheServiceMapping(kubeletPodList []*kubelet.Pod) error {
+// addToCacheMetadataMapping is acting like the DCA at the node level.
+func (c *KubeMetadataCollector) addToCacheMetadataMapping(kubeletPodList []*kubelet.Pod) error {
 	if len(kubeletPodList) == 0 {
 		log.Debugf("Empty kubelet pod list")
 		return nil
@@ -103,5 +109,5 @@ func (c *KubeServiceCollector) addToCacheServiceMapping(kubeletPodList []*kubele
 		}
 		podList.Items = append(podList.Items, pod)
 	}
-	return c.apiClient.NodeServiceMapping(nodeName, podList)
+	return c.apiClient.NodeMetadataMapping(nodeName, podList)
 }

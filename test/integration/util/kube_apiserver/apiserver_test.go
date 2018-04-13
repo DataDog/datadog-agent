@@ -164,7 +164,7 @@ func (suite *testSuite) TestKubeEvents() {
 	assert.Len(suite.T(), modified, 0)
 }
 
-func (suite *testSuite) TestServiceMapper() {
+func (suite *testSuite) TestMetadataMapper() {
 	c, err := apiserver.GetCoreV1Client()
 	require.Nil(suite.T(), err)
 
@@ -280,13 +280,13 @@ func (suite *testSuite) TestServiceMapper() {
 
 	apiClient, err := apiserver.GetAPIClient()
 	require.Nil(suite.T(), err)
-	err = apiClient.ClusterServiceMapping()
+	err = apiClient.ClusterMetadataMapping()
 	require.Nil(suite.T(), err)
 
-	serviceNames, err := apiserver.GetPodServiceNames(node.Name, pod.Name)
+	metadataNames, err := apiserver.GetPodMetadataNames(node.Name, pod.Name)
 	require.Nil(suite.T(), err)
-	assert.Len(suite.T(), serviceNames, 1)
-	assert.Contains(suite.T(), serviceNames, "nginx-1")
+	assert.Len(suite.T(), metadataNames, 1)
+	assert.Contains(suite.T(), metadataNames, "kube_service:nginx-1")
 
 	// Add a new service/endpoint on the nginx Pod
 	svc.Name = "nginx-2"
@@ -297,19 +297,19 @@ func (suite *testSuite) TestServiceMapper() {
 	_, err = c.Endpoints("default").Create(ep)
 	require.Nil(suite.T(), err)
 
-	err = apiClient.ClusterServiceMapping()
+	err = apiClient.ClusterMetadataMapping()
 	require.Nil(suite.T(), err)
 
-	serviceNames, err = apiserver.GetPodServiceNames(node.Name, pod.Name)
+	metadataNames, err = apiserver.GetPodMetadataNames(node.Name, pod.Name)
 	require.Nil(suite.T(), err)
-	assert.Len(suite.T(), serviceNames, 2)
-	assert.Contains(suite.T(), serviceNames, "nginx-1")
-	assert.Contains(suite.T(), serviceNames, "nginx-2")
+	assert.Len(suite.T(), metadataNames, 2)
+	assert.Contains(suite.T(), metadataNames, "kube_service:nginx-1")
+	assert.Contains(suite.T(), metadataNames, "kube_service:nginx-2")
 
-	fullmapper, errList := apiserver.GetServiceMapBundleOnAllNodes()
+	fullmapper, errList := apiserver.GetMetadataMapBundleOnAllNodes()
 	require.Nil(suite.T(), errList)
 	list := fullmapper["Nodes"]
 	assert.Contains(suite.T(), list, "ip-172-31-119-125")
-	fullMap := list.(map[string]map[string][]string)
-	assert.Contains(suite.T(), fullMap["ip-172-31-119-125"]["nginx"], "nginx-1")
+	fullMap := list.(map[string]*apiserver.MetadataMapperBundle)
+	assert.Contains(suite.T(), fullMap["ip-172-31-119-125"].PodNameToService["nginx"], "nginx-1")
 }

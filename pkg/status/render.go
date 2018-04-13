@@ -69,8 +69,8 @@ func FormatDCAStatus(data []byte) (string, error) {
 	return b.String(), nil
 }
 
-// FormatServiceMapCLI builds the rendering in the servicemapper template.
-func FormatServiceMapCLI(data []byte) (string, error) {
+// FormatMetadataMapCLI builds the rendering in the metadataMapper template.
+func FormatMetadataMapCLI(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
 
 	stats := make(map[string]interface{})
@@ -78,7 +78,7 @@ func FormatServiceMapCLI(data []byte) (string, error) {
 	if err != nil {
 		return b.String(), err
 	}
-	renderServiceMapper(b, stats)
+	renderMetadataMapper(b, stats)
 
 	return b.String(), nil
 }
@@ -151,9 +151,9 @@ func renderLogsStatus(w io.Writer, logsStats interface{}) {
 	}
 }
 
-func renderServiceMapper(w io.Writer, serviceMapperStats interface{}) {
-	t := template.Must(template.New("servicemapper.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "servicemapper.tmpl")))
-	err := t.Execute(w, serviceMapperStats)
+func renderMetadataMapper(w io.Writer, metadataMapperStats interface{}) {
+	t := template.Must(template.New("metadatamapper.tmpl").Funcs(fmap).ParseFiles(filepath.Join(templateFolder, "metadatamapper.tmpl")))
+	err := t.Execute(w, metadataMapperStats)
 	if err != nil {
 		fmt.Println(err)
 	}

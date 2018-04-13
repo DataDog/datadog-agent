@@ -34,7 +34,7 @@ const (
 
 var globalClusterAgentClient *DCAClient
 
-type serviceNames []string
+type metadataNames []string
 
 // DCAClient is required to query the API of Datadog cluster agent
 type DCAClient struct {
@@ -150,11 +150,11 @@ func getClusterAgentEndpoint() (string, error) {
 	return u.String(), nil
 }
 
-// GetKubernetesServiceNames queries the datadog cluster agent to get nodeName/podName registered
-// Kubernetes services.
-func (c *DCAClient) GetKubernetesServiceNames(nodeName, podName string) ([]string, error) {
+// GetKubernetesMetadataNames queries the datadog cluster agent to get nodeName/podName registered
+// Kubernetes metadata.
+func (c *DCAClient) GetKubernetesMetadataNames(nodeName, podName string) ([]string, error) {
 	const dcaMetadataPath = "api/v1/metadata"
-	var serviceNames serviceNames
+	var metadataNames metadataNames
 	var err error
 
 	if c == nil {
@@ -167,26 +167,26 @@ func (c *DCAClient) GetKubernetesServiceNames(nodeName, podName string) ([]strin
 	rawURL := fmt.Sprintf("%s/%s/%s/%s", c.clusterAgentAPIEndpoint, dcaMetadataPath, nodeName, podName)
 	req.URL, err = url.Parse(rawURL)
 	if err != nil {
-		return serviceNames, err
+		return metadataNames, err
 	}
 
 	resp, err := c.clusterAgentAPIClient.Do(req)
 	if err != nil {
-		return serviceNames, err
+		return metadataNames, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return serviceNames, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
+		return metadataNames, fmt.Errorf("unexpected status code from cluster agent: %d", resp.StatusCode)
 	}
 
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return serviceNames, err
+		return metadataNames, err
 	}
-	err = json.Unmarshal(b, &serviceNames)
+	err = json.Unmarshal(b, &metadataNames)
 	if err != nil {
-		return serviceNames, err
+		return metadataNames, err
 	}
 
-	return serviceNames, nil
+	return metadataNames, nil
 }

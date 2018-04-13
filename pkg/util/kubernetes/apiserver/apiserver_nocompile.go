@@ -9,6 +9,7 @@ package apiserver
 
 import (
 	"errors"
+	"sync"
 
 	log "github.com/cihub/seelog"
 )
@@ -22,26 +23,32 @@ var (
 // APIClient provides authenticated access to the
 type APIClient struct{}
 
-// GetPodServiceNames is used when the API endpoint of the DCA to get the services of a pod is hit.
-func GetPodServiceNames(nodeName string, podName string) ([]string, error) {
-	log.Errorf("GetPodServiceNames not implemented %s", ErrNotCompiled.Error())
+// MetadataMapperBundle maps the podNames to the metadata they are associated with.
+type MetadataMapperBundle struct {
+	PodNameToService map[string][]string
+	m                sync.RWMutex
+}
+
+// GetPodMetadataNames is used when the API endpoint of the DCA to get the services of a pod is hit.
+func GetPodMetadataNames(nodeName string, podName string) ([]string, error) {
+	log.Errorf("GetPodMetadataNames not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
 
-// GetServiceMapBundleOnNode is used for the CLI svcmap command to output given a nodeName
-func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
-	log.Errorf("GetServiceMapBundleOnNode not implemented %s", ErrNotCompiled.Error())
+// GetMetadataMapBundleOnNode is used for the CLI svcmap command to output given a nodeName
+func GetMetadataMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
+	log.Errorf("GetMetadataMapBundleOnNode not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
 
-// GetServiceMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the service map of all nodes.
-func GetServiceMapBundleOnAllNodes() (map[string]interface{}, error) {
-	log.Errorf("GetServiceMapBundleOnAllNodes not implemented %s", ErrNotCompiled.Error())
+// GetMetadataMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the service map of all nodes.
+func GetMetadataMapBundleOnAllNodes() (map[string]interface{}, error) {
+	log.Errorf("GetMetadataMapBundleOnAllNodes not implemented %s", ErrNotCompiled.Error())
 	return nil, nil
 }
 
-// StartServiceMapping is only called once, when we have confirmed we could correctly connect to the API server.
-func (c *APIClient) StartServiceMapping() {
-	log.Errorf("StartServiceMapping not implemented %s", ErrNotCompiled.Error())
+// StartMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
+func (c *APIClient) StartMetadataMapping() {
+	log.Errorf("StartMetadataMapping not implemented %s", ErrNotCompiled.Error())
 	return
 }

@@ -77,7 +77,7 @@ func init() {
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
 	Datadog.SetDefault("confd_dca_path", defaultDCAConfdPath)
-	Datadog.SetDefault("use_service_mapper", true)
+	Datadog.SetDefault("use_metadata_mapper", true)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_payloads", false)
 	Datadog.SetDefault("log_level", "info")
@@ -183,8 +183,8 @@ func init() {
 	Datadog.SetDefault("kubelet_client_crt", "")
 	Datadog.SetDefault("kubelet_client_key", "")
 
-	Datadog.SetDefault("kubernetes_collect_service_tags", true)
-	Datadog.SetDefault("kubernetes_service_tag_update_freq", 60*5) // 5 min
+	Datadog.SetDefault("kubernetes_collect_metadata_tags", true)
+	Datadog.SetDefault("kubernetes_metadata_tag_update_freq", 60*5) // 5 min
 
 	// Kube ApiServer
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
@@ -262,8 +262,8 @@ func init() {
 	Datadog.BindEnv("kubelet_client_crt")
 	Datadog.BindEnv("kubelet_client_key")
 	Datadog.BindEnv("collect_kubernetes_events")
-	Datadog.BindEnv("kubernetes_collect_service_tags")
-	Datadog.BindEnv("kubernetes_service_tag_update_freq")
+	Datadog.BindEnv("kubernetes_collect_metadata_tags")
+	Datadog.BindEnv("kubernetes_metadata_tag_update_freq")
 	Datadog.BindEnv("docker_labels_as_tags")
 	Datadog.BindEnv("docker_env_as_tags")
 	Datadog.BindEnv("kubernetes_pod_labels_as_tags")

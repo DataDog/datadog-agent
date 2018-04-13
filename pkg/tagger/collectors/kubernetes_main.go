@@ -21,10 +21,10 @@ import (
 )
 
 const (
-	kubeServiceCollectorName = "kube-service-collector"
+	kubeMetadataCollectorName = "kube-metadata-collector"
 )
 
-type KubeServiceCollector struct {
+type KubeMetadataCollector struct {
 	kubeUtil  *kubelet.KubeUtil
 	apiClient *apiserver.APIClient
 	infoOut   chan<- []*TagInfo
@@ -35,8 +35,8 @@ type KubeServiceCollector struct {
 }
 
 // Detect tries to connect to the kubelet and the API Server if the DCA is not used or the DCA.
-func (c *KubeServiceCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
-	if config.Datadog.GetBool("kubernetes_collect_service_tags") == false {
+func (c *KubeMetadataCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) {
+	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
 		return NoCollection, fmt.Errorf("collection disabled by the configuration")
 	}
 
@@ -57,16 +57,16 @@ func (c *KubeServiceCollector) Detect(out chan<- []*TagInfo) (CollectionMode, er
 		if err != nil {
 			return NoCollection, err
 		}
-		c.apiClient.StartServiceMapping()
+		c.apiClient.StartMetadataMapping()
 	}
 
 	c.infoOut = out
-	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_service_tag_update_freq")) * time.Second
+	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
 	return PullCollection, nil
 }
 
 // Pull implements an additional time constraints to avoid exhausting the kube-apiserver
-func (c *KubeServiceCollector) Pull() error {
+func (c *KubeMetadataCollector) Pull() error {
 	// Time constraints, get the delta in seconds to display it in the logs:
 	timeDelta := c.lastUpdate.Add(c.updateFreq).Unix() - time.Now().Unix()
 	if timeDelta > 0 {
@@ -79,10 +79,10 @@ func (c *KubeServiceCollector) Pull() error {
 		return err
 	}
 	if !config.Datadog.GetBool("cluster_agent") {
-		// If the DCA is not used, each agent stores a local cache of the ServiceMap.
-		err = c.addToCacheServiceMapping(pods)
+		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
+		err = c.addToCacheMetadataMapping(pods)
 		if err != nil {
-			log.Debugf("Cannot add the serviceMapping to cache: %s", err)
+			log.Debugf("Cannot add the metadataMapping to cache: %s", err)
 		}
 	}
 	c.infoOut <- c.getTagInfos(pods)
@@ -91,8 +91,8 @@ func (c *KubeServiceCollector) Pull() error {
 }
 
 // Fetch fetches tags for a given entity by iterating on the whole podlist and
-// the serviceMapper
-func (c *KubeServiceCollector) Fetch(entity string) ([]string, []string, error) {
+// the metadataMapper
+func (c *KubeMetadataCollector) Fetch(entity string) ([]string, []string, error) {
 	var lowCards, highCards []string
 
 	pod, err := c.kubeUtil.GetPodForEntityID(entity)
@@ -106,10 +106,10 @@ func (c *KubeServiceCollector) Fetch(entity string) ([]string, []string, error) 
 
 	pods := []*kubelet.Pod{pod}
 	if !config.Datadog.GetBool("cluster_agent") {
-		// If the DCA is not used, each agent stores a local cache of the ServiceMap.
-		err = c.addToCacheServiceMapping(pods)
+		// If the DCA is not used, each agent stores a local cache of the MetadataMap.
+		err = c.addToCacheMetadataMapping(pods)
 		if err != nil {
-			log.Debugf("Cannot add the serviceMapping to cache: %s", err)
+			log.Debugf("Cannot add the metadataMapping to cache: %s", err)
 		}
 	}
 
@@ -124,9 +124,9 @@ func (c *KubeServiceCollector) Fetch(entity string) ([]string, []string, error) 
 }
 
 func kubernetesFactory() Collector {
-	return &KubeServiceCollector{}
+	return &KubeMetadataCollector{}
 }
 
 func init() {
-	registerCollector(kubeServiceCollectorName, kubernetesFactory, HighPriority)
+	registerCollector(kubeMetadataCollectorName, kubernetesFactory, HighPriority)
 }

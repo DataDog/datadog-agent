@@ -12,15 +12,14 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/ericchiang/k8s/api/v1"
 )
 
-// mapServices maps each pod (endpoint) to the services connected to it.
+// mapServices maps each pod (endpoint) to the metadata associated with it.
 // It is on a per node basis to avoid mixing up the services pods are actually connected to if all pods of different nodes share a similar subnet, therefore sharing a similar IP.
-func (smb *ServiceMapperBundle) mapServices(nodeName string, pods v1.PodList, endpointList v1.EndpointsList) error {
-	smb.m.Lock()
-	defer smb.m.Unlock()
+func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods v1.PodList, endpointList v1.EndpointsList) error {
+	metaBundle.m.Lock()
+	defer metaBundle.m.Unlock()
 	ipToEndpoints := make(map[string][]string) // maps the IP address from an endpoint (pod) to associated services ex: "10.10.1.1" : ["service1","service2"]
 	podToIp := make(map[string]string)         // maps the pods of the currently evaluated node to their IP.
 
@@ -55,33 +54,9 @@ func (smb *ServiceMapperBundle) mapServices(nodeName string, pods v1.PodList, en
 	}
 	for name, ip := range podToIp {
 		if svc, found := ipToEndpoints[ip]; found {
-			smb.PodNameToServices[name] = svc
+			metaBundle.PodNameToService[name] = svc
 		}
 	}
-	log.Tracef("The services matched %q", fmt.Sprintf("%s", smb.PodNameToServices))
+	log.Tracef("The services matched %q", fmt.Sprintf("%s", metaBundle.PodNameToService))
 	return nil
-}
-
-// GetPodServiceNames is used when the API endpoint of the DCA to get the services of a pod is hit.
-func GetPodServiceNames(nodeName string, podName string) ([]string, error) {
-	var serviceList []string
-	cacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
-
-	smbInterface, found := cache.Cache.Get(cacheKey)
-	if !found {
-		return serviceList, fmt.Errorf("no metadata was found for the pod %s on node %s", podName, nodeName)
-	}
-
-	smb, ok := smbInterface.(*ServiceMapperBundle)
-	if !ok {
-		return serviceList, fmt.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
-	}
-
-	serviceList, found = smb.PodNameToServices[podName]
-	if !found {
-		return serviceList, fmt.Errorf("no cached metadata found for the pod %s on the node %s", podName, nodeName)
-	}
-
-	log.Debugf("cacheKey: %s, with %d services", cacheKey, len(serviceList))
-	return serviceList, nil
 }
