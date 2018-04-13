@@ -28,7 +28,7 @@ default_version integrations_core_version
 
 
 blacklist = [
-  'datadog-checks-base',  # namespacing package for wheels (NOT AN INTEGRATION)
+  'datadog_checks_base',  # namespacing package for wheels (NOT AN INTEGRATION)
   'agent_metrics',
   'docker_daemon',
   'kubernetes',
@@ -75,15 +75,15 @@ build do
     python_pip = "\"import pip, glob; pip.main(['install', '-c', '#{install_dir}/agent_requirements.txt'] + glob.glob('*.whl'))\""
 
     if windows?
-      pip "wheel --no-deps .", :cwd => "#{project_dir}/datadog-checks-base"
-      command("#{python_bin} -c #{python_pip}", cwd: "#{project_dir}/datadog-checks-base")
+      pip "wheel --no-deps .", :cwd => "#{project_dir}/datadog_checks_base"
+      command("#{python_bin} -c #{python_pip}", cwd: "#{project_dir}/datadog_checks_base")
     else
       build_env = {
         "LD_RUN_PATH" => "#{install_dir}/embedded/lib",
         "PATH" => "#{install_dir}/embedded/bin:#{ENV['PATH']}",
       }
-      pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog-checks-base"
-      pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/datadog-checks-base"
+      pip "wheel --no-deps .", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
+      pip "install -c #{install_dir}/agent_requirements.txt *.whl", :env => build_env, :cwd => "#{project_dir}/datadog_checks_base"
     end
 
     Dir.glob("#{project_dir}/*").each do |check_dir|
