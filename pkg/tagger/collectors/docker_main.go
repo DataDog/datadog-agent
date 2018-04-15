@@ -44,10 +44,18 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 	c.stop = make(chan bool)
 	c.infoOut = out
 
-	// viper lower-cases map keys, so extractor must lowercase before matching
-	c.labelsAsTags = config.Datadog.GetStringMapString("docker_labels_as_tags")
-	c.envAsTags = config.Datadog.GetStringMapString("docker_env_as_tags")
+	// We lower-case the values collected by viper as well as the ones from inspecting the labels of containers.
+	labelsList := config.Datadog.GetStringMapString("docker_labels_as_tags")
+	for label, value := range labelsList {
+		labelsList[strings.ToLower(label)] = value
+	}
+	c.labelsAsTags = labelsList
 
+	envList := config.Datadog.GetStringMapString("docker_env_as_tags")
+	for env, value := range envList {
+		envList[strings.ToLower(env)] = value
+	}
+	c.envAsTags = envList
 	// TODO: list and inspect existing containers once docker utils are merged
 
 	return StreamCollection, nil
