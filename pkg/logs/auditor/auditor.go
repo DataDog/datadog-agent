@@ -45,7 +45,6 @@ func New(inputChan chan message.Message, runPath string) *Auditor {
 	return &Auditor{
 		inputChan:    inputChan,
 		registryPath: filepath.Join(runPath, "registry.json"),
-		mu:           sync.Mutex{},
 		entryTTL:     defaultTTL,
 		done:         make(chan struct{}),
 	}
