@@ -87,8 +87,8 @@ func init() {
 	//attach list commands to list root
 	jmxListCmd.AddCommand(jmxListEverythingCmd, jmxListMatchingCmd, jmxListLimitedCmd, jmxListCollectedCmd, jmxListNotMatchingCmd)
 
-	jmxListCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{"jmx"}, "JMX checks (ex: jmx,tomcat)")
-	jmxCollectCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{"jmx"}, "JMX checks (ex: jmx,tomcat)")
+	jmxListCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
+	jmxCollectCmd.PersistentFlags().StringSliceVar(&checks, "checks", []string{}, "JMX checks (ex: jmx,tomcat)")
 
 	// attach the command to the root
 	AgentCmd.AddCommand(jmxCmd)
@@ -150,16 +150,7 @@ func runJmxCommand(command string) error {
 	runner.Command = command
 	runner.IPCPort = api.ServerAddress().Port
 
-	configs := common.AC.GetAllConfigs()
-
-	for _, c := range checks {
-		config, err := findJMXConfigByCheckName(configs, c)
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		embed.AddJMXCachedConfig(*config)
-	}
+	loadConfigs()
 
 	err = runner.Run()
 	if err != nil {
@@ -175,13 +166,25 @@ func runJmxCommand(command string) error {
 	return nil
 }
 
-func findJMXConfigByCheckName(configs []check.Config, checkName string) (*check.Config, error) {
+func loadConfigs() {
+	fmt.Println("Loading configs :")
+
+	configs := common.AC.GetAllConfigs()
+	includeEverything := len(checks) == 0
+
 	for _, c := range configs {
-		if strings.EqualFold(c.Name, checkName) {
-			if c.IsJMX() {
-				return &c, nil
-			}
+		if c.IsJMX() && (includeEverything || configIncluded(c)) {
+			fmt.Println("Config ", c.Name, " was loaded.")
+			embed.AddJMXCachedConfig(c)
 		}
 	}
-	return nil, fmt.Errorf("Unable to find config named %v", checkName)
+}
+
+func configIncluded(config check.Config) bool {
+	for _, c := range checks {
+		if strings.EqualFold(config.Name, c) {
+			return true
+		}
+	}
+	return false
 }
