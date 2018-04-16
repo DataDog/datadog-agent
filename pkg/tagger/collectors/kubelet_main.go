@@ -47,12 +47,14 @@ func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error)
 	// We lower-case the values collected by viper as well as the ones from inspecting the labels of containers.
 	labelsList := config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
 	for label, value := range labelsList {
+		delete(labelsList, label)
 		labelsList[strings.ToLower(label)] = value
 	}
 	c.labelsAsTags = labelsList
 
 	annotationsList := config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
 	for annotation, value := range annotationsList {
+		delete(annotationsList, annotation)
 		annotationsList[strings.ToLower(annotation)] = value
 	}
 	c.annotationsAsTags = annotationsList

@@ -47,12 +47,14 @@ func (c *DockerCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error) 
 	// We lower-case the values collected by viper as well as the ones from inspecting the labels of containers.
 	labelsList := config.Datadog.GetStringMapString("docker_labels_as_tags")
 	for label, value := range labelsList {
+		delete(labelsList, label)
 		labelsList[strings.ToLower(label)] = value
 	}
 	c.labelsAsTags = labelsList
 
 	envList := config.Datadog.GetStringMapString("docker_env_as_tags")
 	for env, value := range envList {
+		delete(envList, env)
 		envList[strings.ToLower(env)] = value
 	}
 	c.envAsTags = envList
