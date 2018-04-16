@@ -2,6 +2,25 @@
 Release Notes
 =============
 
+6.1.3
+=====
+2018-04-16
+
+Prelude
+-------
+
+- This release also includes changes to the trace agent. See
+  `6.1.3 tag on trace-agent <https://github.com/DataDog/datadog-trace-agent/releases/tag/6.1.3>`_
+
+Bug Fixes
+---------
+
+- Fix a bug where the `docker_network` tag incorrectly appeared on
+  non-network docker metrics and autodiscovery tags
+
+- Fix the use of "docker restart" with the agent image
+
+
 6.1.2
 ==========
 2018-04-05
@@ -21,7 +40,7 @@ Bug Fixes
 
 - Fix a crash in the docker check when collecting sizes on an image with no repository tags.
 
-- Fixes bug on Windows where, if configuration options are specified on the 
+- Fixes bug on Windows where, if configuration options are specified on the
   installation command line, invalid proxy options are set.
 
 - Removed the read timeout for UDP connections causing the agent to stop forwarding logs after one minute of nonactivity.
@@ -53,7 +72,7 @@ New Features
 - Extract the swarm_namespace tag for docker swarm containers, in addition
   to the already present swarm_service tag.
 
-- Allow configuration of the enabled-state of process, logs, and apm to be 
+- Allow configuration of the enabled-state of process, logs, and apm to be
   specified on the installation command line for Windows.
 
 - Add a jmx_use_cgroup_memory_limit option to set jmxfetch to use cgroup
@@ -105,7 +124,7 @@ Bug Fixes
 - Fixing clear passwords in "config-check.log" when sending a flare.
 
 - Allow network proxy settings set on the Windows installation command
-  line to be set in the registry, where they'll be translated to the 
+  line to be set in the registry, where they'll be translated to the
   configuration
 
 - Accept now short names for docker image in logs configuration file and added to the possibilty to filter containers by image name with Kubernetes.
@@ -160,7 +179,7 @@ Bug Fixes
 Critical Issues
 ---------------
 
-- Packaging issue in 6.0.1 resulted in the release of nightly builds for trace-agent and process-agent. 6.0.2 ships the stable intended versions. 
+- Packaging issue in 6.0.1 resulted in the release of nightly builds for trace-agent and process-agent. 6.0.2 ships the stable intended versions.
 
 
 6.0.1
@@ -182,7 +201,7 @@ Bug Fixes
 
 - Replaces the system.mem.free metric with gopsutil's 'available' and splits the windows and linux memory checks. Previously this reported with a value of 0 and `system.mem.used` was reporting the same as `system.mem.total`
 
-- ".pdh" suffix was added to `system.io` metrics on windows for side-by-side 
+- ".pdh" suffix was added to `system.io` metrics on windows for side-by-side
   testing when changed the collection mechanism, and inadvertently left.
 
 - Fix bug where global tags for PDH based python checks are not read
@@ -191,7 +210,7 @@ Bug Fixes
 - IE does not support String.prototype.endsWith, add implementation to the
   string prototype to enable the functionality.
 
-- remove `.pdh` suffix from system.io.wkb_s, system.io_w_s, system.io.rkb_s, 
+- remove `.pdh` suffix from system.io.wkb_s, system.io_w_s, system.io.rkb_s,
   system.io.r_s, system.io.avg_q_sz
 
 - Fix GUI for JMX checks, they are now manageable from the web UI.
@@ -229,7 +248,7 @@ Bug Fixes
 ---------
 
 - Process agent service should pass the configuration file argument to the
-  executable when launching - otherwise service will always come up on 
+  executable when launching - otherwise service will always come up on
   reboots.
 
 - Add the windows icon to the Infrastructure List for Agents installed on Windows machines.
