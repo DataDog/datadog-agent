@@ -85,6 +85,7 @@ type CgroupTimesStat struct {
 	User        uint64
 	UsageTotal  float64
 	SystemUsage uint64
+	Shares      uint64
 }
 
 // CgroupIOStat store I/O statistics about a cgroup.
@@ -250,6 +251,13 @@ func (c ContainerCgroup) CPU() (*CgroupTimesStat, error) {
 		ret.UsageTotal = float64(usage) / NanoToUserHZDivisor
 	} else {
 		log.Debugf("missing total cpu usage stat for %s: %s", c.ContainerID, err.Error())
+	}
+
+	shares, err := c.ParseSingleStat("cpu", "cpu.shares")
+	if err == nil {
+		ret.Shares = shares
+	} else {
+		log.Debugf("missing cpu shares stat for %s: %s", c.ContainerID, err.Error())
 	}
 
 	return ret, nil
