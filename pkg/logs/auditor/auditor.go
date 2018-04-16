@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"sync"
 	"time"
 
 	log "github.com/cihub/seelog"
@@ -34,10 +35,9 @@ type Auditor struct {
 	inputChan    chan message.Message
 	registry     map[string]*RegistryEntry
 	registryPath string
-
-	entryTTL time.Duration
-
-	done chan struct{}
+	mu           *sync.Mutex
+	entryTTL     time.Duration
+	done         chan struct{}
 }
 
 // New returns an initialized Auditor
@@ -45,6 +45,7 @@ func New(inputChan chan message.Message, runPath string) *Auditor {
 	return &Auditor{
 		inputChan:    inputChan,
 		registryPath: filepath.Join(runPath, "registry.json"),
+		mu:           &sync.Mutex{},
 		entryTTL:     defaultTTL,
 		done:         make(chan struct{}),
 	}
@@ -52,8 +53,8 @@ func New(inputChan chan message.Message, runPath string) *Auditor {
 
 // Start starts the Auditor
 func (a *Auditor) Start() {
-	a.registry = a.recoverRegistry(a.registryPath)
-	a.cleanupRegistry(a.registry)
+	a.registry = a.recoverRegistry()
+	a.cleanupRegistry()
 	go a.run()
 }
 
@@ -61,8 +62,8 @@ func (a *Auditor) Start() {
 func (a *Auditor) Stop() {
 	close(a.inputChan)
 	<-a.done
-	a.cleanupRegistry(a.registry)
-	err := a.flushRegistry(a.registry, a.registryPath)
+	a.cleanupRegistry()
+	err := a.flushRegistry()
 	if err != nil {
 		log.Warn(err)
 	}
@@ -90,10 +91,10 @@ func (a *Auditor) run() {
 			a.updateRegistry(msg.GetOrigin().Identifier, msg.GetOrigin().Offset, msg.GetOrigin().Timestamp)
 		case <-cleanUpTicker.C:
 			// remove expired offsets from registry
-			a.cleanupRegistry(a.registry)
+			a.cleanupRegistry()
 		case <-flushTicker.C:
 			// saves current registry into disk
-			err := a.flushRegistry(a.registry, a.registryPath)
+			err := a.flushRegistry()
 			if err != nil {
 				log.Warn(err)
 			}
@@ -101,8 +102,37 @@ func (a *Auditor) run() {
 	}
 }
 
+// recoverRegistry rebuilds the registry from the state file found at path
+func (a *Auditor) recoverRegistry() map[string]*RegistryEntry {
+	mr, err := ioutil.ReadFile(a.registryPath)
+	if err != nil {
+		log.Error(err)
+		return make(map[string]*RegistryEntry)
+	}
+	r, err := a.unmarshalRegistry(mr)
+	if err != nil {
+		log.Error(err)
+		return make(map[string]*RegistryEntry)
+	}
+	return r
+}
+
+// cleanupRegistry removes expired entries from the registry
+func (a *Auditor) cleanupRegistry() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	expireBefore := time.Now().UTC().Add(-a.entryTTL)
+	for path, entry := range a.registry {
+		if entry.LastUpdated.Before(expireBefore) {
+			delete(a.registry, path)
+		}
+	}
+}
+
 // updateRegistry updates the registry entry matching identifier with new the offset and timestamp
 func (a *Auditor) updateRegistry(identifier string, offset int64, timestamp string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	if identifier == "" {
 		// An empty Identifier means that we don't want to track down the offset
 		// This is useful for origins that don't have offsets (networks), or when we
@@ -116,44 +146,31 @@ func (a *Auditor) updateRegistry(identifier string, offset int64, timestamp stri
 	}
 }
 
-// recoverRegistry rebuilds the registry from the state file found at path
-func (a *Auditor) recoverRegistry(path string) map[string]*RegistryEntry {
-	mr, err := ioutil.ReadFile(path)
-	if err != nil {
-		log.Error(err)
-		return make(map[string]*RegistryEntry)
-	}
-	r, err := a.unmarshalRegistry(mr)
-	if err != nil {
-		log.Error(err)
-		return make(map[string]*RegistryEntry)
-	}
-	return r
-}
-
 // readOnlyRegistryCopy returns a read only copy of the registry
-func (a *Auditor) readOnlyRegistryCopy(registry map[string]*RegistryEntry) map[string]RegistryEntry {
+func (a *Auditor) readOnlyRegistryCopy() map[string]RegistryEntry {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	r := make(map[string]RegistryEntry)
-	for path, entry := range registry {
+	for path, entry := range a.registry {
 		r[path] = *entry
 	}
 	return r
 }
 
 // flushRegistry writes on disk the registry at the given path
-func (a *Auditor) flushRegistry(registry map[string]*RegistryEntry, path string) error {
-	r := a.readOnlyRegistryCopy(registry)
+func (a *Auditor) flushRegistry() error {
+	r := a.readOnlyRegistryCopy()
 	mr, err := a.marshalRegistry(r)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(path, mr, 0644)
+	return ioutil.WriteFile(a.registryPath, mr, 0644)
 }
 
 // GetLastCommittedOffset returns the last committed offset for a given identifier,
 // returns 0 if it does not exist.
 func (a *Auditor) GetLastCommittedOffset(identifier string) int64 {
-	r := a.readOnlyRegistryCopy(a.registry)
+	r := a.readOnlyRegistryCopy()
 	entry, exists := r[identifier]
 	if !exists {
 		return 0
@@ -163,22 +180,12 @@ func (a *Auditor) GetLastCommittedOffset(identifier string) int64 {
 
 // GetLastCommittedTimestamp returns the last committed offset for a given identifier
 func (a *Auditor) GetLastCommittedTimestamp(identifier string) string {
-	r := a.readOnlyRegistryCopy(a.registry)
+	r := a.readOnlyRegistryCopy()
 	entry, ok := r[identifier]
 	if !ok {
 		return ""
 	}
 	return entry.Timestamp
-}
-
-// cleanupRegistry removes expired entries from the registry
-func (a *Auditor) cleanupRegistry(registry map[string]*RegistryEntry) {
-	expireBefore := time.Now().UTC().Add(-a.entryTTL)
-	for path, entry := range registry {
-		if entry.LastUpdated.Before(expireBefore) {
-			delete(registry, path)
-		}
-	}
 }
 
 // JSONRegistry represents the registry that will be written on disk

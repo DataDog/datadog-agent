@@ -69,13 +69,13 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
 		Offset:      42,
 	}
-	suite.a.flushRegistry(suite.a.registry, suite.testPath)
+	suite.a.flushRegistry()
 	r, err := ioutil.ReadFile(suite.testPath)
 	suite.Nil(err)
 	suite.Equal("{\"Version\":1,\"Registry\":{\"testpath\":{\"Timestamp\":\"\",\"Offset\":42,\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\"}}}", string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)
-	suite.a.registry = suite.a.recoverRegistry(suite.testPath)
+	suite.a.registry = suite.a.recoverRegistry()
 	suite.Equal(int64(42), suite.a.registry[suite.source.Config.Path].Offset)
 }
 
@@ -116,10 +116,10 @@ func (suite *AuditorTestSuite) TestAuditorCleansupRegistry() {
 		LastUpdated: time.Now().UTC(),
 		Offset:      43,
 	}
-	suite.a.flushRegistry(suite.a.registry, suite.testPath)
+	suite.a.flushRegistry()
 	suite.Equal(2, len(suite.a.registry))
 
-	suite.a.cleanupRegistry(suite.a.registry)
+	suite.a.cleanupRegistry()
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal(int64(43), suite.a.registry[otherpath].Offset)
 }
