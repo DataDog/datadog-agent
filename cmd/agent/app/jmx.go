@@ -127,7 +127,7 @@ func setupAgent() error {
 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
 
-	// let the os asign an available port
+	// let the os assign an available port
 	config.Datadog.Set("cmd_port", 0)
 
 	// start the cmd HTTP server
