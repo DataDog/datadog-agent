@@ -83,5 +83,5 @@ func ecsFactory() Collector {
 }
 
 func init() {
-	registerCollector(ecsCollectorName, ecsFactory, LowPriority)
+	registerCollector(ecsCollectorName, ecsFactory, NodeRuntime)
 }

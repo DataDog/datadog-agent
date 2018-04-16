@@ -192,7 +192,7 @@ func insertWithPriority(tagPrioMapper map[string][]tagPriority, tags []string, s
 	priority, found := collectors.CollectorPriorities[source]
 	if !found {
 		log.Warnf("Tagger: %s collector has no defined priority, assuming low", source)
-		priority = collectors.LowPriority
+		priority = collectors.NodeRuntime
 	}
 
 	for _, t := range tags {

@@ -204,8 +204,8 @@ func TestDuplicateSourceTags(t *testing.T) {
 
 	// Mock collector priorities
 	collectors.CollectorPriorities = map[string]collectors.CollectorPriority{
-		"sourceHigh": collectors.HighPriority,
-		"sourceLow":  collectors.LowPriority,
+		"sourceHigh": collectors.NodeOrchestrator,
+		"sourceLow":  collectors.NodeRuntime,
 	}
 
 	// Add tags but don't invalidate the cache, we should return empty arrays
