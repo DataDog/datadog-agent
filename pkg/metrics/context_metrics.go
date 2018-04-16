@@ -12,9 +12,6 @@ import (
 	log "github.com/cihub/seelog"
 )
 
-// ContextKey is a non-cryptographic hash unique to a context
-type ContextKey [16]byte
-
 // ContextMetrics stores all the metrics by context key
 type ContextMetrics map[ckey.ContextKey]Metric
 
