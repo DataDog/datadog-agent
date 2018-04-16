@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -21,11 +22,9 @@ func MakeContextMetrics() ContextMetrics {
 }
 
 // AddSample add a sample to the current ContextMetrics and initialize a new metrics if needed.
-// TODO: Pass a reference to *MetricSample instead
-func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSample, timestamp float64, interval int64) {
+func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSample, timestamp float64, interval int64) error {
 	if math.IsInf(sample.Value, 0) || math.IsNaN(sample.Value) {
-		log.Debug("Ignoring sample with ", sample.Value, " value on context key:", contextKey)
-		return
+		return fmt.Errorf("sample with value '%v'", sample.Value)
 	}
 	if _, ok := m[contextKey]; !ok {
 		switch sample.Mtype {
@@ -46,11 +45,13 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 		case CounterType:
 			m[contextKey] = NewCounter(interval)
 		default:
-			log.Error("Can't add unknown sample metric type:", sample.Mtype)
-			return
+			err := fmt.Errorf("unknown sample metric type: %v", sample.Mtype)
+			log.Error(err)
+			return err
 		}
 	}
 	m[contextKey].addSample(sample, timestamp)
+	return nil
 }
 
 // Flush flushes every metrics in the ContextMetrics

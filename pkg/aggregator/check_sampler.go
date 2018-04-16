@@ -34,7 +34,9 @@ func newCheckSampler(hostname string) *CheckSampler {
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	contextKey := cs.contextResolver.trackContext(metricSample, metricSample.Timestamp)
 
-	cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1)
+	if err := cs.metrics.AddSample(contextKey, metricSample, metricSample.Timestamp, 1); err != nil {
+		log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+	}
 }
 
 func (cs *CheckSampler) commit(timestamp float64) {

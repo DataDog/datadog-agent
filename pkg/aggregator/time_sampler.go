@@ -66,7 +66,9 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 	}
 
 	// Add sample to bucket
-	bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval)
+	if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval); err != nil {
+		log.Debug("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+	}
 }
 
 func (s *TimeSampler) flush(timestamp float64) metrics.Series {
