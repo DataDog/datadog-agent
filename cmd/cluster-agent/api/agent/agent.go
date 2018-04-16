@@ -182,7 +182,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vars := mux.Vars(r)
-	var slcB []byte
+	var metaBytes []byte
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
 	metaList, errMetaList := as.GetPodMetadataNames(nodeName, podName)
@@ -192,15 +192,15 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slcB, err := json.Marshal(metaList)
+	metaBytes, err := json.Marshal(metaList)
 	if err != nil {
 		log.Errorf("Could not process the list of services for: %s", podName)
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	if len(slcB) != 0 {
+	if len(metaBytes) != 0 {
 		w.WriteHeader(200)
-		w.Write(slcB)
+		w.Write(metaBytes)
 		return
 	}
 	w.WriteHeader(404)
@@ -216,11 +216,11 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
 	log.Infof("Fetching metadata map on all pods of the node %s", nodeName)
-	svcList, errNodes := as.GetMetadataMapBundleOnNode(nodeName)
+	metaList, errNodes := as.GetMetadataMapBundleOnNode(nodeName)
 	if errNodes != nil {
 		log.Errorf("Could not collect the service map for %s", nodeName)
 	}
-	slcB, err := json.Marshal(svcList)
+	slcB, err := json.Marshal(metaList)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return

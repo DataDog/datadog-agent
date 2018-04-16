@@ -36,7 +36,7 @@ func GetPodMetadataNames(nodeName string, podName string) ([]string, error) {
 		return nil, fmt.Errorf("no cached services list found for the pod %s on the node %s", podName, nodeName)
 
 	}
-	log.Debugf("cacheKey: %s, with %d services", cacheKey, len(serviceList))
+	log.Debugf("CacheKey: %s, with %d services", cacheKey, len(serviceList))
 	for _, s := range serviceList {
 		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
 	}

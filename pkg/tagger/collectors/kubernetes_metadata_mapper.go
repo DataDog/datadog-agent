@@ -8,8 +8,9 @@
 package collectors
 
 import (
-	log "github.com/cihub/seelog"
+	"strings"
 
+	log "github.com/cihub/seelog"
 	"github.com/ericchiang/k8s/api/v1"
 	metav1 "github.com/ericchiang/k8s/apis/meta/v1"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"strings"
 )
 
 func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
