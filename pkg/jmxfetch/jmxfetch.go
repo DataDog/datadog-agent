@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	jmxJarName                        = "jmxfetch-0.18.2-jar-with-dependencies.jar"
+	jmxJarName                        = "jmxfetch-0.19.0-jar-with-dependencies.jar"
 	jmxMainClass                      = "org.datadog.jmxfetch.App"
 	defaultJmxCommand                 = "collect"
 	defaultJvmMaxMemoryAllocation     = " -Xmx200m"
@@ -58,6 +58,8 @@ type JMXFetch struct {
 	ReportOnConsole    bool
 	ConfDirectory      string
 	Checks             []string
+	IPCPort            int
+	IPCHost            string
 	defaultJmxCommand  string
 	cmd                *exec.Cmd
 	exitFilePath       string
@@ -121,12 +123,22 @@ func (j *JMXFetch) Run() error {
 	if !ok {
 		jmxLogLevel = "INFO"
 	}
+
+	ipcHost := config.Datadog.GetString("cmd_host")
+	ipcPort := config.Datadog.GetInt("cmd_port")
+	if j.IPCHost != "" {
+		ipcHost = j.IPCHost
+	}
+	if j.IPCPort != 0 {
+		ipcPort = j.IPCPort
+	}
+
 	// checks are now enabled via IPC on JMXFetch
 	subprocessArgs = append(subprocessArgs,
 		"-classpath", classpath,
 		jmxMainClass,
-		"--ipc_host", config.Datadog.GetString("cmd_host"),
-		"--ipc_port", fmt.Sprintf("%v", config.Datadog.GetInt("cmd_port")),
+		"--ipc_host", ipcHost,
+		"--ipc_port", fmt.Sprintf("%v", ipcPort),
 		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
 		"--log_level", jmxLogLevel,
 		"--reporter", reporter, // Reporter to use

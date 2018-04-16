@@ -3,18 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
+// +build jmx
+
 package app
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/spf13/cobra"
@@ -117,25 +118,37 @@ func doJmxListNotCollected(cmd *cobra.Command, args []string) {
 	runJmxCommand("list_not_matching_attributes")
 }
 
-func runJmxCommand(command string) {
+func setupAgent() error {
+
 	err := common.SetupConfig(confFilePath)
 	if err != nil {
-		log.Fatalln("unable to set up global agent configuration: %v", err)
+		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
 	common.SetupAutoConfig(config.Datadog.GetString("confd_path"))
+
+	// let the os asign an available port
+	config.Datadog.Set("cmd_port", 0)
+
+	// start the cmd HTTP server
+	if err := api.StartServer(); err != nil {
+		return fmt.Errorf("Error while starting api server, exiting: %v", err)
+	}
+
+	return nil
+}
+
+func runJmxCommand(command string) error {
+	err := setupAgent()
+	if err != nil {
+		return err
+	}
 
 	runner := jmxfetch.New()
 
 	runner.ReportOnConsole = true
 	runner.Command = command
-
-	dir, err := ioutil.TempDir(os.TempDir(), "jmxconfd")
-	if err != nil {
-		log.Fatalln(err)
-	}
-	defer os.RemoveAll(dir)
-	runner.ConfDirectory = dir
+	runner.IPCPort = api.ServerAddress().Port
 
 	configs := common.AC.GetAllConfigs()
 
@@ -145,18 +158,7 @@ func runJmxCommand(command string) {
 			log.Fatalln(err)
 		}
 
-		file, err := ioutil.TempFile(dir, fmt.Sprintf("conf_%v", c))
-		if err != nil {
-			log.Fatalln(err)
-		}
-		defer file.Close()
-
-		_, err = file.WriteString(config.String())
-		if err != nil {
-			log.Fatalln(err)
-		}
-
-		runner.Checks = append(runner.Checks, filepath.Base(file.Name()))
+		embed.AddJMXCachedConfig(*config)
 	}
 
 	err = runner.Run()
@@ -170,6 +172,7 @@ func runJmxCommand(command string) {
 	}
 
 	fmt.Println("JMXFetch exited successfully. If nothing was displayed please check your configuration, flags and the JMXFetch log file.")
+	return nil
 }
 
 func findJMXConfigByCheckName(configs []check.Config, checkName string) (*check.Config, error) {
