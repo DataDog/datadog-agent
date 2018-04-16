@@ -19,10 +19,11 @@ import (
 
 // Logs source types
 const (
-	TCPType    = "tcp"
-	UDPType    = "udp"
-	FileType   = "file"
-	DockerType = "docker"
+	TCPType      = "tcp"
+	UDPType      = "udp"
+	FileType     = "file"
+	DockerType   = "docker"
+	JournaldType = "journald"
 )
 
 // Logs rule types
@@ -58,7 +59,8 @@ type LogsConfig struct {
 	Type string
 
 	Port int    // Network
-	Path string // File
+	Path string // File, Journald
+	Unit string // Journald
 
 	Image string // Docker
 	Label string // Docker
@@ -185,29 +187,22 @@ func integrationConfigsFromDirectory(dir string, prefix string) []string {
 }
 
 func validateConfig(config LogsConfig) error {
-
 	switch config.Type {
-	case FileType,
-		DockerType,
-		TCPType,
-		UDPType:
+	case FileType, DockerType, TCPType, UDPType, JournaldType:
 	default:
 		return fmt.Errorf("A source must have a valid type (got %s)", config.Type)
 	}
 
-	if config.Type == FileType && config.Path == "" {
+	switch {
+	case config.Type == FileType && config.Path == "":
 		return fmt.Errorf("A file source must have a path")
-	}
-
-	if config.Type == TCPType && config.Port == 0 {
+	case config.Type == TCPType && config.Port == 0:
 		return fmt.Errorf("A tcp source must have a port")
-	}
-
-	if config.Type == UDPType && config.Port == 0 {
+	case config.Type == UDPType && config.Port == 0:
 		return fmt.Errorf("A udp source must have a port")
+	default:
+		return nil
 	}
-
-	return nil
 }
 
 // validateProcessingRules checks the rules and raises errors if one is misconfigured

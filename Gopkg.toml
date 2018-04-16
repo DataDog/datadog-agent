@@ -99,6 +99,10 @@
   version = "~v1.0.0"
 
 [[constraint]]
+  name = "github.com/coreos/go-systemd"
+  version = ""
+
+[[constraint]]
   name = "github.com/stretchr/testify"
   version = "~v1.2.1"
 

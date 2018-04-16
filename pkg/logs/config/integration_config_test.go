@@ -18,7 +18,7 @@ const testsPath = "tests"
 
 func TestAvailableIntegrationConfigs(t *testing.T) {
 	ddconfdPath := filepath.Join(testsPath, "complete", "conf.d")
-	assert.Equal(t, []string{"integration.yaml", "integration2.yml", "misconfigured_integration.yaml", "integration.d/integration3.yaml", "integration.d/integration4.yaml"}, availableIntegrationConfigs(ddconfdPath))
+	assert.Equal(t, []string{"integration.yaml", "integration2.yml", "integration5.yml", "misconfigured_integration.yaml", "integration.d/integration3.yaml", "integration.d/integration4.yaml"}, availableIntegrationConfigs(ddconfdPath))
 }
 
 func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
@@ -26,8 +26,8 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	allSources, err := buildLogSources(ddconfdPath, false)
 
 	assert.Nil(t, err)
-	assert.Equal(t, 5, len(allSources.GetValidSources()))
-	assert.Equal(t, 6, len(allSources.GetSources()))
+	assert.Equal(t, 6, len(allSources.GetValidSources()))
+	assert.Equal(t, 7, len(allSources.GetSources()))
 
 	sources := allSources.GetValidSources()
 
@@ -44,11 +44,13 @@ func TestBuildLogsAgentIntegrationsConfigs(t *testing.T) {
 	assert.Equal(t, "", sources[1].Config.Source)
 	assert.Equal(t, 0, len(sources[1].Config.Tags))
 
-	assert.Equal(t, "docker", sources[2].Config.Type)
-	assert.Equal(t, "test", sources[2].Config.Image)
+	assert.Equal(t, "journald", sources[2].Config.Type)
 
-	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[3].Config.Tags)
+	assert.Equal(t, "docker", sources[3].Config.Type)
+	assert.Equal(t, "test", sources[3].Config.Image)
+
 	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[4].Config.Tags)
+	assert.Equal(t, []string{"env:prod", "foo:bar"}, sources[5].Config.Tags)
 
 	// processing
 	assert.Equal(t, 0, len(sources[0].Config.ProcessingRules))

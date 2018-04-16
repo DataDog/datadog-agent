@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/container"
+	"github.com/DataDog/datadog-agent/pkg/logs/input/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/input/tailer"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -29,6 +30,7 @@ type Agent struct {
 	containersScanner *container.Scanner
 	filesScanner      *tailer.Scanner
 	networkListener   *listener.Listener
+	journaldScanner   *journald.Scanner
 	pipelineProvider  pipeline.Provider
 }
 
@@ -50,11 +52,13 @@ func NewAgent(sources *config.LogSources) *Agent {
 	containersScanner := container.New(sources.GetValidSources(), pipelineProvider, auditor)
 	networkListeners := listener.New(sources.GetValidSources(), pipelineProvider)
 	filesScanner := tailer.New(sources.GetValidSources(), config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, tailer.DefaultSleepDuration)
+	journaldScanner := journald.New(sources.GetValidSources(), pipelineProvider, auditor)
 
 	return &Agent{
 		auditor:           auditor,
 		containersScanner: containersScanner,
 		filesScanner:      filesScanner,
+		journaldScanner:   journaldScanner,
 		networkListener:   networkListeners,
 		pipelineProvider:  pipelineProvider,
 	}
@@ -69,6 +73,7 @@ func (a *Agent) Start() {
 		a.filesScanner,
 		a.networkListener,
 		a.containersScanner,
+		a.journaldScanner,
 	)
 }
 
@@ -80,6 +85,7 @@ func (a *Agent) Stop() {
 			a.filesScanner,
 			a.networkListener,
 			a.containersScanner,
+			a.journaldScanner,
 		),
 		a.pipelineProvider,
 		a.auditor,
