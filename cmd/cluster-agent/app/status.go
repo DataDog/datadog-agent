@@ -70,12 +70,12 @@ func requestStatus() error {
 	urlstr := fmt.Sprintf("https://localhost:%v/status", config.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetDCAAuthToken()
+	e = util.SetAuthToken()
 	if e != nil {
 		return e
 	}
 
-	r, e := util.DoGetExternalEndpoint(c, urlstr)
+	r, e := util.DoGet(c, urlstr)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, errMap)

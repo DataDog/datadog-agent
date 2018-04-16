@@ -12,13 +12,14 @@ import (
 	"strconv"
 	"time"
 
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	log "github.com/cihub/seelog"
 )
 
 var timeFormat = "2006-01-02 15:04:05.000000 UTC"
@@ -125,6 +126,26 @@ func GetDCAStatus() (map[string]interface{}, error) {
 	stats["leaderelection"] = getLeaderElectionDetails()
 
 	return stats, nil
+}
+
+// GetAndFormatDCAStatus gets and formats the DCA status all in one go.
+func GetAndFormatDCAStatus() ([]byte, error) {
+	s, err := GetDCAStatus()
+	if err != nil {
+		log.Infof("Error while getting status %q", err)
+		return nil, err
+	}
+	statusJSON, err := json.Marshal(s)
+	if err != nil {
+		log.Infof("Error while marshalling %q", err)
+		return nil, err
+	}
+	st, err := FormatDCAStatus(statusJSON)
+	if err != nil {
+		log.Infof("Error formatting the status %q", err)
+		return nil, err
+	}
+	return []byte(st), nil
 }
 
 // getDCAPartialConfig returns config parameters of interest for the status page.

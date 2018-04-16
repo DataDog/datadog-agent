@@ -66,12 +66,12 @@ func getMetadataMap(nodeName string) error {
 	}
 
 	// Set session token
-	e = util.SetDCAAuthToken()
+	e = util.SetAuthToken()
 	if e != nil {
 		return e
 	}
 
-	r, e := util.DoGetExternalEndpoint(c, urlstr)
+	r, e := util.DoGet(c, urlstr)
 	if e != nil {
 		fmt.Printf(`
 		Could not reach agent: %v

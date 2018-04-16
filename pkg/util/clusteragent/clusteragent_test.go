@@ -132,7 +132,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmpty() {
 	config.Datadog.Set("cluster_agent.auth_token", "")
 
 	_, err := security.GetClusterAgentAuthToken()
-	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
+	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmptyFile() {
@@ -306,7 +306,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 }
 
 func TestClusterAgentSuite(t *testing.T) {
-	clusterAgentAuthTokenFilename := "dca_auth_token"
+	clusterAgentAuthTokenFilename := "cluster_agent_auth_token"
 
 	fakeDir, err := ioutil.TempDir("", "fake-datadog-etc")
 	require.Nil(t, err, fmt.Sprintf("%v", err))
