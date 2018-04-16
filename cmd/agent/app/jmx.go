@@ -9,7 +9,6 @@ package app
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
@@ -38,42 +37,42 @@ var (
 		Use:   "collect",
 		Short: "Start the collection of metrics based on your current configuration and display them in the console.",
 		Long:  ``,
-		Run:   doJmxCollect,
+		RunE:  doJmxCollect,
 	}
 
 	jmxListEverythingCmd = &cobra.Command{
 		Use:   "everything",
 		Short: "List every attributes available that has a type supported by JMXFetch.",
 		Long:  ``,
-		Run:   doJmxListEverything,
+		RunE:  doJmxListEverything,
 	}
 
 	jmxListMatchingCmd = &cobra.Command{
 		Use:   "matching",
 		Short: "List attributes that match at least one of your instances configuration.",
 		Long:  ``,
-		Run:   doJmxListMatching,
+		RunE:  doJmxListMatching,
 	}
 
 	jmxListLimitedCmd = &cobra.Command{
 		Use:   "limited",
 		Short: "List attributes that do match one of your instances configuration but that are not being collected because it would exceed the number of metrics that can be collected.",
 		Long:  ``,
-		Run:   doJmxListLimited,
+		RunE:  doJmxListLimited,
 	}
 
 	jmxListCollectedCmd = &cobra.Command{
 		Use:   "collected",
 		Short: "List attributes that will actually be collected by your current instances configuration.",
 		Long:  ``,
-		Run:   doJmxListCollected,
+		RunE:  doJmxListCollected,
 	}
 
 	jmxListNotMatchingCmd = &cobra.Command{
 		Use:   "not-matching",
 		Short: "List attributes that don’t match any of your instances configuration.",
 		Long:  ``,
-		Run:   doJmxListNotCollected,
+		RunE:  doJmxListNotCollected,
 	}
 
 	checks = []string{}
@@ -94,28 +93,28 @@ func init() {
 	AgentCmd.AddCommand(jmxCmd)
 }
 
-func doJmxCollect(cmd *cobra.Command, args []string) {
-	runJmxCommand("collect")
+func doJmxCollect(cmd *cobra.Command, args []string) error {
+	return runJmxCommand("collect")
 }
 
-func doJmxListEverything(cmd *cobra.Command, args []string) {
-	runJmxCommand("list_everything")
+func doJmxListEverything(cmd *cobra.Command, args []string) error {
+	return runJmxCommand("list_everything")
 }
 
-func doJmxListMatching(cmd *cobra.Command, args []string) {
-	runJmxCommand("list_matching_attributes")
+func doJmxListMatching(cmd *cobra.Command, args []string) error {
+	return runJmxCommand("list_matching_attributes")
 }
 
-func doJmxListLimited(cmd *cobra.Command, args []string) {
-	runJmxCommand("list_limited_attributes")
+func doJmxListLimited(cmd *cobra.Command, args []string) error {
+	return runJmxCommand("list_limited_attributes")
 }
 
-func doJmxListCollected(cmd *cobra.Command, args []string) {
-	runJmxCommand("list_collected_attributes")
+func doJmxListCollected(cmd *cobra.Command, args []string) error {
+	return runJmxCommand("list_collected_attributes")
 }
 
-func doJmxListNotCollected(cmd *cobra.Command, args []string) {
-	runJmxCommand("list_not_matching_attributes")
+func doJmxListNotCollected(cmd *cobra.Command, args []string) error {
+	return runJmxCommand("list_not_matching_attributes")
 }
 
 func setupAgent() error {
@@ -154,12 +153,12 @@ func runJmxCommand(command string) error {
 
 	err = runner.Run()
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
 
 	err = runner.Wait()
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
 
 	fmt.Println("JMXFetch exited successfully. If nothing was displayed please check your configuration, flags and the JMXFetch log file.")
