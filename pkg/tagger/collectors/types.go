@@ -37,7 +37,7 @@ type CollectorPriority int
 
 // List of collector priorities
 const (
-	NodeRuntime      CollectorPriority = iota
+	NodeRuntime CollectorPriority = iota
 	NodeOrchestrator
 	ClusterOrchestrator
 )
