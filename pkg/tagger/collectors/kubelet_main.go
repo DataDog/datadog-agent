@@ -8,6 +8,7 @@
 package collectors
 
 import (
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -43,10 +44,20 @@ func (c *KubeletCollector) Detect(out chan<- []*TagInfo) (CollectionMode, error)
 	c.lastExpire = time.Now()
 	c.expireFreq = kubeletExpireFreq
 
-	// viper lower-cases map keys, so extractor must lowercase before matching
-	c.labelsAsTags = config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
-	c.annotationsAsTags = config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
+	// We lower-case the values collected by viper as well as the ones from inspecting the labels of containers.
+	labelsList := config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
+	for label, value := range labelsList {
+		delete(labelsList, label)
+		labelsList[strings.ToLower(label)] = value
+	}
+	c.labelsAsTags = labelsList
 
+	annotationsList := config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
+	for annotation, value := range annotationsList {
+		delete(annotationsList, annotation)
+		annotationsList[strings.ToLower(annotation)] = value
+	}
+	c.annotationsAsTags = annotationsList
 	return PullCollection, nil
 }
 

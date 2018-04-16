@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Lower case the label and env keys gotten from the inspect of the containers and pods in kubeutil and dockerutil.
