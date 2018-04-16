@@ -35,7 +35,7 @@ type Auditor struct {
 	inputChan    chan message.Message
 	registry     map[string]*RegistryEntry
 	registryPath string
-	mu           *sync.Mutex
+	mu           sync.Mutex
 	entryTTL     time.Duration
 	done         chan struct{}
 }
@@ -45,7 +45,7 @@ func New(inputChan chan message.Message, runPath string) *Auditor {
 	return &Auditor{
 		inputChan:    inputChan,
 		registryPath: filepath.Join(runPath, "registry.json"),
-		mu:           &sync.Mutex{},
+		mu:           sync.Mutex{},
 		entryTTL:     defaultTTL,
 		done:         make(chan struct{}),
 	}
