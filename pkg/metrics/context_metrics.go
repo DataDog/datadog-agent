@@ -54,8 +54,10 @@ func (m ContextMetrics) AddSample(contextKey ckey.ContextKey, sample *MetricSamp
 }
 
 // Flush flushes every metrics in the ContextMetrics
-func (m ContextMetrics) Flush(timestamp float64) []*Serie {
+// Returns the slice of Series and a map of errors by context key
+func (m ContextMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]error) {
 	var series []*Serie
+	errors := make(map[ckey.ContextKey]error)
 
 	for contextKey, metric := range m {
 		metricSeries, err := metric.flush(timestamp)
@@ -68,12 +70,12 @@ func (m ContextMetrics) Flush(timestamp float64) []*Serie {
 		} else {
 			switch err.(type) {
 			case NoSerieError:
-				// this error happens in nominal conditions and shouldn't be logged
+				// this error happens in nominal conditions and shouldn't be returned
 			default:
-				log.Infof("An error occurred while flushing metric on context key '%s': %s", contextKey, err)
+				errors[contextKey] = err
 			}
 		}
 	}
 
-	return series
+	return series, errors
 }

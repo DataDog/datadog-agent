@@ -6,6 +6,8 @@
 package aggregator
 
 import (
+	log "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -36,7 +38,12 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 }
 
 func (cs *CheckSampler) commit(timestamp float64) {
-	for _, serie := range cs.metrics.Flush(timestamp) {
+	series, errors := cs.metrics.Flush(timestamp)
+	for ckey, err := range errors {
+		context := cs.contextResolver.contextsByKey[ckey]
+		log.Infof("An error occurred while flushing check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
+	}
+	for _, serie := range series {
 		// Resolve context and populate new []Serie
 		context := cs.contextResolver.contextsByKey[serie.ContextKey]
 		serie.Name = context.Name + serie.NameSuffix

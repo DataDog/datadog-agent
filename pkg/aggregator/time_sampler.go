@@ -92,7 +92,7 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 			// It is ok to add 0 samples to a counter that was already sampled for real in the bucket, since it won't change its value
 			s.countersSampleZeroValue(bucketTimestamp, contextMetrics, counterContextsToDelete)
 
-			rawSeries = append(rawSeries, contextMetrics.Flush(float64(bucketTimestamp))...)
+			rawSeries = append(rawSeries, s.flushContextMetrics(bucketTimestamp, contextMetrics)...)
 
 			delete(s.metricsByTimestamp, bucketTimestamp)
 		}
@@ -104,7 +104,7 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 
 		s.countersSampleZeroValue(cutoffTime-s.interval, contextMetrics, counterContextsToDelete)
 
-		rawSeries = append(rawSeries, contextMetrics.Flush(float64(cutoffTime-s.interval))...)
+		rawSeries = append(rawSeries, s.flushContextMetrics(cutoffTime-s.interval, contextMetrics)...)
 	}
 
 	// Delete the contexts associated to an expired counter
@@ -137,6 +137,16 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 	s.contextResolver.expireContexts(timestamp - defaultExpiry)
 	s.lastCutOffTime = cutoffTime
 	return result
+}
+
+// flushContextMetrics flushes the passed contextMetrics, handles its errors, and returns its series
+func (s *TimeSampler) flushContextMetrics(timestamp int64, contextMetrics metrics.ContextMetrics) []*metrics.Serie {
+	series, errors := contextMetrics.Flush(float64(timestamp))
+	for ckey, err := range errors {
+		context := s.contextResolver.contextsByKey[ckey]
+		log.Infof("An error occurred while flushing dogstatsd metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
+	}
+	return series
 }
 
 func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics metrics.ContextMetrics, counterContextsToDelete map[ckey.ContextKey]struct{}) {
