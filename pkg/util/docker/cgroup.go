@@ -113,7 +113,7 @@ func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
 
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
-		log.Debugf("missing cgroup file: %s", statfile)
+		log.Debugf("Missing cgroup file: %s", statfile)
 		return ret, nil
 	} else if err != nil {
 		return nil, err
@@ -199,7 +199,7 @@ func (c ContainerCgroup) Mem() (*CgroupMemStat, error) {
 func (c ContainerCgroup) MemLimit() (uint64, error) {
 	v, err := c.ParseSingleStat("memory", "memory.limit_in_bytes")
 	if os.IsNotExist(err) {
-		log.Debugf("missing cgroup file: %s",
+		log.Debugf("Missing cgroup file: %s",
 			c.cgroupFilePath("memory", "memory.limit_in_bytes"))
 		return 0, nil
 	} else if err != nil {
@@ -220,7 +220,7 @@ func (c ContainerCgroup) CPU() (*CgroupTimesStat, error) {
 	statfile := c.cgroupFilePath("cpuacct", "cpuacct.stat")
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
-		log.Debugf("missing cgroup file: %s", statfile)
+		log.Debugf("Missing cgroup file: %s", statfile)
 		return ret, nil
 	} else if err != nil {
 		return nil, err
@@ -250,14 +250,14 @@ func (c ContainerCgroup) CPU() (*CgroupTimesStat, error) {
 	if err == nil {
 		ret.UsageTotal = float64(usage) / NanoToUserHZDivisor
 	} else {
-		log.Debugf("missing total cpu usage stat for %s: %s", c.ContainerID, err.Error())
+		log.Debugf("Missing total cpu usage stat for %s: %s", c.ContainerID, err.Error())
 	}
 
 	shares, err := c.ParseSingleStat("cpu", "cpu.shares")
 	if err == nil {
 		ret.Shares = shares
 	} else {
-		log.Debugf("missing cpu shares stat for %s: %s", c.ContainerID, err.Error())
+		log.Debugf("Missing cpu shares stat for %s: %s", c.ContainerID, err.Error())
 	}
 
 	return ret, nil
@@ -270,7 +270,7 @@ func (c ContainerCgroup) CPUNrThrottled() (uint64, error) {
 	statfile := c.cgroupFilePath("cpu", "cpu.stat")
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
-		log.Debugf("missing cgroup file: %s", statfile)
+		log.Debugf("Missing cgroup file: %s", statfile)
 		return 0, nil
 	} else if err != nil {
 		return 0, err
@@ -287,7 +287,7 @@ func (c ContainerCgroup) CPUNrThrottled() (uint64, error) {
 			return value, nil
 		}
 	}
-	log.Debugf("missing nr_throttled line in %s", statfile)
+	log.Debugf("Missing nr_throttled line in %s", statfile)
 	return 0, nil
 }
 
@@ -305,14 +305,14 @@ func (c ContainerCgroup) CPULimit() (float64, error) {
 	quotaFile := c.cgroupFilePath("cpu", "cpu.cfs_quota_us")
 	plines, err := readLines(periodFile)
 	if os.IsNotExist(err) {
-		log.Debugf("missing cgroup file: %s", periodFile)
+		log.Debugf("Missing cgroup file: %s", periodFile)
 		return 100, nil
 	} else if err != nil {
 		return 0, err
 	}
 	qlines, err := readLines(quotaFile)
 	if os.IsNotExist(err) {
-		log.Debugf("missing cgroup file: %s", quotaFile)
+		log.Debugf("Missing cgroup file: %s", quotaFile)
 		return 100, nil
 	} else if err != nil {
 		return 0, err
@@ -352,7 +352,7 @@ func (c ContainerCgroup) IO() (*CgroupIOStat, error) {
 	statfile := c.cgroupFilePath("blkio", "blkio.throttle.io_service_bytes")
 	f, err := os.Open(statfile)
 	if os.IsNotExist(err) {
-		log.Debugf("missing cgroup file: %s", statfile)
+		log.Debugf("Missing cgroup file: %s", statfile)
 		return ret, nil
 	} else if err != nil {
 		return nil, err
@@ -415,12 +415,12 @@ func (c ContainerCgroup) ContainerStartTime() (int64, error) {
 func (c ContainerCgroup) cgroupFilePath(target, file string) string {
 	mount, ok := c.Mounts[target]
 	if !ok {
-		log.Errorf("missing target %s from mounts", target)
+		log.Errorf("Missing target %s from mounts", target)
 		return ""
 	}
 	targetPath, ok := c.Paths[target]
 	if !ok {
-		log.Errorf("missing target %s from paths", target)
+		log.Errorf("Missing target %s from paths", target)
 		return ""
 	}
 	// sometimes the container is running inside a "dind container" instead of directly on the host,

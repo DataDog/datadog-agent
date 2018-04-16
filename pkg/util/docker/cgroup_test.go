@@ -28,7 +28,7 @@ func TestCPU(t *testing.T) {
 	tempFolder.add("cpuacct/cpuacct.usage", "915266418275")
 	tempFolder.add("cpu/cpu.shares", "1024")
 
-	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpuacct")
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpuacct", "cpu")
 
 	timeStat, err := cgroup.CPU()
 	assert.Nil(t, err)
