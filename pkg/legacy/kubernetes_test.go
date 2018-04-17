@@ -53,11 +53,6 @@ instances:
    namespaces:
      - default
    namespace_name_regexp: test
-   enabled_rates:
-     - cpu.*
-     - network.*
-   enabled_gauges:
-     - filesystem.*
 
    # Deprecated
    use_histogram: true
@@ -67,6 +62,11 @@ instances:
    tags:
      - optional_tag1
      - optional_tag2
+   enabled_rates:
+     - cpu.*
+     - network.*
+   enabled_gauges:
+     - filesystem.*
 `
 
 	kubernetesLegacyEmptyConf string = `
@@ -77,21 +77,28 @@ instances:
 `
 
 	kubeletNewConf string = `instances:
-- tags:
+- cadvisor_port: 0
+  tags:
   - optional_tag1
   - optional_tag2
+  enabled_rates:
+  - cpu.*
+  - network.*
+  enabled_gauges:
+  - filesystem.*
 `
 
 	kubeletNewEmptyConf string = `instances:
-- tags: []
+- cadvisor_port: 0
 `
 )
 
 var expectedKubeDeprecations = kubeDeprecations{
 	deprecationAPIServerCreds: []string{"api_server_url", "apiserver_client_crt", "apiserver_client_key", "apiserver_ca_cert"},
 	deprecationHisto:          []string{"use_histogram"},
-	deprecationFiltering:      []string{"namespaces", "namespace_name_regexp", "enabled_rates", "enabled_gauges"},
+	deprecationFiltering:      []string{"namespaces", "namespace_name_regexp"},
 	deprecationTagPrefix:      []string{"label_to_tag_prefix"},
+	deprecationCadvisorPort:   []string{"port"},
 }
 
 var expectedHostTags = map[string]string{

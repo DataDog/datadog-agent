@@ -272,7 +272,9 @@ The `agent import` command (in versions 6.2 and higher) will import settings fro
 
   - API Server credentials (`api_server_url`, `apiserver_client_crt`, `apiserver_client_key`, `apiserver_ca_cert`) please provide a a kubeconfig file to the agent via the `kubernetes_kubeconfig_path` option
   - `use_histogram`: please contact support to determine the best alternative for you
-  - `namespaces`, `namespace_name_regexp`, `enabled_rates`, `enabled_gauges`: Agent6 now collects all available namespaces and metrics
+  - `namespaces`, `namespace_name_regexp`: Agent6 now collects metrics from all available namespaces
+
+The upgrade logic enables the new prometheus metric collection, that is compatible with Kubernetes versions 1.7.6 and up. If you run an older version or want to revert to the cadvisor collection logic, you can set the `cadvisor_port` option back to `4194` (or the port your kubelet exposes cadvisor at).
 
 The [`kubernetes_state` integration](https://github.com/DataDog/integrations-core/tree/master/kubernetes_state) works on both versions of the agent.
 

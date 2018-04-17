@@ -22,8 +22,9 @@ const (
 	warningNewKubeCheck       string = "Warning: The Kubernetes integration has been overhauled, please see https://github.com/DataDog/datadog-agent/blob/master/docs/agent/changes.md#kubernetes-support"
 	deprecationAPIServerCreds string = "please use kubernetes_kubeconfig_path instead"
 	deprecationHisto          string = "please contact support to determine the best alternative for you"
-	deprecationFiltering      string = "Agent6 now collects all available namespaces and metrics"
+	deprecationFiltering      string = "Agent6 now collects metrics from all available namespaces"
 	deprecationTagPrefix      string = "please specify mapping per label via kubernetes_pod_labels_as_tags"
+	deprecationCadvisorPort   string = "Agent6 default mode is to collect kubelet metrics via the new prometheus endpoints. On clusters older than 1.7.6, manually set the cadvisor_port setting to enable cadvisor collection"
 )
 
 type legacyKubernetesInstance struct {
@@ -41,6 +42,7 @@ type legacyKubernetesInstance struct {
 	LeaderLeaseDuration int    `yaml:"leader_lease_duration"`
 	CollectServiceTags  string `yaml:"collect_service_tags"`
 	ServiceTagUpdateTag int    `yaml:"service_tag_update_freq"`
+	CadvisorPort        string `yaml:"port"`
 
 	// Deprecated
 	APIServerURL       string   `yaml:"api_server_url"`
@@ -49,8 +51,6 @@ type legacyKubernetesInstance struct {
 	APIServerCACert    string   `yaml:"apiserver_ca_cert"`
 	Namespaces         []string `yaml:"namespaces"`
 	NamespacesRegexp   string   `yaml:"namespace_name_regexp"`
-	Rates              []string `yaml:"enabled_rates"`
-	Gauges             []string `yaml:"enabled_gauges"`
 	UseHisto           bool     `yaml:"use_histogram"`
 	LabelTagPrefix     string   `yaml:"label_to_tag_prefix"`
 
@@ -58,7 +58,10 @@ type legacyKubernetesInstance struct {
 }
 
 type newKubeletInstance struct {
-	Tags []string `yaml:"tags"`
+	CadvisorPort  int      `yaml:"cadvisor_port"` // will default to 0 == disable
+	Tags          []string `yaml:"tags,omitempty"`
+	EnabledRates  []string `yaml:"enabled_rates,omitempty"`
+	EnabledGauges []string `yaml:"enabled_gauges,omitempty"`
 }
 
 type kubeDeprecations map[string][]string
@@ -207,14 +210,11 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool) (kubeDeprec
 	if len(instance.NamespacesRegexp) > 0 {
 		deprecations.add("namespace_name_regexp", deprecationFiltering)
 	}
-	if len(instance.Rates) > 0 {
-		deprecations.add("enabled_rates", deprecationFiltering)
-	}
-	if len(instance.Gauges) > 0 {
-		deprecations.add("enabled_gauges", deprecationFiltering)
-	}
 	if len(instance.LabelTagPrefix) > 0 {
 		deprecations.add("label_to_tag_prefix", deprecationTagPrefix)
+	}
+	if len(instance.CadvisorPort) > 0 {
+		deprecations.add("port", deprecationCadvisorPort)
 	}
 
 	deprecations.print()
