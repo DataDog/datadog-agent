@@ -276,9 +276,6 @@ func (f *DefaultForwarder) Stop() {
 }
 
 func (f *DefaultForwarder) hasValidAPIKey(timeout time.Duration) (bool, error) {
-	validKey := false
-	apiError := false
-
 	// Since timeout is the maximum duration we can wait, we need to divide it
 	// by the total number of api keys to obtain the max duration for each key
 	apiKeyCount := 0
@@ -288,6 +285,9 @@ func (f *DefaultForwarder) hasValidAPIKey(timeout time.Duration) (bool, error) {
 	if apiKeyCount == 0 {
 		return true, nil
 	}
+
+	validKey := false
+	apiError := false
 
 	keyTimeout := timeout / time.Duration(apiKeyCount)
 
