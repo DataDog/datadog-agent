@@ -211,6 +211,21 @@ def lint_releasenote(ctx):
 
     ctx.run("reno lint")
 
+@task
+def lint_filenames(ctx):
+    """
+    Scan files to ensure there are no filenames containing illegal character
+    """
+    forbidden_chars = '<>:"\\|?*'
+    files = ctx.run("git ls-files -z", hide=True).stdout.split("\0")
+    failure = False
+    for file in files:
+        if any([char in file for char in forbidden_chars]):
+            print("Error: Found illegal character in path {}".format(file))
+            failure = True
+    if failure:
+        raise Exit(1)
+
 
 @task
 def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):

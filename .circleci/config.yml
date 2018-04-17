@@ -87,6 +87,16 @@ jobs:
           name: run reno linting
           command: inv -e lint-releasenote
 
+  filename_linting:
+    <<: *job_template
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - setup_remote_docker
+      - run:
+          name: run filename linting
+          command: inv -e lint-filenames
+
   docker_integration_tests:
     <<: *job_template
     steps:
@@ -136,6 +146,9 @@ workflows:
           requires:
             - dependencies
       - reno_linting:
+          requires:
+            - dependencies
+      - filename_linting:
           requires:
             - dependencies
       - docker_integration_tests:
