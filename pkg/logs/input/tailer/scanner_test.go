@@ -32,7 +32,7 @@ type ScannerTestSuite struct {
 	testRotatedPath string
 	testRotatedFile *os.File
 
-	outputChan     chan message.Message
+	outputChan     chan *message.Message
 	pp             pipeline.Provider
 	sources        []*config.LogSource
 	openFilesLimit int

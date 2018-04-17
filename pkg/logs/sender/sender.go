@@ -15,8 +15,8 @@ import (
 // A Sender sends messages from an inputChan to datadog's intake,
 // handling connections and retries.
 type Sender struct {
-	inputChan   chan message.Message
-	outputChan  chan message.Message
+	inputChan   chan *message.Message
+	outputChan  chan *message.Message
 	connManager *ConnectionManager
 	conn        net.Conn
 	delimiter   Delimiter
@@ -24,7 +24,7 @@ type Sender struct {
 }
 
 // New returns an initialized Sender
-func New(inputChan, outputChan chan message.Message, connManager *ConnectionManager, delimiter Delimiter) *Sender {
+func New(inputChan, outputChan chan *message.Message, connManager *ConnectionManager, delimiter Delimiter) *Sender {
 	return &Sender{
 		inputChan:   inputChan,
 		outputChan:  outputChan,
@@ -57,12 +57,12 @@ func (s *Sender) run() {
 }
 
 // wireMessage lets the Sender send a message to datadog's intake
-func (s *Sender) wireMessage(payload message.Message) {
+func (s *Sender) wireMessage(payload *message.Message) {
 	for {
 		if s.conn == nil {
 			s.conn = s.connManager.NewConnection() // blocks until a new conn is ready
 		}
-		frame, err := s.delimiter.delimit(payload.Content())
+		frame, err := s.delimiter.delimit(payload.Content)
 		if err != nil {
 			log.Error("can't send payload: ", payload, err)
 			continue

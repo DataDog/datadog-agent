@@ -22,7 +22,7 @@ const tcpTestPort = 10512
 type TCPTestSuite struct {
 	suite.Suite
 
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	pp         pipeline.Provider
 	source     *config.LogSource
 	tcpl       *TCPListener

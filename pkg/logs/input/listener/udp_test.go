@@ -22,7 +22,7 @@ const udpTestPort = 10513
 type UDPTestSuite struct {
 	suite.Suite
 
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	pp         pipeline.Provider
 	source     *config.LogSource
 	udpl       *UDPListener

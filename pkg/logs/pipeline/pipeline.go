@@ -14,23 +14,23 @@ import (
 
 // Pipeline processes and sends messages to the backend
 type Pipeline struct {
-	InputChan chan message.Message
+	InputChan chan *message.Message
 	processor *processor.Processor
 	sender    *sender.Sender
 }
 
 // NewPipeline returns a new Pipeline
-func NewPipeline(connManager *sender.ConnectionManager, outputChan chan message.Message) *Pipeline {
+func NewPipeline(connManager *sender.ConnectionManager, outputChan chan *message.Message) *Pipeline {
 
 	useProto := config.LogsAgent.GetBool("logs_config.dev_mode_use_proto")
 
 	// initialize the sender
-	senderChan := make(chan message.Message, config.ChanSize)
+	senderChan := make(chan *message.Message, config.ChanSize)
 	delimiter := sender.NewDelimiter(useProto)
 	sender := sender.New(senderChan, outputChan, connManager, delimiter)
 
 	// initialize the input chan
-	inputChan := make(chan message.Message, config.ChanSize)
+	inputChan := make(chan *message.Message, config.ChanSize)
 
 	// initialize the processor
 	encoder := processor.NewEncoder(useProto)
