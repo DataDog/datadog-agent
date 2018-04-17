@@ -275,13 +275,13 @@ func (f *DefaultForwarder) Stop() {
 	log.Info("DefaultForwarder stopped")
 }
 
-func (f *DefaultForwarder) hasValidAPIKey() (bool, error) {
+func (f *DefaultForwarder) hasValidAPIKey(timeout time.Duration) (bool, error) {
 	validKey := false
 	apiError := false
 
 	for domain, apiKeys := range f.KeysPerDomains {
 		for _, apiKey := range apiKeys {
-			v, err := f.validateAPIKey(apiKey, domain)
+			v, err := f.validateAPIKey(apiKey, domain, timeout)
 			if err != nil {
 				log.Debug(err)
 				apiError = true
@@ -303,7 +303,7 @@ func (f *DefaultForwarder) healthCheckLoop() {
 	validateTicker := time.NewTicker(time.Hour * 1)
 	defer validateTicker.Stop()
 
-	valid, err := f.hasValidAPIKey()
+	valid, err := f.hasValidAPIKey(10 * time.Second)
 	// If there is an error during the api call, we assume that there is a valid
 	// key to avoid killing lots of agent on an outage.
 	if err == nil && !valid {
@@ -317,7 +317,9 @@ func (f *DefaultForwarder) healthCheckLoop() {
 		case <-f.stop:
 			return
 		case <-validateTicker.C:
-			valid, err := f.hasValidAPIKey()
+			// Timeout should always be lower than pingFrequency.pingFrequency to avoid
+			// reporting the forwarder as unhealthy
+			valid, err := f.hasValidAPIKey(10 * time.Second)
 			if err == nil && !valid {
 				log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
 				return
@@ -383,14 +385,14 @@ func (f *DefaultForwarder) setAPIKeyStatus(apiKey string, domain string, status 
 	apiKeyStatus.Set(obfuscatedKey, status)
 }
 
-func (f *DefaultForwarder) validateAPIKey(apiKey, domain string) (bool, error) {
+func (f *DefaultForwarder) validateAPIKey(apiKey, domain string, timeout time.Duration) (bool, error) {
 	url := fmt.Sprintf("%s%s?api_key=%s", config.Datadog.GetString("dd_url"), v1ValidateEndpoint, apiKey)
 
 	transport := util.CreateHTTPTransport()
 
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   config.Datadog.GetDuration("forwarder_timeout") * time.Second,
+		Timeout:   timeout,
 	}
 
 	resp, err := client.Get(url)
