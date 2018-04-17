@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -385,7 +386,14 @@ func (f *DefaultForwarder) setAPIKeyStatus(apiKey string, domain string, status 
 func (f *DefaultForwarder) validateAPIKey(apiKey, domain string) (bool, error) {
 	url := fmt.Sprintf("%s%s?api_key=%s", config.Datadog.GetString("dd_url"), v1ValidateEndpoint, apiKey)
 
-	resp, err := http.Get(url)
+	transport := util.CreateHTTPTransport()
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   5 * time.Second,
+	}
+
+	resp, err := client.Get(url)
 	if err != nil {
 		f.setAPIKeyStatus(apiKey, domain, &apiKeyStatusUnknown)
 		return false, err
