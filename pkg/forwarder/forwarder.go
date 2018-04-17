@@ -317,7 +317,7 @@ func (f *DefaultForwarder) healthCheckLoop() {
 		case <-f.stop:
 			return
 		case <-validateTicker.C:
-			// Timeout should always be lower than pingFrequency.pingFrequency to avoid
+			// Timeout should always be lower than health.pingFrequency to avoid
 			// reporting the forwarder as unhealthy
 			valid, err := f.hasValidAPIKey(10 * time.Second)
 			if err == nil && !valid {
