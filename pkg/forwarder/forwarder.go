@@ -279,9 +279,15 @@ func (f *DefaultForwarder) hasValidAPIKey(timeout time.Duration) (bool, error) {
 	validKey := false
 	apiError := false
 
+	apiKeyCount := 0
+	for _, apiKeys := range f.KeysPerDomains {
+		apiKeyCount += len(apiKeys)
+	}
+	keyTimeout := timeout / time.Duration(apiKeyCount)
+
 	for domain, apiKeys := range f.KeysPerDomains {
 		for _, apiKey := range apiKeys {
-			v, err := f.validateAPIKey(apiKey, domain, timeout)
+			v, err := f.validateAPIKey(apiKey, domain, keyTimeout)
 			if err != nil {
 				log.Debug(err)
 				apiError = true
