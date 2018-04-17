@@ -19,7 +19,7 @@ import (
 
 // Encoder turns a message into a raw byte array ready to be sent.
 type Encoder interface {
-	encode(msg message.Message, redactedMsg []byte) ([]byte, error)
+	encode(msg *message.Message, redactedMsg []byte) ([]byte, error)
 }
 
 // Raw is an encoder implementation that writes messages as raw strings.
@@ -40,18 +40,18 @@ var rfc5424Pattern, _ = regexp.Compile("<[0-9]{1,3}>[0-9] ")
 
 type raw struct{}
 
-func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
+func (r *raw) encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
 
 	// if the first char is '<', we can assume it's already formatted as RFC5424, thus skip this step
 	// (for instance, using tcp forwarding. We don't want to override the hostname & co)
-	if len(msg.Content()) > 0 && !r.isRFC5424Formatted(msg.Content()) {
+	if len(msg.Content) > 0 && !r.isRFC5424Formatted(msg.Content) {
 		// fit RFC5424
 		// <%pri%>%protocol-version% %timestamp:::date-rfc3339% %HOSTNAME% %$!new-appname% - - - %msg%\n
 		extraContent := []byte("")
 
 		// Severity
-		if msg.GetSeverity() != nil {
-			extraContent = append(extraContent, msg.GetSeverity()...)
+		if msg.Severity != nil {
+			extraContent = append(extraContent, msg.Severity...)
 		} else {
 			extraContent = append(extraContent, config.SevInfo...)
 		}
@@ -68,7 +68,7 @@ func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent = append(extraContent, ' ')
 
 		// Service
-		service := msg.GetOrigin().LogSource.Config.Service
+		service := msg.Origin.LogSource.Config.Service
 		if service != "" {
 			extraContent = append(extraContent, []byte(service)...)
 		} else {
@@ -79,7 +79,7 @@ func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent = append(extraContent, []byte(" - - ")...)
 
 		// Tags
-		extraContent = append(extraContent, msg.GetOrigin().TagsPayload()...)
+		extraContent = append(extraContent, msg.Origin.TagsPayload()...)
 		extraContent = append(extraContent, ' ')
 
 		return append(extraContent, redactedMsg...), nil
@@ -102,12 +102,12 @@ func (r *raw) isRFC5424Formatted(content []byte) bool {
 
 type proto struct{}
 
-func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
+func (p *proto) encode(msg *message.Message, redactedMsg []byte) ([]byte, error) {
 
 	// TODO Remove occurrences of "severity" (it is now "status")
 	// Compute the status
 	var status string
-	if msg.GetSeverity() != nil && bytes.Equal(msg.GetSeverity(), config.SevError) {
+	if msg.Severity != nil && bytes.Equal(msg.Severity, config.SevError) {
 		status = config.StatusError
 	} else {
 		status = config.StatusInfo
@@ -118,9 +118,9 @@ func (p *proto) encode(msg message.Message, redactedMsg []byte) ([]byte, error) 
 		Status:    status,
 		Timestamp: time.Now().UTC().UnixNano(),
 		Hostname:  getHostname(),
-		Service:   msg.GetOrigin().LogSource.Config.Service,
-		Source:    msg.GetOrigin().LogSource.Config.Source,
-		Tags:      msg.GetOrigin().Tags(),
+		Service:   msg.Origin.LogSource.Config.Service,
+		Source:    msg.Origin.LogSource.Config.Source,
+		Tags:      msg.Origin.Tags(),
 	}).Marshal()
 }
 

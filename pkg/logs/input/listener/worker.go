@@ -24,7 +24,7 @@ const defaultTimeout = 60000 * time.Millisecond
 type Worker struct {
 	source     *config.LogSource
 	conn       net.Conn
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	decoder    *decoder.Decoder
 	shouldStop bool
 	stop       chan struct{}
@@ -32,7 +32,7 @@ type Worker struct {
 }
 
 // NewWorker returns a new Worker
-func NewWorker(source *config.LogSource, conn net.Conn, outputChan chan message.Message) *Worker {
+func NewWorker(source *config.LogSource, conn net.Conn, outputChan chan *message.Message) *Worker {
 	return &Worker{
 		source:     source,
 		conn:       conn,
@@ -65,11 +65,8 @@ func (w *Worker) forwardMessages() {
 		w.done <- struct{}{}
 	}()
 	for output := range w.decoder.OutputChan {
-		netMsg := message.NewNetworkMessage(output.Content)
-		o := message.NewOrigin()
-		o.LogSource = w.source
-		netMsg.SetOrigin(o)
-		w.outputChan <- netMsg
+		origin := w.newNetworkOrigin()
+		w.outputChan <- message.NewMessage(output.Content, origin, nil)
 	}
 }
 
@@ -119,4 +116,9 @@ func (w *Worker) mustKeepConnAlive() bool {
 		return false
 	}
 	return false
+}
+
+// newDockerOrigin returns a new Origin for logs collected from a network socket.
+func (w *Worker) newNetworkOrigin() *message.Origin {
+	return message.NewOrigin("", w.source, 0, "", nil)
 }

@@ -36,7 +36,7 @@ const tagsUpdatePeriod = 10 * time.Second
 // so if we want to capture the severity, we need to tail both in two goroutines
 type DockerTailer struct {
 	ContainerID   string
-	outputChan    chan message.Message
+	outputChan    chan *message.Message
 	decoder       *decoder.Decoder
 	reader        io.ReadCloser
 	cli           *client.Client
@@ -50,7 +50,7 @@ type DockerTailer struct {
 }
 
 // NewDockerTailer returns a new DockerTailer
-func NewDockerTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan message.Message) *DockerTailer {
+func NewDockerTailer(cli *client.Client, containerID string, source *config.LogSource, outputChan chan *message.Message) *DockerTailer {
 	return &DockerTailer{
 		ContainerID: containerID,
 		outputChan:  outputChan,
@@ -192,20 +192,13 @@ func (dt *DockerTailer) forwardMessages() {
 		dt.done <- struct{}{}
 	}()
 	for output := range dt.decoder.OutputChan {
-		ts, sev, updatedMsg, err := parser.ParseMessage(output.Content)
+		ts, sev, content, err := parser.ParseMessage(output.Content)
 		if err != nil {
 			log.Warn(err)
 			continue
 		}
-		containerMsg := message.NewContainerMessage(updatedMsg)
-		msgOrigin := message.NewOrigin()
-		msgOrigin.LogSource = dt.source
-		msgOrigin.Timestamp = ts
-		msgOrigin.Identifier = dt.Identifier()
-		msgOrigin.SetTags(dt.containerTags)
-		containerMsg.SetSeverity(sev)
-		containerMsg.SetOrigin(msgOrigin)
-		dt.outputChan <- containerMsg
+		origin := dt.newDockerOrigin(ts)
+		dt.outputChan <- message.NewMessage(content, origin, sev)
 	}
 }
 
@@ -229,6 +222,11 @@ func (dt *DockerTailer) checkForNewDockerTags() {
 			dt.containerTags = tags
 		}
 	}
+}
+
+// newDockerOrigin returns a new Origin for logs collected from a container.
+func (dt *DockerTailer) newDockerOrigin(timestamp string) *message.Origin {
+	return message.NewOrigin(dt.Identifier(), dt.source, 0, timestamp, dt.containerTags)
 }
 
 // wait lets the reader sleep for a bit

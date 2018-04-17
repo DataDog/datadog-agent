@@ -32,7 +32,7 @@ type RegistryEntry struct {
 
 // An Auditor handles messages successfully submitted to the intake
 type Auditor struct {
-	inputChan    chan message.Message
+	inputChan    chan *message.Message
 	registry     map[string]*RegistryEntry
 	registryPath string
 	mu           sync.Mutex
@@ -41,7 +41,7 @@ type Auditor struct {
 }
 
 // New returns an initialized Auditor
-func New(inputChan chan message.Message, runPath string) *Auditor {
+func New(inputChan chan *message.Message, runPath string) *Auditor {
 	return &Auditor{
 		inputChan:    inputChan,
 		registryPath: filepath.Join(runPath, "registry.json"),
@@ -87,7 +87,7 @@ func (a *Auditor) run() {
 				return
 			}
 			// update the registry with new entry
-			a.updateRegistry(msg.GetOrigin().Identifier, msg.GetOrigin().Offset, msg.GetOrigin().Timestamp)
+			a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.Timestamp)
 		case <-cleanUpTicker.C:
 			// remove expired offsets from registry
 			a.cleanupRegistry()

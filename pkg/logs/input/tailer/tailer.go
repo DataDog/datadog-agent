@@ -32,7 +32,7 @@ type Tailer struct {
 	readOffset    int64
 	decodedOffset int64
 
-	outputChan chan message.Message
+	outputChan chan *message.Message
 	decoder    *decoder.Decoder
 	source     *config.LogSource
 
@@ -46,7 +46,7 @@ type Tailer struct {
 }
 
 // NewTailer returns an initialized Tailer
-func NewTailer(outputChan chan message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
+func NewTailer(outputChan chan *message.Message, source *config.LogSource, path string, sleepDuration time.Duration) *Tailer {
 	return &Tailer{
 		path:          path,
 		outputChan:    outputChan,
@@ -138,7 +138,6 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		fileMsg := message.NewFileMessage(output.Content)
 		msgOffset := t.decodedOffset + int64(output.RawDataLen)
 		identifier := t.Identifier()
 		if !t.shouldTrackOffset() {
@@ -146,12 +145,8 @@ func (t *Tailer) forwardMessages() {
 			identifier = ""
 		}
 		t.decodedOffset = msgOffset
-		msgOrigin := message.NewOrigin()
-		msgOrigin.LogSource = t.source
-		msgOrigin.Identifier = identifier
-		msgOrigin.Offset = msgOffset
-		fileMsg.SetOrigin(msgOrigin)
-		t.outputChan <- fileMsg
+		origin := t.newFileOrigin(identifier, msgOffset)
+		t.outputChan <- message.NewMessage(output.Content, origin, nil)
 	}
 }
 
@@ -188,6 +183,11 @@ func (t *Tailer) shouldTrackOffset() bool {
 		return false
 	}
 	return true
+}
+
+// newFileOrigin returns a new Origin for logs collected from a file.
+func (t *Tailer) newFileOrigin(identifier string, offset int64) *message.Origin {
+	return message.NewOrigin(identifier, t.source, offset, "", nil)
 }
 
 // wait lets the tailer sleep for a bit

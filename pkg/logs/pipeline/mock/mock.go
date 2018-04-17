@@ -12,13 +12,13 @@ import (
 
 // mockProvider mocks pipeline providing logic
 type mockProvider struct {
-	msgChan chan message.Message
+	msgChan chan *message.Message
 }
 
 // NewMockProvider returns a new mockProvider
 func NewMockProvider() pipeline.Provider {
 	return &mockProvider{
-		msgChan: make(chan message.Message),
+		msgChan: make(chan *message.Message),
 	}
 }
 
@@ -29,6 +29,6 @@ func (p *mockProvider) Start() {}
 func (p *mockProvider) Stop() {}
 
 // NextPipelineChan returns the next pipeline
-func (p *mockProvider) NextPipelineChan() chan message.Message {
+func (p *mockProvider) NextPipelineChan() chan *message.Message {
 	return p.msgChan
 }

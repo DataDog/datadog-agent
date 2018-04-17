@@ -23,12 +23,12 @@ type WorkerTestSuite struct {
 
 	w       *Worker
 	conn    net.Conn
-	msgChan chan message.Message
+	msgChan chan *message.Message
 }
 
 func (suite *WorkerTestSuite) SetupTest() {
 	source := config.NewLogSource("", &config.LogsConfig{Type: config.TCPType, Port: port})
-	msgChan := make(chan message.Message)
+	msgChan := make(chan *message.Message)
 	r, w := net.Pipe()
 
 	suite.w = NewWorker(source, r, msgChan)
