@@ -390,7 +390,7 @@ func (f *DefaultForwarder) validateAPIKey(apiKey, domain string) (bool, error) {
 
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   5 * time.Second,
+		Timeout:   config.Datadog.GetDuration("forwarder_timeout") * time.Second,
 	}
 
 	resp, err := client.Get(url)
