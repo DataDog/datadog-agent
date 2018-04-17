@@ -186,23 +186,28 @@ def lint_releasenote(ctx):
     # The PR has not been created yet, let's compare with master (the usual base branch of the future PR)
     else:
         branch = os.environ.get("CIRCLE_BRANCH")
-        if re.match(r".*/.*", branch) is not None:
-            import requests
+        if branch is None:
+            print("No branch found, skipping reno linting")
+        else:
+            if re.match(r".*/.*", branch) is None:
+                print("{} is not a feature branch, skipping reno linting".format(branch))
+            else:
+                import requests
 
-            # Then check that in the diff with master, at least one note was touched
-            url = "https://api.github.com/repos/DataDog/datadog-agent/compare/master...{}".format(branch)
-            # traverse paginated github response
-            while True:
-                res = requests.get(url)
-                files = res.json().get("files", {})
-                if any([f['filename'].startswith("releasenotes/notes/") for f in files]):
-                    break
+                # Then check that in the diff with master, at least one note was touched
+                url = "https://api.github.com/repos/DataDog/datadog-agent/compare/master...{}".format(branch)
+                # traverse paginated github response
+                while True:
+                    res = requests.get(url)
+                    files = res.json().get("files", {})
+                    if any([f['filename'].startswith("releasenotes/notes/") for f in files]):
+                        break
 
-                if 'next' in res.links:
-                    url = res.links['next']['url']
-                else:
-                    print("Error: No releasenote was found for this PR. Please add one using 'reno'.")
-                    raise Exit(1)
+                    if 'next' in res.links:
+                        url = res.links['next']['url']
+                    else:
+                        print("Error: No releasenote was found for this PR. Please add one using 'reno'.")
+                        raise Exit(1)
 
     ctx.run("reno lint")
 
