@@ -283,7 +283,7 @@ func (f *DefaultForwarder) hasValidAPIKey(timeout time.Duration) (bool, error) {
 		apiKeyCount += len(apiKeys)
 	}
 	if apiKeyCount == 0 {
-		return true, nil
+		return false, nil
 	}
 
 	validKey := false
