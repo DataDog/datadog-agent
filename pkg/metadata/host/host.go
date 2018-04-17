@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/gce"
-	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hosttags"
+	k8s "github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 )
 
 const packageCachePrefix = "host"
@@ -190,7 +190,7 @@ func getHostInfo() *host.InfoStat {
 }
 
 // getHostAliases returns the hostname aliases from different provider
-// This should include GCE, Azure, Cloud foundry.
+// This should include GCE, Azure, Cloud foundry, kubernetes
 func getHostAliases() []string {
 	aliases := []string{}
 
@@ -213,6 +213,13 @@ func getHostAliases() []string {
 		log.Debugf("no Cloud Foundry Host Alias: %s", err)
 	} else if cfAlias != "" {
 		aliases = append(aliases, cfAlias)
+	}
+
+	k8sAlias, err := k8s.GetHostAlias()
+	if err != nil {
+		log.Debugf("no Kubernetes Host Alias (through kubelet API): %s", err)
+	} else if k8sAlias != "" {
+		aliases = append(aliases, k8sAlias)
 	}
 	return aliases
 }
