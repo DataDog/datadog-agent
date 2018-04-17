@@ -285,6 +285,10 @@ func (f *DefaultForwarder) hasValidAPIKey(timeout time.Duration) (bool, error) {
 	for _, apiKeys := range f.KeysPerDomains {
 		apiKeyCount += len(apiKeys)
 	}
+	if apiKeyCount == 0 {
+		return true, nil
+	}
+
 	keyTimeout := timeout / time.Duration(apiKeyCount)
 
 	for domain, apiKeys := range f.KeysPerDomains {
