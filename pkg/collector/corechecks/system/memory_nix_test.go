@@ -83,7 +83,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 14)
+	mock.AssertNumberOfCalls(t, "Gauge", 16)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
