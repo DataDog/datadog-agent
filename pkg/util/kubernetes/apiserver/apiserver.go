@@ -36,13 +36,13 @@ var (
 )
 
 const (
-	configMapDCAToken        = "datadogtoken"
-	defaultNamespace         = "default"
-	tokenTime                = "tokenTimestamp"
-	tokenKey                 = "tokenKey"
-	servicesPollIntl         = 20 * time.Second
-	serviceMapExpire         = 5 * time.Minute
-	serviceMapperCachePrefix = "KubernetesServiceMapping"
+	configMapDCAToken         = "datadogtoken"
+	defaultNamespace          = "default"
+	tokenTime                 = "tokenTimestamp"
+	tokenKey                  = "tokenKey"
+	metadataPollIntl          = 20 * time.Second
+	metadataMapExpire         = 5 * time.Minute
+	metadataMapperCachePrefix = "KubernetesMetadataMapping"
 )
 
 // ApiClient provides authenticated access to the
@@ -118,32 +118,34 @@ func (c *APIClient) connect() error {
 	}
 	log.Debug("Could successfully collect Pods, Nodes, Services and Events.")
 
-	useServiceMapper := config.Datadog.GetBool("use_service_mapper")
-	if !useServiceMapper {
+	useMetadataMapper := config.Datadog.GetBool("use_metadata_mapper")
+	if !useMetadataMapper {
 		return nil
 	}
 
 	return nil
 }
 
-// ServiceMapperBundle maps the podNames to the serviceNames they are associated with.
+// MetadataMapperBundle maps the podNames to the metadata they are associated with.
+// ex: services.
 // It is updated by mapServices in services.go
-type ServiceMapperBundle struct {
-	PodNameToServices map[string][]string
-	m                 sync.RWMutex
+// example: [ "pod" : ["svc1","svc2"]]
+type MetadataMapperBundle struct {
+	PodNameToService map[string][]string `json:"services,omitempty"`
+	m                sync.RWMutex
 }
 
-func newServiceMapperBundle() *ServiceMapperBundle {
-	return &ServiceMapperBundle{
-		PodNameToServices: make(map[string][]string),
+func newMetadataMapperBundle() *MetadataMapperBundle {
+	return &MetadataMapperBundle{
+		PodNameToService: make(map[string][]string),
 	}
 }
 
-// NodeServiceMapping only fetch the endpoints from Kubernetes apiserver and add the serviceMapper of the
+// NodeMetadataMapping only fetch the endpoints from Kubernetes apiserver and add the metadataMapper of the
 // node to the cache
-// Only called when the node agent computes the service mapper locally and does not rely on the DCA.
-func (c *APIClient) NodeServiceMapping(nodeName string, podList *v1.PodList) error {
-	ctx, cancel := context.WithTimeout(context.Background(), servicesPollIntl)
+// Only called when the node agent computes the metadata mapper locally and does not rely on the DCA.
+func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) error {
+	ctx, cancel := context.WithTimeout(context.Background(), metadataPollIntl)
 	defer cancel()
 
 	endpointList, err := c.client.CoreV1().ListEndpoints(ctx, "")
@@ -163,20 +165,20 @@ func (c *APIClient) NodeServiceMapping(nodeName string, podList *v1.PodList) err
 			node,
 		},
 	}
-	processKubeResources(nodeList, podList, endpointList)
+	processKubeServices(nodeList, podList, endpointList)
 	return nil
 }
 
-// ClusterServiceMapping queries the Kubernetes apiserver to get the following resources:
+// ClusterMetadataMapping queries the Kubernetes apiserver to get the following resources:
 // - all nodes
 // - all endpoints of all namespaces
 // - all pods of all namespaces
-// Then it stores in cache the ServiceMapperBundle of each node.
-func (c *APIClient) ClusterServiceMapping() error {
+// Then it stores in cache the MetadataMapperBundle of each node.
+func (c *APIClient) ClusterMetadataMapping() error {
 	// The timeout for the context is the same as the poll frequency.
 	// We use a new context at each run, to recover if we can't access the API server temporarily.
 	// A poll run should take less than the poll frequency.
-	ctx, cancel := context.WithTimeout(context.Background(), servicesPollIntl)
+	ctx, cancel := context.WithTimeout(context.Background(), metadataPollIntl)
 	defer cancel()
 
 	// We fetch nodes to reliably use nodename as key in the cache.
@@ -211,41 +213,41 @@ func (c *APIClient) ClusterServiceMapping() error {
 		return nil
 	}
 
-	processKubeResources(nodeList, podList, endpointList)
+	processKubeServices(nodeList, podList, endpointList)
 	return nil
 }
 
-// processKubeResources add to cache the serviceMapper, pointer parameters must be non nil
-func processKubeResources(nodeList *v1.NodeList, podList *v1.PodList, endpointList *v1.EndpointsList) {
+// processKubeServices adds services to the metadataMapper cache, pointer parameters must be non nil
+func processKubeServices(nodeList *v1.NodeList, podList *v1.PodList, endpointList *v1.EndpointsList) {
 	if nodeList.Items == nil || podList.Items == nil || endpointList.Items == nil {
 		return
 	}
 	log.Debugf("Identified: %d node, %d pod, %d endpoints", len(nodeList.Items), len(podList.Items), len(endpointList.Items))
 	for _, node := range nodeList.Items {
 		nodeName := *node.Metadata.Name
-		nodeNameCacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
-		smb, found := cache.Cache.Get(nodeNameCacheKey)
+		nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+		metaBundle, found := cache.Cache.Get(nodeNameCacheKey)
 		if !found {
-			smb = newServiceMapperBundle()
+			metaBundle = newMetadataMapperBundle()
 		}
-		err := smb.(*ServiceMapperBundle).mapServices(nodeName, *podList, *endpointList)
+		err := metaBundle.(*MetadataMapperBundle).mapServices(nodeName, *podList, *endpointList)
 		if err != nil {
 			log.Errorf("Could not map the services: %s on node %s", err.Error(), *node.Metadata.Name)
 			continue
 		}
-		cache.Cache.Set(nodeNameCacheKey, smb, serviceMapExpire)
+		cache.Cache.Set(nodeNameCacheKey, metaBundle, metadataMapExpire)
 	}
 }
 
-// StartServiceMapping is only called once, when we have confirmed we could correctly connect to the API server.
+// StartMetadataMapping is only called once, when we have confirmed we could correctly connect to the API server.
 // The logic here is solely to retrieve Nodes, Pods and Endpoints. The processing part is in mapServices.
-func (c *APIClient) StartServiceMapping() {
-	tickerSvcProcess := time.NewTicker(servicesPollIntl)
+func (c *APIClient) StartMetadataMapping() {
+	tickerSvcProcess := time.NewTicker(metadataPollIntl)
 	go func() {
 		for {
 			select {
 			case <-tickerSvcProcess.C:
-				c.ClusterServiceMapping()
+				c.ClusterMetadataMapping()
 			}
 		}
 	}()
@@ -261,7 +263,7 @@ func aggregateCheckResourcesErrors(errorMessages []string) error {
 // checkResourcesAuth is meant to check that we can query resources from the API server.
 // Depending on the user's config we only trigger an error if necessary.
 // The Event check requires getting Events data.
-// The ServiceMapper case, requires access to Services, Nodes and Pods.
+// The MetadataMapper case, requires access to Services, Nodes and Pods.
 func (c *APIClient) checkResourcesAuth() error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
@@ -273,7 +275,7 @@ func (c *APIClient) checkResourcesAuth() error {
 		errorMessages = append(errorMessages, fmt.Sprintf("event collection: %q", err.Error()))
 	}
 
-	if config.Datadog.GetBool("use_service_mapper") == false {
+	if config.Datadog.GetBool("use_metadata_mapper") == false {
 		return aggregateCheckResourcesErrors(errorMessages)
 	}
 	_, err = c.client.CoreV1().ListServices(ctx, "")
@@ -397,9 +399,9 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 	return node.GetMetadata().GetLabels(), nil
 }
 
-// GetServiceMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the service map of all nodes.
-func GetServiceMapBundleOnAllNodes() (map[string]interface{}, error) {
-	nodePodServiceMap := make(map[string]map[string][]string)
+// GetMetadataMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the metadata map of all nodes.
+func GetMetadataMapBundleOnAllNodes() (map[string]interface{}, error) {
+	nodePodMetadataMap := make(map[string]*MetadataMapperBundle)
 	stats := make(map[string]interface{})
 	var warnlist []string
 	var warn string
@@ -416,39 +418,39 @@ func GetServiceMapBundleOnAllNodes() (map[string]interface{}, error) {
 			log.Error("Incorrect payload when evaluating a node for the service mapper") // This will be removed as we move to the client-go
 			continue
 		}
-		nodePodServiceMap[*node.Metadata.Name], err = getServiceMapBundleOnNodes(*node.Metadata.Name)
+		nodePodMetadataMap[*node.Metadata.Name], err = getMetadataMapBundle(*node.Metadata.Name)
 		if err != nil {
 			warn = fmt.Sprintf("Node %s could not be added to the service map bundle: %s", *node.Metadata.Name, err.Error())
 			warnlist = append(warnlist, warn)
 		}
 	}
-	stats["Nodes"] = nodePodServiceMap
+	stats["Nodes"] = nodePodMetadataMap
 	stats["Warnings"] = warnlist
 	return stats, nil
 }
 
-// GetServiceMapBundleOnNode is used for the CLI svcmap command to output given a nodeName.
-func GetServiceMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
-	nodePodServiceMap := make(map[string]map[string][]string)
+// GetMetadataMapBundleOnNode is used for the CLI metamap command to output given a nodeName.
+func GetMetadataMapBundleOnNode(nodeName string) (map[string]interface{}, error) {
+	nodePodMetadataMap := make(map[string]*MetadataMapperBundle)
 	stats := make(map[string]interface{})
 	var err error
 
-	nodePodServiceMap[nodeName], err = getServiceMapBundleOnNodes(nodeName)
+	nodePodMetadataMap[nodeName], err = getMetadataMapBundle(nodeName)
 	if err != nil {
-		stats["Warnings"] = []string{fmt.Sprintf("Node %s could not be added to the service map bundle: %s", nodeName, err.Error())}
+		stats["Warnings"] = []string{fmt.Sprintf("Node %s could not be added to the metadata map bundle: %s", nodeName, err.Error())}
 		return stats, err
 	}
-	stats["Nodes"] = nodePodServiceMap
+	stats["Nodes"] = nodePodMetadataMap
 	return stats, nil
 }
 
-func getServiceMapBundleOnNodes(nodeName string) (map[string][]string, error) {
-	nodeNameCacheKey := cache.BuildAgentKey(serviceMapperCachePrefix, nodeName)
-	smb, found := cache.Cache.Get(nodeNameCacheKey)
+func getMetadataMapBundle(nodeName string) (*MetadataMapperBundle, error) {
+	nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+	metaBundle, found := cache.Cache.Get(nodeNameCacheKey)
 	if !found {
 		return nil, fmt.Errorf("the key %s was not found in the cache", nodeNameCacheKey)
 	}
-	return smb.(*ServiceMapperBundle).PodNameToServices, nil
+	return metaBundle.(*MetadataMapperBundle), nil
 }
 
 func getNodeList() ([]*v1.Node, error) {

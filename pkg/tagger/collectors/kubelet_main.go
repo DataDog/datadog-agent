@@ -138,5 +138,5 @@ func kubeletFactory() Collector {
 }
 
 func init() {
-	registerCollector(kubeletCollectorName, kubeletFactory, HighPriority)
+	registerCollector(kubeletCollectorName, kubeletFactory, NodeOrchestrator)
 }

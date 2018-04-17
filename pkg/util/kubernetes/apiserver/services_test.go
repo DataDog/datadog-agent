@@ -148,22 +148,22 @@ func TestMapServices(t *testing.T) {
 			},
 		},
 	}
-	expectedAllPodNameToServices := map[string][]string{
+	expectedAllPodNameToService := map[string][]string{
 		"pod1_name": {"svc1"},
 		"pod2_name": {"svc2", "svc3", "svc4"},
 		"pod3_name": {"svc4"},
 		"pod5_name": {"svc3"},
 	}
-	allCasesBundle := newServiceMapperBundle()
+	allCasesBundle := newMetadataMapperBundle()
 	allBundleMu := &sync.RWMutex{}
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
-			testCaseBundle := newServiceMapperBundle()
+			testCaseBundle := newMetadataMapperBundle()
 			podList := createPodList(testCase.pods)
 			nodeName := *testCase.node.Metadata.Name
 			epList := createSvcList(nodeName, testCase.services)
 			testCaseBundle.mapServices(nodeName, podList, epList)
-			assert.Equal(t, testCase.expectedMapping, testCaseBundle.PodNameToServices)
+			assert.Equal(t, testCase.expectedMapping, testCaseBundle.PodNameToService)
 			allBundleMu.Lock()
 			allCasesBundle.mapServices(nodeName, podList, epList)
 			allBundleMu.Unlock()
@@ -171,5 +171,5 @@ func TestMapServices(t *testing.T) {
 	}
 	allBundleMu.RLock()
 	defer allBundleMu.RUnlock()
-	assert.Equal(t, expectedAllPodNameToServices, allCasesBundle.PodNameToServices)
+	assert.Equal(t, expectedAllPodNameToService, allCasesBundle.PodNameToService)
 }

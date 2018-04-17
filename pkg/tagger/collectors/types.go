@@ -37,8 +37,9 @@ type CollectorPriority int
 
 // List of collector priorities
 const (
-	LowPriority CollectorPriority = iota
-	HighPriority
+	NodeRuntime CollectorPriority = iota
+	NodeOrchestrator
+	ClusterOrchestrator
 )
 
 // Fetcher allows to fetch tags on-demand in case of cache miss

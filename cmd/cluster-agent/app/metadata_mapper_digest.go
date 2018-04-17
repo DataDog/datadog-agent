@@ -20,16 +20,16 @@ import (
 )
 
 func init() {
-	ClusterAgentCmd.AddCommand(svcMapperCmd)
+	ClusterAgentCmd.AddCommand(metaMapperCmd)
 }
 
-var svcMapperCmd = &cobra.Command{
-	Use:   "svcmap [nodeName]",
-	Short: "Print the map between the services and the pods behind them",
-	Long: `The svcmap command is mostly designed for troubleshooting purposes.
+var metaMapperCmd = &cobra.Command{
+	Use:   "metamap [nodeName]",
+	Short: "Print the map between the metadata and the pods associated",
+	Long: `The metamap command is mostly designed for troubleshooting purposes.
 One can easily identify which pods are running on which nodes,
-as well as which services are service the pods.`,
-	Example: "datadog-cluster-agent svcmap ip-10-0-115-123",
+as well as which services are serving the pods. Or the deployment name for the pod`,
+	Example: "datadog-cluster-agent metamap ip-10-0-115-123",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configFound := false
 		// a path to the folder containing the config file was passed
@@ -50,11 +50,11 @@ as well as which services are service the pods.`,
 		if len(args) > 0 {
 			nodeName = args[0]
 		}
-		return getServiceMap(nodeName) // if nodeName == "", call all.
+		return getMetadataMap(nodeName) // if nodeName == "", call all.
 	},
 }
 
-func getServiceMap(nodeName string) error {
+func getMetadataMap(nodeName string) error {
 	var e error
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
@@ -88,11 +88,11 @@ func getServiceMap(nodeName string) error {
 	} else if jsonStatus {
 		s = string(r)
 	} else {
-		formattedServiceMap, err := status.FormatServiceMapCLI(r)
+		formattedMetadataMap, err := status.FormatMetadataMapCLI(r)
 		if err != nil {
 			return err
 		}
-		s = formattedServiceMap
+		s = formattedMetadataMap
 	}
 
 	if statusFilePath != "" {

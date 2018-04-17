@@ -2,7 +2,7 @@
 ==============
 Service Mapper
 ==============
-{{- if .Errors }}
+{{- if .Errors -}}
 Could not run the service mapper: {{.Errors}}
 {{else}}
 {{ if .Warnings -}}
@@ -11,14 +11,15 @@ Warnings:
    - {{.}}
 {{ end -}}
 {{- end -}}
-{{if .Nodes}}
-{{- range $index, $element := .Nodes }}
-
+{{- if .Nodes}}
+{{- range $index, $meta_type := .Nodes }}
 Node detected: {{ $index -}}
-   {{ range $pod, $svc := $element }}
+{{- range $m := $meta_type }}
+   {{ range $pod, $svc := $m }}
  -  Pod name: {{ $pod }}
     Services list: {{ $svc -}}
    {{ end -}}
+{{- end -}}
 {{- end }}
 {{- end -}}
-{{- end -}}
+{{- end }}

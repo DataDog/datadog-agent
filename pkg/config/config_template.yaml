@@ -418,8 +418,8 @@ api_key:
 # [docker readme](https://github.com/DataDog/datadog-agent/blob/master/Dockerfiles/agent/README.md#kubernetes)).
 # You can disable this option or set how often (in seconds) the agent refreshes the internal mapping of services to
 # ContainerIDs with the following options:
-# kubernetes_collect_service_tags: true
-# kubernetes_service_tag_update_freq: 300
+# kubernetes_collect_metadata_tags: true
+# kubernetes_metadata_tag_update_freq: 300
 #
 #
 # To collect Kubernetes events, leader election must be enabled and collect_kubernetes_events set to true.

@@ -37,11 +37,11 @@ type dummyClusterAgent struct {
 func newDummyClusterAgent() (*dummyClusterAgent, error) {
 	dca := &dummyClusterAgent{
 		responses: map[string][]string{
-			"node1/pod-00001": {"svc1"},
-			"node1/pod-00002": {"svc1", "svc2"},
-			"node1/pod-00003": {"svc1"},
-			"node2/pod-00004": {"svc2"},
-			"node2/pod-00005": {"svc3"},
+			"node1/pod-00001": {"kube_service:svc1"},
+			"node1/pod-00002": {"kube_service:svc1", "kube_service:svc2"},
+			"node1/pod-00003": {"kube_service:svc1"},
+			"node2/pod-00004": {"kube_service:svc2"},
+			"node2/pod-00005": {"kube_service:svc3"},
 			"node2/pod-00006": {},
 		},
 		token: config.Datadog.GetString("cluster_agent.auth_token"),
@@ -243,7 +243,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvcEmpt
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
-func (suite *clusterAgentSuite) TestGetKubernetesServiceNames() {
+func (suite *clusterAgentSuite) TestGetKubernetesMetadataNames() {
 	dca, err := newDummyClusterAgent()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
@@ -264,27 +264,27 @@ func (suite *clusterAgentSuite) TestGetKubernetesServiceNames() {
 		{
 			nodeName:    "node1",
 			podName:     "pod-00001",
-			expectedSvc: []string{"svc1"},
+			expectedSvc: []string{"kube_service:svc1"},
 		},
 		{
 			nodeName:    "node1",
 			podName:     "pod-00002",
-			expectedSvc: []string{"svc1", "svc2"},
+			expectedSvc: []string{"kube_service:svc1", "kube_service:svc2"},
 		},
 		{
 			nodeName:    "node1",
 			podName:     "pod-00003",
-			expectedSvc: []string{"svc1"},
+			expectedSvc: []string{"kube_service:svc1"},
 		},
 		{
 			nodeName:    "node2",
 			podName:     "pod-00004",
-			expectedSvc: []string{"svc2"},
+			expectedSvc: []string{"kube_service:svc2"},
 		},
 		{
 			nodeName:    "node2",
 			podName:     "pod-00005",
-			expectedSvc: []string{"svc3"},
+			expectedSvc: []string{"kube_service:svc3"},
 		},
 		{
 			nodeName:    "node2",
@@ -294,7 +294,8 @@ func (suite *clusterAgentSuite) TestGetKubernetesServiceNames() {
 	}
 	for _, testCase := range testSuite {
 		suite.T().Run("", func(t *testing.T) {
-			svc, err := ca.GetKubernetesServiceNames(testCase.nodeName, testCase.podName)
+			svc, err := ca.GetKubernetesMetadataNames(testCase.nodeName, testCase.podName)
+			fmt.Println("svc: ", svc)
 			require.Nil(t, err, fmt.Sprintf("%v", err))
 			require.Equal(t, len(testCase.expectedSvc), len(svc))
 			for _, elt := range testCase.expectedSvc {

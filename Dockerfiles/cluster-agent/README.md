@@ -152,6 +152,6 @@ Ensure an auth_token is properly shared between the agents.
 Confirm the RBAC rules are properly set (see /manifests/rbac/).
 
 In the Node Agent, make sure the `DD_CLUSTER_AGENT` env var is set to true.
-The env var `DD_KUBERNETES_SERVICE_TAG_UPDATE_FREQ` can be set to specify how often the node agents hit the DCA.
-You can disable the kubernetes service tag collection with `DD_KUBERNETES_COLLECT_SERVICE_TAGS`. 
+The env var `DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ` can be set to specify how often the node agents hit the DCA.
+You can disable the kubernetes metadata tag collection with `DD_KUBERNETES_COLLECT_METADATA_TAGS`.
 

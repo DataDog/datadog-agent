@@ -159,6 +159,8 @@ func getCheckLatestEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// getPodMetadata is only used when the node agent hits the DCA for the tags list.
+// It returns a list of all the tags that can be directly used in the tagger of the agent.
 func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
@@ -166,7 +168,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 		Outputs
 			Status: 200
 			Returns: []string
-			Example: ["my-nginx-service"]
+			Example: ["kube_service:my-nginx-service"]
 
 			Status: 404
 			Returns: string
@@ -180,30 +182,29 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	vars := mux.Vars(r)
-	var slcB []byte
+	var metaBytes []byte
 	nodeName := vars["nodeName"]
 	podName := vars["podName"]
-
-	svcList, errSvcList := as.GetPodServiceNames(nodeName, podName)
-	if errSvcList != nil {
-		log.Errorf("Could not retrieve the list of services of: %s from the cache", podName)
-		http.Error(w, errSvcList.Error(), 500)
+	metaList, errMetaList := as.GetPodMetadataNames(nodeName, podName)
+	if errMetaList != nil {
+		log.Errorf("Could not retrieve the metadata of: %s from the cache", podName)
+		http.Error(w, errMetaList.Error(), 500)
 		return
 	}
 
-	slcB, err := json.Marshal(svcList)
+	metaBytes, err := json.Marshal(metaList)
 	if err != nil {
-		log.Errorf("Could not process the list of services of: %s", podName)
+		log.Errorf("Could not process the list of services for: %s", podName)
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	if len(slcB) != 0 {
+	if len(metaBytes) != 0 {
 		w.WriteHeader(200)
-		w.Write(slcB)
+		w.Write(metaBytes)
 		return
 	}
 	w.WriteHeader(404)
-	w.Write([]byte(fmt.Sprintf("Could not find associated services mapped to the pod: %s on node: %s", podName, nodeName)))
+	w.Write([]byte(fmt.Sprintf("Could not find associated metadata mapped to the pod: %s on node: %s", podName, nodeName)))
 
 }
 
@@ -214,12 +215,12 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 	vars := mux.Vars(r)
 	nodeName := vars["nodeName"]
-	log.Infof("Fetching service map on all pods of the node %s", nodeName)
-	svcList, errNodes := as.GetServiceMapBundleOnNode(nodeName)
+	log.Infof("Fetching metadata map on all pods of the node %s", nodeName)
+	metaList, errNodes := as.GetMetadataMapBundleOnNode(nodeName)
 	if errNodes != nil {
 		log.Errorf("Could not collect the service map for %s", nodeName)
 	}
-	slcB, err := json.Marshal(svcList)
+	slcB, err := json.Marshal(metaList)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -234,6 +235,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
+// getAllMetadata is used by the svcmap command.
 func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
@@ -241,7 +243,7 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 		Outputs
 			Status: 200
 			Returns: map[string][]string
-			Example: ["Node1":["pod1":["svc1"],"pod2":["svc2"]],"Node2":["pod3":["svc1"]], "Error":"the key KubernetesServiceMapping/Node3 not found in the cache"]
+			Example: ["Node1":["pod1":["svc1"],"pod2":["svc2"]],"Node2":["pod3":["svc1"]], "Error":"the key KubernetesMetadataMapping/Node3 not found in the cache"]
 
 			Status: 404
 			Returns: string
@@ -254,8 +256,8 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	if err := apiutil.ValidateDCARequest(w, r); err != nil {
 		return
 	}
-	log.Info("Computing service map on all nodes")
-	svcList, errAPIServer := as.GetServiceMapBundleOnAllNodes()
+	log.Info("Computing metadata map on all nodes")
+	metaList, errAPIServer := as.GetMetadataMapBundleOnAllNodes()
 	// If we hit an error at this point, it is because we don't have access to the API server.
 	if errAPIServer != nil {
 		w.WriteHeader(503)
@@ -263,13 +265,13 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	} else {
 		w.WriteHeader(200)
 	}
-	svcListBytes, err := json.Marshal(svcList)
+	metaListBytes, err := json.Marshal(metaList)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	if len(svcListBytes) != 0 {
-		w.Write(svcListBytes)
+	if len(metaListBytes) != 0 {
+		w.Write(metaListBytes)
 		return
 	}
 	w.WriteHeader(404)
