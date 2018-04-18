@@ -72,6 +72,13 @@ To keep backwards compatibility, the Agent will still pick up configuration file
 in the form `/etc/datadog-agent/conf.d/<check_name>.yaml` but migrating to the
 new layout is strongly recommended.
 
+### Configuration through Environment Variables
+
+When running the agent in a container, it is also possible to set some of the configuration through environment variables.
+The environment variables that can be used in the agent 6 are different from those available in agent 5. 
+
+If you use them to setup your agent's configuration, please have a look into [this paragraph](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/agent#environment-variables) that describes all the new environment variables, in order to make sure your agent will not miss some specific configuration details.
+
 ## GUI
 
 Agent 6 deprecated Agent5's Windows Agent Manager GUI, replacing it with a browser-based, cross-platform one. See the [specific docs](gui.md) for more details.
