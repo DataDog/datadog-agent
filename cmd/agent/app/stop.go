@@ -20,7 +20,7 @@ import (
 var (
 	stopCmd = &cobra.Command{
 		Use:   "stop",
-		Short: "Stop the Agent",
+		Short: "Stops a running Agent",
 		Long:  ``,
 		RunE:  stop,
 	}
@@ -31,7 +31,7 @@ func init() {
 	AgentCmd.AddCommand(stopCmd)
 }
 
-func stop(*cobra.Command, []string) error {
+func stop(cmd *cobra.Command, args []string) error {
 	// Global Agent configuration
 	err := common.SetupConfig(confFilePath)
 	if err != nil {

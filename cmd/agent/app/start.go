@@ -8,7 +8,6 @@ package app
 import (
 	"fmt"
 	"runtime"
-	"syscall"
 	"time"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
@@ -16,11 +15,9 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"os"
-	"os/signal"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -51,26 +48,11 @@ import (
 var (
 	startCmd = &cobra.Command{
 		Use:   "start",
-		Short: "Start the Agent",
-		Long:  `Runs the agent in the foreground`,
+		Short: "(DEPRECATED) Use \"run\" instead to start the Agent",
+		Long:  `(DEPRECATED) Use \"run\" instead to runs the agent in the foreground.  Command will be removed in 6.4`,
 		RunE:  start,
 	}
 )
-
-var (
-	// flags variables
-	runForeground bool
-	pidfilePath   string
-)
-
-// run the host metadata collector every 14400 seconds (4 hours)
-const hostMetadataCollectorInterval = 14400
-
-// run the agent checks metadata collector every 600 seconds (10 minutes)
-const agentChecksMetadataCollectorInterval = 600
-
-// run the resources metadata collector every 300 seconds (5 minutes) by default, configurable
-const defaultResourcesMetadataCollectorInterval = 300
 
 func init() {
 	// attach the command to the root
@@ -82,40 +64,8 @@ func init() {
 
 // Start the main loop
 func start(cmd *cobra.Command, args []string) error {
-	defer func() {
-		StopAgent()
-	}()
-
-	// Setup a channel to catch OS signals
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
-
-	// Make a channel to exit the function
-	stopCh := make(chan error)
-
-	go func() {
-		// Set up the signals async so we can Start the agent
-		select {
-		case <-signals.Stopper:
-			log.Info("Received stop command, shutting down...")
-			stopCh <- nil
-		case <-signals.ErrorStopper:
-			log.Critical("The Agent has encountered an error, shutting down...")
-			stopCh <- fmt.Errorf("shutting down because of an error")
-		case sig := <-signalCh:
-			log.Infof("Received signal '%s', shutting down...", sig)
-			stopCh <- nil
-		}
-	}()
-
-	if err := StartAgent(); err != nil {
-		return err
-	}
-
-	select {
-	case err := <-stopCh:
-		return err
-	}
+	fmt.Printf("The start command is being deprecated.  Use \"agent run\".\n\n")
+	return run(cmd, args)
 }
 
 // StartAgent Initializes the agent process
