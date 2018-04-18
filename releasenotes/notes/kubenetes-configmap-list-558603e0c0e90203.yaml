@@ -1,0 +1,3 @@
+---
+fixes:
+  - Kubernetes: remove configmap listing logic, as leader election now uses endpoints
