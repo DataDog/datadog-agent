@@ -75,9 +75,9 @@ new layout is strongly recommended.
 ### Configuration through Environment Variables
 
 When running the agent in a container, it is also possible to set some of the configuration through environment variables.
-The environment variables that can be used in the agent 6 are different from those available in agent 5. 
+**The environment variables used in the agent 6 are different from those available in agent 5.** 
 
-If you use them to setup your agent's configuration, please have a look into [this paragraph](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/agent#environment-variables) that describes all the new environment variables, in order to make sure your agent will not miss some specific configuration details.
+To not miss some specific configuration details, if you are currently using environment variables to setup your agent's v5 configuration, [consult the new list of environment variables for Agent v6](https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/agent#environment-variables).
 
 ## GUI
 
