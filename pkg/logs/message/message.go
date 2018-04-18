@@ -11,7 +11,6 @@ type Message interface {
 	SetContent([]byte)
 	GetOrigin() *Origin
 	GetSeverity() []byte
-	SetSeverity([]byte)
 }
 
 type message struct {
@@ -21,10 +20,11 @@ type message struct {
 }
 
 // New returns a new Message
-func New(content []byte, origin *Origin) Message {
+func New(content []byte, origin *Origin, severity []byte) Message {
 	return &message{
-		content: content,
-		origin:  origin,
+		content:  content,
+		origin:   origin,
+		severity: severity,
 	}
 }
 
@@ -46,9 +46,4 @@ func (m *message) GetOrigin() *Origin {
 // GetSeverity returns the severity of the message when set
 func (m *message) GetSeverity() []byte {
 	return m.severity
-}
-
-// SetSeverity sets the severity of the message
-func (m *message) SetSeverity(severity []byte) {
-	m.severity = severity
 }

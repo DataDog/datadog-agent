@@ -148,7 +148,7 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.source)
 		origin.Identifier = identifier
 		origin.Offset = offset
-		t.outputChan <- message.New(output.Content, origin)
+		t.outputChan <- message.New(output.Content, origin, nil)
 	}
 }
 

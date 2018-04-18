@@ -201,9 +201,7 @@ func (dt *DockerTailer) forwardMessages() {
 		origin.Timestamp = ts
 		origin.Identifier = dt.Identifier()
 		origin.SetTags(dt.containerTags)
-		msg := message.New(content, origin)
-		msg.SetSeverity(sev)
-		dt.outputChan <- msg
+		dt.outputChan <- message.New(content, origin, sev)
 	}
 }
 

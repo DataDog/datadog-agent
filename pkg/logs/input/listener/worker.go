@@ -66,7 +66,7 @@ func (w *Worker) forwardMessages() {
 	}()
 	for output := range w.decoder.OutputChan {
 		origin := message.NewOrigin(w.source)
-		w.outputChan <- message.New(output.Content, origin)
+		w.outputChan <- message.New(output.Content, origin, nil)
 	}
 }
 
