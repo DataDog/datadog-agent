@@ -18,7 +18,6 @@ import (
 )
 
 var fmap = template.FuncMap{
-	"stringToHTML":       stringToHTML,
 	"lastErrorTraceback": lastErrorTraceback,
 	"lastErrorMessage":   status.LastErrorMessage,
 	"pythonLoaderError":  pythonLoaderError,
@@ -107,10 +106,6 @@ func fillTemplate(w io.Writer, data Data, request string) error {
 }
 
 /****** Helper functions for the template formatting ******/
-
-func stringToHTML(value string) template.HTML {
-	return template.HTML(value)
-}
 
 func pythonLoaderError(value string) template.HTML {
 	value = strings.Replace(value, "', '", "", -1)
