@@ -65,11 +65,8 @@ func (w *Worker) forwardMessages() {
 		w.done <- struct{}{}
 	}()
 	for output := range w.decoder.OutputChan {
-		netMsg := message.New(output.Content)
-		o := message.NewOrigin()
-		o.LogSource = w.source
-		netMsg.SetOrigin(o)
-		w.outputChan <- netMsg
+		origin := message.NewOrigin(w.source)
+		w.outputChan <- message.New(output.Content, origin)
 	}
 }
 

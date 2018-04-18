@@ -192,20 +192,18 @@ func (dt *DockerTailer) forwardMessages() {
 		dt.done <- struct{}{}
 	}()
 	for output := range dt.decoder.OutputChan {
-		ts, sev, updatedMsg, err := parser.ParseMessage(output.Content)
+		ts, sev, content, err := parser.ParseMessage(output.Content)
 		if err != nil {
 			log.Warn(err)
 			continue
 		}
-		containerMsg := message.New(updatedMsg)
-		msgOrigin := message.NewOrigin()
-		msgOrigin.LogSource = dt.source
-		msgOrigin.Timestamp = ts
-		msgOrigin.Identifier = dt.Identifier()
-		msgOrigin.SetTags(dt.containerTags)
-		containerMsg.SetSeverity(sev)
-		containerMsg.SetOrigin(msgOrigin)
-		dt.outputChan <- containerMsg
+		origin := message.NewOrigin(dt.source)
+		origin.Timestamp = ts
+		origin.Identifier = dt.Identifier()
+		origin.SetTags(dt.containerTags)
+		msg := message.New(content, origin)
+		msg.SetSeverity(sev)
+		dt.outputChan <- msg
 	}
 }
 
