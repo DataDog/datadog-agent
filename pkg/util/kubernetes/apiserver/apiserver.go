@@ -290,10 +290,6 @@ func (c *APIClient) checkResourcesAuth() error {
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("node collection: %q", err.Error()))
 	}
-	_, err = c.client.CoreV1().ListConfigMaps(ctx, "")
-	if err != nil {
-		errorMessages = append(errorMessages, fmt.Sprintf("configmap collection: %q", err.Error()))
-	}
 	_, err = c.client.CoreV1().ListEndpoints(ctx, "")
 	if err != nil {
 		errorMessages = append(errorMessages, fmt.Sprintf("endpoints collection: %q", err.Error()))
