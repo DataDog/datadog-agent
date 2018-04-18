@@ -21,7 +21,8 @@ type message struct {
 	severity []byte
 }
 
-func newMessage(content []byte) *message {
+// New returns a new Message
+func New(content []byte) Message {
 	return &message{
 		content: content,
 	}
@@ -55,40 +56,4 @@ func (m *message) GetSeverity() []byte {
 // SetSeverity sets the severity of the message
 func (m *message) SetSeverity(severity []byte) {
 	m.severity = severity
-}
-
-// FileMessage is a message coming from a File
-type FileMessage struct {
-	*message
-}
-
-// NewFileMessage returns a new FileMessage
-func NewFileMessage(content []byte) *FileMessage {
-	return &FileMessage{
-		message: newMessage(content),
-	}
-}
-
-// NetworkMessage is a message coming from a network Source
-type NetworkMessage struct {
-	*message
-}
-
-// NewNetworkMessage returns a new NetworkMessage
-func NewNetworkMessage(content []byte) *NetworkMessage {
-	return &NetworkMessage{
-		message: newMessage(content),
-	}
-}
-
-// ContainerMessage is a message coming from a container Source
-type ContainerMessage struct {
-	*message
-}
-
-// NewContainerMessage returns a new ContainerMessage
-func NewContainerMessage(content []byte) *ContainerMessage {
-	return &ContainerMessage{
-		message: newMessage(content),
-	}
 }

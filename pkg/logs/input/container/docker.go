@@ -197,7 +197,7 @@ func (dt *DockerTailer) forwardMessages() {
 			log.Warn(err)
 			continue
 		}
-		containerMsg := message.NewContainerMessage(updatedMsg)
+		containerMsg := message.New(updatedMsg)
 		msgOrigin := message.NewOrigin()
 		msgOrigin.LogSource = dt.source
 		msgOrigin.Timestamp = ts

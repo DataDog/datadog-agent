@@ -27,7 +27,7 @@ func buildTestConfigLogSource(ruleType, replacePlaceholder, pattern string) conf
 }
 
 func newNetworkMessage(content []byte, source *config.LogSource) message.Message {
-	msg := message.NewNetworkMessage(content)
+	msg := message.New(content)
 	msgOrigin := message.NewOrigin()
 	msgOrigin.LogSource = source
 	msg.SetOrigin(msgOrigin)

@@ -13,7 +13,7 @@ import (
 
 func TestMessage(t *testing.T) {
 
-	message := newMessage([]byte("hello"))
+	message := New([]byte("hello"))
 	assert.Equal(t, "hello", string(message.Content()))
 
 	message.SetContent([]byte("world"))
