@@ -65,7 +65,6 @@ type JMXFetch struct {
 	JmxExitFile        string
 	Command            string
 	ReportOnConsole    bool
-	ConfDirectory      string
 	Checks             []string
 	IPCPort            int
 	IPCHost            string
@@ -167,12 +166,6 @@ func (j *JMXFetch) Start() error {
 		"--log_level", jmxLogLevel,
 		"--reporter", reporter, // Reporter to use
 	)
-
-	if j.ConfDirectory != "" {
-		subprocessArgs = append(subprocessArgs, "--check")
-		subprocessArgs = append(subprocessArgs, j.Checks...)
-		subprocessArgs = append(subprocessArgs, "--conf_directory", j.ConfDirectory)
-	}
 
 	subprocessArgs = append(subprocessArgs, j.Command)
 
