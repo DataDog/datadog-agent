@@ -86,8 +86,8 @@ func New() *JMXFetch {
 	}
 }
 
-// Run starts the JMXFetch process
-func (j *JMXFetch) Run() error {
+// Start starts the JMXFetch process
+func (j *JMXFetch) Start() error {
 	here, _ := executable.Folder()
 	classpath := filepath.Join(common.GetDistPath(), "jmx", jmxJarName)
 	if j.JavaToolsJarPath != "" {

@@ -151,7 +151,7 @@ func runJmxCommand(command string) error {
 
 	loadConfigs()
 
-	err = runner.Run()
+	err = runner.Start()
 	if err != nil {
 		return err
 	}

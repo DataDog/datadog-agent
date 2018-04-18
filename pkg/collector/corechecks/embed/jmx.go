@@ -88,7 +88,7 @@ func (c *JMXCheck) run() error {
 	c.runner.LogLevel = config.Datadog.GetString("log_level")
 	c.runner.JmxExitFile = jmxExitFile
 
-	err := c.runner.Run()
+	err := c.runner.Start()
 	if err != nil {
 		return retryExitError(err)
 	}
