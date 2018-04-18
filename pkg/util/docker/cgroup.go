@@ -283,6 +283,24 @@ func (c ContainerCgroup) CPUNrThrottled() (uint64, error) {
 	return 0, nil
 }
 
+// CPUShares returns the relative weight of CPU time
+// If the cgroup file does not exist then we just log debug and return 1024.
+func (c ContainerCgroup) CPUShares() (uint64, error) {
+	sharesfile := c.cgroupFilePath("cpu", "cpu.shares")
+	lines, err := readLines(sharesfile)
+	if os.IsNotExist(err) {
+		log.Debugf("missing cgroup file: %s", sharesfile)
+		return 1024, nil
+	} else if err != nil {
+		return 0, err
+	}
+	shares, err := strconv.ParseUint(lines[0], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return shares, nil
+}
+
 // CPULimit would show CPU limit for this cgroup.
 // It does so by checking the cpu period and cpu quota config
 // if a user does this:

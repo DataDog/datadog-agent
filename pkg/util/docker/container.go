@@ -33,6 +33,7 @@ type Container struct {
 	CPULimit       float64
 	MemLimit       uint64
 	CPUNrThrottled uint64
+	CPUShares      uint64
 	CPU            *CgroupTimesStat
 	Memory         *CgroupMemStat
 	IO             *CgroupIOStat

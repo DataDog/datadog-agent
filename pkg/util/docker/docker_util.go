@@ -292,6 +292,11 @@ func (d *DockerUtil) Containers(cfg *ContainerListConfig) ([]*Container, error) 
 			log.Debugf("Cgroup cpuNrThrottled: %s", err)
 			continue
 		}
+		container.CPUShares, err = cgroup.CPUShares()
+		if err != nil {
+			log.Debugf("Cgroup cpuShares: %s", err)
+			continue
+		}
 		container.IO, err = cgroup.IO()
 		if err != nil {
 			log.Debugf("Cgroup i/o: %s", err)
