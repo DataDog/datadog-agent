@@ -36,6 +36,8 @@ func VirtualMemory() (*mem.VirtualMemoryStat, error) {
 		Slab:         327680000000,
 		PageTables:   37790679040,
 		SwapCached:   25000000000,
+		CommitLimit:  785338368,
+		CommittedAS:  433750016,
 	}, nil
 }
 
@@ -68,6 +70,8 @@ func TestMemoryCheckLinux(t *testing.T) {
 	mock.On("Gauge", "system.mem.shared", 327680000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.slab", 327680000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.page_tables", 37790679040.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.commit_limit", 785338368.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.committed_as", 433750016.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.total", 100000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.free", 60000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.used", 40000.0/mbSize, "", []string(nil)).Return().Times(1)
@@ -79,7 +83,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 14)
+	mock.AssertNumberOfCalls(t, "Gauge", 16)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
@@ -173,13 +177,15 @@ func TestSwapMemoryError(t *testing.T) {
 	mock.On("Gauge", "system.mem.shared", 327680000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.slab", 327680000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.mem.page_tables", 37790679040.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.commit_limit", 785338368.0/mbSize, "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.mem.committed_as", 433750016.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Gauge", "system.swap.cached", 25000000000.0/mbSize, "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 	err := memCheck.Run()
 	require.Nil(t, err)
 
 	mock.AssertExpectations(t)
-	mock.AssertNumberOfCalls(t, "Gauge", 10)
+	mock.AssertNumberOfCalls(t, "Gauge", 12)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
