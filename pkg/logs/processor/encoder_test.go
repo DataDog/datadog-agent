@@ -78,14 +78,15 @@ func TestRawEncoderDefaults(t *testing.T) {
 
 	msg := string(raw)
 	parts := strings.Fields(msg)
-	assert.Equal(t, 7, len(parts))
+	assert.Equal(t, 8, len(parts))
 	assert.Equal(t, string(config.SevInfo)+"0", parts[0])
 	assert.Equal(t, day, parts[1][:len(day)])
 	assert.NotEmpty(t, parts[2])
 	assert.Equal(t, "-", parts[3])
 	assert.Equal(t, "-", parts[4])
 	assert.Equal(t, "-", parts[5])
-	assert.Equal(t, "a", parts[6])
+	assert.Equal(t, "-", parts[6])
+	assert.Equal(t, "a", parts[7])
 
 }
 

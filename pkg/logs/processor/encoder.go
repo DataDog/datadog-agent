@@ -79,7 +79,12 @@ func (r *raw) encode(msg message.Message, redactedMsg []byte) ([]byte, error) {
 		extraContent = append(extraContent, []byte(" - - ")...)
 
 		// Tags
-		extraContent = append(extraContent, msg.GetOrigin().TagsPayload()...)
+		tagsPayload := msg.GetOrigin().TagsPayload()
+		if len(tagsPayload) > 0 {
+			extraContent = append(extraContent, tagsPayload...)
+		} else {
+			extraContent = append(extraContent, '-')
+		}
 		extraContent = append(extraContent, ' ')
 
 		return append(extraContent, redactedMsg...), nil
