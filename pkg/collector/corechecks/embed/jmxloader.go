@@ -19,8 +19,11 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+// JMXConfigCache contains the last version of jmx configs that will be given
+// to jmxfetch when it calls the IPC server
 var JMXConfigCache = cache.NewBasicCache()
 
+// AddJMXCachedConfig adds a config to the jmx config cache
 func AddJMXCachedConfig(config check.Config) {
 	mapConfig := map[string]interface{}{}
 	mapConfig["name"] = config.Name
