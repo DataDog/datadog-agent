@@ -170,7 +170,7 @@ func (ac *AutoConfig) AddProvider(provider providers.ConfigProvider, shouldPoll 
 // Check instances. Should always be run once so providers that don't need
 // polling will be queried at least once
 func (ac *AutoConfig) LoadAndRun() {
-	resolvedConfigs := ac.getAllConfigs()
+	resolvedConfigs := ac.GetAllConfigs()
 	checks := ac.getChecksFromConfigs(resolvedConfigs, true)
 	ac.schedule(checks)
 }
@@ -182,7 +182,7 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	titleCheck := fmt.Sprintf("%s%s", strings.Title(checkName), "Check")
 	checks := []check.Check{}
 
-	for _, check := range ac.getChecksFromConfigs(ac.getAllConfigs(), false) {
+	for _, check := range ac.getChecksFromConfigs(ac.GetAllConfigs(), false) {
 		if checkName == check.String() || titleCheck == check.String() {
 			checks = append(checks, check)
 		}
@@ -191,9 +191,9 @@ func (ac *AutoConfig) GetChecksByName(checkName string) []check.Check {
 	return checks
 }
 
-// getAllConfigs queries all the providers and returns all the check
+// GetAllConfigs queries all the providers and returns all the check
 // configurations found, resolving the ones it can
-func (ac *AutoConfig) getAllConfigs() []check.Config {
+func (ac *AutoConfig) GetAllConfigs() []check.Config {
 	resolvedConfigs := []check.Config{}
 
 	for _, pd := range ac.providers {

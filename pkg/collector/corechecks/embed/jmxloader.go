@@ -19,7 +19,19 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+// JMXConfigCache contains the last version of jmx configs that will be given
+// to jmxfetch when it calls the IPC server
 var JMXConfigCache = cache.NewBasicCache()
+
+// AddJMXCachedConfig adds a config to the jmx config cache
+func AddJMXCachedConfig(config check.Config) {
+	mapConfig := map[string]interface{}{}
+	mapConfig["name"] = config.Name
+	mapConfig["timestamp"] = time.Now().Unix()
+	mapConfig["config"] = config
+
+	JMXConfigCache.Add(config.Name, mapConfig)
+}
 
 // JMXCheckLoader is a specific loader for checks living in this package
 type JMXCheckLoader struct {
@@ -35,7 +47,6 @@ func NewJMXCheckLoader() (*JMXCheckLoader, error) {
 func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 	var err error
 	checks := []check.Check{}
-	mapConfig := map[string]interface{}{}
 
 	if !check.IsConfigJMX(config.Name, config.InitConfig) {
 		return checks, errors.New("check is not a jmx check, or unable to determine if it's so")
@@ -47,8 +58,6 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		log.Errorf("jmx.loader: could not unmarshal instance config: %s", err)
 		return checks, err
 	}
-	mapConfig["name"] = config.Name
-	mapConfig["timestamp"] = time.Now().Unix()
 
 	for _, instance := range config.Instances {
 		if err = jmxLauncher.Configure(instance, config.InitConfig); err != nil {
@@ -57,11 +66,10 @@ func (jl *JMXCheckLoader) Load(config check.Config) ([]check.Check, error) {
 		}
 	}
 
-	JMXConfigCache.Add(config.Name, mapConfig)
 	jmxLauncher.checks[fmt.Sprintf("%s.yaml", config.Name)] = struct{}{} // exists
 	checks = append(checks, &jmxLauncher)
-	mapConfig["config"] = config
 
+	AddJMXCachedConfig(config)
 	return checks, err
 }
 

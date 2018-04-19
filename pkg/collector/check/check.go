@@ -6,12 +6,11 @@
 package check
 
 import (
-	"bytes"
 	"fmt"
 	"hash/fnv"
+	"log"
 	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -163,35 +162,26 @@ func (c *Config) Equal(config *Config) bool {
 
 // String YAML representation of the config
 func (c *Config) String() string {
-	var yamlBuff bytes.Buffer
+	rawConfig := make(map[interface{}]interface{})
+	var initConfig interface{}
+	var instances []interface{}
 
-	yamlBuff.Write([]byte("init_config:\n"))
-	if c.InitConfig != nil {
-		yamlBuff.Write([]byte("- "))
-		strInit := strings.Split(string(c.InitConfig[:]), "\n")
-		for i, line := range strInit {
-			if i > 0 {
-				yamlBuff.Write([]byte("  "))
-			}
-			yamlBuff.Write([]byte(line))
-			yamlBuff.Write([]byte("\n"))
-		}
+	yaml.Unmarshal(c.InitConfig, &initConfig)
+	rawConfig["init_config"] = initConfig
+
+	for _, i := range c.Instances {
+		var instance interface{}
+		yaml.Unmarshal(i, &instance)
+		instances = append(instances, instance)
+	}
+	rawConfig["instances"] = instances
+
+	buffer, err := yaml.Marshal(&rawConfig)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	yamlBuff.Write([]byte("instances:\n"))
-	for _, instance := range c.Instances {
-		strInst := strings.Split(string(instance[:]), "\n")
-		yamlBuff.Write([]byte("- "))
-		for i, line := range strInst {
-			if i > 0 {
-				yamlBuff.Write([]byte("  "))
-			}
-			yamlBuff.Write([]byte(line))
-			yamlBuff.Write([]byte("\n"))
-		}
-	}
-
-	return yamlBuff.String()
+	return string(buffer)
 }
 
 // IsTemplate returns if the config has AD identifiers
@@ -332,6 +322,11 @@ func (c *Config) Digest() string {
 	}
 
 	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// IsJMX checks if the config is a JMX config
+func (c *Config) IsJMX() bool {
+	return IsConfigJMX(c.Name, c.InitConfig)
 }
 
 // IsConfigJMX checks if a certain YAML config is a JMX config

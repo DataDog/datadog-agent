@@ -8,53 +8,19 @@
 package embed
 
 import (
-	"bufio"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"time"
 
-	log "github.com/cihub/seelog"
-	yaml "gopkg.in/yaml.v2"
-
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
+	log "github.com/cihub/seelog"
+	"gopkg.in/yaml.v2"
 )
 
 const (
-	jmxJarName                        = "jmxfetch-0.19.0-jar-with-dependencies.jar"
-	jmxMainClass                      = "org.datadog.jmxfetch.App"
-	jmxCollectCommand                 = "collect"
-	jvmDefaultMaxMemoryAllocation     = " -Xmx200m"
-	jvmDefaultInitialMemoryAllocation = " -Xms50m"
-	jvmCgroupMemoryAwareness          = " -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap"
-	linkToDoc                         = "See http://docs.datadoghq.com/integrations/java/ for more information"
-)
-
-var (
-	jmxLogLevelMap = map[string]string{
-		"trace":    "TRACE",
-		"debug":    "DEBUG",
-		"info":     "INFO",
-		"warn":     "WARN",
-		"warning":  "WARN",
-		"error":    "ERROR",
-		"err":      "ERROR",
-		"critical": "FATAL",
-	}
-	jvmCgroupMemoryIncompatOptions = []string{
-		"Xmx",
-		"XX:MaxHeapSize",
-		"Xms",
-		"XX:InitialHeapSize",
-	}
+	linkToDoc = "See http://docs.datadoghq.com/integrations/java/ for more information"
 )
 
 // checkInstanceCfg lists the config options on the instance against which we make some sanity checks
@@ -75,23 +41,19 @@ type checkInitCfg struct {
 
 // JMXCheck keeps track of the running command
 type JMXCheck struct {
-	cmd                *exec.Cmd
-	checks             map[string]struct{}
-	ExitFilePath       string
-	javaBinPath        string
-	javaOptions        string
-	javaToolsJarPath   string
-	javaCustomJarPaths []string
-	isAttachAPI        bool
-	running            uint32
-	stop               chan struct{}
-	stopDone           chan struct{}
+	runner      *jmxfetch.JMXFetch
+	checks      map[string]struct{}
+	isAttachAPI bool
+	running     uint32
+	stop        chan struct{}
+	stopDone    chan struct{}
 }
 
 var jmxLauncher = JMXCheck{
 	checks:   make(map[string]struct{}),
 	stop:     make(chan struct{}),
 	stopDone: make(chan struct{}),
+	runner:   jmxfetch.New(),
 }
 
 func (c *JMXCheck) String() string {
@@ -123,31 +85,26 @@ func (c *JMXCheck) run() error {
 	default:
 	}
 
-	err := c.start()
+	c.runner.LogLevel = config.Datadog.GetString("log_level")
+	c.runner.JmxExitFile = jmxExitFile
+
+	err := c.runner.Start()
 	if err != nil {
 		return retryExitError(err)
 	}
 
 	processDone := make(chan error)
 	go func() {
-		processDone <- c.cmd.Wait()
+		processDone <- c.runner.Wait()
 	}()
 
 	select {
 	case err = <-processDone:
 		return retryExitError(err)
 	case <-c.stop:
-		if jmxExitFile == "" {
-			// Unix
-			err = c.cmd.Process.Signal(os.Kill)
-			if err != nil {
-				log.Errorf("unable to stop JMX check: %s", err)
-			}
-		} else {
-			// Windows
-			if err = ioutil.WriteFile(c.ExitFilePath, nil, 0644); err != nil {
-				log.Errorf("unable to stop JMX check: %s", err)
-			}
+		err = c.runner.Kill()
+		if err != nil {
+			log.Errorf("unable to stop JMX check: %s", err)
 		}
 	}
 
@@ -172,35 +129,35 @@ func (c *JMXCheck) Parse(data, initConfig check.ConfigData) error {
 		return err
 	}
 
-	if c.javaBinPath == "" {
+	if c.runner.JavaBinPath == "" {
 		if instanceConf.JavaBinPath != "" {
-			c.javaBinPath = instanceConf.JavaBinPath
+			c.runner.JavaBinPath = instanceConf.JavaBinPath
 		} else if initConf.JavaBinPath != "" {
-			c.javaBinPath = initConf.JavaBinPath
+			c.runner.JavaBinPath = initConf.JavaBinPath
 		}
 	}
-	if c.javaOptions == "" {
+	if c.runner.JavaOptions == "" {
 		if instanceConf.JavaOptions != "" {
-			c.javaOptions = instanceConf.JavaOptions
+			c.runner.JavaOptions = instanceConf.JavaOptions
 		} else if initConf.JavaOptions != "" {
-			c.javaOptions = initConf.JavaOptions
+			c.runner.JavaOptions = initConf.JavaOptions
 		}
 	}
-	if c.javaToolsJarPath == "" {
+	if c.runner.JavaToolsJarPath == "" {
 		if instanceConf.ToolsJarPath != "" {
-			c.javaToolsJarPath = instanceConf.ToolsJarPath
+			c.runner.JavaToolsJarPath = instanceConf.ToolsJarPath
 		} else if initConf.ToolsJarPath != "" {
-			c.javaToolsJarPath = initConf.ToolsJarPath
+			c.runner.JavaToolsJarPath = initConf.ToolsJarPath
 		}
 	}
-	if c.javaCustomJarPaths == nil {
+	if c.runner.JavaCustomJarPaths == nil {
 		if initConf.CustomJarPaths != nil {
-			c.javaCustomJarPaths = initConf.CustomJarPaths
+			c.runner.JavaCustomJarPaths = initConf.CustomJarPaths
 		}
 	}
 
 	if instanceConf.ProcessNameRegex != "" {
-		if c.javaToolsJarPath == "" {
+		if c.runner.JavaToolsJarPath == "" {
 			return fmt.Errorf("You must specify the path to tools.jar. %s", linkToDoc)
 		}
 		c.isAttachAPI = true
@@ -211,13 +168,7 @@ func (c *JMXCheck) Parse(data, initConfig check.ConfigData) error {
 
 // Configure the JMXCheck
 func (c *JMXCheck) Configure(data, initConfig check.ConfigData) error {
-
-	err := c.Parse(data, initConfig)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return c.Parse(data, initConfig)
 }
 
 // Interval returns the scheduling time for the check, this will be scheduled only once
@@ -245,126 +196,6 @@ func (c *JMXCheck) Stop() {
 
 	c.stop <- struct{}{}
 	<-c.stopDone
-}
-
-func (c *JMXCheck) start() error {
-	here, _ := executable.Folder()
-	classpath := filepath.Join(common.GetDistPath(), "jmx", jmxJarName)
-	if c.javaToolsJarPath != "" {
-		classpath = fmt.Sprintf("%s:%s", c.javaToolsJarPath, classpath)
-	}
-
-	globalCustomJars := config.Datadog.GetStringSlice("jmx_custom_jars")
-	if len(globalCustomJars) > 0 {
-		classpath = fmt.Sprintf("%s:%s", strings.Join(globalCustomJars, ":"), classpath)
-	}
-
-	if len(c.javaCustomJarPaths) > 0 {
-		classpath = fmt.Sprintf("%s:%s", strings.Join(c.javaCustomJarPaths, ":"), classpath)
-	}
-	bindHost := config.Datadog.GetString("bind_host")
-	if bindHost == "" || bindHost == "0.0.0.0" {
-		bindHost = "localhost"
-	}
-	reporter := fmt.Sprintf("statsd:%s:%s", bindHost, config.Datadog.GetString("dogstatsd_port"))
-
-	//TODO : support auto discovery
-
-	subprocessArgs := []string{}
-
-	javaOptions := c.javaOptions
-	if config.Datadog.GetBool("jmx_use_cgroup_memory_limit") {
-		passOption := true
-		// This option is incompatible with the Xmx and Xms options, log a warning if there are found in the javaOptions
-		for _, option := range jvmCgroupMemoryIncompatOptions {
-			if strings.Contains(javaOptions, option) {
-				log.Warnf("Java option %q is incompatible with cgroup_memory_limit, disabling cgroup mode", option)
-				passOption = false
-			}
-		}
-		if passOption {
-			javaOptions += jvmCgroupMemoryAwareness
-		}
-	} else {
-		// Specify a maximum memory allocation pool for the JVM
-		if !strings.Contains(javaOptions, "Xmx") && !strings.Contains(javaOptions, "XX:MaxHeapSize") {
-			javaOptions += jvmDefaultMaxMemoryAllocation
-		}
-		// Specify the initial memory allocation pool for the JVM
-		if !strings.Contains(javaOptions, "Xms") && !strings.Contains(javaOptions, "XX:InitialHeapSize") {
-			javaOptions += jvmDefaultInitialMemoryAllocation
-		}
-	}
-
-	subprocessArgs = append(subprocessArgs, strings.Fields(javaOptions)...)
-
-	jmxLogLevel, ok := jmxLogLevelMap[strings.ToLower(config.Datadog.GetString("log_level"))]
-	if !ok {
-		jmxLogLevel = "INFO"
-	}
-	// checks are now enabled via IPC on JMXFetch
-	subprocessArgs = append(subprocessArgs,
-		"-classpath", classpath,
-		jmxMainClass,
-		"--ipc_host", config.Datadog.GetString("cmd_host"),
-		"--ipc_port", fmt.Sprintf("%v", config.Datadog.GetInt("cmd_port")),
-		"--check_period", fmt.Sprintf("%v", int(check.DefaultCheckInterval/time.Millisecond)), // Period of the main loop of jmxfetch in ms
-		"--log_level", jmxLogLevel,
-		"--reporter", reporter, // Reporter to use
-		jmxCollectCommand, // Name of the command
-	)
-
-	if jmxExitFile != "" {
-		c.ExitFilePath = filepath.Join(here, "dist", "jmx", jmxExitFile) // FIXME : At some point we should have a `run` folder
-		// Signal handlers are not supported on Windows:
-		// use a file to trigger JMXFetch exit instead
-		subprocessArgs = append(subprocessArgs, "--exit_file_location", c.ExitFilePath)
-	}
-
-	javaBinPath := c.javaBinPath
-	if javaBinPath == "" {
-		javaBinPath = "java"
-	}
-	c.cmd = exec.Command(javaBinPath, subprocessArgs...)
-
-	// set environment + token
-	c.cmd.Env = append(
-		os.Environ(),
-		fmt.Sprintf("SESSION_TOKEN=%s", api.GetAuthToken()),
-	)
-
-	// remove the exit file trigger (windows)
-	if jmxExitFile != "" {
-		os.Remove(c.ExitFilePath)
-	}
-
-	// forward the standard output to the Agent logger
-	stdout, err := c.cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			log.Info(in.Text())
-		}
-	}()
-
-	// forward the standard error to the Agent logger
-	stderr, err := c.cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-	go func() {
-		in := bufio.NewScanner(stderr)
-		for in.Scan() {
-			log.Error(in.Text())
-		}
-	}()
-
-	log.Debugf("Args: %v", subprocessArgs)
-
-	return c.cmd.Start()
 }
 
 // GetWarnings does not return anything in JMX
