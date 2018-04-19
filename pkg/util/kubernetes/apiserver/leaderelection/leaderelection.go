@@ -195,7 +195,7 @@ func (le *LeaderEngine) IsLeader() bool {
 // GetLeaderDetails is used in for the Flare and for the Status commands.
 func GetLeaderDetails() (leaderDetails rl.LeaderElectionRecord, err error) {
 	var led rl.LeaderElectionRecord
-	c, err := apiserver.GetCoreV1Client()
+	c, err := apiserver.GetClient()
 	if err != nil {
 		return led, err
 	}
