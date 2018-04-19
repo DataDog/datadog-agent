@@ -175,7 +175,7 @@ Our default configuration targets Kubernetes 1.7.6 and later, as we rely on feat
   * `rbac.authorization.k8s.io/v1beta1` in Kubernetes 1.5 to 1.7 (and OpenShift 3.7)
   * `v1` in Openshift 1.3 to 3.6
   
-You can apply our yaml manifests them with the following `sed` invocations:
+You can apply our yaml manifests with the following `sed` invocations:
 ```
 sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrole.yaml | kubectl apply -f -
 sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrolebinding.yaml | kubectl apply -f -
@@ -186,15 +186,15 @@ sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrole.yaml | oc apply -f -
 sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrolebinding.yaml | oc apply -f -
 ```
 
-- Our default configuration relies on [bearer token authentication](https://kubernetes.io/docs/admin/authentication/#service-account-tokens) to the APIserver and kubelet. On 1.3, the kubelet does not support bearer token auth, you will need to setup client certificates for the `datadog-agent` serviceaccount and pass them to the agent.
-
 - The `kubelet` check retrieves metrics from the Kubernetes 1.7.6+ (OpenShift 3.7.0+) prometheus endpoint. You need to [enable cAdvisor port mode](https://github.com/DataDog/integrations-core/tree/master/kubelet#compatibility) for older versions.
 
-- Our default daemonset specs makes use of the [downward API](https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/) to pass the kubelet's IP to the agent. This only works on versions 1.7 and up. For older versions, here are other ways to enable kubelet connectivity:
+- Our default daemonset makes use of the [downward API](https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information/) to pass the kubelet's IP to the agent. This only works on versions 1.7 and up. For older versions, here are other ways to enable kubelet connectivity:
 
   * On versions 1.6, use `fieldPath: spec.nodeName` and make sure your node name is resolvable and reachable from the pod
   * If `DD_KUBERNETES_KUBELET_HOST` is unset, the agent will retrieve the node hostname from docker and try to connect there. See `docker info | grep "Name:"` and make sure the name is resolvable and reachable
   * If the IP of the docker default gateway is constant accross your cluster, you can directly pass that IP in the `DD_KUBERNETES_KUBELET_HOST` envvar. You can retrieve the IP with the `ip addr show | grep docker0` command.
+
+- Our default configuration relies on [bearer token authentication](https://kubernetes.io/docs/admin/authentication/#service-account-tokens) to the APIserver and kubelet. On 1.3, the kubelet does not support bearer token auth, you will need to setup client certificates for the `datadog-agent` serviceaccount and pass them to the agent.
 
 ## Log collection
 
