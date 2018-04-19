@@ -69,6 +69,7 @@ def test(ctx, targets=None, coverage=False, race=False, profile=False, use_embed
     # explicitly run these tasks instead of using pre-tasks so we can
     # pass the `target` param (pre-tasks are invoked without parameters)
     print("--- Linting:")
+    lint_filenames(ctx)
     fmt(ctx, targets=tool_targets, fail_on_fmt=fail_on_fmt)
     lint(ctx, targets=tool_targets)
     vet(ctx, targets=tool_targets)
@@ -214,17 +215,21 @@ def lint_releasenote(ctx):
 @task
 def lint_filenames(ctx):
     """
-    Scan files to ensure there are no filenames containing illegal character
+    Scan files to ensure there are no filenames containing illegal characters
     """
-    forbidden_chars = '<>:"\\|?*'
-    files = ctx.run("git ls-files -z", hide=True).stdout.split("\0")
-    failure = False
-    for file in files:
-        if any([char in file for char in forbidden_chars]):
-            print("Error: Found illegal character in path {}".format(file))
-            failure = True
-    if failure:
-        raise Exit(1)
+    if invoke.platform.WINDOWS:
+        print("Running on windows, no need to check filenames for illegal characters")
+    else:
+        print("Checking filenames for illegal characters")
+        forbidden_chars = '<>:"\\|?*'
+        files = ctx.run("git ls-files -z", hide=True).stdout.split("\0")
+        failure = False
+        for file in files:
+            if any(char in file for char in forbidden_chars):
+                print("Error: Found illegal character in path {}".format(file))
+                failure = True
+        if failure:
+            raise Exit(1)
 
 
 @task
