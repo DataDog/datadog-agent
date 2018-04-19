@@ -2,6 +2,22 @@
 Release Notes
 =============
 
+6.1.4
+=====
+2018-04-19
+
+Prelude
+-------
+
+Our development staff observed that a local, unprivileged user had the ability to make an HTTP request to the `/agent/check-config` endpoint on the agent process that listens on localhost. This request would result in the local-users' ability to read Agent integration configurations. This issue was patched by enforcing authentication via a session token. Please upgrade your agent accordingly.
+
+Security Issues
+---------------
+
+- The ``/agent/check-config`` endpoint has been patched to enforce authentication
+  of the caller via a bearer session token.
+
+
 6.1.3
 =====
 2018-04-16
