@@ -192,7 +192,7 @@ sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrolebinding.yaml | oc apply -f -
 
   * On versions 1.6, use `fieldPath: spec.nodeName` and make sure your node name is resolvable and reachable from the pod
   * If `DD_KUBERNETES_KUBELET_HOST` is unset, the agent will retrieve the node hostname from docker and try to connect there. See `docker info | grep "Name:"` and make sure the name is resolvable and reachable
-  * If the IP of the docker default gateway is constant accross your cluster, you can directly pass that IP in the `DD_KUBERNETES_KUBELET_HOST` envvar. You can retrieve the IP with the `ip addr show | grep docker0` command.
+  * If the IP of the docker default gateway is constant across your cluster, you can directly pass that IP in the `DD_KUBERNETES_KUBELET_HOST` envvar. You can retrieve the IP with the `ip addr show | grep docker0` command.
 
 - Our default configuration relies on [bearer token authentication](https://kubernetes.io/docs/admin/authentication/#service-account-tokens) to the APIserver and kubelet. On 1.3, the kubelet does not support bearer token auth, you will need to setup client certificates for the `datadog-agent` serviceaccount and pass them to the agent.
 
