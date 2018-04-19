@@ -97,13 +97,11 @@ func GetClient() (*corev1.CoreV1Client, error) {
 			return nil, err
 		}
 	}
-
 	k8sConfig.Timeout = 2 * time.Second
-
 	coreClient, err := corev1.NewForConfig(k8sConfig)
-
 	return coreClient, err
 }
+
 func (c *APIClient) connect() error {
 	var err error
 	if c.client == nil {
@@ -116,22 +114,19 @@ func (c *APIClient) connect() error {
 
 	// Try to get apiserver version to confim connectivity
 	APIversion := c.client.RESTClient().APIVersion()
-
-	if !APIversion.Empty() {
-		log.Debugf("Cannot retrieve the version of the API server at the moment, retrying...")
-		return nil
+	if APIversion.Empty() {
+		return fmt.Errorf("cannot retrieve the version of the API server at the moment")
 	}
-
 	log.Debugf("Connected to kubernetes apiserver, version %s", APIversion.Version)
 
 	err = c.checkResourcesAuth()
 	if err != nil {
 		return err
 	}
-	log.Debug("Could successfully collect Pods, Nodes, Services and Events.")
+	log.Debug("Could successfully collect Pods, Nodes, Services and Events")
 
-	useMetadataMapper := config.Datadog.GetBool("use_metadata_mapper")
-	if !useMetadataMapper {
+	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
+		log.Infof("The metadata mapper was configured to be disabled, not collecting metadata for the pods from the API Server")
 		return nil
 	}
 
@@ -184,10 +179,7 @@ func (c *APIClient) NodeMetadataMapping(nodeName string, podList *v1.PodList) er
 // - all pods of all namespaces
 // Then it stores in cache the MetadataMapperBundle of each node.
 func (c *APIClient) ClusterMetadataMapping() error {
-	// The timeout for the context is the same as the poll frequency.
-	// We use a new context at each run, to recover if we can't access the API server temporarily.
 	// A poll run should take less than the poll frequency.
-
 	// We fetch nodes to reliably use nodename as key in the cache.
 	// Avoiding to retrieve them from the endpoints/podList.
 	nodeList, err := c.client.Nodes().List(metav1.ListOptions{TimeoutSeconds: &globalTimeoutSeconds})
@@ -282,7 +274,7 @@ func (c *APIClient) checkResourcesAuth() error {
 		errorMessages = append(errorMessages, fmt.Sprintf("event collection: %q", err.Error()))
 	}
 
-	if config.Datadog.GetBool("use_metadata_mapper") == false {
+	if config.Datadog.GetBool("kubernetes_collect_metadata_tags") == false {
 		return aggregateCheckResourcesErrors(errorMessages)
 	}
 	_, err = c.client.Services("").List(metav1.ListOptions{Limit: 1, TimeoutSeconds: &resourceTimeoutSeconds})
@@ -376,7 +368,7 @@ func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return node.Labels, nil // GetMetadata().GetLabels(), nil
+	return node.Labels, nil
 }
 
 // GetMetadataMapBundleOnAllNodes is used for the CLI svcmap command to run fetch the metadata map of all nodes.

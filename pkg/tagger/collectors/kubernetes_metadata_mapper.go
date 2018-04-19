@@ -59,7 +59,6 @@ func (c *KubeMetadataCollector) getTagInfos(pods []*kubelet.Pod) []*TagInfo {
 			}
 		}
 		for _, tagDCA := range metadataNames {
-			// for service in metadataName.[services]
 			log.Tracef("Tagging %s with %s", po.Metadata.Name, tagDCA)
 			tag = strings.Split(tagDCA, ":")
 			if len(tag) != 2 {

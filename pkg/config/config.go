@@ -81,7 +81,6 @@ func init() {
 	Datadog.SetDefault("conf_path", ".")
 	Datadog.SetDefault("confd_path", defaultConfdPath)
 	Datadog.SetDefault("confd_dca_path", defaultDCAConfdPath)
-	Datadog.SetDefault("use_metadata_mapper", true)
 	Datadog.SetDefault("additional_checksd", defaultAdditionalChecksPath)
 	Datadog.SetDefault("log_payloads", false)
 	Datadog.SetDefault("log_level", "info")
