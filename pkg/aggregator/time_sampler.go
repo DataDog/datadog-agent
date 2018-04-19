@@ -121,7 +121,11 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 			existingSerie.Points = append(existingSerie.Points, serie.Points[0])
 		} else {
 			// Resolve context and populate new Serie
-			context := s.contextResolver.contextsByKey[serie.ContextKey]
+			context, ok := s.contextResolver.contextsByKey[serie.ContextKey]
+			if !ok {
+				log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
+				continue
+			}
 			serie.Name = context.Name + serie.NameSuffix
 			serie.Tags = context.Tags
 			if context.Host != "" {
@@ -145,8 +149,12 @@ func (s *TimeSampler) flush(timestamp float64) metrics.Series {
 func (s *TimeSampler) flushContextMetrics(timestamp int64, contextMetrics metrics.ContextMetrics) []*metrics.Serie {
 	series, errors := contextMetrics.Flush(float64(timestamp))
 	for ckey, err := range errors {
-		context := s.contextResolver.contextsByKey[ckey]
-		log.Infof("An error occurred while flushing dogstatsd metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
+		context, ok := s.contextResolver.contextsByKey[ckey]
+		if !ok {
+			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
+			continue
+		}
+		log.Infof("No value returned for dogstatsd metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
 	}
 	return series
 }

@@ -42,12 +42,20 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 func (cs *CheckSampler) commit(timestamp float64) {
 	series, errors := cs.metrics.Flush(timestamp)
 	for ckey, err := range errors {
-		context := cs.contextResolver.contextsByKey[ckey]
-		log.Infof("An error occurred while flushing check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
+		context, ok := cs.contextResolver.contextsByKey[ckey]
+		if !ok {
+			log.Errorf("Can't resolve context of error '%s': inconsistent context resolver state: context with key '%v' is not tracked", err, ckey)
+			continue
+		}
+		log.Infof("No value returned for check metric '%s' on host '%s' and tags '%s': %s", context.Name, context.Host, context.Tags, err)
 	}
 	for _, serie := range series {
 		// Resolve context and populate new []Serie
-		context := cs.contextResolver.contextsByKey[serie.ContextKey]
+		context, ok := cs.contextResolver.contextsByKey[serie.ContextKey]
+		if !ok {
+			log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
+			continue
+		}
 		serie.Name = context.Name + serie.NameSuffix
 		serie.Tags = context.Tags
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
