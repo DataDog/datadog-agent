@@ -19,12 +19,23 @@ Starting with version 6.1, the Datadog Agent supports monitoring OpenShift Origi
 
 - You should first refer to the [common installation instructions](README.md), and its [Kubernetes section](README.md#Kubernetes)
 - We only support full operations on OpenShift 3.7.0 and later, as we rely on new monitoring endpoints introduced in this version
-- On OpenShift 3.7, you will need to change the provided RBAC files to refer to the `rbac.authorization.k8s.io/v1beta1` apiVersion instead of `rbac.authorization.k8s.io/v1`. You can pipe them through sed like below:
 
+### Applying RBAC
+
+RBAC objects (`ClusterRoles` and `ClusterRoleBindings`) are available since OpenShift 1.3, but are available under different `apiVersion` prefixes:
+
+* On OpenShift 3.9, our provided `rbac.authorization.k8s.io/v1` apiVersion will work out of the box
+* On OpenShift 3.7, the objects are under the `rbac.authorization.k8s.io/v1beta1` apiVersion. You can apply them with the following `sed` invocations:
 ```
 sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrole.yaml | oc apply -f -
 sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrolebinding.yaml | oc apply -f -
 ```
+* On older versions, the RBAC support was [under the oapi/v1 prefix](https://docs.openshift.org/1.4/rest_api/openshift_v1.html#create-a-clusterrole). The following sed commands will apply the RBACs:
+```
+sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrole.yaml | oc apply -f -
+sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrolebinding.yaml | oc apply -f -
+```
+
 
 ## Restricted SCC operations
 
