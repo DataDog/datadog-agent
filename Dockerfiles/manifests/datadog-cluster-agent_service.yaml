@@ -6,7 +6,7 @@ metadata:
     app: datadog-cluster-agent
 spec:
   ports:
-  - port: 5001 # Has to be the same as the one exposed in the DCA. Default is 5001.
+  - port: 5005 # Has to be the same as the one exposed in the DCA. Default is 5005.
     protocol: TCP
   selector:
     app: datadog-cluster-agent

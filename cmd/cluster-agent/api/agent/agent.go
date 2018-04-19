@@ -39,7 +39,6 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
-	// r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/api/v1/metadata/{nodeName}/{podName}", getPodMetadata).Methods("GET")
 	r.HandleFunc("/api/v1/metadata/{nodeName}", getNodeMetadata).Methods("GET")
 	r.HandleFunc("/api/v1/metadata", getAllMetadata).Methods("GET")

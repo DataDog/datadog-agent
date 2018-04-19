@@ -98,10 +98,6 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		return "", err
 	}
 
-	err = zipConfigCheck(tempDir, hostname)
-	if err != nil {
-		return "", err
-	}
 	err = zipMetadataMap(tempDir, hostname)
 	if err != nil {
 		return "", err
@@ -166,7 +162,7 @@ func zipMetadataMap(tempDir, hostname string) error {
 
 	sByte := []byte(str)
 	f := filepath.Join(tempDir, hostname, "cluster-agent-metadatamapper.log")
-	log.Infof("Flare service mapper made at %s", tempDir)
+	log.Infof("Flare metadata mapper made at %s", tempDir)
 	err = ensureParentDirsExist(f)
 	if err != nil {
 		return err

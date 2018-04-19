@@ -91,7 +91,7 @@ func init() {
 	Datadog.SetDefault("syslog_pem", "")
 	Datadog.SetDefault("cmd_host", "localhost")
 	Datadog.SetDefault("cmd_port", 5001)
-	Datadog.SetDefault("cluster_agent_cmd_port", 5005) // TODO isolate internal and external APIs for the DCA.
+	Datadog.SetDefault("cluster_agent_cmd_port", 5005)
 	Datadog.SetDefault("default_integration_http_timeout", 9)
 	Datadog.SetDefault("enable_metadata_collection", true)
 	Datadog.SetDefault("enable_gohai", true)
