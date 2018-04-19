@@ -224,6 +224,10 @@ func getCSRFToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
+	if err := apiutil.Validate(w, r); err != nil {
+		return
+	}
+
 	var response response.ConfigCheckResponse
 
 	response.Configs = common.AC.GetProviderLoadedConfigs()
