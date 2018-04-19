@@ -170,7 +170,7 @@ The agent can collect node labels from the APIserver and report them as host tag
 
 Our default configuration targets Kubernetes 1.7.6 and later, as we rely on features and endpoints introduced in this version. More installation steps are required for older versions:
 
-- RBAC objects (`ClusterRoles` and `ClusterRoleBindings`) are available since Kubernetes 1.6 and OpenShift 1.3, but are available under different `apiVersion` prefixes:
+- [RBAC objects](https://kubernetes.io/docs/admin/authorization/rbac/) (`ClusterRoles` and `ClusterRoleBindings`) are available since Kubernetes 1.6 and OpenShift 1.3, but are available under different `apiVersion` prefixes:
   * `rbac.authorization.k8s.io/v1` in Kubernetes 1.8+ (and OpenShift 3.9+), the default apiVersion we target
   * `rbac.authorization.k8s.io/v1beta1` in Kubernetes 1.5 to 1.7 (and OpenShift 3.7)
   * `v1` in Openshift 1.3 to 3.6
