@@ -166,6 +166,29 @@ This will create the Service Account in the default namespace, a Cluster Role wi
 
 The agent can collect node labels from the APIserver and report them as host tags. This feature is disabled by default, as it is usually redundant with cloud provider host tags. If you need to do so, you can provide a node label -> host tag mapping in the `DD_KUBERNETES_NODE_LABELS_AS_TAGS` environment variable. The format is the inline JSON described in the [tagging section](#Tagging).
 
+### Legacy Kubernetes Versions
+
+Our default configuration targets Kubernetes 1.7.6 and later, as we rely on features and endpoints introduced in this version. More installation steps are required for older versions:
+
+- RBAC objects (`ClusterRoles` and `ClusterRoleBindings`) are available since Kubernetes 1.6 and OpenShift 1.3, but are available under different `apiVersion` prefixes:
+  * `rbac.authorization.k8s.io/v1beta1` in Kubernetes 1.5 to 1.7 (and OpenShift 3.7)
+  * `v1` in Openshift 1.3 to 3.6
+  
+You can apply our yaml manifests them with the following `sed` invocations:
+```
+sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrole.yaml | kubectl apply -f -
+sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrolebinding.yaml | kubectl apply -f -
+```
+or for Openshift 1.3 to 3.6:
+```
+sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrole.yaml | oc apply -f -
+sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrolebinding.yaml | oc apply -f -
+```
+
+- Our default configuration relies on [bearer token authentication](https://kubernetes.io/docs/admin/authentication/#service-account-tokens) to the APIServer and Kubelet. On 1.3, the Kubelet does not support bearer token auth, you will need to setup client certificates for the `datadog-agent` serviceaccount and pass them to the agent.
+
+- The `kubelet` check retries metrics from the Kubernetes 1.7.6+ (OpenShift 3.7.0+) prometheus endpoint. You need to [enable cAdvisor port mode](https://github.com/DataDog/integrations-core/tree/master/kubelet#compatibility) for older versions.
+
 ## Log collection
 
 The Datadog Agent can collect logs from containers starting at the version 6. Two installations are possible:
