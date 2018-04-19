@@ -484,7 +484,7 @@ Troubleshooting commands syntax have changed :
 
 `sudo -u dd-agent datadog-agent jmx collect`: Start the collection of metrics based on your current configuration and display them in the console.
 
-By default theses command will run on all the jmx checks. If you want to
+By default theses command will run on all the configured jmx checks. If you want to
 use them for specific checks, you can specify them using the `--checks` flag :
 `sudo datadog-agent jmx list collected --checks tomcat`
 
