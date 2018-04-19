@@ -10,10 +10,10 @@ package apiserver
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"strings"
 	"sync"
 	"time"
-	"io/ioutil"
 
 	log "github.com/cihub/seelog"
 	"k8s.io/api/core/v1"
