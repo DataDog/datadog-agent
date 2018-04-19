@@ -2,7 +2,7 @@
 
 Starting with version 6.1, the Datadog Agent supports monitoring OpenShift Origin and Enterprise clusters. Depending on your needs and the [security constraints](https://docs.openshift.org/latest/admin_guide/manage_scc.html) of your cluster, we support three deployment scenarios:
 
-| Security Context Constraints   | Restricted | Host network | Custom |
+| Security Context Constraints   | [Restricted](#restricted-scc-operations) | [Host network](#host-network-scc-operations) | [Custom](#custom-datadog-scc-for-all-features) |
 |--------------------------------|:----------:|:------------:|:------:|
 | Kubernetes layer monitoring    | ✅         | ✅          | ✅     |
 | Kubernetes-based Autodiscovery | ✅         | ✅          | ✅     |
@@ -18,24 +18,7 @@ Starting with version 6.1, the Datadog Agent supports monitoring OpenShift Origi
 ## General information
 
 - You should first refer to the [common installation instructions](README.md), and its [Kubernetes section](README.md#Kubernetes)
-- We only support full operations on OpenShift 3.7.0 and later, as we rely on new monitoring endpoints introduced in this version
-
-### Applying RBAC
-
-RBAC objects (`ClusterRoles` and `ClusterRoleBindings`) are available since OpenShift 1.3, but are available under different `apiVersion` prefixes:
-
-* On OpenShift 3.9, our provided `rbac.authorization.k8s.io/v1` apiVersion will work out of the box
-* On OpenShift 3.7, the objects are under the `rbac.authorization.k8s.io/v1beta1` apiVersion. You can apply them with the following `sed` invocations:
-```
-sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrole.yaml | oc apply -f -
-sed "s%authorization.k8s.io/v1%authorization.k8s.io/v1beta1%" clusterrolebinding.yaml | oc apply -f -
-```
-* On older versions, the RBAC support was [under the oapi/v1 prefix](https://docs.openshift.org/1.4/rest_api/openshift_v1.html#create-a-clusterrole). The following sed commands will apply the RBACs:
-```
-sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrole.yaml | oc apply -f -
-sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrolebinding.yaml | oc apply -f -
-```
-
+- Our default configuration targets OpenShift 3.7.0 and later, as we rely on features and endpoints introduced in this version. [More installation steps](README.md#legacy-kubernetes-versions) are required for older versions.
 
 ## Restricted SCC operations
 
