@@ -5,29 +5,35 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
+	"html"
 	"html/template"
 	"io"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/status"
 )
 
 var fmap = template.FuncMap{
 	"lastErrorTraceback": lastErrorTraceback,
-	"lastErrorMessage":   status.LastErrorMessage,
+	"lastErrorMessage":   lastErrorMessage,
 	"pythonLoaderError":  pythonLoaderError,
-	"formatUnixTime":     status.FormatUnixTime,
-	"humanizeF":          status.MkHuman,
+	"formatUnixTime":     formatUnixTime,
+	"humanizeF":          mkHuman,
 	"humanizeI":          mkHumanI,
 	"formatTitle":        formatTitle,
 	"add":                add,
 	"instances":          instances,
 }
+
+const (
+	timeFormat = "2006-01-02 15:04:05.000000 UTC"
+)
 
 // Data is a struct used for filling templates
 type Data struct {
@@ -65,7 +71,7 @@ func renderRunningChecks() (string, error) {
 	if e != nil {
 		return "", e
 	}
-	return b.String(), nil
+	return html.EscapeString(b.String()), nil
 }
 
 func renderCheck(name string, stats []*check.Stats) (string, error) {
@@ -76,7 +82,7 @@ func renderCheck(name string, stats []*check.Stats) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	return b.String(), nil
+	return html.EscapeString(b.String()), nil
 }
 
 func renderError(name string) (string, error) {
@@ -90,7 +96,7 @@ func renderError(name string) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	return b.String(), nil
+	return html.EscapeString(b.String()), nil
 }
 
 func fillTemplate(w io.Writer, data Data, request string) error {
@@ -112,6 +118,9 @@ func pythonLoaderError(value string) template.HTML {
 	value = strings.Replace(value, "['", "", -1)
 	value = strings.Replace(value, "\\n']", "", -1)
 	value = strings.Replace(value, "']", "", -1)
+
+	value = template.HTMLEscapeString(value)
+
 	value = strings.Replace(value, "\\n", "<br>", -1)
 	value = strings.Replace(value, "  ", "&nbsp;&nbsp;&nbsp;", -1)
 	var loaderErrorArray []string
@@ -127,14 +136,29 @@ func lastErrorTraceback(value string) template.HTML {
 		return template.HTML("No traceback")
 	}
 
-	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "\n", "<br>", -1)
-	lastErrorArray[0]["traceback"] = strings.Replace(lastErrorArray[0]["traceback"], "  ", "&nbsp;&nbsp;&nbsp;", -1)
+	traceback := template.HTMLEscapeString(lastErrorArray[0]["traceback"])
 
-	return template.HTML(lastErrorArray[0]["traceback"])
+	traceback = strings.Replace(traceback, "\n", "<br>", -1)
+	traceback = strings.Replace(traceback, "  ", "&nbsp;&nbsp;&nbsp;", -1)
+
+	return template.HTML(traceback)
 }
 
-// same as status.mkHuman, but accepts integer input (vs float)
+// same as mkHuman, but accepts integer input (vs float)
 func mkHumanI(i int64) string {
+	str := fmt.Sprintf("%d", i)
+
+	if i > 1000000 {
+		str = "over 1M"
+	} else if i > 100000 {
+		str = "over 100K"
+	}
+
+	return str
+}
+
+func mkHuman(f float64) string {
+	i := int64(f)
 	str := fmt.Sprintf("%d", i)
 
 	if i > 1000000 {
@@ -166,6 +190,32 @@ func formatTitle(title string) string {
 
 	// Capitalize the first letter
 	return strings.Title(title)
+}
+
+func lastErrorMessage(value string) string {
+	var lastErrorArray []map[string]string
+	err := json.Unmarshal([]byte(value), &lastErrorArray)
+	if err == nil && len(lastErrorArray) > 0 {
+		if _, ok := lastErrorArray[0]["message"]; ok {
+			return lastErrorArray[0]["message"]
+		}
+	}
+	return "UNKNOWN ERROR"
+}
+
+func formatUnixTime(unixTime float64) string {
+	var (
+		sec  int64
+		nsec int64
+	)
+	ts := fmt.Sprintf("%f", unixTime)
+	secs := strings.Split(ts, ".")
+	sec, _ = strconv.ParseInt(secs[0], 10, 64)
+	if len(secs) == 2 {
+		nsec, _ = strconv.ParseInt(secs[1], 10, 64)
+	}
+	t := time.Unix(sec, nsec)
+	return t.Format(timeFormat)
 }
 
 func add(x, y int) int {
