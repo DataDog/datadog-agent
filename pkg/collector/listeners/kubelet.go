@@ -167,7 +167,7 @@ func (l *KubeletListener) createService(id ID, pod *kubelet.Pod) {
 	svc.Ports = ports
 	if len(svc.Ports) == 0 {
 		// Port might not be specified in pod spec
-		log.Errorf("Failed to get ports for pod %s", podName)
+		log.Debugf("No ports found for pod %s", podName)
 	}
 
 	l.m.Lock()
