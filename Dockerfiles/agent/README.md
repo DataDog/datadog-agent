@@ -188,7 +188,7 @@ sed "s%rbac.authorization.k8s.io/v1%v1%" clusterrolebinding.yaml | oc apply -f -
 
 - Our default configuration relies on [bearer token authentication](https://kubernetes.io/docs/admin/authentication/#service-account-tokens) to the APIServer and Kubelet. On 1.3, the Kubelet does not support bearer token auth, you will need to setup client certificates for the `datadog-agent` serviceaccount and pass them to the agent.
 
-- The `kubelet` check retries metrics from the Kubernetes 1.7.6+ (OpenShift 3.7.0+) prometheus endpoint. You need to [enable cAdvisor port mode](https://github.com/DataDog/integrations-core/tree/master/kubelet#compatibility) for older versions.
+- The `kubelet` check retrieves metrics from the Kubernetes 1.7.6+ (OpenShift 3.7.0+) prometheus endpoint. You need to [enable cAdvisor port mode](https://github.com/DataDog/integrations-core/tree/master/kubelet#compatibility) for older versions.
 
 ## Log collection
 
