@@ -67,15 +67,15 @@ func requestStatus() error {
 	var s string
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	// TODO use https
-	urlstr := fmt.Sprintf("https://localhost:%v/status", config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/status", config.Datadog.GetInt("cluster_agent_cmd_port"))
 
 	// Set session token
-	e = util.SetDCAAuthToken()
+	e = util.SetAuthToken()
 	if e != nil {
 		return e
 	}
 
-	r, e := util.DoGetExternalEndpoint(c, urlstr)
+	r, e := util.DoGet(c, urlstr)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, errMap)

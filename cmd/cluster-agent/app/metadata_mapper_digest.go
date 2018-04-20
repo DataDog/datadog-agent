@@ -60,18 +60,18 @@ func getMetadataMap(nodeName string) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	var urlstr string
 	if nodeName == "" {
-		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/metadata", config.Datadog.GetInt("cmd_port"))
+		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/metadata", config.Datadog.GetInt("cluster_agent_cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/metadata/%s", config.Datadog.GetInt("cmd_port"), nodeName)
+		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/metadata/%s", config.Datadog.GetInt("cluster_agent_cmd_port"), nodeName)
 	}
 
 	// Set session token
-	e = util.SetDCAAuthToken()
+	e = util.SetAuthToken()
 	if e != nil {
 		return e
 	}
 
-	r, e := util.DoGetExternalEndpoint(c, urlstr)
+	r, e := util.DoGet(c, urlstr)
 	if e != nil {
 		fmt.Printf(`
 		Could not reach agent: %v

@@ -8,7 +8,7 @@ The following environment variables are supported:
 
 - `DD_API_KEY`: your API key (**required**)
 - `DD_HOSTNAME`: hostname to use for the DCA.
-- `DD_CMD_PORT`: Port you want the DCA to serve
+- `DD_CLUSTER_AGENT_CMD_PORT`: Port you want the DCA to serve
 
 For a more detailed usage please refer to the official [Docker Hub](https://hub.docker.com/r/datadog/cluster-agent/)
 
@@ -124,6 +124,17 @@ One can simply run `kubectl create configmap configmapdcatoken --from-literal="e
 NB: you can set any resversion here, make sure it's not set to a value superior to the actual curent resversion.
 
 You can also set the `event.tokenTimestamp`, if not present, it will be automatically set.
+
+### Command line interface of the Cluster Agent
+
+The available commands for the cluster agents are:
+- `datadog-cluster-agent status`: This will give you an overview of the components of the agent and their health.
+- `datadog-cluster-agent metamap [nodeName]`: Will query the local cache of the mapping between the pods living on `nodeName`
+    and the cluster level metadata it's associated with (endpoints ...).
+    One can also not specify the `nodeName` to run the mapper on all the nodes of the cluster.
+- `datadog-cluster-agent flare [caseID]`: Similarly to the node agent, the cluster agent can aggregate the logs and the configurations used
+    and forward an archive to the support team or be deflated and used locally.
+
 
 ### Communication with the Datadog Node Agent.
 

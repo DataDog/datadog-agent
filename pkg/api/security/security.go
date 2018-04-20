@@ -28,7 +28,7 @@ import (
 const (
 	authTokenName                 = "auth_token"
 	authTokenMinimalLen           = 32
-	clusterAgentAuthTokenFilename = "dca_auth_token"
+	clusterAgentAuthTokenFilename = "cluster_agent_auth_token"
 )
 
 // GenerateKeyPair create a public/private keypair
@@ -168,6 +168,23 @@ func GetClusterAgentAuthToken() (string, error) {
 	// load the cluster agent auth token from filesystem
 	tokenAbsPath := filepath.Join(config.FileUsedDir(), clusterAgentAuthTokenFilename)
 	log.Debugf("Empty cluster_agent_auth_token, loading from %s", tokenAbsPath)
+
+	// Create a new token if it doesn't exist
+	if _, e := os.Stat(tokenAbsPath); os.IsNotExist(e) {
+		key := make([]byte, authTokenMinimalLen)
+		_, e = rand.Read(key)
+		if e != nil {
+			return "", fmt.Errorf("error creating authentication token: %s", e)
+		}
+
+		// Write the auth token to the auth token file (platform-specific)
+		e = saveAuthToken(hex.EncodeToString(key), tokenAbsPath)
+		if e != nil {
+			return "", fmt.Errorf("error creating authentication token: %s", e)
+		}
+		log.Infof("Saved a new authentication token to %s", tokenAbsPath)
+	}
+
 	_, err := os.Stat(tokenAbsPath)
 	if err != nil {
 		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot find %q: %s", tokenAbsPath, err)
@@ -176,7 +193,7 @@ func GetClusterAgentAuthToken() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("empty cluster_agent_auth_token and cannot read %s: %s", tokenAbsPath, err)
 	}
-	log.Debugf("Cluster_agent_auth_token loaded from %s", tokenAbsPath)
+	log.Debugf("cluster_agent_auth_token loaded from %s", tokenAbsPath)
 
 	authToken = string(b)
 	return authToken, validateAuthToken(authToken)

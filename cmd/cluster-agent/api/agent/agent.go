@@ -13,7 +13,8 @@ import (
 	"fmt"
 	"net/http"
 
-	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	log "github.com/cihub/seelog"
+	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
@@ -22,9 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	log "github.com/cihub/seelog"
-	"github.com/gorilla/mux"
 )
 
 // EventChecks are checks that send events and are supported by the DCA
@@ -39,7 +39,6 @@ func SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/flare", makeFlare).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", getStatus).Methods("GET")
-	// r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
 	r.HandleFunc("/api/v1/metadata/{nodeName}/{podName}", getPodMetadata).Methods("GET")
 	r.HandleFunc("/api/v1/metadata/{nodeName}", getNodeMetadata).Methods("GET")
 	r.HandleFunc("/api/v1/metadata", getAllMetadata).Methods("GET")
@@ -47,7 +46,7 @@ func SetupHandlers(r *mux.Router) {
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.ValidateDCARequest(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 
@@ -80,7 +79,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 func getVersion(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.ValidateDCARequest(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -98,7 +97,7 @@ func getVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 func getHostname(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.ValidateDCARequest(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -115,18 +114,18 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-// TODO: make a special flare for DCA
 func makeFlare(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.ValidateDCARequest(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 
 	log.Infof("Making a flare")
+	w.Header().Set("Content-Type", "application/json")
 	logFile := config.Datadog.GetString("log_file")
 	if logFile == "" {
 		logFile = common.DefaultDCALogFile
 	}
-	filePath, err := flare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, logFile)
+	filePath, err := flare.CreateDCAArchive(false, common.GetDistPath(), logFile)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -210,7 +209,7 @@ func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 
 // getNodeMetadata has the same signature as getAllMetadata, but is only scoped on one node.
 func getNodeMetadata(w http.ResponseWriter, r *http.Request) {
-	if err := apiutil.ValidateDCARequest(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	vars := mux.Vars(r)
@@ -253,7 +252,7 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 			Returns: map[string]string
 			Example: "["Error":"could not collect the service map for all nodes: List services is not permitted at the cluster scope."]
 	*/
-	if err := apiutil.ValidateDCARequest(w, r); err != nil {
+	if err := apiutil.Validate(w, r); err != nil {
 		return
 	}
 	log.Info("Computing metadata map on all nodes")
