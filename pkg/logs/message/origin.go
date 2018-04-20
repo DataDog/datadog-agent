@@ -21,8 +21,10 @@ type Origin struct {
 }
 
 // NewOrigin returns a new Origin
-func NewOrigin() *Origin {
-	return &Origin{}
+func NewOrigin(source *config.LogSource) *Origin {
+	return &Origin{
+		LogSource: source,
+	}
 }
 
 // Tags returns the tags of the origin.

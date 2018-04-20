@@ -138,20 +138,17 @@ func (t *Tailer) forwardMessages() {
 		t.done <- struct{}{}
 	}()
 	for output := range t.decoder.OutputChan {
-		fileMsg := message.NewFileMessage(output.Content)
-		msgOffset := t.decodedOffset + int64(output.RawDataLen)
+		offset := t.decodedOffset + int64(output.RawDataLen)
 		identifier := t.Identifier()
 		if !t.shouldTrackOffset() {
-			msgOffset = 0
+			offset = 0
 			identifier = ""
 		}
-		t.decodedOffset = msgOffset
-		msgOrigin := message.NewOrigin()
-		msgOrigin.LogSource = t.source
-		msgOrigin.Identifier = identifier
-		msgOrigin.Offset = msgOffset
-		fileMsg.SetOrigin(msgOrigin)
-		t.outputChan <- fileMsg
+		t.decodedOffset = offset
+		origin := message.NewOrigin(t.source)
+		origin.Identifier = identifier
+		origin.Offset = offset
+		t.outputChan <- message.New(output.Content, origin, nil)
 	}
 }
 
