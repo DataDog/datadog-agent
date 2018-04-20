@@ -44,19 +44,22 @@ type LeaderEngine struct {
 
 	once sync.Once
 
-	HolderIdentity string
-	LeaseDuration  time.Duration
-	LeaseName      string
-	coreClient     *corev1.CoreV1Client
-	leaderElector  *leaderelection.LeaderElector
+	HolderIdentity  string
+	LeaseDuration   time.Duration
+	LeaseName       string
+	LeaderNamespace string
+	coreClient      *corev1.CoreV1Client
+	leaderElector   *leaderelection.LeaderElector
 
 	currentHolderIdentity string
 	currentHolderMutex    sync.RWMutex
 }
 
 func newLeaderEngine() *LeaderEngine {
+	leaderNamespace := apiserver.GetResourcesNamespace()
 	return &LeaderEngine{
-		LeaseName: defaultLeaseName,
+		LeaseName:       defaultLeaseName,
+		LeaderNamespace: leaderNamespace,
 	}
 }
 
@@ -122,13 +125,13 @@ func (le *LeaderEngine) init() error {
 	}
 
 	// check if we can get ConfigMap.
-	_, err = le.coreClient.ConfigMaps(metav1.NamespaceDefault).Get(defaultLeaseName, metav1.GetOptions{})
+	_, err = le.coreClient.ConfigMaps(le.LeaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) == false {
-		log.Errorf("Cannot retrieve ConfigMap from the %s namespace: %s", metav1.NamespaceDefault, err)
+		log.Errorf("Cannot retrieve ConfigMap from the %s namespace: %s", le.LeaderNamespace, err)
 		return err
 	}
 
-	le.leaderElector, err = le.newElection(le.LeaseName, metav1.NamespaceDefault, le.LeaseDuration)
+	le.leaderElector, err = le.newElection(le.LeaseName, le.LeaderNamespace, le.LeaseDuration)
 	if err != nil {
 		log.Errorf("Could not initialize the Leader Election process: %s", err)
 		return err
@@ -187,7 +190,8 @@ func GetLeaderDetails() (leaderDetails rl.LeaderElectionRecord, err error) {
 	if err != nil {
 		return led, err
 	}
-	leaderElectionCM, err := c.ConfigMaps(metav1.NamespaceDefault).Get(defaultLeaseName, metav1.GetOptions{})
+	leaderNamespace := apiserver.GetResourcesNamespace()
+	leaderElectionCM, err := c.ConfigMaps(leaderNamespace).Get(defaultLeaseName, metav1.GetOptions{})
 	if err != nil {
 		return led, err
 	}
@@ -209,4 +213,5 @@ func init() {
 	//Convinces goflags that we have called Parse() to avoid noisy logs.
 	//OSS Issue: kubernetes/kubernetes#17162.
 	flag.CommandLine.Parse([]string{})
+
 }
