@@ -37,7 +37,6 @@ var (
 
 const (
 	configMapDCAToken         = "datadogtoken"
-	defaultNamespace          = "default"
 	tokenTime                 = "tokenTimestamp"
 	tokenKey                  = "tokenKey"
 	metadataPollIntl          = 20 * time.Second
@@ -322,7 +321,8 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (string, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, defaultNamespace)
+	namespace := GetResourcesNamespace()
+	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, namespace)
 	if err != nil {
 		log.Debugf("Could not find the ConfigMap %s: %s", configMapDCAToken, err.Error())
 		return "", false, ErrNotFound
@@ -365,7 +365,8 @@ func (c *APIClient) GetTokenFromConfigmap(token string, tokenTimeout int64) (str
 func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, defaultNamespace)
+	namespace := GetResourcesNamespace()
+	tokenConfigMap, err := c.client.CoreV1().GetConfigMap(ctx, configMapDCAToken, namespace)
 	if err != nil {
 		return err
 	}
@@ -463,4 +464,19 @@ func getNodeList() ([]*v1.Node, error) {
 		return nil, err
 	}
 	return nodes.Items, nil
+}
+
+func GetResourcesNamespace() string {
+	namespace := config.Datadog.GetString("kube_resources_namespace")
+	if namespace != "" {
+		return namespace
+	}
+	log.Debugf("No configured namespace for the leader election's configmap, fetching the current context")
+	namespacePath := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	val, e := ioutil.ReadFile(namespacePath)
+	if e == nil && val != nil {
+		return string(val)
+	}
+	log.Errorf("There was an error fetching the namespace from the context, using default")
+	return "default"
 }

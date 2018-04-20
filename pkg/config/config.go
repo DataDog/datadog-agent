@@ -190,6 +190,7 @@ func init() {
 	Datadog.SetDefault("kubernetes_kubeconfig_path", "")
 	Datadog.SetDefault("leader_lease_duration", "60")
 	Datadog.SetDefault("leader_election", false)
+	Datadog.SetDefault("kube_resources_namespace", "")
 
 	// Datadog cluster agent
 	Datadog.SetDefault("cluster_agent", false)
@@ -286,6 +287,7 @@ func init() {
 	Datadog.BindEnv("kubernetes_kubeconfig_path")
 	Datadog.BindEnv("leader_election")
 	Datadog.BindEnv("leader_lease_duration")
+	Datadog.BindEnv("kube_resources_namespace")
 
 	Datadog.BindEnv("collect_ec2_tags")
 }
