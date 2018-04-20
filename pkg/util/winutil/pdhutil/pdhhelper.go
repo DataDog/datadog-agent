@@ -21,6 +21,7 @@ var (
 	procPdhEnumObjectItems          = modPdhDll.NewProc("PdhEnumObjectItemsW")
 	procPdhMakeCounterPath          = modPdhDll.NewProc("PdhMakeCounterPathW")
 	procPdhGetFormattedCounterValue = modPdhDll.NewProc("PdhGetFormattedCounterValue")
+	procPdhGetFormattedCounterArray = modPdhDll.NewProc("PdhGetFormattedCounterArray")
 	procPdhAddCounterW              = modPdhDll.NewProc("PdhAddCounterW")
 	procPdhCollectQueryData         = modPdhDll.NewProc("PdhCollectQueryData")
 	procPdhCloseQuery               = modPdhDll.NewProc("PdhCloseQuery")
@@ -183,4 +184,45 @@ func pdhGetFormattedCounterValueFloat(hCounter PDH_HCOUNTER) (val float64, err e
 	}
 
 	return pValue.DoubleValue, nil
+}
+
+var szcountervalueitemdouble = (uint32)(unsafe.Sizeof(PDH_FMT_COUNTERVALUE_ITEM_DOUBLE{}))
+
+func pdhGetFormattedCounterArrayFloat(hCounter PDH_HCOUNTER) (vals map[string]float64, err error) {
+	// first get the size of the buffer required
+	dwFormat := PDH_FMT_DOUBLE
+	var bufsz uint32
+	var bufcount uint32
+
+	status, _, _ := procPdhGetFormattedCounterArray.Call(
+		uintptr(hCounter),
+		uintptr(dwFormat),
+		uintptr(unsafe.Pointer(&bufsz)),
+		uintptr(unsafe.Pointer(&bufcount)),
+		uintptr(0))
+
+	if status != PDH_MORE_DATA {
+		return map[string]float64{}, fmt.Errorf("Error getting buffer size %v", status)
+	}
+	buf := make([]uint8, bufsz)
+	status, _, _ = procPdhGetFormattedCounterArray.Call(
+		uintptr(hCounter),
+		uintptr(dwFormat),
+		uintptr(unsafe.Pointer(&bufsz)),
+		uintptr(unsafe.Pointer(&bufcount)),
+		uintptr(unsafe.Pointer(&buf[0])))
+
+	if status != 0 {
+		return map[string]float64{}, fmt.Errorf("Error getting buffer %v", status)
+	}
+	// return is an array of PDH_FMT_COUNTERVALUE_DOUBLE
+	for i := uint32(0); i < bufcount; i++ {
+		pdhValueItem := (*PDH_FMT_COUNTERVALUE_ITEM_DOUBLE)(unsafe.Pointer(&buf[i*szcountervalueitemdouble]))
+
+		// strings are at the end of the buffer
+		nameOffset := pdhValueItem.szname - (uintptr)(unsafe.Pointer(&buf[0]))
+		name := winutil.ConvertWindowsString(buf[nameOffset:])
+		vals[name] = pdhValueItem.val.DoubleValue
+	}
+	return vals, nil
 }

@@ -137,6 +137,11 @@ type PDH_FMT_COUNTERVALUE_DOUBLE struct {
 	DoubleValue float64
 }
 
+type PDH_FMT_COUNTERVALUE_ITEM_DOUBLE struct {
+	szname uintptr
+	val    PDH_FMT_COUNTERVALUE_DOUBLE
+}
+
 // Union specialization for 64 bit integer values
 type PDH_FMT_COUNTERVALUE_LARGE struct {
 	CStatus    uint32
