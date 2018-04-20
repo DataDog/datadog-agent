@@ -45,7 +45,7 @@ func (s *Scanner) Start() {
 		}
 		tailer, err := s.setupTailer(source)
 		if err != nil {
-			log.Info("Could not set up journald tailer: ", err)
+			log.Warn("Could not set up journald tailer: ", err)
 		} else {
 			s.tailers[identifier] = tailer
 		}

@@ -134,12 +134,13 @@ func (t *Tailer) tail() {
 	}
 }
 
-// toMessage transforms an entry into a message
+// toMessage transforms a journal entry into a message.
+// A journal entry has different fields that may vary depending on its nature,
+// for more information, see https://www.freedesktop.org/software/systemd/man/systemd.journal-fields.html.
 func (t *Tailer) toMessage(entry *sdjournal.JournalEntry) message.Message {
 	payload := make(map[string]string)
 	for key, value := range entry.Fields {
-		// clean all keys, for more information about keys,
-		// see https://github.com/coreos/go-systemd/blob/master/sdjournal/journal.go#L315-L357
+		// clean all keys
 		key = strings.TrimLeft(key, "_")
 		key = strings.ToLower(key)
 		payload[key] = value
