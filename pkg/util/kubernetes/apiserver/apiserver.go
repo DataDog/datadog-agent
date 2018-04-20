@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	globalApiClient *APIClient
+	globalAPIClient *APIClient
 
 	ErrNotFound  = errors.New("entity not found")
 	ErrOutdated  = errors.New("entity is outdated")
@@ -44,7 +44,7 @@ const (
 	metadataMapperCachePrefix = "KubernetesMetadataMapping"
 )
 
-// ApiClient provides authenticated access to the
+// APIClient provides authenticated access to the
 // apiserver endpoints. Use the shared instance via GetApiClient.
 type APIClient struct {
 	// used to setup the APIClient
@@ -56,25 +56,25 @@ type APIClient struct {
 
 // GetAPIClient returns the shared ApiClient instance.
 func GetAPIClient() (*APIClient, error) {
-	if globalApiClient == nil {
-		globalApiClient = &APIClient{
+	if globalAPIClient == nil {
+		globalAPIClient = &APIClient{
 			// TODO: make it configurable if requested
 			timeout: 5 * time.Second,
 		}
-		globalApiClient.initRetry.SetupRetrier(&retry.Config{
+		globalAPIClient.initRetry.SetupRetrier(&retry.Config{
 			Name:          "apiserver",
-			AttemptMethod: globalApiClient.connect,
+			AttemptMethod: globalAPIClient.connect,
 			Strategy:      retry.RetryCount,
 			RetryCount:    10,
 			RetryDelay:    30 * time.Second,
 		})
 	}
-	err := globalApiClient.initRetry.TriggerRetry()
+	err := globalAPIClient.initRetry.TriggerRetry()
 	if err != nil {
 		log.Debugf("init error: %s", err)
 		return nil, err
 	}
-	return globalApiClient, nil
+	return globalAPIClient, nil
 }
 
 func (c *APIClient) connect() error {
@@ -386,6 +386,7 @@ func (c *APIClient) UpdateTokenInConfigmap(token, tokenValue string) error {
 	return nil
 }
 
+// NodeLabels is used to fetch the labels attached to a given node.
 func (c *APIClient) NodeLabels(nodeName string) (map[string]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
@@ -466,12 +467,13 @@ func getNodeList() ([]*v1.Node, error) {
 	return nodes.Items, nil
 }
 
+// GetResourcesNamespace is used to fetch the namespace of the resources used by the Kubernetes check (e.g. Leader Election, Event collection).
 func GetResourcesNamespace() string {
 	namespace := config.Datadog.GetString("kube_resources_namespace")
 	if namespace != "" {
 		return namespace
 	}
-	log.Debugf("No configured namespace for the leader election's configmap, fetching the current context")
+	log.Debugf("No configured namespace for the resource, fetching from the current context")
 	namespacePath := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 	val, e := ioutil.ReadFile(namespacePath)
 	if e == nil && val != nil {
