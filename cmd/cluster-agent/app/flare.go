@@ -69,6 +69,10 @@ var flareCmd = &cobra.Command{
 			}
 		}
 
+		if flagNoColor {
+			color.NoColor = true
+		}
+
 		return requestFlare(caseID)
 	},
 }

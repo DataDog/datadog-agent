@@ -66,7 +66,6 @@ func createDCAArchive(zipFilePath string, local bool, confSearchPaths SearchPath
 		if err != nil {
 			return "", err
 		}
-		log.Infof("local true")
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
@@ -153,8 +152,14 @@ func zipMetadataMap(tempDir, hostname string) error {
 		log.Infof("Error while marshalling the cluster level metadata: %q", err)
 		return err
 	}
+	// Clean it up
+	cleanedMetaBytes, err := credentialsCleanerBytes(metaBytes)
+	if err != nil {
+		log.Infof("Error redacting the log files: %q", err)
+		return err
+	}
 
-	str, err := status.FormatMetadataMapCLI(metaBytes)
+	str, err := status.FormatMetadataMapCLI(cleanedMetaBytes)
 	if err != nil {
 		log.Infof("Error while rendering the cluster level metadata: %q", err)
 		return err
