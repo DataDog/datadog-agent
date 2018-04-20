@@ -54,7 +54,7 @@ func renderStatus(rawData []byte, request string) (string, error) {
 	if e != nil {
 		return "", e
 	}
-	return b.String(), nil
+	return html.EscapeString(b.String()), nil
 }
 
 func renderRunningChecks() (string, error) {
