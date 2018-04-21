@@ -272,7 +272,7 @@ spec:
             spec:
               containers:
               - name: api
-                image: datadog/docker-library:fake_datadog_latest
+                image: julienbalestra/fake-datadog:latest
               - name: mongo
                 image: mongo:3.6.3
 
@@ -454,7 +454,7 @@ spec:
         set -o pipefail
         set -x
 
-        until curl -f http://fake-datadog.default.svc.cluster.local/reset -XPOST  # TODO
+        until curl -f http://fake-datadog.default.svc.cluster.local/reset -XPOST --connect-timeout 1
         do
           sleep 3
         done

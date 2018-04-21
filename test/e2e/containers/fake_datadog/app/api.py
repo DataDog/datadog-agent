@@ -8,8 +8,10 @@ from os import path
 import pymongo
 from flask import Flask, request, Response, jsonify
 
-app = application = Flask("datadoghq")
+import monitoring
 
+app = application = Flask("datadoghq")
+monitoring.monitor_flask(app)
 handler = logging.StreamHandler(sys.stderr)
 app.logger.addHandler(handler)
 app.logger.setLevel("INFO")
@@ -62,36 +64,24 @@ def record_and_loads(filename: str, content_type: str, content_encoding: str, co
     content = content.decode()
     content = "%s\n" % content if content[-1] != "\n" else content
     with open(path.join(record_dir, filename), "a") as f:
-        try:
-            f.write(content)
-        except Exception as e:
-            app.log_exception(e)
+        f.write(content)
 
     return json.loads(content)
 
 
 def insert_series(data: dict):
-    try:
-        coll = get_collection("series")
-        coll.insert_many(data["series"])
-    except Exception as e:
-        app.log_exception(e)
+    coll = get_collection("series")
+    coll.insert_many(data["series"])
 
 
 def insert_intake(data: dict):
-    try:
-        coll = get_collection("intake")
-        coll.insert(data)
-    except Exception as e:
-        app.log_exception(e)
+    coll = get_collection("intake")
+    coll.insert(data)
 
 
 def insert_check_run(data: list):
-    try:
-        coll = get_collection("check_run")
-        coll.insert_many(data)
-    except Exception as e:
-        app.log_exception(e)
+    coll = get_collection("check_run")
+    coll.insert_many(data)
 
 
 @app.route("/api/v1/validate", methods=["GET"])

@@ -11,7 +11,7 @@ pip: venv
 	venv/bin/pip install -r app/requirements.txt
 
 build:
-	docker build --force-rm -t datadog/docker-library:fake_datadog_$(TAG) .
+	docker build --force-rm -t julienbalestra/fake-datadog:$(TAG) .
 
 push:
-	docker push datadog/docker-library:fake_datadog_$(TAG)
+	docker push julienbalestra/fake-datadog:$(TAG)

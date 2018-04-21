@@ -1,0 +1,62 @@
+{
+  "passwd": {
+    "users": [
+      {
+        "sshAuthorizedKeys": [
+          "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC9jAbZ6LLFlR65s7wm23IDANy3qhReIHy5MKpj4fE8pfdyNohtgUeTYuy6NSbUtqGO4TUBtrqafna2E9fVUS/VCWSKgKd8BkDUBQ63yS9omdg0bCBG4wgPttcYyRK+vg6eJO9yvAQSOH3F1LIjKw+xDvSQTK2vyBQAgI249hcwsnpS32KgyrkmrKx0XDy2XoeeQ8x0OkTFuI6m6RCS2nmZJA3RiLCoY8YzXrWv1n3EltAy6Ix/w6xkZAJPbonABDuO5U0k6kh01yhXezAj2Rr6FQsrls6S4x6qd9jknNttOf7e1hzzO/6YBXTzbnpmJIcFGkeB+n3K9UNnClbNYWu2harbAWWPWnFtM1Oq1wncwFdFKuXPtKg8+xatHt/Ix0GSkhbAHs2VaBTengP+O1nrUTxEF2NkMNkkF0vE6DCIqYyPtDQi9O6dGC9NEFzgeqGMIqOftie0ZrHxRZMo1XhjXgEPbp/0mxRKvfgeyKmPEKOc8rY4ijuHu9a45prDnBxwQmdPjwrDzZWJdNDplBdbsqqQGkBkD3hgZ50LJ9BooJ190TJFsVC0y1Fc29qD2R/rn9edTtooR7B7DYd0FaehkCeSdWEXVp/VH9wMBqdQvXF/v3pPp8rQKqvDPS9TLHbbTFUJEQ0n4iDC4zWkqYbzbnyO9hi8fyM/wMxibQm1mQ== datadog"
+        ],
+        "name": "core"
+      }
+    ]
+  },
+  "systemd": {
+    "units": [
+      {
+        "mask": true,
+        "name": "user-configdrive.service"
+      },
+      {
+        "mask": true,
+        "name": "user-configvirtfs.service"
+      },
+      {
+        "enabled": true,
+        "name": "oem-cloudinit.service",
+        "contents": "[Unit]\nDescription=Cloudinit from platform metadata\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/coreos-cloudinit --oem=ec2-compat\n\n[Install]\nWantedBy=multi-user.target\n"
+      },
+      {
+        "enabled": true,
+        "name": "setup-pupernetes.service",
+        "contents": "[Unit]\nDescription=Setup pupernetes\n\n[Service]\nType=oneshot\nExecStart=/opt/bin/setup-pupernetes\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target\n"
+      },
+      {
+        "enabled": true,
+        "name": "pupernetes.service",
+        "contents": "[Unit]\nDescription=Run pupernetes\nRequires=setup-pupernetes.service docker.service\nAfter=setup-pupernetes.service docker.service\n\n[Service]\nEnvironment=SUDO_USER=core\nExecStart=/opt/bin/pupernetes run /opt/sandbox -v 5 --kubectl-link /opt/bin/kubectl\nRestart=on-failure\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n"
+      }
+    ]
+  },
+  "storage": {
+    "files": [
+      {
+        "path": "/opt/bin/setup-pupernetes",
+        "mode": 320,
+        "contents": {
+          "source": "data:,%23%21%2Fbin%2Fbash%20-ex%0A%0Acd%20%2Fopt%2Fbin%0A%0Acurl%20-Lf%20https%3A%2F%2Fs3.us-east-2.amazonaws.com%2Fpupernetes%2Flatest%2Fpupernetes%20-o%20%2Fopt%2Fbin%2Fpupernetes%0Acurl%20-Lf%20https%3A%2F%2Fs3.us-east-2.amazonaws.com%2Fpupernetes%2Flatest%2Fpupernetes.sha512sum%20-o%20%2Fopt%2Fbin%2Fpupernetes.sha512sum%0A%0Asha512sum%20-c%20%2Fopt%2Fbin%2Fpupernetes.sha512sum%0A%0Achmod%20%2Bx%20%2Fopt%2Fbin%2Fpupernetes%0A"
+        },
+        "filesystem": "root"
+      },
+      {
+        "path": "/home/core/.kube/config",
+        "filesystem": "root",
+        "user": {
+          "name": "core"
+        },
+        "mode": 420
+      }
+    ]
+  },
+  "ignition": {
+    "version": "2.1.0"
+  }
+}

@@ -6,4 +6,6 @@ RUN pip install -r /usr/local/fake_datadog/app/requirements.txt && mkdir -pv /us
 
 VOLUME /usr/local/fake_datadog/recorded
 
-CMD ["gunicorn", "--bind", "0.0.0.0:80", "--pythonpath", "/usr/local/fake_datadog/app", "api:app" ]
+ENV prometheus_multiproc_dir "/var/lib/prometheus"
+
+CMD ["gunicorn", "--bind", "0.0.0.0:80", "--pythonpath", "/usr/local/fake_datadog/app", "api:app"]
