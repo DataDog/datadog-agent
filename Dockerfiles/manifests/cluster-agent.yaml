@@ -2,13 +2,13 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: datadog-cluster-agent
+  namespace: default
 spec:
   template:
     metadata:
       labels:
         app: datadog-cluster-agent
       name: datadog-agent
-      namespace: default
     spec:
       serviceAccountName: datadog-dca
       containers:
