@@ -100,7 +100,7 @@
 
 [[constraint]]
   name = "github.com/coreos/go-systemd"
-  version = ""
+  version = "~v16"
 
 [[constraint]]
   name = "github.com/stretchr/testify"
