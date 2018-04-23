@@ -459,7 +459,7 @@ func SetPythonPsutilProcPath(procPath string) error {
 	glock := newStickyLock()
 	defer glock.unlock()
 
-	ns = strings.Split(pyPsutilProcPath, ".")
+	ns := strings.Split(pyPsutilProcPath, ".")
 	pyPsutilModule := ns[0]
 	psutilModule := python.PyImport_ImportModule(pyPsutilModule)
 	if psutilModule == nil {
@@ -470,7 +470,7 @@ func SetPythonPsutilProcPath(procPath string) error {
 	pyProcPath := python.PyString_FromString(procPath)
 	defer pyProcPath.DecRef()
 
-	ret := psutilModule.SetAttrString(ns[1])
+	ret := psutilModule.SetAttrString(ns[1], pyProcPath)
 	if ret == -1 {
 		pyErr, err := glock.getPythonError()
 

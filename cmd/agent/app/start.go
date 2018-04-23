@@ -126,6 +126,10 @@ func StartAgent() error {
 	if err != nil {
 		return fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
+	err = common.SetupConfigOSSpecifics()
+	if err != nil {
+		return fmt.Errorf("unable to set up OS-specific configuration: %v", err)
+	}
 
 	// Setup logger
 	syslogURI := config.GetSyslogURI()
