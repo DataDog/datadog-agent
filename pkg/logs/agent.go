@@ -30,7 +30,7 @@ type Agent struct {
 	containersScanner *container.Scanner
 	filesScanner      *tailer.Scanner
 	networkListener   *listener.Listener
-	journaldScanner   *journald.Scanner
+	journaldLauncher  *journald.Launcher
 	pipelineProvider  pipeline.Provider
 }
 
@@ -52,13 +52,13 @@ func NewAgent(sources *config.LogSources) *Agent {
 	containersScanner := container.New(sources.GetValidSources(), pipelineProvider, auditor)
 	networkListeners := listener.New(sources.GetValidSources(), pipelineProvider)
 	filesScanner := tailer.New(sources.GetValidSources(), config.LogsAgent.GetInt("logs_config.open_files_limit"), pipelineProvider, auditor, tailer.DefaultSleepDuration)
-	journaldScanner := journald.New(sources.GetValidSources(), pipelineProvider, auditor)
+	journaldLauncher := journald.New(sources.GetValidSources(), pipelineProvider, auditor)
 
 	return &Agent{
 		auditor:           auditor,
 		containersScanner: containersScanner,
 		filesScanner:      filesScanner,
-		journaldScanner:   journaldScanner,
+		journaldLauncher:  journaldLauncher,
 		networkListener:   networkListeners,
 		pipelineProvider:  pipelineProvider,
 	}
@@ -73,7 +73,7 @@ func (a *Agent) Start() {
 		a.filesScanner,
 		a.networkListener,
 		a.containersScanner,
-		a.journaldScanner,
+		a.journaldLauncher,
 	)
 }
 
@@ -85,7 +85,7 @@ func (a *Agent) Stop() {
 			a.filesScanner,
 			a.networkListener,
 			a.containersScanner,
-			a.journaldScanner,
+			a.journaldLauncher,
 		),
 		a.pipelineProvider,
 		a.auditor,

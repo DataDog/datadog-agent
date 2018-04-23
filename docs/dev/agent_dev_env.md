@@ -115,6 +115,15 @@ need to work/debug on the SNMP integration, you could just build the agent witho
 it (see [Building the Agent][building] for how to do it) and avoid the dependencies
 setup efforts altogether.
 
+## Libsystemd
+
+The agent is able to collect systemd journal logs using a wrapper on the systemd utility library.
+
+On Linux:
+```
+sudo apt-get install libsystemd-dev
+```
+
 ## Docker
 
 If you want to build a Docker image containing the Agent, or if you wan to run

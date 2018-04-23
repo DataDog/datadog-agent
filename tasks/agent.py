@@ -32,6 +32,7 @@ DEFAULT_BUILD_TAGS = [
     "kubeapiserver",
     "kubelet",
     "log",
+    "libsystemd",
     "process",
     "snmp",
     "zk",

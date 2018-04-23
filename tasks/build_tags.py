@@ -16,6 +16,7 @@ ALL_TAGS = set([
     "jmx",
     "kubelet",
     "log",
+    "libsystemd",
     "process",
     "snmp",
     "zk",

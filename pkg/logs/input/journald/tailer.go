@@ -1,5 +1,7 @@
 package journald
 
+// +build libsystemd
+
 import (
 	"encoding/json"
 	"io"
@@ -128,8 +130,7 @@ func (t *Tailer) tail() {
 				// could not parse entry
 				continue
 			}
-			msg := t.toMessage(entry)
-			t.outputChan <- msg
+			t.outputChan <- t.toMessage(entry)
 		}
 	}
 }
