@@ -60,9 +60,9 @@ func (l *Launcher) Start() {
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
 	stopper := restart.NewParallelStopper()
-	for _, tailer := range l.tailers {
+	for identifier, tailer := range l.tailers {
 		stopper.Add(tailer)
-		delete(l.tailers, tailer.Identifier())
+		delete(l.tailers, identifier)
 	}
 	stopper.Stop()
 }

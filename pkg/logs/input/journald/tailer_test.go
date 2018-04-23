@@ -3,4 +3,37 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018 Datadog, Inc.
 
+// +build systemd
+
 package journald
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+)
+
+func TestIdentifier(t *testing.T) {
+	source := config.NewLogSource("", &config.LogsConfig{Type: config.JournaldType})
+
+	var tailer *Tailer
+	var config JournalConfig
+
+	// expect default identifier
+	config = JournalConfig{
+		Units: nil,
+		Path:  "",
+	}
+	tailer = NewTailer(config, source, nil)
+	assert.Equal(t, "journald:default", tailer.Identifier())
+
+	// expect identifier to be overidden
+	config = JournalConfig{
+		Units: nil,
+		Path:  "any_path",
+	}
+	tailer = NewTailer(config, source, nil)
+	assert.Equal(t, "journald:any_path", tailer.Identifier())
+}
