@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -156,4 +157,13 @@ func TestCreateHTTPTransport(t *testing.T) {
 	transport = CreateHTTPTransport()
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
+}
+
+func TestCreateHTTPTransportEnvVarProxy(t *testing.T) {
+	// Test that the transport uses proxy from environment when not defined in config
+	transport := CreateHTTPTransport()
+
+	// To compare functions here, we're relying on behavior that's undefined in the golang spec, but works
+	// in the Go1 implementation. See https://stackoverflow.com/a/9644797 for details
+	assert.Equal(t, reflect.ValueOf(http.ProxyFromEnvironment).Pointer(), reflect.ValueOf(transport.Proxy).Pointer())
 }

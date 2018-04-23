@@ -203,17 +203,20 @@ func CreateHTTPTransport() *http.Transport {
 	}
 
 	if proxies := config.Datadog.Get("proxy"); proxies != nil {
+		if os.Getenv("http_proxy") != "" || os.Getenv("https_proxy") != "" ||
+			os.Getenv("HTTP_PROXY") != "" || os.Getenv("HTTPS_PROXY") != "" {
+			log.Info("Using agent's proxy configuration instead of env vars 'http_proxy', 'https_proxy' and 'no_proxy'")
+		}
+
 		proxies := &config.Proxy{}
 		if err := config.Datadog.UnmarshalKey("proxy", proxies); err != nil {
 			log.Errorf("Could not load the proxy configuration: %s", err)
 		} else {
 			transport.Proxy = GetProxyTransportFunc(proxies)
 		}
-	}
-
-	if os.Getenv("http_proxy") != "" || os.Getenv("https_proxy") != "" ||
-		os.Getenv("HTTP_PROXY") != "" || os.Getenv("HTTPS_PROXY") != "" {
-		log.Warn("Env variables 'http_proxy' and 'https_proxy' are not enforced by the agent, please use the configuration file.")
+	} else {
+		log.Info("Using proxy settings from environment")
+		transport.Proxy = http.ProxyFromEnvironment
 	}
 
 	return transport
