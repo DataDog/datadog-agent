@@ -26,14 +26,16 @@ func TestCPU(t *testing.T) {
 	}
 	tempFolder.add("cpuacct/cpuacct.stat", cpuacctStats.String())
 	tempFolder.add("cpuacct/cpuacct.usage", "915266418275")
+	tempFolder.add("cpu/cpu.shares", "1024")
 
-	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpuacct")
+	cgroup := newDummyContainerCgroup(tempFolder.RootPath, "cpuacct", "cpu")
 
 	timeStat, err := cgroup.CPU()
 	assert.Nil(t, err)
 	assert.Equal(t, timeStat.ContainerID, "dummy")
 	assert.Equal(t, timeStat.User, uint64(64140))
 	assert.Equal(t, timeStat.System, uint64(18327))
+	assert.Equal(t, timeStat.Shares, uint64(1024))
 	assert.InDelta(t, timeStat.UsageTotal, 91526.6418275, 0.0000001)
 }
 
