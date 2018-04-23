@@ -179,7 +179,14 @@ def deps(ctx):
     Setup Go dependencies
     """
     ctx.run("go get -u github.com/golang/dep/cmd/dep")
-    ctx.run("go get -u github.com/golang/lint/golint")
+
+    # TODO: revert as soon as `go get -u github.com/golang/lint/golint` works again
+    # See https://github.com/golang/lint/issues/396
+    ctx.run("go get -u github.com/golang/lint")
+    ctx.run("git -C \"$GOPATH/src/github.com/golang/lint\" checkout c363707d68842c977f911634e06201907b60ce58^")
+    ctx.run("go install github.com/golang/lint/golint")
+    ctx.run("git -C \"$GOPATH/src/github.com/golang/lint\" checkout master")
+
     ctx.run("go get -u github.com/fzipp/gocyclo")
     ctx.run("go get -u github.com/gordonklaus/ineffassign")
     ctx.run("go get -u github.com/client9/misspell/cmd/misspell")
