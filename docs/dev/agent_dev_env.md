@@ -115,7 +115,7 @@ need to work/debug on the SNMP integration, you could just build the agent witho
 it (see [Building the Agent][building] for how to do it) and avoid the dependencies
 setup efforts altogether.
 
-## Libsystemd
+### Systemd
 
 The agent is able to collect systemd journal logs using a wrapper on the systemd utility library.
 

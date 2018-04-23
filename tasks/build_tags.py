@@ -16,7 +16,7 @@ ALL_TAGS = set([
     "jmx",
     "kubelet",
     "log",
-    "libsystemd",
+    "systemd",
     "process",
     "snmp",
     "zk",
@@ -32,7 +32,8 @@ PUPPY_TAGS = set([
 LINUX_ONLY_TAGS = [
     "docker",
     "kubelet",
-    "kubeapiserver"
+    "kubeapiserver",
+    "systemd",
 ]
 
 
