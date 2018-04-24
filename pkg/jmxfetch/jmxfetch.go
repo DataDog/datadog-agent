@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	jmxJarName                        = "jmxfetch-0.19.0-jar-with-dependencies.jar"
+	jmxJarName                        = "jmxfetch-0.20.0-jar-with-dependencies.jar"
 	jmxMainClass                      = "org.datadog.jmxfetch.App"
 	defaultJmxCommand                 = "collect"
 	defaultJvmMaxMemoryAllocation     = " -Xmx200m"
