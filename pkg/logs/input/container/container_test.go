@@ -138,6 +138,27 @@ func TestIsLabelMatch(t *testing.T) {
 	assert.True(t, container.isLabelMatch(" a , b:c , foo:bar , d=e "))
 }
 
+func TestIsNameMatch(t *testing.T) {
+	var container *Container
+
+	container = NewContainer(types.Container{Names: []string{"foo", "bar"}})
+	assert.True(t, container.isNameMatch("foo"))
+	assert.True(t, container.isNameMatch("bar"))
+	assert.False(t, container.isNameMatch("boo"))
+	assert.False(t, container.isNameMatch(""))
+
+	container = NewContainer(types.Container{Names: []string{""}})
+	assert.False(t, container.isNameMatch("foo"))
+	assert.False(t, container.isNameMatch("bar"))
+	assert.False(t, container.isNameMatch("boo"))
+
+	container = NewContainer(types.Container{Names: nil})
+	assert.False(t, container.isNameMatch("foo"))
+	assert.False(t, container.isNameMatch("bar"))
+	assert.False(t, container.isNameMatch("boo"))
+	assert.False(t, container.isNameMatch(""))
+}
+
 func TestParseConfigWithNoValidKeyShouldFail(t *testing.T) {
 	var labels map[string]string
 	var config *config.LogsConfig

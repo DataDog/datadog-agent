@@ -41,6 +41,9 @@ func (c *Container) findSource(sources []*config.LogSource) *config.LogSource {
 		if source.Config.Label != "" && !c.isLabelMatch(source.Config.Label) {
 			continue
 		}
+		if source.Config.Name != "" && !c.isNameMatch(source.Config.Name) {
+			continue
+		}
 		if candidate == nil {
 			candidate = source
 		}
@@ -60,6 +63,9 @@ func (c *Container) computeScore(source *config.LogSource) int {
 	if c.isLabelMatch(source.Config.Label) {
 		score++
 	}
+	if c.isNameMatch(source.Config.Name) {
+		score++
+	}
 	return score
 }
 
@@ -75,6 +81,16 @@ func (c *Container) isImageMatch(imageFilter string) bool {
 	// Expect prefix to end with '/'
 	repository := strings.TrimSuffix(image, imageFilter)
 	return len(repository) == 0 || strings.HasSuffix(repository, "/")
+}
+
+// isNameMatch returns true if one of the container name matches with the filter.
+func (c *Container) isNameMatch(nameFilter string) bool {
+	for _, name := range c.Names {
+		if name == nameFilter {
+			return true
+		}
+	}
+	return false
 }
 
 // isLabelMatch returns true if container labels contains at least one label from labelFilter.
