@@ -14,6 +14,7 @@
               Metrics: {{.Metrics}}, Total Metrics: {{humanizeF .TotalMetrics}}<br>
               Events: {{.Events}}, Total Events: {{humanizeF .TotalEvents}}<br>
               Service Checks: {{.ServiceChecks}}, Total Service Checks: {{humanizeF .TotalServiceChecks}}<br>
+              Average Execution Time : {{.AverageExecutionTime}}s<br>
             {{- if .LastError}}
               <span class="error">Error</span>: {{lastErrorMessage .LastError}}<br>
                     {{lastErrorTraceback .LastError -}}

@@ -16,6 +16,7 @@ Collector
       Metrics: {{.Metrics}}, Total Metrics: {{humanize .TotalMetrics}}
       Events: {{.Events}}, Total Events: {{humanize .TotalEvents}}
       Service Checks: {{.ServiceChecks}}, Total Service Checks: {{humanize .TotalServiceChecks}}
+      Average Execution Time : {{.AverageExecutionTime}}s
       {{- if .LastError -}}
       Error: {{lastErrorMessage .LastError}}
       {{lastErrorTraceback .LastError -}}
