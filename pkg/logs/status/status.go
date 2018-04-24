@@ -25,6 +25,7 @@ type Source struct {
 	// Docker
 	Image string `json:"image"`
 	Label string `json:"label"`
+	Name  string `json:"name"`
 }
 
 // Integration provides some information about a logs integration.
@@ -82,6 +83,7 @@ func Get() Status {
 				Path:   source.Config.Path,
 				Image:  source.Config.Image,
 				Label:  source.Config.Label,
+				Name:   source.Config.Name,
 			})
 		}
 		integrations = append(integrations, Integration{Name: name, Sources: sources})

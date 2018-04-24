@@ -62,6 +62,7 @@ type LogsConfig struct {
 
 	Image string // Docker
 	Label string // Docker
+	Name  string // Docker
 
 	Service         string
 	Source          string
