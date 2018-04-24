@@ -9,6 +9,7 @@ package journald
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -85,7 +86,7 @@ func (t *Tailer) tail() {
 			n, err := t.journal.Next()
 			if err != nil && err != io.EOF {
 				err := fmt.Errorf("Cant't tail journal: %s", err)
-				dt.source.Status.Error(err)
+				t.source.Status.Error(err)
 				log.Error(err)
 				return
 			}
