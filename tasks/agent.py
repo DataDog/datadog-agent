@@ -49,7 +49,7 @@ def build(ctx, rebuild=False, race=False, build_include=None, build_exclude=None
     the values from `invoke.yaml` will be used.
 
     Example invokation:
-        inv agent.build --build-exclude=snmp
+        inv agent.build --build-exclude=snmp,systemd
     """
     build_include = DEFAULT_BUILD_TAGS if build_include is None else build_include.split(",")
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
