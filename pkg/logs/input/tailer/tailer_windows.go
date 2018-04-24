@@ -23,12 +23,10 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	if err != nil {
 		return err
 	}
-	log.Info("Opening ", t.fullpath)
-
 	t.fullpath = path
 	t.readOffset = offset
 	t.decodedOffset = offset
-
+	log.Info("Opening ", t.fullpath)
 	return nil
 }
 
