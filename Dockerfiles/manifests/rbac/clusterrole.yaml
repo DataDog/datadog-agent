@@ -33,6 +33,11 @@ rules:
   - get
   - update
   - create
+- nonResourceURLs:
+  - "/version"
+  - "/healthz"
+  verbs:
+  - get
 # Kubelet connectivity
 - apiGroups:
   - ""
