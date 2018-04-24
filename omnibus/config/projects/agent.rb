@@ -106,7 +106,7 @@ end
 
 # Linux-specific dependencies
 if linux?
-  dependency 'libsystemd'
+  dependency 'systemd'
   dependency 'procps-ng'
   dependency 'sysstat'
   dependency 'curl'
