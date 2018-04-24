@@ -78,23 +78,68 @@ func TestIsImageMatch(t *testing.T) {
 
 	container = NewContainer(types.Container{Image: "myapp"})
 	assert.True(t, container.isImageMatch("myapp"))
+
 	container = NewContainer(types.Container{Image: "repository/myapp"})
 	assert.True(t, container.isImageMatch("myapp"))
+	assert.True(t, container.isImageMatch("repository/myapp"))
+
 	container = NewContainer(types.Container{Image: "myapp@sha256:1234567890"})
 	assert.True(t, container.isImageMatch("myapp"))
+
 	container = NewContainer(types.Container{Image: "repository/myapp@sha256:1234567890"})
 	assert.True(t, container.isImageMatch("myapp"))
+	assert.True(t, container.isImageMatch("repository/myapp"))
+
+	container = NewContainer(types.Container{Image: "repository/myapp:latest"})
+	assert.True(t, container.isImageMatch("myapp"))
+	assert.True(t, container.isImageMatch("myapp:latest"))
+	assert.True(t, container.isImageMatch("repository/myapp"))
+	assert.True(t, container.isImageMatch("repository/myapp:latest"))
+
+	container = NewContainer(types.Container{Image: "myapp:latest"})
+	assert.True(t, container.isImageMatch("myapp"))
+	assert.True(t, container.isImageMatch("myapp:latest"))
 
 	container = NewContainer(types.Container{Image: "repositorymyapp"})
 	assert.False(t, container.isImageMatch("myapp"))
+
 	container = NewContainer(types.Container{Image: "myapp2"})
 	assert.False(t, container.isImageMatch("myapp"))
+
 	container = NewContainer(types.Container{Image: "myapp2@sha256:1234567890"})
 	assert.False(t, container.isImageMatch("myapp"))
+
 	container = NewContainer(types.Container{Image: "repository/myapp2"})
 	assert.False(t, container.isImageMatch("myapp"))
+
 	container = NewContainer(types.Container{Image: "repository/myapp2@sha256:1234567890"})
 	assert.False(t, container.isImageMatch("myapp"))
+
+	container = NewContainer(types.Container{Image: "repository/myapp2:latest"})
+	assert.False(t, container.isImageMatch("myapp"))
+
+	container = NewContainer(types.Container{Image: "myapp2:latest"})
+	assert.False(t, container.isImageMatch("myapp"))
+
+	container = NewContainer(types.Container{Image: "myapp"})
+	assert.False(t, container.isImageMatch("dd/myapp"))
+	assert.False(t, container.isImageMatch("myapp:latest"))
+	assert.False(t, container.isImageMatch("dd/myapp:latest"))
+
+	container = NewContainer(types.Container{Image: "repository/myapp"})
+	assert.False(t, container.isImageMatch("dd/myapp"))
+	assert.False(t, container.isImageMatch("myapp:latest"))
+	assert.False(t, container.isImageMatch("dd/myapp:latest"))
+
+	container = NewContainer(types.Container{Image: "repository/myapp:latest"})
+	assert.False(t, container.isImageMatch("dd/myapp"))
+	assert.False(t, container.isImageMatch("myapp:foo"))
+	assert.False(t, container.isImageMatch("repository/myapp:foo"))
+
+	container = NewContainer(types.Container{Image: "myapp:latest"})
+	assert.False(t, container.isImageMatch("myapp:foo"))
+	assert.False(t, container.isImageMatch("repository/myapp"))
+	assert.False(t, container.isImageMatch("repository/myapp:foo"))
 }
 
 func TestIsLabelMatch(t *testing.T) {
