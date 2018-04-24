@@ -8,6 +8,8 @@
 package journald
 
 import (
+	"fmt"
+
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
@@ -26,7 +28,7 @@ type Tailer struct {
 // setup does nothing
 func (t *Tailer) setup() error {
 	if len(t.config.Units) > 0 {
-		log.Info("Journald is not supported on your system.")
+		return fmt.Errorf("Journald is not supported on your system.")
 	}
 	return nil
 }

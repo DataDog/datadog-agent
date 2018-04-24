@@ -84,7 +84,9 @@ func (t *Tailer) tail() {
 		default:
 			n, err := t.journal.Next()
 			if err != nil && err != io.EOF {
-				log.Info("Cant't tail journal: ", err)
+				err := fmt.Errorf("Cant't tail journal: %s", err)
+				dt.source.Status.Error(err)
+				log.Error(err)
 				return
 			}
 			if n < 1 {

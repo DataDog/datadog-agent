@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Created a systemd journal tailer to be able to collect logs from journald.
