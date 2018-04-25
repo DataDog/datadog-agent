@@ -13,10 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
-// UnknownProvider is used if we can't match the config back
-// to its original provider
-const UnknownProvider string = "Unknown provider"
-
 // TemplateCache is a data structure to store configuration templates
 type TemplateCache struct {
 	id2digests      map[string][]string     // map an AD identifier to all the configs that have it

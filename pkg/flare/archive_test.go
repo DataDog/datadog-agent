@@ -58,12 +58,13 @@ func TestCreateArchiveBadConfig(t *testing.T) {
 // Ensure sensitive data is redacted
 func TestZipConfigCheck(t *testing.T) {
 	cr := response.ConfigCheckResponse{
-		Configs: make(map[string][]check.Config),
+		Configs: make([]check.Config, 0),
 	}
-	cr.Configs["FooProvider"] = []check.Config{{
+	cr.Configs = append(cr.Configs, check.Config{
 		Name:      "TestCheck",
 		Instances: []check.ConfigData{[]byte("username: User\npassword: MySecurePass")},
-	}}
+		Provider:  "FooProvider",
+	})
 
 	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		out, _ := json.Marshal(cr)

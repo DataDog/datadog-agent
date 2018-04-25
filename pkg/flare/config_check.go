@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -57,36 +56,35 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 		}
 	}
 
-	for provider, configs := range cr.Configs {
-		fmt.Fprintln(w, fmt.Sprintf("\n=== Provider: %s ===", color.BlueString(provider)))
-		for _, c := range configs {
-			fmt.Fprintln(w, fmt.Sprintf("\n--- %s check ---", color.GreenString(c.Name)))
-			for i, inst := range c.Instances {
-				fmt.Fprintln(w, fmt.Sprintf("%s %s:", color.BlueString("Instance"), color.CyanString(strconv.Itoa(i+1))))
-				fmt.Fprint(w, fmt.Sprintf("%s", inst))
-				fmt.Fprintln(w, "~")
-			}
-			if len(c.InitConfig) > 0 {
-				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Init Config")))
-				fmt.Fprintln(w, string(c.InitConfig))
-			}
-			if len(c.MetricConfig) > 0 {
-				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Metric Config")))
-				fmt.Fprintln(w, string(c.MetricConfig))
-			}
-			if len(c.LogsConfig) > 0 {
-				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Log Config")))
-				fmt.Fprintln(w, string(c.LogsConfig))
-			}
-			if len(c.ADIdentifiers) > 0 {
-				fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Auto-discovery IDs")))
-				for _, id := range c.ADIdentifiers {
-					fmt.Fprintln(w, fmt.Sprintf("* %s", color.CyanString(id)))
-				}
-			}
-			fmt.Fprintln(w, strings.Repeat("-", 3))
+	for _, c := range cr.Configs {
+		fmt.Fprintln(w, fmt.Sprintf("\n=== %s check ===", color.GreenString(c.Name)))
+		if len(c.Provider) > 0 {
+			fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Source"), color.CyanString(c.Provider)))
 		}
-		fmt.Fprintln(w, strings.Repeat("=", 10))
+		for i, inst := range c.Instances {
+			fmt.Fprintln(w, fmt.Sprintf("%s %s:", color.BlueString("Instance"), color.CyanString(strconv.Itoa(i+1))))
+			fmt.Fprint(w, fmt.Sprintf("%s", inst))
+			fmt.Fprintln(w, "~")
+		}
+		if len(c.InitConfig) > 0 {
+			fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Init Config")))
+			fmt.Fprintln(w, string(c.InitConfig))
+		}
+		if len(c.MetricConfig) > 0 {
+			fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Metric Config")))
+			fmt.Fprintln(w, string(c.MetricConfig))
+		}
+		if len(c.LogsConfig) > 0 {
+			fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Log Config")))
+			fmt.Fprintln(w, string(c.LogsConfig))
+		}
+		if len(c.ADIdentifiers) > 0 {
+			fmt.Fprintln(w, fmt.Sprintf("%s:", color.BlueString("Auto-discovery IDs")))
+			for _, id := range c.ADIdentifiers {
+				fmt.Fprintln(w, fmt.Sprintf("* %s", color.CyanString(id)))
+			}
+		}
+		fmt.Fprintln(w, "===")
 	}
 
 	if withDebug {

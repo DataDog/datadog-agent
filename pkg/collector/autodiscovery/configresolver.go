@@ -155,6 +155,7 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 		InitConfig:    make(check.ConfigData, len(tpl.InitConfig)),
 		MetricConfig:  tpl.MetricConfig,
 		ADIdentifiers: tpl.ADIdentifiers,
+		Provider:      tpl.Provider,
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
@@ -185,7 +186,7 @@ func (cr *ConfigResolver) resolve(tpl check.Config, svc listeners.Service) (chec
 	}
 
 	// store resolved configs in the AC
-	cr.ac.providerLoadedConfigs[tpl.Provider] = append(cr.ac.providerLoadedConfigs[tpl.Provider], resolvedConfig)
+	cr.ac.loadedConfigs = append(cr.ac.loadedConfigs, resolvedConfig)
 	cr.config2Service[resolvedConfig.Digest()] = svc.GetID()
 
 	return resolvedConfig, nil
