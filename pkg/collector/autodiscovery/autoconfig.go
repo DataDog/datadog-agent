@@ -74,7 +74,7 @@ type AutoConfig struct {
 	config2checks     map[string][]check.ID       // cache the ID of checks we load for each config
 	check2config      map[check.ID]string         // cache the config digest corresponding to a check
 	name2jmxmetrics   map[string]check.ConfigData // holds the metrics to collect for JMX checks
-	loadedConfigs     []check.Config              // holds the resolved config per provider
+	loadedConfigs     []check.Config              // holds the resolved configs
 	stop              chan bool
 	pollerActive      bool
 	health            *health.Handle
