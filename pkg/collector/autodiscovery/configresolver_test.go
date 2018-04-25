@@ -38,7 +38,7 @@ func TestResolveTemplate(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 	}
 	// add the template to the cache
-	tc.Set(tpl, "test provider")
+	tc.Set(tpl)
 
 	// no services
 	res := cr.ResolveTemplate(tpl)

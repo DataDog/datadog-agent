@@ -229,7 +229,8 @@ func (ac *AutoConfig) GetAllConfigs() []check.Config {
 
 		// resolve configs if needed
 		for _, config := range cfgs {
-			rc := ac.resolve(config, pd.provider.String())
+			config.Provider = pd.provider.String()
+			rc := ac.resolve(config)
 			resolvedConfigs = append(resolvedConfigs, rc...)
 		}
 	}
@@ -279,7 +280,7 @@ func (ac *AutoConfig) schedule(checks []check.Check) {
 }
 
 // resolve loads and resolves a given config into a slice of resolved configs
-func (ac *AutoConfig) resolve(config check.Config, provider string) []check.Config {
+func (ac *AutoConfig) resolve(config check.Config) []check.Config {
 	configs := []check.Config{}
 
 	// add default metrics to collect to JMX checks
@@ -294,7 +295,7 @@ func (ac *AutoConfig) resolve(config check.Config, provider string) []check.Conf
 
 	if config.IsTemplate() {
 		// store the template in the cache in any case
-		if err := ac.templateCache.Set(config, provider); err != nil {
+		if err := ac.templateCache.Set(config); err != nil {
 			log.Errorf("Unable to store Check configuration in the cache: %s", err)
 		}
 
@@ -315,7 +316,7 @@ func (ac *AutoConfig) resolve(config check.Config, provider string) []check.Conf
 	} else {
 		configs = append(configs, config)
 		// store non template configs in the AC
-		ac.providerLoadedConfigs[provider] = append(ac.providerLoadedConfigs[provider], config)
+		ac.providerLoadedConfigs[config.Provider] = append(ac.providerLoadedConfigs[config.Provider], config)
 	}
 
 	return configs
@@ -385,7 +386,8 @@ func (ac *AutoConfig) pollConfigs() {
 					// as removed configurations
 					newConfigs, removedConfigs := ac.collect(pd)
 					for _, config := range newConfigs {
-						resolvedConfigs := ac.resolve(config, pd.provider.String())
+						config.Provider = pd.provider.String()
+						resolvedConfigs := ac.resolve(config)
 						checks := ac.getChecksFromConfigs(resolvedConfigs, true)
 						ac.schedule(checks)
 					}
