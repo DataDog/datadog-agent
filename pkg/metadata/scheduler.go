@@ -68,7 +68,9 @@ func (c *Scheduler) AddCollector(name string, interval time.Duration) error {
 			select {
 			case <-health.C:
 			case <-sendTicker.C:
-				p.Send(c.srl)
+				if err := p.Send(c.srl); err != nil {
+					log.Errorf("Unable to send '%s' metadata: %v", name, err)
+				}
 			}
 		}
 	}()
