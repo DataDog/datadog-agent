@@ -8,6 +8,7 @@ package tailer
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -150,7 +151,7 @@ func (t *Tailer) forwardMessages() {
 		t.decodedOffset = offset
 		origin := message.NewOrigin(t.source)
 		origin.Identifier = identifier
-		origin.Offset = offset
+		origin.Offset = strconv.FormatInt(offset, 10)
 		origin.SetTags(t.tags)
 		t.outputChan <- message.New(output.Content, origin, nil)
 	}

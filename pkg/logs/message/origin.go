@@ -15,8 +15,7 @@ import (
 type Origin struct {
 	Identifier string
 	LogSource  *config.LogSource
-	Offset     int64
-	Timestamp  string
+	Offset     string
 	tags       []string
 }
 

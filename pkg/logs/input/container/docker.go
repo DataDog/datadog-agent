@@ -95,7 +95,7 @@ func (dt *DockerTailer) tailFromEnd() error {
 // recoverTailing starts the tailing from the last log line processed, or now
 // if we see this container for the first time
 func (dt *DockerTailer) recoverTailing(a *auditor.Auditor) error {
-	return dt.tailFrom(dt.nextLogSinceDate(a.GetLastCommittedTimestamp(dt.Identifier())))
+	return dt.tailFrom(dt.nextLogSinceDate(a.GetLastCommittedOffset(dt.Identifier())))
 }
 
 // nextLogSinceDate returns the `from` value of the next log line
@@ -198,7 +198,7 @@ func (dt *DockerTailer) forwardMessages() {
 			continue
 		}
 		origin := message.NewOrigin(dt.source)
-		origin.Timestamp = ts
+		origin.Offset = ts
 		origin.Identifier = dt.Identifier()
 		origin.SetTags(dt.containerTags)
 		dt.outputChan <- message.New(content, origin, sev)
