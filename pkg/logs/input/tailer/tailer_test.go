@@ -16,6 +16,8 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
+	"path/filepath"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
@@ -153,6 +155,20 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.tl.tailFromBeginning()
 	suite.Equal(fmt.Sprintf("file:%s/tailer.log", suite.testDir), suite.tl.Identifier())
+}
+
+func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
+
+	suite.tl.tailFromBeginning()
+
+	_, err := suite.testFile.WriteString("foo\n")
+	suite.Nil(err)
+
+	msg := <-suite.outputChan
+	tags := msg.GetOrigin().Tags()
+	suite.Equal(1, len(tags))
+	suite.Equal("filename:"+filepath.Base(suite.testFile.Name()), tags[0])
+
 }
 
 func TestTailerTestSuite(t *testing.T) {
