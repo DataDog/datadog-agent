@@ -444,6 +444,7 @@ deploy_suse_rpm_testing:
 # run dd-agent-testing on windows
 kitchen_windows:
   stage: testkitchen_testing
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
@@ -469,6 +470,7 @@ kitchen_windows:
 # run dd-agent-testing on centos
 kitchen_centos:
   stage: testkitchen_testing
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
@@ -517,6 +519,7 @@ kitchen_ubuntu:
 # run dd-agent-testing on suse
 kitchen_suse:
   stage: testkitchen_testing
+  allow_failure: true
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/dd-agent-testing:latest
   only:
     - master
