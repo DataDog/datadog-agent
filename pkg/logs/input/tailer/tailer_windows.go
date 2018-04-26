@@ -8,6 +8,7 @@
 package tailer
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	if err != nil {
 		return err
 	}
+	t.tags = []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
 	t.fullpath = path
 	t.readOffset = offset
 	t.decodedOffset = offset

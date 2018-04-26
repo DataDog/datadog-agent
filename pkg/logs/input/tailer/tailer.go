@@ -13,6 +13,8 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"io"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -28,6 +30,7 @@ type Tailer struct {
 	path     string
 	fullpath string
 	file     *os.File
+	tags     []string
 
 	readOffset    int64
 	decodedOffset int64
@@ -68,18 +71,18 @@ func (t *Tailer) Identifier() string {
 // tailFromBeginning lets the tailer start tailing its file
 // from the beginning
 func (t *Tailer) tailFromBeginning() error {
-	return t.tailFrom(0, os.SEEK_SET)
+	return t.tailFrom(0, io.SeekStart)
 }
 
 // tailFromEnd lets the tailer start tailing its file
 // from the end
 func (t *Tailer) tailFromEnd() error {
-	return t.tailFrom(0, os.SEEK_END)
+	return t.tailFrom(0, io.SeekEnd)
 }
 
 // recoverTailingFrom starts the tailing from the last log line processed
 func (t *Tailer) recoverTailing(offset int64) error {
-	return t.tailFrom(offset, os.SEEK_SET)
+	return t.tailFrom(offset, io.SeekStart)
 }
 
 // Stop stops the tailer and returns only when the decoder is flushed
@@ -148,6 +151,7 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.source)
 		origin.Identifier = identifier
 		origin.Offset = offset
+		origin.SetTags(t.tags)
 		t.outputChan <- message.New(output.Content, origin, nil)
 	}
 }
