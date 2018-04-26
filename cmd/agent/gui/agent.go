@@ -2,6 +2,7 @@ package gui
 
 import (
 	"encoding/json"
+	"html"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -101,8 +102,9 @@ func getLog(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Error: " + e.Error()))
 		return
 	}
+	escapedLogFileContents := html.EscapeString(string(logFileContents))
 
-	html := strings.Replace(string(logFileContents), "\n", "<br>", -1)
+	html := strings.Replace(escapedLogFileContents, "\n", "<br>", -1)
 
 	if flip {
 		// Reverse the order so that the bottom of the file is read first
