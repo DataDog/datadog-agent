@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Bind the kubelet_tls_verify as an environment variable.

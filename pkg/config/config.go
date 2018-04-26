@@ -262,6 +262,7 @@ func init() {
 	Datadog.BindEnv("kubernetes_https_kubelet_port")
 	Datadog.BindEnv("kubelet_client_crt")
 	Datadog.BindEnv("kubelet_client_key")
+	Datadog.BindEnv("kubelet_tls_verify")
 	Datadog.BindEnv("collect_kubernetes_events")
 	Datadog.BindEnv("kubernetes_collect_metadata_tags")
 	Datadog.BindEnv("kubernetes_metadata_tag_update_freq")
