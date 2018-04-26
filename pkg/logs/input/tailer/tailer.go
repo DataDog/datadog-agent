@@ -15,8 +15,6 @@ import (
 
 	"io"
 
-	"path/filepath"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -32,6 +30,7 @@ type Tailer struct {
 	path     string
 	fullpath string
 	file     *os.File
+	tags     []string
 
 	readOffset    int64
 	decodedOffset int64
@@ -152,7 +151,7 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.source)
 		origin.Identifier = identifier
 		origin.Offset = offset
-		origin.SetTags([]string{fmt.Sprintf("filename:%s", filepath.Base(t.path))})
+		origin.SetTags(t.tags)
 		t.outputChan <- message.New(output.Content, origin, nil)
 	}
 }

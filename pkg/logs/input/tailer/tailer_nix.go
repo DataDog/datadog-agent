@@ -15,6 +15,8 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/decoder"
 )
 
@@ -24,6 +26,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	if err != nil {
 		return err
 	}
+	t.tags = []string{fmt.Sprintf("filename:%s", filepath.Base(t.path))}
 	log.Info("Opening ", t.path)
 	f, err := os.Open(fullpath)
 	if err != nil {
